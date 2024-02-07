@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "user/user_api.h"
+
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
@@ -176,6 +178,10 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -302,26 +308,27 @@ void mjCMesh::LoadSDF() {
                    name.c_str(), id);
   }
 
+  mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-  const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-  if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
-    throw mjCError(this, "plugin '%s' does not support signed distance fields", plugin->name);
+  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+  if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
+    throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
   }
 
-  std::vector<mjtNum> attributes(plugin->nattribute, 0);
-  std::vector<const char*> names(plugin->nattribute, 0);
-  std::vector<const char*> values(plugin->nattribute, 0);
-  for (int i=0; i < plugin->nattribute; i++) {
-    names[i] = plugin->attributes[i];
+  std::vector<mjtNum> attributes(pplugin->nattribute, 0);
+  std::vector<const char*> names(pplugin->nattribute, 0);
+  std::vector<const char*> values(pplugin->nattribute, 0);
+  for (int i=0; i < pplugin->nattribute; i++) {
+    names[i] = pplugin->attributes[i];
     values[i] = plugin_instance->config_attribs[names[i]].c_str();
   }
 
-  if (plugin->sdf_attribute) {
-    plugin->sdf_attribute(attributes.data(), names.data(), values.data());
+  if (pplugin->sdf_attribute) {
+    pplugin->sdf_attribute(attributes.data(), names.data(), values.data());
   }
 
   mjtNum aabb[6] = {0};
-  plugin->sdf_aabb(aabb, attributes.data());
+  pplugin->sdf_aabb(aabb, attributes.data());
   mjtNum total = aabb[3] + aabb[4] + aabb[5];
 
   const mjtNum n = 300;
@@ -337,7 +344,7 @@ void mjCMesh::LoadSDF() {
         mjtNum point[] = {aabb[0]-aabb[3] + 2 * aabb[3] * i / (nx-1),
                           aabb[1]-aabb[4] + 2 * aabb[4] * j / (ny-1),
                           aabb[2]-aabb[5] + 2 * aabb[5] * k / (nz-1)};
-        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes.data());
+        field[(k * ny + j) * nx + i] =  pplugin->sdf_staticdistance(point, attributes.data());
       }
     }
   }
@@ -410,7 +417,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // create using marching cubes
-  else if (is_plugin) {
+  else if (plugin.active) {
     LoadSDF();
   }
 
@@ -2444,9 +2451,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   mjXUtil::Vector2String(useredge, edgeidx);
 
   for (int i=0; i<(int)vertbodyid.size(); i++) {
-    if (model->bodies[vertbodyid[i]]->plugin_instance) {
-      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["face"] = userface;
-      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["edge"] = useredge;
+    if (model->bodies[vertbodyid[i]]->plugin.instance) {
+      mjCPlugin* plugin_instance = (mjCPlugin*)model->bodies[vertbodyid[i]]->plugin.instance;
+      plugin_instance->config_attribs["face"] = userface;
+      plugin_instance->config_attribs["edge"] = useredge;
     }
   }
 

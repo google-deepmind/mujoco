@@ -493,10 +493,12 @@ mjCBase::mjCBase() {
   frame = nullptr;
 
   // plugin variables
-  is_plugin = false;
-  plugin_instance = nullptr;
+  plugin.active = false;
+  plugin.instance = nullptr;
   plugin_name = "";
   plugin_instance_name = "";
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -550,26 +552,32 @@ mjCBody::mjCBody(mjCModel* _model) {
   // set model pointer
   model = _model;
 
-  // missing information, must be supplied later
-  pos[0] = ipos[0] = mjNAN;
+  spec.pos[0] = spec.ipos[0] = mjNAN;
 
   // clear variables
-  fullinertia[0] = mjNAN;
-  explicitinertial = false;
-  mocap = false;
-  mjuu_setvec(quat, 1, 0, 0, 0);
-  mjuu_setvec(iquat, 1, 0, 0, 0);
-  mjuu_zerovec(pos+1, 2);
-  mjuu_zerovec(ipos+1, 2);
-  mass = 0;
-  mjuu_setvec(inertia, 0, 0, 0);
+  spec.fullinertia[0] = mjNAN;
+  spec.explicitinertial = false;
+  spec.mocap = false;
+  mjuu_setvec(spec.quat, 1, 0, 0, 0);
+  mjuu_setvec(spec.iquat, 1, 0, 0, 0);
+  mjuu_zerovec(spec.pos+1, 2);
+  mjuu_zerovec(spec.ipos+1, 2);
+  spec.mass = 0;
+  mjuu_setvec(spec.inertia, 0, 0, 0);
   parentid = -1;
   weldid = -1;
   dofnum = 0;
   lastdof = -1;
   subtreedofs = 0;
-  gravcomp = 0;
-  userdata.clear();
+  spec.gravcomp = 0;
+  spec_userdata_.clear();
+  spec.alt.axisangle[0] = spec.alt.xyaxes[0] = spec.alt.zaxis[0] =
+      spec.alt.euler[0] = mjNAN;
+  spec.ialt.axisangle[0] = spec.ialt.xyaxes[0] = spec.ialt.zaxis[0] =
+      spec.ialt.euler[0] = mjNAN;
+
+  spec.plugin.active = false;
+  spec.plugin.instance = nullptr;
 
   contype = 0;
   conaffinity = 0;
@@ -585,6 +593,37 @@ mjCBody::mjCBody(mjCModel* _model) {
   sites.clear();
   cameras.clear();
   lights.clear();
+
+  // point to local
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.plugin.name = (mjString)&plugin_name;
+  spec.plugin.instance_name = (mjString)&plugin_instance_name;
+
+  // in case this body is not compiled
+  CopyFromSpec();
+}
+
+
+void mjCBody::CopyFromSpec() {
+  *static_cast<mjmBody*>(this) = spec;
+  userdata_ = spec_userdata_;
+  userdata = (mjDouble)&userdata_;
+  spec.info = (mjString)&info;
+  mju_copy4(alt_.axisangle, alt.axisangle);
+  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
+  mju_copy3(alt_.zaxis, alt.zaxis);
+  mju_copy3(alt_.euler, alt.euler);
+  mju_copy4(ialt_.axisangle, ialt.axisangle);
+  mju_copy(ialt_.xyaxes, ialt.xyaxes, 6);
+  mju_copy3(ialt_.zaxis, ialt.zaxis);
+  mju_copy3(ialt_.euler, ialt.euler);
+  plugin.active = spec.plugin.active;
+  plugin.instance = spec.plugin.instance;
+  plugin.name = spec.plugin.name;
+  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -934,18 +973,20 @@ const char* mjCBody::FullInertia(double quat[4], double inertia[3]) {
 
 // set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
-  explicitinertial = true;
+  spec.explicitinertial = true;
 }
 
 
 // compiler
 void mjCBody::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
-  if (userdata.size() > model->nuser_body) {
+  if (userdata_.size() > model->nuser_body) {
     throw mjCError(this, "user has more values than nuser_body in body '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_body);
+  userdata_.resize(model->nuser_body);
 
   // pos defaults to (0,0,0)
   if (!mjuu_defined(pos[0])) {
@@ -963,7 +1004,7 @@ void mjCBody::Compile(void) {
   }
 
   // check and process orientation alternatives for body
-  const char* err = alt.Set(quat, model->degree, model->euler);
+  const char* err = alt_.Set(quat, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "error '%s' in frame alternative", err);
   }
@@ -1101,17 +1142,18 @@ void mjCBody::Compile(void) {
   for (int i=0; i<lights.size(); i++) lights[i]->Compile();
 
   // plugin
-  if (is_plugin) {
+  if (plugin.active) {
     if (plugin_name.empty() && plugin_instance_name.empty()) {
       throw mjCError(
           this, "neither 'plugin' nor 'instance' is specified for body '%s', (id = %d)",
           name.c_str(), id);
     }
 
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-    if (!(plugin->capabilityflags & mjPLUGIN_PASSIVE)) {
-      throw mjCError(this, "plugin '%s' does not support passive forces", plugin->name);
+    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+    if (!(pplugin->capabilityflags & mjPLUGIN_PASSIVE)) {
+      throw mjCError(this, "plugin '%s' does not support passive forces", pplugin->name);
     }
   }
 
@@ -1399,11 +1441,9 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // plugin variables
-  is_plugin = false;
-  plugin_instance = nullptr;
-  plugin_name = "";
-  plugin_instance_name = "";
+  // point to local (needs to be after defaults)
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -1915,17 +1955,18 @@ void mjCGeom::Compile(void) {
   }
 
   // plugin
-  if (is_plugin) {
+  if (plugin.active) {
     if (plugin_name.empty() && plugin_instance_name.empty()) {
       throw mjCError(
           this, "neither 'plugin' nor 'instance' is specified for geom '%s', (id = %d)",
           name.c_str(), id);
     }
 
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-    if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
-      throw mjCError(this, "plugin '%s' does not support sign distance fields", plugin->name);
+    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+    if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
+      throw mjCError(this, "plugin '%s' does not support sign distance fields", pplugin->name);
     }
   }
 
@@ -3921,10 +3962,9 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  is_plugin = false;
-  plugin_instance = nullptr;
-  plugin_name = "";
-  plugin_instance_name = "";
+  // point to local (needs to be after defaults)
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -4106,17 +4146,18 @@ void mjCActuator::Compile(void) {
   }
 
   // plugin
-  if (is_plugin) {
+  if (plugin.active) {
     if (plugin_name.empty() && plugin_instance_name.empty()) {
       throw mjCError(
           this, "neither 'plugin' nor 'instance' is specified for actuator '%s', (id = %d)",
           name.c_str(), id);
     }
 
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-    if (!(plugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
-      throw mjCError(this, "plugin '%s' does not support actuators", plugin->name);
+    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+    if (!(pplugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
+      throw mjCError(this, "plugin '%s' does not support actuators", pplugin->name);
     }
   }
 }
@@ -4147,9 +4188,9 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   obj = nullptr;
   refid = -1;
 
-  plugin_instance = nullptr;
-  plugin_name = "";
-  plugin_instance_name = "";
+  // point to local (needs to be after defaults)
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -4520,12 +4561,13 @@ void mjCSensor::Compile(void) {
 
     // resolve plugin instance, or create one if using the "plugin" attribute shortcut
     {
-      model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-      if (!(plugin->capabilityflags & mjPLUGIN_SENSOR)) {
-        throw mjCError(this, "plugin '%s' does not support sensors", plugin->name);
+      mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
+      model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
+      const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+      if (!(pplugin->capabilityflags & mjPLUGIN_SENSOR)) {
+        throw mjCError(this, "plugin '%s' does not support sensors", pplugin->name);
       }
-      needstage = static_cast<mjtStage>(plugin->needstage);
+      needstage = static_cast<mjtStage>(pplugin->needstage);
     }
 
     break;

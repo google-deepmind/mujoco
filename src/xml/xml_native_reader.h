@@ -42,7 +42,7 @@ class mjXReader : public mjXBase {
   void Visual(tinyxml2::XMLElement* section);                          // visual section
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section
   void Asset(tinyxml2::XMLElement* section);                           // asset section
-  void Body(tinyxml2::XMLElement* section, mjCBody* pbody,
+  void Body(tinyxml2::XMLElement* section, mjmBody* pbody,
             mjCFrame* pframe);                                         // body/world section
   void Contact(tinyxml2::XMLElement* section);                         // contact section
   void Deformable(tinyxml2::XMLElement* section);                      // deformable section
@@ -66,9 +66,9 @@ class mjXReader : public mjXBase {
   void OneEquality(tinyxml2::XMLElement* elem, mjCEquality* pequality);
   void OneTendon(tinyxml2::XMLElement* elem, mjCTendon* ptendon);
   void OneActuator(tinyxml2::XMLElement* elem, mjCActuator* pactuator);
-  void OneComposite(tinyxml2::XMLElement* elem, mjCBody* pbody, mjCDef* def);
-  void OneFlexcomp(tinyxml2::XMLElement* elem, mjCBody* pbody);
-  void OnePlugin(tinyxml2::XMLElement* elem, mjCBase* object);
+  void OneComposite(tinyxml2::XMLElement* elem, mjmBody* pbody, mjCDef* def);
+  void OneFlexcomp(tinyxml2::XMLElement* elem, mjmBody* pbody);
+  void OnePlugin(tinyxml2::XMLElement* elem, mjmPlugin* plugin);
 
   mjXSchema schema;                                                   // schema used for validation
   mjCDef* GetClass(tinyxml2::XMLElement* section);                    // get default class name

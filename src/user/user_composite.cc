@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "user/user_api.h"
 #include "user/user_composite.h"
 
 #include <algorithm>
@@ -216,7 +217,7 @@ void mjCComposite::SetDefault(void) {
 
 
 // make composite object
-bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   // check geom type
   if ((def[0].geom.type!=mjGEOM_SPHERE &&
        def[0].geom.type!=mjGEOM_CAPSULE &&
@@ -326,7 +327,7 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
 
 
 
-bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   char txt[100];
   std::vector<int> face;
 
@@ -439,13 +440,13 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
   // create bodies and geoms
   for (int i=0; i<uservert.size()/3; i++) {
     // create body
-    mjCBody* b = body->AddBody(NULL);
+    mjmBody* b = mjm_addBody(body, NULL);
 
     if (!username.empty()) {
-      b->name = username[i];
+      mjm_setString(b->name, username[i].c_str());
     } else {
       mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), i);
-      b->name = txt;
+      mjm_setString(b->name, txt);
     }
 
     // set body position
@@ -456,8 +457,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     // add slider joints if none defined
     if (!add[mjCOMPKIND_PARTICLE]) {
       for (int i=0; i<3; i++) {
-        mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
-        jnt->def = body->def;
+        mjCJoint* jnt = (mjCJoint*)mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+        jnt->def = (mjCDef*)mjm_getDefault(body->element);
         jnt->type = mjJNT_SLIDE;
         mjuu_setvec(jnt->pos, 0, 0, 0);
         mjuu_setvec(jnt->axis, 0, 0, 0);
@@ -468,35 +469,36 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     // add user-specified joints
     else {
       for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
-        mjCJoint* jnt = b->AddJoint(&defjnt);
-        jnt->def = body->def;
+        mjCJoint* jnt = (mjCJoint*)mjm_addJoint(b, &defjnt);
+        jnt->def = (mjCDef*)mjm_getDefault(body->element);
       }
     }
 
     // add geom
-    mjCGeom* g = b->AddGeom(def);
-    g->def = body->def;
+    mjCGeom* g = (mjCGeom*)mjm_addGeom(b, def);
+    g->def = (mjCDef*)mjm_getDefault(body->element);
 
     // add site
-    mjCSite* s = b->AddSite(def);
-    s->def = body->def;
-    s->spec.type = mjGEOM_SPHERE;
+    mjmSite* s = mjm_addSite(b, def);
+    mjm_setDefault(s->element, mjm_getDefault(body->element));
+    s->type = mjGEOM_SPHERE;
     mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
-    s->name = txt;
+    mjm_setString(s->name, txt);
 
     // add plugin
     if (plugin_instance) {
-      b->is_plugin = true;
-      b->plugin_name = plugin_name;
-      b->plugin_instance = plugin_instance;
-      b->plugin_instance_name = plugin_instance_name;
+      mjmPlugin* plugin = &b->plugin;
+      plugin->active = true;
+      plugin->instance = (mjElement)plugin_instance;
+      mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
+      mjm_setString(plugin->name, plugin_name.c_str());
 
       if (i==0 && !plugin_instance->config_attribs["face"].empty()) {
         return comperr(error, "Face attribute already exists in plugin", error_sz);
       }
 
-      b->plugin_instance->config_attribs["face"] = userface;
-      b->plugin_instance->config_attribs["edge"] = "";
+      plugin_instance->config_attribs["face"] = userface;
+      plugin_instance->config_attribs["edge"] = "";
 
       // update density
       if (dim == 2) {
@@ -566,7 +568,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
 
 
 // make grid connected with tendons
-bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   char txt[100], txt1[100], txt2[100];
 
   // check dimensionality
@@ -588,9 +590,9 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
   for (int ix=0; ix<count[0]; ix++) {
     for (int iy=0; iy<count[1]; iy++) {
       // create body
-      mjCBody* b = body->AddBody(NULL);
+      mjmBody* b = mjm_addBody(body, NULL);
       mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix, iy);
-      b->name = txt;
+      mjm_setString(b->name, txt);
 
       // set body position
       b->pos[0] = offset[0] + spacing*(ix - 0.5*count[0]);
@@ -598,18 +600,18 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
       b->pos[2] = offset[2];
 
       // add geom
-      mjCGeom* g = b->AddGeom(def);
-      g->def = body->def;
+      mjCGeom* g = (mjCGeom*)mjm_addGeom(b, def);
+      g->def = (mjCDef*)mjm_getDefault(body->element);
       g->type = mjGEOM_SPHERE;
       mju::sprintf_arr(txt, "%sG%d_%d", prefix.c_str(), ix, iy);
       g->name = txt;
 
       // add site
-      mjCSite* s = b->AddSite(def);
-      s->def = body->def;
-      s->spec.type = mjGEOM_SPHERE;
+      mjmSite* s = mjm_addSite(b, def);
+      mjm_setDefault(s->element, mjm_getDefault(body->element));
+      s->type = mjGEOM_SPHERE;
       mju::sprintf_arr(txt, "%sS%d_%d", prefix.c_str(), ix, iy);
-      s->name = txt;
+      mjm_setString(s->name, txt);
 
       // skip pinned elements
       bool skip = false;
@@ -626,8 +628,8 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
       // add slider joint
       mjCJoint* jnt[3];
       for (int i=0; i<3; i++) {
-        jnt[i] = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
-        jnt[i]->def = body->def;
+        jnt[i] = (mjCJoint*)mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+        jnt[i]->def = (mjCDef*)mjm_getDefault(body->element);
         mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), i, ix, iy);
         jnt[i]->name = txt;
         jnt[i]->type = mjJNT_SLIDE;
@@ -682,7 +684,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
 
 
 
-bool mjCComposite::MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   // check dim
   if (dim!=1) {
     return comperr(error, "Cable must be one-dimensional", error_sz);
@@ -753,7 +755,7 @@ bool mjCComposite::MakeCable(mjCModel* model, mjCBody* body, char* error, int er
 
 
 
-mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]) {
+mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]) {
   char txt_geom[100], txt_site[100], txt_slide[100];
   char this_body[100], next_body[100], this_joint[100];
   mjtNum dquat[4], this_quat[4];
@@ -809,8 +811,8 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
   mju::sprintf_arr(txt_slide, "%sJs%d", prefix.c_str(), ix);
 
   // add body
-  body = body->AddBody();
-  body->name = this_body;
+  body = mjm_addBody(body, 0);
+  mjm_setString(body->name, this_body);
   if (first) {
     mjuu_setvec(body->pos, offset[0]+uservert[3*ix],
                            offset[1]+uservert[3*ix+1],
@@ -824,8 +826,8 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
   }
 
   // add geom
-  mjCGeom* geom = body->AddGeom(def);
-  geom->def = body->def;
+  mjCGeom* geom = (mjCGeom*)mjm_addGeom(body, def);
+  geom->def = (mjCDef*)mjm_getDefault(body->element);
   geom->name = txt_geom;
   if (def[0].geom.type==mjGEOM_CYLINDER ||
       def[0].geom.type==mjGEOM_CAPSULE) {
@@ -839,10 +841,11 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
 
   // add plugin
   if (plugin_instance) {
-    body->is_plugin = true;
-    body->plugin_name = plugin_name;
-    body->plugin_instance = plugin_instance;
-    body->plugin_instance_name = plugin_instance_name;
+    mjmPlugin* plugin = &body->plugin;
+    plugin->active = true;
+    plugin->instance = (mjElement)plugin_instance;
+    mjm_setString(plugin->name, plugin_name.c_str());
+    mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
   }
 
   // update orientation
@@ -850,8 +853,8 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
 
   // add curvature joint
   if (!first || strcmp(initial.c_str(), "none")) {
-    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
-    jnt->def = body->def;
+    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
+    jnt->def = (mjCDef*)mjm_getDefault(body->element);
     jnt->type = (first && strcmp(initial.c_str(), "free")==0) ? mjJNT_FREE : mjJNT_BALL;
     jnt->damping = jnt->type==mjJNT_FREE ? 0 : jnt->damping;
     jnt->armature = jnt->type==mjJNT_FREE ? 0 : jnt->armature;
@@ -868,11 +871,11 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
 
   // add site at the boundary
   if (last || first) {
-    mjCSite* site = body->AddSite(def);
-    site->def = body->def;
-    site->name = txt_site;
-    mjuu_setvec(site->spec.pos, last ? length : 0, 0, 0);
-    mjuu_setvec(site->spec.quat, 1, 0, 0, 0);
+    mjmSite* site = mjm_addSite(body, def);
+    mjm_setDefault(site->element, mjm_getDefault(body->element));
+    mjm_setString(site->name, txt_site);
+    mjuu_setvec(site->pos, last ? length : 0, 0, 0);
+    mjuu_setvec(site->quat, 1, 0, 0, 0);
   }
 
   return body;
@@ -880,7 +883,7 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
 
 
 // make rope
-bool mjCComposite::MakeRope(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCComposite::MakeRope(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   // check dim
   if (dim!=1) {
     return comperr(error, "Rope must be one-dimensional", error_sz);
@@ -889,13 +892,14 @@ bool mjCComposite::MakeRope(mjCModel* model, mjCBody* body, char* error, int err
   // check root body name prefix
   char txt[200];
   mju::sprintf_arr(txt, "%sB", prefix.c_str());
-  if (std::strncmp(txt, body->name.substr(0, strlen(txt)).c_str(), mju::sizeof_arr(txt))) {
+  std::string body_name = mjm_getString(body->name);
+  if (std::strncmp(txt, body_name.substr(0, strlen(txt)).c_str(), mju::sizeof_arr(txt))) {
     mju::strcat_arr(txt, " must be the beginning of root body name");
     return comperr(error, txt, error_sz);
   }
 
   // read origin coordinate from root body
-  mju::strcpy_arr(txt, body->name.substr(strlen(txt)).c_str());
+  mju::strcpy_arr(txt, body_name.substr(strlen(txt)).c_str());
   int ox = -1;
   if (sscanf(txt, "%d", &ox)!=1) {
     return comperr(error, "Root body name must contain X coordinate", error_sz);
@@ -908,7 +912,7 @@ bool mjCComposite::MakeRope(mjCModel* model, mjCBody* body, char* error, int err
   AddRopeBody(model, body, ox, ox);
 
   // add elements: right
-  mjCBody* pbody = body;
+  mjmBody* pbody = body;
   for (int ix=ox; ix<count[0]-1; ix++) {
     pbody = AddRopeBody(model, pbody, ix, ix+1);
   }
@@ -946,16 +950,16 @@ bool mjCComposite::MakeRope(mjCModel* model, mjCBody* body, char* error, int err
 
 
 // add child body for cloth
-mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1) {
+mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int ix1) {
   char txt[100];
   bool isroot = (ix==ix1);
   double dx = spacing*(ix1-ix);
 
   // add child if not root
   if (!isroot) {
-    body = body->AddBody();
+    body = mjm_addBody(body, 0);
     mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), ix1);
-    body->name = txt;
+    mjm_setString(body->name, txt);
 
     // loop
     if (type==mjCOMPTYPE_LOOP) {
@@ -978,8 +982,8 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   }
 
   // add geom
-  mjCGeom* geom = body->AddGeom(def);
-  geom->def = body->def;
+  mjCGeom* geom = (mjCGeom*)mjm_addGeom(body, def);
+  geom->def = (mjCDef*)mjm_getDefault(body->element);
   mju::sprintf_arr(txt, "%sG%d", prefix.c_str(), ix1);
   geom->name = txt;
   mjuu_setvec(geom->pos, 0, 0, 0);
@@ -993,8 +997,8 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   // add main joint
   for (int i=0; i<2; i++) {
     // add joint
-    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
-    jnt->def = body->def;
+    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
+    jnt->def = (mjCDef*)mjm_getDefault(body->element);
     mju::sprintf_arr(txt, "%sJ%d_%d", prefix.c_str(), i, ix1);
     jnt->name = txt;
     jnt->type = mjJNT_HINGE;
@@ -1006,8 +1010,8 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   // add twist joint
   if (add[mjCOMPKIND_TWIST]) {
     // add joint
-    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_TWIST][0]);
-    jnt->def = body->def;
+    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_TWIST][0]);
+    jnt->def = (mjCDef*)mjm_getDefault(body->element);
     mju::sprintf_arr(txt, "%sJT%d", prefix.c_str(), ix1);
     jnt->name = txt;
     jnt->type = mjJNT_HINGE;
@@ -1024,8 +1028,8 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   // add stretch joint
   if (add[mjCOMPKIND_STRETCH]) {
     // add joint
-    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_STRETCH][0]);
-    jnt->def = body->def;
+    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_STRETCH][0]);
+    jnt->def = (mjCDef*)mjm_getDefault(body->element);
     mju::sprintf_arr(txt, "%sJS%d", prefix.c_str(), ix1);
     jnt->name = txt;
     jnt->type = mjJNT_SLIDE;
@@ -1081,7 +1085,7 @@ void mjCComposite::BoxProject(double* pos) {
 
 
 // make 3d box, ellipsoid or cylinder
-bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   char txt[100];
 
   // check dim
@@ -1090,8 +1094,8 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
   }
 
   // center geom: two times bigger
-  mjCGeom* geom = body->AddGeom(def);
-  geom->def = body->def;
+  mjCGeom* geom = (mjCGeom*)mjm_addGeom(body, def);
+  geom->def = (mjCDef*)mjm_getDefault(body->element);
   geom->type = mjGEOM_SPHERE;
   mju::sprintf_arr(txt, "%sGcenter", prefix.c_str());
   geom->name = txt;
@@ -1114,9 +1118,9 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
             iy==0 || iy==count[1]-1 ||
             iz==0 || iz==count[2]-1) {
           // create body
-          mjCBody* b = body->AddBody(NULL);
+          mjmBody* b = mjm_addBody(body, NULL);
           mju::sprintf_arr(txt, "%sB%d_%d_%d", prefix.c_str(), ix, iy, iz);
-          b->name = txt;
+          mjm_setString(b->name, txt);
 
           // set body position (+/- 1)
           b->pos[0] = 2.0*ix/(count[0]-1) - 1;
@@ -1131,8 +1135,8 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
           mjuu_normvec(b->alt.zaxis, 3);
 
           // add geom
-          mjCGeom* g = b->AddGeom(def);
-          g->def = body->def;
+          mjCGeom* g = (mjCGeom*) mjm_addGeom(b, def);
+          g->def = (mjCDef*)mjm_getDefault(body->element);
           mju::sprintf_arr(txt, "%sG%d_%d_%d", prefix.c_str(), ix, iy, iz);
           g->name = txt;
 
@@ -1145,8 +1149,8 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
           }
 
           // add slider joint
-          mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
-          jnt->def = body->def;
+          mjCJoint* jnt = (mjCJoint*)mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+          jnt->def = (mjCDef*)mjm_getDefault(body->element);
           mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), ix, iy, iz);
           jnt->name = txt;
           jnt->type = mjJNT_SLIDE;

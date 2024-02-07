@@ -26,6 +26,7 @@
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -417,7 +418,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   }
 
   // write plugin
-  if (pgeom->is_plugin) {
+  if (pgeom->plugin.active) {
     OnePlugin(InsertEnd(elem, "plugin"), pgeom);
   }
 }
@@ -725,7 +726,7 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
   WriteAttr(elem, "dynprm", mjNDYN, pact->dynprm, def->actuator.dynprm);
 
   // plugins: write config attributes
-  if (pact->is_plugin) {
+  if (pact->plugin.active) {
     OnePlugin(elem, pact);
   }
 
@@ -756,13 +757,15 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
 // write plugin
 void mjXWriter::OnePlugin(XMLElement* elem, mjCBase* object) {
-  if (!object->plugin_instance_name.empty()) {
-    WriteAttrTxt(elem, "instance", object->plugin_instance_name);
+  const std::string instance_name = std::string(mjm_getString(object->plugin.instance_name));
+  const std::string plugin_name = std::string(mjm_getString(object->plugin.name));
+  if (!instance_name.empty()) {
+    WriteAttrTxt(elem, "instance", instance_name);
   } else {
-    WriteAttrTxt(elem, "plugin", object->plugin_name);
+    WriteAttrTxt(elem, "plugin", plugin_name);
     const mjpPlugin* plugin = mjp_getPluginAtSlot(
-        object->plugin_instance->plugin_slot);
-    const char* c = &object->plugin_instance->flattened_attributes[0];
+        ((mjCPlugin*)object->plugin.instance)->plugin_slot);
+    const char* c = &((mjCPlugin*)object->plugin.instance)->flattened_attributes[0];
     for (int i = 0; i < plugin->nattribute; ++i) {
       std::string value(c);
       if (!value.empty()) {
@@ -1424,7 +1427,7 @@ void mjXWriter::Asset(XMLElement* root) {
   for (int i=0; i<nmesh; i++) {
     // create element and write
     mjCMesh* pmesh = (mjCMesh*)model->GetObject(mjOBJ_MESH, i);
-    if (pmesh->is_plugin) {
+    if (pmesh->plugin.active) {
       elem = InsertEnd(section, "mesh");
       WriteAttrTxt(elem, "name", pmesh->name);
       OnePlugin(InsertEnd(elem, "plugin"), pmesh);
@@ -1487,7 +1490,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
       WriteAttr(elem, "gravcomp", 1, &body->gravcomp);
     }
     // userdata
-    WriteVector(elem, "user", body->userdata);
+    WriteVector(elem, "user", body->get_userdata());
 
     // write inertial
     if (body->explicitinertial &&
@@ -1526,7 +1529,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
   }
 
   // write plugin
-  if (body->is_plugin) {
+  if (body->plugin.active) {
     OnePlugin(InsertEnd(elem, "plugin"), body);
   }
 
@@ -1709,7 +1712,7 @@ void mjXWriter::Actuator(XMLElement* root) {
   for (int i=0; i<num; i++) {
     mjCActuator* pact = (mjCActuator*)model->GetObject(mjOBJ_ACTUATOR, i);
     XMLElement* elem;
-    if (pact->is_plugin) {
+    if (pact->plugin.active) {
       elem = InsertEnd(section, "plugin");
     } else {
       elem = InsertEnd(section, "general");
@@ -1737,6 +1740,8 @@ void mjXWriter::Sensor(XMLElement* root) {
   for (int i=0; i<num; i++) {
     XMLElement* elem = 0;
     mjCSensor* psen = model->sensors[i];
+    std::string instance_name = "";
+    std::string plugin_name = "";
 
     // write sensor type and type-specific attributes
     switch (psen->type) {
@@ -1923,13 +1928,15 @@ void mjXWriter::Sensor(XMLElement* root) {
         WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
         WriteAttrTxt(elem, "objname", psen->objname);
       }
-      if (!psen->plugin_instance_name.empty()) {
-        WriteAttrTxt(elem, "instance", psen->plugin_instance_name);
+      instance_name = std::string(mjm_getString(psen->plugin.instance_name));
+      plugin_name = std::string(mjm_getString(psen->plugin.name));
+      if (!instance_name.empty()) {
+        WriteAttrTxt(elem, "instance", instance_name);
       } else {
-        WriteAttrTxt(elem, "plugin", psen->plugin_name);
+        WriteAttrTxt(elem, "plugin", plugin_name);
         const mjpPlugin* plugin = mjp_getPluginAtSlot(
-            psen->plugin_instance->plugin_slot);
-        const char* c = &psen->plugin_instance->flattened_attributes[0];
+            ((mjCPlugin*)psen->plugin.instance)->plugin_slot);
+        const char* c = &((mjCPlugin*)psen->plugin.instance)->flattened_attributes[0];
         for (int i = 0; i < plugin->nattribute; ++i) {
           std::string value(c);
           if (!value.empty()) {

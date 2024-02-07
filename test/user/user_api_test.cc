@@ -18,7 +18,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "src/user/user_api.h"
-#include <mujoco/mjmodel.h>
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -31,8 +30,8 @@ using ::testing::HasSubstr;
 
 TEST_F(MujocoTest, ReadWriteData) {
   void* model = mjm_createModel();
-  void* world = mjm_findObject(model, mjOBJ_BODY, "world");
-  void* body = mjm_addBody(world, 0);
+  mjmBody* world = mjm_findBody(model, "world");
+  mjmBody* body = mjm_addBody(world, 0);
   mjmSite* site = mjm_addSite(body, 0);
 
   {

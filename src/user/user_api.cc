@@ -1,4 +1,4 @@
-// Copyright 2021 DeepMind Technologies Limited
+// Copyright 2024 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,46 +31,157 @@ void* mjm_createModel() {
 
 
 // delete model
-void mjm_deleteModel(void* model) {
+void mjm_deleteModel(void* modelspec) {
+  mjCModel* model = static_cast<mjCModel*>(modelspec);
+  delete model;
+}
+
+
+
+// add child body to body, return child spec
+mjmBody* mjm_addBody(mjmBody* bodyspec, void* defspec) {
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element)->AddBody(def);
+  return &body->spec;
+}
+
+
+
+// add site to body, return site spec
+mjmSite* mjm_addSite(mjmBody* bodyspec, void* defspec) {
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCSite* site = body->AddSite(def);
+  return &site->spec;
+}
+
+
+
+// add joint to body
+void* mjm_addJoint(mjmBody* bodyspec, void* defspec) {
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCJoint* joint = body->AddJoint(def);
+  return joint;
+}
+
+
+
+// add free joint to body
+void* mjm_addFreeJoint(mjmBody* bodyspec) {
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCJoint* joint = body->AddFreeJoint();
+  return joint;
+}
+
+
+
+// add geom to body
+void* mjm_addGeom(mjmBody* bodyspec, void* defspec) {
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCGeom* geom = body->AddGeom(def);
+  return geom;
+}
+
+
+
+// add camera to body
+void* mjm_addCamera(mjmBody* bodyspec, void* defspec) {
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCCamera* camera = body->AddCamera(def);
+  return camera;
+}
+
+
+
+// add light to body
+void* mjm_addLight(mjmBody* bodyspec, void* defspec) {
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCLight* light = body->AddLight(def);
+  return light;
+}
+
+
+
+// add frame to body
+void* mjm_addFrame(mjmBody* bodyspec, void* parentframe) {
+  mjCFrame* parentframeC = static_cast<mjCFrame*>(parentframe);
+  mjCFrame* frameC = reinterpret_cast<mjCBody*>(bodyspec->element)->AddFrame(parentframeC);
+  return frameC;
+}
+
+
+
+// Add plugin to model.
+mjElement mjm_addPlugin(void* model) {
   mjCModel* modelC = static_cast<mjCModel*>(model);
-  delete modelC;
+  mjCPlugin* plugin = modelC->AddPlugin();
+  return (mjElement)plugin;
 }
 
 
 
-// add body to body
-void* mjm_addBody(void* body, void* def) {
-  mjCDef* defC = static_cast<mjCDef*>(def);
-  mjCBody* bodyC = static_cast<mjCBody*>(body);
-  return bodyC->AddBody(defC);
+// get objects
+void* mjm_getModel(mjmBody* bodyspec) {
+  return reinterpret_cast<mjCBody*>(bodyspec->element)->model;
 }
 
 
 
-// add site to body
-mjmSite* mjm_addSite(void* body, void* def) {
-  mjCDef* defC = static_cast<mjCDef*>(def);
-  mjCSite* siteC = static_cast<mjCBody*>(body)->AddSite(defC);
-  return &siteC->spec;
+// get default
+void* mjm_getDefault(mjElement element) {
+  return reinterpret_cast<mjCBase*>(element)->def;
 }
 
 
 
-// get object of given type
-void* mjm_findObject(void* model, mjtObj type, const char* name) {
-  mjCModel* modelC = static_cast<mjCModel*>(model);
-  return modelC->FindObject(type, std::string(name));
+// find body in model by name
+mjmBody* mjm_findBody(void* modelspec, const char* name) {
+  mjCModel* model = static_cast<mjCModel*>(modelspec);
+  mjCBase* body = model->FindObject(mjOBJ_BODY, std::string(name));
+  if (!body) {
+    return 0;
+  }
+  return &(static_cast<mjCBody*>(body)->spec);
 }
 
 
 
-// set parent frame of dest
-void mjm_setFrame(void* dest, void* frame) {
+// find child of a body by name
+mjmBody* mjm_findChild(mjmBody* bodyspec, const char* name) {
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCBase* child = body->FindObject(mjOBJ_BODY, std::string(name));
+  if (!child) {
+    return 0;
+  }
+  return &(static_cast<mjCBody*>(child)->spec);
+}
+
+
+
+// set frame
+void mjm_setFrame(mjElement dest, void* frame) {
   mjCFrame* frameC = static_cast<mjCFrame*>(frame);
-  mjCBase* baseC = static_cast<mjCBase*>(dest);
+  mjCBase* baseC = reinterpret_cast<mjCBase*>(dest);
   baseC->SetFrame(frameC);
 }
 
+
+
+// get id
+int mjm_getId(mjElement element) {
+  return reinterpret_cast<mjCBase*>(element)->id;
+}
+
+
+// set default
+void mjm_setDefault(mjElement element, void* defspec) {
+  mjCBase* baseC = reinterpret_cast<mjCBase*>(element);
+  baseC->def = static_cast<mjCDef*>(defspec);
+}
 
 
 // set string
@@ -108,3 +219,13 @@ const double* mjm_getDouble(const mjDouble source, int* size) {
   }
   return v->data();
 }
+
+
+
+// compute full inertia
+const char* mjm_setFullInertia(mjmBody* bodyspec, double quat[4], double inertia[3]) {
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  return body->FullInertia(quat, inertia);
+}
+
+

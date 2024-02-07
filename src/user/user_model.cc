@@ -1491,7 +1491,7 @@ void mjCModel::CopyTree(mjModel* m) {
     m->body_mass[i] = (mjtNum)pb->mass;
     copyvec(m->body_inertia+3*i, pb->inertia, 3);
     m->body_gravcomp[i] = pb->gravcomp;
-    copyvec(m->body_user+nuser_body*i, pb->userdata.data(), nuser_body);
+    copyvec(m->body_user+nuser_body*i, pb->get_userdata().data(), nuser_body);
 
     m->body_contype[i] = pb->contype;
     m->body_conaffinity[i] = pb->conaffinity;
@@ -2883,7 +2883,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_body == -1) {
     nuser_body = 0;
     for (int i=0; i<bodies.size(); i++) {
-      nuser_body = mjMAX(nuser_body, bodies[i]->userdata.size());
+      nuser_body = mjMAX(nuser_body, bodies[i]->spec_userdata_.size());
     }
   }
   if (nuser_jnt == -1) {
@@ -3050,8 +3050,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     // set actuator_plugin to the plugin instance ID
     std::vector<std::vector<int>> plugin_to_actuators(nplugin);
     for (int i = 0; i < nu; ++i) {
-      if (actuators[i]->is_plugin) {
-        int actuator_plugin = actuators[i]->plugin_instance->id;
+      if (actuators[i]->plugin.active) {
+        int actuator_plugin = ((mjCPlugin*)actuators[i]->plugin.instance)->id;
         m->actuator_plugin[i] = actuator_plugin;
         plugin_to_actuators[actuator_plugin].push_back(i);
       } else {
@@ -3060,16 +3060,16 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     }
 
     for (int i = 0; i < nbody; ++i) {
-      if (bodies[i]->is_plugin) {
-        m->body_plugin[i] = bodies[i]->plugin_instance->id;
+      if (bodies[i]->plugin.active) {
+        m->body_plugin[i] = ((mjCPlugin*)bodies[i]->plugin.instance)->id;
       } else {
         m->body_plugin[i] = -1;
       }
     }
 
     for (int i = 0; i < ngeom; ++i) {
-      if (geoms[i]->is_plugin) {
-        m->geom_plugin[i] = geoms[i]->plugin_instance->id;
+      if (geoms[i]->plugin.active) {
+        m->geom_plugin[i] = ((mjCPlugin*)geoms[i]->plugin.instance)->id;
       } else {
         m->geom_plugin[i] = -1;
       }
@@ -3078,7 +3078,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     std::vector<std::vector<int>> plugin_to_sensors(nplugin);
     for (int i = 0; i < nsensor; ++i) {
       if (sensors[i]->type == mjSENS_PLUGIN) {
-        int sensor_plugin = sensors[i]->plugin_instance->id;
+        int sensor_plugin = ((mjCPlugin*)sensors[i]->plugin.instance)->id;
         m->sensor_plugin[i] = sensor_plugin;
         plugin_to_sensors[sensor_plugin].push_back(i);
       } else {
@@ -3321,7 +3321,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     copyvec(pb->inertia, m->body_inertia+3*i, 3);
 
     if (nuser_body) {
-      copyvec(pb->userdata.data(), m->body_user + nuser_body*i, nuser_body);
+      copyvec(pb->userdata_.data(), m->body_user + nuser_body*i, nuser_body);
     }
   }
 

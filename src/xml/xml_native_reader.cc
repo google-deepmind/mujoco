@@ -873,7 +873,7 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = root->FirstChildElement("worldbody"); section;
        section = section->NextSiblingElement("worldbody")) {
-    Body(section, model->GetWorld(), nullptr);
+    Body(section, &model->GetWorld()->spec, nullptr);
   }
 
   for (XMLElement* section = root->FirstChildElement("contact"); section;
@@ -1350,7 +1350,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
 
   XMLElement* eplugin = elem->FirstChildElement("plugin");
   if (eplugin) {
-    OnePlugin(eplugin, pmesh);
+    OnePlugin(eplugin, &pmesh->plugin);
   }
 
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
@@ -1542,7 +1542,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   // plugin sub-element
   XMLElement* eplugin = elem->FirstChildElement("plugin");
   if (eplugin) {
-    OnePlugin(eplugin, pgeom);
+    OnePlugin(eplugin, &pgeom->plugin);
   }
 
   // remaining attributes
@@ -2044,7 +2044,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   }
 
   else if (type == "plugin") {
-    OnePlugin(elem, pact);
+    OnePlugin(elem, &pact->plugin);
     int n;
     if (MapValue(elem, "dyntype", &n, dyn_map, dyn_sz)) {
       pact->dyntype = (mjtDyn)n;
@@ -2068,7 +2068,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   string text;
   int n;
 
@@ -2091,7 +2091,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttrTxt(eplugin, "plugin", comp.plugin_name);
     ReadAttrTxt(eplugin, "instance", comp.plugin_instance_name);
     if (comp.plugin_instance_name.empty()) {
-      comp.plugin_instance = model->AddPlugin();
+      comp.plugin_instance = (mjCPlugin*)mjm_addPlugin(model);
       comp.plugin_instance->name = "composite"+comp.prefix;
       comp.plugin_instance_name = comp.plugin_instance->name;
     } else {
@@ -2286,7 +2286,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
 
   // make composite
   char error[200];
-  bool res = comp.Make(pbody->model, pbody, error, 200);
+  bool res = comp.Make((mjCModel*)mjm_getModel(pbody), pbody, error, 200);
 
   // throw error
   if (!res) {
@@ -2297,7 +2297,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
 
 
 // make flexcomp
-void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
+void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   string text;
   int n;
 
@@ -2407,7 +2407,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
     ReadAttrTxt(eplugin, "plugin", fcomp.plugin_name);
     ReadAttrTxt(eplugin, "instance", fcomp.plugin_instance_name);
     if (fcomp.plugin_instance_name.empty()) {
-      fcomp.plugin_instance = model->AddPlugin();
+      fcomp.plugin_instance = (mjCPlugin*)mjm_addPlugin(model);
       fcomp.plugin_instance->name = "flexcomp_" + fcomp.name;
       fcomp.plugin_instance_name = fcomp.plugin_instance->name;
     } else {
@@ -2418,7 +2418,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make(pbody->model, pbody, error, 200);
+  bool res = fcomp.Make((mjCModel*)mjm_getModel(pbody), pbody, error, 200);
 
   // throw error
   if (!res) {
@@ -2429,13 +2429,17 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
 
 
 // add plugin
-void mjXReader::OnePlugin(XMLElement* elem, mjCBase* object) {
-  object->is_plugin = true;
-  ReadAttrTxt(elem, "plugin", object->plugin_name);
-  ReadAttrTxt(elem, "instance", object->plugin_instance_name);
-  if (object->plugin_instance_name.empty()) {
-    object->plugin_instance = model->AddPlugin();
-    ReadPluginConfigs(elem, object->plugin_instance);
+void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
+  plugin->active = true;
+  std::string name = "";
+  std::string instance_name = "";
+  ReadAttrTxt(elem, "plugin", name);
+  ReadAttrTxt(elem, "instance", instance_name);
+  mjm_setString(plugin->name, name.c_str());
+  mjm_setString(plugin->instance_name, instance_name.c_str());
+  if (instance_name.empty()) {
+    plugin->instance = mjm_addPlugin(model);
+    ReadPluginConfigs(elem, (mjCPlugin*)plugin->instance);
   } else {
     model->hasImplicitPluginElem = true;
   }
@@ -2579,7 +2583,7 @@ void mjXReader::Extension(XMLElement* section) {
             throw mjXError(
                 child, "explicit plugin instance must appear before implicit plugin elements");
           }
-          mjCPlugin* pp = model->AddPlugin();
+          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(model);
           GetXMLPos(child, pp);
           ReadAttrTxt(child, "name", pp->name, /* required = */ true);
           if (pp->name.empty()) {
@@ -2983,7 +2987,7 @@ void mjXReader::Asset(XMLElement* section) {
 
 
 // body/world section parser; recursive
-void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
+void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
   string text, name;
   XMLElement* elem;
   int n;
@@ -2994,7 +2998,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
   }
 
   // no attributes allowed in world body
-  if (pbody->id==0 && section->FirstAttribute() && !frame) {
+  if (mjm_getId(pbody->element)==0 && section->FirstAttribute() && !frame) {
     throw mjXError(section, "World body cannot have attributes");
   }
 
@@ -3007,13 +3011,13 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
     // get class if specified, otherwise use body
     mjCDef* def = GetClass(elem);
     if (!def) {
-      def = pbody->def;
+      def = (mjCDef*)mjm_getDefault(pbody->element);
     }
 
     // inertial sub-element
     if (name=="inertial") {
       // no inertia allowed in world body
-      if (pbody->id==0) {
+      if (mjm_getId(pbody->element)==0) {
         throw mjXError(elem, "World body cannot have inertia");
       }
       pbody->explicitinertial = true;
@@ -3031,12 +3035,12 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
     // joint sub-element
     else if (name=="joint") {
       // no joints allowed in world body
-      if (pbody->id==0) {
+      if (mjm_getId(pbody->element)==0) {
         throw mjXError(elem, "World body cannot have joints");
       }
 
       // create joint and parse
-      mjCJoint* pjoint = pbody->AddJoint(def);
+      mjCJoint* pjoint = (mjCJoint*)mjm_addJoint(pbody, def);
       OneJoint(elem, pjoint);
       pjoint->SetFrame(frame);
     }
@@ -3044,12 +3048,12 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
     // freejoint sub-element
     else if (name=="freejoint") {
       // no joints allowed in world body
-      if (pbody->id==0) {
+      if (mjm_getId(pbody->element)==0) {
         throw mjXError(elem, "World body cannot have joints");
       }
 
       // create free joint without defaults
-      mjCJoint* pjoint = pbody->AddFreeJoint();
+      mjCJoint* pjoint = (mjCJoint*)mjm_addFreeJoint(pbody);
       pjoint->SetFrame(frame);
 
       // save defaults after creation, to make sure writing is ok
@@ -3063,7 +3067,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
     // geom sub-element
     else if (name=="geom") {
       // create geom and parse
-      mjCGeom* pgeom = pbody->AddGeom(def);
+      mjCGeom* pgeom = (mjCGeom*)mjm_addGeom(pbody, def);
       OneGeom(elem, pgeom);
       pgeom->SetFrame(frame);
     }
@@ -3073,13 +3077,13 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
       // create site and parse
       mjmSite* site = mjm_addSite(pbody,  def);
       OneSite(elem, *site);
-      mjm_setFrame(site, frame);
+      mjm_setFrame(site->element, frame);
     }
 
     // camera sub-element
     else if (name=="camera") {
       // create camera and parse
-      mjCCamera* pcam = pbody->AddCamera(def);
+      mjCCamera* pcam = (mjCCamera*)mjm_addCamera(pbody, def);
       OneCamera(elem, pcam);
       pcam->SetFrame(frame);
     }
@@ -3087,14 +3091,14 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
     // light sub-element
     else if (name=="light") {
       // create light and parse
-      mjCLight* plight = pbody->AddLight(def);
+      mjCLight* plight = (mjCLight*)mjm_addLight(pbody, def);
       OneLight(elem, plight);
       plight->SetFrame(frame);
     }
 
     // plugin sub-element
     else if (name == "plugin") {
-      OnePlugin(elem, pbody);
+      OnePlugin(elem, &(pbody->plugin));
     }
 
     // composite sub-element
@@ -3111,7 +3115,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
 
     // frame sub-element
     else if (name=="frame") {
-      mjCFrame* pframe = pbody->AddFrame(frame);
+      mjCFrame* pframe = (mjCFrame*)mjm_addFrame(pbody, frame);
       GetXMLPos(elem, pframe);
 
       ReadAttr(elem, "pos", 3, pframe->pos, text);
@@ -3133,12 +3137,16 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
       }
 
       // create child body
-      mjCBody* pchild = pbody->AddBody(childdef);
-      GetXMLPos(elem, pchild);
+      mjmBody* pchild = mjm_addBody(pbody, childdef);
+      mjm_setString(pchild->info,
+                    std::string("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", pchild->name);
-      ReadAttrTxt(elem, "childclass", pchild->classname);
+      std::string name, childclass;
+      ReadAttrTxt(elem, "name", name);
+      mjm_setString(pchild->name, name.c_str());
+      ReadAttrTxt(elem, "childclass", childclass);
+      mjm_setString(pchild->classname, childclass.c_str());
       ReadAttr(elem, "pos", 3, pchild->pos, text);
       ReadQuat(elem, "quat", pchild->quat, text);
       if (MapValue(elem, "mocap", &n, bool_map, 2)) {
@@ -3150,10 +3158,12 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
       ReadAttr(elem, "gravcomp", 1, &pchild->gravcomp, text);
 
       // read userdata
-      ReadVector(elem, "user", pchild->userdata, text);
+      std::vector<double> userdata;
+      ReadVector(elem, "user", userdata, text);
+      mjm_setDouble(pchild->userdata, userdata.data(), userdata.size());
 
       // add frame
-      pchild->SetFrame(frame);
+      mjm_setFrame(pchild->element, frame);
 
       // make recursive call
       Body(elem, pchild, nullptr);
@@ -3373,6 +3383,8 @@ void mjXReader::Sensor(XMLElement* section) {
     // create sensor, get string type
     mjCSensor* psen = model->AddSensor();
     string type = elem->Value();
+    string plugin_name = "";
+    string instance_name = "";
 
     // read name, noise, userdata
     ReadAttrTxt(elem, "name", psen->name);
@@ -3630,14 +3642,16 @@ void mjXReader::Sensor(XMLElement* section) {
 
     else if (type=="plugin") {
       psen->type = mjSENS_PLUGIN;
-      ReadAttrTxt(elem, "plugin", psen->plugin_name);
-      ReadAttrTxt(elem, "instance", psen->plugin_instance_name);
-      if (psen->plugin_instance_name.empty()) {
-        psen->plugin_instance = model->AddPlugin();
+      ReadAttrTxt(elem, "plugin", plugin_name);
+      ReadAttrTxt(elem, "instance", instance_name);
+      mjm_setString(psen->plugin.name, plugin_name.c_str());
+      mjm_setString(psen->plugin.instance_name, instance_name.c_str());
+      if (instance_name.empty()) {
+        psen->plugin.instance = mjm_addPlugin(model);
       } else {
         model->hasImplicitPluginElem = true;
       }
-      ReadPluginConfigs(elem, psen->plugin_instance);
+      ReadPluginConfigs(elem, (mjCPlugin*)psen->plugin.instance);
       ReadAttrTxt(elem, "objtype", text);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", psen->objname);

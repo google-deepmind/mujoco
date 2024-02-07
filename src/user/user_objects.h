@@ -173,7 +173,6 @@ class mjCBoundingVolumeHierarchy {
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
 
-class mjCPlugin;
 class mjCBase {
   friend class mjCDef;
 
@@ -197,11 +196,9 @@ class mjCBase {
   mjCFrame* frame;                // pointer to frame transformation
 
   // plugin support
-  bool is_plugin;
+  mjmPlugin plugin;
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjCPlugin* plugin_instance;
-
  protected:
   mjCBase();                      // constructor
 };
@@ -211,13 +208,15 @@ class mjCBase {
 //------------------------- class mjCBody -----------------------------------------------
 // Describes a rigid body
 
-class mjCBody : public mjCBase {
+class mjCBody : public mjCBase, private mjmBody {
   friend class mjCJoint;
   friend class mjCGeom;
   friend class mjCSite;
   friend class mjCCamera;
+  friend class mjCComposite;
   friend class mjCLight;
   friend class mjCFlex;
+  friend class mjCFlexcomp;
   friend class mjCEquality;
   friend class mjCPair;
   friend class mjCModel;
@@ -248,33 +247,32 @@ class mjCBody : public mjCBase {
   // return nullptr on success, error string on failure
   const char* FullInertia(double quat[4], double inertia[3]);
 
-  // variables set by user or 'Compile'
-  bool mocap;                     // is this a mocap body
-  double pos[3];                  // frame position
-  double quat[4];                 // frame orientation
-  double ipos[3];                 // inertial frame position
-  double iquat[4];                // inertial frame orientation
-  double mass;                    // mass
-  double inertia[3];              // diagonal inertia (in i-frame)
-  double gravcomp;                // gravity compensation
-  std::vector<double> userdata;   // user data
-  double fullinertia[6];          // non-axis-aligned inertia matrix
-  mjCAlternative alt;             // alternative orientation specification
-  mjCAlternative ialt;            // alternative for inertial frame
+  // variables set by user
+  mjmBody spec;
+
+  // inherited
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+  using mjCBase::plugin;
+
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
+
+  mjCAlternative alt_;
+  mjCAlternative ialt_;
 
   // variables computed by 'Compile' and 'AddXXX'
  private:
   mjCBody(mjCModel*);             // constructor
   ~mjCBody();                     // destructor
-  void Compile(void);                 // compiler
-
+  void Compile(void);             // compiler
   void GeomFrame(void);           // get inertial info from geoms
 
   int parentid;                   // parent index in global array
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
-  bool explicitinertial;          // whether to save the body with an explicit inertial clause
 
   int contype;                    // OR over geom contypes
   int conaffinity;                // OR over geom conaffinities
@@ -296,6 +294,12 @@ class mjCBody : public mjCBase {
   std::vector<mjCSite*>    sites;      // sites attached to this body
   std::vector<mjCCamera*>  cameras;    // cameras attached to this body
   std::vector<mjCLight*>   lights;     // lights attached to this body
+
+  void CopyFromSpec();                 // copy spec into attributes
+
+  // variable-size data
+  std::vector<double> userdata_;
+  std::vector<double> spec_userdata_;
 };
 
 
@@ -482,7 +486,6 @@ class mjCSite : public mjCBase, private mjmSite {
   void CopyFromSpec();                    // copy spec into attributes
 
   mjCAlternative alt_;
-  mjCAlternative spec_alt_;
 
   // variable-size data
   std::string material_;
@@ -1222,11 +1225,6 @@ class mjCSensor : public mjCBase {
   double cutoff;                  // cutoff for real and positive datatypes
   double noise;                   // noise stdev
   std::vector<double> userdata;   // user data
-
-  // plugin support
-  std::string plugin_name;
-  std::string plugin_instance_name;
-  mjCPlugin* plugin_instance;
 
  private:
   mjCSensor(mjCModel*);           // constructor
