@@ -552,33 +552,12 @@ mjCBody::mjCBody(mjCModel* _model) {
   // set model pointer
   model = _model;
 
-  spec.pos[0] = spec.ipos[0] = mjNAN;
-
-  // clear variables
-  spec.fullinertia[0] = mjNAN;
-  spec.explicitinertial = false;
-  spec.mocap = false;
-  mjuu_setvec(spec.quat, 1, 0, 0, 0);
-  mjuu_setvec(spec.iquat, 1, 0, 0, 0);
-  mjuu_zerovec(spec.pos+1, 2);
-  mjuu_zerovec(spec.ipos+1, 2);
-  spec.mass = 0;
-  mjuu_setvec(spec.inertia, 0, 0, 0);
+  mjm_defaultBody(spec);
   parentid = -1;
   weldid = -1;
   dofnum = 0;
   lastdof = -1;
   subtreedofs = 0;
-  spec.gravcomp = 0;
-  spec_userdata_.clear();
-  spec.alt.axisangle[0] = spec.alt.xyaxes[0] = spec.alt.zaxis[0] =
-      spec.alt.euler[0] = mjNAN;
-  spec.ialt.axisangle[0] = spec.ialt.xyaxes[0] = spec.ialt.zaxis[0] =
-      spec.ialt.euler[0] = mjNAN;
-
-  spec.plugin.active = false;
-  spec.plugin.instance = nullptr;
-
   contype = 0;
   conaffinity = 0;
   margin = 0;
@@ -593,6 +572,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   sites.clear();
   cameras.clear();
   lights.clear();
+  spec_userdata_.clear();
 
   // point to local
   spec.element = (mjElement)this;
@@ -1982,23 +1962,13 @@ void mjCGeom::Compile(void) {
 
 // initialize default site
 mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  spec.type = mjGEOM_SPHERE;
-  mjuu_setvec(spec.size, 0.005, 0.005, 0.005);
-  spec.group = 0;
-  mjuu_setvec(spec.quat, 1, 0, 0, 0);
-  mjuu_setvec(spec.pos, 0, 0, 0);
-  spec_material_.clear();
-  spec.rgba[0] = spec.rgba[1] = spec.rgba[2] = 0.5f;
-  spec.rgba[3] = 1.0f;
-  spec.fromto[0] = mjNAN;
-  spec_userdata_.clear();
-  spec.alt.axisangle[0] = spec.alt.xyaxes[0] = spec.alt.zaxis[0] =
-      spec.alt.euler[0] = mjNAN;
+  mjm_defaultSite(spec);
 
   // clear internal variables
   body = 0;
   matid = -1;
+  spec_material_.clear();
+  spec_userdata_.clear();
 
   // reset to default if given
   if (_def) {

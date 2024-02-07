@@ -155,8 +155,17 @@ MJAPI void mjm_setDefault(mjElement element, void* defspec);
 // Set frame.
 MJAPI void mjm_setFrame(mjElement dest, void* frame);
 
-// Compute quat and inertia from body->fullinertia..
+// Compute quat and inertia from body->fullinertia.
 MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inertia[3]);
+
+
+//---------------------------------- Initialization functions --------------------------------------
+
+// Default body attributes.
+MJAPI void mjm_defaultBody(mjmBody& body);
+
+// Default site attributes.
+MJAPI void mjm_defaultSite(mjmSite& site);
 
 #ifdef __cplusplus
 }
