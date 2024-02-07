@@ -266,7 +266,8 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
     // process inertia
     //  lquat = rotation from specified to default (joint/body) inertial frame
-    double lquat[4], tmpquat[4];
+    double lquat[4] = {1, 0, 0, 0};
+    double tmpquat[4] = {1, 0, 0, 0};
     const char* altres = mjm_setFullInertia(pbody, lquat, pbody->inertia);
 
     // inertia are sometimes 0 in URDF files: ignore error in altres, fix later

@@ -921,31 +921,35 @@ void mjCBody::GeomFrame(void) {
 
 // compute full inertia
 const char* mjCBody::FullInertia(double quat[4], double inertia[3]) {
-  if (mjuu_defined(fullinertia[0])) {
-    mjtNum eigval[3], eigvec[9], quattmp[4];
-    mjtNum full[9] = {
-      fullinertia[0], fullinertia[3], fullinertia[4],
-      fullinertia[3], fullinertia[1], fullinertia[5],
-      fullinertia[4], fullinertia[5], fullinertia[2]
-    };
+  if (!mjuu_defined(fullinertia[0])) {
+    return 0;
+  }
 
-    mju_eig3(eigval, eigvec, quattmp, full);
+  mjtNum eigval[3], eigvec[9], quattmp[4];
+  mjtNum full[9] = {
+    fullinertia[0], fullinertia[3], fullinertia[4],
+    fullinertia[3], fullinertia[1], fullinertia[5],
+    fullinertia[4], fullinertia[5], fullinertia[2]
+  };
 
-    // copy
-    for (int i=0; i<4; i++) {
-      quat[i] = quattmp[i];
-    }
-    if (inertia) {
-      for (int i=0; i<3; i++) {
-        inertia[i] = eigval[i];
-      }
-    }
+  mju_eig3(eigval, eigvec, quattmp, full);
 
-    // check mimimal eigenvalue
-    if (eigval[2]<mjEPS) {
-      return "inertia must have positive eigenvalues";
+  // check mimimal eigenvalue
+  if (eigval[2]<mjEPS) {
+    return "inertia must have positive eigenvalues";
+  }
+
+  // copy
+  for (int i=0; i<4; i++) {
+    quat[i] = quattmp[i];
+  }
+
+  if (inertia) {
+    for (int i=0; i<3; i++) {
+      inertia[i] = eigval[i];
     }
   }
+
   return 0;
 }
 
