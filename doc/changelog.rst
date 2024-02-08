@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+
+1. Improved performance of getting and putting device data by using a faster numpy array serialization method.
+
 Version 3.1.2 (February 05, 2024)
 -----------------------------------
 

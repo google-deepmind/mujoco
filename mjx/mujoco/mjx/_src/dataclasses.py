@@ -58,12 +58,13 @@ def dataclass(clz: _T) -> _T:
   data_clz.replace = replace
 
   def iterate_clz_with_keys(x):
-    # numpy arrays are not hashable, so convert them to tuples for jit cache
-    to_tup = lambda x: tuple(x) if len(x.shape) == 1 else tuple(map(to_tup, x))
-
     def to_meta(field, obj):
       val = getattr(obj, field.name)
-      return (to_tup(val), val.dtype) if isinstance(val, np.ndarray) else val
+      # numpy arrays are not hashable so return raw bytes instead
+      if isinstance(val, np.ndarray):
+        return (val.tobytes(), val.dtype, val.shape)
+      else:
+        return val
 
     def to_data(field, obj):
       return (jax.tree_util.GetAttrKey(field.name), getattr(obj, field.name))
@@ -76,7 +77,8 @@ def dataclass(clz: _T) -> _T:
 
     def from_meta(field, meta):
       if field.type is np.ndarray:
-        return (field.name, np.array(meta[0], dtype=meta[1]))
+        arr = np.frombuffer(meta[0], dtype=meta[1]).reshape(meta[2])
+        return (field.name, arr)
       else:
         return (field.name, meta)
 
