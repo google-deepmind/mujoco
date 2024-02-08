@@ -342,7 +342,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
     if (mjGEOMINFO[pgeom->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[pgeom->type], pgeom->size, def->geom.size);
     }
-    if (mjuu_defined(pgeom->_mass)) {
+    if (mjuu_defined(pgeom->mass)) {
       mass = pgeom->GetVolume() * def->geom.density;
     }
 
@@ -389,11 +389,11 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "margin", 1, &pgeom->margin, &def->geom.margin);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
-  WriteAttrKey(elem, "fluidshape", fluid_map, 2, pgeom->fluid_switch, def->geom.fluid_switch);
+  WriteAttrKey(elem, "fluidshape", fluid_map, 2, pgeom->fluid_ellipsoid, def->geom.fluid_ellipsoid);
   WriteAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, def->geom.fluid_coefs);
   WriteAttrKey(elem, "shellinertia", meshtype_map, 2, pgeom->typeinertia, def->geom.typeinertia);
-  if (mjuu_defined(pgeom->_mass)) {
-    WriteAttr(elem, "mass", 1, &pgeom->mass, &mass);
+  if (mjuu_defined(pgeom->mass)) {
+    WriteAttr(elem, "mass", 1, &pgeom->mass_, &mass);
   } else {
     WriteAttr(elem, "density", 1, &pgeom->density, &def->geom.density);
   }
@@ -404,17 +404,17 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
 
   // hfield and mesh attributes
   if (pgeom->type==mjGEOM_HFIELD) {
-    WriteAttrTxt(elem, "hfield", pgeom->hfieldname);
+    WriteAttrTxt(elem, "hfield", pgeom->get_hfieldname());
   }
   if (pgeom->type==mjGEOM_MESH || pgeom->type==mjGEOM_SDF) {
-    WriteAttrTxt(elem, "mesh", pgeom->meshname);
+    WriteAttrTxt(elem, "mesh", pgeom->get_meshname());
   }
 
   // userdata
   if (writingdefaults) {
-    WriteVector(elem, "user", pgeom->userdata);
+    WriteVector(elem, "user", pgeom->get_userdata());
   } else {
-    WriteVector(elem, "user", pgeom->userdata, def->geom.userdata);
+    WriteVector(elem, "user", pgeom->get_userdata(), def->geom.get_userdata());
   }
 
   // write plugin

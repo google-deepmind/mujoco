@@ -549,7 +549,7 @@ TEST_F(MjCMeshTest, FlippedFaceAllowedNoMass) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model, NotNull()) << error.data();
   CheckTetrahedronWasRescaled(model);
   mj_deleteModel(model);
 }

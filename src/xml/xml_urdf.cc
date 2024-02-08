@@ -223,7 +223,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
   std::string name, text;
   XMLElement *elem, *temp, *temp1;
   mjmBody *pbody, *world;
-  mjCGeom* pgeom;
+  mjmGeom* pgeom;
 
   // get body name and pointer to mjmBody
   ReadAttrTxt(body_elem, "name", name, true);
@@ -322,7 +322,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         mjXUtil::ReadAttrTxt(elem, "name", geom_name);
         name = GetPrefixedName(name);
         if (urGeomNames.find(geom_name) == urGeomNames.end()) {
-          pgeom->name = geom_name;
+          mjm_setString(pgeom->name, geom_name.c_str());
           urGeomNames.insert(geom_name);
         } else {
           std::cerr << "WARNING: Geom with duplicate name '" << geom_name
@@ -345,7 +345,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
       mjXUtil::ReadAttrTxt(elem, "name", geom_name);
       geom_name = GetPrefixedName(geom_name);
       if (urGeomNames.find(geom_name) == urGeomNames.end()) {
-        pgeom->name = geom_name;
+        mjm_setString(pgeom->name, geom_name.c_str());
         urGeomNames.insert(geom_name);
       } else {
         std::cerr << "WARNING: Geom with duplicate name '" << geom_name
@@ -501,7 +501,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
 
 
 // parse origin and geometry elements of visual or collision
-mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
+mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
   XMLElement *elem, *temp;
   std::string text, meshfile;
 
@@ -509,8 +509,8 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
   elem = FindSubElem(geom_elem, "geometry", true);
 
   // add BOX geom, modify type later
-  mjCGeom* pgeom = (mjCGeom*)mjm_addGeom(pbody, 0);
-  pgeom->name = "";
+  mjmGeom* pgeom = mjm_addGeom(pbody, 0);
+  mjm_setString(pgeom->name, "");
   pgeom->type = mjGEOM_BOX;
   if (collision) {
     pgeom->contype = 1;
@@ -589,7 +589,7 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
     // set fields
     pmesh->set_file(meshfile);
     pmesh->name = meshname;
-    pgeom->meshname = meshname;
+    mjm_setString(pgeom->meshname, meshname.c_str());
     pmesh->set_scale(meshscale);
   }
 

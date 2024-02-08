@@ -77,11 +77,11 @@ void* mjm_addFreeJoint(mjmBody* bodyspec) {
 
 
 // add geom to body
-void* mjm_addGeom(mjmBody* bodyspec, void* defspec) {
+mjmGeom* mjm_addGeom(mjmBody* bodyspec, void* defspec) {
   mjCDef* def = static_cast<mjCDef*>(defspec);
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCGeom* geom = body->AddGeom(def);
-  return geom;
+  return &geom->spec;
 }
 
 

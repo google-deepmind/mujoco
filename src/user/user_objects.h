@@ -86,13 +86,6 @@ typedef enum _mjtMark {
 } mjtMark;
 
 
-// type of mesh
-typedef enum _mjtMeshType {
-  mjVOLUME_MESH,
-  mjSHELL_MESH,
-} mjtMeshType;
-
-
 // error information
 class [[nodiscard]] mjCError {
  public:
@@ -378,23 +371,25 @@ class mjCJoint : public mjCBase {
 //------------------------- class mjCGeom ----------------------------------------------------------
 // Describes a geometric shape belonging to a body
 
-class mjCGeom : public mjCBase {
+class mjCGeom : public mjCBase, private mjmGeom {
   friend class mjCDef;
   friend class mjCMesh;
   friend class mjCPair;
   friend class mjCBody;
   friend class mjCModel;
+  friend class mjCWrap;
   friend class mjXWriter;
   friend class mjXURDF;
 
  public:
+  using mjCBase::name;
+  mjmGeom spec;                       // variables set by user
   double GetVolume(void);             // compute geom volume
   void SetInertia(void);              // compute and set geom inertia
   bool IsVisual(void) const { return visual_; }
   void SetNotVisual(void) { visual_ = false; }
 
-  void set_material(std::string _material) { material_ = _material; }
-  std::string& get_material() { return material_; }
+  bool inferinertia;           // true if inertia should be computed from geom
 
   // Compute all coefs modeling the interaction with the surrounding fluid.
   void SetFluidCoefs(void);
@@ -404,56 +399,46 @@ class mjCGeom : public mjCBase {
   // sets properties of a bounding volume
   void SetBoundingVolume(mjCBoundingVolume* bv) const;
 
-  // variables set by user and copied into mjModel
-  mjtGeom type;                   // geom type
-  int contype;                    // contact type
-  int conaffinity;                // contact affinity
-  int condim;                     // contact dimensionality
-  int group;                      // used for rendering
-  int priority;                   // contact priority
-  double size[3];                 // geom-specific size parameters
-  double friction[3];             // one-sided friction coefficients: slide, roll, spin
-  double solmix;                  // solver mixing for contact pairs
-  mjtNum solref[mjNREF];          // solver reference
-  mjtNum solimp[mjNIMP];          // solver impedance
-  double margin;                  // margin for contact detection
-  double gap;                     // include in solver if dist<margin-gap
-  mjtNum fluid_switch;            // whether ellipsoid-fluid model is active
-  mjtNum fluid_coefs[5];          // tunable ellipsoid-fluid interaction coefs
-  mjtNum fluid[mjNFLUID];         // compile-time fluid-interaction parameters
-  std::string hfieldname;         // hfield attached to geom
-  std::string meshname;           // mesh attached to geom
-  double fitscale;                // scale mesh uniformly
-  std::vector<double> userdata;   // user data
-  float rgba[4];                  // rgba when material is omitted
-  mjtMeshType typeinertia;        // selects between surface and volume inertia
-  bool inferinertia;              // true if inertia has to be computed from geom
-
-  // variables set by user and used during compilation
-  double _mass;                   // used to compute density
-  double density;                 // used to compute mass and inertia (from volume)
-  double fromto[6];               // alternative for capsule, cylinder, box, ellipsoid
-  mjCAlternative alt;             // alternative orientation specifications
-
-  // variables set by user or 'Compile'
-  double pos[3];                  // position
-  double quat[4];                 // orientation
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
+  const std::string& get_hfieldname() { return spec_hfieldname_; }
+  const std::string& get_meshname() { return spec_meshname_; }
+  const std::string& get_material() { return spec_material_; }
+  void del_material() { spec_material_.clear(); }
 
  private:
   mjCGeom(mjCModel* = 0, mjCDef* = 0);
   void Compile(void);                 // compiler
   double GetRBound(void);             // compute bounding sphere radius
   void ComputeAABB(void);             // compute axis-aligned bounding box
+  void CopyFromSpec(void);
+  void MakePointerLocal(void);
 
-  std::string material_;              // name of material used for rendering
+  mjCAlternative alt_;
   bool visual_;                       // true: geom does not collide and is unreferenced
   int matid;                          // id of geom's material
   mjCMesh* mesh;                      // geom's mesh
   mjCHField* hfield;                  // geom's hfield
-  double mass;                        // mass
+  double mass_;                       // mass
   double inertia[3];                  // local diagonal inertia
   double aabb[6];                     // axis-aligned bounding box (center, size)
   mjCBody* body;                      // geom's body
+  mjtNum fluid[mjNFLUID];             // compile-time fluid-interaction parameters
+
+  // variable-size data
+  std::string hfieldname_;
+  std::string meshname_;
+  std::string material_;
+  std::vector<double> userdata_;
+  std::string spec_hfieldname_;
+  std::string spec_meshname_;
+  std::string spec_material_;
+  std::vector<double> spec_userdata_;
+
+  // inherited
+  using mjCBase::classname;
+  using mjCBase::info;
+  using mjCBase::plugin;
 };
 
 
@@ -479,6 +464,7 @@ class mjCSite : public mjCBase, private mjmSite {
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
   const std::string& get_material() { return material_; }
+  void del_material() { material_.clear(); }
 
  private:
   mjCSite(mjCModel* = 0, mjCDef* = 0);    // constructor
@@ -701,12 +687,12 @@ class mjCMesh: public mjCBase {
   void set_userface(std::optional<std::vector<int>>&& userface);
 
   void Compile(const mjVFS* vfs);                   // compiler
-  double* GetPosPtr(mjtMeshType type);              // get position
-  double* GetQuatPtr(mjtMeshType type);             // get orientation
+  double* GetPosPtr(mjtGeomInertia type);              // get position
+  double* GetQuatPtr(mjtGeomInertia type);             // get orientation
   double* GetOffsetPosPtr();                        // get position offset for geom
   double* GetOffsetQuatPtr();                       // get orientation offset for geom
-  double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
-  double& GetVolumeRef(mjtMeshType type);           // get volume
+  double* GetInertiaBoxPtr(mjtGeomInertia type);       // get inertia box
+  double& GetVolumeRef(mjtGeomInertia type);           // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
@@ -753,10 +739,10 @@ class mjCMesh: public mjCBase {
   void ApplyTransformations();                // apply user transformations
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void RemoveRepeated(void);                  // remove repeated vertices
-  void CheckMesh(mjtMeshType type);           // check if the mesh is valid
+  void CheckMesh(mjtGeomInertia type);           // check if the mesh is valid
 
   // compute the volume and center-of-mass of the mesh given the face center
-  void ComputeVolume(double CoM[3], mjtMeshType type, const double facecen[3],
+  void ComputeVolume(double CoM[3], mjtGeomInertia type, const double facecen[3],
                      bool exactmeshinertia);
 
   // mesh properties that indicate a well-formed mesh
@@ -814,6 +800,7 @@ class mjCSkin: public mjCBase {
   std::string get_file() const { return file; }
   void set_material(std::string _material) { material_ = _material; }
   std::string& get_material() { return material_; }
+  void del_material() { material_.clear(); }
 
   std::string file;                   // skin file
   float rgba[4];                      // rgba when material is omitted
@@ -1076,6 +1063,7 @@ class mjCTendon : public mjCBase {
  public:
   void set_material(std::string _material) { material_ = _material; }
   std::string& get_material() { return material_; }
+  void del_material() { material_.clear(); }
 
   // API for adding wrapping objects
   void WrapSite(std::string name, std::string_view info = "");                    // site
@@ -1326,6 +1314,7 @@ class mjCDef {
  public:
   mjCDef(void);                           // constructor
   void Compile(const mjCModel* model);    // compiler
+  void MakePointerLocal();
 
   // identifiers
   std::string name;               // class name

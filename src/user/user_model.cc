@@ -565,6 +565,7 @@ mjCDef* mjCModel::AddDef(string name, int parentid) {
   if (parentid>=0 && parentid<thisid) {
     *def = *defaults[parentid];
     defaults[parentid]->childid.push_back(thisid);
+    def->MakePointerLocal();
   }
   def->parentid = parentid;
   def->name = name;
@@ -654,8 +655,8 @@ void mjCModel::MakeLists(mjCBody* body) {
 template <class T>
 void mjCModel::DeleteMaterial(std::vector<T*>& list, std::string_view name) {
   for (T* plist : list) {
-    if (name.empty() || plist->material_ == name) {
-      plist->material_.clear();
+    if (name.empty() || plist->get_material() == name) {
+      plist->del_material();
     }
   }
 }
@@ -776,18 +777,18 @@ void mjCModel::IndexAssets(bool discard) {
     mjCGeom* pgeom = geoms[i];
 
     // find material by name
-    if (!pgeom->material_.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pgeom->material_);
+    if (!pgeom->get_material().empty()) {
+      mjCBase* m = FindObject(mjOBJ_MATERIAL, pgeom->get_material());
       if (m) {
         pgeom->matid = m->id;
       } else {
-        throw mjCError(pgeom, "material '%s' not found in geom %d", pgeom->material_.c_str(), i);
+        throw mjCError(pgeom, "material '%s' not found in geom %d", pgeom->get_material().c_str(), i);
       }
     }
 
     // find mesh by name
-    if (!pgeom->meshname.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MESH, pgeom->meshname);
+    if (!pgeom->get_meshname().empty()) {
+      mjCBase* m = FindObject(mjOBJ_MESH, pgeom->get_meshname());
       if (m) {
         if (discard && geoms[i]->visual_) {
           // do not associate with a mesh
@@ -803,17 +804,17 @@ void mjCModel::IndexAssets(bool discard) {
           }
         }
       } else {
-        throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->meshname.c_str(), i);
+        throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->get_meshname().c_str(), i);
       }
     }
 
     // find hfield by name
-    if (!pgeom->hfieldname.empty()) {
-      mjCBase* m = FindObject(mjOBJ_HFIELD, pgeom->hfieldname);
+    if (!pgeom->get_hfieldname().empty()) {
+      mjCBase* m = FindObject(mjOBJ_HFIELD, pgeom->get_hfieldname());
       if (m) {
         pgeom->hfield = (mjCHField*)m;
       } else {
-        throw mjCError(pgeom, "hfield '%s' not found in geom %d", pgeom->hfieldname.c_str(), i);
+        throw mjCError(pgeom, "hfield '%s' not found in geom %d", pgeom->get_hfieldname().c_str(), i);
       }
     }
   }
@@ -1683,7 +1684,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_margin[gid] = (mjtNum)pg->margin;
       m->geom_gap[gid] = (mjtNum)pg->gap;
       copyvec(m->geom_fluid+mjNFLUID*gid, pg->fluid, mjNFLUID);
-      copyvec(m->geom_user+nuser_geom*gid, pg->userdata.data(), nuser_geom);
+      copyvec(m->geom_user+nuser_geom*gid, pg->get_userdata().data(), nuser_geom);
       copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
 
       // determine sameframe
@@ -2868,8 +2869,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // mark meshes that need convex hull
   for (int i=0; i<geoms.size(); i++) {
-    if (geoms[i]->mesh && geoms[i]->type==mjGEOM_MESH &&
-        (geoms[i]->contype || geoms[i]->conaffinity)) {
+    if (geoms[i]->mesh && geoms[i]->spec.type==mjGEOM_MESH &&
+        (geoms[i]->spec.contype || geoms[i]->spec.conaffinity)) {
       geoms[i]->mesh->set_needhull(true);
     }
   }
@@ -2895,7 +2896,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_geom == -1) {
     nuser_geom = 0;
     for (int i=0; i<geoms.size(); i++) {
-      nuser_geom = mjMAX(nuser_geom, geoms[i]->userdata.size());
+      nuser_geom = mjMAX(nuser_geom, geoms[i]->spec_userdata_.size());
     }
   }
   if (nuser_site == -1) {
@@ -3369,7 +3370,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pg->gap = (double)m->geom_gap[i];
 
     if (nuser_geom) {
-      copyvec(pg->userdata.data(), m->geom_user + nuser_geom*i, nuser_geom);
+      copyvec(pg->userdata_.data(), m->geom_user + nuser_geom*i, nuser_geom);
     }
   }
 

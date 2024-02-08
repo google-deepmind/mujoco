@@ -471,11 +471,18 @@ mjCDef::mjCDef(void) {
 void mjCDef::Compile(const mjCModel* model) {
   // enforce length of all default userdata arrays
   joint.userdata.resize(model->nuser_jnt);
-  geom.userdata.resize(model->nuser_geom);
+  geom.userdata_.resize(model->nuser_geom);
   site.userdata_.resize(model->nuser_site);
   camera.userdata.resize(model->nuser_cam);
   tendon.userdata.resize(model->nuser_tendon);
   actuator.userdata.resize(model->nuser_actuator);
+}
+
+
+
+// assignment operator (TODO: use overloading)
+void mjCDef::MakePointerLocal() {
+  geom.MakePointerLocal();
 }
 
 
@@ -867,7 +874,7 @@ void mjCBody::GeomFrame(void) {
   if (sz==1) {
     mjuu_copyvec(ipos, sel[0]->pos, 3);
     mjuu_copyvec(iquat, sel[0]->quat, 4);
-    mass = sel[0]->mass;
+    mass = sel[0]->mass_;
     mjuu_copyvec(inertia, sel[0]->inertia, 3);
   }
 
@@ -876,10 +883,10 @@ void mjCBody::GeomFrame(void) {
     // compute total mass and center of mass
     mass = 0;
     for (int i=0; i<sz; i++) {
-      mass += sel[i]->mass;
-      com[0] += sel[i]->mass * sel[i]->pos[0];
-      com[1] += sel[i]->mass * sel[i]->pos[1];
-      com[2] += sel[i]->mass * sel[i]->pos[2];
+      mass += sel[i]->mass_;
+      com[0] += sel[i]->mass_ * sel[i]->pos[0];
+      com[1] += sel[i]->mass_ * sel[i]->pos[1];
+      com[2] += sel[i]->mass_ * sel[i]->pos[2];
     }
 
     // check for small mass
@@ -902,7 +909,7 @@ void mjCBody::GeomFrame(void) {
       };
 
       mjuu_globalinertia(inert0, sel[i]->inertia, sel[i]->quat);
-      mjuu_offcenter(inert1, sel[i]->mass, dpos);
+      mjuu_offcenter(inert1, sel[i]->mass_, dpos);
       for (int j=0; j<6; j++) {
         toti[j] = toti[j] + inert0[j] + inert1[j];
       }
@@ -1003,8 +1010,8 @@ void mjCBody::Compile(void) {
   for (int i=0; i<geoms.size(); i++) {
     geoms[i]->inferinertia = id>0 &&
       (!explicitinertial || model->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) &&
-      geoms[i]->group >= model->inertiagrouprange[0] &&
-      geoms[i]->group <= model->inertiagrouprange[1];
+      geoms[i]->spec.group >= model->inertiagrouprange[0] &&
+      geoms[i]->spec.group <= model->inertiagrouprange[1];
     geoms[i]->Compile();
   }
 
@@ -1367,57 +1374,29 @@ int mjCJoint::Compile(void) {
 
 // initialize default geom
 mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
-  // clear alternatives
-  fromto[0] = mjNAN;
-  _mass = mjNAN;
+  mjm_defaultGeom(spec);
 
-  // set defaults
-  type = mjGEOM_SPHERE;
-  mjuu_setvec(size, 0, 0, 0);
-  contype = 1;
-  conaffinity = 1;
-  condim = 3;
-  group = 0;
-  priority = 0;
-  mjuu_setvec(friction, 1, 0.005, 0.0001);
-  solmix = 1.0;
-  mj_defaultSolRefImp(solref, solimp);
-  margin = 0;
-  gap = 0;
-  fluid_switch = 0.0;
-  // user-tunable ellipsoid-fluid interaction coefs sorted from most to least likely to need tuning
-  // defaults are tuned for slender bodies in a Re 50-1000 environment
-  fluid_coefs[0] = 0.5;       // blunt_drag_coef
-  fluid_coefs[1] = 0.25;      // slender_drag_coef
-  fluid_coefs[2] = 1.5;       // ang_drag_coef
-  fluid_coefs[3] = 1.0;       // kutta_lift_coef
-  fluid_coefs[4] = 1.0;       // magnus_lift_coef
-  for (int i = 0; i < mjNFLUID; i++){
-    fluid[i] = 0;
-  }
-  density = 1000;             // water density (1000 kg / m^3)
-  meshname.clear();
-  fitscale = 1;
-  material_.clear();
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
-  userdata.clear();
-  typeinertia = mjVOLUME_MESH;
-  inferinertia = true;
-
-  // clear internal variables
-  mjuu_setvec(quat, 1, 0, 0, 0);
-  mjuu_setvec(pos, 0, 0, 0);
-  mass = 0;
-  mjuu_setvec(inertia, 0, 0, 0);
+  mass_ = 0;
   body = 0;
   matid = -1;
   mesh = nullptr;
   hfield = nullptr;
   visual_ = false;
+  mjuu_setvec(inertia, 0, 0, 0);
+  inferinertia = true;
+  spec_material_.clear();
+  spec_userdata_.clear();
+  spec_meshname_.clear();
+  spec_hfieldname_.clear();
+  spec_userdata_.clear();
+
+  for (int i = 0; i < mjNFLUID; i++){
+    fluid[i] = 0;
+  }
 
   // reset to default if given
   if (_def) {
+    _def->geom.CopyFromSpec();
     *this = _def->geom;
   }
 
@@ -1426,8 +1405,48 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
   // point to local (needs to be after defaults)
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  MakePointerLocal();
+
+  // in case this geom is not compiled
+  CopyFromSpec();
+}
+
+
+
+// to be called after any default copy constructor
+void mjCGeom::MakePointerLocal(void) {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.info = (mjString)&info;
+  spec.classname = (mjString)&classname;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.material = (mjString)&spec_material_;
+  spec.meshname = (mjString)&spec_meshname_;
+  spec.hfieldname = (mjString)&spec_hfieldname_;
+  spec.plugin.name = (mjString)&plugin_name;
+  spec.plugin.instance_name = (mjString)&plugin_instance_name;
+}
+
+
+
+void mjCGeom::CopyFromSpec() {
+  *static_cast<mjmGeom*>(this) = spec;
+  userdata_ = spec_userdata_;
+  hfieldname_ = spec_hfieldname_;
+  meshname_ = spec_meshname_;
+  material_ = spec_material_;
+  userdata = (mjDouble)&userdata_;
+  hfieldname = (mjString)&hfieldname_;
+  meshname = (mjString)&meshname_;
+  material = (mjString)&material_;
+  mju_copy4(alt_.axisangle, alt.axisangle);
+  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
+  mju_copy3(alt_.zaxis, alt.zaxis);
+  mju_copy3(alt_.euler, alt.euler);
+  plugin.active = spec.plugin.active;
+  plugin.instance = spec.plugin.instance;
+  plugin.name = spec.plugin.name;
+  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -1496,9 +1515,9 @@ void mjCGeom::SetInertia(void) {
     }
 
     double* boxsz = mesh->GetInertiaBoxPtr(typeinertia);
-    inertia[0] = mass*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
-    inertia[1] = mass*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
-    inertia[2] = mass*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
+    inertia[0] = mass_*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
+    inertia[1] = mass_*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
+    inertia[2] = mass_*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
   }
 
   // compute from geom shape
@@ -1508,14 +1527,14 @@ void mjCGeom::SetInertia(void) {
                      name.c_str(), id);
     switch (type) {
     case mjGEOM_SPHERE:
-      inertia[0] = inertia[1] = inertia[2] = 2*mass*size[0]*size[0]/5;
+      inertia[0] = inertia[1] = inertia[2] = 2*mass_*size[0]*size[0]/5;
       return;
 
     case mjGEOM_CAPSULE: {
       height = 2*size[1];
       double radius = size[0];
-      double sphere_mass = mass*4*radius/(4*radius + 3*height);  // mass*(sphere_vol/total_vol)
-      double cylinder_mass = mass - sphere_mass;
+      double sphere_mass = mass_*4*radius/(4*radius + 3*height);  // mass*(sphere_vol/total_vol)
+      double cylinder_mass = mass_ - sphere_mass;
       // cylinder part
       inertia[0] = inertia[1] = cylinder_mass*(3*radius*radius + height*height)/12;
       inertia[2] = cylinder_mass*radius*radius/2;
@@ -1529,21 +1548,21 @@ void mjCGeom::SetInertia(void) {
 
     case mjGEOM_CYLINDER:
       height = 2*size[1];
-      inertia[0] = inertia[1] = mass*(3*size[0]*size[0]+height*height)/12;
-      inertia[2] = mass*size[0]*size[0]/2;
+      inertia[0] = inertia[1] = mass_*(3*size[0]*size[0]+height*height)/12;
+      inertia[2] = mass_*size[0]*size[0]/2;
       return;
 
     case mjGEOM_ELLIPSOID:
-      inertia[0] = mass*(size[1]*size[1]+size[2]*size[2])/5;
-      inertia[1] = mass*(size[0]*size[0]+size[2]*size[2])/5;
-      inertia[2] = mass*(size[0]*size[0]+size[1]*size[1])/5;
+      inertia[0] = mass_*(size[1]*size[1]+size[2]*size[2])/5;
+      inertia[1] = mass_*(size[0]*size[0]+size[2]*size[2])/5;
+      inertia[2] = mass_*(size[0]*size[0]+size[1]*size[1])/5;
       return;
 
     case mjGEOM_HFIELD:
     case mjGEOM_BOX:
-      inertia[0] = mass*(size[1]*size[1]+size[2]*size[2])/3;
-      inertia[1] = mass*(size[0]*size[0]+size[2]*size[2])/3;
-      inertia[2] = mass*(size[0]*size[0]+size[1]*size[1])/3;
+      inertia[0] = mass_*(size[1]*size[1]+size[2]*size[2])/3;
+      inertia[1] = mass_*(size[0]*size[0]+size[2]*size[2])/3;
+      inertia[2] = mass_*(size[0]*size[0]+size[1]*size[1])/3;
       return;
 
     default:
@@ -1700,7 +1719,7 @@ void mjCGeom::SetFluidCoefs(void) {
       volume * kz / std::max(mjMINVAL, 2-kz)};
   const mjtNum virtual_inertia[3] = {volume*Ixfac/5, volume*Iyfac/5, volume*Izfac/5};
 
-  writeFluidGeomInteraction(fluid, &fluid_switch, &fluid_coefs[0],
+  writeFluidGeomInteraction(fluid, &fluid_ellipsoid, &fluid_coefs[0],
                             &fluid_coefs[1], &fluid_coefs[2],
                             &fluid_coefs[3], &fluid_coefs[4],
                             virtual_mass, virtual_inertia);
@@ -1767,12 +1786,14 @@ void mjCGeom::ComputeAABB(void) {
 
 // compiler
 void mjCGeom::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
-  if (userdata.size() > model->nuser_geom) {
+  if (userdata_.size() > model->nuser_geom) {
     throw mjCError(this, "user has more values than nuser_geom in geom '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_geom);
+  userdata_.resize(model->nuser_geom);
 
   // check type
   if (type<0 || type>=mjNGEOMTYPES) {
@@ -1853,7 +1874,7 @@ void mjCGeom::Compile(void) {
 
   // not 'fromto': try alternative
   else {
-    const char* err = alt.Set(quat, model->degree, model->euler);
+    const char* err = alt_.Set(quat, model->degree, model->euler);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
@@ -1875,7 +1896,7 @@ void mjCGeom::Compile(void) {
       mesh->FitGeom(this, meshpos);
 
       // remove reference to mesh
-      meshname.clear();
+      meshname_.clear();
       mesh = nullptr;
     } else {
       mjuu_copyvec(meshpos, mesh->GetPosPtr(typeinertia), 3);
@@ -1913,28 +1934,28 @@ void mjCGeom::Compile(void) {
 
   // compute geom mass and inertia
   if (inferinertia) {
-    if (mjuu_defined(_mass)) {
-      if (_mass==0) {
-        mass = 0;
+    if (mjuu_defined(mass)) {
+      if (mass==0) {
+        mass_ = 0;
         density = 0;
       } else if (GetVolume()>mjMINVAL) {
-        mass = _mass;
-        density = _mass / GetVolume();
+        mass_ = mass;
+        density = mass / GetVolume();
         SetInertia();
       }
     } else {
-      mass = density * GetVolume();
+      mass_ = density * GetVolume();
       SetInertia();
     }
 
     // check for negative values
-    if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
+    if (mass_<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
       throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
                     name.c_str(), id);
   }
 
   // fluid-interaction coefficients, requires computed inertia and mass
-  if (fluid_switch > 0) {
+  if (fluid_ellipsoid > 0) {
     SetFluidCoefs();
   }
 

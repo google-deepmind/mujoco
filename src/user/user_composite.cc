@@ -137,7 +137,7 @@ void mjCComposite::SetDefault(void) {
 
   // set all deafult groups to 3
   for (int i=0; i<mjNCOMPKINDS; i++) {
-    def[i].geom.group = 3;
+    def[i].geom.spec.group = 3;
     def[i].site.spec.group = 3;
     def[i].tendon.group = 3;
   }
@@ -153,7 +153,7 @@ void mjCComposite::SetDefault(void) {
       type==mjCOMPTYPE_CABLE      ||
       (type==mjCOMPTYPE_GRID && tmpdim==1)) {
     for (int i=0; i<mjNCOMPKINDS; i++) {
-      def[i].geom.group = 0;
+      def[i].geom.spec.group = 0;
       def[i].tendon.group = 0;
     }
   }
@@ -163,8 +163,8 @@ void mjCComposite::SetDefault(void) {
   case mjCOMPTYPE_PARTICLE:       // particle
 
     // no friction with anything
-    def[0].geom.condim = 1;
-    def[0].geom.priority = 1;
+    def[0].geom.spec.condim = 1;
+    def[0].geom.spec.priority = 1;
     break;
 
   case mjCOMPTYPE_GRID:           // grid
@@ -193,7 +193,7 @@ void mjCComposite::SetDefault(void) {
   case mjCOMPTYPE_ELLIPSOID:
 
     // no self-collisions
-    def[0].geom.contype = 0;
+    def[0].geom.spec.contype = 0;
 
     // soft smoothing
     AdjustSoft(solrefsmooth, solimpsmooth, 1);
@@ -219,9 +219,9 @@ void mjCComposite::SetDefault(void) {
 // make composite object
 bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   // check geom type
-  if ((def[0].geom.type!=mjGEOM_SPHERE &&
-       def[0].geom.type!=mjGEOM_CAPSULE &&
-       def[0].geom.type!=mjGEOM_ELLIPSOID) &&
+  if ((def[0].geom.spec.type!=mjGEOM_SPHERE &&
+       def[0].geom.spec.type!=mjGEOM_CAPSULE &&
+       def[0].geom.spec.type!=mjGEOM_ELLIPSOID) &&
       type!=mjCOMPTYPE_PARTICLE && type!=mjCOMPTYPE_CABLE) {
     return comperr(error, "Composite geom type must be sphere, capsule or ellipsoid", error_sz);
   }
@@ -240,8 +240,8 @@ bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_s
 
   // check spacing
   if (type==mjCOMPTYPE_GRID || (type==mjCOMPTYPE_PARTICLE && uservert.empty())) {
-    if (spacing < mju_max(def[0].geom.size[0],
-                  mju_max(def[0].geom.size[1], def[0].geom.size[2]))) {
+    if (spacing < mju_max(def[0].geom.spec.size[0],
+                  mju_max(def[0].geom.spec.size[1], def[0].geom.spec.size[2]))) {
       return comperr(error, "Spacing must be larger than geometry size",
                      error_sz);
     }
@@ -333,8 +333,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
 
   // populate vertices and names
   if (uservert.empty()) {
-    if (spacing < mju_max(def[0].geom.size[0],
-                  mju_max(def[0].geom.size[1], def[0].geom.size[2])))
+    if (spacing < mju_max(def[0].geom.spec.size[0],
+                  mju_max(def[0].geom.spec.size[1], def[0].geom.spec.size[2])))
       return comperr(error, "Spacing must be larger than geometry size", error_sz);
 
     for (int ix=0; ix<count[0]; ix++) {
@@ -475,8 +475,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     }
 
     // add geom
-    mjCGeom* g = (mjCGeom*)mjm_addGeom(b, def);
-    g->def = (mjCDef*)mjm_getDefault(body->element);
+    mjmGeom* g = mjm_addGeom(b, def);
+    mjm_setDefault(g->element, mjm_getDefault(body->element));
 
     // add site
     mjmSite* s = mjm_addSite(b, def);
@@ -600,11 +600,11 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int err
       b->pos[2] = offset[2];
 
       // add geom
-      mjCGeom* g = (mjCGeom*)mjm_addGeom(b, def);
-      g->def = (mjCDef*)mjm_getDefault(body->element);
+      mjmGeom* g = mjm_addGeom(b, def);
+      mjm_setDefault(g->element, mjm_getDefault(body->element));
       g->type = mjGEOM_SPHERE;
       mju::sprintf_arr(txt, "%sG%d_%d", prefix.c_str(), ix, iy);
-      g->name = txt;
+      mjm_setString(g->name, txt);
 
       // add site
       mjmSite* s = mjm_addSite(b, def);
@@ -691,9 +691,9 @@ bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int er
   }
 
   // check geom type
-  if (def[0].geom.type!=mjGEOM_CYLINDER &&
-      def[0].geom.type!=mjGEOM_CAPSULE &&
-      def[0].geom.type!=mjGEOM_BOX) {
+  if (def[0].geom.spec.type!=mjGEOM_CYLINDER &&
+      def[0].geom.spec.type!=mjGEOM_CAPSULE &&
+      def[0].geom.spec.type!=mjGEOM_BOX) {
     return comperr(error, "Cable geom type must be sphere, capsule or box", error_sz);
   }
 
@@ -739,14 +739,14 @@ bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int er
   }
 
   // add skin
-  if (def[0].geom.type==mjGEOM_BOX) {
+  if (def[0].geom.spec.type==mjGEOM_BOX) {
     if (skinsubgrid>0) {
       count[1]+=2;
-      MakeSkin2Subgrid(model, 2*def[0].geom.size[2]);
+      MakeSkin2Subgrid(model, 2*def[0].geom.spec.size[2]);
       count[1]-=2;
     } else {
       count[1]++;
-      MakeSkin2(model, 2*def[0].geom.size[2]);
+      MakeSkin2(model, 2*def[0].geom.spec.size[2]);
       count[1]--;
     }
   }
@@ -826,14 +826,14 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
   }
 
   // add geom
-  mjCGeom* geom = (mjCGeom*)mjm_addGeom(body, def);
-  geom->def = (mjCDef*)mjm_getDefault(body->element);
-  geom->name = txt_geom;
-  if (def[0].geom.type==mjGEOM_CYLINDER ||
-      def[0].geom.type==mjGEOM_CAPSULE) {
+  mjmGeom* geom = mjm_addGeom(body, def);
+  mjm_setDefault(geom->element, mjm_getDefault(body->element));
+  mjm_setString(geom->name, txt_geom);
+  if (def[0].geom.spec.type==mjGEOM_CYLINDER ||
+      def[0].geom.spec.type==mjGEOM_CAPSULE) {
     mjuu_zerovec(geom->fromto, 6);
     geom->fromto[3] = length;
-  } else if (def[0].geom.type==mjGEOM_BOX) {
+  } else if (def[0].geom.spec.type==mjGEOM_BOX) {
     mjuu_zerovec(geom->pos, 3);
     geom->pos[0] = length/2;
     geom->size[0] = length/2;
@@ -982,10 +982,10 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   }
 
   // add geom
-  mjCGeom* geom = (mjCGeom*)mjm_addGeom(body, def);
-  geom->def = (mjCDef*)mjm_getDefault(body->element);
+  mjmGeom* geom = mjm_addGeom(body, def);
+  mjm_setDefault(geom->element, mjm_getDefault(body->element));
   mju::sprintf_arr(txt, "%sG%d", prefix.c_str(), ix1);
-  geom->name = txt;
+  mjm_setString(geom->name, txt);
   mjuu_setvec(geom->pos, 0, 0, 0);
   mjuu_setvec(geom->quat, sqrt(0.5), 0, sqrt(0.5), 0);
 
@@ -1094,11 +1094,11 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
   }
 
   // center geom: two times bigger
-  mjCGeom* geom = (mjCGeom*)mjm_addGeom(body, def);
-  geom->def = (mjCDef*)mjm_getDefault(body->element);
+  mjmGeom* geom = mjm_addGeom(body, def);
+  mjm_setDefault(geom->element, mjm_getDefault(body->element));
   geom->type = mjGEOM_SPHERE;
   mju::sprintf_arr(txt, "%sGcenter", prefix.c_str());
-  geom->name = txt;
+  mjm_setString(geom->name, txt);
   mjuu_setvec(geom->pos, 0, 0, 0);
   geom->size[0] *= 2;
   geom->size[1] = 0;
@@ -1135,10 +1135,10 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           mjuu_normvec(b->alt.zaxis, 3);
 
           // add geom
-          mjCGeom* g = (mjCGeom*) mjm_addGeom(b, def);
-          g->def = (mjCDef*)mjm_getDefault(body->element);
+          mjmGeom* g = mjm_addGeom(b, def);
+          mjm_setDefault(g->element, mjm_getDefault(body->element));
           mju::sprintf_arr(txt, "%sG%d_%d_%d", prefix.c_str(), ix, iy, iz);
-          g->name = txt;
+          mjm_setString(g->name, txt);
 
           // offset inwards, enforce sphere or capsule
           if (g->type==mjGEOM_CAPSULE) {
@@ -1469,15 +1469,15 @@ void mjCComposite::MakeCableBones(mjCModel* model, mjCSkin* skin) {
       // bind pose
       if (iy==0) {
         skin->bodyname.push_back(this_body);
-        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
-        skin->bindpos.push_back(-def[0].geom.size[1]);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        skin->bindpos.push_back(-def[0].geom.spec.size[1]);
         skin->bindpos.push_back(0);
         skin->bindquat.push_back(1); skin->bindquat.push_back(0);
         skin->bindquat.push_back(0); skin->bindquat.push_back(0);
       } else {
         skin->bodyname.push_back(this_body);
-        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
-        skin->bindpos.push_back(def[0].geom.size[1]);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        skin->bindpos.push_back(def[0].geom.spec.size[1]);
         skin->bindpos.push_back(0);
         skin->bindquat.push_back(1); skin->bindquat.push_back(0);
         skin->bindquat.push_back(0); skin->bindquat.push_back(0);
@@ -1509,15 +1509,15 @@ void mjCComposite::MakeCableBonesSubgrid(mjCModel* model, mjCSkin* skin) {
 
       // bind pose
       if (iy==0) {
-        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
-        skin->bindpos.push_back(-def[0].geom.size[1]);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        skin->bindpos.push_back(-def[0].geom.spec.size[1]);
         skin->bindpos.push_back(0);
       } else if (iy==2) {
-        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
-        skin->bindpos.push_back(def[0].geom.size[1]);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        skin->bindpos.push_back(def[0].geom.spec.size[1]);
         skin->bindpos.push_back(0);
       } else {
-        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
         skin->bindpos.push_back(0);
         skin->bindpos.push_back(0);
       }

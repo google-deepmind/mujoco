@@ -19,14 +19,14 @@
 #include "user/user_util.h"
 
 
-// Default body parameters
+// default body attributes
 void mjm_defaultBody(mjmBody& body) {
   memset(&body, 0, sizeof(mjmBody));
 
   // set non-zero defaults
   body.fullinertia[0] = mjNAN;
-  body.explicitinertial = (mjtByte)false;
-  body.mocap = (mjtByte)false;
+  body.explicitinertial = 0;
+  body.mocap = 0;
   body.quat[0] = 1;
   body.iquat[0] = 1;
   body.pos[0] = mjNAN;
@@ -38,8 +38,39 @@ void mjm_defaultBody(mjmBody& body) {
 }
 
 
+// default geom attributes
+MJAPI void mjm_defaultGeom(mjmGeom& geom) {
+  memset(&geom, 0, sizeof(mjmGeom));
 
-// Default site parameters
+  // set non-zero defaults
+  geom.fromto[0] = mjNAN;
+  geom.mass = mjNAN;
+  geom.type = mjGEOM_SPHERE;
+  geom.contype = 1;
+  geom.conaffinity = 1;
+  geom.condim = 3;
+  geom.friction[0] = 1;
+  geom.friction[1] = 0.005;
+  geom.friction[2] = 0.0001;
+  geom.solmix = 1.0;
+  mj_defaultSolRefImp(geom.solref, geom.solimp);
+  geom.density = 1000;             // water density (1000 kg / m^3)
+  geom.fitscale = 1;
+  geom.rgba[0] = geom.rgba[1] = geom.rgba[2] = 0.5f;
+  geom.rgba[3] = 1.0f;
+  geom.typeinertia = mjINERTIA_VOLUME;
+  geom.quat[0] = 1;
+  geom.alt.axisangle[0] = geom.alt.xyaxes[0] = geom.alt.zaxis[0] = geom.alt.euler[0] = mjNAN;
+  geom.fluid_coefs[0] = 0.5;       // blunt drag coefficient
+  geom.fluid_coefs[1] = 0.25;      // slender drag coefficient
+  geom.fluid_coefs[2] = 1.5;       // angular drag coefficient
+  geom.fluid_coefs[3] = 1.0;       // kutta lift coefficient
+  geom.fluid_coefs[4] = 1.0;       // magnus lift coefficient
+}
+
+
+
+// default site attributes
 void mjm_defaultSite(mjmSite& site) {
   memset(&site, 0, sizeof(mjmSite));
 

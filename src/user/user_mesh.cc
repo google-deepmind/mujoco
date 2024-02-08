@@ -647,8 +647,8 @@ void mjCMesh::SetBoundingVolume(int faceid) {
 
 
 // get position
-double* mjCMesh::GetPosPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
+double* mjCMesh::GetPosPtr(mjtGeomInertia type) {
+  if (type==mjINERTIA_SHELL) {
     return pos_surface_;
   } else {
     return pos_volume_;
@@ -658,8 +658,8 @@ double* mjCMesh::GetPosPtr(mjtMeshType type) {
 
 
 // get orientation
-double* mjCMesh::GetQuatPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
+double* mjCMesh::GetQuatPtr(mjtGeomInertia type) {
+  if (type==mjINERTIA_SHELL) {
     return quat_surface_;
   } else {
     return quat_volume_;
@@ -1162,7 +1162,7 @@ void mjCMesh::LoadMSH(mjResource* resource) {
 }
 
 
-void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
+void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
                               const double facecen[3], bool exactmeshinertia) {
   double nrm[3];
   double cen[3];
@@ -1174,10 +1174,10 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
 
     // compute and add volume
     const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-    double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
+    double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(vec, nrm) * a / 3;
 
     // if legacy computation requested, then always positive
-    if (!exactmeshinertia && type==mjVOLUME_MESH) {
+    if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
       vol = fabs(vol);
     }
 
@@ -1316,7 +1316,7 @@ void mjCMesh::Process() {
   ComputeFaceCentroid(facecen);
 
   // compute inertial properties for both inertia types
-  for ( const auto type : { mjtMeshType::mjVOLUME_MESH, mjtMeshType::mjSHELL_MESH } ) {
+  for ( const auto type : { mjtGeomInertia::mjINERTIA_VOLUME, mjtGeomInertia::mjINERTIA_SHELL } ) {
     double CoM[3] = {0, 0, 0};
     double inert[6] = {0, 0, 0, 0, 0, 0};
     bool exactmeshinertia = model->exactmeshinertia;
@@ -1344,7 +1344,7 @@ void mjCMesh::Process() {
     mjuu_copyvec(GetPosPtr(type), CoM, 3);
 
     // re-center mesh at CoM
-    if (type==mjVOLUME_MESH || validvolume_<=0) {
+    if (type==mjINERTIA_VOLUME || validvolume_<=0) {
       for (int i=0; i<nvert_; i++) {
         for (int j=0; j<3; j++) {
           vert_[3*i+j] -= CoM[j];
@@ -1363,10 +1363,10 @@ void mjCMesh::Process() {
 
       // get area, normal and center; update volume
       double a = _triangle(nrm, cen, D, E, F);
-      double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
+      double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!exactmeshinertia && type==mjVOLUME_MESH) {
+      if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
         vol = fabs(vol);
       }
 
@@ -1374,7 +1374,7 @@ void mjCMesh::Process() {
       GetVolumeRef(type) += vol;
       for (int j=0; j<6; j++) {
         P[j] += def->geom.density*vol /
-                  (type==mjSHELL_MESH ? 12 : 20) * (
+                  (type==mjINERTIA_SHELL ? 12 : 20) * (
                   2*(D[k[j][0]] * D[k[j][1]] +
                     E[k[j][0]] * E[k[j][1]] +
                     F[k[j][0]] * F[k[j][1]]) +
@@ -1422,8 +1422,8 @@ void mjCMesh::Process() {
 
     // if volume was valid, copy volume quat to shell and stop,
     // otherwise use shell quat for coordinate transformations
-    if (type==mjSHELL_MESH && validvolume_>0) {
-      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjVOLUME_MESH));
+    if (type==mjINERTIA_SHELL && validvolume_>0) {
+      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME));
       continue;
     }
 
@@ -1459,7 +1459,7 @@ void mjCMesh::Process() {
 
 
 // check that the mesh is valid
-void mjCMesh::CheckMesh(mjtMeshType type) {
+void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
@@ -1468,11 +1468,11 @@ void mjCMesh::CheckMesh(mjtMeshType type) {
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
                    name.c_str(), invalidorientation_.first, invalidorientation_.second);
-  if (!validarea_ && type==mjSHELL_MESH)
+  if (!validarea_ && type==mjINERTIA_SHELL)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  if (validvolume_<0 && type==mjVOLUME_MESH)
+  if (validvolume_<0 && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
-  if (!validvolume_ && type==mjVOLUME_MESH)
+  if (!validvolume_ && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is too small: %s", name.c_str());
   if (!valideigenvalue_)
     throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
@@ -1482,15 +1482,15 @@ void mjCMesh::CheckMesh(mjtMeshType type) {
 
 
 // get inertia pointer
-double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
+double* mjCMesh::GetInertiaBoxPtr(mjtGeomInertia type) {
   CheckMesh(type);
-  return type==mjSHELL_MESH ? boxsz_surface_ : boxsz_volume_;
+  return type==mjINERTIA_SHELL ? boxsz_surface_ : boxsz_volume_;
 }
 
 
-double& mjCMesh::GetVolumeRef(mjtMeshType type) {
+double& mjCMesh::GetVolumeRef(mjtGeomInertia type) {
   CheckMesh(type);
-  return type==mjSHELL_MESH ? surface_ : volume_;
+  return type==mjINERTIA_SHELL ? surface_ : volume_;
 }
 
 

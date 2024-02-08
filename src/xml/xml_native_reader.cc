@@ -740,8 +740,8 @@ const mjMap tkind_map[2] = {
 
 // mesh type
 const mjMap meshtype_map[2] = {
-  {"false", mjVOLUME_MESH},
-  {"true",  mjSHELL_MESH},
+  {"false", mjINERTIA_VOLUME},
+  {"true",  mjINERTIA_SHELL},
 };
 
 
@@ -1504,13 +1504,19 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
 
 
 // geom element parser
-void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
-  string text;
+void mjXReader::OneGeom(XMLElement* elem, mjmGeom* pgeom) {
+  string text, name, classname;
+  std::vector<double> userdata;
+  std::string hfieldname, meshname, material;
   int n;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pgeom->name);
-  ReadAttrTxt(elem, "class", pgeom->classname);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pgeom->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pgeom->classname, classname.c_str());
+  }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
     pgeom->type = (mjtGeom)n;
   }
@@ -1526,18 +1532,26 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "solimp", mjNIMP, pgeom->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &pgeom->margin, text);
   ReadAttr(elem, "gap", 1, &pgeom->gap, text);
-  ReadAttrTxt(elem, "hfield", pgeom->hfieldname);
-  ReadAttrTxt(elem, "mesh", pgeom->meshname);
+  if (ReadAttrTxt(elem, "hfield", hfieldname)) {
+    mjm_setString(pgeom->hfieldname, hfieldname.c_str());
+  }
+  if (ReadAttrTxt(elem, "mesh", meshname)) {
+    mjm_setString(pgeom->meshname, meshname.c_str());
+  }
   ReadAttr(elem, "fitscale", 1, &pgeom->fitscale, text);
-  ReadAttrTxt(elem, "material", pgeom->get_material());
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(pgeom->material, material.c_str());
+  }
   ReadAttr(elem, "rgba", 4, pgeom->rgba, text);
   if (MapValue(elem, "fluidshape", &n, fluid_map, 2)) {
-    pgeom->fluid_switch = (n == 1);
+    pgeom->fluid_ellipsoid = (n == 1);
   }
   ReadAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, text, false, false);
 
   // read userdata
-  ReadVector(elem, "user", pgeom->userdata, text);
+  if (ReadVector(elem, "user", userdata, text)) {
+    mjm_setDouble(pgeom->userdata, userdata.data(), userdata.size());
+  }
 
   // plugin sub-element
   XMLElement* eplugin = elem->FirstChildElement("plugin");
@@ -1546,7 +1560,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   }
 
   // remaining attributes
-  ReadAttr(elem, "mass", 1, &pgeom->_mass, text);
+  ReadAttr(elem, "mass", 1, &pgeom->mass, text);
   ReadAttr(elem, "density", 1, &pgeom->density, text);
   ReadAttr(elem, "fromto", 6, pgeom->fromto, text);
   ReadAttr(elem, "pos", 3, pgeom->pos, text);
@@ -1555,10 +1569,11 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
 
   // compute inertia using either solid or shell geometry
   if (MapValue(elem, "shellinertia", &n, meshtype_map, 2)) {
-    pgeom->typeinertia = (mjtMeshType)n;
+    pgeom->typeinertia = (mjtGeomInertia)n;
   }
 
-  GetXMLPos(elem, pgeom);
+  mjm_setString(pgeom->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2153,25 +2168,29 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   // geom
   XMLElement* egeom = elem->FirstChildElement("geom");
   if (egeom) {
+    std::string material;
+    mjmGeom& dgeom = comp.def[0].geom.spec;
     if (MapValue(egeom, "type", &n, geom_map, mjNGEOMTYPES)) {
-      comp.def[0].geom.type = (mjtGeom)n;
+      dgeom.type = (mjtGeom)n;
     }
-    ReadAttr(egeom, "size", 3, comp.def[0].geom.size, text, false, false);
-    ReadAttrInt(egeom, "contype", &comp.def[0].geom.contype);
-    ReadAttrInt(egeom, "conaffinity", &comp.def[0].geom.conaffinity);
-    ReadAttrInt(egeom, "condim", &comp.def[0].geom.condim);
-    ReadAttrInt(egeom, "group", &comp.def[0].geom.group);
-    ReadAttrInt(egeom, "priority", &comp.def[0].geom.priority);
-    ReadAttr(egeom, "friction", 3, comp.def[0].geom.friction, text, false, false);
-    ReadAttr(egeom, "solmix", 1, &comp.def[0].geom.solmix, text);
-    ReadAttr(egeom, "solref", mjNREF, comp.def[0].geom.solref, text, false, false);
-    ReadAttr(egeom, "solimp", mjNIMP, comp.def[0].geom.solimp, text, false, false);
-    ReadAttr(egeom, "margin", 1, &comp.def[0].geom.margin, text);
-    ReadAttr(egeom, "gap", 1, &comp.def[0].geom.gap, text);
-    ReadAttrTxt(egeom, "material", comp.def[0].geom.get_material());
-    ReadAttr(egeom, "rgba", 4, comp.def[0].geom.rgba, text);
-    ReadAttr(egeom, "mass", 1, &comp.def[0].geom._mass, text);
-    ReadAttr(egeom, "density", 1, &comp.def[0].geom.density, text);
+    ReadAttr(egeom, "size", 3, dgeom.size, text, false, false);
+    ReadAttrInt(egeom, "contype", &dgeom.contype);
+    ReadAttrInt(egeom, "conaffinity", &dgeom.conaffinity);
+    ReadAttrInt(egeom, "condim", &dgeom.condim);
+    ReadAttrInt(egeom, "group", &dgeom.group);
+    ReadAttrInt(egeom, "priority", &dgeom.priority);
+    ReadAttr(egeom, "friction", 3, dgeom.friction, text, false, false);
+    ReadAttr(egeom, "solmix", 1, &dgeom.solmix, text);
+    ReadAttr(egeom, "solref", mjNREF, dgeom.solref, text, false, false);
+    ReadAttr(egeom, "solimp", mjNIMP, dgeom.solimp, text, false, false);
+    ReadAttr(egeom, "margin", 1, &dgeom.margin, text);
+    ReadAttr(egeom, "gap", 1, &dgeom.gap, text);
+    if (ReadAttrTxt(egeom, "material", material)) {
+      mjm_setString(dgeom.material, material.c_str());
+    }
+    ReadAttr(egeom, "rgba", 4, dgeom.rgba, text);
+    ReadAttr(egeom, "mass", 1, &dgeom.mass, text);
+    ReadAttr(egeom, "density", 1, &dgeom.density, text);
   }
 
   // site
@@ -2494,7 +2513,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="joint") OneJoint(elem, &def->joint);
 
     // read geom
-    else if (name=="geom") OneGeom(elem, &def->geom);
+    else if (name=="geom") OneGeom(elem, &def->geom.spec);
 
     // read site
     else if (name=="site") OneSite(elem, def->site.spec);
@@ -3067,9 +3086,9 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
     // geom sub-element
     else if (name=="geom") {
       // create geom and parse
-      mjCGeom* pgeom = (mjCGeom*)mjm_addGeom(pbody, def);
+      mjmGeom* pgeom = mjm_addGeom(pbody, def);
       OneGeom(elem, pgeom);
-      pgeom->SetFrame(frame);
+      mjm_setFrame(pgeom->element, frame);
     }
 
     // site sub-element

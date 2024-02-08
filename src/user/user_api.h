@@ -31,6 +31,13 @@ extern "C" {
 
 //---------------------------------- Public structs ------------------------------------------------
 
+// type of mesh
+typedef enum _mjtGeomInertia {
+  mjINERTIA_VOLUME,
+  mjINERTIA_SHELL,
+} mjtGeomInertia;
+
+
 typedef struct _mjmOrientation {
   double axisangle[4];            // rotation axis and angle
   double xyaxes[6];               // x and y axes
@@ -67,6 +74,43 @@ typedef struct _mjmBody {
   mjmPlugin plugin;               // passive force plugin
   mjString info;                  // message appended to errors
 } mjmBody;
+
+
+typedef struct _mjmGeom {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // classname
+  mjtGeom type;                   // geom type
+  double pos[3];                  // position
+  double quat[4];                 // orientation
+  mjmOrientation alt;             // alternative orientation specifications
+  int contype;                    // contact type
+  int conaffinity;                // contact affinity
+  int condim;                     // contact dimensionality
+  int group;                      // used for rendering
+  int priority;                   // contact priority
+  double size[3];                 // geom-specific size parameters
+  double friction[3];             // one-sided friction coefficients: slide, roll, spin
+  double solmix;                  // solver mixing for contact pairs
+  mjtNum solref[mjNREF];          // solver reference
+  mjtNum solimp[mjNIMP];          // solver impedance
+  double mass;                    // used to compute density
+  double density;                 // used to compute mass and inertia (from volume)
+  double fromto[6];               // alternative for capsule, cylinder, box, ellipsoid
+  double margin;                  // margin for contact detection
+  double gap;                     // include in solver if dist<margin-gap
+  mjtNum fluid_ellipsoid;         // whether ellipsoid-fluid model is active
+  mjtNum fluid_coefs[5];          // ellipsoid-fluid interaction coefs
+  mjString material;              // name of material used for rendering
+  mjString hfieldname;            // hfield attached to geom
+  mjString meshname;              // mesh attached to geom
+  double fitscale;                // scale mesh uniformly
+  mjDouble userdata;              // user data
+  float rgba[4];                  // rgba when material is omitted
+  mjtGeomInertia typeinertia;     // selects between surface and volume inertia
+  mjmPlugin plugin;               // sdf plugin
+  mjString info;
+} mjmGeom;
 
 
 typedef struct _mjmSite {
@@ -108,7 +152,7 @@ MJAPI void* mjm_addJoint(mjmBody* body, void* defspec);
 MJAPI void* mjm_addFreeJoint(mjmBody* body);
 
 // Add geom to body.
-MJAPI void* mjm_addGeom(mjmBody* body, void* defspec);
+MJAPI mjmGeom* mjm_addGeom(mjmBody* body, void* defspec);
 
 // Add camera to body.
 MJAPI void* mjm_addCamera(mjmBody* body, void* defspec);
@@ -163,6 +207,9 @@ MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inert
 
 // Default body attributes.
 MJAPI void mjm_defaultBody(mjmBody& body);
+
+// Default geom attributes.
+MJAPI void mjm_defaultGeom(mjmGeom& geom);
 
 // Default site attributes.
 MJAPI void mjm_defaultSite(mjmSite& site);
