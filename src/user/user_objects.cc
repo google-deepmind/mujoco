@@ -475,7 +475,7 @@ void mjCDef::Compile(const mjCModel* model) {
   site.userdata_.resize(model->nuser_site);
   camera.userdata_.resize(model->nuser_cam);
   tendon.userdata.resize(model->nuser_tendon);
-  actuator.userdata.resize(model->nuser_actuator);
+  actuator.userdata_.resize(model->nuser_actuator);
 }
 
 
@@ -3963,35 +3963,13 @@ void mjCWrap::Compile(void) {
 
 // initialize defaults
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
-  // actuator defaults
-  group = 0;
-  ctrllimited = 2;
-  forcelimited = 2;
-  actlimited = 2;
-  actdim = -1;
-  plugin_actdim = 0;
-  trntype = mjTRN_UNDEFINED;
-  dyntype = mjDYN_NONE;
-  gaintype = mjGAIN_FIXED;
-  biastype = mjBIAS_NONE;
-  mjuu_zerovec(dynprm, mjNDYN);
-  mjuu_zerovec(gainprm, mjNGAIN);
-  mjuu_zerovec(biasprm, mjNBIAS);
-  mjuu_zerovec(ctrlrange, 2);
-  mjuu_zerovec(forcerange, 2);
-  mjuu_zerovec(actrange, 2);
-  mjuu_zerovec(lengthrange, 2);
-  mjuu_zerovec(gear, 6);
-  gear[0] = 1;
-  dynprm[0] = 1;
-  gainprm[0] = 1;
-  cranklength = 0;
-  target.clear();
-  slidersite.clear();
-  refsite.clear();
-  userdata.clear();
+  mjm_defaultActuator(spec);
 
   // clear private variables
+  spec_target_.clear();
+  spec_slidersite_.clear();
+  spec_refsite_.clear();
+  spec_userdata_.clear();
   trnid[0] = trnid[1] = -1;
 
   // reset to default if given
@@ -4003,23 +3981,59 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
+  // in case this actuator is not compiled
+  CopyFromSpec();
+
   // point to local (needs to be after defaults)
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  MakePointerLocal();
+}
+
+
+
+void mjCActuator::MakePointerLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.target = (mjString)&spec_target_;
+  spec.refsite = (mjString)&spec_refsite_;
+  spec.slidersite = (mjString)&spec_slidersite_;
+  spec.plugin.name = (mjString)&plugin_name;
+  spec.plugin.instance_name = (mjString)&plugin_instance_name;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCActuator::CopyFromSpec() {
+  *static_cast<mjmActuator*>(this) = spec;
+  userdata_ = spec_userdata_;
+  target_ = spec_target_;
+  refsite_ = spec_refsite_;
+  slidersite_ = spec_slidersite_;
+  userdata = (mjDouble)&userdata_;
+  target = (mjString)&target_;
+  refsite = (mjString)&refsite_;
+  slidersite = (mjString)&slidersite_;
+  plugin.active = spec.plugin.active;
+  plugin.instance = spec.plugin.instance;
+  plugin.name = spec.plugin.name;
+  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
 
 // compiler
 void mjCActuator::Compile(void) {
+  CopyFromSpec();
   mjCJoint* pjnt;
 
   // resize userdata
-  if (userdata.size() > model->nuser_actuator) {
+  if (userdata_.size() > model->nuser_actuator) {
     throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_actuator);
+  userdata_.resize(model->nuser_actuator);
 
   // if limited is auto, set to 1 if range is specified, otherwise unlimited
   if (forcelimited==2) {
@@ -4104,7 +4118,7 @@ void mjCActuator::Compile(void) {
   }
 
   // check for missing target name
-  if (target.empty()) {
+  if (target_.empty()) {
     throw mjCError(this,
                    "missing transmission target for actuator '%s' (id = %d)", name.c_str(), id);
   }
@@ -4115,10 +4129,10 @@ void mjCActuator::Compile(void) {
   case mjTRN_JOINT:
   case mjTRN_JOINTINPARENT:
     // get joint
-    ptarget = model->FindObject(mjOBJ_JOINT, target);
+    ptarget = model->FindObject(mjOBJ_JOINT, target_);
     if (!ptarget) {
       throw mjCError(this,
-                     "unknown transmission target '%s' for actuator id = %d", target.c_str(), id);
+                     "unknown transmission target '%s' for actuator id = %d", target_.c_str(), id);
     }
     pjnt = (mjCJoint*) ptarget;
 
@@ -4132,12 +4146,12 @@ void mjCActuator::Compile(void) {
 
   case mjTRN_SLIDERCRANK:
     // get slidersite, copy in trnid[1]
-    if (slidersite.empty()) {
+    if (slidersite_.empty()) {
       throw mjCError(this, "missing base site for slider-crank '%s' (id = %d)", name.c_str(), id);
     }
-    ptarget = model->FindObject(mjOBJ_SITE, slidersite);
+    ptarget = model->FindObject(mjOBJ_SITE, slidersite_);
     if (!ptarget) {
-      throw mjCError(this, "base site '%s' not found for actuator %d", slidersite.c_str(), id);
+      throw mjCError(this, "base site '%s' not found for actuator %d", slidersite_.c_str(), id);
     }
     trnid[1] = ptarget->id;
 
@@ -4148,31 +4162,31 @@ void mjCActuator::Compile(void) {
     }
 
     // proceed with regular target
-    ptarget = model->FindObject(mjOBJ_SITE, target);
+    ptarget = model->FindObject(mjOBJ_SITE, target_);
     break;
 
   case mjTRN_TENDON:
     // get tendon
-    ptarget = model->FindObject(mjOBJ_TENDON, target);
+    ptarget = model->FindObject(mjOBJ_TENDON, target_);
     break;
 
   case mjTRN_SITE:
     // get refsite, copy into trnid[1]
-    if (!refsite.empty()) {
-      ptarget = model->FindObject(mjOBJ_SITE, refsite);
+    if (!refsite_.empty()) {
+      ptarget = model->FindObject(mjOBJ_SITE, refsite_);
       if (!ptarget) {
-        throw mjCError(this, "reference site '%s' not found for actuator %d", refsite.c_str(), id);
+        throw mjCError(this, "reference site '%s' not found for actuator %d", refsite_.c_str(), id);
       }
       trnid[1] = ptarget->id;
     }
 
     // proceed with regular site target
-    ptarget = model->FindObject(mjOBJ_SITE, target);
+    ptarget = model->FindObject(mjOBJ_SITE, target_);
     break;
 
   case mjTRN_BODY:
     // get body
-    ptarget = model->FindObject(mjOBJ_BODY, target);
+    ptarget = model->FindObject(mjOBJ_BODY, target_);
     break;
 
   default:
@@ -4181,7 +4195,7 @@ void mjCActuator::Compile(void) {
 
   // assign and check
   if (!ptarget) {
-    throw mjCError(this, "transmission target '%s' not found in actuator %d", target.c_str(), id);
+    throw mjCError(this, "transmission target '%s' not found in actuator %d", target_.c_str(), id);
   } else {
     trnid[0] = ptarget->id;
   }
@@ -4209,41 +4223,67 @@ void mjCActuator::Compile(void) {
 
 // initialize defaults
 mjCSensor::mjCSensor(mjCModel* _model) {
+  mjm_defaultSensor(spec);
+
   // set model
   model = _model;
 
-  // set sensor defaults (somewhat arbitrary)
-  type = mjSENS_TOUCH;
-  datatype = mjDATATYPE_REAL;
-  needstage = mjSTAGE_ACC;
-  objtype = mjOBJ_UNKNOWN;
-  objname.clear();
-  reftype = mjOBJ_UNKNOWN;
-  refname.clear();
-  cutoff = 0;
-  noise = 0;
-  userdata.clear();
-  dim = 0;
-
   // clear private variables
+  spec_objname_.clear();
+  spec_refname_.clear();
+  spec_userdata_.clear();
   obj = nullptr;
   refid = -1;
 
-  // point to local (needs to be after defaults)
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  // in case this sensor is not compiled
+  CopyFromSpec();
+
+  // point to local
+  MakePointerLocal();
+}
+
+
+
+void mjCSensor::MakePointerLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.objname = (mjString)&spec_objname_;
+  spec.refname = (mjString)&spec_refname_;
+  spec.plugin.name = (mjString)&plugin_name;
+  spec.plugin.instance_name = (mjString)&plugin_instance_name;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCSensor::CopyFromSpec() {
+  *static_cast<mjmSensor*>(this) = spec;
+  userdata_ = spec_userdata_;
+  objname_ = spec_objname_;
+  refname_ = spec_refname_;
+  userdata = (mjDouble)&userdata_;
+  objname = (mjString)&objname_;
+  refname = (mjString)&refname_;
+  plugin.active = spec.plugin.active;
+  plugin.instance = spec.plugin.instance;
+  plugin.name = spec.plugin.name;
+  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
 
 // compiler
 void mjCSensor::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
-  if (userdata.size() > model->nuser_sensor) {
+  if (userdata_.size() > model->nuser_sensor) {
     throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_sensor);
+  userdata_.resize(model->nuser_sensor);
 
   // require non-negative noise
   if (noise<0) {
@@ -4258,14 +4298,14 @@ void mjCSensor::Compile(void) {
   // get objid from objtype and objname
   if (objtype!=mjOBJ_UNKNOWN) {
     // check for missing object name
-    if (objname.empty()) {
+    if (objname_.empty()) {
       throw mjCError(this,
                      "missing name of sensorized object in sensor '%s' (id = %d)",
                      name.c_str(), id);
     }
 
     // find name
-    obj = model->FindObject(objtype, objname);
+    obj = model->FindObject(objtype, objname_);
     if (!obj) {
       throw mjCError(this,
                      "unrecognized name of sensorized object in sensor '%s' (id = %d)",
@@ -4285,14 +4325,14 @@ void mjCSensor::Compile(void) {
   // get refid from reftype and refname
   if (reftype!=mjOBJ_UNKNOWN) {
     // check for missing object name
-    if (refname.empty()) {
+    if (refname_.empty()) {
       throw mjCError(this,
                      "missing name of reference frame object in sensor '%s' (id = %d)",
                      name.c_str(), id);
     }
 
     // find name
-    mjCBase* pref = model->FindObject(reftype, refname);
+    mjCBase* pref = model->FindObject(reftype, refname_);
     if (!pref) {
       throw mjCError(this,
                      "unrecognized name of reference frame object in sensor '%s' (id = %d)",
@@ -4351,7 +4391,7 @@ void mjCSensor::Compile(void) {
 
     // check for camera resolution for camera projection sensor
     if (type==mjSENS_CAMPROJECTION) {
-      mjCCamera* camref = (mjCCamera*) model->FindObject(mjOBJ_CAMERA, refname);
+      mjCCamera* camref = (mjCCamera*) model->FindObject(mjOBJ_CAMERA, refname_);
       if (!camref->resolution[0] || !camref->resolution[1]) {
         throw mjCError(this,
                        "camera projection sensor requires camera resolution '%s' (id = %d)",

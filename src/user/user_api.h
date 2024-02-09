@@ -211,6 +211,59 @@ typedef struct _mjmLight {
 } mjmLight;
 
 
+typedef struct _mjmActuator {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+  mjString info;                  // message appended to errors
+  int group;                      // group for visualization
+  int ctrllimited;                // are control limits defined: 0 false, 1 true, 2 auto
+  int forcelimited;               // are force limits defined: 0 false, 1 true, 2 auto
+  int actlimited;                 // are activation limits defined: 0 false, 1 true, 2 auto
+  int actdim;                     // dimension of associated activations
+  int plugin_actdim;              // actuator state size for plugins
+  mjtDyn dyntype;                 // dynamics type
+  mjtTrn trntype;                 // transmission type
+  mjtGain gaintype;               // gain type
+  mjtBias biastype;               // bias type
+  double dynprm[mjNDYN];          // dynamics parameters
+  double gainprm[mjNGAIN];        // gain parameters
+  double biasprm[mjNGAIN];        // bias parameters
+  mjtByte actearly;               // apply activations to qfrc instantly
+  double ctrlrange[2];            // control range
+  double forcerange[2];           // force range
+  double actrange[2];             // activation range
+  double lengthrange[2];          // length range
+  double gear[6];                 // length and transmitted force scaling
+  double cranklength;             // crank length, for slider-crank only
+  mjDouble userdata;              // user data
+  mjString target;                // transmission target name
+  mjString slidersite;            // site defining cylinder, for slider-crank only
+  mjString refsite;               // reference site, for site transmission only
+  mjmPlugin plugin;               // actuator plugin
+} mjmActuator;
+
+
+typedef struct _mjmSensor {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+  mjString info;                  // message appended to errors
+  mjtSensor type;                 // type of sensor
+  mjtDataType datatype;           // data type for sensor measurement
+  mjtStage needstage;             // compute stage needed to simulate sensor
+  mjtObj objtype;                 // type of sensorized object
+  mjString objname;               // name of sensorized object
+  mjtObj reftype;                 // type of referenced object
+  mjString refname;               // name of referenced object
+  int dim;                        // number of scalar outputs
+  double cutoff;                  // cutoff for real and positive datatypes
+  double noise;                   // noise stdev
+  mjDouble userdata;              // user data
+  mjmPlugin plugin;               // sensor plugin
+} mjmSensor;
+
+
 //---------------------------------- Public API ----------------------------------------------------
 
 // Create model.
@@ -245,6 +298,12 @@ MJAPI mjmLight* mjm_addLight(mjmBody* body, void* defspec);
 
 // Add frame to body.
 MJAPI void* mjm_addFrame(mjmBody* body, void* parentframe);
+
+// Add actuator to model.
+MJAPI mjmActuator* mjm_addActuator(void* model, void* defspec);
+
+// Add sensor to model.
+MJAPI mjmSensor* mjm_addSensor(void* model);
 
 // Add plugin to model.
 MJAPI mjElement mjm_addPlugin(void* model);
@@ -305,6 +364,12 @@ MJAPI void mjm_defaultCamera(mjmCamera& camera);
 
 // Default light attributes.
 MJAPI void mjm_defaultLight(mjmLight& light);
+
+// Default actuator attributes.
+MJAPI void mjm_defaultActuator(mjmActuator& actuator);
+
+// Default sensor attributes.
+MJAPI void mjm_defaultSensor(mjmSensor& sensor);
 
 #ifdef __cplusplus
 }

@@ -81,6 +81,8 @@ void mjm_defaultGeom(mjmGeom& geom) {
   geom.fluid_coefs[2] = 1.5;       // angular drag coefficient
   geom.fluid_coefs[3] = 1.0;       // kutta lift coefficient
   geom.fluid_coefs[4] = 1.0;       // magnus lift coefficient
+  geom.plugin.active = false;
+  geom.plugin.instance = nullptr;
 }
 
 
@@ -129,5 +131,46 @@ void mjm_defaultLight(mjmLight& light) {
   light.diffuse[0] = light.diffuse[1] = light.diffuse[2] = 0.7;
   light.specular[0] = light.specular[1] = light.specular[2] = 0.3;
 }
+
+
+
+// default actuator attributes
+void mjm_defaultActuator(mjmActuator& actuator) {
+  memset(&actuator, 0, sizeof(mjmActuator));
+  actuator.group = 0;
+  actuator.ctrllimited = 2;
+  actuator.forcelimited = 2;
+  actuator.actlimited = 2;
+  actuator.actdim = -1;
+  actuator.plugin_actdim = 0;
+  actuator.trntype = mjTRN_UNDEFINED;
+  actuator.dyntype = mjDYN_NONE;
+  actuator.gaintype = mjGAIN_FIXED;
+  actuator.biastype = mjBIAS_NONE;
+  actuator.actearly = 0;
+  actuator.gear[0] = 1;
+  actuator.dynprm[0] = 1;
+  actuator.gainprm[0] = 1;
+  actuator.cranklength = 0;
+  actuator.plugin.active = false;
+  actuator.plugin.instance = nullptr;
+}
+
+
+
+// default sensor attributes
+void mjm_defaultSensor(mjmSensor& sensor) {
+  memset(&sensor, 0, sizeof(mjmSensor));
+  sensor.type = mjSENS_TOUCH;
+  sensor.datatype = mjDATATYPE_REAL;
+  sensor.needstage = mjSTAGE_ACC;
+  sensor.objtype = mjOBJ_UNKNOWN;
+  sensor.reftype = mjOBJ_UNKNOWN;
+  sensor.cutoff = 0;
+  sensor.noise = 0;
+  sensor.dim = 0;
+}
+
+
 
 

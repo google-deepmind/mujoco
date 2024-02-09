@@ -123,6 +123,25 @@ void* mjm_addFrame(mjmBody* bodyspec, void* parentframe) {
 
 
 
+// add actuator to model
+mjmActuator* mjm_addActuator(void* model, void* defspec) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCActuator* actuator = modelC->AddActuator(def);
+  return &actuator->spec;
+}
+
+
+
+// add sensor to model
+mjmSensor* mjm_addSensor(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCSensor* sensor = modelC->AddSensor();
+  return &sensor->spec;
+}
+
+
+
 // Add plugin to model.
 mjElement mjm_addPlugin(void* model) {
   mjCModel* modelC = static_cast<mjCModel*>(model);

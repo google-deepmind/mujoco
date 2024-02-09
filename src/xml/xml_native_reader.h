@@ -65,7 +65,7 @@ class mjXReader : public mjXBase {
   void OnePair(tinyxml2::XMLElement* elem, mjCPair* ppair);
   void OneEquality(tinyxml2::XMLElement* elem, mjCEquality* pequality);
   void OneTendon(tinyxml2::XMLElement* elem, mjCTendon* ptendon);
-  void OneActuator(tinyxml2::XMLElement* elem, mjCActuator* pactuator);
+  void OneActuator(tinyxml2::XMLElement* elem, mjmActuator* pactuator);
   void OneComposite(tinyxml2::XMLElement* elem, mjmBody* pbody, mjCDef* def);
   void OneFlexcomp(tinyxml2::XMLElement* elem, mjmBody* pbody);
   void OnePlugin(tinyxml2::XMLElement* elem, mjmPlugin* plugin);

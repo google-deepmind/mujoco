@@ -1853,12 +1853,16 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
 
 
 // actuator element parser
-void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
-  string text, type;
+void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
+  string text, type, name, classname, target, slidersite, refsite;
 
   // common attributes
-  ReadAttrTxt(elem, "name", pact->name);
-  ReadAttrTxt(elem, "class", pact->classname);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pact->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pact->classname, classname.c_str());
+  }
   ReadAttrInt(elem, "group", &pact->group);
   MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3);
   MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3);
@@ -1871,27 +1875,33 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
   // transmission target and type
   int cnt = 0;
-  if (ReadAttrTxt(elem, "joint", pact->target)) {
+  if (ReadAttrTxt(elem, "joint", target)) {
+    mjm_setString(pact->target, target.c_str());
     pact->trntype = mjTRN_JOINT;
     cnt++;
   }
-  if (ReadAttrTxt(elem, "jointinparent", pact->target)) {
+  if (ReadAttrTxt(elem, "jointinparent", target)) {
+    mjm_setString(pact->target, target.c_str());
     pact->trntype = mjTRN_JOINTINPARENT;
     cnt++;
   }
-  if (ReadAttrTxt(elem, "tendon", pact->target)) {
+  if (ReadAttrTxt(elem, "tendon", target)) {
+    mjm_setString(pact->target, target.c_str());
     pact->trntype = mjTRN_TENDON;
     cnt++;
   }
-  if (ReadAttrTxt(elem, "cranksite", pact->target)) {
+  if (ReadAttrTxt(elem, "cranksite", target)) {
+    mjm_setString(pact->target, target.c_str());
     pact->trntype = mjTRN_SLIDERCRANK;
     cnt++;
   }
-  if (ReadAttrTxt(elem, "site", pact->target)) {
+  if (ReadAttrTxt(elem, "site", target)) {
+    mjm_setString(pact->target, target.c_str());
     pact->trntype = mjTRN_SITE;
     cnt++;
   }
-  if (ReadAttrTxt(elem, "body", pact->target)) {
+  if (ReadAttrTxt(elem, "body", target)) {
+    mjm_setString(pact->target, target.c_str());
     pact->trntype = mjTRN_BODY;
     cnt++;
   }
@@ -1902,13 +1912,19 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
   // slidercrank-specific parameters
   int r1 = ReadAttr(elem, "cranklength", 1, &pact->cranklength, text);
-  int r2 = ReadAttrTxt(elem, "slidersite", pact->slidersite);
+  int r2 = ReadAttrTxt(elem, "slidersite", slidersite);
+  if (r2) {
+    mjm_setString(pact->slidersite, slidersite.c_str());
+  }
   if ((r1 || r2) && pact->trntype!=mjTRN_SLIDERCRANK && pact->trntype!=mjTRN_UNDEFINED) {
     throw mjXError(elem, "cranklength and slidersite can only be used in slidercrank transmission");
   }
 
   // site-specific parameters (refsite)
-  int r3 = ReadAttrTxt(elem, "refsite", pact->refsite);
+  int r3 = ReadAttrTxt(elem, "refsite", refsite);
+  if (r3) {
+    mjm_setString(pact->refsite, refsite.c_str());
+  }
   if (r3 && pact->trntype!=mjTRN_SITE && pact->trntype!=mjTRN_UNDEFINED) {
     throw mjXError(elem, "refsite can only be used with site transmission");
   }
@@ -2103,9 +2119,14 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   }
 
   // read userdata
-  ReadVector(elem, "user", pact->userdata, text);
+  std::vector<double> userdata;
+  if (ReadVector(elem, "user", userdata, text)) {
+    mjm_setDouble(pact->userdata, userdata.data(), userdata.size());
+  }
 
-  GetXMLPos(elem, pact);
+  // write info
+  mjm_setString(pact->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2571,7 +2592,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
              name=="cylinder"    ||
              name=="muscle"      ||
              name=="adhesion") {
-      OneActuator(elem, &def->actuator);
+      OneActuator(elem, &def->actuator.spec);
     }
 
     // copy into private attributes
@@ -2580,6 +2601,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     mjm_finalize(def->site.spec.element);
     mjm_finalize(def->camera.spec.element);
     mjm_finalize(def->light.spec.element);
+    mjm_finalize(def->actuator.spec.element);
 
     // advance
     elem = elem->NextSiblingElement();
@@ -3423,7 +3445,7 @@ void mjXReader::Actuator(XMLElement* section) {
     }
 
     // create actuator and parse
-    mjCActuator* pact = model->AddActuator(def);
+    mjmActuator* pact = mjm_addActuator(model, def);
     OneActuator(elem, pact);
 
     // advance to next element
@@ -3436,133 +3458,136 @@ void mjXReader::Actuator(XMLElement* section) {
 // sensor section parser
 void mjXReader::Sensor(XMLElement* section) {
   int n;
-  string text;
   XMLElement* elem = section->FirstChildElement();
   while (elem) {
     // create sensor, get string type
-    mjCSensor* psen = model->AddSensor();
+    mjmSensor* psen = mjm_addSensor(model);
     string type = elem->Value();
-    string plugin_name = "";
-    string instance_name = "";
+    string text, name, objname, refname;
+    std::vector<double> userdata;
 
     // read name, noise, userdata
-    ReadAttrTxt(elem, "name", psen->name);
+    if (ReadAttrTxt(elem, "name", name)) {
+      mjm_setString(psen->name, name.c_str());
+    }
     ReadAttr(elem, "cutoff", 1, &psen->cutoff, text);
     ReadAttr(elem, "noise", 1, &psen->noise, text);
-    ReadVector(elem, "user", psen->userdata, text);
+    if (ReadVector(elem, "user", userdata, text)) {
+      mjm_setDouble(psen->userdata, userdata.data(), userdata.size());
+    }
 
     // common robotic sensors, attached to a site
     if (type=="touch") {
       psen->type = mjSENS_TOUCH;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="accelerometer") {
       psen->type = mjSENS_ACCELEROMETER;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="velocimeter") {
       psen->type = mjSENS_VELOCIMETER;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="gyro") {
       psen->type = mjSENS_GYRO;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="force") {
       psen->type = mjSENS_FORCE;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="torque") {
       psen->type = mjSENS_TORQUE;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="magnetometer") {
       psen->type = mjSENS_MAGNETOMETER;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="camprojection") {
       psen->type = mjSENS_CAMPROJECTION;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
-      ReadAttrTxt(elem, "camera", psen->refname, true);
+      ReadAttrTxt(elem, "site", objname, true);
+      ReadAttrTxt(elem, "camera", refname, true);
       psen->reftype = mjOBJ_CAMERA;
     } else if (type=="rangefinder") {
       psen->type = mjSENS_RANGEFINDER;
       psen->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "site", objname, true);
     }
 
     // sensors related to scalar joints, tendons, actuators
     else if (type=="jointpos") {
       psen->type = mjSENS_JOINTPOS;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="jointvel") {
       psen->type = mjSENS_JOINTVEL;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="tendonpos") {
       psen->type = mjSENS_TENDONPOS;
       psen->objtype = mjOBJ_TENDON;
-      ReadAttrTxt(elem, "tendon", psen->objname, true);
+      ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="tendonvel") {
       psen->type = mjSENS_TENDONVEL;
       psen->objtype = mjOBJ_TENDON;
-      ReadAttrTxt(elem, "tendon", psen->objname, true);
+      ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="actuatorpos") {
       psen->type = mjSENS_ACTUATORPOS;
       psen->objtype = mjOBJ_ACTUATOR;
-      ReadAttrTxt(elem, "actuator", psen->objname, true);
+      ReadAttrTxt(elem, "actuator", objname, true);
     } else if (type=="actuatorvel") {
       psen->type = mjSENS_ACTUATORVEL;
       psen->objtype = mjOBJ_ACTUATOR;
-      ReadAttrTxt(elem, "actuator", psen->objname, true);
+      ReadAttrTxt(elem, "actuator", objname, true);
     } else if (type=="actuatorfrc") {
       psen->type = mjSENS_ACTUATORFRC;
       psen->objtype = mjOBJ_ACTUATOR;
-      ReadAttrTxt(elem, "actuator", psen->objname, true);
+      ReadAttrTxt(elem, "actuator", objname, true);
     } else if (type=="jointactuatorfrc") {
       psen->type = mjSENS_JOINTACTFRC;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     }
 
     // sensors related to ball joints
     else if (type=="ballquat") {
       psen->type = mjSENS_BALLQUAT;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="ballangvel") {
       psen->type = mjSENS_BALLANGVEL;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     }
 
     // joint and tendon limit sensors
     else if (type=="jointlimitpos") {
       psen->type = mjSENS_JOINTLIMITPOS;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="jointlimitvel") {
       psen->type = mjSENS_JOINTLIMITVEL;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="jointlimitfrc") {
       psen->type = mjSENS_JOINTLIMITFRC;
       psen->objtype = mjOBJ_JOINT;
-      ReadAttrTxt(elem, "joint", psen->objname, true);
+      ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="tendonlimitpos") {
       psen->type = mjSENS_TENDONLIMITPOS;
       psen->objtype = mjOBJ_TENDON;
-      ReadAttrTxt(elem, "tendon", psen->objname, true);
+      ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="tendonlimitvel") {
       psen->type = mjSENS_TENDONLIMITVEL;
       psen->objtype = mjOBJ_TENDON;
-      ReadAttrTxt(elem, "tendon", psen->objname, true);
+      ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="tendonlimitfrc") {
       psen->type = mjSENS_TENDONLIMITFRC;
       psen->objtype = mjOBJ_TENDON;
-      ReadAttrTxt(elem, "tendon", psen->objname, true);
+      ReadAttrTxt(elem, "tendon", objname, true);
     }
 
     // sensors attached to an object with spatial frame: (x)body, geom, site, camera
@@ -3570,10 +3595,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMEPOS;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3581,10 +3606,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMEQUAT;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3592,10 +3617,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMEXAXIS;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3603,10 +3628,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMEYAXIS;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3614,10 +3639,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMEZAXIS;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3625,10 +3650,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMELINVEL;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3636,10 +3661,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMEANGVEL;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
-        ReadAttrTxt(elem, "refname", psen->refname, true);
+        ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
@@ -3647,27 +3672,27 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_FRAMELINACC;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
     } else if (type=="frameangacc") {
       psen->type = mjSENS_FRAMEANGACC;
       ReadAttrTxt(elem, "objtype", text, true);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      ReadAttrTxt(elem, "objname", objname, true);
     }
 
     // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
     else if (type=="subtreecom") {
       psen->type = mjSENS_SUBTREECOM;
       psen->objtype = mjOBJ_BODY;
-      ReadAttrTxt(elem, "body", psen->objname, true);
+      ReadAttrTxt(elem, "body", objname, true);
     } else if (type=="subtreelinvel") {
       psen->type = mjSENS_SUBTREELINVEL;
       psen->objtype = mjOBJ_BODY;
-      ReadAttrTxt(elem, "body", psen->objname, true);
+      ReadAttrTxt(elem, "body", objname, true);
     } else if (type=="subtreeangmom") {
       psen->type = mjSENS_SUBTREEANGMOM;
       psen->objtype = mjOBJ_BODY;
-      ReadAttrTxt(elem, "body", psen->objname, true);
+      ReadAttrTxt(elem, "body", objname, true);
     }
 
     // global sensors
@@ -3679,14 +3704,14 @@ void mjXReader::Sensor(XMLElement* section) {
     // user-defined sensor
     else if (type=="user") {
       psen->type = mjSENS_USER;
-      bool objname_given = ReadAttrTxt(elem, "objname", psen->objname);
+      bool objname_given = ReadAttrTxt(elem, "objname", objname);
       if (ReadAttrTxt(elem, "objtype", text)) {
         if (!objname_given) {
           throw mjXError(elem, "objtype '%s' given but objname is missing", text.c_str());
         }
         psen->objtype = (mjtObj)mju_str2Type(text.c_str());
       } else if (objname_given) {
-        throw mjXError(elem, "objname '%s' given but objtype is missing", psen->objname.c_str());
+        throw mjXError(elem, "objname '%s' given but objtype is missing", objname.c_str());
       }
       ReadAttrInt(elem, "dim", &psen->dim, true);
 
@@ -3701,38 +3726,39 @@ void mjXReader::Sensor(XMLElement* section) {
 
     else if (type=="plugin") {
       psen->type = mjSENS_PLUGIN;
-      ReadAttrTxt(elem, "plugin", plugin_name);
-      ReadAttrTxt(elem, "instance", instance_name);
-      mjm_setString(psen->plugin.name, plugin_name.c_str());
-      mjm_setString(psen->plugin.instance_name, instance_name.c_str());
-      if (instance_name.empty()) {
-        psen->plugin.instance = mjm_addPlugin(model);
-      } else {
-        model->hasImplicitPluginElem = true;
-      }
-      ReadPluginConfigs(elem, (mjCPlugin*)psen->plugin.instance);
+      OnePlugin(elem, &psen->plugin);
       ReadAttrTxt(elem, "objtype", text);
       psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname);
-      if (psen->objtype != mjOBJ_UNKNOWN && psen->objname.empty()) {
+      ReadAttrTxt(elem, "objname", objname);
+      if (psen->objtype != mjOBJ_UNKNOWN && objname.empty()) {
         throw mjXError(elem, "objtype is specified but objname is not");
       }
-      if (psen->objtype == mjOBJ_UNKNOWN && !psen->objname.empty()) {
+      if (psen->objtype == mjOBJ_UNKNOWN && !objname.empty()) {
         throw mjXError(elem, "objname is specified but objtype is not");
       }
       if (ReadAttrTxt(elem, "reftype", text)) {
         psen->reftype = (mjtObj)mju_str2Type(text.c_str());
       }
-      ReadAttrTxt(elem, "refname", psen->refname);
-      if (psen->reftype != mjOBJ_UNKNOWN && psen->refname.empty()) {
+      ReadAttrTxt(elem, "refname", refname);
+      if (psen->reftype != mjOBJ_UNKNOWN && refname.empty()) {
         throw mjXError(elem, "reftype is specified but refname is not");
       }
-      if (psen->reftype == mjOBJ_UNKNOWN && !psen->refname.empty()) {
+      if (psen->reftype == mjOBJ_UNKNOWN && !refname.empty()) {
         throw mjXError(elem, "refname is specified but reftype is not");
       }
     }
 
-    GetXMLPos(elem, psen);
+    if (!objname.empty()) {
+      mjm_setString(psen->objname, objname.c_str());
+    }
+
+    if (!refname.empty()) {
+      mjm_setString(psen->refname, refname.c_str());
+    }
+
+    // write info
+    mjm_setString(psen->info,
+        std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
     // advance to next element
     elem = elem->NextSiblingElement();

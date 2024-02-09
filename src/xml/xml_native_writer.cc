@@ -664,29 +664,29 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
     // transmission target
     switch (pact->trntype) {
     case mjTRN_JOINT:
-      WriteAttrTxt(elem, "joint", pact->target);
+      WriteAttrTxt(elem, "joint", pact->get_target());
       break;
 
     case mjTRN_JOINTINPARENT:
-      WriteAttrTxt(elem, "jointinparent", pact->target);
+      WriteAttrTxt(elem, "jointinparent", pact->get_target());
       break;
 
     case mjTRN_TENDON:
-      WriteAttrTxt(elem, "tendon", pact->target);
+      WriteAttrTxt(elem, "tendon", pact->get_target());
       break;
 
     case mjTRN_SLIDERCRANK:
-      WriteAttrTxt(elem, "cranksite", pact->target);
-      WriteAttrTxt(elem, "slidersite", pact->slidersite);
+      WriteAttrTxt(elem, "cranksite", pact->get_target());
+      WriteAttrTxt(elem, "slidersite", pact->get_slidersite());
       break;
 
     case mjTRN_SITE:
-      WriteAttrTxt(elem, "site", pact->target);
-      WriteAttrTxt(elem, "refsite", pact->refsite);
+      WriteAttrTxt(elem, "site", pact->get_target());
+      WriteAttrTxt(elem, "refsite", pact->get_refsite());
       break;
 
     case mjTRN_BODY:
-      WriteAttrTxt(elem, "body", pact->target);
+      WriteAttrTxt(elem, "body", pact->get_target());
       break;
 
     default:        // SHOULD NOT OCCUR
@@ -747,9 +747,9 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
   // userdata
   if (writingdefaults) {
-    WriteVector(elem, "user", pact->userdata);
+    WriteVector(elem, "user", pact->get_userdata());
   } else {
-    WriteVector(elem, "user", pact->userdata, def->actuator.userdata);
+    WriteVector(elem, "user", pact->get_userdata(), def->actuator.get_userdata());
   }
 }
 
@@ -1748,171 +1748,171 @@ void mjXWriter::Sensor(XMLElement* root) {
     // common robotic sensors, attached to a site
     case mjSENS_TOUCH:
       elem = InsertEnd(section, "touch");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_ACCELEROMETER:
       elem = InsertEnd(section, "accelerometer");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_VELOCIMETER:
       elem = InsertEnd(section, "velocimeter");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_GYRO:
       elem = InsertEnd(section, "gyro");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_FORCE:
       elem = InsertEnd(section, "force");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_TORQUE:
       elem = InsertEnd(section, "torque");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_MAGNETOMETER:
       elem = InsertEnd(section, "magnetometer");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_RANGEFINDER:
       elem = InsertEnd(section, "rangefinder");
-      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
       break;
     case mjSENS_CAMPROJECTION:
       elem = InsertEnd(section, "camprojection");
-      WriteAttrTxt(elem, "site", psen->objname);
-      WriteAttrTxt(elem, "camera", psen->refname);
+      WriteAttrTxt(elem, "site", psen->get_objname());
+      WriteAttrTxt(elem, "camera", psen->get_refname());
       break;
 
     // sensors related to scalar joints, tendons, actuators
     case mjSENS_JOINTPOS:
       elem = InsertEnd(section, "jointpos");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
     case mjSENS_JOINTVEL:
       elem = InsertEnd(section, "jointvel");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
     case mjSENS_TENDONPOS:
       elem = InsertEnd(section, "tendonpos");
-      WriteAttrTxt(elem, "tendon", psen->objname);
+      WriteAttrTxt(elem, "tendon", psen->get_objname());
       break;
     case mjSENS_TENDONVEL:
       elem = InsertEnd(section, "tendonvel");
-      WriteAttrTxt(elem, "tendon", psen->objname);
+      WriteAttrTxt(elem, "tendon", psen->get_objname());
       break;
     case mjSENS_ACTUATORPOS:
       elem = InsertEnd(section, "actuatorpos");
-      WriteAttrTxt(elem, "actuator", psen->objname);
+      WriteAttrTxt(elem, "actuator", psen->get_objname());
       break;
     case mjSENS_ACTUATORVEL:
       elem = InsertEnd(section, "actuatorvel");
-      WriteAttrTxt(elem, "actuator", psen->objname);
+      WriteAttrTxt(elem, "actuator", psen->get_objname());
       break;
     case mjSENS_ACTUATORFRC:
       elem = InsertEnd(section, "actuatorfrc");
-      WriteAttrTxt(elem, "actuator", psen->objname);
+      WriteAttrTxt(elem, "actuator", psen->get_objname());
       break;
     case mjSENS_JOINTACTFRC:
       elem = InsertEnd(section, "jointactuatorfrc");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
 
     // sensors related to ball joints
     case mjSENS_BALLQUAT:
       elem = InsertEnd(section, "ballquat");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
     case mjSENS_BALLANGVEL:
       elem = InsertEnd(section, "ballangvel");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
 
     // joint and tendon limit sensors
     case mjSENS_JOINTLIMITPOS:
       elem = InsertEnd(section, "jointlimitpos");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
     case mjSENS_JOINTLIMITVEL:
       elem = InsertEnd(section, "jointlimitvel");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
     case mjSENS_JOINTLIMITFRC:
       elem = InsertEnd(section, "jointlimitfrc");
-      WriteAttrTxt(elem, "joint", psen->objname);
+      WriteAttrTxt(elem, "joint", psen->get_objname());
       break;
     case mjSENS_TENDONLIMITPOS:
       elem = InsertEnd(section, "tendonlimitpos");
-      WriteAttrTxt(elem, "tendon", psen->objname);
+      WriteAttrTxt(elem, "tendon", psen->get_objname());
       break;
     case mjSENS_TENDONLIMITVEL:
       elem = InsertEnd(section, "tendonlimitvel");
-      WriteAttrTxt(elem, "tendon", psen->objname);
+      WriteAttrTxt(elem, "tendon", psen->get_objname());
       break;
     case mjSENS_TENDONLIMITFRC:
       elem = InsertEnd(section, "tendonlimitfrc");
-      WriteAttrTxt(elem, "tendon", psen->objname);
+      WriteAttrTxt(elem, "tendon", psen->get_objname());
       break;
 
     // sensors attached to an object with spatial frame: (x)body, geom, site, camera
     case mjSENS_FRAMEPOS:
       elem = InsertEnd(section, "framepos");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMEQUAT:
       elem = InsertEnd(section, "framequat");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMEXAXIS:
       elem = InsertEnd(section, "framexaxis");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMEYAXIS:
       elem = InsertEnd(section, "frameyaxis");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMEZAXIS:
       elem = InsertEnd(section, "framezaxis");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMELINVEL:
       elem = InsertEnd(section, "framelinvel");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMEANGVEL:
       elem = InsertEnd(section, "frameangvel");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMELINACC:
       elem = InsertEnd(section, "framelinacc");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
     case mjSENS_FRAMEANGACC:
       elem = InsertEnd(section, "frameangacc");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       break;
 
     // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
     case mjSENS_SUBTREECOM:
       elem = InsertEnd(section, "subtreecom");
-      WriteAttrTxt(elem, "body", psen->objname);
+      WriteAttrTxt(elem, "body", psen->get_objname());
       break;
     case mjSENS_SUBTREELINVEL:
       elem = InsertEnd(section, "subtreelinvel");
-      WriteAttrTxt(elem, "body", psen->objname);
+      WriteAttrTxt(elem, "body", psen->get_objname());
       break;
     case mjSENS_SUBTREEANGMOM:
       elem = InsertEnd(section, "subtreeangmom");
-      WriteAttrTxt(elem, "body", psen->objname);
+      WriteAttrTxt(elem, "body", psen->get_objname());
       break;
 
     // global sensors
@@ -1926,35 +1926,16 @@ void mjXWriter::Sensor(XMLElement* root) {
       elem = InsertEnd(section, "plugin");
       if (psen->objtype != mjOBJ_UNKNOWN) {
         WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-        WriteAttrTxt(elem, "objname", psen->objname);
+        WriteAttrTxt(elem, "objname", psen->get_objname());
       }
-      instance_name = std::string(mjm_getString(psen->plugin.instance_name));
-      plugin_name = std::string(mjm_getString(psen->plugin.name));
-      if (!instance_name.empty()) {
-        WriteAttrTxt(elem, "instance", instance_name);
-      } else {
-        WriteAttrTxt(elem, "plugin", plugin_name);
-        const mjpPlugin* plugin = mjp_getPluginAtSlot(
-            ((mjCPlugin*)psen->plugin.instance)->plugin_slot);
-        const char* c = &((mjCPlugin*)psen->plugin.instance)->flattened_attributes[0];
-        for (int i = 0; i < plugin->nattribute; ++i) {
-          std::string value(c);
-          if (!value.empty()) {
-            XMLElement* config_elem = InsertEnd(elem, "config");
-            WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
-            WriteAttrTxt(config_elem, "value", value);
-            c += value.size();
-          }
-          ++c;
-        }
-      }
+      OnePlugin(elem, psen);
       break;
 
     // user-defined sensor
     case mjSENS_USER:
       elem = InsertEnd(section, "user");
       if (mju_type2Str(psen->objtype)) WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
-      WriteAttrTxt(elem, "objname", psen->objname);
+      WriteAttrTxt(elem, "objname", psen->get_objname());
       WriteAttrInt(elem, "dim", psen->dim);
       WriteAttrKey(elem, "needstage", stage_map, stage_sz, (int)psen->needstage);
       WriteAttrKey(elem, "datatype", datatype_map, datatype_sz, (int)psen->datatype);
@@ -1970,12 +1951,12 @@ void mjXWriter::Sensor(XMLElement* root) {
     if (psen->type != mjSENS_PLUGIN) {
       WriteAttr(elem, "noise", 1, &psen->noise, &zero);
     }
-    WriteVector(elem, "user", psen->userdata);
+    WriteVector(elem, "user", psen->get_userdata());
 
     // add reference if present
     if (psen->reftype != mjOBJ_UNKNOWN && psen->type != mjSENS_CAMPROJECTION) {
       WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
-      WriteAttrTxt(elem, "refname", psen->refname);
+      WriteAttrTxt(elem, "refname", psen->get_refname());
     }
   }
 

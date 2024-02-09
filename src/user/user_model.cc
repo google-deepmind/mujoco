@@ -2298,7 +2298,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     copyvec(m->actuator_forcerange + 2*i, pac->forcerange, 2);
     copyvec(m->actuator_actrange + 2*i, pac->actrange, 2);
     copyvec(m->actuator_lengthrange + 2*i, pac->lengthrange, 2);
-    copyvec(m->actuator_user+nuser_actuator*i, pac->userdata.data(), nuser_actuator);
+    copyvec(m->actuator_user+nuser_actuator*i, pac->get_userdata().data(), nuser_actuator);
   }
 
   // sensors
@@ -2318,7 +2318,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->sensor_dim[i] = psen->dim;
     m->sensor_cutoff[i] = (mjtNum)psen->cutoff;
     m->sensor_noise[i] = (mjtNum)psen->noise;
-    copyvec(m->sensor_user+nuser_sensor*i, psen->userdata.data(), nuser_sensor);
+    copyvec(m->sensor_user+nuser_sensor*i, psen->get_userdata().data(), nuser_sensor);
 
     // calculate address and advance
     m->sensor_adr[i] = adr;
@@ -2920,13 +2920,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_actuator == -1) {
     nuser_actuator = 0;
     for (int i=0; i<actuators.size(); i++) {
-      nuser_actuator = mjMAX(nuser_actuator, actuators[i]->userdata.size());
+      nuser_actuator = mjMAX(nuser_actuator, actuators[i]->spec_userdata_.size());
     }
   }
   if (nuser_sensor == -1) {
     nuser_sensor = 0;
     for (int i=0; i<sensors.size(); i++) {
-      nuser_sensor = mjMAX(nuser_sensor, sensors[i]->userdata.size());
+      nuser_sensor = mjMAX(nuser_sensor, sensors[i]->spec_userdata_.size());
     }
   }
 
@@ -3500,7 +3500,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pa->cranklength = (double)m->actuator_cranklength[i];
 
     if (nuser_actuator) {
-      copyvec(pa->userdata.data(), m->actuator_user + nuser_actuator*i, nuser_actuator);
+      copyvec(pa->userdata_.data(), m->actuator_user + nuser_actuator*i, nuser_actuator);
     }
   }
 
@@ -3510,7 +3510,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     sensors[i]->noise = (double)m->sensor_noise[i];
 
     if (nuser_sensor) {
-      copyvec(sensors[i]->userdata.data(), m->sensor_user + nuser_sensor*i, nuser_sensor);
+      copyvec(sensors[i]->userdata_.data(), m->sensor_user + nuser_sensor*i, nuser_sensor);
     }
   }
 

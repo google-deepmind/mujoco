@@ -1141,43 +1141,41 @@ class mjCPlugin : public mjCBase {
 //------------------------- class mjCActuator ------------------------------------------------------
 // Describes an actuator
 
-class mjCActuator : public mjCBase {
+class mjCActuator : public mjCBase, private mjmActuator {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  // variables set by user or API
-  int group;                      // group for visualization
-  int ctrllimited;                // are control limits defined: 0 false, 1 true, 2 auto
-  int forcelimited;               // are force limits defined: 0 false, 1 true, 2 auto
-  int actlimited;                 // are activation limits defined: 0 false, 1 true, 2 auto
-  int actdim;                     // dimension of associated activations
-  int plugin_actdim;              // actuator state size for plugins
-  mjtDyn dyntype;                 // dynamics type
-  mjtTrn trntype;                 // transmission type
-  mjtGain gaintype;               // gain type
-  mjtBias biastype;               // bias type
-  double dynprm[mjNDYN];          // dynamics parameters
-  double gainprm[mjNGAIN];        // gain parameters
-  double biasprm[mjNGAIN];        // bias parameters
-  bool actearly = false;          // apply activations to qfrc instantly
-  double ctrlrange[2];            // control range
-  double forcerange[2];           // force range
-  double actrange[2];             // activation range
-  double lengthrange[2];          // length range
-  double gear[6];                 // length and transmitted force scaling
-  double cranklength;             // crank length, for slider-crank only
-  std::vector<double> userdata;   // user data
-  std::string target;             // transmission target name
-  std::string slidersite;         // site defining cylinder, for slider-crank only
-  std::string refsite;            // reference site, for site transmission only
+  mjmActuator spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+  using mjCBase::plugin;
+
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
+  const std::string& get_target() { return spec_target_; }
+  const std::string& get_slidersite() { return spec_slidersite_; }
+  const std::string& get_refsite() { return spec_refsite_; }
 
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);  // constructor
   void Compile(void);                       // compiler
+  void CopyFromSpec();
+  void MakePointerLocal();
 
   int trnid[2];                   // id of transmission target
+
+  // variable-size data
+  std::string target_;
+  std::string slidersite_;
+  std::string refsite_;
+  std::vector<double> userdata_;
+  std::string spec_target_;
+  std::string spec_slidersite_;
+  std::string spec_refsite_;
+  std::vector<double> spec_userdata_;
 };
 
 
@@ -1185,31 +1183,39 @@ class mjCActuator : public mjCBase {
 //------------------------- class mjCSensor --------------------------------------------------------
 // Describes a sensor
 
-class mjCSensor : public mjCBase {
+class mjCSensor : public mjCBase, private mjmSensor {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  // variables set by user or API
-  mjtSensor type;                 // type of sensor
-  mjtDataType datatype;           // data type for sensor measurement
-  mjtStage needstage;             // compute stage needed to simulate sensor
-  mjtObj objtype;                 // type of sensorized object
-  std::string objname;            // name of sensorized object
-  mjtObj reftype;
-  std::string refname;
-  int dim;                        // number of scalar outputs
-  double cutoff;                  // cutoff for real and positive datatypes
-  double noise;                   // noise stdev
-  std::vector<double> userdata;   // user data
+  mjmSensor spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+  using mjCBase::plugin;
+
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
+  const std::string& get_objname() { return spec_objname_; }
+  const std::string& get_refname() { return spec_refname_; }
 
  private:
   mjCSensor(mjCModel*);           // constructor
   void Compile(void);             // compiler
+  void CopyFromSpec();
+  void MakePointerLocal();
 
   mjCBase* obj;                   // sensorized object
   int refid;                      // id of reference frame
+
+  // variable-size data
+  std::string objname_;
+  std::string refname_;
+  std::vector<double> userdata_;
+  std::string spec_objname_;
+  std::string spec_refname_;
+  std::vector<double> spec_userdata_;
 };
 
 
