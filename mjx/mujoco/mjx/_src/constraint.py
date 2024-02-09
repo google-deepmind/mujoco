@@ -315,7 +315,7 @@ def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
 
 
 def count_constraints(
-    m: Union[Model, mujoco.MjModel]
+    m: Union[Model, mujoco.MjModel], d: Optional[Data] = None
 ) -> Tuple[int, int, int, int]:
   """Returns equality, friction, limit, and contact constraint counts."""
   if m.opt.disableflags & DisableBit.CONSTRAINT:
@@ -336,7 +336,10 @@ def count_constraints(
   else:
     nl = int(m.jnt_limited.sum())
 
-  nc = collision_driver.ncon(m) * 4
+  if d is None:
+    nc = collision_driver.ncon(m) * 4
+  else:
+    nc = d.efc_J.shape[-2] - ne - nf - nl
 
   return ne, nf, nl, nc
 

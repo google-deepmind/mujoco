@@ -313,8 +313,16 @@ def collision_candidates(m: Union[Model, mujoco.MjModel]) -> CandidateSet:
 
   body_pairs = []
   exclude_signature = set(m.exclude_signature)
+  geom_con = m.geom_contype | m.geom_conaffinity
+  b_start = m.body_geomadr
+  b_end = b_start + m.body_geomnum
+
   for b1 in range(m.nbody):
+    if not geom_con[b_start[b1]:b_end[b1]].any():
+      continue
     for b2 in range(b1, m.nbody):
+      if not geom_con[b_start[b2]:b_end[b2]].any():
+        continue
       signature = (b1 << 16) + (b2)
       if signature in exclude_signature:
         continue
@@ -323,12 +331,12 @@ def collision_candidates(m: Union[Model, mujoco.MjModel]) -> CandidateSet:
       body_pairs.append((b1, b2))
 
   for b1, b2 in body_pairs:
-    start1 = m.body_geomadr[b1]
-    end1 = m.body_geomadr[b1] + m.body_geomnum[b1]
-    for g1 in range(start1, end1):
-      start2 = m.body_geomadr[b2]
-      end2 = m.body_geomadr[b2] + m.body_geomnum[b2]
-      for g2 in range(start2, end2):
+    for g1 in range(b_start[b1], b_end[b1]):
+      if not geom_con[g1]:
+        continue
+      for g2 in range(b_start[b2], b_end[b2]):
+        if not geom_con[g2]:
+          continue
         mask = m.geom_contype[g1] & m.geom_conaffinity[g2]
         mask |= m.geom_contype[g2] & m.geom_conaffinity[g1]
         if mask != 0:

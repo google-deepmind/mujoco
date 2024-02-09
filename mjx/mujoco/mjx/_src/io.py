@@ -264,7 +264,7 @@ def get_data_into(
   d = jax.device_get(d)
 
   batch_size = d.qpos.shape[0] if batched else 1
-  ne, nf, nl, nc = constraint.count_constraints(m)
+  ne, nf, nl, nc = constraint.count_constraints(m, d)
   efc_type = np.array([
       mujoco.mjtConstraint.mjCNSTR_EQUALITY,
       mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF,
@@ -288,7 +288,8 @@ def get_data_into(
     efc_con = efc_type == mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
     nefc, nc = int(efc_active.sum()), int((efc_active & efc_con).sum())
     result_i.nnzJ = nefc * m.nv
-    mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
+    if ncon != result_i.ncon or nefc != result_i.nefc:
+      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
     result_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)
     result_i.efc_J_rowadr[:] = np.arange(0, nefc * m.nv, m.nv)
     result_i.efc_J_colind[:] = np.tile(np.arange(m.nv), nefc)

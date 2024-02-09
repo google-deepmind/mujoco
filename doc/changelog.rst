@@ -8,7 +8,12 @@ Upcoming version (not yet released)
 MJX
 ^^^
 
-1. Improved performance of getting and putting device data by using a faster numpy array serialization method.
+1. Improved performance of getting and putting device data.
+
+   - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
+   - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
+   - Speed up calculation of ``mjx.ncon`` for models with many geoms.
+   - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------
