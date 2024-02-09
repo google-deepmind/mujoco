@@ -44,7 +44,7 @@ def _main(argv: Sequence[str]) -> None:
   print(f'Default backend: {jax.default_backend()}')
   print('JIT-compiling the model physics step...')
   start = time.time()
-  step_fn = jax.jit(mjx.step).lower(dx).compile()
+  step_fn = jax.jit(mjx.step).lower(mx, dx).compile()
   elapsed = time.time() - start
   print(f'Compilation took {elapsed}s.')
 
@@ -64,7 +64,7 @@ def _main(argv: Sequence[str]) -> None:
       })
 
       dx = step_fn(mx, dx)
-      mjx.device_get_into(d, dx)
+      mjx.get_data_into(d, m, dx)
       v.sync()
 
       elapsed = time.time() - start

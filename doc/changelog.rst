@@ -14,6 +14,8 @@ MJX
    - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
    - Speed up calculation of ``mjx.ncon`` for models with many geoms.
    - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
+2. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
+   ``mjx.get_data_into`` function call.
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------
