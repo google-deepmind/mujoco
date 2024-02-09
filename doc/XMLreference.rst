@@ -671,14 +671,18 @@ is effectively a miscellaneous subsection.
 :at:`azimuth`: :at-val:`real, "90"`
    This attribute specifies the initial azimuth of the free camera around the vertical z-axis, in degrees. A value of 0
    corresponds to looking in the positive x direction, while the default value of 90 corresponds to looking in the
-   positive y direction.
+   positive y direction. The look-at point itself is specified by the :ref:`statistic/center<statistic-center>`
+   attribute, while the distance from the look-at point is controlled by the :ref:`statistic/extent<statistic-extent>`
+   attribute.
 
 .. _visual-global-elevation:
 
 :at:`elevation`: :at-val:`real, "-45"`
    This attribute specifies the initial elevation of the free camera with respect to the lookat point. Note that since
    this is a rotation around a vector parallel to the camera's X-axis (right in pixel space), *negative* numbers
-   correspond to moving the camera *up* from the horizontal plane, and vice-versa.
+   correspond to moving the camera *up* from the horizontal plane, and vice-versa. The look-at point itself is specified
+   by the :ref:`statistic/center<statistic-center>` attribute, while the distance from the look-at point is controlled
+   by the :ref:`statistic/extent<statistic-extent>` attribute.
 
 .. _visual-global-linewidth:
 
