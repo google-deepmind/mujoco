@@ -38,6 +38,14 @@ void mjm_deleteModel(void* modelspec) {
 
 
 
+// copy spec into private attributes
+MJAPI void mjm_finalize(mjElement object) {
+  mjCBase* baseC = reinterpret_cast<mjCBase*>(object);
+  baseC->CopyFromSpec();
+}
+
+
+
 // add child body to body, return child spec
 mjmBody* mjm_addBody(mjmBody* bodyspec, void* defspec) {
   mjCDef* def = static_cast<mjCDef*>(defspec);
@@ -58,20 +66,20 @@ mjmSite* mjm_addSite(mjmBody* bodyspec, void* defspec) {
 
 
 // add joint to body
-void* mjm_addJoint(mjmBody* bodyspec, void* defspec) {
+mjmJoint* mjm_addJoint(mjmBody* bodyspec, void* defspec) {
   mjCDef* def = static_cast<mjCDef*>(defspec);
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCJoint* joint = body->AddJoint(def);
-  return joint;
+  return &joint->spec;
 }
 
 
 
 // add free joint to body
-void* mjm_addFreeJoint(mjmBody* bodyspec) {
+mjmJoint* mjm_addFreeJoint(mjmBody* bodyspec) {
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCJoint* joint = body->AddFreeJoint();
-  return joint;
+  return &joint->spec;
 }
 
 
@@ -87,21 +95,21 @@ mjmGeom* mjm_addGeom(mjmBody* bodyspec, void* defspec) {
 
 
 // add camera to body
-void* mjm_addCamera(mjmBody* bodyspec, void* defspec) {
+mjmCamera* mjm_addCamera(mjmBody* bodyspec, void* defspec) {
   mjCDef* def = static_cast<mjCDef*>(defspec);
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCCamera* camera = body->AddCamera(def);
-  return camera;
+  return &camera->spec;
 }
 
 
 
 // add light to body
-void* mjm_addLight(mjmBody* bodyspec, void* defspec) {
+mjmLight* mjm_addLight(mjmBody* bodyspec, void* defspec) {
   mjCDef* def = static_cast<mjCDef*>(defspec);
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCLight* light = body->AddLight(def);
-  return light;
+  return &light->spec;
 }
 
 

@@ -470,10 +470,10 @@ mjCDef::mjCDef(void) {
 // compiler
 void mjCDef::Compile(const mjCModel* model) {
   // enforce length of all default userdata arrays
-  joint.userdata.resize(model->nuser_jnt);
+  joint.userdata_.resize(model->nuser_jnt);
   geom.userdata_.resize(model->nuser_geom);
   site.userdata_.resize(model->nuser_site);
-  camera.userdata.resize(model->nuser_cam);
+  camera.userdata_.resize(model->nuser_cam);
   tendon.userdata.resize(model->nuser_tendon);
   actuator.userdata.resize(model->nuser_actuator);
 }
@@ -481,8 +481,11 @@ void mjCDef::Compile(const mjCModel* model) {
 
 
 // assignment operator (TODO: use overloading)
-void mjCDef::MakePointerLocal() {
-  geom.MakePointerLocal();
+void mjCDef::PointToLocal() {
+  joint.PointToLocal();
+  geom.PointToLocal();
+  site.PointToLocal();
+  camera.PointToLocal();
 }
 
 
@@ -581,16 +584,21 @@ mjCBody::mjCBody(mjCModel* _model) {
   lights.clear();
   spec_userdata_.clear();
 
-  // point to local
+  // in case this body is not compiled
+  CopyFromSpec();
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+}
+
+
+void mjCBody::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDouble)&spec_userdata_;
   spec.plugin.name = (mjString)&plugin_name;
   spec.plugin.instance_name = (mjString)&plugin_instance_name;
-
-  // in case this body is not compiled
-  CopyFromSpec();
 }
 
 
@@ -664,7 +672,7 @@ mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
 mjCJoint* mjCBody::AddFreeJoint() {
   // create free joint, don't inherit from defaults
   mjCJoint* obj = new mjCJoint(model, NULL);
-  obj->type = mjJNT_FREE;
+  obj->spec.type = mjJNT_FREE;
 
   // set body pointer, add
   obj->body = this;
@@ -1200,56 +1208,59 @@ void mjCFrame::Compile() {
 
 // initialize default joint
 mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
-  // joint defaults
-  type = mjJNT_HINGE;
-  group = 0;
-  mjuu_setvec(pos, 0, 0, 0);
-  mjuu_setvec(axis, 0, 0, 1);
-  limited = 2;
-  actfrclimited = 2;
-  stiffness = 0;
-  range[0] = 0;
-  range[1] = 0;
-  actfrcrange[0] = 0;
-  actfrcrange[1] = 0;
-  springdamper[0] = 0;
-  springdamper[1] = 0;
-  mj_defaultSolRefImp(solref_limit, solimp_limit);
-  mj_defaultSolRefImp(solref_friction, solimp_friction);
-  margin = 0;
-  ref = 0;
-  springref = 0;
-  userdata.clear();
-
-  // dof defaults
-  armature = 0;
-  frictionloss = 0;
-  damping = 0;
+  mjm_defaultJoint(spec);
 
   // clear internal variables
+  spec_userdata_.clear();
   body = 0;
-  urdfeffort = -1;
 
   // reset to default if given
   if (_def) {
+    _def->joint.CopyFromSpec();
     *this = _def->joint;
   }
 
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this joint is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCJoint::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCJoint::CopyFromSpec() {
+  *static_cast<mjmJoint*>(this) = spec;
+  userdata_ = spec_userdata_;
+  userdata = (mjDouble)&spec_userdata_;
 }
 
 
 
 // compiler
 int mjCJoint::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
-  if (userdata.size() > model->nuser_jnt) {
+  if (userdata_.size() > model->nuser_jnt) {
     throw mjCError(this, "user has more values than nuser_jnt in joint '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_jnt);
+  userdata_.resize(model->nuser_jnt);
 
   // check springdamper
   if (springdamper[0] || springdamper[1]) {
@@ -1405,7 +1416,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
   // point to local (needs to be after defaults)
-  MakePointerLocal();
+  PointToLocal();
 
   // in case this geom is not compiled
   CopyFromSpec();
@@ -1414,7 +1425,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
 
 // to be called after any default copy constructor
-void mjCGeom::MakePointerLocal(void) {
+void mjCGeom::PointToLocal(void) {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
   spec.info = (mjString)&info;
@@ -2001,20 +2012,26 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
     *this = _def->site;
   }
 
-  // point to local, not to default
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this site is not compiled
+  CopyFromSpec();
+
+  // set model, def
+  model = _model;
+  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+}
+
+
+
+void mjCSite::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
   spec.info = (mjString)&info;
   spec.classname = (mjString)&classname;
   spec.material = (mjString)&spec_material_;
   spec.userdata = (mjDouble)&spec_userdata_;
-
-  // initialize private attributes in case object won't be compiled
-  CopyFromSpec();
-
-  // set model, def
-  model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 }
 
 
@@ -2124,49 +2141,70 @@ void mjCSite::Compile(void) {
 
 // initialize defaults
 mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  mode = mjCAMLIGHT_FIXED;
-  targetbody.clear();
-  mjuu_setvec(pos, 0, 0, 0);
-  mjuu_setvec(quat, 1, 0, 0, 0);
-  fovy = 45;
-  ipd = 0.068;
-  userdata.clear();
-  resolution[0] = resolution[1] = 1;
-  principal_length[0] = principal_length[1] = 0;
-  principal_pixel[0] = principal_pixel[1] = 0;
-  focal_length[0] = focal_length[1] = 0;
-  focal_pixel[0] = focal_pixel[1] = 0;
-  sensor_size[0] = sensor_size[1] = 0;
-  mjuu_setvec(intrinsic, 0, 0, 0, 0);
+  mjm_defaultCamera(spec);
 
   // clear private variables
   body = 0;
   targetbodyid = -1;
+  spec_targetbody_.clear();
 
   // reset to default if given
   if (_def) {
+    _def->camera.CopyFromSpec();
     *this = _def->camera;
   }
 
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCCamera::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.targetbody = (mjString)&spec_targetbody_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCCamera::CopyFromSpec() {
+  *static_cast<mjmCamera*>(this) = spec;
+  userdata_ = spec_userdata_;
+  targetbody_ = spec_targetbody_;
+  userdata = (mjDouble)&userdata_;
+  targetbody = (mjString)&targetbody_;
+  mju_copy4(alt_.axisangle, alt.axisangle);
+  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
+  mju_copy3(alt_.zaxis, alt.zaxis);
+  mju_copy3(alt_.euler, alt.euler);
 }
 
 
 
 // compiler
 void mjCCamera::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
-  if (userdata.size() > model->nuser_cam) {
+  if (userdata_.size() > model->nuser_cam) {
     throw mjCError(this, "user has more values than nuser_cam in camera '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_cam);
+  userdata_.resize(model->nuser_cam);
 
   // process orientation specifications
-  const char* err = alt.Set(quat, model->degree, model->euler);
+  const char* err = alt_.Set(quat, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }
@@ -2180,8 +2218,8 @@ void mjCCamera::Compile(void) {
   mjuu_normvec(quat, 4);
 
   // get targetbodyid
-  if (!targetbody.empty()) {
-    mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody);
+  if (!targetbody_.empty()) {
+    mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody_);
     if (tb) {
       targetbodyid = tb->id;
     } else {
@@ -2240,39 +2278,47 @@ void mjCCamera::Compile(void) {
 
 // initialize defaults
 mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  mode = mjCAMLIGHT_FIXED;
-  targetbody.clear();
-  directional = false;
-  castshadow = true;
-  active = true;
-  mjuu_setvec(pos, 0, 0, 0);
-  mjuu_setvec(dir, 0, 0, -1);
-  mjuu_setvec(attenuation, 1, 0, 0);
-  cutoff = 45;
-  exponent = 10;
-  ambient[0] = ambient[1] = ambient[2] = 0;
-  diffuse[0] = diffuse[1] = diffuse[2] = 0.7;
-  specular[0] = specular[1] = specular[2] = 0.3;
+  mjm_defaultLight(spec);
 
   // clear private variables
   body = 0;
   targetbodyid = -1;
+  spec_targetbody_.clear();
 
   // reset to default if given
   if (_def) {
+    _def->light.CopyFromSpec();
     *this = _def->light;
   }
 
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.targetbody = (mjString)&spec_targetbody_;
+  spec.info = (mjString)&info;
+
+  CopyFromSpec();
+}
+
+
+
+void mjCLight::CopyFromSpec() {
+  *static_cast<mjmLight*>(this) = spec;
+  targetbody_ = spec_targetbody_;
+  targetbody = (mjString)&targetbody_;
 }
 
 
 
 // compiler
 void mjCLight::Compile(void) {
+  CopyFromSpec();
+
   double quat[4]= {1, 0, 0, 0};
 
   // frame
@@ -2286,8 +2332,8 @@ void mjCLight::Compile(void) {
   }
 
   // get targetbodyid
-  if (!targetbody.empty()) {
-    mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody);
+  if (!targetbody_.empty()) {
+    mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody_);
     if (tb) {
       targetbodyid = tb->id;
     } else {
@@ -4077,9 +4123,9 @@ void mjCActuator::Compile(void) {
     pjnt = (mjCJoint*) ptarget;
 
     // apply urdfeffort
-    if (pjnt->urdfeffort>0) {
-      forcerange[0] = -pjnt->urdfeffort;
-      forcerange[1] = pjnt->urdfeffort;
+    if (pjnt->spec.urdfeffort>0) {
+      forcerange[0] = -pjnt->spec.urdfeffort;
+      forcerange[1] = pjnt->spec.urdfeffort;
       forcelimited = 1;
     }
     break;

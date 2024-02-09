@@ -1465,13 +1465,18 @@ void mjXReader::OneMaterial(XMLElement* elem, mjCMaterial* pmat) {
 
 
 // joint element parser
-void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
-  string text;
+void mjXReader::OneJoint(XMLElement* elem, mjmJoint* pjoint) {
+  string text, name, classname;
+  std::vector<double> userdata;
   int n;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pjoint->name);
-  ReadAttrTxt(elem, "class", pjoint->classname);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pjoint->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pjoint->classname, classname.c_str());
+  }
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
     pjoint->type = (mjtJoint)n;
   }
@@ -1496,9 +1501,13 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   ReadAttr(elem, "frictionloss", 1, &pjoint->frictionloss, text);
 
   // read userdata
-  ReadVector(elem, "user", pjoint->userdata, text);
+  if (ReadVector(elem, "user", userdata, text)) {
+    mjm_setDouble(pjoint->userdata, userdata.data(), userdata.size());
+  }
 
-  GetXMLPos(elem, pjoint);
+  // write error info
+  mjm_setString(pjoint->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -1572,6 +1581,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjmGeom* pgeom) {
     pgeom->typeinertia = (mjtGeomInertia)n;
   }
 
+  // write error info
   mjm_setString(pgeom->info,
       std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
@@ -1586,8 +1596,12 @@ void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
   std::string material;
 
   // read attributes
-  ReadAttrTxt(elem, "name", name);
-  ReadAttrTxt(elem, "class", classname);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(site.name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(site.classname, classname.c_str());
+  }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
     site.type = (mjtGeom)n;
   }
@@ -1595,21 +1609,17 @@ void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
   ReadAttrInt(elem, "group", &site.group);
   ReadAttr(elem, "pos", 3, site.pos, text);
   ReadQuat(elem, "quat", site.quat, text);
-  ReadAttrTxt(elem, "material", material);
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(site.material, material.c_str());
+  }
   ReadAttr(elem, "rgba", 4, site.rgba, text);
   ReadAttr(elem, "fromto", 6, site.fromto, text);
   ReadAlternative(elem, site.alt);
-  ReadVector(elem, "user", userdata, text);
+  if (ReadVector(elem, "user", userdata, text)) {
+    mjm_setDouble(site.userdata, userdata.data(), userdata.size());
+  }
 
-  // set strings
-  mjm_setString(site.name, name.c_str());
-  mjm_setString(site.classname, classname.c_str());
-  mjm_setString(site.material, material.c_str());
-
-  // set pointers
-  mjm_setDouble(site.userdata, userdata.data(), userdata.size());
-
-  // set info
+  // write error info
   mjm_setString(site.info,
       std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
@@ -1617,14 +1627,21 @@ void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
 
 
 // camera element parser
-void mjXReader::OneCamera(XMLElement* elem, mjCCamera* pcam) {
+void mjXReader::OneCamera(XMLElement* elem, mjmCamera* pcam) {
   int n;
-  string text;
+  string text, name, classname, targetbody;
+  std::vector<double> userdata;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pcam->name);
-  ReadAttrTxt(elem, "class", pcam->classname);
-  ReadAttrTxt(elem, "target", pcam->targetbody);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pcam->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pcam->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "target", targetbody)) {
+    mjm_setString(pcam->targetbody, targetbody.c_str());
+  }
   if (MapValue(elem, "mode", &n, camlight_map, camlight_sz)) {
     pcam->mode = (mjtCamLight)n;
   }
@@ -1654,22 +1671,31 @@ void mjXReader::OneCamera(XMLElement* elem, mjCCamera* pcam) {
   }
 
   // read userdata
-  ReadVector(elem, "user", pcam->userdata, text);
+  ReadVector(elem, "user", userdata, text);
+  mjm_setDouble(pcam->userdata, userdata.data(), userdata.size());
 
-  GetXMLPos(elem, pcam);
+  // write error info
+  mjm_setString(pcam->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
 
 // light element parser
-void mjXReader::OneLight(XMLElement* elem, mjCLight* plight) {
+void mjXReader::OneLight(XMLElement* elem, mjmLight* plight) {
   int n;
-  string text;
+  string text, name, classname, targetbody;
 
   // read attributes
-  ReadAttrTxt(elem, "name", plight->name);
-  ReadAttrTxt(elem, "class", plight->classname);
-  ReadAttrTxt(elem, "target", plight->targetbody);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(plight->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(plight->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "target", targetbody)) {
+    mjm_setString(plight->targetbody, targetbody.c_str());
+  }
   if (MapValue(elem, "mode", &n, camlight_map, camlight_sz)) {
     plight->mode = (mjtCamLight)n;
   }
@@ -1691,7 +1717,9 @@ void mjXReader::OneLight(XMLElement* elem, mjCLight* plight) {
   ReadAttr(elem, "diffuse", 3, plight->diffuse, text);
   ReadAttr(elem, "specular", 3, plight->specular, text);
 
-  GetXMLPos(elem, plight);
+  // write error info
+  mjm_setString(plight->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2226,29 +2254,29 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
 
     // particle joint
     if (MapValue(ejnt, "type", &n, joint_map, joint_sz)) {
-      el->joint.type = (mjtJoint)n;
+      el->joint.spec.type = (mjtJoint)n;
     }
-    ReadAttr(ejnt, "axis", 3, el->joint.axis, text);
+    ReadAttr(ejnt, "axis", 3, el->joint.spec.axis, text);
 
     // solreffix, solimpfix
     ReadAttr(ejnt, "solreffix", mjNREF, el->equality.solref, text, false, false);
     ReadAttr(ejnt, "solimpfix", mjNIMP, el->equality.solimp, text, false, false);
 
     // joint attributes
-    MapValue(elem, "limited", &el->joint.limited, TFAuto_map, 3);
-    ReadAttrInt(ejnt, "group", &el->joint.group);
-    ReadAttr(ejnt, "solreflimit", mjNREF, el->joint.solref_limit, text, false, false);
-    ReadAttr(ejnt, "solimplimit", mjNIMP, el->joint.solimp_limit, text, false, false);
+    MapValue(elem, "limited", &el->joint.spec.limited, TFAuto_map, 3);
+    ReadAttrInt(ejnt, "group", &el->joint.spec.group);
+    ReadAttr(ejnt, "solreflimit", mjNREF, el->joint.spec.solref_limit, text, false, false);
+    ReadAttr(ejnt, "solimplimit", mjNIMP, el->joint.spec.solimp_limit, text, false, false);
     ReadAttr(ejnt,
-             "solreffriction", mjNREF, el->joint.solref_friction, text, false, false);
+             "solreffriction", mjNREF, el->joint.spec.solref_friction, text, false, false);
     ReadAttr(ejnt,
-             "solimpfriction", mjNIMP, el->joint.solimp_friction, text, false, false);
-    ReadAttr(ejnt, "stiffness", 1, &el->joint.stiffness, text);
-    ReadAttr(ejnt, "range", 2, el->joint.range, text);
-    ReadAttr(ejnt, "margin", 1, &el->joint.margin, text);
-    ReadAttr(ejnt, "armature", 1, &el->joint.armature, text);
-    ReadAttr(ejnt, "damping", 1, &el->joint.damping, text);
-    ReadAttr(ejnt, "frictionloss", 1, &el->joint.frictionloss, text);
+             "solimpfriction", mjNIMP, el->joint.spec.solimp_friction, text, false, false);
+    ReadAttr(ejnt, "stiffness", 1, &el->joint.spec.stiffness, text);
+    ReadAttr(ejnt, "range", 2, el->joint.spec.range, text);
+    ReadAttr(ejnt, "margin", 1, &el->joint.spec.margin, text);
+    ReadAttr(ejnt, "armature", 1, &el->joint.spec.armature, text);
+    ReadAttr(ejnt, "damping", 1, &el->joint.spec.damping, text);
+    ReadAttr(ejnt, "frictionloss", 1, &el->joint.spec.frictionloss, text);
 
     // advance
     ejnt = ejnt->NextSiblingElement("joint");
@@ -2510,7 +2538,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="material") OneMaterial(elem, &def->material);
 
     // read joint
-    else if (name=="joint") OneJoint(elem, &def->joint);
+    else if (name=="joint") OneJoint(elem, &def->joint.spec);
 
     // read geom
     else if (name=="geom") OneGeom(elem, &def->geom.spec);
@@ -2519,10 +2547,10 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="site") OneSite(elem, def->site.spec);
 
     // read camera
-    else if (name=="camera") OneCamera(elem, &def->camera);
+    else if (name=="camera") OneCamera(elem, &def->camera.spec);
 
     // read light
-    else if (name=="light") OneLight(elem, &def->light);
+    else if (name=="light") OneLight(elem, &def->light.spec);
 
     // read pair
     else if (name=="pair") OnePair(elem, &def->pair);
@@ -2545,6 +2573,13 @@ void mjXReader::Default(XMLElement* section, int parentid) {
              name=="adhesion") {
       OneActuator(elem, &def->actuator);
     }
+
+    // copy into private attributes
+    mjm_finalize(def->geom.spec.element);
+    mjm_finalize(def->joint.spec.element);
+    mjm_finalize(def->site.spec.element);
+    mjm_finalize(def->camera.spec.element);
+    mjm_finalize(def->light.spec.element);
 
     // advance
     elem = elem->NextSiblingElement();
@@ -3059,9 +3094,9 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
       }
 
       // create joint and parse
-      mjCJoint* pjoint = (mjCJoint*)mjm_addJoint(pbody, def);
+      mjmJoint* pjoint = mjm_addJoint(pbody, def);
       OneJoint(elem, pjoint);
-      pjoint->SetFrame(frame);
+      mjm_setFrame(pjoint->element, frame);
     }
 
     // freejoint sub-element
@@ -3072,14 +3107,17 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
       }
 
       // create free joint without defaults
-      mjCJoint* pjoint = (mjCJoint*)mjm_addFreeJoint(pbody);
-      pjoint->SetFrame(frame);
+      mjmJoint* pjoint = mjm_addFreeJoint(pbody);
+      mjm_setFrame(pjoint->element, frame);
 
       // save defaults after creation, to make sure writing is ok
-      pjoint->def = def;
+      mjm_setDefault(pjoint->element, def);
 
       // read attributes
-      ReadAttrTxt(elem, "name", pjoint->name);
+      std::string name;
+      if (ReadAttrTxt(elem, "name", name)) {
+        mjm_setString(pjoint->name, name.c_str());
+      }
       ReadAttrInt(elem, "group", &pjoint->group);
     }
 
@@ -3102,17 +3140,17 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
     // camera sub-element
     else if (name=="camera") {
       // create camera and parse
-      mjCCamera* pcam = (mjCCamera*)mjm_addCamera(pbody, def);
+      mjmCamera* pcam = mjm_addCamera(pbody, def);
       OneCamera(elem, pcam);
-      pcam->SetFrame(frame);
+      mjm_setFrame(pcam->element, frame);
     }
 
     // light sub-element
     else if (name=="light") {
       // create light and parse
-      mjCLight* plight = (mjCLight*)mjm_addLight(pbody, def);
+      mjmLight* plight = mjm_addLight(pbody, def);
       OneLight(elem, plight);
-      plight->SetFrame(frame);
+      mjm_setFrame(plight->element, frame);
     }
 
     // plugin sub-element
@@ -3162,10 +3200,12 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
 
       // read attributes
       std::string name, childclass;
-      ReadAttrTxt(elem, "name", name);
-      mjm_setString(pchild->name, name.c_str());
-      ReadAttrTxt(elem, "childclass", childclass);
-      mjm_setString(pchild->classname, childclass.c_str());
+      if (ReadAttrTxt(elem, "name", name)) {
+        mjm_setString(pchild->name, name.c_str());
+      }
+      if (ReadAttrTxt(elem, "childclass", childclass)) {
+        mjm_setString(pchild->classname, childclass.c_str());
+      }
       ReadAttr(elem, "pos", 3, pchild->pos, text);
       ReadQuat(elem, "quat", pchild->quat, text);
       if (MapValue(elem, "mocap", &n, bool_map, 2)) {

@@ -429,7 +429,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
 
       // add radial slider
       if (radial) {
-        mjCJoint* jnt = (mjCJoint*)mjm_addJoint(pb, 0);
+        mjmJoint* jnt = mjm_addJoint(pb, 0);
 
         // set properties
         jnt->type = mjJNT_SLIDE;
@@ -442,7 +442,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
       else {
         for (int j=0; j<3; j++) {
           // add joint to body
-          mjCJoint* jnt = (mjCJoint*)mjm_addJoint(pb, 0);
+          mjmJoint* jnt = mjm_addJoint(pb, 0);
 
           // set properties
           jnt->type = mjJNT_SLIDE;

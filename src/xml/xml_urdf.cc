@@ -210,8 +210,8 @@ void mjXURDF::Parse(
       // add a free joint to allow motion of the body
       // if the mass is 0, assume the object is static
       if (!static_body && pbody->mass > 0) {
-        mjCJoint* pjoint = (mjCJoint*)mjm_addJoint(pbody, 0);
-        pjoint->name = urName[i] + "_free_joint";
+        mjmJoint* pjoint = mjm_addJoint(pbody, 0);
+        mjm_setString(pjoint->name, (urName[i] + "_free_joint").c_str());
         pjoint->type = mjJNT_FREE;
       }
     }
@@ -371,7 +371,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   std::string jntname, name, text;
   XMLElement *elem;
   mjmBody *pbody, *parent, *world;
-  mjCJoint *pjoint=0, *pjoint1=0, *pjoint2=0;
+  mjmJoint *pjoint=0, *pjoint1=0, *pjoint2=0;
   int jointtype;
 
   // get type and name
@@ -414,16 +414,16 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   switch (jointtype) {
   case 0:     // revolute
   case 1:     // continuous
-    pjoint = (mjCJoint*)mjm_addJoint(pbody, 0);
-    pjoint->name = jntname;
+    pjoint = mjm_addJoint(pbody, 0);
+    mjm_setString(pjoint->name, jntname.c_str());
     pjoint->type = mjJNT_HINGE;
     mjuu_setvec(pjoint->pos, 0, 0, 0);
     mjuu_copyvec(pjoint->axis, axis, 3);
     break;
 
   case 2:     // prismatic
-    pjoint = (mjCJoint*)mjm_addJoint(pbody, 0);
-    pjoint->name = jntname;
+    pjoint = mjm_addJoint(pbody, 0);
+    mjm_setString(pjoint->name, jntname.c_str());
     pjoint->type = mjJNT_SLIDE;
     mjuu_setvec(pjoint->pos, 0, 0, 0);
     mjuu_copyvec(pjoint->axis, axis, 3);
@@ -433,8 +433,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     return;
 
   case 4:     // floating
-    pjoint = (mjCJoint*)mjm_addJoint(pbody, 0);
-    pjoint->name = jntname;
+    pjoint = mjm_addJoint(pbody, 0);
+    mjm_setString(pjoint->name, jntname.c_str());
     pjoint->type = mjJNT_FREE;
     break;
 
@@ -444,8 +444,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     mjuu_quat2mat(mat, quat);
 
     // construct slider along x
-    pjoint = (mjCJoint*)mjm_addJoint(pbody, 0);
-    pjoint->name = jntname + "_TX";
+    pjoint = mjm_addJoint(pbody, 0);
+    mjm_setString(pjoint->name, (jntname + "_TX").c_str());
     pjoint->type = mjJNT_SLIDE;
     tmpaxis[0] = mat[0];
     tmpaxis[1] = mat[3];
@@ -454,8 +454,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     mjuu_copyvec(pjoint->axis, tmpaxis, 3);
 
     // construct slider along y
-    pjoint1 = (mjCJoint*)mjm_addJoint(pbody, 0);
-    pjoint1->name = jntname + "_TY";
+    pjoint1 = mjm_addJoint(pbody, 0);
+    mjm_setString(pjoint1->name, (jntname + "_TY").c_str());
     pjoint1->type = mjJNT_SLIDE;
     tmpaxis[0] = mat[1];
     tmpaxis[1] = mat[4];
@@ -464,8 +464,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     mjuu_copyvec(pjoint1->axis, tmpaxis, 3);
 
     // construct hinge around z = locaxis
-    pjoint2 = (mjCJoint*)mjm_addJoint(pbody, 0);
-    pjoint2->name = jntname + "_RZ";
+    pjoint2 = mjm_addJoint(pbody, 0);
+    mjm_setString(pjoint2->name, (jntname + "_RZ").c_str());
     pjoint2->type = mjJNT_HINGE;
     mjuu_setvec(pjoint2->pos, 0, 0, 0);
     mjuu_copyvec(pjoint2->axis, axis, 3);

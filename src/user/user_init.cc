@@ -38,8 +38,23 @@ void mjm_defaultBody(mjmBody& body) {
 }
 
 
+
+// default joint attributes
+void mjm_defaultJoint(mjmJoint& joint) {
+  memset(&joint, 0, sizeof(mjmJoint));
+  joint.type = mjJNT_HINGE;
+  joint.axis[2] = 1;
+  joint.limited = 2;
+  joint.actfrclimited = 2;
+  mj_defaultSolRefImp(joint.solref_limit, joint.solimp_limit);
+  mj_defaultSolRefImp(joint.solref_friction, joint.solimp_friction);
+  joint.urdfeffort = -1;
+}
+
+
+
 // default geom attributes
-MJAPI void mjm_defaultGeom(mjmGeom& geom) {
+void mjm_defaultGeom(mjmGeom& geom) {
   memset(&geom, 0, sizeof(mjmGeom));
 
   // set non-zero defaults
@@ -83,3 +98,36 @@ void mjm_defaultSite(mjmSite& site) {
   site.rgba[0] = site.rgba[1] = site.rgba[2] = 0.5f;
   site.rgba[3] = 1.0f;
 }
+
+
+
+// default cam attributes
+void mjm_defaultCamera(mjmCamera& cam) {
+  memset(&cam, 0, sizeof(mjmCamera));
+  cam.mode = mjCAMLIGHT_FIXED;
+  cam.quat[0] = 1;
+  cam.fovy = 45;
+  cam.ipd = 0.068;
+  cam.resolution[0] = cam.resolution[1] = 1;
+  cam.alt.axisangle[0] = cam.alt.xyaxes[0] = cam.alt.zaxis[0] = cam.alt.euler[0] = mjNAN;
+}
+
+
+
+// default light attributes
+void mjm_defaultLight(mjmLight& light) {
+  memset(&light, 0, sizeof(mjmLight));
+  light.mode = mjCAMLIGHT_FIXED;
+  light.directional = 0;
+  light.castshadow = 1;
+  light.active = 1;
+  light.dir[2] = -1;
+  light.attenuation[0] = 1;
+  light.cutoff = 45;
+  light.exponent = 10;
+  light.ambient[0] = light.ambient[1] = light.ambient[2] = 0;
+  light.diffuse[0] = light.diffuse[1] = light.diffuse[2] = 0.7;
+  light.specular[0] = light.specular[1] = light.specular[2] = 0.3;
+}
+
+

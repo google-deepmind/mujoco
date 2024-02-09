@@ -180,6 +180,9 @@ class mjCBase {
   // Add frame transformation
   void SetFrame(mjCFrame* _frame);
 
+  // Copy spec into private attributes
+  virtual void CopyFromSpec() {}
+
   std::string name;               // object name
   std::string classname;          // defaults class name
   int id;                         // object id
@@ -194,6 +197,7 @@ class mjCBase {
   std::string plugin_instance_name;
  protected:
   mjCBase();                      // constructor
+  virtual ~mjCBase() = default;   // destructor
 };
 
 
@@ -289,6 +293,7 @@ class mjCBody : public mjCBase, private mjmBody {
   std::vector<mjCLight*>   lights;     // lights attached to this body
 
   void CopyFromSpec();                 // copy spec into attributes
+  void PointToLocal(void);
 
   // variable-size data
   std::vector<double> userdata_;
@@ -322,48 +327,36 @@ class mjCFrame : public mjCBase {
 //------------------------- class mjCJoint ---------------------------------------------------------
 // Describes a motion degree of freedom of a body relative to its parent
 
-class mjCJoint : public mjCBase {
+class mjCJoint : public mjCBase, private mjmJoint {
   friend class mjCDef;
   friend class mjCEquality;
   friend class mjCBody;
   friend class mjCModel;
+  friend class mjCSensor;
   friend class mjXWriter;
   friend class mjXURDF;
 
  public:
-  // variables set by user: joint properties
-  mjtJoint type;                   // type of Joint
-  int group;                       // used for rendering
-  int limited;                     // does joint have limits: 0 false, 1 true, 2 auto
-  int actfrclimited;               // are actuator forces on joints limited: 0 false, 1 true, 2 auto
-  double pos[3];                   // anchor position
-  double axis[3];                  // joint axis
-  double stiffness;                // stiffness coefficient
-  double springdamper[2];          // timeconst, dampratio
-  double range[2];                 // joint limits
-  double actfrcrange[2];           // actuator force limits
-  mjtNum solref_limit[mjNREF];     // solver reference: joint limits
-  mjtNum solimp_limit[mjNIMP];     // solver impedance: joint limits
-  mjtNum solref_friction[mjNREF];  // solver reference: dof friction
-  mjtNum solimp_friction[mjNIMP];  // solver impedance: dof friction
-  double margin;                   // margin value for joint limit detection
-  double ref;                      // value at reference configuration: qpos0
-  double springref;                // spring reference value: qpos_spring
-  std::vector<double> userdata;    // user data
+  mjmJoint spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
 
-  // variables set by user: dof properties
-  double armature;                 // armature inertia (mass for slider)
-  double damping;                  // damping coefficient
-  double frictionloss;             // friction loss
+  void CopyFromSpec(void);
 
-  double urdfeffort;               // store effort field from urdf
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
 
  private:
   mjCJoint(mjCModel* = 0, mjCDef* = 0);
 
   int Compile(void);               // compiler; return dofnum
+  void PointToLocal(void);
 
   mjCBody* body;                   // joint's body
+  // variable-size data
+  std::vector<double> userdata_;
+  std::vector<double> spec_userdata_;
 };
 
 
@@ -412,7 +405,7 @@ class mjCGeom : public mjCBase, private mjmGeom {
   double GetRBound(void);             // compute bounding sphere radius
   void ComputeAABB(void);             // compute axis-aligned bounding box
   void CopyFromSpec(void);
-  void MakePointerLocal(void);
+  void PointToLocal(void);
 
   mjCAlternative alt_;
   bool visual_;                       // true: geom does not collide and is unreferenced
@@ -470,6 +463,7 @@ class mjCSite : public mjCBase, private mjmSite {
   mjCSite(mjCModel* = 0, mjCDef* = 0);    // constructor
   void Compile(void);                     // compiler
   void CopyFromSpec();                    // copy spec into attributes
+  void PointToLocal(void);
 
   mjCAlternative alt_;
 
@@ -489,36 +483,36 @@ class mjCSite : public mjCBase, private mjmSite {
 //------------------------- class mjCCamera --------------------------------------------------------
 // Describes a camera, attached to a body
 
-class mjCCamera : public mjCBase {
+class mjCCamera : public mjCBase, private mjmCamera {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
+  friend class mjCSensor;
   friend class mjXWriter;
 
  public:
-  // variables set by user
-  mjtCamLight mode;               // tracking mode
-  std::string targetbody;         // target body for orientation
-  double fovy;                    // y-field of view
-  double ipd;                     // inter-pupilary distance
-  double pos[3];                  // position
-  double quat[4];                 // orientation
-  float intrinsic[4];             // camera intrinsics [length]
-  float sensor_size[2];           // sensor size [length]
-  float resolution[2];            // resolution [pixel]
-  float focal_length[2];          // focal length [length]
-  float focal_pixel[2];           // focal length [pixel]
-  float principal_length[2];      // principal point [length]
-  float principal_pixel[2];       // principal point [pixel]
-  std::vector<double> userdata;   // user data
-  mjCAlternative alt;             // alternative orientation specification
+  mjmCamera spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
+  // used by mjXWriter and mjCModel
+  const std::string& get_targetbody() { return targetbody_; }
+  const std::vector<double>& get_userdata() { return userdata_; }
 
  private:
   mjCCamera(mjCModel* = 0, mjCDef* = 0);  // constructor
   void Compile(void);                     // compiler
+  void CopyFromSpec(void);
+  void PointToLocal(void);
 
   mjCBody* body;                  // camera's body
   int targetbodyid;               // id of target body; -1: none
+  mjCAlternative alt_;
+  std::string targetbody_;
+  std::string spec_targetbody_;
+  std::vector<double> userdata_;
+  std::vector<double> spec_userdata_;
 };
 
 
@@ -526,34 +520,30 @@ class mjCCamera : public mjCBase {
 //------------------------- class mjCLight ---------------------------------------------------------
 // Describes a light, attached to a body
 
-class mjCLight : public mjCBase {
+class mjCLight : public mjCBase, private mjmLight {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  // variables set by user
-  mjtCamLight mode;               // tracking mode
-  std::string targetbody;         // target body for orientation
-  bool directional;               // directional light
-  bool castshadow;                // does light cast shadows
-  bool active;                    // is light active
-  double pos[3];                  // position
-  double dir[3];                  // direction
-  float attenuation[3];           // OpenGL attenuation (quadratic model)
-  float cutoff;                   // OpenGL cutoff
-  float exponent;                 // OpenGL exponent
-  float ambient[3];               // ambient color
-  float diffuse[3];               // diffuse color
-  float specular[3];              // specular color
+  mjmLight spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
+  // used by mjXWriter and mjCModel
+  const std::string& get_targetbody() { return targetbody_; }
 
  private:
   mjCLight(mjCModel* = 0, mjCDef* = 0);   // constructor
   void Compile(void);                     // compiler
+  void CopyFromSpec(void);
 
   mjCBody* body;                  // light's body
   int targetbodyid;               // id of target body; -1: none
+  std::string targetbody_;
+  std::string spec_targetbody_;
 };
 
 
@@ -1314,7 +1304,7 @@ class mjCDef {
  public:
   mjCDef(void);                           // constructor
   void Compile(const mjCModel* model);    // compiler
-  void MakePointerLocal();
+  void PointToLocal();
 
   // identifiers
   std::string name;               // class name

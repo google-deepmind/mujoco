@@ -565,7 +565,7 @@ mjCDef* mjCModel::AddDef(string name, int parentid) {
   if (parentid>=0 && parentid<thisid) {
     *def = *defaults[parentid];
     defaults[parentid]->childid.push_back(thisid);
-    def->MakePointerLocal();
+    def->PointToLocal();
   }
   def->parentid = parentid;
   def->name = name;
@@ -1573,7 +1573,7 @@ void mjCModel::CopyTree(mjModel* m) {
       copyvec(m->jnt_solref+mjNREF*jid, pj->solref_limit, mjNREF);
       copyvec(m->jnt_solimp+mjNIMP*jid, pj->solimp_limit, mjNIMP);
       m->jnt_margin[jid] = (mjtNum)pj->margin;
-      copyvec(m->jnt_user+nuser_jnt*jid, pj->userdata.data(), nuser_jnt);
+      copyvec(m->jnt_user+nuser_jnt*jid, pj->get_userdata().data(), nuser_jnt);
 
       // not simple if: rotation already found, or pos not zero, or mis-aligned axis
       if (rotfound ||
@@ -1756,7 +1756,7 @@ void mjCModel::CopyTree(mjModel* m) {
       copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
       copyvec(m->cam_sensorsize+2*cid, pc->sensor_size, 2);
       copyvec(m->cam_intrinsic+4*cid, pc->intrinsic, 4);
-      copyvec(m->cam_user+nuser_cam*cid, pc->userdata.data(), nuser_cam);
+      copyvec(m->cam_user+nuser_cam*cid, pc->get_userdata().data(), nuser_cam);
     }
 
     // loop over lights for this body
@@ -2890,7 +2890,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_jnt == -1) {
     nuser_jnt = 0;
     for (int i=0; i<joints.size(); i++) {
-      nuser_jnt = mjMAX(nuser_jnt, joints[i]->userdata.size());
+      nuser_jnt = mjMAX(nuser_jnt, joints[i]->spec_userdata_.size());
     }
   }
   if (nuser_geom == -1) {
@@ -2908,7 +2908,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_cam == -1) {
     nuser_cam = 0;
     for (int i=0; i<cameras.size(); i++) {
-      nuser_cam = mjMAX(nuser_cam, cameras[i]->userdata.size());
+      nuser_cam = mjMAX(nuser_cam, cameras[i]->spec_userdata_.size());
     }
   }
   if (nuser_tendon == -1) {
@@ -3341,7 +3341,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pj->margin = (double)m->jnt_margin[i];
 
     if (nuser_jnt) {
-      copyvec(pj->userdata.data(), m->jnt_user + nuser_jnt*i, nuser_jnt);
+      copyvec(pj->userdata_.data(), m->jnt_user + nuser_jnt*i, nuser_jnt);
     }
 
     // dof data
@@ -3422,7 +3422,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     copyvec(cameras[i]->intrinsic, m->cam_intrinsic+4*i, 4);
 
     if (nuser_cam) {
-      copyvec(cameras[i]->userdata.data(), m->cam_user + nuser_cam*i, nuser_cam);
+      copyvec(cameras[i]->userdata_.data(), m->cam_user + nuser_cam*i, nuser_cam);
     }
   }
 

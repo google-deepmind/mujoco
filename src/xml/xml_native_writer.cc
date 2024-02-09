@@ -322,9 +322,9 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
 
   // userdata
   if (writingdefaults) {
-    WriteVector(elem, "user", pjoint->userdata);
+    WriteVector(elem, "user", pjoint->get_userdata());
   } else {
-    WriteVector(elem, "user", pjoint->userdata, def->joint.userdata);
+    WriteVector(elem, "user", pjoint->get_userdata(), def->joint.get_userdata());
   }
 }
 
@@ -468,7 +468,7 @@ void mjXWriter::OneCamera(XMLElement* elem, mjCCamera* pcam, mjCDef* def) {
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", pcam->name);
     WriteAttrTxt(elem, "class", pcam->classname);
-    WriteAttrTxt(elem, "target", pcam->targetbody);
+    WriteAttrTxt(elem, "target", pcam->get_targetbody());
     WriteAttr(elem, "pos", 3, pcam->pos);
     WriteAttr(elem, "quat", 4, pcam->quat, unitq);
   }
@@ -494,9 +494,9 @@ void mjXWriter::OneCamera(XMLElement* elem, mjCCamera* pcam, mjCDef* def) {
 
   // userdata
   if (writingdefaults) {
-    WriteVector(elem, "user", pcam->userdata);
+    WriteVector(elem, "user", pcam->get_userdata());
   } else {
-    WriteVector(elem, "user", pcam->userdata, def->camera.userdata);
+    WriteVector(elem, "user", pcam->get_userdata(), def->camera.get_userdata());
   }
 }
 
@@ -508,7 +508,7 @@ void mjXWriter::OneLight(XMLElement* elem, mjCLight* plight, mjCDef* def) {
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", plight->name);
     WriteAttrTxt(elem, "class", plight->classname);
-    WriteAttrTxt(elem, "target", plight->targetbody);
+    WriteAttrTxt(elem, "target", plight->get_targetbody());
     WriteAttr(elem, "pos", 3, plight->pos);
     WriteAttr(elem, "dir", 3, plight->dir);
   }

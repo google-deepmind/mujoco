@@ -76,6 +76,42 @@ typedef struct _mjmBody {
 } mjmBody;
 
 
+typedef struct _mjmJoint {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+
+  // joint properties
+  mjtJoint type;                   // type of Joint
+  int group;                       // used for rendering
+  int limited;                     // does joint have limits: 0 false, 1 true, 2 auto
+  int actfrclimited;               // are actuator forces on joints limited: 0 false, 1 true, 2 auto
+  double pos[3];                   // anchor position
+  double axis[3];                  // joint axis
+  double stiffness;                // stiffness coefficient
+  double springdamper[2];          // timeconst, dampratio
+  double range[2];                 // joint limits
+  double actfrcrange[2];           // actuator force limits
+  mjtNum solref_limit[mjNREF];     // solver reference: joint limits
+  mjtNum solimp_limit[mjNIMP];     // solver impedance: joint limits
+  mjtNum solref_friction[mjNREF];  // solver reference: dof friction
+  mjtNum solimp_friction[mjNIMP];  // solver impedance: dof friction
+  double margin;                   // margin value for joint limit detection
+  double ref;                      // value at reference configuration: qpos0
+  double springref;                // spring reference value: qpos_spring
+  mjDouble userdata;               // user data
+
+  // dof properties
+  double armature;                 // armature inertia (mass for slider)
+  double damping;                  // damping coefficient
+  double frictionloss;             // friction loss
+
+  // other attributes
+  mjString info;                  // message appended to errors
+  double urdfeffort;              // store effort field from urdf
+} mjmJoint;
+
+
 typedef struct _mjmGeom {
   mjElement element;              // compiler only, do not modify
   mjString name;                  // name
@@ -131,6 +167,50 @@ typedef struct _mjmSite {
 } mjmSite;
 
 
+typedef struct _mjmCamera {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+  mjString info;                  // message appended to errors
+  mjtCamLight mode;               // tracking mode
+  mjString targetbody;            // target body for orientation
+  double fovy;                    // y-field of view
+  double ipd;                     // inter-pupilary distance
+  double pos[3];                  // position
+  double quat[4];                 // orientation
+  float intrinsic[4];             // camera intrinsics [length]
+  float sensor_size[2];           // sensor size [length]
+  float resolution[2];            // resolution [pixel]
+  float focal_length[2];          // focal length [length]
+  float focal_pixel[2];           // focal length [pixel]
+  float principal_length[2];      // principal point [length]
+  float principal_pixel[2];       // principal point [pixel]
+  mjDouble userdata;              // user data
+  mjmOrientation alt;             // alternative orientation specification
+} mjmCamera;
+
+
+typedef struct _mjmLight {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+  mjString info;                  // message appended to errors
+  mjtCamLight mode;               // tracking mode
+  mjString targetbody;            // target body for orientation
+  mjtByte directional;            // directional light
+  mjtByte castshadow;             // does light cast shadows
+  mjtByte active;                 // is light active
+  double pos[3];                  // position
+  double dir[3];                  // direction
+  float attenuation[3];           // OpenGL attenuation (quadratic model)
+  float cutoff;                   // OpenGL cutoff
+  float exponent;                 // OpenGL exponent
+  float ambient[3];               // ambient color
+  float diffuse[3];               // diffuse color
+  float specular[3];              // specular color
+} mjmLight;
+
+
 //---------------------------------- Public API ----------------------------------------------------
 
 // Create model.
@@ -139,6 +219,9 @@ MJAPI void* mjm_createModel();
 // Delete model.
 MJAPI void mjm_deleteModel(void* modelspec);
 
+// Copy spec into private attributes.
+MJAPI void mjm_finalize(mjElement object);
+
 // Add child body to body, return child spec.
 MJAPI mjmBody* mjm_addBody(mjmBody* body, void* defspec);
 
@@ -146,19 +229,19 @@ MJAPI mjmBody* mjm_addBody(mjmBody* body, void* defspec);
 MJAPI mjmSite* mjm_addSite(mjmBody* body, void* defspec);
 
 // Add joint to body.
-MJAPI void* mjm_addJoint(mjmBody* body, void* defspec);
+MJAPI mjmJoint* mjm_addJoint(mjmBody* body, void* defspec);
 
 // Add freejoint to body.
-MJAPI void* mjm_addFreeJoint(mjmBody* body);
+MJAPI mjmJoint* mjm_addFreeJoint(mjmBody* body);
 
 // Add geom to body.
 MJAPI mjmGeom* mjm_addGeom(mjmBody* body, void* defspec);
 
 // Add camera to body.
-MJAPI void* mjm_addCamera(mjmBody* body, void* defspec);
+MJAPI mjmCamera* mjm_addCamera(mjmBody* body, void* defspec);
 
 // Add light to body.
-MJAPI void* mjm_addLight(mjmBody* body, void* defspec);
+MJAPI mjmLight* mjm_addLight(mjmBody* body, void* defspec);
 
 // Add frame to body.
 MJAPI void* mjm_addFrame(mjmBody* body, void* parentframe);
@@ -208,11 +291,20 @@ MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inert
 // Default body attributes.
 MJAPI void mjm_defaultBody(mjmBody& body);
 
+// Default joint attributes.
+MJAPI void mjm_defaultJoint(mjmJoint& joint);
+
 // Default geom attributes.
 MJAPI void mjm_defaultGeom(mjmGeom& geom);
 
 // Default site attributes.
 MJAPI void mjm_defaultSite(mjmSite& site);
+
+// Default camera attributes.
+MJAPI void mjm_defaultCamera(mjmCamera& camera);
+
+// Default light attributes.
+MJAPI void mjm_defaultLight(mjmLight& light);
 
 #ifdef __cplusplus
 }

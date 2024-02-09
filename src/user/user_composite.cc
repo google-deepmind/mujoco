@@ -116,7 +116,7 @@ bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
       return false;
     } else {
       mjCDef jnt;
-      jnt.joint.group = 3;
+      jnt.joint.spec.group = 3;
       defjoint[(mjtCompKind)i].push_back(jnt);
     }
   }
@@ -457,8 +457,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     // add slider joints if none defined
     if (!add[mjCOMPKIND_PARTICLE]) {
       for (int i=0; i<3; i++) {
-        mjCJoint* jnt = (mjCJoint*)mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
-        jnt->def = (mjCDef*)mjm_getDefault(body->element);
+        mjmJoint* jnt = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+        mjm_setDefault(jnt->element, mjm_getDefault(body->element));
         jnt->type = mjJNT_SLIDE;
         mjuu_setvec(jnt->pos, 0, 0, 0);
         mjuu_setvec(jnt->axis, 0, 0, 0);
@@ -469,8 +469,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     // add user-specified joints
     else {
       for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
-        mjCJoint* jnt = (mjCJoint*)mjm_addJoint(b, &defjnt);
-        jnt->def = (mjCDef*)mjm_getDefault(body->element);
+        mjmJoint* jnt = mjm_addJoint(b, &defjnt);
+        mjm_setDefault(jnt->element, mjm_getDefault(body->element));
       }
     }
 
@@ -626,12 +626,12 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int err
       }
 
       // add slider joint
-      mjCJoint* jnt[3];
+      mjmJoint* jnt[3];
       for (int i=0; i<3; i++) {
-        jnt[i] = (mjCJoint*)mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
-        jnt[i]->def = (mjCDef*)mjm_getDefault(body->element);
+        jnt[i] = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+        mjm_setDefault(jnt[i]->element, mjm_getDefault(body->element));
         mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), i, ix, iy);
-        jnt[i]->name = txt;
+        mjm_setString(jnt[i]->name, txt);
         jnt[i]->type = mjJNT_SLIDE;
         mjuu_setvec(jnt[i]->pos, 0, 0, 0);
         mjuu_setvec(jnt[i]->axis, 0, 0, 0);
@@ -853,13 +853,13 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
 
   // add curvature joint
   if (!first || strcmp(initial.c_str(), "none")) {
-    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
-    jnt->def = (mjCDef*)mjm_getDefault(body->element);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
+    mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     jnt->type = (first && strcmp(initial.c_str(), "free")==0) ? mjJNT_FREE : mjJNT_BALL;
     jnt->damping = jnt->type==mjJNT_FREE ? 0 : jnt->damping;
     jnt->armature = jnt->type==mjJNT_FREE ? 0 : jnt->armature;
     jnt->frictionloss = jnt->type==mjJNT_FREE ? 0 : jnt->frictionloss;
-    jnt->name = this_joint;
+    mjm_setString(jnt->name, this_joint);
   }
 
   // exclude contact pair
@@ -997,10 +997,10 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   // add main joint
   for (int i=0; i<2; i++) {
     // add joint
-    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
-    jnt->def = (mjCDef*)mjm_getDefault(body->element);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
+    mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     mju::sprintf_arr(txt, "%sJ%d_%d", prefix.c_str(), i, ix1);
-    jnt->name = txt;
+    mjm_setString(jnt->name, txt);
     jnt->type = mjJNT_HINGE;
     mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
     mjuu_setvec(jnt->axis, 0, 0, 0);
@@ -1010,10 +1010,10 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   // add twist joint
   if (add[mjCOMPKIND_TWIST]) {
     // add joint
-    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_TWIST][0]);
-    jnt->def = (mjCDef*)mjm_getDefault(body->element);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_TWIST][0]);
+    mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     mju::sprintf_arr(txt, "%sJT%d", prefix.c_str(), ix1);
-    jnt->name = txt;
+    mjm_setString(jnt->name, txt);
     jnt->type = mjJNT_HINGE;
     mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
     mjuu_setvec(jnt->axis, 1, 0, 0);
@@ -1022,16 +1022,16 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
     mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_TWIST);
     eq->def = model->defaults[0];
     eq->type = mjEQ_JOINT;
-    eq->name1 = jnt->name;
+    eq->name1 = mjm_getString(jnt->name);
   }
 
   // add stretch joint
   if (add[mjCOMPKIND_STRETCH]) {
     // add joint
-    mjCJoint* jnt = (mjCJoint*)mjm_addJoint(body, &defjoint[mjCOMPKIND_STRETCH][0]);
-    jnt->def = (mjCDef*)mjm_getDefault(body->element);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_STRETCH][0]);
+    mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     mju::sprintf_arr(txt, "%sJS%d", prefix.c_str(), ix1);
-    jnt->name = txt;
+    mjm_setString(jnt->name, txt);
     jnt->type = mjJNT_SLIDE;
     mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
     mjuu_setvec(jnt->axis, 1, 0, 0);
@@ -1040,7 +1040,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
     mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_STRETCH);
     eq->def = model->defaults[0];
     eq->type = mjEQ_JOINT;
-    eq->name1 = jnt->name;
+    eq->name1 = mjm_getString(jnt->name);
   }
 
   return body;
@@ -1149,10 +1149,10 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           }
 
           // add slider joint
-          mjCJoint* jnt = (mjCJoint*)mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
-          jnt->def = (mjCDef*)mjm_getDefault(body->element);
+          mjmJoint* jnt = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+          mjm_setDefault(jnt->element, mjm_getDefault(body->element));
           mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), ix, iy, iz);
-          jnt->name = txt;
+          mjm_setString(jnt->name, txt);
           jnt->type = mjJNT_SLIDE;
           mjuu_setvec(jnt->pos, 0, 0, 0);
           mjuu_setvec(jnt->axis, 0, 0, 1);
@@ -1161,10 +1161,10 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_JOINT);
           eq->def = model->defaults[0];
           eq->type = mjEQ_JOINT;
-          eq->name1 = jnt->name;
+          eq->name1 = mjm_getString(jnt->name);
 
           // add joint to tendon
-          ten->WrapJoint(jnt->name, 1);
+          ten->WrapJoint(std::string(mjm_getString(jnt->name)), 1);
 
           // add neighbor constraints
           for (int i=0; i<3; i++) {
