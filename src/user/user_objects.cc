@@ -474,7 +474,7 @@ void mjCDef::Compile(const mjCModel* model) {
   geom.userdata_.resize(model->nuser_geom);
   site.userdata_.resize(model->nuser_site);
   camera.userdata_.resize(model->nuser_cam);
-  tendon.userdata.resize(model->nuser_tendon);
+  tendon.userdata_.resize(model->nuser_tendon);
   actuator.userdata_.resize(model->nuser_actuator);
 }
 
@@ -3509,33 +3509,55 @@ void mjCBodyPair::Compile(void) {
 
 // initialize default constraint
 mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  type = mjEQ_CONNECT;
-  name1.clear();
-  name2.clear();
-  active = true;
-  mj_defaultSolRefImp(solref, solimp);
-
-  mjuu_zerovec(data, mjNEQDATA);
-  data[1] = 1;
-  data[10] = 1;  // torque:force ratio
+  mjm_defaultEquality(spec);
 
   // clear internal variables
+  spec_name1_.clear();
+  spec_name2_.clear();
   obj1id = obj2id = -1;
 
   // reset to default if given
   if (_def) {
+    _def->equality.CopyFromSpec();
     *this = _def->equality;
   }
 
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+void mjCEquality::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.name1 = (mjString)&spec_name1_;
+  spec.name2 = (mjString)&spec_name2_;
+  spec.info = (mjString)&info;
+}
+
+
+void mjCEquality::CopyFromSpec() {
+  *static_cast<mjmEquality*>(this) = spec;
+  name1_ = spec_name1_;
+  name2_ = spec_name2_;
+  name1 = (mjString)&name1_;
+  name2 = (mjString)&name2_;
 }
 
 
 // compiler
 void mjCEquality::Compile(void) {
+  CopyFromSpec();
+
   mjtObj objtype;
   mjCBase *px1, *px2;
   mjtJoint jt1, jt2;
@@ -3554,17 +3576,17 @@ void mjCEquality::Compile(void) {
   }
 
   // find object 1, get id
-  px1 = model->FindObject(objtype, name1);
+  px1 = model->FindObject(objtype, name1_);
   if (!px1) {
-    throw mjCError(this, "unknown element '%s' in equality constraint %d", name1.c_str(), id);
+    throw mjCError(this, "unknown element '%s' in equality constraint %d", name1_.c_str(), id);
   }
   obj1id = px1->id;
 
   // find object 2, get id
-  if (!name2.empty()) {
-    px2 = model->FindObject(objtype, name2);
+  if (!name2_.empty()) {
+    px2 = model->FindObject(objtype, name2_);
     if (!px2) {
-      throw mjCError(this, "unknown element '%s' in equality constraint %d", name2.c_str(), id);
+      throw mjCError(this, "unknown element '%s' in equality constraint %d", name2_.c_str(), id);
     }
     obj2id = px2->id;
   }
@@ -3587,12 +3609,12 @@ void mjCEquality::Compile(void) {
 
   // make sure flex is not rigid
   if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
-    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1.c_str(), id);
+    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
   }
 
   // make sure the two objects are different
   if (obj1id==obj2id) {
-    throw mjCError(this, "element '%s' is repeated in equality constraint %d", name1.c_str(), id);
+    throw mjCError(this, "element '%s' is repeated in equality constraint %d", name1_.c_str(), id);
   }
 
   // make sure joints are scalar
@@ -3613,25 +3635,11 @@ void mjCEquality::Compile(void) {
 
 // constructor
 mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
-  // tendon defaults
-  group = 0;
-  material_.clear();
-  width = 0.003;
-  limited = 2;
-  range[0] = 0;
-  range[1] = 0;
-  mj_defaultSolRefImp(solref_limit, solimp_limit);
-  mj_defaultSolRefImp(solref_friction, solimp_friction);
-  margin = 0;
-  stiffness = 0;
-  damping = 0;
-  frictionloss = 0;
-  springlength[0] = springlength[1] = -1;
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
-  userdata.clear();
+  mjm_defaultTendon(spec);
 
   // clear internal variables
+  spec_material_.clear();
+  spec_userdata_.clear();
   path.clear();
   matid = -1;
 
@@ -3643,6 +3651,33 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCTendon::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.material = (mjString)&spec_material_;
+  spec.userdata = (mjDouble)&spec_userdata_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCTendon::CopyFromSpec() {
+  *static_cast<mjmTendon*>(this) = spec;
+  material_ = spec_material_;
+  userdata_ = spec_userdata_;
+  material = (mjString)&material_;
+  userdata = (mjDouble)&userdata_;
 }
 
 
@@ -3741,12 +3776,14 @@ mjCWrap* mjCTendon::GetWrap(int id) {
 
 // compiler
 void mjCTendon::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
-  if (userdata.size() > model->nuser_tendon) {
+  if (userdata_.size() > model->nuser_tendon) {
     throw mjCError(this, "user has more values than nuser_tendon in tendon '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_tendon);
+  userdata_.resize(model->nuser_tendon);
 
   // check for empty path
   int sz = (int)path.size();
@@ -3880,6 +3917,18 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
   sideid = -1;
   prm = 0;
   sidesite.clear();
+
+  // point to local
+  PointToLocal();
+}
+
+
+
+void mjCWrap::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.info = (mjString)&info;
 }
 
 
@@ -4528,7 +4577,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure tendon has limit
-    if (!((mjCTendon*)obj)->limited) {
+    if (!((mjCTendon*)obj)->spec.limited) {
       throw mjCError(this, "tendon must be limited in sensor '%s' (id = %d)", name.c_str(), id);
     }
 

@@ -2022,7 +2022,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     // find equality constraint referencing this flex
     m->flex_edgeequality[i] = 0;
     for (int k=0; k<(int)equalities.size(); k++) {
-      if (equalities[k]->type==mjEQ_FLEX && equalities[k]->name1==pfl->name) {
+      if (equalities[k]->type==mjEQ_FLEX && equalities[k]->name1_==pfl->name) {
         m->flex_edgeequality[i] = 1;
         break;
       }
@@ -2251,7 +2251,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_frictionloss[i] = (mjtNum)pte->frictionloss;
     m->tendon_lengthspring[2*i] = (mjtNum)pte->springlength[0];
     m->tendon_lengthspring[2*i+1] = (mjtNum)pte->springlength[1];
-    copyvec(m->tendon_user+nuser_tendon*i, pte->userdata.data(), nuser_tendon);
+    copyvec(m->tendon_user+nuser_tendon*i, pte->get_userdata().data(), nuser_tendon);
     copyvec(m->tendon_rgba+4*i, pte->rgba, 4);
 
     // set wraps
@@ -2914,7 +2914,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_tendon == -1) {
     nuser_tendon = 0;
     for (int i=0; i<tendons.size(); i++) {
-      nuser_tendon = mjMAX(nuser_tendon, tendons[i]->userdata.size());
+      nuser_tendon = mjMAX(nuser_tendon, tendons[i]->spec_userdata_.size());
     }
   }
   if (nuser_actuator == -1) {
@@ -3480,7 +3480,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     tendons[i]->frictionloss = (double)m->tendon_frictionloss[i];
 
     if (nuser_tendon) {
-      copyvec(tendons[i]->userdata.data(), m->tendon_user + nuser_tendon*i, nuser_tendon);
+      copyvec(tendons[i]->userdata_.data(), m->tendon_user + nuser_tendon*i, nuser_tendon);
     }
   }
 

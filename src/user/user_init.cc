@@ -134,6 +134,39 @@ void mjm_defaultLight(mjmLight& light) {
 
 
 
+// Default equality attributes.
+void mjm_defaultEquality(mjmEquality& equality) {
+  memset(&equality, 0, sizeof(mjmEquality));
+  equality.type = mjEQ_CONNECT;
+  equality.active = 1;
+  mj_defaultSolRefImp(equality.solref, equality.solimp);
+  equality.data[1] = 1;
+  equality.data[10] = 1;  // torque:force ratio
+}
+
+
+
+// default tendon attributes
+void mjm_defaultTendon(mjmTendon& tendon) {
+  memset(&tendon, 0, sizeof(mjmTendon));
+  tendon.group = 0;
+  tendon.width = 0.003;
+  tendon.limited = 2;
+  tendon.range[0] = 0;
+  tendon.range[1] = 0;
+  mj_defaultSolRefImp(tendon.solref_limit, tendon.solimp_limit);
+  mj_defaultSolRefImp(tendon.solref_friction, tendon.solimp_friction);
+  tendon.margin = 0;
+  tendon.stiffness = 0;
+  tendon.damping = 0;
+  tendon.frictionloss = 0;
+  tendon.springlength[0] = tendon.springlength[1] = -1;
+  tendon.rgba[0] = tendon.rgba[1] = tendon.rgba[2] = 0.5f;
+  tendon.rgba[3] = 1.0f;
+}
+
+
+
 // default actuator attributes
 void mjm_defaultActuator(mjmActuator& actuator) {
   memset(&actuator, 0, sizeof(mjmActuator));

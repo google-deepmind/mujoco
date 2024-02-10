@@ -1751,9 +1751,9 @@ void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
 
 
 // equality element parser
-void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
+void mjXReader::OneEquality(XMLElement* elem, mjmEquality* pequality) {
   int n;
-  string text;
+  string text, name1, name2, name, classname;
 
   // read type (bad keywords already detected by schema)
   text = elem->Value();
@@ -1761,19 +1761,23 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
 
   // regular only
   if (!readingdefaults) {
-    ReadAttrTxt(elem, "name", pequality->name);
-    ReadAttrTxt(elem, "class", pequality->classname);
+    if (ReadAttrTxt(elem, "name", name)) {
+      mjm_setString(pequality->name, name.c_str());
+    }
+    if (ReadAttrTxt(elem, "class", classname)) {
+      mjm_setString(pequality->classname, classname.c_str());
+    };
 
     switch (pequality->type) {
     case mjEQ_CONNECT:
-      ReadAttrTxt(elem, "body1", pequality->name1, true);
-      ReadAttrTxt(elem, "body2", pequality->name2);
+      ReadAttrTxt(elem, "body1", name1, true);
+      ReadAttrTxt(elem, "body2", name2);
       ReadAttr(elem, "anchor", 3, pequality->data, text, true);
       break;
 
     case mjEQ_WELD:
-      ReadAttrTxt(elem, "body1", pequality->name1, true);
-      ReadAttrTxt(elem, "body2", pequality->name2);
+      ReadAttrTxt(elem, "body1", name1, true);
+      ReadAttrTxt(elem, "body2", name2);
       ReadAttr(elem, "relpose", 7, pequality->data+3, text);
       ReadAttr(elem, "torquescale", 1, pequality->data+10, text);
       if (!ReadAttr(elem, "anchor", 3, pequality->data, text)) {
@@ -1782,19 +1786,19 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
       break;
 
     case mjEQ_JOINT:
-      ReadAttrTxt(elem, "joint1", pequality->name1, true);
-      ReadAttrTxt(elem, "joint2", pequality->name2);
+      ReadAttrTxt(elem, "joint1", name1, true);
+      ReadAttrTxt(elem, "joint2", name2);
       ReadAttr(elem, "polycoef", 5, pequality->data, text);
       break;
 
     case mjEQ_TENDON:
-      ReadAttrTxt(elem, "tendon1", pequality->name1, true);
-      ReadAttrTxt(elem, "tendon2", pequality->name2);
+      ReadAttrTxt(elem, "tendon1", name1, true);
+      ReadAttrTxt(elem, "tendon2", name2);
       ReadAttr(elem, "polycoef", 5, pequality->data, text);
       break;
 
     case mjEQ_FLEX:
-      ReadAttrTxt(elem, "flex", pequality->name1, true);
+      ReadAttrTxt(elem, "flex", name1, true);
       break;
 
     case mjEQ_DISTANCE:
@@ -1803,6 +1807,11 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
 
     default:                    // SHOULD NOT OCCUR
       throw mjXError(elem, "unrecognized equality constraint type");
+    }
+
+    mjm_setString(pequality->name1, name1.c_str());
+    if (!name2.empty()) {
+      mjm_setString(pequality->name2, name2.c_str());
     }
   }
 
@@ -1813,20 +1822,29 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
   ReadAttr(elem, "solref", mjNREF, pequality->solref, text, false, false);
   ReadAttr(elem, "solimp", mjNIMP, pequality->solimp, text, false, false);
 
-  GetXMLPos(elem, pequality);
+  // write error info
+  mjm_setString(pequality->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
 
 // tendon element parser
-void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
-  string text;
+void mjXReader::OneTendon(XMLElement* elem, mjmTendon* pten) {
+  string text, name, classname, material;
+  std::vector<double> userdata;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pten->name);
-  ReadAttrTxt(elem, "class", pten->classname);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pten->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pten->classname, classname.c_str());
+  }
   ReadAttrInt(elem, "group", &pten->group);
-  ReadAttrTxt(elem, "material", pten->get_material());
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(pten->material, material.c_str());
+  }
   MapValue(elem, "limited", &pten->limited, TFAuto_map, 3);
   ReadAttr(elem, "width", 1, &pten->width, text);
   ReadAttr(elem, "solreflimit", mjNREF, pten->solref_limit, text, false, false);
@@ -1845,9 +1863,13 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
   ReadAttr(elem, "rgba", 4, pten->rgba, text);
 
   // read userdata
-  ReadVector(elem, "user", pten->userdata, text);
+  if (ReadVector(elem, "user", userdata, text)) {
+    mjm_setDouble(pten->userdata, userdata.data(), userdata.size());
+  }
 
-  GetXMLPos(elem, pten);
+  // write error info
+  mjm_setString(pten->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2280,8 +2302,8 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     ReadAttr(ejnt, "axis", 3, el->joint.spec.axis, text);
 
     // solreffix, solimpfix
-    ReadAttr(ejnt, "solreffix", mjNREF, el->equality.solref, text, false, false);
-    ReadAttr(ejnt, "solimpfix", mjNIMP, el->equality.solimp, text, false, false);
+    ReadAttr(ejnt, "solreffix", mjNREF, el->equality.spec.solref, text, false, false);
+    ReadAttr(ejnt, "solimpfix", mjNIMP, el->equality.spec.solimp, text, false, false);
 
     // joint attributes
     MapValue(elem, "limited", &el->joint.spec.limited, TFAuto_map, 3);
@@ -2312,26 +2334,28 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     comp.add[kind] = true;
 
     // solreffix, solimpfix
-    ReadAttr(eten, "solreffix", mjNREF, comp.def[kind].equality.solref, text, false, false);
-    ReadAttr(eten, "solimpfix", mjNIMP, comp.def[kind].equality.solimp, text, false, false);
+    ReadAttr(eten, "solreffix", mjNREF, comp.def[kind].equality.spec.solref, text, false, false);
+    ReadAttr(eten, "solimpfix", mjNIMP, comp.def[kind].equality.spec.solimp, text, false, false);
 
     // tendon attributes
-    MapValue(elem, "limited", &comp.def[kind].tendon.limited, TFAuto_map, 3);
-    ReadAttrInt(eten, "group", &comp.def[kind].tendon.group);
-    ReadAttr(eten, "solreflimit", mjNREF, comp.def[kind].tendon.solref_limit, text, false, false);
-    ReadAttr(eten, "solimplimit", mjNIMP, comp.def[kind].tendon.solimp_limit, text, false, false);
+    std::string material;
+    MapValue(elem, "limited", &comp.def[kind].tendon.spec.limited, TFAuto_map, 3);
+    ReadAttrInt(eten, "group", &comp.def[kind].tendon.spec.group);
+    ReadAttr(eten, "solreflimit", mjNREF, comp.def[kind].tendon.spec.solref_limit, text, false, false);
+    ReadAttr(eten, "solimplimit", mjNIMP, comp.def[kind].tendon.spec.solimp_limit, text, false, false);
     ReadAttr(eten,
-             "solreffriction", mjNREF, comp.def[kind].tendon.solref_friction, text, false, false);
+             "solreffriction", mjNREF, comp.def[kind].tendon.spec.solref_friction, text, false, false);
     ReadAttr(eten,
-             "solimpfriction", mjNIMP, comp.def[kind].tendon.solimp_friction, text, false, false);
-    ReadAttr(eten, "range", 2, comp.def[kind].tendon.range, text);
-    ReadAttr(eten, "margin", 1, &comp.def[kind].tendon.margin, text);
-    ReadAttr(eten, "stiffness", 1, &comp.def[kind].tendon.stiffness, text);
-    ReadAttr(eten, "damping", 1, &comp.def[kind].tendon.damping, text);
-    ReadAttr(eten, "frictionloss", 1, &comp.def[kind].tendon.frictionloss, text);
-    ReadAttrTxt(eten, "material", comp.def[kind].tendon.get_material());
-    ReadAttr(eten, "rgba", 4, comp.def[kind].tendon.rgba, text);
-    ReadAttr(eten, "width", 1, &comp.def[kind].tendon.width, text);
+             "solimpfriction", mjNIMP, comp.def[kind].tendon.spec.solimp_friction, text, false, false);
+    ReadAttr(eten, "range", 2, comp.def[kind].tendon.spec.range, text);
+    ReadAttr(eten, "margin", 1, &comp.def[kind].tendon.spec.margin, text);
+    ReadAttr(eten, "stiffness", 1, &comp.def[kind].tendon.spec.stiffness, text);
+    ReadAttr(eten, "damping", 1, &comp.def[kind].tendon.spec.damping, text);
+    ReadAttr(eten, "frictionloss", 1, &comp.def[kind].tendon.spec.frictionloss, text);
+    ReadAttrTxt(eten, "material", material);
+    mjm_setString(comp.def[kind].tendon.spec.material, material.c_str());
+    ReadAttr(eten, "rgba", 4, comp.def[kind].tendon.spec.rgba, text);
+    ReadAttr(eten, "width", 1, &comp.def[kind].tendon.spec.width, text);
 
     // advance
     eten = eten->NextSiblingElement("tendon");
@@ -2417,8 +2441,8 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     if (MapValue(edge, "equality", &n, bool_map, 2)) {
       fcomp.equality = (n==1);
     }
-    ReadAttr(edge, "solref", mjNREF, fcomp.def.equality.solref, text, false, false);
-    ReadAttr(edge, "solimp", mjNIMP, fcomp.def.equality.solimp, text, false, false);
+    ReadAttr(edge, "solref", mjNREF, fcomp.def.equality.spec.solref, text, false, false);
+    ReadAttr(edge, "solimp", mjNIMP, fcomp.def.equality.spec.solimp, text, false, false);
     ReadAttr(edge, "stiffness", 1, &fcomp.def.flex.edgestiffness, text);
     ReadAttr(edge, "damping", 1, &fcomp.def.flex.edgedamping, text);
   }
@@ -2577,10 +2601,10 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="pair") OnePair(elem, &def->pair);
 
     // read equality
-    else if (name=="equality") OneEquality(elem, &def->equality);
+    else if (name=="equality") OneEquality(elem, &def->equality.spec);
 
     // read tendon
-    else if (name=="tendon") OneTendon(elem, &def->tendon);
+    else if (name=="tendon") OneTendon(elem, &def->tendon.spec);
 
     // read actuator
     else if (name=="general"     ||
@@ -2602,6 +2626,8 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     mjm_finalize(def->camera.spec.element);
     mjm_finalize(def->light.spec.element);
     mjm_finalize(def->actuator.spec.element);
+    mjm_finalize(def->equality.spec.element);
+    mjm_finalize(def->tendon.spec.element);
 
     // advance
     elem = elem->NextSiblingElement();
@@ -3318,7 +3344,7 @@ void mjXReader::Equality(XMLElement* section) {
     }
 
     // create equality constraint and parse
-    mjCEquality* pequality = model->AddEquality(def);
+    mjmEquality* pequality = mjm_addEquality(model, def);
     OneEquality(elem, pequality);
 
     // advance to next element
@@ -3382,7 +3408,7 @@ void mjXReader::Tendon(XMLElement* section) {
     }
 
     // create equality constraint and parse
-    mjCTendon* pten = model->AddTendon(def);
+    mjmTendon* pten = mjm_addTendon(model, def);
     OneTendon(elem, pten);
 
     // process wrap sub-elements
@@ -3390,11 +3416,12 @@ void mjXReader::Tendon(XMLElement* section) {
     while (sub) {
       // get wrap type
       string wrap = sub->Value();
+      mjmWrap* pwrap;;
 
       // read attributes depending on type
       if (wrap=="site") {
         ReadAttrTxt(sub, "site", text, true);
-        pten->WrapSite(text, "line = " + std::to_string(sub->GetLineNum()));
+        pwrap = mjm_wrapSite(pten, text.c_str());
       }
 
       else if (wrap=="geom") {
@@ -3402,23 +3429,25 @@ void mjXReader::Tendon(XMLElement* section) {
         if (!ReadAttrTxt(sub, "sidesite", text1)) {
           text1.clear();
         }
-        pten->WrapGeom(text, text1, "line = " + std::to_string(sub->GetLineNum()));
+        pwrap = mjm_wrapGeom(pten, text.c_str(), text1.c_str());
       }
 
       else if (wrap=="pulley") {
         ReadAttr(sub, "divisor", 1, &data, text, true);
-        pten->WrapPulley(data, "line = " + std::to_string(sub->GetLineNum()));
+        pwrap = mjm_wrapPulley(pten, data);
       }
 
       else if (wrap=="joint") {
         ReadAttrTxt(sub, "joint", text, true);
         ReadAttr(sub, "coef", 1, &data, text1, true);
-        pten->WrapJoint(text, data, "line = " + std::to_string(sub->GetLineNum()));
+        pwrap = mjm_wrapJoint(pten, text.c_str(), data);
       }
 
       else {
         throw mjXError(sub, "unknown wrap type");  // SHOULD NOT OCCUR
       }
+
+      mjm_setString(pwrap->info, ("line = " + std::to_string(sub->GetLineNum())).c_str());
 
       // advance to next sub-element
       sub = sub->NextSiblingElement();

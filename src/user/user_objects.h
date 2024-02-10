@@ -1016,21 +1016,20 @@ class mjCBodyPair : public mjCBase {
 //------------------------- class mjCEquality ------------------------------------------------------
 // Describes an equality constraint
 
-class mjCEquality : public mjCBase {
+class mjCEquality : public mjCBase, private mjmEquality {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  // variables set by user
-  mjtEq type;                     // constraint type
-  std::string name1;              // name of object 1
-  std::string name2;              // name of object 2
-  bool active;                    // initial activation state
-  mjtNum solref[mjNREF];          // solver reference
-  mjtNum solimp[mjNIMP];          // solver impedance
-  double data[mjNEQDATA];         // type-dependent data
+  mjmEquality spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
+  void CopyFromSpec();
+  void PointToLocal();
 
  private:
   mjCEquality(mjCModel* = 0, mjCDef* = 0);  // constructor
@@ -1038,6 +1037,11 @@ class mjCEquality : public mjCBase {
 
   int obj1id;                     // id of object 1
   int obj2id;                     // id of object 2
+
+  std::string name1_;
+  std::string name2_;
+  std::string spec_name1_;
+  std::string spec_name2_;
 };
 
 
@@ -1045,12 +1049,17 @@ class mjCEquality : public mjCBase {
 //------------------------- class mjCTendon --------------------------------------------------------
 // Describes a tendon
 
-class mjCTendon : public mjCBase {
+class mjCTendon : public mjCBase, private mjmTendon {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
+  mjmTendon spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
   void set_material(std::string _material) { material_ = _material; }
   std::string& get_material() { return material_; }
   void del_material() { material_.clear(); }
@@ -1064,32 +1073,26 @@ class mjCTendon : public mjCBase {
   // API for access to wrapping objects
   int NumWraps(void);                         // number of wraps
   mjCWrap* GetWrap(int);                      // pointer to wrap
+  std::vector<mjCWrap*> path;                 // wrapping objects
 
-  // variables set by user
-  int group;                       // group for visualization
-  int limited;                     // does tendon have limits: 0 false, 1 true, 2 auto
-  double width;                    // width for rendering
-  mjtNum solref_limit[mjNREF];     // solver reference: tendon limits
-  mjtNum solimp_limit[mjNIMP];     // solver impedance: tendon limits
-  mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
-  mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction
-  double range[2];                 // length limits
-  double margin;                   // margin value for tendon limit detection
-  double stiffness;                // stiffness coefficient
-  double damping;                  // damping coefficient
-  double frictionloss;             // friction loss
-  double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
-  std::vector<double> userdata;    // user data
-  float rgba[4];                   // rgba when material is omitted
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
+
+  void CopyFromSpec();
+  void PointToLocal();
 
  private:
   mjCTendon(mjCModel* = 0, mjCDef* = 0);      // constructor
   ~mjCTendon();                               // destructor
   void Compile(void);                         // compiler
 
-  std::string material_;          // name of material for rendering
   int matid;                      // material id for rendering
-  std::vector<mjCWrap*> path;     // wrapping objects
+
+  // variable-size data
+  std::string material_;
+  std::string spec_material_;
+  std::vector<double> userdata_;
+  std::vector<double> spec_userdata_;
 };
 
 
@@ -1097,11 +1100,18 @@ class mjCTendon : public mjCBase {
 //------------------------- class mjCWrap ----------------------------------------------------------
 // Describes a tendon wrap object
 
-class mjCWrap : public mjCBase {
+class mjCWrap : public mjCBase, private mjmWrap {
   friend class mjCTendon;
   friend class mjCModel;
 
  public:
+  mjmWrap spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
+  void PointToLocal();
+
   mjtWrap type;                   // wrap object type
   mjCBase* obj;                   // wrap object pointer
   int sideid;                     // side site id; -1 if not applicable

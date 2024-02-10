@@ -63,8 +63,8 @@ class mjXReader : public mjXBase {
   void OneCamera(tinyxml2::XMLElement* elem, mjmCamera* pcamera);
   void OneLight(tinyxml2::XMLElement* elem, mjmLight* plight);
   void OnePair(tinyxml2::XMLElement* elem, mjCPair* ppair);
-  void OneEquality(tinyxml2::XMLElement* elem, mjCEquality* pequality);
-  void OneTendon(tinyxml2::XMLElement* elem, mjCTendon* ptendon);
+  void OneEquality(tinyxml2::XMLElement* elem, mjmEquality* pequality);
+  void OneTendon(tinyxml2::XMLElement* elem, mjmTendon* ptendon);
   void OneActuator(tinyxml2::XMLElement* elem, mjmActuator* pactuator);
   void OneComposite(tinyxml2::XMLElement* elem, mjmBody* pbody, mjCDef* def);
   void OneFlexcomp(tinyxml2::XMLElement* elem, mjmBody* pbody);

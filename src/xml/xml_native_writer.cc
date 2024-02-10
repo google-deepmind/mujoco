@@ -559,33 +559,33 @@ void mjXWriter::OneEquality(XMLElement* elem, mjCEquality* peq, mjCDef* def) {
 
     switch (peq->type) {
     case mjEQ_CONNECT:
-      WriteAttrTxt(elem, "body1", peq->name1);
-      WriteAttrTxt(elem, "body2", peq->name2);
+      WriteAttrTxt(elem, "body1", mjm_getString(peq->name1));
+      WriteAttrTxt(elem, "body2", mjm_getString(peq->name2));
       WriteAttr(elem, "anchor", 3, peq->data);
       break;
 
     case mjEQ_WELD:
-      WriteAttrTxt(elem, "body1", peq->name1);
-      WriteAttrTxt(elem, "body2", peq->name2);
+      WriteAttrTxt(elem, "body1", mjm_getString(peq->name1));
+      WriteAttrTxt(elem, "body2", mjm_getString(peq->name2));
       WriteAttr(elem, "anchor", 3, peq->data);
       WriteAttr(elem, "torquescale", 1, peq->data+10);
       WriteAttr(elem, "relpose", 7, peq->data+3);
       break;
 
     case mjEQ_JOINT:
-      WriteAttrTxt(elem, "joint1", peq->name1);
-      WriteAttrTxt(elem, "joint2", peq->name2);
+      WriteAttrTxt(elem, "joint1", mjm_getString(peq->name1));
+      WriteAttrTxt(elem, "joint2", mjm_getString(peq->name2));
       WriteAttr(elem, "polycoef", 5, peq->data);
       break;
 
     case mjEQ_TENDON:
-      WriteAttrTxt(elem, "tendon1", peq->name1);
-      WriteAttrTxt(elem, "tendon2", peq->name2);
+      WriteAttrTxt(elem, "tendon1", mjm_getString(peq->name1));
+      WriteAttrTxt(elem, "tendon2", mjm_getString(peq->name2));
       WriteAttr(elem, "polycoef", 5, peq->data);
       break;
 
     case mjEQ_FLEX:
-      WriteAttrTxt(elem, "flex", peq->name1);
+      WriteAttrTxt(elem, "flex", mjm_getString(peq->name1));
       break;
 
     default:
@@ -646,9 +646,9 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
 
   // userdata
   if (writingdefaults) {
-    WriteVector(elem, "user", pten->userdata);
+    WriteVector(elem, "user", pten->get_userdata());
   } else {
-    WriteVector(elem, "user", pten->userdata, def->tendon.userdata);
+    WriteVector(elem, "user", pten->get_userdata(), def->tendon.get_userdata());
   }
 }
 

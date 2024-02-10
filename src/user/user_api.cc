@@ -123,6 +123,62 @@ void* mjm_addFrame(mjmBody* bodyspec, void* parentframe) {
 
 
 
+// add equality to model
+mjmEquality* mjm_addEquality(void* model, void* defspec) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCEquality* equality = modelC->AddEquality(def);
+  return &equality->spec;
+}
+
+
+
+// add tendon to model
+mjmTendon* mjm_addTendon(void* model, void* defspec) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCTendon* tendon = modelC->AddTendon(def);
+  return &tendon->spec;
+}
+
+
+
+// wrap site using tendon
+MJAPI mjmWrap* mjm_wrapSite(mjmTendon* tendonspec, const char* name) {
+  mjCTendon* tendon = reinterpret_cast<mjCTendon*>(tendonspec->element);
+  tendon->WrapSite(name);
+  return &tendon->path.back()->spec;
+}
+
+
+
+// wrap geom using tendon
+mjmWrap* mjm_wrapGeom(mjmTendon* tendonspec, const char* name, const char* sidesite) {
+  mjCTendon* tendon = reinterpret_cast<mjCTendon*>(tendonspec->element);
+  tendon->WrapGeom(name, sidesite);
+  return &tendon->path.back()->spec;
+}
+
+
+
+// wrap joint using tendon
+mjmWrap* mjm_wrapJoint(mjmTendon* tendonspec, const char* name, double coef) {
+  mjCTendon* tendon = reinterpret_cast<mjCTendon*>(tendonspec->element);
+  tendon->WrapJoint(name, coef);
+  return &tendon->path.back()->spec;
+}
+
+
+
+// wrap pulley using tendon
+mjmWrap* mjm_wrapPulley(mjmTendon* tendonspec, double divisor) {
+  mjCTendon* tendon = reinterpret_cast<mjCTendon*>(tendonspec->element);
+  tendon->WrapPulley(divisor);
+  return &tendon->path.back()->spec;
+}
+
+
+
 // add actuator to model
 mjmActuator* mjm_addActuator(void* model, void* defspec) {
   mjCModel* modelC = static_cast<mjCModel*>(model);

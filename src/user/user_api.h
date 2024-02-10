@@ -211,6 +211,53 @@ typedef struct _mjmLight {
 } mjmLight;
 
 
+typedef struct _mjmEquality {
+  mjElement element;              // compiler only, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+  mjtEq type;                     // constraint type
+  mjString name1;                 // name of object 1
+  mjString name2;                 // name of object 2
+  mjtByte active;                 // initial activation state
+  mjtNum solref[mjNREF];          // solver reference
+  mjtNum solimp[mjNIMP];          // solver impedance
+  double data[mjNEQDATA];         // type-dependent data
+  mjString info;                  // message appended to errors
+} mjmEquality;
+
+
+typedef struct _mjmTendon {
+  mjElement element;               // compiler only, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  int group;                       // group for visualization
+  int limited;                     // does tendon have limits: 0 false, 1 true, 2 auto
+  double width;                    // width for rendering
+  mjtNum solref_limit[mjNREF];     // solver reference: tendon limits
+  mjtNum solimp_limit[mjNIMP];     // solver impedance: tendon limits
+  mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
+  mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction
+  double range[2];                 // length limits
+  double margin;                   // margin value for tendon limit detection
+  double stiffness;                // stiffness coefficient
+  double damping;                  // damping coefficient
+  double frictionloss;             // friction loss
+  double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
+  mjString material;               // name of material for rendering
+  mjDouble userdata;               // user data
+  float rgba[4];                   // rgba when material is omitted
+  mjString info;                   // message appended to errors
+} mjmTendon;
+
+
+typedef struct _mjmWrap {
+  mjElement element;               // compiler only, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjString info;                   // message appended to errors
+} mjmWrap;
+
+
 typedef struct _mjmActuator {
   mjElement element;              // compiler only, do not modify
   mjString name;                  // name
@@ -299,6 +346,24 @@ MJAPI mjmLight* mjm_addLight(mjmBody* body, void* defspec);
 // Add frame to body.
 MJAPI void* mjm_addFrame(mjmBody* body, void* parentframe);
 
+// Add equality to model.
+MJAPI mjmEquality* mjm_addEquality(void* model, void* defspec);
+
+// Add tendon to model.
+MJAPI mjmTendon* mjm_addTendon(void* model, void* defspec);
+
+// Wrap site using tendon.
+MJAPI mjmWrap* mjm_wrapSite(mjmTendon* tendon, const char* name);
+
+// Wrap geom using tendon.
+MJAPI mjmWrap* mjm_wrapGeom(mjmTendon* tendon, const char* name, const char* sidesite);
+
+// Wrap joint using tendon.
+MJAPI mjmWrap* mjm_wrapJoint(mjmTendon* tendon, const char* name, double coef);
+
+// Wrap pulley using tendon.
+MJAPI mjmWrap* mjm_wrapPulley(mjmTendon* tendon, double divisor);
+
 // Add actuator to model.
 MJAPI mjmActuator* mjm_addActuator(void* model, void* defspec);
 
@@ -364,6 +429,12 @@ MJAPI void mjm_defaultCamera(mjmCamera& camera);
 
 // Default light attributes.
 MJAPI void mjm_defaultLight(mjmLight& light);
+
+// Default equality attributes.
+MJAPI void mjm_defaultEquality(mjmEquality& equality);
+
+// Default tendon attributes.
+MJAPI void mjm_defaultTendon(mjmTendon& tendon);
 
 // Default actuator attributes.
 MJAPI void mjm_defaultActuator(mjmActuator& actuator);
