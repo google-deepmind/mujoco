@@ -91,7 +91,7 @@ static void checklimited(
 
 // constructor
 mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos1, int pos2) {
-  char temp[300];
+  char temp[600];
 
   // init
   warning = false;
