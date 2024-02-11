@@ -288,19 +288,6 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
     }
   }
 
-  // special handling of limits
-  bool range_defined = pjoint->range[0]!=0 || pjoint->range[1]!=0;
-  bool limited_inferred = def->joint.limited==2 && pjoint->limited==(int)range_defined;
-  if (writingdefaults || !limited_inferred) {
-    WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
-  }
-  bool afrange_defined = pjoint->actfrcrange[0]!=0 || pjoint->actfrcrange[1]!=0;
-  bool aflimited_inferred = def->joint.actfrclimited==2 && pjoint->actfrclimited==(int)afrange_defined;
-  if (writingdefaults || !aflimited_inferred) {
-    WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3,
-                 pjoint->actfrclimited, def->joint.actfrclimited);
-  }
-
   // defaults and regular
   if (pjoint->type != def->joint.type) {
     WriteAttrTxt(elem, "type", FindValue(joint_map, joint_sz, pjoint->type));
@@ -313,7 +300,10 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttr(elem, "solreffriction", mjNREF, pjoint->solref_friction, def->joint.solref_friction);
   WriteAttr(elem, "solimpfriction", mjNIMP, pjoint->solimp_friction, def->joint.solimp_friction);
   WriteAttr(elem, "stiffness", 1, &pjoint->stiffness, &def->joint.stiffness);
+  WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
   WriteAttr(elem, "range", 2, pjoint->range, def->joint.range);
+  WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, pjoint->actfrclimited,
+               def->joint.actfrclimited);
   WriteAttr(elem, "actuatorfrcrange", 2, pjoint->actfrcrange, def->joint.actfrcrange);
   WriteAttr(elem, "margin", 1, &pjoint->margin, &def->joint.margin);
   WriteAttr(elem, "armature", 1, &pjoint->armature, &def->joint.armature);
@@ -611,19 +601,13 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
     WriteAttrTxt(elem, "class", pten->classname);
   }
 
-  // special handling of limits
-  bool range_defined = pten->range[0]!=0 || pten->range[1]!=0;
-  bool limited_inferred = def->tendon.limited==2 && pten->limited==(int)range_defined;
-  if (writingdefaults || !limited_inferred) {
-    WriteAttrKey(elem, "limited", TFAuto_map, 3, pten->limited, def->tendon.limited);
-  }
-
   // defaults and regular
   WriteAttrInt(elem, "group", pten->group, def->tendon.group);
   WriteAttr(elem, "solreflimit", mjNREF, pten->solref_limit, def->tendon.solref_limit);
   WriteAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, def->tendon.solimp_limit);
   WriteAttr(elem, "solreffriction", mjNREF, pten->solref_friction, def->tendon.solref_friction);
   WriteAttr(elem, "solimpfriction", mjNIMP, pten->solimp_friction, def->tendon.solimp_friction);
+  WriteAttrKey(elem, "limited", TFAuto_map, 3, pten->limited, def->tendon.limited);
   WriteAttr(elem, "range", 2, pten->range, def->tendon.range);
   WriteAttr(elem, "margin", 1, &pten->margin, &def->tendon.margin);
   WriteAttr(elem, "stiffness", 1, &pten->stiffness, &def->tendon.stiffness);
@@ -694,28 +678,13 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
     }
   }
 
-  // special handling of limits
-  bool range_defined, limited_inferred;
-  range_defined = pact->ctrlrange[0]!=0 || pact->ctrlrange[1]!=0;
-  limited_inferred = def->actuator.ctrllimited==2 && pact->ctrllimited==(int)range_defined;
-  if (writingdefaults || !limited_inferred) {
-    WriteAttrKey(elem, "ctrllimited", TFAuto_map, 3, pact->ctrllimited, def->actuator.ctrllimited);
-  }
-  range_defined = pact->forcerange[0]!=0 || pact->forcerange[1]!=0;
-  limited_inferred = def->actuator.forcelimited==2 && pact->forcelimited==(int)range_defined;
-  if (writingdefaults || !limited_inferred) {
-    WriteAttrKey(elem, "forcelimited", TFAuto_map, 3, pact->forcelimited, def->actuator.forcelimited);
-  }
-  range_defined = pact->actrange[0]!=0 || pact->actrange[1]!=0;
-  limited_inferred = def->actuator.actlimited==2 && pact->actlimited==(int)range_defined;
-  if (writingdefaults || !limited_inferred) {
-    WriteAttrKey(elem, "actlimited", TFAuto_map, 3, pact->actlimited, def->actuator.actlimited);
-  }
-
   // defaults and regular
   WriteAttrInt(elem, "group", pact->group, def->actuator.group);
+  WriteAttrKey(elem, "ctrllimited", TFAuto_map, 3, pact->ctrllimited, def->actuator.ctrllimited);
   WriteAttr(elem, "ctrlrange", 2, pact->ctrlrange, def->actuator.ctrlrange);
+  WriteAttrKey(elem, "forcelimited", TFAuto_map, 3, pact->forcelimited, def->actuator.forcelimited);
   WriteAttr(elem, "forcerange", 2, pact->forcerange, def->actuator.forcerange);
+  WriteAttrKey(elem, "actlimited", TFAuto_map, 3, pact->actlimited, def->actuator.actlimited);
   WriteAttr(elem, "actrange", 2, pact->actrange, def->actuator.actrange);
   WriteAttr(elem, "lengthrange", 2, pact->lengthrange, def->actuator.lengthrange);
   WriteAttr(elem, "gear", 6, pact->gear, def->actuator.gear);

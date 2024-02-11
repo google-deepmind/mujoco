@@ -1266,13 +1266,16 @@ constexpr char kKeyAutoLimits[] = "user/testdata/auto_limits.xml";
 
 // check joint limit values when automatically inferred based on range
 TEST_F(LimitedTest, JointLimited) {
-  const std::string xml_path = GetTestDataFilePath(kKeyAutoLimits);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  const std::string path = GetTestDataFilePath(kKeyAutoLimits);
+  std::array<char, 1024> err;
+  mjModel* model = mj_loadXML(path.c_str(), nullptr, err.data(), err.size());
+  ASSERT_THAT(model, NotNull()) << err.data();
 
   // see `user/testdata/auto_limits.xml` for expected values
   for (int i=0; i < model->njnt; i++) {
-    EXPECT_EQ(model->jnt_limited[i], (mjtByte)model->jnt_user[i]);
+    EXPECT_EQ(model->jnt_limited[i], (mjtByte)model->jnt_user[i])
+        << i << " " << (int)model->jnt_limited[i] << " "
+        << (int)model->jnt_user[i];
   }
 
   mj_deleteModel(model);

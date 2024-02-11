@@ -1213,6 +1213,8 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   // clear internal variables
   spec_userdata_.clear();
   body = 0;
+  limited_ = false;
+  actfrclimited_ = false;
 
   // reset to default if given
   if (_def) {
@@ -1273,17 +1275,20 @@ int mjCJoint::Compile(void) {
 
   // free joints cannot be limited
   if (type==mjJNT_FREE) {
-    limited = 0;
+    limited_ = false;
   }
   // otherwise if limited is auto, set according to whether range is specified
   else if (limited==2) {
     bool hasrange = !(range[0]==0 && range[1]==0);
     checklimited(this, model->autolimits, "joint", "", limited, hasrange);
-    limited = hasrange ? 1 : 0;
+    limited_ = hasrange;
+  } else {
+    // just copy
+    limited_ = (limited == 1);
   }
 
   // resolve limits
-  if (limited) {
+  if (limited_) {
     // check data
     if (range[0]>=range[1] && type!=mjJNT_BALL) {
       throw mjCError(this,
@@ -1307,17 +1312,19 @@ int mjCJoint::Compile(void) {
 
   // actuator force range: none for free or ball joints
   if (type==mjJNT_FREE || type==mjJNT_BALL) {
-    actfrclimited = 0;
+    actfrclimited_ = false;
   }
   // otherwise if actfrclimited is auto, set according to whether actfrcrange is specified
   else if (actfrclimited==2) {
     bool hasrange = !(actfrcrange[0]==0 && actfrcrange[1]==0);
     checklimited(this, model->autolimits, "joint", "", actfrclimited, hasrange);
-    actfrclimited = hasrange ? 1 : 0;
+    actfrclimited_ = hasrange;
+  } else {
+    actfrclimited_ = actfrclimited == 1;
   }
 
   // resolve actuator force range limits
-  if (actfrclimited) {
+  if (actfrclimited_) {
     // check data
     if (actfrcrange[0]>=actfrcrange[1]) {
       throw mjCError(this,
@@ -1350,7 +1357,7 @@ int mjCJoint::Compile(void) {
   }
 
   // check data
-  if (type==mjJNT_FREE && limited) {
+  if (type==mjJNT_FREE && limited == 1) {
     throw mjCError(this,
                    "limits should not be defined in free joint '%s' (id = %d)", name.c_str(), id);
   }
@@ -3642,6 +3649,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   spec_userdata_.clear();
   path.clear();
   matid = -1;
+  limited_ = false;
 
   // reset to default if given
   if (_def) {
@@ -3887,11 +3895,13 @@ void mjCTendon::Compile(void) {
   if (limited==2) {
     bool hasrange = !(range[0]==0 && range[1]==0);
     checklimited(this, model->autolimits, "tendon", "", limited, hasrange);
-    limited = hasrange ? 1 : 0;
+    limited_ = hasrange;
+  } else {
+    limited_ = (limited == 1);
   }
 
   // check limits
-  if (range[0]>=range[1] && limited) {
+  if (range[0]>=range[1] && limited_) {
     throw mjCError(this, "invalid limits in tendon '%s (id = %d)'", name.c_str(), id);
   }
 
@@ -4020,6 +4030,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   spec_refsite_.clear();
   spec_userdata_.clear();
   trnid[0] = trnid[1] = -1;
+  ctrllimited_ = forcelimited_ = actlimited_ = false;
 
   // reset to default if given
   if (_def) {
@@ -4088,30 +4099,38 @@ void mjCActuator::Compile(void) {
   if (forcelimited==2) {
     bool hasrange = !(forcerange[0]==0 && forcerange[1]==0);
     checklimited(this, model->autolimits, "actuator", "force", forcelimited, hasrange);
-    forcelimited = hasrange ? 1 : 0;
+    forcelimited_ = hasrange;
+  } else {
+    forcelimited_ = (forcelimited == 1);
   }
+
   if (ctrllimited==2) {
     bool hasrange = !(ctrlrange[0]==0 && ctrlrange[1]==0);
     checklimited(this, model->autolimits, "actuator", "ctrl", ctrllimited, hasrange);
-    ctrllimited = hasrange ? 1 : 0;
+    ctrllimited_ = hasrange;
+  } else {
+    ctrllimited_ = (ctrllimited == 1);
   }
+
   if (actlimited==2) {
     bool hasrange = !(actrange[0]==0 && actrange[1]==0);
     checklimited(this, model->autolimits, "actuator", "act", actlimited, hasrange);
-    actlimited = hasrange ? 1 : 0;
+    actlimited_ = hasrange;
+  } else {
+    actlimited_ = (actlimited == 1);
   }
 
   // check limits
-  if (forcerange[0]>=forcerange[1] && forcelimited) {
+  if (forcerange[0]>=forcerange[1] && forcelimited_) {
     throw mjCError(this, "invalid force range for actuator '%s' (id = %d)", name.c_str(), id);
   }
-  if (ctrlrange[0]>=ctrlrange[1] && ctrllimited) {
+  if (ctrlrange[0]>=ctrlrange[1] && ctrllimited_) {
     throw mjCError(this, "invalid control range for actuator '%s' (id = %d)", name.c_str(), id);
   }
-  if (actrange[0]>=actrange[1] && actlimited) {
+  if (actrange[0]>=actrange[1] && actlimited_) {
     throw mjCError(this, "invalid actrange for actuator '%s' (id = %d)", name.c_str(), id);
   }
-  if (actlimited && dyntype == mjDYN_NONE) {
+  if (actlimited_ && dyntype == mjDYN_NONE) {
     throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",
                    name.c_str(), id);
   }
@@ -4189,7 +4208,7 @@ void mjCActuator::Compile(void) {
     if (pjnt->spec.urdfeffort>0) {
       forcerange[0] = -pjnt->spec.urdfeffort;
       forcerange[1] = pjnt->spec.urdfeffort;
-      forcelimited = 1;
+      forcelimited_ = true;
     }
     break;
 
@@ -4551,7 +4570,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure joint has limit
-    if (!((mjCJoint*)obj)->limited) {
+    if (!((mjCJoint*)obj)->is_limited()) {
       throw mjCError(this, "joint must be limited in sensor '%s' (id = %d)", name.c_str(), id);
     }
 
@@ -4577,7 +4596,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure tendon has limit
-    if (!((mjCTendon*)obj)->spec.limited) {
+    if (!((mjCTendon*)obj)->is_limited()) {
       throw mjCError(this, "tendon must be limited in sensor '%s' (id = %d)", name.c_str(), id);
     }
 

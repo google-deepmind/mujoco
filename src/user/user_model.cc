@@ -1560,8 +1560,8 @@ void mjCModel::CopyTree(mjModel* m) {
       // set joint fields
       m->jnt_type[jid] = pj->type;
       m->jnt_group[jid] = pj->group;
-      m->jnt_limited[jid] = pj->limited;
-      m->jnt_actfrclimited[jid] = pj->actfrclimited;
+      m->jnt_limited[jid] = (mjtByte)pj->is_limited();
+      m->jnt_actfrclimited[jid] = (mjtByte)pj->is_actfrclimited();
       m->jnt_qposadr[jid] = qposadr;
       m->jnt_dofadr[jid] = dofadr;
       m->jnt_bodyid[jid] = pj->body->id;
@@ -2237,7 +2237,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_num[i] = (int)pte->path.size();
     m->tendon_matid[i] = pte->matid;
     m->tendon_group[i] = pte->group;
-    m->tendon_limited[i] = pte->limited;
+    m->tendon_limited[i] = (mjtByte)pte->is_limited();
     m->tendon_width[i] = (mjtNum)pte->width;
     copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
     copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
@@ -2285,9 +2285,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_actadr[i] = m->actuator_actnum[i] ? adr : -1;
     adr += m->actuator_actnum[i];
     m->actuator_group[i] = pac->group;
-    m->actuator_ctrllimited[i] = pac->ctrllimited;
-    m->actuator_forcelimited[i] = pac->forcelimited;
-    m->actuator_actlimited[i] = pac->actlimited;
+    m->actuator_ctrllimited[i] = (mjtByte)pac->is_ctrllimited();
+    m->actuator_forcelimited[i] = (mjtByte)pac->is_forcelimited();
+    m->actuator_actlimited[i] = (mjtByte)pac->is_actlimited();
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
     copyvec(m->actuator_gear + 6*i, pac->gear, 6);
