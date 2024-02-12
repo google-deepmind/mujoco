@@ -35,64 +35,64 @@ typedef struct _mjDouble* mjDouble;
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
 
-typedef enum _mjtGeomInertia {  // type of inertia inference
-  mjINERTIA_VOLUME,             // mass distributed in the volume
-  mjINERTIA_SHELL,              // mass distributed on the surface
+typedef enum _mjtGeomInertia {     // type of inertia inference
+  mjINERTIA_VOLUME,                // mass distributed in the volume
+  mjINERTIA_SHELL,                 // mass distributed on the surface
 } mjtGeomInertia;
 
 
 //---------------------------------- attribute structs (mjm) ---------------------------------------
 
-typedef struct _mjmOrientation {  // alternative orientation specifiers
-  double axisangle[4];            // rotation axis and angle
-  double xyaxes[6];               // x and y axes
-  double zaxis[3];                // z axis (use minimal rotation)
-  double euler[3];                // euler angles
+typedef struct _mjmOrientation {   // alternative orientation specifiers
+  double axisangle[4];             // rotation axis and angle
+  double xyaxes[6];                // x and y axes
+  double zaxis[3];                 // z axis (use minimal rotation)
+  double euler[3];                 // euler angles
 } mjmOrientation;
 
 
-typedef struct _mjmPlugin {  // plugin specification
-  mjElement instance;        // internal, do not modify
-  mjString name;             // name
-  mjString instance_name;    // instance name
-  bool active;               // is the plugin active
+typedef struct _mjmPlugin {        // plugin specification
+  mjElement instance;              // internal, do not modify
+  mjString name;                   // name
+  mjString instance_name;          // instance name
+  bool active;                     // is the plugin active
 } mjmPlugin;
 
 
-typedef struct _mjmBody {    // body specification
-  mjElement element;         // internal, do not modify
-  mjString name;             // name
-  mjString classname;        // childclass name
+typedef struct _mjmBody {          // body specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // childclass name
 
   // body frame
-  double pos[3];             // frame position
-  double quat[4];            // frame orientation
-  mjmOrientation alt;        // frame alternative orientation
+  double pos[3];                   // frame position
+  double quat[4];                  // frame orientation
+  mjmOrientation alt;              // frame alternative orientation
 
   // inertial frame
-  double mass;               // mass
-  double ipos[3];            // inertial frame position
-  double iquat[4];           // inertial frame orientation
-  double inertia[3];         // diagonal inertia (in i-frame)
-  mjmOrientation ialt;       // inertial frame alternative orientation
-  double fullinertia[6];     // non-axis-aligned inertia matrix
+  double mass;                     // mass
+  double ipos[3];                  // inertial frame position
+  double iquat[4];                 // inertial frame orientation
+  double inertia[3];               // diagonal inertia (in i-frame)
+  mjmOrientation ialt;             // inertial frame alternative orientation
+  double fullinertia[6];           // non-axis-aligned inertia matrix
 
   // other
-  mjtByte mocap;             // is this a mocap body
-  double gravcomp;           // gravity compensation
-  mjDouble userdata;         // user data
-  mjtByte explicitinertial;  // whether to save the body with explicit inertial clause
-  mjmPlugin plugin;          // passive force plugin
-  mjString info;             // message appended to compiler errors
+  mjtByte mocap;                   // is this a mocap body
+  double gravcomp;                 // gravity compensation
+  mjDouble userdata;               // user data
+  mjtByte explicitinertial;        // whether to save the body with explicit inertial clause
+  mjmPlugin plugin;                // passive force plugin
+  mjString info;                   // message appended to compiler errors
 } mjmBody;
 
 
-typedef struct _mjmFrame {  // frame specification
-  mjElement element;        // internal, do not modify
-  double pos[3];            // position
-  double quat[4];           // orientation
-  mjmOrientation alt;       // alternative orientation
-  mjString info;            // message appended to compiler errors
+typedef struct _mjmFrame {         // frame specification
+  mjElement element;               // internal, do not modify
+  double pos[3];                   // position
+  double quat[4];                  // orientation
+  mjmOrientation alt;              // alternative orientation
+  mjString info;                   // message appended to compiler errors
 } mjmFrame;
 
 
@@ -136,163 +136,163 @@ typedef struct _mjmJoint {         // joint specification
 } mjmJoint;
 
 
-typedef struct _mjmGeom {      // geom specification
-  mjElement element;           // internal, do not modify
-  mjString name;               // name
-  mjString classname;          // classname
-  mjtGeom type;                // geom type
+typedef struct _mjmGeom {          // geom specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // classname
+  mjtGeom type;                    // geom type
 
   // frame, size
-  double pos[3];               // position
-  double quat[4];              // orientation
-  mjmOrientation alt;          // alternative orientation
-  double fromto[6];            // alternative for capsule, cylinder, box, ellipsoid
-  double size[3];              // type-specific size
+  double pos[3];                   // position
+  double quat[4];                  // orientation
+  mjmOrientation alt;              // alternative orientation
+  double fromto[6];                // alternative for capsule, cylinder, box, ellipsoid
+  double size[3];                  // type-specific size
 
   // contact related
-  int contype;                 // contact type
-  int conaffinity;             // contact affinity
-  int condim;                  // contact dimensionality
-  int priority;                // contact priority
-  double friction[3];          // one-sided friction coefficients: slide, roll, spin
-  double solmix;               // solver mixing for contact pairs
-  mjtNum solref[mjNREF];       // solver reference
-  mjtNum solimp[mjNIMP];       // solver impedance
-  double margin;               // margin for contact detection
-  double gap;                  // include in solver if dist < margin-gap
+  int contype;                     // contact type
+  int conaffinity;                 // contact affinity
+  int condim;                      // contact dimensionality
+  int priority;                    // contact priority
+  double friction[3];              // one-sided friction coefficients: slide, roll, spin
+  double solmix;                   // solver mixing for contact pairs
+  mjtNum solref[mjNREF];           // solver reference
+  mjtNum solimp[mjNIMP];           // solver impedance
+  double margin;                   // margin for contact detection
+  double gap;                      // include in solver if dist < margin-gap
 
   // inertia inference
-  double mass;                 // used to compute density
-  double density;              // used to compute mass and inertia from volume or surface
-  mjtGeomInertia typeinertia;  // selects between surface and volume inertia
+  double mass;                     // used to compute density
+  double density;                  // used to compute mass and inertia from volume or surface
+  mjtGeomInertia typeinertia;      // selects between surface and volume inertia
 
   // fluid forces
-  mjtNum fluid_ellipsoid;      // whether ellipsoid-fluid model is active
-  mjtNum fluid_coefs[5];       // ellipsoid-fluid interaction coefs
+  mjtNum fluid_ellipsoid;          // whether ellipsoid-fluid model is active
+  mjtNum fluid_coefs[5];           // ellipsoid-fluid interaction coefs
 
   // visual
-  mjString material;           // name of material
-  float rgba[4];               // rgba when material is omitted
-  int group;                   // group
+  mjString material;               // name of material
+  float rgba[4];                   // rgba when material is omitted
+  int group;                       // group
 
   // other
-  mjString hfieldname;         // heightfield attached to geom
-  mjString meshname;           // mesh attached to geom
-  double fitscale;             // scale mesh uniformly
-  mjDouble userdata;           // user data
-  mjmPlugin plugin;            // sdf plugin
-  mjString info;               // message appended to compiler errors
+  mjString hfieldname;             // heightfield attached to geom
+  mjString meshname;               // mesh attached to geom
+  double fitscale;                 // scale mesh uniformly
+  mjDouble userdata;               // user data
+  mjmPlugin plugin;                // sdf plugin
+  mjString info;                   // message appended to compiler errors
 } mjmGeom;
 
 
-typedef struct _mjmSite {  // site specification
-  mjElement element;       // internal, do not modify
-  mjString name;           // name
-  mjString classname;      // class name
+typedef struct _mjmSite {          // site specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
 
   // frame, size
-  double pos[3];           // position
-  double quat[4];          // orientation
-  mjmOrientation alt;      // alternative orientation
-  double fromto[6];        // alternative for capsule, cylinder, box, ellipsoid
-  double size[3];          // geom size
+  double pos[3];                   // position
+  double quat[4];                  // orientation
+  mjmOrientation alt;              // alternative orientation
+  double fromto[6];                // alternative for capsule, cylinder, box, ellipsoid
+  double size[3];                  // geom size
 
   // visual
-  mjtGeom type;            // geom type
-  mjString material;       // name of material
-  int group;               // group
-  float rgba[4];           // rgba when material is omitted
+  mjtGeom type;                    // geom type
+  mjString material;               // name of material
+  int group;                       // group
+  float rgba[4];                   // rgba when material is omitted
 
   // other
-  mjDouble userdata;       // user data
-  mjString info;           // message appended to compiler errors
+  mjDouble userdata;               // user data
+  mjString info;                   // message appended to compiler errors
 } mjmSite;
 
 
-typedef struct _mjmCamera {   // camera specification
-  mjElement element;          // internal, do not modify
-  mjString name;              // name
-  mjString classname;         // class name
+typedef struct _mjmCamera {        // camera specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
 
   // extrinsics
-  double pos[3];              // position
-  double quat[4];             // orientation
-  mjmOrientation alt;         // alternative orientation
-  mjtCamLight mode;           // tracking mode
-  mjString targetbody;        // target body for tracking/targeting
+  double pos[3];                   // position
+  double quat[4];                  // orientation
+  mjmOrientation alt;              // alternative orientation
+  mjtCamLight mode;                // tracking mode
+  mjString targetbody;             // target body for tracking/targeting
 
   // intrinsics
-  double fovy;                // y-field of view
-  double ipd;                 // inter-pupilary distance
-  float intrinsic[4];         // camera intrinsics (length)
-  float sensor_size[2];       // sensor size (length)
-  float resolution[2];        // resolution (pixel)
-  float focal_length[2];      // focal length (length)
-  float focal_pixel[2];       // focal length (pixel)
-  float principal_length[2];  // principal point (length)
-  float principal_pixel[2];   // principal point (pixel)
+  double fovy;                     // y-field of view
+  double ipd;                      // inter-pupilary distance
+  float intrinsic[4];              // camera intrinsics (length)
+  float sensor_size[2];            // sensor size (length)
+  float resolution[2];             // resolution (pixel)
+  float focal_length[2];           // focal length (length)
+  float focal_pixel[2];            // focal length (pixel)
+  float principal_length[2];       // principal point (length)
+  float principal_pixel[2];        // principal point (pixel)
 
   // other
-  mjDouble userdata;          // user data
-  mjString info;              // message appended to compiler errors
+  mjDouble userdata;               // user data
+  mjString info;                   // message appended to compiler errors
 } mjmCamera;
 
 
-typedef struct _mjmLight {  // light specification
-  mjElement element;        // internal, do not modify
-  mjString name;            // name
-  mjString classname;       // class name
+typedef struct _mjmLight {         // light specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
 
   // frame
-  double pos[3];            // position
-  double dir[3];            // direction
-  mjtCamLight mode;         // tracking mode
-  mjString targetbody;      // target body for targeting
+  double pos[3];                   // position
+  double dir[3];                   // direction
+  mjtCamLight mode;                // tracking mode
+  mjString targetbody;             // target body for targeting
 
   // intrinsics
-  mjtByte active;           // is light active
-  mjtByte directional;      // is light directional or spot
-  mjtByte castshadow;       // does light cast shadows
-  float attenuation[3];     // OpenGL attenuation (quadratic model)
-  float cutoff;             // OpenGL cutoff
-  float exponent;           // OpenGL exponent
-  float ambient[3];         // ambient color
-  float diffuse[3];         // diffuse color
-  float specular[3];        // specular color
+  mjtByte active;                  // is light active
+  mjtByte directional;             // is light directional or spot
+  mjtByte castshadow;              // does light cast shadows
+  float attenuation[3];            // OpenGL attenuation (quadratic model)
+  float cutoff;                    // OpenGL cutoff
+  float exponent;                  // OpenGL exponent
+  float ambient[3];                // ambient color
+  float diffuse[3];                // diffuse color
+  float specular[3];               // specular color
 
   // other
-  mjString info;            // message appended to compiler errors
+  mjString info;                   // message appended to compiler errors
 } mjmLight;
 
 
-typedef struct _mjmMaterial {     // material specification
-  mjElement element;              // internal, do not modify
-  mjString name;                  // name
-  mjString classname;             // class name
-  mjString texture;               // name of texture (empty: none)
-  bool texuniform;                // make texture cube uniform
-  float texrepeat[2];             // texture repetition for 2D mapping
-  float emission;                 // emission
-  float specular;                 // specular
-  float shininess;                // shininess
-  float reflectance;              // reflectance
-  float rgba[4];                  // rgba
-  mjString info;                  // message appended to compiler errors
+typedef struct _mjmMaterial {      // material specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjString texture;                // name of texture (empty: none)
+  bool texuniform;                 // make texture cube uniform
+  float texrepeat[2];              // texture repetition for 2D mapping
+  float emission;                  // emission
+  float specular;                  // specular
+  float shininess;                 // shininess
+  float reflectance;               // reflectance
+  float rgba[4];                   // rgba
+  mjString info;                   // message appended to compiler errors
 } mjmMaterial;
 
 
-typedef struct _mjmEquality {  // equality specification
-  mjElement element;           // internal, do not modify
-  mjString name;               // name
-  mjString classname;          // class name
-  mjtEq type;                  // constraint type
-  double data[mjNEQDATA];      // type-dependent data
-  mjtByte active;              // is equality initially active
-  mjString name1;              // name of object 1
-  mjString name2;              // name of object 2
-  mjtNum solref[mjNREF];       // solver reference
-  mjtNum solimp[mjNIMP];       // solver impedance
-  mjString info;               // message appended to errors
+typedef struct _mjmEquality {      // equality specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjtEq type;                      // constraint type
+  double data[mjNEQDATA];          // type-dependent data
+  mjtByte active;                  // is equality initially active
+  mjString name1;                  // name of object 1
+  mjString name2;                  // name of object 2
+  mjtNum solref[mjNREF];           // solver reference
+  mjtNum solimp[mjNIMP];           // solver impedance
+  mjString info;                   // message appended to errors
 } mjmEquality;
 
 
@@ -328,82 +328,82 @@ typedef struct _mjmTendon {        // tendon specification
 } mjmTendon;
 
 
-typedef struct _mjmWrap {  // wrapping object specification
-  mjElement element;       // internal, do not modify
-  mjString name;           // name
-  mjString classname;      // class name
-  mjString info;           // message appended to errors
+typedef struct _mjmWrap {          // wrapping object specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjString info;                   // message appended to errors
 } mjmWrap;
 
 
-typedef struct _mjmActuator {  // actuator specification
-  mjElement element;           // internal, do not modify
-  mjString name;               // name
-  mjString classname;          // class name
+typedef struct _mjmActuator {      // actuator specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
 
   // gain, bias
-  mjtGain gaintype;            // gain type
-  double gainprm[mjNGAIN];     // gain parameters
-  mjtBias biastype;            // bias type
-  double biasprm[mjNGAIN];     // bias parameters
+  mjtGain gaintype;                // gain type
+  double gainprm[mjNGAIN];         // gain parameters
+  mjtBias biastype;                // bias type
+  double biasprm[mjNGAIN];         // bias parameters
 
   // activation state
-  mjtDyn dyntype;              // dynamics type
-  double dynprm[mjNDYN];       // dynamics parameters
-  int actdim;                  // number of activation variables
-  int plugin_actdim;           // actuator state size for plugins
-  mjtByte actearly;            // apply next activations to qfrc
+  mjtDyn dyntype;                  // dynamics type
+  double dynprm[mjNDYN];           // dynamics parameters
+  int actdim;                      // number of activation variables
+  int plugin_actdim;               // actuator state size for plugins
+  mjtByte actearly;                // apply next activations to qfrc
 
   // transmission
-  mjtTrn trntype;              // transmission type
-  double gear[6];              // length and transmitted force scaling
-  mjString target;             // name of transmission target
-  mjString refsite;            // reference site, for site transmission
-  mjString slidersite;         // site defining cylinder, for slider-crank
-  double cranklength;          // crank length, for slider-crank
-  double lengthrange[2];       // transmission length range
+  mjtTrn trntype;                  // transmission type
+  double gear[6];                  // length and transmitted force scaling
+  mjString target;                 // name of transmission target
+  mjString refsite;                // reference site, for site transmission
+  mjString slidersite;             // site defining cylinder, for slider-crank
+  double cranklength;              // crank length, for slider-crank
+  double lengthrange[2];           // transmission length range
 
   // input/output clamping
-  int ctrllimited;             // are control limits defined: 0 false, 1 true, 2 auto
-  double ctrlrange[2];         // control range
-  int forcelimited;            // are force limits defined: 0 false, 1 true, 2 auto
-  double forcerange[2];        // force range
-  int actlimited;              // are activation limits defined: 0 false, 1 true, 2 auto
-  double actrange[2];          // activation range
+  int ctrllimited;                 // are control limits defined: 0 false, 1 true, 2 auto
+  double ctrlrange[2];             // control range
+  int forcelimited;                // are force limits defined: 0 false, 1 true, 2 auto
+  double forcerange[2];            // force range
+  int actlimited;                  // are activation limits defined: 0 false, 1 true, 2 auto
+  double actrange[2];              // activation range
 
   // other
-  int group;                   // group
-  mjDouble userdata;           // user data
-  mjmPlugin plugin;            // actuator plugin
-  mjString info;               // message appended to compiler errors
+  int group;                       // group
+  mjDouble userdata;               // user data
+  mjmPlugin plugin;                // actuator plugin
+  mjString info;                   // message appended to compiler errors
 } mjmActuator;
 
 
-typedef struct _mjmSensor {  // sensor specfication
-  mjElement element;         // internal, do not modify
-  mjString name;             // name
-  mjString classname;        // class name
+typedef struct _mjmSensor {        // sensor specfication
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
 
   // sensor defintion
-  mjtSensor type;            // type of sensor
-  mjtObj objtype;            // type of sensorized object
-  mjString objname;          // name of sensorized object
-  mjtObj reftype;            // type of referenced object
-  mjString refname;          // name of referenced object
+  mjtSensor type;                  // type of sensor
+  mjtObj objtype;                  // type of sensorized object
+  mjString objname;                // name of sensorized object
+  mjtObj reftype;                  // type of referenced object
+  mjString refname;                // name of referenced object
 
   // user-defined sensors
-  mjtDataType datatype;      // data type for sensor measurement
-  mjtStage needstage;        // compute stage needed to simulate sensor
-  int dim;                   // number of scalar outputs
+  mjtDataType datatype;            // data type for sensor measurement
+  mjtStage needstage;              // compute stage needed to simulate sensor
+  int dim;                         // number of scalar outputs
 
   // output post-processing
-  double cutoff;             // cutoff for real and positive datatypes
-  double noise;              // noise stdev
+  double cutoff;                   // cutoff for real and positive datatypes
+  double noise;                    // noise stdev
 
   // other
-  mjDouble userdata;         // user data
-  mjmPlugin plugin;          // sensor plugin
-  mjString info;             // message appended to compiler errors
+  mjDouble userdata;               // user data
+  mjmPlugin plugin;                // sensor plugin
+  mjString info;                   // message appended to compiler errors
 } mjmSensor;
 
 
