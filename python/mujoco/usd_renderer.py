@@ -13,7 +13,7 @@ from typing import Optional, List, Union, Tuple
 from mujoco import _structs, _constants, _enums
 from scipy.spatial.transform import Rotation as R
 
-class USDRenderer:
+class USDExporter:
 
     def __init__(
         self,
@@ -165,12 +165,9 @@ class USDRenderer:
             img.save(os.path.join(self.assets_directory, texture_file_name))
 
             relative_path = os.path.relpath(self.assets_directory, self.frames_directory)
-            # img_path = os.path.join(relative_path, texture_file_name) # relative path, TODO: switch back to this
+            img_path = os.path.join(relative_path, texture_file_name) # relative path, TODO: switch back to this
 
-            # absolute path for cluster, TODO: remove!
-            abs_path = os.path.join(os.path.abspath(self.assets_directory), texture_file_name)
-
-            self.texture_files.append(abs_path)
+            self.texture_files.append(img_path)
 
             data_adr += pixels
 
