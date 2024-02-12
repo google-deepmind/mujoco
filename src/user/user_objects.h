@@ -305,18 +305,26 @@ class mjCBody : public mjCBase, private mjmBody {
 //------------------------- class mjCFrame ---------------------------------------------------------
 // Describes a coordinate transformation relative to its parent
 
-class mjCFrame : public mjCBase {
+class mjCFrame : public mjCBase, private mjmFrame {
   friend class mjCBase;
   friend class mjCBody;
+  friend class mjCGeom;
+  friend class mjCJoint;
+  friend class mjCSite;
+  friend class mjCCamera;
+  friend class mjCLight;
   friend class mjCModel;
 
  public:
-  double pos[3];                           // frame position
-  double quat[4];                          // frame orientation
-  mjCAlternative alt;                      // alternative orientation specification
+  mjmFrame spec;
+  using mjCBase::info;
+
+  void CopyFromSpec(void);
+  void PointToLocal(void);
 
  private:
   bool compiled;                           // frame already compiled
+  mjCAlternative alt_;
 
   mjCFrame(mjCModel* = 0, mjCFrame* = 0);  // constructor
   void Compile(void);                      // compiler
@@ -931,27 +939,30 @@ class mjCTexture : public mjCBase {
 //------------------------- class mjCMaterial ------------------------------------------------------
 // Describes a material for rendering
 
-class mjCMaterial : public mjCBase {
+class mjCMaterial : public mjCBase, private mjmMaterial {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  // variables set by user
-  std::string texture;            // name of texture (empty: none)
-  bool texuniform;                // make texture cube uniform
-  float texrepeat[2];             // texture repetition for 2D mapping
-  float emission;                 // emission
-  float specular;                 // specular
-  float shininess;                // shininess
-  float reflectance;              // reflectance
-  float rgba[4];                  // rgba
+  mjmMaterial spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
+  void CopyFromSpec();
+  void PointToLocal();
+
+  std::string get_texture() { return texture_; }
+  void del_texture() { texture_.clear(); }
 
  private:
   mjCMaterial(mjCModel* = 0, mjCDef* = 0);  // constructor
   void Compile(void);                       // compiler
 
   int texid;                      // id of material
+  std::string texture_;
+  std::string spec_texture_;
 };
 
 

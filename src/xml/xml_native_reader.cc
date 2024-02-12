@@ -1441,14 +1441,20 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
 
 
 // material element parser
-void mjXReader::OneMaterial(XMLElement* elem, mjCMaterial* pmat) {
-  string text;
+void mjXReader::OneMaterial(XMLElement* elem, mjmMaterial* pmat) {
+  string text, name, classname, texture;
   int n;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pmat->name);
-  ReadAttrTxt(elem, "class", pmat->classname);
-  ReadAttrTxt(elem, "texture", pmat->texture);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pmat->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pmat->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "texture", texture)) {
+    mjm_setString(pmat->texture, texture.c_str());
+  }
   if (MapValue(elem, "texuniform", &n, bool_map, 2)) {
     pmat->texuniform = (n==1);
   }
@@ -1459,7 +1465,9 @@ void mjXReader::OneMaterial(XMLElement* elem, mjCMaterial* pmat) {
   ReadAttr(elem, "reflectance", 1, &pmat->reflectance, text);
   ReadAttr(elem, "rgba", 4, pmat->rgba, text);
 
-  GetXMLPos(elem, pmat);
+  // write error info
+  mjm_setString(pmat->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2580,7 +2588,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     if (name=="mesh") OneMesh(elem, &def->mesh);
 
     // read material
-    else if (name=="material") OneMaterial(elem, &def->material);
+    else if (name=="material") OneMaterial(elem, &def->material.spec);
 
     // read joint
     else if (name=="joint") OneJoint(elem, &def->joint.spec);
@@ -2626,6 +2634,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     mjm_finalize(def->camera.spec.element);
     mjm_finalize(def->light.spec.element);
     mjm_finalize(def->actuator.spec.element);
+    mjm_finalize(def->material.spec.element);
     mjm_finalize(def->equality.spec.element);
     mjm_finalize(def->tendon.spec.element);
 
@@ -3019,7 +3028,7 @@ void mjXReader::Asset(XMLElement* section) {
     // material sub-element
     else if (name=="material") {
       // create material and parse
-      mjCMaterial* pmat = model->AddMaterial(def);
+      mjmMaterial* pmat = mjm_addMaterial(model, def);
       OneMaterial(elem, pmat);
     }
 
@@ -3089,7 +3098,7 @@ void mjXReader::Asset(XMLElement* section) {
 
 
 // body/world section parser; recursive
-void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
+void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
   string text, name;
   XMLElement* elem;
   int n;
@@ -3220,8 +3229,8 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjCFrame* frame) {
 
     // frame sub-element
     else if (name=="frame") {
-      mjCFrame* pframe = (mjCFrame*)mjm_addFrame(pbody, frame);
-      GetXMLPos(elem, pframe);
+      mjmFrame* pframe = mjm_addFrame(pbody, frame);
+      mjm_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       ReadAttr(elem, "pos", 3, pframe->pos, text);
       ReadQuat(elem, "quat", pframe->quat, text);

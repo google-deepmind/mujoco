@@ -115,10 +115,24 @@ mjmLight* mjm_addLight(mjmBody* bodyspec, void* defspec) {
 
 
 // add frame to body
-void* mjm_addFrame(mjmBody* bodyspec, void* parentframe) {
-  mjCFrame* parentframeC = static_cast<mjCFrame*>(parentframe);
-  mjCFrame* frameC = reinterpret_cast<mjCBody*>(bodyspec->element)->AddFrame(parentframeC);
-  return frameC;
+mjmFrame* mjm_addFrame(mjmBody* bodyspec, mjmFrame* parentframe) {
+  mjCFrame* parentframeC = 0;
+  if (parentframe) {
+    parentframeC = reinterpret_cast<mjCFrame*>(parentframe->element);
+  }
+  mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
+  mjCFrame* frameC = body->AddFrame(parentframeC);
+  return &frameC->spec;
+}
+
+
+
+// Add material to model.
+mjmMaterial* mjm_addMaterial(void* model, void* defspec) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCMaterial* material = modelC->AddMaterial(def);
+  return &material->spec;
 }
 
 
@@ -246,8 +260,11 @@ mjmBody* mjm_findChild(mjmBody* bodyspec, const char* name) {
 
 
 // set frame
-void mjm_setFrame(mjElement dest, void* frame) {
-  mjCFrame* frameC = static_cast<mjCFrame*>(frame);
+void mjm_setFrame(mjElement dest, mjmFrame* frame) {
+  if (!frame) {
+    return;
+  }
+  mjCFrame* frameC = reinterpret_cast<mjCFrame*>(frame->element);
   mjCBase* baseC = reinterpret_cast<mjCBase*>(dest);
   baseC->SetFrame(frameC);
 }

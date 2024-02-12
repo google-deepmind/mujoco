@@ -87,6 +87,15 @@ typedef struct _mjmBody {    // body specification
 } mjmBody;
 
 
+typedef struct _mjmFrame {  // frame specification
+  mjElement element;        // internal, do not modify
+  double pos[3];            // position
+  double quat[4];           // orientation
+  mjmOrientation alt;       // alternative orientation
+  mjString info;            // message appended to compiler errors
+} mjmFrame;
+
+
 typedef struct _mjmJoint {         // joint specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -256,6 +265,22 @@ typedef struct _mjmLight {  // light specification
 } mjmLight;
 
 
+typedef struct _mjmMaterial {     // material specification
+  mjElement element;              // internal, do not modify
+  mjString name;                  // name
+  mjString classname;             // class name
+  mjString texture;               // name of texture (empty: none)
+  bool texuniform;                // make texture cube uniform
+  float texrepeat[2];             // texture repetition for 2D mapping
+  float emission;                 // emission
+  float specular;                 // specular
+  float shininess;                // shininess
+  float reflectance;              // reflectance
+  float rgba[4];                  // rgba
+  mjString info;                  // message appended to compiler errors
+} mjmMaterial;
+
+
 typedef struct _mjmEquality {  // equality specification
   mjElement element;           // internal, do not modify
   mjString name;               // name
@@ -415,7 +440,10 @@ MJAPI mjmCamera* mjm_addCamera(mjmBody* body, void* defspec);
 MJAPI mjmLight* mjm_addLight(mjmBody* body, void* defspec);
 
 // Add frame to body.
-MJAPI void* mjm_addFrame(mjmBody* body, void* parentframe);
+MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
+
+// Add material to model.
+MJAPI mjmMaterial* mjm_addMaterial(void* model, void* defspec);
 
 // Add equality to model.
 MJAPI mjmEquality* mjm_addEquality(void* model, void* defspec);
@@ -475,7 +503,7 @@ MJAPI const double* mjm_getDouble(mjDouble source, int* size);
 MJAPI void mjm_setDefault(mjElement element, void* defspec);
 
 // Set frame.
-MJAPI void mjm_setFrame(mjElement dest, void* frame);
+MJAPI void mjm_setFrame(mjElement dest, mjmFrame* frame);
 
 // Compute quat and inertia from body->fullinertia.
 MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inertia[3]);
@@ -485,6 +513,9 @@ MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inert
 
 // Default body attributes.
 MJAPI void mjm_defaultBody(mjmBody& body);
+
+// Default frame attributes.
+MJAPI void mjm_defaultFrame(mjmFrame& frame);
 
 // Default joint attributes.
 MJAPI void mjm_defaultJoint(mjmJoint& joint);
@@ -500,6 +531,9 @@ MJAPI void mjm_defaultCamera(mjmCamera& camera);
 
 // Default light attributes.
 MJAPI void mjm_defaultLight(mjmLight& light);
+
+// Default material attributes.
+MJAPI void mjm_defaultMaterial(mjmMaterial& material);
 
 // Default equality attributes.
 MJAPI void mjm_defaultEquality(mjmEquality& equality);

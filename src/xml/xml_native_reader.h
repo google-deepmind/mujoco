@@ -43,7 +43,7 @@ class mjXReader : public mjXBase {
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section
   void Asset(tinyxml2::XMLElement* section);                           // asset section
   void Body(tinyxml2::XMLElement* section, mjmBody* pbody,
-            mjCFrame* pframe);                                         // body/world section
+            mjmFrame* pframe);                                         // body/world section
   void Contact(tinyxml2::XMLElement* section);                         // contact section
   void Deformable(tinyxml2::XMLElement* section);                      // deformable section
   void Equality(tinyxml2::XMLElement* section);                        // equality section
@@ -56,7 +56,7 @@ class mjXReader : public mjXBase {
   void OneFlex(tinyxml2::XMLElement* elem, mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem, mjCMesh* pmesh);
   void OneSkin(tinyxml2::XMLElement* elem, mjCSkin* pskin);
-  void OneMaterial(tinyxml2::XMLElement* elem, mjCMaterial* pmaterial);
+  void OneMaterial(tinyxml2::XMLElement* elem, mjmMaterial* pmaterial);
   void OneJoint(tinyxml2::XMLElement* elem, mjmJoint* pjoint);
   void OneGeom(tinyxml2::XMLElement* elem, mjmGeom* pgeom);
   void OneSite(tinyxml2::XMLElement* elem, mjmSite& site);

@@ -667,8 +667,8 @@ void mjCModel::DeleteMaterial(std::vector<T*>& list, std::string_view name) {
 template <class T>
 static void DeleteTexture(std::vector<T*>& list, std::string_view name = "") {
   for (T* plist : list) {
-    if (name.empty() || plist->texture == name) {
-      plist->texture.clear();
+    if (name.empty() || plist->get_texture() == name) {
+      plist->del_texture();
     }
   }
 }
@@ -869,12 +869,12 @@ void mjCModel::IndexAssets(bool discard) {
     mjCMaterial* pmat = materials[i];
 
     // find texture by name
-    if (!pmat->texture.empty()) {
-      mjCBase* m = FindObject(mjOBJ_TEXTURE, pmat->texture);
+    if (!pmat->texture_.empty()) {
+      mjCBase* m = FindObject(mjOBJ_TEXTURE, pmat->texture_);
       if (m) {
         pmat->texid = m->id;
       } else {
-        throw mjCError(pmat, "texture '%s' not found in material %d", pmat->texture.c_str(), i);
+        throw mjCError(pmat, "texture '%s' not found in material %d", pmat->texture_.c_str(), i);
       }
     }
   }

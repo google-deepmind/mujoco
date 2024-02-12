@@ -1175,19 +1175,42 @@ void mjCBody::Compile(void) {
 
 // initialize frame
 mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
+  mjm_defaultFrame(spec);
   compiled = false;
   model = _model;
   frame = _frame ? _frame : NULL;
-  mju_zero3(pos);
-  mjuu_setvec(quat, 1, 0, 0, 0);
+  PointToLocal();
+  CopyFromSpec();
 }
+
+
+
+void mjCFrame::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCFrame::CopyFromSpec() {
+  *static_cast<mjmFrame*>(this) = spec;
+  mju_copy3(pos, spec.pos);
+  mju_copy4(quat, spec.quat);
+  mju_copy4(alt_.axisangle, alt.axisangle);
+  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
+  mju_copy3(alt_.zaxis, alt.zaxis);
+  mju_copy3(alt_.euler, alt.euler);
+}
+
+
 
 void mjCFrame::Compile() {
   if (compiled) {
     return;
   }
 
-  const char* err = alt.Set(quat, model->degree, model->euler);
+  CopyFromSpec();
+  const char* err = alt_.Set(quat, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
   }
@@ -3264,32 +3287,52 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  texture.clear();
+  mjm_defaultMaterial(spec);
+
+  // clear internal
+  spec_texture_.clear();
   texid = -1;
-  texuniform = false;
-  texrepeat[0] = texrepeat[1] = 1;
-  emission = 0;
-  specular = 0.5;
-  shininess = 0.5;
-  reflectance = 0;
-  rgba[0] = rgba[1] = rgba[2] = rgba[3] = 1;
 
   // reset to default if given
   if (_def) {
+    _def->material.CopyFromSpec();
     *this = _def->material;
   }
 
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCMaterial::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.texture = (mjString)&spec_texture_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCMaterial::CopyFromSpec() {
+  *static_cast<mjmMaterial*>(this) = spec;
+  texture_ = spec_texture_;
+  texture = (mjString)&texture_;
 }
 
 
 
 // compiler
 void mjCMaterial::Compile(void) {
-  // nothing to do for now
+  CopyFromSpec();
 }
 
 

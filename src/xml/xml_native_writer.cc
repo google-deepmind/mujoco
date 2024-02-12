@@ -259,7 +259,7 @@ void mjXWriter::OneMaterial(XMLElement* elem, mjCMaterial* pmat, mjCDef* def) {
 
   // defaults and regular
   if (pmat->texture != def->material.texture) {
-    WriteAttrTxt(elem, "texture", pmat->texture);
+    WriteAttrTxt(elem, "texture", pmat->get_texture());
   }
   WriteAttrKey(elem, "texuniform", bool_map, 2, pmat->texuniform, def->material.texuniform);
   WriteAttr(elem, "texrepeat", 2, pmat->texrepeat, def->material.texrepeat);

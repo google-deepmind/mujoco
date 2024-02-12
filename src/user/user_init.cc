@@ -38,6 +38,16 @@ void mjm_defaultBody(mjmBody& body) {
 
 
 
+// default frame attributes
+void mjm_defaultFrame(mjmFrame& frame) {
+  memset(&frame, 0, sizeof(mjmFrame));
+  mju_zero3(frame.pos);
+  mjuu_setvec(frame.quat, 1, 0, 0, 0);
+  frame.alt.axisangle[0] = frame.alt.xyaxes[0] = frame.alt.zaxis[0] = frame.alt.euler[0] = mjNAN;
+}
+
+
+
 // default joint attributes
 void mjm_defaultJoint(mjmJoint& joint) {
   memset(&joint, 0, sizeof(mjmJoint));
@@ -153,6 +163,20 @@ void mjm_defaultLight(mjmLight& light) {
   light.exponent = 10;
   light.diffuse[0] = light.diffuse[1] = light.diffuse[2] = 0.7;
   light.specular[0] = light.specular[1] = light.specular[2] = 0.3;
+}
+
+
+
+// Default material attributes.
+void mjm_defaultMaterial(mjmMaterial& material) {
+  memset(&material, 0, sizeof(mjmMaterial));
+  material.texuniform = false;
+  material.texrepeat[0] = material.texrepeat[1] = 1;
+  material.emission = 0;
+  material.specular = 0.5;
+  material.shininess = 0.5;
+  material.reflectance = 0;
+  material.rgba[0] = material.rgba[1] = material.rgba[2] = material.rgba[3] = 1;
 }
 
 
