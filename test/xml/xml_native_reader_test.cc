@@ -15,7 +15,9 @@
 // Tests for xml/xml_native_reader.cc.
 
 #include <array>
+#include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -39,6 +41,22 @@ using ::testing::NotNull;
 using ::testing::FloatEq;
 
 using XMLReaderTest = MujocoTest;
+
+TEST_F(XMLReaderTest, UniqueElementTest) {
+  std::array<char, 1024> error;
+  static constexpr char xml[] = R"(
+  <mujoco>
+   <option>
+      <flag sensor="disable"/>
+      <flag sensor="disable"/>
+    </option>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("unique element 'flag' found 2 times"));
+}
 
 TEST_F(XMLReaderTest, MemorySize) {
   std::array<char, 1024> error;
@@ -419,8 +437,103 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
     }
   }
 }
+// ------------------------ test including -------------------------------------
 
-// ---------------------- test frame parsing ---------------------------------
+TEST_F(XMLReaderTest, IncludeTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="plane" type="plane" size="1 1 1"/>
+      <include file="model1.xml"/>
+      <include file="model2.xml"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <geom name="box" type="box" size="1 1 1"/>
+  </mujoco>)";
+
+  static constexpr char xml2[]= R"(
+  <mujoco>
+    <geom name="ball" type="sphere" size="2"/>
+    <include file="model3.xml"/>
+  </mujoco>)";
+
+  static constexpr char xml3[]= R"(
+  <mujoco>
+    <geom name="another_box" type="box" size="2 2 2"/>
+  </mujoco>)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  mj_makeEmptyFileVFS(vfs.get(), "model1.xml", sizeof(xml1));
+  std::memcpy(vfs->filedata[vfs->nfile - 1], xml1, sizeof(xml1));
+
+  mj_makeEmptyFileVFS(vfs.get(), "model2.xml", sizeof(xml2));
+  std::memcpy(vfs->filedata[vfs->nfile - 1], xml2, sizeof(xml2));
+
+  mj_makeEmptyFileVFS(vfs.get(), "model3.xml", sizeof(xml3));
+  std::memcpy(vfs->filedata[vfs->nfile - 1], xml3, sizeof(xml3));
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(),
+                                       error.size(), vfs.get());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(XMLReaderTest, IncludeChildTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="plane" type="plane" size="1 1 1"/>
+      <include file="model1.xml">
+        <geom name="box" type="box" size="1 1 1"/>
+      </include>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Include element cannot have children"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, IncludeSameFileTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <include file="model1.xml"/>
+    <include file="model1.xml"/>
+  </mujoco>)";
+
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <geom name="box" type="box" size="1 1 1"/>
+  </mujoco>)";
+
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  mj_makeEmptyFileVFS(vfs.get(), "model1.xml", sizeof(xml1));
+  std::memcpy(vfs->filedata[vfs->nfile - 1], xml1, sizeof(xml1));
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size(),
+                                       vfs.get());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("File 'model1.xml' already included"));
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
+// ------------------------ test frame parsing ---------------------------------
 TEST_F(XMLReaderTest, ParseFrame) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -453,7 +566,7 @@ TEST_F(XMLReaderTest, ParseFrame) {
   mj_deleteModel(m);
 }
 
-// ---------------------- test camera parsing ---------------------------------
+// ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
   static constexpr char xml[] = R"(
@@ -509,7 +622,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
-// ---------------------- test inertia parsing --------------------------------
+// ----------------------- test inertia parsing --------------------------------
 
 TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   static constexpr char xml[] = R"(

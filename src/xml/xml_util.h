@@ -19,19 +19,21 @@
 #include <array>
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 #include <sstream>
 
-#include <mujoco/mjmodel.h>
-
-
-// TinyXML
 #include "tinyxml2.h"
 
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);
+
+using tinyxml2::XMLElement;
+
+XMLElement* FirstChildElement(XMLElement* e, const char* name = nullptr);
+XMLElement* NextSiblingElement(XMLElement* e, const char* name = nullptr);
 
 
 // XML Error info
@@ -54,24 +56,22 @@ class [[nodiscard]] mjXError {
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM],         // constructor
-            int nrow, bool checkptr = true);
-  ~mjXSchema();                                       // destructor
+  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool checkptr = true);
 
-  std::string GetError(void);                         // return error
-  void Print(std::stringstream& str, int level);      // print schema
-  void PrintHTML(std::stringstream& str, int level, bool pad);
+  std::string GetError();                         // return error
+  void Print(std::stringstream& str, int level) const;      // print schema
+  void PrintHTML(std::stringstream& str, int level, bool pad) const;
 
   bool NameMatch(tinyxml2::XMLElement* elem, int level);               // does name match
   tinyxml2::XMLElement* Check(tinyxml2::XMLElement* elem, int level);  // validator
 
  private:
-  std::string name;                   // element name
-  char type;                          // element type: '?', '!', '*', 'R'
-  std::vector<std::string> attr;      // allowed attributes
-  std::vector<mjXSchema*> child;      // allowed child elements
+  std::string name_;                  // element name
+  char type_;                         // element type: '?', '!', '*', 'R'
+  std::set<std::string> attr_;        // allowed attributes
+  std::vector<mjXSchema> subschema_;  // allowed child elements
 
-  int refcnt;                         // refcount used for validation
+  int refcnt_ = 0;                    // refcount used for validation
   std::string error;                  // error from constructor or Check
 };
 
@@ -141,7 +141,7 @@ class mjXUtil {
 
   // deprecated: use ReadAttrVec or ReadAttrArr
   template<typename T>
-  static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, const int len,
+  static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, int len,
                       T* data, std::string& text,
                       bool required = false, bool exact = true);
 

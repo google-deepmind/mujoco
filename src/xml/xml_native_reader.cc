@@ -27,9 +27,12 @@
 #include <utility>
 #include <vector>
 
-#include <mujoco/mjmacro.h>
+#include "tinyxml2.h"
+
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjtnum.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -41,7 +44,6 @@
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
-#include "tinyxml2.h"
 
 namespace {
 using std::string;
@@ -50,7 +52,7 @@ using tinyxml2::XMLElement;
 
 void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
   std::map<std::string, std::string, std::less<>> config_attribs;
-  XMLElement* child = elem->FirstChildElement();
+  XMLElement* child = FirstChildElement(elem);
   while (child) {
     std::string_view name = child->Value();
     if (name == "config") {
@@ -63,7 +65,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
       mjXUtil::ReadAttrTxt(child, "value", value, /* required = */ true);
       config_attribs[key] = value;
     }
-    child = child->NextSiblingElement();
+    child = NextSiblingElement(child);
   }
 
   if (!pp && !config_attribs.empty()) {
@@ -822,92 +824,92 @@ void mjXReader::Parse(XMLElement* root) {
 
   //------------------- parse MuJoCo sections embedded in all XML formats
 
-  for (XMLElement* section = root->FirstChildElement("compiler"); section;
-       section = section->NextSiblingElement("compiler")) {
+  for (XMLElement* section = FirstChildElement(root, "compiler"); section;
+       section = NextSiblingElement(section, "compiler")) {
     Compiler(section, model);
   }
 
-  for (XMLElement* section = root->FirstChildElement("option"); section;
-       section = section->NextSiblingElement("option")) {
+  for (XMLElement* section = FirstChildElement(root, "option"); section;
+       section = NextSiblingElement(section, "option")) {
     Option(section, &model->option);
   }
 
-  for (XMLElement* section = root->FirstChildElement("size"); section;
-       section = section->NextSiblingElement("size")) {
+  for (XMLElement* section = FirstChildElement(root, "size"); section;
+       section = NextSiblingElement(section, "size")) {
     Size(section, model);
   }
 
   //------------------ parse MJCF-specific sections
 
-  for (XMLElement* section = root->FirstChildElement("visual"); section;
-       section = section->NextSiblingElement("visual")) {
+  for (XMLElement* section = FirstChildElement(root, "visual"); section;
+       section = NextSiblingElement(section, "visual")) {
     Visual(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("statistic"); section;
-       section = section->NextSiblingElement("statistic")) {
+  for (XMLElement* section = FirstChildElement(root, "statistic"); section;
+       section = NextSiblingElement(section, "statistic")) {
     Statistic(section);
   }
 
   readingdefaults = true;
-  for (XMLElement* section = root->FirstChildElement("default"); section;
-       section = section->NextSiblingElement("default")) {
+  for (XMLElement* section = FirstChildElement(root, "default"); section;
+       section = NextSiblingElement(section, "default")) {
     Default(section, -1);
   }
   readingdefaults = false;
 
-  for (XMLElement* section = root->FirstChildElement("extension"); section;
-       section = section->NextSiblingElement("extension")) {
+  for (XMLElement* section = FirstChildElement(root, "extension"); section;
+       section = NextSiblingElement(section, "extension")) {
     Extension(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("custom"); section;
-       section = section->NextSiblingElement("custom")) {
+  for (XMLElement* section = FirstChildElement(root, "custom"); section;
+       section = NextSiblingElement(section, "custom")) {
     Custom(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("asset"); section;
-       section = section->NextSiblingElement("asset")) {
+  for (XMLElement* section = FirstChildElement(root, "asset"); section;
+       section = NextSiblingElement(section, "asset")) {
     Asset(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("worldbody"); section;
-       section = section->NextSiblingElement("worldbody")) {
+  for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
+       section = NextSiblingElement(section, "worldbody")) {
     Body(section, &model->GetWorld()->spec, nullptr);
   }
 
-  for (XMLElement* section = root->FirstChildElement("contact"); section;
-       section = section->NextSiblingElement("contact")) {
+  for (XMLElement* section = FirstChildElement(root, "contact"); section;
+       section = NextSiblingElement(section, "contact")) {
     Contact(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("deformable"); section;
-       section = section->NextSiblingElement("deformable")) {
+  for (XMLElement* section = FirstChildElement(root, "deformable"); section;
+       section = NextSiblingElement(section, "deformable")) {
     Deformable(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("equality"); section;
-       section = section->NextSiblingElement("equality")) {
+  for (XMLElement* section = FirstChildElement(root, "equality"); section;
+       section = NextSiblingElement(section, "equality")) {
     Equality(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("tendon"); section;
-       section = section->NextSiblingElement("tendon")) {
+  for (XMLElement* section = FirstChildElement(root, "tendon"); section;
+       section = NextSiblingElement(section, "tendon")) {
     Tendon(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("actuator"); section;
-       section = section->NextSiblingElement("actuator")) {
+  for (XMLElement* section = FirstChildElement(root, "actuator"); section;
+       section = NextSiblingElement(section, "actuator")) {
     Actuator(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("sensor"); section;
-       section = section->NextSiblingElement("sensor")) {
+  for (XMLElement* section = FirstChildElement(root, "sensor"); section;
+       section = NextSiblingElement(section, "sensor")) {
     Sensor(section);
   }
 
-  for (XMLElement* section = root->FirstChildElement("keyframe"); section;
-       section = section->NextSiblingElement("keyframe")) {
+  for (XMLElement* section = FirstChildElement(root, "keyframe"); section;
+       section = NextSiblingElement(section, "keyframe")) {
     Keyframe(section);
   }
 }
@@ -1044,7 +1046,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
                            text, false, false);
   for (int i=0; i < num_found; i++) {
     int group = disabled_act_groups[i];
-    if (group < 0 ) {
+    if (group < 0) {
       throw mjXError(section, "disabled actuator group value must be non-negative");
     }
     if (group > num_bitflags - 1) {
@@ -1057,7 +1059,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   XMLElement* elem = FindSubElem(section, "flag");
   if (elem) {
 #define READDSBL(NAME, MASK) \
-        if( MapValue(elem, NAME, &n, enable_map, 2) ) { \
+        if (MapValue(elem, NAME, &n, enable_map, 2)) { \
             opt->disableflags ^= (opt->disableflags & MASK); \
             opt->disableflags |= (n ? 0 : MASK); }
 
@@ -1079,7 +1081,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
-        if( MapValue(elem, NAME, &n, enable_map, 2) ) { \
+        if (MapValue(elem, NAME, &n, enable_map, 2)) { \
             opt->enableflags ^= (opt->enableflags & MASK); \
             opt->enableflags |= (n ? MASK : 0); }
 
@@ -1303,7 +1305,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
   }
 
   // contact subelement
-  XMLElement* cont = elem->FirstChildElement("contact");
+  XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
     ReadAttrInt(cont, "contype", &pflex->contype);
     ReadAttrInt(cont, "conaffinity", &pflex->conaffinity);
@@ -1323,7 +1325,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
   }
 
   // edge subelement
-  XMLElement* edge = elem->FirstChildElement("edge");
+  XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
     ReadAttr(edge, "stiffness", 1, &pflex->edgestiffness, text);
     ReadAttr(edge, "damping", 1, &pflex->edgedamping, text);
@@ -1348,7 +1350,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
   pmesh->set_refquat(ReadAttrArr<double, 4>(elem, "refquat"));
   pmesh->set_scale(ReadAttrArr<double, 3>(elem, "scale"));
 
-  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
     OnePlugin(eplugin, &pmesh->plugin);
   }
@@ -1400,7 +1402,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   if (ReadAttrTxt(elem, "face", text)) String2Vector(text, pskin->face);
 
   // read bones
-  XMLElement* bone = elem->FirstChildElement("bone");
+  XMLElement* bone = FirstChildElement(elem, "bone");
   while (bone) {
     // read body
     ReadAttrTxt(bone, "body", text, true);
@@ -1432,7 +1434,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
     pskin->vertweight.push_back(tempweight);
 
     // advance to next bone
-    bone = bone->NextSiblingElement("bone");
+    bone = NextSiblingElement(bone, "bone");
   }
 
   GetXMLPos(elem, pskin);
@@ -1571,7 +1573,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjmGeom* pgeom) {
   }
 
   // plugin sub-element
-  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
     OnePlugin(eplugin, &pgeom->plugin);
   }
@@ -2180,7 +2182,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   ReadAttr(elem, "flatinertia", 1, &comp.flatinertia, text);
 
   // plugin
-  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
     ReadAttrTxt(eplugin, "plugin", comp.plugin_name);
     ReadAttrTxt(eplugin, "instance", comp.plugin_instance_name);
@@ -2221,7 +2223,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   };
 
   // skin
-  XMLElement* eskin = elem->FirstChildElement("skin");
+  XMLElement* eskin = FirstChildElement(elem, "skin");
   if (eskin) {
     comp.skin = true;
     if (MapValue(eskin, "texcoord", &n, bool_map, 2)) {
@@ -2245,7 +2247,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   ReadAttr(elem, "solimpsmooth", mjNIMP, comp.solimpsmooth, text, false, false);
 
   // geom
-  XMLElement* egeom = elem->FirstChildElement("geom");
+  XMLElement* egeom = FirstChildElement(elem, "geom");
   if (egeom) {
     std::string material;
     mjmGeom& dgeom = comp.def[0].geom.spec;
@@ -2273,7 +2275,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   }
 
   // site
-  XMLElement* esite = elem->FirstChildElement("site");
+  XMLElement* esite = FirstChildElement(elem, "site");
   if (esite) {
     std::string material;
     mjmSite& dsite = comp.def[0].site.spec;
@@ -2285,7 +2287,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   }
 
   // joint
-  XMLElement* ejnt = elem->FirstChildElement("joint");
+  XMLElement* ejnt = FirstChildElement(elem, "joint");
   while (ejnt) {
     // kind
     int kind;
@@ -2330,11 +2332,11 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     ReadAttr(ejnt, "frictionloss", 1, &el->joint.spec.frictionloss, text);
 
     // advance
-    ejnt = ejnt->NextSiblingElement("joint");
+    ejnt = NextSiblingElement(ejnt, "joint");
   }
 
   // tendon
-  XMLElement* eten = elem->FirstChildElement("tendon");
+  XMLElement* eten = FirstChildElement(elem, "tendon");
   while (eten) {
     // kind
     int kind;
@@ -2366,11 +2368,11 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     ReadAttr(eten, "width", 1, &comp.def[kind].tendon.spec.width, text);
 
     // advance
-    eten = eten->NextSiblingElement("tendon");
+    eten = NextSiblingElement(eten, "tendon");
   }
 
   // pin
-  XMLElement* epin = elem->FirstChildElement("pin");
+  XMLElement* epin = FirstChildElement(elem, "pin");
   while (epin) {
     // read
     int coord[2] = {0, 0};
@@ -2381,7 +2383,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     comp.pin.push_back(coord[1]);
 
     // advance
-    epin = epin->NextSiblingElement("pin");
+    epin = NextSiblingElement(epin, "pin");
   }
 
   // make composite
@@ -2444,7 +2446,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   }
 
   // edge
-  XMLElement* edge = elem->FirstChildElement("edge");
+  XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
     if (MapValue(edge, "equality", &n, bool_map, 2)) {
       fcomp.equality = (n==1);
@@ -2456,7 +2458,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   }
 
   // contact
-  XMLElement* cont = elem->FirstChildElement("contact");
+  XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
     ReadAttrInt(cont, "contype", &fcomp.def.flex.contype);
     ReadAttrInt(cont, "conaffinity", &fcomp.def.flex.conaffinity);
@@ -2476,7 +2478,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   }
 
   // pin
-  XMLElement* epin = elem->FirstChildElement("pin");
+  XMLElement* epin = FirstChildElement(elem, "pin");
   while (epin) {
     // accumulate id, coord, range
     vector<int> temp;
@@ -2498,11 +2500,11 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     }
 
     // advance
-    epin = epin->NextSiblingElement("pin");
+    epin = NextSiblingElement(epin, "pin");
   }
 
   // plugin
-  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
     ReadAttrTxt(eplugin, "plugin", fcomp.plugin_name);
     ReadAttrTxt(eplugin, "instance", fcomp.plugin_instance_name);
@@ -2579,7 +2581,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
   }
 
   // iterate over elements other than nested defaults
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get element name
     name = elem->Value();
@@ -2639,11 +2641,11 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     mjm_finalize(def->tendon.spec.element);
 
     // advance
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 
   // iterate over nested defaults
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get element name
     name = elem->Value();
@@ -2654,7 +2656,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     }
 
     // advance
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -2662,7 +2664,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
 
 // extension section parser
 void mjXReader::Extension(XMLElement* section) {
-  XMLElement* elem = section->FirstChildElement();
+  XMLElement* elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     std::string_view name = elem->Value();
@@ -2687,7 +2689,7 @@ void mjXReader::Extension(XMLElement* section) {
         model->active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
       }
 
-      XMLElement* child = elem->FirstChildElement();
+      XMLElement* child = FirstChildElement(elem);
       while (child) {
         if (std::string(child->Value())=="instance") {
           if (model->hasImplicitPluginElem) {
@@ -2704,12 +2706,12 @@ void mjXReader::Extension(XMLElement* section) {
           pp->plugin_slot = plugin_slot;
           pp->nstate = -1;  // actual value to be filled in by the plugin later
         }
-        child = child->NextSiblingElement();
+        child = NextSiblingElement(child);
       }
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -2722,7 +2724,7 @@ void mjXReader::Custom(XMLElement* section) {
   double data[500];
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     name = elem->Value();
@@ -2784,7 +2786,7 @@ void mjXReader::Custom(XMLElement* section) {
       ReadAttrTxt(elem, "name", ptu->name, true);
 
       // read objects and add
-      XMLElement* obj = elem->FirstChildElement();
+      XMLElement* obj = FirstChildElement(elem);
       while (obj) {
         // get sub-element name
         name = obj->Value();
@@ -2810,12 +2812,12 @@ void mjXReader::Custom(XMLElement* section) {
         }
 
         // advance to next object
-        obj = obj->NextSiblingElement();
+        obj = NextSiblingElement(obj);
       }
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -2828,7 +2830,7 @@ void mjXReader::Visual(XMLElement* section) {
   mjVisual* vis = &model->visual;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     name = elem->Value();
@@ -2946,7 +2948,7 @@ void mjXReader::Visual(XMLElement* section) {
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -2959,7 +2961,7 @@ void mjXReader::Asset(XMLElement* section) {
   XMLElement* elem;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     name = elem->Value();
@@ -3091,7 +3093,7 @@ void mjXReader::Asset(XMLElement* section) {
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3114,7 +3116,7 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
   }
 
   // iterate over sub-elements; attributes set while parsing parent body
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     name = elem->Value();
@@ -3291,7 +3293,7 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3303,7 +3305,7 @@ void mjXReader::Contact(XMLElement* section) {
   XMLElement* elem;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     name = elem->Value();
@@ -3333,7 +3335,7 @@ void mjXReader::Contact(XMLElement* section) {
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3344,7 +3346,7 @@ void mjXReader::Equality(XMLElement* section) {
   XMLElement* elem;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
     mjCDef* def = GetClass(elem);
@@ -3357,7 +3359,7 @@ void mjXReader::Equality(XMLElement* section) {
     OneEquality(elem, pequality);
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3369,7 +3371,7 @@ void mjXReader::Deformable(XMLElement* section) {
   XMLElement* elem;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get sub-element name
     name = elem->Value();
@@ -3395,7 +3397,7 @@ void mjXReader::Deformable(XMLElement* section) {
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3408,7 +3410,7 @@ void mjXReader::Tendon(XMLElement* section) {
   double data;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
     mjCDef* def = GetClass(elem);
@@ -3421,7 +3423,7 @@ void mjXReader::Tendon(XMLElement* section) {
     OneTendon(elem, pten);
 
     // process wrap sub-elements
-    XMLElement* sub = elem->FirstChildElement();
+    XMLElement* sub = FirstChildElement(elem);
     while (sub) {
       // get wrap type
       string wrap = sub->Value();
@@ -3459,11 +3461,11 @@ void mjXReader::Tendon(XMLElement* section) {
       mjm_setString(pwrap->info, ("line = " + std::to_string(sub->GetLineNum())).c_str());
 
       // advance to next sub-element
-      sub = sub->NextSiblingElement();
+      sub = NextSiblingElement(sub);
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3474,7 +3476,7 @@ void mjXReader::Actuator(XMLElement* section) {
   XMLElement* elem;
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
     mjCDef* def = GetClass(elem);
@@ -3487,7 +3489,7 @@ void mjXReader::Actuator(XMLElement* section) {
     OneActuator(elem, pact);
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3496,7 +3498,7 @@ void mjXReader::Actuator(XMLElement* section) {
 // sensor section parser
 void mjXReader::Sensor(XMLElement* section) {
   int n;
-  XMLElement* elem = section->FirstChildElement();
+  XMLElement* elem = FirstChildElement(section);
   while (elem) {
     // create sensor, get string type
     mjmSensor* psen = mjm_addSensor(model);
@@ -3799,7 +3801,7 @@ void mjXReader::Sensor(XMLElement* section) {
         std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
@@ -3813,7 +3815,7 @@ void mjXReader::Keyframe(XMLElement* section) {
   double data[1000];
 
   // iterate over child elements
-  elem = section->FirstChildElement();
+  elem = FirstChildElement(section);
   while (elem) {
     // add keyframe
     mjCKey* pk = model->AddKey();
@@ -3865,7 +3867,7 @@ void mjXReader::Keyframe(XMLElement* section) {
     }
 
     // advance to next element
-    elem = elem->NextSiblingElement();
+    elem = NextSiblingElement(elem);
   }
 }
 
