@@ -16,6 +16,8 @@ MJX
    - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
 2. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
    ``mjx.get_data_into`` function call.
+3. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
+4. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------
