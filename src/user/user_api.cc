@@ -137,12 +137,22 @@ mjmFrame* mjm_addFrame(mjmBody* bodyspec, mjmFrame* parentframe) {
 
 
 
-// Add material to model.
+// add material to model
 mjmMaterial* mjm_addMaterial(void* model, void* defspec) {
   mjCModel* modelC = static_cast<mjCModel*>(model);
   mjCDef* def = static_cast<mjCDef*>(defspec);
   mjCMaterial* material = modelC->AddMaterial(def);
   return &material->spec;
+}
+
+
+
+// add pair to model
+mjmPair* mjm_addPair(void* model, void* defspec) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCDef* def = static_cast<mjCDef*>(defspec);
+  mjCPair* pair = modelC->AddPair(def);
+  return &pair->spec;
 }
 
 

@@ -966,24 +966,23 @@ class mjCMaterial : public mjCBase, private mjmMaterial {
 //------------------------- class mjCPair ----------------------------------------------------------
 // Predefined geom pair for collision detection
 
-class mjCPair : public mjCBase {
+class mjCPair : public mjCBase, private mjmPair {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
-  // parameters set by user
-  std::string geomname1;          // name of geom 1
-  std::string geomname2;          // name of geom 2
+  mjmPair spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
 
-  // optional parameters: computed from geoms if not set by user
-  int condim;                     // contact dimensionality
-  mjtNum solref[mjNREF];          // solver reference, normal direction
-  mjtNum solreffriction[mjNREF];  // solver reference, frictional directions
-  mjtNum solimp[mjNIMP];          // solver impedance
-  double margin;                  // margin for contact detection
-  double gap;                     // include in solver if dist<margin-gap
-  double friction[5];             // full contact friction
+  void CopyFromSpec();
+  void PointToLocal();
+
+  std::string get_geomname1() { return geomname1_; }
+  std::string get_geomname2() { return geomname2_; }
 
   int GetSignature(void) {
     return signature;
@@ -996,6 +995,11 @@ class mjCPair : public mjCBase {
   mjCGeom* geom1;                 // geom1
   mjCGeom* geom2;                 // geom2
   int signature;                  // body1<<16 + body2
+
+  std::string geomname1_;
+  std::string geomname2_;
+  std::string spec_geomname1_;
+  std::string spec_geomname2_;
 };
 
 

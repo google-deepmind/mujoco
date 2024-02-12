@@ -325,6 +325,25 @@ typedef struct _mjmMaterial {      // material specification
 } mjmMaterial;
 
 
+typedef struct _mjmPair {
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjString geomname1;              // name of geom 1
+  mjString geomname2;              // name of geom 2
+
+  // optional parameters: computed from geoms if not set by user
+  int condim;                      // contact dimensionality
+  mjtNum solref[mjNREF];           // solver reference, normal direction
+  mjtNum solreffriction[mjNREF];   // solver reference, frictional directions
+  mjtNum solimp[mjNIMP];           // solver impedance
+  double margin;                   // margin for contact detection
+  double gap;                      // include in solver if dist<margin-gap
+  double friction[5];              // full contact friction
+  mjString info;                   // message appended to errors
+} mjmPair;
+
+
 typedef struct _mjmEquality {      // equality specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -492,6 +511,9 @@ MJAPI mjmFlex* mjm_addFlex(void* model);
 // Add material to model.
 MJAPI mjmMaterial* mjm_addMaterial(void* model, void* defspec);
 
+// Add pair to model.
+MJAPI mjmPair* mjm_addPair(void* model, void* defspec);
+
 // Add equality to model.
 MJAPI mjmEquality* mjm_addEquality(void* model, void* defspec);
 
@@ -596,6 +618,9 @@ MJAPI void mjm_defaultFlex(mjmFlex& flex);
 
 // Default material attributes.
 MJAPI void mjm_defaultMaterial(mjmMaterial& material);
+
+// Default pair attributes.
+MJAPI void mjm_defaultPair(mjmPair& pair);
 
 // Default equality attributes.
 MJAPI void mjm_defaultEquality(mjmEquality& equality);

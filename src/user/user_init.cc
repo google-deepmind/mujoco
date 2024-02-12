@@ -205,6 +205,20 @@ void mjm_defaultMaterial(mjmMaterial& material) {
 
 
 
+// default pair attributes
+void mjm_defaultPair(mjmPair& pair) {
+  memset(&pair, 0, sizeof(mjmPair));
+  pair.condim = 3;
+  mj_defaultSolRefImp(pair.solref, pair.solimp);
+  pair.friction[0] = 1;
+  pair.friction[1] = 1;
+  pair.friction[2] = 0.005;
+  pair.friction[3] = 0.0001;
+  pair.friction[4] = 0.0001;
+}
+
+
+
 // default equality attributes
 void mjm_defaultEquality(mjmEquality& equality) {
   memset(&equality, 0, sizeof(mjmEquality));

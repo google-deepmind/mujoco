@@ -3341,20 +3341,11 @@ void mjCMaterial::Compile(void) {
 
 // constructor
 mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  geomname1.clear();
-  geomname2.clear();
+  mjm_defaultPair(spec);
 
-  condim = 3;
-  mj_defaultSolRefImp(solref, solimp);
-  mju_zero(solreffriction, mjNREF);
-  margin = 0;
-  gap = 0;
-  friction[0] = 1;
-  friction[1] = 1;
-  friction[2] = 0.005;
-  friction[3] = 0.0001;
-  friction[4] = 0.0001;
+  // set defaults
+  spec_geomname1_.clear();
+  spec_geomname2_.clear();
 
   // clear internal variables
   geom1 = nullptr;
@@ -3363,33 +3354,63 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->pair.CopyFromSpec();
     *this = _def->pair;
   }
 
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCPair::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.geomname1 = (mjString)&spec_geomname1_;
+  spec.geomname2 = (mjString)&spec_geomname2_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCPair::CopyFromSpec() {
+  *static_cast<mjmPair*>(this) = spec;
+  geomname1_ = spec_geomname1_;
+  geomname2_ = spec_geomname2_;
+  geomname1 = (mjString)&geomname1_;
+  geomname2 = (mjString)&geomname2_;
 }
 
 
 
 // compiler
 void mjCPair::Compile(void) {
+  CopyFromSpec();
+
   // check condim
   if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
     throw mjCError(this, "invalid condim in collision %d", "", id);
   }
 
   // find geom 1
-  geom1 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname1);
+  geom1 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname1_);
   if (!geom1) {
-    throw mjCError(this, "geom '%s' not found in collision %d", geomname1.c_str(), id);
+    throw mjCError(this, "geom '%s' not found in collision %d", geomname1_.c_str(), id);
   }
 
   // find geom 2
-  geom2 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname2);
+  geom2 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname2_);
   if (!geom2) {
-    throw mjCError(this, "geom '%s' not found in collision %d", geomname2.c_str(), id);
+    throw mjCError(this, "geom '%s' not found in collision %d", geomname2_.c_str(), id);
   }
 
   // mark geoms as not visual
@@ -3398,9 +3419,9 @@ void mjCPair::Compile(void) {
 
   // swap if body1 > body2
   if (geom1->body->id > geom2->body->id) {
-    string nametmp = geomname1;
-    geomname1 = geomname2;
-    geomname2 = nametmp;
+    string nametmp = geomname1_;
+    geomname1_ = geomname2_;
+    geomname2_ = nametmp;
 
     mjCGeom* geomtmp = geom1;
     geom1 = geom2;

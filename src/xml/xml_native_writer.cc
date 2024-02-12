@@ -523,19 +523,19 @@ void mjXWriter::OnePair(XMLElement* elem, mjCPair* ppair, mjCDef* def) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "class", ppair->classname);
-    WriteAttrTxt(elem, "geom1", ppair->geomname1);
-    WriteAttrTxt(elem, "geom2", ppair->geomname2);
+    WriteAttrTxt(elem, "geom1", ppair->get_geomname1());
+    WriteAttrTxt(elem, "geom2", ppair->get_geomname2());
   }
 
   // defaults and regular
   WriteAttrTxt(elem, "name", ppair->name);
-  WriteAttrInt(elem, "condim", ppair->condim, def->pair.condim);
-  WriteAttr(elem, "margin", 1, &ppair->margin, &def->pair.margin);
-  WriteAttr(elem, "gap", 1, &ppair->gap, &def->pair.gap);
-  WriteAttr(elem, "solref", mjNREF, ppair->solref, def->pair.solref);
-  WriteAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, def->pair.solreffriction);
-  WriteAttr(elem, "solimp", mjNIMP, ppair->solimp, def->pair.solimp);
-  WriteAttr(elem, "friction", 5, ppair->friction, def->pair.friction);
+  WriteAttrInt(elem, "condim", ppair->condim, def->pair.spec.condim);
+  WriteAttr(elem, "margin", 1, &ppair->margin, &def->pair.spec.margin);
+  WriteAttr(elem, "gap", 1, &ppair->gap, &def->pair.spec.gap);
+  WriteAttr(elem, "solref", mjNREF, ppair->solref, def->pair.spec.solref);
+  WriteAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, def->pair.spec.solreffriction);
+  WriteAttr(elem, "solimp", mjNIMP, ppair->solimp, def->pair.spec.solimp);
+  WriteAttr(elem, "friction", 5, ppair->friction, def->pair.spec.friction);
 }
 
 

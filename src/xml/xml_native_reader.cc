@@ -1751,18 +1751,26 @@ void mjXReader::OneLight(XMLElement* elem, mjmLight* plight) {
 
 
 // pair element parser
-void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
-  string text;
+void mjXReader::OnePair(XMLElement* elem, mjmPair* ppair) {
+  string text, name, classname, geomname1, geomname2;
 
   // regular only
   if (!readingdefaults) {
-    ReadAttrTxt(elem, "class", ppair->classname);
-    ReadAttrTxt(elem, "geom1", ppair->geomname1, true);
-    ReadAttrTxt(elem, "geom2", ppair->geomname2, true);
+    if (ReadAttrTxt(elem, "class", classname)) {
+      mjm_setString(ppair->classname, classname.c_str());
+    }
+    if (ReadAttrTxt(elem, "geom1", geomname1)) {
+      mjm_setString(ppair->geomname1, geomname1.c_str());
+    }
+    if (ReadAttrTxt(elem, "geom2", geomname2)) {
+      mjm_setString(ppair->geomname2, geomname2.c_str());
+    }
   }
 
   // read other parameters
-  ReadAttrTxt(elem, "name", ppair->name);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(ppair->name, name.c_str());
+  }
   ReadAttrInt(elem, "condim", &ppair->condim);
   ReadAttr(elem, "solref", mjNREF, ppair->solref, text, false, false);
   ReadAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, text, false, false);
@@ -1771,7 +1779,9 @@ void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
   ReadAttr(elem, "gap", 1, &ppair->gap, text);
   ReadAttr(elem, "friction", 5, ppair->friction, text, false, false);
 
-  GetXMLPos(elem, ppair);
+  // write error info
+  mjm_setString(ppair->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2626,7 +2636,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="light") OneLight(elem, &def->light.spec);
 
     // read pair
-    else if (name=="pair") OnePair(elem, &def->pair);
+    else if (name=="pair") OnePair(elem, &def->pair.spec);
 
     // read equality
     else if (name=="equality") OneEquality(elem, &def->equality.spec);
@@ -2658,6 +2668,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     mjm_finalize(def->equality.spec.element);
     mjm_finalize(def->tendon.spec.element);
     mjm_finalize(def->flex.spec.element);
+    mjm_finalize(def->pair.spec.element);
 
     // advance
     elem = NextSiblingElement(elem);
@@ -3338,7 +3349,7 @@ void mjXReader::Contact(XMLElement* section) {
     // geom pair to include
     if (name=="pair") {
       // create pair and parse
-      mjCPair* ppair = model->AddPair(def);
+      mjmPair* ppair = mjm_addPair(model, def);
       OnePair(elem, ppair);
     }
 
