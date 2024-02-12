@@ -17,9 +17,14 @@
 
 #include <sstream>
 
-#include "user/user_model.h"
-#include "xml/xml_base.h"
 #include "tinyxml2.h"
+
+#include <mujoco/mujoco.h>
+#include "user/user_api.h"
+#include "user/user_model.h"
+#include "user/user_objects.h"
+#include "xml/xml_base.h"
+#include "xml/xml_util.h"
 
 class mjXReader : public mjXBase {
  public:
@@ -74,7 +79,11 @@ class mjXReader : public mjXBase {
   mjCDef* GetClass(tinyxml2::XMLElement* section);                    // get default class name
   static void GetXMLPos(tinyxml2::XMLElement* elem, mjCBase* obj);    // get xml position
 
-  bool readingdefaults; // true while reading defaults
+  bool readingdefaults;  // true while reading defaults
 };
+
+// MJCF schema
+#define nMJCF 227
+extern const char* MJCF[nMJCF][mjXATTRNUM];
 
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_

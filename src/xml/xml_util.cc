@@ -157,56 +157,7 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
 }
 
 // constructor
-mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool checkptr) {
-  if (schema[0][0][0] == '<' || schema[0][0][0] == '>') {
-    throw "expected element, found bracket";
-  }
-
-  // check entire schema for null pointers
-  if (checkptr) {
-    char msg[100];
-
-    for (int i=0; i<nrow; i++) {
-      // base pointers
-      if (!schema[i][0]) {
-        mju::sprintf_arr(msg, "null pointer found in row %d", i);
-        throw msg;
-      }
-
-      // detect element
-      if (schema[i][0][0]!='<' && schema[i][0][0]!='>') {
-        // first 3 pointers required
-        if (!schema[i][1] || !schema[i][2]) {
-          mju::sprintf_arr(msg, "null pointer in row %d, element %s", i, schema[i][0]);
-          throw msg;
-        }
-
-        // check type
-        if (schema[i][1][0]!='!' && schema[i][1][0]!='?' &&
-            schema[i][1][0]!='*' && schema[i][1][0]!='R') {
-          mju::sprintf_arr(msg, "invalid type in row %d, element %s", i, schema[i][0]);
-          throw msg;
-        }
-
-        // number of attributes
-        int nattr = atoi(schema[i][2]);
-        if (nattr < 0 || nattr > mjXATTRNUM-3) {
-          mju::sprintf_arr(msg,
-                           "invalid number of attributes in row %d, element %s", i, schema[i][0]);
-          throw msg;
-        }
-
-        // attribute pointers
-        for (int j=0; j<nattr; j++) {
-          if (!schema[i][3+j]) {
-            mju::sprintf_arr(msg, "null attribute %d in row %d, element %s", j, i, schema[i][0]);
-            throw msg;
-          }
-        }
-      }
-    }
-  }
-
+mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow) {
   // set name and type
   name_ = schema[0][0];
   type_ = schema[0][1][0];
@@ -218,42 +169,32 @@ mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool check
   }
 
   // process sub-elements of complex element
-  if (nrow>1) {
-    // check for bracketed block
-    if (schema[1][0][0]!='<' || schema[nrow-1][0][0]!='>') {
-      throw "expected brackets after complex element";
-    }
-
+  if (nrow > 1) {
     // parse block into simple and complex elements, create children
     int start = 2;
     while (start < nrow-1) {
       int end = start;
 
       // look for bracketed block at start+1
-      if (schema[start+1][0][0]=='<') {
+      if (schema[start+1][0][0] == '<') {
         // look for corresponding closing bracket
         int cnt = 0;
         while (end <= nrow-1) {
-          if (schema[end][0][0]=='<') {
+          if (schema[end][0][0] == '<') {
             cnt++;
-          } else if (schema[end][0][0]=='>') {
+          } else if (schema[end][0][0] == '>') {
             cnt--;
-            if (cnt==0) {
+            if (cnt == 0) {
               break;
             }
           }
 
           end++;
         }
-
-        // closing bracket not found
-        if (end > nrow-1) {
-          throw "matching closing bracket not found";
-        }
       }
 
-      // add element, check for error
-      subschema_.emplace_back(schema+start, end-start+1, false);
+      // add child element
+      subschema_.emplace_back(schema+start, end-start+1);
 
       // proceed with next subelement
       start = end+1;

@@ -56,7 +56,7 @@ class [[nodiscard]] mjXError {
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool checkptr = true);
+  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
 
   std::string GetError();                         // return error
   void Print(std::stringstream& str, int level) const;      // print schema

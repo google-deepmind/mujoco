@@ -81,8 +81,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 227;
-static const char* MJCF[nMJCF][mjXATTRNUM] = {
+const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
     {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
@@ -774,12 +773,6 @@ const mjMap flexself_map[5] = {
 
 // constructor
 mjXReader::mjXReader() : schema(MJCF, nMJCF) {
-  // check for schema construction error
-  if (!schema.GetError().empty()) {
-    throw mjXError(0, "Schema construction error: %s",
-                   schema.GetError().c_str());
-  }
-
   readingdefaults = false;
 }
 
