@@ -30,7 +30,10 @@ extern "C" {
 
 typedef struct _mjElement* mjElement;
 typedef struct _mjString* mjString;
-typedef struct _mjDouble* mjDouble;
+typedef struct _mjStringVec* mjStringVec;
+typedef struct _mjIntVec* mjIntVec;
+typedef struct _mjDoubleVec* mjDoubleVec;
+typedef struct _mjFloatVec* mjFloatVec;
 
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
@@ -80,7 +83,7 @@ typedef struct _mjmBody {          // body specification
   // other
   mjtByte mocap;                   // is this a mocap body
   double gravcomp;                 // gravity compensation
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjtByte explicitinertial;        // whether to save the body with explicit inertial clause
   mjmPlugin plugin;                // passive force plugin
   mjString info;                   // message appended to compiler errors
@@ -131,7 +134,7 @@ typedef struct _mjmJoint {         // joint specification
   // other
   int group;                       // group
   double urdfeffort;               // effort (urdf)
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjString info;                   // message appended to compiler errors
 } mjmJoint;
 
@@ -179,7 +182,7 @@ typedef struct _mjmGeom {          // geom specification
   mjString hfieldname;             // heightfield attached to geom
   mjString meshname;               // mesh attached to geom
   double fitscale;                 // scale mesh uniformly
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjmPlugin plugin;                // sdf plugin
   mjString info;                   // message appended to compiler errors
 } mjmGeom;
@@ -204,7 +207,7 @@ typedef struct _mjmSite {          // site specification
   float rgba[4];                   // rgba when material is omitted
 
   // other
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjString info;                   // message appended to compiler errors
 } mjmSite;
 
@@ -233,7 +236,7 @@ typedef struct _mjmCamera {        // camera specification
   float principal_pixel[2];        // principal point (pixel)
 
   // other
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjString info;                   // message appended to compiler errors
 } mjmCamera;
 
@@ -263,6 +266,47 @@ typedef struct _mjmLight {         // light specification
   // other
   mjString info;                   // message appended to compiler errors
 } mjmLight;
+
+
+typedef struct _mjmFlex {
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+
+  // contact properties
+  int contype;                     // contact type
+  int conaffinity;                 // contact affinity
+  int condim;                      // contact dimensionality
+  int priority;                    // contact priority
+  double friction[3];              // one-sided friction coefficients: slide, roll, spin
+  double solmix;                   // solver mixing for contact pairs
+  mjtNum solref[mjNREF];           // solver reference
+  mjtNum solimp[mjNIMP];           // solver impedance
+  double margin;                   // margin for contact detection
+  double gap;                      // include in solver if dist<margin-gap
+
+  // other properties
+  int dim;                         // element dimensionality
+  double radius;                   // radius around primitive element
+  bool internal;                   // enable internal collisions
+  bool flatskin;                   // render flex skin with flat shading
+  int selfcollide;                 // mode for flex self colllision
+  int activelayers;                // number of active element layers in 3D
+  int group;                       // group for visualizatioh
+  double edgestiffness;            // edge stiffness
+  double edgedamping;              // edge damping
+  float rgba[4];                   // rgba when material is omitted
+  mjString material;               // name of material used for rendering
+
+  // mesh properties
+  mjStringVec vertbody;            // vertex body names
+  mjDoubleVec vert;                // vertex positions
+  mjIntVec elem;                   // element vertex ids
+  mjFloatVec texcoord;             // vertex texture coordinates
+
+  // other
+  mjString info;                   // message appended to compiler errors
+} mjmFlex;
 
 
 typedef struct _mjmMaterial {      // material specification
@@ -323,7 +367,7 @@ typedef struct _mjmTendon {        // tendon specification
   int group;                       // group
 
   // other
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjString info;                   // message appended to errors
 } mjmTendon;
 
@@ -373,7 +417,7 @@ typedef struct _mjmActuator {      // actuator specification
 
   // other
   int group;                       // group
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjmPlugin plugin;                // actuator plugin
   mjString info;                   // message appended to compiler errors
 } mjmActuator;
@@ -401,7 +445,7 @@ typedef struct _mjmSensor {        // sensor specfication
   double noise;                    // noise stdev
 
   // other
-  mjDouble userdata;               // user data
+  mjDoubleVec userdata;            // user data
   mjmPlugin plugin;                // sensor plugin
   mjString info;                   // message appended to compiler errors
 } mjmSensor;
@@ -441,6 +485,9 @@ MJAPI mjmLight* mjm_addLight(mjmBody* body, void* defspec);
 
 // Add frame to body.
 MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
+
+// Add flex to model.
+MJAPI mjmFlex* mjm_addFlex(void* model);
 
 // Add material to model.
 MJAPI mjmMaterial* mjm_addMaterial(void* model, void* defspec);
@@ -490,14 +537,26 @@ MJAPI int mjm_getId(mjElement element);
 // Copy text to destination string.
 MJAPI void mjm_setString(mjString dest, const char* text);
 
+// Split text to entries and copy to destination string vector.
+MJAPI void mjm_setStringVec(mjStringVec dest, const char* text);
+
+// Add text entry to destination string vector.
+MJAPI void mjm_addToStringVec(mjStringVec dest, const char* text);
+
+// Copy int array to destination vector.
+MJAPI void mjm_setInt(mjIntVec dest, const int* array, int size);
+
+// Copy float array to destination vector.
+MJAPI void mjm_setFloat(mjFloatVec dest, const float* array, int size);
+
 // Copy double array to destination vector.
-MJAPI void mjm_setDouble(mjDouble dest, const double* array, int size);
+MJAPI void mjm_setDouble(mjDoubleVec dest, const double* array, int size);
 
 // Get string contents.
 MJAPI const char* mjm_getString(mjString source);
 
 // Get double array contents and optionally its size.
-MJAPI const double* mjm_getDouble(mjDouble source, int* size);
+MJAPI const double* mjm_getDouble(mjDoubleVec source, int* size);
 
 // Set default.
 MJAPI void mjm_setDefault(mjElement element, void* defspec);
@@ -531,6 +590,9 @@ MJAPI void mjm_defaultCamera(mjmCamera& camera);
 
 // Default light attributes.
 MJAPI void mjm_defaultLight(mjmLight& light);
+
+// Default flex attributes.
+MJAPI void mjm_defaultFlex(mjmFlex& flex);
 
 // Default material attributes.
 MJAPI void mjm_defaultMaterial(mjmMaterial& material);

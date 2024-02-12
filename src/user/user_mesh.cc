@@ -2222,33 +2222,10 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
+  mjm_defaultFlex(spec);
+
   // set model
   model = _model;
-
-  // set contact defaults
-  contype = 1;
-  conaffinity = 1;
-  condim = 3;
-  priority = 0;
-  mjuu_setvec(friction, 1, 0.005, 0.0001);
-  solmix = 1.0;
-  mj_defaultSolRefImp(solref, solimp);
-  margin = 0;
-  gap = 0;
-
-  // set other defaults
-  dim = 2;
-  radius = 0.005;
-  internal = true;
-  flatskin = false;
-  selfcollide = mjFLEXSELF_AUTO;
-  activelayers = 1;
-  group = 0;
-  edgestiffness = 0;
-  edgedamping = 0;
-  material_.clear();
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
 
   // clear internal variables
   nvert = 0;
@@ -2257,50 +2234,84 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   matid = -1;
   rigid = false;
   centered = false;
+
+  PointToLocal();
+  CopyFromSpec();
+}
+
+
+void mjCFlex::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.material = (mjString)&spec_material_;
+  spec.vertbody = (mjStringVec)&spec_vertbody_;
+  spec.vert = (mjDoubleVec)&spec_vert_;
+  spec.texcoord = (mjFloatVec)&spec_texcoord_;
+  spec.elem = (mjIntVec)&spec_elem_;
+  spec.info = (mjString)&info;
+}
+
+
+void mjCFlex::CopyFromSpec() {
+  *static_cast<mjmFlex*>(this) = spec;
+  spec.info = (mjString)&info;
+  material_ = spec_material_;
+  vertbody_ = spec_vertbody_;
+  vert_ = spec_vert_;
+  texcoord_ = spec_texcoord_;
+  elem_ = spec_elem_;
+  material = (mjString)&material_;
+  vertbody = (mjStringVec)&vertbody_;
+  vert = (mjDoubleVec)&vert_;
+  texcoord = (mjFloatVec)&texcoord_;
+  elem = (mjIntVec)&elem_;
 }
 
 
 bool mjCFlex::HasTexcoord() const {
-  return !texcoord.empty();
+  return !texcoord_.empty();
 }
 
 
 void mjCFlex::DelTexcoord() {
-  texcoord.clear();
+  texcoord_.clear();
 }
 
 
 // compiler
 void mjCFlex::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // set nelem; check sizes
   if (dim<1 || dim>3) {
       throw mjCError(this, "dim must be 1, 2 or 3");
   }
-  if (elem.empty()) {
+  if (elem_.empty()) {
       throw mjCError(this, "elem is empty");
   }
-  if (elem.size() % (dim+1)) {
+  if (elem_.size() % (dim+1)) {
       throw mjCError(this, "elem size must be multiple of (dim+1)");
   }
-  if (vertbody.empty()) {
+  if (vertbody_.empty()) {
       throw mjCError(this, "vertbody is empty");
   }
-  if (vert.size() % 3) {
+  if (vert_.size() % 3) {
       throw mjCError(this, "vert size must be a multiple of 3");
   }
   if (edgestiffness>0 && dim>1) {
     throw mjCError(this, "edge stiffness only available for dim=1, please use elasticity plugins");
   }
-  nelem = (int)elem.size()/(dim+1);
+  nelem = (int)elem_.size()/(dim+1);
 
   // set nvert, rigid, centered; check size
-  if (vert.empty()) {
+  if (vert_.empty()) {
     centered = true;
-    nvert = (int)vertbody.size();
+    nvert = (int)vertbody_.size();
   }
   else {
-    nvert = (int)vert.size()/3;
-    if (vertbody.size()==1) {
+    nvert = (int)vert_.size()/3;
+    if (vertbody_.size()==1) {
       rigid = true;
     }
   }
@@ -2309,14 +2320,14 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // check elem vertex ids
-  for (int i=0; i<(int)elem.size(); i++) {
-    if (elem[i]<0 || elem[i]>=nvert) {
+  for (int i=0; i<(int)elem_.size(); i++) {
+    if (elem_[i]<0 || elem_[i]>=nvert) {
       throw mjCError(this, "elem vertex id out of range");
     }
   }
 
   // check texcoord
-  if (!texcoord.empty() && texcoord.size()!=2*nvert) {
+  if (!texcoord_.empty() && texcoord_.size()!=2*nvert) {
     throw mjCError(this, "two texture coordinates per vertex expected");
   }
 
@@ -2329,20 +2340,20 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // resolve body ids
-  for (int i=0; i<(int)vertbody.size(); i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody[i]);
+  for (int i=0; i<(int)vertbody_.size(); i++) {
+    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody_[i]);
     if (pbody) {
       vertbodyid.push_back(pbody->id);
     } else {
-        throw mjCError(this, "unkown body '%s' in flex", vertbody[i].c_str());
+        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
     }
   }
 
   // process elements
-  for (int e=0; e<(int)elem.size()/(dim+1); e++) {
+  for (int e=0; e<(int)elem_.size()/(dim+1); e++) {
     // make sorted copy of element
     vector<int> el;
-    el.assign(elem.begin()+e*(dim+1), elem.begin()+(e+1)*(dim+1));
+    el.assign(elem_.begin()+e*(dim+1), elem_.begin()+(e+1)*(dim+1));
     std::sort(el.begin(), el.end());
 
     // check for repeated vertices
@@ -2367,8 +2378,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // determine centered if not already set
   if (!centered) {
     centered = true;
-    for (int i=0; i<(int)vert.size(); i++) {
-      if (vert[i]!=0) {
+    for (int i=0; i<(int)vert_.size(); i++) {
+      if (vert_[i]!=0) {
         centered = false;
         break;
       }
@@ -2385,7 +2396,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     // add vertex offset within body if not centered
     if (!centered) {
       mjtNum offset[3];
-      mju_rotVecQuat(offset, vert.data()+3*i, model->bodies[b]->xquat0);
+      mju_rotVecQuat(offset, vert_.data()+3*i, model->bodies[b]->xquat0);
       mju_addTo3(vertxpos.data()+3*i, offset);
     }
   }
@@ -2394,7 +2405,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // faces are (0,1,2); (0,2,3); (0,3,1); (1,3,2)
   if (dim==3) {
     for (int e=0; e<nelem; e++) {
-      const int* edata = elem.data() + e*(dim+1);
+      const int* edata = elem_.data() + e*(dim+1);
       mjtNum* v0 = vertxpos.data() + 3*edata[0];
       mjtNum* v1 = vertxpos.data() + 3*edata[1];
       mjtNum* v2 = vertxpos.data() + 3*edata[2];
@@ -2408,22 +2419,22 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       mju_cross(nrm, v01, v02);
       if (mju_dot3(nrm, v03)>0) {
         // flip orientation
-        int tmp = elem[e*(dim+1)+1];
-        elem[e*(dim+1)+1] = elem[e*(dim+1)+2];
-        elem[e*(dim+1)+2] = tmp;
+        int tmp = elem_[e*(dim+1)+1];
+        elem_[e*(dim+1)+1] = elem_[e*(dim+1)+2];
+        elem_[e*(dim+1)+2] = tmp;
       }
     }
   }
 
   // create edges
-  std::vector<int> edgeidx(elem.size()*kNumEdges[dim-1]);
+  std::vector<int> edgeidx(elem_.size()*kNumEdges[dim-1]);
 
   // map from edge vertices to their index in `edges` vector
   std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
 
   // insert local edges into global vector
-  for (int f = 0; f < (int)elem.size()/(dim+1); f++) {
-    int* v = elem.data() + f*(dim+1);
+  for (int f = 0; f < (int)elem_.size()/(dim+1); f++) {
+    int* v = elem_.data() + f*(dim+1);
     for (int e = 0; e < kNumEdges[dim-1]; e++) {
       auto pair = std::pair(
         std::min(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]]),
@@ -2447,7 +2458,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // add plugins
   std::string userface, useredge;
-  mjXUtil::Vector2String(userface, elem);
+  mjXUtil::Vector2String(userface, elem_);
   mjXUtil::Vector2String(useredge, edgeidx);
 
   for (int i=0; i<(int)vertbodyid.size(); i++) {
@@ -2472,12 +2483,12 @@ void mjCFlex::CreateBVH(void) {
   int nbvh = 0;
 
   // allocate element bounding boxes
-  elemaabb.resize(6*nelem);
+  elemaabb_.resize(6*nelem);
   tree.AllocateBoundingVolumes(nelem);
 
   // construct element bounding boxes, add to hierarchy
   for (int e=0; e<nelem; e++) {
-    const int* edata = elem.data() + e*(dim+1);
+    const int* edata = elem_.data() + e*(dim+1);
 
     // skip inactive in 3D
     if (dim==3 && elemlayer[e]>=activelayers) {
@@ -2496,12 +2507,12 @@ void mjCFlex::CreateBVH(void) {
     }
 
     // compute aabb (center, size)
-    elemaabb[6*e+0] = 0.5*(xmax[0]+xmin[0]);
-    elemaabb[6*e+1] = 0.5*(xmax[1]+xmin[1]);
-    elemaabb[6*e+2] = 0.5*(xmax[2]+xmin[2]);
-    elemaabb[6*e+3] = 0.5*(xmax[0]-xmin[0]) + radius;
-    elemaabb[6*e+4] = 0.5*(xmax[1]-xmin[1]) + radius;
-    elemaabb[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
+    elemaabb_[6*e+0] = 0.5*(xmax[0]+xmin[0]);
+    elemaabb_[6*e+1] = 0.5*(xmax[1]+xmin[1]);
+    elemaabb_[6*e+2] = 0.5*(xmax[2]+xmin[2]);
+    elemaabb_[6*e+3] = 0.5*(xmax[0]-xmin[0]) + radius;
+    elemaabb_[6*e+4] = 0.5*(xmax[1]-xmin[1]) + radius;
+    elemaabb_[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
 
     // add bounding volume for this element
     mjCBoundingVolume* bv = tree.GetBoundingVolume(nbvh++);
@@ -2509,7 +2520,7 @@ void mjCFlex::CreateBVH(void) {
     bv->conaffinity = conaffinity;
     bv->quat = NULL;
     bv->SetId(e);
-    bv->aabb = elemaabb.data() + 6*e;
+    bv->aabb = elemaabb_.data() + 6*e;
     bv->pos = bv->aabb;
   }
 
@@ -2533,7 +2544,7 @@ void mjCFlex::CreateShellPair(void) {
 
     // element vertices in original (unsorted) order
     vector<int> el;
-    el.assign(elem.begin()+n, elem.begin()+n+dim+1);
+    el.assign(elem_.begin()+n, elem_.begin()+n+dim+1);
 
     // line: 2 vertex fragments
     if (dim==1) {
@@ -2702,7 +2713,7 @@ void mjCFlex::CreateShellPair(void) {
 
         // process both elements
         for (int ei=0; ei<2; ei++) {
-          const int* edata = elem.data() + connectspec[n][ei]*(dim+1);
+          const int* edata = elem_.data() + connectspec[n][ei]*(dim+1);
 
           // find element vertex that is not in the common fragment
           for (int i=0; i<=dim; i++) {

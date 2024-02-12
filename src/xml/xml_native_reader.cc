@@ -1275,14 +1275,22 @@ void mjXReader::Statistic(XMLElement* section) {
 //---------------------------------- one-element parsers -------------------------------------------
 
 // flex element parser
-void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
-  string text;
+void mjXReader::OneFlex(XMLElement* elem, mjmFlex* pflex) {
+  string text, name, classname, material;
   int n;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pflex->name);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pflex->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "classname", classname)) {
+    mjm_setString(pflex->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(pflex->material, material.c_str());
+  }
+
   ReadAttr(elem, "radius", 1, &pflex->radius, text);
-  ReadAttrTxt(elem, "material", pflex->get_material());
   ReadAttr(elem, "rgba", 4, pflex->rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
     pflex->flatskin = (n==1);
@@ -1292,16 +1300,22 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
 
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
-    String2Vector(text, pflex->vertbody);
+    mjm_setStringVec(pflex->vertbody, text.c_str());
   }
   if (ReadAttrTxt(elem, "vertex", text)) {
-    String2Vector(text, pflex->vert);
+    std::vector<double> vert;
+    String2Vector(text, vert);
+    mjm_setDouble(pflex->vert, vert.data(), vert.size());
   }
   if (ReadAttrTxt(elem, "element", text, true)) {
-    String2Vector(text, pflex->elem);
+    std::vector<int> elem;
+    String2Vector(text, elem);
+    mjm_setInt(pflex->elem, elem.data(), elem.size());
   }
   if (ReadAttrTxt(elem, "texcoord", text)) {
-    String2Vector(text, pflex->texcoord);
+    std::vector<float> texcoord;
+    String2Vector(text, texcoord);
+    mjm_setFloat(pflex->texcoord, texcoord.data(), texcoord.size());
   }
 
   // contact subelement
@@ -1331,7 +1345,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
     ReadAttr(edge, "damping", 1, &pflex->edgedamping, text);
   }
 
-  GetXMLPos(elem, pflex);
+  // write error info
+  mjm_setString(pflex->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2400,7 +2416,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
 
 // make flexcomp
 void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
-  string text;
+  string text, material;
   int n;
 
   // create out-of-DOM element
@@ -2417,14 +2433,16 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
   ReadAttrTxt(elem, "file", fcomp.file);
-  ReadAttrTxt(elem, "material", fcomp.def.flex.get_material());
-  ReadAttr(elem, "rgba", 4, fcomp.def.flex.rgba, text);
-  if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
-    fcomp.def.flex.flatskin = (n==1);
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(fcomp.def.flex.spec.material, material.c_str());
   }
-  ReadAttrInt(elem, "dim", &fcomp.def.flex.dim);
-  ReadAttr(elem, "radius", 1, &fcomp.def.flex.radius, text);
-  ReadAttrInt(elem, "group", &fcomp.def.flex.group);
+  ReadAttr(elem, "rgba", 4, fcomp.def.flex.spec.rgba, text);
+  if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
+    fcomp.def.flex.spec.flatskin = (n==1);
+  }
+  ReadAttrInt(elem, "dim", &fcomp.def.flex.spec.dim);
+  ReadAttr(elem, "radius", 1, &fcomp.def.flex.spec.radius, text);
+  ReadAttrInt(elem, "group", &fcomp.def.flex.spec.group);
 
   // pose
   ReadAttr(elem, "pos", 3, fcomp.pos, text);
@@ -2453,28 +2471,28 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     }
     ReadAttr(edge, "solref", mjNREF, fcomp.def.equality.spec.solref, text, false, false);
     ReadAttr(edge, "solimp", mjNIMP, fcomp.def.equality.spec.solimp, text, false, false);
-    ReadAttr(edge, "stiffness", 1, &fcomp.def.flex.edgestiffness, text);
-    ReadAttr(edge, "damping", 1, &fcomp.def.flex.edgedamping, text);
+    ReadAttr(edge, "stiffness", 1, &fcomp.def.flex.spec.edgestiffness, text);
+    ReadAttr(edge, "damping", 1, &fcomp.def.flex.spec.edgedamping, text);
   }
 
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
-    ReadAttrInt(cont, "contype", &fcomp.def.flex.contype);
-    ReadAttrInt(cont, "conaffinity", &fcomp.def.flex.conaffinity);
-    ReadAttrInt(cont, "condim", &fcomp.def.flex.condim);
-    ReadAttrInt(cont, "priority", &fcomp.def.flex.priority);
-    ReadAttr(cont, "friction", 3, fcomp.def.flex.friction, text, false, false);
-    ReadAttr(cont, "solmix", 1, &fcomp.def.flex.solmix, text);
-    ReadAttr(cont, "solref", mjNREF, fcomp.def.flex.solref, text, false, false);
-    ReadAttr(cont, "solimp", mjNIMP, fcomp.def.flex.solimp, text, false, false);
-    ReadAttr(cont, "margin", 1, &fcomp.def.flex.margin, text);
-    ReadAttr(cont, "gap", 1, &fcomp.def.flex.gap, text);
+    ReadAttrInt(cont, "contype", &fcomp.def.flex.spec.contype);
+    ReadAttrInt(cont, "conaffinity", &fcomp.def.flex.spec.conaffinity);
+    ReadAttrInt(cont, "condim", &fcomp.def.flex.spec.condim);
+    ReadAttrInt(cont, "priority", &fcomp.def.flex.spec.priority);
+    ReadAttr(cont, "friction", 3, fcomp.def.flex.spec.friction, text, false, false);
+    ReadAttr(cont, "solmix", 1, &fcomp.def.flex.spec.solmix, text);
+    ReadAttr(cont, "solref", mjNREF, fcomp.def.flex.spec.solref, text, false, false);
+    ReadAttr(cont, "solimp", mjNIMP, fcomp.def.flex.spec.solimp, text, false, false);
+    ReadAttr(cont, "margin", 1, &fcomp.def.flex.spec.margin, text);
+    ReadAttr(cont, "gap", 1, &fcomp.def.flex.spec.gap, text);
     if (MapValue(cont, "internal", &n, bool_map, 2)) {
-      fcomp.def.flex.internal = (n==1);
+      fcomp.def.flex.spec.internal = (n==1);
     }
-    MapValue(cont, "selfcollide", &fcomp.def.flex.selfcollide, flexself_map, 5);
-    ReadAttrInt(cont, "activelayers", &fcomp.def.flex.activelayers);
+    MapValue(cont, "selfcollide", &fcomp.def.flex.spec.selfcollide, flexself_map, 5);
+    ReadAttrInt(cont, "activelayers", &fcomp.def.flex.spec.activelayers);
   }
 
   // pin
@@ -2639,6 +2657,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     mjm_finalize(def->material.spec.element);
     mjm_finalize(def->equality.spec.element);
     mjm_finalize(def->tendon.spec.element);
+    mjm_finalize(def->flex.spec.element);
 
     // advance
     elem = NextSiblingElement(elem);
@@ -3385,7 +3404,7 @@ void mjXReader::Deformable(XMLElement* section) {
     // flex sub-element
     if (name=="flex") {
       // create flex and parse
-      mjCFlex* pflex = model->AddFlex();
+      mjmFlex* pflex = mjm_addFlex(model);
       OneFlex(elem, pflex);
     }
 

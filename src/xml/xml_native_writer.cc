@@ -100,20 +100,20 @@ void mjXWriter::OneFlex(XMLElement* elem, mjCFlex* pflex) {
   WriteAttrInt(elem, "group", pflex->group, defflex.group);
 
   // data vectors
-  if (!pflex->vertbody.empty()) {
-    Vector2String(text, pflex->vertbody);
+  if (!pflex->get_vertbody().empty()) {
+    Vector2String(text, pflex->get_vertbody());
     WriteAttrTxt(elem, "body", text);
   }
-  if (!pflex->vert.empty()) {
-    Vector2String(text, pflex->vert);
+  if (!pflex->get_vert().empty()) {
+    Vector2String(text, pflex->get_vert());
     WriteAttrTxt(elem, "vertex", text);
   }
-  if (!pflex->elem.empty()) {
-    Vector2String(text, pflex->elem);
+  if (!pflex->get_elem().empty()) {
+    Vector2String(text, pflex->get_elem());
     WriteAttrTxt(elem, "element", text);
   }
-  if (!pflex->texcoord.empty()) {
-    Vector2String(text, pflex->texcoord);
+  if (!pflex->get_texcoord().empty()) {
+    Vector2String(text, pflex->get_texcoord());
     WriteAttrTxt(elem, "texcoord", text);
   }
 

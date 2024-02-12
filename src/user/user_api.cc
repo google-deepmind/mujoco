@@ -19,6 +19,7 @@
 #include <mujoco/mujoco.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "xml/xml_util.h"
 
 
 
@@ -110,6 +111,15 @@ mjmLight* mjm_addLight(mjmBody* bodyspec, void* defspec) {
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCLight* light = body->AddLight(def);
   return &light->spec;
+}
+
+
+
+// add flex to model
+mjmFlex* mjm_addFlex(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCFlex* flex = modelC->AddFlex();
+  return &flex->spec;
 }
 
 
@@ -292,8 +302,44 @@ void mjm_setString(mjString dest, const char* text) {
 
 
 
+// split text and copy into string array
+void mjm_setStringVec(mjStringVec dest, const char* text) {
+  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
+  mjXUtil::String2Vector(text, *v);
+}
+
+
+// add text entry to destination string vector
+void mjm_addToStringVec(mjStringVec dest, const char* text) {
+  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
+  v->push_back(std::string(text));
+}
+
+
+// set int array
+void mjm_setInt(mjIntVec dest, const int* array, int size) {
+  std::vector<int>* v = reinterpret_cast<std::vector<int>*>(dest);
+  v->assign(size, 0.0);
+  for (int i = 0; i < size; ++i) {
+    (*v)[i] = array[i];
+  }
+}
+
+
+
+// set float array
+void mjm_setFloat(mjFloatVec dest, const float* array, int size) {
+  std::vector<float>* v = reinterpret_cast<std::vector<float>*>(dest);
+  v->assign(size, 0.0);
+  for (int i = 0; i < size; ++i) {
+    (*v)[i] = array[i];
+  }
+}
+
+
+
 // set double array
-void mjm_setDouble(mjDouble dest, const double* array, int size) {
+void mjm_setDouble(mjDoubleVec dest, const double* array, int size) {
   std::vector<double>* v = reinterpret_cast<std::vector<double>*>(dest);
   v->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
@@ -312,7 +358,7 @@ const char* mjm_getString(const mjString source) {
 
 
 // get double array
-const double* mjm_getDouble(const mjDouble source, int* size) {
+const double* mjm_getDouble(const mjDoubleVec source, int* size) {
   std::vector<double>* v = reinterpret_cast<std::vector<double>*>(source);
   if (size) {
     *size = v->size();

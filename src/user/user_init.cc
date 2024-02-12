@@ -167,7 +167,31 @@ void mjm_defaultLight(mjmLight& light) {
 
 
 
-// Default material attributes.
+// default flex attributes
+void mjm_defaultFlex(mjmFlex& flex) {
+  memset(&flex, 0, sizeof(mjmFlex));
+
+  // set contact defaults
+  flex.contype = 1;
+  flex.conaffinity = 1;
+  flex.condim = 3;
+  mjuu_setvec(flex.friction, 1, 0.005, 0.0001);
+  flex.solmix = 1.0;
+  mj_defaultSolRefImp(flex.solref, flex.solimp);
+
+  // set other defaults
+  flex.dim = 2;
+  flex.radius = 0.005;
+  flex.internal = true;
+  flex.selfcollide = mjFLEXSELF_AUTO;
+  flex.activelayers = 1;
+  flex.rgba[0] = flex.rgba[1] = flex.rgba[2] = 0.5f;
+  flex.rgba[3] = 1.0f;
+}
+
+
+
+// default material attributes
 void mjm_defaultMaterial(mjmMaterial& material) {
   memset(&material, 0, sizeof(mjmMaterial));
   material.texuniform = false;

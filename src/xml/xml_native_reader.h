@@ -53,7 +53,7 @@ class mjXReader : public mjXBase {
   void Keyframe(tinyxml2::XMLElement* section);                        // keyframe section
 
   // single element parsers, used in defaults and main body
-  void OneFlex(tinyxml2::XMLElement* elem, mjCFlex* pflex);
+  void OneFlex(tinyxml2::XMLElement* elem, mjmFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem, mjCMesh* pmesh);
   void OneSkin(tinyxml2::XMLElement* elem, mjCSkin* pskin);
   void OneMaterial(tinyxml2::XMLElement* elem, mjmMaterial* pmaterial);

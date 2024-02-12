@@ -566,7 +566,7 @@ class mjCLight : public mjCBase, private mjmLight {
 //------------------------- class mjCFlex ----------------------------------------------------------
 // Describes a flex
 
-class mjCFlex: public mjCBase {
+class mjCFlex: public mjCBase, private mjmFlex {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjCFlexcomp;
@@ -574,41 +574,24 @@ class mjCFlex: public mjCBase {
   friend class mjXWriter;
 
  public:
-  void set_material(std::string _material) { material_ = _material; }
-  std::string& get_material() { return material_; }
+  mjmFlex spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
 
-  // contact properties
-  int contype;                    // contact type
-  int conaffinity;                // contact affinity
-  int condim;                     // contact dimensionality
-  int priority;                   // contact priority
-  double friction[3];             // one-sided friction coefficients: slide, roll, spin
-  double solmix;                  // solver mixing for contact pairs
-  mjtNum solref[mjNREF];          // solver reference
-  mjtNum solimp[mjNIMP];          // solver impedance
-  double margin;                  // margin for contact detection
-  double gap;                     // include in solver if dist<margin-gap
+  void CopyFromSpec(void);
+  void PointToLocal(void);
 
-  // other properties
-  int dim;                        // element dimensionality
-  double radius;                  // radius around primitive element
-  bool internal;                  // enable internal collisions
-  bool flatskin;                  // render flex skin with flat shading
-  int selfcollide;                // mode for flex self colllision
-  int activelayers;               // number of active element layers in 3D
-  int group;                      // group for visualizatioh
-  double edgestiffness;           // edge stiffness
-  double edgedamping;             // edge damping
-  float rgba[4];                  // rgba when material is omitted
+  // used by mjXWriter and mjCModel
+  const std::string& get_material() { return material_; }
+  const std::vector<std::string>& get_vertbody() { return vertbody_; }
+  const std::vector<double>& get_vert() { return vert_; }
+  const std::vector<double>& get_elemaabb() { return elemaabb_; }
+  const std::vector<int>& get_elem() { return elem_; }
+  const std::vector<float>& get_texcoord() { return texcoord_; }
 
-  std::vector<std::string> vertbody;  // vertex body names
-  std::vector<mjtNum> vert;           // vertex positions
-  std::vector<mjtNum> elemaabb;       // element bounding volume
-  std::vector<int> elem;              // element vertex ids
-  std::vector<float> texcoord;        // vertex texture coordinates
-
-  bool HasTexcoord() const;           // texcoord not null
-  void DelTexcoord();                 // delete texcoord
+  bool HasTexcoord() const;               // texcoord not null
+  void DelTexcoord();                     // delete texcoord
 
  private:
   mjCFlex(mjCModel* = 0);
@@ -629,7 +612,20 @@ class mjCFlex: public mjCBase {
   std::vector<int> evpair;                // element-vertex pairs
   std::vector<mjtNum> vertxpos;           // global vertex positions
   mjCBoundingVolumeHierarchy tree;        // bounding volume hierarchy
+  std::vector<mjtNum> elemaabb_;          // element bounding volume
+
+  // variable-size data
+  std::vector<std::string> vertbody_;     // vertex body names
+  std::vector<mjtNum> vert_;              // vertex positions
+  std::vector<int> elem_;                 // element vertex ids
+  std::vector<float> texcoord_;           // vertex texture coordinates
   std::string material_;                  // name of material used for rendering
+
+  std::string spec_material_;
+  std::vector<std::string> spec_vertbody_;
+  std::vector<mjtNum> spec_vert_;
+  std::vector<int> spec_elem_;
+  std::vector<float> spec_texcoord_;
 };
 
 

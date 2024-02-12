@@ -1995,15 +1995,15 @@ void mjCModel::CopyObjects(mjModel* m) {
       m->flex_evpairnum[i] = (int)pfl->evpair.size()/2;
       memcpy(m->flex_evpair + 2*evpair_adr, pfl->evpair.data(), pfl->evpair.size()*sizeof(int));
     }
-    if (pfl->texcoord.empty()) {
+    if (pfl->texcoord_.empty()) {
       m->flex_texcoordadr[i] = -1;
     } else {
       m->flex_texcoordadr[i] = texcoord_adr;
       memcpy(m->flex_texcoord + 2*texcoord_adr,
-            pfl->texcoord.data(), pfl->texcoord.size()*sizeof(float));
+            pfl->texcoord_.data(), pfl->texcoord_.size()*sizeof(float));
     }
     m->flex_elemnum[i] = pfl->nelem;
-    memcpy(m->flex_elem + elemdata_adr, pfl->elem.data(), pfl->elem.size()*sizeof(int));
+    memcpy(m->flex_elem + elemdata_adr, pfl->elem_.data(), pfl->elem_.size()*sizeof(int));
     memcpy(m->flex_elemlayer + elem_adr, pfl->elemlayer.data(), pfl->nelem*sizeof(int));
     if (m->flex_shellnum[i]) {
       memcpy(m->flex_shell + shelldata_adr, pfl->shell.data(), pfl->shell.size()*sizeof(int));
@@ -2042,7 +2042,7 @@ void mjCModel::CopyObjects(mjModel* m) {
       mju_zero(m->flex_vert + 3*vert_adr, 3*pfl->nvert);
     }
     else {
-      memcpy(m->flex_vert + 3*vert_adr, pfl->vert.data(), 3*pfl->nvert*sizeof(mjtNum));
+      memcpy(m->flex_vert + 3*vert_adr, pfl->vert_.data(), 3*pfl->nvert*sizeof(mjtNum));
     }
 
     // copy or set vertbodyid
@@ -2073,7 +2073,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     elemdata_adr += (pfl->dim+1) * pfl->nelem;
     shelldata_adr += (int)pfl->shell.size();
     evpair_adr += (int)pfl->evpair.size()/2;
-    texcoord_adr += (int)pfl->texcoord.size()/2;
+    texcoord_adr += (int)pfl->texcoord_.size()/2;
     bvh_adr += pfl->tree.nbvh;
   }
 
