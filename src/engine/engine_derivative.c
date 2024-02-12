@@ -790,11 +790,6 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
     force = scale / mju_max(mjMINVAL, acc0);
   }
 
-  // mid-ranges
-  mjtNum a = 0.5*(lmin+1);
-  mjtNum b = 0.5*(1+lmax);
-  mjtNum x;
-
   // optimum length
   mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mju_max(mjMINVAL, range[1]-range[0]);
 
@@ -803,20 +798,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   mjtNum V = vel / mju_max(mjMINVAL, L0*vmax);
 
   // length curve
-  mjtNum FL = 0;
-  if (L >= lmin && L <= a) {
-    x = (L-lmin) / mju_max(mjMINVAL, a-lmin);
-    FL = 0.5*x*x;
-  } else if (L <= 1) {
-    x = (1-L) / mju_max(mjMINVAL, 1-a);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= b) {
-    x = (L-1) / mju_max(mjMINVAL, b-1);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= lmax) {
-    x = (lmax-L) / mju_max(mjMINVAL, lmax-b);
-    FL = 0.5*x*x;
-  }
+  mjtNum FL = mju_muscleGainLength(L, lmin, lmax);
 
   // velocity curve
   mjtNum dFV;

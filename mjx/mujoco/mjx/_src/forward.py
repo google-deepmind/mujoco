@@ -66,7 +66,7 @@ def fwd_position(m: Model, d: Data) -> Data:
   d = smooth.kinematics(m, d)
   d = smooth.com_pos(m, d)
   d = smooth.crb(m, d)
-  d = smooth.factor_m(m, d, d.qM)
+  d = smooth.factor_m(m, d)
   d = collision_driver.collision(m, d)
   d = constraint.make_constraint(m, d)
   d = smooth.transmission(m, d)
@@ -288,8 +288,8 @@ def euler(m: Model, d: Data) -> Data:
   qacc = d.qacc
   if not m.opt.disableflags & DisableBit.EULERDAMP:
     # TODO(robotics-simulation): can this be done with a smaller perf hit
-    mh = d.qM.at[m.dof_Madr].add(m.opt.timestep * m.dof_damping)
-    dh = smooth.factor_m(m, d, mh)
+    dh = d.replace(qM=d.qM.at[m.dof_Madr].add(m.opt.timestep * m.dof_damping))
+    dh = smooth.factor_m(m, dh)
     qfrc = d.qfrc_smooth + d.qfrc_constraint
     qacc = smooth.solve_m(m, dh, qfrc)
   return _advance(m, d, d.act_dot, qacc)

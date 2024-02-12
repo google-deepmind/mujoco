@@ -459,6 +459,7 @@ struct mjVisual_ {                // visualization options
     int   offwidth;               // width of offscreen buffer
     int   offheight;              // height of offscreen buffer
     int   ellipsoidinertia;       // geom for inertia visualization (0: box, 1: ellipsoid)
+    int   bvactive;               // visualize active bounding volumes (0: no, 1: yes)
   } global;
 
   struct {                        // rendering quality
@@ -536,6 +537,8 @@ struct mjVisual_ {                // visualization options
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
     float frustum[4];             // camera frustum
+    float bv[4];                  // bounding volume
+    float bvactive[4];            // active bounding volume
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;

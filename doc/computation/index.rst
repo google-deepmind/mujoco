@@ -296,9 +296,9 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
 :at:`slider-crank`
    :at:`slider-crank` `transmissions <https://en.wikipedia.org/wiki/Slider-crank_linkage>`_ transform a linear force to
    a torque, as in a piston-driven combustion engine. `This model
-   <https://github.com/google-deepmind/mujoco/tree/main/model/slider_crank>`_ contains pedagogical examples.
-   Slider-cranks can also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to
-   the rest of the system, but that would be less efficient.
+   <https://github.com/google-deepmind/mujoco/blob/main/model/slider_crank/slider_crank.xml>`__ contains pedagogical
+   examples. Slider-cranks can also be modeled explicitly by creating MuJoCo bodies and coupling them with equality
+   constraints, but that is both less efficient and less stable.
 
 :at:`body`
    :el:`body` transmission corresponds to applying forces at contact points belonging to a body, in

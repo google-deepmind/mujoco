@@ -124,15 +124,22 @@ attributes:
 - ``is_running()``: returns ``True`` if the viewer window is running and ``False`` if it is closed.
   This method can be safely called without locking.
 
-- ``user_scn``: an :ref:`mjvScene` object that allows users to add custom visualization geoms to the rendered scene.
-  This is separate from the ``mjvScene`` that the viewer uses internally to render the final scene, and is entirely
-  under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or :ref:`mjv_makeConnector` to add
-  visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer will incorporate
-  these geoms to future rendered images. For example:
+- ``user_scn``: an :ref:`mjvScene` object that allows users to add change rendering flags and add custom
+  visualization geoms to the rendered scene. This is separate from the ``mjvScene`` that the viewer uses internally to
+  render the final scene, and is entirely under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or
+  :ref:`mjv_makeConnector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
+  will incorporate these geoms to future rendered images. Similarly, user scripts can make changes to ``user_scn.flags``
+  which would be picked up at the next call to ``sync()``. The ``sync()`` call also copies changes to rendering flags
+  made via the GUI back into ``user_scn`` to preserve consistency. For example:
 
   .. code-block:: python
 
     with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+
+      # Enable wireframe rendering of the entire scene.
+      viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_WIREFRAME] = 1
+      viewer.sync()
+
       while viewer.is_running():
         ...
         # Step the physics.
@@ -465,28 +472,32 @@ Open-loop rollouts
 ==================
 
 We include a code sample showing how to add additional C/C++ functionality, exposed as a Python module via pybind11. The
-sample, implemented in ``rollout.cc`` and wrapped in ``rollout.py``, implements a common use case where tight loops
-implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling ``mj_step()`` in a loop), given an
-intial state and sequence of controls, and returning subsequent states and sensor values. The canonical usage form is
+sample, implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
+and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__,
+implements a common use case where tight loops implemented outside of Python are beneficial: rolling out a trajectory
+(i.e., calling ``mj_step()`` in a loop), given an intial state and sequence of controls, and returning subsequent states
+and sensor values. The basic usage form is
 
 .. code-block:: python
 
-   state, sensordata = rollout.rollout(model, data, initial_state, ctrl)
+   state, sensordata = rollout.rollout(model, data, initial_state, control)
 
-``initial_state`` is a ``nstate x nqva`` array, with ``nstate`` initial states of length ``nqva``, where ``nqva =
-model.nq + model.nv + model.na`` is the size of the full MuJoCo mechanical state: positions (``data.qpos``), velocities
-(``data.qvel``) and actuator activations (``data.act``). ``ctrl`` is a ``nstate x nstep x nu`` array of control
-sequences.
+``initial_state`` is a ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
+``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
+:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are
+by default the ``mjModel.nu`` standard actuators, but any combination of :ref:`user input<geInput>` arrays can be
+specified by passing an optional ``control_spec`` bitflag.
+
+If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
+Therefore, non-increasing time values can be used to detect diverged rollouts.
 
 The ``rollout`` function is designed to be completely stateless, so all inputs of the stepping pipeline are set and any
-values already present in the given ``MjData`` instance will have no effect on the output. In order to facilitate this,
-all inputs including ``time`` and ``qacc_warmstart`` are set to default values, as are auxillary controls
-(``qfrc_applied``, ``xfrc_applied`` and ``mocap_{pos,quat}``). These can also be optionally set by the user.
+values already present in the given ``MjData`` instance will have no effect on the output.
 
 Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
 the ``test_threading`` function in
-`rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`_ for an example of
-threaded operation.
+`rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`__ for an example
+of threaded operation (and more generally for usage examples).
 
 .. _PyMjpy_migration:
 

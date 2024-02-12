@@ -17,6 +17,7 @@
 
 #include "src/engine/engine_plugin.h"
 
+#include <array>
 #include <cstdint>
 #include <sstream>
 #include <string>
@@ -420,6 +421,22 @@ constexpr char xml[] = R"(
   </actuator>
 </mujoco>
 )";
+
+TEST_F(MujocoTest, EmptyPluginDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <plugin/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr(
+              "neither 'plugin' nor 'instance' is specified for body 'world'"));
+  mj_deleteModel(m);
+}
 
 TEST_F(PluginTest, FirstPartyPlugins) {
   EXPECT_THAT(mjp_pluginCount(), kNumTruePlugins);

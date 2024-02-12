@@ -33,6 +33,9 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
                 const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
                 int type, const mjtNum* side);
 
+// normalized muscle length-gain curve
+MJAPI mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax);
+
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)
 MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
                             mjtNum acc0, const mjtNum prm[9]);

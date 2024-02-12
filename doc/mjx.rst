@@ -230,7 +230,7 @@ The following features are **in development** and coming soon:
    * - :ref:`Geom <mjtGeom>`
      - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - :ref:`Cone <mjtCone>`
@@ -349,3 +349,21 @@ For MJX to perform well, some configuration parameters should be adjusted from t
 
 :ref:`option-flag` element
   Disabling ``eulerdamp`` can help performance and is often not needed for stability.
+
+:ref:`option-jacobian` element
+  Explicitly setting "dense" or "sparse" may speed up simulation depending on your device. Modern TPUs have specialized
+  hardware for rapidly operating over sparse matrices, whereas GPUs tend to be faster with dense matrices as long as
+  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv`` is 60 or
+  greater, or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse" with the
+  Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup of 10%
+  to 20%, as long as the dense matrices can fit on the device.
+
+GPU performance tuning
+----------------------
+
+The following environment variables should be set:
+
+``XLA_FLAGS=--xla_gpu_triton_gemm_any=true``
+  This enables the Triton-based GEMM (matmul) emitter for any GEMM that it supports.  This can yield a 30% speedup on
+  NVIDIA GPUs.  If you have multiple GPUs, you may also benefit from enabling flags related to
+  `communciation between GPUs <https://jax.readthedocs.io/en/latest/gpu_performance_tips.html>`__.

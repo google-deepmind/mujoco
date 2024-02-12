@@ -1400,6 +1400,7 @@ PYBIND11_MODULE(_structs, m) {
   X(offwidth);
   X(offheight);
   X(ellipsoidinertia);
+  X(bvactive);
 #undef X
 
   py::class_<raw::MjVisualQuality> mjVisualQuality(mjVisual, "Quality");
@@ -1529,6 +1530,8 @@ PYBIND11_MODULE(_structs, m) {
   X(slidercrank);
   X(crankbroken);
   X(frustum);
+  X(bv);
+  X(bvactive);
 #undef X
 
 #define X(var)                    \

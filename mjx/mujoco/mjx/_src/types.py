@@ -123,6 +123,19 @@ class ConeType(enum.IntEnum):
   # unsupported: ELLIPTIC
 
 
+class JacobianType(enum.IntEnum):
+  """Type of constraint Jacobian.
+
+  Attributes:
+    DENSE: dense
+    SPARSE: sparse
+    AUTO: sparse if nv>60 and device is TPU, dense otherwise
+  """
+  DENSE = mujoco.mjtJacobian.mjJAC_DENSE
+  SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE
+  AUTO = mujoco.mjtJacobian.mjJAC_AUTO
+
+
 class SolverType(enum.IntEnum):
   """Constraint solver algorithm.
 
@@ -215,6 +228,10 @@ class Option(PyTreeNode):
       nonzero. Not used by mj
     integrator:       integration mode
     cone:             type of friction cone
+    jacobian:         matrix layout for mass matrices (dense or sparse)
+                      (note that this is different from MuJoCo, where jacobian
+                      specifies whether efc_J and its accompanying matrices
+                      are dense or sparse.
     solver:           solver algorithm
     iterations:       number of main solver iterations
     ls_iterations:    maximum number of CG/Newton linesearch iterations
@@ -232,7 +249,7 @@ class Option(PyTreeNode):
   # unsupported: magnetic, o_margin, o_solref, o_solimp
   integrator: IntegratorType
   cone: ConeType
-  # unsupported: jacobian
+  jacobian: JacobianType
   solver: SolverType
   iterations: int
   ls_iterations: int
@@ -264,6 +281,8 @@ class Model(PyTreeNode):
     ngeom: number of geoms
     nsite: number of sites
     nmesh: number of meshes
+    nmeshvert: number of vertices in all meshes
+    nmeshface: number of triangular faces in all meshes
     nmat: number of materials
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
@@ -321,6 +340,7 @@ class Model(PyTreeNode):
     geom_conaffinity: geom contact affinity                   (ngeom,)
     geom_condim: contact dimensionality (1, 3, 4, 6)          (ngeom,)
     geom_bodyid: id of geom's body                            (ngeom,)
+    geom_dataid: id of geom's mesh/hfield; -1: none           (ngeom,)
     geom_group: group for visibility                          (ngeom,)
     geom_matid: material id for rendering                     (ngeom,)
     geom_priority: geom contact priority                      (ngeom,)
@@ -338,6 +358,10 @@ class Model(PyTreeNode):
     site_pos: local position offset rel. to body              (nsite, 3)
     site_quat: local orientation offset rel. to body          (nsite, 4)
     mat_rgba: rgba                                            (nmat, 4)
+    mesh_vertadr: first vertex address                        (nmesh x 1)
+    mesh_faceadr: first face address                          (nmesh x 1)
+    mesh_vert: vertex positions for all meshes                (nmeshvert, 3)
+    mesh_face: vertex face data                               (nmeshface, 3)
     geom_convex_face: vertex face data, MJX only              (ngeom,)
     geom_convex_vert: vertex data, MJX only                   (ngeom,)
     geom_convex_edge: unique edge data, MJX only              (ngeom,)
@@ -390,6 +414,8 @@ class Model(PyTreeNode):
   ngeom: int
   nsite: int
   nmesh: int
+  nmeshvert: int
+  nmeshface: int
   nmat: int
   npair: int
   nexclude: int
@@ -447,6 +473,7 @@ class Model(PyTreeNode):
   geom_conaffinity: np.ndarray
   geom_condim: np.ndarray
   geom_bodyid: np.ndarray
+  geom_dataid: np.ndarray
   geom_group: np.ndarray
   geom_matid: np.ndarray
   geom_priority: np.ndarray
@@ -463,6 +490,10 @@ class Model(PyTreeNode):
   site_bodyid: np.ndarray
   site_pos: jax.Array
   site_quat: jax.Array
+  mesh_vertadr: np.ndarray
+  mesh_faceadr: np.ndarray
+  mesh_vert: np.ndarray
+  mesh_face: np.ndarray
   mat_rgba: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
@@ -586,10 +617,12 @@ class Data(PyTreeNode):
     actuator_length: actuator lengths                             (nu,)
     actuator_moment: actuator moments                             (nu, nv)
     crb: com-based composite inertia and mass                     (nbody, 10)
-    qM: total inertia (sparse)                                    (nM,)
-    qLD: L'*D*L factorization of M (sparse)                       (nM,)
-    qLDiagInv: 1/diag(D)                                          (nv,)
-    qLDiagSqrtInv: 1/sqrt(diag(D))                                (nv,)
+    qM: total inertia                                  if sparse: (nM,)
+                                                       if dense:  (nv, nv)
+    qLD: L'*D*L (or Cholesky) factorization of M.      if sparse: (nM,)
+                                                       if dense:  (nv, nv)
+    qLDiagInv: 1/diag(D)                               if sparse: (nv,)
+                                                       if dense:  (0,)
     contact: list of all detected contacts                        (ncon,)
     efc_J: constraint Jacobian                                    (nefc, nv)
     efc_frictionloss: frictionloss (friction)                     (nefc,)
@@ -646,7 +679,6 @@ class Data(PyTreeNode):
   qM: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  qLDiagSqrtInv: jax.Array  # pylint:disable=invalid-name
   contact: Contact
   efc_J: jax.Array  # pylint:disable=invalid-name
   efc_frictionloss: jax.Array

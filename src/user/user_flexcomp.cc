@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "user/user_api.h"
 #include "user/user_flexcomp.h"
 #include <stdio.h>
 
@@ -76,7 +77,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   bool radial = (type==mjFCOMPTYPE_BOX ||
                  type==mjFCOMPTYPE_CYLINDER ||
                  type==mjFCOMPTYPE_ELLIPSOID);
@@ -85,7 +86,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
                  type==mjFCOMPTYPE_GMSH);
 
   // check parent body name
-  if (body->name.empty()) {
+  if (std::string(mjm_getString(body->name)).empty()) {
     return comperr(error, "Parent body must have name", error_sz);
   }
 
@@ -117,7 +118,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
   }
 
   // compute orientation
-  const char* alterr = alt.Set(quat, NULL, model->degree, model->euler);
+  const char* alterr = alt.Set(quat, model->degree, model->euler);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
@@ -381,7 +382,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
 
   // rigid: set parent name, nothing else to do
   if (rigid) {
-    pf->vertbody.push_back(body->name);
+    pf->vertbody.push_back(std::string(mjm_getString(body->name)).c_str());
     return true;
   }
 
@@ -398,21 +399,22 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
 
     // pinned: parent body
     if (pinned[i]) {
-      pf->vertbody.push_back(body->name);
+      pf->vertbody.push_back(std::string(mjm_getString(body->name)).c_str());
 
       // add plugin
       if (plugin_instance) {
-        body->is_plugin = true;
-        body->plugin_name = plugin_name;
-        body->plugin_instance = plugin_instance;
-        body->plugin_instance_name = plugin_instance_name;
+        mjmPlugin* plugin = &body->plugin;
+        plugin->active = true;
+        plugin->instance = (mjElement)plugin_instance;
+        mjm_setString(plugin->name, plugin_name.c_str());
+        mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
       }
     }
 
     // not pinned: new body
     else {
       // add new body at vertex coordinates
-      mjCBody* pb = body->AddBody();
+      mjmBody* pb = mjm_addBody(body, 0);
 
       // set frame and inertial
       pb->pos[0] = point[3*i];
@@ -423,11 +425,11 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
       pb->inertia[0] = bodyinertia;
       pb->inertia[1] = bodyinertia;
       pb->inertia[2] = bodyinertia;
-      pb->MakeInertialExplicit();
+      pb->explicitinertial = true;
 
       // add radial slider
       if (radial) {
-        mjCJoint* jnt = pb->AddJoint();
+        mjmJoint* jnt = mjm_addJoint(pb, 0);
 
         // set properties
         jnt->type = mjJNT_SLIDE;
@@ -440,7 +442,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
       else {
         for (int j=0; j<3; j++) {
           // add joint to body
-          mjCJoint* jnt = pb->AddJoint();
+          mjmJoint* jnt = mjm_addJoint(pb, 0);
 
           // set properties
           jnt->type = mjJNT_SLIDE;
@@ -453,8 +455,8 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
       // construct body name, add to vertbody
       char txt[100];
       mju::sprintf_arr(txt, "%s_%d", name.c_str(), i);
-      pb->name = txt;
-      pf->vertbody.push_back(pb->name);
+      mjm_setString(pb->name, txt);
+      pf->vertbody.push_back(std::string(mjm_getString(pb->name)).c_str());
 
       // clear flex vertex coordinates if allocated
       if (!centered) {
@@ -465,21 +467,22 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
 
       // add plugin
       if (plugin_instance) {
-        pb->is_plugin = true;
-        pb->plugin_name = plugin_name;
-        pb->plugin_instance = plugin_instance;
-        pb->plugin_instance_name = plugin_instance_name;
+        mjmPlugin* plugin = &pb->plugin;
+        plugin->active = true;
+        plugin->instance = (mjElement)plugin_instance;
+        mjm_setString(plugin->name, plugin_name.c_str());
+        mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
       }
     }
   }
 
   // create edge equality constraint
   if (equality) {
-    mjCEquality *pe = model->AddEquality(&def);
-    pe->def = model->defaults[0];
+    mjmEquality* pe = mjm_addEquality(model, &def);
+    mjm_setDefault(pe->element, model->defaults[0]);
     pe->type = mjEQ_FLEX;
     pe->active = true;
-    pe->name1 = name;
+    mjm_setString(pe->name1, name.c_str());
   }
 
   return true;

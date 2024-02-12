@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
 
     // components of mjTIMER_POS_COLLISION
     if (i == mjTIMER_POS_COLLISION) {
-      for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_MID, mjTIMER_COL_NARROW}) {
+      for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_NARROW}) {
         int number = d[0]->timer[j].number;
         mjtNum jstep = number ? d[0]->timer[j].duration/number : 0.0;
         mjtNum percent = number ? 100*jstep/tstep : 0.0;

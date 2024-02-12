@@ -39,37 +39,65 @@ def _assert_attr_eq(a, b, attr):
 
 class SolverTest(absltest.TestCase):
 
-  def test_solver(self):
-    """Test solver."""
+  def test_newton(self):
+    """Test newton solver."""
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
-
     dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+
     _assert_attr_eq(d, dx, 'qacc_warmstart')
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
     nnz = dx.efc_J.any(axis=1)
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
 
-    # also test normal CG
+  def test_cg(self):
+    """Test CG solver."""
+    m = test_util.load_test_file('constraints.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
     m.opt.solver = mujoco.mjtSolver.mjSOL_CG
     mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
     dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+
     _assert_attr_eq(d, dx, 'qacc_warmstart')
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
 
-    # without warmstart, the solution is not as close
-    m.opt.solver = mujoco.mjtSolver.mjSOL_NEWTON
+  def test_no_warmstart(self):
+    """Test no warmstart."""
+    m = test_util.load_test_file('constraints.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
     m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_WARMSTART
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    nnz = dx.efc_J.any(axis=1)
+    # without warmstart, the solution is not as close
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-2)
+
+  def test_dense(self):
+    """Test solver works with dense mass matrices."""
+    m = test_util.load_test_file('constraints.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
+    mujoco.mj_forward(m, d)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+
+    _assert_attr_eq(d, dx, 'qacc_warmstart')
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
 
 if __name__ == '__main__':
   absltest.main()

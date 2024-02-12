@@ -15,19 +15,12 @@
 """Utilities for testing."""
 
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 from xml.etree import ElementTree as ET
 
 from etils import epath
 import mujoco
 import numpy as np
-
-TEST_FILES: List[str] = [
-    'constraints.xml',
-    'convex.xml',
-    'pendula.xml',
-    'ray.xml',
-]
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']
 _DYN_TYPES = ['none', 'integrator', 'filter', 'filterexact']

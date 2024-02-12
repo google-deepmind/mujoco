@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <array>
-#include <cstdio>
 #include <iostream>
 #include <optional>
 #include <sstream>
-#include <string>
 
-#include "functions.h"
+#include <mujoco/mujoco.h>
+#include "errors.h"
 #include "raw.h"
+#include "structs.h"
 #include <pybind11/buffer_info.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -32,112 +31,114 @@ namespace {
 
 namespace py = ::pybind11;
 
+// NOLINTBEGIN(whitespace/line_length)
+
 const auto rollout_doc = R"(
-Roll out open-loop trajectories from initial states, get subsequent states and sensor values.
+Roll out open-loop trajectories from initial states, get resulting states and sensor values.
 
   input arguments (required):
-    model              an instance of MjModel
-    data               an associated instance of MjData
-    nstate             an integer, number of initial states from which to roll out trajectories
-    nstep              an integer, number of steps to be taken for each trajectory
+    model              instance of MjModel
+    data               associated instance of MjData
+    nroll              integer, number of initial states from which to roll out trajectories
+    nstep              integer, number of steps to be taken for each trajectory
+    control_spec       specification of controls, ncontrol = mj_stateSize(m, control_spec)
+    state0             (nroll x nstate) nroll initial state vectors,
+                                        nstate = mj_stateSize(m, mjSTATE_FULLPHYSICS)
   input arguments (optional):
-    initial_state      (nstate x nqva)                 nstate initial state vectors, nqva=nq+nv+na
-    initial_time       (nstate x 1)                    nstate initial times
-    initial_warmstart  (nstate x nv)                   nstate qacc_warmstart vectors
-    ctrl               (nstate x nstep x nu)           nstate length-nstep controls
-    qfrc_applied       (nstate x nstep x nv)           nstate length-nstep generalized forces
-    xfrc_applied       (nstate x nstep x nbody*6)      nstate length-nstep Cartesian wrenches
-    mocap              (nstate x nstep x nmocap*7)     nstate length-nstep mocap body poses
+    warmstart0         (nroll x nv)                   nroll qacc_warmstart vectors
+    control            (nroll x nstep x ncontrol)     nroll trajectories of nstep controls
   output arguments (optional):
-    state              (nstate x nstep x nqva)         nstate length-nstep states
-    sensordata         (nstate x nstep x nsendordata)  nstate length-nstep sensordatas
+    state              (nroll x nstep x nstate)       nroll nstep states
+    sensordata         (nroll x nstep x nsendordata)  nroll trajectories of nstep sensordata vectors
 )";
 
 // C-style rollout function, assumes all arguments are valid
 // all input fields of d are initialised, contents at call time do not matter
 // after returning, d will contain the last step of the last rollout
-void _unsafe_rollout(const mjModel* m, mjData* d, int nstate, int nstep,
-                     const mjtNum* state0, const mjtNum* ctrl,
-                     const mjtNum* qfrc, const mjtNum* xfrc,
-                     const mjtNum* mocap, const mjtNum* time0,
-                     const mjtNum* warmstart0,
+void _unsafe_rollout(const mjModel* m, mjData* d, int nroll, int nstep, unsigned int control_spec,
+                     const mjtNum* state0, const mjtNum* warmstart0, const mjtNum* control,
                      mjtNum* state, mjtNum* sensordata) {
-  // model sizes
-  int nq = m->nq;
-  int nv = m->nv;
-  int na = m->na;
-  int nqva = nq + nv + na;
-  int nu = m->nu;
-  int nbody = m->nbody;
-  int nmocap = m->nmocap;
+  // sizes
+  int nstate = mj_stateSize(m, mjSTATE_FULLPHYSICS);
+  int ncontrol = mj_stateSize(m, control_spec);
+  int nv = m->nv, nbody = m->nbody, neq = m->neq;
   int nsensordata = m->nsensordata;
 
-  // loop over initial states
-  for (int s=0; s < nstate; s++) {
-
-    // set initial state
-    if (state0) {
-      mju_copy(d->qpos, state0 + s*nqva, nq);
-      mju_copy(d->qvel, state0 + s*nqva + nq, nv);
-      mju_copy(d->act,  state0 + s*nqva + nq + nv, na);
-    } else {
-      mju_copy(d->qpos, m->qpos0, nq);
-      mju_zero(d->qvel, nv);
-      mju_zero(d->act, na);
+  // clear user inputs if unspecified
+  if (!(control_spec & mjSTATE_CTRL)) {
+    mju_zero(d->ctrl, m->nu);
+  }
+  if (!(control_spec & mjSTATE_QFRC_APPLIED)) {
+    mju_zero(d->qfrc_applied, nv);
+  }
+  if (!(control_spec & mjSTATE_XFRC_APPLIED)) {
+    mju_zero(d->xfrc_applied, 6*nbody);
+  }
+  if (!(control_spec & mjSTATE_MOCAP_POS)) {
+    for (int i = 0; i < nbody; i++) {
+      int id = m->body_mocapid[i];
+      if (id >= 0) mju_copy3(d->mocap_pos+3*id, m->body_pos+3*i);
     }
+  }
+  if (!(control_spec & mjSTATE_MOCAP_QUAT)) {
+    for (int i = 0; i < nbody; i++) {
+      int id = m->body_mocapid[i];
+      if (id >= 0) mju_copy4(d->mocap_quat+4*id, m->body_quat+4*i);
+    }
+  }
+  if (!(control_spec & mjSTATE_EQ_ACTIVE)) {
+    for (int i = 0; i < neq; i++) {
+      d->eq_active[i] = m->eq_active0[i];
+    }
+  }
 
-    // set initial time
-    d->time = time0 ? time0[s] : 0;
+  // loop over rollouts
+  for (int r = 0; r < nroll; r++) {
+    // set initial state
+    mj_setState(m, d, state0 + r*nstate, mjSTATE_FULLPHYSICS);
 
     // set warmstart accelerations
     if (warmstart0) {
-      mju_copy(d->qacc_warmstart, warmstart0 + s*nv, nv);
+      mju_copy(d->qacc_warmstart, warmstart0 + r*nv, nv);
     } else {
       mju_zero(d->qacc_warmstart, nv);
     }
 
-    // clear control inputs if unspecified
-    if (s == 0) {
-      if (!ctrl) {
-        mju_zero(d->ctrl, nu);
-      }
-      if (!qfrc) {
-        mju_zero(d->qfrc_applied, nv);
-      }
-      if (!xfrc) {
-        mju_zero(d->xfrc_applied, 6*nbody);
-      }
-      if (!mocap) {
-        for (int j=0; j<nbody; j++) {
-          int id = m->body_mocapid[j];
-          if (id>=0) {
-            mju_copy3(d->mocap_pos+3*id, m->body_pos+3*j);
-            mju_copy4(d->mocap_quat+4*id, m->body_quat+4*j);
-          }
-        }
-      }
+    // clear warning counters
+    for (int i = 0; i < mjNWARNING; i++) {
+      d->warning[i].number = 0;
     }
 
-    // roll out trajectories
+    // roll out trajectory
     for (int t = 0; t < nstep; t++) {
+      // check for warnings
+      bool nwarning = false;
+      for (int i = 0; i < mjNWARNING; i++) {
+        if (d->warning[i].number) {
+          nwarning = true;
+          break;
+        }
+      }
+
+      // if any warnings, fill remaining outputs with current outputs, break
+      if (nwarning) {
+        for (; t < nstep; t++) {
+          int step = r*nstep + t;
+          if (state) {
+            mj_getState(m, d, state + step*nstate, mjSTATE_FULLPHYSICS);
+          }
+          if (sensordata) {
+            mju_copy(sensordata + step*nsensordata, d->sensordata, nsensordata);
+          }
+        }
+        break;
+      }
+
+      int step = r*nstep + t;
+
       // controls
-      if (ctrl) {
-        mju_copy(d->ctrl, ctrl + s*nstep*nu + t*nu, nu);
-      }
-      // generalized forces
-      if (qfrc) {
-        mju_copy(d->qfrc_applied, qfrc + s*nstep*nv + t*nv, nv);
-      }
-      // Cartesian wrenches
-      if (xfrc) {
-        mju_copy(d->xfrc_applied, xfrc + s*nstep*6*nbody + t*6*nbody, 6*nbody);
-      }
-      // mocap bodies
-      if (mocap) {
-        mju_copy(d->mocap_pos,
-                 mocap + s*nstep*7*nmocap + t*7*nmocap, 3*nmocap);
-        mju_copy(d->mocap_quat,
-                 mocap + s*nstep*7*nmocap + t*7*nmocap + 3*nmocap, 4*nmocap);
+      if (control) {
+        mj_setState(m, d, control + step*ncontrol, control_spec);
       }
 
       // step
@@ -145,23 +146,22 @@ void _unsafe_rollout(const mjModel* m, mjData* d, int nstate, int nstep,
 
       // copy out new state
       if (state) {
-        mju_copy(state + s*nstep*nqva + t*nqva,           d->qpos, nq);
-        mju_copy(state + s*nstep*nqva + t*nqva + nq,      d->qvel, nv);
-        mju_copy(state + s*nstep*nqva + t*nqva + nq + nv, d->act,  na);
+        mj_getState(m, d, state + step*nstate, mjSTATE_FULLPHYSICS);
       }
+
       // copy out sensor values
       if (sensordata) {
-        mju_copy(sensordata + s*nstep*nsensordata + t*nsensordata,
-                 d->sensordata, nsensordata);
+        mju_copy(sensordata + step*nsensordata, d->sensordata, nsensordata);
       }
     }
   }
 }
 
+// NOLINTEND(whitespace/line_length)
 
 // check size of optional argument to rollout(), return raw pointer
 mjtNum* get_array_ptr(std::optional<const py::array_t<mjtNum>> arg,
-                      const char* name, int nstate, int nstep, int dim) {
+                      const char* name, int nroll, int nstep, int dim) {
   // if empty return nullptr
   if (!arg.has_value()) {
     return nullptr;
@@ -171,10 +171,10 @@ mjtNum* get_array_ptr(std::optional<const py::array_t<mjtNum>> arg,
   py::buffer_info info = arg->request();
 
   // check size
-  int expected_size = nstate * nstep * dim;
+  int expected_size = nroll * nstep * dim;
   if (info.size != expected_size) {
     std::ostringstream msg;
-    msg << name << ".size should be " << expected_size <<  ", got " << info.size;
+    msg << name << ".size should be " << expected_size << ", got " << info.size;
     throw py::value_error(msg.str());
   }
   return static_cast<mjtNum*>(info.ptr);
@@ -189,44 +189,35 @@ PYBIND11_MODULE(_rollout, pymodule) {
   // get subsequent states and corresponding sensor values
   pymodule.def(
       "rollout",
-      [](const MjModelWrapper& m, MjDataWrapper& d, int nstate, int nstep,
-         std::optional<const PyCArray> init_state,
-         std::optional<const PyCArray> init_time,
-         std::optional<const PyCArray> init_warmstart,
-         std::optional<const PyCArray> ctrl,
-         std::optional<const PyCArray> qfrc,
-         std::optional<const PyCArray> xfrc,
-         std::optional<const PyCArray> mocap,
+      [](const MjModelWrapper& m, MjDataWrapper& d,
+         int nroll, int nstep, unsigned int control_spec,
+         const PyCArray state0,
+         std::optional<const PyCArray> warmstart0,
+         std::optional<const PyCArray> control,
          std::optional<const PyCArray> state,
          std::optional<const PyCArray> sensordata
          ) {
-
         const raw::MjModel* model = m.get();
         raw::MjData* data = d.get();
 
         // check that some steps need to be taken, return if not
-        if (nstate < 1 || nstep < 1) {
+        if (nroll < 1 || nstep < 1) {
           return;
         }
 
+        // get sizes
+        int nstate = mj_stateSize(model, mjSTATE_FULLPHYSICS);
+        int ncontrol = mj_stateSize(model, control_spec);
+
         // get raw pointers
-        int nqva = model->nq + model->nv + model->na;
-        mjtNum* init_state_ptr =
-            get_array_ptr(init_state, "initial_state", nstate, 1, nqva);
-        mjtNum* ctrl_ptr = get_array_ptr(ctrl, "ctrl", nstate, nstep, model->nu);
-        mjtNum* qfrc_ptr =
-            get_array_ptr(qfrc, "qfrc_applied", nstate, nstep, model->nv);
-        mjtNum* xfrc_ptr =
-            get_array_ptr(xfrc, "xfrc_applied", nstate, nstep, 6*model->nbody);
-        mjtNum* mocap_ptr =
-            get_array_ptr(mocap, "mocap", nstate, nstep, 7*model->nmocap);
-        mjtNum* init_time_ptr =
-            get_array_ptr(init_time, "init_time", nstate, 1, 1);
-        mjtNum* init_warmstart_ptr =
-            get_array_ptr(init_warmstart, "init_warmstart", nstate, 1, model->nv);
-        mjtNum* state_ptr = get_array_ptr(state, "state", nstate, nstep, nqva);
-        mjtNum* sensordata_ptr =
-            get_array_ptr(sensordata, "sensordata", nstate, nstep, model->nsensordata);
+        mjtNum* state0_ptr = get_array_ptr(state0, "state0", nroll, 1, nstate);
+        mjtNum* warmstart0_ptr = get_array_ptr(warmstart0, "warmstart0", nroll,
+                                               1, model->nv);
+        mjtNum* control_ptr = get_array_ptr(control, "control", nroll,
+                                            nstep, ncontrol);
+        mjtNum* state_ptr = get_array_ptr(state, "state", nroll, nstep, nstate);
+        mjtNum* sensordata_ptr = get_array_ptr(sensordata, "sensordata", nroll,
+                                               nstep, model->nsensordata);
 
         // perform rollouts
         {
@@ -235,29 +226,25 @@ PYBIND11_MODULE(_rollout, pymodule) {
 
           // call unsafe rollout function
           InterceptMjErrors(_unsafe_rollout)(
-              model, data, nstate, nstep, init_state_ptr, ctrl_ptr, qfrc_ptr,
-              xfrc_ptr, mocap_ptr, init_time_ptr, init_warmstart_ptr, state_ptr,
-              sensordata_ptr);
+              model, data, nroll, nstep, control_spec, state0_ptr,
+              warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr);
         }
       },
       py::arg("model"),
       py::arg("data"),
-      py::arg("nstate"),
+      py::arg("nroll"),
       py::arg("nstep"),
-      py::arg("initial_state")     = py::none(),
-      py::arg("initial_time")      = py::none(),
-      py::arg("initial_warmstart") = py::none(),
-      py::arg("ctrl")              = py::none(),
-      py::arg("qfrc_applied")      = py::none(),
-      py::arg("xfrc_applied")      = py::none(),
-      py::arg("mocap")             = py::none(),
-      py::arg("state")             = py::none(),
-      py::arg("sensordata")        = py::none(),
+      py::arg("control_spec"),
+      py::arg("state0"),
+      py::arg("warmstart0") = py::none(),
+      py::arg("control")    = py::none(),
+      py::arg("state")      = py::none(),
+      py::arg("sensordata") = py::none(),
       py::doc(rollout_doc)
   );
+}
 
 }  // namespace
 
-}
+}  // namespace mujoco::python
 
-}

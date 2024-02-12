@@ -136,20 +136,23 @@ def com_pos(m: Model, d: Data) -> Data:
   pos, mass = scan.body_tree(
       m, subtree_sum, 'bb', 'bb', d.xipos, m.body_mass, reverse=True
   )
-  cond = jp.tile(mass < jp.array(mujoco.mjMINVAL), (3, 1)).T
-  subtree_com = jp.where(cond, d.xipos, jax.vmap(jp.divide)(pos, mass))
+  cond = jp.tile(mass < mujoco.mjMINVAL, (3, 1)).T
+  # take maximum to avoid NaN in gradient of jp.where
+  subtree_com = jax.vmap(jp.divide)(pos, jp.maximum(mass, mujoco.mjMINVAL))
+  subtree_com = jp.where(cond, d.xipos, subtree_com)
   d = d.replace(subtree_com=subtree_com)
 
   # map inertias to frame centered at subtree_com
   @jax.vmap
   def inert_com(inert, ximat, off, mass):
     h = jp.cross(off, -jp.eye(3))
-    inert = ximat @ jp.diag(inert) @ ximat.T + h @ h.T * mass
+    inert = math.matmul_unroll((ximat * inert), ximat.T)
+    inert += math.matmul_unroll(h, h.T) * mass
     # cinert is triu(inert), mass * off, mass
-    inert = inert[(jp.array([0, 1, 2, 0, 0, 1]), jp.array([0, 1, 2, 1, 2, 2]))]
-    return jp.concatenate([inert, off * mass, jp.expand_dims(mass, 0)])
+    inert = inert[([0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2])]
+    return jp.concatenate([inert, off * mass, mass[None]])
 
-  root_com = subtree_com[jp.array(m.body_rootid)]
+  root_com = subtree_com[m.body_rootid]
   offset = d.xipos - root_com
   cinert = inert_com(m.body_inertia, d.ximat, offset, m.body_mass)
   d = d.replace(cinert=cinert)
@@ -208,36 +211,21 @@ def crb(m: Model, d: Data) -> Data:
   crb_body = crb_body.at[0].set(0.0)
   d = d.replace(crb=crb_body)
 
-  # TODO(erikfrey): do centralized take fn?
   crb_dof = jp.take(crb_body, jp.array(m.dof_bodyid), axis=0)
   crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
-
-  dof_i, dof_j, diag = [], [], []
-  for i in range(m.nv):
-    diag.append(len(dof_i))
-    j = i
-    while j > -1:
-      dof_i, dof_j = dof_i + [i], dof_j + [j]
-      j = m.dof_parentid[j]
-
-  crb_codf_i = jp.take(crb_cdof, jp.array(dof_i), axis=0)
-  cdof_j = jp.take(d.cdof, jp.array(dof_j), axis=0)
-  qm = jax.vmap(jp.dot)(crb_codf_i, cdof_j)
-
-  # add armature to diagonal
-  qm = qm.at[jp.array(diag)].add(m.dof_armature)
-
+  qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
   d = d.replace(qM=qm)
 
   return d
 
 
-def factor_m(
-    m: Model,
-    d: Data,
-    qM: jax.Array,  # pylint:disable=invalid-name
-) -> Data:
-  """Gets sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd."""
+def factor_m(m: Model, d: Data) -> Data:
+  """Gets factorizaton of inertia-like matrix M, assumed spd."""
+
+  if not support.is_sparse(m):
+    qh, _ = jax.scipy.linalg.cho_factor(d.qM)
+    d = d.replace(qLD=qh)
+    return d
 
   # build up indices for where we will do backwards updates over qLD
   # TODO(erikfrey): do fewer updates by combining non-overlapping ranges
@@ -255,7 +243,7 @@ def factor_m(
       madr_j_range = tuple(m.dof_Madr[j : j + 2])
       updates.setdefault(madr_j_range, []).append((madr_d, madr_ij))
 
-  qld = qM
+  qld = d.qM
 
   for (out_beg, out_end), vals in sorted(updates.items(), reverse=True):
     madr_d, madr_ij = jp.array(vals).T
@@ -281,6 +269,9 @@ def factor_m(
 def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
   """Computes sparse backsubstitution:  x = inv(L'*D*L)*y ."""
 
+  if not support.is_sparse(m):
+    return jax.scipy.linalg.cho_solve((d.qLD, False), x)
+
   updates_i, updates_j = {}, {}
   for i in range(m.nv):
     madr_ij, j = m.dof_Madr[i], i
@@ -305,52 +296,6 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
     x = x.at[i].add(-jp.sum(d.qLD[madr_ij] * x[j]))
 
   return x
-
-
-def dense_m(m: Model, d: Data) -> jax.Array:
-  """Reconstitute dense mass matrix from qM."""
-
-  is_, js, madr_ijs = [], [], []
-  for i in range(m.nv):
-    madr_ij, j = m.dof_Madr[i], i
-
-    while True:
-      madr_ij, j = madr_ij + 1, m.dof_parentid[j]
-      if j == -1:
-        break
-      is_, js, madr_ijs = is_ + [i], js + [j], madr_ijs + [madr_ij]
-
-  i, j, madr_ij = (jp.array(x, dtype=jp.int32) for x in (is_, js, madr_ijs))
-
-  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d.qM[madr_ij])
-
-  # diagonal, upper triangular, lower triangular
-  mat = jp.diag(d.qM[jp.array(m.dof_Madr)]) + mat + mat.T
-
-  return mat
-
-
-def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
-  """Multiply vector by inertia matrix."""
-
-  diag_mul = d.qM[jp.array(m.dof_Madr)] * vec
-
-  is_, js, madr_ijs = [], [], []
-  for i in range(m.nv):
-    madr_ij, j = m.dof_Madr[i], i
-
-    while True:
-      madr_ij, j = madr_ij + 1, m.dof_parentid[j]
-      if j == -1:
-        break
-      is_, js, madr_ijs = is_ + [i], js + [j], madr_ijs + [madr_ij]
-
-  i, j, madr_ij = (jp.array(x, dtype=jp.int32) for x in (is_, js, madr_ijs))
-
-  out = diag_mul.at[i].add(d.qM[madr_ij] * vec[j])
-  out = out.at[j].add(d.qM[madr_ij] * vec[i])
-
-  return out
 
 
 def com_vel(m: Model, d: Data) -> Data:

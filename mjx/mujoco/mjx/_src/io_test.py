@@ -25,7 +25,7 @@ import numpy as np
 
 _MULTIPLE_CONVEX_OBJECTS = """
   <mujoco>
-    <option timestep="0.001"/>
+    <option timestep="0.001" jacobian="dense"/>
     <default>
       <geom solref=".006 1"/>
     </default>
@@ -224,7 +224,6 @@ class DataIOTest(parameterized.TestCase):
     ncon = 46
     nv = 19
     nefc = 185
-    nm = 64
 
     self.assertEqual(d.qpos.shape, (nq,))
     self.assertEqual(d.qvel.shape, (nv,))
@@ -251,10 +250,9 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d.crb.shape, (nbody, 10))
     self.assertEqual(d.actuator_length.shape, (1,))
     self.assertEqual(d.actuator_moment.shape, (1, nv))
-    self.assertEqual(d.qM.shape, (nm,))
-    self.assertEqual(d.qLD.shape, (nm,))
-    self.assertEqual(d.qLDiagInv.shape, (nv,))
-    self.assertEqual(d.qLDiagSqrtInv.shape, (nv,))
+    self.assertEqual(d.qM.shape, (nv, nv))
+    self.assertEqual(d.qLD.shape, (nv, nv))
+    self.assertEqual(d.qLDiagInv.shape, (0,))
     self.assertEqual(d.contact.dist.shape, (ncon,))
     self.assertEqual(d.contact.pos.shape, (ncon, 3))
     self.assertEqual(d.contact.frame.shape, (ncon, 3, 3))
@@ -291,7 +289,11 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.xpos, d.xpos)
     np.testing.assert_allclose(dx.cvel, d.cvel)
     np.testing.assert_allclose(dx.cdof_dot, d.cdof_dot)
-    np.testing.assert_allclose(dx.qM, d.qM)
+
+    # check that qM is transformed properly
+    qm = np.zeros((m.nv, m.nv), dtype=np.float64)
+    mujoco.mj_fullM(m, qm, d.qM)
+    np.testing.assert_allclose(qm, mjx.full_m(mjx.put_model(m), dx))
 
     # 4 contacts, 2 for each capsule against the plane
     self.assertEqual(dx.contact.dist.shape, (4,))
@@ -335,8 +337,22 @@ class DataIOTest(parameterized.TestCase):
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 2)
-    dx_from_sparse = mjx.put_data(m, d)
-    np.testing.assert_allclose(dx_from_sparse.efc_J, dx.efc_J, atol=1e-8)
+    dx_sparse = mjx.put_data(m, d)
+    np.testing.assert_allclose(dx_sparse.efc_J, dx.efc_J, atol=1e-8)
+
+    # check sparse mass matrices are correct
+    np.testing.assert_allclose(dx_sparse.qM, d.qM, atol=1e-8)
+    np.testing.assert_allclose(dx_sparse.qLD, d.qLD, atol=1e-8)
+    np.testing.assert_allclose(dx_sparse.qLDiagInv, d.qLDiagInv, atol=1e-8)
+
+    # check dense mass matrices are correct
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx_from_dense = mjx.put_data(m, d)
+    qm = np.zeros((m.nv, m.nv))
+    mujoco.mj_fullM(m, qm, d.qM)
+    np.testing.assert_allclose(dx_from_dense.qM, qm, atol=1e-8)
 
   def test_get_data(self):
     """Test that get_data makes correct MjData."""
@@ -396,6 +412,27 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(ds[0].ncon, 1)
     self.assertEqual(ds[1].ncon, 0)
 
+  def test_get_data_into(self):
+    """Test that get_data_into correctly populates an MjData."""
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d)
+    d_2 = mujoco.MjData(m)
+    mjx.get_data_into(d_2, m, dx)
+
+    # check a few fields
+    np.testing.assert_allclose(d_2.qpos, d.qpos)
+    np.testing.assert_allclose(d_2.xpos, d.xpos)
+    np.testing.assert_allclose(d_2.qM, d.qM)
+
+    # only 1 contact active
+    self.assertEqual(d_2.contact.dist.shape, (1,))
+    self.assertEqual(d_2.ncon, 1)
+    np.testing.assert_allclose(d_2.contact.dist, d.contact.dist)
+    self.assertEqual(d_2.contact.frame.shape, (1, 9))
+    np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
 if __name__ == '__main__':
   absltest.main()

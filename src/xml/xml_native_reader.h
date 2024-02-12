@@ -42,8 +42,8 @@ class mjXReader : public mjXBase {
   void Visual(tinyxml2::XMLElement* section);                          // visual section
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section
   void Asset(tinyxml2::XMLElement* section);                           // asset section
-  void Body(tinyxml2::XMLElement* section, mjCBody* pbody,
-            mjCFrame* pframe);                                         // body/world section
+  void Body(tinyxml2::XMLElement* section, mjmBody* pbody,
+            mjmFrame* pframe);                                         // body/world section
   void Contact(tinyxml2::XMLElement* section);                         // contact section
   void Deformable(tinyxml2::XMLElement* section);                      // deformable section
   void Equality(tinyxml2::XMLElement* section);                        // equality section
@@ -56,19 +56,19 @@ class mjXReader : public mjXBase {
   void OneFlex(tinyxml2::XMLElement* elem, mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem, mjCMesh* pmesh);
   void OneSkin(tinyxml2::XMLElement* elem, mjCSkin* pskin);
-  void OneMaterial(tinyxml2::XMLElement* elem, mjCMaterial* pmaterial);
-  void OneJoint(tinyxml2::XMLElement* elem, mjCJoint* pjoint);
-  void OneGeom(tinyxml2::XMLElement* elem, mjCGeom* pgeom);
-  void OneSite(tinyxml2::XMLElement* elem, mjCSite* psite);
-  void OneCamera(tinyxml2::XMLElement* elem, mjCCamera* pcamera);
-  void OneLight(tinyxml2::XMLElement* elem, mjCLight* plight);
+  void OneMaterial(tinyxml2::XMLElement* elem, mjmMaterial* pmaterial);
+  void OneJoint(tinyxml2::XMLElement* elem, mjmJoint* pjoint);
+  void OneGeom(tinyxml2::XMLElement* elem, mjmGeom* pgeom);
+  void OneSite(tinyxml2::XMLElement* elem, mjmSite& site);
+  void OneCamera(tinyxml2::XMLElement* elem, mjmCamera* pcamera);
+  void OneLight(tinyxml2::XMLElement* elem, mjmLight* plight);
   void OnePair(tinyxml2::XMLElement* elem, mjCPair* ppair);
-  void OneEquality(tinyxml2::XMLElement* elem, mjCEquality* pequality);
-  void OneTendon(tinyxml2::XMLElement* elem, mjCTendon* ptendon);
-  void OneActuator(tinyxml2::XMLElement* elem, mjCActuator* pactuator);
-  void OneComposite(tinyxml2::XMLElement* elem, mjCBody* pbody, mjCDef* def);
-  void OneFlexcomp(tinyxml2::XMLElement* elem, mjCBody* pbody);
-  void OnePlugin(tinyxml2::XMLElement* elem, mjCBase* object);
+  void OneEquality(tinyxml2::XMLElement* elem, mjmEquality* pequality);
+  void OneTendon(tinyxml2::XMLElement* elem, mjmTendon* ptendon);
+  void OneActuator(tinyxml2::XMLElement* elem, mjmActuator* pactuator);
+  void OneComposite(tinyxml2::XMLElement* elem, mjmBody* pbody, mjCDef* def);
+  void OneFlexcomp(tinyxml2::XMLElement* elem, mjmBody* pbody);
+  void OnePlugin(tinyxml2::XMLElement* elem, mjmPlugin* plugin);
 
   mjXSchema schema;                                                   // schema used for validation
   mjCDef* GetClass(tinyxml2::XMLElement* section);                    // get default class name

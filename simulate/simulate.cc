@@ -896,6 +896,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m, int oldstate)
     {mjITEM_EDITNUM,   "Extent",          2, &(stat->extent),              "1"},
     {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
     {mjITEM_RADIO,     "Inertia",         5, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
+    {mjITEM_RADIO,     "BVH active",      5, &(vis->global.bvactive), "False\nTrue"},
     {mjITEM_SEPARATOR, "Map",  1},
     {mjITEM_EDITFLOAT, "Stiffness",       2, &(vis->map.stiffness),        "1"},
     {mjITEM_EDITFLOAT, "Rot stiffness",   2, &(vis->map.stiffnessrot),     "1"},
@@ -1261,7 +1262,7 @@ int ComputeFontScale(const mj::PlatformUIAdapter& platform_ui) {
     fs = 150;
   }
   fs = mju_round(fs * 0.02) * 50;
-  fs = mjMIN(300, mjMAX(100, fs));
+  fs = mjMIN(250, mjMAX(100, fs));
 
   return fs;
 }
@@ -2090,6 +2091,18 @@ void Simulate::Sync() {
       }
     }
 
+    // pick up rendering flags changed via user_scn
+    if (user_scn) {
+      for (int i = 0; i < mjNRNDFLAG; ++i) {
+        if (user_scn->flags[i] != user_scn_flags_prev_[i]) {
+          scn.flags[i] = user_scn->flags[i];
+          pending_.ui_update_rendering = true;
+        }
+      }
+      Copy(user_scn->flags, scn.flags);
+      Copy(user_scn_flags_prev_, user_scn->flags);
+    }
+
     mjopt_prev_ = scnstate_.model.opt;
     warn_vgeomfull_prev_ = scnstate_.data.warning[mjWARN_VGEOMFULL].number;
   }
@@ -2267,6 +2280,11 @@ void Simulate::LoadOnRenderThread() {
   if (!this->platform_ui->IsGPUAccelerated()) {
     this->scn.flags[mjRND_SHADOW] = 0;
     this->scn.flags[mjRND_REFLECTION] = 0;
+  }
+
+  if (this->user_scn) {
+    Copy(this->user_scn->flags, this->scn.flags);
+    Copy(this->user_scn_flags_prev_, this->scn.flags);
   }
 
   // clear perturbation state

@@ -352,6 +352,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              type=ValueType(name='int'),
                              doc='geom for inertia visualization (0: box, 1: ellipsoid)',  # pylint: disable=line-too-long
                          ),
+                         StructFieldDecl(
+                             name='bvactive',
+                             type=ValueType(name='int'),
+                             doc='visualize active bounding volumes (0: no, 1: yes)',  # pylint: disable=line-too-long
+                         ),
                      ),
                  ),
                  doc='',
@@ -779,6 +784,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                                  extents=(4,),
                              ),
                              doc='camera frustum',
+                         ),
+                         StructFieldDecl(
+                             name='bv',
+                             type=ArrayType(
+                                 inner_type=ValueType(name='float'),
+                                 extents=(4,),
+                             ),
+                             doc='bounding volume',
+                         ),
+                         StructFieldDecl(
+                             name='bvactive',
+                             type=ArrayType(
+                                 inner_type=ValueType(name='float'),
+                                 extents=(4,),
+                             ),
+                             doc='active bounding volume',
                          ),
                      ),
                  ),
@@ -4154,7 +4175,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='timer',
                  type=ArrayType(
                      inner_type=ValueType(name='mjTimerStat'),
-                     extents=(16,),
+                     extents=(15,),
                  ),
                  doc='timer statistics',
              ),

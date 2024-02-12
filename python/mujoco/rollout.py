@@ -14,132 +14,144 @@
 # ==============================================================================
 """Roll out open-loop trajectories from initial states, get subsequent states and sensor values."""
 
+from typing import Optional
+
+import mujoco
 from mujoco import _rollout
 import numpy as np
+from numpy import typing as npt
 
 
-def rollout(model, data, initial_state=None, ctrl=None,
-            *,  # require following arguments to be named
-            skip_checks=False,
-            nstate=None,
-            nstep=None,
-            initial_time=None,
-            initial_warmstart=None,
-            qfrc_applied=None,
-            xfrc_applied=None,
-            mocap=None,
-            state=None,
-            sensordata=None):
-  """Roll out open-loop trajectories from initial states, get subsequent states and sensor values.
+def rollout(model: mujoco.MjModel,
+            data: mujoco.MjData,
+            initial_state: npt.ArrayLike,
+            control: Optional[npt.ArrayLike] = None,
+            *,  # require subsequent arguments to be named
+            control_spec: int = mujoco.mjtState.mjSTATE_CTRL.value,
+            skip_checks: bool = False,
+            nroll: Optional[int] = None,
+            nstep: Optional[int] = None,
+            initial_warmstart: Optional[npt.ArrayLike] = None,
+            state: Optional[npt.ArrayLike] = None,
+            sensordata: Optional[npt.ArrayLike] = None):
+  """Rolls out open-loop trajectories from initial states, get subsequent states and sensor values.
 
-    This function serves as a Python wrapper for the C++ functionality in
-    `rollout.cc`, please see documentation therein. This python funtion will
-    infer `nstate` and `nstep`, tile input arguments with singleton dimensions,
-    and allocate output arguments if none are given.
+  Python wrapper for rollout.cc, see documentation therein.
+  Infers nroll and nstep.
+  Tiles inputs with singleton dimensions.
+  Allocates outputs if none are given.
+
+  Args:
+    model: An mjModel instance.
+    data: An associated mjData instance.
+    initial_state: Array of initial states from which to roll out trajectories.
+      ([nroll or 1] x nstate)
+    control: Open-loop controls array to apply during the rollouts.
+      ([nroll or 1] x [nstep or 1] x ncontrol)
+    control_spec: mjtState specification of control vectors.
+    skip_checks: Whether to skip internal shape and type checks.
+    nroll: Number of rollouts (inferred if unspecified).
+    nstep: Number of steps in rollouts (inferred if unspecified).
+    initial_warmstart: Initial qfrc_warmstart array (optional).
+      ([nroll or 1] x nv)
+    state: State output array (optional).
+      (nroll x nstep x nstate)
+    sensordata: Sensor data output array (optional).
+      (nroll x nstep x nsensordata)
+
+  Returns:
+    state:
+      State output array, (nroll x nstep x nstate).
+    sensordata:
+      Sensor data output array, (nroll x nstep x nsensordata).
+
+  Raises:
+    ValueError: bad shapes or sizes.
   """
-  # don't infer nstate/nstep, don't support singleton expansion, don't allocate
-  # output arrays, just call rollout
+  # skip_checks shortcut:
+  #   don't infer nroll/nstep
+  #   don't support singleton expansion
+  #   don't allocate output arrays
+  #   just call rollout and return
   if skip_checks:
-    _rollout.rollout(model, data, nstate, nstep, initial_state, initial_time,
-                     initial_warmstart, ctrl, qfrc_applied, xfrc_applied, mocap,
-                     state, sensordata)
+    _rollout.rollout(model, data, nroll, nstep, control_spec, initial_state,
+                     initial_warmstart, control, state, sensordata)
     return state, sensordata
 
+  # check control_spec
+  if control_spec & ~mujoco.mjtState.mjSTATE_USER.value:
+    raise ValueError('control_spec can only contain bits in mjSTATE_USER')
+
   # check types
-  if nstate and not isinstance(nstate, int):
-    raise ValueError('nstate must be an integer')
+  if nroll and not isinstance(nroll, int):
+    raise ValueError('nroll must be an integer')
   if nstep and not isinstance(nstep, int):
     raise ValueError('nstep must be an integer')
   _check_must_be_numeric(
       initial_state=initial_state,
-      initial_time=initial_time,
       initial_warmstart=initial_warmstart,
-      ctrl=ctrl,
-      qfrc_applied=qfrc_applied,
-      xfrc_applied=xfrc_applied,
-      mocap=mocap,
+      control=control,
       state=state,
       sensordata=sensordata)
 
   # check number of dimensions
   _check_number_of_dimensions(2,
                               initial_state=initial_state,
-                              initial_time=initial_time,
                               initial_warmstart=initial_warmstart)
   _check_number_of_dimensions(3,
-                              ctrl=ctrl,
-                              qfrc_applied=qfrc_applied,
-                              xfrc_applied=xfrc_applied,
-                              mocap=mocap,
+                              control=control,
                               state=state,
                               sensordata=sensordata)
 
   # ensure 2D, make contiguous, row-major (C ordering)
   initial_state = _ensure_2d(initial_state)
-  initial_time = _ensure_2d(initial_time)
   initial_warmstart = _ensure_2d(initial_warmstart)
 
   # ensure 3D, make contiguous, row-major (C ordering)
-  ctrl = _ensure_3d(ctrl)
-  qfrc_applied = _ensure_3d(qfrc_applied)
-  xfrc_applied = _ensure_3d(xfrc_applied)
-  mocap = _ensure_3d(mocap)
+  control = _ensure_3d(control)
   state = _ensure_3d(state)
   sensordata = _ensure_3d(sensordata)
 
   # check trailing dimensions
-  _check_trailing_dimension(model.nq + model.nv + model.na,
-                            initial_state=initial_state, state=state)
-  _check_trailing_dimension(1, initial_time=initial_time)
-  _check_trailing_dimension(model.nu, ctrl=ctrl)
-  _check_trailing_dimension(model.nv, qfrc_applied=qfrc_applied)
-  _check_trailing_dimension(model.nbody*6, xfrc_applied=xfrc_applied)
-  _check_trailing_dimension(model.nmocap*7, mocap=mocap)
+  nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
+  _check_trailing_dimension(nstate, initial_state=initial_state, state=state)
+  ncontrol = mujoco.mj_stateSize(model, control_spec)
+  _check_trailing_dimension(ncontrol, control=control)
+  _check_trailing_dimension(model.nv, initial_warmstart=initial_warmstart)
   _check_trailing_dimension(model.nsensordata, sensordata=sensordata)
 
-  # infer nstate, check for incompatibilities
-  nstate = _infer_dimension(0, nstate or 1,
-                            initial_state=initial_state,
-                            initial_time=initial_time,
-                            initial_warmstart=initial_warmstart,
-                            ctrl=ctrl,
-                            qfrc_applied=qfrc_applied,
-                            xfrc_applied=xfrc_applied,
-                            mocap=mocap,
-                            state=state,
-                            sensordata=sensordata)
+  # infer nroll, check for incompatibilities
+  nroll = _infer_dimension(0, nroll or 1,
+                           initial_state=initial_state,
+                           initial_warmstart=initial_warmstart,
+                           control=control,
+                           state=state,
+                           sensordata=sensordata)
 
   # infer nstep, check for incompatibilities
   nstep = _infer_dimension(1, nstep or 1,
-                           ctrl=ctrl,
-                           qfrc_applied=qfrc_applied,
-                           xfrc_applied=xfrc_applied,
-                           mocap=mocap,
+                           control=control,
                            state=state,
                            sensordata=sensordata)
 
   # tile input arrays if required (singleton expansion)
-  initial_state = _tile_if_required(initial_state, nstate)
-  initial_time = _tile_if_required(initial_time, nstate)
-  initial_warmstart = _tile_if_required(initial_warmstart, nstate)
-  ctrl = _tile_if_required(ctrl, nstate, nstep)
-  qfrc_applied = _tile_if_required(qfrc_applied, nstate, nstep)
-  xfrc_applied = _tile_if_required(xfrc_applied, nstate, nstep)
-  mocap = _tile_if_required(mocap, nstate, nstep)
+  initial_state = _tile_if_required(initial_state, nroll)
+  initial_warmstart = _tile_if_required(initial_warmstart, nroll)
+  control = _tile_if_required(control, nroll, nstep)
 
   # allocate output if not provided
   if state is None:
-    state = np.empty((nstate, nstep, model.nq + model.nv + model.na))
+    state = np.empty((nroll, nstep, nstate))
   if sensordata is None:
-    sensordata = np.empty((nstate, nstep, model.nsensordata))
+    sensordata = np.empty((nroll, nstep, model.nsensordata))
 
   # call rollout
-  _rollout.rollout(model, data, nstate, nstep, initial_state, initial_time,
-                   initial_warmstart, ctrl, qfrc_applied, xfrc_applied, mocap,
-                   state, sensordata)
+  _rollout.rollout(model, data, nroll, nstep, control_spec, initial_state,
+                   initial_warmstart, control, state, sensordata)
 
-  # return squeezed outputs
-  return state.squeeze(), sensordata.squeeze()
+  # return outputs
+  return state, sensordata
+
 
 def _check_must_be_numeric(**kwargs):
   for key, value in kwargs.items():
@@ -148,6 +160,7 @@ def _check_must_be_numeric(**kwargs):
     if not isinstance(value, np.ndarray) and not isinstance(value, float):
       raise ValueError(f'{key} must be a numpy array or float')
 
+
 def _check_number_of_dimensions(ndim, **kwargs):
   for key, value in kwargs.items():
     if value is None:
@@ -155,18 +168,23 @@ def _check_number_of_dimensions(ndim, **kwargs):
     if value.ndim > ndim:
       raise ValueError(f'{key} can have at most {ndim} dimensions')
 
+
 def _check_trailing_dimension(dim, **kwargs):
   for key, value in kwargs.items():
     if value is None:
       continue
     if value.shape[-1] != dim:
-      raise ValueError(f'trailing dimension of {key} must be {dim}, got {value.shape[-1]}')
+      raise ValueError(
+          f'trailing dimension of {key} must be {dim}, got {value.shape[-1]}'
+      )
+
 
 def _ensure_2d(arg):
   if arg is None:
     return None
   else:
     return np.ascontiguousarray(np.atleast_2d(arg), dtype=np.float64)
+
 
 def _ensure_3d(arg):
   if arg is None:
@@ -181,7 +199,22 @@ def _ensure_3d(arg):
       arg = arg[np.newaxis, ...]
     return np.ascontiguousarray(arg, dtype=np.float64)
 
+
 def _infer_dimension(dim, value, **kwargs):
+  """Infers dimension `dim` given guess `value` from set of arrays.
+
+  Args:
+    dim: Dimension to be inferred.
+    value: Initial guess of inferred value (1: unknown).
+    **kwargs: List of arrays which should all have the same size (or 1)
+      along dimension dim.
+
+  Returns:
+    Inferred dimension.
+
+  Raises:
+    ValueError: If mismatch between array shapes or initial guess.
+  """
   for name, array in kwargs.items():
     if array is None:
       continue
@@ -190,9 +223,11 @@ def _infer_dimension(dim, value, **kwargs):
         value = array.shape[dim]
       elif array.shape[dim] != 1:
         raise ValueError(
-            f'dimension {dim} inferred as {value} but {name} has {array.shape[dim]}'
+            f'dimension {dim} inferred as {value} '
+            f'but {name} has {array.shape[dim]}'
         )
   return value
+
 
 def _tile_if_required(array, dim0, dim1=None):
   if array is None:

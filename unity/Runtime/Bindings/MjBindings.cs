@@ -58,7 +58,7 @@ public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
-public const int mjMAXTHREADS = 128;
+public const int mjMAXTHREAD = 128;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
 public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
@@ -108,7 +108,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 312;
+public const int mjVERSION_HEADER = 313;
 
 
 // ------------------------------------Enums------------------------------------
@@ -138,9 +138,8 @@ public enum mjtTimer : int{
   mjTIMER_POS_MAKE = 11,
   mjTIMER_POS_PROJECT = 12,
   mjTIMER_COL_BROAD = 13,
-  mjTIMER_COL_MID = 14,
-  mjTIMER_COL_NARROW = 15,
-  mjNTIMER = 16,
+  mjTIMER_COL_NARROW = 14,
+  mjNTIMER = 15,
 }
 public enum mjtDisableBit : int{
   mjDSBL_CONSTRAINT = 1,
@@ -769,7 +768,6 @@ public unsafe struct mjData_ {
   public mjTimerStat_ timer12;
   public mjTimerStat_ timer13;
   public mjTimerStat_ timer14;
-  public mjTimerStat_ timer15;
   public mjSolverStat_ solver0;
   public mjSolverStat_ solver1;
   public mjSolverStat_ solver2;
@@ -4987,6 +4985,7 @@ public unsafe struct global {
   public int offwidth;
   public int offheight;
   public int ellipsoidinertia;
+  public int bvactive;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5069,6 +5068,8 @@ public unsafe struct rgba {
   public fixed float slidercrank[4];
   public fixed float crankbroken[4];
   public fixed float frustum[4];
+  public fixed float bv[4];
+  public fixed float bvactive[4];
 }
 
 [StructLayout(LayoutKind.Sequential)]

@@ -455,6 +455,33 @@ void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
 
 //------------------------------ actuator models ---------------------------------------------------
 
+// normalized muscle length-gain curve
+mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax) {
+  if (lmin <= length && length <= lmax) {
+    // mid-ranges (maximum is at 1.0)
+    mjtNum a = 0.5*(lmin+1);
+    mjtNum b = 0.5*(1+lmax);
+
+    if (length <= a) {
+      mjtNum x = (length-lmin) / mjMAX(mjMINVAL, a-lmin);
+      return 0.5*x*x;
+    } else if (length <= 1) {
+      mjtNum x = (1-length) / mjMAX(mjMINVAL, 1-a);
+      return 1 - 0.5*x*x;
+    } else if (length <= b) {
+      mjtNum x = (length-1) / mjMAX(mjMINVAL, b-1);
+      return 1 - 0.5*x*x;
+    } else {
+      mjtNum x = (lmax-length) / mjMAX(mjMINVAL, lmax-b);
+      return 0.5*x*x;
+    }
+  }
+
+  return 0.0;
+}
+
+
+
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)
 mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
                       mjtNum acc0, const mjtNum prm[9]) {
@@ -472,11 +499,6 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
     force = scale / mjMAX(mjMINVAL, acc0);
   }
 
-  // mid-ranges
-  mjtNum a = 0.5*(lmin+1);
-  mjtNum b = 0.5*(1+lmax);
-  mjtNum x;
-
   // optimum length
   mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mjMAX(mjMINVAL, range[1]-range[0]);
 
@@ -485,20 +507,7 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
   mjtNum V = vel / mjMAX(mjMINVAL, L0*vmax);
 
   // length curve
-  mjtNum FL = 0;
-  if (L >= lmin && L <= a) {
-    x = (L-lmin) / mjMAX(mjMINVAL, a-lmin);
-    FL = 0.5*x*x;
-  } else if (L <= 1) {
-    x = (1-L) / mjMAX(mjMINVAL, 1-a);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= b) {
-    x = (L-1) / mjMAX(mjMINVAL, b-1);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= lmax) {
-    x = (lmax-L) / mjMAX(mjMINVAL, lmax-b);
-    FL = 0.5*x*x;
-  }
+  mjtNum FL = mju_muscleGainLength(L, lmin, lmax);
 
   // velocity curve
   mjtNum FV;

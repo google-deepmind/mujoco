@@ -75,7 +75,6 @@ typedef enum mjtTimer_ {     // internal timers
 
   // breakdown of mj_collision
   mjTIMER_COL_BROAD,         // broadphase
-  mjTIMER_COL_MID,           // midphase
   mjTIMER_COL_NARROW,        // narrowphase
 
   mjNTIMER                   // number of timers
@@ -148,7 +147,7 @@ struct mjData_ {
 
   // memory utilization stats
   size_t  maxuse_stack;                      // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREADS];  // maximum stack allocation per thread in bytes
+  size_t  maxuse_threadstack[mjMAXTHREAD];   // maximum stack allocation per thread in bytes
   size_t  maxuse_arena;                      // maximum arena allocation in bytes
   int     maxuse_con;                        // maximum number of contacts
   int     maxuse_efc;                        // maximum number of scalar constraints
@@ -754,6 +753,7 @@ struct mjVisual_ {                // visualization options
     int   offwidth;               // width of offscreen buffer
     int   offheight;              // height of offscreen buffer
     int   ellipsoidinertia;       // geom for inertia visualization (0: box, 1: ellipsoid)
+    int   bvactive;               // visualize active bounding volumes (0: no, 1: yes)
   } global;
 
   struct {                        // rendering quality
@@ -831,6 +831,8 @@ struct mjVisual_ {                // visualization options
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
     float frustum[4];             // camera frustum
+    float bv[4];                  // bounding volume
+    float bvactive[4];            // active bounding volume
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;

@@ -68,13 +68,13 @@ class mjCComposite {
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
   void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
-  bool Make(mjCModel* model, mjCBody* body, char* error, int error_sz);
+  bool Make(mjCModel* model, mjmBody* body, char* error, int error_sz);
 
-  bool MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeGrid(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeRope(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz);
+  bool MakeParticle(mjCModel* model, mjmBody* body, char* error, int error_sz);
+  bool MakeGrid(mjCModel* model, mjmBody* body, char* error, int error_sz);
+  bool MakeRope(mjCModel* model, mjmBody* body, char* error, int error_sz);
+  bool MakeCable(mjCModel* model, mjmBody* body, char* error, int error_sz);
+  bool MakeBox(mjCModel* model, mjmBody* body, char* error, int error_sz);
   void MakeShear(mjCModel* model);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
@@ -136,8 +136,8 @@ class mjCComposite {
   int dim;                        // dimensionality
 
  private:
-  mjCBody* AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1);
-  mjCBody* AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
+  mjmBody* AddRopeBody(mjCModel* model, mjmBody* body, int ix, int ix1);
+  mjmBody* AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
 };
 
 #endif  // MUJOCO_SRC_USER_USER_COMPOSITE_H_

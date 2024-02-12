@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "user/user_api.h"
+
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
@@ -176,6 +178,10 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // point to local (needs to be after defaults)
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -302,26 +308,27 @@ void mjCMesh::LoadSDF() {
                    name.c_str(), id);
   }
 
+  mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-  const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-  if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
-    throw mjCError(this, "plugin '%s' does not support signed distance fields", plugin->name);
+  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+  if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
+    throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
   }
 
-  std::vector<mjtNum> attributes(plugin->nattribute, 0);
-  std::vector<const char*> names(plugin->nattribute, 0);
-  std::vector<const char*> values(plugin->nattribute, 0);
-  for (int i=0; i < plugin->nattribute; i++) {
-    names[i] = plugin->attributes[i];
+  std::vector<mjtNum> attributes(pplugin->nattribute, 0);
+  std::vector<const char*> names(pplugin->nattribute, 0);
+  std::vector<const char*> values(pplugin->nattribute, 0);
+  for (int i=0; i < pplugin->nattribute; i++) {
+    names[i] = pplugin->attributes[i];
     values[i] = plugin_instance->config_attribs[names[i]].c_str();
   }
 
-  if (plugin->sdf_attribute) {
-    plugin->sdf_attribute(attributes.data(), names.data(), values.data());
+  if (pplugin->sdf_attribute) {
+    pplugin->sdf_attribute(attributes.data(), names.data(), values.data());
   }
 
   mjtNum aabb[6] = {0};
-  plugin->sdf_aabb(aabb, attributes.data());
+  pplugin->sdf_aabb(aabb, attributes.data());
   mjtNum total = aabb[3] + aabb[4] + aabb[5];
 
   const mjtNum n = 300;
@@ -337,7 +344,7 @@ void mjCMesh::LoadSDF() {
         mjtNum point[] = {aabb[0]-aabb[3] + 2 * aabb[3] * i / (nx-1),
                           aabb[1]-aabb[4] + 2 * aabb[4] * j / (ny-1),
                           aabb[2]-aabb[5] + 2 * aabb[5] * k / (nz-1)};
-        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes.data());
+        field[(k * ny + j) * nx + i] =  pplugin->sdf_staticdistance(point, attributes.data());
       }
     }
   }
@@ -410,7 +417,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // create using marching cubes
-  else if (is_plugin) {
+  else if (plugin.active) {
     LoadSDF();
   }
 
@@ -461,6 +468,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     // check size
     if (usertexcoord_.size()%2) {
       throw mjCError(this, "texcoord must be a multiple of 2");
+    }
+
+    // check size if no face texcoord indices are given
+    if (usertexcoord_.size() != 2*nvert_ && userfacetexcoord_.empty()) {
+      throw mjCError(this,
+          "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
     }
 
     // copy from user
@@ -570,6 +583,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     facetexcoord_ = VecToArray(userfacetexcoord_, !file_.empty());
   }
 
+  // no facetexcoord: copy from faces
+  if (!facetexcoord_ && texcoord_) {
+    facetexcoord_ = (int*) mju_malloc(3*nface_*sizeof(int));
+    memcpy(facetexcoord_, face_, 3*nface_*sizeof(int));
+  }
+
   // facenormal might not exist if usernormal was specified
   if (!facenormal_) {
     facenormal_ = (int*) mju_malloc(3*nface_*sizeof(int));
@@ -628,8 +647,8 @@ void mjCMesh::SetBoundingVolume(int faceid) {
 
 
 // get position
-double* mjCMesh::GetPosPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
+double* mjCMesh::GetPosPtr(mjtGeomInertia type) {
+  if (type==mjINERTIA_SHELL) {
     return pos_surface_;
   } else {
     return pos_volume_;
@@ -639,8 +658,8 @@ double* mjCMesh::GetPosPtr(mjtMeshType type) {
 
 
 // get orientation
-double* mjCMesh::GetQuatPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
+double* mjCMesh::GetQuatPtr(mjtGeomInertia type) {
+  if (type==mjINERTIA_SHELL) {
     return quat_surface_;
   } else {
     return quat_volume_;
@@ -1143,7 +1162,7 @@ void mjCMesh::LoadMSH(mjResource* resource) {
 }
 
 
-void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
+void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
                               const double facecen[3], bool exactmeshinertia) {
   double nrm[3];
   double cen[3];
@@ -1155,10 +1174,10 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
 
     // compute and add volume
     const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-    double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
+    double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(vec, nrm) * a / 3;
 
     // if legacy computation requested, then always positive
-    if (!exactmeshinertia && type==mjVOLUME_MESH) {
+    if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
       vol = fabs(vol);
     }
 
@@ -1297,7 +1316,7 @@ void mjCMesh::Process() {
   ComputeFaceCentroid(facecen);
 
   // compute inertial properties for both inertia types
-  for ( const auto type : { mjtMeshType::mjVOLUME_MESH, mjtMeshType::mjSHELL_MESH } ) {
+  for ( const auto type : { mjtGeomInertia::mjINERTIA_VOLUME, mjtGeomInertia::mjINERTIA_SHELL } ) {
     double CoM[3] = {0, 0, 0};
     double inert[6] = {0, 0, 0, 0, 0, 0};
     bool exactmeshinertia = model->exactmeshinertia;
@@ -1325,7 +1344,7 @@ void mjCMesh::Process() {
     mjuu_copyvec(GetPosPtr(type), CoM, 3);
 
     // re-center mesh at CoM
-    if (type==mjVOLUME_MESH || validvolume_<=0) {
+    if (type==mjINERTIA_VOLUME || validvolume_<=0) {
       for (int i=0; i<nvert_; i++) {
         for (int j=0; j<3; j++) {
           vert_[3*i+j] -= CoM[j];
@@ -1344,10 +1363,10 @@ void mjCMesh::Process() {
 
       // get area, normal and center; update volume
       double a = _triangle(nrm, cen, D, E, F);
-      double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
+      double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!exactmeshinertia && type==mjVOLUME_MESH) {
+      if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
         vol = fabs(vol);
       }
 
@@ -1355,7 +1374,7 @@ void mjCMesh::Process() {
       GetVolumeRef(type) += vol;
       for (int j=0; j<6; j++) {
         P[j] += def->geom.density*vol /
-                  (type==mjSHELL_MESH ? 12 : 20) * (
+                  (type==mjINERTIA_SHELL ? 12 : 20) * (
                   2*(D[k[j][0]] * D[k[j][1]] +
                     E[k[j][0]] * E[k[j][1]] +
                     F[k[j][0]] * F[k[j][1]]) +
@@ -1403,8 +1422,8 @@ void mjCMesh::Process() {
 
     // if volume was valid, copy volume quat to shell and stop,
     // otherwise use shell quat for coordinate transformations
-    if (type==mjSHELL_MESH && validvolume_>0) {
-      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjVOLUME_MESH));
+    if (type==mjINERTIA_SHELL && validvolume_>0) {
+      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME));
       continue;
     }
 
@@ -1440,7 +1459,7 @@ void mjCMesh::Process() {
 
 
 // check that the mesh is valid
-void mjCMesh::CheckMesh(mjtMeshType type) {
+void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
@@ -1449,11 +1468,11 @@ void mjCMesh::CheckMesh(mjtMeshType type) {
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
                    name.c_str(), invalidorientation_.first, invalidorientation_.second);
-  if (!validarea_ && type==mjSHELL_MESH)
+  if (!validarea_ && type==mjINERTIA_SHELL)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  if (validvolume_<0 && type==mjVOLUME_MESH)
+  if (validvolume_<0 && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
-  if (!validvolume_ && type==mjVOLUME_MESH)
+  if (!validvolume_ && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is too small: %s", name.c_str());
   if (!valideigenvalue_)
     throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
@@ -1463,15 +1482,15 @@ void mjCMesh::CheckMesh(mjtMeshType type) {
 
 
 // get inertia pointer
-double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
+double* mjCMesh::GetInertiaBoxPtr(mjtGeomInertia type) {
   CheckMesh(type);
-  return type==mjSHELL_MESH ? boxsz_surface_ : boxsz_volume_;
+  return type==mjINERTIA_SHELL ? boxsz_surface_ : boxsz_volume_;
 }
 
 
-double& mjCMesh::GetVolumeRef(mjtMeshType type) {
+double& mjCMesh::GetVolumeRef(mjtGeomInertia type) {
   CheckMesh(type);
-  return type==mjSHELL_MESH ? surface_ : volume_;
+  return type==mjINERTIA_SHELL ? surface_ : volume_;
 }
 
 
@@ -1494,6 +1513,10 @@ void mjCMesh::MakeGraph(void) {
     throw mjCError(this, "could not allocate data for qhull");
   }
   for (int i=0; i<3*nvert_; i++) {
+    if (!std::isfinite(vert_[i])) {
+      mju_free(data);
+      throw mjCError(this, "vertex coordinate %d is not finite", NULL, i);
+    }
     data[i] = (double)vert_[i];
   }
 
@@ -1862,7 +1885,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 
   // clear data
   file.clear();
-  material.clear();
+  material_.clear();
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   inflate = 0;
@@ -1887,7 +1910,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 // destructor
 mjCSkin::~mjCSkin() {
   file.clear();
-  material.clear();
+  material_.clear();
   vert.clear();
   texcoord.clear();
   face.clear();
@@ -1989,11 +2012,11 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
   if (pmat) {
     matid = pmat->id;
-  } else if (!material.empty()) {
-      throw mjCError(this, "unkown material '%s' in skin", material.c_str());
+  } else if (!material_.empty()) {
+      throw mjCError(this, "unkown material '%s' in skin", material_.c_str());
   }
 
   // set total vertex weights to 0
@@ -2223,7 +2246,7 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   group = 0;
   edgestiffness = 0;
   edgedamping = 0;
-  material.clear();
+  material_.clear();
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
 
@@ -2298,11 +2321,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
   if (pmat) {
     matid = pmat->id;
-  } else if (!material.empty()) {
-      throw mjCError(this, "unkown material '%s' in flex", material.c_str());
+  } else if (!material_.empty()) {
+      throw mjCError(this, "unkown material '%s' in flex", material_.c_str());
   }
 
   // resolve body ids
@@ -2428,9 +2451,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   mjXUtil::Vector2String(useredge, edgeidx);
 
   for (int i=0; i<(int)vertbodyid.size(); i++) {
-    if (model->bodies[vertbodyid[i]]->plugin_instance) {
-      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["face"] = userface;
-      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["edge"] = useredge;
+    if (model->bodies[vertbodyid[i]]->plugin.instance) {
+      mjCPlugin* plugin_instance = (mjCPlugin*)model->bodies[vertbodyid[i]]->plugin.instance;
+      plugin_instance->config_attribs["face"] = userface;
+      plugin_instance->config_attribs["edge"] = useredge;
     }
   }
 

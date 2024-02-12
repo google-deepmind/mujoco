@@ -5,22 +5,66 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+MJX
+^^^
+
+1. Improved performance of getting and putting device data.
+
+   - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
+   - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
+   - Speed up calculation of ``mjx.ncon`` for models with many geoms.
+   - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
+2. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
+   ``mjx.get_data_into`` function call.
+
+Version 3.1.2 (February 05, 2024)
+-----------------------------------
+
 General
 ^^^^^^^
-1. Improved the :ref:discardvisual<compiler-discardvisual> compiler flag, which now discards all visual-only assets. See
-   :ref:discardvisual<compiler-discardvisual> for details.
+1. Improved the :ref:`discardvisual<compiler-discardvisual>` compiler flag, which now discards all visual-only assets.
+   See :ref:`discardvisual<compiler-discardvisual>` for details.
+2. Removed the :ref:`timer<mjtTimer>` for midphase colllision detection, it is now folded in with the narrowphase
+   timer. This is because timing the two phases seperately required fine-grained timers inside the collision
+   functions; these functions are so small and fast that the timer itself was incurring a measurable cost.
+3. Added the flag :ref:`bvactive<visual-global-bvactive>` to ``visual/global``, allowing users to turn off
+   visualisation of active bounding volumes (the red/green boxes in this :ref:`this changelog item<midphase>`). For
+   models with very high-resolution meshes, the computation required for this visualization can slow down simulation
+   speed. Fixes :github:issue:`1279`.
+
+   - Added color of :ref:`bounding volumes<visual-rgba-bv>` and :ref:`active bounding volumes<visual-rgba-bvactive>`
+     to :ref:`visual/rgba<visual-rgba>`.
+4. Height-field elevation data can now be specified directly in XML with the :ref:`elevation<asset-hfield-elevation>`
+   attribute (and not only with PNG files).
+   See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/hfield_xml.xml>`__.
 
 MJX
 ^^^
-2. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
-3. Added :at:`site` transmission.
-4. Updated MJX colab tutorial with more stable quadruped environment.
-5. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, and boxes.
+5. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+6. Added :at:`site` transmission.
+7. Updated MJX colab tutorial with more stable quadruped environment.
+8. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
+9. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
+10. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
+11. Raise a not implemented error when nonzero frictionloss is present. Fixes :github:issue:`1344`.
+
+Python bindings
+^^^^^^^^^^^^^^^
+12. Improved the implementation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+    code will require modification.
+
+    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Outputs are no longer squeezed and always have dim=3.
+13. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
+    ``user_scn``, as requested in :github:issue:`1190`.
 
 Bug fixes
 ^^^^^^^^^
-6. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
-   :github:issue:`1270`.
+14. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+    :github:issue:`1270`.
+15. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+    bound of the length range. Fixes :github:issue:`1342`.
 
 
 Version 3.1.1 (December 18, 2023)
@@ -28,7 +72,8 @@ Version 3.1.1 (December 18, 2023)
 
 Bug fixes
 ^^^^^^^^^
-1. Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts if one box was deeply embedded in the other.
+1. Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts if one box was deeply embedded in the
+   other.
 2. Fixed a bug in :ref:`simulate<saSimulate>` where the "LOADING..." message was not showing correctly.
 3. Fixed a crash in the Python :ref:`passive viewer<PyViewerPassive>`, when used with models containing Flex objects.
 4. Fixed a bug in MJX where ``site_xmat`` was ignored in ``get_data`` and ``put_data``
@@ -41,8 +86,8 @@ Version 3.1.0 (December 12, 2023)
 General
 ^^^^^^^
 1. Improved convergence of Signed Distance Function (SDF) collisions by using line search and a new objective function
-   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is more
-   robust for very small or large geom sizes.
+   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is
+   more robust for very small or large geom sizes.
 2. Added :ref:`frame<frame>` to MJCF, a :ref:`meta-element<meta-element>` which defines a pure coordinate transformation
    on its direct children, without requiring a :ref:`body<body>`.
 3. Added the :at:`kv` attribute to the :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>`
@@ -52,17 +97,14 @@ General
 
 Plugins
 ^^^^^^^
-
 4. Allow actuator plugins to use activation variables in ``mjData.act`` as their internal state, rather than
    ``mjData.plugin_state``. Actuator plugins can now specify :ref:`callbacks<mjpPlugin>` that compute activation
    variables, and they can be used with built-in :ref:`dyntype<actuator-plugin-dyntype>` actuator dynamics.
-
 5. Added the `pid <https://github.com/deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ actuator plugin, a
    configurable PID controller that implements the Integral term, which is not available with native MuJoCo actuators.
 
 MJX
 ^^^
-
 6.  Added ``site_xpos`` and ``site_xmat`` to MJX.
 7. Added ``put_data``, ``put_model``, ``get_data`` to replace ``device_put`` and ``device_get_into``, which will be
    deprecated. These new functions correctly translate fields that are the result of intermediate calculations such as
@@ -74,8 +116,8 @@ Bug fixes
    Before this fix such actuators could lead to non-conservation of momentum.
 9. Fix bug that prevented using flex with :ref:`simulate<saSimulate>`.
 10. Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
-11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where SYSTEM_VERSION_COMPAT is set. The minimum
-    supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
+11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where ``SYSTEM_VERSION_COMPAT`` is set.
+    The minimum supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
     :github:issue:`1213`.
 
 Version 3.0.1 (November 15, 2023)
@@ -272,7 +314,7 @@ General
 
        - For models which have ``<option collision="all"/>``, delete the attribute.
        - For models which have ``<option collision="dynamic"/>``, delete all :ref:`pair<contact-pair>` elements.
-       - For models which have ``<option collision="pair"/>``, disable all dynamic collisions (determined
+       - For models which have ``<option collision="predefined"/>``, disable all dynamic collisions (determined
          via contype/conaffinity) by first deleting all :ref:`contype<body-geom-contype>` and
          :ref:`conaffinity<body-geom-conaffinity>` attributes in the model and then setting them globally to ``0`` using
          |br| ``<default> <geom contype="0" conaffinity="0"/> </default>``.
@@ -618,6 +660,8 @@ General
 .. image:: images/computation/midphase.gif
    :align: right
    :width: 350px
+
+.. _midphase:
 
 2. Added a collision mid-phase for pruning geoms in body pairs, see :ref:`documentation<coSelection>` for more details.
    This is based on static AABB bounding volume hierarchy (a BVH binary tree) in the body inertial frame. The GIF on

@@ -84,7 +84,7 @@ if(NOT TARGET mujoco)
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
       set(MUJOCO_LIBRARY
-          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.1.2.dylib
+          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.1.3.dylib
       )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
     endif()
@@ -92,7 +92,7 @@ if(NOT TARGET mujoco)
 
   if(NOT MUJOCO_FRAMEWORK)
     find_library(
-      MUJOCO_LIBRARY mujoco mujoco.3.1.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
+      MUJOCO_LIBRARY mujoco mujoco.3.1.3 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
     )
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
@@ -140,7 +140,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  fb3621f4f897824c0dbe0615fa94543df6192f30 # LTS 20230802.1
+  4a2c63365eff8823a5221db86ef490e828306f9d # LTS 20240116.0
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
@@ -173,7 +173,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  454f89af9d6f3525b1df5f9ef9c86df58bf2d4d3
+  7fd7a3f946e5ac152d28dad388cff8bfa1026925
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL

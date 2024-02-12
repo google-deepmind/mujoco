@@ -532,6 +532,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   mjvGeom* thisgeom;
   mjvPerturb localpert;
   float scl = m->stat.meansize;
+  int mark_active = m->vis.global.bvactive;
 
   // make default pert if missing
   if (!pert) {
@@ -636,7 +637,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   category = mjCAT_DECOR;
   objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_BODYBVH]) {
-    float rgba[] = {1, 0, 0, 1};
     for (int i = 0; i < m->nbvhstatic; i++) {
       int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
       if (scn->ngeom >= scn->maxgeom) break;
@@ -671,8 +671,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       mju_rotVecMat(pos, center, xmat);
       mju_addTo3(pos, xpos);
 
-      rgba[0] = d->bvh_active[i] ? 1 : 0;
-      rgba[1] = d->bvh_active[i] ? 0 : 1;
+      // set box color
+      const float* rgba = m->vis.rgba.bv;
+      if (mark_active && d->bvh_active[i]) {
+        rgba = m->vis.rgba.bvactive;
+      }
 
       START
       mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
@@ -685,10 +688,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   category = mjCAT_DECOR;
   objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_FLEXBVH]) {
-    float rgba[] = {1, 0, 0, 0.1};
     for (int f=0; f < m->nflex; f++) {
-      if (m->flex_bvhnum[f] &&
-          vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
+      if (m->flex_bvhnum[f] && vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
         for (int i=m->flex_bvhadr[f]; i < m->flex_bvhadr[f]+m->flex_bvhnum[f]; i++) {
           int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
           if (scn->ngeom >= scn->maxgeom) break;
@@ -698,10 +699,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             }
           }
 
-          // set box data
+          // get box data
           mjtNum *aabb = d->bvh_aabb_dyn + 6*(i - m->nbvhstatic);
-          rgba[0] = d->bvh_active[i] ? 1 : 0;
-          rgba[1] = d->bvh_active[i] ? 0 : 1;
+
+          // set box color
+          const float* rgba = m->vis.rgba.bv;
+          if (mark_active && d->bvh_active[i]) {
+            rgba = m->vis.rgba.bvactive;
+          }
 
           START
           mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
@@ -715,7 +720,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   category = mjCAT_DECOR;
   objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_MESHBVH]) {
-    float rgba[] = {1, 0, 0, 1};
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
       int meshid = m->geom_dataid[geomid];
       if (meshid == -1) {
@@ -732,12 +736,16 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
         }
 
-        if (!d->bvh_active[i]) {
-          continue;
+        // box color
+        const float* rgba = m->vis.rgba.bv;
+        if (mark_active) {
+          if (d->bvh_active[i]) {
+            rgba = m->vis.rgba.bvactive;
+          } else {
+            // when marking active bvs, skip inactive volumes
+            continue;
+          }
         }
-
-        rgba[0] = d->bvh_active[i] ? 1 : 0;
-        rgba[1] = d->bvh_active[i] ? 0 : 1;
 
         // get xpos, xmat, size
         const mjtNum* xpos = d->geom_xpos + 3 * geomid;

@@ -135,6 +135,19 @@ TEST_F(MujocoTest, SmoothMuscleDynamics) {
   }
 }
 
+TEST_F(MujocoTest, MuscleGainLength) {
+  mjtNum lmin = 0.5;
+  mjtNum lmax = 1.5;
+
+  EXPECT_EQ(mju_muscleGainLength(0.0,  lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(0.5,  lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(0.75, lmin, lmax), 0.5);
+  EXPECT_EQ(mju_muscleGainLength(1.0,  lmin, lmax), 1);
+  EXPECT_EQ(mju_muscleGainLength(1.25, lmin, lmax), 0.5);
+  EXPECT_EQ(mju_muscleGainLength(1.5,  lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(2.0,  lmin, lmax), 0);
+}
+
 TEST_F(MujocoTest, mju_makefullname) {
   char buffer[1000];
   constexpr char path[] = "engine/testdata/";
