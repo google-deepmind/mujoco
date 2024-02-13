@@ -2579,35 +2579,50 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCTexture::mjCTexture(mjCModel* _model) {
+  mjm_defaultTexture(spec);
+
   // set model pointer
   model = _model;
 
-  // clear user settings: builtin
-  type = mjTEXTURE_CUBE;
-  builtin = mjBUILTIN_NONE;
-  mark = mjMARK_NONE;
-  mjuu_setvec(rgb1, 0.8, 0.8, 0.8);
-  mjuu_setvec(rgb2, 0.5, 0.5, 0.5);
-  mjuu_setvec(markrgb, 0, 0, 0);
-  random = 0.01;
-  height = width = 0;
-
   // clear user settings: single file
-  file.clear();
-  gridsize[0] = gridsize[1] = 1;
-  mju::strcpy_arr(gridlayout, "............");
+  spec_file_.clear();
+  spec_content_type_.clear();
 
   // clear user settings: separate file
-  for (int i=0; i<6; i++) {
-    cubefiles[i].clear();
-  }
-
-  // clear flip options
-  hflip = false;
-  vflip = false;
+  spec_cubefiles_.assign(6, "");
 
   // clear internal variables
   rgb = 0;
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCTexture::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.file = (mjString)&spec_file_;
+  spec.content_type = (mjString)&spec_content_type_;
+  spec.cubefiles = (mjStringVec)&spec_cubefiles_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCTexture::CopyFromSpec() {
+  *static_cast<mjmTexture*>(this) = spec;
+  file_ = spec_file_;
+  content_type_ = spec_content_type_;
+  cubefiles_ = spec_cubefiles_;
+  file = (mjString)&file_;
+  content_type = (mjString)&content_type_;
+  cubefiles = (mjStringVec)&cubefiles_;
 }
 
 
@@ -2930,7 +2945,7 @@ void mjCTexture::LoadCustom(mjResource* resource,
 void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
-  std::string asset_type = GetAssetContentType(filename, content_type);
+  std::string asset_type = GetAssetContentType(filename, content_type_);
 
   // fallback to custom
   if (asset_type.empty()) {
@@ -3017,7 +3032,7 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
   rgb = (mjtByte*) mju_malloc(3*width*height);
   if (!rgb) {
     throw mjCError(this, "Could not allocate memory for texture '%s' (id %d)",
-                   (const char*)file.c_str(), id);
+                   (const char*)file_.c_str(), id);
   }
   memcpy(rgb, image.data(), 3*width*height);
   image.clear();
@@ -3043,7 +3058,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   if (w/gridsize[1]!=h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
     throw mjCError(this,
                    "PNG size must be integer multiple of gridsize in texture '%s' (id %d)",
-                   (const char*)file.c_str(), id);
+                   (const char*)file_.c_str(), id);
   }
 
   // assign size: repeated or full
@@ -3059,7 +3074,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   if (!rgb) {
     throw mjCError(this,
                    "Could not allocate memory for texture '%s' (id %d)",
-                   (const char*)file.c_str(), id);
+                   (const char*)file_.c_str(), id);
   }
 
   // copy: repeated
@@ -3090,7 +3105,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
         i = 5;
       } else if (gridlayout[k]!='.')
         throw mjCError(this, "gridlayout symbol is not among '.RLUDFB' in texture '%s' (id %d)",
-                       (const char*)file.c_str(), id);
+                       (const char*)file_.c_str(), id);
 
       // load if specified
       if (i>=0) {
@@ -3132,14 +3147,14 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 
   // process nonempty files
   for (int i=0; i<6; i++) {
-    if (!cubefiles[i].empty()) {
+    if (!cubefiles_[i].empty()) {
       // remove path from file if necessary
       if (model->strippath) {
-        cubefiles[i] = mjuu_strippath(cubefiles[i]);
+        cubefiles_[i] = mjuu_strippath(cubefiles_[i]);
       }
 
       // make filename
-      string filename = mjuu_makefullname(model->modelfiledir, model->texturedir, cubefiles[i]);
+      string filename = mjuu_makefullname(model->modelfiledir, model->texturedir, cubefiles_[i]);
 
       // load PNG or custom
       unsigned int w, h;
@@ -3150,7 +3165,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       if (w!=h) {
         throw mjCError(this,
                        "Non-square PNG file '%s' in cube or skybox id %d",
-                       (const char*)cubefiles[i].c_str(), id);
+                       (const char*)cubefiles_[i].c_str(), id);
       }
 
       // first file: set size and allocate data
@@ -3169,7 +3184,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       else if (width!=w) {
         throw mjCError(this,
                        "PNG file '%s' has incompatible size in texture id %d",
-                       (const char*)cubefiles[i].c_str(), id);
+                       (const char*)cubefiles_[i].c_str(), id);
       }
 
       // copy data
@@ -3199,6 +3214,8 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 
 // compiler
 void mjCTexture::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // builtin
   if (builtin!=mjBUILTIN_NONE) {
     // check size
@@ -3230,14 +3247,14 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   }
 
   // single file
-  else if (!file.empty()) {
+  else if (!file_.empty()) {
     // remove path from file if necessary
     if (model->strippath) {
-      file = mjuu_strippath(file);
+      file_ = mjuu_strippath(file_);
     }
 
     // make filename
-    string filename = mjuu_makefullname(model->modelfiledir, model->texturedir, file);
+    string filename = mjuu_makefullname(model->modelfiledir, model->texturedir, file_);
 
     // dispatch
     if (type==mjTEXTURE_2D) {
@@ -3259,14 +3276,14 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     // at least one cubefile must be defined
     bool defined = false;
     for (int i=0; i<6; i++) {
-      if (!cubefiles[i].empty()) {
+      if (!cubefiles_[i].empty()) {
         defined = true;
         break;
       }
     }
     if (!defined) {
       throw mjCError(this,
-                     "No cubefiles defined in cube or skybox texture '%s' (id %d)",
+                     "No cubefiles_ defined in cube or skybox texture '%s' (id %d)",
                      (const char*)name.c_str(), id);
     }
 

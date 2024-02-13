@@ -904,6 +904,7 @@ void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
 
   // use filename if name is missing
   for (int i=0; i<assets.size(); i++) {
+    assets[i]->CopyFromSpec();
     if (assets[i]->name.empty()) {
       stripped = mjuu_strippath(assets[i]->get_file());
       assets[i]->name = mjuu_stripext(stripped);

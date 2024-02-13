@@ -38,10 +38,26 @@ typedef struct _mjFloatVec* mjFloatVec;
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
 
-typedef enum _mjtGeomInertia {     // type of inertia inference
-  mjINERTIA_VOLUME,                // mass distributed in the volume
-  mjINERTIA_SHELL,                 // mass distributed on the surface
+typedef enum _mjtGeomInertia {    // type of inertia inference
+  mjINERTIA_VOLUME,               // mass distributed in the volume
+  mjINERTIA_SHELL,                // mass distributed on the surface
 } mjtGeomInertia;
+
+
+typedef enum _mjtBuiltin {        // type of built-in procedural texture
+  mjBUILTIN_NONE = 0,             // no built-in texture
+  mjBUILTIN_GRADIENT,             // gradient: rgb1->rgb2
+  mjBUILTIN_CHECKER,              // checker pattern: rgb1, rgb2
+  mjBUILTIN_FLAT                  // 2d: rgb1; cube: rgb1-up, rgb2-side, rgb3-down
+} mjtBuiltin;
+
+
+typedef enum _mjtMark {           // mark type for procedural textures
+  mjMARK_NONE = 0,                // no mark
+  mjMARK_EDGE,                    // edges
+  mjMARK_CROSS,                   // cross
+  mjMARK_RANDOM                   // random dots
+} mjtMark;
 
 
 //---------------------------------- attribute structs (mjm) ---------------------------------------
@@ -309,6 +325,40 @@ typedef struct _mjmFlex {
 } mjmFlex;
 
 
+typedef struct _mjmTexture {       // texture specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjtTexture type;                 // texture type
+
+  // method 1: builtin
+  int builtin;                     // builtin type (mjtBuiltin)
+  int mark;                        // mark type (mjtMark)
+  double rgb1[3];                  // first color for builtin
+  double rgb2[3];                  // second color for builtin
+  double markrgb[3];               // mark color
+  double random;                   // probability of random dots
+  int height;                      // height in pixels (square for cube and skybox)
+  int width;                       // width in pixels
+
+  // method 2: single file
+  mjString content_type;           // content type of file
+  mjString file;                   // png file to load; use for all sides of cube
+  int gridsize[2];                 // size of grid for composite file; (1,1)-repeat
+  char gridlayout[13];             // row-major: L,R,F,B,U,D for faces; . for unused
+
+  // method 3: separate files
+  mjStringVec cubefiles;           // different file for each side of the cube
+
+  // flip options
+  mjtByte hflip;                   // horizontal flip
+  mjtByte vflip;                   // vertical flip
+
+  // other
+  mjString info;                   // message appended to compiler errors
+} mjmTexture;
+
+
 typedef struct _mjmMaterial {      // material specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -508,6 +558,9 @@ MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
 // Add flex to model.
 MJAPI mjmFlex* mjm_addFlex(void* model);
 
+// Add texture to model.
+MJAPI mjmTexture* mjm_addTexture(void* model);
+
 // Add material to model.
 MJAPI mjmMaterial* mjm_addMaterial(void* model, void* defspec);
 
@@ -562,6 +615,9 @@ MJAPI void mjm_setString(mjString dest, const char* text);
 // Split text to entries and copy to destination string vector.
 MJAPI void mjm_setStringVec(mjStringVec dest, const char* text);
 
+// Set specific entry in destination string vector.
+MJAPI mjtByte mjm_setInStringVec(mjStringVec dest, int i, const char* text);
+
 // Add text entry to destination string vector.
 MJAPI void mjm_addToStringVec(mjStringVec dest, const char* text);
 
@@ -615,6 +671,9 @@ MJAPI void mjm_defaultLight(mjmLight& light);
 
 // Default flex attributes.
 MJAPI void mjm_defaultFlex(mjmFlex& flex);
+
+// Default texture attributes.
+MJAPI void mjm_defaultTexture(mjmTexture& texture);
 
 // Default material attributes.
 MJAPI void mjm_defaultMaterial(mjmMaterial& material);

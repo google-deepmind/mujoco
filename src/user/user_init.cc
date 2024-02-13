@@ -15,6 +15,7 @@
 #include <cstring>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "cc/array_safety.h"
 #include "user/user_api.h"
 #include "user/user_util.h"
 
@@ -187,6 +188,20 @@ void mjm_defaultFlex(mjmFlex& flex) {
   flex.activelayers = 1;
   flex.rgba[0] = flex.rgba[1] = flex.rgba[2] = 0.5f;
   flex.rgba[3] = 1.0f;
+}
+
+
+
+// default texture attributes
+void mjm_defaultTexture(mjmTexture& texture) {
+  memset(&texture, 0, sizeof(mjmTexture));
+  texture.type = mjTEXTURE_CUBE;
+  mjuu_setvec(texture.rgb1, 0.8, 0.8, 0.8);
+  mjuu_setvec(texture.rgb2, 0.5, 0.5, 0.5);
+  mjuu_setvec(texture.markrgb, 0, 0, 0);
+  texture.random = 0.01;
+  texture.gridsize[0] = texture.gridsize[1] = 1;
+  mujoco::util::strcpy_arr(texture.gridlayout, "............");
 }
 
 

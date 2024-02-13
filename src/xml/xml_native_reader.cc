@@ -2980,7 +2980,7 @@ void mjXReader::Visual(XMLElement* section) {
 // asset section parser
 void mjXReader::Asset(XMLElement* section) {
   int n;
-  string text, name;
+  string text, name, texname, content_type, file;
   XMLElement* elem;
 
   // iterate over child elements
@@ -2998,16 +2998,25 @@ void mjXReader::Asset(XMLElement* section) {
     // texture sub-element
     if (name=="texture") {
       // create texture
-      mjCTexture* ptex = model->AddTexture();
-      GetXMLPos(elem, ptex);
+      mjmTexture* ptex = mjm_addTexture(model);
+
+      // write error info
+      mjm_setString(ptex->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
       if (MapValue(elem, "type", &n, texture_map, texture_sz)) {
         ptex->type = (mjtTexture)n;
       }
-      ReadAttrTxt(elem, "name", ptex->name);
-      ReadAttrTxt(elem, "content_type", ptex->content_type);
-      ReadAttrTxt(elem, "file", ptex->file);
+      if (ReadAttrTxt(elem, "name", texname)) {
+        mjm_setString(ptex->name, texname.c_str());
+      }
+      if (ReadAttrTxt(elem, "content_type", content_type)) {
+        mjm_setString(ptex->content_type, content_type.c_str());
+      }
+      if (ReadAttrTxt(elem, "file", file)) {
+        mjm_setString(ptex->file, file.c_str());
+      }
       ReadAttrInt(elem, "width", &ptex->width);
       ReadAttrInt(elem, "height", &ptex->height);
       ReadAttr(elem, "rgb1", 3, ptex->rgb1, text);
@@ -3042,12 +3051,16 @@ void mjXReader::Asset(XMLElement* section) {
       }
 
       // separate files
-      ReadAttrTxt(elem, "fileright", ptex->cubefiles[0]);
-      ReadAttrTxt(elem, "fileleft",  ptex->cubefiles[1]);
-      ReadAttrTxt(elem, "fileup",    ptex->cubefiles[2]);
-      ReadAttrTxt(elem, "filedown",  ptex->cubefiles[3]);
-      ReadAttrTxt(elem, "filefront", ptex->cubefiles[4]);
-      ReadAttrTxt(elem, "fileback",  ptex->cubefiles[5]);
+      std::vector<string> cubefiles(6);
+      ReadAttrTxt(elem, "fileright", cubefiles[0]);
+      ReadAttrTxt(elem, "fileleft",  cubefiles[1]);
+      ReadAttrTxt(elem, "fileup",    cubefiles[2]);
+      ReadAttrTxt(elem, "filedown",  cubefiles[3]);
+      ReadAttrTxt(elem, "filefront", cubefiles[4]);
+      ReadAttrTxt(elem, "fileback",  cubefiles[5]);
+      for (int i = 0; i < cubefiles.size(); i++) {
+        mjm_setInStringVec(ptex->cubefiles, i, cubefiles[i].c_str());
+      }
     }
 
     // material sub-element

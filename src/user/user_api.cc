@@ -137,6 +137,15 @@ mjmFrame* mjm_addFrame(mjmBody* bodyspec, mjmFrame* parentframe) {
 
 
 
+// add texture to model
+mjmTexture* mjm_addTexture(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCTexture* texture = modelC->AddTexture();
+  return &texture->spec;
+}
+
+
+
 // add material to model
 mjmMaterial* mjm_addMaterial(void* model, void* defspec) {
   mjCModel* modelC = static_cast<mjCModel*>(model);
@@ -308,6 +317,19 @@ void mjm_setDefault(mjElement element, void* defspec) {
 void mjm_setString(mjString dest, const char* text) {
   std::string* str = reinterpret_cast<std::string*>(dest);
   *str = std::string(text);
+}
+
+
+
+// Set specific entry in destination string vector.
+mjtByte mjm_setInStringVec(mjStringVec dest, int i, const char* text) {
+  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
+  if (v->size() <= i) {
+    mju_error("Requested index in mjm_setInStringVec is out of bounds");
+    return 0;
+  }
+  v->at(i) = std::string(text);
+  return 1;
 }
 
 

@@ -1358,16 +1358,16 @@ void mjXWriter::Asset(XMLElement* root) {
     // write textures loaded from files
     else {
       // write single file
-      WriteAttrTxt(elem, "content_type", ptex->content_type);
-      WriteAttrTxt(elem, "file", ptex->file);
+      WriteAttrTxt(elem, "content_type", ptex->get_content_type());
+      WriteAttrTxt(elem, "file", ptex->get_file());
 
       // write separate files
-      WriteAttrTxt(elem, "fileright", ptex->cubefiles[0]);
-      WriteAttrTxt(elem, "fileleft", ptex->cubefiles[1]);
-      WriteAttrTxt(elem, "fileup", ptex->cubefiles[2]);
-      WriteAttrTxt(elem, "filedown", ptex->cubefiles[3]);
-      WriteAttrTxt(elem, "filefront", ptex->cubefiles[4]);
-      WriteAttrTxt(elem, "fileback", ptex->cubefiles[5]);
+      WriteAttrTxt(elem, "fileright", ptex->get_cubefiles()[0]);
+      WriteAttrTxt(elem, "fileleft", ptex->get_cubefiles()[1]);
+      WriteAttrTxt(elem, "fileup", ptex->get_cubefiles()[2]);
+      WriteAttrTxt(elem, "filedown", ptex->get_cubefiles()[3]);
+      WriteAttrTxt(elem, "filefront", ptex->get_cubefiles()[4]);
+      WriteAttrTxt(elem, "fileback", ptex->get_cubefiles()[5]);
       if (ptex->hflip) {
         WriteAttrKey(elem, "hflip", bool_map, 2, 1);
       }

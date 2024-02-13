@@ -68,24 +68,6 @@ class mjXURDF;                      // defined in xml_urdf
 const int mjGEOMINFO[mjNGEOMTYPES] = {3, 0, 1, 2, 3, 2, 3, 0};
 
 
-// builtin type for procedural textures
-typedef enum _mjtBuiltin {
-  mjBUILTIN_NONE = 0,             // no builtin
-  mjBUILTIN_GRADIENT,             // circular gradient: rgb1->rgb2->rgb3
-  mjBUILTIN_CHECKER,              // checker pattern: rgb1, rgb2
-  mjBUILTIN_FLAT                  // 2d: rgb1; cube: rgb1-up, rgb2-side, rgb3-down
-} mjtBuiltin;
-
-
-// mark type for procedural textures
-typedef enum _mjtMark {
-  mjMARK_NONE = 0,                // no mark
-  mjMARK_EDGE,                    // paint edges
-  mjMARK_CROSS,                   // paint cross
-  mjMARK_RANDOM                   // paint random dots
-} mjtMark;
-
-
 // error information
 class [[nodiscard]] mjCError {
  public:
@@ -871,7 +853,7 @@ class mjCHField : public mjCBase {
 //------------------------- class mjCTexture -------------------------------------------------------
 // Describes a texture
 
-class mjCTexture : public mjCBase {
+class mjCTexture : public mjCBase, private mjmTexture {
   friend class mjCModel;
   friend class mjXReader;
   friend class mjXWriter;
@@ -879,32 +861,17 @@ class mjCTexture : public mjCBase {
  public:
   ~mjCTexture();                  // destructor
 
-  std::string get_file() const { return file; }
+  mjmTexture spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
 
-  mjtTexture type;                // texture type
+  void CopyFromSpec(void);
+  void PointToLocal(void);
 
-  // method 1: builtin
-  mjtBuiltin builtin;             // builtin type
-  mjtMark mark;                   // mark type
-  double rgb1[3];                 // first color for builtin
-  double rgb2[3];                 // second color for builtin
-  double markrgb[3];              // mark color
-  double random;                  // probability of random dots
-  int height;                     // height in pixels (square for cube and skybox)
-  int width;                      // width in pixels
-
-  // method 2: single file
-  std::string content_type;       // content type of file
-  std::string file;               // png file to load; use for all sides of cube
-  int gridsize[2];                // size of grid for composite file; (1,1)-repeat
-  char gridlayout[13];            // row-major: L,R,F,B,U,D for faces; . for unused
-
-  // method 3: separate files
-  std::string cubefiles[6];       // different file for each side of the cube
-
-  // flip options
-  bool hflip;                     // horizontal flip
-  bool vflip;                     // vertical flip
+  std::string get_file() const { return file_; }
+  std::string get_content_type() const { return content_type_; }
+  std::vector<std::string> get_cubefiles() const { return cubefiles_; }
 
  private:
   mjCTexture(mjCModel*);                  // constructor
@@ -928,6 +895,13 @@ class mjCTexture : public mjCBase {
                   unsigned int& w, unsigned int& h);
 
   mjtByte* rgb;                   // rgb data
+  std::string file_;
+  std::string content_type_;
+  std::vector<std::string> cubefiles_;
+
+  std::string spec_file_;
+  std::string spec_content_type_;
+  std::vector<std::string> spec_cubefiles_;
 };
 
 
