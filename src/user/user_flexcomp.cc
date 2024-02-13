@@ -857,13 +857,13 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   // LoadOBJ uses userXXX, extra processing needed
   if (isobj) {
     // check sizes
-    if (mesh.uservert().empty() || mesh.userface().empty()) {
+    if (mesh.get_uservert().empty() || mesh.get_userface().empty()) {
       return comperr(error, "Vertex and face data required", error_sz);
     }
-    if (mesh.uservert().size()%3) {
+    if (mesh.get_uservert().size()%3) {
       return comperr(error, "Vertex data must be multiple of 3", error_sz);
     }
-    if (mesh.userface().size()%3) {
+    if (mesh.get_userface().size()%3) {
       return comperr(error, "Face data must be multiple of 3", error_sz);
     }
 

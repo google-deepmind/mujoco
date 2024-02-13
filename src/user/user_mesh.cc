@@ -129,11 +129,7 @@ static void ReadFromBuffer(T* dst, const char* src) {
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  mjuu_setvec(refpos_, 0, 0, 0);
-  mjuu_setvec(refquat_, 1, 0, 0, 0);
-  mjuu_setvec(scale_, 1, 1, 1);
-  smoothnormal_ = false;
+  mjm_defaultMesh(spec);
 
   // clear internal variables
   mjuu_setvec(pos_surface_, 0, 0, 0);
@@ -179,9 +175,50 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
+  // in case this body is not compiled
+  CopyFromSpec();
+
   // point to local (needs to be after defaults)
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  PointToLocal();
+}
+
+
+
+void mjCMesh::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.file = (mjString)&spec_file_;
+  spec.content_type = (mjString)&spec_content_type_;
+  spec.uservert = (mjFloatVec)&spec_uservert_;
+  spec.usernormal = (mjFloatVec)&spec_usernormal_;
+  spec.userface = (mjIntVec)&spec_userface_;
+  spec.usertexcoord = (mjFloatVec)&spec_usertexcoord_;
+  spec.plugin.name = (mjString)&plugin_name;
+  spec.plugin.instance_name = (mjString)&plugin_instance_name;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCMesh::CopyFromSpec() {
+  *static_cast<mjmMesh*>(this) = spec;
+  file_ = spec_file_;
+  content_type_ = spec_content_type_;
+  uservert_ = spec_uservert_;
+  usernormal_ = spec_usernormal_;
+  userface_ = spec_userface_;
+  usertexcoord_ = spec_usertexcoord_;
+  file = (mjString)&file_;
+  content_type = (mjString)&content_type_;
+  uservert = (mjFloatVec)&uservert_;
+  usernormal = (mjFloatVec)&usernormal_;
+  userface = (mjIntVec)&userface_;
+  usertexcoord = (mjFloatVec)&usertexcoord_;
+  plugin.active = spec.plugin.active;
+  plugin.instance = spec.plugin.instance;
+  plugin.name = spec.plugin.name;
+  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -195,96 +232,6 @@ mjCMesh::~mjCMesh() {
   if (facenormal_) mju_free(facenormal_);
   if (facetexcoord_) mju_free(facetexcoord_);
   if (graph_) mju_free(graph_);
-}
-
-
-
-void mjCMesh::set_content_type(std::optional<std::string>&& content_type) {
-  if (content_type.has_value()) {
-    content_type_ = std::move(content_type.value());
-  }
-}
-
-
-
-void mjCMesh::set_file(std::optional<std::string>&& file) {
-  if (file.has_value()) {
-    file_ = std::move(file.value());
-  }
-}
-
-
-
-void mjCMesh::set_refpos(std::optional<std::array<double, 3>> refpos) {
-  if (refpos.has_value()) {
-    std::copy(refpos.value().begin(), refpos.value().end(), refpos_);
-  }
-}
-
-
-
-void mjCMesh::set_refquat(std::optional<std::array<double, 4>> refquat) {
-  if (refquat.has_value()) {
-    std::copy(refquat.value().begin(), refquat.value().end(), refquat_);
-  }
-}
-
-
-
-void mjCMesh::set_scale(std::optional<std::array<double, 3>> scale) {
-  if (scale.has_value()) {
-    set_scale(scale.value());
-  }
-}
-
-
-
-void mjCMesh::set_uservert(std::optional<std::vector<float>>&& uservert) {
-  if (uservert.has_value()) {
-    uservert_ = std::move(uservert.value());
-  }
-}
-
-
-
-void mjCMesh::set_usernormal(std::optional<std::vector<float>>&& usernormal) {
-  if (usernormal.has_value()) {
-    usernormal_ = std::move(usernormal.value());
-  }
-}
-
-
-
-void mjCMesh::set_usertexcoord(std::optional<std::vector<float>>&& usertexcoord) {
-  if (usertexcoord.has_value()) {
-    usertexcoord_ = std::move(usertexcoord.value());
-  }
-}
-
-
-
-void mjCMesh::set_userface(std::optional<std::vector<int>>&& userface) {
-  if (userface.has_value()) {
-    userface_ = std::move(userface.value());
-  }
-}
-
-
-
-void mjCMesh::set_file(const std::string& file) {
-  file_ = file;
-}
-
-
-
-void mjCMesh::set_scale(std::array<double, 3> scale) {
-  std::copy(scale.begin(), scale.end(), scale_);
-}
-
-
-
-void mjCMesh::set_smoothnormal(bool smoothnormal) {
-  smoothnormal_ = smoothnormal;
 }
 
 
@@ -303,7 +250,7 @@ void mjCMesh::LoadSDF() {
         name.c_str(), id);
   }
 
-  if (scale_[0] != 1 || scale_[1] != 1 || scale_[2] != 1) {
+  if (scale[0] != 1 || scale[1] != 1 || scale[2] != 1) {
     throw mjCError(this, "attribute scale is not compatible with SDFs in mesh '%s', (id = %d)",
                    name.c_str(), id);
   }
@@ -371,9 +318,9 @@ void mjCMesh::LoadSDF() {
     userface.push_back(mesh.indices.at(i));
   }
 
-  set_uservert(uservert);
-  set_usernormal(usernormal);
-  set_userface(userface);
+  uservert_ = std::move(uservert);
+  usernormal_ = std::move(usernormal);
+  userface_ = std::move(userface);
   delete[] field;
 }
 
@@ -381,6 +328,8 @@ void mjCMesh::LoadSDF() {
 
 // compiler
 void mjCMesh::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // load file
   if (!file_.empty()) {
     // remove path from file if necessary
@@ -957,7 +906,7 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
 
   if (!objReader.GetShapes().empty()) {
     const auto& mesh = objReader.GetShapes()[0].mesh;
-    bool righthand = (scale_[0]*scale_[1]*scale_[2] > 0);
+    bool righthand = (scale[0]*scale[1]*scale[2] > 0);
 
     // iterate over mesh faces
     std::vector<tinyobj::index_t> face_indices;
@@ -1005,7 +954,7 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
 
 // load STL binary mesh
 void mjCMesh::LoadSTL(mjResource* resource) {
-  bool righthand = (scale_[0]*scale_[1]*scale_[2]>0);
+  bool righthand = (scale[0]*scale[1]*scale[2]>0);
 
   // get file data in buffer
   char* buffer = 0;
@@ -1085,7 +1034,7 @@ void mjCMesh::LoadSTL(mjResource* resource) {
 
 // load MSH binary mesh
 void mjCMesh::LoadMSH(mjResource* resource) {
-  bool righthand = (scale_[0]*scale_[1]*scale_[2]>0);
+  bool righthand = (scale[0]*scale[1]*scale[2]>0);
 
   // get file data in buffer
   char* buffer = 0;
@@ -1193,9 +1142,9 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
 // apply transformations
 void mjCMesh::ApplyTransformations() {
   // translate
-  if (refpos_[0]!=0 || refpos_[1]!=0 || refpos_[2]!=0) {
+  if (refpos[0]!=0 || refpos[1]!=0 || refpos[2]!=0) {
     // prepare translation
-    float rp[3] = {(float)refpos_[0], (float)refpos_[1], (float)refpos_[2]};
+    float rp[3] = {(float)refpos[0], (float)refpos[1], (float)refpos[2]};
 
     // process vertices
     for (int i=0; i<nvert_; i++) {
@@ -1206,9 +1155,9 @@ void mjCMesh::ApplyTransformations() {
   }
 
   // rotate
-  if (refquat_[0]!=1 || refquat_[1]!=0 || refquat_[2]!=0 || refquat_[3]!=0) {
+  if (refquat[0]!=1 || refquat[1]!=0 || refquat[2]!=0 || refquat[3]!=0) {
     // prepare rotation
-    mjtNum quat[4] = {refquat_[0], refquat_[1], refquat_[2], refquat_[3]};
+    mjtNum quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
     mjtNum mat[9];
     mju_normalize4(quat);
     mju_quat2Mat(mat, quat);
@@ -1233,17 +1182,17 @@ void mjCMesh::ApplyTransformations() {
   }
 
   // scale
-  if (scale_[0]!=1 || scale_[1]!=1 || scale_[2]!=1) {
+  if (scale[0]!=1 || scale[1]!=1 || scale[2]!=1) {
     for (int i=0; i<nvert_; i++) {
-      vert_[3*i] *= scale_[0];
-      vert_[3*i+1] *= scale_[1];
-      vert_[3*i+2] *= scale_[2];
+      vert_[3*i] *= scale[0];
+      vert_[3*i+1] *= scale[1];
+      vert_[3*i+2] *= scale[2];
     }
 
     for (int i=0; i<nnormal_; i++) {
-      normal_[3*i] *= scale_[0];
-      normal_[3*i+1] *= scale_[1];
-      normal_[3*i+2] *= scale_[2];
+      normal_[3*i] *= scale[0];
+      normal_[3*i+1] *= scale[1];
+      normal_[3*i+2] *= scale[2];
     }
   }
 
@@ -1764,7 +1713,7 @@ void mjCMesh::MakeNormal(void) {
   }
 
   // remove large-angle faces
-  if (!smoothnormal_) {
+  if (!smoothnormal) {
     // allocate removal and clear
     float* nremove = (float*) mju_malloc(3*nnormal_*sizeof(float));
     memset(nremove, 0, 3*nnormal_*sizeof(float));

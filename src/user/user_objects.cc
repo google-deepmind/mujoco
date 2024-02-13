@@ -599,6 +599,7 @@ void mjCBody::PointToLocal() {
   spec.userdata = (mjDoubleVec)&spec_userdata_;
   spec.plugin.name = (mjString)&plugin_name;
   spec.plugin.instance_name = (mjString)&plugin_instance_name;
+  spec.info = (mjString)&info;
 }
 
 
@@ -606,7 +607,6 @@ void mjCBody::CopyFromSpec() {
   *static_cast<mjmBody*>(this) = spec;
   userdata_ = spec_userdata_;
   userdata = (mjDoubleVec)&userdata_;
-  spec.info = (mjString)&info;
   mju_copy4(alt_.axisangle, alt.axisangle);
   mju_copy(alt_.xyaxes, alt.xyaxes, 6);
   mju_copy3(alt_.zaxis, alt.zaxis);

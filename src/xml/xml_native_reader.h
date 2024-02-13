@@ -59,7 +59,7 @@ class mjXReader : public mjXBase {
 
   // single element parsers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, mjmFlex* pflex);
-  void OneMesh(tinyxml2::XMLElement* elem, mjCMesh* pmesh);
+  void OneMesh(tinyxml2::XMLElement* elem, mjmMesh* pmesh);
   void OneSkin(tinyxml2::XMLElement* elem, mjCSkin* pskin);
   void OneMaterial(tinyxml2::XMLElement* elem, mjmMaterial* pmaterial);
   void OneJoint(tinyxml2::XMLElement* elem, mjmJoint* pjoint);

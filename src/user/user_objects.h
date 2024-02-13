@@ -615,26 +615,36 @@ class mjCFlex: public mjCBase, private mjmFlex {
 //------------------------- class mjCMesh ----------------------------------------------------------
 // Describes a mesh
 
-class mjCMesh: public mjCBase {
+class mjCMesh: public mjCBase, private mjmMesh {
   friend class mjCFlexcomp;
+  friend class mjXWriter;
  public:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);
   ~mjCMesh();
 
-  // public getters
-  const std::string& content_type() const { return content_type_; }
-  const std::string& file() const { return file_; }
+  mjmMesh spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::plugin;
+  using mjCBase::info;
+
+  void CopyFromSpec(void);
+  void PointToLocal(void);
+
+  // public getters and setters
+  const std::string& get_content_type() const { return content_type_; }
   const std::string& get_file() const { return file_; }
-  const double* refpos() const { return refpos_; }
-  const double* refquat() const { return refquat_; }
-  const double* scale() const { return scale_; }
-  bool smoothnormal() const { return smoothnormal_; }
+  const double* get_refpos() const { return refpos; }
+  const double* get_refquat() const { return refquat; }
+  const double* get_scale() const { return scale; }
+  bool get_smoothnormal() const { return smoothnormal; }
+  void set_needhull(bool needhull);
 
   // public getters for user data
-  const std::vector<float>& uservert() const { return uservert_; }
-  const std::vector<float>& usernormal() const { return usernormal_; }
-  const std::vector<float>& usertexcoord() const { return usertexcoord_; }
-  const std::vector<int>& userface() const { return userface_; }
+  const std::vector<float>& get_uservert() const { return uservert_; }
+  const std::vector<float>& get_usernormal() const { return usernormal_; }
+  const std::vector<float>& get_usertexcoord() const { return usertexcoord_; }
+  const std::vector<int>& get_userface() const { return userface_; }
 
   // mesh properties computed by Compile
   const double* aamm() const { return aamm_; }
@@ -650,24 +660,6 @@ class mjCMesh: public mjCBase {
 
   // bounding volume hierarchy tree
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
-
-  // general setters
-  void set_file(const std::string& file);
-  void set_scale(std::array<double, 3> scale);
-  void set_smoothnormal(bool smoothnormal);
-  void set_needhull(bool needhull);
-
-  // setters used in reading XML attributes (no-op if empty optional)
-  void set_content_type(std::optional<std::string>&& content_type);
-  void set_file(std::optional<std::string>&& file);
-  void set_refpos(std::optional<std::array<double, 3>> refpos);
-  void set_refquat(std::optional<std::array<double, 4>> refquat);
-  void set_scale(std::optional<std::array<double, 3>> scale);
-
-  void set_uservert(std::optional<std::vector<float>>&& uservert);
-  void set_usernormal(std::optional<std::vector<float>>&& usernormal);
-  void set_usertexcoord(std::optional<std::vector<float>>&& usertexcoord);
-  void set_userface(std::optional<std::vector<int>>&& userface);
 
   void Compile(const mjVFS* vfs);                   // compiler
   double* GetPosPtr(mjtGeomInertia type);              // get position
@@ -694,19 +686,25 @@ class mjCMesh: public mjCBase {
   void SetBoundingVolume(int faceid);
 
  private:
-  bool visual_;                       // true: the mesh is only visual
-  std::string content_type_;          // content type of file
-  std::string file_;                  // mesh file
-  double refpos_[3];                  // reference position (translate)
-  double refquat_[4];                 // reference orientation (rotate)
-  double scale_[3];                   // rescale mesh
-  bool smoothnormal_;                 // do not exclude large-angle faces from normals
-
+  // variable size attributes
+  std::string content_type_;                     // content type of file
+  std::string file_;                             // mesh file
   std::vector<float> uservert_;                  // user vertex data
   std::vector<float> usernormal_;                // user normal data
   std::vector<float> usertexcoord_;              // user texcoord data
   std::vector<int> userface_;                    // user vertex indices
   std::vector<int> userfacenormal_;              // user normal indices
+
+  std::string spec_content_type_;
+  std::string spec_file_;
+  std::vector<float> spec_uservert_;
+  std::vector<float> spec_usernormal_;
+  std::vector<float> spec_usertexcoord_;
+  std::vector<int> spec_userface_;
+  std::vector<int> spec_userfacenormal_;
+
+  // used by the compiler
+  bool visual_;                                  // true: the mesh is only visual
   std::vector<int> userfacetexcoord_;            // user texcoord indices
   std::vector< std::pair<int, int> > useredge_;  // user half-edge data
 

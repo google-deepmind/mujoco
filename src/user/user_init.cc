@@ -192,6 +192,17 @@ void mjm_defaultFlex(mjmFlex& flex) {
 
 
 
+// default mesh attributes
+void mjm_defaultMesh(mjmMesh& mesh) {
+  memset(&mesh, 0, sizeof(mjmMesh));
+  mjuu_setvec(mesh.refpos, 0, 0, 0);
+  mjuu_setvec(mesh.refquat, 1, 0, 0, 0);
+  mjuu_setvec(mesh.scale, 1, 1, 1);
+  mesh.smoothnormal = false;
+}
+
+
+
 // default texture attributes
 void mjm_defaultTexture(mjmTexture& texture) {
   memset(&texture, 0, sizeof(mjmTexture));

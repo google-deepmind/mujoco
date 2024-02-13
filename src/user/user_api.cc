@@ -137,6 +137,16 @@ mjmFrame* mjm_addFrame(mjmBody* bodyspec, mjmFrame* parentframe) {
 
 
 
+// add mesh to model
+mjmMesh* mjm_addMesh(void* model, void* defspec) {
+  mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec) : 0;
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCMesh* mesh = modelC->AddMesh(def);
+  return &mesh->spec;
+}
+
+
+
 // add texture to model
 mjmTexture* mjm_addTexture(void* model) {
   mjCModel* modelC = static_cast<mjCModel*>(model);

@@ -571,26 +571,34 @@ mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
     meshname = mjuu_stripext(meshname);
 
     // look for existing mesh
-    mjCMesh* pmesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, meshname);
+    mjCMesh* mesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, meshname);
+    mjmMesh* pmesh = 0;
 
     // does not exist: create
-    if (!pmesh) {
-      pmesh = model->AddMesh();
+    if (!mesh) {
+      pmesh = mjm_addMesh(model, 0);
     }
 
     // exists with different scale: append name with '1', create
-    else if (pmesh->scale()[0]!=meshscale[0] ||
-             pmesh->scale()[1]!=meshscale[1] ||
-             pmesh->scale()[2]!=meshscale[2]) {
-      pmesh = model->AddMesh();
+    else if (mesh->spec.scale[0]!=meshscale[0] ||
+             mesh->spec.scale[1]!=meshscale[1] ||
+             mesh->spec.scale[2]!=meshscale[2]) {
+      pmesh = mjm_addMesh(model, 0);
       meshname = meshname + "1";
     }
 
+    // point to already existing spec
+    else {
+      pmesh = &mesh->spec;
+    }
+
     // set fields
-    pmesh->set_file(meshfile);
-    pmesh->name = meshname;
+    mjm_setString(pmesh->file, meshfile.c_str());
+    mjm_setString(pmesh->name, meshname.c_str());
     mjm_setString(pgeom->meshname, meshname.c_str());
-    pmesh->set_scale(meshscale);
+    pmesh->scale[0] = meshscale[0];
+    pmesh->scale[1] = meshscale[1];
+    pmesh->scale[2] = meshscale[2];
   }
 
   else {

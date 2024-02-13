@@ -325,6 +325,27 @@ typedef struct _mjmFlex {
 } mjmFlex;
 
 
+typedef struct _mjmMesh {          // mesh specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjString content_type;           // content type of file
+  mjString file;                   // mesh file
+  double refpos[3];                // reference position
+  double refquat[4];               // reference orientation
+  double scale[3];                 // rescale mesh
+  mjtByte smoothnormal;            // do not exclude large-angle faces from normals
+  mjFloatVec uservert;             // user vertex data
+  mjFloatVec usernormal;           // user normal data
+  mjFloatVec usertexcoord;         // user texcoord data
+  mjIntVec userface;               // user vertex indices
+  mjIntVec userfacenormal;         // user normal indices
+  mjIntVec userfacetexcoord;       // user texcoord indices
+  mjmPlugin plugin;                // sdf plugin
+  mjString info;                   // message appended to compiler errors
+} mjmMesh;
+
+
 typedef struct _mjmTexture {       // texture specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -558,6 +579,9 @@ MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
 // Add flex to model.
 MJAPI mjmFlex* mjm_addFlex(void* model);
 
+// Add mesh to model.
+MJAPI mjmMesh* mjm_addMesh(void* model, void* defspec);
+
 // Add texture to model.
 MJAPI mjmTexture* mjm_addTexture(void* model);
 
@@ -671,6 +695,9 @@ MJAPI void mjm_defaultLight(mjmLight& light);
 
 // Default flex attributes.
 MJAPI void mjm_defaultFlex(mjmFlex& flex);
+
+// Default mesh attributes.
+MJAPI void mjm_defaultMesh(mjmMesh& mesh);
 
 // Default texture attributes.
 MJAPI void mjm_defaultTexture(mjmTexture& texture);

@@ -1346,18 +1346,26 @@ void mjXReader::OneFlex(XMLElement* elem, mjmFlex* pflex) {
 
 
 // mesh element parser
-void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
+void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
   int n;
-  string text;
+  string text, name, classname, content_type, file;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pmesh->name);
-  ReadAttrTxt(elem, "class", pmesh->classname);
-  pmesh->set_content_type(ReadAttrStr(elem, "content_type"));
-  pmesh->set_file(ReadAttrStr(elem, "file"));
-  pmesh->set_refpos(ReadAttrArr<double, 3>(elem, "refpos"));
-  pmesh->set_refquat(ReadAttrArr<double, 4>(elem, "refquat"));
-  pmesh->set_scale(ReadAttrArr<double, 3>(elem, "scale"));
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pmesh->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pmesh->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "content_type", content_type)) {
+    mjm_setString(pmesh->content_type, content_type.c_str());
+  }
+  if (ReadAttrTxt(elem, "file", file)) {
+    mjm_setString(pmesh->file, file.c_str());
+  }
+  ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
+  ReadAttr(elem, "refpos", 4, pmesh->refquat, text);
+  ReadAttr(elem, "scale", 3, pmesh->scale, text);
 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
@@ -1365,22 +1373,44 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
   }
 
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
-    pmesh->set_smoothnormal((n==1));
+    pmesh->smoothnormal = (n==1);
   }
 
   // read user vertex data
-  pmesh->set_uservert(ReadAttrVec<float>(elem, "vertex"));
+  if (ReadAttrTxt(elem, "vertex", text)) {
+    auto uservert = ReadAttrVec<float>(elem, "vertex");
+    if (uservert.has_value()) {
+      mjm_setFloat(pmesh->uservert, uservert->data(), uservert->size());
+    }
+  }
 
   // read user normal data
-  pmesh->set_usernormal(ReadAttrVec<float>(elem, "normal"));
+  if (ReadAttrTxt(elem, "normal", text)) {
+    auto usernormal = ReadAttrVec<float>(elem, "normal");
+    if (usernormal.has_value()) {
+      mjm_setFloat(pmesh->usernormal, usernormal->data(), usernormal->size());
+    }
+  }
 
   // read user texcoord data
-  pmesh->set_usertexcoord(ReadAttrVec<float>(elem, "texcoord"));
+  if (ReadAttrTxt(elem, "texcoord", text)) {
+    auto usertexcoord = ReadAttrVec<float>(elem, "texcoord");
+    if (usertexcoord.has_value()) {
+      mjm_setFloat(pmesh->usertexcoord, usertexcoord->data(), usertexcoord->size());
+    }
+  }
 
   // read user face data
-  pmesh->set_userface(ReadAttrVec<int>(elem, "face"));
+  if (ReadAttrTxt(elem, "face", text)) {
+    auto userface = ReadAttrVec<int>(elem, "face");
+    if (userface.has_value()) {
+      mjm_setInt(pmesh->userface, userface->data(), userface->size());
+    }
+  }
 
-  GetXMLPos(elem, pmesh);
+  // write error info
+  mjm_setString(pmesh->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2608,7 +2638,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     name = elem->Value();
 
     // read mesh
-    if (name=="mesh") OneMesh(elem, &def->mesh);
+    if (name=="mesh") OneMesh(elem, &def->mesh.spec);
 
     // read material
     else if (name=="material") OneMaterial(elem, &def->material.spec);
@@ -3073,7 +3103,7 @@ void mjXReader::Asset(XMLElement* section) {
     // mesh sub-element
     else if (name=="mesh") {
       // create mesh and parse
-      mjCMesh* pmesh = model->AddMesh(def);
+      mjmMesh* pmesh = mjm_addMesh(model, def);
       OneMesh(elem, pmesh);
     }
 
