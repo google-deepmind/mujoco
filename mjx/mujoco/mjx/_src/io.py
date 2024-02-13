@@ -146,23 +146,23 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   ne, nf, nl, nc = constraint.count_constraints(m)
   nefc = ne + nf + nl + nc
 
-  zero_0 = jp.zeros(0, dtype=jp.float32)
-  zero_nv = jp.zeros(m.nv, dtype=jp.float32)
-  zero_nv_6 = jp.zeros((m.nv, 6), dtype=jp.float32)
-  zero_nv_nv = jp.zeros((m.nv, m.nv), dtype=jp.float32)
-  zero_nbody_3 = jp.zeros((m.nbody, 3), dtype=jp.float32)
-  zero_nbody_6 = jp.zeros((m.nbody, 6), dtype=jp.float32)
-  zero_nbody_10 = jp.zeros((m.nbody, 10), dtype=jp.float32)
-  zero_nbody_3_3 = jp.zeros((m.nbody, 3, 3), dtype=jp.float32)
-  zero_nefc = jp.zeros(nefc, dtype=jp.float32)
-  zero_na = jp.zeros(m.na, dtype=jp.float32)
-  zero_nu = jp.zeros(m.nu, dtype=jp.float32)
-  zero_njnt_3 = jp.zeros((m.njnt, 3), dtype=jp.float32)
-  zero_nm = jp.zeros(m.nM, dtype=jp.float32)
+  zero_0 = jp.zeros(0, dtype=float)
+  zero_nv = jp.zeros(m.nv, dtype=float)
+  zero_nv_6 = jp.zeros((m.nv, 6), dtype=float)
+  zero_nv_nv = jp.zeros((m.nv, m.nv), dtype=float)
+  zero_nbody_3 = jp.zeros((m.nbody, 3), dtype=float)
+  zero_nbody_6 = jp.zeros((m.nbody, 6), dtype=float)
+  zero_nbody_10 = jp.zeros((m.nbody, 10), dtype=float)
+  zero_nbody_3_3 = jp.zeros((m.nbody, 3, 3), dtype=float)
+  zero_nefc = jp.zeros(nefc, dtype=float)
+  zero_na = jp.zeros(m.na, dtype=float)
+  zero_nu = jp.zeros(m.nu, dtype=float)
+  zero_njnt_3 = jp.zeros((m.njnt, 3), dtype=float)
+  zero_nm = jp.zeros(m.nM, dtype=float)
 
   # create first d to get num contacts and nc
   d = types.Data(
-      solver_niter=jp.array(0, dtype=jp.int32),
+      solver_niter=jp.array(0, dtype=int),
       time=jp.array(0.0),
       qpos=jp.array(m.qpos0),
       qvel=zero_nv,
@@ -171,31 +171,31 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       ctrl=zero_nu,
       qfrc_applied=zero_nv,
       xfrc_applied=zero_nbody_6,
-      eq_active=jp.zeros(m.neq, dtype=jp.int32),
+      eq_active=jp.zeros(m.neq, dtype=int),
       qacc=zero_nv,
       act_dot=zero_na,
       xpos=zero_nbody_3,
-      xquat=jp.zeros((m.nbody, 4), dtype=jp.float32),
+      xquat=jp.zeros((m.nbody, 4), dtype=float),
       xmat=zero_nbody_3_3,
       xipos=zero_nbody_3,
       ximat=zero_nbody_3_3,
       xanchor=zero_njnt_3,
       xaxis=zero_njnt_3,
-      geom_xpos=jp.zeros((m.ngeom, 3), dtype=jp.float32),
-      geom_xmat=jp.zeros((m.ngeom, 3, 3), dtype=jp.float32),
-      site_xpos=jp.zeros((m.nsite, 3), dtype=jp.float32),
-      site_xmat=jp.zeros((m.nsite, 3, 3), dtype=jp.float32),
+      geom_xpos=jp.zeros((m.ngeom, 3), dtype=float),
+      geom_xmat=jp.zeros((m.ngeom, 3, 3), dtype=float),
+      site_xpos=jp.zeros((m.nsite, 3), dtype=float),
+      site_xmat=jp.zeros((m.nsite, 3, 3), dtype=float),
       subtree_com=zero_nbody_3,
       cdof=zero_nv_6,
       cinert=zero_nbody_10,
       actuator_length=zero_nu,
-      actuator_moment=jp.zeros((m.nu, m.nv), dtype=jp.float32),
+      actuator_moment=jp.zeros((m.nu, m.nv), dtype=float),
       crb=zero_nbody_10,
       qM=zero_nm if support.is_sparse(m) else zero_nv_nv,
       qLD=zero_nm if support.is_sparse(m) else zero_nv_nv,
       qLDiagInv=zero_nv if support.is_sparse(m) else zero_0,
       contact=types.Contact.zero(ncon),
-      efc_J=jp.zeros((nefc, m.nv), dtype=jp.float32),
+      efc_J=jp.zeros((nefc, m.nv), dtype=float),
       efc_frictionloss=zero_nefc,
       efc_D=zero_nefc,
       actuator_velocity=zero_nu,

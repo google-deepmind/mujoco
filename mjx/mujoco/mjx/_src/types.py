@@ -579,8 +579,8 @@ class Contact(PyTreeNode):
         solref=jp.zeros((ncon, mujoco.mjNREF)),
         solreffriction=jp.zeros((ncon, mujoco.mjNREF)),
         solimp=jp.zeros((ncon, mujoco.mjNIMP,)),
-        geom1=jp.zeros(ncon, dtype=jp.int32),
-        geom2=jp.zeros(ncon, dtype=jp.int32),
+        geom1=jp.zeros(ncon, dtype=int),
+        geom2=jp.zeros(ncon, dtype=int),
     )
 
 
