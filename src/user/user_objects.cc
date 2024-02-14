@@ -3585,34 +3585,59 @@ mjCBodyPair::mjCBodyPair(mjCModel* _model) {
   model = _model;
 
   // set defaults
-  bodyname1.clear();
-  bodyname2.clear();
+  spec_bodyname1_.clear();
+  spec_bodyname2_.clear();
 
   // clear internal variables
   body1 = body2 = signature = -1;
+
+  PointToLocal();
+  CopyFromSpec();
+}
+
+
+
+void mjCBodyPair::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.bodyname1 = (mjString)&spec_bodyname1_;
+  spec.bodyname2 = (mjString)&spec_bodyname2_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCBodyPair::CopyFromSpec() {
+  *static_cast<mjmExclude*>(this) = spec;
+  bodyname1_ = spec_bodyname1_;
+  bodyname2_ = spec_bodyname2_;
+  bodyname1 = (mjString)&bodyname1_;
+  bodyname2 = (mjString)&bodyname2_;
 }
 
 
 
 // compiler
 void mjCBodyPair::Compile(void) {
+  CopyFromSpec();
+
   // find body 1
-  mjCBody* pb1 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname1);
+  mjCBody* pb1 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname1_);
   if (!pb1) {
-    throw mjCError(this, "body '%s' not found in bodypair %d", bodyname1.c_str(), id);
+    throw mjCError(this, "body '%s' not found in bodypair %d", bodyname1_.c_str(), id);
   }
 
   // find body 2
-  mjCBody* pb2 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname2);
+  mjCBody* pb2 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname2_);
   if (!pb2) {
-    throw mjCError(this, "body '%s' not found in bodypair %d", bodyname2.c_str(), id);
+    throw mjCError(this, "body '%s' not found in bodypair %d", bodyname2_.c_str(), id);
   }
 
   // swap if body1 > body2
   if (pb1->id > pb2->id) {
-    string nametmp = bodyname1;
-    bodyname1 = bodyname2;
-    bodyname2 = nametmp;
+    string nametmp = bodyname1_;
+    bodyname1_ = bodyname2_;
+    bodyname2_ = nametmp;
 
     mjCBody* bodytmp = pb1;
     pb1 = pb2;

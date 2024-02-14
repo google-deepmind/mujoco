@@ -1543,8 +1543,8 @@ void mjXWriter::Contact(XMLElement* root) {
 
     // write attributes
     WriteAttrTxt(elem, "name", pexclude->name);
-    WriteAttrTxt(elem, "body1", pexclude->bodyname1);
-    WriteAttrTxt(elem, "body2", pexclude->bodyname2);
+    WriteAttrTxt(elem, "body1", pexclude->get_bodyname1());
+    WriteAttrTxt(elem, "body2", pexclude->get_bodyname2());
   }
 }
 

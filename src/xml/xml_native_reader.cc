@@ -3424,13 +3424,20 @@ void mjXReader::Contact(XMLElement* section) {
 
     // body pair to exclude
     else if (name=="exclude") {
-      mjCBodyPair* pexclude = model->AddExclude();
-      GetXMLPos(elem, pexclude);
+      mjmExclude* pexclude = mjm_addExclude(model);
+      string exname, exbody1, exbody2;
+
+      // write error info
+      mjm_setString(pexclude->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read name and body names
-      ReadAttrTxt(elem, "name", pexclude->name);
-      ReadAttrTxt(elem, "body1", pexclude->bodyname1, true);
-      ReadAttrTxt(elem, "body2", pexclude->bodyname2, true);
+      if (ReadAttrTxt(elem, "name", exname)) {
+        mjm_setString(pexclude->name, exname.c_str());
+      }
+      ReadAttrTxt(elem, "body1", exbody1, true);
+      mjm_setString(pexclude->bodyname1, exbody1.c_str());
+      ReadAttrTxt(elem, "body2", exbody2, true);
+      mjm_setString(pexclude->bodyname2, exbody2.c_str());
     }
 
     // advance to next element

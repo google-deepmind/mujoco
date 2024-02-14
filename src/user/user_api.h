@@ -428,6 +428,15 @@ typedef struct _mjmPair {
 } mjmPair;
 
 
+typedef struct _mjmExclude {
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString bodyname1;              // name of geom 1
+  mjString bodyname2;              // name of geom 2
+  mjString info;                   // message appended to errors
+} mjmExclude;
+
+
 typedef struct _mjmEquality {      // equality specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -647,6 +656,9 @@ MJAPI mjmMaterial* mjm_addMaterial(void* model, void* defspec);
 
 // Add pair to model.
 MJAPI mjmPair* mjm_addPair(void* model, void* defspec);
+
+// Add excluded body pair to model.
+MJAPI mjmExclude* mjm_addExclude(void *model);
 
 // Add equality to model.
 MJAPI mjmEquality* mjm_addEquality(void* model, void* defspec);

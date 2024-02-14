@@ -864,9 +864,9 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
 
   // exclude contact pair
   if (!last) {
-    mjCBodyPair* exclude = model->AddExclude();
-    exclude->bodyname1 = this_body;
-    exclude->bodyname2 = next_body;
+    mjmExclude* exclude = mjm_addExclude(model);
+    mjm_setString(exclude->bodyname1, std::string(this_body).c_str());
+    mjm_setString(exclude->bodyname2, std::string(next_body).c_str());
   }
 
   // add site at the boundary
@@ -939,9 +939,9 @@ bool mjCComposite::MakeRope(mjCModel* model, mjmBody* body, char* error, int err
     mju_copy(eq->solimp, solimpsmooth, mjNIMP);
 
     // remove contact between connected bodies
-    mjCBodyPair* pair = model->AddExclude();
-    pair->bodyname1 = txt;
-    pair->bodyname2 = txt2;
+    mjmExclude* pair = mjm_addExclude(model);
+    mjm_setString(pair->bodyname1, std::string(txt).c_str());
+    mjm_setString(pair->bodyname2, std::string(txt2).c_str());
   }
 
   return true;

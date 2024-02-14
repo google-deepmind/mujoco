@@ -185,6 +185,15 @@ mjmPair* mjm_addPair(void* model, void* defspec) {
 
 
 
+// add pair exclusion to model
+mjmExclude* mjm_addExclude(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCBodyPair* bodypair = modelC->AddExclude();
+  return &bodypair->spec;
+}
+
+
+
 // add equality to model
 mjmEquality* mjm_addEquality(void* model, void* defspec) {
   mjCModel* modelC = static_cast<mjCModel*>(model);

@@ -984,26 +984,37 @@ class mjCPair : public mjCBase, private mjmPair {
 //------------------------- class mjCBodyPair ------------------------------------------------------
 // Body pair specification, use to exclude pairs
 
-class mjCBodyPair : public mjCBase {
+class mjCBodyPair : public mjCBase, private mjmExclude {
   friend class mjCBody;
   friend class mjCModel;
 
  public:
-  // parameters set by user
-  std::string bodyname1;          // name of geom 1
-  std::string bodyname2;          // name of geom 2
+  mjmExclude spec;
+  using mjCBase::name;
+  using mjCBase::info;
+
+  void CopyFromSpec();
+  void PointToLocal();
+
+  std::string get_bodyname1() const { return bodyname1_; }
+  std::string get_bodyname2() const { return bodyname2_; }
 
   int GetSignature(void) {
     return signature;
   }
 
  private:
-  mjCBodyPair(mjCModel*);             // constructor
-  void Compile(void);                 // compiler
+  mjCBodyPair(mjCModel*);          // constructor
+  void Compile(void);              // compiler
 
-  int body1;                      // id of body1
-  int body2;                      // id of body2
-  int signature;                  // body1<<16 + body2
+  int body1;                       // id of body1
+  int body2;                       // id of body2
+  int signature;                   // body1<<16 + body2
+
+  std::string bodyname1_;          // name of geom 1
+  std::string bodyname2_;          // name of geom 2
+  std::string spec_bodyname1_;
+  std::string spec_bodyname2_;
 };
 
 
