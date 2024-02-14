@@ -15,7 +15,7 @@
 """Base types used in MJX."""
 
 import enum
-from typing import Sequence
+from typing import List, Optional
 
 import jax
 import jax.numpy as jp
@@ -498,10 +498,10 @@ class Model(PyTreeNode):
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
-  geom_convex_face: Sequence[jax.Array]
-  geom_convex_vert: Sequence[jax.Array]
-  geom_convex_edge: Sequence[jax.Array]
-  geom_convex_facenormal: Sequence[jax.Array]
+  geom_convex_face: List[Optional[jax.Array]]
+  geom_convex_vert: List[Optional[jax.Array]]
+  geom_convex_edge: List[Optional[jax.Array]]
+  geom_convex_facenormal: List[Optional[jax.Array]]
   pair_solref: jax.Array
   pair_solreffriction: jax.Array
   pair_solimp: jax.Array
