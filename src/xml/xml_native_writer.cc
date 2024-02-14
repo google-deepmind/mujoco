@@ -1283,7 +1283,7 @@ void mjXWriter::Custom(XMLElement* root) {
     elem = InsertEnd(section, "numeric");
     WriteAttrTxt(elem, "name", ptr->name);
     WriteAttrInt(elem, "size", ptr->size);
-    WriteAttr(elem, "data", ptr->size, ptr->data.data());
+    WriteAttr(elem, "data", ptr->size, ptr->data_.data());
   }
 
   // write all texts
@@ -1291,7 +1291,7 @@ void mjXWriter::Custom(XMLElement* root) {
     mjCText* ptr = (mjCText*)model->GetObject(mjOBJ_TEXT, i);
     elem = InsertEnd(section, "text");
     WriteAttrTxt(elem, "name", ptr->name);
-    WriteAttrTxt(elem, "data", ptr->data.c_str());
+    WriteAttrTxt(elem, "data", ptr->data_.c_str());
   }
 
   // write all tuples
@@ -1301,11 +1301,11 @@ void mjXWriter::Custom(XMLElement* root) {
     WriteAttrTxt(elem, "name", ptr->name);
 
     // write objects in tuple
-    for (int j=0; j<(int)ptr->objtype.size(); j++) {
+    for (int j=0; j<(int)ptr->objtype_.size(); j++) {
       XMLElement* obj = InsertEnd(elem, "element");
-      WriteAttrTxt(obj, "objtype", mju_type2Str((int)ptr->objtype[j]));
-      WriteAttrTxt(obj, "objname", ptr->objname[j].c_str());
-      double oprm = ptr->objprm[j];
+      WriteAttrTxt(obj, "objtype", mju_type2Str((int)ptr->objtype_[j]));
+      WriteAttrTxt(obj, "objname", ptr->objname_[j].c_str());
+      double oprm = ptr->objprm_[j];
       if (oprm!=0) {
         WriteAttr(obj, "prm", 1, &oprm);
       }
@@ -1964,8 +1964,8 @@ void mjXWriter::Keyframe(XMLElement* root) {
 
     // check qpos and write
     for (int j=0; j<model->nq; j++) {
-      if (pk->qpos[j]!=model->qpos0[j]) {
-        WriteAttr(elem, "qpos", model->nq, pk->qpos.data());
+      if (pk->qpos_[j]!=model->qpos0[j]) {
+        WriteAttr(elem, "qpos", model->nq, pk->qpos_.data());
         change = true;
         break;
       }
@@ -1973,8 +1973,8 @@ void mjXWriter::Keyframe(XMLElement* root) {
 
     // check qvel and write
     for (int j=0; j<model->nv; j++) {
-      if (pk->qvel[j]!=0) {
-        WriteAttr(elem, "qvel", model->nv, pk->qvel.data());
+      if (pk->qvel_[j]!=0) {
+        WriteAttr(elem, "qvel", model->nv, pk->qvel_.data());
         change = true;
         break;
       }
@@ -1982,8 +1982,8 @@ void mjXWriter::Keyframe(XMLElement* root) {
 
     // check act and write
     for (int j=0; j<model->na; j++) {
-      if (pk->act[j]!=0) {
-        WriteAttr(elem, "act", model->na, pk->act.data());
+      if (pk->act_[j]!=0) {
+        WriteAttr(elem, "act", model->na, pk->act_.data());
         change = true;
         break;
       }
@@ -1995,10 +1995,10 @@ void mjXWriter::Keyframe(XMLElement* root) {
         if (model->bodies[j]->mocap) {
           mjCBody* pb = model->bodies[j];
           int id = pb->mocapid;
-          if (pb->pos[0] != pk->mpos[3*id] ||
-              pb->pos[1] != pk->mpos[3*id+1] ||
-              pb->pos[2] != pk->mpos[3*id+2]) {
-            WriteAttr(elem, "mpos", 3*model->nmocap, pk->mpos.data());
+          if (pb->pos[0] != pk->mpos_[3*id] ||
+              pb->pos[1] != pk->mpos_[3*id+1] ||
+              pb->pos[2] != pk->mpos_[3*id+2]) {
+            WriteAttr(elem, "mpos", 3*model->nmocap, pk->mpos_.data());
             change = true;
             break;
           }
@@ -2012,11 +2012,11 @@ void mjXWriter::Keyframe(XMLElement* root) {
         if (model->bodies[j]->mocap) {
           mjCBody* pb = model->bodies[j];
           int id = pb->mocapid;
-          if (pb->quat[0] != pk->mquat[4*id] ||
-              pb->quat[1] != pk->mquat[4*id+1] ||
-              pb->quat[2] != pk->mquat[4*id+2] ||
-              pb->quat[3] != pk->mquat[4*id+3]) {
-            WriteAttr(elem, "mquat", 4*model->nmocap, pk->mquat.data());
+          if (pb->quat[0] != pk->mquat_[4*id] ||
+              pb->quat[1] != pk->mquat_[4*id+1] ||
+              pb->quat[2] != pk->mquat_[4*id+2] ||
+              pb->quat[3] != pk->mquat_[4*id+3]) {
+            WriteAttr(elem, "mquat", 4*model->nmocap, pk->mquat_.data());
             change = true;
             break;
           }
@@ -2026,8 +2026,8 @@ void mjXWriter::Keyframe(XMLElement* root) {
 
     // check ctrl and write
     for (int j=0; j<model->nu; j++) {
-      if (pk->ctrl[j]!=0) {
-        WriteAttr(elem, "ctrl", model->nu, pk->ctrl.data());
+      if (pk->ctrl_[j]!=0) {
+        WriteAttr(elem, "ctrl", model->nu, pk->ctrl_.data());
         change = true;
         break;
       }

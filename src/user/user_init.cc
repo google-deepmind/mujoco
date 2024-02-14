@@ -307,4 +307,30 @@ void mjm_defaultSensor(mjmSensor& sensor) {
 
 
 
+// Default numeric attributes.
+void mjm_defaultNumeric(mjmNumeric& numeric) {
+  memset(&numeric, 0, sizeof(mjmNumeric));
+}
+
+
+
+// Default text attributes.
+void mjm_defaultText(mjmText& text) {
+  memset(&text, 0, sizeof(mjmText));
+}
+
+
+
+// Default tuple attributes.
+void mjm_defaultTuple(mjmTuple& tuple) {
+  memset(&tuple, 0, sizeof(mjmTuple));
+}
+
+
+
+// Default keyframe attributes.
+void mjm_defaultKey(mjmKey& key) {
+  memset(&key, 0, sizeof(mjmKey));
+}
+
 

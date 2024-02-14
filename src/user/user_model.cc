@@ -1069,10 +1069,10 @@ void mjCModel::SetSizes(void) {
   for (int i=0; i<nnumeric; i++) nnumericdata += numerics[i]->size;
 
   // ntextdata
-  for (int i=0; i<ntext; i++) ntextdata += (int)texts[i]->data.size() + 1;
+  for (int i=0; i<ntext; i++) ntextdata += (int)texts[i]->data_.size() + 1;
 
   // ntupledata
-  for (int i=0; i<ntuple; i++) ntupledata += (int)tuples[i]->objtype.size();
+  for (int i=0; i<ntuple; i++) ntupledata += (int)tuples[i]->objtype_.size();
 
   // npluginattr
   for (int i=0; i<nplugin; i++) npluginattr += (int)plugins[i]->flattened_attributes.size();
@@ -2335,10 +2335,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set fields
     m->numeric_adr[i] = adr;
     m->numeric_size[i] = pcu->size;
-    for (int j=0; j<(int)pcu->data.size(); j++) {
-      m->numeric_data[adr+j] = (mjtNum)pcu->data[j];
+    for (int j=0; j<(int)pcu->data_.size(); j++) {
+      m->numeric_data[adr+j] = (mjtNum)pcu->data_[j];
     }
-    for (int j=(int)pcu->data.size(); j<(int)pcu->size; j++) {
+    for (int j=(int)pcu->data_.size(); j<(int)pcu->size; j++) {
       m->numeric_data[adr+j] = 0;
     }
 
@@ -2354,8 +2354,8 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->text_adr[i] = adr;
-    m->text_size[i] = (int)pte->data.size()+1;
-    mju_strncpy(m->text_data + adr, pte->data.c_str(), m->ntextdata - adr);
+    m->text_size[i] = (int)pte->data_.size()+1;
+    mju_strncpy(m->text_data + adr, pte->data_.c_str(), m->ntextdata - adr);
 
     // advance address counter
     adr += m->text_size[i];
@@ -2369,11 +2369,11 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->tuple_adr[i] = adr;
-    m->tuple_size[i] = (int)ptu->objtype.size();
+    m->tuple_size[i] = (int)ptu->objtype_.size();
     for (int j=0; j<m->tuple_size[i]; j++) {
-      m->tuple_objtype[adr+j] = (int)ptu->objtype[j];
+      m->tuple_objtype[adr+j] = (int)ptu->objtype_[j];
       m->tuple_objid[adr+j] = ptu->obj[j]->id;
-      m->tuple_objprm[adr+j] = (mjtNum)ptu->objprm[j];
+      m->tuple_objprm[adr+j] = (mjtNum)ptu->objprm_[j];
     }
 
     // advance address counter
@@ -2384,14 +2384,14 @@ void mjCModel::CopyObjects(mjModel* m) {
   for (int i=0; i<nkey; i++) {
     // copy data
     m->key_time[i] = (mjtNum)keys[i]->time;
-    copyvec(m->key_qpos+i*nq, keys[i]->qpos.data(), nq);
-    copyvec(m->key_qvel+i*nv, keys[i]->qvel.data(), nv);
+    copyvec(m->key_qpos+i*nq, keys[i]->qpos_.data(), nq);
+    copyvec(m->key_qvel+i*nv, keys[i]->qvel_.data(), nv);
     if (na) {
-      copyvec(m->key_act+i*na, keys[i]->act.data(), na);
+      copyvec(m->key_act+i*na, keys[i]->act_.data(), na);
     }
     if (nmocap) {
-      copyvec(m->key_mpos + i*3*nmocap, keys[i]->mpos.data(), 3*nmocap);
-      copyvec(m->key_mquat + i*4*nmocap, keys[i]->mquat.data(), 4*nmocap);
+      copyvec(m->key_mpos + i*3*nmocap, keys[i]->mpos_.data(), 3*nmocap);
+      copyvec(m->key_mquat + i*4*nmocap, keys[i]->mquat_.data(), 4*nmocap);
     }
 
     // normalize quaternions in m->key_qpos
@@ -2406,7 +2406,7 @@ void mjCModel::CopyObjects(mjModel* m) {
       mju_normalize4(m->key_mquat+i*4*nmocap+4*j);
     }
 
-    copyvec(m->key_ctrl+i*nu, keys[i]->ctrl.data(), nu);
+    copyvec(m->key_ctrl+i*nu, keys[i]->ctrl_.data(), nu);
   }
 
   // save qpos0 in user model (to recognize changed key_qpos in write)
@@ -3518,14 +3518,14 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // numeric data
   for (int i=0; i<nnumeric; i++) {
     for (int j=0; j<m->numeric_size[i]; j++) {
-      numerics[i]->data[j] = (double)m->numeric_data[m->numeric_adr[i]+j];
+      numerics[i]->data_[j] = (double)m->numeric_data[m->numeric_adr[i]+j];
     }
   }
 
   // tuple data
   for (int i=0; i<ntuple; i++) {
     for (int j=0; j<m->tuple_size[i]; j++) {
-      tuples[i]->objprm[j] = (double)m->tuple_objprm[m->tuple_adr[i]+j];
+      tuples[i]->objprm_[j] = (double)m->tuple_objprm[m->tuple_adr[i]+j];
     }
   }
 
@@ -3534,17 +3534,17 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjCKey* pk = keys[i];
 
     pk->time = (double)m->key_time[i];
-    copyvec(pk->qpos.data(), m->key_qpos + i*nq, nq);
-    copyvec(pk->qvel.data(), m->key_qvel + i*nv, nv);
+    copyvec(pk->qpos_.data(), m->key_qpos + i*nq, nq);
+    copyvec(pk->qvel_.data(), m->key_qvel + i*nv, nv);
     if (na) {
-      copyvec(pk->act.data(), m->key_act + i*na, na);
+      copyvec(pk->act_.data(), m->key_act + i*na, na);
     }
     if (nmocap) {
-      copyvec(pk->mpos.data(), m->key_mpos + i*3*nmocap, 3*nmocap);
-      copyvec(pk->mquat.data(), m->key_mquat + i*4*nmocap, 4*nmocap);
+      copyvec(pk->mpos_.data(), m->key_mpos + i*3*nmocap, 3*nmocap);
+      copyvec(pk->mquat_.data(), m->key_mquat + i*4*nmocap, 4*nmocap);
     }
     if (nu) {
-      copyvec(pk->ctrl.data(), m->key_ctrl + i*nu, nu);
+      copyvec(pk->ctrl_.data(), m->key_ctrl + i*nu, nu);
     }
   }
 

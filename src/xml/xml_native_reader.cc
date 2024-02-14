@@ -2781,15 +2781,20 @@ void mjXReader::Custom(XMLElement* section) {
   while (elem) {
     // get sub-element name
     name = elem->Value();
+    string elname;
 
     // numeric
     if (name=="numeric") {
       // create custom
-      mjCNumeric* pnum = model->AddNumeric();
-      GetXMLPos(elem, pnum);
+      mjmNumeric* pnum = mjm_addNumeric(model);
+
+      // write error info
+      mjm_setString(pnum->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", pnum->name, true);
+      ReadAttrTxt(elem, "name", elname, true);
+      mjm_setString(pnum->name, elname.c_str());
       if (ReadAttrInt(elem, "size", &pnum->size)) {
         int sz = pnum->size < 500 ? pnum->size : 500;
         for (int i=0; i<sz; i++) {
@@ -2807,39 +2812,49 @@ void mjXReader::Custom(XMLElement* section) {
       }
 
       // copy data
-      for (int i=0; i<pnum->size; i++) {
-        pnum->data.push_back(data[i]);
-      }
+      mjm_setDouble(pnum->data, data, pnum->size);
     }
 
     // text
     else if (name=="text") {
       // create custom
-      mjCText* pte = model->AddText();
-      GetXMLPos(elem, pte);
+      mjmText* pte = mjm_addText(model);
+
+      // write error info
+      mjm_setString(pte->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", pte->name, true);
+      ReadAttrTxt(elem, "name", elname, true);
+      mjm_setString(pte->name, elname.c_str());
       ReadAttrTxt(elem, "data", text, true);
       if (text.empty()) {
         throw mjXError(elem, "text field cannot be empty");
       }
 
       // copy data
-      pte->data = text;
+      mjm_setString(pte->data, text.c_str());
     }
 
     // tuple
     else if (name=="tuple") {
       // create custom
-      mjCTuple* ptu = model->AddTuple();
-      GetXMLPos(elem, ptu);
+      mjmTuple* ptu = mjm_addTuple(model);
+
+      // write error info
+      mjm_setString(ptu->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", ptu->name, true);
+      ReadAttrTxt(elem, "name", elname, true);
+      mjm_setString(ptu->name, elname.c_str());
 
       // read objects and add
       XMLElement* obj = FirstChildElement(elem);
+      std::vector<int> objtype;
+      std::string objname = "";
+      std::vector<double> objprm;
+
       while (obj) {
         // get sub-element name
         name = obj->Value();
@@ -2852,21 +2867,25 @@ void mjXReader::Custom(XMLElement* section) {
           if (otype==mjOBJ_UNKNOWN) {
             throw mjXError(obj, "unknown object type");
           }
-          ptu->objtype.push_back(otype);
+          objtype.push_back(otype);
 
           // read name and assign
           ReadAttrTxt(obj, "objname", text, true);
-          ptu->objname.push_back(text);
+          objname += text + " ";
 
           // read parameter and assign
           double oprm = 0;
           ReadAttr(obj, "prm", 1, &oprm, text);
-          ptu->objprm.push_back(oprm);
+          objprm.push_back(oprm);
         }
 
         // advance to next object
         obj = NextSiblingElement(obj);
       }
+
+      mjm_setInt(ptu->objtype, objtype.data(), objtype.size());
+      mjm_setStringVec(ptu->objname, objname.c_str());
+      mjm_setDouble(ptu->objprm, objprm.data(), objprm.size());
     }
 
     // advance to next element
@@ -3875,7 +3894,6 @@ void mjXReader::Sensor(XMLElement* section) {
 
 // keyframe section parser
 void mjXReader::Keyframe(XMLElement* section) {
-  string text;
   XMLElement* elem;
   int n;
   double data[1000];
@@ -3883,53 +3901,50 @@ void mjXReader::Keyframe(XMLElement* section) {
   // iterate over child elements
   elem = FirstChildElement(section);
   while (elem) {
+    string text, name = "";
+
     // add keyframe
-    mjCKey* pk = model->AddKey();
+    mjmKey* pk = mjm_addKey(model);
 
     // read name, time
-    ReadAttrTxt(elem, "name", pk->name);
+    ReadAttrTxt(elem, "name", name);
+    mjm_setString(pk->name, name.c_str());
     ReadAttr(elem, "time", 1, &pk->time, text);
 
     // read qpos
     n = ReadAttr(elem, "qpos", 1000, data, text, false, false);
     if (n) {
-      pk->qpos.resize(n);
-      mjuu_copyvec(pk->qpos.data(), data, n);
+      mjm_setDouble(pk->qpos, data, n);
     }
 
     // read qvel
     n = ReadAttr(elem, "qvel", 1000, data, text, false, false);
     if (n) {
-      pk->qvel.resize(n);
-      mjuu_copyvec(pk->qvel.data(), data, n);
+      mjm_setDouble(pk->qvel, data, n);
     }
 
     // read act
     n = ReadAttr(elem, "act", 1000, data, text, false, false);
     if (n) {
-      pk->act.resize(n);
-      mjuu_copyvec(pk->act.data(), data, n);
+      mjm_setDouble(pk->act, data, n);
     }
 
     // read mpos
     n = ReadAttr(elem, "mpos", 1000, data, text, false, false);
     if (n) {
-      pk->mpos.resize(n);
-      mjuu_copyvec(pk->mpos.data(), data, n);
+      mjm_setDouble(pk->mpos, data, n);
     }
 
     // read mquat
     n = ReadAttr(elem, "mquat", 1000, data, text, false, false);
     if (n) {
-      pk->mquat.resize(n);
-      mjuu_copyvec(pk->mquat.data(), data, n);
+      mjm_setDouble(pk->mquat, data, n);
     }
 
     // read ctrl
     n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
     if (n) {
-      pk->ctrl.resize(n);
-      mjuu_copyvec(pk->ctrl.data(), data, n);
+      mjm_setDouble(pk->ctrl, data, n);
     }
 
     // advance to next element

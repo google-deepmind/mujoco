@@ -541,6 +541,47 @@ typedef struct _mjmSensor {        // sensor specfication
 } mjmSensor;
 
 
+typedef struct _mjmNumeric {       // custom numeric field specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjDoubleVec data;                // initialization data
+  int size;                        // array size, can be bigger than data size
+  mjString info;                   // message appended to compiler errors
+} mjmNumeric;
+
+
+typedef struct _mjmText {          // custom text specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString data;                   // text string
+  mjString info;                   // message appended to compiler errors
+} mjmText;
+
+
+typedef struct _mjmTuple {         // tuple specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjIntVec objtype;                // object types
+  mjStringVec objname;             // object names
+  mjDoubleVec objprm;              // object parameters
+  mjString info;                   // message appended to compiler errors
+} mjmTuple;
+
+
+typedef struct _mjmKey {           // keyframe specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  double time;                     // time
+  mjDoubleVec qpos;                // qpos
+  mjDoubleVec qvel;                // qvel
+  mjDoubleVec act;                 // act
+  mjDoubleVec mpos;                // mocap pos
+  mjDoubleVec mquat;               // mocap quat
+  mjDoubleVec ctrl;                // ctrl
+  mjString info;                   // message appended to compiler errors
+} mjmKey;
+
+
 //---------------------------------- API functions -------------------------------------------------
 
 // Create model.
@@ -614,6 +655,18 @@ MJAPI mjmActuator* mjm_addActuator(void* model, void* defspec);
 
 // Add sensor to model.
 MJAPI mjmSensor* mjm_addSensor(void* model);
+
+// Add numeric to model.
+MJAPI mjmNumeric* mjm_addNumeric(void* model);
+
+// Add text to model.
+MJAPI mjmText* mjm_addText(void* model);
+
+// Add tuple to model.
+MJAPI mjmTuple* mjm_addTuple(void* model);
+
+// Add keyframe to model.
+MJAPI mjmKey* mjm_addKey(void* model);
 
 // Add plugin to model.
 MJAPI mjElement mjm_addPlugin(void* model);
@@ -719,6 +772,18 @@ MJAPI void mjm_defaultActuator(mjmActuator& actuator);
 
 // Default sensor attributes.
 MJAPI void mjm_defaultSensor(mjmSensor& sensor);
+
+// Default numeric attributes.
+MJAPI void mjm_defaultNumeric(mjmNumeric& numeric);
+
+// Default text attributes.
+MJAPI void mjm_defaultText(mjmText& text);
+
+// Default tuple attributes.
+MJAPI void mjm_defaultTuple(mjmTuple& tuple);
+
+// Default keyframe attributes.
+MJAPI void mjm_defaultKey(mjmKey& key);
 
 #ifdef __cplusplus
 }

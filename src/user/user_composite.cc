@@ -698,9 +698,9 @@ bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int er
   }
 
   // add name to model
-  mjCText* pte = model->AddText();
-  pte->name = "composite_" + prefix;
-  pte->data = "rope_" + prefix;
+  mjmText* pte = mjm_addText(model);
+  mjm_setString(pte->name, ("composite_" + prefix).c_str());
+  mjm_setString(pte->data, ("rope_" + prefix).c_str());
 
   // populate uservert if not specified
   if (uservert.empty()) {

@@ -251,6 +251,42 @@ mjmSensor* mjm_addSensor(void* model) {
 
 
 
+// add numeric to model
+mjmNumeric* mjm_addNumeric(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCNumeric* numeric = modelC->AddNumeric();
+  return &numeric->spec;
+}
+
+
+
+// add text to model
+mjmText* mjm_addText(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCText* text = modelC->AddText();
+  return &text->spec;
+}
+
+
+
+// add tuple to model
+mjmTuple* mjm_addTuple(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCTuple* tuple = modelC->AddTuple();
+  return &tuple->spec;
+}
+
+
+
+// add keyframe to model
+mjmKey* mjm_addKey(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCKey* key = modelC->AddKey();
+  return &key->spec;
+}
+
+
+
 // Add plugin to model.
 mjElement mjm_addPlugin(void* model) {
   mjCModel* modelC = static_cast<mjCModel*>(model);

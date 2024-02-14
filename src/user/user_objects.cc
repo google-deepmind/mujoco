@@ -4821,27 +4821,54 @@ void mjCSensor::Compile(void) {
 
 // constructor
 mjCNumeric::mjCNumeric(mjCModel* _model) {
+  mjm_defaultNumeric(spec);
+
   // set model pointer
   model = _model;
 
   // clear variables
-  data.clear();
-  size = 0;
+  spec_data_.clear();
+
+  // point to local
+  PointToLocal();
+
+  // in case this numeric is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCNumeric::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.data = (mjDoubleVec)&spec_data_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCNumeric::CopyFromSpec() {
+  *static_cast<mjmNumeric*>(this) = spec;
+  data_ = spec_data_;
+  data = (mjDoubleVec)&data_;
 }
 
 
 
 // destructor
 mjCNumeric::~mjCNumeric() {
-  data.clear();
+  spec_data_.clear();
+  data_.clear();
 }
 
 
 
 // compiler
 void mjCNumeric::Compile(void) {
+  CopyFromSpec();
+
   // check for size conflict
-  if (size && !data.empty() && size<(int)data.size()) {
+  if (size && !data_.empty() && size<(int)data_.size()) {
     throw mjCError(this,
                    "numeric '%s' (id = %d): specified size smaller than initialization array",
                    name.c_str(), id);
@@ -4849,7 +4876,7 @@ void mjCNumeric::Compile(void) {
 
   // set size if left unspecified
   if (!size) {
-    size = (int)data.size();
+    size = (int)data_.size();
   }
 
   // size cannot be zero
@@ -4864,26 +4891,54 @@ void mjCNumeric::Compile(void) {
 
 // constructor
 mjCText::mjCText(mjCModel* _model) {
+  mjm_defaultText(spec);
+
   // set model pointer
   model = _model;
 
   // clear variables
-  data.clear();
+  spec_data_.clear();
+
+  // point to local
+  PointToLocal();
+
+  // in case this text is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCText::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.data = (mjString)&spec_data_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCText::CopyFromSpec() {
+  *static_cast<mjmText*>(this) = spec;
+  data_ = spec_data_;
+  data = (mjString)&data_;
 }
 
 
 
 // destructor
 mjCText::~mjCText() {
-  data.clear();
+  data_.clear();
+  spec_data_.clear();
 }
 
 
 
 // compiler
 void mjCText::Compile(void) {
+  CopyFromSpec();
+
   // size cannot be zero
-  if (data.empty()) {
+  if (data_.empty()) {
     throw mjCError(this, "text '%s' (id = %d): size cannot be zero", name.c_str(), id);
   }
 }
@@ -4894,23 +4949,57 @@ void mjCText::Compile(void) {
 
 // constructor
 mjCTuple::mjCTuple(mjCModel* _model) {
+  mjm_defaultTuple(spec);
+
   // set model pointer
   model = _model;
 
   // clear variables
-  objtype.clear();
-  objname.clear();
-  objprm.clear();
+  spec_objtype_.clear();
+  spec_objname_.clear();
+  spec_objprm_.clear();
   obj.clear();
+
+  // point to local
+  PointToLocal();
+
+  // in case this tuple is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCTuple::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.objtype = (mjIntVec)&spec_objtype_;
+  spec.objname = (mjStringVec)&spec_objname_;
+  spec.objprm = (mjDoubleVec)&spec_objprm_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCTuple::CopyFromSpec() {
+  *static_cast<mjmTuple*>(this) = spec;
+  objtype_ = spec_objtype_;
+  objname_ = spec_objname_;
+  objprm_ = spec_objprm_;
+  objtype = (mjIntVec)&objtype_;
+  objname = (mjStringVec)&objname_;
+  objprm = (mjDoubleVec)&objprm_;
 }
 
 
 
 // destructor
 mjCTuple::~mjCTuple() {
-  objtype.clear();
-  objname.clear();
-  objprm.clear();
+  objtype_.clear();
+  objname_.clear();
+  objprm_.clear();
+  spec_objtype_.clear();
+  spec_objname_.clear();
+  spec_objprm_.clear();
   obj.clear();
 }
 
@@ -4918,30 +5007,32 @@ mjCTuple::~mjCTuple() {
 
 // compiler
 void mjCTuple::Compile(void) {
+  CopyFromSpec();
+
   // check for empty tuple
-  if (objtype.empty()) {
+  if (objtype_.empty()) {
     throw mjCError(this, "tuple '%s' (id = %d) is empty", name.c_str(), id);
   }
 
   // check for size conflict
-  if (objtype.size()!=objname.size() || objtype.size()!=objprm.size()) {
+  if (objtype_.size()!=objname_.size() || objtype_.size()!=objprm_.size()) {
     throw mjCError(this,
                    "tuple '%s' (id = %d) has object arrays with different sizes", name.c_str(), id);
   }
 
   // resize objid to correct size
-  obj.resize(objtype.size());
+  obj.resize(objtype_.size());
 
   // find objects, fill in ids
-  for (int i=0; i<objtype.size(); i++) {
+  for (int i=0; i<objtype_.size(); i++) {
     // find object by type and name
-    mjCBase* res = model->FindObject(objtype[i], objname[i]);
+    mjCBase* res = model->FindObject(objtype_[i], objname_[i]);
     if (!res) {
-      throw mjCError(this, "unrecognized object '%s' in tuple %d", objname[i].c_str(), id);
+      throw mjCError(this, "unrecognized object '%s' in tuple %d", objname_[i].c_str(), id);
     }
 
     // if geom mark it as non visual
-    if (objtype[i] == mjOBJ_GEOM) {
+    if (objtype_[i] == mjOBJ_GEOM) {
       ((mjCGeom*)res)->SetNotVisual();
     }
 
@@ -4956,107 +5047,154 @@ void mjCTuple::Compile(void) {
 
 // constructor
 mjCKey::mjCKey(mjCModel* _model) {
+  mjm_defaultKey(spec);
+
   // set model pointer
   model = _model;
 
   // clear variables
-  time = 0;
-  qpos.clear();
-  qvel.clear();
-  act.clear();
-  mpos.clear();
-  mquat.clear();
-  ctrl.clear();
+  spec_qpos_.clear();
+  spec_qvel_.clear();
+  spec_act_.clear();
+  spec_mpos_.clear();
+  spec_mquat_.clear();
+  spec_ctrl_.clear();
+
+  // point to local
+  PointToLocal();
+
+  // in case this keyframe is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCKey::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.qpos = (mjDoubleVec)&spec_qpos_;
+  spec.qvel = (mjDoubleVec)&spec_qvel_;
+  spec.act = (mjDoubleVec)&spec_act_;
+  spec.mpos = (mjDoubleVec)&spec_mpos_;
+  spec.mquat = (mjDoubleVec)&spec_mquat_;
+  spec.ctrl = (mjDoubleVec)&spec_ctrl_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCKey::CopyFromSpec() {
+  *static_cast<mjmKey*>(this) = spec;
+  qpos_ = spec_qpos_;
+  qvel_ = spec_qvel_;
+  act_ = spec_act_;
+  mpos_ = spec_mpos_;
+  mquat_ = spec_mquat_;
+  ctrl_ = spec_ctrl_;
+  qpos = (mjDoubleVec)&qpos_;
+  qvel = (mjDoubleVec)&qvel_;
+  act = (mjDoubleVec)&act_;
+  mpos = (mjDoubleVec)&mpos_;
+  mquat = (mjDoubleVec)&mquat_;
+  ctrl = (mjDoubleVec)&ctrl_;
 }
 
 
 
 // destructor
 mjCKey::~mjCKey() {
-  qpos.clear();
-  qvel.clear();
-  act.clear();
-  mpos.clear();
-  mquat.clear();
-  ctrl.clear();
+  qpos_.clear();
+  qvel_.clear();
+  act_.clear();
+  mpos_.clear();
+  mquat_.clear();
+  ctrl_.clear();
+  spec_qpos_.clear();
+  spec_qvel_.clear();
+  spec_act_.clear();
+  spec_mpos_.clear();
+  spec_mquat_.clear();
+  spec_ctrl_.clear();
 }
 
 
 
 // compiler
 void mjCKey::Compile(const mjModel* m) {
+  CopyFromSpec();
+
   // qpos: allocate or check size
-  if (qpos.empty()) {
-    qpos.resize(m->nq);
+  if (qpos_.empty()) {
+    qpos_.resize(m->nq);
     for (int i=0; i<m->nq; i++) {
-      qpos[i] = (double)m->qpos0[i];
+      qpos_[i] = (double)m->qpos0[i];
     }
-  } else if (qpos.size()!=m->nq) {
+  } else if (qpos_.size()!=m->nq) {
     throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
   // qvel: allocate or check size
-  if (qvel.empty()) {
-    qvel.resize(m->nv);
+  if (qvel_.empty()) {
+    qvel_.resize(m->nv);
     for (int i=0; i<m->nv; i++) {
-      qvel[i] = 0;
+      qvel_[i] = 0;
     }
-  } else if (qvel.size()!=m->nv) {
+  } else if (qvel_.size()!=m->nv) {
     throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
   // act: allocate or check size
-  if (act.empty()) {
-    act.resize(m->na);
+  if (act_.empty()) {
+    act_.resize(m->na);
     for (int i=0; i<m->na; i++) {
-      act[i] = 0;
+      act_[i] = 0;
     }
-  } else if (act.size()!=m->na) {
+  } else if (act_.size()!=m->na) {
     throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
   // mpos: allocate or check size
-  if (mpos.empty()) {
-    mpos.resize(3*m->nmocap);
+  if (mpos_.empty()) {
+    mpos_.resize(3*m->nmocap);
     if (m->nmocap) {
       for (int i=0; i<m->nbody; i++) {
         if (m->body_mocapid[i]>=0) {
           int mocapid = m->body_mocapid[i];
-          mpos[3*mocapid]   = m->body_pos[3*i];
-          mpos[3*mocapid+1] = m->body_pos[3*i+1];
-          mpos[3*mocapid+2] = m->body_pos[3*i+2];
+          mpos_[3*mocapid]   = m->body_pos[3*i];
+          mpos_[3*mocapid+1] = m->body_pos[3*i+1];
+          mpos_[3*mocapid+2] = m->body_pos[3*i+2];
         }
       }
     }
-  } else if (mpos.size()!=3*m->nmocap) {
+  } else if (mpos_.size()!=3*m->nmocap) {
     throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
   // mquat: allocate or check size
-  if (mquat.empty()) {
-    mquat.resize(4*m->nmocap);
+  if (mquat_.empty()) {
+    mquat_.resize(4*m->nmocap);
     if (m->nmocap) {
       for (int i=0; i<m->nbody; i++) {
         if (m->body_mocapid[i]>=0) {
           int mocapid = m->body_mocapid[i];
-          mquat[4*mocapid]   = m->body_quat[4*i];
-          mquat[4*mocapid+1] = m->body_quat[4*i+1];
-          mquat[4*mocapid+2] = m->body_quat[4*i+2];
-          mquat[4*mocapid+3] = m->body_quat[4*i+3];
+          mquat_[4*mocapid]   = m->body_quat[4*i];
+          mquat_[4*mocapid+1] = m->body_quat[4*i+1];
+          mquat_[4*mocapid+2] = m->body_quat[4*i+2];
+          mquat_[4*mocapid+3] = m->body_quat[4*i+3];
         }
       }
     }
-  } else if (mquat.size()!=4*m->nmocap) {
+  } else if (mquat_.size()!=4*m->nmocap) {
     throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
   }
 
   // ctrl: allocate or check size
-  if (ctrl.empty()) {
-    ctrl.resize(m->nu);
+  if (ctrl_.empty()) {
+    ctrl_.resize(m->nu);
     for (int i=0; i<m->nu; i++) {
-      ctrl[i] = 0;
+      ctrl_[i] = 0;
     }
-  } else if (ctrl.size()!=m->nu) {
+  } else if (ctrl_.size()!=m->nu) {
     throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 }

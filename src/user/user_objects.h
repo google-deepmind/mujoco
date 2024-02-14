@@ -1235,18 +1235,25 @@ class mjCSensor : public mjCBase, private mjmSensor {
 //------------------------- class mjCNumeric -------------------------------------------------------
 // Describes a custom data field
 
-class mjCNumeric : public mjCBase {
+class mjCNumeric : public mjCBase, private mjmNumeric {
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
-  // variables set by user
-  std::vector<double> data;       // initialization data
-  int size;                       // array size, can be bigger than data.size()
+  mjmNumeric spec;
+  using mjCBase::name;
+  using mjCBase::info;
+
+  void PointToLocal();
+  void CopyFromSpec();
 
  private:
   mjCNumeric(mjCModel*);              // constructor
   ~mjCNumeric();                      // destructor
   void Compile(void);                 // compiler
+
+  std::vector<double> data_;
+  std::vector<double> spec_data_;
 };
 
 
@@ -1254,17 +1261,25 @@ class mjCNumeric : public mjCBase {
 //------------------------- class mjCText ----------------------------------------------------------
 // Describes a custom text field
 
-class mjCText : public mjCBase {
+class mjCText : public mjCBase, private mjmText {
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
-  // variables set by user
-  std::string data;               // string
+  mjmText spec;
+  using mjCBase::name;
+  using mjCBase::info;
+
+  void PointToLocal();
+  void CopyFromSpec();
 
  private:
   mjCText(mjCModel*);                 // constructor
   ~mjCText();                         // destructor
   void Compile(void);                 // compiler
+
+  std::string data_;
+  std::string spec_data_;
 };
 
 
@@ -1272,14 +1287,17 @@ class mjCText : public mjCBase {
 //------------------------- class mjCTuple ---------------------------------------------------------
 // Describes a custom tuple field
 
-class mjCTuple : public mjCBase {
+class mjCTuple : public mjCBase, private mjmTuple {
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
-  // variables set by user
-  std::vector<mjtObj> objtype;       // object types
-  std::vector<std::string> objname;  // object names
-  std::vector<double> objprm;        // object parameters
+  mjmTuple spec;
+  using mjCBase::name;
+  using mjCBase::info;
+
+  void PointToLocal();
+  void CopyFromSpec();
 
  private:
   mjCTuple(mjCModel*);            // constructor
@@ -1287,6 +1305,14 @@ class mjCTuple : public mjCBase {
   void Compile(void);             // compiler
 
   std::vector<mjCBase*> obj;         // object pointers
+
+  // variable-size data
+  std::vector<mjtObj> objtype_;
+  std::vector<std::string> objname_;
+  std::vector<double> objprm_;
+  std::vector<mjtObj> spec_objtype_;
+  std::vector<std::string> spec_objname_;
+  std::vector<double> spec_objprm_;
 };
 
 
@@ -1294,23 +1320,35 @@ class mjCTuple : public mjCBase {
 //------------------------- class mjCKey -----------------------------------------------------------
 // Describes a keyframe
 
-class mjCKey : public mjCBase {
+class mjCKey : public mjCBase, private mjmKey {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  double time;                     // time
-  std::vector<double> qpos;        // qpos
-  std::vector<double> qvel;        // qvel
-  std::vector<double> act;         // act
-  std::vector<double> mpos;        // mocap pos
-  std::vector<double> mquat;       // mocap quat
-  std::vector<double> ctrl;        // ctrl
+  mjmKey spec;
+  using mjCBase::name;
+  using mjCBase::info;
+
+  void PointToLocal();
+  void CopyFromSpec();
 
  private:
   mjCKey(mjCModel*);               // constructor
   ~mjCKey();                       // destructor
   void Compile(const mjModel* m);  // compiler
+
+  std::vector<double> qpos_;
+  std::vector<double> qvel_;
+  std::vector<double> act_;
+  std::vector<double> mpos_;
+  std::vector<double> mquat_;
+  std::vector<double> ctrl_;
+  std::vector<double> spec_qpos_;
+  std::vector<double> spec_qvel_;
+  std::vector<double> spec_act_;
+  std::vector<double> spec_mpos_;
+  std::vector<double> spec_mquat_;
+  std::vector<double> spec_ctrl_;
 };
 
 
