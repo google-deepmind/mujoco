@@ -147,6 +147,15 @@ mjmMesh* mjm_addMesh(void* model, void* defspec) {
 
 
 
+// add height field to model
+mjmHField* mjm_addHField(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCHField* heightField = modelC->AddHField();
+  return &heightField->spec;
+}
+
+
+
 // add texture to model
 mjmTexture* mjm_addTexture(void* model) {
   mjCModel* modelC = static_cast<mjCModel*>(model);

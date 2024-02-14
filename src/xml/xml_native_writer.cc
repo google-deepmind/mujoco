@@ -1416,15 +1416,15 @@ void mjXWriter::Asset(XMLElement* root) {
     // write attributes
     WriteAttrTxt(elem, "name", phf->name);
     WriteAttr(elem, "size", 4, phf->size);
-    if (!phf->file.empty()) {
-      WriteAttrTxt(elem, "content_type", phf->content_type);
-      WriteAttrTxt(elem, "file", phf->file);
+    if (!phf->file_.empty()) {
+      WriteAttrTxt(elem, "content_type", phf->content_type_);
+      WriteAttrTxt(elem, "file", phf->file_);
     } else {
       WriteAttrInt(elem, "nrow", phf->nrow);
       WriteAttrInt(elem, "ncol", phf->ncol);
-      if (!phf->userdata().empty()) {
+      if (!phf->get_userdata().empty()) {
         string text;
-        Vector2String(text, phf->userdata(), phf->ncol);
+        Vector2String(text, phf->get_userdata(), phf->ncol);
         WriteAttrTxt(elem, "elevation", text);
       }
     }

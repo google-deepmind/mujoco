@@ -816,34 +816,39 @@ class mjCSkin: public mjCBase {
 //------------------------- class mjCHField --------------------------------------------------------
 // Describes a height field
 
-class mjCHField : public mjCBase {
+class mjCHField : public mjCBase, private mjmHField {
+  friend class mjCGeom;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  std::string get_file() const { return file; }
+  mjmHField spec;
+  using mjCBase::name;
+  using mjCBase::info;
 
-  std::string content_type;       // content type of file
-  std::string file;               // file: (nrow, ncol, [elevation data])
-  double size[4];                 // hfield size (ignore referencing geom size)
-  int nrow;                       // number of rows
-  int ncol;                       // number of columns
-  float* data;                    // elevation data, row-major format
+  void CopyFromSpec(void);
+  void PointToLocal(void);
+
+  std::string get_file() const { return file_; }
 
   // getter for user data
-  std::vector<float>& userdata() { return userdata_; }
-
-  // setter for user data
-  void set_userdata(std::optional<std::vector<float>>&& userdata);
+  std::vector<float>& get_userdata() { return userdata_; }
 
  private:
   mjCHField(mjCModel* model);             // constructor
   ~mjCHField();                           // destructor
-  std::vector<float> userdata_;           // user-provided elevation data
+  float* data;                            // elevation data, row-major format
   void Compile(const mjVFS* vfs);         // compiler
 
   void LoadCustom(mjResource* resource);  // load from custom format
   void LoadPNG(mjResource* resource);     // load from PNG format
+
+  std::string file_;
+  std::string content_type_;
+  std::vector<float> userdata_;
+  std::string spec_file_;
+  std::string spec_content_type_;
+  std::vector<float> spec_userdata_;
 };
 
 

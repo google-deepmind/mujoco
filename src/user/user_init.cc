@@ -203,6 +203,13 @@ void mjm_defaultMesh(mjmMesh& mesh) {
 
 
 
+// default height field attributes
+void mjm_defaultHField(mjmHField& hfield) {
+  memset(&hfield, 0, sizeof(mjmHField));
+}
+
+
+
 // default texture attributes
 void mjm_defaultTexture(mjmTexture& texture) {
   memset(&texture, 0, sizeof(mjmTexture));

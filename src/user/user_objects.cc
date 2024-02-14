@@ -2384,16 +2384,44 @@ void mjCLight::Compile(void) {
 
 // constructor
 mjCHField::mjCHField(mjCModel* _model) {
+  mjm_defaultHField(spec);
+
   // set model pointer
   model = _model;
 
   // clear variables
-  mjuu_setvec(size, 0, 0, 0, 0);
-  file.clear();
-  nrow = 0;
-  ncol = 0;
   data = 0;
-  userdata_.clear();
+  spec_file_.clear();
+  spec_userdata_.clear();
+
+  // point to local
+  PointToLocal();
+
+  // copy from spec
+  CopyFromSpec();
+}
+
+
+
+void mjCHField::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.file = (mjString)&spec_file_;
+  spec.content_type = (mjString)&spec_content_type_;
+  spec.userdata = (mjFloatVec)&spec_userdata_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCHField::CopyFromSpec() {
+  *static_cast<mjmHField*>(this) = spec;
+  file_ = spec_file_;
+  content_type_ = spec_content_type_;
+  userdata_ = spec_userdata_;
+  file = (mjString)&file_;
+  content_type = (mjString)&content_type_;
+  userdata = (mjFloatVec)&userdata_;
 }
 
 
@@ -2403,6 +2431,8 @@ mjCHField::~mjCHField() {
   if (data) {
     mju_free(data);
   }
+  userdata_.clear();
+  spec_userdata_.clear();
 }
 
 
@@ -2496,16 +2526,19 @@ void mjCHField::LoadPNG(mjResource* resource) {
 
 
 
-// user data setter
-void mjCHField::set_userdata(std::optional<std::vector<float>>&& userdata) {
-  if (userdata.has_value()) {
-    userdata_ = std::move(userdata.value());
-  }
-}
-
-
 // compiler
 void mjCHField::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
+  // copy userdata into data
+  if (!userdata_.empty()) {
+    data = (float*) mju_malloc(nrow*ncol*sizeof(float));
+    if (!data) {
+      throw mjCError(this, "could not allocate buffers in hfield");
+    }
+    memcpy(data, userdata_.data(), nrow*ncol*sizeof(float));
+  }
+
   // check size parameters
   for (int i=0; i<4; i++)
     if (size[i]<=0)
@@ -2514,18 +2547,18 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
   // remove path from file if necessary
   if (model->strippath) {
-    file = mjuu_strippath(file);
+    file_ = mjuu_strippath(file_);
   }
 
   // load from file if specified
-  if (!file.empty()) {
+  if (!file_.empty()) {
     // make sure hfield was not already specified manually
     if (nrow || ncol || data) {
       throw mjCError(this,
                      "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
     }
 
-    std::string asset_type = GetAssetContentType(file, content_type);
+    std::string asset_type = GetAssetContentType(file_, content_type_);
 
     // fallback to custom
     if (asset_type.empty()) {
@@ -2536,7 +2569,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -2564,7 +2597,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
     emax = mjMAX(emax, data[i]);
   }
   if (emin>emax) {
-    throw mjCError(this, "invalid data range in hfield '%s'", file.c_str());
+    throw mjCError(this, "invalid data range in hfield '%s'", file_.c_str());
   }
   for (int i=0; i<nrow*ncol; i++) {
     data[i] -= emin;

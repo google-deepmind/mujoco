@@ -3387,11 +3387,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
   mjCHField* phf;
   for (int i=0; i<nhfield; i++) {
     phf = hfields[i];
-    int size = phf->userdata().size();
+    int size = phf->get_userdata().size();
     if (size) {
       int nrow = m->hfield_nrow[i];
       int ncol = m->hfield_ncol[i];
-      float* userdata = phf->userdata().data();
+      float* userdata = phf->get_userdata().data();
       float* modeldata = m->hfield_data + m->hfield_adr[i];
       // copy back in reverse row order
       for (int j=0; j<nrow; j++) {

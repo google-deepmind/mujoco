@@ -3136,43 +3136,57 @@ void mjXReader::Asset(XMLElement* section) {
     // hfield sub-element
     else if (name=="hfield") {
       // create hfield
-      mjCHField* phf = model->AddHField();
-      GetXMLPos(elem, phf);
+      mjmHField* phf = mjm_addHField(model);
+
+      // write error info
+      mjm_setString(phf->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", phf->name);
-      ReadAttrTxt(elem, "content_type", phf->content_type);
-      ReadAttrTxt(elem, "file", phf->file);
+      string name, content_type, file;
+      if (ReadAttrTxt(elem, "name", name)) {
+        mjm_setString(phf->name, name.c_str());
+      }
+      if (ReadAttrTxt(elem, "content_type", content_type)) {
+        mjm_setString(phf->content_type, content_type.c_str());
+      }
+      if (ReadAttrTxt(elem, "file", file)) {
+        mjm_setString(phf->file, file.c_str());
+      }
       ReadAttrInt(elem, "nrow", &phf->nrow);
       ReadAttrInt(elem, "ncol", &phf->ncol);
       ReadAttr(elem, "size", 4, phf->size, text, true);
 
       // allocate buffer for dynamic hfield, copy user data if given
-      if (phf->file.empty() && phf->nrow>0 && phf->ncol>0) {
+      if (file.empty() && phf->nrow>0 && phf->ncol>0) {
         int nrow = phf->nrow;
         int ncol = phf->ncol;
-        phf->data = (float*) mju_malloc(nrow*ncol*sizeof(float));
 
         // read user data
-        phf->set_userdata(ReadAttrVec<float>(elem, "elevation"));
+        auto userdata = ReadAttrVec<float>(elem, "elevation");
 
         // user data given, copy into data
-        if (!phf->userdata().empty()) {
-          if (phf->userdata().size() != nrow*ncol) {
+        if (userdata.has_value()) {
+          if (userdata->size() != nrow*ncol) {
             throw mjXError(elem, "elevation data length must match nrow*ncol");
           }
 
           // copy in reverse row order, so XML string is top-to-bottom
-          const float* userdata = phf->userdata().data();
+          std::vector<float> flipped(nrow*ncol);
           for (int i = 0; i < nrow; i++) {
             int flip = nrow-1-i;
-            memcpy(phf->data + flip*ncol, userdata + i*ncol, ncol*sizeof(float));
+            for (int j = 0; j < ncol; j++) {
+              flipped[flip*ncol + j] = userdata->data()[i*ncol + j];
+            }
           }
+
+          mjm_setFloat(phf->userdata, flipped.data(), flipped.size());
         }
 
         // user data not given, set to 0
         else {
-          memset(phf->data, 0, phf->nrow*phf->ncol*sizeof(float));
+          std::vector<float> zero(nrow*ncol);
+          mjm_setFloat(phf->userdata, zero.data(), zero.size());
         }
       }
     }

@@ -346,6 +346,19 @@ typedef struct _mjmMesh {          // mesh specification
 } mjmMesh;
 
 
+typedef struct _mjmHField {        // height field specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString content_type;           // content type of file
+  mjString file;                   // file: (nrow, ncol, [elevation data])
+  double size[4];                  // hfield size (ignore referencing geom size)
+  int nrow;                        // number of rows
+  int ncol;                        // number of columns
+  mjFloatVec userdata;             // user-provided elevation data
+  mjString info;                   // message appended to compiler errors
+} mjmHField;
+
+
 typedef struct _mjmTexture {       // texture specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -623,6 +636,9 @@ MJAPI mjmFlex* mjm_addFlex(void* model);
 // Add mesh to model.
 MJAPI mjmMesh* mjm_addMesh(void* model, void* defspec);
 
+// Add height field to model.
+MJAPI mjmHField* mjm_addHField(void* model);
+
 // Add texture to model.
 MJAPI mjmTexture* mjm_addTexture(void* model);
 
@@ -751,6 +767,9 @@ MJAPI void mjm_defaultFlex(mjmFlex& flex);
 
 // Default mesh attributes.
 MJAPI void mjm_defaultMesh(mjmMesh& mesh);
+
+// Default height field attributes.
+MJAPI void mjm_defaultHField(mjmHField& hfield);
 
 // Default texture attributes.
 MJAPI void mjm_defaultTexture(mjmTexture& texture);
