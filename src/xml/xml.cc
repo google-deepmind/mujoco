@@ -20,6 +20,7 @@
 #include <xlocale.h>
 #endif
 
+#include <array>
 #include <cstdio>
 #include <string>
 #include <unordered_set>
@@ -140,11 +141,13 @@ static void mjIncludeXML(XMLElement* elem, string dir, const mjVFS* vfs,
   }
 
   // get data source
-  mjResource *resource = nullptr;
-  if ((resource = mju_openVfsResource(filename.c_str(), vfs)) == nullptr) {
+  mjResource *resource = mju_openVfsResource(filename.c_str(), vfs);
+  if (!resource) {
     // load from provider or OS filesystem
-    if ((resource = mju_openResource(filename.c_str())) == nullptr) {
-      throw mjXError(elem, "Could not open file '%s'", filename.c_str());
+    std::array<char, 1024> error;
+    resource = mju_openResource(filename.c_str(), error.data(), error.size());
+    if (!resource) {
+      throw mjXError(elem, "%s", error.data());
     }
   }
 
@@ -232,14 +235,15 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
   }
 
   // get data source
-  mjResource* resource = nullptr;
   const char* xmlstring = nullptr;
-  if ((resource = mju_openVfsResource(filename, vfs)) == nullptr) {
+  mjResource* resource = mju_openVfsResource(filename, vfs);
+
+  if (!resource) {
     // load from provider or fallback to OS filesystem
-    if ((resource = mju_openResource(filename)) == nullptr) {
-      if (error) {
-        std::snprintf(error, error_sz, "mjParseXML: could not open file '%s'", filename);
-      }
+    std::array<char, 1024> rerror;
+    resource = mju_openResource(filename, rerror.data(), rerror.size());
+    if (!resource) {
+      std::snprintf(error, error_sz, "mjParseXML: %s", rerror.data());
       return nullptr;
     }
   }

@@ -15,12 +15,12 @@
 #include "user/user_objects.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -515,14 +515,15 @@ mjCBase::mjCBase() {
 
 // load resource if found (fallback to OS filesystem)
 mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
-  mjResource* r = nullptr;
-  const char* cname = filename.c_str();
-
   // try reading from provided VFS
-  if ((r = mju_openVfsResource(cname, vfs)) == nullptr) {
+  mjResource* r = mju_openVfsResource(filename.c_str(), vfs);
+
+  if (!r) {
+    std::array<char, 1024> error;
     // not in vfs try a provider or fallback to OS filesystem
-    if ((r = mju_openResource(filename.c_str())) == nullptr) {
-      throw mjCError(nullptr, "resource not found via provider or OS filesystem: '%s'", cname);
+    r = mju_openResource(filename.c_str(), error.data(), error.size());
+    if (!r) {
+      throw mjCError(nullptr, "%s", error.data());
     }
   }
   return r;

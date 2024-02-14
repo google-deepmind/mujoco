@@ -722,8 +722,10 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   mjResource* r = NULL;
 
   // first try vfs, otherwise try a provider or OS filesystem
-  if ((r = mju_openVfsResource(filename, vfs)) == NULL) {
-    if ((r = mju_openResource(filename)) == NULL) {
+  if (!(r = mju_openVfsResource(filename, vfs))) {
+    char error[1024];
+    if (!(r = mju_openResource(filename, error, 1024))) {
+       mju_warning("%s", error);
       return NULL;
     }
   }
