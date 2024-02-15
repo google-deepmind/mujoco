@@ -60,6 +60,13 @@ typedef enum _mjtMark {           // mark type for procedural textures
 } mjtMark;
 
 
+typedef enum _mjtLimited {        // type of limit specification
+  mjLIMITED_FALSE = 0,            // not limited
+  mjLIMITED_TRUE,                 // limited
+  mjLIMITED_AUTO,                 // limited inferred from presence of range
+} mjtLimited;
+
+
 //---------------------------------- attribute structs (mjm) ---------------------------------------
 
 typedef struct _mjmOrientation {   // alternative orientation specifiers
@@ -132,12 +139,12 @@ typedef struct _mjmJoint {         // joint specification
   double springdamper[2];          // timeconst, dampratio
 
   // limits
-  int limited;                     // does joint have limits
+  int limited;                     // does joint have limits (mjtLimited)
   double range[2];                 // joint limits
   double margin;                   // margin value for joint limit detection
   mjtNum solref_limit[mjNREF];     // solver reference: joint limits
   mjtNum solimp_limit[mjNIMP];     // solver impedance: joint limits
-  int actfrclimited;               // are actuator forces on joint limited
+  int actfrclimited;               // are actuator forces on joint limited (mjtLimited)
   double actfrcrange[2];           // actuator force limits
 
   // dof properties
@@ -466,7 +473,7 @@ typedef struct _mjmTendon {        // tendon specification
   mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction
 
   // length range
-  int limited;                     // does tendon have limits: 0 false, 1 true, 2 auto
+  int limited;                     // does tendon have limits (mjtLimited)
   double range[2];                 // length limits
   double margin;                   // margin value for tendon limit detection
   mjtNum solref_limit[mjNREF];     // solver reference: tendon limits
@@ -520,11 +527,11 @@ typedef struct _mjmActuator {      // actuator specification
   double lengthrange[2];           // transmission length range
 
   // input/output clamping
-  int ctrllimited;                 // are control limits defined: 0 false, 1 true, 2 auto
+  int ctrllimited;                 // are control limits defined (mjtLimited)
   double ctrlrange[2];             // control range
-  int forcelimited;                // are force limits defined: 0 false, 1 true, 2 auto
+  int forcelimited;                // are force limits defined (mjtLimited)
   double forcerange[2];            // force range
-  int actlimited;                  // are activation limits defined: 0 false, 1 true, 2 auto
+  int actlimited;                  // are activation limits defined (mjtLimited)
   double actrange[2];              // activation range
 
   // other

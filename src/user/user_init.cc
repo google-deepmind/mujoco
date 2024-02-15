@@ -55,8 +55,8 @@ void mjm_defaultJoint(mjmJoint& joint) {
 
   joint.type = mjJNT_HINGE;
   joint.axis[2] = 1;
-  joint.limited = 2;
-  joint.actfrclimited = 2;
+  joint.limited = mjLIMITED_AUTO;
+  joint.actfrclimited = mjLIMITED_AUTO;
   mj_defaultSolRefImp(joint.solref_limit, joint.solimp_limit);
   mj_defaultSolRefImp(joint.solref_friction, joint.solimp_friction);
   joint.urdfeffort = -1;
@@ -267,7 +267,7 @@ void mjm_defaultEquality(mjmEquality& equality) {
 // default tendon attributes
 void mjm_defaultTendon(mjmTendon& tendon) {
   memset(&tendon, 0, sizeof(mjmTendon));
-  tendon.limited = 2;
+  tendon.limited = mjLIMITED_AUTO;
   tendon.springlength[0] = tendon.springlength[1] = -1;
   mj_defaultSolRefImp(tendon.solref_limit, tendon.solimp_limit);
   mj_defaultSolRefImp(tendon.solref_friction, tendon.solimp_friction);
@@ -297,9 +297,9 @@ void mjm_defaultActuator(mjmActuator& actuator) {
   actuator.gear[0] = 1;
 
   // input/output clamping
-  actuator.ctrllimited = 2;
-  actuator.forcelimited = 2;
-  actuator.actlimited = 2;
+  actuator.ctrllimited = mjLIMITED_AUTO;
+  actuator.forcelimited = mjLIMITED_AUTO;
+  actuator.actlimited = mjLIMITED_AUTO;
 }
 
 

@@ -487,14 +487,15 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   if ((elem = FindSubElem(joint_elem, "limit"))) {
     ReadAttr(elem, "lower", 1, pjoint->range, text);
     ReadAttr(elem, "upper", 1, pjoint->range+1, text);
-    pjoint->limited = (mjuu_defined(pjoint->range[0]) &&
-                       mjuu_defined(pjoint->range[1]) &&
-                       pjoint->range[0] < pjoint->range[1]);
+    bool is_limited = mjuu_defined(pjoint->range[0]) &&
+                      mjuu_defined(pjoint->range[1]) &&
+                      pjoint->range[0] < pjoint->range[1];
+    pjoint->limited = is_limited ? mjLIMITED_TRUE : mjLIMITED_FALSE;
 
     // ReadAttr(elem, "velocity", 1, &pjoint->maxvel, text); // no maxvel in MuJoCo
     ReadAttr(elem, "effort", 1, &pjoint->urdfeffort, text);
   } else {
-    pjoint->limited = 0;
+    pjoint->limited = mjLIMITED_FALSE;
   }
 }
 

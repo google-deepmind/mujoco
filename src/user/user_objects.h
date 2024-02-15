@@ -337,9 +337,8 @@ class mjCJoint : public mjCBase, private mjmJoint {
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
 
-  // public getters
-  bool is_limited() const { return limited_; }
-  bool is_actfrclimited() const { return actfrclimited_; }
+  bool is_limited() const;
+  bool is_actfrclimited() const;
 
 
  private:
@@ -349,8 +348,7 @@ class mjCJoint : public mjCBase, private mjmJoint {
   void PointToLocal(void);
 
   mjCBody* body;                   // joint's body
-  bool limited_;                   // actual (inferred) value of limited
-  bool actfrclimited_;             // actual (inferred) value of actfrclimited
+
   // variable-size data
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
@@ -1087,8 +1085,7 @@ class mjCTendon : public mjCBase, private mjmTendon {
   void CopyFromSpec();
   void PointToLocal();
 
-  // public getters
-  bool is_limited() const { return limited_; }
+  bool is_limited() const;
 
  private:
   mjCTendon(mjCModel* = 0, mjCDef* = 0);      // constructor
@@ -1096,7 +1093,6 @@ class mjCTendon : public mjCBase, private mjmTendon {
   void Compile(void);                         // compiler
 
   int matid;                      // material id for rendering
-  bool limited_;                  // actual (inferred) value of limited
 
   // variable-size data
   std::string material_;
@@ -1179,10 +1175,9 @@ class mjCActuator : public mjCBase, private mjmActuator {
   const std::string& get_slidersite() { return spec_slidersite_; }
   const std::string& get_refsite() { return spec_refsite_; }
 
-  // public getters
-  bool is_ctrllimited() const { return ctrllimited_; }
-  bool is_forcelimited() const { return forcelimited_; }
-  bool is_actlimited() const { return actlimited_; }
+  bool is_ctrllimited() const;
+  bool is_forcelimited() const;
+  bool is_actlimited() const;
 
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);  // constructor
@@ -1191,9 +1186,6 @@ class mjCActuator : public mjCBase, private mjmActuator {
   void MakePointerLocal();
 
   int trnid[2];                   // id of transmission target
-  bool ctrllimited_;              // actual (inferred) value of ctrllimited
-  bool forcelimited_;             // actual (inferred) value of forcelimited
-  bool actlimited_;               // actual (inferred) value of actlimited
 
   // variable-size data
   std::string target_;
