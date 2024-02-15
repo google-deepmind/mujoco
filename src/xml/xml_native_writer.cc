@@ -205,44 +205,44 @@ void mjXWriter::OneSkin(XMLElement* elem, mjCSkin* pskin) {
 
   // write attributes
   WriteAttrTxt(elem, "name", pskin->name);
-  WriteAttrTxt(elem, "file", pskin->file);
+  WriteAttrTxt(elem, "file", pskin->get_file());
   WriteAttrTxt(elem, "material", pskin->get_material());
   WriteAttrInt(elem, "group", pskin->group, 0);
   WriteAttr(elem, "rgba", 4, pskin->rgba, mydef.geom.rgba);
   WriteAttr(elem, "inflate", 1, &pskin->inflate, &zero);
 
   // write data if no file
-  if (pskin->file.empty()) {
+  if (pskin->get_file().empty()) {
     // mesh vert
-    Vector2String(text, pskin->vert);
+    Vector2String(text, pskin->get_vert());
     WriteAttrTxt(elem, "vertex", text);
 
     // mesh texcoord
-    if (!pskin->texcoord.empty()) {
-      Vector2String(text, pskin->texcoord);
+    if (!pskin->get_texcoord().empty()) {
+      Vector2String(text, pskin->get_texcoord());
       WriteAttrTxt(elem, "texcoord", text);
     }
 
     // mesh face
-    Vector2String(text, pskin->face);
+    Vector2String(text, pskin->get_face());
     WriteAttrTxt(elem, "face", text);
 
     // bones
-    for (size_t i=0; i<pskin->bodyname.size(); i++) {
+    for (size_t i=0; i<pskin->get_bodyname().size(); i++) {
       // make bone
       XMLElement* bone = InsertEnd(elem, "bone");
 
       // write attributes
-      WriteAttrTxt(bone, "body", pskin->bodyname[i]);
-      WriteAttr(bone, "bindpos", 3, pskin->bindpos.data()+3*i);
-      WriteAttr(bone, "bindquat", 4, pskin->bindquat.data()+4*i);
+      WriteAttrTxt(bone, "body", pskin->get_bodyname()[i]);
+      WriteAttr(bone, "bindpos", 3, pskin->get_bindpos().data()+3*i);
+      WriteAttr(bone, "bindquat", 4, pskin->get_bindquat().data()+4*i);
 
       // write vertid
-      Vector2String(text, pskin->vertid[i]);
+      Vector2String(text, pskin->get_vertid()[i]);
       WriteAttrTxt(bone, "vertid", text);
 
       // write vertweight
-      Vector2String(text, pskin->vertweight[i]);
+      Vector2String(text, pskin->get_vertweight()[i]);
       WriteAttrTxt(bone, "vertweight", text);
     }
   }

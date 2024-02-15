@@ -3677,7 +3677,6 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-
   // point to local (needs to be after defaults)
   PointToLocal();
 

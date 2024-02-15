@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 
@@ -79,14 +80,14 @@ class mjCComposite {
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
   void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
-  void MakeClothBones(mjCModel* model, mjCSkin* skin);
-  void MakeClothBonesSubgrid(mjCModel* model, mjCSkin* skin);
-  void MakeCableBones(mjCModel* model, mjCSkin* skin);
-  void MakeCableBonesSubgrid(mjCModel* model, mjCSkin* skin);
+  void MakeClothBones(mjCModel* model, mjmSkin* skin);
+  void MakeClothBonesSubgrid(mjCModel* model, mjmSkin* skin);
+  void MakeCableBones(mjCModel* model, mjmSkin* skin);
+  void MakeCableBonesSubgrid(mjCModel* model, mjmSkin* skin);
 
   void MakeSkin3(mjCModel* model);
-  void MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
-  void MakeSkin3Smooth(mjCSkin* skin, int c0, int c1, int side,
+  void MakeSkin3Box(mjmSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
+  void MakeSkin3Smooth(mjmSkin* skin, int c0, int c1, int side,
                        const std::map<std::string, int>& vmap, const char* format);
 
   void BoxProject(double* pos);
@@ -138,6 +139,16 @@ class mjCComposite {
  private:
   mjmBody* AddRopeBody(mjCModel* model, mjmBody* body, int ix, int ix1);
   mjmBody* AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
+
+  // temporary skin vectors
+  void CopyIntoSkin(mjmSkin* skin);
+  std::vector<int> face;
+  std::vector<float> vert;
+  std::vector<float> bindpos;
+  std::vector<float> bindquat;
+  std::vector<float> texcoord;
+  std::vector<std::vector<int>> vertid;
+  std::vector<std::vector<float>> vertweight;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_COMPOSITE_H_

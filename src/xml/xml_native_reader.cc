@@ -1416,14 +1416,20 @@ void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
 
 
 // skin element parser
-void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
-  string text;
+void mjXReader::OneSkin(XMLElement* elem, mjmSkin* pskin) {
+  string text, name, file, material;
   float data[4];
 
   // read attributes
-  ReadAttrTxt(elem, "name", pskin->name);
-  ReadAttrTxt(elem, "file", pskin->file);
-  ReadAttrTxt(elem, "material", pskin->get_material());
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pskin->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "file", file)) {
+    mjm_setString(pskin->file, file.c_str());
+  }
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(pskin->material, material.c_str());
+  }
   ReadAttrInt(elem, "group", &pskin->group);
   if (pskin->group<0 || pskin->group>=mjNGROUP) {
     throw mjXError(elem, "skin group must be between 0 and 5");
@@ -1432,51 +1438,72 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   ReadAttr(elem, "inflate", 1, &pskin->inflate, text);
 
   // read vertex data
-  if (ReadAttrTxt(elem, "vertex", text)) String2Vector(text, pskin->vert);
+  if (ReadAttrTxt(elem, "vertex", text)) {
+    std::vector<float> vert;
+    String2Vector(text, vert);
+    mjm_setFloat(pskin->vert, vert.data(), vert.size());
+  }
 
   // read texcoord data
-  if (ReadAttrTxt(elem, "texcoord", text)) String2Vector(text, pskin->texcoord);
+  if (ReadAttrTxt(elem, "texcoord", text)) {
+    std::vector<float> texcoord;
+    String2Vector(text, texcoord);
+    mjm_setFloat(pskin->texcoord, texcoord.data(), texcoord.size());
+  }
 
   // read user face data
-  if (ReadAttrTxt(elem, "face", text)) String2Vector(text, pskin->face);
+  if (ReadAttrTxt(elem, "face", text)) {
+    std::vector<int> face;
+    String2Vector(text, face);
+    mjm_setInt(pskin->face, face.data(), face.size());
+  }
 
   // read bones
   XMLElement* bone = FirstChildElement(elem, "bone");
+  std::vector<float> bindpos;
+  std::vector<float> bindquat;
+
   while (bone) {
     // read body
     ReadAttrTxt(bone, "body", text, true);
-    pskin->bodyname.push_back(text);
+    mjm_appendString(pskin->bodyname, text.c_str());
 
     // read bindpos
     ReadAttr(bone, "bindpos", 3, data, text, true);
-    pskin->bindpos.push_back(data[0]);
-    pskin->bindpos.push_back(data[1]);
-    pskin->bindpos.push_back(data[2]);
+    bindpos.push_back(data[0]);
+    bindpos.push_back(data[1]);
+    bindpos.push_back(data[2]);
 
     // read bindquat
     ReadAttr(bone, "bindquat", 4, data, text, true);
-    pskin->bindquat.push_back(data[0]);
-    pskin->bindquat.push_back(data[1]);
-    pskin->bindquat.push_back(data[2]);
-    pskin->bindquat.push_back(data[3]);
+    bindquat.push_back(data[0]);
+    bindquat.push_back(data[1]);
+    bindquat.push_back(data[2]);
+    bindquat.push_back(data[3]);
 
     // read vertid
     vector<int> tempid;
     ReadAttrTxt(bone, "vertid", text, true);
     String2Vector(text, tempid);
-    pskin->vertid.push_back(tempid);
+    mjm_appendIntVec(pskin->vertid, tempid.data(), tempid.size());
 
     // read vertweight
     vector<float> tempweight;
     ReadAttrTxt(bone, "vertweight", text, true);
     String2Vector(text, tempweight);
-    pskin->vertweight.push_back(tempweight);
+    mjm_appendFloatVec(pskin->vertweight, tempweight.data(), tempweight.size());
 
     // advance to next bone
     bone = NextSiblingElement(bone, "bone");
   }
 
-  GetXMLPos(elem, pskin);
+  // set bind vectors
+  mjm_setFloat(pskin->bindpos, bindpos.data(), bindpos.size());
+  mjm_setFloat(pskin->bindquat, bindquat.data(), bindquat.size());
+
+  // write error info
+  mjm_setString(pskin->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -3129,7 +3156,7 @@ void mjXReader::Asset(XMLElement* section) {
     // skin sub-element... deprecate ???
     else if (name=="skin") {
       // create skin and parse
-      mjCSkin* pskin = model->AddSkin();
+      mjmSkin* pskin = mjm_addSkin(model);
       OneSkin(elem, pskin);
     }
 
@@ -3498,7 +3525,7 @@ void mjXReader::Deformable(XMLElement* section) {
     // skin sub-element
     else if (name=="skin") {
       // create skin and parse
-      mjCSkin* pskin = model->AddSkin();
+      mjmSkin* pskin = mjm_addSkin(model);
       OneSkin(elem, pskin);
     }
 

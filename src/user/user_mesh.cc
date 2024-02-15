@@ -1829,45 +1829,92 @@ void mjCMesh::MakeCenter(void) {
 
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
+  mjm_defaultSkin(spec);
+
   // set model pointer
   model = _model;
 
   // clear data
-  file.clear();
-  material_.clear();
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
-  inflate = 0;
-  group = 0;
+  spec_file_.clear();
+  spec_material_.clear();
+  spec_vert_.clear();
+  spec_texcoord_.clear();
+  spec_face_.clear();
+  spec_bodyname_.clear();
+  spec_bindpos_.clear();
+  spec_bindquat_.clear();
+  spec_vertid_.clear();
+  spec_vertweight_.clear();
 
-  vert.clear();
-  texcoord.clear();
-  face.clear();
-
-  bodyname.clear();
-  bindpos.clear();
-  bindquat.clear();
-  vertid.clear();
-  vertweight.clear();
   bodyid.clear();
-
   matid = -1;
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCSkin::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.file = (mjString)&spec_file_;
+  spec.material = (mjString)&spec_material_;
+  spec.vert = (mjFloatVec)&spec_vert_;
+  spec.texcoord = (mjFloatVec)&spec_texcoord_;
+  spec.face = (mjIntVec)&spec_face_;
+  spec.bodyname = (mjStringVec)&spec_bodyname_;
+  spec.bindpos = (mjFloatVec)&spec_bindpos_;
+  spec.bindquat = (mjFloatVec)&spec_bindquat_;
+  spec.vertid = (mjIntVecVec)&spec_vertid_;
+  spec.vertweight = (mjFloatVecVec)&spec_vertweight_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCSkin::CopyFromSpec() {
+  *static_cast<mjmSkin*>(this) = spec;
+  file_ = spec_file_;
+  material_ = spec_material_;
+  vert_ = spec_vert_;
+  texcoord_ = spec_texcoord_;
+  face_ = spec_face_;
+  bodyname_ = spec_bodyname_;
+  bindpos_ = spec_bindpos_;
+  bindquat_ = spec_bindquat_;
+  vertid_ = spec_vertid_;
+  vertweight_ = spec_vertweight_;
+  file = (mjString)&spec_file_;
+  material = (mjString)&spec_material_;
+  vert = (mjFloatVec)&spec_vert_;
+  texcoord = (mjFloatVec)&spec_texcoord_;
+  face = (mjIntVec)&spec_face_;
+  bodyname = (mjStringVec)&spec_bodyname_;
+  bindpos = (mjFloatVec)&spec_bindpos_;
+  bindquat = (mjFloatVec)&spec_bindquat_;
+  vertid = (mjIntVecVec)&spec_vertid_;
+  vertweight = (mjFloatVecVec)&spec_vertweight_;
 }
 
 
 
 // destructor
 mjCSkin::~mjCSkin() {
-  file.clear();
-  material_.clear();
-  vert.clear();
-  texcoord.clear();
-  face.clear();
-  bodyname.clear();
-  bindpos.clear();
-  bindquat.clear();
-  vertid.clear();
-  vertweight.clear();
+  spec_file_.clear();
+  spec_material_.clear();
+  spec_vert_.clear();
+  spec_texcoord_.clear();
+  spec_face_.clear();
+  spec_bodyname_.clear();
+  spec_bindpos_.clear();
+  spec_bindquat_.clear();
+  spec_vertid_.clear();
+  spec_vertweight_.clear();
   bodyid.clear();
 }
 
@@ -1875,33 +1922,35 @@ mjCSkin::~mjCSkin() {
 
 // compiler
 void mjCSkin::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // load file
-  if (!file.empty()) {
+  if (!file_.empty()) {
     // make sure data is not present
-    if (!vert.empty() ||
-        !texcoord.empty() ||
-        !face.empty() ||
-        !bodyname.empty() ||
-        !bindpos.empty() ||
-        !bindquat.empty() ||
-        !vertid.empty() ||
-        !vertweight.empty() ||
+    if (!vert_.empty() ||
+        !texcoord_.empty() ||
+        !face_.empty() ||
+        !bodyname_.empty() ||
+        !bindpos_.empty() ||
+        !bindquat_.empty() ||
+        !vertid_.empty() ||
+        !vertweight_.empty() ||
         !bodyid.empty()) {
-      throw mjCError(this, "Data already exists, trying to load from skin file: %s", file.c_str());
+      throw mjCError(this, "Data already exists, trying to load from skin file: %s", file_.c_str());
     }
 
     // remove path from file if necessary
     if (model->strippath) {
-      file = mjuu_strippath(file);
+      file_ = mjuu_strippath(file_);
     }
 
     // load SKN
-    string ext = mjuu_getext(file);
+    string ext = mjuu_getext(file_);
     if (strcasecmp(ext.c_str(), ".skn")) {
-      throw mjCError(this, "Unknown skin file type: %s", file.c_str());
+      throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -1914,48 +1963,48 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // make sure all data is present
-  if (vert.empty() ||
-      face.empty() ||
-      bodyname.empty() ||
-      bindpos.empty() ||
-      bindquat.empty() ||
-      vertid.empty() ||
-      vertweight.empty()) {
+  if (vert_.empty() ||
+      face_.empty() ||
+      bodyname_.empty() ||
+      bindpos_.empty() ||
+      bindquat_.empty() ||
+      vertid_.empty() ||
+      vertweight_.empty()) {
     throw mjCError(this, "Missing data in skin");
   }
 
   // check mesh sizes
-  if (vert.size()%3) {
+  if (vert_.size()%3) {
     throw mjCError(this, "Vertex data must be multiple of 3");
   }
-  if (!texcoord.empty() && texcoord.size()!=2*vert.size()/3) {
+  if (!texcoord_.empty() && texcoord_.size()!=2*vert_.size()/3) {
     throw mjCError(this, "Vertex and texcoord data incompatible size");
   }
-  if (face.size()%3) {
+  if (face_.size()%3) {
     throw mjCError(this, "Face data must be multiple of 3");
   }
 
   // check bone sizes
-  size_t nbone = bodyname.size();
-  if (bindpos.size()!=3*nbone) {
+  size_t nbone = bodyname_.size();
+  if (bindpos_.size()!=3*nbone) {
     throw mjCError(this, "Unexpected bindpos size in skin");
   }
-  if (bindquat.size()!=4*nbone) {
+  if (bindquat_.size()!=4*nbone) {
     throw mjCError(this, "Unexpected bindquat size in skin");
   }
-  if (vertid.size()!=nbone) {
+  if (vertid_.size()!=nbone) {
     throw mjCError(this, "Unexpected vertid size in skin");
   }
-  if (vertweight.size()!=nbone) {
+  if (vertweight_.size()!=nbone) {
     throw mjCError(this, "Unexpected vertweight size in skin");
   }
 
   // resolve body names
   bodyid.resize(nbone);
   for (int i=0; i<nbone; i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname[i]);
+    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname_[i]);
     if (!pbody) {
-      throw mjCError(this, "unknown body '%s' in skin", bodyname[i].c_str());
+      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
     }
     bodyid[i] = pbody->id;
   }
@@ -1970,28 +2019,28 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // set total vertex weights to 0
   vector<float> vw;
-  size_t nvert = vert.size()/3;
+  size_t nvert = vert_.size()/3;
   vw.resize(nvert);
   fill(vw.begin(), vw.end(), 0.0f);
 
   // accumulate vertex weights from all bones
   for (int i=0; i<nbone; i++) {
     // make sure bone has vertices and sizes match
-    size_t nbv = vertid[i].size();
-    if (vertweight[i].size()!=nbv || nbv==0) {
+    size_t nbv = vertid_[i].size();
+    if (vertweight_[i].size()!=nbv || nbv==0) {
       throw mjCError(this, "vertid and vertweight must have same non-zero size in skin");
     }
 
     // accumulate weights in global array
     for (int j=0; j<nbv; j++) {
       // get index and check range
-      int jj = vertid[i][j];
+      int jj = vertid_[i][j];
       if (jj<0 || jj>=nvert) {
         throw mjCError(this, "vertid %d out of range in skin", NULL, jj);
       }
 
       // accumulate
-      vw[jj] += vertweight[i][j];
+      vw[jj] += vertweight_[i][j];
     }
   }
 
@@ -2004,25 +2053,25 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // normalize vertex weights
   for (int i=0; i<nbone; i++) {
-    for (int j=0; j<vertid[i].size(); j++) {
-      vertweight[i][j] /= vw[vertid[i][j]];
+    for (int j=0; j<vertid_[i].size(); j++) {
+      vertweight_[i][j] /= vw[vertid_[i][j]];
     }
   }
 
   // normalize bindquat
   for (int i=0; i<nbone; i++) {
     mjtNum quat[4] = {
-      (mjtNum)bindquat[4*i],
-      (mjtNum)bindquat[4*i+1],
-      (mjtNum)bindquat[4*i+2],
-      (mjtNum)bindquat[4*i+3]
+      (mjtNum)bindquat_[4*i],
+      (mjtNum)bindquat_[4*i+1],
+      (mjtNum)bindquat_[4*i+2],
+      (mjtNum)bindquat_[4*i+3]
     };
     mju_normalize4(quat);
 
-    bindquat[4*i]   = (float) quat[0];
-    bindquat[4*i+1] = (float) quat[1];
-    bindquat[4*i+2] = (float) quat[2];
-    bindquat[4*i+3] = (float) quat[3];
+    bindquat_[4*i]   = (float) quat[0];
+    bindquat_[4*i+1] = (float) quat[1];
+    bindquat_[4*i+2] = (float) quat[2];
+    bindquat_[4*i+3] = (float) quat[3];
   }
 }
 
@@ -2066,31 +2115,31 @@ void mjCSkin::LoadSKN(mjResource* resource) {
 
   // copy vert
   if (nvert) {
-    vert.resize(3*nvert);
-    memcpy(vert.data(), pdata+cnt, 3*nvert*sizeof(float));
+    vert_.resize(3*nvert);
+    memcpy(vert_.data(), pdata+cnt, 3*nvert*sizeof(float));
     cnt += 3*nvert;
   }
 
   // copy texcoord
   if (ntexcoord) {
-    texcoord.resize(2*ntexcoord);
-    memcpy(texcoord.data(), pdata+cnt, 2*ntexcoord*sizeof(float));
+    texcoord_.resize(2*ntexcoord);
+    memcpy(texcoord_.data(), pdata+cnt, 2*ntexcoord*sizeof(float));
     cnt += 2*ntexcoord;
   }
 
   // copy face
   if (nface) {
-    face.resize(3*nface);
-    memcpy(face.data(), pdata+cnt, 3*nface*sizeof(int));
+    face_.resize(3*nface);
+    memcpy(face_.data(), pdata+cnt, 3*nface*sizeof(int));
     cnt += 3*nface;
   }
 
   // allocate bone arrays
-  bodyname.clear();
-  bindpos.resize(3*nbone);
-  bindquat.resize(4*nbone);
-  vertid.resize(nbone);
-  vertweight.resize(nbone);
+  bodyname_.clear();
+  bindpos_.resize(3*nbone);
+  bindquat_.resize(4*nbone);
+  vertid_.resize(nbone);
+  vertweight_.resize(nbone);
 
   // read bones
   for (int i=0; i<nbone; i++) {
@@ -2104,14 +2153,14 @@ void mjCSkin::LoadSKN(mjResource* resource) {
     strncpy(txt, (char*)(pdata+cnt), 39);
     txt[39] = '\0';
     cnt += 10;
-    bodyname.push_back(txt);
+    bodyname_.push_back(txt);
 
     // read bindpos
-    memcpy(bindpos.data()+3*i, pdata+cnt, 3*sizeof(float));
+    memcpy(bindpos_.data()+3*i, pdata+cnt, 3*sizeof(float));
     cnt += 3;
 
     // read bind quat
-    memcpy(bindquat.data()+4*i, pdata+cnt, 4*sizeof(float));
+    memcpy(bindquat_.data()+4*i, pdata+cnt, 4*sizeof(float));
     cnt += 4;
 
     // read vertex count
@@ -2131,13 +2180,13 @@ void mjCSkin::LoadSKN(mjResource* resource) {
     }
 
     // read vertid
-    vertid[i].resize(vcount);
-    memcpy(vertid[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
+    vertid_[i].resize(vcount);
+    memcpy(vertid_[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
     cnt += vcount;
 
     // read vertweight
-    vertweight[i].resize(vcount);
-    memcpy(vertweight[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
+    vertweight_[i].resize(vcount);
+    memcpy(vertweight_[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
     cnt += vcount;
   }
 

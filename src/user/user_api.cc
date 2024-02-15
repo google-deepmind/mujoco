@@ -156,6 +156,15 @@ mjmHField* mjm_addHField(void* model) {
 
 
 
+// add skin to model
+mjmSkin* mjm_addSkin(void* model) {
+  mjCModel* modelC = static_cast<mjCModel*>(model);
+  mjCSkin* skin = modelC->AddSkin();
+  return &skin->spec;
+}
+
+
+
 // add texture to model
 mjmTexture* mjm_addTexture(void* model) {
   mjCModel* modelC = static_cast<mjCModel*>(model);
@@ -370,11 +379,13 @@ int mjm_getId(mjElement element) {
 }
 
 
+
 // set default
 void mjm_setDefault(mjElement element, void* defspec) {
   mjCBase* baseC = reinterpret_cast<mjCBase*>(element);
   baseC->def = static_cast<mjCDef*>(defspec);
 }
+
 
 
 // set string
@@ -405,14 +416,15 @@ void mjm_setStringVec(mjStringVec dest, const char* text) {
 }
 
 
+
 // add text entry to destination string vector
-void mjm_addToStringVec(mjStringVec dest, const char* text) {
+void mjm_appendString(mjStringVec dest, const char* text) {
   std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
   v->push_back(std::string(text));
 }
 
 
-// set int array
+// copy int array to vector
 void mjm_setInt(mjIntVec dest, const int* array, int size) {
   std::vector<int>* v = reinterpret_cast<std::vector<int>*>(dest);
   v->assign(size, 0.0);
@@ -423,7 +435,15 @@ void mjm_setInt(mjIntVec dest, const int* array, int size) {
 
 
 
-// set float array
+// append int array to vector of arrays
+void mjm_appendIntVec(mjIntVecVec dest, const int* array, int size) {
+  std::vector<std::vector<int>>* v = reinterpret_cast<std::vector<std::vector<int>>*>(dest);
+  v->push_back(std::vector<int>(array, array + size));
+}
+
+
+
+// copy float array to vector
 void mjm_setFloat(mjFloatVec dest, const float* array, int size) {
   std::vector<float>* v = reinterpret_cast<std::vector<float>*>(dest);
   v->assign(size, 0.0);
@@ -434,7 +454,16 @@ void mjm_setFloat(mjFloatVec dest, const float* array, int size) {
 
 
 
-// set double array
+
+// append float array to vector of arrays
+void mjm_appendFloatVec(mjFloatVecVec dest, const float* array, int size) {
+  std::vector<std::vector<float>>* v = reinterpret_cast<std::vector<std::vector<float>>*>(dest);
+  v->push_back(std::vector<float>(array, array + size));
+}
+
+
+
+// copy double array to vector
 void mjm_setDouble(mjDoubleVec dest, const double* array, int size) {
   std::vector<double>* v = reinterpret_cast<std::vector<double>*>(dest);
   v->assign(size, 0.0);

@@ -32,8 +32,10 @@ typedef struct _mjElement* mjElement;
 typedef struct _mjString* mjString;
 typedef struct _mjStringVec* mjStringVec;
 typedef struct _mjIntVec* mjIntVec;
-typedef struct _mjDoubleVec* mjDoubleVec;
+typedef struct _mjIntVecVec* mjIntVecVec;
 typedef struct _mjFloatVec* mjFloatVec;
+typedef struct _mjFloatVecVec* mjFloatVecVec;
+typedef struct _mjDoubleVec* mjDoubleVec;
 
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
@@ -366,6 +368,34 @@ typedef struct _mjmHField {        // height field specification
 } mjmHField;
 
 
+
+typedef struct _mjmSkin {          // skin specification
+  mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString classname;              // class name
+  mjString file;                   // skin file
+  mjString material;               // name of material used for rendering
+  float rgba[4];                   // rgba when material is omitted
+  float inflate;                   // inflate in normal direction
+  int group;                       // group for visualization
+
+  // mesh
+  mjFloatVec vert;                 // vertex positions
+  mjFloatVec texcoord;             // texture coordinates
+  mjIntVec face;                   // faces
+
+  // skin
+  mjStringVec bodyname;            // body names
+  mjFloatVec bindpos;              // bind pos
+  mjFloatVec bindquat;             // bind quat
+  mjIntVecVec vertid;              // vertex ids
+  mjFloatVecVec vertweight;        // vertex weights
+
+  // other
+  mjString info;                   // message appended to compiler errors
+} mjmSkin;
+
+
 typedef struct _mjmTexture {       // texture specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
@@ -655,6 +685,9 @@ MJAPI mjmMesh* mjm_addMesh(void* model, void* defspec);
 // Add height field to model.
 MJAPI mjmHField* mjm_addHField(void* model);
 
+// Add skin to model.
+MJAPI mjmSkin* mjm_addSkin(void* model);
+
 // Add texture to model.
 MJAPI mjmTexture* mjm_addTexture(void* model);
 
@@ -721,25 +754,31 @@ MJAPI mjmBody* mjm_findChild(mjmBody* body, const char* name);
 // Get element id.
 MJAPI int mjm_getId(mjElement element);
 
-// Copy text to destination string.
+// Copy text to string.
 MJAPI void mjm_setString(mjString dest, const char* text);
 
-// Split text to entries and copy to destination string vector.
+// Split text to entries and copy to string vector.
 MJAPI void mjm_setStringVec(mjStringVec dest, const char* text);
 
-// Set specific entry in destination string vector.
+// Set entry in string vector.
 MJAPI mjtByte mjm_setInStringVec(mjStringVec dest, int i, const char* text);
 
-// Add text entry to destination string vector.
-MJAPI void mjm_addToStringVec(mjStringVec dest, const char* text);
+// Append text entry to string vector.
+MJAPI void mjm_appendString(mjStringVec dest, const char* text);
 
-// Copy int array to destination vector.
+// Copy int array to vector.
 MJAPI void mjm_setInt(mjIntVec dest, const int* array, int size);
 
-// Copy float array to destination vector.
+// Append int array to vector of arrays.
+MJAPI void mjm_appendIntVec(mjIntVecVec dest, const int* array, int size);
+
+// Copy float array to vector.
 MJAPI void mjm_setFloat(mjFloatVec dest, const float* array, int size);
 
-// Copy double array to destination vector.
+// Append float array to vector of arrays.
+MJAPI void mjm_appendFloatVec(mjFloatVecVec dest, const float* array, int size);
+
+// Copy double array to vector.
 MJAPI void mjm_setDouble(mjDoubleVec dest, const double* array, int size);
 
 // Get string contents.
@@ -789,6 +828,9 @@ MJAPI void mjm_defaultMesh(mjmMesh& mesh);
 
 // Default height field attributes.
 MJAPI void mjm_defaultHField(mjmHField& hfield);
+
+// Default skin attributes.
+MJAPI void mjm_defaultSkin(mjmSkin& skin);
 
 // Default texture attributes.
 MJAPI void mjm_defaultTexture(mjmTexture& texture);

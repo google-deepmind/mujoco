@@ -1044,12 +1044,12 @@ void mjCModel::SetSizes(void) {
 
   // skin counts
   for (int i=0; i<nskin; i++) {
-    nskinvert += skins[i]->vert.size()/3;
-    nskintexvert += skins[i]->texcoord.size()/2;
-    nskinface += skins[i]->face.size()/3;
+    nskinvert += skins[i]->get_vert().size()/3;
+    nskintexvert += skins[i]->get_texcoord().size()/2;
+    nskinface += skins[i]->get_face().size()/3;
     nskinbone += skins[i]->bodyid.size();
     for (int j=0; j<skins[i]->bodyid.size(); j++) {
-      nskinbonevert += skins[i]->vertid[j].size();
+      nskinbonevert += skins[i]->get_vertid()[j].size();
     }
   }
 
@@ -2094,25 +2094,25 @@ void mjCModel::CopyObjects(mjModel* m) {
     copyvec(m->skin_rgba+4*i, psk->rgba, 4);
     m->skin_inflate[i] = psk->inflate;
     m->skin_vertadr[i] = vert_adr;
-    m->skin_vertnum[i] = psk->vert.size()/3;
-    m->skin_texcoordadr[i] = (!psk->texcoord.empty() ? texcoord_adr : -1);
+    m->skin_vertnum[i] = psk->get_vert().size()/3;
+    m->skin_texcoordadr[i] = (!psk->get_texcoord().empty() ? texcoord_adr : -1);
     m->skin_faceadr[i] = face_adr;
-    m->skin_facenum[i] = psk->face.size()/3;
+    m->skin_facenum[i] = psk->get_face().size()/3;
     m->skin_boneadr[i] = bone_adr;
     m->skin_bonenum[i] = psk->bodyid.size();
 
     // copy mesh data
-    memcpy(m->skin_vert + 3*vert_adr, psk->vert.data(), psk->vert.size()*sizeof(float));
-    if (!psk->texcoord.empty())
-      memcpy(m->skin_texcoord + 2*texcoord_adr, psk->texcoord.data(),
-             psk->texcoord.size()*sizeof(float));
-    memcpy(m->skin_face + 3*face_adr, psk->face.data(), psk->face.size()*sizeof(int));
+    memcpy(m->skin_vert + 3*vert_adr, psk->get_vert().data(), psk->get_vert().size()*sizeof(float));
+    if (!psk->get_texcoord().empty())
+      memcpy(m->skin_texcoord + 2*texcoord_adr, psk->get_texcoord().data(),
+             psk->get_texcoord().size()*sizeof(float));
+    memcpy(m->skin_face + 3*face_adr, psk->get_face().data(), psk->get_face().size()*sizeof(int));
 
     // copy bind poses and body ids
-    memcpy(m->skin_bonebindpos+3*bone_adr, psk->bindpos.data(),
-           psk->bindpos.size()*sizeof(float));
-    memcpy(m->skin_bonebindquat+4*bone_adr, psk->bindquat.data(),
-           psk->bindquat.size()*sizeof(float));
+    memcpy(m->skin_bonebindpos+3*bone_adr, psk->get_bindpos().data(),
+           psk->get_bindpos().size()*sizeof(float));
+    memcpy(m->skin_bonebindquat+4*bone_adr, psk->get_bindquat().data(),
+           psk->get_bindquat().size()*sizeof(float));
     memcpy(m->skin_bonebodyid+bone_adr, psk->bodyid.data(),
            psk->bodyid.size()*sizeof(int));
 
@@ -2120,13 +2120,13 @@ void mjCModel::CopyObjects(mjModel* m) {
     for (int j=0; j<m->skin_bonenum[i]; j++) {
       // set fields
       m->skin_bonevertadr[bone_adr+j] = bonevert_adr;
-      m->skin_bonevertnum[bone_adr+j] = (int)psk->vertid[j].size();
+      m->skin_bonevertnum[bone_adr+j] = (int)psk->get_vertid()[j].size();
 
       // copy data
-      memcpy(m->skin_bonevertid+bonevert_adr, psk->vertid[j].data(),
-             psk->vertid[j].size()*sizeof(int));
-      memcpy(m->skin_bonevertweight+bonevert_adr, psk->vertweight[j].data(),
-             psk->vertid[j].size()*sizeof(float));
+      memcpy(m->skin_bonevertid+bonevert_adr, psk->get_vertid()[j].data(),
+             psk->get_vertid()[j].size()*sizeof(int));
+      memcpy(m->skin_bonevertweight+bonevert_adr, psk->get_vertweight()[j].data(),
+             psk->get_vertid()[j].size()*sizeof(float));
 
       // advance counter
       bonevert_adr += m->skin_bonevertnum[bone_adr+j];
@@ -2134,7 +2134,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // advance mesh and bone counters
     vert_adr += m->skin_vertnum[i];
-    texcoord_adr += psk->texcoord.size()/2;
+    texcoord_adr += psk->get_texcoord().size()/2;
     face_adr += m->skin_facenum[i];
     bone_adr += m->skin_bonenum[i];
   }

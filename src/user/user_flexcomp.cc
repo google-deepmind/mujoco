@@ -385,7 +385,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
 
   // rigid: set parent name, nothing else to do
   if (rigid) {
-    mjm_addToStringVec(pf->vertbody, mjm_getString(body->name));
+    mjm_appendString(pf->vertbody, mjm_getString(body->name));
     return true;
   }
 
@@ -402,7 +402,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
 
     // pinned: parent body
     if (pinned[i]) {
-      mjm_addToStringVec(pf->vertbody, mjm_getString(body->name));
+      mjm_appendString(pf->vertbody, mjm_getString(body->name));
 
       // add plugin
       if (plugin_instance) {
@@ -459,7 +459,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
       char txt[100];
       mju::sprintf_arr(txt, "%s_%d", name.c_str(), i);
       mjm_setString(pb->name, txt);
-      mjm_addToStringVec(pf->vertbody, mjm_getString(pb->name));
+      mjm_appendString(pf->vertbody, mjm_getString(pb->name));
 
       // clear flex vertex coordinates if allocated
       if (!centered) {

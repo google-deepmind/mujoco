@@ -771,32 +771,30 @@ class mjCMesh: public mjCBase, private mjmMesh {
 //------------------------- class mjCSkin ----------------------------------------------------------
 // Describes a skin
 
-class mjCSkin: public mjCBase {
+class mjCSkin: public mjCBase, private mjmSkin {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  std::string get_file() const { return file; }
-  void set_material(std::string _material) { material_ = _material; }
+  mjmSkin spec;
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
+
+  std::string get_file() const { return file_; }
   std::string& get_material() { return material_; }
+  std::vector<float>& get_vert() { return vert_; }
+  std::vector<float>& get_texcoord() { return texcoord_; }
+  std::vector<int>& get_face() { return face_; }
+  std::vector<std::string>& get_bodyname() { return bodyname_; }
+  std::vector<float>& get_bindpos() { return bindpos_; }
+  std::vector<float>& get_bindquat() { return bindquat_; }
+  std::vector<std::vector<int>>& get_vertid() { return vertid_; }
+  std::vector<std::vector<float>>& get_vertweight() { return vertweight_; }
   void del_material() { material_.clear(); }
 
-  std::string file;                   // skin file
-  float rgba[4];                      // rgba when material is omitted
-  float inflate;                      // inflate in normal direction
-  int group;                          // group for visualization
-
-  // mesh
-  std::vector<float> vert;            // vertex positions
-  std::vector<float> texcoord;        // texture coordinates
-  std::vector<int> face;              // faces
-
-  // skin
-  std::vector<std::string> bodyname;  // body names
-  std::vector<float> bindpos;         // bind pos
-  std::vector<float> bindquat;        // bind quat
-  std::vector<std::vector<int>> vertid;         // vertex ids
-  std::vector<std::vector<float>> vertweight;   // vertex weights
+  void CopyFromSpec();
+  void PointToLocal();
 
  private:
   mjCSkin(mjCModel* = 0);                     // constructor
@@ -804,7 +802,29 @@ class mjCSkin: public mjCBase {
   void Compile(const mjVFS* vfs);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 
-  std::string material_;              // name of material used for rendering
+  // variable size attributes
+  std::string file_;
+  std::string material_;
+  std::vector<float> vert_;
+  std::vector<float> texcoord_;
+  std::vector<int> face_;
+  std::vector<std::string> bodyname_;
+  std::vector<float> bindpos_;
+  std::vector<float> bindquat_;
+  std::vector<std::vector<int>> vertid_;
+  std::vector<std::vector<float>> vertweight_;
+
+  std::string spec_file_;
+  std::string spec_material_;
+  std::vector<float> spec_vert_;
+  std::vector<float> spec_texcoord_;
+  std::vector<int> spec_face_;
+  std::vector<std::string> spec_bodyname_;
+  std::vector<float> spec_bindpos_;
+  std::vector<float> spec_bindquat_;
+  std::vector<std::vector<int>> spec_vertid_;
+  std::vector<std::vector<float>> spec_vertweight_;
+
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
 };

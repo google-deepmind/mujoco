@@ -210,6 +210,17 @@ void mjm_defaultHField(mjmHField& hfield) {
 
 
 
+// default skin attributes
+void mjm_defaultSkin(mjmSkin& skin) {
+  memset(&skin, 0, sizeof(mjmSkin));
+  skin.rgba[0] = skin.rgba[1] = skin.rgba[2] = 0.5f;
+  skin.rgba[3] = 1.0f;
+  skin.inflate = 0;
+  skin.group = 0;
+}
+
+
+
 // default texture attributes
 void mjm_defaultTexture(mjmTexture& texture) {
   memset(&texture, 0, sizeof(mjmTexture));
