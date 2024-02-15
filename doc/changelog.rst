@@ -18,6 +18,7 @@ MJX
    ``mjx.get_data_into`` function call.
 3. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
 4. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
+5. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------

@@ -218,6 +218,7 @@ class Option(PyTreeNode):
 
   Attributes:
     timestep:         timestep
+    impratio:         ratio of friction-to-normal contact impedance
     tolerance:        main solver tolerance
     ls_tolerance:     CG/Newton linesearch tolerance
     gravity:          gravitational acceleration                 (3,)
@@ -238,9 +239,11 @@ class Option(PyTreeNode):
     disableflags:     bit flags for disabling standard features
   """
   timestep: jax.Array
+  # unsupported: apirate
+  impratio: jax.Array
   tolerance: jax.Array
   ls_tolerance: jax.Array
-  # unsupported: apirate, impratio, noslip_tolerance, mpr_tolerance
+  # unsupported: noslip_tolerance, mpr_tolerance
   gravity: jax.Array
   wind: jax.Array
   density: jax.Array

@@ -297,7 +297,7 @@ def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
     for diff_tan, friction in zip(diff_con[1:], c.friction[:2]):
       for f in (friction, -friction):
         js.append(diff_con[0] + diff_tan * f)
-        invweights.append((t + f * f * t) * 2 * f * f)
+        invweights.append((t + f * f * t) * 2 * f * f / m.opt.impratio)
 
     active = dist < 0
     j, invweight = jp.stack(js) * active, jp.stack(invweights)
