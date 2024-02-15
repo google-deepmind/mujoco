@@ -437,6 +437,31 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
     }
   }
 }
+
+TEST_F(XMLReaderTest, RepeatedDefaultName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="sphere">
+        <geom type="sphere" size="1"/>
+      </default>
+      <default class="sphere">
+        <geom type="capsule" size="1 1"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom class="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("repeated default class name"));
+}
+
 // ------------------------ test including -------------------------------------
 
 TEST_F(XMLReaderTest, IncludeTest) {

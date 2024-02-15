@@ -78,8 +78,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 // make flexcomp object
 bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
-  def.flex.CopyFromSpec();
-
+  mjmFlex* dflex = def.spec.flex;
   bool radial = (type==mjFCOMPTYPE_BOX ||
                  type==mjFCOMPTYPE_CYLINDER ||
                  type==mjFCOMPTYPE_ELLIPSOID);
@@ -100,7 +99,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
   }
 
   // check spacing
-  double minspace = 2*def.flex.spec.radius + def.flex.spec.margin;
+  double minspace = 2*dflex->radius + dflex->margin;
   if (!direct) {
     if (spacing[0]<minspace ||
         spacing[1]<minspace ||
@@ -158,7 +157,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
   }
 
   // get dim and check
-  int dim = def.flex.spec.dim;
+  int dim = dflex->dim;
   if (dim<1 || dim>3) {
     return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
   }
@@ -166,7 +165,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
   // force flatskin shading for box, cylinder and 3D grid
   if (type==mjFCOMPTYPE_BOX || type==mjFCOMPTYPE_CYLINDER ||
       (type==mjFCOMPTYPE_GRID && dim==3)) {
-    def.flex.spec.flatskin = true;
+    dflex->flatskin = true;
   }
 
   // check pin sizes
@@ -485,8 +484,8 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
 
   // create edge equality constraint
   if (equality) {
-    mjmEquality* pe = mjm_addEquality(model, &def);
-    mjm_setDefault(pe->element, model->defaults[0]);
+    mjmEquality* pe = mjm_addEquality(model, &def.spec);
+    mjm_setDefault(pe->element, &model->defaults[0]->spec);
     pe->type = mjEQ_FLEX;
     pe->active = true;
     mjm_setString(pe->name1, name.c_str());
@@ -690,7 +689,7 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   double pos[3];
 
   // set 3D
-  def.flex.spec.dim = 3;
+  def.spec.flex->dim = 3;
 
   // add center point
   point.push_back(0);
@@ -822,7 +821,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // check dim
-  if (def.flex.spec.dim!=2) {
+  if (def.spec.flex->dim!=2) {
     return comperr(error, "Flex dim must be 2 in for mesh", error_sz);
   }
 
@@ -1034,7 +1033,7 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     if (entityDim<1 || entityDim>3) {
       throw mjCError(NULL, "Entity must be 1D, 2D or 3D");
     }
-    def.flex.spec.dim = entityDim;
+    def.spec.flex->dim = entityDim;
 
     // read and discard node tags; require range from minNodeTag to maxNodeTag
     for (size_t i=0; i<numNodes; i++) {
@@ -1086,7 +1085,7 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     if (entityDim<1 || entityDim>3) {
       throw mjCError(NULL, "Entity must be 1D, 2D or 3D");
     }
-    def.flex.spec.dim = entityDim;
+    def.spec.flex->dim = entityDim;
 
     // check section byte size
     if (nodeend-nodebegin < 52+numNodes*4*8) {
@@ -1134,7 +1133,7 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     }
 
     // dimensionality must be same as nodes
-    if (entityDim!=def.flex.spec.dim) {
+    if (entityDim!=def.spec.flex->dim) {
       throw mjCError(NULL, "Inconsistent dimensionality in Elements");
     }
 
@@ -1183,7 +1182,7 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     }
 
     // dimensionality must be same as nodes
-    if (entityDim!=def.flex.spec.dim) {
+    if (entityDim!=def.spec.flex->dim) {
       throw mjCError(NULL, "Inconsistent dimensionality in Elements");
     }
 

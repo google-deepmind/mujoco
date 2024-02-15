@@ -694,6 +694,38 @@ TEST_F(XMLWriterTest, WritesDefaults) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesActuatorDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="position">
+        <position kp="3" kv="4" />
+      </default>
+      <default class="intvelocity">
+        <intvelocity kp="5" kv="6" />
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="0 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" class="position"/>
+      <intvelocity joint="jnt" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
+  EXPECT_THAT(saved_xml, HasSubstr(
+      "<general biastype=\"affine\" gainprm=\"3 0 0 0 0 0 0 0 0 0\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, WritesDensity) {
   static constexpr char xml[] = R"(
   <mujoco>

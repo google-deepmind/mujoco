@@ -1665,7 +1665,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjmGeom* pgeom) {
 
 
 // site element parser
-void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
+void mjXReader::OneSite(XMLElement* elem, mjmSite* site) {
   int n;
   string text, name, classname;
   std::vector<double> userdata;
@@ -1673,30 +1673,30 @@ void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjm_setString(site.name, name.c_str());
+    mjm_setString(site->name, name.c_str());
   }
   if (ReadAttrTxt(elem, "class", classname)) {
-    mjm_setString(site.classname, classname.c_str());
+    mjm_setString(site->classname, classname.c_str());
   }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
-    site.type = (mjtGeom)n;
+    site->type = (mjtGeom)n;
   }
-  ReadAttr(elem, "size", 3, site.size, text, false, false);
-  ReadAttrInt(elem, "group", &site.group);
-  ReadAttr(elem, "pos", 3, site.pos, text);
-  ReadQuat(elem, "quat", site.quat, text);
+  ReadAttr(elem, "size", 3, site->size, text, false, false);
+  ReadAttrInt(elem, "group", &site->group);
+  ReadAttr(elem, "pos", 3, site->pos, text);
+  ReadQuat(elem, "quat", site->quat, text);
   if (ReadAttrTxt(elem, "material", material)) {
-    mjm_setString(site.material, material.c_str());
+    mjm_setString(site->material, material.c_str());
   }
-  ReadAttr(elem, "rgba", 4, site.rgba, text);
-  ReadAttr(elem, "fromto", 6, site.fromto, text);
-  ReadAlternative(elem, site.alt);
+  ReadAttr(elem, "rgba", 4, site->rgba, text);
+  ReadAttr(elem, "fromto", 6, site->fromto, text);
+  ReadAlternative(elem, site->alt);
   if (ReadVector(elem, "user", userdata, text)) {
-    mjm_setDouble(site.userdata, userdata.data(), userdata.size());
+    mjm_setDouble(site->userdata, userdata.data(), userdata.size());
   }
 
   // write error info
-  mjm_setString(site.info,
+  mjm_setString(site->info,
       std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
@@ -2240,7 +2240,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) {
   string text;
   int n;
 
@@ -2326,7 +2326,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   XMLElement* egeom = FirstChildElement(elem, "geom");
   if (egeom) {
     std::string material;
-    mjmGeom& dgeom = comp.def[0].geom.spec;
+    mjmGeom& dgeom = *comp.def[0].spec.geom;
     if (MapValue(egeom, "type", &n, geom_map, mjNGEOMTYPES)) {
       dgeom.type = (mjtGeom)n;
     }
@@ -2354,7 +2354,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   XMLElement* esite = FirstChildElement(elem, "site");
   if (esite) {
     std::string material;
-    mjmSite& dsite = comp.def[0].site.spec;
+    mjmSite& dsite = *comp.def[0].spec.site;
     ReadAttr(esite, "size", 3, dsite.size, text, false, false);
     ReadAttrInt(esite, "group", &dsite.group);
     ReadAttrTxt(esite, "material", material);
@@ -2379,33 +2379,35 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     comp.add[kind] = true;
 
     // get element
-    mjCDef *el = &comp.defjoint[(mjtCompKind)kind].back();
+    mjmDefault* dspec = &comp.defjoint[(mjtCompKind)kind].back().spec;
+    mjmJoint& djoint = *dspec->joint;
+    mjmEquality& dequality = *dspec->equality;
 
     // particle joint
     if (MapValue(ejnt, "type", &n, joint_map, joint_sz)) {
-      el->joint.spec.type = (mjtJoint)n;
+      djoint.type = (mjtJoint)n;
     }
-    ReadAttr(ejnt, "axis", 3, el->joint.spec.axis, text);
+    ReadAttr(ejnt, "axis", 3, djoint.axis, text);
 
     // solreffix, solimpfix
-    ReadAttr(ejnt, "solreffix", mjNREF, el->equality.spec.solref, text, false, false);
-    ReadAttr(ejnt, "solimpfix", mjNIMP, el->equality.spec.solimp, text, false, false);
+    ReadAttr(ejnt, "solreffix", mjNREF, dequality.solref, text, false, false);
+    ReadAttr(ejnt, "solimpfix", mjNIMP, dequality.solimp, text, false, false);
 
     // joint attributes
-    MapValue(elem, "limited", &el->joint.spec.limited, TFAuto_map, 3);
-    ReadAttrInt(ejnt, "group", &el->joint.spec.group);
-    ReadAttr(ejnt, "solreflimit", mjNREF, el->joint.spec.solref_limit, text, false, false);
-    ReadAttr(ejnt, "solimplimit", mjNIMP, el->joint.spec.solimp_limit, text, false, false);
+    MapValue(elem, "limited", &djoint.limited, TFAuto_map, 3);
+    ReadAttrInt(ejnt, "group", &djoint.group);
+    ReadAttr(ejnt, "solreflimit", mjNREF, djoint.solref_limit, text, false, false);
+    ReadAttr(ejnt, "solimplimit", mjNIMP, djoint.solimp_limit, text, false, false);
     ReadAttr(ejnt,
-             "solreffriction", mjNREF, el->joint.spec.solref_friction, text, false, false);
+             "solreffriction", mjNREF, djoint.solref_friction, text, false, false);
     ReadAttr(ejnt,
-             "solimpfriction", mjNIMP, el->joint.spec.solimp_friction, text, false, false);
-    ReadAttr(ejnt, "stiffness", 1, &el->joint.spec.stiffness, text);
-    ReadAttr(ejnt, "range", 2, el->joint.spec.range, text);
-    ReadAttr(ejnt, "margin", 1, &el->joint.spec.margin, text);
-    ReadAttr(ejnt, "armature", 1, &el->joint.spec.armature, text);
-    ReadAttr(ejnt, "damping", 1, &el->joint.spec.damping, text);
-    ReadAttr(ejnt, "frictionloss", 1, &el->joint.spec.frictionloss, text);
+             "solimpfriction", mjNIMP, djoint.solimp_friction, text, false, false);
+    ReadAttr(ejnt, "stiffness", 1, &djoint.stiffness, text);
+    ReadAttr(ejnt, "range", 2, djoint.range, text);
+    ReadAttr(ejnt, "margin", 1, &djoint.margin, text);
+    ReadAttr(ejnt, "armature", 1, &djoint.armature, text);
+    ReadAttr(ejnt, "damping", 1, &djoint.damping, text);
+    ReadAttr(ejnt, "frictionloss", 1, &djoint.frictionloss, text);
 
     // advance
     ejnt = NextSiblingElement(ejnt, "joint");
@@ -2419,29 +2421,33 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     MapValue(eten, "kind", &kind, tkind_map, 2, true);
     comp.add[kind] = true;
 
+    // get default structs
+    mjmTendon& dtendon = *comp.def[kind].spec.tendon;
+    mjmEquality& dequality = *comp.def[kind].spec.equality;
+
     // solreffix, solimpfix
-    ReadAttr(eten, "solreffix", mjNREF, comp.def[kind].equality.spec.solref, text, false, false);
-    ReadAttr(eten, "solimpfix", mjNIMP, comp.def[kind].equality.spec.solimp, text, false, false);
+    ReadAttr(eten, "solreffix", mjNREF, dequality.solref, text, false, false);
+    ReadAttr(eten, "solimpfix", mjNIMP, dequality.solimp, text, false, false);
 
     // tendon attributes
     std::string material;
-    MapValue(elem, "limited", &comp.def[kind].tendon.spec.limited, TFAuto_map, 3);
-    ReadAttrInt(eten, "group", &comp.def[kind].tendon.spec.group);
-    ReadAttr(eten, "solreflimit", mjNREF, comp.def[kind].tendon.spec.solref_limit, text, false, false);
-    ReadAttr(eten, "solimplimit", mjNIMP, comp.def[kind].tendon.spec.solimp_limit, text, false, false);
+    MapValue(elem, "limited", &dtendon.limited, TFAuto_map, 3);
+    ReadAttrInt(eten, "group", &dtendon.group);
+    ReadAttr(eten, "solreflimit", mjNREF, dtendon.solref_limit, text, false, false);
+    ReadAttr(eten, "solimplimit", mjNIMP, dtendon.solimp_limit, text, false, false);
     ReadAttr(eten,
-             "solreffriction", mjNREF, comp.def[kind].tendon.spec.solref_friction, text, false, false);
+             "solreffriction", mjNREF, dtendon.solref_friction, text, false, false);
     ReadAttr(eten,
-             "solimpfriction", mjNIMP, comp.def[kind].tendon.spec.solimp_friction, text, false, false);
-    ReadAttr(eten, "range", 2, comp.def[kind].tendon.spec.range, text);
-    ReadAttr(eten, "margin", 1, &comp.def[kind].tendon.spec.margin, text);
-    ReadAttr(eten, "stiffness", 1, &comp.def[kind].tendon.spec.stiffness, text);
-    ReadAttr(eten, "damping", 1, &comp.def[kind].tendon.spec.damping, text);
-    ReadAttr(eten, "frictionloss", 1, &comp.def[kind].tendon.spec.frictionloss, text);
+             "solimpfriction", mjNIMP, dtendon.solimp_friction, text, false, false);
+    ReadAttr(eten, "range", 2, dtendon.range, text);
+    ReadAttr(eten, "margin", 1, &dtendon.margin, text);
+    ReadAttr(eten, "stiffness", 1, &dtendon.stiffness, text);
+    ReadAttr(eten, "damping", 1, &dtendon.damping, text);
+    ReadAttr(eten, "frictionloss", 1, &dtendon.frictionloss, text);
     ReadAttrTxt(eten, "material", material);
-    mjm_setString(comp.def[kind].tendon.spec.material, material.c_str());
-    ReadAttr(eten, "rgba", 4, comp.def[kind].tendon.spec.rgba, text);
-    ReadAttr(eten, "width", 1, &comp.def[kind].tendon.spec.width, text);
+    mjm_setString(dtendon.material, material.c_str());
+    ReadAttr(eten, "rgba", 4, dtendon.rgba, text);
+    ReadAttr(eten, "width", 1, &dtendon.width, text);
 
     // advance
     eten = NextSiblingElement(eten, "tendon");
@@ -2481,6 +2487,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
 
   // create out-of-DOM element
   mjCFlexcomp fcomp;
+  mjmFlex& dflex = *fcomp.def.spec.flex;
 
   // common properties
   ReadAttrTxt(elem, "name", fcomp.name, true);
@@ -2494,15 +2501,15 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
   ReadAttrTxt(elem, "file", fcomp.file);
   if (ReadAttrTxt(elem, "material", material)) {
-    mjm_setString(fcomp.def.flex.spec.material, material.c_str());
+    mjm_setString(dflex.material, material.c_str());
   }
-  ReadAttr(elem, "rgba", 4, fcomp.def.flex.spec.rgba, text);
+  ReadAttr(elem, "rgba", 4, dflex.rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
-    fcomp.def.flex.spec.flatskin = (n==1);
+    dflex.flatskin = (n==1);
   }
-  ReadAttrInt(elem, "dim", &fcomp.def.flex.spec.dim);
-  ReadAttr(elem, "radius", 1, &fcomp.def.flex.spec.radius, text);
-  ReadAttrInt(elem, "group", &fcomp.def.flex.spec.group);
+  ReadAttrInt(elem, "dim", &dflex.dim);
+  ReadAttr(elem, "radius", 1, &dflex.radius, text);
+  ReadAttrInt(elem, "group", &dflex.group);
 
   // pose
   ReadAttr(elem, "pos", 3, fcomp.pos, text);
@@ -2529,30 +2536,30 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     if (MapValue(edge, "equality", &n, bool_map, 2)) {
       fcomp.equality = (n==1);
     }
-    ReadAttr(edge, "solref", mjNREF, fcomp.def.equality.spec.solref, text, false, false);
-    ReadAttr(edge, "solimp", mjNIMP, fcomp.def.equality.spec.solimp, text, false, false);
-    ReadAttr(edge, "stiffness", 1, &fcomp.def.flex.spec.edgestiffness, text);
-    ReadAttr(edge, "damping", 1, &fcomp.def.flex.spec.edgedamping, text);
+    ReadAttr(edge, "solref", mjNREF, fcomp.def.spec.equality->solref, text, false, false);
+    ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
+    ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);
+    ReadAttr(edge, "damping", 1, &dflex.edgedamping, text);
   }
 
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
-    ReadAttrInt(cont, "contype", &fcomp.def.flex.spec.contype);
-    ReadAttrInt(cont, "conaffinity", &fcomp.def.flex.spec.conaffinity);
-    ReadAttrInt(cont, "condim", &fcomp.def.flex.spec.condim);
-    ReadAttrInt(cont, "priority", &fcomp.def.flex.spec.priority);
-    ReadAttr(cont, "friction", 3, fcomp.def.flex.spec.friction, text, false, false);
-    ReadAttr(cont, "solmix", 1, &fcomp.def.flex.spec.solmix, text);
-    ReadAttr(cont, "solref", mjNREF, fcomp.def.flex.spec.solref, text, false, false);
-    ReadAttr(cont, "solimp", mjNIMP, fcomp.def.flex.spec.solimp, text, false, false);
-    ReadAttr(cont, "margin", 1, &fcomp.def.flex.spec.margin, text);
-    ReadAttr(cont, "gap", 1, &fcomp.def.flex.spec.gap, text);
+    ReadAttrInt(cont, "contype", &dflex.contype);
+    ReadAttrInt(cont, "conaffinity", &dflex.conaffinity);
+    ReadAttrInt(cont, "condim", &dflex.condim);
+    ReadAttrInt(cont, "priority", &dflex.priority);
+    ReadAttr(cont, "friction", 3, dflex.friction, text, false, false);
+    ReadAttr(cont, "solmix", 1, &dflex.solmix, text);
+    ReadAttr(cont, "solref", mjNREF, dflex.solref, text, false, false);
+    ReadAttr(cont, "solimp", mjNIMP, dflex.solimp, text, false, false);
+    ReadAttr(cont, "margin", 1, &dflex.margin, text);
+    ReadAttr(cont, "gap", 1, &dflex.gap, text);
     if (MapValue(cont, "internal", &n, bool_map, 2)) {
-      fcomp.def.flex.spec.internal = (n==1);
+      dflex.internal = (n==1);
     }
-    MapValue(cont, "selfcollide", &fcomp.def.flex.spec.selfcollide, flexself_map, 5);
-    ReadAttrInt(cont, "activelayers", &fcomp.def.flex.spec.activelayers);
+    MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
+    ReadAttrInt(cont, "activelayers", &dflex.activelayers);
   }
 
   // pin
@@ -2633,7 +2640,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
 void mjXReader::Default(XMLElement* section, int parentid) {
   XMLElement* elem;
   string text, name;
-  mjCDef* def;
+  mjmDefault* def;
   int thisid;
 
   // create new default, except at top level (already added in mjCModel ctor)
@@ -2648,14 +2655,14 @@ void mjXReader::Default(XMLElement* section, int parentid) {
   }
   if (parentid>=0) {
     thisid = (int)model->defaults.size();
-    def = model->AddDef(text, parentid);
+    def = mjm_addDefault(model, text.c_str(), parentid);
     if (!def) {
       throw mjXError(section, "repeated default class name");
     }
   } else {
     thisid = 0;
-    def = model->defaults[0];
-    def->name = text;
+    def = &model->defaults[0]->spec;
+    mjm_setString(def->name, text.c_str());
   }
 
   // iterate over elements other than nested defaults
@@ -2665,34 +2672,34 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     name = elem->Value();
 
     // read mesh
-    if (name=="mesh") OneMesh(elem, &def->mesh.spec);
+    if (name=="mesh") OneMesh(elem, def->mesh);
 
     // read material
-    else if (name=="material") OneMaterial(elem, &def->material.spec);
+    else if (name=="material") OneMaterial(elem, def->material);
 
     // read joint
-    else if (name=="joint") OneJoint(elem, &def->joint.spec);
+    else if (name=="joint") OneJoint(elem, def->joint);
 
     // read geom
-    else if (name=="geom") OneGeom(elem, &def->geom.spec);
+    else if (name=="geom") OneGeom(elem, def->geom);
 
     // read site
-    else if (name=="site") OneSite(elem, def->site.spec);
+    else if (name=="site") OneSite(elem, def->site);
 
     // read camera
-    else if (name=="camera") OneCamera(elem, &def->camera.spec);
+    else if (name=="camera") OneCamera(elem, def->camera);
 
     // read light
-    else if (name=="light") OneLight(elem, &def->light.spec);
+    else if (name=="light") OneLight(elem, def->light);
 
     // read pair
-    else if (name=="pair") OnePair(elem, &def->pair.spec);
+    else if (name=="pair") OnePair(elem, def->pair);
 
     // read equality
-    else if (name=="equality") OneEquality(elem, &def->equality.spec);
+    else if (name=="equality") OneEquality(elem, def->equality);
 
     // read tendon
-    else if (name=="tendon") OneTendon(elem, &def->tendon.spec);
+    else if (name=="tendon") OneTendon(elem, def->tendon);
 
     // read actuator
     else if (name=="general"     ||
@@ -2704,21 +2711,22 @@ void mjXReader::Default(XMLElement* section, int parentid) {
              name=="cylinder"    ||
              name=="muscle"      ||
              name=="adhesion") {
-      OneActuator(elem, &def->actuator.spec);
+      OneActuator(elem, def->actuator);
     }
 
     // copy into private attributes
-    mjm_finalize(def->geom.spec.element);
-    mjm_finalize(def->joint.spec.element);
-    mjm_finalize(def->site.spec.element);
-    mjm_finalize(def->camera.spec.element);
-    mjm_finalize(def->light.spec.element);
-    mjm_finalize(def->actuator.spec.element);
-    mjm_finalize(def->material.spec.element);
-    mjm_finalize(def->equality.spec.element);
-    mjm_finalize(def->tendon.spec.element);
-    mjm_finalize(def->flex.spec.element);
-    mjm_finalize(def->pair.spec.element);
+    mjm_finalize(def->joint->element);
+    mjm_finalize(def->geom->element);
+    mjm_finalize(def->site->element);
+    mjm_finalize(def->camera->element);
+    mjm_finalize(def->light->element);
+    mjm_finalize(def->flex->element);
+    mjm_finalize(def->mesh->element);
+    mjm_finalize(def->material->element);
+    mjm_finalize(def->pair->element);
+    mjm_finalize(def->equality->element);
+    mjm_finalize(def->tendon->element);
+    mjm_finalize(def->actuator->element);
 
     // advance
     elem = NextSiblingElement(elem);
@@ -3066,9 +3074,9 @@ void mjXReader::Asset(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // texture sub-element
@@ -3248,9 +3256,9 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     name = elem->Value();
 
     // get class if specified, otherwise use body
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = (mjCDef*)mjm_getDefault(pbody->element);
+      def = (mjmDefault*)mjm_getDefault(pbody->element);
     }
 
     // inertial sub-element
@@ -3318,7 +3326,7 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     else if (name=="site") {
       // create site and parse
       mjmSite* site = mjm_addSite(pbody,  def);
-      OneSite(elem, *site);
+      OneSite(elem, site);
       mjm_setFrame(site->element, frame);
     }
 
@@ -3370,9 +3378,9 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     // body sub-element
     else if (name=="body") {
       // read childdef
-      mjCDef* childdef = 0;
+      mjmDefault* childdef = 0;
       if (ReadAttrTxt(elem, "childclass", text)) {
-        childdef = model->FindDef(text);
+        childdef = &model->FindDef(text)->spec;
         if (!childdef) {
           throw mjXError(elem, "unknown default childclass");
         }
@@ -3437,9 +3445,9 @@ void mjXReader::Contact(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // geom pair to include
@@ -3482,9 +3490,9 @@ void mjXReader::Equality(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // create equality constraint and parse
@@ -3510,9 +3518,9 @@ void mjXReader::Deformable(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // flex sub-element
@@ -3546,9 +3554,9 @@ void mjXReader::Tendon(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // create equality constraint and parse
@@ -3612,9 +3620,9 @@ void mjXReader::Actuator(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // create actuator and parse
@@ -4003,12 +4011,12 @@ void mjXReader::Keyframe(XMLElement* section) {
 
 
 // get defaults class
-mjCDef* mjXReader::GetClass(XMLElement* section) {
+mjmDefault* mjXReader::GetClass(XMLElement* section) {
   string text;
-  mjCDef* def = 0;
+  mjmDefault* def = 0;
 
   if (ReadAttrTxt(section, "class", text)) {
-    def = model->FindDef(text);
+    def = &model->FindDef(text)->spec;
     if (!def) {
       throw mjXError(section, "unknown default class");
     }

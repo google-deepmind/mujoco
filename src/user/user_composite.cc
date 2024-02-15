@@ -116,8 +116,15 @@ bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
       return false;
     } else {
       mjCDef jnt;
-      jnt.joint.spec.group = 3;
+      jnt.spec.joint->group = 3;
       defjoint[(mjtCompKind)i].push_back(jnt);
+    }
+
+    // TODO: push_back might invoke a copy constructor, we undo its effect on pointers here
+    for (int i=0; i<mjNCOMPKINDS; i++) {
+      for (int j=0; j<defjoint[(mjtCompKind)i].size(); j++) {
+        defjoint[(mjtCompKind)i][j].PointToLocal();
+      }
     }
   }
   return true;
@@ -137,9 +144,9 @@ void mjCComposite::SetDefault(void) {
 
   // set all deafult groups to 3
   for (int i=0; i<mjNCOMPKINDS; i++) {
-    def[i].geom.spec.group = 3;
-    def[i].site.spec.group = 3;
-    def[i].tendon.spec.group = 3;
+    def[i].spec.geom->group = 3;
+    def[i].spec.site->group = 3;
+    def[i].spec.tendon->group = 3;
   }
 
   // set default joint
@@ -153,8 +160,8 @@ void mjCComposite::SetDefault(void) {
       type==mjCOMPTYPE_CABLE      ||
       (type==mjCOMPTYPE_GRID && tmpdim==1)) {
     for (int i=0; i<mjNCOMPKINDS; i++) {
-      def[i].geom.spec.group = 0;
-      def[i].tendon.spec.group = 0;
+      def[i].spec.geom->group = 0;
+      def[i].spec.tendon->group = 0;
     }
   }
 
@@ -163,15 +170,15 @@ void mjCComposite::SetDefault(void) {
   case mjCOMPTYPE_PARTICLE:       // particle
 
     // no friction with anything
-    def[0].geom.spec.condim = 1;
-    def[0].geom.spec.priority = 1;
+    def[0].spec.geom->condim = 1;
+    def[0].spec.geom->priority = 1;
     break;
 
   case mjCOMPTYPE_GRID:           // grid
 
     // hard main tendon fix
-    AdjustSoft(def[mjCOMPKIND_TENDON].equality.spec.solref,
-               def[mjCOMPKIND_TENDON].equality.spec.solimp, 0);
+    AdjustSoft(def[mjCOMPKIND_TENDON].spec.equality->solref,
+               def[mjCOMPKIND_TENDON].spec.equality->solimp, 0);
 
     break;
 
@@ -193,19 +200,19 @@ void mjCComposite::SetDefault(void) {
   case mjCOMPTYPE_ELLIPSOID:
 
     // no self-collisions
-    def[0].geom.spec.contype = 0;
+    def[0].spec.geom->contype = 0;
 
     // soft smoothing
     AdjustSoft(solrefsmooth, solimpsmooth, 1);
 
     // soft fix everywhere
     for (int i=0; i<mjNCOMPKINDS; i++) {
-      AdjustSoft(def[i].equality.spec.solref, def[i].equality.spec.solimp, 1);
+      AdjustSoft(def[i].spec.equality->solref, def[i].spec.equality->solimp, 1);
     }
 
     // hard main tendon fix
-    AdjustSoft(def[mjCOMPKIND_TENDON].equality.spec.solref,
-               def[mjCOMPKIND_TENDON].equality.spec.solimp, 0);
+    AdjustSoft(def[mjCOMPKIND_TENDON].spec.equality->solref,
+               def[mjCOMPKIND_TENDON].spec.equality->solimp, 0);
     break;
   default:
     // SHOULD NOT OCCUR
@@ -219,9 +226,9 @@ void mjCComposite::SetDefault(void) {
 // make composite object
 bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   // check geom type
-  if ((def[0].geom.spec.type!=mjGEOM_SPHERE &&
-       def[0].geom.spec.type!=mjGEOM_CAPSULE &&
-       def[0].geom.spec.type!=mjGEOM_ELLIPSOID) &&
+  if ((def[0].spec.geom->type!=mjGEOM_SPHERE &&
+       def[0].spec.geom->type!=mjGEOM_CAPSULE &&
+       def[0].spec.geom->type!=mjGEOM_ELLIPSOID) &&
       type!=mjCOMPTYPE_PARTICLE && type!=mjCOMPTYPE_CABLE) {
     return comperr(error, "Composite geom type must be sphere, capsule or ellipsoid", error_sz);
   }
@@ -240,8 +247,8 @@ bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_s
 
   // check spacing
   if (type==mjCOMPTYPE_GRID || (type==mjCOMPTYPE_PARTICLE && uservert.empty())) {
-    if (spacing < mju_max(def[0].geom.spec.size[0],
-                  mju_max(def[0].geom.spec.size[1], def[0].geom.spec.size[2]))) {
+    if (spacing < mju_max(def[0].spec.geom->size[0],
+                  mju_max(def[0].spec.geom->size[1], def[0].spec.geom->size[2]))) {
       return comperr(error, "Spacing must be larger than geometry size",
                      error_sz);
     }
@@ -342,8 +349,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
 
   // populate vertices and names
   if (uservert.empty()) {
-    if (spacing < mju_max(def[0].geom.spec.size[0],
-                  mju_max(def[0].geom.spec.size[1], def[0].geom.spec.size[2])))
+    if (spacing < mju_max(def[0].spec.geom->size[0],
+                  mju_max(def[0].spec.geom->size[1], def[0].spec.geom->size[2])))
       return comperr(error, "Spacing must be larger than geometry size", error_sz);
 
     for (int ix=0; ix<count[0]; ix++) {
@@ -466,7 +473,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     // add slider joints if none defined
     if (!add[mjCOMPKIND_PARTICLE]) {
       for (int i=0; i<3; i++) {
-        mjmJoint* jnt = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+        mjmJoint* jnt = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0].spec);
         mjm_setDefault(jnt->element, mjm_getDefault(body->element));
         jnt->type = mjJNT_SLIDE;
         mjuu_setvec(jnt->pos, 0, 0, 0);
@@ -478,17 +485,17 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     // add user-specified joints
     else {
       for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
-        mjmJoint* jnt = mjm_addJoint(b, &defjnt);
+        mjmJoint* jnt = mjm_addJoint(b, &defjnt.spec);
         mjm_setDefault(jnt->element, mjm_getDefault(body->element));
       }
     }
 
     // add geom
-    mjmGeom* g = mjm_addGeom(b, def);
+    mjmGeom* g = mjm_addGeom(b, &def[0].spec);
     mjm_setDefault(g->element, mjm_getDefault(body->element));
 
     // add site
-    mjmSite* s = mjm_addSite(b, def);
+    mjmSite* s = mjm_addSite(b, &def[0].spec);
     mjm_setDefault(s->element, mjm_getDefault(body->element));
     s->type = mjGEOM_SPHERE;
     mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
@@ -544,16 +551,16 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
       mju::sprintf_arr(txt2, "%sS%d", prefix.c_str(), v1);
 
       // create tendon
-      mjmTendon* ten = mjm_addTendon(model, def + mjCOMPKIND_TENDON);
-      mjm_setDefault(ten->element, model->defaults[0]);
+      mjmTendon* ten = mjm_addTendon(model, &def[mjCOMPKIND_TENDON].spec);
+      mjm_setDefault(ten->element, &model->defaults[0]->spec);
       mjm_setString(ten->name, txt0);
       ten->group = 4;
       mjm_wrapSite(ten, txt1);
       mjm_wrapSite(ten, txt2);
 
       // add equality constraint
-      mjmEquality* eq = mjm_addEquality(model, def + mjCOMPKIND_TENDON);
-      mjm_setDefault(eq->element, model->defaults[0]);
+      mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_TENDON].spec);
+      mjm_setDefault(eq->element, &model->defaults[0]->spec);
       eq->type = mjEQ_TENDON;
       mjm_setString(eq->name1, mjm_getString(ten->name));
     }
@@ -609,14 +616,14 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int err
       b->pos[2] = offset[2];
 
       // add geom
-      mjmGeom* g = mjm_addGeom(b, def);
+      mjmGeom* g = mjm_addGeom(b, &def[0].spec);
       mjm_setDefault(g->element, mjm_getDefault(body->element));
       g->type = mjGEOM_SPHERE;
       mju::sprintf_arr(txt, "%sG%d_%d", prefix.c_str(), ix, iy);
       mjm_setString(g->name, txt);
 
       // add site
-      mjmSite* s = mjm_addSite(b, def);
+      mjmSite* s = mjm_addSite(b, &def[0].spec);
       mjm_setDefault(s->element, mjm_getDefault(body->element));
       s->type = mjGEOM_SPHERE;
       mju::sprintf_arr(txt, "%sS%d_%d", prefix.c_str(), ix, iy);
@@ -637,7 +644,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int err
       // add slider joint
       mjmJoint* jnt[3];
       for (int i=0; i<3; i++) {
-        jnt[i] = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+        jnt[i] = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0].spec);
         mjm_setDefault(jnt[i]->element, mjm_getDefault(body->element));
         mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), i, ix, iy);
         mjm_setString(jnt[i]->name, txt);
@@ -666,8 +673,8 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int err
         ten->WrapSite(txt2);
 
         // add equality constraint
-        mjmEquality* eq = mjm_addEquality(model, def + mjCOMPKIND_TENDON);
-        mjm_setDefault(eq->element, model->defaults[0]);
+        mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_TENDON].spec);
+        mjm_setDefault(eq->element, &model->defaults[0]->spec);
         eq->type = mjEQ_TENDON;
         mjm_setString(eq->name1, ten->name.c_str());
       }
@@ -700,9 +707,9 @@ bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int er
   }
 
   // check geom type
-  if (def[0].geom.spec.type!=mjGEOM_CYLINDER &&
-      def[0].geom.spec.type!=mjGEOM_CAPSULE &&
-      def[0].geom.spec.type!=mjGEOM_BOX) {
+  if (def[0].spec.geom->type!=mjGEOM_CYLINDER &&
+      def[0].spec.geom->type!=mjGEOM_CAPSULE &&
+      def[0].spec.geom->type!=mjGEOM_BOX) {
     return comperr(error, "Cable geom type must be sphere, capsule or box", error_sz);
   }
 
@@ -748,14 +755,14 @@ bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int er
   }
 
   // add skin
-  if (def[0].geom.spec.type==mjGEOM_BOX) {
+  if (def[0].spec.geom->type==mjGEOM_BOX) {
     if (skinsubgrid>0) {
       count[1]+=2;
-      MakeSkin2Subgrid(model, 2*def[0].geom.spec.size[2]);
+      MakeSkin2Subgrid(model, 2*def[0].spec.geom->size[2]);
       count[1]-=2;
     } else {
       count[1]++;
-      MakeSkin2(model, 2*def[0].geom.spec.size[2]);
+      MakeSkin2(model, 2*def[0].spec.geom->size[2]);
       count[1]--;
     }
   }
@@ -835,14 +842,14 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
   }
 
   // add geom
-  mjmGeom* geom = mjm_addGeom(body, def);
+  mjmGeom* geom = mjm_addGeom(body, &def[0].spec);
   mjm_setDefault(geom->element, mjm_getDefault(body->element));
   mjm_setString(geom->name, txt_geom);
-  if (def[0].geom.spec.type==mjGEOM_CYLINDER ||
-      def[0].geom.spec.type==mjGEOM_CAPSULE) {
+  if (def[0].spec.geom->type==mjGEOM_CYLINDER ||
+      def[0].spec.geom->type==mjGEOM_CAPSULE) {
     mjuu_zerovec(geom->fromto, 6);
     geom->fromto[3] = length;
-  } else if (def[0].geom.spec.type==mjGEOM_BOX) {
+  } else if (def[0].spec.geom->type==mjGEOM_BOX) {
     mjuu_zerovec(geom->pos, 3);
     geom->pos[0] = length/2;
     geom->size[0] = length/2;
@@ -862,7 +869,7 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
 
   // add curvature joint
   if (!first || strcmp(initial.c_str(), "none")) {
-    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0].spec);
     mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     jnt->type = (first && strcmp(initial.c_str(), "free")==0) ? mjJNT_FREE : mjJNT_BALL;
     jnt->damping = jnt->type==mjJNT_FREE ? 0 : jnt->damping;
@@ -880,7 +887,7 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
 
   // add site at the boundary
   if (last || first) {
-    mjmSite* site = mjm_addSite(body, def);
+    mjmSite* site = mjm_addSite(body, &def[0].spec);
     mjm_setDefault(site->element, mjm_getDefault(body->element));
     mjm_setString(site->name, txt_site);
     mjuu_setvec(site->pos, last ? length : 0, 0, 0);
@@ -991,7 +998,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   }
 
   // add geom
-  mjmGeom* geom = mjm_addGeom(body, def);
+  mjmGeom* geom = mjm_addGeom(body, &def[0].spec);
   mjm_setDefault(geom->element, mjm_getDefault(body->element));
   mju::sprintf_arr(txt, "%sG%d", prefix.c_str(), ix1);
   mjm_setString(geom->name, txt);
@@ -1006,7 +1013,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   // add main joint
   for (int i=0; i<2; i++) {
     // add joint
-    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0]);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0].spec);
     mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     mju::sprintf_arr(txt, "%sJ%d_%d", prefix.c_str(), i, ix1);
     mjm_setString(jnt->name, txt);
@@ -1019,7 +1026,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   // add twist joint
   if (add[mjCOMPKIND_TWIST]) {
     // add joint
-    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_TWIST][0]);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_TWIST][0].spec);
     mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     mju::sprintf_arr(txt, "%sJT%d", prefix.c_str(), ix1);
     mjm_setString(jnt->name, txt);
@@ -1028,8 +1035,8 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
     mjuu_setvec(jnt->axis, 1, 0, 0);
 
     // add constraint
-    mjmEquality* eq = mjm_addEquality(model, def + mjCOMPKIND_TWIST);
-    mjm_setDefault(eq->element, model->defaults[0]);
+    mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_TWIST].spec);
+    mjm_setDefault(eq->element, &model->defaults[0]->spec);
     eq->type = mjEQ_JOINT;
     mjm_setString(eq->name1, mjm_getString(jnt->name));
   }
@@ -1037,7 +1044,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
   // add stretch joint
   if (add[mjCOMPKIND_STRETCH]) {
     // add joint
-    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_STRETCH][0]);
+    mjmJoint* jnt = mjm_addJoint(body, &defjoint[mjCOMPKIND_STRETCH][0].spec);
     mjm_setDefault(jnt->element, mjm_getDefault(body->element));
     mju::sprintf_arr(txt, "%sJS%d", prefix.c_str(), ix1);
     mjm_setString(jnt->name, txt);
@@ -1046,8 +1053,8 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
     mjuu_setvec(jnt->axis, 1, 0, 0);
 
     // add constraint
-    mjmEquality* eq = mjm_addEquality(model, def + mjCOMPKIND_STRETCH);
-    mjm_setDefault(eq->element, model->defaults[0]);
+    mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_STRETCH].spec);
+    mjm_setDefault(eq->element,  &model->defaults[0]->spec);
     eq->type = mjEQ_JOINT;
     mjm_setString(eq->name1, mjm_getString(jnt->name));
   }
@@ -1103,7 +1110,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
   }
 
   // center geom: two times bigger
-  mjmGeom* geom = mjm_addGeom(body, def);
+  mjmGeom* geom = mjm_addGeom(body, &def[0].spec);
   mjm_setDefault(geom->element, mjm_getDefault(body->element));
   geom->type = mjGEOM_SPHERE;
   mju::sprintf_arr(txt, "%sGcenter", prefix.c_str());
@@ -1144,7 +1151,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           mjuu_normvec(b->alt.zaxis, 3);
 
           // add geom
-          mjmGeom* g = mjm_addGeom(b, def);
+          mjmGeom* g = mjm_addGeom(b, &def[0].spec);
           mjm_setDefault(g->element, mjm_getDefault(body->element));
           mju::sprintf_arr(txt, "%sG%d_%d_%d", prefix.c_str(), ix, iy, iz);
           mjm_setString(g->name, txt);
@@ -1158,7 +1165,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           }
 
           // add slider joint
-          mjmJoint* jnt = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0]);
+          mjmJoint* jnt = mjm_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0].spec);
           mjm_setDefault(jnt->element, mjm_getDefault(body->element));
           mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), ix, iy, iz);
           mjm_setString(jnt->name, txt);
@@ -1167,8 +1174,8 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           mjuu_setvec(jnt->axis, 0, 0, 1);
 
           // add fix constraint
-          mjmEquality* eq = mjm_addEquality(model, def + mjCOMPKIND_JOINT);
-          mjm_setDefault(eq->element, model->defaults[0]);
+          mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_JOINT].spec);
+          mjm_setDefault(eq->element,  &model->defaults[0]->spec);
           eq->type = mjEQ_JOINT;
           mjm_setString(eq->name1, mjm_getString(jnt->name));
 
@@ -1201,8 +1208,8 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
   }
 
   // finalize fixed tendon
-  mjmEquality* eqt = mjm_addEquality(model, def + mjCOMPKIND_TENDON);
-  mjm_setDefault(eqt->element, model->defaults[0]);
+  mjmEquality* eqt = mjm_addEquality(model, &def[mjCOMPKIND_TENDON].spec);
+  mjm_setDefault(eqt->element, &model->defaults[0]->spec);
   eqt->type = mjEQ_TENDON;
   mjm_setString(eqt->name1, ten->name.c_str());
 
@@ -1237,8 +1244,8 @@ void mjCComposite::MakeShear(mjCModel* model) {
       ten->name = txt;
 
       // equality constraint
-      mjmEquality* eq = mjm_addEquality(model, def + mjCOMPKIND_SHEAR);
-      mjm_setDefault(eq->element, model->defaults[0]);
+      mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_SHEAR].spec);
+      mjm_setDefault(eq->element, &model->defaults[0]->spec);
       eq->type = mjEQ_TENDON;
       mjm_setString(eq->name1, txt);
     }
@@ -1495,15 +1502,15 @@ void mjCComposite::MakeCableBones(mjCModel* model, mjmSkin* skin) {
       // bind pose
       if (iy==0) {
         mjm_appendString(skin->bodyname, this_body);
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
-        bindpos.push_back(-def[0].geom.spec.size[1]);
+        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+        bindpos.push_back(-def[0].spec.geom->size[1]);
         bindpos.push_back(0);
         bindquat.push_back(1); bindquat.push_back(0);
         bindquat.push_back(0); bindquat.push_back(0);
       } else {
         mjm_appendString(skin->bodyname, this_body);
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
-        bindpos.push_back(def[0].geom.spec.size[1]);
+        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+        bindpos.push_back(def[0].spec.geom->size[1]);
         bindpos.push_back(0);
         bindquat.push_back(1); bindquat.push_back(0);
         bindquat.push_back(0); bindquat.push_back(0);
@@ -1535,15 +1542,15 @@ void mjCComposite::MakeCableBonesSubgrid(mjCModel* model, mjmSkin* skin) {
 
       // bind pose
       if (iy==0) {
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(-def[0].geom.spec.size[1]);
         bindpos.push_back(0);
       } else if (iy==2) {
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(def[0].geom.spec.size[1]);
         bindpos.push_back(0);
       } else {
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.spec.size[0] : 0);
+        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(0);
         bindpos.push_back(0);
       }

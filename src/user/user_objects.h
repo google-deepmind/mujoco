@@ -534,6 +534,7 @@ class mjCLight : public mjCBase, private mjmLight {
   mjCLight(mjCModel* = 0, mjCDef* = 0);   // constructor
   void Compile(void);                     // compiler
   void CopyFromSpec(void);
+  void PointToLocal(void);
 
   mjCBody* body;                  // light's body
   int targetbodyid;               // id of target body; -1: none
@@ -1203,7 +1204,7 @@ class mjCActuator : public mjCBase, private mjmActuator {
   mjCActuator(mjCModel* = 0, mjCDef* = 0);  // constructor
   void Compile(void);                       // compiler
   void CopyFromSpec();
-  void MakePointerLocal();
+  void PointToLocal();
 
   int trnid[2];                   // id of transmission target
 
@@ -1385,6 +1386,8 @@ class mjCKey : public mjCBase, private mjmKey {
 // Describes one set of defaults
 
 class mjCDef {
+  friend class mjXWriter;
+
  public:
   mjCDef(void);                           // constructor
   void Compile(const mjCModel* model);    // compiler
@@ -1395,7 +1398,9 @@ class mjCDef {
   int parentid;                   // id of parent class
   std::vector<int> childid;       // ids of child classes
 
-  // default objects
+  mjmDefault spec;
+
+  // default objects (TODO: they should become private)
   mjCJoint    joint;
   mjCGeom     geom;
   mjCSite     site;

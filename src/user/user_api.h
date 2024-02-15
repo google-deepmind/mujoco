@@ -641,6 +641,24 @@ typedef struct _mjmKey {           // keyframe specification
 } mjmKey;
 
 
+typedef struct _mjmDefault {       // default specification
+  mjString name;                   // name
+  mjElement element;               // internal, do not modify
+  mjmJoint* joint;                 // joint defaults
+  mjmGeom* geom;                   // geom defaults
+  mjmSite* site;                   // site defaults
+  mjmCamera* camera;               // camera defaults
+  mjmLight* light;                 // light defaults
+  mjmFlex* flex;                   // flex defaults
+  mjmMesh* mesh;                   // mesh defaults
+  mjmMaterial* material;           // material defaults
+  mjmPair* pair;                   // pair defaults
+  mjmEquality* equality;           // equality defaults
+  mjmTendon* tendon;               // tendon defaults
+  mjmActuator* actuator;           // actuator defaults
+} mjmDefault;
+
+
 //---------------------------------- API functions -------------------------------------------------
 
 // Create model.
@@ -653,25 +671,25 @@ MJAPI void mjm_deleteModel(void* modelspec);
 MJAPI void mjm_finalize(mjElement object);
 
 // Add child body to body, return child spec.
-MJAPI mjmBody* mjm_addBody(mjmBody* body, void* defspec);
+MJAPI mjmBody* mjm_addBody(mjmBody* body, mjmDefault* def);
 
 // Add site to body, return site spec.
-MJAPI mjmSite* mjm_addSite(mjmBody* body, void* defspec);
+MJAPI mjmSite* mjm_addSite(mjmBody* body, mjmDefault* def);
 
 // Add joint to body.
-MJAPI mjmJoint* mjm_addJoint(mjmBody* body, void* defspec);
+MJAPI mjmJoint* mjm_addJoint(mjmBody* body, mjmDefault* def);
 
 // Add freejoint to body.
 MJAPI mjmJoint* mjm_addFreeJoint(mjmBody* body);
 
 // Add geom to body.
-MJAPI mjmGeom* mjm_addGeom(mjmBody* body, void* defspec);
+MJAPI mjmGeom* mjm_addGeom(mjmBody* body, mjmDefault* def);
 
 // Add camera to body.
-MJAPI mjmCamera* mjm_addCamera(mjmBody* body, void* defspec);
+MJAPI mjmCamera* mjm_addCamera(mjmBody* body, mjmDefault* def);
 
 // Add light to body.
-MJAPI mjmLight* mjm_addLight(mjmBody* body, void* defspec);
+MJAPI mjmLight* mjm_addLight(mjmBody* body, mjmDefault* def);
 
 // Add frame to body.
 MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
@@ -680,7 +698,7 @@ MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
 MJAPI mjmFlex* mjm_addFlex(void* model);
 
 // Add mesh to model.
-MJAPI mjmMesh* mjm_addMesh(void* model, void* defspec);
+MJAPI mjmMesh* mjm_addMesh(void* model, mjmDefault* def);
 
 // Add height field to model.
 MJAPI mjmHField* mjm_addHField(void* model);
@@ -692,19 +710,19 @@ MJAPI mjmSkin* mjm_addSkin(void* model);
 MJAPI mjmTexture* mjm_addTexture(void* model);
 
 // Add material to model.
-MJAPI mjmMaterial* mjm_addMaterial(void* model, void* defspec);
+MJAPI mjmMaterial* mjm_addMaterial(void* model, mjmDefault* def);
 
 // Add pair to model.
-MJAPI mjmPair* mjm_addPair(void* model, void* defspec);
+MJAPI mjmPair* mjm_addPair(void* model, mjmDefault* def);
 
 // Add excluded body pair to model.
 MJAPI mjmExclude* mjm_addExclude(void *model);
 
 // Add equality to model.
-MJAPI mjmEquality* mjm_addEquality(void* model, void* defspec);
+MJAPI mjmEquality* mjm_addEquality(void* model, mjmDefault* def);
 
 // Add tendon to model.
-MJAPI mjmTendon* mjm_addTendon(void* model, void* defspec);
+MJAPI mjmTendon* mjm_addTendon(void* model, mjmDefault* def);
 
 // Wrap site using tendon.
 MJAPI mjmWrap* mjm_wrapSite(mjmTendon* tendon, const char* name);
@@ -719,7 +737,7 @@ MJAPI mjmWrap* mjm_wrapJoint(mjmTendon* tendon, const char* name, double coef);
 MJAPI mjmWrap* mjm_wrapPulley(mjmTendon* tendon, double divisor);
 
 // Add actuator to model.
-MJAPI mjmActuator* mjm_addActuator(void* model, void* defspec);
+MJAPI mjmActuator* mjm_addActuator(void* model, mjmDefault* def);
 
 // Add sensor to model.
 MJAPI mjmSensor* mjm_addSensor(void* model);
@@ -739,11 +757,14 @@ MJAPI mjmKey* mjm_addKey(void* model);
 // Add plugin to model.
 MJAPI mjElement mjm_addPlugin(void* model);
 
+// Add default to model.
+MJAPI mjmDefault* mjm_addDefault(void* model, const char* classname, int parentid);
+
 // Get model from body.
 MJAPI void* mjm_getModel(mjmBody* body);
 
 // Get default corresponding to an mjElement.
-MJAPI void* mjm_getDefault(mjElement element);
+MJAPI mjmDefault* mjm_getDefault(mjElement element);
 
 // Find body in model by name.
 MJAPI mjmBody* mjm_findBody(void* modelspec, const char* name);
@@ -788,7 +809,7 @@ MJAPI const char* mjm_getString(mjString source);
 MJAPI const double* mjm_getDouble(mjDoubleVec source, int* size);
 
 // Set default.
-MJAPI void mjm_setDefault(mjElement element, void* defspec);
+MJAPI void mjm_setDefault(mjElement element, mjmDefault* def);
 
 // Set frame.
 MJAPI void mjm_setFrame(mjElement dest, mjmFrame* frame);

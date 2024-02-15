@@ -471,6 +471,19 @@ mjCDef::mjCDef(void) {
   name.clear();
   parentid = -1;
   childid.clear();
+  mjm_defaultJoint(joint.spec);
+  mjm_defaultGeom(geom.spec);
+  mjm_defaultSite(site.spec);
+  mjm_defaultCamera(camera.spec);
+  mjm_defaultLight(light.spec);
+  mjm_defaultFlex(flex.spec);
+  mjm_defaultMesh(mesh.spec);
+  mjm_defaultMaterial(material.spec);
+  mjm_defaultPair(pair.spec);
+  mjm_defaultEquality(equality.spec);
+  mjm_defaultTendon(tendon.spec);
+  mjm_defaultActuator(actuator.spec);
+  PointToLocal();
 }
 
 
@@ -494,6 +507,28 @@ void mjCDef::PointToLocal() {
   geom.PointToLocal();
   site.PointToLocal();
   camera.PointToLocal();
+  light.PointToLocal();
+  flex.PointToLocal();
+  mesh.PointToLocal();
+  material.PointToLocal();
+  pair.PointToLocal();
+  equality.PointToLocal();
+  tendon.PointToLocal();
+  actuator.PointToLocal();
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.joint = &joint.spec;
+  spec.geom = &geom.spec;
+  spec.site = &site.spec;
+  spec.camera = &camera.spec;
+  spec.light = &light.spec;
+  spec.flex = &flex.spec;
+  spec.mesh = &mesh.spec;
+  spec.material = &material.spec;
+  spec.pair = &pair.spec;
+  spec.equality = &equality.spec;
+  spec.tendon = &tendon.spec;
+  spec.actuator = &actuator.spec;
 }
 
 
@@ -1248,7 +1283,6 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->joint.CopyFromSpec();
     *this = _def->joint;
   }
 
@@ -1442,7 +1476,6 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->geom.CopyFromSpec();
     *this = _def->geom;
   }
 
@@ -2043,7 +2076,6 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->site.CopyFromSpec();
     *this = _def->site;
   }
 
@@ -2185,7 +2217,6 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->camera.CopyFromSpec();
     *this = _def->camera;
   }
 
@@ -2322,7 +2353,6 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->light.CopyFromSpec();
     *this = _def->light;
   }
 
@@ -2330,14 +2360,18 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local
+  PointToLocal();
+  CopyFromSpec();
+}
+
+
+
+void mjCLight::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.targetbody = (mjString)&spec_targetbody_;
   spec.info = (mjString)&info;
-
-  CopyFromSpec();
 }
 
 
@@ -3350,7 +3384,6 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->material.CopyFromSpec();
     *this = _def->material;
   }
 
@@ -3409,7 +3442,6 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->pair.CopyFromSpec();
     *this = _def->pair;
   }
 
@@ -3669,7 +3701,6 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->equality.CopyFromSpec();
     *this = _def->equality;
   }
 
@@ -4185,7 +4216,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   CopyFromSpec();
 
   // point to local (needs to be after defaults)
-  MakePointerLocal();
+  PointToLocal();
 }
 
 
@@ -4196,7 +4227,7 @@ bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange)
 
 
 
-void mjCActuator::MakePointerLocal() {
+void mjCActuator::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
