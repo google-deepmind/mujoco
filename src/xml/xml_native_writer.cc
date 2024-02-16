@@ -975,12 +975,13 @@ void mjXWriter::Size(XMLElement* root) {
 // statistic section
 void mjXWriter::Statistic(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "statistic");
+  mjStatistic* s = &model->stat;
 
-  if (mjuu_defined(model->meaninertia)) WriteAttr(section, "meaninertia", 1, &model->meaninertia);
-  if (mjuu_defined(model->meanmass)) WriteAttr(section, "meanmass", 1, &model->meanmass);
-  if (mjuu_defined(model->meansize)) WriteAttr(section, "meansize", 1, &model->meansize);
-  if (mjuu_defined(model->extent)) WriteAttr(section, "extent", 1, &model->extent);
-  if (mjuu_defined(model->center[0])) WriteAttr(section, "center", 3, model->center);
+  if (mjuu_defined(s->meaninertia)) WriteAttr(section, "meaninertia", 1, &s->meaninertia);
+  if (mjuu_defined(s->meanmass)) WriteAttr(section, "meanmass", 1, &s->meanmass);
+  if (mjuu_defined(s->meansize)) WriteAttr(section, "meansize", 1, &s->meansize);
+  if (mjuu_defined(s->extent)) WriteAttr(section, "extent", 1, &s->extent);
+  if (mjuu_defined(s->center[0])) WriteAttr(section, "center", 3, s->center);
 
   // remove entire section if no attributes
   if (!section->FirstAttribute()) root->DeleteChild(section);

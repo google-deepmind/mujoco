@@ -73,6 +73,7 @@ typedef enum _mjtLimited {        // type of limit specification
 
 typedef struct _mjmModel {         // model specification
   mjElement element;               // internal, do not modify
+  mjStatistic stat;                // statistics override (if defined)
 } mjmModel;
 
 typedef struct _mjmOrientation {   // alternative orientation specifiers
@@ -824,6 +825,9 @@ MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inert
 
 
 //---------------------------------- Initialization functions --------------------------------------
+
+// Default model attributes.
+MJAPI void mjm_defaultModel(mjmModel& model);
 
 // Default body attributes.
 MJAPI void mjm_defaultBody(mjmBody& body);

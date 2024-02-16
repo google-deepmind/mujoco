@@ -83,6 +83,7 @@ static void copyvec(T1* dest, T2* src, int n) {
 
 // constructor
 mjCModel::mjCModel() {
+  mjm_defaultModel(spec);
   comment.clear();
   modelfiledir.clear();
 
@@ -109,14 +110,6 @@ mjCModel::mjCModel() {
   inertiagrouprange[1] = mjNGROUP-1;
   exactmeshinertia = false;
   mj_defaultLROpt(&LRopt);
-
-  //------------------------ statistics override
-  meaninertia = mjNAN;
-  meanmass = mjNAN;
-  meansize = mjNAN;
-  extent = mjNAN;
-  center[0] = mjNAN;
-  center[1] = center[2] = 0;
 
   //------------------------ auto-computed statistics
 #ifndef MEMORY_SANITIZER
@@ -219,6 +212,12 @@ mjCModel::mjCModel() {
 
   // point to model from spec
   spec.element = (mjElement)this;
+}
+
+
+
+void mjCModel::CopyFromSpec() {
+  *static_cast<mjmModel*>(this) = spec;
 }
 
 
@@ -2748,6 +2747,8 @@ static void warninghandler(const char* msg) {
 
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // The volatile keyword is necessary to prevent a possible memory leak due to
   // an interaction between longjmp and compiler optimization. Specifically, at
   // the point where the setjmp takes places, these pointers have never been
@@ -3208,11 +3209,11 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   copyvec(center_auto, m->stat.center, 3);
 
   // override model statistics if defined by user
-  if (mjuu_defined(extent)) m->stat.extent = (mjtNum)extent;
-  if (mjuu_defined(meaninertia)) m->stat.meaninertia = (mjtNum)meaninertia;
-  if (mjuu_defined(meanmass)) m->stat.meanmass = (mjtNum)meanmass;
-  if (mjuu_defined(meansize)) m->stat.meansize = (mjtNum)meansize;
-  if (mjuu_defined(center[0])) copyvec(m->stat.center, center, 3);
+  if (mjuu_defined(stat.extent)) m->stat.extent = (mjtNum)stat.extent;
+  if (mjuu_defined(stat.meaninertia)) m->stat.meaninertia = (mjtNum)stat.meaninertia;
+  if (mjuu_defined(stat.meanmass)) m->stat.meanmass = (mjtNum)stat.meanmass;
+  if (mjuu_defined(stat.meansize)) m->stat.meansize = (mjtNum)stat.meansize;
+  if (mjuu_defined(stat.center[0])) copyvec(m->stat.center, stat.center, 3);
 
   // assert that model has valid references
   const char* validationerr = mj_validateReferences(m);
@@ -3284,14 +3285,14 @@ bool mjCModel::CopyBack(const mjModel* m) {
   visual = m->vis;
 
   // runtime-modifiable members of mjStatistic, if different from computed values
-  if (m->stat.meaninertia != meaninertia_auto) meaninertia = m->stat.meaninertia;
-  if (m->stat.meanmass != meanmass_auto) meanmass = m->stat.meanmass;
-  if (m->stat.meansize != meansize_auto) meansize = m->stat.meansize;
-  if (m->stat.extent != extent_auto) extent = m->stat.extent;
+  if (m->stat.meaninertia != meaninertia_auto) stat.meaninertia = m->stat.meaninertia;
+  if (m->stat.meanmass != meanmass_auto) stat.meanmass = m->stat.meanmass;
+  if (m->stat.meansize != meansize_auto) stat.meansize = m->stat.meansize;
+  if (m->stat.extent != extent_auto) stat.extent = m->stat.extent;
   if (m->stat.center[0] != center_auto[0] ||
       m->stat.center[1] != center_auto[1] ||
       m->stat.center[2] != center_auto[2]) {
-    mju_copy3(center, m->stat.center);
+    mju_copy3(stat.center, m->stat.center);
   }
 
   // qpos0, qpos_spring

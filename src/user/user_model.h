@@ -25,6 +25,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include "user/user_api.h"
 #include "user/user_objects.h"
 
 typedef enum _mjtInertiaFromGeom {
@@ -46,31 +47,19 @@ typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 // constructed, 'Compile' can be called to generate the corresponding mjModel object
 // (which is the low-level model).  The mjCModel object can then be deleted.
 
-class mjCModel {
+class mjCModel : private mjmModel {
   friend class mjCBody;
-  friend class mjCJoint;
   friend class mjCGeom;
   friend class mjCFlex;
-  friend class mjCMesh;
-  friend class mjCSkin;
-  friend class mjCHField;
-  friend class mjCPair;
-  friend class mjCBodyPair;
-  friend class mjCSite;
   friend class mjCEquality;
   friend class mjCTendon;
-  friend class mjCWrap;
-  friend class mjCActuator;
-  friend class mjCSensor;
-  friend class mjCNumeric;
-  friend class mjCTuple;
-  friend class mjCKey;
   friend class mjXReader;
   friend class mjXWriter;
 
  public:
   mjCModel();                                          // constructor
   ~mjCModel();                                         // destructor
+  void CopyFromSpec();                                 // copy spec to private attributes
 
   mjmModel spec;
 
@@ -153,13 +142,6 @@ class mjCModel {
   int inertiagrouprange[2];       // range of geom groups used to compute inertia
   bool exactmeshinertia;          // if false, use old formula
   mjLROpt LRopt;                  // options for lengthrange computation
-
-  //------------------------ statistics override (if defined)
-  double meaninertia;             // mean diagonal inertia
-  double meanmass;                // mean body mass
-  double meansize;                // mean body size
-  double extent;                  // spatial extent
-  double center[3];               // center of model
 
   //------------------------ engine data
   std::string modelname;          // model name

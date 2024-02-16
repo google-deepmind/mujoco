@@ -21,6 +21,20 @@
 
 
 
+// default model attributes
+void mjm_defaultModel(mjmModel& model) {
+  memset(&model, 0, sizeof(mjmModel));
+
+  // default statistics
+  model.stat.meaninertia = mjNAN;
+  model.stat.meanmass = mjNAN;
+  model.stat.meansize = mjNAN;
+  model.stat.extent = mjNAN;
+  model.stat.center[0] = mjNAN;
+}
+
+
+
 // default body attributes
 void mjm_defaultBody(mjmBody& body) {
   memset(&body, 0, sizeof(mjmBody));

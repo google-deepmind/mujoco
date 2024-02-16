@@ -1253,14 +1253,15 @@ void mjXReader::Statistic(XMLElement* section) {
   string text;
 
   // read statistics
-  ReadAttr(section, "meaninertia", 1, &model->meaninertia, text);
-  ReadAttr(section, "meanmass", 1, &model->meanmass, text);
-  ReadAttr(section, "meansize", 1, &model->meansize, text);
-  ReadAttr(section, "extent", 1, &model->extent, text);
-  if (mjuu_defined(model->extent) && model->extent<=0) {
+  mjmModel* pmodel = &model->spec;
+  ReadAttr(section, "meaninertia", 1, &pmodel->stat.meaninertia, text);
+  ReadAttr(section, "meanmass", 1, &pmodel->stat.meanmass, text);
+  ReadAttr(section, "meansize", 1, &pmodel->stat.meansize, text);
+  ReadAttr(section, "extent", 1, &pmodel->stat.extent, text);
+  if (mjuu_defined(pmodel->stat.extent) && pmodel->stat.extent<=0) {
     throw mjXError(section, "extent must be strictly positive");
   }
-  ReadAttr(section, "center", 3, model->center, text);
+  ReadAttr(section, "center", 3, pmodel->stat.center, text);
 }
 
 
@@ -2482,7 +2483,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) 
 
   // make composite
   char error[200];
-  bool res = comp.Make((mjCModel*)mjm_getModel(pbody), pbody, error, 200);
+  bool res = comp.Make(model, pbody, error, 200);
 
   // throw error
   if (!res) {
@@ -2617,7 +2618,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make((mjCModel*)mjm_getModel(pbody), pbody, error, 200);
+  bool res = fcomp.Make(model, pbody, error, 200);
 
   // throw error
   if (!res) {
