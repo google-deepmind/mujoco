@@ -71,6 +71,10 @@ typedef enum _mjtLimited {        // type of limit specification
 
 //---------------------------------- attribute structs (mjm) ---------------------------------------
 
+typedef struct _mjmModel {         // model specification
+  mjElement element;               // internal, do not modify
+} mjmModel;
+
 typedef struct _mjmOrientation {   // alternative orientation specifiers
   double axisangle[4];             // rotation axis and angle
   double xyaxes[6];                // x and y axes
@@ -662,10 +666,10 @@ typedef struct _mjmDefault {       // default specification
 //---------------------------------- API functions -------------------------------------------------
 
 // Create model.
-MJAPI void* mjm_createModel();
+MJAPI mjmModel* mjm_createModel();
 
 // Delete model.
-MJAPI void mjm_deleteModel(void* modelspec);
+MJAPI void mjm_deleteModel(mjmModel* modelspec);
 
 // Copy spec into private attributes.
 MJAPI void mjm_finalize(mjElement object);
@@ -695,34 +699,34 @@ MJAPI mjmLight* mjm_addLight(mjmBody* body, mjmDefault* def);
 MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
 
 // Add flex to model.
-MJAPI mjmFlex* mjm_addFlex(void* model);
+MJAPI mjmFlex* mjm_addFlex(mjmModel* model);
 
 // Add mesh to model.
-MJAPI mjmMesh* mjm_addMesh(void* model, mjmDefault* def);
+MJAPI mjmMesh* mjm_addMesh(mjmModel* model, mjmDefault* def);
 
 // Add height field to model.
-MJAPI mjmHField* mjm_addHField(void* model);
+MJAPI mjmHField* mjm_addHField(mjmModel* model);
 
 // Add skin to model.
-MJAPI mjmSkin* mjm_addSkin(void* model);
+MJAPI mjmSkin* mjm_addSkin(mjmModel* model);
 
 // Add texture to model.
-MJAPI mjmTexture* mjm_addTexture(void* model);
+MJAPI mjmTexture* mjm_addTexture(mjmModel* model);
 
 // Add material to model.
-MJAPI mjmMaterial* mjm_addMaterial(void* model, mjmDefault* def);
+MJAPI mjmMaterial* mjm_addMaterial(mjmModel* model, mjmDefault* def);
 
 // Add pair to model.
-MJAPI mjmPair* mjm_addPair(void* model, mjmDefault* def);
+MJAPI mjmPair* mjm_addPair(mjmModel* model, mjmDefault* def);
 
 // Add excluded body pair to model.
-MJAPI mjmExclude* mjm_addExclude(void *model);
+MJAPI mjmExclude* mjm_addExclude(mjmModel *model);
 
 // Add equality to model.
-MJAPI mjmEquality* mjm_addEquality(void* model, mjmDefault* def);
+MJAPI mjmEquality* mjm_addEquality(mjmModel* model, mjmDefault* def);
 
 // Add tendon to model.
-MJAPI mjmTendon* mjm_addTendon(void* model, mjmDefault* def);
+MJAPI mjmTendon* mjm_addTendon(mjmModel* model, mjmDefault* def);
 
 // Wrap site using tendon.
 MJAPI mjmWrap* mjm_wrapSite(mjmTendon* tendon, const char* name);
@@ -737,37 +741,37 @@ MJAPI mjmWrap* mjm_wrapJoint(mjmTendon* tendon, const char* name, double coef);
 MJAPI mjmWrap* mjm_wrapPulley(mjmTendon* tendon, double divisor);
 
 // Add actuator to model.
-MJAPI mjmActuator* mjm_addActuator(void* model, mjmDefault* def);
+MJAPI mjmActuator* mjm_addActuator(mjmModel* model, mjmDefault* def);
 
 // Add sensor to model.
-MJAPI mjmSensor* mjm_addSensor(void* model);
+MJAPI mjmSensor* mjm_addSensor(mjmModel* model);
 
 // Add numeric to model.
-MJAPI mjmNumeric* mjm_addNumeric(void* model);
+MJAPI mjmNumeric* mjm_addNumeric(mjmModel* model);
 
 // Add text to model.
-MJAPI mjmText* mjm_addText(void* model);
+MJAPI mjmText* mjm_addText(mjmModel* model);
 
 // Add tuple to model.
-MJAPI mjmTuple* mjm_addTuple(void* model);
+MJAPI mjmTuple* mjm_addTuple(mjmModel* model);
 
 // Add keyframe to model.
-MJAPI mjmKey* mjm_addKey(void* model);
+MJAPI mjmKey* mjm_addKey(mjmModel* model);
 
 // Add plugin to model.
-MJAPI mjElement mjm_addPlugin(void* model);
+MJAPI mjElement mjm_addPlugin(mjmModel* model);
 
 // Add default to model.
-MJAPI mjmDefault* mjm_addDefault(void* model, const char* classname, int parentid);
+MJAPI mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid);
 
 // Get model from body.
-MJAPI void* mjm_getModel(mjmBody* body);
+MJAPI mjmModel* mjm_getModel(mjmBody* body);
 
 // Get default corresponding to an mjElement.
 MJAPI mjmDefault* mjm_getDefault(mjElement element);
 
 // Find body in model by name.
-MJAPI mjmBody* mjm_findBody(void* modelspec, const char* name);
+MJAPI mjmBody* mjm_findBody(mjmModel* modelspec, const char* name);
 
 // Find child body by name.
 MJAPI mjmBody* mjm_findChild(mjmBody* body, const char* name);

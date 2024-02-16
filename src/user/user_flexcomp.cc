@@ -484,7 +484,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
 
   // create edge equality constraint
   if (equality) {
-    mjmEquality* pe = mjm_addEquality(model, &def.spec);
+    mjmEquality* pe = mjm_addEquality(&model->spec, &def.spec);
     mjm_setDefault(pe->element, &model->defaults[0]->spec);
     pe->type = mjEQ_FLEX;
     pe->active = true;

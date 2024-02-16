@@ -551,7 +551,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
       mju::sprintf_arr(txt2, "%sS%d", prefix.c_str(), v1);
 
       // create tendon
-      mjmTendon* ten = mjm_addTendon(model, &def[mjCOMPKIND_TENDON].spec);
+      mjmTendon* ten = mjm_addTendon(&model->spec, &def[mjCOMPKIND_TENDON].spec);
       mjm_setDefault(ten->element, &model->defaults[0]->spec);
       mjm_setString(ten->name, txt0);
       ten->group = 4;
@@ -559,7 +559,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
       mjm_wrapSite(ten, txt2);
 
       // add equality constraint
-      mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_TENDON].spec);
+      mjmEquality* eq = mjm_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
       mjm_setDefault(eq->element, &model->defaults[0]->spec);
       eq->type = mjEQ_TENDON;
       mjm_setString(eq->name1, mjm_getString(ten->name));
@@ -673,7 +673,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjmBody* body, char* error, int err
         ten->WrapSite(txt2);
 
         // add equality constraint
-        mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_TENDON].spec);
+        mjmEquality* eq = mjm_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
         mjm_setDefault(eq->element, &model->defaults[0]->spec);
         eq->type = mjEQ_TENDON;
         mjm_setString(eq->name1, ten->name.c_str());
@@ -714,7 +714,7 @@ bool mjCComposite::MakeCable(mjCModel* model, mjmBody* body, char* error, int er
   }
 
   // add name to model
-  mjmText* pte = mjm_addText(model);
+  mjmText* pte = mjm_addText(&model->spec);
   mjm_setString(pte->name, ("composite_" + prefix).c_str());
   mjm_setString(pte->data, ("rope_" + prefix).c_str());
 
@@ -880,7 +880,7 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
 
   // exclude contact pair
   if (!last) {
-    mjmExclude* exclude = mjm_addExclude(model);
+    mjmExclude* exclude = mjm_addExclude(&model->spec);
     mjm_setString(exclude->bodyname1, std::string(this_body).c_str());
     mjm_setString(exclude->bodyname2, std::string(next_body).c_str());
   }
@@ -944,7 +944,7 @@ bool mjCComposite::MakeRope(mjCModel* model, mjmBody* body, char* error, int err
     char txt2[200];
 
     // add equality constraint
-    mjmEquality* eq = mjm_addEquality(model, 0);
+    mjmEquality* eq = mjm_addEquality(&model->spec, 0);
     eq->type = mjEQ_CONNECT;
     mju::sprintf_arr(txt, "%sB0", prefix.c_str());
     mju::sprintf_arr(txt2, "%sB%d", prefix.c_str(), count[0]-1);
@@ -955,7 +955,7 @@ bool mjCComposite::MakeRope(mjCModel* model, mjmBody* body, char* error, int err
     mju_copy(eq->solimp, solimpsmooth, mjNIMP);
 
     // remove contact between connected bodies
-    mjmExclude* pair = mjm_addExclude(model);
+    mjmExclude* pair = mjm_addExclude(&model->spec);
     mjm_setString(pair->bodyname1, std::string(txt).c_str());
     mjm_setString(pair->bodyname2, std::string(txt2).c_str());
   }
@@ -1035,7 +1035,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
     mjuu_setvec(jnt->axis, 1, 0, 0);
 
     // add constraint
-    mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_TWIST].spec);
+    mjmEquality* eq = mjm_addEquality(&model->spec, &def[mjCOMPKIND_TWIST].spec);
     mjm_setDefault(eq->element, &model->defaults[0]->spec);
     eq->type = mjEQ_JOINT;
     mjm_setString(eq->name1, mjm_getString(jnt->name));
@@ -1053,7 +1053,7 @@ mjmBody* mjCComposite::AddRopeBody(mjCModel* model, mjmBody* body, int ix, int i
     mjuu_setvec(jnt->axis, 1, 0, 0);
 
     // add constraint
-    mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_STRETCH].spec);
+    mjmEquality* eq = mjm_addEquality(&model->spec, &def[mjCOMPKIND_STRETCH].spec);
     mjm_setDefault(eq->element,  &model->defaults[0]->spec);
     eq->type = mjEQ_JOINT;
     mjm_setString(eq->name1, mjm_getString(jnt->name));
@@ -1174,7 +1174,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
           mjuu_setvec(jnt->axis, 0, 0, 1);
 
           // add fix constraint
-          mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_JOINT].spec);
+          mjmEquality* eq = mjm_addEquality(&model->spec, &def[mjCOMPKIND_JOINT].spec);
           mjm_setDefault(eq->element,  &model->defaults[0]->spec);
           eq->type = mjEQ_JOINT;
           mjm_setString(eq->name1, mjm_getString(jnt->name));
@@ -1194,7 +1194,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
               char txt2[200];
               mju::sprintf_arr(txt2,
                                "%sJ%d_%d_%d", prefix.c_str(), ix1, iy1, iz1);
-              mjmEquality* eqn = mjm_addEquality(model, 0);
+              mjmEquality* eqn = mjm_addEquality(&model->spec, 0);
               mju_copy(eqn->solref, solrefsmooth, mjNREF);
               mju_copy(eqn->solimp, solimpsmooth, mjNIMP);
               eqn->type = mjEQ_JOINT;
@@ -1208,7 +1208,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjmBody* body, char* error, int erro
   }
 
   // finalize fixed tendon
-  mjmEquality* eqt = mjm_addEquality(model, &def[mjCOMPKIND_TENDON].spec);
+  mjmEquality* eqt = mjm_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
   mjm_setDefault(eqt->element, &model->defaults[0]->spec);
   eqt->type = mjEQ_TENDON;
   mjm_setString(eqt->name1, ten->name.c_str());
@@ -1244,7 +1244,7 @@ void mjCComposite::MakeShear(mjCModel* model) {
       ten->name = txt;
 
       // equality constraint
-      mjmEquality* eq = mjm_addEquality(model, &def[mjCOMPKIND_SHEAR].spec);
+      mjmEquality* eq = mjm_addEquality(&model->spec, &def[mjCOMPKIND_SHEAR].spec);
       mjm_setDefault(eq->element, &model->defaults[0]->spec);
       eq->type = mjEQ_TENDON;
       mjm_setString(eq->name1, txt);
@@ -1286,7 +1286,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   int N = count[0]*count[1];
 
   // add skin, set name and material
-  mjmSkin* skin = mjm_addSkin(model);
+  mjmSkin* skin = mjm_addSkin(&model->spec);
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
   mjm_setString(skin->name, txt);
   mjm_setString(skin->material, skinmaterial.c_str());
@@ -1879,7 +1879,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
 
   // add skin, set name and material
   char txt[100];
-  mjmSkin* skin = mjm_addSkin(model);
+  mjmSkin* skin = mjm_addSkin(&model->spec);
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
   mjm_setString(skin->name, txt);
   mjm_setString(skin->material, skinmaterial.c_str());
@@ -2034,7 +2034,7 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   mju::sprintf_arr(cnt2, "%d", count[2]-1);
 
   // add skin, set name and material
-  mjmSkin* skin = mjm_addSkin(model);
+  mjmSkin* skin = mjm_addSkin(&model->spec);
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
   mjm_setString(skin->name, txt);
   mjm_setString(skin->material, skinmaterial.c_str());

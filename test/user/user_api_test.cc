@@ -29,7 +29,7 @@ using ::testing::HasSubstr;
 // ----------------------------- test set/get  --------------------------------
 
 TEST_F(MujocoTest, ReadWriteData) {
-  void* model = mjm_createModel();
+  mjmModel* model = mjm_createModel();
   mjmBody* world = mjm_findBody(model, "world");
   mjmBody* body = mjm_addBody(world, 0);
   mjmSite* site = mjm_addSite(body, 0);

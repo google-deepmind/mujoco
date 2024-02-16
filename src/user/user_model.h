@@ -72,6 +72,8 @@ class mjCModel {
   mjCModel();                                          // constructor
   ~mjCModel();                                         // destructor
 
+  mjmModel spec;
+
   mjModel*    Compile(const mjVFS* vfs = 0);           // COMPILER: construct mjModel
   bool        CopyBack(const mjModel*);                // DECOMPILER: copy numeric back
   void        FuseStatic(void);                        // fuse static bodies with parent

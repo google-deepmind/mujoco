@@ -41,6 +41,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "user/user_api.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
 
@@ -214,6 +215,10 @@ mjCModel::mjCModel() {
   object_lists[mjOBJ_TUPLE]    = (std::vector<mjCBase*>*) &tuples;
   object_lists[mjOBJ_KEY]      = (std::vector<mjCBase*>*) &keys;
   object_lists[mjOBJ_PLUGIN]   = (std::vector<mjCBase*>*) &plugins;
+
+
+  // point to model from spec
+  spec.element = (mjElement)this;
 }
 
 

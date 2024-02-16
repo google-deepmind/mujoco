@@ -2263,7 +2263,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) 
     ReadAttrTxt(eplugin, "plugin", comp.plugin_name);
     ReadAttrTxt(eplugin, "instance", comp.plugin_instance_name);
     if (comp.plugin_instance_name.empty()) {
-      comp.plugin_instance = (mjCPlugin*)mjm_addPlugin(model);
+      comp.plugin_instance = (mjCPlugin*)mjm_addPlugin(&model->spec);
       comp.plugin_instance->name = "composite"+comp.prefix;
       comp.plugin_instance_name = comp.plugin_instance->name;
     } else {
@@ -2594,7 +2594,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     ReadAttrTxt(eplugin, "plugin", fcomp.plugin_name);
     ReadAttrTxt(eplugin, "instance", fcomp.plugin_instance_name);
     if (fcomp.plugin_instance_name.empty()) {
-      fcomp.plugin_instance = (mjCPlugin*)mjm_addPlugin(model);
+      fcomp.plugin_instance = (mjCPlugin*)mjm_addPlugin(&model->spec);
       fcomp.plugin_instance->name = "flexcomp_" + fcomp.name;
       fcomp.plugin_instance_name = fcomp.plugin_instance->name;
     } else {
@@ -2625,7 +2625,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
   mjm_setString(plugin->name, name.c_str());
   mjm_setString(plugin->instance_name, instance_name.c_str());
   if (instance_name.empty()) {
-    plugin->instance = mjm_addPlugin(model);
+    plugin->instance = mjm_addPlugin(&model->spec);
     ReadPluginConfigs(elem, (mjCPlugin*)plugin->instance);
   } else {
     model->hasImplicitPluginElem = true;
@@ -2655,7 +2655,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
   }
   if (parentid>=0) {
     thisid = (int)model->defaults.size();
-    def = mjm_addDefault(model, text.c_str(), parentid);
+    def = mjm_addDefault(&model->spec, text.c_str(), parentid);
     if (!def) {
       throw mjXError(section, "repeated default class name");
     }
@@ -2784,7 +2784,7 @@ void mjXReader::Extension(XMLElement* section) {
             throw mjXError(
                 child, "explicit plugin instance must appear before implicit plugin elements");
           }
-          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(model);
+          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(&model->spec);
           GetXMLPos(child, pp);
           ReadAttrTxt(child, "name", pp->name, /* required = */ true);
           if (pp->name.empty()) {
@@ -2821,7 +2821,7 @@ void mjXReader::Custom(XMLElement* section) {
     // numeric
     if (name=="numeric") {
       // create custom
-      mjmNumeric* pnum = mjm_addNumeric(model);
+      mjmNumeric* pnum = mjm_addNumeric(&model->spec);
 
       // write error info
       mjm_setString(pnum->info,
@@ -2853,7 +2853,7 @@ void mjXReader::Custom(XMLElement* section) {
     // text
     else if (name=="text") {
       // create custom
-      mjmText* pte = mjm_addText(model);
+      mjmText* pte = mjm_addText(&model->spec);
 
       // write error info
       mjm_setString(pte->info,
@@ -2874,7 +2874,7 @@ void mjXReader::Custom(XMLElement* section) {
     // tuple
     else if (name=="tuple") {
       // create custom
-      mjmTuple* ptu = mjm_addTuple(model);
+      mjmTuple* ptu = mjm_addTuple(&model->spec);
 
       // write error info
       mjm_setString(ptu->info,
@@ -3082,7 +3082,7 @@ void mjXReader::Asset(XMLElement* section) {
     // texture sub-element
     if (name=="texture") {
       // create texture
-      mjmTexture* ptex = mjm_addTexture(model);
+      mjmTexture* ptex = mjm_addTexture(&model->spec);
 
       // write error info
       mjm_setString(ptex->info,
@@ -3150,28 +3150,28 @@ void mjXReader::Asset(XMLElement* section) {
     // material sub-element
     else if (name=="material") {
       // create material and parse
-      mjmMaterial* pmat = mjm_addMaterial(model, def);
+      mjmMaterial* pmat = mjm_addMaterial(&model->spec, def);
       OneMaterial(elem, pmat);
     }
 
     // mesh sub-element
     else if (name=="mesh") {
       // create mesh and parse
-      mjmMesh* pmesh = mjm_addMesh(model, def);
+      mjmMesh* pmesh = mjm_addMesh(&model->spec, def);
       OneMesh(elem, pmesh);
     }
 
     // skin sub-element... deprecate ???
     else if (name=="skin") {
       // create skin and parse
-      mjmSkin* pskin = mjm_addSkin(model);
+      mjmSkin* pskin = mjm_addSkin(&model->spec);
       OneSkin(elem, pskin);
     }
 
     // hfield sub-element
     else if (name=="hfield") {
       // create hfield
-      mjmHField* phf = mjm_addHField(model);
+      mjmHField* phf = mjm_addHField(&model->spec);
 
       // write error info
       mjm_setString(phf->info,
@@ -3453,13 +3453,13 @@ void mjXReader::Contact(XMLElement* section) {
     // geom pair to include
     if (name=="pair") {
       // create pair and parse
-      mjmPair* ppair = mjm_addPair(model, def);
+      mjmPair* ppair = mjm_addPair(&model->spec, def);
       OnePair(elem, ppair);
     }
 
     // body pair to exclude
     else if (name=="exclude") {
-      mjmExclude* pexclude = mjm_addExclude(model);
+      mjmExclude* pexclude = mjm_addExclude(&model->spec);
       string exname, exbody1, exbody2;
 
       // write error info
@@ -3496,7 +3496,7 @@ void mjXReader::Equality(XMLElement* section) {
     }
 
     // create equality constraint and parse
-    mjmEquality* pequality = mjm_addEquality(model, def);
+    mjmEquality* pequality = mjm_addEquality(&model->spec, def);
     OneEquality(elem, pequality);
 
     // advance to next element
@@ -3526,14 +3526,14 @@ void mjXReader::Deformable(XMLElement* section) {
     // flex sub-element
     if (name=="flex") {
       // create flex and parse
-      mjmFlex* pflex = mjm_addFlex(model);
+      mjmFlex* pflex = mjm_addFlex(&model->spec);
       OneFlex(elem, pflex);
     }
 
     // skin sub-element
     else if (name=="skin") {
       // create skin and parse
-      mjmSkin* pskin = mjm_addSkin(model);
+      mjmSkin* pskin = mjm_addSkin(&model->spec);
       OneSkin(elem, pskin);
     }
 
@@ -3560,7 +3560,7 @@ void mjXReader::Tendon(XMLElement* section) {
     }
 
     // create equality constraint and parse
-    mjmTendon* pten = mjm_addTendon(model, def);
+    mjmTendon* pten = mjm_addTendon(&model->spec, def);
     OneTendon(elem, pten);
 
     // process wrap sub-elements
@@ -3626,7 +3626,7 @@ void mjXReader::Actuator(XMLElement* section) {
     }
 
     // create actuator and parse
-    mjmActuator* pact = mjm_addActuator(model, def);
+    mjmActuator* pact = mjm_addActuator(&model->spec, def);
     OneActuator(elem, pact);
 
     // advance to next element
@@ -3642,7 +3642,7 @@ void mjXReader::Sensor(XMLElement* section) {
   XMLElement* elem = FirstChildElement(section);
   while (elem) {
     // create sensor, get string type
-    mjmSensor* psen = mjm_addSensor(model);
+    mjmSensor* psen = mjm_addSensor(&model->spec);
     string type = elem->Value();
     string text, name, objname, refname;
     std::vector<double> userdata;
@@ -3960,7 +3960,7 @@ void mjXReader::Keyframe(XMLElement* section) {
     string text, name = "";
 
     // add keyframe
-    mjmKey* pk = mjm_addKey(model);
+    mjmKey* pk = mjm_addKey(&model->spec);
 
     // read name, time
     ReadAttrTxt(elem, "name", name);
