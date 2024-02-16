@@ -1,0 +1,28 @@
+#usda 1.0
+(
+    defaultPrim = "root"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    kilogramsPerUnit = 1.0
+)
+
+def Xform "root"(
+    kind = "assembly"
+)
+{
+    def "Floor" (
+        prepend references = [@../floor/Floor.usda@]
+    )
+    {
+    }
+
+    def "TwoCubes" (
+        prepend references = [@../two_cubes/TwoCubes.usda@]
+    )
+    {
+        double3 xformOp:translate = (0, 0, 30.0)
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1.0, 1.0, 1.0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+}

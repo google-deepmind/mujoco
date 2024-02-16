@@ -1,0 +1,26 @@
+#usda 1.0
+(
+    defaultPrim = "root"
+    upAxis = "Z"
+)
+
+def Xform "root"(
+    assetInfo = {
+        asset identifier = @./SecondCube.usda@
+        string name = "SecondCube"
+    }
+    kind = "component"
+)
+{
+    def "SecondCube_geometry" (
+        prepend references = [@./SecondCube_geo.usda@]
+    )
+    {
+    }
+    def "SecondCube_collision" (
+        prepend references = [@./SecondCube_physics.usda@]
+    )
+    {
+    }
+}
+

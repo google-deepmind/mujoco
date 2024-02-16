@@ -1,0 +1,19 @@
+#usda 1.0
+(
+  defaultPrim = "root"
+  upAxis = "Z"
+)
+
+def Xform "root" () {
+  def "floor_geo" (
+    prepend references = [@./Floor_geo.usda@]
+  )
+  {
+
+  }
+  def "floor_collision" (
+    prepend references = [@./Floor_physics.usda@]
+  )
+  {
+  }
+}

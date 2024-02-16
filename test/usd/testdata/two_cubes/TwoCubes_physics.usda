@@ -1,0 +1,34 @@
+#usda 1.0
+(
+    defaultPrim = "root"
+    upAxis = "Z"
+    metersPerUnit = 1.0
+)
+over "root" {
+    def Scope "Joints"
+    {
+        def PhysicsJoint "two_cubes_joint" (
+            prepend apiSchemas = ["PhysicsLimitAPI", "PhysicsLimitAPI:transY", "PhysicsLimitAPI:transZ", "PhysicsLimitAPI:rotX", "PhysicsLimitAPI:rotY", "PhysicsDriveAPI:rotZ"]
+        )
+        {
+            rel physics:body0 = </root/first_cube>
+            rel physics:body1 = </root/second_cube>
+            float limit:rotX:physics:high = 0
+            float limit:rotX:physics:low = 0
+            float limit:rotY:physics:high = 0
+            float limit:rotY:physics:low = -2
+            float limit:rotZ:physics:high = 0
+            float limit:rotZ:physics:low = 0
+            float limit:transX:physics:high = 0
+            float limit:transX:physics:low = 0
+            float limit:transY:physics:high = 0
+            float limit:transY:physics:low = 0
+            float limit:transZ:physics:high = 0
+            float limit:transZ:physics:low = 0
+            point3f physics:localPos0 = (0, 1.0, 0)
+            point3f physics:localPos1 = (-0.5, 0, 0.5)
+            quatf physics:localRot0 = (1, 0, 0, 0)
+            quatf physics:localRot1 = (1, 0, 0, 0)
+        }
+    }
+}
