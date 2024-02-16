@@ -433,6 +433,28 @@ TEST_F(KeyframeTest, ResetDataKeyframe) {
   mj_deleteModel(model);
 }
 
+TEST_F(KeyframeTest, ResetDataKeyframeAcceptsNegativeKeyframe) {
+  const std::string xml_path = GetTestDataFilePath(kKeyframePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  data->time = data->qpos[0] = data->qvel[0] = data->act[0] = data->ctrl[0] =
+      data->mocap_pos[0] = data->mocap_quat[0] = 1337.0;
+
+  mj_resetDataKeyframe(model, data, -1);
+
+  EXPECT_EQ(data->time, 0.0);
+  EXPECT_EQ(data->qpos[0], 0.0);
+  EXPECT_EQ(data->qvel[0], 0.0);
+  EXPECT_EQ(data->act[0], 0.0);
+  EXPECT_EQ(data->ctrl[0], 0.0);
+  EXPECT_EQ(data->mocap_pos[0], 0.0);
+  EXPECT_EQ(data->mocap_quat[0], 1.0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(KeyframeTest, BadSize) {
   static constexpr char xml[] = R"(
   <mujoco>

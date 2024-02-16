@@ -1280,7 +1280,7 @@ mj_resetDataKeyframe
 
 .. mujoco-include:: mj_resetDataKeyframe
 
-Reset data, set fields from specified keyframe.
+Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 
 .. _mj_markStack:
 

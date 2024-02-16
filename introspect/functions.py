@@ -675,7 +675,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Reset data, set fields from specified keyframe.',
+         doc='Reset data. If 0 <= key < nkey, set fields from specified keyframe.',  # pylint: disable=line-too-long
      )),
     ('mj_markStack',
      FunctionDecl(
