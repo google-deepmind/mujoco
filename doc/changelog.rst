@@ -5,20 +5,27 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+1. Added the :at:`inheritrange` attribute to :ref:`position<actuator-position>` and
+   :ref:`intvelocity<actuator-intvelocity>` actuators, allowing convenient setting of the actuator's
+   :at:`ctrlrange` or :at:`actrange` (respectively), according to the range of the transmission
+   target (joint or tendon). See :ref:`position/inheritrange<actuator-position-inheritrange>` for
+   details.
+
 MJX
 ^^^
-
-1. Improved performance of getting and putting device data.
+2. Improved performance of getting and putting device data.
 
    - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
    - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
    - Speed up calculation of ``mjx.ncon`` for models with many geoms.
    - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
-2. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
+3. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
    ``mjx.get_data_into`` function call.
-3. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
-4. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
-5. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
+4. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
+5. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
+6. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------

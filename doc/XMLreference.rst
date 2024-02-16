@@ -5430,6 +5430,20 @@ This element has one custom attribute in addition to the common attributes:
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
+.. _actuator-position-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Automatically set the actuator's :at:`ctrlrange` to match the transmission target's :at:`range`. The default value
+   means "disabled". A positive value :at-val:`X` sets the :at:`ctrlrange` around the midpoint of the target range,
+   scaled by :at-val:`X`. For example if the target joint has :at:`range` of :at-val:`[0, 1]`, then a value of
+   :at-val:`1.0` will set :at:`ctrlrange` to :at-val:`[0, 1]`; values of :at-val:`0.8` and :at-val:`1.2` will set the
+   :at:`ctrlrange` to :at-val:`[0.1, 0.9]` and :at-val:`[-0.1, 1.1]`, respectively. Values smaller than 1 are useful for
+   not hitting the limits; values larger than 1 are useful for maintaining control authority at the limits (being able
+   to push on them). This attribute is exclusive with :at:`ctrlrange` and available only for joint and tendon
+   transmissions which have :at:`range` defined. Note that while :at:`inheritrange` is available both as a
+   :ref:`position<actuator-position>` attribute and in the :ref:`default class<default-position-inheritrange>`,
+   saved XMLs always convert it to explicit :at:`ctrlrange` at the actuator.
+
 .. _actuator-velocity:
 
 :el-prefix:`actuator/` |-| **velocity** (*)
@@ -5578,10 +5592,16 @@ This element has one custom attribute in addition to the common attributes:
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
+.. _actuator-intvelocity-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Identical to :ref:`position/inheritrange<actuator-position-inheritrange>`, but sets :at:`actrange` (which has the same
+   length semantics as the transmission target) rather than :at:`ctrlrange` (which has velocity semantics).
+
 .. _actuator-damper:
 
 :el-prefix:`actuator/` |-| **damper** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
 * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative.
@@ -7728,6 +7748,8 @@ tendon, slidersite, cranksite.
 
 .. _default-position-ctrlrange:
 
+.. _default-position-inheritrange:
+
 .. _default-position-forcerange:
 
 .. _default-position-gear:
@@ -7787,6 +7809,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-intvelocity-forcerange:
 
 .. _default-intvelocity-actrange:
+
+.. _default-intvelocity-inheritrange:
 
 .. _default-intvelocity-gear:
 

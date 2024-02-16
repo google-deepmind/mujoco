@@ -909,6 +909,55 @@ TEST_F(ActuatorTest, ActuatorOrderDoesntMatter) {
   mj_deleteModel(model1);
 }
 
+// ------------- test inheritrange attribute ----------------------------------
+
+using InheritrangeTest = MujocoTest;
+
+TEST_F(InheritrangeTest, ErrorIfTargetMissingRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" inheritrange="1"/>
+    </actuator>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("target 'jnt' has no range defined"));
+}
+
+TEST_F(InheritrangeTest, WorksForDegrees) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt" range="90 180"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" inheritrange="1"/>
+    </actuator>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[0], mjPI/2);
+  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[1], mjPI);
+
+  mj_deleteModel(model);
+}
+
 
 // ------------- test actlimited and actrange fields ---------------------------
 

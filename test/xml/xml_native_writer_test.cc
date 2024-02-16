@@ -1025,6 +1025,66 @@ TEST_F(XMLWriterTest, TrimsDefaults) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, InheritrangeSavedAsRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="slide" type="slide" range="0 2"/>
+      </body>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge" type="hinge" range="-2 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="slide" inheritrange="2"/>
+      <intvelocity joint="hinge" inheritrange="0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 3\""));
+  EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1.5 -0.5\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, InheritedInheritrangeSavedAsRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="position">
+        <position kp="3" kv="4" inheritrange="2"/>
+      </default>
+      <default class="intvelocity">
+        <intvelocity kp="5" kv="6" inheritrange="0.5"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" range="0 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" class="position"/>
+      <intvelocity joint="jnt" class="intvelocity"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("inheritrange")));
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 3\""));
+  EXPECT_THAT(saved_xml, HasSubstr("actrange=\"0.5 1.5\""));
+  mj_deleteModel(model);
+}
+
 // check that no precision is lost when saving XMLs with FullFloatPrecision
 TEST_F(XMLWriterTest, SetPrecision) {
   static constexpr char xml[] = R"(

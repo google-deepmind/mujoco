@@ -336,6 +336,7 @@ class mjCJoint : public mjCBase, private mjmJoint {
 
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
+  const double* get_range() { return range; }
 
   bool is_limited() const;
   bool is_actfrclimited() const;
@@ -1102,6 +1103,7 @@ class mjCTendon : public mjCBase, private mjmTendon {
 
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
+  const double* get_range() { return range; }
 
   void CopyFromSpec();
   void PointToLocal();

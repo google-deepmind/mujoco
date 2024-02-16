@@ -4272,85 +4272,6 @@ void mjCActuator::Compile(void) {
   }
   userdata_.resize(model->nuser_actuator);
 
-  // if limited is auto, check for inconsistency wrt to autolimits
-  if (forcelimited == mjLIMITED_AUTO) {
-    bool hasrange = !(forcerange[0]==0 && forcerange[1]==0);
-    checklimited(this, model->autolimits, "actuator", "force", forcelimited, hasrange);
-  }
-  if (ctrllimited == mjLIMITED_AUTO) {
-    bool hasrange = !(ctrlrange[0]==0 && ctrlrange[1]==0);
-    checklimited(this, model->autolimits, "actuator", "ctrl", ctrllimited, hasrange);
-  }
-  if (actlimited == mjLIMITED_AUTO) {
-    bool hasrange = !(actrange[0]==0 && actrange[1]==0);
-    checklimited(this, model->autolimits, "actuator", "act", actlimited, hasrange);
-  }
-
-  // check limits
-  if (forcerange[0]>=forcerange[1] && is_forcelimited()) {
-    throw mjCError(this, "invalid force range for actuator '%s' (id = %d)", name.c_str(), id);
-  }
-  if (ctrlrange[0]>=ctrlrange[1] && is_ctrllimited()) {
-    throw mjCError(this, "invalid control range for actuator '%s' (id = %d)", name.c_str(), id);
-  }
-  if (actrange[0]>=actrange[1] && is_actlimited()) {
-    throw mjCError(this, "invalid actrange for actuator '%s' (id = %d)", name.c_str(), id);
-  }
-  if (is_actlimited() && dyntype == mjDYN_NONE) {
-    throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",
-                   name.c_str(), id);
-  }
-
-  // check and set actdim
-  if (actdim > 1 && dyntype != mjDYN_USER) {
-    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator '%s' (id = %d)",
-                   name.c_str(), id);
-  }
-  if (actdim == 1 && dyntype == mjDYN_NONE) {
-    throw mjCError(this, "invalid actdim 1 in stateless actuator '%s' (id = %d)", name.c_str(), id);
-  }
-  if (actdim == 0 && dyntype != mjDYN_NONE) {
-    throw mjCError(this, "invalid actdim 0 in stateful actuator '%s' (id = %d)", name.c_str(), id);
-  }
-
-  // set actdim
-  if (actdim < 0) {
-    actdim = (dyntype != mjDYN_NONE);
-  }
-
-  // check muscle parameters
-  for (int i=0; i<2; i++) {
-    // select gain or bias
-    double* prm = NULL;
-    if (i==0 && gaintype==mjGAIN_MUSCLE) {
-      prm = gainprm;
-    } else if (i==1 && biastype==mjBIAS_MUSCLE) {
-      prm = biasprm;
-    }
-
-    // nothing to check
-    if (!prm) {
-      continue;
-    }
-
-    // range
-    if (prm[0]>=prm[1]) {
-      throw mjCError(this, "range[0]<range[1] required in muscle '%s' (id = %d)", name.c_str(), id);
-    }
-
-    // lmin<1<lmax
-    if (prm[4]>=1 || prm[5]<=1) {
-      throw mjCError(this, "lmin<1<lmax required in muscle '%s' (id = %d)", name.c_str(), id);
-    }
-
-    // scale, vmax, fpmax, fvmax>0
-    if (prm[3]<=0 || prm[6]<=0 || prm[7]<=0 || prm[8]<=0) {
-      throw mjCError(this,
-                     "positive scale, vmax, fpmax, fvmax required in muscle '%s' (id = %d)",
-                     name.c_str(), id);
-    }
-  }
-
   // check for missing target name
   if (target_.empty()) {
     throw mjCError(this,
@@ -4432,6 +4353,129 @@ void mjCActuator::Compile(void) {
     throw mjCError(this, "transmission target '%s' not found in actuator %d", target_.c_str(), id);
   } else {
     trnid[0] = ptarget->id;
+  }
+
+  // handle inheritrange
+  if (gaintype == mjGAIN_FIXED && biastype == mjBIAS_AFFINE &&
+      gainprm[0] == -biasprm[1] && inheritrange > 0) {
+    // semantic of actuator is the same as transmission, inheritrange is applicable
+    double* range;
+    if (dyntype == mjDYN_NONE) {
+      // position actuator
+      range = ctrlrange;
+    } else if (dyntype == mjDYN_INTEGRATOR) {
+      // intvelocity actuator
+      range = actrange;
+    } else {
+      throw mjCError(this, "inheritrange only available for position "
+                     "and intvelocity actuators '%s' (id = %d)", name.c_str(), id);
+    }
+
+    const double* target_range;
+    if (trntype == mjTRN_JOINT) {
+      pjnt = (mjCJoint*) ptarget;
+      if (pjnt->spec.type != mjJNT_HINGE && pjnt->spec.type != mjJNT_SLIDE) {
+        throw mjCError(this, "inheritrange can only be used with hinge and slide joints, "
+                       "actuator '%s' (id = %d)", name.c_str(), id);
+      }
+      target_range = pjnt->get_range();
+    } else if (trntype == mjTRN_TENDON) {
+      mjCTendon* pten = (mjCTendon*) ptarget;
+      target_range = pten->get_range();
+    } else {
+      throw mjCError(this, "inheritrange can only be used with joint and tendon transmission, "
+                     "actuator '%s' (id = %d)", name.c_str(), id);
+    }
+
+    if (target_range[0] == target_range[1]) {
+      throw mjCError(this, "inheritrange used but target '%s' has no range defined in actuator %d",
+                     target_.c_str(), id);
+    }
+
+    // set range automatically
+    double mean   = 0.5*(target_range[1] + target_range[0]);
+    double radius = 0.5*(target_range[1] - target_range[0]) * inheritrange;
+    range[0] = mean - radius;
+    range[1] = mean + radius;
+  }
+
+  // if limited is auto, check for inconsistency wrt to autolimits
+  if (forcelimited == mjLIMITED_AUTO) {
+    bool hasrange = !(forcerange[0]==0 && forcerange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "force", forcelimited, hasrange);
+  }
+  if (ctrllimited == mjLIMITED_AUTO) {
+    bool hasrange = !(ctrlrange[0]==0 && ctrlrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "ctrl", ctrllimited, hasrange);
+  }
+  if (actlimited == mjLIMITED_AUTO) {
+    bool hasrange = !(actrange[0]==0 && actrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "act", actlimited, hasrange);
+  }
+
+  // check limits
+  if (forcerange[0]>=forcerange[1] && is_forcelimited()) {
+    throw mjCError(this, "invalid force range for actuator '%s' (id = %d)", name.c_str(), id);
+  }
+  if (ctrlrange[0]>=ctrlrange[1] && is_ctrllimited()) {
+    throw mjCError(this, "invalid control range for actuator '%s' (id = %d)", name.c_str(), id);
+  }
+  if (actrange[0]>=actrange[1] && is_actlimited()) {
+    throw mjCError(this, "invalid actrange for actuator '%s' (id = %d)", name.c_str(), id);
+  }
+  if (is_actlimited() && dyntype == mjDYN_NONE) {
+    throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  // check and set actdim
+  if (actdim > 1 && dyntype != mjDYN_USER) {
+    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  if (actdim == 1 && dyntype == mjDYN_NONE) {
+    throw mjCError(this, "invalid actdim 1 in stateless actuator '%s' (id = %d)", name.c_str(), id);
+  }
+  if (actdim == 0 && dyntype != mjDYN_NONE) {
+    throw mjCError(this, "invalid actdim 0 in stateful actuator '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // set actdim
+  if (actdim < 0) {
+    actdim = (dyntype != mjDYN_NONE);
+  }
+
+  // check muscle parameters
+  for (int i=0; i<2; i++) {
+    // select gain or bias
+    double* prm = NULL;
+    if (i==0 && gaintype==mjGAIN_MUSCLE) {
+      prm = gainprm;
+    } else if (i==1 && biastype==mjBIAS_MUSCLE) {
+      prm = biasprm;
+    }
+
+    // nothing to check
+    if (!prm) {
+      continue;
+    }
+
+    // range
+    if (prm[0]>=prm[1]) {
+      throw mjCError(this, "range[0]<range[1] required in muscle '%s' (id = %d)", name.c_str(), id);
+    }
+
+    // lmin<1<lmax
+    if (prm[4]>=1 || prm[5]<=1) {
+      throw mjCError(this, "lmin<1<lmax required in muscle '%s' (id = %d)", name.c_str(), id);
+    }
+
+    // scale, vmax, fpmax, fvmax>0
+    if (prm[3]<=0 || prm[6]<=0 || prm[7]<=0 || prm[8]<=0) {
+      throw mjCError(this,
+                     "positive scale, vmax, fpmax, fvmax required in muscle '%s' (id = %d)",
+                     name.c_str(), id);
+    }
   }
 
   // plugin

@@ -1065,10 +1065,10 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
   <mujoco>
     <default>
       <default class="position">
-        <position kp="3" kv="4"/>
+        <position kp="3" kv="4" inheritrange="2"/>
       </default>
       <default class="intvelocity">
-        <intvelocity kp="5" kv="6" actrange="-1 1"/>
+        <intvelocity kp="5" kv="6" inheritrange="0.5"/>
       </default>
       <default class="velocity">
         <velocity kv="7"/>
@@ -1077,7 +1077,7 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="0 2"/>
       </body>
     </worldbody>
     <actuator>
@@ -1107,6 +1107,10 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
       EXPECT_EQ(model->actuator_gainprm[i*mjNGAIN + j], 0.0);
     }
   }
+  EXPECT_EQ(model->actuator_ctrlrange[0*2 + 0], -1.0);
+  EXPECT_EQ(model->actuator_ctrlrange[0*2 + 1], 3.0);
+  EXPECT_EQ(model->actuator_actrange[1*2 + 0], 0.5);
+  EXPECT_EQ(model->actuator_actrange[1*2 + 1], 1.5);
   mj_deleteModel(model);
 }
 

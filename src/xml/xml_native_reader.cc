@@ -168,14 +168,14 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
-        {"position", "?", "10", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group",
+        {"position", "?", "11", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
+            "forcerange", "gear", "cranklength", "user", "group",
             "kp", "kv"},
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
-        {"intvelocity", "?", "11", "ctrllimited", "forcelimited",
-            "ctrlrange", "forcerange", "actrange",
+        {"intvelocity", "?", "12", "ctrllimited", "forcelimited",
+            "ctrlrange", "forcerange", "actrange", "inheritrange",
             "gear", "cranklength", "user", "group",
             "kp", "kv"},
         {"damper", "?", "8", "forcelimited", "ctrlrange", "forcerange",
@@ -381,8 +381,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "20", "name", "class", "group",
-            "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+        {"position", "*", "21", "name", "class", "group",
+            "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv"},
@@ -391,9 +391,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "21", "name", "class", "group",
+        {"intvelocity", "*", "22", "name", "class", "group",
             "ctrllimited", "forcelimited",
-            "ctrlrange", "forcerange", "actrange", "lengthrange",
+            "ctrlrange", "forcerange", "actrange", "inheritrange", "lengthrange",
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv"},
@@ -2085,6 +2085,19 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
       pact->biasprm[2] *= -1;
     }
 
+    ReadAttr(elem, "inheritrange", 1, &pact->inheritrange, text);
+    if (pact->inheritrange > 0) {
+      if (type == "position") {
+        if (pact->ctrlrange[0] || pact->ctrlrange[1]) {
+          throw mjXError(elem, "ctrlrange and inheritrange cannot both be defined");
+        }
+      } else {
+        if (pact->actrange[0] || pact->actrange[1]) {
+          throw mjXError(elem, "actrange and inheritrange cannot both be defined");
+        }
+      }
+    }
+
     // implied parameters
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
@@ -2122,7 +2135,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
     pact->gainprm[2] = -pact->gainprm[2];
 
     // require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
     if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
       throw mjXError(elem, "damper control range cannot be negative");
     }

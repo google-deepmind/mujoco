@@ -559,6 +559,7 @@ typedef struct _mjmActuator {      // actuator specification
   mjString slidersite;             // site defining cylinder, for slider-crank
   double cranklength;              // crank length, for slider-crank
   double lengthrange[2];           // transmission length range
+  double inheritrange;             // automatic range setting for position and intvelocity
 
   // input/output clamping
   int ctrllimited;                 // are control limits defined (mjtLimited)
