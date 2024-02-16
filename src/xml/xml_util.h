@@ -195,7 +195,7 @@ class mjXUtil {
   // write attribute- any type
   template<typename T>
   static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
-                        const T* def = 0);
+                        const T* def = 0, bool trim = false);
 
   // write vector<double> attribute, with and without default
   static void WriteVector(tinyxml2::XMLElement* elem, std::string name,

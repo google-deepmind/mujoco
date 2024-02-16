@@ -904,7 +904,8 @@ static int Round(double x) {
 
 // write attribute
 template<typename T>
-void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, const T* def) {
+void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, const T* def,
+                        bool trim) {
   // make sure all are defined
   if constexpr (std::is_floating_point_v<T>) {
     for (int i=0; i<n; i++) {
@@ -917,6 +918,13 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
   // skip default attributes
   if (SameVector(data, def, n)) {
     return;
+  }
+
+  // trim identical trailing default values
+  if (trim) {
+    while (n > 0 && data[n-1] == def[n-1]) {
+      n--;
+    }
   }
 
   // increase precision for testing
@@ -945,17 +953,17 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
 
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 const double* data, const double* def);
+                                 const double* data, const double* def, bool trim);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 const float* data, const float* def);
+                                 const float* data, const float* def, bool trim);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 const int* data, const int* def);
+                                 const int* data, const int* def, bool trim);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
                                  const unsigned char* data,
-                                 const unsigned char* def);
+                                 const unsigned char* def, bool trim);
 
 
 // write vector<double> attribute, default = zero array

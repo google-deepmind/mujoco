@@ -722,7 +722,7 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
   EXPECT_THAT(saved_xml, HasSubstr(
-      "<general biastype=\"affine\" gainprm=\"3 0 0 0 0 0 0 0 0 0\""));
+      "<general biastype=\"affine\" gainprm=\"3\""));
   mj_deleteModel(model);
 }
 
@@ -996,6 +996,32 @@ TEST_F(XMLWriterTest, ActdimDefaults) {
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, TrimsDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" friction="0.9" solref="0.1" solimp="0.1 0.2"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="0 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" kp="3" kv="4"/>
+      <damper joint="jnt" kv="10" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("friction=\"0.9\""));
+  EXPECT_THAT(saved_xml, HasSubstr("solref=\"0.1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("solimp=\"0.1 0.2\""));
+  EXPECT_THAT(saved_xml, HasSubstr("gainprm=\"3\" biasprm=\"0 -3 -4\""));
+  EXPECT_THAT(saved_xml, HasSubstr("gainprm=\"0 0 -10\""));
   mj_deleteModel(model);
 }
 

@@ -296,10 +296,12 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttrInt(elem, "group", pjoint->group, def->joint.group);
   WriteAttr(elem, "ref", 1, &pjoint->ref, &zero);
   WriteAttr(elem, "springref", 1, &pjoint->springref, &zero);
-  WriteAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, def->joint.solref_limit);
-  WriteAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, def->joint.solimp_limit);
-  WriteAttr(elem, "solreffriction", mjNREF, pjoint->solref_friction, def->joint.solref_friction);
-  WriteAttr(elem, "solimpfriction", mjNIMP, pjoint->solimp_friction, def->joint.solimp_friction);
+  WriteAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, def->joint.solref_limit, true);
+  WriteAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, def->joint.solimp_limit, true);
+  WriteAttr(elem, "solreffriction", mjNREF, pjoint->solref_friction, def->joint.solref_friction,
+            true);
+  WriteAttr(elem, "solimpfriction", mjNIMP, pjoint->solimp_friction, def->joint.solimp_friction,
+            true);
   WriteAttr(elem, "stiffness", 1, &pjoint->stiffness, &def->joint.stiffness);
   WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
   WriteAttr(elem, "range", 2, pjoint->range, def->joint.range);
@@ -373,10 +375,10 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttrInt(elem, "condim", pgeom->condim, def->geom.condim);
   WriteAttrInt(elem, "group", pgeom->group, def->geom.group);
   WriteAttrInt(elem, "priority", pgeom->priority, def->geom.priority);
-  WriteAttr(elem, "friction", 3, pgeom->friction, def->geom.friction);
+  WriteAttr(elem, "friction", 3, pgeom->friction, def->geom.friction, true);
   WriteAttr(elem, "solmix", 1, &pgeom->solmix, &def->geom.solmix);
-  WriteAttr(elem, "solref", mjNREF, pgeom->solref, def->geom.solref);
-  WriteAttr(elem, "solimp", mjNIMP, pgeom->solimp, def->geom.solimp);
+  WriteAttr(elem, "solref", mjNREF, pgeom->solref, def->geom.solref, true);
+  WriteAttr(elem, "solimp", mjNIMP, pgeom->solimp, def->geom.solimp, true);
   WriteAttr(elem, "margin", 1, &pgeom->margin, &def->geom.margin);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
@@ -533,10 +535,11 @@ void mjXWriter::OnePair(XMLElement* elem, mjCPair* ppair, mjCDef* def) {
   WriteAttrInt(elem, "condim", ppair->condim, def->pair.spec.condim);
   WriteAttr(elem, "margin", 1, &ppair->margin, &def->pair.spec.margin);
   WriteAttr(elem, "gap", 1, &ppair->gap, &def->pair.spec.gap);
-  WriteAttr(elem, "solref", mjNREF, ppair->solref, def->pair.spec.solref);
-  WriteAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, def->pair.spec.solreffriction);
-  WriteAttr(elem, "solimp", mjNIMP, ppair->solimp, def->pair.spec.solimp);
-  WriteAttr(elem, "friction", 5, ppair->friction, def->pair.spec.friction);
+  WriteAttr(elem, "solref", mjNREF, ppair->solref, def->pair.spec.solref, true);
+  WriteAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, def->pair.spec.solreffriction,
+            true);
+  WriteAttr(elem, "solimp", mjNIMP, ppair->solimp, def->pair.spec.solimp, true);
+  WriteAttr(elem, "friction", 5, ppair->friction, def->pair.spec.friction);  // all 5 values
 }
 
 
@@ -586,8 +589,8 @@ void mjXWriter::OneEquality(XMLElement* elem, mjCEquality* peq, mjCDef* def) {
 
   // defaults and regular
   WriteAttrKey(elem, "active", bool_map, 2, peq->active, def->equality.active);
-  WriteAttr(elem, "solref", mjNREF, peq->solref, def->equality.solref);
-  WriteAttr(elem, "solimp", mjNIMP, peq->solimp, def->equality.solimp);
+  WriteAttr(elem, "solref", mjNREF, peq->solref, def->equality.solref, true);
+  WriteAttr(elem, "solimp", mjNIMP, peq->solimp, def->equality.solimp, true);
 }
 
 
@@ -604,10 +607,12 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
 
   // defaults and regular
   WriteAttrInt(elem, "group", pten->group, def->tendon.group);
-  WriteAttr(elem, "solreflimit", mjNREF, pten->solref_limit, def->tendon.solref_limit);
-  WriteAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, def->tendon.solimp_limit);
-  WriteAttr(elem, "solreffriction", mjNREF, pten->solref_friction, def->tendon.solref_friction);
-  WriteAttr(elem, "solimpfriction", mjNIMP, pten->solimp_friction, def->tendon.solimp_friction);
+  WriteAttr(elem, "solreflimit", mjNREF, pten->solref_limit, def->tendon.solref_limit, true);
+  WriteAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, def->tendon.solimp_limit, true);
+  WriteAttr(elem, "solreffriction", mjNREF, pten->solref_friction, def->tendon.solref_friction,
+            true);
+  WriteAttr(elem, "solimpfriction", mjNIMP, pten->solimp_friction, def->tendon.solimp_friction,
+            true);
   WriteAttrKey(elem, "limited", TFAuto_map, 3, pten->limited, def->tendon.limited);
   WriteAttr(elem, "range", 2, pten->range, def->tendon.range);
   WriteAttr(elem, "margin", 1, &pten->margin, &def->tendon.margin);
@@ -711,8 +716,8 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
     }
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, pact->gaintype, def->actuator.gaintype);
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, pact->biastype, def->actuator.biastype);
-    WriteAttr(elem, "gainprm", mjNGAIN, pact->gainprm, def->actuator.gainprm);
-    WriteAttr(elem, "biasprm", mjNBIAS, pact->biasprm, def->actuator.biasprm);
+    WriteAttr(elem, "gainprm", mjNGAIN, pact->gainprm, def->actuator.gainprm, true);
+    WriteAttr(elem, "biasprm", mjNBIAS, pact->biasprm, def->actuator.biasprm, true);
   }
 
   // userdata
