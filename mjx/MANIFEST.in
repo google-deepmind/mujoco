@@ -1,2 +1,1 @@
 recursive-include mujoco/mjx/test_data *
-recursive-include mujoco/mjx/benchmark *.obj *.stl *.xml

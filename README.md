@@ -55,6 +55,10 @@ running on Google Colab:
  - For a more advanced example, see the LQR tutorial which creates an LQR
    controller to balance a humanoid on one leg using MuJoCo's dynamics
    derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
+ - The MJX tutorial provides usage examples of
+   [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in
+   JAX:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb)
 
 ## Installation
 
@@ -160,7 +164,7 @@ These packages give users of various languages access to MuJoCo functionality:
   by [Manoj Velmurugan](https://github.com/vmanoj1996).
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
-- **Julia**: [Lyceum](https://github.com/Lyceum/MuJoCo.jl) (unmaintained)
+- **Julia**: [MuJoCo.jl](https://github.com/JamieMair/MuJoCo.jl)
 
 
 ### Converters

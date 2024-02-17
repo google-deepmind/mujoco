@@ -76,7 +76,7 @@ def _inertia_box_fluid_model(
 def passive(m: Model, d: Data) -> Data:
   """Adds all passive forces."""
   if m.opt.disableflags & DisableBit.PASSIVE:
-    return d
+    return d.replace(qfrc_passive=jp.zeros(m.nv))
 
   # joint-level springs
   def fn(jnt_typs, stiffness, qpos_spring, qpos):

@@ -119,11 +119,17 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 
   // count flexes
   for (int i = 0; i < m->nflex; i++) {
-    if (m->flex_vertbodyid[m->flex_vertadr[i]] == i0) {
-      f0 = i;
-      break;
+    for (int j = 0; j < m->flex_vertnum[i]; j++) {
+      if (m->flex_vertbodyid[m->flex_vertadr[i]+j] == i0) {
+        f0 = i;
+        nv = m->flex_vertnum[f0];
+      }
     }
   }
+
+  // vertex positions
+  mjtNum* body_pos =
+      f0 < 0 ? m->body_pos + 3*i0 : m->flex_xvert0 + 3*m->flex_vertadr[f0];
 
   // generate tetrahedra from the vertices
   nt = CreateStencils<Stencil3D>(elements, edges, simplex, edgeidx);
@@ -135,20 +141,21 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   for (int t = 0; t < nt; t++) {
     int* v = elements[t].vertices;
     for (int i = 0; i < kNumVerts; i++) {
-      if (m->body_plugin[i0+v[i]] != instance) {
-        mju_error("This body does not have the requested plugin instance");
+      int bi = f0 < 0 ? i0+v[i] : m->flex_vertbodyid[m->flex_vertadr[f0]+v[i]];
+      if (bi && m->body_plugin[bi] != instance) {
+        mju_error("Body %d does not have plugin instance %d", bi, instance);
       }
     }
 
     // tetrahedron volume
-    mjtNum volume = ComputeVolume(m->body_pos+3*i0, v);
+    mjtNum volume = ComputeVolume(body_pos, v);
 
     // local geometric quantities
     mjtNum basis[kNumEdges][9] = {{0}, {0}, {0}, {0}, {0}, {0}};
 
     // compute edge basis
     for (int e = 0; e < kNumEdges; e++) {
-      ComputeBasis(basis[e], m->body_pos+3*i0, v,
+      ComputeBasis(basis[e], body_pos, v,
                    face[e2f[e][0]], face[e2f[e][1]], volume);
     }
 
@@ -166,9 +173,10 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   deformed.assign(ne, 0);
   previous.assign(ne, 0);
   elongation.assign(ne, 0);
+  force.assign(3*nv, 0);
 
   // compute edge lengths at equilibrium (m->flexedge_length0 not yet available)
-  UpdateSquaredLengths(reference, edges, m->body_pos+3*i0);
+  UpdateSquaredLengths(reference, edges, body_pos);
 
   // save previous lengths
   previous = reference;
@@ -195,8 +203,18 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
   }
 
   // compute gradient of elastic energy and insert into passive force
-  ComputeForce<Stencil3D>(d->qfrc_passive + m->body_dofadr[i0], elements,
-                          metric, elongation, d->xpos + 3 * i0);
+  int flex_vertadr = f0 < 0 ? -1 : m->flex_vertadr[f0];
+  mjtNum* xpos = f0 < 0 ? d->xpos + 3*i0 : d->flexvert_xpos + 3*flex_vertadr;
+  mjtNum* qfrc = d->qfrc_passive + (f0 < 0 ? m->body_dofadr[i0] : 0);
+
+  ComputeForce<Stencil3D>(force, elements, metric, elongation, m, xpos);
+
+  // insert into passive force
+  if (f0 < 0) {
+    mju_addTo(qfrc, force.data(), force.size());
+  } else {
+    AddFlexForce(qfrc, force, m, d, xpos, f0);
+  }
 
   // update stored lengths
   if (kD > 0) {

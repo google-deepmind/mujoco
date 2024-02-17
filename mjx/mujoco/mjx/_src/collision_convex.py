@@ -173,7 +173,7 @@ def _manifold_points(
   bp = b - poly
   dist_bp = jp.abs(bp.dot(bc)) + dist_mask
   dist_ap = jp.abs(ap.dot(ac)) + dist_mask
-  d_idx = jp.concatenate([dist_bp, dist_ap]).argmax() % poly.shape[0]
+  d_idx = (dist_bp + dist_ap).argmax() % poly.shape[0]
   return jp.array([a_idx, b_idx, c_idx, d_idx])
 
 
@@ -514,6 +514,7 @@ def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
   frame = jp.stack([math.make_frame(n)] * 4, axis=0)
   unique = jp.tril(idx == idx[:, None]).sum(axis=1) == 1
   dist = jp.where(unique, -support[idx], 1)
+  pos = pos - 0.5 * dist[:, None] * n
   return dist, pos, frame
 
 

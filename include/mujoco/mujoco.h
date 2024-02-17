@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 301
+#define mjVERSION_HEADER 313
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -182,7 +182,7 @@ MJAPI void mj_resetData(const mjModel* m, mjData* d);
 // Reset data to defaults, fill everything else with debug_value.
 MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 
-// Reset data, set fields from specified keyframe.
+// Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // Mark a new frame on the mjData stack.
@@ -264,6 +264,9 @@ MJAPI void mj_Euler(const mjModel* m, mjData* d);
 // Runge-Kutta explicit order-N integrator.
 MJAPI void mj_RungeKutta(const mjModel* m, mjData* d, int N);
 
+// Implicit-in-velocity integrators.
+MJAPI void mj_implicit(const mjModel* m, mjData* d);
+
 // Run position-dependent computations in inverse dynamics.
 MJAPI void mj_invPosition(const mjModel* m, mjData* d);
 
@@ -336,10 +339,10 @@ MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, i
 // Compute cvel, cdof_dot.
 MJAPI void mj_comVel(const mjModel* m, mjData* d);
 
-// Compute qfrc_passive from spring-dampers, viscosity and density.
+// Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.
 MJAPI void mj_passive(const mjModel* m, mjData* d);
 
-// subtree linear velocity and angular momentum
+// Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.
 MJAPI void mj_subtreeVel(const mjModel* m, mjData* d);
 
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
@@ -1115,7 +1118,7 @@ MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 // Address of diagonal element i in band-dense matrix representation.
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
-// Eigenvalue decomposition of symmetric 3x3 matrix.
+// Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed

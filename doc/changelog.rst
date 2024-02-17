@@ -7,54 +7,213 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-- Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
-  ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
+1. Added the :at:`inheritrange` attribute to :ref:`position<actuator-position>` and
+   :ref:`intvelocity<actuator-intvelocity>` actuators, allowing convenient setting of the actuator's
+   :at:`ctrlrange` or :at:`actrange` (respectively), according to the range of the transmission
+   target (joint or tendon). See :ref:`position/inheritrange<actuator-position-inheritrange>` for
+   details.
+
+MJX
+^^^
+2. Improved performance of getting and putting device data.
+
+   - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
+   - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
+   - Speed up calculation of ``mjx.ncon`` for models with many geoms.
+   - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
+3. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
+   ``mjx.get_data_into`` function call.
+4. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
+5. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
+6. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
+
+Version 3.1.2 (February 05, 2024)
+-----------------------------------
+
+General
+^^^^^^^
+1. Improved the :ref:`discardvisual<compiler-discardvisual>` compiler flag, which now discards all visual-only assets.
+   See :ref:`discardvisual<compiler-discardvisual>` for details.
+2. Removed the :ref:`timer<mjtTimer>` for midphase colllision detection, it is now folded in with the narrowphase
+   timer. This is because timing the two phases seperately required fine-grained timers inside the collision
+   functions; these functions are so small and fast that the timer itself was incurring a measurable cost.
+3. Added the flag :ref:`bvactive<visual-global-bvactive>` to ``visual/global``, allowing users to turn off
+   visualisation of active bounding volumes (the red/green boxes in this :ref:`this changelog item<midphase>`). For
+   models with very high-resolution meshes, the computation required for this visualization can slow down simulation
+   speed. Fixes :github:issue:`1279`.
+
+   - Added color of :ref:`bounding volumes<visual-rgba-bv>` and :ref:`active bounding volumes<visual-rgba-bvactive>`
+     to :ref:`visual/rgba<visual-rgba>`.
+4. Height-field elevation data can now be specified directly in XML with the :ref:`elevation<asset-hfield-elevation>`
+   attribute (and not only with PNG files).
+   See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/hfield_xml.xml>`__.
+
+MJX
+^^^
+5. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+6. Added :at:`site` transmission.
+7. Updated MJX colab tutorial with more stable quadruped environment.
+8. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
+9. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
+10. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
+11. Raise a not implemented error when nonzero frictionloss is present. Fixes :github:issue:`1344`.
+
+Python bindings
+^^^^^^^^^^^^^^^
+12. Improved the implementation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+    code will require modification.
+
+    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Outputs are no longer squeezed and always have dim=3.
+13. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
+    ``user_scn``, as requested in :github:issue:`1190`.
+
+Bug fixes
+^^^^^^^^^
+14. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+    :github:issue:`1270`.
+15. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+    bound of the length range. Fixes :github:issue:`1342`.
+
+
+Version 3.1.1 (December 18, 2023)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+1. Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts if one box was deeply embedded in the
+   other.
+2. Fixed a bug in :ref:`simulate<saSimulate>` where the "LOADING..." message was not showing correctly.
+3. Fixed a crash in the Python :ref:`passive viewer<PyViewerPassive>`, when used with models containing Flex objects.
+4. Fixed a bug in MJX where ``site_xmat`` was ignored in ``get_data`` and ``put_data``
+5. Fixed a bug in MJX where ``efc_address`` was sometimes incorrectly calculated in ``get_data``.
+
+
+Version 3.1.0 (December 12, 2023)
+---------------------------------
+
+General
+^^^^^^^
+1. Improved convergence of Signed Distance Function (SDF) collisions by using line search and a new objective function
+   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is
+   more robust for very small or large geom sizes.
+2. Added :ref:`frame<frame>` to MJCF, a :ref:`meta-element<meta-element>` which defines a pure coordinate transformation
+   on its direct children, without requiring a :ref:`body<body>`.
+3. Added the :at:`kv` attribute to the :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>`
+   actuators, for specifying actuator-applied damping. This can be used to implement a PD controller with 0 reference
+   velocity. When using this attribute, it is recommended to use the implicitfast or implicit
+   :ref:`integrators<geIntegration>`.
+
+Plugins
+^^^^^^^
+4. Allow actuator plugins to use activation variables in ``mjData.act`` as their internal state, rather than
+   ``mjData.plugin_state``. Actuator plugins can now specify :ref:`callbacks<mjpPlugin>` that compute activation
+   variables, and they can be used with built-in :ref:`dyntype<actuator-plugin-dyntype>` actuator dynamics.
+5. Added the `pid <https://github.com/deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ actuator plugin, a
+   configurable PID controller that implements the Integral term, which is not available with native MuJoCo actuators.
+
+MJX
+^^^
+6.  Added ``site_xpos`` and ``site_xmat`` to MJX.
+7. Added ``put_data``, ``put_model``, ``get_data`` to replace ``device_put`` and ``device_get_into``, which will be
+   deprecated. These new functions correctly translate fields that are the result of intermediate calculations such as
+   ``efc_J``.
+
+Bug fixes
+^^^^^^^^^
+8. Fix bug in Cartesian actuation with movable refsite, as when using body-centric Cartesian actuators on a quadruped.
+   Before this fix such actuators could lead to non-conservation of momentum.
+9. Fix bug that prevented using flex with :ref:`simulate<saSimulate>`.
+10. Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
+11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where ``SYSTEM_VERSION_COMPAT`` is set.
+    The minimum supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
+    :github:issue:`1213`.
+
+Version 3.0.1 (November 15, 2023)
+---------------------------------
+
+General
+^^^^^^^
+1. Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
+   ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
 
 .. youtube:: H9qG9Zf2W44
    :align: right
    :width: 240px
 
-- Added :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute and associated
-  :ref:`mjOption.disableactuator<mjOption>` integer bitfield, which can be used to disable sets of actuators at runtime
-  according to their :ref:`group<actuator-general-group>`. Fixes :github:issue:`1092`. See :ref:`CActDisable`.
+2. Added :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute and associated
+   :ref:`mjOption.disableactuator<mjOption>` integer bitfield, which can be used to disable sets of actuators at runtime
+   according to their :ref:`group<actuator-general-group>`. Fixes :github:issue:`1092`. See :ref:`CActDisable`.
 
-  - The first 6 actuator groups are toggleable in the :ref:`simulate<saSimulate>` viewer. See `example model
-    <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
-    and associated screen-capture on the right.
+   - The first 6 actuator groups are toggleable in the :ref:`simulate<saSimulate>` viewer. See `example model
+     <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+     and associated screen-capture on the right.
 
-
-
-- Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 200.
+3. Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 200.
 
 MJX
 ^^^
-- Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
-- Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
-- Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
-- Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
-- Fixed bug where equality constraints became inactive (fixes :github:issue:`1129`).
-- Added an error when loading a model with tendons (fixes :github:issue:`1149`).
+4. Added support for Newton solver (``mjSOL_NEWTON`` in :ref:`mjtSolver`).  The Newton solver significantly speeds up
+   simulation on GPU:
+
+   .. list-table:: Steps-per-second, Conjugate Gradient vs. Newton on A100
+      :header-rows: 1
+      :align: left
+
+      * - Model
+        - CG
+        - Newton
+        - Speedup
+      * - `Humanoid <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/humanoid>`__
+        - 640,000
+        - 1,020,000
+        - **1.6 x**
+      * - `Barkour v0 <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/barkour_v0>`__
+        - 1,290,000
+        - 1,750,000
+        - **1.35 x**
+      * - `Shadow Hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+        - 215,000
+        - 270,000
+        - **1.25 x**
+
+   Humanoid is the standard MuJoCo humanoid,
+   `Google Barkour <https://blog.research.google/2023/05/barkour-benchmarking-animal-level.html>`__ and the Shadow Hand
+   are both available in the :ref:`MuJoCo Menagerie<Menagerie>`.
+5. Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
+6. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
+7. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
+8. Removed empty EFC rows from ``MJX``, for joints with no limits (fixes :github:issue:`1117`).
+9. Fixed bug in ``scan.body_tree`` that led to incorrect smooth dynamics for some kinematic tree layouts.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-- Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line Tools.
-- Fixed a crash when copying instances of ``mujoco.MjData`` for models that use plugins. Introduced a ``model``
-  attribute to ``MjData`` which is reference to the model that was used to create that ``MjData`` instance.
+10. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line Tools.
+11. Fixed a crash when copying instances of ``mujoco.MjData`` for models that use plugins. Introduced a ``model``
+    attribute to ``MjData`` which is reference to the model that was used to create that ``MjData`` instance.
 
 Simulate
 ^^^^^^^^
-- :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+12. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
 Documentation
 ^^^^^^^^^^^^^
-- Added documentation for the :ref:`UI` framework.
-- Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+
+.. youtube:: cE3s_IfO4g4
+   :align: right
+   :width: 240px
+
+13. Added cell to the `tutorial colab <https://github.com/google-deepmind/mujoco#getting-started>`__ providing an
+    example of procedural camera control:
+14. Added documentation for the :ref:`UI` framework.
+15. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
 
 Bug fixes
 ^^^^^^^^^
-- Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
+16. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------
@@ -165,7 +324,7 @@ General
 
        - For models which have ``<option collision="all"/>``, delete the attribute.
        - For models which have ``<option collision="dynamic"/>``, delete all :ref:`pair<contact-pair>` elements.
-       - For models which have ``<option collision="pair"/>``, disable all dynamic collisions (determined
+       - For models which have ``<option collision="predefined"/>``, disable all dynamic collisions (determined
          via contype/conaffinity) by first deleting all :ref:`contype<body-geom-contype>` and
          :ref:`conaffinity<body-geom-conaffinity>` attributes in the model and then setting them globally to ``0`` using
          |br| ``<default> <geom contype="0" conaffinity="0"/> </default>``.
@@ -511,6 +670,8 @@ General
 .. image:: images/computation/midphase.gif
    :align: right
    :width: 350px
+
+.. _midphase:
 
 2. Added a collision mid-phase for pruning geoms in body pairs, see :ref:`documentation<coSelection>` for more details.
    This is based on static AABB bounding volume hierarchy (a BVH binary tree) in the body inertial frame. The GIF on

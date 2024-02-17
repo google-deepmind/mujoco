@@ -73,33 +73,6 @@ Where the command line arguments are
   `start /affinity <https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/start>`__
   command on Windows (processor affinity cannot be specified through documented API means on macOS).
 
-.. _saCompile:
-
-`compile <https://github.com/google-deepmind/mujoco/blob/main/sample/compile.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This code sample evokes the built-in parser and compiler. It implements all possible model conversions from (MJCF, URDF,
-MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in the
-:doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
-The TXT format is a human-readable road-map to the model. It cannot be loaded by MuJoCo, but can be a very useful aid
-during model development. It is in one-to-one correspondence with the compiled mjModel. Note also that one can use the
-function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
-with mjData, although this is not done by the code sample.
-
-.. _saBasic:
-
-`basic <https://github.com/google-deepmind/mujoco/blob/main/sample/basic.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This code sample is a minimal interactive simulator. The model file must be provided as command-line argument. It
-opens an OpenGL window using the platform-independent GLFW library, and renders the simulation state at 60 fps while
-advancing the simulation in real-time. Press Backspace to reset the simulation. The mouse can be used to control the
-camera: left drag to rotate, right drag to translate in the vertical plane, shift right drag to translate in the
-horizontal plane, scroll or middle drag to zoom.
-
-The :ref:`Visualization` programming guide below explains how visualization works. This code sample is a minimal
-illustration of the concepts in that guide.
-
 .. _saSimulate:
 
 `simulate <https://github.com/google-deepmind/mujoco/blob/main/simulate>`_
@@ -108,10 +81,11 @@ illustration of the concepts in that guide.
 This code sample is a fully-featured interactive simulator. It opens an OpenGL window using the platform-independent
 GLFW library, and renders the simulation state in it. There is built-in help, simulation statistics, profiler, sensor
 data plots. The model file can be specified as a command-line argument, or loaded at runtime using drag-and-drop
-functionality. As of MuJoCo 2.0, this code sample uses the native UI to render various controls, and provides an
+functionality. This code sample uses the native UI to render various controls, and provides an
 illustration of how the new UI framework is intended to be used. Below is a screen-capture of ``simulate`` in action:
 
 ..  youtube:: 0ORsj_E17B0
+    :width: 95%
     :align: center
 
 Interaction is done with the mouse; built-in help with a summary of available commands is available by pressing the
@@ -139,6 +113,33 @@ Note that the profiler shows timing information collected with high-resolution t
 power settings, the OS may reduce the CPU frequency; this is because :ref:`simulate.cc <saSimulate>` sleeps most of
 the time in order to slow down to realtime. This results in inaccurate timings. To avoid this problem, change the
 Windows power plan so that the minimum processor state is 100%.
+
+.. _saCompile:
+
+`compile <https://github.com/google-deepmind/mujoco/blob/main/sample/compile.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This code sample evokes the built-in parser and compiler. It implements all possible model conversions from (MJCF, URDF,
+MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in the
+:doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
+The TXT format is a human-readable road-map to the model. It cannot be loaded by MuJoCo, but can be a very useful aid
+during model development. It is in one-to-one correspondence with the compiled mjModel. Note also that one can use the
+function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
+with mjData, although this is not done by the code sample.
+
+.. _saBasic:
+
+`basic <https://github.com/google-deepmind/mujoco/blob/main/sample/basic.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This code sample is a minimal interactive simulator. The model file must be provided as command-line argument. It
+opens an OpenGL window using the platform-independent GLFW library, and renders the simulation state at 60 fps while
+advancing the simulation in real-time. Press Backspace to reset the simulation. The mouse can be used to control the
+camera: left drag to rotate, right drag to translate in the vertical plane, shift right drag to translate in the
+horizontal plane, scroll or middle drag to zoom.
+
+The :ref:`Visualization` programming guide below explains how visualization works. This code sample is a minimal
+illustration of the concepts in that guide.
 
 .. _saRecord:
 

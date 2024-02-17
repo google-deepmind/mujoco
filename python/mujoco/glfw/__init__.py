@@ -35,7 +35,7 @@ class GLContext:
       if glfw.get_current_context() == self._context:
         glfw.make_context_current(None)
       glfw.destroy_window(self._context)
-      self._context = None
+    self._context = None
 
   def __del__(self):
     self.free()

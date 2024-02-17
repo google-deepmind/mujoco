@@ -31,6 +31,38 @@ namespace {
 
 using ElasticityTest = PluginTest;
 
+// -------------------------------- flex ------------------------------------
+TEST_F(ElasticityTest, FlexCompatibility) {
+  static constexpr char flex_xml[] = R"(
+  <mujoco>
+    <extension>
+        <plugin plugin="mujoco.elasticity.solid"/>
+    </extension>
+
+    <worldbody>
+      <body name="parent">
+        <flexcomp name="soft" type="grid" count="3 3 3"
+                  radius="0.01" dim="3"mass="1">
+            <pin id="2"/>
+            <plugin plugin="mujoco.elasticity.solid">
+              <config key="poisson" value="0.2"/>
+              <config key="young" value="5e4"/>
+            </plugin>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(flex_xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+
+  mjData* d = mj_makeData(m);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // -------------------------------- shell -----------------------------------
 TEST_F(ElasticityTest, ElasticEnergyShell) {
   static constexpr char cantilever_xml[] = R"(
@@ -144,6 +176,29 @@ TEST_F(PluginTest, ElasticEnergyMembrane) {
   mj_deleteModel(m);
 }
 
+TEST_F(ElasticityTest, InvalidThickness) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.elasticity.shell"/>
+  </extension>
+
+  <worldbody>
+    <composite type="particle" count="2 2 1" spacing="1">
+      <geom size=".025"/>
+      <plugin plugin="mujoco.elasticity.shell">
+        <config key="thickness" value="hello"/>
+      </plugin>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::IsNull());
+}
+
 // -------------------------------- solid -----------------------------------
 TEST_F(ElasticityTest, ElasticEnergySolid) {
   static constexpr char cantilever_xml[] = R"(
@@ -202,7 +257,6 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
 }
 
 // -------------------------------- cable -----------------------------------
-
 TEST_F(ElasticityTest, CantileverIntoCircle) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
@@ -300,29 +354,6 @@ TEST_F(ElasticityTest, InvalidMixedAttribute) {
   char error[1024] = {0};
 
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::IsNull());
-}
-
-TEST_F(ElasticityTest, InvalidThickness) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
-  <worldbody>
-    <composite type="particle" count="2 2 1" spacing="1">
-      <geom size=".025"/>
-      <plugin plugin="mujoco.elasticity.shell">
-        <config key="thickness" value="hello"/>
-      </plugin>
-    </composite>
-  </worldbody>
-  </mujoco>
-  )";
-
-  char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m, testing::IsNull());
 }
 

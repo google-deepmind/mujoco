@@ -163,7 +163,7 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
 //  input: pair of 2D points in d[4], radius
 //  output: pair of 2D points in pnt[4]; return 0 if wrap, -1 if no wrap
 static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
-  // algorithm paramters
+  // algorithm parameters
   const int maxiter = 20;
   const mjtNum zinit = 1 - 1e-7;
   const mjtNum tolerance = 1e-6;
@@ -455,6 +455,33 @@ void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
 
 //------------------------------ actuator models ---------------------------------------------------
 
+// normalized muscle length-gain curve
+mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax) {
+  if (lmin <= length && length <= lmax) {
+    // mid-ranges (maximum is at 1.0)
+    mjtNum a = 0.5*(lmin+1);
+    mjtNum b = 0.5*(1+lmax);
+
+    if (length <= a) {
+      mjtNum x = (length-lmin) / mjMAX(mjMINVAL, a-lmin);
+      return 0.5*x*x;
+    } else if (length <= 1) {
+      mjtNum x = (1-length) / mjMAX(mjMINVAL, 1-a);
+      return 1 - 0.5*x*x;
+    } else if (length <= b) {
+      mjtNum x = (length-1) / mjMAX(mjMINVAL, b-1);
+      return 1 - 0.5*x*x;
+    } else {
+      mjtNum x = (lmax-length) / mjMAX(mjMINVAL, lmax-b);
+      return 0.5*x*x;
+    }
+  }
+
+  return 0.0;
+}
+
+
+
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)
 mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
                       mjtNum acc0, const mjtNum prm[9]) {
@@ -472,11 +499,6 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
     force = scale / mjMAX(mjMINVAL, acc0);
   }
 
-  // mid-ranges
-  mjtNum a = 0.5*(lmin+1);
-  mjtNum b = 0.5*(1+lmax);
-  mjtNum x;
-
   // optimum length
   mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mjMAX(mjMINVAL, range[1]-range[0]);
 
@@ -485,20 +507,7 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
   mjtNum V = vel / mjMAX(mjMINVAL, L0*vmax);
 
   // length curve
-  mjtNum FL = 0;
-  if (L >= lmin && L <= a) {
-    x = (L-lmin) / mjMAX(mjMINVAL, a-lmin);
-    FL = 0.5*x*x;
-  } else if (L <= 1) {
-    x = (1-L) / mjMAX(mjMINVAL, 1-a);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= b) {
-    x = (L-1) / mjMAX(mjMINVAL, b-1);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= lmax) {
-    x = (lmax-L) / mjMAX(mjMINVAL, lmax-b);
-    FL = 0.5*x*x;
-  }
+  mjtNum FL = mju_muscleGainLength(L, lmin, lmax);
 
   // velocity curve
   mjtNum FV;
@@ -833,6 +842,52 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
     // evaluate result
     return mju_exp(-b*t/2) * (c1*mju_cos(w*t) + c2*mju_sin(w*t));
   }
+}
+
+
+
+// return 1 if point is outside box given by pos, mat, size * inflate
+// return -1 if point is inside box given by pos, mat, size / inflate
+// return 0 if point is between the inflated and deflated boxes
+int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                   const mjtNum size[3], mjtNum inflate) {
+  // check inflation coefficient
+  if (inflate < 1) {
+    mjERROR("inflation coefficient must be >= 1")
+  }
+
+  // vector from pos to point, projected to box frame
+  mjtNum vec[3] = {point[0]-pos[0], point[1]-pos[1], point[2]-pos[2]};
+  mju_rotVecMatT(vec, vec, mat);
+
+  // big: inflated box
+  mjtNum big[3] = {size[0], size[1], size[2]};
+  if (inflate > 1) {
+    mju_scl3(big, big, inflate);
+  }
+
+  // check if outside big box
+  if (vec[0] > big[0] || vec[0] < -big[0] ||
+      vec[1] > big[1] || vec[1] < -big[1] ||
+      vec[2] > big[2] || vec[2] < -big[2]) {
+    return 1;
+  }
+
+  // quick return if no inflation
+  if (inflate == 1) {
+    return -1;
+  }
+
+  // check if inside small (deflated) box
+  mjtNum small[3] = {size[0]/inflate, size[1]/inflate, size[2]/inflate};
+  if (vec[0] < small[0] && vec[0] > -small[0] &&
+      vec[1] < small[1] && vec[1] > -small[1] &&
+      vec[2] < small[2] && vec[2] > -small[2]) {
+    return -1;
+  }
+
+  // within margin between small and big box
+  return 0;
 }
 
 

@@ -171,7 +171,7 @@ The following features are **fully supported** in MJX:
 .. list-table::
    :width: 90%
    :align: left
-   :widths: 1 5
+   :widths: 2 5
    :header-rows: 1
 
    * - Category
@@ -181,10 +181,13 @@ The following features are **fully supported** in MJX:
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINT``
-   * - :ref:`Actuation <geactuation>`
-     - ``DYN_NONE``, ``DYN_INTEGRATOR``, ``DYN_FILTER``, ``GAIN_FIXED``, ``GAIN_AFFINE``, ``BIAS_NONE``,
-       ``BIAS_AFFINE``
+     - ``TRN_JOINT``, ``TRN_SITE``
+   * - :ref:`Actuator Dynamics <mjtDyn>`
+     - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
+   * - :ref:`Actuator Gain <mjtGain>`
+     - ``FIXED``, ``AFFINE``
+   * - :ref:`Actuator Bias <mjtBias>`
+     - ``NONE``, ``AFFINE``
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
@@ -198,7 +201,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Condim <coContact>`
      - 3
    * - :ref:`Solver <mjtSolver>`
-     - ``CG``
+     - ``CG``, ``NEWTON``
    * - Fluid Model
      - :ref:`flInertia`
 
@@ -207,7 +210,7 @@ The following features are **in development** and coming soon:
 .. list-table::
    :width: 90%
    :align: left
-   :widths: 1 5
+   :widths: 2 5
    :header-rows: 1
 
    * - Category
@@ -216,18 +219,24 @@ The following features are **in development** and coming soon:
      - :ref:`Inverse <mj_inverse>`
    * - :ref:`Transmission <mjtTrn>`
      - ``TRN_TENDON``
+   * - :ref:`Actuator Dynamics <mjtDyn>`
+     - ``MUSCLE``
+   * - :ref:`Actuator Gain <mjtGain>`
+     - ``MUSCLE``
+   * - :ref:`Actuator Bias <mjtBias>`
+     - ``MUSCLE``
+   * - :ref:`Tendon Wrapping <mjtWrap>`
+     - ``NONE``, ``JOINT``, ``PULLEY``, ``SITE``, ``SPHERE``, ``CYLINDER``
    * - :ref:`Geom <mjtGeom>`
-     - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``, ``SDF``
+     - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - :ref:`Cone <mjtCone>`
      - ``ELLIPTIC``
    * - :ref:`Condim <coContact>`
      - 1, 4, 6
-   * - :ref:`Solver <mjtSolver>`
-     - ``NEWTON``
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
@@ -235,24 +244,32 @@ The following features are **in development** and coming soon:
    * - :ref:`Equality <mjtEq>`
      - ``TENDON``
    * - :ref:`Sensors <mjtSensor>`
-     - All except ``mjSENS_PLUGIN``, ``mjSENS_USER``
+     - All except ``PLUGIN``, ``USER``
 
 The following features are **unsupported**:
 
 .. list-table::
    :width: 90%
    :align: left
-   :widths: 1 5
+   :widths: 2 5
    :header-rows: 1
 
    * - Category
      - Feature
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_SITE``, ``TRN_BODY``, ``MUSCLE``
+     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_BODY``
+   * - :ref:`Actuator Dynamics <mjtDyn>`
+     - ``USER``
+   * - :ref:`Actuator Gain <mjtGain>`
+     - ``USER``
+   * - :ref:`Actuator Bias <mjtBias>`
+     - ``USER``
    * - :ref:`Solver <mjtSolver>`
      - ``PGS``
-   * - :ref:`Callbacks <glphysics>`
-     - ``mjDYN_USER``, ``mjGAIN_USER``, ``mjBIAS_USER``, ``mjSENS_USER``
+   * - :ref:`Sensors <mjtSensor>`
+     - ``PLUGIN``, ``USER``
+   * - :ref:`Geom <mjtGeom>`
+     - ``SDF``
 
 .. _MjxSharpBits:
 
@@ -271,6 +288,22 @@ Single scene simulation
   Simulating a single scene (1 instance of :ref:`mjData`), MJX can be **10x** slower than MuJoCo, which has been
   carefully optimized for CPU.  MJX works best when simulating thousands or tens of thousands of scenes in parallel.
 
+Collisions between large meshes
+  MJX supports collisions between convex mesh geometries. However the convex collision algorithms
+  in MJX are implemented differently than in MuJoCo. MJX uses a branchless version of the
+  `Separating Axis Test <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__
+  (SAT) to determine if geometries are colliding with convex meshes, while MuJoCo uses the Minkowski Portal Refinement (MPR)
+  algorithm as implemented in `libccd <https://github.com/danfis/libccd>`__.
+  SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
+
+  For
+  collisions between convex meshes and primitives (spheres, capsules, planes), use **3000 vertices or less** for your convex meshes.
+  For collisions between convex meshes and other convex meshes, use **30 vertices or less**.
+  With careful
+  tuning, MJX can simulate scenes with mesh collisions -- see the MJX
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+  config for an example. Speeding up mesh collision detection is an active area of development for MJX.
+
 Large, complex scenes with many contacts
   Accelerators exhibit poor performance for
   `branching code <https://aschrein.github.io/jekyll/update/2019/06/13/whatsup-with-my-branches-on-gpu.html#tldr>`__.
@@ -278,25 +311,20 @@ Large, complex scenes with many contacts
   bodies in a scene.  MJX ships with a simple branchless broad-phase algorithm (see performance tuning) but it is not as
   powerful as the one in MuJoCo.
 
-  To see how this affects simulation, let us consider a physics scene with increasing numbers of physics bodies.  We
-  simulate a scene with a variable number of humanoids (from 1 to 10) and then compare MJX's performance on an Nvidia
-  A100 GPU to MuJoCo on a 12-core workstation:
+  To see how this affects simulation, let us consider a physics scene with increasing numbers of humanoid bodies,
+  varied from 1 to 10. We simulate this scene using CPU MuJoCo on an Apple M3 Max and a 64-core AMD 3995WX and time
+  it using :ref:`testspeed<saTestspeed>`, using ``2 x numcore`` threads. We time the MJX simulation on an Nvidia
+  A100 GPU using a batch size of 8192 and an 8-chip
+  `v5 TPU <https://cloud.google.com/blog/products/compute/announcing-cloud-tpu-v5e-and-a3-gpus-in-ga>`__
+  machine using a batch size of 16384. Note the vertical scale is logarithmic.
 
-  .. figure:: images/mjx/mujoco_vs_mjx_large_scene.png
-   :width: 658px
-   :align: center
+  .. figure:: images/mjx/SPS.svg
+     :width: 95%
+     :align: center
 
-  Notice that as we increase the number of humanoids (which increases the number of potential contacts in a scene), MJX
-  performance degrades more rapidly than MuJoCo.  At the limit, for such a large scene, MuJoCo performance nearly
-  matches MJX.
-
-Scenes with collisions between meshes with many vertices
-  MJX supports mesh geometries and can determine if two meshes are colliding using branchless versions of
-  `mesh collision algorithms <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__.
-  These algorithms work well for smaller meshes (with hundreds of vertices) but suffer with large meshes. With careful
-  tuning, MJX can simulate scenes with mesh collisions well -- see the MJX
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
-  config for an example.
+  The values for a single humanoid (leftmost datapoints) for the four timed architectures are **650K**, **1.8M**,
+  **950K** and **2.7M** steps per second, respectively. Note that as we increase the number of humanoids (which
+  increases the number of potential contacts in a scene), MJX throughput decreases more rapidly than MuJoCo.
 
 .. _MjxPerformance:
 
@@ -306,10 +334,11 @@ Performance tuning
 For MJX to perform well, some configuration parameters should be adjusted from their default MuJoCo values:
 
 :ref:`option` element
-  For now, solver must be set to ``CG`` (but Newton is on its way!).  The ``iterations`` and ``ls_iterations``
-  attributes---which control solver and linesearch iterations, respectively---should be brought down to just low enough
-  that the simulation remains stable.  Accurate solver forces are not so important in reinforcement learning in which
-  domain randomization is often used to add noise to physics for sim2real.
+  The ``iterations`` and ``ls_iterations`` attributes---which control solver and linesearch iterations, respectively---
+  should be brought down to just low enough that the simulation remains stable.  Accurate solver forces are not so
+  important in reinforcement learning in which domain randomization is often used to add noise to physics for sim-to-real.
+  The ``NEWTON`` :ref:`Solver <mjtSolver>` often delivers reasonable convergence with one solver iteration, and performs
+  well on GPU.  ``CG`` is currently a better choice for TPU.
 
 :ref:`contact-pair` element
   Consider explicitly marking geoms for collision detection to reduce the number of contacts that MJX must consider
@@ -320,3 +349,21 @@ For MJX to perform well, some configuration parameters should be adjusted from t
 
 :ref:`option-flag` element
   Disabling ``eulerdamp`` can help performance and is often not needed for stability.
+
+:ref:`option-jacobian` element
+  Explicitly setting "dense" or "sparse" may speed up simulation depending on your device. Modern TPUs have specialized
+  hardware for rapidly operating over sparse matrices, whereas GPUs tend to be faster with dense matrices as long as
+  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv`` is 60 or
+  greater, or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse" with the
+  Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup of 10%
+  to 20%, as long as the dense matrices can fit on the device.
+
+GPU performance tuning
+----------------------
+
+The following environment variables should be set:
+
+``XLA_FLAGS=--xla_gpu_triton_gemm_any=true``
+  This enables the Triton-based GEMM (matmul) emitter for any GEMM that it supports.  This can yield a 30% speedup on
+  NVIDIA GPUs.  If you have multiple GPUs, you may also benefit from enabling flags related to
+  `communciation between GPUs <https://jax.readthedocs.io/en/latest/gpu_performance_tips.html>`__.

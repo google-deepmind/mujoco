@@ -18,6 +18,7 @@
                  -1.618     0       1
                  -1.618     0      -1"/>
     <hfield name="hfield" nrow="3" ncol="3" size=".2 .2 .1 .03"/>
+    <texture builtin="gradient" height="100" rgb1="1 1 1" rgb2="0 0 0" type="skybox" width="100"/>
   </asset>
 
   <default>

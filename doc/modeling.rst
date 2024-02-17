@@ -204,16 +204,21 @@ cameras and lights.
 A related attribute is :ref:`compiler/angle<compiler-angle>`. It specifies whether angles in the MJCF file are expressed
 in degrees or radians (after compilation, angles are always expressed in radians).
 
+Positions are specified using
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   Position relative to parent.
+
 .. _COrientation:
 
 Frame orientations
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 Several model elements have right-handed spatial frames associated with them. These are all the elements defined in the
 kinematic tree except for joints. A spatial frame is defined by its position and orientation. Specifying 3D positions is
 straightforward, but specifying 3D orientations can be challenging. This is why MJCF provides several alternative
-mechanisms. No matter which mechanism the user chooses, the frame orientation is always represented as a unit quaternion
-after compilation. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
+mechanisms. No matter which mechanism the user chooses, the frame orientation is always converted internally to a unit
+quaternion. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
 corresponds to the quaternion :math:`(\cos(a/2), \: \sin(a/2) \cdot (x, y, z))`. Also recall that every 3D orientation
 can be uniquely specified by a single 3D rotation by some angle around some axis.
 
@@ -267,6 +272,7 @@ approximately
 
 .. math::
    \ac + d \cdot (b v + k r) = (1 - d)\cdot \au
+   :label: eq:constraint
 
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
@@ -312,7 +318,15 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    units of :math:`\text{width}`. Note that when :math:`\text{power}` is 1, the function is linear regardless of the
    :math:`\text{midpoint}`.
 
-   |image0|
+   .. image:: images/modeling/impedance.png
+      :width: 600px
+      :align: center
+      :class: only-light
+
+   .. image:: images/modeling/impedance_dark.png
+      :width: 600px
+      :align: center
+      :class: only-dark
 
    These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
    on the horizontal axis.
@@ -338,12 +352,9 @@ Next we explain the setting of the stiffness :math:`k` and damping :math:`b` whi
 
 .. admonition:: Intuitive description of the **reference acceleration**
 
-   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in
-   order to rectify violation. For example, consider a contact between a motionless free body pulled down by gravity
-   onto a static plane geom. Since there is no motion, the penetration will be entirely determined by the impedance
-   while the reference has no effect. Now imagine that the body is dropped onto the plane. Upon impact the constraint
-   will generate a normal force which attempts to rectify the penetration using a particular motion; this motion is
-   the reference acceleration.
+   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in order to
+   rectify violation. Imagine a body dropped onto the plane. Upon impact the constraint will generate a normal force
+   which attempts to rectify the penetration using a particular motion; this motion is the reference acceleration.
 
    Another way of understanding the reference acceleration is to think of the unmodeled deformation variables
    described in the :ref:`Computation chapter<soPrimal>`. Imagine two bodies pressed together, leading to deformation at
@@ -388,7 +399,12 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
    <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
-   over-damped constraints.
+   over-damped constraints. Combining the above formula with :eq:`eq:constraint`, we can derive the following result.
+   If the reference acceleration is given using the positive number format and the impedance is constant
+   :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{timeconst}^2 \cdot \text{dampratio}^2
 
    Next we describe the direct format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This
    allows direct control over restitution in particular. We still apply some scaling so that the same numbers can be
@@ -398,8 +414,14 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    .. math::
       \begin{aligned}
       b &= \text{damping} / d_\text{width} \\
-      k &= \text{stiffness} / d_\text{width}^2 \\
+      k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
+
+   Similarly to the above derivation, if the reference acceleration is given using the negative number format and the
+   impedance is constant, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{stiffness}
 
 .. tip::
    In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
@@ -453,7 +475,7 @@ solref, solimp
    If one of the two geoms has higher priority, its solref and solimp parameters are used. If both geoms have the same
    priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e., weight1 =
    solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging
-   rule. If solref for either geom is non-positive, i.e., it relies on the new direct format introduced in MuJoCo 2.0,
+   rule. If solref for either geom is non-positive, i.e., it relies on the direct format,
    then the element-wise minimum is used regardless of solmix. This is because averaging solref parameters in different
    formats would be meaningless.
 
@@ -792,7 +814,7 @@ can be either in degrees (the default) or radians, depending on the :ref:`compil
 Muscles
 '''''''
 
-MuJoCo 2.0 provides a set of tools for modeling biological muscles. Users who want to add muscles with minimum
+We provide a set of tools for modeling biological muscles. Users who want to add muscles with minimum
 effort can do so with a single line of XML in the actuator section:
 
 .. code-block:: xml
@@ -851,7 +873,15 @@ The advantage of the scaled quantities is that all muscles behave similarly in t
 captured by the Force-Length-Velocity (:math:`\text{\small FLV}`) function measured in many experimental papers. We
 approximate this function as follows:
 
-|image1|
+.. image:: images/modeling/musclemodel.png
+   :width: 650px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclemodel_dark.png
+   :width: 650px
+   :align: center
+   :class: only-dark
 
 The function is in the form:
 
@@ -893,7 +923,15 @@ Before embarking on a mission to design more accurate :math:`\text{\small FLV}` 
 operating range of the muscle has a bigger effect than the shape of the :math:`\text{\small FLV}` function, and in many
 cases this parameter is unknown. Below is a graphical illustration:
 
-|image2|
+.. image:: images/modeling/musclerange.png
+   :width: 500px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclerange_dark.png
+   :width: 500px
+   :align: center
+   :class: only-dark
 
 This figure format is common in the biomechanics literature, showing the operating range of each muscle superimposed on
 the normalized :math:`\text{FL}` curve (ignore the vertical displacement). Our default range is shown in black. The blue
@@ -992,13 +1030,13 @@ be 0. This effect can be approximated by scaling down the muscle force and also 
 
 Tendon wrapping is also more limited in MuJoCo. We allow spheres and infinite cylinders as wrapping objects, and require
 two wrapping objects to be separated by a fixed site in the tendon path. This is to avoid the need for iterative
-computations of tendon paths. As of MuJoCo 2.0 we also allow "side sites" to be placed inside the sphere or cylinder,
+computations of tendon paths. We also allow "side sites" to be placed inside the sphere or cylinder,
 which causes an inverse wrap: the tendon path is constrained to pass through the object instead of going around it. This
 can replace torus wrapping objects used in OpenSim to keep the tendon path within a given area. Overall, tendon wrapping
 is the most challenging part of converting an OpenSim model to a MuJoCo model, and requires some manual work. On the
 bright side, there is a small number of high-quality OpenSim models in use, so once they are converted we are done.
 
-Below we illustrate the four types of tendon wrapping available in MuJoCo 2.0. Note that the curved sections of the
+Below we illustrate the four types of tendon wrapping available. Note that the curved sections of the
 wrapping tendons are rendered as straight, but the geometry pipeline works with the actual curves and computes their
 lengths and moments analytically:
 
@@ -1058,8 +1096,7 @@ Intrinsics
 Composite objects
 ~~~~~~~~~~~~~~~~~
 
-Composite objects were introduced in MuJoCo 2.0, along with solver optimizations to speed up the simulation of such
-objects. They are not new model elements. Instead, they are (large) collections of existing elements designed to
+Composite objects are not new model elements. Instead, they are (large) collections of existing elements designed to
 simulate particle systems, ropes, cloth, and soft bodies. These collections are generated by the model compiler
 automatically. The user configures the automatic generator on a high level, using the new XML element
 :ref:`composite <body-composite>` and its attributes and sub-elements, as described in the XML reference
@@ -1081,7 +1118,7 @@ of these equality constraints can be adjusted by the user, thereby adjusting the
 composite objects.
 
 In addition to setting up the physics, the composite object generator creates suitable rendering. 2D and 3D objects
-can be rendered as :ref:`skins <asset-skin>` which are also new in MuJoCo 2.0. The skin is generated
+can be rendered as :ref:`skins <asset-skin>`. The skin is generated
 automatically, and can be textured as well as subdivided using bi-cubic interpolation. The actual physics and in
 particular the collision detection are based on the element bodies and their geoms, while the skin is purely a
 visualization object. Yet in most situations we prefer to look at the skin representation. To facilitate this, the
@@ -1089,13 +1126,12 @@ generator places all geoms, sites and tendons in group 3 whose visualization is 
 a 2D grid for example, you will see a continuous flexible surface and not a collection of spheres connected with
 tendons. However when fine-tuning the model and trying to understand the physics behind it, it is useful to be able to
 render the spheres and tendons. To switch the rendering style, disable the rendering of skins and enable group 3 for
-geoms and tendons (note that starting with MuJoCo 2.0 we have added a group property to sites, tendons and joints in
-addition to geoms).
+geoms and tendons.
 
 We have designed the composite object generator to have intuitive high-level controls as much as possible, but at the
 same time it exposes a large number of options that interact with each other and can profoundly affect the resulting
 physics. So at some point users should read the :ref:`reference documentation <body-composite>` carefully.
-As a quick start though, MuJoCo 2.0 comes with an example of each composite object type. Below we go over these
+As a quick start though, MuJoCo comes with an example of each composite object type. Below we go over these
 examples and explain the less obvious aspects. In all examples we have a static scene which is included in the model,
 followed by a single composite object. The static scene has a mocap body (large capsule) that can be moved around with
 the mouse to probe the behavior of the system. The XML snippets below are just the definition of the composite object;
@@ -1299,7 +1335,9 @@ A flex is a collection of MuJoCo bodies that are connected with massless stretch
 capsules (1D flex), triangles (2D flex), or tetrahedra (3D flex). In all cases we allow a radius, which makes the
 elements smooth and also volumetric in 1D and 2D. The primitive elements are illustrated below:
 
-|flexelem|
+.. image:: images/modeling/flexelem.png
+   :width: 600px
+   :align: center
 
 Thus far these look like geoms. But the key difference is that they deform: as the bodies (vertices) move independently
 of each other, the shape of the elements changes in real time. Collisions and contact forces are now generalized to
@@ -1332,6 +1370,8 @@ into the engine in future releases.
 
 .. code-block:: xml
 
+   <option timestep=".001"/>
+
    <extension>
       <plugin plugin="mujoco.elasticity.solid"/>
    </extension>
@@ -1360,7 +1400,8 @@ In case of 3D flexes made of tetrahedra, it may be useful to examine how the fle
 a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
 has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
 collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
-resolution.
+resolution. In order to convert a surface mesh to a tetrahedral mesh, we recommend open tools like the
+`fTetWild library <https://github.com/wildmeshing/fTetWild>`__.
 
 |bunny1| |bunny2|
 
@@ -1490,7 +1531,7 @@ mocap bodies around:
 The key thing to understand about mocap bodies is that the simulator treats them as being fixed. We are causing them
 to move from one simulation time step to the next by updating their position and orientation directly, but as far as
 the physics model is concerned their position and orientation are constant. So what happens if we make contact with a
-regular dynamic body, as in the composite object examples provided with the MuJoCo 2.0 distribution (recall that in
+regular dynamic body, as in the composite object examples provided with the MuJoCo distribution (recall that in
 those example we have a capsule probe which is a mocap body that we move with the mouse). A contact between two
 regular bodies will experience penetration as well as relative velocity, while contact with a mocap body is missing
 the relative velocity component because the simulator does not know that the mocap body itself is moving. So the
@@ -1642,7 +1683,7 @@ the same yet the damping component of the force is integrated implicitly.
 Restitution
 ~~~~~~~~~~~
 
-MuJoCo 2.0 introduced a new mechanism for specifying :at:`solref` as explained in :ref:`Solver parameters <CSolver>`.
+Another mechanism exists for specifying :at:`solref`, as explained in :ref:`Solver parameters <CSolver>`.
 When both numbers are non-positive, they are interpreted as (-stiffness, -damping) and scaled by the constraint
 impedance. To achieve perfect restitution for contacts and other constraints, set stiffness to some reasonably large
 value and damping to zero. Below is an example of a sphere bouncing on a plane with restitution coefficient of 1, so
@@ -1663,12 +1704,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    </worldbody>
 
 
-.. |image0| image:: images/modeling/impedance.png
-   :width: 600px
-.. |image1| image:: images/modeling/musclemodel.png
-   :width: 650px
-.. |image2| image:: images/modeling/musclerange.png
-   :width: 400px
 .. |image3| image:: images/modeling/tendonwraps.png
    :width: 500px
 .. |image4| image:: images/modeling/particle.png
@@ -1705,8 +1740,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
-.. |flexelem| image:: images/modeling/flexelem.png
-   :width: 400px
 .. |bunny1| image:: images/modeling/bunny1.png
    :width: 300px
 .. |bunny2| image:: images/modeling/bunny2.png

@@ -130,6 +130,7 @@ class Simulate {
   mjOption mjopt_prev_;
   mjvOption opt_prev_;
   mjvCamera cam_prev_;
+
   int warn_vgeomfull_prev_;
 
   // pending GUI-driven actions, to be applied at the next call to Sync
@@ -247,6 +248,7 @@ class Simulate {
 
   // additional user-defined visualization geoms (used in passive mode)
   mjvScene* user_scn = nullptr;
+  mjtByte user_scn_flags_prev_[mjNRNDFLAG];
 
   // OpenGL rendering and UI
   int refresh_rate = 60;

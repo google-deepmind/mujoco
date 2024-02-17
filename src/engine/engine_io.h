@@ -35,7 +35,7 @@ extern "C" {
 // Set default options for length range computation.
 MJAPI void mj_defaultLROpt(mjLROpt* opt);
 
-// set default solver paramters
+// set default solver parameters
 MJAPI void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
 
 // set options to default values
@@ -87,9 +87,12 @@ MJAPI const char* mj_validateReferences(const mjModel* m);
 
 //------------------------------- mjData -----------------------------------------------------------
 
-// Allocate mjData corresponding to given model.
-// If the model buffer is unallocated the initial configuration will not be set.
+// allocate mjData corresponding to given model, initialize plugins, reset the state
+// if the model buffer is unallocated the initial configuration will not be set
 MJAPI mjData* mj_makeData(const mjModel* m);
+
+// allocate mjData corresponding to given model, used internally
+MJAPI mjData* mj_makeRawData(const mjModel* m);
 
 // Copy mjData.
 // m is only required to contain the size fields from MJMODEL_INTS.
@@ -101,7 +104,7 @@ MJAPI void mj_resetData(const mjModel* m, mjData* d);
 // set data to defaults, fill everything else with debug_value
 MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 
-// reset data, set fields from specified keyframe
+// Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // mjData arena allocate

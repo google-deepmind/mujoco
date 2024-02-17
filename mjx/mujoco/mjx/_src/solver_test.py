@@ -12,119 +12,110 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Tests for forward functions."""
+"""Tests for constraint functions."""
 
 from absl.testing import absltest
-from absl.testing import parameterized
-from etils import epath
 import jax
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import test_util
 import numpy as np
 
 
-def _assert_attr_eq(a, b, attr, step, fname, atol=1e-2, rtol=1e-2):
-  err_msg = f'mismatch: {attr} at step {step} in {fname}'
-  a, b = getattr(a, attr), getattr(b, attr)
-  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
+# tolerance for difference between MuJoCo and MJX constraint calculations,
+# mostly due to float precision
+_TOLERANCE = 5e-5
 
 
-class Solver64Test(parameterized.TestCase):
-  """Tests solvers at 64 bit precision."""
+def _assert_eq(a, b, name, tol=_TOLERANCE):
+  tol = tol * 10  # avoid test noise
+  err_msg = f'mismatch: {name}'
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
-  def setUp(self):
-    super().setUp()
-    jax.config.update('jax_enable_x64', True)
 
-  def tearDown(self):
-    super().tearDown()
-    jax.config.update('jax_enable_x64', False)
+def _assert_attr_eq(a, b, attr, tol=_TOLERANCE):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr, tol=tol)
 
-  @parameterized.parameters(enumerate(('ant.xml', 'humanoid.xml')))
-  def test_cg(self, seed, fname):
-    """Test mjx cg solver matches mujoco cg solver at 64 bit precision."""
-    f = epath.resource_path('mujoco.mjx') / 'test_data' / fname
-    m = mujoco.MjModel.from_xml_string(f.read_text())
+
+class SolverTest(absltest.TestCase):
+
+  def test_newton(self):
+    """Test newton solver."""
+    m = test_util.load_test_file('constraints.xml')
+    # it's critical that mgrad is optimally calculated, so lower iterations
+    # to be sure that MJX is converging as quickly as MuJoCo
+    m.opt.iterations = 1
     d = mujoco.MjData(m)
-    mx = mjx.device_put(m)
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
 
-    jax.config.update('jax_enable_x64', True)
-    forward_jit_fn = jax.jit(mjx.forward)
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
 
-    # give the system a little kick to ensure we have non-identity rotations
-    np.random.seed(seed)
-    d.qvel = 0.01 * np.random.random(m.nv)
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
 
-    for i in range(100):
-      # in order to avoid re-jitting, reuse the same mj_data shape
-      save = d.qpos, d.qvel, d.time, d.qacc_warmstart, d.qacc_smooth
-      d = mujoco.MjData(m)
-      d.qpos, d.qvel, d.time, d.qacc_warmstart, d.qacc_smooth = save
-      dx = mjx.device_put(d)
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
 
-      mujoco.mj_step(m, d)
-      dx = forward_jit_fn(mx, dx)
-
-      # at 64 bits the solutions returned by the two solvers are quite close
-      self.assertLessEqual(dx.solver_niter[0], d.solver_niter[0])
-      _assert_attr_eq(d, dx, 'qfrc_constraint', i, fname)
-      _assert_attr_eq(d, dx, 'qacc', i, fname)
-
-
-class SolverTest(parameterized.TestCase):
-
-  @parameterized.parameters(enumerate(('ant.xml', 'humanoid.xml')))
-  def test_cg(self, seed, fname):
-    """Test mjx cg solver is close to mj at 32 bit precision.
-
-    Args:
-      seed: int
-      fname: file to test
-
-    At lower float resolution there's wiggle room in valid forces that satisfy
-    constraints.  So instead let's mainly validate that mjx is finding solutions
-    with as good cost as mujoco, even if the resulting forces/accelerations
-    are not quite the same.
-    """
-    f = epath.resource_path('mujoco.mjx') / 'test_data' / fname
-    m = mujoco.MjModel.from_xml_string(f.read_text())
+  def test_cg(self):
+    """Test CG solver."""
+    m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
-    mx = mjx.device_put(m)
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
 
-    forward_jit_fn = jax.jit(mjx.forward)
+    # CG does not converge as quickly as Newton but is cheaper to calculate
+    m.opt.solver = mujoco.mjtSolver.mjSOL_CG
+    m.opt.iterations = 8
 
-    # give the system a little kick to ensure we have non-identity rotations
-    np.random.seed(seed)
-    d.qvel = 0.01 * np.random.random(m.nv)
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
 
-    for i in range(100):
-      # in order to avoid re-jitting, reuse the same mj_data shape
-      save = d.qpos, d.qvel, d.time, d.qacc_warmstart, d.qacc_smooth
-      d = mujoco.MjData(m)
-      d.qpos, d.qvel, d.time, d.qacc_warmstart, d.qacc_smooth = save
-      dx = mjx.device_put(d)
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
 
-      mujoco.mj_step(m, d)
-      dx = forward_jit_fn(mx, dx)
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint', tol=8e-4)
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=5e-4)
 
-      def cost(qacc):
-        jaref = np.zeros(d.nefc)
-        mujoco.mj_mulJacVec(m, d, jaref, qacc)
-        jaref -= d.efc_aref
-        cost = np.array([0.0])
-        mujoco.mj_constraintUpdate(m, d, jaref, cost, 0)
-        return cost[0]
+  def test_no_warmstart(self):
+    """Test no warmstart."""
+    m = test_util.load_test_file('constraints.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
+    m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_WARMSTART
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    nnz = dx.efc_J.any(axis=1)
+    # without warmstart, the solution is not as close
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-2)
 
-      cost_mj, cost_mjx = cost(d.qacc), cost(dx.qacc)
+  def test_sparse(self):
+    """Test solver works with sparse mass matrices."""
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
 
-      self.assertLessEqual(
-          cost_mjx,
-          cost_mj * 1.01,
-          msg=f'mismatch: {fname} at step {i}, cost too high',
-      )
-      _assert_attr_eq(d, dx, 'qfrc_constraint', i, fname, atol=1e-1, rtol=1e-1)
-      _assert_attr_eq(d, dx, 'qacc', i, fname, atol=1e-1, rtol=1e-1)
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
 
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
 
 if __name__ == '__main__':
   absltest.main()

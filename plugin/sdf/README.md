@@ -95,6 +95,6 @@ class MySDF {
   mjtNum attribute[MySDFAttribute::nattribute];
 
  private:
-  Torus(const mjModel* m, mjData* d, int instance);
+  MySDF(const mjModel* m, mjData* d, int instance);
 };
 ```

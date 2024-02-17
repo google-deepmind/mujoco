@@ -28,7 +28,8 @@ _MODEL_PATH = flags.DEFINE_string('mjcf', None, 'Path to a MuJoCo MJCF file.',
                                   required=True)
 
 
-def main(argv: Sequence[str]) -> None:
+def _main(argv: Sequence[str]) -> None:
+  """Launches MuJoCo passive viewer fed by MJX."""
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
@@ -37,24 +38,15 @@ def main(argv: Sequence[str]) -> None:
   print(f'Loading model from: {_MODEL_PATH.value}.')
   m = mujoco.MjModel.from_xml_path(_MODEL_PATH.value)
   d = mujoco.MjData(m)
+  mx = mjx.put_model(m)
+  dx = mjx.put_data(m, d)
 
-  # Override the solver option to CG since that is currently the only one
-  # supported by MJX.
-  m.opt.solver = mujoco.mjtSolver.mjSOL_CG
-
-  mx = mjx.device_put(m)
-  dx = mjx.make_data(mx)
-
-  dt = jax.device_get(mx.opt.timestep)
-  step_fn = jax.jit(mjx.step)
-
-  print(f'JAX default backend: {jax.default_backend()}')
-  print('JIT-compiling the MJX step (this may take a while)...')
+  print(f'Default backend: {jax.default_backend()}')
+  print('JIT-compiling the model physics step...')
   start = time.time()
-  dx = step_fn(mx, dx)
-  mjx.device_get_into(d, dx)
+  step_fn = jax.jit(mjx.step).lower(mx, dx).compile()
   elapsed = time.time() - start
-  print(f'JIT compilation took {elapsed}s.')
+  print(f'Compilation took {elapsed}s.')
 
   with mujoco.viewer.launch_passive(m, d) as v:
     while True:
@@ -72,13 +64,17 @@ def main(argv: Sequence[str]) -> None:
       })
 
       dx = step_fn(mx, dx)
-      mjx.device_get_into(d, dx)
+      mjx.get_data_into(d, m, dx)
       v.sync()
 
       elapsed = time.time() - start
-      if elapsed < dt:
-        time.sleep(dt - elapsed)
+      if elapsed < m.opt.timestep:
+        time.sleep(m.opt.timestep - elapsed)
+
+
+def main():
+  app.run(_main)
 
 
 if __name__ == '__main__':
-  app.run(main)
+  main()

@@ -191,9 +191,14 @@ void mjuu_mulquat(double* res, const double* qa, const double* qb) {
 
 // multiply vector by 3-by-3 matrix
 void mjuu_mulvecmat(double* res, const double* vec, const double* mat) {
-  res[0] = mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2];
-  res[1] = mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2];
-  res[2] = mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2];
+  double tmp[3] = {
+    mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2],
+    mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2],
+    mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
@@ -362,8 +367,8 @@ void mjuu_frame2quat(double* quat, const double* x, const double* y, const doubl
 
 
 // invert frame transformation
-void mjuu_frameinvert(double* newpos, double* newquat,
-                      const double* oldpos, const double* oldquat) {
+void mjuu_frameinvert(double newpos[3], double newquat[4],
+                      const double oldpos[3], const double oldquat[4]) {
   // position
   mjuu_localaxis(newpos, oldpos, oldquat);
   newpos[0] = -newpos[0];
@@ -379,28 +384,39 @@ void mjuu_frameinvert(double* newpos, double* newquat,
 
 
 // accumulate frame transformations (forward kinematics)
-void mjuu_frameaccum(double* pos, double* quat,
-                     const double* addpos, const double* addquat) {
+void mjuu_frameaccum(double pos[3], double quat[4],
+                     const double childpos[3], const double childquat[4]) {
   double mat[9], vec[3], qtmp[4];
   mjuu_quat2mat(mat, quat);
-  mjuu_mulvecmat(vec, addpos, mat);
+  mjuu_mulvecmat(vec, childpos, mat);
   pos[0] += vec[0];
   pos[1] += vec[1];
   pos[2] += vec[2];
-  mjuu_mulquat(qtmp, quat, addquat);
+  mjuu_mulquat(qtmp, quat, childquat);
   mjuu_copyvec(quat, qtmp, 4);
 }
 
 
+// accumulate frame transformation in second frame
+void mjuu_frameaccumChild(const double pos[3], const double quat[4],
+                          double childpos[3], double childquat[4]) {
+  double p[] = {pos[0], pos[1], pos[2]};
+  double q[] = {quat[0], quat[1], quat[2], quat[3]};
+  mjuu_frameaccum(p, q, childpos, childquat);
+  mjuu_copyvec(childpos, p, 3);
+  mjuu_copyvec(childquat, q, 4);
+}
+
+
 // invert frame accumulation
-void mjuu_frameaccuminv(double* pos, double* quat,
-                        const double* addpos, const double* addquat) {
+void mjuu_frameaccuminv(double pos[3], double quat[4],
+                        const double childpos[3], const double childquat[4]) {
   double mat[9], vec[3], qtmp[4];
-  double qneg[4] = {addquat[0], -addquat[1], -addquat[2], -addquat[3]};
+  double qneg[4] = {childquat[0], -childquat[1], -childquat[2], -childquat[3]};
   mjuu_mulquat(qtmp, quat, qneg);
   mjuu_copyvec(quat, qtmp, 4);
   mjuu_quat2mat(mat, quat);
-  mjuu_mulvecmat(vec, addpos, mat);
+  mjuu_mulvecmat(vec, childpos, mat);
   pos[0] -= vec[0];
   pos[1] -= vec[1];
   pos[2] -= vec[2];

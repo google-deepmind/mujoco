@@ -38,8 +38,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 301
-#define mjVERSIONSTRING "3.0.1"
+ #define mjVERSION 313
+#define mjVERSIONSTRING "3.1.3"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -89,7 +89,6 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_make",
   "pos_project",
   "col_broadphase",
-  "col_midphase",
   "col_narrowphase"
 };
 

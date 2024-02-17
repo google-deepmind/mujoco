@@ -14,111 +14,185 @@
 # ==============================================================================
 """Tests for forward functions."""
 
-import itertools
-
 from absl.testing import absltest
-from absl.testing import parameterized
 import jax
-from jax import numpy as jp
 import mujoco
 from mujoco import mjx
-from mujoco.mjx._src import forward
 from mujoco.mjx._src import test_util
-# pylint: disable=g-importing-member
-from mujoco.mjx._src.types import DisableBit
-# pylint: enable=g-importing-member
 import numpy as np
 
 
-def _assert_attr_eq(a, b, attr, step, fname, atol=1e-3, rtol=1e-3):
-  err_msg = f'mismatch: {attr} at step {step} in {fname}'
-  a, b = getattr(a, attr), getattr(b, attr)
-  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
+# tolerance for difference between MuJoCo and MJX forward calculations - mostly
+# due to float precision
+_TOLERANCE = 1e-5
 
 
-class ForwardTest(parameterized.TestCase):
+def _assert_eq(a, b, name, tol=_TOLERANCE):
+  tol = tol * 10  # avoid test noise
+  err_msg = f'mismatch: {name}'
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
-  @parameterized.parameters(enumerate(test_util.TEST_FILES))
-  def test_forward(self, seed, fname):
-    """Test mujoco mj forward function matches mujoco_mjx forward function."""
-    if fname in ('equality.xml',):
-      return
 
-    np.random.seed(seed)
+def _assert_attr_eq(a, b, attr, tol=_TOLERANCE):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr, tol=tol)
 
-    m = test_util.load_test_file(fname)
+
+class ForwardTest(absltest.TestCase):
+
+  def test_forward(self):
+    m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
-    mx = mjx.device_put(m)
-    dx = mjx.make_data(mx)
-    forward_jit_fn = jax.jit(mjx.forward)
+    # apply some control and xfrc input
+    d.ctrl = np.array([-18, 0.59, 0.47])
+    d.xfrc_applied[0, 2] = 0.1  # torque
+    d.xfrc_applied[1, 4] = 0.3  # linear force
+    mujoco.mj_step(m, d, 20)  # get some dynamics going
+    mujoco.mj_forward(m, d)
 
-    # give the system a little kick to ensure we have non-identity rotations
-    d.qvel = np.random.random(m.nv) * 0.05
-    for i in range(100):
-      qpos, qvel = d.qpos.copy(), d.qvel.copy()
-      mujoco.mj_step(m, d)
-      dx = forward_jit_fn(mx, dx.replace(qpos=qpos, qvel=qvel))
+    mx = mjx.put_model(m)
 
-      _assert_attr_eq(d, dx, 'qfrc_smooth', i, fname)
-      _assert_attr_eq(d, dx, 'qacc_smooth', i, fname)
+    # fwd_actuation
+    dx = jax.jit(mjx.fwd_actuation)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'act_dot')
+    _assert_attr_eq(d, dx, 'qfrc_actuator')
 
-  @parameterized.parameters(itertools.product(test_util.TEST_FILES, (0, 1)))
-  def test_step(self, fname, integrator_type):
-    """Test mujoco mj step matches mujoco_mjx step."""
-    if fname in (
-        'mixed_joint_pendulum.xml',
-        'ball_pendulum.xml',
-        'convex.xml',
-        'humanoid.xml',
-        'triple_pendulum.xml',  # TODO(b/301485081)
-        'equality.xml',
-    ):
-      # skip models with big constraint violations at step 0 or too slow to run
-      return
+    # fwd_accleration (fwd_position and fwd_velocity already tested elsewhere)
+    dx = jax.jit(mjx.fwd_acceleration)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_smooth')
+    _assert_attr_eq(d, dx, 'qacc_smooth')
 
-    np.random.seed(integrator_type)
-    m = test_util.load_test_file(fname)
-    step_jit_fn = jax.jit(forward.step)
+    # euler
+    dx = jax.jit(mjx.euler)(mx, mjx.put_data(m, d))
+    mujoco.mj_Euler(m, d)
+    _assert_attr_eq(d, dx, 'act')
+    _assert_attr_eq(d, dx, 'qpos')
+    _assert_attr_eq(d, dx, 'time')
 
-    m.opt.integrator = integrator_type
-    int_typ = 'euler' if integrator_type == 0 else 'rk4'
-    test_name = f'{fname} - {int_typ}'
-    steps = 100 if int_typ == 'euler' else 30
-    dt = m.opt.timestep
-    m.opt.timestep = dt if int_typ == 'euler' else dt * 3
+  def test_step(self):
+    m = test_util.load_test_file('constraints.xml')
+    d = mujoco.MjData(m)
+    # apply some control and xfrc input
+    d.ctrl = np.array([-18, 0.59, 0.47])
+    d.xfrc_applied[0, 2] = 0.1  # torque
+    d.xfrc_applied[1, 4] = 0.3  # linear force
+    mujoco.mj_step(m, d, 20)  # get some dynamics going
 
-    mx = mjx.device_put(m)
+    dx = jax.jit(mjx.step)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_step(m, d)
+    _assert_attr_eq(d, dx, 'act')
+    _assert_attr_eq(d, dx, 'time')
+    _assert_attr_eq(d, dx, 'qvel', tol=5e-4)
+    _assert_attr_eq(d, dx, 'qpos')
+
+  def test_rk4(self):
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <option integrator="RK4">
+            <flag constraint="disable"/>
+          </option>
+          <worldbody>
+            <geom type="plane" size="1 1 .01" pos="0 0 -1"/>
+            <body pos="0.15 0 0">
+              <joint type="hinge" axis="0 1 0"/>
+              <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+              <body pos="0.1 0 0">
+                <joint type="slide" axis="1 0 0" stiffness="200"/>
+                <geom type="capsule" size="0.015" fromto="-.1 0 0 .1 0 0"/>
+              </body>
+            </body>
+          </worldbody>
+        </mujoco>
+        """)
+
     d = mujoco.MjData(m)
     # give the system a little kick to ensure we have non-identity rotations
-    d.qvel = np.random.normal(m.nv) * 0.05
-    for i in range(steps):
-      # in order to avoid re-jitting, reuse the same mj_data shape
-      qpos, qvel = d.qpos, d.qvel
-      d = mujoco.MjData(m)
-      d.qpos, d.qvel = qpos, qvel
-      dx = mjx.device_put(d)
+    d.qvel = np.array([0.2, -0.1])
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
 
-      mujoco.mj_step(m, d)
-      dx = step_jit_fn(mx, dx)
+    dx = jax.jit(mjx.rungekutta4)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_RungeKutta(m, d, 4)
 
-      _assert_attr_eq(d, dx, 'qvel', i, test_name, atol=1e-2)
-      _assert_attr_eq(d, dx, 'qpos', i, test_name, atol=1e-2)
-      _assert_attr_eq(d, dx, 'act', i, test_name)
-      _assert_attr_eq(d, dx, 'time', i, test_name)
+    _assert_attr_eq(d, dx, 'qvel')
+    _assert_attr_eq(d, dx, 'qpos')
+    _assert_attr_eq(d, dx, 'act')
+    _assert_attr_eq(d, dx, 'time')
+
+  def test_eulerdamp(self):
+    m = test_util.load_test_file('pendula.xml')
+    self.assertTrue((m.dof_damping > 0).any())
+
+    d = mujoco.MjData(m)
+    d.qvel[:] = 1.0
+    d.qacc[:] = 1.0
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_Euler(m, d)
+
+    _assert_attr_eq(d, dx, 'qpos')
+
+    # also test sparse
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
+    d = mujoco.MjData(m)
+    d.qvel[:] = 1.0
+    d.qacc[:] = 1.0
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_Euler(m, d)
+
+    _assert_attr_eq(d, dx, 'qpos')
 
   def test_disable_eulerdamp(self):
-    m = test_util.load_test_file('ant.xml')
-    m.opt.disableflags = m.opt.disableflags | DisableBit.EULERDAMP
+    m = test_util.load_test_file('pendula.xml')
+    self.assertTrue((m.dof_damping > 0).any())
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.EULERDAMP
 
     d = mujoco.MjData(m)
-    mx = mjx.device_put(m)
-    self.assertTrue((mx.dof_damping > 0).any())
-    dx = mjx.device_put(d)
-    dx = jax.jit(forward.forward)(mx, dx)
+    d.qvel[:] = 1.0
+    d.qacc[:] = 1.0
+    dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
 
-    dx = dx.replace(qvel=jp.ones_like(dx.qvel), qacc=jp.ones_like(dx.qacc))
-    dx = jax.jit(forward._euler)(mx, dx)
     np.testing.assert_allclose(dx.qvel, 1 + m.opt.timestep)
+
+
+class ActuatorTest(absltest.TestCase):
+  _DYN_XML = """
+    <mujoco>
+      <compiler autolimits="true"/>
+      <worldbody>
+        <body name="box">
+          <joint name="slide1" type="slide" axis="1 0 0" />
+          <joint name="slide2" type="slide" axis="0 1 0" />
+          <joint name="slide3" type="slide" axis="0 0 1" />
+          <joint name="slide4" type="slide" axis="1 1 0" />
+          <geom type="box" size=".05 .05 .05" mass="1"/>
+        </body>
+      </worldbody>
+      <actuator>
+        <general joint="slide1" dynprm="0.1" gainprm="1.1" />
+        <general joint="slide2" dyntype="integrator" dynprm="0.1" gainprm="1.1" />
+        <general joint="slide3" dyntype="filter" dynprm="0.1" gainprm="1.1" />
+        <general joint="slide4" dyntype="filterexact" dynprm="0.1" gainprm="1.1" />
+      </actuator>
+    </mujoco>
+  """
+
+  def test_dyntype(self):
+    m = mujoco.MjModel.from_xml_string(self._DYN_XML)
+    d = mujoco.MjData(m)
+    d.ctrl = np.array([1.5, 1.5, 1.5, 1.5])
+    d.act = np.array([0.5, 0.5, 0.5])
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mujoco.mj_fwdActuation(m, d)
+    dx = jax.jit(mjx.fwd_actuation)(mx, dx)
+    _assert_attr_eq(d, dx, 'act_dot')
+
+    mujoco.mj_Euler(m, d)
+    dx = jax.jit(mjx.euler)(mx, dx)
+    _assert_attr_eq(d, dx, 'act')
 
 
 if __name__ == '__main__':

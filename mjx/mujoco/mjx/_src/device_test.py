@@ -59,7 +59,7 @@ def _assert_eq(testcase, a, b, attr=None, name=None):
 
 class DeviceTest(parameterized.TestCase):
 
-  @parameterized.parameters(test_util.TEST_FILES)
+  @parameterized.parameters('constraints.xml', 'pendula.xml')
   def testdevice_put(self, fname):
     """Test putting MjData and MjModel on device."""
     m = test_util.load_test_file(fname)
@@ -71,20 +71,22 @@ class DeviceTest(parameterized.TestCase):
     _assert_eq(self, mjx.device_put(d), d)
     _assert_eq(self, mjx.device_put(m), m)
 
-  @parameterized.parameters(test_util.TEST_FILES)
+  @parameterized.parameters('constraints.xml', 'pendula.xml')
   def testdevice_get(self, fname):
     """Test getting MjData from a device."""
     m = test_util.load_test_file(fname)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE  # force sparse for testing
     mx = device.device_put(m)
     dx = mjx.make_data(mx)
     d = mujoco.MjData(m)
     device.device_get_into(d, dx)
     _assert_eq(self, dx, d)
 
-  @parameterized.parameters(set(test_util.TEST_FILES) - {'convex.xml'})
+  @parameterized.parameters('constraints.xml', 'pendula.xml')
   def testdevice_get_batched(self, fname):
     """Test getting MjData from a device."""
     m = test_util.load_test_file(fname)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE  # force sparse for testing
     mx = device.device_put(m)
     batch_size = 32
 
@@ -110,11 +112,10 @@ class ValidateInputTest(absltest.TestCase):
 
   def test_solver(self):
     m = mujoco.MjModel.from_xml_string(
-        '<mujoco><option solver="Newton"/><worldbody/></mujoco>'
+        '<mujoco><option solver="PGS"/><worldbody/></mujoco>'
     )
-    with self.assertWarns(UserWarning):
-      mx = mjx.device_put(m)
-    self.assertEqual(mx.opt.solver, mujoco.mjtSolver.mjSOL_CG)
+    with self.assertRaises(NotImplementedError):
+      mjx.device_put(m)
 
   def test_integrator(self):
     m = mujoco.MjModel.from_xml_string(
@@ -130,32 +131,26 @@ class ValidateInputTest(absltest.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
-  def test_trn(self):
-    m = test_util.load_test_file('ant.xml')
-    m.actuator_trntype[0] = mujoco.mjtTrn.mjTRN_SITE
-    with self.assertRaises(NotImplementedError):
-      mjx.device_put(m)
-
   def test_dyn(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_dyntype[0] = mujoco.mjtDyn.mjDYN_MUSCLE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_gain(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_gaintype[0] = mujoco.mjtGain.mjGAIN_MUSCLE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_bias(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_gaintype[0] = mujoco.mjtGain.mjGAIN_MUSCLE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_condim(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('constraints.xml')
     for i in [1, 4, 6]:
       m.geom_condim[0] = i
       with self.assertRaises(NotImplementedError):

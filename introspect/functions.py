@@ -675,7 +675,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Reset data, set fields from specified keyframe.',
+         doc='Reset data. If 0 <= key < nkey, set fields from specified keyframe.',  # pylint: disable=line-too-long
      )),
     ('mj_markStack',
      FunctionDecl(
@@ -1155,6 +1155,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Runge-Kutta explicit order-N integrator.',
+     )),
+    ('mj_implicit',
+     FunctionDecl(
+         name='mj_implicit',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Implicit-in-velocity integrators.',
      )),
     ('mj_invPosition',
      FunctionDecl(
@@ -1666,7 +1686,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Compute qfrc_passive from spring-dampers, viscosity and density.',
+         doc='Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.',  # pylint: disable=line-too-long
      )),
     ('mj_subtreeVel',
      FunctionDecl(
@@ -1686,7 +1706,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='subtree linear velocity and angular momentum',
+         doc='Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.',  # pylint: disable=line-too-long
      )),
     ('mj_rne',
      FunctionDecl(
@@ -7348,7 +7368,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Eigenvalue decomposition of symmetric 3x3 matrix.',
+         doc="Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.",  # pylint: disable=line-too-long
      )),
     ('mju_boxQP',
      FunctionDecl(

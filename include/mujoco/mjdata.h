@@ -87,7 +87,6 @@ typedef enum mjtTimer_ {     // internal timers
 
   // breakdown of mj_collision
   mjTIMER_COL_BROAD,         // broadphase
-  mjTIMER_COL_MID,           // midphase
   mjTIMER_COL_NARROW,        // narrowphase
 
   mjNTIMER                   // number of timers
@@ -100,7 +99,7 @@ struct mjContact_ {                // result of collision detection functions
   // contact parameters set by near-phase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
-  mjtNum  frame[9];                // normal is in [0-2]
+  mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
   mjtNum  includemargin;           // include if dist<includemargin=margin-gap
@@ -115,8 +114,8 @@ struct mjContact_ {                // result of collision detection functions
 
   // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;                   // id of geom 1
-  int     geom2;                   // id of geom 2
+  int     geom1;                   // id of geom 1; deprecated, use geom[0]
+  int     geom2;                   // id of geom 2; deprecated, use geom[1]
   int     geom[2];                 // geom ids; -1 for flex
   int     flex[2];                 // flex ids; -1 for geom
   int     elem[2];                 // element ids; -1 for geom or flex vertex
@@ -176,7 +175,7 @@ struct mjData_ {
 
   // memory utilization stats
   size_t  maxuse_stack;                      // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREADS];  // maximum stack allocation per thread in bytes
+  size_t  maxuse_threadstack[mjMAXTHREAD];   // maximum stack allocation per thread in bytes
   size_t  maxuse_arena;                      // maximum arena allocation in bytes
   int     maxuse_con;                        // maximum number of contacts
   int     maxuse_efc;                        // maximum number of scalar constraints
@@ -265,7 +264,7 @@ struct mjData_ {
 
   // computed by mj_fwdPosition/mj_comPos
   mjtNum* subtree_com;       // center of mass of each subtree                   (nbody x 3)
-  mjtNum* cdof;              // com-based motion axis of each dof                (nv x 6)
+  mjtNum* cdof;              // com-based motion axis of each dof (rot:lin)      (nv x 6)
   mjtNum* cinert;            // com-based body inertia and mass                  (nbody x 10)
 
   // computed by mj_fwdPosition/mj_flex
@@ -313,8 +312,8 @@ struct mjData_ {
   mjtNum* actuator_velocity; // actuator velocities                              (nu x 1)
 
   // computed by mj_fwdVelocity/mj_comVel
-  mjtNum* cvel;              // com-based velocity [3D rot; 3D tran]             (nbody x 6)
-  mjtNum* cdof_dot;          // time-derivative of cdof                          (nv x 6)
+  mjtNum* cvel;              // com-based velocity (rot:lin)                     (nbody x 6)
+  mjtNum* cdof_dot;          // time-derivative of cdof (rot:lin)                (nv x 6)
 
   // computed by mj_fwdVelocity/mj_rne (without acceleration)
   mjtNum* qfrc_bias;         // C(qpos,qvel)                                     (nv x 1)

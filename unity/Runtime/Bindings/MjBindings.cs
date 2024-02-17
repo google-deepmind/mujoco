@@ -58,7 +58,7 @@ public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
-public const int mjMAXTHREADS = 128;
+public const int mjMAXTHREAD = 128;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
 public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
@@ -108,7 +108,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 301;
+public const int mjVERSION_HEADER = 313;
 
 
 // ------------------------------------Enums------------------------------------
@@ -138,9 +138,8 @@ public enum mjtTimer : int{
   mjTIMER_POS_MAKE = 11,
   mjTIMER_POS_PROJECT = 12,
   mjTIMER_COL_BROAD = 13,
-  mjTIMER_COL_MID = 14,
-  mjTIMER_COL_NARROW = 15,
-  mjNTIMER = 16,
+  mjTIMER_COL_NARROW = 14,
+  mjNTIMER = 15,
 }
 public enum mjtDisableBit : int{
   mjDSBL_CONSTRAINT = 1,
@@ -191,10 +190,11 @@ public enum mjtGeom : int{
   mjGEOM_ARROW1 = 101,
   mjGEOM_ARROW2 = 102,
   mjGEOM_LINE = 103,
-  mjGEOM_FLEX = 104,
-  mjGEOM_SKIN = 105,
-  mjGEOM_LABEL = 106,
-  mjGEOM_TRIANGLE = 107,
+  mjGEOM_LINEBOX = 104,
+  mjGEOM_FLEX = 105,
+  mjGEOM_SKIN = 106,
+  mjGEOM_LABEL = 107,
+  mjGEOM_TRIANGLE = 108,
   mjGEOM_NONE = 1001,
 }
 public enum mjtCamLight : int{
@@ -301,6 +301,7 @@ public enum mjtObj : int{
   mjOBJ_TUPLE = 23,
   mjOBJ_KEY = 24,
   mjOBJ_PLUGIN = 25,
+  mjNOBJECT = 26,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,
@@ -767,7 +768,6 @@ public unsafe struct mjData_ {
   public mjTimerStat_ timer12;
   public mjTimerStat_ timer13;
   public mjTimerStat_ timer14;
-  public mjTimerStat_ timer15;
   public mjSolverStat_ solver0;
   public mjSolverStat_ solver1;
   public mjSolverStat_ solver2;
@@ -4985,6 +4985,7 @@ public unsafe struct global {
   public int offwidth;
   public int offheight;
   public int ellipsoidinertia;
+  public int bvactive;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5067,6 +5068,8 @@ public unsafe struct rgba {
   public fixed float slidercrank[4];
   public fixed float crankbroken[4];
   public fixed float frustum[4];
+  public fixed float bv[4];
+  public fixed float bvactive[4];
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5362,8 +5365,6 @@ public unsafe struct mjModel_ {
   public int* mesh_texcoordadr;
   public int* mesh_texcoordnum;
   public int* mesh_graphadr;
-  public double* mesh_pos;
-  public double* mesh_quat;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;
@@ -5371,6 +5372,8 @@ public unsafe struct mjModel_ {
   public int* mesh_facenormal;
   public int* mesh_facetexcoord;
   public int* mesh_graph;
+  public double* mesh_pos;
+  public double* mesh_quat;
   public int* mesh_pathadr;
   public int* skin_matid;
   public int* skin_group;
@@ -5393,16 +5396,19 @@ public unsafe struct mjModel_ {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
   public double* hfield_size;
   public int* hfield_nrow;
   public int* hfield_ncol;
   public int* hfield_adr;
   public float* hfield_data;
+  public int* hfield_pathadr;
   public int* tex_type;
   public int* tex_height;
   public int* tex_width;
   public int* tex_adr;
   public byte* tex_rgb;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -6076,6 +6082,7 @@ public unsafe struct model {
   public int nskin;
   public int nflex;
   public int nflexvert;
+  public int nflextexcoord;
   public int nskinvert;
   public int nskinface;
   public int nskinbone;
@@ -6089,6 +6096,7 @@ public unsafe struct model {
   public int nnames;
   public int npaths;
   public int nsensordata;
+  public int narena;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -6151,16 +6159,19 @@ public unsafe struct model {
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_elem;
+  public int* flex_elemlayer;
   public int* flex_elemadr;
   public int* flex_elemnum;
   public int* flex_elemdataadr;
   public int* flex_shell;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
+  public int* flex_texcoordadr;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
   public double* flex_radius;
   public float* flex_rgba;
+  public int* hfield_pathadr;
   public int* mesh_bvhadr;
   public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
@@ -6186,6 +6197,8 @@ public unsafe struct model {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -6276,6 +6289,7 @@ public unsafe struct data {
   public int* wrap_obj;
   public double* ten_length;
   public double* wrap_xpos;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public int* island_dofadr;
   public int* island_dofind;
@@ -6285,6 +6299,7 @@ public unsafe struct data {
   public double* flexvert_xpos;
   public mjContact_* contact;
   public double* efc_force;
+  public void* arena;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6457,6 +6472,9 @@ public static unsafe extern void mj_Euler(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_RungeKutta(mjModel_* m, mjData_* d, int N);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_implicit(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_invPosition(mjModel_* m, mjData_* d);

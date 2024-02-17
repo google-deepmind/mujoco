@@ -52,9 +52,9 @@ def _collide(
     mjcf: str, assets: Optional[Dict[str, str]] = None
 ) -> Tuple[mujoco.MjModel, mujoco.MjData, Model, Data]:
   m = mujoco.MjModel.from_xml_string(mjcf, assets or {})
-  mx = mjx.device_put(m)
+  mx = mjx.put_model(m)
   d = mujoco.MjData(m)
-  dx = mjx.device_put(d)
+  dx = mjx.put_data(m, d)
 
   mujoco.mj_step(m, d)
   collision_jit_fn = jax.jit(mjx.collision)
@@ -253,7 +253,6 @@ class CapsuleCollisionTest(parameterized.TestCase):
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
     c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
-    c = c.replace(dim=c.dim[np.array([0])])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'capsule_convex_edge', 1e-4)
 
@@ -266,7 +265,7 @@ class ConvexTest(absltest.TestCase):
       <worldbody>
         <geom size="40 40 40" type="plane"/>
         <body pos="0 0 0.7" euler="45 0 0">
-          <joint axis="1 0 0" type="free"/>
+          <freejoint/>
           <geom size="0.5 0.5 0.5" type="box"/>
         </body>
       </worldbody>
@@ -281,9 +280,36 @@ class ConvexTest(absltest.TestCase):
     np.testing.assert_array_less(-dx.contact.dist[2:], 0)
     # extract the contact points with penetration
     c = jax.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
-    c = c.replace(dim=c.dim[np.array([0, 1])])
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(c, d.contact, field.name, 'box_plane', 1e-2)
+      _assert_attr_eq(c, d.contact, field.name, 'box_plane', 1e-5)
+
+  _FLAT_BOX_PLANE = """
+    <mujoco>
+      <worldbody>
+        <geom size="40 40 40" type="plane"/>
+        <body pos="0 0 0.45">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_flat_box_plane(self):
+    """Tests box collision with a plane."""
+    with jax.disable_jit():
+      d, dx = _collide(self._FLAT_BOX_PLANE)
+
+    np.testing.assert_array_less(dx.contact.dist, 0)
+
+    # sort positions for comparison
+    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
+    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
+    d.contact.pos[:] = d.contact.pos[idx]
+
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'flat_box_plane', 1e-5)
 
   _BOX_BOX = """
     <mujoco>
@@ -339,7 +365,6 @@ class ConvexTest(absltest.TestCase):
     np.testing.assert_array_less(-dx.contact.dist[1:], 0)
     # extract the contact point with penetration
     c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
-    c = c.replace(dim=c.dim[np.array([0])])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'box_box_edge', 1e-2)
 
@@ -421,9 +446,9 @@ class BodyPairFilterTest(absltest.TestCase):
   def test_filter_parent_child(self):
     """Tests that parent-child collisions get filtered."""
     m = mujoco.MjModel.from_xml_string(self._PARENT_CHILD)
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_step(m, d)
     collision_jit_fn = jax.jit(mjx.collision)
@@ -438,9 +463,9 @@ class BodyPairFilterTest(absltest.TestCase):
     """Tests that filterparent flag disables parent-child filtering."""
     m = mujoco.MjModel.from_xml_string(self._PARENT_CHILD)
     m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_FILTERPARENT
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_step(m, d)
     collision_jit_fn = jax.jit(mjx.collision)
@@ -457,22 +482,14 @@ class NconTest(parameterized.TestCase):
   """Tests ncon."""
 
   def test_ncon(self):
-    m = test_util.load_test_file('ant.xml')
-    d = mujoco.MjData(m)
-    d.qpos[2] = 0.0
-
-    mx = mjx.device_put(m)
-    ncon = collision_driver.ncon(mx)
-    self.assertEqual(ncon, 4)
+    m = test_util.load_test_file('constraints.xml')
+    ncon = collision_driver.ncon(m)
+    self.assertEqual(ncon, 16)
 
   def test_disable_contact(self):
-    m = test_util.load_test_file('ant.xml')
-    d = mujoco.MjData(m)
-    d.qpos[2] = 0.0
-
-    m.opt.disableflags = m.opt.disableflags | DisableBit.CONTACT
-    mx = mjx.device_put(m)
-    ncon = collision_driver.ncon(mx)
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags |= DisableBit.CONTACT
+    ncon = collision_driver.ncon(m)
     self.assertEqual(ncon, 0)
 
 
@@ -503,12 +520,12 @@ class TopKContactTest(absltest.TestCase):
 
   def test_top_k_contacts(self):
     m = mujoco.MjModel.from_xml_string(self._CAPSULES)
-    mx_top_k = mjx.device_put(m)
+    mx_top_k = mjx.put_model(m)
     mx_all = mx_top_k.replace(
         nnumeric=0, name_numericadr=np.array([]), numeric_data=np.array([])
     )
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     collision_jit_fn = jax.jit(mjx.collision)
     kinematics_jit_fn = jax.jit(mjx.kinematics)
@@ -517,8 +534,8 @@ class TopKContactTest(absltest.TestCase):
     dx_all = collision_jit_fn(mx_all, dx)
     dx_top_k = collision_jit_fn(mx_top_k, dx)
 
-    self.assertEqual(dx_all.ncon, 3)
-    self.assertEqual(dx_top_k.ncon, 2)
+    self.assertEqual(dx_all.contact.dist.shape, (3,))
+    self.assertEqual(dx_top_k.contact.dist.shape, (2,))
 
 
 if __name__ == '__main__':

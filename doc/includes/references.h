@@ -75,7 +75,6 @@ typedef enum mjtTimer_ {     // internal timers
 
   // breakdown of mj_collision
   mjTIMER_COL_BROAD,         // broadphase
-  mjTIMER_COL_MID,           // midphase
   mjTIMER_COL_NARROW,        // narrowphase
 
   mjNTIMER                   // number of timers
@@ -84,7 +83,7 @@ struct mjContact_ {                // result of collision detection functions
   // contact parameters set by near-phase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
-  mjtNum  frame[9];                // normal is in [0-2]
+  mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
   mjtNum  includemargin;           // include if dist<includemargin=margin-gap
@@ -99,8 +98,8 @@ struct mjContact_ {                // result of collision detection functions
 
   // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;                   // id of geom 1
-  int     geom2;                   // id of geom 2
+  int     geom1;                   // id of geom 1; deprecated, use geom[0]
+  int     geom2;                   // id of geom 2; deprecated, use geom[1]
   int     geom[2];                 // geom ids; -1 for flex
   int     flex[2];                 // flex ids; -1 for geom
   int     elem[2];                 // element ids; -1 for geom or flex vertex
@@ -148,7 +147,7 @@ struct mjData_ {
 
   // memory utilization stats
   size_t  maxuse_stack;                      // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREADS];  // maximum stack allocation per thread in bytes
+  size_t  maxuse_threadstack[mjMAXTHREAD];   // maximum stack allocation per thread in bytes
   size_t  maxuse_arena;                      // maximum arena allocation in bytes
   int     maxuse_con;                        // maximum number of contacts
   int     maxuse_efc;                        // maximum number of scalar constraints
@@ -237,7 +236,7 @@ struct mjData_ {
 
   // computed by mj_fwdPosition/mj_comPos
   mjtNum* subtree_com;       // center of mass of each subtree                   (nbody x 3)
-  mjtNum* cdof;              // com-based motion axis of each dof                (nv x 6)
+  mjtNum* cdof;              // com-based motion axis of each dof (rot:lin)      (nv x 6)
   mjtNum* cinert;            // com-based body inertia and mass                  (nbody x 10)
 
   // computed by mj_fwdPosition/mj_flex
@@ -285,8 +284,8 @@ struct mjData_ {
   mjtNum* actuator_velocity; // actuator velocities                              (nu x 1)
 
   // computed by mj_fwdVelocity/mj_comVel
-  mjtNum* cvel;              // com-based velocity [3D rot; 3D tran]             (nbody x 6)
-  mjtNum* cdof_dot;          // time-derivative of cdof                          (nv x 6)
+  mjtNum* cvel;              // com-based velocity (rot:lin)                     (nbody x 6)
+  mjtNum* cdof_dot;          // time-derivative of cdof (rot:lin)                (nv x 6)
 
   // computed by mj_fwdVelocity/mj_rne (without acceleration)
   mjtNum* qfrc_bias;         // C(qpos,qvel)                                     (nv x 1)
@@ -459,10 +458,11 @@ typedef enum mjtGeom_ {           // type of geometric shape
   mjGEOM_ARROW1,                  // arrow without wedges
   mjGEOM_ARROW2,                  // arrow in both directions
   mjGEOM_LINE,                    // line
+  mjGEOM_LINEBOX,                 // box with line edges
   mjGEOM_FLEX,                    // flex
   mjGEOM_SKIN,                    // skin
   mjGEOM_LABEL,                   // text label
-  mjGEOM_TRIANGLE,                // triangle connecting a frame
+  mjGEOM_TRIANGLE,                // triangle
 
   mjGEOM_NONE         = 1001      // missing geom type
 } mjtGeom;
@@ -570,7 +570,9 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_TEXT,                     // text
   mjOBJ_TUPLE,                    // tuple
   mjOBJ_KEY,                      // keyframe
-  mjOBJ_PLUGIN                    // plugin instance
+  mjOBJ_PLUGIN,                   // plugin instance
+
+  mjNOBJECT                       // number of object types
 } mjtObj;
 typedef enum mjtConstraint_ {     // type of constraint
   mjCNSTR_EQUALITY    = 0,        // equality constraint
@@ -751,6 +753,7 @@ struct mjVisual_ {                // visualization options
     int   offwidth;               // width of offscreen buffer
     int   offheight;              // height of offscreen buffer
     int   ellipsoidinertia;       // geom for inertia visualization (0: box, 1: ellipsoid)
+    int   bvactive;               // visualize active bounding volumes (0: no, 1: yes)
   } global;
 
   struct {                        // rendering quality
@@ -828,6 +831,8 @@ struct mjVisual_ {                // visualization options
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
     float frustum[4];             // camera frustum
+    float bv[4];                  // bounding volume
+    float bvactive[4];            // active bounding volume
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;
@@ -1149,8 +1154,6 @@ struct mjModel_ {
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
-  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -1158,6 +1161,8 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
+  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
 
   // skins
@@ -1182,20 +1187,23 @@ struct mjModel_ {
   int*      skin_bonebodyid;      // body id of each bone                     (nskinbone x 1)
   int*      skin_bonevertid;      // mesh ids of vertices in each bone        (nskinbonevert x 1)
   float*    skin_bonevertweight;  // weights of vertices in each bone         (nskinbonevert x 1)
+  int*      skin_pathadr;         // address of asset path for skin; -1: none (nskin x 1)
 
   // height fields
-  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
-  int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
-  int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
-  int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
-  float*    hfield_data;          // elevation data                           (nhfielddata x 1)
+  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                    (nhfield x 4)
+  int*      hfield_nrow;          // number of rows in grid                     (nhfield x 1)
+  int*      hfield_ncol;          // number of columns in grid                  (nhfield x 1)
+  int*      hfield_adr;           // address in hfield_data                     (nhfield x 1)
+  float*    hfield_data;          // elevation data                             (nhfielddata x 1)
+  int*      hfield_pathadr;       // address of asset path for hfield; -1: none (nhfield x 1)
 
   // textures
-  int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
-  int*      tex_height;           // number of rows in texture image          (ntex x 1)
-  int*      tex_width;            // number of columns in texture image       (ntex x 1)
-  int*      tex_adr;              // address in rgb                           (ntex x 1)
-  mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
+  int*      tex_type;             // texture type (mjtTexture)                  (ntex x 1)
+  int*      tex_height;           // number of rows in texture image            (ntex x 1)
+  int*      tex_width;            // number of columns in texture image         (ntex x 1)
+  int*      tex_adr;              // address in rgb                             (ntex x 1)
+  mjtByte*  tex_rgb;              // rgb (alpha = 1)                            (ntexdata x 1)
+  int*      tex_pathadr;         // address of asset path for texture; -1: none (ntex x 1)
 
   // materials
   int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
@@ -1421,6 +1429,15 @@ struct mjpPlugin_ {
 
   // called by mjv_updateScene (optional)
   void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
+
+  // methods specific to actuators (optional)
+
+  // dimension of the actuator state for the plugin (excluding state from actuator's dyntype)
+  int (*actuator_actdim)(const mjModel*m, int instance, int actuator_id);
+
+  // updates the actuator plugin's entries in act_dot
+  // called after native act_dot is computed and before the compute callback
+  void (*actuator_act_dot)(const mjModel* m, mjData* d, int instance);
 
   // methods specific to signed distance fields (optional)
 
@@ -2141,6 +2158,7 @@ struct mjvSceneState_ {
     int nskin;
     int nflex;
     int nflexvert;
+    int nflextexcoord;
     int nskinvert;
     int nskinface;
     int nskinbone;
@@ -2154,6 +2172,7 @@ struct mjvSceneState_ {
     int nnames;
     int npaths;
     int nsensordata;
+    int narena;
 
     mjOption opt;
     mjVisual vis;
@@ -2225,16 +2244,20 @@ struct mjvSceneState_ {
     int* flex_vertadr;
     int* flex_vertnum;
     int* flex_elem;
+    int* flex_elemlayer;
     int* flex_elemadr;
     int* flex_elemnum;
     int* flex_elemdataadr;
     int* flex_shell;
     int* flex_shellnum;
     int* flex_shelldataadr;
+    int* flex_texcoordadr;
     int* flex_bvhadr;
     int* flex_bvhnum;
     mjtNum* flex_radius;
     float* flex_rgba;
+
+    int* hfield_pathadr;
 
     int* mesh_bvhadr;
     int* mesh_bvhnum;
@@ -2262,6 +2285,9 @@ struct mjvSceneState_ {
     int* skin_bonebodyid;
     int* skin_bonevertid;
     float* skin_bonevertweight;
+    int* skin_pathadr;
+
+    int* tex_pathadr;
 
     int* mat_texid;
     mjtByte* mat_texuniform;
@@ -2360,6 +2386,7 @@ struct mjvSceneState_ {
     mjtNum* ten_length;
     mjtNum* wrap_xpos;
 
+    mjtNum* bvh_aabb_dyn;
     mjtByte* bvh_active;
     int* island_dofadr;
     int* island_dofind;
@@ -2371,6 +2398,7 @@ struct mjvSceneState_ {
 
     mjContact* contact;
     mjtNum* efc_force;
+    void* arena;
   } data;
 };
 typedef struct mjvSceneState_ mjvSceneState;
@@ -2433,6 +2461,7 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d);
 void mj_fwdConstraint(const mjModel* m, mjData* d);
 void mj_Euler(const mjModel* m, mjData* d);
 void mj_RungeKutta(const mjModel* m, mjData* d, int N);
+void mj_implicit(const mjModel* m, mjData* d);
 void mj_invPosition(const mjModel* m, mjData* d);
 void mj_invVelocity(const mjModel* m, mjData* d);
 void mj_invConstraint(const mjModel* m, mjData* d);

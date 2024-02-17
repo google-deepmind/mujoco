@@ -39,7 +39,7 @@ typedef enum _mjtFcompType {
 class mjCFlexcomp {
  public:
   mjCFlexcomp(void);
-  bool Make(mjCModel* model, mjCBody* body, char* error, int error_sz);
+  bool Make(mjCModel* model, mjmBody* body, char* error, int error_sz);
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz);

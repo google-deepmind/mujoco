@@ -44,7 +44,12 @@ typedef struct {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-mjResource* mju_openResource(const char* name) {
+mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
+  // no error so far
+  if (error) {
+    error[0] = '\0';
+  }
+
   mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
   const mjpResourceProvider* provider = NULL;
   if (resource == NULL) {
@@ -72,9 +77,12 @@ mjResource* mju_openResource(const char* name) {
       return resource;
     }
 
-    mju_warning("mju_openResource: could not open resource '%s' "
-                "using a resource provider matching prefix '%s'",
-                name, provider->prefix);
+    if (error) {
+      snprintf(error, error_sz, "could not open '%s'"
+               "using a resource provider matching prefix '%s'",
+               name, provider->prefix);
+    }
+
     mju_closeResource(resource);
     return NULL;
   }
@@ -85,7 +93,10 @@ mjResource* mju_openResource(const char* name) {
   file_buffer* fb = (file_buffer*) resource->data;
   fb->buffer = mju_fileToMemory(name, &(fb->nbuffer));
   if (fb->buffer == NULL) {
-    mju_warning("mju_openResource: unknown file '%s'", name);
+    if (error) {
+      snprintf(error, error_sz,
+               "resource not found via provider or OS filesystem: '%s'", name);
+    }
     mju_closeResource(resource);
     return NULL;
   }
@@ -95,7 +106,6 @@ mjResource* mju_openResource(const char* name) {
   } else {
     memset(&fb->mtime, 0, sizeof(time_t));
   }
-
   return resource;
 }
 

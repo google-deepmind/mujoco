@@ -19,7 +19,6 @@ from absl.testing import parameterized
 import jax
 import mujoco
 from mujoco import mjx
-from mujoco.mjx._src import forward
 from mujoco.mjx._src import test_util
 import numpy as np
 
@@ -30,7 +29,7 @@ def _assert_attr_eq(a, b, attr, step, fname, atol=1e-3, rtol=1e-3):
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
 
 
-class ActuationTest(parameterized.TestCase):
+class ActuationIntegrationTest(parameterized.TestCase):
 
   @parameterized.parameters(list(range(30)))
   def test_actuation(self, seed):
@@ -46,7 +45,7 @@ class ActuationTest(parameterized.TestCase):
         enable_contact=False,
     )
     m = mujoco.MjModel.from_xml_string(mjcf)
-    actuation_jit_fn = jax.jit(forward._actuation)
+    actuation_jit_fn = jax.jit(mjx.fwd_actuation)
 
     # init
     d = mujoco.MjData(m)
@@ -57,8 +56,8 @@ class ActuationTest(parameterized.TestCase):
     mujoco.mj_fwdVelocity(m, d)
 
     # put on device
-    mx = mjx.device_put(m)
-    dx = mjx.device_put(d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_fwdActuation(m, d)
     dx = actuation_jit_fn(mx, dx)

@@ -688,12 +688,12 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       adr = m->sensor_adr[i];
 
       // call mj_rnePostConstraint when first relevant sensor is encountered
-      if (rnePost == 0                  &&
-          type != mjSENS_TOUCH          &&
-          type != mjSENS_ACTUATORFRC    &&
-          type != mjSENS_JOINTACTFRC    &&
-          type != mjSENS_JOINTLIMITFRC  &&
-          type != mjSENS_TENDONLIMITFRC) {
+      if (rnePost == 0  && (type == mjSENS_ACCELEROMETER ||
+                            type == mjSENS_FORCE         ||
+                            type == mjSENS_TORQUE        ||
+                            type == mjSENS_FRAMELINACC   ||
+                            type == mjSENS_FRAMEANGACC   ||
+                            type == mjSENS_USER)) {
         // compute cacc, cfrc_int, cfrc_ext
         mj_rnePostConstraint(m, d);
 

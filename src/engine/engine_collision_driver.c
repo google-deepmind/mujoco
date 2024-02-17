@@ -273,7 +273,9 @@ void mj_collision(const mjModel* m, mjData* d) {
   mj_clearEfc(d);
 
   // reset the visualization flags
-  memset(d->bvh_active, 0, m->nbvh);
+  if (m->vis.global.bvactive) {
+    memset(d->bvh_active, 0, m->nbvh);
+  }
 
   // return if disabled
   if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT)
@@ -291,11 +293,8 @@ void mj_collision(const mjModel* m, mjData* d) {
   unsigned int last_signature = -1;
   TM_END(mjTIMER_COL_BROAD);
 
-  // midphase collision detector
+  // narrowphase and midphase collision detector
   TM_RESTART;
-
-  // save current narrowphase duration
-  mjtNum tmNarrow = d->timer[mjTIMER_COL_NARROW].duration;
 
   // process bodyflex pairs returned by broadphase, merge with predefined geom pairs
   int pairadr = 0;
@@ -471,14 +470,8 @@ void mj_collision(const mjModel* m, mjData* d) {
     }
   }
 
-  // end midphase timer
-  TM_END(mjTIMER_COL_MID);
-
-  // subtract nested narrowphase timing from midphase timer
-  d->timer[mjTIMER_COL_MID].duration -= (d->timer[mjTIMER_COL_NARROW].duration - tmNarrow);
-
-  // increment narrowphase counter
-  d->timer[mjTIMER_COL_NARROW].number++;
+  // end narrowphase and midphase timer
+  TM_END(mjTIMER_COL_NARROW);
 
   mj_freeStack(d);
   TM_END1(mjTIMER_POS_COLLISION);
@@ -643,6 +636,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   mjtByte isbody2 = (bf2 < nbody);
   int f1 = isbody1 ? -1 : bf1 - nbody;
   int f2 = isbody2 ? -1 : bf2 - nbody;
+  int mark_active = m->vis.global.bvactive;
   const int bvhadr1 = isbody1 ? m->body_bvhadr[bf1] : m->flex_bvhadr[f1];
   const int bvhadr2 = isbody2 ? m->body_bvhadr[bf2] : m->flex_bvhadr[f2];
   const int* child1 = m->bvh_child + 2*bvhadr1;
@@ -714,8 +708,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                             d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
                             margin, NULL, NULL, &initialize)) {
             mj_collideGeomPair(m, d, nodeid1, nodeid2, merged, startadr, pairadr);
-            d->bvh_active[node1 + bvhadr1] = 1;
-            d->bvh_active[node2 + bvhadr2] = 1;
+            if (mark_active) {
+              d->bvh_active[node1 + bvhadr1] = 1;
+              d->bvh_active[node2 + bvhadr2] = 1;
+            }
           }
         }
         continue;
@@ -751,8 +747,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
             if (m->geom_type[nodeid1] != mjGEOM_PLANE) {
               mj_collideGeomElem(m, d, nodeid1, f2, nodeid2);
             }
-            d->bvh_active[node1 + bvhadr1] = 1;
-            d->bvh_active[node2 + bvhadr2] = 1;
+            if (mark_active) {
+              d->bvh_active[node1 + bvhadr1] = 1;
+              d->bvh_active[node2 + bvhadr2] = 1;
+            }
           }
         }
         continue;
@@ -780,8 +778,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       // box filter applied in mj_collideElems, bitmask filter applied earlier
       if (isleaf1 && isleaf2) {
         mj_collideElems(m, d, f1, nodeid1, f2, nodeid2);
-        d->bvh_active[node1 + bvhadr1] = 1;
-        d->bvh_active[node2 + bvhadr2] = 1;
+        if (mark_active) {
+          d->bvh_active[node1 + bvhadr1] = 1;
+          d->bvh_active[node2 + bvhadr2] = 1;
+        }
         continue;
       }
 
@@ -793,8 +793,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       }
     }
 
-    d->bvh_active[node1 + bvhadr1] = 1;
-    d->bvh_active[node2 + bvhadr2] = 1;
+    if (mark_active) {
+      d->bvh_active[node1 + bvhadr1] = 1;
+      d->bvh_active[node2 + bvhadr2] = 1;
+    }
 
     // keep traversing the tree
     if (!isleaf1 && isleaf2) {
@@ -1444,8 +1446,6 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 
 // test two geoms for collision, apply filters, add to contact list
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
-  TM_START;
-
   int num, type1, type2, condim;
   mjtNum margin, gap, friction[5], solref[mjNREF], solimp[mjNIMP];
   mjtNum solreffriction[mjNREF] = {0};
@@ -1524,16 +1524,49 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
     mjERROR("too many contacts returned by collision function");
   }
 
-  // remove repeated contacts in box-box
+  // remove bad and repeated contacts in box-box
   if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
     // use dim field to mark: -1: bad, 0: good
     for (int i=0; i < num; i++) {
       con[i].dim = 0;
     }
 
-    // find bad
+    // get box info
+    const mjtNum* pos1 =  d->geom_xpos + 3 * g1;
+    const mjtNum* mat1 =  d->geom_xmat + 9 * g1;
+    const mjtNum* size1 = m->geom_size + 3 * g1;
+    const mjtNum* pos2 =  d->geom_xpos + 3 * g2;
+    const mjtNum* mat2 =  d->geom_xmat + 9 * g2;
+    const mjtNum* size2 = m->geom_size + 3 * g2;
+
+    // find bad: contacts outside one of the boxes
+    for (int i=0; i < num; i++) {
+      // box sizes with margin
+      mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin, size1[2] + margin};
+      mjtNum sz2[3] = {size2[0] + margin, size2[1] + margin, size2[2] + margin};
+
+      // relative distance from surface (1%) outside of which box-box contacts are removed
+      static mjtNum kRemoveRatio = 1.01;
+
+      // is the contact outside: 1, inside: -1, within the removal width: 0
+      int out1 = mju_outsideBox(con[i].pos, pos1, mat1, sz1, kRemoveRatio);
+      int out2 = mju_outsideBox(con[i].pos, pos2, mat2, sz2, kRemoveRatio);
+
+      // mark as bad if outside one box and not inside the other box
+      if ((out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1)) {
+        con[i].dim = -1;
+      }
+    }
+
+    // find duplicates
     for (int i=0; i < num-1; i++) {
+      if (con[i].dim == -1) {
+        continue;  // already marked bad: skip
+      }
       for (int j=i+1; j < num; j++) {
+        if (con[j].dim == -1) {
+          continue;  // already marked bad: skip
+        }
         if (con[i].pos[0] == con[j].pos[0] &&
             con[i].pos[1] == con[j].pos[1] &&
             con[i].pos[2] == con[j].pos[2]) {
@@ -1546,6 +1579,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
     // consolidate good
     int i = 0;
     for (int j=0; j < num; j++) {
+      // good: maybe copy
       if (con[j].dim == 0) {
         // different: copy
         if (i < j) {
@@ -1601,9 +1635,6 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
-
-  // add duration without incrementing counter
-  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 
@@ -1816,8 +1847,6 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
 // test a geom and an elem for collision, add to contact list
 void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
-  TM_START;
-
   mjtNum margin = mj_assignMargin(m, mju_max(m->geom_margin[g], m->flex_margin[f]));
   int dim = m->flex_dim[f], type = m->geom_type[g];
   int num;
@@ -1931,17 +1960,12 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
-
-  // add duration without incrementing counter
-  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 
 
 // test two elems for collision, add to contact list
 void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2) {
-  TM_START;
-
   mjtNum margin = mj_assignMargin(m, mju_max(m->flex_margin[f1], m->flex_margin[f2]));
   int dim1 = m->flex_dim[f1], dim2 = m->flex_dim[f2];
   int num;
@@ -2036,9 +2060,6 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
-
-  // add duration without incrementing counter
-  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 

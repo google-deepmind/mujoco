@@ -18,7 +18,7 @@
 #include <stddef.h>
 
 #include <mujoco/mjexport.h>
-#include "engine/engine_plugin.h"
+#include <mujoco/mujoco.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +26,7 @@ extern "C" {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-MJAPI mjResource* mju_openResource(const char* name);
+MJAPI mjResource* mju_openResource(const char* name, char* error, size_t error_sz);
 
 // close the given resource; no-op if resource is NULL
 MJAPI void mju_closeResource(mjResource* resource);

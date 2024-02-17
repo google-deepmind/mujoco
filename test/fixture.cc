@@ -14,11 +14,14 @@
 
 #include "test/fixture.h"
 
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <memory>
+#include <sstream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -107,7 +110,7 @@ mjModel* LoadModelFromPath(const char* model_path) {
   return model;
 }
 
-const std::string GetFileContents(const char* path) {
+std::string GetFileContents(const char* path) {
   std::ifstream ifs;
   ifs.open(path, std::ifstream::in);
   EXPECT_FALSE(ifs.fail());
@@ -116,7 +119,7 @@ const std::string GetFileContents(const char* path) {
   return sstream.str();
 }
 
-const std::string SaveAndReadXml(const mjModel* model) {
+std::string SaveAndReadXml(const mjModel* model) {
   EXPECT_THAT(model, testing::NotNull());
 
   constexpr int kMaxPathLen = 1024;

@@ -86,11 +86,14 @@ void inline GradSquaredLengths(mjtNum gradient[T::kNumEdges][2][3],
 }
 
 template <typename T>
-inline void ComputeForce(mjtNum* qfrc_passive,
+inline void ComputeForce(std::vector<mjtNum>& qfrc_passive,
                          const std::vector<T>& elements,
                          const std::vector<mjtNum>& metric,
                          const std::vector<mjtNum>& elongationglob,
+                         const mjModel* m,
                          const mjtNum* xpos) {
+  mju_zero(qfrc_passive.data(), qfrc_passive.size());
+
   for (int t = 0; t < elements.size(); t++)  {
     const int* v = elements[t].vertices;
 
@@ -116,7 +119,7 @@ inline void ComputeForce(mjtNum* qfrc_passive,
       for (int ed2 = 0; ed2 < T::kNumEdges; ed2++) {
         for (int i = 0; i < 2; i++) {
           for (int x = 0; x < 3; x++) {
-            force[3 * T::edge[ed2][i] + x] +=
+            force[3 * T::edge[ed2][i] + x] -=
                 elongation[ed1] * gradient[ed2][i][x] *
                 metric[offset * t + T::kNumEdges * ed1 + ed2];
           }
@@ -127,7 +130,30 @@ inline void ComputeForce(mjtNum* qfrc_passive,
     // insert into global force
     for (int i = 0; i < T::kNumVerts; i++) {
       for (int x = 0; x < 3; x++) {
-        qfrc_passive[3*v[i]+x] -= force[3*i+x];
+        qfrc_passive[3*v[i]+x] += force[3*i+x];
+      }
+    }
+  }
+}
+
+// add flex force to degrees of freedom
+inline void AddFlexForce(mjtNum* qfrc,
+                         const std::vector<mjtNum>& force,
+                         const mjModel* m, mjData* d,
+                         const mjtNum* xpos,
+                         int f0) {
+  int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f0];
+
+  for (int v = 0; v < m->flex_vertnum[f0]; v++) {
+    int bid = bodyid[v];
+    if (m->body_simple[bid] != 2) {
+      // this should only occur for pinned flex vertices
+      mj_applyFT(m, d, force.data() + 3*v, 0, xpos + 3*v, bid, qfrc);
+    } else {
+      int body_dofnum = m->body_dofnum[bid];
+      int body_dofadr = m->body_dofadr[bid];
+      for (int x = 0; x < body_dofnum; x++) {
+        qfrc[body_dofadr+x] += force[3*v+x];
       }
     }
   }

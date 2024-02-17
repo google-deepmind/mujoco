@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -718,12 +719,12 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
   };
   mjuiDef defDisableActuator[] = {
     {mjITEM_SEPARATOR, "Actuator Group Enable", 1},
-    {mjITEM_CHECKBYTE,  "Act Group 0",  2, sim->enableactuator+0,    " 0"},
-    {mjITEM_CHECKBYTE,  "Act Group 1",  2, sim->enableactuator+1,    " 1"},
-    {mjITEM_CHECKBYTE,  "Act Group 2",  2, sim->enableactuator+2,    " 2"},
-    {mjITEM_CHECKBYTE,  "Act Group 3",  2, sim->enableactuator+3,    " 3"},
-    {mjITEM_CHECKBYTE,  "Act Group 4",  2, sim->enableactuator+4,    " 4"},
-    {mjITEM_CHECKBYTE,  "Act Group 5",  2, sim->enableactuator+5,    " 5"},
+    {mjITEM_CHECKBYTE,  "Act Group 0",  2, sim->enableactuator+0,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 1",  2, sim->enableactuator+1,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 2",  2, sim->enableactuator+2,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 3",  2, sim->enableactuator+3,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 4",  2, sim->enableactuator+4,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 5",  2, sim->enableactuator+5,     ""},
     {mjITEM_END}
   };
 
@@ -836,15 +837,8 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
     {mjITEM_END}
   };
   for (int i=0; i<mjNVISFLAG; i++) {
-    // set name, remove "&"
+    // set name
     mju::strcpy_arr(defFlag[0].name, mjVISSTRING[i][0]);
-    for (int j=0; j<strlen(mjVISSTRING[i][0]); j++) {
-      if (mjVISSTRING[i][0][j]=='&') {
-        mju_strncpy(
-          defFlag[0].name+j, mjVISSTRING[i][0]+j+1, mju::sizeof_arr(defFlag[0].name)-j);
-        break;
-      }
-    }
 
     // set shortcut and data
     if (mjVISSTRING[i][2][0]) {
@@ -867,7 +861,10 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   // add rendering flags
   mjui_add(&sim->ui0, defOpenGL);
   for (int i=0; i<mjNRNDFLAG; i++) {
+    // set name
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
+
+    // set shortcut and data
     if (mjRNDSTRING[i][2][0]) {
       mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
     } else {
@@ -899,6 +896,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m, int oldstate)
     {mjITEM_EDITNUM,   "Extent",          2, &(stat->extent),              "1"},
     {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
     {mjITEM_RADIO,     "Inertia",         5, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
+    {mjITEM_RADIO,     "BVH active",      5, &(vis->global.bvactive), "False\nTrue"},
     {mjITEM_SEPARATOR, "Map",  1},
     {mjITEM_EDITFLOAT, "Stiffness",       2, &(vis->map.stiffness),        "1"},
     {mjITEM_EDITFLOAT, "Rot stiffness",   2, &(vis->map.stiffnessrot),     "1"},
@@ -1264,7 +1262,7 @@ int ComputeFontScale(const mj::PlatformUIAdapter& platform_ui) {
     fs = 150;
   }
   fs = mju_round(fs * 0.02) * 50;
-  fs = mjMIN(300, mjMAX(100, fs));
+  fs = mjMIN(250, mjMAX(100, fs));
 
   return fs;
 }
@@ -1281,7 +1279,7 @@ int UiPredicate(int category, void* userdata) {
     return sim->m_ || sim->is_passive_;
 
   case 3:                 // require model and nkey
-    return !sim->is_passive_ && sim->nkey_;
+    return (sim->m_ || sim->is_passive_) && sim->nkey_;
 
   case 4:                 // require model and paused
     return sim->m_ && !sim->run;
@@ -1566,9 +1564,10 @@ void UiEvent(mjuiState* state) {
           mjui0_update_section(sim, SECT_SIMULATION);
         }
 
-        // not in scrubber: step
+        // not in scrubber: step, add to history buffer
         else {
           mj_step(sim->m_, sim->d_);
+          sim->AddToHistory();
         }
 
         UpdateProfiler(sim, sim->m_, sim->d_);
@@ -1813,6 +1812,9 @@ void Simulate::Sync() {
   MutexLock lock(this->mtx);
 
   if (!m_) {
+    return;
+  }
+  if (this->exitrequest.load()) {
     return;
   }
 
@@ -2089,6 +2091,18 @@ void Simulate::Sync() {
       }
     }
 
+    // pick up rendering flags changed via user_scn
+    if (user_scn) {
+      for (int i = 0; i < mjNRNDFLAG; ++i) {
+        if (user_scn->flags[i] != user_scn_flags_prev_[i]) {
+          scn.flags[i] = user_scn->flags[i];
+          pending_.ui_update_rendering = true;
+        }
+      }
+      Copy(user_scn->flags, scn.flags);
+      Copy(user_scn_flags_prev_, user_scn->flags);
+    }
+
     mjopt_prev_ = scnstate_.model.opt;
     warn_vgeomfull_prev_ = scnstate_.data.warning[mjWARN_VGEOMFULL].number;
   }
@@ -2227,13 +2241,13 @@ void Simulate::LoadOnRenderThread() {
 
   // allocate history buffer: smaller of {2000 states, 100 MB}
   if (!this->is_passive_) {
-    constexpr int kHistoryLength = 2000;
     constexpr int kMaxHistoryBytes = 1e8;
 
     // get state size, size of history buffer
     state_size_ = mj_stateSize(this->m_, mjSTATE_INTEGRATION);
     int state_bytes = state_size_ * sizeof(mjtNum);
-    int history_bytes = mjMIN(state_bytes * kHistoryLength, kMaxHistoryBytes);
+    int history_length = mjMIN(INT_MAX / state_bytes, 2000);
+    int history_bytes = mjMIN(state_bytes * history_length, kMaxHistoryBytes);
     nhistory_ = history_bytes / state_bytes;
 
     // allocate history buffer, reset cursor and UI slider
@@ -2266,6 +2280,11 @@ void Simulate::LoadOnRenderThread() {
   if (!this->platform_ui->IsGPUAccelerated()) {
     this->scn.flags[mjRND_SHADOW] = 0;
     this->scn.flags[mjRND_REFLECTION] = 0;
+  }
+
+  if (this->user_scn) {
+    Copy(this->user_scn->flags, this->scn.flags);
+    Copy(this->user_scn_flags_prev_, this->scn.flags);
   }
 
   // clear perturbation state
@@ -2474,7 +2493,14 @@ void Simulate::Render() {
 
   // show pause/loading label
   if (!this->run || this->loadrequest) {
-    const char* label = this->loadrequest ? "LOADING..." : "PAUSE";
+    char label[30] = {'\0'};
+    if (this->loadrequest) {
+      std::snprintf(label, sizeof(label), "LOADING...");
+    } else if (this->scrub_index == 0) {
+      std::snprintf(label, sizeof(label), "PAUSE");
+    } else {
+      std::snprintf(label, sizeof(label), "PAUSE (%d)", this->scrub_index);
+    }
     mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, label, nullptr,
                 &this->platform_ui->mjr_context());
   }
@@ -2705,9 +2731,9 @@ void Simulate::RenderLoop() {
     }
   }
 
-  if (!is_passive_){
-    mjv_freeScene(&this->scn);
-  } else {
+  const MutexLock lock(this->mtx);
+  mjv_freeScene(&this->scn);
+  if (is_passive_) {
     mjv_freeSceneState(&scnstate_);
   }
 

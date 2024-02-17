@@ -944,15 +944,20 @@ can be obtained as:
    int qposadr = -1, qveladr = -1;
 
    // make sure we have a floating body: it has a single free joint
-   if( bodyid>=0 && m->body_jntnum[bodyid]==1 &&
-       m->jnt_type[m->body_jntadr[bodyid]]==mjJNT_FREE )
-      {
-         // extract the addresses from the joint specification
-         qposadr = m->jnt_qposadr[m->body_jntadr[bodyid]];
-         qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
-      }
+   if( bodyid>=0 && m->body_jntnum[bodyid]==1 && m->jnt_type[m->body_jntadr[bodyid]]==mjJNT_FREE ) {
+     // extract the addresses from the joint specification
+     qposadr = m->jnt_qposadr[m->body_jntadr[bodyid]];
+     qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
+   }
 
 Now if everything went well (i.e., "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses
 in qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed
 by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
 numbers can now be set to the desired pose and velocity of the body.
+
+The semantics of free joints are as follows. The linear postions of free joints are in the global frame, as are
+linear velocities. The orientation of a free joint (the quaternion) is also in the global frame. However, the rotational
+velocities of a free joint are in the local body frame. This is not so much a design decision but rather correct
+use of the topology of quaternions. Angular velocities live in the quaternion tangent space, which is defined locally
+for a certain orientation, so frame-local angular velocities are a natural parameterization.
+Accelerations are defined in the same space as the corresponding velocities.

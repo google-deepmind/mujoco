@@ -352,6 +352,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              type=ValueType(name='int'),
                              doc='geom for inertia visualization (0: box, 1: ellipsoid)',  # pylint: disable=line-too-long
                          ),
+                         StructFieldDecl(
+                             name='bvactive',
+                             type=ValueType(name='int'),
+                             doc='visualize active bounding volumes (0: no, 1: yes)',  # pylint: disable=line-too-long
+                         ),
                      ),
                  ),
                  doc='',
@@ -779,6 +784,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                                  extents=(4,),
                              ),
                              doc='camera frustum',
+                         ),
+                         StructFieldDecl(
+                             name='bv',
+                             type=ArrayType(
+                                 inner_type=ValueType(name='float'),
+                                 extents=(4,),
+                             ),
+                             doc='bounding volume',
+                         ),
+                         StructFieldDecl(
+                             name='bvactive',
+                             type=ArrayType(
+                                 inner_type=ValueType(name='float'),
+                                 extents=(4,),
+                             ),
+                             doc='active bounding volume',
                          ),
                      ),
                  ),
@@ -2571,20 +2592,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='graph data address; -1: no graph         (nmesh x 1)',
              ),
              StructFieldDecl(
-                 name='mesh_pos',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='translation applied to asset vertices    (nmesh x 3)',
-             ),
-             StructFieldDecl(
-                 name='mesh_quat',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='rotation applied to asset vertices       (nmesh x 4)',
-             ),
-             StructFieldDecl(
                  name='mesh_vert',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
@@ -2632,6 +2639,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='convex graph data                        (nmeshgraph x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='mesh_pos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='translation applied to asset vertices    (nmesh x 3)',
+             ),
+             StructFieldDecl(
+                 name='mesh_quat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='rotation applied to asset vertices       (nmesh x 4)',
              ),
              StructFieldDecl(
                  name='mesh_pathadr',
@@ -2788,74 +2809,95 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='weights of vertices in each bone         (nskinbonevert x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='skin_pathadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of asset path for skin; -1: none (nskin x 1)',
+             ),
+             StructFieldDecl(
                  name='hfield_size',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='(x, y, z_top, z_bottom)                  (nhfield x 4)',
+                 doc='(x, y, z_top, z_bottom)                    (nhfield x 4)',
              ),
              StructFieldDecl(
                  name='hfield_nrow',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of rows in grid                   (nhfield x 1)',
+                 doc='number of rows in grid                     (nhfield x 1)',
              ),
              StructFieldDecl(
                  name='hfield_ncol',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of columns in grid                (nhfield x 1)',
+                 doc='number of columns in grid                  (nhfield x 1)',
              ),
              StructFieldDecl(
                  name='hfield_adr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address in hfield_data                   (nhfield x 1)',
+                 doc='address in hfield_data                     (nhfield x 1)',
              ),
              StructFieldDecl(
                  name='hfield_data',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
                  ),
-                 doc='elevation data                           (nhfielddata x 1)',  # pylint: disable=line-too-long
+                 doc='elevation data                             (nhfielddata x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='hfield_pathadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of asset path for hfield; -1: none (nhfield x 1)',
              ),
              StructFieldDecl(
                  name='tex_type',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='texture type (mjtTexture)                (ntex x 1)',
+                 doc='texture type (mjtTexture)                  (ntex x 1)',
              ),
              StructFieldDecl(
                  name='tex_height',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of rows in texture image          (ntex x 1)',
+                 doc='number of rows in texture image            (ntex x 1)',
              ),
              StructFieldDecl(
                  name='tex_width',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of columns in texture image       (ntex x 1)',
+                 doc='number of columns in texture image         (ntex x 1)',
              ),
              StructFieldDecl(
                  name='tex_adr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address in rgb                           (ntex x 1)',
+                 doc='address in rgb                             (ntex x 1)',
              ),
              StructFieldDecl(
                  name='tex_rgb',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='rgb (alpha = 1)                          (ntexdata x 1)',
+                 doc='rgb (alpha = 1)                            (ntexdata x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='tex_pathadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of asset path for texture; -1: none (ntex x 1)',
              ),
              StructFieldDecl(
                  name='mat_texid',
@@ -3871,7 +3913,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                      extents=(9,),
                  ),
-                 doc='normal is in [0-2]',
+                 doc='normal is in [0-2], points from geom[0] to geom[1]',
              ),
              StructFieldDecl(
                  name='includemargin',
@@ -3931,12 +3973,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='geom1',
                  type=ValueType(name='int'),
-                 doc='id of geom 1',
+                 doc='id of geom 1; deprecated, use geom[0]',
              ),
              StructFieldDecl(
                  name='geom2',
                  type=ValueType(name='int'),
-                 doc='id of geom 2',
+                 doc='id of geom 2; deprecated, use geom[1]',
              ),
              StructFieldDecl(
                  name='geom',
@@ -4133,7 +4175,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='timer',
                  type=ArrayType(
                      inner_type=ValueType(name='mjTimerStat'),
-                     extents=(16,),
+                     extents=(15,),
                  ),
                  doc='timer statistics',
              ),
@@ -4472,7 +4514,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='com-based motion axis of each dof                (nv x 6)',  # pylint: disable=line-too-long
+                 doc='com-based motion axis of each dof (rot:lin)      (nv x 6)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='cinert',
@@ -4682,14 +4724,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='com-based velocity [3D rot; 3D tran]             (nbody x 6)',  # pylint: disable=line-too-long
+                 doc='com-based velocity (rot:lin)                     (nbody x 6)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='cdof_dot',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='time-derivative of cdof                          (nv x 6)',  # pylint: disable=line-too-long
+                 doc='time-derivative of cdof (rot:lin)                (nv x 6)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='qfrc_bias',
@@ -6244,6 +6286,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='nflextexcoord',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='nskinvert',
                              type=ValueType(name='int'),
                              doc='',
@@ -6305,6 +6352,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='nsensordata',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='narena',
                              type=ValueType(name='int'),
                              doc='',
                          ),
@@ -6737,6 +6789,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='flex_elemlayer',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='flex_elemadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
@@ -6779,6 +6838,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='flex_texcoordadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='flex_bvhadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
@@ -6803,6 +6869,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='flex_rgba',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='hfield_pathadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
                              ),
                              doc='',
                          ),
@@ -6978,6 +7051,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='skin_bonevertweight',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='skin_pathadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='tex_pathadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
                              ),
                              doc='',
                          ),
@@ -7536,6 +7623,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='bvh_aabb_dyn',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='bvh_active',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtByte'),
@@ -7595,6 +7689,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='efc_force',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='arena',
+                             type=PointerType(
+                                 inner_type=ValueType(name='void'),
                              ),
                              doc='',
                          ),

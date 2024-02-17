@@ -17,13 +17,11 @@
 
 #include <csetjmp>
 #include <cstring>
-#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
-#include <absl/strings/string_view.h>
-#include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 
@@ -80,14 +78,14 @@ auto MjuErrorMessageFrom(Return (*func)(Args...)) {
 }
 
 // Returns a path to a data file, under the mujoco/test directory.
-const std::string GetTestDataFilePath(absl::string_view path);
+const std::string GetTestDataFilePath(std::string_view path);
 
 // Returns a path to a data file, under the mujoco/model directory.
-const std::string GetModelPath(absl::string_view path);
+const std::string GetModelPath(std::string_view path);
 
 // Returns a newly-allocated mjModel, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.
-mjModel* LoadModelFromString(absl::string_view xml, char* error = nullptr,
+mjModel* LoadModelFromString(std::string_view xml, char* error = nullptr,
                              int error_size = 0, mjVFS* vfs = nullptr);
 
 // Returns a newly-allocated mjModel, loaded from the contents in model_path.
@@ -95,7 +93,7 @@ mjModel* LoadModelFromString(absl::string_view xml, char* error = nullptr,
 mjModel* LoadModelFromPath(const char* model_path);
 
 // Returns a string loaded from first saving the model given an input.
-const std::string SaveAndReadXml(const mjModel* model);
+std::string SaveAndReadXml(const mjModel* model);
 
 // Adds control noise.
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,

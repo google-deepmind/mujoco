@@ -33,6 +33,9 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
                 const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
                 int type, const mjtNum* side);
 
+// normalized muscle length-gain curve
+MJAPI mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax);
+
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)
 MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
                             mjtNum acc0, const mjtNum prm[9]);
@@ -77,6 +80,12 @@ MJAPI void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid,
 
 // integrate spring-damper analytically, return pos(dt)
 MJAPI mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum Kp, mjtNum Kv, mjtNum dt);
+
+// return 1 if point is outside box given by pos, mat, size * inflate
+// return -1 if point is inside box given by pos, mat, size / inflate
+// return 0 if point is between the inflated and deflated boxes
+MJAPI int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                         const mjtNum size[3], mjtNum inflate);
 
 // print matrix
 MJAPI void mju_printMat(const mjtNum* mat, int nr, int nc);

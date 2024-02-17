@@ -109,10 +109,11 @@ typedef enum mjtGeom_ {           // type of geometric shape
   mjGEOM_ARROW1,                  // arrow without wedges
   mjGEOM_ARROW2,                  // arrow in both directions
   mjGEOM_LINE,                    // line
+  mjGEOM_LINEBOX,                 // box with line edges
   mjGEOM_FLEX,                    // flex
   mjGEOM_SKIN,                    // skin
   mjGEOM_LABEL,                   // text label
-  mjGEOM_TRIANGLE,                // triangle connecting a frame
+  mjGEOM_TRIANGLE,                // triangle
 
   mjGEOM_NONE         = 1001      // missing geom type
 } mjtGeom;
@@ -246,7 +247,9 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_TEXT,                     // text
   mjOBJ_TUPLE,                    // tuple
   mjOBJ_KEY,                      // keyframe
-  mjOBJ_PLUGIN                    // plugin instance
+  mjOBJ_PLUGIN,                   // plugin instance
+
+  mjNOBJECT                       // number of object types
 } mjtObj;
 
 
@@ -456,6 +459,7 @@ struct mjVisual_ {                // visualization options
     int   offwidth;               // width of offscreen buffer
     int   offheight;              // height of offscreen buffer
     int   ellipsoidinertia;       // geom for inertia visualization (0: box, 1: ellipsoid)
+    int   bvactive;               // visualize active bounding volumes (0: no, 1: yes)
   } global;
 
   struct {                        // rendering quality
@@ -533,6 +537,8 @@ struct mjVisual_ {                // visualization options
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
     float frustum[4];             // camera frustum
+    float bv[4];                  // bounding volume
+    float bvactive[4];            // active bounding volume
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;
@@ -862,8 +868,6 @@ struct mjModel_ {
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
-  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -871,6 +875,8 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
+  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
 
   // skins
@@ -895,20 +901,23 @@ struct mjModel_ {
   int*      skin_bonebodyid;      // body id of each bone                     (nskinbone x 1)
   int*      skin_bonevertid;      // mesh ids of vertices in each bone        (nskinbonevert x 1)
   float*    skin_bonevertweight;  // weights of vertices in each bone         (nskinbonevert x 1)
+  int*      skin_pathadr;         // address of asset path for skin; -1: none (nskin x 1)
 
   // height fields
-  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
-  int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
-  int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
-  int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
-  float*    hfield_data;          // elevation data                           (nhfielddata x 1)
+  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                    (nhfield x 4)
+  int*      hfield_nrow;          // number of rows in grid                     (nhfield x 1)
+  int*      hfield_ncol;          // number of columns in grid                  (nhfield x 1)
+  int*      hfield_adr;           // address in hfield_data                     (nhfield x 1)
+  float*    hfield_data;          // elevation data                             (nhfielddata x 1)
+  int*      hfield_pathadr;       // address of asset path for hfield; -1: none (nhfield x 1)
 
   // textures
-  int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
-  int*      tex_height;           // number of rows in texture image          (ntex x 1)
-  int*      tex_width;            // number of columns in texture image       (ntex x 1)
-  int*      tex_adr;              // address in rgb                           (ntex x 1)
-  mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
+  int*      tex_type;             // texture type (mjtTexture)                  (ntex x 1)
+  int*      tex_height;           // number of rows in texture image            (ntex x 1)
+  int*      tex_width;            // number of columns in texture image         (ntex x 1)
+  int*      tex_adr;              // address in rgb                             (ntex x 1)
+  mjtByte*  tex_rgb;              // rgb (alpha = 1)                            (ntexdata x 1)
+  int*      tex_pathadr;         // address of asset path for texture; -1: none (ntex x 1)
 
   // materials
   int*      mat_texid;            // texture id; -1: none                     (nmat x 1)

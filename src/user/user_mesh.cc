@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "user/user_api.h"
+
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
@@ -127,11 +129,7 @@ static void ReadFromBuffer(T* dst, const char* src) {
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
-  // set defaults
-  mjuu_setvec(refpos_, 0, 0, 0);
-  mjuu_setvec(refquat_, 1, 0, 0, 0);
-  mjuu_setvec(scale_, 1, 1, 1);
-  smoothnormal_ = false;
+  mjm_defaultMesh(spec);
 
   // clear internal variables
   mjuu_setvec(pos_surface_, 0, 0, 0);
@@ -166,6 +164,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   valideigenvalue_ = true;
   validinequality_ = true;
   processed_ = false;
+  visual_ = true;
 
   // reset to default if given
   if (_def) {
@@ -175,6 +174,51 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // in case this body is not compiled
+  CopyFromSpec();
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+}
+
+
+
+void mjCMesh::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.file = (mjString)&spec_file_;
+  spec.content_type = (mjString)&spec_content_type_;
+  spec.uservert = (mjFloatVec)&spec_uservert_;
+  spec.usernormal = (mjFloatVec)&spec_usernormal_;
+  spec.userface = (mjIntVec)&spec_userface_;
+  spec.usertexcoord = (mjFloatVec)&spec_usertexcoord_;
+  spec.plugin.name = (mjString)&plugin_name;
+  spec.plugin.instance_name = (mjString)&plugin_instance_name;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCMesh::CopyFromSpec() {
+  *static_cast<mjmMesh*>(this) = spec;
+  file_ = spec_file_;
+  content_type_ = spec_content_type_;
+  uservert_ = spec_uservert_;
+  usernormal_ = spec_usernormal_;
+  userface_ = spec_userface_;
+  usertexcoord_ = spec_usertexcoord_;
+  file = (mjString)&file_;
+  content_type = (mjString)&content_type_;
+  uservert = (mjFloatVec)&uservert_;
+  usernormal = (mjFloatVec)&usernormal_;
+  userface = (mjIntVec)&userface_;
+  usertexcoord = (mjFloatVec)&usertexcoord_;
+  plugin.active = spec.plugin.active;
+  plugin.instance = spec.plugin.instance;
+  plugin.name = spec.plugin.name;
+  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -188,96 +232,6 @@ mjCMesh::~mjCMesh() {
   if (facenormal_) mju_free(facenormal_);
   if (facetexcoord_) mju_free(facetexcoord_);
   if (graph_) mju_free(graph_);
-}
-
-
-
-void mjCMesh::set_content_type(std::optional<std::string>&& content_type) {
-  if (content_type.has_value()) {
-    content_type_ = std::move(content_type.value());
-  }
-}
-
-
-
-void mjCMesh::set_file(std::optional<std::string>&& file) {
-  if (file.has_value()) {
-    file_ = std::move(file.value());
-  }
-}
-
-
-
-void mjCMesh::set_refpos(std::optional<std::array<double, 3>> refpos) {
-  if (refpos.has_value()) {
-    std::copy(refpos.value().begin(), refpos.value().end(), refpos_);
-  }
-}
-
-
-
-void mjCMesh::set_refquat(std::optional<std::array<double, 4>> refquat) {
-  if (refquat.has_value()) {
-    std::copy(refquat.value().begin(), refquat.value().end(), refquat_);
-  }
-}
-
-
-
-void mjCMesh::set_scale(std::optional<std::array<double, 3>> scale) {
-  if (scale.has_value()) {
-    set_scale(scale.value());
-  }
-}
-
-
-
-void mjCMesh::set_uservert(std::optional<std::vector<float>>&& uservert) {
-  if (uservert.has_value()) {
-    uservert_ = std::move(uservert.value());
-  }
-}
-
-
-
-void mjCMesh::set_usernormal(std::optional<std::vector<float>>&& usernormal) {
-  if (usernormal.has_value()) {
-    usernormal_ = std::move(usernormal.value());
-  }
-}
-
-
-
-void mjCMesh::set_usertexcoord(std::optional<std::vector<float>>&& usertexcoord) {
-  if (usertexcoord.has_value()) {
-    usertexcoord_ = std::move(usertexcoord.value());
-  }
-}
-
-
-
-void mjCMesh::set_userface(std::optional<std::vector<int>>&& userface) {
-  if (userface.has_value()) {
-    userface_ = std::move(userface.value());
-  }
-}
-
-
-
-void mjCMesh::set_file(const std::string& file) {
-  file_ = file;
-}
-
-
-
-void mjCMesh::set_scale(std::array<double, 3> scale) {
-  std::copy(scale.begin(), scale.end(), scale_);
-}
-
-
-
-void mjCMesh::set_smoothnormal(bool smoothnormal) {
-  smoothnormal_ = smoothnormal;
 }
 
 
@@ -296,26 +250,32 @@ void mjCMesh::LoadSDF() {
         name.c_str(), id);
   }
 
-  model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-  const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-  if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
-    throw mjCError(this, "plugin '%s' does not support signed distance fields", plugin->name);
+  if (scale[0] != 1 || scale[1] != 1 || scale[2] != 1) {
+    throw mjCError(this, "attribute scale is not compatible with SDFs in mesh '%s', (id = %d)",
+                   name.c_str(), id);
   }
 
-  std::vector<mjtNum> attributes(plugin->nattribute, 0);
-  std::vector<const char*> names(plugin->nattribute, 0);
-  std::vector<const char*> values(plugin->nattribute, 0);
-  for (int i=0; i < plugin->nattribute; i++) {
-    names[i] = plugin->attributes[i];
+  mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
+  model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+  if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
+    throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
+  }
+
+  std::vector<mjtNum> attributes(pplugin->nattribute, 0);
+  std::vector<const char*> names(pplugin->nattribute, 0);
+  std::vector<const char*> values(pplugin->nattribute, 0);
+  for (int i=0; i < pplugin->nattribute; i++) {
+    names[i] = pplugin->attributes[i];
     values[i] = plugin_instance->config_attribs[names[i]].c_str();
   }
 
-  if (plugin->sdf_attribute) {
-    plugin->sdf_attribute(attributes.data(), names.data(), values.data());
+  if (pplugin->sdf_attribute) {
+    pplugin->sdf_attribute(attributes.data(), names.data(), values.data());
   }
 
   mjtNum aabb[6] = {0};
-  plugin->sdf_aabb(aabb, attributes.data());
+  pplugin->sdf_aabb(aabb, attributes.data());
   mjtNum total = aabb[3] + aabb[4] + aabb[5];
 
   const mjtNum n = 300;
@@ -331,7 +291,7 @@ void mjCMesh::LoadSDF() {
         mjtNum point[] = {aabb[0]-aabb[3] + 2 * aabb[3] * i / (nx-1),
                           aabb[1]-aabb[4] + 2 * aabb[4] * j / (ny-1),
                           aabb[2]-aabb[5] + 2 * aabb[5] * k / (nz-1)};
-        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes.data());
+        field[(k * ny + j) * nx + i] =  pplugin->sdf_staticdistance(point, attributes.data());
       }
     }
   }
@@ -358,9 +318,9 @@ void mjCMesh::LoadSDF() {
     userface.push_back(mesh.indices.at(i));
   }
 
-  set_uservert(uservert);
-  set_usernormal(usernormal);
-  set_userface(userface);
+  uservert_ = std::move(uservert);
+  usernormal_ = std::move(usernormal);
+  userface_ = std::move(userface);
   delete[] field;
 }
 
@@ -368,6 +328,8 @@ void mjCMesh::LoadSDF() {
 
 // compiler
 void mjCMesh::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // load file
   if (!file_.empty()) {
     // remove path from file if necessary
@@ -404,7 +366,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // create using marching cubes
-  else if (is_plugin) {
+  else if (plugin.active) {
     LoadSDF();
   }
 
@@ -455,6 +417,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     // check size
     if (usertexcoord_.size()%2) {
       throw mjCError(this, "texcoord must be a multiple of 2");
+    }
+
+    // check size if no face texcoord indices are given
+    if (usertexcoord_.size() != 2*nvert_ && userfacetexcoord_.empty()) {
+      throw mjCError(this,
+          "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
     }
 
     // copy from user
@@ -564,6 +532,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     facetexcoord_ = VecToArray(userfacetexcoord_, !file_.empty());
   }
 
+  // no facetexcoord: copy from faces
+  if (!facetexcoord_ && texcoord_) {
+    facetexcoord_ = (int*) mju_malloc(3*nface_*sizeof(int));
+    memcpy(facetexcoord_, face_, 3*nface_*sizeof(int));
+  }
+
   // facenormal might not exist if usernormal was specified
   if (!facenormal_) {
     facenormal_ = (int*) mju_malloc(3*nface_*sizeof(int));
@@ -582,8 +556,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   // make bounding volume hierarchy
   if (tree_.bvh.empty()) {
     face_aabb_.assign(6*nface_, 0);
+    tree_.AllocateBoundingVolumes(nface_);
     for (int i=0; i<nface_; i++) {
-      tree_.AddBoundingVolume(GetBoundingVolume(i));
+      SetBoundingVolume(i);
     }
     tree_.CreateBVH();
   }
@@ -592,13 +567,13 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
 
 // get bounding volume
-mjCBoundingVolume mjCMesh::GetBoundingVolume(int faceid) {
-  mjCBoundingVolume node;
-  node.id = faceid;
-  node.conaffinity = 1;
-  node.contype = 1;
-  node.pos = center_ + 3*faceid;
-  node.quat = NULL;
+void mjCMesh::SetBoundingVolume(int faceid) {
+  mjCBoundingVolume* node = tree_.GetBoundingVolume(faceid);
+  node->SetId(faceid);
+  node->conaffinity = 1;
+  node->contype = 1;
+  node->pos = center_ + 3*faceid;
+  node->quat = NULL;
   mjtNum face_aamm[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
   for (int j=0; j<3; j++) {
     int vertid = face_[3*faceid+j];
@@ -615,15 +590,14 @@ mjCBoundingVolume mjCMesh::GetBoundingVolume(int faceid) {
   face_aabb_[6*faceid+3] = .5 * (face_aamm[3] - face_aamm[0]);
   face_aabb_[6*faceid+4] = .5 * (face_aamm[4] - face_aamm[1]);
   face_aabb_[6*faceid+5] = .5 * (face_aamm[5] - face_aamm[2]);
-  node.aabb = face_aabb_.data() + 6*faceid;
-  return node;
+  node->aabb = face_aabb_.data() + 6*faceid;
 }
 
 
 
 // get position
-double* mjCMesh::GetPosPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
+double* mjCMesh::GetPosPtr(mjtGeomInertia type) {
+  if (type==mjINERTIA_SHELL) {
     return pos_surface_;
   } else {
     return pos_volume_;
@@ -633,8 +607,8 @@ double* mjCMesh::GetPosPtr(mjtMeshType type) {
 
 
 // get orientation
-double* mjCMesh::GetQuatPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
+double* mjCMesh::GetQuatPtr(mjtGeomInertia type) {
+  if (type==mjINERTIA_SHELL) {
     return quat_surface_;
   } else {
     return quat_volume_;
@@ -699,6 +673,13 @@ void mjCMesh::CopyTexcoord(float* arr) const {
 
 void mjCMesh::CopyGraph(int* arr) const {
   std::copy(graph_, graph_+szgraph_, arr);
+}
+
+
+
+void mjCMesh::DelTexcoord() {
+  if (texcoord_) mju_free(texcoord_);
+  ntexcoord_ = 0;
 }
 
 
@@ -925,7 +906,7 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
 
   if (!objReader.GetShapes().empty()) {
     const auto& mesh = objReader.GetShapes()[0].mesh;
-    bool righthand = (scale_[0]*scale_[1]*scale_[2] > 0);
+    bool righthand = (scale[0]*scale[1]*scale[2] > 0);
 
     // iterate over mesh faces
     std::vector<tinyobj::index_t> face_indices;
@@ -973,7 +954,7 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
 
 // load STL binary mesh
 void mjCMesh::LoadSTL(mjResource* resource) {
-  bool righthand = (scale_[0]*scale_[1]*scale_[2]>0);
+  bool righthand = (scale[0]*scale[1]*scale[2]>0);
 
   // get file data in buffer
   char* buffer = 0;
@@ -1053,7 +1034,7 @@ void mjCMesh::LoadSTL(mjResource* resource) {
 
 // load MSH binary mesh
 void mjCMesh::LoadMSH(mjResource* resource) {
-  bool righthand = (scale_[0]*scale_[1]*scale_[2]>0);
+  bool righthand = (scale[0]*scale[1]*scale[2]>0);
 
   // get file data in buffer
   char* buffer = 0;
@@ -1130,7 +1111,7 @@ void mjCMesh::LoadMSH(mjResource* resource) {
 }
 
 
-void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
+void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
                               const double facecen[3], bool exactmeshinertia) {
   double nrm[3];
   double cen[3];
@@ -1142,10 +1123,10 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
 
     // compute and add volume
     const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-    double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
+    double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(vec, nrm) * a / 3;
 
     // if legacy computation requested, then always positive
-    if (!exactmeshinertia && type==mjVOLUME_MESH) {
+    if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
       vol = fabs(vol);
     }
 
@@ -1161,9 +1142,9 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
 // apply transformations
 void mjCMesh::ApplyTransformations() {
   // translate
-  if (refpos_[0]!=0 || refpos_[1]!=0 || refpos_[2]!=0) {
+  if (refpos[0]!=0 || refpos[1]!=0 || refpos[2]!=0) {
     // prepare translation
-    float rp[3] = {(float)refpos_[0], (float)refpos_[1], (float)refpos_[2]};
+    float rp[3] = {(float)refpos[0], (float)refpos[1], (float)refpos[2]};
 
     // process vertices
     for (int i=0; i<nvert_; i++) {
@@ -1174,9 +1155,9 @@ void mjCMesh::ApplyTransformations() {
   }
 
   // rotate
-  if (refquat_[0]!=1 || refquat_[1]!=0 || refquat_[2]!=0 || refquat_[3]!=0) {
+  if (refquat[0]!=1 || refquat[1]!=0 || refquat[2]!=0 || refquat[3]!=0) {
     // prepare rotation
-    mjtNum quat[4] = {refquat_[0], refquat_[1], refquat_[2], refquat_[3]};
+    mjtNum quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
     mjtNum mat[9];
     mju_normalize4(quat);
     mju_quat2Mat(mat, quat);
@@ -1201,17 +1182,17 @@ void mjCMesh::ApplyTransformations() {
   }
 
   // scale
-  if (scale_[0]!=1 || scale_[1]!=1 || scale_[2]!=1) {
+  if (scale[0]!=1 || scale[1]!=1 || scale[2]!=1) {
     for (int i=0; i<nvert_; i++) {
-      vert_[3*i] *= scale_[0];
-      vert_[3*i+1] *= scale_[1];
-      vert_[3*i+2] *= scale_[2];
+      vert_[3*i] *= scale[0];
+      vert_[3*i+1] *= scale[1];
+      vert_[3*i+2] *= scale[2];
     }
 
     for (int i=0; i<nnormal_; i++) {
-      normal_[3*i] *= scale_[0];
-      normal_[3*i+1] *= scale_[1];
-      normal_[3*i+2] *= scale_[2];
+      normal_[3*i] *= scale[0];
+      normal_[3*i+1] *= scale[1];
+      normal_[3*i+2] *= scale[2];
     }
   }
 
@@ -1284,7 +1265,7 @@ void mjCMesh::Process() {
   ComputeFaceCentroid(facecen);
 
   // compute inertial properties for both inertia types
-  for ( const auto type : { mjtMeshType::mjVOLUME_MESH, mjtMeshType::mjSHELL_MESH } ) {
+  for ( const auto type : { mjtGeomInertia::mjINERTIA_VOLUME, mjtGeomInertia::mjINERTIA_SHELL } ) {
     double CoM[3] = {0, 0, 0};
     double inert[6] = {0, 0, 0, 0, 0, 0};
     bool exactmeshinertia = model->exactmeshinertia;
@@ -1312,7 +1293,7 @@ void mjCMesh::Process() {
     mjuu_copyvec(GetPosPtr(type), CoM, 3);
 
     // re-center mesh at CoM
-    if (type==mjVOLUME_MESH || validvolume_<=0) {
+    if (type==mjINERTIA_VOLUME || validvolume_<=0) {
       for (int i=0; i<nvert_; i++) {
         for (int j=0; j<3; j++) {
           vert_[3*i+j] -= CoM[j];
@@ -1331,10 +1312,10 @@ void mjCMesh::Process() {
 
       // get area, normal and center; update volume
       double a = _triangle(nrm, cen, D, E, F);
-      double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
+      double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!exactmeshinertia && type==mjVOLUME_MESH) {
+      if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
         vol = fabs(vol);
       }
 
@@ -1342,7 +1323,7 @@ void mjCMesh::Process() {
       GetVolumeRef(type) += vol;
       for (int j=0; j<6; j++) {
         P[j] += def->geom.density*vol /
-                  (type==mjSHELL_MESH ? 12 : 20) * (
+                  (type==mjINERTIA_SHELL ? 12 : 20) * (
                   2*(D[k[j][0]] * D[k[j][1]] +
                     E[k[j][0]] * E[k[j][1]] +
                     F[k[j][0]] * F[k[j][1]]) +
@@ -1390,8 +1371,8 @@ void mjCMesh::Process() {
 
     // if volume was valid, copy volume quat to shell and stop,
     // otherwise use shell quat for coordinate transformations
-    if (type==mjSHELL_MESH && validvolume_>0) {
-      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjVOLUME_MESH));
+    if (type==mjINERTIA_SHELL && validvolume_>0) {
+      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME));
       continue;
     }
 
@@ -1427,7 +1408,7 @@ void mjCMesh::Process() {
 
 
 // check that the mesh is valid
-void mjCMesh::CheckMesh(mjtMeshType type) {
+void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
@@ -1436,11 +1417,11 @@ void mjCMesh::CheckMesh(mjtMeshType type) {
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
                    name.c_str(), invalidorientation_.first, invalidorientation_.second);
-  if (!validarea_ && type==mjSHELL_MESH)
+  if (!validarea_ && type==mjINERTIA_SHELL)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  if (validvolume_<0 && type==mjVOLUME_MESH)
+  if (validvolume_<0 && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
-  if (!validvolume_ && type==mjVOLUME_MESH)
+  if (!validvolume_ && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is too small: %s", name.c_str());
   if (!valideigenvalue_)
     throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
@@ -1450,15 +1431,15 @@ void mjCMesh::CheckMesh(mjtMeshType type) {
 
 
 // get inertia pointer
-double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
+double* mjCMesh::GetInertiaBoxPtr(mjtGeomInertia type) {
   CheckMesh(type);
-  return type==mjSHELL_MESH ? boxsz_surface_ : boxsz_volume_;
+  return type==mjINERTIA_SHELL ? boxsz_surface_ : boxsz_volume_;
 }
 
 
-double& mjCMesh::GetVolumeRef(mjtMeshType type) {
+double& mjCMesh::GetVolumeRef(mjtGeomInertia type) {
   CheckMesh(type);
-  return type==mjSHELL_MESH ? surface_ : volume_;
+  return type==mjINERTIA_SHELL ? surface_ : volume_;
 }
 
 
@@ -1481,6 +1462,10 @@ void mjCMesh::MakeGraph(void) {
     throw mjCError(this, "could not allocate data for qhull");
   }
   for (int i=0; i<3*nvert_; i++) {
+    if (!std::isfinite(vert_[i])) {
+      mju_free(data);
+      throw mjCError(this, "vertex coordinate %d is not finite", NULL, i);
+    }
     data[i] = (double)vert_[i];
   }
 
@@ -1728,7 +1713,7 @@ void mjCMesh::MakeNormal(void) {
   }
 
   // remove large-angle faces
-  if (!smoothnormal_) {
+  if (!smoothnormal) {
     // allocate removal and clear
     float* nremove = (float*) mju_malloc(3*nnormal_*sizeof(float));
     memset(nremove, 0, 3*nnormal_*sizeof(float));
@@ -1844,45 +1829,92 @@ void mjCMesh::MakeCenter(void) {
 
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
+  mjm_defaultSkin(spec);
+
   // set model pointer
   model = _model;
 
   // clear data
-  file.clear();
-  material.clear();
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
-  inflate = 0;
-  group = 0;
+  spec_file_.clear();
+  spec_material_.clear();
+  spec_vert_.clear();
+  spec_texcoord_.clear();
+  spec_face_.clear();
+  spec_bodyname_.clear();
+  spec_bindpos_.clear();
+  spec_bindquat_.clear();
+  spec_vertid_.clear();
+  spec_vertweight_.clear();
 
-  vert.clear();
-  texcoord.clear();
-  face.clear();
-
-  bodyname.clear();
-  bindpos.clear();
-  bindquat.clear();
-  vertid.clear();
-  vertweight.clear();
   bodyid.clear();
-
   matid = -1;
+
+  // point to local (needs to be after defaults)
+  PointToLocal();
+
+  // in case this camera is not compiled
+  CopyFromSpec();
+}
+
+
+
+void mjCSkin::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.file = (mjString)&spec_file_;
+  spec.material = (mjString)&spec_material_;
+  spec.vert = (mjFloatVec)&spec_vert_;
+  spec.texcoord = (mjFloatVec)&spec_texcoord_;
+  spec.face = (mjIntVec)&spec_face_;
+  spec.bodyname = (mjStringVec)&spec_bodyname_;
+  spec.bindpos = (mjFloatVec)&spec_bindpos_;
+  spec.bindquat = (mjFloatVec)&spec_bindquat_;
+  spec.vertid = (mjIntVecVec)&spec_vertid_;
+  spec.vertweight = (mjFloatVecVec)&spec_vertweight_;
+  spec.info = (mjString)&info;
+}
+
+
+
+void mjCSkin::CopyFromSpec() {
+  *static_cast<mjmSkin*>(this) = spec;
+  file_ = spec_file_;
+  material_ = spec_material_;
+  vert_ = spec_vert_;
+  texcoord_ = spec_texcoord_;
+  face_ = spec_face_;
+  bodyname_ = spec_bodyname_;
+  bindpos_ = spec_bindpos_;
+  bindquat_ = spec_bindquat_;
+  vertid_ = spec_vertid_;
+  vertweight_ = spec_vertweight_;
+  file = (mjString)&spec_file_;
+  material = (mjString)&spec_material_;
+  vert = (mjFloatVec)&spec_vert_;
+  texcoord = (mjFloatVec)&spec_texcoord_;
+  face = (mjIntVec)&spec_face_;
+  bodyname = (mjStringVec)&spec_bodyname_;
+  bindpos = (mjFloatVec)&spec_bindpos_;
+  bindquat = (mjFloatVec)&spec_bindquat_;
+  vertid = (mjIntVecVec)&spec_vertid_;
+  vertweight = (mjFloatVecVec)&spec_vertweight_;
 }
 
 
 
 // destructor
 mjCSkin::~mjCSkin() {
-  file.clear();
-  material.clear();
-  vert.clear();
-  texcoord.clear();
-  face.clear();
-  bodyname.clear();
-  bindpos.clear();
-  bindquat.clear();
-  vertid.clear();
-  vertweight.clear();
+  spec_file_.clear();
+  spec_material_.clear();
+  spec_vert_.clear();
+  spec_texcoord_.clear();
+  spec_face_.clear();
+  spec_bodyname_.clear();
+  spec_bindpos_.clear();
+  spec_bindquat_.clear();
+  spec_vertid_.clear();
+  spec_vertweight_.clear();
   bodyid.clear();
 }
 
@@ -1890,33 +1922,35 @@ mjCSkin::~mjCSkin() {
 
 // compiler
 void mjCSkin::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // load file
-  if (!file.empty()) {
+  if (!file_.empty()) {
     // make sure data is not present
-    if (!vert.empty() ||
-        !texcoord.empty() ||
-        !face.empty() ||
-        !bodyname.empty() ||
-        !bindpos.empty() ||
-        !bindquat.empty() ||
-        !vertid.empty() ||
-        !vertweight.empty() ||
+    if (!vert_.empty() ||
+        !texcoord_.empty() ||
+        !face_.empty() ||
+        !bodyname_.empty() ||
+        !bindpos_.empty() ||
+        !bindquat_.empty() ||
+        !vertid_.empty() ||
+        !vertweight_.empty() ||
         !bodyid.empty()) {
-      throw mjCError(this, "Data already exists, trying to load from skin file: %s", file.c_str());
+      throw mjCError(this, "Data already exists, trying to load from skin file: %s", file_.c_str());
     }
 
     // remove path from file if necessary
     if (model->strippath) {
-      file = mjuu_strippath(file);
+      file_ = mjuu_strippath(file_);
     }
 
     // load SKN
-    string ext = mjuu_getext(file);
+    string ext = mjuu_getext(file_);
     if (strcasecmp(ext.c_str(), ".skn")) {
-      throw mjCError(this, "Unknown skin file type: %s", file.c_str());
+      throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -1929,84 +1963,84 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // make sure all data is present
-  if (vert.empty() ||
-      face.empty() ||
-      bodyname.empty() ||
-      bindpos.empty() ||
-      bindquat.empty() ||
-      vertid.empty() ||
-      vertweight.empty()) {
+  if (vert_.empty() ||
+      face_.empty() ||
+      bodyname_.empty() ||
+      bindpos_.empty() ||
+      bindquat_.empty() ||
+      vertid_.empty() ||
+      vertweight_.empty()) {
     throw mjCError(this, "Missing data in skin");
   }
 
   // check mesh sizes
-  if (vert.size()%3) {
+  if (vert_.size()%3) {
     throw mjCError(this, "Vertex data must be multiple of 3");
   }
-  if (!texcoord.empty() && texcoord.size()!=2*vert.size()/3) {
+  if (!texcoord_.empty() && texcoord_.size()!=2*vert_.size()/3) {
     throw mjCError(this, "Vertex and texcoord data incompatible size");
   }
-  if (face.size()%3) {
+  if (face_.size()%3) {
     throw mjCError(this, "Face data must be multiple of 3");
   }
 
   // check bone sizes
-  size_t nbone = bodyname.size();
-  if (bindpos.size()!=3*nbone) {
+  size_t nbone = bodyname_.size();
+  if (bindpos_.size()!=3*nbone) {
     throw mjCError(this, "Unexpected bindpos size in skin");
   }
-  if (bindquat.size()!=4*nbone) {
+  if (bindquat_.size()!=4*nbone) {
     throw mjCError(this, "Unexpected bindquat size in skin");
   }
-  if (vertid.size()!=nbone) {
+  if (vertid_.size()!=nbone) {
     throw mjCError(this, "Unexpected vertid size in skin");
   }
-  if (vertweight.size()!=nbone) {
+  if (vertweight_.size()!=nbone) {
     throw mjCError(this, "Unexpected vertweight size in skin");
   }
 
   // resolve body names
   bodyid.resize(nbone);
   for (int i=0; i<nbone; i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname[i]);
+    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname_[i]);
     if (!pbody) {
-      throw mjCError(this, "unknown body '%s' in skin", bodyname[i].c_str());
+      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
     }
     bodyid[i] = pbody->id;
   }
 
   // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
   if (pmat) {
     matid = pmat->id;
-  } else if (!material.empty()) {
-      throw mjCError(this, "unkown material '%s' in skin", material.c_str());
+  } else if (!material_.empty()) {
+      throw mjCError(this, "unkown material '%s' in skin", material_.c_str());
   }
 
   // set total vertex weights to 0
   vector<float> vw;
-  size_t nvert = vert.size()/3;
+  size_t nvert = vert_.size()/3;
   vw.resize(nvert);
   fill(vw.begin(), vw.end(), 0.0f);
 
   // accumulate vertex weights from all bones
   for (int i=0; i<nbone; i++) {
     // make sure bone has vertices and sizes match
-    size_t nbv = vertid[i].size();
-    if (vertweight[i].size()!=nbv || nbv==0) {
+    size_t nbv = vertid_[i].size();
+    if (vertweight_[i].size()!=nbv || nbv==0) {
       throw mjCError(this, "vertid and vertweight must have same non-zero size in skin");
     }
 
     // accumulate weights in global array
     for (int j=0; j<nbv; j++) {
       // get index and check range
-      int jj = vertid[i][j];
+      int jj = vertid_[i][j];
       if (jj<0 || jj>=nvert) {
         throw mjCError(this, "vertid %d out of range in skin", NULL, jj);
       }
 
       // accumulate
-      vw[jj] += vertweight[i][j];
+      vw[jj] += vertweight_[i][j];
     }
   }
 
@@ -2019,25 +2053,25 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // normalize vertex weights
   for (int i=0; i<nbone; i++) {
-    for (int j=0; j<vertid[i].size(); j++) {
-      vertweight[i][j] /= vw[vertid[i][j]];
+    for (int j=0; j<vertid_[i].size(); j++) {
+      vertweight_[i][j] /= vw[vertid_[i][j]];
     }
   }
 
   // normalize bindquat
   for (int i=0; i<nbone; i++) {
     mjtNum quat[4] = {
-      (mjtNum)bindquat[4*i],
-      (mjtNum)bindquat[4*i+1],
-      (mjtNum)bindquat[4*i+2],
-      (mjtNum)bindquat[4*i+3]
+      (mjtNum)bindquat_[4*i],
+      (mjtNum)bindquat_[4*i+1],
+      (mjtNum)bindquat_[4*i+2],
+      (mjtNum)bindquat_[4*i+3]
     };
     mju_normalize4(quat);
 
-    bindquat[4*i]   = (float) quat[0];
-    bindquat[4*i+1] = (float) quat[1];
-    bindquat[4*i+2] = (float) quat[2];
-    bindquat[4*i+3] = (float) quat[3];
+    bindquat_[4*i]   = (float) quat[0];
+    bindquat_[4*i+1] = (float) quat[1];
+    bindquat_[4*i+2] = (float) quat[2];
+    bindquat_[4*i+3] = (float) quat[3];
   }
 }
 
@@ -2081,31 +2115,31 @@ void mjCSkin::LoadSKN(mjResource* resource) {
 
   // copy vert
   if (nvert) {
-    vert.resize(3*nvert);
-    memcpy(vert.data(), pdata+cnt, 3*nvert*sizeof(float));
+    vert_.resize(3*nvert);
+    memcpy(vert_.data(), pdata+cnt, 3*nvert*sizeof(float));
     cnt += 3*nvert;
   }
 
   // copy texcoord
   if (ntexcoord) {
-    texcoord.resize(2*ntexcoord);
-    memcpy(texcoord.data(), pdata+cnt, 2*ntexcoord*sizeof(float));
+    texcoord_.resize(2*ntexcoord);
+    memcpy(texcoord_.data(), pdata+cnt, 2*ntexcoord*sizeof(float));
     cnt += 2*ntexcoord;
   }
 
   // copy face
   if (nface) {
-    face.resize(3*nface);
-    memcpy(face.data(), pdata+cnt, 3*nface*sizeof(int));
+    face_.resize(3*nface);
+    memcpy(face_.data(), pdata+cnt, 3*nface*sizeof(int));
     cnt += 3*nface;
   }
 
   // allocate bone arrays
-  bodyname.clear();
-  bindpos.resize(3*nbone);
-  bindquat.resize(4*nbone);
-  vertid.resize(nbone);
-  vertweight.resize(nbone);
+  bodyname_.clear();
+  bindpos_.resize(3*nbone);
+  bindquat_.resize(4*nbone);
+  vertid_.resize(nbone);
+  vertweight_.resize(nbone);
 
   // read bones
   for (int i=0; i<nbone; i++) {
@@ -2119,14 +2153,14 @@ void mjCSkin::LoadSKN(mjResource* resource) {
     strncpy(txt, (char*)(pdata+cnt), 39);
     txt[39] = '\0';
     cnt += 10;
-    bodyname.push_back(txt);
+    bodyname_.push_back(txt);
 
     // read bindpos
-    memcpy(bindpos.data()+3*i, pdata+cnt, 3*sizeof(float));
+    memcpy(bindpos_.data()+3*i, pdata+cnt, 3*sizeof(float));
     cnt += 3;
 
     // read bind quat
-    memcpy(bindquat.data()+4*i, pdata+cnt, 4*sizeof(float));
+    memcpy(bindquat_.data()+4*i, pdata+cnt, 4*sizeof(float));
     cnt += 4;
 
     // read vertex count
@@ -2146,13 +2180,13 @@ void mjCSkin::LoadSKN(mjResource* resource) {
     }
 
     // read vertid
-    vertid[i].resize(vcount);
-    memcpy(vertid[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
+    vertid_[i].resize(vcount);
+    memcpy(vertid_[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
     cnt += vcount;
 
     // read vertweight
-    vertweight[i].resize(vcount);
-    memcpy(vertweight[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
+    vertweight_[i].resize(vcount);
+    memcpy(vertweight_[i].data(), (int*)(pdata+cnt), vcount*sizeof(int));
     cnt += vcount;
   }
 
@@ -2186,33 +2220,10 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
+  mjm_defaultFlex(spec);
+
   // set model
   model = _model;
-
-  // set contact defaults
-  contype = 1;
-  conaffinity = 1;
-  condim = 3;
-  priority = 0;
-  mjuu_setvec(friction, 1, 0.005, 0.0001);
-  solmix = 1.0;
-  mj_defaultSolRefImp(solref, solimp);
-  margin = 0;
-  gap = 0;
-
-  // set other defaults
-  dim = 2;
-  radius = 0.005;
-  internal = true;
-  flatskin = false;
-  selfcollide = mjFLEXSELF_AUTO;
-  activelayers = 1;
-  group = 0;
-  edgestiffness = 0;
-  edgedamping = 0;
-  material.clear();
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
 
   // clear internal variables
   nvert = 0;
@@ -2221,41 +2232,84 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   matid = -1;
   rigid = false;
   centered = false;
+
+  PointToLocal();
+  CopyFromSpec();
 }
 
+
+void mjCFlex::PointToLocal() {
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.classname = (mjString)&classname;
+  spec.material = (mjString)&spec_material_;
+  spec.vertbody = (mjStringVec)&spec_vertbody_;
+  spec.vert = (mjDoubleVec)&spec_vert_;
+  spec.texcoord = (mjFloatVec)&spec_texcoord_;
+  spec.elem = (mjIntVec)&spec_elem_;
+  spec.info = (mjString)&info;
+}
+
+
+void mjCFlex::CopyFromSpec() {
+  *static_cast<mjmFlex*>(this) = spec;
+  spec.info = (mjString)&info;
+  material_ = spec_material_;
+  vertbody_ = spec_vertbody_;
+  vert_ = spec_vert_;
+  texcoord_ = spec_texcoord_;
+  elem_ = spec_elem_;
+  material = (mjString)&material_;
+  vertbody = (mjStringVec)&vertbody_;
+  vert = (mjDoubleVec)&vert_;
+  texcoord = (mjFloatVec)&texcoord_;
+  elem = (mjIntVec)&elem_;
+}
+
+
+bool mjCFlex::HasTexcoord() const {
+  return !texcoord_.empty();
+}
+
+
+void mjCFlex::DelTexcoord() {
+  texcoord_.clear();
+}
 
 
 // compiler
 void mjCFlex::Compile(const mjVFS* vfs) {
+  CopyFromSpec();
+
   // set nelem; check sizes
   if (dim<1 || dim>3) {
       throw mjCError(this, "dim must be 1, 2 or 3");
   }
-  if (elem.empty()) {
+  if (elem_.empty()) {
       throw mjCError(this, "elem is empty");
   }
-  if (elem.size() % (dim+1)) {
+  if (elem_.size() % (dim+1)) {
       throw mjCError(this, "elem size must be multiple of (dim+1)");
   }
-  if (vertbody.empty()) {
+  if (vertbody_.empty()) {
       throw mjCError(this, "vertbody is empty");
   }
-  if (vert.size() % 3) {
+  if (vert_.size() % 3) {
       throw mjCError(this, "vert size must be a multiple of 3");
   }
   if (edgestiffness>0 && dim>1) {
     throw mjCError(this, "edge stiffness only available for dim=1, please use elasticity plugins");
   }
-  nelem = (int)elem.size()/(dim+1);
+  nelem = (int)elem_.size()/(dim+1);
 
   // set nvert, rigid, centered; check size
-  if (vert.empty()) {
+  if (vert_.empty()) {
     centered = true;
-    nvert = (int)vertbody.size();
+    nvert = (int)vertbody_.size();
   }
   else {
-    nvert = (int)vert.size()/3;
-    if (vertbody.size()==1) {
+    nvert = (int)vert_.size()/3;
+    if (vertbody_.size()==1) {
       rigid = true;
     }
   }
@@ -2264,40 +2318,40 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // check elem vertex ids
-  for (int i=0; i<(int)elem.size(); i++) {
-    if (elem[i]<0 || elem[i]>=nvert) {
+  for (int i=0; i<(int)elem_.size(); i++) {
+    if (elem_[i]<0 || elem_[i]>=nvert) {
       throw mjCError(this, "elem vertex id out of range");
     }
   }
 
   // check texcoord
-  if (!texcoord.empty() && texcoord.size()!=2*nvert) {
+  if (!texcoord_.empty() && texcoord_.size()!=2*nvert) {
     throw mjCError(this, "two texture coordinates per vertex expected");
   }
 
   // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
   if (pmat) {
     matid = pmat->id;
-  } else if (!material.empty()) {
-      throw mjCError(this, "unkown material '%s' in flex", material.c_str());
+  } else if (!material_.empty()) {
+      throw mjCError(this, "unkown material '%s' in flex", material_.c_str());
   }
 
   // resolve body ids
-  for (int i=0; i<(int)vertbody.size(); i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody[i]);
+  for (int i=0; i<(int)vertbody_.size(); i++) {
+    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody_[i]);
     if (pbody) {
       vertbodyid.push_back(pbody->id);
     } else {
-        throw mjCError(this, "unkown body '%s' in flex", vertbody[i].c_str());
+        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
     }
   }
 
   // process elements
-  for (int e=0; e<(int)elem.size()/(dim+1); e++) {
+  for (int e=0; e<(int)elem_.size()/(dim+1); e++) {
     // make sorted copy of element
     vector<int> el;
-    el.assign(elem.begin()+e*(dim+1), elem.begin()+(e+1)*(dim+1));
+    el.assign(elem_.begin()+e*(dim+1), elem_.begin()+(e+1)*(dim+1));
     std::sort(el.begin(), el.end());
 
     // check for repeated vertices
@@ -2322,8 +2376,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // determine centered if not already set
   if (!centered) {
     centered = true;
-    for (int i=0; i<(int)vert.size(); i++) {
-      if (vert[i]!=0) {
+    for (int i=0; i<(int)vert_.size(); i++) {
+      if (vert_[i]!=0) {
         centered = false;
         break;
       }
@@ -2340,7 +2394,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     // add vertex offset within body if not centered
     if (!centered) {
       mjtNum offset[3];
-      mju_rotVecQuat(offset, vert.data()+3*i, model->bodies[b]->xquat0);
+      mju_rotVecQuat(offset, vert_.data()+3*i, model->bodies[b]->xquat0);
       mju_addTo3(vertxpos.data()+3*i, offset);
     }
   }
@@ -2349,7 +2403,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // faces are (0,1,2); (0,2,3); (0,3,1); (1,3,2)
   if (dim==3) {
     for (int e=0; e<nelem; e++) {
-      const int* edata = elem.data() + e*(dim+1);
+      const int* edata = elem_.data() + e*(dim+1);
       mjtNum* v0 = vertxpos.data() + 3*edata[0];
       mjtNum* v1 = vertxpos.data() + 3*edata[1];
       mjtNum* v2 = vertxpos.data() + 3*edata[2];
@@ -2363,22 +2417,22 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       mju_cross(nrm, v01, v02);
       if (mju_dot3(nrm, v03)>0) {
         // flip orientation
-        int tmp = elem[e*(dim+1)+1];
-        elem[e*(dim+1)+1] = elem[e*(dim+1)+2];
-        elem[e*(dim+1)+2] = tmp;
+        int tmp = elem_[e*(dim+1)+1];
+        elem_[e*(dim+1)+1] = elem_[e*(dim+1)+2];
+        elem_[e*(dim+1)+2] = tmp;
       }
     }
   }
 
   // create edges
-  std::vector<int> edgeidx(elem.size()*kNumEdges[dim-1]);
+  std::vector<int> edgeidx(elem_.size()*kNumEdges[dim-1]);
 
   // map from edge vertices to their index in `edges` vector
   std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
 
   // insert local edges into global vector
-  for (int f = 0; f < (int)elem.size()/(dim+1); f++) {
-    int* v = elem.data() + f*(dim+1);
+  for (int f = 0; f < (int)elem_.size()/(dim+1); f++) {
+    int* v = elem_.data() + f*(dim+1);
     for (int e = 0; e < kNumEdges[dim-1]; e++) {
       auto pair = std::pair(
         std::min(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]]),
@@ -2402,13 +2456,14 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // add plugins
   std::string userface, useredge;
-  mjXUtil::Vector2String(userface, elem);
+  mjXUtil::Vector2String(userface, elem_);
   mjXUtil::Vector2String(useredge, edgeidx);
 
   for (int i=0; i<(int)vertbodyid.size(); i++) {
-    if (model->bodies[vertbodyid[i]]->plugin_instance) {
-      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["face"] = userface;
-      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["edge"] = useredge;
+    if (model->bodies[vertbodyid[i]]->plugin.instance) {
+      mjCPlugin* plugin_instance = (mjCPlugin*)model->bodies[vertbodyid[i]]->plugin.instance;
+      plugin_instance->config_attribs["face"] = userface;
+      plugin_instance->config_attribs["edge"] = useredge;
     }
   }
 
@@ -2423,18 +2478,15 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
 // create flex BVH
 void mjCFlex::CreateBVH(void) {
-  // init bounding volume object
-  mjCBoundingVolume bv;
-  bv.contype = contype;
-  bv.conaffinity = conaffinity;
-  bv.quat = NULL;
+  int nbvh = 0;
 
   // allocate element bounding boxes
-  vector<mjtNum> elemaabb(6*nelem);
+  elemaabb_.resize(6*nelem);
+  tree.AllocateBoundingVolumes(nelem);
 
   // construct element bounding boxes, add to hierarchy
   for (int e=0; e<nelem; e++) {
-    const int* edata = elem.data() + e*(dim+1);
+    const int* edata = elem_.data() + e*(dim+1);
 
     // skip inactive in 3D
     if (dim==3 && elemlayer[e]>=activelayers) {
@@ -2453,21 +2505,25 @@ void mjCFlex::CreateBVH(void) {
     }
 
     // compute aabb (center, size)
-    elemaabb[6*e+0] = 0.5*(xmax[0]+xmin[0]);
-    elemaabb[6*e+1] = 0.5*(xmax[1]+xmin[1]);
-    elemaabb[6*e+2] = 0.5*(xmax[2]+xmin[2]);
-    elemaabb[6*e+3] = 0.5*(xmax[0]-xmin[0]) + radius;
-    elemaabb[6*e+4] = 0.5*(xmax[1]-xmin[1]) + radius;
-    elemaabb[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
+    elemaabb_[6*e+0] = 0.5*(xmax[0]+xmin[0]);
+    elemaabb_[6*e+1] = 0.5*(xmax[1]+xmin[1]);
+    elemaabb_[6*e+2] = 0.5*(xmax[2]+xmin[2]);
+    elemaabb_[6*e+3] = 0.5*(xmax[0]-xmin[0]) + radius;
+    elemaabb_[6*e+4] = 0.5*(xmax[1]-xmin[1]) + radius;
+    elemaabb_[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
 
     // add bounding volume for this element
-    bv.id = e;
-    bv.aabb = elemaabb.data() + 6*e;
-    bv.pos = bv.aabb;
-    tree.AddBoundingVolume(bv);
+    mjCBoundingVolume* bv = tree.GetBoundingVolume(nbvh++);
+    bv->contype = contype;
+    bv->conaffinity = conaffinity;
+    bv->quat = NULL;
+    bv->SetId(e);
+    bv->aabb = elemaabb_.data() + 6*e;
+    bv->pos = bv->aabb;
   }
 
   // create hierarchy
+  tree.RemoveInactiveVolumes(nbvh);
   tree.CreateBVH();
 }
 
@@ -2486,7 +2542,7 @@ void mjCFlex::CreateShellPair(void) {
 
     // element vertices in original (unsorted) order
     vector<int> el;
-    el.assign(elem.begin()+n, elem.begin()+n+dim+1);
+    el.assign(elem_.begin()+n, elem_.begin()+n+dim+1);
 
     // line: 2 vertex fragments
     if (dim==1) {
@@ -2655,7 +2711,7 @@ void mjCFlex::CreateShellPair(void) {
 
         // process both elements
         for (int ei=0; ei<2; ei++) {
-          const int* edata = elem.data() + connectspec[n][ei]*(dim+1);
+          const int* edata = elem_.data() + connectspec[n][ei]*(dim+1);
 
           // find element vertex that is not in the common fragment
           for (int i=0; i<=dim; i++) {

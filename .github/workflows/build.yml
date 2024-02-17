@@ -164,6 +164,7 @@ jobs:
       if: ${{ runner.os != 'Windows' }}
       working-directory: build
       run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp lib/libactuator.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsdf.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
@@ -171,6 +172,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
       run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp bin/Release/actuator.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Configure samples
@@ -252,20 +254,32 @@ jobs:
     - name: Notify team chat
       shell: bash
       env:
-        GCHAT_API: ${{ secrets.GCHAT_API }}
-        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/\
-          ${{ github.run_id }}"
-      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API != '' }}
-      run: >
-        curl
-        "$GCHAT_API&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
-        -X POST
-        -H "Content-Type: application/json"
-        -d "{
-        'text': '<$JOB_URL|*FAILURE*>:
-        job \`${{ matrix.os }}${{ matrix.additional_label }}\`
-        commit \`$(echo $GITHUB_SHA | head -c6)\`\n
-        \`\`\`Author: ${{ github.event.head_commit.author.name }}
-        <${{ github.event.head_commit.author.email }}>
-        \n\n${{ github.event.head_commit.message }}\`\`\`
-        '}"
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: ${{ matrix.os }}${{ matrix.additional_label }}
+      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
+      run: |
+        CHATMSG="$(cat <<-'EOF' | python3
+        import json
+        import os
+        env = lambda x: os.getenv(x, '')
+        data = dict(
+            result=env('JOB_URL'),
+            job=env('CHATMSG_JOB_ID'),
+            commit=env('GITHUB_SHA')[:6],
+            name=env('CHATMSG_AUTHOR_NAME').replace('```', ''),
+            email=env('CHATMSG_AUTHOR_EMAIL'),
+            msg=env('CHATMSG_COMMIT_MESSAGE').replace('```', '')
+        )
+        text = '<{result}|*FAILURE*>: job `{job}` commit `{commit}`\n```Author: {name}<{email}>\n\n{msg}```'.format(**data)
+        print(json.dumps({'text' : text}))
+        EOF
+        )" &&
+
+        curl "$GCHAT_API_URL&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        --data-raw "${CHATMSG}"

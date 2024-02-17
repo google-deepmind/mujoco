@@ -82,6 +82,9 @@ static mjtNum distance2D(const mjtNum p[3],
   mjtNum h = 2.2 / Pd;
 
   mjtNum innerR = Ro - h - 0.14*D;
+  if (attributes[4] >= 0.0) {
+    innerR = attributes[4] / 2.0;
+  }
 
   // Early exit
   if (innerR - rho > 0.0)
@@ -144,10 +147,10 @@ static mjtNum distance(const mjtNum p[3],
 }  // namespace
 
 // factory function
-std::optional<Gear> Gear::Create(
-  const mjModel* m, mjData* d, int instance) {
+std::optional<Gear> Gear::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("alpha", m, instance) && CheckAttr("diameter", m, instance) &&
-      CheckAttr("teeth", m, instance)) {
+      CheckAttr("teeth", m, instance) &&
+      CheckAttr("innerdiameter", m, instance)) {
       return Gear(m, d, instance);
   } else {
       mju_warning("Invalid parameter specification in Gear plugin");
@@ -247,12 +250,12 @@ void Gear::RegisterPlugin() {
   plugin.sdf_distance =
       +[](const mjtNum point[3], const mjData* d, int instance) {
         auto* sdf = reinterpret_cast<Gear*>(d->plugin_data[instance]);
-        sdf->visualizer_.AddPoint(point);
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
                         const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<Gear*>(d->plugin_data[instance]);
+    sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
   };
   plugin.sdf_staticdistance =

@@ -49,7 +49,9 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
 
   def take(x):
     # TODO(erikfrey): if this helps perf, add support for striding too
-    if (
+    if not x.shape[0]:
+      return x
+    elif (
         len(idx.shape) == 1
         and idx.size > 0
         and (idx == np.arange(idx[0], idx[0] + idx.size)).all()
@@ -113,8 +115,12 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
     if isinstance(arg, np.ndarray) and not np.all(arg == arg[0]):
       raise RuntimeError(f'numpy arg elements do not match: {arg}')
 
+  # split out numpy and jax args
   np_args = [a[0] if isinstance(a, np.ndarray) else None for a in args]
   args = [a if n is None else None for n, a in zip(np_args, args)]
+
+  # remove empty args that we should not vmap over
+  args = jax.tree_map(lambda a: a if a.shape[0] else None, args)
   in_axes = [None if a is None else 0 for a in args]
 
   def outer_f(*args, np_args=np_args):
@@ -126,7 +132,15 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
 
 def _check_input(m: Model, args: Any, in_types: str) -> None:
   """Checks that scan input has the right shape."""
-  size = {'b': m.nbody, 'j': m.njnt, 'q': m.nq, 'v': m.nv, 'u': m.nu, 'a': m.na}
+  size = {
+      'b': m.nbody,
+      'j': m.njnt,
+      'q': m.nq,
+      'v': m.nv,
+      'u': m.nu,
+      'a': m.na,
+      's': m.nsite,
+  }
   for idx, (arg, typ) in enumerate(zip(args, in_types)):
     if len(arg) != size[typ]:
       raise IndexError(
@@ -206,6 +220,7 @@ def flat(
         m.actuator_dyntype[ids_u],
         m.actuator_trntype[ids_u],
         m.jnt_type[ids_j],
+        m.actuator_trnid[ids_u, 1] == -1,  # key by refsite being present
     )
 
   def type_ids_j(m, i):
@@ -221,16 +236,24 @@ def flat(
         'u': i,
         'a': m.actuator_actadr[i],
         'j': (
-            m.actuator_trnid[i]
+            m.actuator_trnid[i, 0]
             if m.actuator_trntype[i] == TrnType.JOINT
-            else np.array(-1)
+            else -1
+        ),
+        's': (
+            m.actuator_trnid[i]
+            if m.actuator_trntype[i] == TrnType.SITE
+            else np.array([-1, -1])
         ),
     }
-    # v/q associated with joint transmissions
-    typ_ids.update({
-        'v': np.nonzero(m.dof_jntid == typ_ids['j'])[0],
-        'q': np.nonzero(_q_jointid(m) == typ_ids['j'])[0],
-    })
+    v, q = np.array([-1]), np.array([-1])
+    if m.actuator_trntype[i] == TrnType.JOINT:
+      # v/q are associated with the joint transmissions only
+      v = np.nonzero(m.dof_jntid == typ_ids['j'])[0]
+      q = np.nonzero(_q_jointid(m) == typ_ids['j'])[0]
+
+    typ_ids.update({'v': v, 'q': q})
+
     return typ_ids
 
   # build up a grouping of type take-ids in body/actuator order
@@ -340,48 +363,88 @@ def body_tree(
       IndexError: if function output shape does not match out_types shape
   """
   _check_input(m, args, in_types)
-  depth_fn = lambda i, p=m.body_parentid: int(i > 0) and 1 + depth_fn(p[i])
-  typ_body_id = {
-      'j': m.jnt_bodyid,
-      'v': m.dof_bodyid,
-      'q': _q_bodyid(m),
-  }
-  key_parents = {}
 
-  # build up groupings of bodies and type ids using (level, (jnt_type,)) keys
-  key_typ_ids, key_body_ids = {}, {}
-  for body_id in np.arange(m.nbody, dtype=np.int32):
-    depth = depth_fn(body_id)
+  # group together bodies that will be processed together.  grouping key:
+  #   1) the tree depth: parent bodies are processed first, so that they are
+  #      available as carry input to child bodies (or reverse if reverse=True)
+  #   2) the types of arguments passed to f, both carry and *args:
+  #      * for 'b' arguments, there is no extra grouping
+  #      * for 'j' arguments, we group by joint type
+  #      * for 'q' arguments, we group by q width
+  #      * for 'v' arguments, we group by dof width
+  depths = np.zeros(m.nbody, dtype=np.int32)
 
-    # create grouping key
-    if any(t in 'jqv' for t in in_types + out_types):
-      jnts = np.nonzero(typ_body_id['j'] == body_id)[0]
-      jnts_p = np.nonzero(typ_body_id['j'] == m.body_parentid[body_id])[0]
-      key = depth, tuple(m.jnt_type[jnts])
-      parent_key = depth - 1, tuple(m.jnt_type[jnts_p])
-    else:
-      key, parent_key = (depth, ()), (depth - 1, ())
+  # map key => body id
+  key_body_ids = {}
+  for body_id in range(m.nbody):
+    parent_id = -1
+    if body_id > 0:
+      parent_id = m.body_parentid[body_id]
+      depths[body_id] = 1 + depths[parent_id]
 
-    key_parents[key] = parent_key
+    # create grouping key: depth, carry, args
+    key = (depths[body_id],)
+
+    for i, t in enumerate(out_types + in_types):
+      id_ = parent_id if i < len(out_types) else body_id
+      if t == 'b':
+        continue
+      elif t == 'j':
+        key += (tuple(m.jnt_type[np.nonzero(m.jnt_bodyid == id_)[0]]))
+      elif t == 'v':
+        key += (len(np.nonzero(m.dof_bodyid == id_)[0]),)
+      elif t == 'q':
+        key += (len(np.nonzero(_q_bodyid(m) == id_)[0]),)
+
     body_ids = key_body_ids.get(key, np.array([], dtype=np.int32))
     key_body_ids[key] = np.append(body_ids, body_id)
 
-    # add ids per type
-    for t in set(in_types + out_types):
-      out = key_typ_ids.setdefault(key, {})
-      id_ = body_id if t == 'b' else np.nonzero(typ_body_id[t] == body_id)[0]
-      id_ = np.expand_dims(id_, axis=0)
-      out[t] = np.concatenate((out[t], id_)) if t in out else id_
+  # find parent keys of each key.  a key may have multiple parents if the
+  # carry output keys of distinct parents are the same. e.g.:
+  # - depth 0 body 1 (slide joint)
+  # -- depth 1 body 1 (hinge joint)
+  # - depth 0 body 2 (ball joint)
+  # -- depth 1 body 2 (hinge joint)
+  # given a scan with 'j' in the in_types, we would group depth 0 bodies
+  # separately but we may group depth 1 bodies together
+  key_parents = {}
 
-  key_typ_ids = list(sorted(key_typ_ids.items(), reverse=reverse))
+  for key, body_ids in key_body_ids.items():
+    body_ids = body_ids[body_ids != 0]  # ignore worldbody, has no parent
+    if body_ids.size == 0:
+      continue
+    # find any key which has a body id that is a parent of these body_ids
+    pids = m.body_parentid[body_ids]
+    parents = {k for k, v in key_body_ids.items() if np.isin(v, pids).any()}
+    key_parents[key] = list(sorted(parents))
+
+  # key => take indices
+  key_in_take, key_y_take = {}, {}
+  for key, body_ids in key_body_ids.items():
+    for i, typ in enumerate(in_types + out_types):
+      if typ == 'b':
+        ids = body_ids
+      elif typ == 'j':
+        ids = np.stack([np.nonzero(m.jnt_bodyid == b)[0] for b in body_ids])
+      elif typ == 'v':
+        ids = np.stack([np.nonzero(m.dof_bodyid == b)[0] for b in body_ids])
+      elif typ == 'q':
+        ids = np.stack([np.nonzero(_q_bodyid(m) == b)[0] for b in body_ids])
+      else:
+        raise ValueError(f'Unknown in_type: {typ}')
+      if i < len(in_types):
+        key_in_take.setdefault(key, []).append(ids)
+      else:
+        key_y_take.setdefault(key, []).append(np.hstack(ids))
 
   # use this grouping to take the right data subsets and call vmap(f)
+  keys = sorted(key_body_ids, reverse=reverse)
   key_y = {}
-  for key, typ_ids in key_typ_ids:
+  for key in keys:
     carry = None
 
     if reverse:
-      child_keys = [k for k, v in key_parents.items() if v == key]
+      child_keys = [k for k, v in key_parents.items() if key in v]
 
       for child_key in child_keys:
         y = key_y[child_key]
@@ -394,39 +457,33 @@ def body_tree(
 
         y = jax.tree_map(index_sum, y)
         carry = y if carry is None else jax.tree_map(jp.add, carry, y)
-    else:
-      parent_key = key_parents[key]
-      y = key_y.get(parent_key)
+    elif key in key_parents:
+      ys = [key_y[p] for p in key_parents[key]]
+      y = jax.tree_map(lambda *x: jp.concatenate(x), *ys)
+      body_ids = np.concatenate([key_body_ids[p] for p in key_parents[key]])
+      parent_ids = m.body_parentid[key_body_ids[key]]
+      take_fn = lambda x, i=_index(body_ids, parent_ids): _take(x, i)
+      carry = jax.tree_map(take_fn, y)
 
-      if y is not None:
-        body_ids = key_body_ids[parent_key]
-        parent_ids = m.body_parentid[key_body_ids[key]]
-        take_fn = lambda x, i=_index(body_ids, parent_ids): _take(x, i)
-        carry = jax.tree_map(take_fn, y)
-
-    f_args = [_take(arg, typ_ids[typ]) for arg, typ in zip(args, in_types)]
+    f_args = [_take(arg, ids) for arg, ids in zip(args, key_in_take[key])]
     key_y[key] = _nvmap(f, carry, *f_args)
 
   # slice None results from the final output
-  key_typ_ids = [(k, v) for k, v in key_typ_ids if key_y[k] is not None]
+  keys = [k for k in keys if key_y[k] is not None]
 
-  # concatenate back to a single tree and drop the grouping dimension
-  ys = [key_y[key] for key, _ in key_typ_ids]
-  f_ret_is_seq = isinstance(ys[0], (list, tuple))
-  ys = ys if f_ret_is_seq else [[y] for y in ys]
-  ys = [
-      [v if typ == 'b' else jp.concatenate(v) for v, typ in zip(y, out_types)]
-      for y in ys
-  ]
-  ys = jax.tree_map(lambda *x: jp.concatenate(x), *ys)
+  # concatenate ys, drop grouping dimensions, put back in order
+  y = []
+  for i, typ in enumerate(out_types):
+    y_typ = [key_y[key] for key in keys]
+    if len(out_types) > 1:
+      y_typ = [y_[i] for y_ in y_typ]
+    if typ != 'b':
+      y_typ = jax.tree_map(jp.concatenate, y_typ)
+    y_typ = jax.tree_map(lambda *x: jp.concatenate(x), *y_typ)
+    y_take = np.argsort(np.concatenate([key_y_take[key][i] for key in keys]))
+    _check_output(y_typ, y_take, typ, i)
+    y.append(_take(y_typ, y_take))
 
-  # put concatenated results back into body order
-  reordered_ys = []
-  for i, (y, typ) in enumerate(zip(ys, out_types)):
-    ids = np.concatenate([np.hstack(v[typ]) for _, v in key_typ_ids])
-    take_ids = _index(ids, np.sort(ids))
-    _check_output(y, take_ids, typ, i)
-    reordered_ys.append(_take(y, take_ids))
-  y = reordered_ys if f_ret_is_seq else reordered_ys[0]
+  y = y[0] if len(out_types) == 1 else y
 
   return y

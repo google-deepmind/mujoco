@@ -35,17 +35,17 @@ static const char* const kTendonPath =
     "engine/testdata/island/tendon_wrap.xml";
 static const char* const kFrustumPath =
     "engine/testdata/vis_visualize/frustum.xml";
-static const char* const kModelPath =
-    "testdata/model.xml";
+static const char* const kFlex = "testdata/flex.xml";
+static const char* const kModelPath = "testdata/model.xml";
 
 #define EXPECT_ZERO(exp) EXPECT_EQ(0, exp);
 
 TEST_F(MjvSceneStateTest, CanUpdateFromState) {
   for (const char* path :
-       {kHammockPath, kTendonPath, kModelPath, kFrustumPath}) {
+       {kHammockPath, kTendonPath, kModelPath, kFrustumPath, kFlex}) {
     const std::string xml_path = GetTestDataFilePath(path);
     mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << "Failed to load model from " << path;
     mjData* data = mj_makeData(model);
 
     while (data->time < 2) {

@@ -25,6 +25,7 @@ import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import mesh
 from mujoco.mjx._src import types
+import numpy as np
 
 _MJ_TYPE_ATTR = {
     mujoco.mjtBias: (mujoco.MjModel.actuator_biastype,),
@@ -39,6 +40,10 @@ _MJ_TYPE_ATTR = {
     mujoco.mjtIntegrator: (
         mujoco.MjModel.opt,
         mujoco.MjOption.integrator,
+    ),
+    mujoco.mjtSolver: (
+        mujoco.MjModel.opt,
+        mujoco.MjOption.solver,
     ),
 }
 
@@ -63,7 +68,7 @@ _TRANSFORMS = {
     (types.Data, 'ximat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Data, 'xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Data, 'geom_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
-    (types.Model, 'actuator_trnid'): lambda x: x[:, 0],
+    (types.Data, 'site_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Contact, 'frame'): (
         lambda x: x.reshape(x.shape[:-1] + (3, 3))  # pylint: disable=g-long-lambda
         if x is not None and x.shape[0] else jp.zeros((0, 3, 3))
@@ -74,6 +79,7 @@ _INVERSE_TRANSFORMS = {
     (types.Data, 'ximat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Data, 'xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Data, 'geom_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
+    (types.Data, 'site_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Contact, 'frame'): (
         lambda x: x.reshape(x.shape[:-2] + (9,))  # pylint: disable=g-long-lambda
         if x is not None and x.shape[0] else jp.zeros((0, 9))
@@ -103,10 +109,6 @@ def _option_derived(value: types.Option) -> Dict[str, Any]:
 
 def _validate(m: mujoco.MjModel):
   """Validates that an mjModel is compatible with MJX."""
-  if m.opt.solver not in set(types.SolverType):
-    name = mujoco.mjtSolver(m.opt.solver).name
-    warnings.warn(f'Solver {name} is not supported, reverting to CG.')
-    m.opt.solver = mujoco.mjtSolver.mjSOL_CG.value
 
   # check enum types
   for mj_type, attrs in _MJ_TYPE_ATTR.items():
@@ -116,7 +118,7 @@ def _validate(m: mujoco.MjModel):
 
     typs = set(val) if isinstance(val, Iterable) else {val}
     unsupported_typs = typs - set(_TYPE_MAP[mj_type])
-    unsupported = [mj_type(t) for t in unsupported_typs]
+    unsupported = [mj_type(t) for t in unsupported_typs]  # pylint: disable=too-many-function-args
     if unsupported:
       raise NotImplementedError(f'{unsupported} not implemented.')
 
@@ -162,6 +164,9 @@ def _validate(m: mujoco.MjModel):
     if f & m.opt.enableflags:
       warnings.warn(f'Ignoring enable flag {f.name}.')
 
+  if not np.allclose(m.dof_frictionloss, 0):
+    raise NotImplementedError('dof_frictionloss is not implemented.')
+
 
 @overload
 def device_put(value: mujoco.MjData) -> types.Data:
@@ -182,6 +187,11 @@ def device_put(value):
   Returns:
     on-device MJX struct reflecting the input value
   """
+  warnings.warn(
+      'device_put is deprecated, use put_model and put_data instead',
+      category=DeprecationWarning,
+  )
+
   clz = _TYPE_MAP.get(type(value))
   if clz is None:
     raise NotImplementedError(f'{type(value)} is not supported for device_put.')
@@ -240,6 +250,10 @@ def device_get_into(result, value):
   Raises:
     RuntimeError: if result length doesn't match data batch size
   """
+  warnings.warn(
+      'device_get_into is deprecated, use get_data instead',
+      category=DeprecationWarning,
+  )
 
   value = jax.device_get(value)
 
@@ -263,9 +277,16 @@ def device_get_into(result, value):
 
   else:
     if isinstance(result, mujoco.MjData):
+      ncon = value.contact.dist.shape[0]
+      nefc = value.efc_J.shape[0]
       mujoco._functions._realloc_con_efc(  # pylint: disable=protected-access
-          result, ncon=value.ncon, nefc=value.nefc
+          result, ncon=ncon, nefc=nefc
       )
+      result.ncon = ncon
+      result.nefc = nefc
+      efc_start = nefc - ncon * 4
+      result.contact.efc_address[:] = np.arange(efc_start, nefc, 4)
+      result.contact.dim[:] = 3
 
     for f in dataclasses.fields(value):  # type: ignore
       if (type(value), f.name) in _DERIVED:

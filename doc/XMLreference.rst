@@ -103,17 +103,76 @@ In the remainder of this chapter we describe all valid MJCF elements and their a
 multiple contexts, in which case their meaning depends on the parent element. This is why we always show the parent as a
 prefix in the documentation below.
 
+.. _meta-element:
+
+Meta elements
+~~~~~~~~~~~~~
+
+These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
+perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
+saving the XML. There are currently four meta-elements in MJCF:
+
+- :ref:`include<include>` and :ref:`frame<frame>`, which are outside of the schema.
+- :ref:`composite<body-composite>` and :ref:`flexcomp<body-flexcomp>` which are part of the schema, but serve to
+  procedurally generate other MJCF elements.
+
+.. _frame:
+
+**frame** (R)
+^^^^^^^^^^^^^
+
+The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
+(under :ref:`worldbody<body>`). After compilation, frame elements disappear and their transformation is accumulated
+in their direct children. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
+
+.. collapse:: Usage example of frame
+
+   Loading this model and saving it:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <frame quat="0 0 1 0">
+             <geom name="Alice" quat="0 1 0 0" size="1"/>
+          </frame>
+
+          <frame pos="0 1 0">
+            <geom name="Bob" pos="0 1 0" size="1"/>
+            <body name="Carl" pos="1 0 0">
+              ...
+            </body>
+          </frame>
+        </worldbody>
+      </mujoco>
+
+   Results in this model:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <geom name="Alice" quat="0 0 0 1" size="1"/>
+          <geom name="Bob" pos="0 2 0" size="1"/>
+          <body name="Carl" pos="1 1 0">
+            ...
+          </body>
+        </worldbody>
+      </mujoco>
+
+   Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
+   of their child elements.
 
 .. _include:
 
 **include** (*)
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
-This element does not strictly speaking belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
+This element does not strictly belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
 files in a single document object model (DOM) before parsing. The included file must be a valid XML file with a unique
 top-level element. This top-level element is removed by the parser, and the elements below it are inserted at the
 location of the :el:`include` element. At least one element must be inserted as a result of this procedure. The
-:el:`include` element can be used where ever an XML element is expected in the MJFC file. Nested includes are allowed,
+:el:`include` element can be used where ever an XML element is expected in the MJCF file. Nested includes are allowed,
 however a given XML file can be included at most once in the entire model. After all the included XML files have been
 assembled into a single DOM, it must correspond to a valid MJCF model. Other than that, it is up to the user to decide
 how to use includes and how to modularize large files if desired.
@@ -216,11 +275,11 @@ any effect. The settings here are global and apply to the entire model.
 .. _compiler-eulerseq:
 
 :at:`eulerseq`: :at-val:`string, "xyz"`
-   This attribute specifies the sequence of Euler rotations for all euler attributes of elements that have spatial
-   frames, as explained in :ref:`COrientation`. This must be a string with exactly 3
-   characters from the set {'x', 'y', 'z', 'X', 'Y', 'Z'}. The character at position n determines the axis around which
-   the n-th rotation is performed. Lower case denotes axes that rotate with the frame, while upper case denotes axes
-   that remain fixed in the parent frame. The "rpy" convention used in URDF corresponds to the default "xyz" in MJCF.
+   This attribute specifies the sequence of Euler rotations for all :at:`euler` attributes of elements that have spatial
+   frames, as explained in :ref:`COrientation`. This must be a string with exactly 3 characters from the set {x, y, z,
+   X, Y, Z}. The character at position n determines the axis around which the n-th rotation is performed. Lower case
+   letters denote axes that rotate with the frame (intrinsic), while upper case letters denote axes that remain fixed in
+   the parent frame (extrinsic). The "rpy" convention used in URDF corresponds to "XYZ" in MJCF.
 
 .. _compiler-meshdir:
 
@@ -247,14 +306,21 @@ any effect. The settings here are global and apply to the entire model.
 .. _compiler-discardvisual:
 
 :at:`discardvisual`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
-   This attribute instructs the parser to discard "visual geoms", defined as geoms whose contype and conaffinity
-   attributes are both set to 0. This functionality is useful for models that contain two sets of geoms, one for
-   collisions and the other for visualization. Note that URDF models are usually constructed in this way. It rarely
-   makes sense to have two sets of geoms in the model, especially since MuJoCo uses convex hulls for collisions, so we
-   recommend using this feature to discard redundant geoms. Keep in mind however that geoms considered visual per the
-   above definition can still participate in collisions, if they appear in the explicit list of contact
-   :ref:`pairs <contact-pair>`. The parser does not check this list before discarding geoms; it relies solely on the geom
-   attributes to make the determination.
+   This attribute instructs the compiler to discard all model elements which are purely visual and have no effect on the
+   physics (with one exception, see below). This often enables smaller :ref:`mjModel` structs and faster simulation.
+
+   - All materials are discarded.
+   - All textures are discarded.
+   - All geoms with :ref:`contype<body-geom-contype>` |-| = |-| :ref:`conaffinity<body-geom-conaffinity>` |-| =0 are
+     discarded, if they are not referenced in another MJCF element. If a discarded geom was used for inferring body
+     inertia, an explicit :ref:`inertial<body-inertial>` element is added to the body.
+   - All meshes which are not referenced by any geom (in particular those discarded above) are discarded.
+
+   The resulting compiled model will have exactly the same dynamics as the original model. The only engine-level
+   computation which might change is the output of :ref:`raycasting<mj_ray>` computations, as used for example by
+   :ref:`rangefinder<sensor-rangefinder>` sensors, since raycasting reports distances to visual geoms. When visualizing
+   models compiled with this flag, it is important to remember that collision geoms are often placed in a
+   :ref:`group<body-geom-group>` which is invisible by default.
 
 .. _compiler-convexhull:
 
@@ -605,14 +671,18 @@ is effectively a miscellaneous subsection.
 :at:`azimuth`: :at-val:`real, "90"`
    This attribute specifies the initial azimuth of the free camera around the vertical z-axis, in degrees. A value of 0
    corresponds to looking in the positive x direction, while the default value of 90 corresponds to looking in the
-   positive y direction.
+   positive y direction. The look-at point itself is specified by the :ref:`statistic/center<statistic-center>`
+   attribute, while the distance from the look-at point is controlled by the :ref:`statistic/extent<statistic-extent>`
+   attribute.
 
 .. _visual-global-elevation:
 
 :at:`elevation`: :at-val:`real, "-45"`
    This attribute specifies the initial elevation of the free camera with respect to the lookat point. Note that since
    this is a rotation around a vector parallel to the camera's X-axis (right in pixel space), *negative* numbers
-   correspond to moving the camera *up* from the horizontal plane, and vice-versa.
+   correspond to moving the camera *up* from the horizontal plane, and vice-versa. The look-at point itself is specified
+   by the :ref:`statistic/center<statistic-center>` attribute, while the distance from the look-at point is controlled
+   by the :ref:`statistic/extent<statistic-extent>` attribute.
 
 .. _visual-global-linewidth:
 
@@ -649,6 +719,12 @@ is effectively a miscellaneous subsection.
    This attribute specifies how the equivalent inertia is visualized. "false":
    use box, "true": use ellipsoid.
 
+.. _visual-global-bvactive:
+
+:at:`bvactive`: :at-val:`[false, true], "true"`
+   This attribute specifies whether collision and raycasting code should mark elements of Bounding Volume Hierarchies
+   as intersecting, for the purpose of visualization. Setting this attribute to "false" can speed up simulation for
+   models with high-resolution meshes.
 
 .. _visual-quality:
 
@@ -1056,6 +1132,17 @@ disables the rendering of the corresponding object.
 :at:`frustum`: :at-val:`real(4), "1 1 0 0.2"`
    Color used to render the camera frustum.
 
+.. _visual-rgba-bv:
+
+:at:`bv`: :at-val:`real(4), "0 1 0 0.5"`
+   Color used to render bounding volumes.
+
+.. _visual-rgba-bvactive:
+
+:at:`bvactive`: :at-val:`real(4), "1 0 0 0.5"`
+   Color used to render active bounding volumes, if the :ref:`bvactive<visual-global-bvactive>` flag is "true".
+
+
 
 .. _asset:
 
@@ -1070,6 +1157,340 @@ extension if no ``content_type`` attribute is specified. The content type is ign
 file.
 
 
+.. _asset-mesh:
+
+:el-prefix:`asset/` |-| **mesh** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a mesh asset, which can then be referenced from geoms. If the referencing geom type is
+:at-val:`mesh` the mesh is instantiated in the model, otherwise a geometric primitive is automatically fitted to it; see
+the :ref:`geom <body-geom>` element below.
+
+MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
+format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
+convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
+collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
+attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
+appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
+geom, similarly to height fields.
+
+Meshes can have explicit texture coordinates instead of relying on the automated texture
+mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
+specified with OBJ files and MSH files, as well as explicitly in the XML with the :at:`texcoord` attribute, but not via
+STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
+to convert to one of the other supported formats.
+
+MSH file format
+   The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
+   (nnormal), vertex texture coordinates (ntexcoord), and vertex indices making up the faces (nface), followed by the
+   numeric data. nvertex must be at least 4. nnormal and ntexcoord can be zero (in which case the corresponding data is
+   not defined) or equal to nvertex. nface can also be zero, in which case faces are constructed automatically from the
+   convex hull of the vertex positions. The file size in bytes must be exactly: 16 + 12*(nvertex + nnormal + nface) +
+   8*ntexcoord. The contents of the file must be as follows:
+
+   .. code:: Text
+
+          (int32)   nvertex
+          (int32)   nnormal
+          (int32)   ntexcoord
+          (int32)   nface
+          (float)   vertex_positions[3*nvertex]
+          (float)   vertex_normals[3*nnormal]
+          (float)   vertex_texcoords[2*ntexcoord]
+          (int32)   face_vertex_indices[3*nface]
+
+Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
+some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
+determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
+faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes
+specified as OBJ or XML and an error message is returned.
+
+The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
+components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
+negative scaling values can be used to flip the mesh; this is a legitimate operation. The size parameters of the
+referening geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
+rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
+
+A mesh can also be defined without faces (a point cloud essentially). In that case
+the convex hull is constructed automatically, even if the compiler attribute convexhull is false. This makes it easy to
+construct simple shapes directly in the XML. For example, a pyramid can be created as:
+
+.. code-block:: xml
+
+   <asset>
+     <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+   </asset>
+
+Positioning and orienting is complicated by the fact that vertex data in the source asset are often relative to
+coordinate frames whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to
+coincide with the geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler,
+so that it is centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We save the translation
+and rotation offsets applied to the source asset in :ref:`mjModel.mesh_pos<mjModel>` and
+:ref:`mjModel.mesh_quat<mjModel>`; these are required if one reads vertex data from the source and needs to re-apply the
+transform. These offsets are then composed with the referencing geom's position and orientation; see also the :at:`mesh`
+attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in a coordinate
+frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the joint, so
+that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model fragment of
+a forearm, containing all the information needed to put the mesh where one would expect it to be. The body position is
+specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the typical
+length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have to use
+the geom position and orientation (or the :at:`refpos`, :at:`refquat`` mechanism) to compensate, but in practice this is
+rarely needed.
+
+.. code-block:: xml
+
+   <asset>
+     <mesh file="forearm.stl"/>
+   </asset>
+
+   <body pos="0 0 0.35"/>
+     <joint type="hinge" axis="1 0 0"/>
+     <geom type="mesh" mesh="forearm"/>
+   </body>
+
+The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also to
+infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the triangle
+faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all
+pyramids (considered solid, or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
+pyramids on the outside of the surfaces are subtracted, as can occur with concave geometries. This algorithm can be
+found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
+
+The full list of processing steps applied by the compiler to each mesh is as follows:
+
+#. For STL meshes, remove any repeated vertices and re-index the faces if needed. If the mesh is not STL, we assume that
+   the desired vertices and faces have already been generated and do not apply removal or re-indexing;
+#. If vertex normals are not provided, generate normals automatically, using a weighted average of the surrounding face
+   normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
+   the edge, unless smoothnormal is true. Note that normals cannot be provided with STL meshes;
+#. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
+#. Construct the convex hull if specified;
+#. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
+   too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
+#. Compute the center of mass and inertia matrix of the union-of-pyramids. Use eigenvalue decomposition to find the
+   principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
+   geom-related computations.
+
+.. _asset-mesh-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the mesh, used for referencing. If omitted, the mesh name equals the file name without the path and
+   extension.
+
+.. _asset-mesh-class:
+
+:at:`class`: :at-val:`string, optional`
+   Defaults class for setting unspecified attributes (only scale in this case).
+
+.. _asset-mesh-content_type:
+
+:at:`content_type`: :at-val:`string, optional`
+   If the file attribute is specified, then this sets the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
+   file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
+   and ``model/stl`` are supported.
+
+.. _asset-mesh-file:
+
+:at:`file`: :at-val:`string, optional`
+   The file from which the mesh will be loaded. The path is determined as described in the meshdir attribute of
+   :ref:`compiler <compiler>`. The file extension must be "stl", "msh", or "obj" (not case sensitive) specifying the
+   file type.  If the file name is omitted, the vertex attribute becomes required.
+
+.. _asset-mesh-scale:
+
+:at:`scale`: :at-val:`real(3), "1 1 1"`
+   This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
+   values are allowed, resulting in flipping the mesh along the corresponding axis.
+
+.. _asset-mesh-smoothnormal:
+
+:at:`smoothnormal`: :at-val:`[false, true], "false"`
+   Controls the automatic generation of vertex normals when normals are not given explicitly. If true, smooth normals
+   are generated by averaging the face normals at each vertex, with weight proportional to the face area. If false,
+   faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
+   cube edges) are not smoothed.
+
+.. _asset-mesh-vertex:
+
+:at:`vertex`: :at-val:`real(3*nvert), optional`
+   Vertex 3D position data. You can specify position data in the XML using this attribute, or using a binary file, but
+   not both.
+
+.. _asset-mesh-normal:
+
+:at:`normal`: :at-val:`real(3*nvert), optional`
+   Vertex 3D normal data. If specified, the number of normals must equal the number of vertices. The model compiler
+   normalizes the normals automatically.
+
+.. _asset-mesh-texcoord:
+
+:at:`texcoord`: :at-val:`real(2*nvert), optional`
+   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
+   pairs must equal the number of vertices.
+
+.. _asset-mesh-face:
+
+:at:`face`: :at-val:`int(3*nface), optional`
+   Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
+   integers between 0 and nvert-1.
+
+.. _asset-mesh-refpos:
+
+:at:`refpos`: :at-val:`real(3), "0 0 0"`
+   Reference position relative to which the 3D vertex coordinates are defined. This vector is subtracted from the
+   positions.
+
+.. _asset-mesh-refquat:
+
+:at:`refquat`: :at-val:`real(4), "1 0 0 0"`
+   Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
+   quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
+
+.. _mesh-plugin:
+
+:el-prefix:`mesh/` |-| **plugin** (?)
+'''''''''''''''''''''''''''''''''''''
+
+Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _mesh-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _mesh-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+
+
+.. _asset-hfield:
+
+:el-prefix:`asset/` |-| **hfield** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a height field asset, which can then be referenced from geoms with type "hfield". A height field,
+also known as terrain map, is a 2D matrix of elevation data. The data can be specified in one of three ways:
+
+#. The elevation data can be loaded from a PNG file. The image is converted internally to gray scale, and the intensity
+   of each pixel is used to define elevation; white is high and black is low.
+
+#. The elevation data can be loaded from a binary file in the custom format described below. As with all other matrices
+   used in MuJoCo, the data ordering is row-major, like pixels in an image. If the data size is nrow-by-ncol, the file
+   must have 4*(2+nrow*ncol) bytes:
+
+   ::
+
+              (int32)   nrow
+              (int32)   ncol
+              (float32) data[nrow*ncol]
+
+
+#. The elevation data can be left undefined at compile time. This is done by specifying the attributes nrow and ncol.
+   The compiler allocates space for the height field data in mjModel and sets it to 0. The user can then generate a
+   custom height field at runtime, either programmatically or using sensor data.
+
+| Regardless of which method is used to specify the elevation data, the compiler always normalizes it to the range [0
+  1]. However if the data is left undefined at compile time and generated later at runtime, it is the user's
+  responsibility to normalize it.
+| The position and orientation of the height field is determined by the geom that references it. The spatial extent on
+  the other hand is specified by the height field asset itself via the size attribute, and cannot be modified by the
+  referencing geom (the geom size parameters are ignored in this case). The same approach is used for meshes below:
+  positioning is done by the geom while sizing is done by the asset. This is because height fields and meshes involve
+  sizing operations that are not common to other geoms.
+| For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
+  and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
+  the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
+  collider. The number of possible contacts between a height field and a geom is limited to 50
+  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  contacts, the spatial features of the height field should be large compared to the geoms it collides with.
+
+.. _asset-hfield-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the height field, used for referencing. If the name is omitted and a file name is specified, the height field
+   name equals the file name without the path and extension.
+
+.. _asset-hfield-content_type:
+
+:at:`content_type`: :at-val:`string, optional`
+   If the file attribute is specified, then this sets the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
+   file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
+   ``image/vnd.mujoco.hfield`` are supported.
+
+.. _asset-hfield-file:
+
+:at:`file`: :at-val:`string, optional`
+   If this attribute is specified, the elevation data is loaded from the given file. If the file extension is ".png",
+   not case-sensitive, the file is treated as a PNG file. Otherwise it is treated as a binary file in the above custom
+   format. The number of rows and columns in the data are determined from the file contents. Loading data from a file
+   and setting nrow or ncol below to non-zero values results is compile error, even if these settings are consistent
+   with the file contents.
+
+.. _asset-hfield-nrow:
+
+:at:`nrow`: :at-val:`int, "0"`
+   This attribute and the next are used to allocate a height field in mjModel. If the :at:`elevation` attribute is not
+   set, the elevation data is set to 0. This attribute specifies the number of rows in the elevation data matrix. The
+   default value of 0 means that the data will be loaded from a file, which will be used to infer the size of the
+   matrix.
+
+.. _asset-hfield-ncol:
+
+:at:`ncol`: :at-val:`int, "0"`
+   This attribute specifies the number of columns in the elevation data matrix.
+
+.. _asset-hfield-elevation:
+
+:at:`elevation`: :at-val:`real(nrow*ncol), optional`
+   This attribute specifies the elevation data matrix. Values are automatically normalized to lie between 0 and 1 by
+   first subtracting the minimum value and then dividing by the (maximum-minimum) difference, if not 0. If not provided,
+   values are set to 0.
+
+.. _asset-hfield-size:
+
+:at:`size`: :at-val:`real(4), required`
+   .. figure:: images/XMLreference/peaks.png
+      :width: 350px
+      :align: right
+
+   The four numbers here are (radius_x, radius_y, elevation_z, base_z). The height field is centered at the referencing
+   geom's local frame. Elevation is in the +Z direction. The first two numbers specify the X and Y extent (or "radius")
+   of the rectangle over which the height field is defined. This may seem unnatural for rectangles, but it is natural
+   for spheres and other geom types, and we prefer to use the same convention throughout the model. The third number is
+   the maximum elevation; it scales the elevation data which is normalized to [0-1]. Thus the minimum elevation point is
+   at Z=0 and the maximum elevation point is at Z=elevation_z. The last number is the depth of a box in the -Z direction
+   serving as a "base" for the height field. Without this automatically generated box, the height field would have zero
+   thickness at places there the normalized elevation data is zero. Unlike planes which impose global unilateral
+   constraints, height fields are treated as unions of regular geoms, so there is no notion of being "under" the height
+   field. Instead a geom is either inside or outside the height field - which is why the inside part must have non-zero
+   thickness. The example on the right is the MATLAB "peaks" surface saved in our custom height field format, and loaded
+   as an asset with size = "1 1 1 0.1". The horizontal size of the box is 2, the difference between the maximum and
+   minimum elevation is 1, and the depth of the base added below the minimum elevation point is 0.1.
+
+
+.. _asset-skin:
+
+:el-prefix:`asset/` |-| **skin** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _asset-skin-name:
+.. _asset-skin-file:
+.. _asset-skin-vertex:
+.. _asset-skin-texcoord:
+.. _asset-skin-face:
+.. _asset-skin-inflate:
+.. _asset-skin-material:
+.. _asset-skin-rgba:
+.. _asset-skin-group:
+
+:ref:`Skins<deformable-skin>` have been moved under the new grouping element :ref:`deformable<deformable>`. They can
+still be specified here but this functionality is now deprecated and will be removed in the future.
+
+
+
 .. _asset-texture:
 
 :el-prefix:`asset/` |-| **texture** (*)
@@ -1082,9 +1503,9 @@ file.
   color in GL_MODULATE mode. The texture data can be loaded from PNG files, with provisions for loading cube and skybox
   textures. Alternatively the data can be generated by the compiler as a procedural texture. Because different texture
   types require different parameters, only a subset of the attributes below are used for any given texture.
-| MuJoCo 2.0 introduced a second file format for loading textures, in addition to PNG. If the file name extension is
+| A second file format is supported for loading textures, in addition to PNG. If the file name extension is
   different from .png or .PNG, or if the ``content_type`` attribute is set to ``image/vnd.mujoco.texture``, then MuJoCo
-  assumes that the texture is in the new format. This is a custom binary file format, containing the following data:
+  assumes that the texture is in this format. This is a custom binary file format, containing the following data:
 
 .. code:: Text
 
@@ -1281,328 +1702,6 @@ file.
 :at:`vflip`: :at-val:`[false, true], "false"`
    If true, images loaded from file are flipped in the vertical direction. Does not affect procedural textures.
 
-
-.. _asset-hfield:
-
-:el-prefix:`asset/` |-| **hfield** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a height field asset, which can then be referenced from geoms with type "hfield". A height field,
-also known as terrain map, is a 2D matrix of elevation data. The data can be specified in one of three ways:
-
-#. The elevation data can be loaded from a PNG file. The image is converted internally to gray scale, and the intensity
-   of each pixel is used to define elevation; white is high and black is low.
-
-#. The elevation data can be loaded from a binary file in the custom format described below. As with all other matrices
-   used in MuJoCo, the data ordering is row-major, like pixels in an image. If the data size is nrow-by-ncol, the file
-   must have 4*(2+nrow*ncol) bytes:
-
-   ::
-
-              (int32)   nrow
-              (int32)   ncol
-              (float32) data[nrow*ncol]
-
-
-#. The elevation data can be left undefined at compile time. This is done by specifying the attributes nrow and ncol.
-   The compiler allocates space for the height field data in mjModel and sets it to 0. The user can then generate a
-   custom height field at runtime, either programmatically or using sensor data.
-
-| Regardless of which method is used to specify the elevation data, the compiler always normalizes it to the range [0
-  1]. However if the data is left undefined at compile time and generated later at runtime, it is the user's
-  responsibility to normalize it.
-| The position and orientation of the height field is determined by the geom that references it. The spatial extent on
-  the other hand is specified by the height field asset itself via the size attribute, and cannot be modified by the
-  referencing geom (the geom size parameters are ignored in this case). The same approach is used for meshes below:
-  positioning is done by the geom while sizing is done by the asset. This is because height fields and meshes involve
-  sizing operations that are not common to other geoms.
-| For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
-  and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
-  the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
-  collider. The number of possible contacts between a height field and a geom is limited to 9; any contacts beyond that
-  are discarded. To avoid penetration due to discarded contacts, the spatial features of the height field should be
-  large compared to the geoms it collides with.
-
-.. _asset-hfield-name:
-
-:at:`name`: :at-val:`string, optional`
-   Name of the height field, used for referencing. If the name is omitted and a file name is specified, the height field
-   name equals the file name without the path and extension.
-
-.. _asset-hfield-content_type:
-
-:at:`content_type`: :at-val:`string, optional`
-   If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
-   file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
-   ``image/vnd.mujoco.hfield`` are supported.
-
-.. _asset-hfield-file:
-
-:at:`file`: :at-val:`string, optional`
-   If this attribute is specified, the elevation data is loaded from the given file. If the file extension is ".png",
-   not case-sensitive, the file is treated as a PNG file. Otherwise it is treated as a binary file in the above custom
-   format. The number of rows and columns in the data are determined from the file contents. Loading data from a file
-   and setting nrow or ncol below to non-zero values results is compile error, even if these settings are consistent
-   with the file contents.
-
-.. _asset-hfield-nrow:
-
-:at:`nrow`: :at-val:`int, "0"`
-   This attribute and the next are used to allocate a height field in mjModel and leave the elevation data undefined
-   (i.e., set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
-   means that the data will be loaded from a file, which will be used to infer the size of the matrix.
-
-.. _asset-hfield-ncol:
-
-:at:`ncol`: :at-val:`int, "0"`
-   This attribute specifies the number of columns in the elevation data matrix.
-
-.. _asset-hfield-size:
-
-:at:`size`: :at-val:`real(4), required`
-   .. figure:: images/XMLreference/peaks.png
-      :width: 350px
-      :align: right
-
-   The four numbers here are (radius_x, radius_y, elevation_z, base_z). The height field is centered at the referencing
-   geom's local frame. Elevation is in the +Z direction. The first two numbers specify the X and Y extent (or "radius")
-   of the rectangle over which the height field is defined. This may seem unnatural for rectangles, but it is natural
-   for spheres and other geom types, and we prefer to use the same convention throughout the model. The third number is
-   the maximum elevation; it scales the elevation data which is normalized to [0-1]. Thus the minimum elevation point is
-   at Z=0 and the maximum elevation point is at Z=elevation_z. The last number is the depth of a box in the -Z direction
-   serving as a "base" for the height field. Without this automatically generated box, the height field would have zero
-   thickness at places there the normalized elevation data is zero. Unlike planes which impose global unilateral
-   constraints, height fields are treated as unions of regular geoms, so there is no notion of being "under" the height
-   field. Instead a geom is either inside or outside the height field - which is why the inside part must have non-zero
-   thickness. The example on the right is the MATLAB "peaks" surface saved in our custom height field format, and loaded
-   as an asset with size = "1 1 1 0.1". The horizontal size of the box is 2, the difference between the maximum and
-   minimum elevation is 1, and the depth of the base added below the minimum elevation point is 0.1.
-
-
-.. _asset-mesh:
-
-:el-prefix:`asset/` |-| **mesh** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a mesh asset, which can then be referenced from geoms. If the referencing geom type is
-:at-val:`mesh` the mesh is instantiated in the model, otherwise a geometric primitive is automatically fitted to it; see
-the :ref:`geom <body-geom>` element below.
-
-MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
-format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
-convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
-collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
-attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
-appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
-geom, similarly to height fields.
-
-Starting with MuJoCo 2.0, meshes can have explicit texture coordinates instead of relying on the automated texture
-mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
-specified with OBJ files and MSH files, as well as explicitly in the XML with the :at:`texcoord` attribute, but not via
-STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
-to convert to one of the other supported formats.
-
-MSH file format
-   The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
-   (nnormal), vertex texture coordinates (ntexcoord), and vertex indices making up the faces (nface), followed by the
-   numeric data. nvertex must be at least 4. nnormal and ntexcoord can be zero (in which case the corresponding data is
-   not defined) or equal to nvertex. nface can also be zero, in which case faces are constructed automatically from the
-   convex hull of the vertex positions. The file size in bytes must be exactly: 16 + 12*(nvertex + nnormal + nface) +
-   8*ntexcoord. The contents of the file must be as follows:
-
-   .. code:: Text
-
-          (int32)   nvertex
-          (int32)   nnormal
-          (int32)   ntexcoord
-          (int32)   nface
-          (float)   vertex_positions[3*nvertex]
-          (float)   vertex_normals[3*nnormal]
-          (float)   vertex_texcoords[2*ntexcoord]
-          (int32)   face_vertex_indices[3*nface]
-
-Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
-some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
-determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
-faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes
-specified as OBJ or XML and an error message is returned.
-
-The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
-components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
-negative scaling values can be used to flip the mesh; this is a legitimate operation. The size parameters of the
-referening geoms are ignored, similarly to height fields. As of MuJoCo 2.0 we also provide a mechanism to translate and
-rotate the 3D coordinates, using the attributes refpos and refquat.
-
-Another new feature in MuJoCo 2.0 is that a mesh can be defined without faces (a point cloud essentially). In that case
-the convex hull is constructed automatically, even if the compiler attribute convexhull is false. This makes it easy to
-construct simple shapes directly in the XML. For example, a pyramid can be created as:
-
-.. code-block:: xml
-
-   <asset>
-       <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
-   </asset>
-
-Positioning and orienting is complicated by the fact that vertex data are often designed relative to coordinate frames
-whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to coincide with the
-geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
-centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
-rotation offsets needed to achieve such alignment in :ref:`mjModel.mesh_pos<mjModel>` and
-:ref:`mjModel.mesh_quat<mjModel>`. These offsets are then applied to the referencing geom's position and orientation; see
-also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in
-a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the
-joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model
-fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be. The body
-position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the
-typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
-to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
-rarely needed.
-
-.. code-block:: xml
-
-   <asset>
-       <mesh file="forearm.stl"/>
-   </asset>
-
-   <body pos="0 0 0.35"/>
-       <joint type="hinge" axis="1 0 0"/>
-       <geom type="mesh" mesh="forearm"/>
-   </body>
-
-The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also to
-infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the triangle
-faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all
-pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
-pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be
-found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
-
-The full list of processing steps applied by the compiler to each mesh is as follows:
-
-#. For STL meshes, remove any repeated vertices and re-index the faces if needed. If the mesh is not STL, we assume that
-   the desired vertices and faces have already been generated and do not apply removal or re-indexing;
-#. If vertex normals are not provided, generate normals automatically, using a weighted average of the surrounding face
-   normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
-   the edge, unless smoothnormal is true. Note that normals cannot be provided with STL meshes;
-#. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
-#. Construct the convex hull if specified;
-#. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
-   too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
-#. Compute the center of mass and inertia matrix of the union-of-pyramids. Use eigenvalue decomposition to find the
-   principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
-   geom-related computations.
-
-.. _asset-mesh-name:
-
-:at:`name`: :at-val:`string, optional`
-   Name of the mesh, used for referencing. If omitted, the mesh name equals the file name without the path and
-   extension.
-
-.. _asset-mesh-class:
-
-:at:`class`: :at-val:`string, optional`
-   Defaults class for setting unspecified attributes (only scale in this case).
-
-.. _asset-mesh-content_type:
-
-:at:`content_type`: :at-val:`string, optional`
-   If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
-   file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
-   and ``model/stl`` are supported.
-
-.. _asset-mesh-file:
-
-:at:`file`: :at-val:`string, optional`
-   The file from which the mesh will be loaded. The path is determined as described in the meshdir attribute of
-   :ref:`compiler <compiler>`. The file extension must be "stl", "msh", or "obj" (not case sensitive) specifying the
-   file type.  If the file name is omitted, the vertex attribute becomes required.
-
-.. _asset-mesh-scale:
-
-:at:`scale`: :at-val:`real(3), "1 1 1"`
-   This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
-   values are allowed, resulting in flipping the mesh along the corresponding axis.
-
-.. _asset-mesh-smoothnormal:
-
-:at:`smoothnormal`: :at-val:`[false, true], "false"`
-   Controls the automatic generation of vertex normals when normals are not given explicitly. If true, smooth normals
-   are generated by averaging the face normals at each vertex, with weight proportional to the face area. If false,
-   faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
-   cube edges) are not smoothed.
-
-.. _asset-mesh-vertex:
-
-:at:`vertex`: :at-val:`real(3*nvert), optional`
-   Vertex 3D position data. You can specify position data in the XML using this attribute, or using a binary file, but
-   not both.
-
-.. _asset-mesh-normal:
-
-:at:`normal`: :at-val:`real(3*nvert), optional`
-   Vertex 3D normal data. If specified, the number of normals must equal the number of vertices. The model compiler
-   normalizes the normals automatically.
-
-.. _asset-mesh-texcoord:
-
-:at:`texcoord`: :at-val:`real(2*nvert), optional`
-   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
-   pairs must equal the number of vertices.
-
-.. _asset-mesh-face:
-
-:at:`face`: :at-val:`int(3*nface), optional`
-   Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
-   integers between 0 and nvert-1.
-
-.. _asset-mesh-refpos:
-
-:at:`refpos`: :at-val:`real(3), "0 0 0"`
-   Reference position relative to which the 3D vertex coordinates are defined. This vector is subtracted from the
-   positions.
-
-.. _asset-mesh-refquat:
-
-:at:`refquat`: :at-val:`real(4), "1 0 0 0"`
-   Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
-   quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
-
-.. _mesh-plugin:
-
-:el-prefix:`mesh/` |-| **plugin** (?)
-'''''''''''''''''''''''''''''''''''''
-
-Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
-
-.. _mesh-plugin-plugin:
-
-:at:`plugin`: :at-val:`string, optional`
-   Plugin identifier, used for implicit plugin instantiation.
-
-.. _mesh-plugin-instance:
-
-:at:`instance`: :at-val:`string, optional`
-   Instance name, used for explicit plugin instantiation.
-
-
-.. _asset-skin:
-
-:el-prefix:`asset/` |-| **skin** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. _asset-skin-name:
-.. _asset-skin-file:
-.. _asset-skin-vertex:
-.. _asset-skin-texcoord:
-.. _asset-skin-face:
-.. _asset-skin-inflate:
-.. _asset-skin-material:
-.. _asset-skin-rgba:
-.. _asset-skin-group:
-
-:ref:`Skins<deformable-skin>` have been moved under the new grouping element :ref:`deformable<deformable>`. They can
-still be specified here but this functionality is now deprecated and will be removed in the future.
 
 
 .. _asset-material:
@@ -1877,14 +1976,21 @@ adjust it properly through the XML.
 .. _option-sdf_initpoints:
 
 :at:`sdf_initpoints`: :at-val:`int, "40"`
-   Number of starting points used for fining contacts with Signed Distance Field collisions.
+   Number of starting points used for finding contacts with Signed Distance Field collisions.
+
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 240px
 
 .. _option-actuatorgroupdisable:
 
-:at:`actuatorgroupdisable`: :at-val:`int(30), ""`
+:at:`actuatorgroupdisable`: :at-val:`int(31), optional`
    List of actuator groups to disable. Actuators whose :ref:`group<actuator-general-group>` is in this list will produce
    no force. If they are stateful, their activation states will not be integrated. Internally this list is
-   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``.
+   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``. If not set, all actuator
+   groups are enabled. See `example model
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+   and associated screen-capture on the right.
 
 .. _option-flag:
 
@@ -1924,7 +2030,7 @@ from its default.
 .. _option-flag-contact:
 
 :at:`contact`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to contact constraints.
+   This flag disables collision detection and all standard computations related to contact constraints.
 
 .. _option-flag-passive:
 
@@ -2561,7 +2667,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
    | capsule | 1 or 2 | Radius of the capsule; half-length of the cylinder part when not using the :at:`fromto`        |
    |         |        | specification.                                                                                 |
    +---------+--------+------------------------------------------------------------------------------------------------+
-   |ellipsoid| 1      | X radius; Y radius; Z radius.                                                                  |
+   |ellipsoid| 3      | X radius; Y radius; Z radius.                                                                  |
    +---------+--------+------------------------------------------------------------------------------------------------+
    |cylinder | 1 or 2 | Radius of the cylinder; half-length of the cylinder when not using the :at:`fromto`            |
    |         |        | specification.                                                                                 |
@@ -2982,6 +3088,8 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the camera frame. See :ref:`COrientation`.
+   Note that specifically for cameras, the :at:`xyaxes` attribute is semantically convenient as the X and Y axes
+   correspond to the directions "right" and "up" in pixel space, respectively.
 
 .. _body-camera-user:
 
@@ -3653,11 +3761,6 @@ saving the XML:
    </mujoco>
 
 
-.. _body-flexcomp-class:
-
-:at:`class`: :at-val:`string, optional`
-   Defaults class for setting unspecified attributes.
-
 .. _body-flexcomp-name:
 
 :at:`name`: :at-val:`string, required`
@@ -3706,12 +3809,13 @@ saving the XML:
    **gmsh** is similar to mesh, but it loads a `GMSH file <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
    in format 4.1 (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
    the file header. This is a very rich file format, allowing all kinds of elements with different dimensionality and
-   topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes.
-   Only the Nodes and Elements sections of the GMHS file are processed, and used to populate the point and element data
-   of the flexcomp. The parser will generate an error if the GMSH file contains meshes that are not supported by MuJoCo.
-   :at:`dim` is automatically set to the dimensionality specified in the GMSH file. Presently this is the only mechanism
-   to load a large tetrahedral mesh in MuJoCo and generate a corresponding soft entity. If such a mesh is available in a
-   different file format, use the freely available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
+   topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes and
+   assumes that the nodes are specified in a single block. Only the Nodes and Elements sections of the GMHS file are
+   processed, and used to populate the point and element data of the flexcomp. The parser will generate an error if the
+   GMSH file contains meshes that are not supported by MuJoCo. :at:`dim` is automatically set to the dimensionality
+   specified in the GMSH file. Presently this is the only mechanism to load a large tetrahedral mesh in MuJoCo and
+   generate a corresponding soft entity. If such a mesh is available in a different file format, use the freely
+   available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
 
    **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
    flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
@@ -3732,21 +3836,18 @@ saving the XML:
 .. _body-flexcomp-point:
 
 :at:`point`: :at-val:`real(3*npoint), optional`
-
    The 3D coordinates of the points. This attribute is only used with type **direct**. All other flexcomp types generate
    their own points. The points are used to construct bodies and vertices as explained earlier.
 
 .. _body-flexcomp-element:
 
 :at:`element`: :at-val:`int((dim+1)*npoint), optional`
-
    The zero-based point ids forming each flex elements. This attribute is only used with type **direct**. All other
    flexcomp types generate their own elements. This data is passed through to the automatically-generated flex.
 
 .. _body-flexcomp-texcoord:
 
 :at:`texcoord`: :at-val:`real(2*npoint), optional`
-
    Texture coordinates of each point, passed through to the automatically-generated flex. Note that flexcomp does not
    generate texture coordinates automatically, except for 2D grids. For all other types, the user can specify explicit
    texture coordinates here, even if the points themselves were generated automatically. This requires understanding of
@@ -3796,7 +3897,6 @@ saving the XML:
 .. _body-flexcomp-euler:
 
 :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
-
    Alternative specification of rotation, that can be used instead of :at:`quat`.
 
 .. _body-flexcomp-scale:
@@ -3812,9 +3912,8 @@ saving the XML:
 .. _body-flexcomp-flatskin:
 
 :at:`radius`, :at:`material`, :at:`rgba`, :at:`group`, :at:`flatskin`
-
-These attributes are directly passed through to the automatically-generated :ref:`flex<deformable-flex>` object and have
-the same meaning.
+   These attributes are directly passed through to the automatically-generated :ref:`flex<deformable-flex>` object and
+   have the same meaning.
 
 .. _flexcomp-contact:
 
@@ -3835,10 +3934,12 @@ the same meaning.
 .. _flexcomp-contact-margin:
 .. _flexcomp-contact-gap:
 
-:at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`priority`,
-:at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
+.. |body/flexcomp/contact attrib list| replace::
+   :at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`,
+   :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
 
-Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
+|body/flexcomp/contact attrib list|
+   Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
 
 .. _flexcomp-edge:
 
@@ -3917,6 +4018,35 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
+
+
+.. _body-frame:
+
+:el-prefix:`body/` |-| **frame** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
+and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+
+.. _frame-pos:
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   The 3D position of the frame, in the parent coordinate system.
+
+.. _frame-quat:
+
+.. _frame-axisangle:
+
+.. _frame-xyaxes:
+
+.. _frame-zaxis:
+
+.. _frame-euler:
+
+:at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
+   See :ref:`COrientation`.
+
+
 
 .. _contact:
 
@@ -4136,7 +4266,7 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
 .. _flex-edge:
 
 :el-prefix:`flex/` |-| **edge** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''''''''''''''''''
 
 This element adjusts the passive or constraint properties of all edges of the flex. A flex edge can have a damping
 passive force and an :ref:`equality constraint<equality-flex>` associated with it, resulting in edge constraint forces.
@@ -4158,7 +4288,7 @@ these mechanisms to be combined as desired.
 .. _flex-contact:
 
 :el-prefix:`flex/` |-| **contact** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''''''''''''''''''''''''''''''''''''''
 
 This element adjusts the contact properties of the flex. It is mostly identical to geom contact properties, with some
 extensions specific to flexes.
@@ -4242,7 +4372,7 @@ Finally, the skin can be inflated by applying an offset to each vertex position 
 Skins are one-sided for rendering purposes; this is because back-face culling is needed to avoid shading and aliasing
 artifacts. When the skin is a closed 3D shape this does not matter because the back sides cannot be seen. But if the
 skin is a 2D object, we have to specify both sides and offset them slightly to avoid artifacts. Note that the
-composite objects introduced in MuJoCo 2.0 generate skins automatically. So one can save an XML model with a composite
+composite objects generate skins automatically. So one can save an XML model with a composite
 object, and obtain an elaborate example of how a skin is specified in the XML.
 
 Similar to meshes, skins can be specified directly in the XML via attributes documented later, or loaded from a binary
@@ -4472,7 +4602,7 @@ of the other body, without any joint elements in the child body.
 
 :at:`body2`: :at-val:`string, optional`
    Name of the second body. If this attribute is omitted, the second body is the world body. Welding a body to the world
-   and changing the corresponding component of mjModel.eq_active at runtime can be used to fix the body temporarily.
+   and changing the corresponding component of mjData.eq_active at runtime can be used to fix the body temporarily.
 
 .. _equality-weld-relpose:
 
@@ -4537,7 +4667,7 @@ joint types (slide and hinge) can be used.
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
    Coefficients a0 ... a4 of the quartic polynomial. If the two joint values are y and x, and their reference positions
    (corresponding to the joint values in the initial model configuration) are y0 and x0, the constraint is:
-   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4
+   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
    Omitting the second joint is equivalent to setting x = x0, in which case the constraint is y = y0 + a0.
 
 
@@ -4641,7 +4771,7 @@ has multiple obstacle geoms they must be separated by sites - so as to avoid the
 tendon level. This example illustrates a multi-branch tendon acting as a finger extensor, with a counter-weight
 instead of an actuator: `tendon.xml <_static/tendon.xml>`__.
 
-MuJoCo 2.0 introduced a second form of wrapping, where the tendon is constrained to pass through a geom rather than
+A second form of wrapping is where the tendon is constrained to pass *through* a geom rather than
 wrap around it. This is enabled automatically when a sidesite is specified and its position is inside the volume of
 the obstacle geom.
 
@@ -4947,21 +5077,21 @@ specify them independently.
 .. _actuator-general-ctrlrange:
 
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
-   Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
+   Range for clamping the control input. The first value must be smaller than the second value.
    |br| Setting this attribute without specifying :at:`ctrllimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-forcerange:
 
 :at:`forcerange`: :at-val:`real(2), "0 0"`
-   Range for clamping the force output. The compiler expects the first value to be no greater than the second value.
+   Range for clamping the force output. The first value must be no greater than the second value.
    |br| Setting this attribute without specifying :at:`forcelimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-actrange:
 
 :at:`actrange`: :at-val:`real(2), "0 0"`
-   Range for clamping the activation state. The compiler expects the first value to be no greater than the second value.
+   Range for clamping the activation state. The first value must be no greater than the second value.
    See the :ref:`Activation clamping <CActRange>` section for more details.
    |br| Setting this attribute without specifying :at:`actlimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
@@ -5234,13 +5364,13 @@ This element does not have custom attributes. It only has common attributes, whi
 
 This element creates a position servo. The underlying :el:`general` attributes are set as follows:
 
-========= ======= ========= =======
+========= ======= ========= =========
 Attribute Setting Attribute Setting
-========= ======= ========= =======
+========= ======= ========= =========
 dyntype   none    dynprm    1 0 0
 gaintype  fixed   gainprm   kp 0 0
-biastype  affine  biasprm   0 -kp 0
-========= ======= ========= =======
+biastype  affine  biasprm   0 -kp -kv
+========= ======= ========= =========
 
 
 This element has one custom attribute in addition to the common attributes:
@@ -5294,6 +5424,25 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
 
+.. _actuator-position-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-position-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Automatically set the actuator's :at:`ctrlrange` to match the transmission target's :at:`range`. The default value
+   means "disabled". A positive value :at-val:`X` sets the :at:`ctrlrange` around the midpoint of the target range,
+   scaled by :at-val:`X`. For example if the target joint has :at:`range` of :at-val:`[0, 1]`, then a value of
+   :at-val:`1.0` will set :at:`ctrlrange` to :at-val:`[0, 1]`; values of :at-val:`0.8` and :at-val:`1.2` will set the
+   :at:`ctrlrange` to :at-val:`[0.1, 0.9]` and :at-val:`[-0.1, 1.1]`, respectively. Values smaller than 1 are useful for
+   not hitting the limits; values larger than 1 are useful for maintaining control authority at the limits (being able
+   to push on them). This attribute is exclusive with :at:`ctrlrange` and available only for joint and tendon
+   transmissions which have :at:`range` defined. Note that while :at:`inheritrange` is available both as a
+   :ref:`position<actuator-position>` attribute and in the :ref:`default class<default-position-inheritrange>`,
+   saved XMLs always convert it to explicit :at:`ctrlrange` at the actuator.
 
 .. _actuator-velocity:
 
@@ -5302,7 +5451,9 @@ This element has one custom attribute in addition to the common attributes:
 
 This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
 position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
-inputs (reference position and reference velocity). The underlying :el:`general` attributes are set as follows:
+inputs (reference position and reference velocity).
+When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
 Attribute Setting Attribute Setting
@@ -5373,14 +5524,14 @@ This element creates an integrated-velocity servo. For more information, see the
 :ref:`Activation clamping <CActRange>` section of the Modeling chapter. The underlying
 :el:`general` attributes are set as follows:
 
-==========   =========== ========= =======
+==========   =========== ========= =========
 Attribute    Setting     Attribute Setting
-==========   =========== ========= =======
+==========   =========== ========= =========
 dyntype      integrator  dynprm    1 0 0
 gaintype     fixed       gainprm   kp 0 0
-biastype     affine      biasprm   0 -kp 0
+biastype     affine      biasprm   0 -kp -kv
 actlimited   true
-==========   =========== ========= =======
+==========   =========== ========= =========
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5435,15 +5586,27 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
 
+.. _actuator-intvelocity-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-intvelocity-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Identical to :ref:`position/inheritrange<actuator-position-inheritrange>`, but sets :at:`actrange` (which has the same
+   length semantics as the transmission target) rather than :at:`ctrlrange` (which has velocity semantics).
 
 .. _actuator-damper:
 
 :el-prefix:`actuator/` |-| **damper** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
-* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying
-:el:`general` attributes are set as follows:
+* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative.
+When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+The underlying :el:`general` attributes are set as follows:
 
 =========== ======= ========= =======
 Attribute   Setting Attribute Setting
@@ -5789,11 +5952,28 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
 
+.. _actuator-plugin-dyntype:
+
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
+   Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
+   model <geActuation>` section. If :ref:`dyntype<actuator-general-dyntype>` is not "none", an activation variable will
+   be added to the actuator. This variable will be added after any activation state computed by the plugin (see
+   :ref:`actuator plugin activations<exActuatorAct>`).
+
+.. _actuator-plugin-actrange:
+
+:at:`actrange`: :at-val:`real(2), "0 0"`
+   Range for clamping the activation state associated with this actuator's dyntype. The limit doesn't apply to
+   activations computed by the plugin. The first value must be no greater than the second value.
+   See the :ref:`Activation clamping <CActRange>` section for more details.
+
 .. _actuator-plugin-name:
 
 .. _actuator-plugin-class:
 
 .. _actuator-plugin-group:
+
+.. _actuator-plugin-actlimited:
 
 .. _actuator-plugin-ctrllimited:
 
@@ -5823,9 +6003,14 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-user:
 
-.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`
-   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`
-   :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`
+.. _actuator-plugin-dynprm:
+
+.. _actuator-plugin-actearly:
+
+.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`actlimited`, :at:`ctrllimited`,
+   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
+   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`,
+   :at:`dynprm`, :at:`actearly`
 
 |actuator/plugin attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5884,6 +6069,8 @@ scalar. It is computed by adding up the (scalar) normal forces from all included
 This element creates a 3-axis accelerometer. The sensor is mounted at a site, and has the same position and orientation
 as the site frame. This sensor outputs three numbers, which are the linear acceleration of the site (including gravity)
 in local coordinates.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
 
 .. _sensor-accelerometer-name:
 
@@ -5965,6 +6152,8 @@ the child body, and the force points from the child towards the parent. The comp
 forces acting on the system, including contacts as well as external perturbations. Using this sensor often requires
 creating a dummy body welded to its parent (i.e., having no joint elements).
 
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
+
 .. _sensor-force-name:
 
 .. _sensor-force-noise:
@@ -5993,6 +6182,8 @@ creating a dummy body welded to its parent (i.e., having no joint elements).
 
 This element creates a 3-axis torque sensor. This is similar to the :ref:`force <sensor-force>` sensor above, but
 measures torque rather than force.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
 
 .. _sensor-torque-name:
 
@@ -6797,6 +6988,8 @@ coordinates.
 This element creates a sensor that returns the 3D linear acceleration of the spatial frame of the object, in global
 coordinates.
 
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
+
 .. _sensor-framelinacc-name:
 
 .. _sensor-framelinacc-noise:
@@ -6826,6 +7019,8 @@ coordinates.
 
 This element creates a sensor that returns the 3D angular acceleration of the spatial frame of the object, in global
 coordinates.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
 
 .. _sensor-frameangacc-name:
 
@@ -6882,6 +7077,8 @@ global coordinates.
 This element creates sensor that returns the linear velocity of the center of mass of the kinematic subtree rooted at a
 specified body, in global coordinates.
 
+The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` during sensor computation.
+
 .. _sensor-subtreelinvel-name:
 
 .. _sensor-subtreelinvel-noise:
@@ -6906,6 +7103,8 @@ specified body, in global coordinates.
 
 This element creates sensor that returns the angular momentum around the center of mass of the kinematic subtree rooted
 at a specified body, in global coordinates.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` during sensor computation.
 
 .. _sensor-subtreeangmom-name:
 
@@ -6949,11 +7148,14 @@ This element creates sensor that returns the simulation time.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a user sensor. MuJoCo does not know how to compute the output of this sensor. Instead the user
-should install the callback :ref:`mjcb_sensor` which is expected to fill in the sensor data in mjData.sensordata. The
-specification in the XML is used to allocate space for this sensor, and also determine which MuJoCo object it is
+should install the callback :ref:`mjcb_sensor` which is expected to fill in the sensor data in ``mjData.sensordata``.
+The specification in the XML is used to allocate space for this sensor, and also determine which MuJoCo object it is
 attached to and what stage of computation it needs before the data can be computed. Note that the MuJoCo object
-referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects - for example several
+referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects -- for example several
 bodies whose center of mass is of interest.
+
+If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then :ref:`mj_subtreeVel` or
+:ref:`mj_rnePostConstraint` will be triggered, respectively.
 
 .. _sensor-user-name:
 
@@ -7027,7 +7229,7 @@ Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin
 
 .. _sensor-plugin-user:
 
-.. |sensor/plugin attrib list| replace:: :at:`name`, :at:`cutoff`, :at:`objtype`, :at:`objname`, :at:`reftype`
+.. |sensor/plugin attrib list| replace:: :at:`name`, :at:`cutoff`, :at:`objtype`, :at:`objname`, :at:`reftype`,
    :at:`refname`, :at:`user`
 
 |sensor/plugin attrib list|
@@ -7506,8 +7708,8 @@ if omitted.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
-| All general attributes are available here except: name, class, joint, jointinparent, site, tendon, slidersite,
-  cranksite.
+| All general attributes are available here except: name, class, joint, jointinparent, site, refsite, tendon,
+  slidersite, cranksite.
 
 
 .. _default-motor:
@@ -7534,8 +7736,8 @@ if omitted.
 This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
 :ref:`Actuator shortcuts <CActShortcuts>`. It does not make sense to use more than one such shortcut in the same defaults
 class, because they set the same underlying attributes, replacing any previous settings. All
-:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, refsite,
+tendon, slidersite, cranksite.
 
 
 .. _default-position:
@@ -7545,6 +7747,8 @@ slidersite, cranksite.
 .. _default-position-forcelimited:
 
 .. _default-position-ctrlrange:
+
+.. _default-position-inheritrange:
 
 .. _default-position-forcerange:
 
@@ -7558,11 +7762,13 @@ slidersite, cranksite.
 
 .. _default-position-kp:
 
+.. _default-position-kv:
+
 :el-prefix:`default/` |-| **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-velocity:
@@ -7589,7 +7795,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-intvelocity:
@@ -7604,6 +7810,8 @@ tendon, slidersite, cranksite.
 
 .. _default-intvelocity-actrange:
 
+.. _default-intvelocity-inheritrange:
+
 .. _default-intvelocity-gear:
 
 .. _default-intvelocity-cranklength:
@@ -7614,11 +7822,13 @@ tendon, slidersite, cranksite.
 
 .. _default-intvelocity-kp:
 
+.. _default-intvelocity-kv:
+
 :el-prefix:`default/` |-| **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
-site, tendon, slidersite, cranksite.
+site, refsite, tendon, slidersite, cranksite.
 
 
 .. _default-damper:
@@ -7643,7 +7853,7 @@ site, tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-cylinder:
@@ -7676,7 +7886,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-muscle:
@@ -7719,7 +7929,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-adhesion:
