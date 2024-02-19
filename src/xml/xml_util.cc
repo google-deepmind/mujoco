@@ -32,8 +32,11 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
+#include "user/user_util.h"
 #include "xml/xml_util.h"
 #include "xml/xml_numeric_format.h"
 
@@ -154,6 +157,35 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
   }
 
   return nullptr;
+}
+
+static std::string ResolveFilePath(XMLElement* e, std::string filename,
+    const std::string& dir) {
+  std::string path = "";
+  if (mjuu_isabspath(filename)) {
+    return filename;
+  }
+
+  // TODO(kylebayes): We first look in the base model directory for files to
+  // remain backwards compatible.
+  std::string full_filename = dir + filename;
+  mjResource *resource = mju_openResource(full_filename.c_str(), nullptr, 0);
+  if (resource != nullptr) {
+    mju_closeResource(resource);
+    return filename;
+  }
+
+  XMLElement* parent = e->Parent()->ToElement();
+  for (; parent; parent = parent->Parent()->ToElement()) {
+    if (!std::strcmp(parent->Value(), "include")) {
+      auto file_attr = mjXUtil::ReadAttrStr(parent, "dir", false);
+      if (file_attr.has_value()) {
+        path = file_attr.value();
+      }
+      break;
+    }
+  }
+  return path + filename;
 }
 
 // constructor
@@ -562,8 +594,8 @@ mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, bool required);
 
 
 // if attribute is present, return attribute as a string
-std::optional<std::string> mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr,
-                                                bool required) {
+std::optional<std::string>
+mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr, bool required) {
   const char* pstr = elem->Attribute(attr);
 
   // check if attribute exists
@@ -578,7 +610,16 @@ std::optional<std::string> mjXUtil::ReadAttrStr(XMLElement* elem, const char* at
   return std::string(pstr);
 }
 
-
+// if attribute is present, return attribute as a filename
+std::optional<std::string>
+mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr,
+                      const std::string& dir, bool required) {
+  auto maybe_str = ReadAttrStr(elem, attr, required);
+  if (!maybe_str.has_value()) {
+    return std::nullopt;
+  }
+  return ResolveFilePath(elem, maybe_str.value(), dir);
+}
 
 // if attribute is present, return numerical value of attribute
 template<typename T>

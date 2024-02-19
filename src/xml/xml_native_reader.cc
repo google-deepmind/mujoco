@@ -1349,7 +1349,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjmFlex* pflex) {
 // mesh element parser
 void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
   int n;
-  string text, name, classname, content_type, file;
+  string text, name, classname, content_type;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
@@ -1361,8 +1361,9 @@ void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
   if (ReadAttrTxt(elem, "content_type", content_type)) {
     mjm_setString(pmesh->content_type, content_type.c_str());
   }
-  if (ReadAttrTxt(elem, "file", file)) {
-    mjm_setString(pmesh->file, file.c_str());
+  auto file = ReadAttrFile(elem, "file", MeshDir());
+  if (file) {
+    mjm_setString(pmesh->file, file->c_str());
   }
   ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
   ReadAttr(elem, "refpos", 4, pmesh->refquat, text);
@@ -1418,19 +1419,20 @@ void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
 
 // skin element parser
 void mjXReader::OneSkin(XMLElement* elem, mjmSkin* pskin) {
-  string text, name, file, material;
+  string text, name, material;
   float data[4];
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
     mjm_setString(pskin->name, name.c_str());
   }
-  if (ReadAttrTxt(elem, "file", file)) {
-    mjm_setString(pskin->file, file.c_str());
+  auto file = ReadAttrFile(elem, "file", AssetDir());
+  if (file.has_value()) {
+    mjm_setString(pskin->file, file->c_str());
   }
   if (ReadAttrTxt(elem, "material", material)) {
     mjm_setString(pskin->material, material.c_str());
-  }
+}
   ReadAttrInt(elem, "group", &pskin->group);
   if (pskin->group<0 || pskin->group>=mjNGROUP) {
     throw mjXError(elem, "skin group must be between 0 and 5");
@@ -2507,7 +2509,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
-  ReadAttrTxt(elem, "file", fcomp.file);
+  fcomp.file = ReadAttrFile(elem, "file", modelfiledir_).value_or("");
   if (ReadAttrTxt(elem, "material", material)) {
     mjm_setString(dflex.material, material.c_str());
   }
@@ -3067,7 +3069,7 @@ void mjXReader::Visual(XMLElement* section) {
 // asset section parser
 void mjXReader::Asset(XMLElement* section) {
   int n;
-  string text, name, texname, content_type, file;
+  string text, name, texname, content_type;
   XMLElement* elem;
 
   // iterate over child elements
@@ -3101,8 +3103,9 @@ void mjXReader::Asset(XMLElement* section) {
       if (ReadAttrTxt(elem, "content_type", content_type)) {
         mjm_setString(ptex->content_type, content_type.c_str());
       }
-      if (ReadAttrTxt(elem, "file", file)) {
-        mjm_setString(ptex->file, file.c_str());
+      auto file = ReadAttrFile(elem, "file", TextureDir());
+      if (file.has_value()) {
+        mjm_setString(ptex->file, file->c_str());
       }
       ReadAttrInt(elem, "width", &ptex->width);
       ReadAttrInt(elem, "height", &ptex->height);
@@ -3139,12 +3142,12 @@ void mjXReader::Asset(XMLElement* section) {
 
       // separate files
       std::vector<string> cubefiles(6);
-      ReadAttrTxt(elem, "fileright", cubefiles[0]);
-      ReadAttrTxt(elem, "fileleft",  cubefiles[1]);
-      ReadAttrTxt(elem, "fileup",    cubefiles[2]);
-      ReadAttrTxt(elem, "filedown",  cubefiles[3]);
-      ReadAttrTxt(elem, "filefront", cubefiles[4]);
-      ReadAttrTxt(elem, "fileback",  cubefiles[5]);
+      cubefiles[0] = ReadAttrFile(elem, "fileright", TextureDir()).value_or("");
+      cubefiles[1] = ReadAttrFile(elem, "fileleft", TextureDir()).value_or("");
+      cubefiles[2] = ReadAttrFile(elem, "fileup", TextureDir()).value_or("");
+      cubefiles[3] = ReadAttrFile(elem, "filedown", TextureDir()).value_or("");
+      cubefiles[4] = ReadAttrFile(elem, "filefront", TextureDir()).value_or("");
+      cubefiles[5] = ReadAttrFile(elem, "fileback", TextureDir()).value_or("");
       for (int i = 0; i < cubefiles.size(); i++) {
         mjm_setInStringVec(ptex->cubefiles, i, cubefiles[i].c_str());
       }
@@ -3181,22 +3184,23 @@ void mjXReader::Asset(XMLElement* section) {
           std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      string name, content_type, file;
+      string name, content_type;
       if (ReadAttrTxt(elem, "name", name)) {
         mjm_setString(phf->name, name.c_str());
       }
       if (ReadAttrTxt(elem, "content_type", content_type)) {
         mjm_setString(phf->content_type, content_type.c_str());
       }
-      if (ReadAttrTxt(elem, "file", file)) {
-        mjm_setString(phf->file, file.c_str());
+      auto file = ReadAttrFile(elem, "file", AssetDir());
+      if (file.has_value()) {
+        mjm_setString(phf->file, file->c_str());
       }
       ReadAttrInt(elem, "nrow", &phf->nrow);
       ReadAttrInt(elem, "ncol", &phf->ncol);
       ReadAttr(elem, "size", 4, phf->size, text, true);
 
       // allocate buffer for dynamic hfield, copy user data if given
-      if (file.empty() && phf->nrow>0 && phf->ncol>0) {
+      if (!file.has_value() && phf->nrow>0 && phf->ncol>0) {
         int nrow = phf->nrow;
         int ncol = phf->ncol;
 
@@ -4033,4 +4037,55 @@ mjmDefault* mjXReader::GetClass(XMLElement* section) {
 // get xml position
 void mjXReader::GetXMLPos(XMLElement* elem, mjCBase* obj) {
   obj->info = "line = " + std::to_string(elem->GetLineNum());
+}
+
+// return true if c is a directory path separator (i.e. '/' or '\' on windows)
+static bool IsSeperator(char c) {
+  return c == '/' || c == '\\';
+}
+
+void mjXReader::SetModelFileDir(std::string modelfiledir) {
+  modelfiledir_ = modelfiledir;
+  if (!modelfiledir_.empty() && !IsSeperator(modelfiledir_.back())) {
+    modelfiledir_.append("/");
+  }
+}
+
+void mjXReader::SetAssetDir(std::string assetdir) {
+  assetdir_ = assetdir;
+  if (!assetdir_.empty() && !IsSeperator(assetdir_.back())) {
+    assetdir_.append("/");
+  }
+}
+
+void mjXReader::SetMeshDir(std::string meshdir) {
+  meshdir_ = meshdir;
+  if (!meshdir_.empty() && !IsSeperator(meshdir_.back())) {
+    meshdir_.append("/");
+  }
+}
+
+void mjXReader::SetTextureDir(std::string texturedir) {
+  texturedir_ = texturedir;
+  if (!texturedir_.empty() && !IsSeperator(texturedir_.back())) {
+    texturedir_.append("/");
+  }
+}
+
+std::string mjXReader::AssetDir() const {
+  return modelfiledir_ + assetdir_;
+}
+
+std::string mjXReader::MeshDir() const {
+  if (meshdir_.empty()) {
+    return AssetDir();
+  }
+  return modelfiledir_ + meshdir_;
+}
+
+std::string mjXReader::TextureDir() const {
+  if (texturedir_.empty()) {
+    return AssetDir();
+  }
+  return modelfiledir_ + texturedir_;
 }

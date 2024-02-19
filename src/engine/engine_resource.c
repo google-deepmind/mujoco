@@ -219,7 +219,7 @@ int mju_dirnamelen(const char* path) {
   }
 
   int pos = -1;
-  for (int i = 0; path[i] && i >= 0; ++i) {
+  for (int i = 0; path[i]; ++i) {
     if (path[i] == '/' || path[i] == '\\') {
       pos = i;
     }

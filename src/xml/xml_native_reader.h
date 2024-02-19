@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_XML_XML_NATIVE_READER_H_
 
 #include <sstream>
+#include <string>
 
 #include "tinyxml2.h"
 
@@ -33,6 +34,14 @@ class mjXReader : public mjXBase {
 
   void Parse(tinyxml2::XMLElement* root);                              // parse XML document
   void PrintSchema(std::stringstream& str, bool html, bool pad);       // print text or HTML schema
+
+  void SetModelFileDir(std::string modelfiledir);
+  const std::string& ModelFileDir() const { return modelfiledir_; }
+
+  // setters for directory defaults
+  void SetAssetDir(std::string assetdir);
+  void SetMeshDir(std::string meshdir);
+  void SetTextureDir(std::string texturedir);
 
   // XML sections embedded in all formats
   static void Compiler(tinyxml2::XMLElement* section, mjCModel* mod);  // compiler section
@@ -80,6 +89,16 @@ class mjXReader : public mjXBase {
   static void GetXMLPos(tinyxml2::XMLElement* elem, mjCBase* obj);    // get xml position
 
   bool readingdefaults;  // true while reading defaults
+
+  // accessors for directory defaults
+  std::string AssetDir() const;
+  std::string MeshDir() const;
+  std::string TextureDir() const;
+
+  std::string modelfiledir_;
+  std::string assetdir_;
+  std::string meshdir_;
+  std::string texturedir_;
 };
 
 // MJCF schema

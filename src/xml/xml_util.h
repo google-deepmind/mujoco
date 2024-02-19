@@ -35,7 +35,6 @@ using tinyxml2::XMLElement;
 XMLElement* FirstChildElement(XMLElement* e, const char* name = nullptr);
 XMLElement* NextSiblingElement(XMLElement* e, const char* name = nullptr);
 
-
 // XML Error info
 class [[nodiscard]] mjXError {
  public:
@@ -108,6 +107,10 @@ class mjXUtil {
   // if attribute is present, return attribute as a string
   static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem, const char* attr,
                                                 bool required = false);
+
+  // if attribute is present, return attribute as a filename
+  static std::optional<std::string> ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
+                                                 const std::string& dir = "", bool required = false);
 
   // if attribute is present, return numerical value of attribute
   template<typename T>
