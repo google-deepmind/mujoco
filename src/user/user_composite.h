@@ -114,10 +114,9 @@ class mjCComposite {
   std::vector<std::string> username;
 
   // plugin support
-  bool is_plugin;
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjCPlugin* plugin_instance;
+  mjmPlugin plugin;
 
   // skin
   bool skin;                      // generate skin

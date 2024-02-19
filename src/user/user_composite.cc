@@ -64,7 +64,13 @@ mjCComposite::mjCComposite(void) {
   pin.clear();
   flatinertia = 0;
   mj_defaultSolRefImp(solrefsmooth, solimpsmooth);
-  plugin_instance = nullptr;
+
+  // plugin variables
+  mjm_defaultPlugin(plugin);
+  plugin_name = "";
+  plugin_instance_name = "";
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 
   // cable
   curve[0] = curve[1] = curve[2] = mjCOMPSHAPE_ZERO;
@@ -423,9 +429,10 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
   // compute volume
   std::vector<mjtNum> volume(uservert.size()/3);
   mjtNum t = 1;
-  if (dim == 2 && plugin_instance) {
+  if (dim == 2 && plugin.active) {
     try {
-      t = std::stod(plugin_instance->config_attribs["thickness"], nullptr);
+      mjCPlugin* pplugin = (mjCPlugin*)plugin.instance;
+      t = std::stod(pplugin->config_attribs["thickness"], nullptr);
     } catch (const std::invalid_argument& e) {
       return comperr(error, "Invalid thickness attribute", error_sz);
     }
@@ -502,19 +509,20 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     mjm_setString(s->name, txt);
 
     // add plugin
-    if (plugin_instance) {
-      mjmPlugin* plugin = &b->plugin;
-      plugin->active = true;
-      plugin->instance = (mjElement)plugin_instance;
-      mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
-      mjm_setString(plugin->name, plugin_name.c_str());
+    if (plugin.active) {
+      mjmPlugin* pplugin = &b->plugin;
+      mjCPlugin* cplugin = (mjCPlugin*)plugin.instance;
+      pplugin->active = true;
+      pplugin->instance = (mjElement)plugin.instance;
+      mjm_setString(pplugin->instance_name, plugin_instance_name.c_str());
+      mjm_setString(pplugin->name, mjm_getString(plugin.name));
 
-      if (i==0 && !plugin_instance->config_attribs["face"].empty()) {
+      if (i==0 && !cplugin->config_attribs["face"].empty()) {
         return comperr(error, "Face attribute already exists in plugin", error_sz);
       }
 
-      plugin_instance->config_attribs["face"] = userface;
-      plugin_instance->config_attribs["edge"] = "";
+      cplugin->config_attribs["face"] = userface;
+      cplugin->config_attribs["edge"] = "";
 
       // update density
       if (dim == 2) {
@@ -856,12 +864,12 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
   }
 
   // add plugin
-  if (plugin_instance) {
-    mjmPlugin* plugin = &body->plugin;
-    plugin->active = true;
-    plugin->instance = (mjElement)plugin_instance;
-    mjm_setString(plugin->name, plugin_name.c_str());
-    mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
+  if (plugin.active) {
+    mjmPlugin* pplugin = &body->plugin;
+    pplugin->active = true;
+    pplugin->instance = (mjElement)plugin.instance;
+    mjm_setString(pplugin->name, mjm_getString(plugin.name));
+    mjm_setString(pplugin->instance_name, plugin_instance_name.c_str());
   }
 
   // update orientation

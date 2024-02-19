@@ -2273,16 +2273,11 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) 
   // plugin
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
-    ReadAttrTxt(eplugin, "plugin", comp.plugin_name);
-    ReadAttrTxt(eplugin, "instance", comp.plugin_instance_name);
+    OnePlugin(eplugin, &comp.plugin);
     if (comp.plugin_instance_name.empty()) {
-      comp.plugin_instance = (mjCPlugin*)mjm_addPlugin(&model->spec);
-      comp.plugin_instance->name = "composite"+comp.prefix;
-      comp.plugin_instance_name = comp.plugin_instance->name;
-    } else {
-      model->hasImplicitPluginElem = true;
+      comp.plugin_instance_name = "composite" + comp.prefix;
+      ((mjCPlugin*)comp.plugin.instance)->name = comp.plugin_instance_name;
     }
-    ReadPluginConfigs(eplugin, comp.plugin_instance);
   }
 
   // cable
@@ -2604,16 +2599,11 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   // plugin
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
-    ReadAttrTxt(eplugin, "plugin", fcomp.plugin_name);
-    ReadAttrTxt(eplugin, "instance", fcomp.plugin_instance_name);
+    OnePlugin(eplugin, &fcomp.plugin);
     if (fcomp.plugin_instance_name.empty()) {
-      fcomp.plugin_instance = (mjCPlugin*)mjm_addPlugin(&model->spec);
-      fcomp.plugin_instance->name = "flexcomp_" + fcomp.name;
-      fcomp.plugin_instance_name = fcomp.plugin_instance->name;
-    } else {
-      model->hasImplicitPluginElem = true;
+      fcomp.plugin_instance_name = "flexcomp_" + fcomp.name;
+      ((mjCPlugin*)fcomp.plugin.instance)->name = fcomp.plugin_instance_name;
     }
-    ReadPluginConfigs(eplugin, fcomp.plugin_instance);
   }
 
   // make flexcomp
@@ -2638,7 +2628,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
   mjm_setString(plugin->name, name.c_str());
   mjm_setString(plugin->instance_name, instance_name.c_str());
   if (instance_name.empty()) {
-    plugin->instance = mjm_addPlugin(&model->spec);
+    plugin->instance = mjm_addPlugin(&model->spec)->instance;
     ReadPluginConfigs(elem, (mjCPlugin*)plugin->instance);
   } else {
     model->hasImplicitPluginElem = true;
@@ -2797,7 +2787,7 @@ void mjXReader::Extension(XMLElement* section) {
             throw mjXError(
                 child, "explicit plugin instance must appear before implicit plugin elements");
           }
-          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(&model->spec);
+          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(&model->spec)->instance;
           GetXMLPos(child, pp);
           ReadAttrTxt(child, "name", pp->name, /* required = */ true);
           if (pp->name.empty()) {

@@ -761,7 +761,7 @@ MJAPI mjmTuple* mjm_addTuple(mjmModel* model);
 MJAPI mjmKey* mjm_addKey(mjmModel* model);
 
 // Add plugin to model.
-MJAPI mjElement mjm_addPlugin(mjmModel* model);
+MJAPI mjmPlugin* mjm_addPlugin(mjmModel* model);
 
 // Add default to model.
 MJAPI mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid);
@@ -894,6 +894,9 @@ MJAPI void mjm_defaultTuple(mjmTuple& tuple);
 
 // Default keyframe attributes.
 MJAPI void mjm_defaultKey(mjmKey& key);
+
+// Default plugin attributes.
+MJAPI void mjm_defaultPlugin(mjmPlugin& plugin);
 
 #ifdef __cplusplus
 }

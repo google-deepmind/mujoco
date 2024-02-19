@@ -315,10 +315,11 @@ mjmKey* mjm_addKey(mjmModel* model) {
 
 
 // add plugin to model
-mjElement mjm_addPlugin(mjmModel* model) {
+mjmPlugin* mjm_addPlugin(mjmModel* model) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
   mjCPlugin* plugin = modelC->AddPlugin();
-  return (mjElement)plugin;
+  plugin->plugin.instance = (mjElement)plugin;
+  return &plugin->plugin;
 }
 
 

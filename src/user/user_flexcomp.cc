@@ -71,7 +71,12 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjuu_setvec(quat, 1, 0, 0, 0);
   rigid = false;
   centered = false;
-  plugin_instance = nullptr;
+
+  mjm_defaultPlugin(plugin);
+  plugin_name = "";
+  plugin_instance_name = "";
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -404,12 +409,12 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
       mjm_appendString(pf->vertbody, mjm_getString(body->name));
 
       // add plugin
-      if (plugin_instance) {
-        mjmPlugin* plugin = &body->plugin;
-        plugin->active = true;
-        plugin->instance = (mjElement)plugin_instance;
-        mjm_setString(plugin->name, plugin_name.c_str());
-        mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
+      if (plugin.active) {
+        mjmPlugin* pplugin = &body->plugin;
+        pplugin->active = true;
+        pplugin->instance = (mjElement)plugin.instance;
+        mjm_setString(pplugin->name, mjm_getString(plugin.name));
+        mjm_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }
     }
 
@@ -468,12 +473,12 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
       }
 
       // add plugin
-      if (plugin_instance) {
-        mjmPlugin* plugin = &pb->plugin;
-        plugin->active = true;
-        plugin->instance = (mjElement)plugin_instance;
-        mjm_setString(plugin->name, plugin_name.c_str());
-        mjm_setString(plugin->instance_name, plugin_instance_name.c_str());
+      if (plugin.active) {
+        mjmPlugin* pplugin = &pb->plugin;
+        pplugin->active = true;
+        pplugin->instance = (mjElement)plugin.instance;
+        mjm_setString(pplugin->name, mjm_getString(plugin.name));
+        mjm_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }
     }
   }

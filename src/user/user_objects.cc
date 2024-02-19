@@ -546,8 +546,7 @@ mjCBase::mjCBase() {
   frame = nullptr;
 
   // plugin variables
-  plugin.active = false;
-  plugin.instance = nullptr;
+  mjm_defaultPlugin(plugin);
   plugin_name = "";
   plugin_instance_name = "";
   plugin.name = (mjString)&plugin_name;
@@ -5337,6 +5336,13 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   nstate = 0;
   parent = this;
   model = _model;
+
+  // public interface
+  mjm_defaultPlugin(plugin);
+  plugin_name = "";
+  plugin_instance_name = "";
+  plugin.name = (mjString)&plugin_name;
+  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
