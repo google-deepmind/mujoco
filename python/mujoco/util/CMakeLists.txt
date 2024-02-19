@@ -63,8 +63,8 @@ if(BUILD_TESTING)
   target_link_libraries(
     array_traits_test
     array_traits
-    gmock
-    gtest_main
+    GTest::gmock
+    GTest::gtest_main
   )
   gtest_add_tests(TARGET array_traits_test SOURCES array_traits_test.cc)
 
@@ -72,8 +72,8 @@ if(BUILD_TESTING)
   target_link_libraries(
     func_traits_test
     func_traits
-    gmock
-    gtest_main
+    GTest::gmock
+    GTest::gtest_main
   )
   gtest_add_tests(TARGET func_traits_test SOURCES func_traits_test.cc)
 
@@ -81,8 +81,8 @@ if(BUILD_TESTING)
   target_link_libraries(
     func_wrap_test
     func_wrap
-    gmock
-    gtest_main
+    GTest::gmock
+    GTest::gtest_main
   )
   gtest_add_tests(TARGET func_wrap_test SOURCES func_wrap_test.cc)
 
@@ -90,8 +90,8 @@ if(BUILD_TESTING)
   target_link_libraries(
     tuple_tools_test
     func_wrap
-    gmock
-    gtest_main
+    GTest::gmock
+    GTest::gtest_main
   )
   gtest_add_tests(TARGET tuple_tools_test SOURCES tuple_tools_test.cc)
 endif()
