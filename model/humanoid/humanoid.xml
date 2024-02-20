@@ -200,21 +200,21 @@
   </tendon>
 
   <actuator>
-    <motor name="abdomen_y"       gear="40"  joint="abdomen_y"/>
     <motor name="abdomen_z"       gear="40"  joint="abdomen_z"/>
+    <motor name="abdomen_y"       gear="40"  joint="abdomen_y"/>
     <motor name="abdomen_x"       gear="40"  joint="abdomen_x"/>
     <motor name="hip_x_right"     gear="40"  joint="hip_x_right"/>
     <motor name="hip_z_right"     gear="40"  joint="hip_z_right"/>
     <motor name="hip_y_right"     gear="120" joint="hip_y_right"/>
     <motor name="knee_right"      gear="80"  joint="knee_right"/>
-    <motor name="ankle_x_right"   gear="20"  joint="ankle_x_right"/>
     <motor name="ankle_y_right"   gear="20"  joint="ankle_y_right"/>
+    <motor name="ankle_x_right"   gear="20"  joint="ankle_x_right"/>
     <motor name="hip_x_left"      gear="40"  joint="hip_x_left"/>
     <motor name="hip_z_left"      gear="40"  joint="hip_z_left"/>
     <motor name="hip_y_left"      gear="120" joint="hip_y_left"/>
     <motor name="knee_left"       gear="80"  joint="knee_left"/>
-    <motor name="ankle_x_left"    gear="20"  joint="ankle_x_left"/>
     <motor name="ankle_y_left"    gear="20"  joint="ankle_y_left"/>
+    <motor name="ankle_x_left"    gear="20"  joint="ankle_x_left"/>
     <motor name="shoulder1_right" gear="20"  joint="shoulder1_right"/>
     <motor name="shoulder2_right" gear="20"  joint="shoulder2_right"/>
     <motor name="elbow_right"     gear="40"  joint="elbow_right"/>
