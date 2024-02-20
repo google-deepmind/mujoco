@@ -27,6 +27,12 @@ MJX
 5. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
 6. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
 
+Python bindings
+^^^^^^^^^^^^^^^
+7. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
+   of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
+
+
 Version 3.1.2 (February 05, 2024)
 -----------------------------------
 

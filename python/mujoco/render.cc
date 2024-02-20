@@ -14,6 +14,8 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <type_traits>
 
 #include <Eigen/Core>
 #include <mujoco/mjrender.h>
@@ -40,7 +42,10 @@ class MjWrapper<raw::MjrContext> : public WrapperBase<raw::MjrContext> {
 
   void Free();
 
-#define X(var) py_array_or_tuple_t<mjtNum> var
+  #define X(var)                                                   \
+    py_array_or_tuple_t<                                           \
+        std::remove_all_extents_t<decltype(raw::MjrContext::var)>> \
+        var
   X(fogRGBA);
   X(auxWidth);
   X(auxHeight);
