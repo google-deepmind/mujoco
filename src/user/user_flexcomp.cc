@@ -397,6 +397,12 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
   double bodymass = mass/npnt;
   double bodyinertia = bodymass*(2.0*inertiabox*inertiabox)/3.0;
 
+  // overwrite plugin name
+  if (plugin.active && plugin_instance_name.empty()) {
+    plugin_instance_name = "flexcomp_" + name;
+    ((mjCPlugin*)plugin.instance)->name = plugin_instance_name;
+  }
+
   // create bodies, construct flex vert and vertbody
   for (int i=0; i<npnt; i++) {
     // not used: skip

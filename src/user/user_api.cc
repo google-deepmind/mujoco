@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include "user/user_api.h"
+#include <functional>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -318,8 +321,8 @@ mjmKey* mjm_addKey(mjmModel* model) {
 mjmPlugin* mjm_addPlugin(mjmModel* model) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
   mjCPlugin* plugin = modelC->AddPlugin();
-  plugin->plugin.instance = (mjElement)plugin;
-  return &plugin->plugin;
+  plugin->spec.instance = (mjElement)plugin;
+  return &plugin->spec;
 }
 
 
@@ -504,6 +507,16 @@ const double* mjm_getDouble(const mjDoubleVec source, int* size) {
     *size = v->size();
   }
   return v->data();
+}
+
+
+
+// set plugin attributes
+void mjm_setPluginAttributes(mjmPlugin* plugin, void* attributes) {
+  mjCPlugin* pluginC = reinterpret_cast<mjCPlugin*>(plugin->instance);
+  std::map<std::string, std::string, std::less<>>* config_attribs =
+      reinterpret_cast<std::map<std::string, std::string, std::less<>>*>(attributes);
+  pluginC->config_attribs = std::move(*config_attribs);
 }
 
 

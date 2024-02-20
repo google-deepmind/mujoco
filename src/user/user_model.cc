@@ -3044,7 +3044,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   {
     int adr = 0;
     for (int i = 0; i < nplugin; ++i) {
-      m->plugin[i] = plugins[i]->plugin_slot;
+      m->plugin[i] = plugins[i]->spec.plugin_slot;
       const int size = plugins[i]->flattened_attributes.size();
       std::memcpy(m->plugin_attr + adr,
                   plugins[i]->flattened_attributes.data(), size);
@@ -3575,8 +3575,8 @@ void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
   }
 
   // implicit plugin instance
-  if (*plugin_instance && (*plugin_instance)->plugin_slot == -1) {
-      (*plugin_instance)->plugin_slot = plugin_slot;
+  if (*plugin_instance && (*plugin_instance)->spec.plugin_slot == -1) {
+      (*plugin_instance)->spec.plugin_slot = plugin_slot;
       (*plugin_instance)->parent = obj;
   }
 
@@ -3588,10 +3588,10 @@ void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
       throw mjCError(
           obj, "unrecognized name '%s' for plugin instance", plugin_instance_name.c_str());
     }
-    if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->plugin_slot) {
+    if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->spec.plugin_slot) {
       throw mjCError(
           obj, "'plugin' attribute does not match that of the instance");
     }
-    plugin_slot = (*plugin_instance)->plugin_slot;
+    plugin_slot = (*plugin_instance)->spec.plugin_slot;
   }
 }

@@ -173,10 +173,6 @@ class mjCBase {
   mjCModel* model;                // pointer to model that created object
   mjCFrame* frame;                // pointer to frame transformation
 
-  // plugin support
-  mjmPlugin plugin;
-  std::string plugin_name;
-  std::string plugin_instance_name;
  protected:
   mjCBase();                      // constructor
   virtual ~mjCBase() = default;   // destructor
@@ -233,7 +229,6 @@ class mjCBody : public mjCBase, private mjmBody {
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
-  using mjCBase::plugin;
 
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
@@ -278,6 +273,8 @@ class mjCBody : public mjCBase, private mjmBody {
   void PointToLocal(void);
 
   // variable-size data
+  std::string plugin_name;
+  std::string plugin_instance_name;
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
 };
@@ -415,6 +412,8 @@ class mjCGeom : public mjCBase, private mjmGeom {
   mjtNum fluid[mjNFLUID];             // compile-time fluid-interaction parameters
 
   // variable-size data
+  std::string plugin_name;
+  std::string plugin_instance_name;
   std::string hfieldname_;
   std::string meshname_;
   std::string material_;
@@ -427,7 +426,6 @@ class mjCGeom : public mjCBase, private mjmGeom {
   // inherited
   using mjCBase::classname;
   using mjCBase::info;
-  using mjCBase::plugin;
 };
 
 
@@ -625,7 +623,6 @@ class mjCMesh: public mjCBase, private mjmMesh {
   mjmMesh spec;
   using mjCBase::name;
   using mjCBase::classname;
-  using mjCBase::plugin;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -687,6 +684,9 @@ class mjCMesh: public mjCBase, private mjmMesh {
 
  private:
   // variable size attributes
+  std::string plugin_name;
+  std::string plugin_instance_name;
+
   std::string content_type_;                     // content type of file
   std::string file_;                             // mesh file
   std::vector<float> uservert_;                  // user vertex data
@@ -1164,7 +1164,7 @@ class mjCPlugin : public mjCBase {
   friend class mjXWriter;
 
  public:
-  int plugin_slot;   // global registered slot number of the plugin
+  mjmPlugin spec;
   int nstate;        // state size for the plugin instance
   mjCBase* parent;   // parent object (only used when generating error message)
   std::map<std::string, std::string, std::less<>> config_attribs;  // raw config attributes from XML
@@ -1173,6 +1173,7 @@ class mjCPlugin : public mjCBase {
  private:
   mjCPlugin(mjCModel*);            // constructor
   void Compile(void);              // compiler
+  std::string instance_name;
 };
 
 
@@ -1190,7 +1191,6 @@ class mjCActuator : public mjCBase, private mjmActuator {
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
-  using mjCBase::plugin;
 
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
@@ -1211,6 +1211,8 @@ class mjCActuator : public mjCBase, private mjmActuator {
   int trnid[2];                   // id of transmission target
 
   // variable-size data
+  std::string plugin_name;
+  std::string plugin_instance_name;
   std::string target_;
   std::string slidersite_;
   std::string refsite_;
@@ -1236,7 +1238,6 @@ class mjCSensor : public mjCBase, private mjmSensor {
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
-  using mjCBase::plugin;
 
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
@@ -1253,6 +1254,8 @@ class mjCSensor : public mjCBase, private mjmSensor {
   int refid;                      // id of reference frame
 
   // variable-size data
+  std::string plugin_name;
+  std::string plugin_instance_name;
   std::string objname_;
   std::string refname_;
   std::vector<double> userdata_;

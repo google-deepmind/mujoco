@@ -257,7 +257,7 @@ void mjCMesh::LoadSDF() {
 
   mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
   if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
   }

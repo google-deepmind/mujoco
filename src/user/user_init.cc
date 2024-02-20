@@ -370,5 +370,6 @@ void mjm_defaultKey(mjmKey& key) {
 // default plugin attributes
 void mjm_defaultPlugin(mjmPlugin& plugin) {
   memset(&plugin, 0, sizeof(mjmPlugin));
+  plugin.plugin_slot = -1;
 }
 

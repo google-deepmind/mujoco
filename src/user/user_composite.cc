@@ -308,6 +308,12 @@ bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_s
     }
   }
 
+  // overwrite plugin name
+  if (plugin_instance_name.empty() && plugin.active) {
+    plugin_instance_name = "composite" + prefix;
+    ((mjCPlugin*)plugin.instance)->name = plugin_instance_name;
+  }
+
   // dispatch
   switch (type) {
   case mjCOMPTYPE_PARTICLE:

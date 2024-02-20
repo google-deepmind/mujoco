@@ -88,7 +88,9 @@ typedef struct _mjmPlugin {        // plugin specification
   mjElement instance;              // internal, do not modify
   mjString name;                   // name
   mjString instance_name;          // instance name
-  bool active;                     // is the plugin active
+  int plugin_slot;                 // global registered slot number of the plugin
+  mjtByte active;                  // is the plugin active
+  mjString info;                   // message appended to compiler errors
 } mjmPlugin;
 
 
@@ -813,6 +815,9 @@ MJAPI const char* mjm_getString(mjString source);
 
 // Get double array contents and optionally its size.
 MJAPI const double* mjm_getDouble(mjDoubleVec source, int* size);
+
+// Set plugin attributes.
+MJAPI void mjm_setPluginAttributes(mjmPlugin* plugin, void* attributes);
 
 // Set default.
 MJAPI void mjm_setDefault(mjElement element, mjmDefault* def);

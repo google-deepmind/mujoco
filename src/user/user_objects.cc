@@ -544,13 +544,6 @@ mjCBase::mjCBase() {
   model = 0;
   def = 0;
   frame = nullptr;
-
-  // plugin variables
-  mjm_defaultPlugin(plugin);
-  plugin_name = "";
-  plugin_instance_name = "";
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
 }
 
 
@@ -1193,7 +1186,7 @@ void mjCBody::Compile(void) {
 
     mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_PASSIVE)) {
       throw mjCError(this, "plugin '%s' does not support passive forces", pplugin->name);
     }
@@ -2047,7 +2040,7 @@ void mjCGeom::Compile(void) {
 
     mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
       throw mjCError(this, "plugin '%s' does not support sign distance fields", pplugin->name);
     }
@@ -4487,7 +4480,7 @@ void mjCActuator::Compile(void) {
 
     mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
       throw mjCError(this, "plugin '%s' does not support actuators", pplugin->name);
     }
@@ -4921,7 +4914,7 @@ void mjCSensor::Compile(void) {
     {
       mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
       model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-      const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->plugin_slot);
+      const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
       if (!(pplugin->capabilityflags & mjPLUGIN_SENSOR)) {
         throw mjCError(this, "plugin '%s' does not support sensors", pplugin->name);
       }
@@ -5332,24 +5325,24 @@ void mjCKey::Compile(const mjModel* m) {
 // initialize defaults
 mjCPlugin::mjCPlugin(mjCModel* _model) {
   name = "";
-  plugin_slot = -1;
-  nstate = 0;
+  nstate = -1;
   parent = this;
   model = _model;
+  name.clear();
+  instance_name.clear();
 
   // public interface
-  mjm_defaultPlugin(plugin);
-  plugin_name = "";
-  plugin_instance_name = "";
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  mjm_defaultPlugin(spec);
+  spec.name = (mjString)&name;
+  spec.instance_name = (mjString)&instance_name;
+  spec.info = (mjString)&info;
 }
 
 
 
 // compiler
 void mjCPlugin::Compile(void) {
-  const mjpPlugin* plugin = mjp_getPluginAtSlot(this->plugin_slot);
+  const mjpPlugin* plugin = mjp_getPluginAtSlot(spec.plugin_slot);
 
   // concatenate all of the plugin's attribute values (as null-terminated strings) into
   // flattened_attributes, in the order declared in the mjpPlugin

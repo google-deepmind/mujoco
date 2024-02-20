@@ -412,7 +412,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
 
   // write plugin
   if (pgeom->plugin.active) {
-    OnePlugin(InsertEnd(elem, "plugin"), pgeom);
+    OnePlugin(InsertEnd(elem, "plugin"), &pgeom->plugin);
   }
 }
 
@@ -702,7 +702,7 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
   // plugins: write config attributes
   if (pact->plugin.active) {
-    OnePlugin(elem, pact);
+    OnePlugin(elem, &pact->plugin);
   }
 
   // non-plugins: write actuator parameters
@@ -731,21 +731,21 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
 
 // write plugin
-void mjXWriter::OnePlugin(XMLElement* elem, mjCBase* object) {
-  const std::string instance_name = std::string(mjm_getString(object->plugin.instance_name));
-  const std::string plugin_name = std::string(mjm_getString(object->plugin.name));
+void mjXWriter::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
+  const std::string instance_name = std::string(mjm_getString(plugin->instance_name));
+  const std::string plugin_name = std::string(mjm_getString(plugin->name));
   if (!instance_name.empty()) {
     WriteAttrTxt(elem, "instance", instance_name);
   } else {
     WriteAttrTxt(elem, "plugin", plugin_name);
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(
-        ((mjCPlugin*)object->plugin.instance)->plugin_slot);
-    const char* c = &((mjCPlugin*)object->plugin.instance)->flattened_attributes[0];
-    for (int i = 0; i < plugin->nattribute; ++i) {
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(
+        ((mjCPlugin*)plugin->instance)->spec.plugin_slot);
+    const char* c = &((mjCPlugin*)plugin->instance)->flattened_attributes[0];
+    for (int i = 0; i < pplugin->nattribute; ++i) {
       std::string value(c);
       if (!value.empty()) {
         XMLElement* config_elem = InsertEnd(elem, "config");
-        WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
+        WriteAttrTxt(config_elem, "key", pplugin->attributes[i]);
         WriteAttrTxt(config_elem, "value", value);
         c += value.size();
       }
@@ -1229,7 +1229,7 @@ void mjXWriter::Extension(XMLElement* root) {
     }
 
     // check if we need to open a new <plugin> section
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->plugin_slot);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->spec.plugin_slot);
     if (plugin != last_plugin) {
       plugin_elem = InsertEnd(section, "plugin");
       WriteAttrTxt(plugin_elem, "plugin", plugin->name);
@@ -1406,7 +1406,7 @@ void mjXWriter::Asset(XMLElement* root) {
     if (pmesh->plugin.active) {
       elem = InsertEnd(section, "mesh");
       WriteAttrTxt(elem, "name", pmesh->name);
-      OnePlugin(InsertEnd(elem, "plugin"), pmesh);
+      OnePlugin(InsertEnd(elem, "plugin"), &pmesh->plugin);
     } else{
       elem = InsertEnd(section, "mesh");
       OneMesh(elem, pmesh, pmesh->def);
@@ -1506,7 +1506,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 
   // write plugin
   if (body->plugin.active) {
-    OnePlugin(InsertEnd(elem, "plugin"), body);
+    OnePlugin(InsertEnd(elem, "plugin"), &body->plugin);
   }
 
   // write child bodies recursively
@@ -1904,7 +1904,7 @@ void mjXWriter::Sensor(XMLElement* root) {
         WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
         WriteAttrTxt(elem, "objname", psen->get_objname());
       }
-      OnePlugin(elem, psen);
+      OnePlugin(elem, &psen->plugin);
       break;
 
     // user-defined sensor

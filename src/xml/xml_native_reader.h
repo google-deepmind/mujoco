@@ -23,7 +23,6 @@
 #include <mujoco/mujoco.h>
 #include "user/user_api.h"
 #include "user/user_model.h"
-#include "user/user_objects.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
 
@@ -86,7 +85,6 @@ class mjXReader : public mjXBase {
 
   mjXSchema schema;                                                   // schema used for validation
   mjmDefault* GetClass(tinyxml2::XMLElement* section);                    // get default class name
-  static void GetXMLPos(tinyxml2::XMLElement* elem, mjCBase* obj);    // get xml position
 
   bool readingdefaults;  // true while reading defaults
 

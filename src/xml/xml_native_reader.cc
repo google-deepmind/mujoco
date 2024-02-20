@@ -40,7 +40,6 @@
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
 #include "user/user_model.h"
-#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
@@ -50,7 +49,7 @@ using std::string;
 using std::vector;
 using tinyxml2::XMLElement;
 
-void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
+void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjmPlugin* p) {
   std::map<std::string, std::string, std::less<>> config_attribs;
   XMLElement* child = FirstChildElement(elem);
   while (child) {
@@ -68,12 +67,12 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
     child = NextSiblingElement(child);
   }
 
-  if (!pp && !config_attribs.empty()) {
+  if (!p && !config_attribs.empty()) {
     throw mjXError(elem,
                    "plugin configuration attributes cannot be used in an "
                    "element that references a predefined plugin instance");
-  } else if (pp) {
-    pp->config_attribs = std::move(config_attribs);
+  } else if (p) {
+    mjm_setPluginAttributes(p, &config_attribs);
   }
 }
 }  // namespace
@@ -2276,10 +2275,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
     OnePlugin(eplugin, &comp.plugin);
-    if (comp.plugin_instance_name.empty()) {
-      comp.plugin_instance_name = "composite" + comp.prefix;
-      ((mjCPlugin*)comp.plugin.instance)->name = comp.plugin_instance_name;
-    }
   }
 
   // cable
@@ -2602,10 +2597,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
     OnePlugin(eplugin, &fcomp.plugin);
-    if (fcomp.plugin_instance_name.empty()) {
-      fcomp.plugin_instance_name = "flexcomp_" + fcomp.name;
-      ((mjCPlugin*)fcomp.plugin.instance)->name = fcomp.plugin_instance_name;
-    }
   }
 
   // make flexcomp
@@ -2631,7 +2622,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
   mjm_setString(plugin->instance_name, instance_name.c_str());
   if (instance_name.empty()) {
     plugin->instance = mjm_addPlugin(&model->spec)->instance;
-    ReadPluginConfigs(elem, (mjCPlugin*)plugin->instance);
+    ReadPluginConfigs(elem, plugin);
   } else {
     model->hasImplicitPluginElem = true;
   }
@@ -2789,15 +2780,16 @@ void mjXReader::Extension(XMLElement* section) {
             throw mjXError(
                 child, "explicit plugin instance must appear before implicit plugin elements");
           }
-          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(&model->spec)->instance;
-          GetXMLPos(child, pp);
-          ReadAttrTxt(child, "name", pp->name, /* required = */ true);
-          if (pp->name.empty()) {
+          string name;
+          mjmPlugin* p = mjm_addPlugin(&model->spec);
+          mjm_setString(p->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+          ReadAttrTxt(child, "name", name, /* required = */ true);
+          mjm_setString(p->name, name.c_str());
+          if (!p->name) {
             throw mjXError(child, "plugin instance must have a name");
           }
-          ReadPluginConfigs(child, pp);
-          pp->plugin_slot = plugin_slot;
-          pp->nstate = -1;  // actual value to be filled in by the plugin later
+          ReadPluginConfigs(child, p);
+          p->plugin_slot = plugin_slot;
         }
         child = NextSiblingElement(child);
       }
@@ -4034,10 +4026,6 @@ mjmDefault* mjXReader::GetClass(XMLElement* section) {
 
 
 
-// get xml position
-void mjXReader::GetXMLPos(XMLElement* elem, mjCBase* obj) {
-  obj->info = "line = " + std::to_string(elem->GetLineNum());
-}
 
 // return true if c is a directory path separator (i.e. '/' or '\' on windows)
 static bool IsSeperator(char c) {
