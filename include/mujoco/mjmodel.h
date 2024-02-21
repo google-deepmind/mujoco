@@ -16,6 +16,7 @@
 #define MUJOCO_MJMODEL_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 #include <mujoco/mjtnum.h>
@@ -390,11 +391,12 @@ typedef struct mjLROpt_ mjLROpt;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 
-struct mjVFS_ {                             // virtual file system for loading from memory
-  int    nfile;                             // number of files present
-  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t filesize[mjMAXVFS];                // file size in bytes
-  void*  filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                               // virtual file system for loading from memory
+  int      nfile;                             // number of files present
+  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t   filesize[mjMAXVFS];                // file size in bytes
+  void*    filedata[mjMAXVFS];                // buffer with file data
+  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
 };
 typedef struct mjVFS_ mjVFS;
 
@@ -868,8 +870,6 @@ struct mjModel_ {
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
-  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -877,6 +877,8 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
+  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
 
   // skins

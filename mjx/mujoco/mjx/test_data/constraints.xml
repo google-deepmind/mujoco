@@ -5,7 +5,7 @@
 * solref, solimp
 -->
 <mujoco>
-  <option timestep="0.02"/>
+  <option timestep="0.015" impratio="1.5"/>
 
   <default>
     <default class="box">

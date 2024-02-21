@@ -218,13 +218,13 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
     mgrad = smooth.solve_m(m, d, grad)
   elif m.opt.solver == SolverType.NEWTON:
     ne, nf, *_ = constraint.count_constraints(m)
-    active = (ctx.Jaref < 0).at[:ne + nf].set(True)
-    h = d.qM + support.make_m(m, d.efc_J.T * d.efc_D * active, d.efc_J.T)
-    dh = d.replace(qM=h)
-    dh = smooth.factor_m(m, dh)
-    mgrad = smooth.solve_m(m, dh, grad)
+    active = (ctx.Jaref < 0).at[: ne + nf].set(True)
+    h = (d.efc_J.T * d.efc_D * active) @ d.efc_J
+    h = support.full_m(m, d) + h
+    h_ = jax.scipy.linalg.cho_factor(h)
+    mgrad = jax.scipy.linalg.cho_solve(h_, grad)
   else:
-    raise NotImplementedError(f"unsupported solver type: {m.opt.solver}")
+    raise NotImplementedError(f'unsupported solver type: {m.opt.solver}')
 
   ctx = ctx.replace(grad=grad, Mgrad=mgrad)
 

@@ -15,8 +15,63 @@
 #include <cstring>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "cc/array_safety.h"
 #include "user/user_api.h"
 #include "user/user_util.h"
+
+
+
+// default model attributes
+void mjm_defaultModel(mjmModel& model) {
+  memset(&model, 0, sizeof(mjmModel));
+
+  // default statistics
+  model.stat.meaninertia = mjNAN;
+  model.stat.meanmass = mjNAN;
+  model.stat.meansize = mjNAN;
+  model.stat.extent = mjNAN;
+  model.stat.center[0] = mjNAN;
+
+  // compiler settings
+  model.autolimits = true;
+  model.boundmass = 0;
+  model.boundinertia = 0;
+  model.settotalmass = -1;
+  model.balanceinertia = false;
+  model.strippath = false;
+  model.fitaabb = false;
+  model.degree = true;
+  model.euler[0] = 'x';
+  model.euler[1] = 'y';
+  model.euler[2] = 'z';
+  model.discardvisual = false;
+  model.convexhull = true;
+  model.usethread = true;
+  model.fusestatic = false;
+  model.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+  model.inertiagrouprange[0] = 0;
+  model.inertiagrouprange[1] = mjNGROUP-1;
+  model.exactmeshinertia = false;
+  mj_defaultLROpt(&model.LRopt);
+
+  // engine data
+  mj_defaultOption(&model.option);
+  mj_defaultVisual(&model.visual);
+  model.memory = -1;
+  model.nemax = 0;
+  model.njmax = -1;
+  model.nconmax = -1;
+  model.nstack = -1;
+  model.nuserdata = 0;
+  model.nuser_body = -1;
+  model.nuser_jnt = -1;
+  model.nuser_geom = -1;
+  model.nuser_site = -1;
+  model.nuser_cam = -1;
+  model.nuser_tendon = -1;
+  model.nuser_actuator = -1;
+  model.nuser_sensor = -1;
+}
 
 
 
@@ -54,8 +109,8 @@ void mjm_defaultJoint(mjmJoint& joint) {
 
   joint.type = mjJNT_HINGE;
   joint.axis[2] = 1;
-  joint.limited = 2;
-  joint.actfrclimited = 2;
+  joint.limited = mjLIMITED_AUTO;
+  joint.actfrclimited = mjLIMITED_AUTO;
   mj_defaultSolRefImp(joint.solref_limit, joint.solimp_limit);
   mj_defaultSolRefImp(joint.solref_friction, joint.solimp_friction);
   joint.urdfeffort = -1;
@@ -167,7 +222,74 @@ void mjm_defaultLight(mjmLight& light) {
 
 
 
-// Default material attributes.
+// default flex attributes
+void mjm_defaultFlex(mjmFlex& flex) {
+  memset(&flex, 0, sizeof(mjmFlex));
+
+  // set contact defaults
+  flex.contype = 1;
+  flex.conaffinity = 1;
+  flex.condim = 3;
+  mjuu_setvec(flex.friction, 1, 0.005, 0.0001);
+  flex.solmix = 1.0;
+  mj_defaultSolRefImp(flex.solref, flex.solimp);
+
+  // set other defaults
+  flex.dim = 2;
+  flex.radius = 0.005;
+  flex.internal = true;
+  flex.selfcollide = mjFLEXSELF_AUTO;
+  flex.activelayers = 1;
+  flex.rgba[0] = flex.rgba[1] = flex.rgba[2] = 0.5f;
+  flex.rgba[3] = 1.0f;
+}
+
+
+
+// default mesh attributes
+void mjm_defaultMesh(mjmMesh& mesh) {
+  memset(&mesh, 0, sizeof(mjmMesh));
+  mjuu_setvec(mesh.refpos, 0, 0, 0);
+  mjuu_setvec(mesh.refquat, 1, 0, 0, 0);
+  mjuu_setvec(mesh.scale, 1, 1, 1);
+  mesh.smoothnormal = false;
+}
+
+
+
+// default height field attributes
+void mjm_defaultHField(mjmHField& hfield) {
+  memset(&hfield, 0, sizeof(mjmHField));
+}
+
+
+
+// default skin attributes
+void mjm_defaultSkin(mjmSkin& skin) {
+  memset(&skin, 0, sizeof(mjmSkin));
+  skin.rgba[0] = skin.rgba[1] = skin.rgba[2] = 0.5f;
+  skin.rgba[3] = 1.0f;
+  skin.inflate = 0;
+  skin.group = 0;
+}
+
+
+
+// default texture attributes
+void mjm_defaultTexture(mjmTexture& texture) {
+  memset(&texture, 0, sizeof(mjmTexture));
+  texture.type = mjTEXTURE_CUBE;
+  mjuu_setvec(texture.rgb1, 0.8, 0.8, 0.8);
+  mjuu_setvec(texture.rgb2, 0.5, 0.5, 0.5);
+  mjuu_setvec(texture.markrgb, 0, 0, 0);
+  texture.random = 0.01;
+  texture.gridsize[0] = texture.gridsize[1] = 1;
+  mujoco::util::strcpy_arr(texture.gridlayout, "............");
+}
+
+
+
+// default material attributes
 void mjm_defaultMaterial(mjmMaterial& material) {
   memset(&material, 0, sizeof(mjmMaterial));
   material.texuniform = false;
@@ -177,6 +299,20 @@ void mjm_defaultMaterial(mjmMaterial& material) {
   material.shininess = 0.5;
   material.reflectance = 0;
   material.rgba[0] = material.rgba[1] = material.rgba[2] = material.rgba[3] = 1;
+}
+
+
+
+// default pair attributes
+void mjm_defaultPair(mjmPair& pair) {
+  memset(&pair, 0, sizeof(mjmPair));
+  pair.condim = 3;
+  mj_defaultSolRefImp(pair.solref, pair.solimp);
+  pair.friction[0] = 1;
+  pair.friction[1] = 1;
+  pair.friction[2] = 0.005;
+  pair.friction[3] = 0.0001;
+  pair.friction[4] = 0.0001;
 }
 
 
@@ -196,7 +332,7 @@ void mjm_defaultEquality(mjmEquality& equality) {
 // default tendon attributes
 void mjm_defaultTendon(mjmTendon& tendon) {
   memset(&tendon, 0, sizeof(mjmTendon));
-  tendon.limited = 2;
+  tendon.limited = mjLIMITED_AUTO;
   tendon.springlength[0] = tendon.springlength[1] = -1;
   mj_defaultSolRefImp(tendon.solref_limit, tendon.solimp_limit);
   mj_defaultSolRefImp(tendon.solref_friction, tendon.solimp_friction);
@@ -226,9 +362,9 @@ void mjm_defaultActuator(mjmActuator& actuator) {
   actuator.gear[0] = 1;
 
   // input/output clamping
-  actuator.ctrllimited = 2;
-  actuator.forcelimited = 2;
-  actuator.actlimited = 2;
+  actuator.ctrllimited = mjLIMITED_AUTO;
+  actuator.forcelimited = mjLIMITED_AUTO;
+  actuator.actlimited = mjLIMITED_AUTO;
 }
 
 
@@ -243,4 +379,37 @@ void mjm_defaultSensor(mjmSensor& sensor) {
 
 
 
+// Default numeric attributes.
+void mjm_defaultNumeric(mjmNumeric& numeric) {
+  memset(&numeric, 0, sizeof(mjmNumeric));
+}
+
+
+
+// Default text attributes.
+void mjm_defaultText(mjmText& text) {
+  memset(&text, 0, sizeof(mjmText));
+}
+
+
+
+// Default tuple attributes.
+void mjm_defaultTuple(mjmTuple& tuple) {
+  memset(&tuple, 0, sizeof(mjmTuple));
+}
+
+
+
+// Default keyframe attributes.
+void mjm_defaultKey(mjmKey& key) {
+  memset(&key, 0, sizeof(mjmKey));
+}
+
+
+
+// default plugin attributes
+void mjm_defaultPlugin(mjmPlugin& plugin) {
+  memset(&plugin, 0, sizeof(mjmPlugin));
+  plugin.plugin_slot = -1;
+}
 

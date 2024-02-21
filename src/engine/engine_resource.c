@@ -44,7 +44,12 @@ typedef struct {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-mjResource* mju_openResource(const char* name) {
+mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
+  // no error so far
+  if (error) {
+    error[0] = '\0';
+  }
+
   mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
   const mjpResourceProvider* provider = NULL;
   if (resource == NULL) {
@@ -72,9 +77,12 @@ mjResource* mju_openResource(const char* name) {
       return resource;
     }
 
-    mju_warning("mju_openResource: could not open resource '%s' "
-                "using a resource provider matching prefix '%s'",
-                name, provider->prefix);
+    if (error) {
+      snprintf(error, error_sz, "could not open '%s'"
+               "using a resource provider matching prefix '%s'",
+               name, provider->prefix);
+    }
+
     mju_closeResource(resource);
     return NULL;
   }
@@ -85,7 +93,10 @@ mjResource* mju_openResource(const char* name) {
   file_buffer* fb = (file_buffer*) resource->data;
   fb->buffer = mju_fileToMemory(name, &(fb->nbuffer));
   if (fb->buffer == NULL) {
-    mju_warning("mju_openResource: unknown file '%s'", name);
+    if (error) {
+      snprintf(error, error_sz,
+               "resource not found via provider or OS filesystem: '%s'", name);
+    }
     mju_closeResource(resource);
     return NULL;
   }
@@ -94,8 +105,9 @@ mjResource* mju_openResource(const char* name) {
     memcpy(&fb->mtime, &file_stat.st_mtime, sizeof(time_t));
   } else {
     memset(&fb->mtime, 0, sizeof(time_t));
+    resource->timestamp[0] = '\0';
   }
-
+  strftime(resource->timestamp, 512, "%Y-%m-%d-%H:%M:%S", localtime(&(fb->mtime)));
   return resource;
 }
 
@@ -175,24 +187,20 @@ static int mju_isModifiedFile(const char* name, const file_buffer* fb) {
     if (stat(name, &file_stat) == 0) {
       return difftime(fb->mtime, file_stat.st_mtime) < 0;
     }
-    return -1;
   }
-  return -2;
+  return 1;  // modified (default)
 }
 
 
 
-// Returns > 0 if resource has been modified since last read, 0 if not, and < 0
-// if inconclusive
-int mju_isModifiedResource(const mjResource* resource) {
-  if (resource == NULL) {
-    return -2;
-  }
-
+// return 0 if the resource's timestamp matches the provided timestamp
+// return > 0 if the the resource is younger than the given timestamp
+// return < 0 if the resource is older than the given timestamp
+int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
   // provider is not OS filesystem
   if (resource->provider) {
     if (resource->provider->modified) {
-      return resource->provider->modified(resource);
+      return resource->provider->modified(resource, timestamp);
     }
     return 1;  // default (modified)
   }
@@ -209,7 +217,7 @@ int mju_dirnamelen(const char* path) {
   }
 
   int pos = -1;
-  for (int i = 0; path[i] && i >= 0; ++i) {
+  for (int i = 0; path[i]; ++i) {
     if (path[i] == '/' || path[i] == '\\') {
       pos = i;
     }

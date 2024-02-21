@@ -1218,40 +1218,41 @@ construct simple shapes directly in the XML. For example, a pyramid can be creat
 .. code-block:: xml
 
    <asset>
-       <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+     <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
    </asset>
 
-Positioning and orienting is complicated by the fact that vertex data are often designed relative to coordinate frames
-whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to coincide with the
-geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
-centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
-rotation offsets needed to achieve such alignment in :ref:`mjModel.mesh_pos<mjModel>` and
-:ref:`mjModel.mesh_quat<mjModel>`. These offsets are then applied to the referencing geom's position and orientation; see
-also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in
-a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the
-joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model
-fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be. The body
-position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the
-typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
-to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
+Positioning and orienting is complicated by the fact that vertex data in the source asset are often relative to
+coordinate frames whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to
+coincide with the geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler,
+so that it is centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We save the translation
+and rotation offsets applied to the source asset in :ref:`mjModel.mesh_pos<mjModel>` and
+:ref:`mjModel.mesh_quat<mjModel>`; these are required if one reads vertex data from the source and needs to re-apply the
+transform. These offsets are then composed with the referencing geom's position and orientation; see also the :at:`mesh`
+attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in a coordinate
+frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the joint, so
+that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model fragment of
+a forearm, containing all the information needed to put the mesh where one would expect it to be. The body position is
+specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the typical
+length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have to use
+the geom position and orientation (or the :at:`refpos`, :at:`refquat`` mechanism) to compensate, but in practice this is
 rarely needed.
 
 .. code-block:: xml
 
    <asset>
-       <mesh file="forearm.stl"/>
+     <mesh file="forearm.stl"/>
    </asset>
 
    <body pos="0 0 0.35"/>
-       <joint type="hinge" axis="1 0 0"/>
-       <geom type="mesh" mesh="forearm"/>
+     <joint type="hinge" axis="1 0 0"/>
+     <geom type="mesh" mesh="forearm"/>
    </body>
 
 The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also to
 infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the triangle
 faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all
-pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
-pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be
+pyramids (considered solid, or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
+pyramids on the outside of the surfaces are subtracted, as can occur with concave geometries. This algorithm can be
 found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
 
 The full list of processing steps applied by the compiler to each mesh is as follows:
@@ -5429,6 +5430,20 @@ This element has one custom attribute in addition to the common attributes:
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
+.. _actuator-position-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Automatically set the actuator's :at:`ctrlrange` to match the transmission target's :at:`range`. The default value
+   means "disabled". A positive value :at-val:`X` sets the :at:`ctrlrange` around the midpoint of the target range,
+   scaled by :at-val:`X`. For example if the target joint has :at:`range` of :at-val:`[0, 1]`, then a value of
+   :at-val:`1.0` will set :at:`ctrlrange` to :at-val:`[0, 1]`; values of :at-val:`0.8` and :at-val:`1.2` will set the
+   :at:`ctrlrange` to :at-val:`[0.1, 0.9]` and :at-val:`[-0.1, 1.1]`, respectively. Values smaller than 1 are useful for
+   not hitting the limits; values larger than 1 are useful for maintaining control authority at the limits (being able
+   to push on them). This attribute is exclusive with :at:`ctrlrange` and available only for joint and tendon
+   transmissions which have :at:`range` defined. Note that while :at:`inheritrange` is available both as a
+   :ref:`position<actuator-position>` attribute and in the :ref:`default class<default-position-inheritrange>`,
+   saved XMLs always convert it to explicit :at:`ctrlrange` at the actuator.
+
 .. _actuator-velocity:
 
 :el-prefix:`actuator/` |-| **velocity** (*)
@@ -5577,10 +5592,16 @@ This element has one custom attribute in addition to the common attributes:
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
+.. _actuator-intvelocity-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Identical to :ref:`position/inheritrange<actuator-position-inheritrange>`, but sets :at:`actrange` (which has the same
+   length semantics as the transmission target) rather than :at:`ctrlrange` (which has velocity semantics).
+
 .. _actuator-damper:
 
 :el-prefix:`actuator/` |-| **damper** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
 * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative.
@@ -7727,6 +7748,8 @@ tendon, slidersite, cranksite.
 
 .. _default-position-ctrlrange:
 
+.. _default-position-inheritrange:
+
 .. _default-position-forcerange:
 
 .. _default-position-gear:
@@ -7786,6 +7809,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-intvelocity-forcerange:
 
 .. _default-intvelocity-actrange:
+
+.. _default-intvelocity-inheritrange:
 
 .. _default-intvelocity-gear:
 

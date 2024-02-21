@@ -39,8 +39,6 @@
 #include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
-#include "user/user_model.h"
-#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
@@ -50,7 +48,7 @@ using std::string;
 using std::vector;
 using tinyxml2::XMLElement;
 
-void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
+void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjmPlugin* p) {
   std::map<std::string, std::string, std::less<>> config_attribs;
   XMLElement* child = FirstChildElement(elem);
   while (child) {
@@ -68,12 +66,12 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
     child = NextSiblingElement(child);
   }
 
-  if (!pp && !config_attribs.empty()) {
+  if (!p && !config_attribs.empty()) {
     throw mjXError(elem,
                    "plugin configuration attributes cannot be used in an "
                    "element that references a predefined plugin instance");
-  } else if (pp) {
-    pp->config_attribs = std::move(config_attribs);
+  } else if (p) {
+    mjm_setPluginAttributes(p, &config_attribs);
   }
 }
 }  // namespace
@@ -81,8 +79,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 227;
-static const char* MJCF[nMJCF][mjXATTRNUM] = {
+const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
     {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
@@ -169,14 +166,14 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
-        {"position", "?", "10", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group",
+        {"position", "?", "11", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
+            "forcerange", "gear", "cranklength", "user", "group",
             "kp", "kv"},
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
-        {"intvelocity", "?", "11", "ctrllimited", "forcelimited",
-            "ctrlrange", "forcerange", "actrange",
+        {"intvelocity", "?", "12", "ctrllimited", "forcelimited",
+            "ctrlrange", "forcerange", "actrange", "inheritrange",
             "gear", "cranklength", "user", "group",
             "kp", "kv"},
         {"damper", "?", "8", "forcelimited", "ctrlrange", "forcerange",
@@ -216,11 +213,6 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"texture", "*", "22", "name", "type", "content_type", "file", "gridsize", "gridlayout",
-            "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
-            "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
-            "hflip", "vflip"},
-        {"hfield", "*", "7", "name", "content_type", "file", "nrow", "ncol", "size", "elevation"},
         {"mesh", "*", "12", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal"},
         {"<"},
@@ -229,11 +221,16 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             {"config", "*", "2", "key", "value"},
           {">"},
         {">"},
+        {"hfield", "*", "7", "name", "content_type", "file", "nrow", "ncol", "size", "elevation"},
         {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
             "vertex", "texcoord", "face", "group"},
         {"<"},
             {"bone", "*", "5", "body", "bindpos", "bindquat", "vertid", "vertweight"},
         {">"},
+        {"texture", "*", "22", "name", "type", "content_type", "file", "gridsize", "gridlayout",
+            "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
+            "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
+            "hflip", "vflip"},
         {"material", "*", "10", "name", "class", "texture",  "texrepeat", "texuniform",
             "emission", "specular", "shininess", "reflectance", "rgba"},
     {">"},
@@ -382,8 +379,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "20", "name", "class", "group",
-            "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+        {"position", "*", "21", "name", "class", "group",
+            "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv"},
@@ -392,9 +389,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "21", "name", "class", "group",
+        {"intvelocity", "*", "22", "name", "class", "group",
             "ctrllimited", "forcelimited",
-            "ctrlrange", "forcerange", "actrange", "lengthrange",
+            "ctrlrange", "forcerange", "actrange", "inheritrange", "lengthrange",
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv"},
@@ -774,12 +771,6 @@ const mjMap flexself_map[5] = {
 
 // constructor
 mjXReader::mjXReader() : schema(MJCF, nMJCF) {
-  // check for schema construction error
-  if (!schema.GetError().empty()) {
-    throw mjXError(0, "Schema construction error: %s",
-                   schema.GetError().c_str());
-  }
-
   readingdefaults = false;
 }
 
@@ -813,7 +804,10 @@ void mjXReader::Parse(XMLElement* root) {
   }
 
   // get model name
-  ReadAttrTxt(root, "model", model->modelname);
+  string modelname;
+  if (ReadAttrTxt(root, "model", modelname)) {
+    mjm_setString(model->spec.modelname, modelname.c_str());
+  }
 
   // get comment
   if (root->FirstChild() && root->FirstChild()->ToComment()) {
@@ -826,17 +820,17 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = FirstChildElement(root, "compiler"); section;
        section = NextSiblingElement(section, "compiler")) {
-    Compiler(section, model);
+    Compiler(section, &model->spec);
   }
 
   for (XMLElement* section = FirstChildElement(root, "option"); section;
        section = NextSiblingElement(section, "option")) {
-    Option(section, &model->option);
+    Option(section, &model->spec.option);
   }
 
   for (XMLElement* section = FirstChildElement(root, "size"); section;
        section = NextSiblingElement(section, "size")) {
-    Size(section, model);
+    Size(section, &model->spec);
   }
 
   //------------------ parse MJCF-specific sections
@@ -917,7 +911,7 @@ void mjXReader::Parse(XMLElement* root) {
 
 
 // compiler section parser
-void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
+void mjXReader::Compiler(XMLElement* section, mjmModel* mod) {
   string text;
   int n;
 
@@ -953,12 +947,17 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
     memcpy(mod->euler, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
-    mod->meshdir = text;
-    mod->texturedir = text;
+    mjm_setString(mod->meshdir, text.c_str());
+    mjm_setString(mod->texturedir, text.c_str());
   }
   // meshdir and texturedir take precedence over assetdir
-  ReadAttrTxt(section, "meshdir", mod->meshdir);
-  ReadAttrTxt(section, "texturedir", mod->texturedir);
+  std::string meshdir, texturedir;
+  if (ReadAttrTxt(section, "meshdir", meshdir)) {
+    mjm_setString(mod->meshdir, meshdir.c_str());
+  };
+  if (ReadAttrTxt(section, "texturedir", texturedir)) {
+    mjm_setString(mod->texturedir, texturedir.c_str());
+  }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
     mod->discardvisual = (n==1);
   }
@@ -1099,7 +1098,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
 
 // size section parser
-void mjXReader::Size(XMLElement* section, mjCModel* mod) {
+void mjXReader::Size(XMLElement* section, mjmModel* mod) {
   // read memory bytes
   {
     constexpr char err_msg[] =
@@ -1260,14 +1259,15 @@ void mjXReader::Statistic(XMLElement* section) {
   string text;
 
   // read statistics
-  ReadAttr(section, "meaninertia", 1, &model->meaninertia, text);
-  ReadAttr(section, "meanmass", 1, &model->meanmass, text);
-  ReadAttr(section, "meansize", 1, &model->meansize, text);
-  ReadAttr(section, "extent", 1, &model->extent, text);
-  if (mjuu_defined(model->extent) && model->extent<=0) {
+  mjmModel* pmodel = &model->spec;
+  ReadAttr(section, "meaninertia", 1, &pmodel->stat.meaninertia, text);
+  ReadAttr(section, "meanmass", 1, &pmodel->stat.meanmass, text);
+  ReadAttr(section, "meansize", 1, &pmodel->stat.meansize, text);
+  ReadAttr(section, "extent", 1, &pmodel->stat.extent, text);
+  if (mjuu_defined(pmodel->stat.extent) && pmodel->stat.extent<=0) {
     throw mjXError(section, "extent must be strictly positive");
   }
-  ReadAttr(section, "center", 3, model->center, text);
+  ReadAttr(section, "center", 3, pmodel->stat.center, text);
 }
 
 
@@ -1275,14 +1275,22 @@ void mjXReader::Statistic(XMLElement* section) {
 //---------------------------------- one-element parsers -------------------------------------------
 
 // flex element parser
-void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
-  string text;
+void mjXReader::OneFlex(XMLElement* elem, mjmFlex* pflex) {
+  string text, name, classname, material;
   int n;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pflex->name);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pflex->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "classname", classname)) {
+    mjm_setString(pflex->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(pflex->material, material.c_str());
+  }
+
   ReadAttr(elem, "radius", 1, &pflex->radius, text);
-  ReadAttrTxt(elem, "material", pflex->get_material());
   ReadAttr(elem, "rgba", 4, pflex->rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
     pflex->flatskin = (n==1);
@@ -1292,16 +1300,22 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
 
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
-    String2Vector(text, pflex->vertbody);
+    mjm_setStringVec(pflex->vertbody, text.c_str());
   }
   if (ReadAttrTxt(elem, "vertex", text)) {
-    String2Vector(text, pflex->vert);
+    std::vector<double> vert;
+    String2Vector(text, vert);
+    mjm_setDouble(pflex->vert, vert.data(), vert.size());
   }
   if (ReadAttrTxt(elem, "element", text, true)) {
-    String2Vector(text, pflex->elem);
+    std::vector<int> elem;
+    String2Vector(text, elem);
+    mjm_setInt(pflex->elem, elem.data(), elem.size());
   }
   if (ReadAttrTxt(elem, "texcoord", text)) {
-    String2Vector(text, pflex->texcoord);
+    std::vector<float> texcoord;
+    String2Vector(text, texcoord);
+    mjm_setFloat(pflex->texcoord, texcoord.data(), texcoord.size());
   }
 
   // contact subelement
@@ -1331,24 +1345,35 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
     ReadAttr(edge, "damping", 1, &pflex->edgedamping, text);
   }
 
-  GetXMLPos(elem, pflex);
+  // write error info
+  mjm_setString(pflex->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
 
 // mesh element parser
-void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
+void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
   int n;
-  string text;
+  string text, name, classname, content_type;
 
   // read attributes
-  ReadAttrTxt(elem, "name", pmesh->name);
-  ReadAttrTxt(elem, "class", pmesh->classname);
-  pmesh->set_content_type(ReadAttrStr(elem, "content_type"));
-  pmesh->set_file(ReadAttrStr(elem, "file"));
-  pmesh->set_refpos(ReadAttrArr<double, 3>(elem, "refpos"));
-  pmesh->set_refquat(ReadAttrArr<double, 4>(elem, "refquat"));
-  pmesh->set_scale(ReadAttrArr<double, 3>(elem, "scale"));
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pmesh->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "class", classname)) {
+    mjm_setString(pmesh->classname, classname.c_str());
+  }
+  if (ReadAttrTxt(elem, "content_type", content_type)) {
+    mjm_setString(pmesh->content_type, content_type.c_str());
+  }
+  auto file = ReadAttrFile(elem, "file", MeshDir());
+  if (file) {
+    mjm_setString(pmesh->file, file->c_str());
+  }
+  ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
+  ReadAttr(elem, "refpos", 4, pmesh->refquat, text);
+  ReadAttr(elem, "scale", 3, pmesh->scale, text);
 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
@@ -1356,35 +1381,64 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
   }
 
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
-    pmesh->set_smoothnormal((n==1));
+    pmesh->smoothnormal = (n==1);
   }
 
   // read user vertex data
-  pmesh->set_uservert(ReadAttrVec<float>(elem, "vertex"));
+  if (ReadAttrTxt(elem, "vertex", text)) {
+    auto uservert = ReadAttrVec<float>(elem, "vertex");
+    if (uservert.has_value()) {
+      mjm_setFloat(pmesh->uservert, uservert->data(), uservert->size());
+    }
+  }
 
   // read user normal data
-  pmesh->set_usernormal(ReadAttrVec<float>(elem, "normal"));
+  if (ReadAttrTxt(elem, "normal", text)) {
+    auto usernormal = ReadAttrVec<float>(elem, "normal");
+    if (usernormal.has_value()) {
+      mjm_setFloat(pmesh->usernormal, usernormal->data(), usernormal->size());
+    }
+  }
 
   // read user texcoord data
-  pmesh->set_usertexcoord(ReadAttrVec<float>(elem, "texcoord"));
+  if (ReadAttrTxt(elem, "texcoord", text)) {
+    auto usertexcoord = ReadAttrVec<float>(elem, "texcoord");
+    if (usertexcoord.has_value()) {
+      mjm_setFloat(pmesh->usertexcoord, usertexcoord->data(), usertexcoord->size());
+    }
+  }
 
   // read user face data
-  pmesh->set_userface(ReadAttrVec<int>(elem, "face"));
+  if (ReadAttrTxt(elem, "face", text)) {
+    auto userface = ReadAttrVec<int>(elem, "face");
+    if (userface.has_value()) {
+      mjm_setInt(pmesh->userface, userface->data(), userface->size());
+    }
+  }
 
-  GetXMLPos(elem, pmesh);
+  // write error info
+  mjm_setString(pmesh->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
 
 // skin element parser
-void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
-  string text;
+void mjXReader::OneSkin(XMLElement* elem, mjmSkin* pskin) {
+  string text, name, material;
   float data[4];
 
   // read attributes
-  ReadAttrTxt(elem, "name", pskin->name);
-  ReadAttrTxt(elem, "file", pskin->file);
-  ReadAttrTxt(elem, "material", pskin->get_material());
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(pskin->name, name.c_str());
+  }
+  auto file = ReadAttrFile(elem, "file", AssetDir());
+  if (file.has_value()) {
+    mjm_setString(pskin->file, file->c_str());
+  }
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(pskin->material, material.c_str());
+}
   ReadAttrInt(elem, "group", &pskin->group);
   if (pskin->group<0 || pskin->group>=mjNGROUP) {
     throw mjXError(elem, "skin group must be between 0 and 5");
@@ -1393,51 +1447,72 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   ReadAttr(elem, "inflate", 1, &pskin->inflate, text);
 
   // read vertex data
-  if (ReadAttrTxt(elem, "vertex", text)) String2Vector(text, pskin->vert);
+  if (ReadAttrTxt(elem, "vertex", text)) {
+    std::vector<float> vert;
+    String2Vector(text, vert);
+    mjm_setFloat(pskin->vert, vert.data(), vert.size());
+  }
 
   // read texcoord data
-  if (ReadAttrTxt(elem, "texcoord", text)) String2Vector(text, pskin->texcoord);
+  if (ReadAttrTxt(elem, "texcoord", text)) {
+    std::vector<float> texcoord;
+    String2Vector(text, texcoord);
+    mjm_setFloat(pskin->texcoord, texcoord.data(), texcoord.size());
+  }
 
   // read user face data
-  if (ReadAttrTxt(elem, "face", text)) String2Vector(text, pskin->face);
+  if (ReadAttrTxt(elem, "face", text)) {
+    std::vector<int> face;
+    String2Vector(text, face);
+    mjm_setInt(pskin->face, face.data(), face.size());
+  }
 
   // read bones
   XMLElement* bone = FirstChildElement(elem, "bone");
+  std::vector<float> bindpos;
+  std::vector<float> bindquat;
+
   while (bone) {
     // read body
     ReadAttrTxt(bone, "body", text, true);
-    pskin->bodyname.push_back(text);
+    mjm_appendString(pskin->bodyname, text.c_str());
 
     // read bindpos
     ReadAttr(bone, "bindpos", 3, data, text, true);
-    pskin->bindpos.push_back(data[0]);
-    pskin->bindpos.push_back(data[1]);
-    pskin->bindpos.push_back(data[2]);
+    bindpos.push_back(data[0]);
+    bindpos.push_back(data[1]);
+    bindpos.push_back(data[2]);
 
     // read bindquat
     ReadAttr(bone, "bindquat", 4, data, text, true);
-    pskin->bindquat.push_back(data[0]);
-    pskin->bindquat.push_back(data[1]);
-    pskin->bindquat.push_back(data[2]);
-    pskin->bindquat.push_back(data[3]);
+    bindquat.push_back(data[0]);
+    bindquat.push_back(data[1]);
+    bindquat.push_back(data[2]);
+    bindquat.push_back(data[3]);
 
     // read vertid
     vector<int> tempid;
     ReadAttrTxt(bone, "vertid", text, true);
     String2Vector(text, tempid);
-    pskin->vertid.push_back(tempid);
+    mjm_appendIntVec(pskin->vertid, tempid.data(), tempid.size());
 
     // read vertweight
     vector<float> tempweight;
     ReadAttrTxt(bone, "vertweight", text, true);
     String2Vector(text, tempweight);
-    pskin->vertweight.push_back(tempweight);
+    mjm_appendFloatVec(pskin->vertweight, tempweight.data(), tempweight.size());
 
     // advance to next bone
     bone = NextSiblingElement(bone, "bone");
   }
 
-  GetXMLPos(elem, pskin);
+  // set bind vectors
+  mjm_setFloat(pskin->bindpos, bindpos.data(), bindpos.size());
+  mjm_setFloat(pskin->bindquat, bindquat.data(), bindquat.size());
+
+  // write error info
+  mjm_setString(pskin->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -1599,7 +1674,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjmGeom* pgeom) {
 
 
 // site element parser
-void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
+void mjXReader::OneSite(XMLElement* elem, mjmSite* site) {
   int n;
   string text, name, classname;
   std::vector<double> userdata;
@@ -1607,30 +1682,30 @@ void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjm_setString(site.name, name.c_str());
+    mjm_setString(site->name, name.c_str());
   }
   if (ReadAttrTxt(elem, "class", classname)) {
-    mjm_setString(site.classname, classname.c_str());
+    mjm_setString(site->classname, classname.c_str());
   }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
-    site.type = (mjtGeom)n;
+    site->type = (mjtGeom)n;
   }
-  ReadAttr(elem, "size", 3, site.size, text, false, false);
-  ReadAttrInt(elem, "group", &site.group);
-  ReadAttr(elem, "pos", 3, site.pos, text);
-  ReadQuat(elem, "quat", site.quat, text);
+  ReadAttr(elem, "size", 3, site->size, text, false, false);
+  ReadAttrInt(elem, "group", &site->group);
+  ReadAttr(elem, "pos", 3, site->pos, text);
+  ReadQuat(elem, "quat", site->quat, text);
   if (ReadAttrTxt(elem, "material", material)) {
-    mjm_setString(site.material, material.c_str());
+    mjm_setString(site->material, material.c_str());
   }
-  ReadAttr(elem, "rgba", 4, site.rgba, text);
-  ReadAttr(elem, "fromto", 6, site.fromto, text);
-  ReadAlternative(elem, site.alt);
+  ReadAttr(elem, "rgba", 4, site->rgba, text);
+  ReadAttr(elem, "fromto", 6, site->fromto, text);
+  ReadAlternative(elem, site->alt);
   if (ReadVector(elem, "user", userdata, text)) {
-    mjm_setDouble(site.userdata, userdata.data(), userdata.size());
+    mjm_setDouble(site->userdata, userdata.data(), userdata.size());
   }
 
   // write error info
-  mjm_setString(site.info,
+  mjm_setString(site->info,
       std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
@@ -1735,18 +1810,26 @@ void mjXReader::OneLight(XMLElement* elem, mjmLight* plight) {
 
 
 // pair element parser
-void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
-  string text;
+void mjXReader::OnePair(XMLElement* elem, mjmPair* ppair) {
+  string text, name, classname, geomname1, geomname2;
 
   // regular only
   if (!readingdefaults) {
-    ReadAttrTxt(elem, "class", ppair->classname);
-    ReadAttrTxt(elem, "geom1", ppair->geomname1, true);
-    ReadAttrTxt(elem, "geom2", ppair->geomname2, true);
+    if (ReadAttrTxt(elem, "class", classname)) {
+      mjm_setString(ppair->classname, classname.c_str());
+    }
+    if (ReadAttrTxt(elem, "geom1", geomname1)) {
+      mjm_setString(ppair->geomname1, geomname1.c_str());
+    }
+    if (ReadAttrTxt(elem, "geom2", geomname2)) {
+      mjm_setString(ppair->geomname2, geomname2.c_str());
+    }
   }
 
   // read other parameters
-  ReadAttrTxt(elem, "name", ppair->name);
+  if (ReadAttrTxt(elem, "name", name)) {
+    mjm_setString(ppair->name, name.c_str());
+  }
   ReadAttrInt(elem, "condim", &ppair->condim);
   ReadAttr(elem, "solref", mjNREF, ppair->solref, text, false, false);
   ReadAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, text, false, false);
@@ -1755,7 +1838,9 @@ void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
   ReadAttr(elem, "gap", 1, &ppair->gap, text);
   ReadAttr(elem, "friction", 5, ppair->friction, text, false, false);
 
-  GetXMLPos(elem, ppair);
+  // write error info
+  mjm_setString(ppair->info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2009,6 +2094,19 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
       pact->biasprm[2] *= -1;
     }
 
+    ReadAttr(elem, "inheritrange", 1, &pact->inheritrange, text);
+    if (pact->inheritrange > 0) {
+      if (type == "position") {
+        if (pact->ctrlrange[0] || pact->ctrlrange[1]) {
+          throw mjXError(elem, "ctrlrange and inheritrange cannot both be defined");
+        }
+      } else {
+        if (pact->actrange[0] || pact->actrange[1]) {
+          throw mjXError(elem, "actrange and inheritrange cannot both be defined");
+        }
+      }
+    }
+
     // implied parameters
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
@@ -2046,7 +2144,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
     pact->gainprm[2] = -pact->gainprm[2];
 
     // require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
     if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
       throw mjXError(elem, "damper control range cannot be negative");
     }
@@ -2164,7 +2261,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) {
   string text;
   int n;
 
@@ -2184,16 +2281,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   // plugin
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
-    ReadAttrTxt(eplugin, "plugin", comp.plugin_name);
-    ReadAttrTxt(eplugin, "instance", comp.plugin_instance_name);
-    if (comp.plugin_instance_name.empty()) {
-      comp.plugin_instance = (mjCPlugin*)mjm_addPlugin(model);
-      comp.plugin_instance->name = "composite"+comp.prefix;
-      comp.plugin_instance_name = comp.plugin_instance->name;
-    } else {
-      model->hasImplicitPluginElem = true;
-    }
-    ReadPluginConfigs(eplugin, comp.plugin_instance);
+    OnePlugin(eplugin, &comp.plugin);
   }
 
   // cable
@@ -2250,7 +2338,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   XMLElement* egeom = FirstChildElement(elem, "geom");
   if (egeom) {
     std::string material;
-    mjmGeom& dgeom = comp.def[0].geom.spec;
+    mjmGeom& dgeom = *comp.def[0].spec.geom;
     if (MapValue(egeom, "type", &n, geom_map, mjNGEOMTYPES)) {
       dgeom.type = (mjtGeom)n;
     }
@@ -2278,7 +2366,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
   XMLElement* esite = FirstChildElement(elem, "site");
   if (esite) {
     std::string material;
-    mjmSite& dsite = comp.def[0].site.spec;
+    mjmSite& dsite = *comp.def[0].spec.site;
     ReadAttr(esite, "size", 3, dsite.size, text, false, false);
     ReadAttrInt(esite, "group", &dsite.group);
     ReadAttrTxt(esite, "material", material);
@@ -2303,33 +2391,35 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     comp.add[kind] = true;
 
     // get element
-    mjCDef *el = &comp.defjoint[(mjtCompKind)kind].back();
+    mjmDefault* dspec = &comp.defjoint[(mjtCompKind)kind].back().spec;
+    mjmJoint& djoint = *dspec->joint;
+    mjmEquality& dequality = *dspec->equality;
 
     // particle joint
     if (MapValue(ejnt, "type", &n, joint_map, joint_sz)) {
-      el->joint.spec.type = (mjtJoint)n;
+      djoint.type = (mjtJoint)n;
     }
-    ReadAttr(ejnt, "axis", 3, el->joint.spec.axis, text);
+    ReadAttr(ejnt, "axis", 3, djoint.axis, text);
 
     // solreffix, solimpfix
-    ReadAttr(ejnt, "solreffix", mjNREF, el->equality.spec.solref, text, false, false);
-    ReadAttr(ejnt, "solimpfix", mjNIMP, el->equality.spec.solimp, text, false, false);
+    ReadAttr(ejnt, "solreffix", mjNREF, dequality.solref, text, false, false);
+    ReadAttr(ejnt, "solimpfix", mjNIMP, dequality.solimp, text, false, false);
 
     // joint attributes
-    MapValue(elem, "limited", &el->joint.spec.limited, TFAuto_map, 3);
-    ReadAttrInt(ejnt, "group", &el->joint.spec.group);
-    ReadAttr(ejnt, "solreflimit", mjNREF, el->joint.spec.solref_limit, text, false, false);
-    ReadAttr(ejnt, "solimplimit", mjNIMP, el->joint.spec.solimp_limit, text, false, false);
+    MapValue(elem, "limited", &djoint.limited, TFAuto_map, 3);
+    ReadAttrInt(ejnt, "group", &djoint.group);
+    ReadAttr(ejnt, "solreflimit", mjNREF, djoint.solref_limit, text, false, false);
+    ReadAttr(ejnt, "solimplimit", mjNIMP, djoint.solimp_limit, text, false, false);
     ReadAttr(ejnt,
-             "solreffriction", mjNREF, el->joint.spec.solref_friction, text, false, false);
+             "solreffriction", mjNREF, djoint.solref_friction, text, false, false);
     ReadAttr(ejnt,
-             "solimpfriction", mjNIMP, el->joint.spec.solimp_friction, text, false, false);
-    ReadAttr(ejnt, "stiffness", 1, &el->joint.spec.stiffness, text);
-    ReadAttr(ejnt, "range", 2, el->joint.spec.range, text);
-    ReadAttr(ejnt, "margin", 1, &el->joint.spec.margin, text);
-    ReadAttr(ejnt, "armature", 1, &el->joint.spec.armature, text);
-    ReadAttr(ejnt, "damping", 1, &el->joint.spec.damping, text);
-    ReadAttr(ejnt, "frictionloss", 1, &el->joint.spec.frictionloss, text);
+             "solimpfriction", mjNIMP, djoint.solimp_friction, text, false, false);
+    ReadAttr(ejnt, "stiffness", 1, &djoint.stiffness, text);
+    ReadAttr(ejnt, "range", 2, djoint.range, text);
+    ReadAttr(ejnt, "margin", 1, &djoint.margin, text);
+    ReadAttr(ejnt, "armature", 1, &djoint.armature, text);
+    ReadAttr(ejnt, "damping", 1, &djoint.damping, text);
+    ReadAttr(ejnt, "frictionloss", 1, &djoint.frictionloss, text);
 
     // advance
     ejnt = NextSiblingElement(ejnt, "joint");
@@ -2343,29 +2433,33 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
     MapValue(eten, "kind", &kind, tkind_map, 2, true);
     comp.add[kind] = true;
 
+    // get default structs
+    mjmTendon& dtendon = *comp.def[kind].spec.tendon;
+    mjmEquality& dequality = *comp.def[kind].spec.equality;
+
     // solreffix, solimpfix
-    ReadAttr(eten, "solreffix", mjNREF, comp.def[kind].equality.spec.solref, text, false, false);
-    ReadAttr(eten, "solimpfix", mjNIMP, comp.def[kind].equality.spec.solimp, text, false, false);
+    ReadAttr(eten, "solreffix", mjNREF, dequality.solref, text, false, false);
+    ReadAttr(eten, "solimpfix", mjNIMP, dequality.solimp, text, false, false);
 
     // tendon attributes
     std::string material;
-    MapValue(elem, "limited", &comp.def[kind].tendon.spec.limited, TFAuto_map, 3);
-    ReadAttrInt(eten, "group", &comp.def[kind].tendon.spec.group);
-    ReadAttr(eten, "solreflimit", mjNREF, comp.def[kind].tendon.spec.solref_limit, text, false, false);
-    ReadAttr(eten, "solimplimit", mjNIMP, comp.def[kind].tendon.spec.solimp_limit, text, false, false);
+    MapValue(elem, "limited", &dtendon.limited, TFAuto_map, 3);
+    ReadAttrInt(eten, "group", &dtendon.group);
+    ReadAttr(eten, "solreflimit", mjNREF, dtendon.solref_limit, text, false, false);
+    ReadAttr(eten, "solimplimit", mjNIMP, dtendon.solimp_limit, text, false, false);
     ReadAttr(eten,
-             "solreffriction", mjNREF, comp.def[kind].tendon.spec.solref_friction, text, false, false);
+             "solreffriction", mjNREF, dtendon.solref_friction, text, false, false);
     ReadAttr(eten,
-             "solimpfriction", mjNIMP, comp.def[kind].tendon.spec.solimp_friction, text, false, false);
-    ReadAttr(eten, "range", 2, comp.def[kind].tendon.spec.range, text);
-    ReadAttr(eten, "margin", 1, &comp.def[kind].tendon.spec.margin, text);
-    ReadAttr(eten, "stiffness", 1, &comp.def[kind].tendon.spec.stiffness, text);
-    ReadAttr(eten, "damping", 1, &comp.def[kind].tendon.spec.damping, text);
-    ReadAttr(eten, "frictionloss", 1, &comp.def[kind].tendon.spec.frictionloss, text);
+             "solimpfriction", mjNIMP, dtendon.solimp_friction, text, false, false);
+    ReadAttr(eten, "range", 2, dtendon.range, text);
+    ReadAttr(eten, "margin", 1, &dtendon.margin, text);
+    ReadAttr(eten, "stiffness", 1, &dtendon.stiffness, text);
+    ReadAttr(eten, "damping", 1, &dtendon.damping, text);
+    ReadAttr(eten, "frictionloss", 1, &dtendon.frictionloss, text);
     ReadAttrTxt(eten, "material", material);
-    mjm_setString(comp.def[kind].tendon.spec.material, material.c_str());
-    ReadAttr(eten, "rgba", 4, comp.def[kind].tendon.spec.rgba, text);
-    ReadAttr(eten, "width", 1, &comp.def[kind].tendon.spec.width, text);
+    mjm_setString(dtendon.material, material.c_str());
+    ReadAttr(eten, "rgba", 4, dtendon.rgba, text);
+    ReadAttr(eten, "width", 1, &dtendon.width, text);
 
     // advance
     eten = NextSiblingElement(eten, "tendon");
@@ -2388,7 +2482,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
 
   // make composite
   char error[200];
-  bool res = comp.Make((mjCModel*)mjm_getModel(pbody), pbody, error, 200);
+  bool res = comp.Make(model, pbody, error, 200);
 
   // throw error
   if (!res) {
@@ -2400,11 +2494,12 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjCDef* def) {
 
 // make flexcomp
 void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
-  string text;
+  string text, material;
   int n;
 
   // create out-of-DOM element
   mjCFlexcomp fcomp;
+  mjmFlex& dflex = *fcomp.def.spec.flex;
 
   // common properties
   ReadAttrTxt(elem, "name", fcomp.name, true);
@@ -2416,15 +2511,17 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
-  ReadAttrTxt(elem, "file", fcomp.file);
-  ReadAttrTxt(elem, "material", fcomp.def.flex.get_material());
-  ReadAttr(elem, "rgba", 4, fcomp.def.flex.rgba, text);
-  if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
-    fcomp.def.flex.flatskin = (n==1);
+  fcomp.file = ReadAttrFile(elem, "file", modelfiledir_).value_or("");
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjm_setString(dflex.material, material.c_str());
   }
-  ReadAttrInt(elem, "dim", &fcomp.def.flex.dim);
-  ReadAttr(elem, "radius", 1, &fcomp.def.flex.radius, text);
-  ReadAttrInt(elem, "group", &fcomp.def.flex.group);
+  ReadAttr(elem, "rgba", 4, dflex.rgba, text);
+  if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
+    dflex.flatskin = (n==1);
+  }
+  ReadAttrInt(elem, "dim", &dflex.dim);
+  ReadAttr(elem, "radius", 1, &dflex.radius, text);
+  ReadAttrInt(elem, "group", &dflex.group);
 
   // pose
   ReadAttr(elem, "pos", 3, fcomp.pos, text);
@@ -2451,30 +2548,30 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     if (MapValue(edge, "equality", &n, bool_map, 2)) {
       fcomp.equality = (n==1);
     }
-    ReadAttr(edge, "solref", mjNREF, fcomp.def.equality.spec.solref, text, false, false);
-    ReadAttr(edge, "solimp", mjNIMP, fcomp.def.equality.spec.solimp, text, false, false);
-    ReadAttr(edge, "stiffness", 1, &fcomp.def.flex.edgestiffness, text);
-    ReadAttr(edge, "damping", 1, &fcomp.def.flex.edgedamping, text);
+    ReadAttr(edge, "solref", mjNREF, fcomp.def.spec.equality->solref, text, false, false);
+    ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
+    ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);
+    ReadAttr(edge, "damping", 1, &dflex.edgedamping, text);
   }
 
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
-    ReadAttrInt(cont, "contype", &fcomp.def.flex.contype);
-    ReadAttrInt(cont, "conaffinity", &fcomp.def.flex.conaffinity);
-    ReadAttrInt(cont, "condim", &fcomp.def.flex.condim);
-    ReadAttrInt(cont, "priority", &fcomp.def.flex.priority);
-    ReadAttr(cont, "friction", 3, fcomp.def.flex.friction, text, false, false);
-    ReadAttr(cont, "solmix", 1, &fcomp.def.flex.solmix, text);
-    ReadAttr(cont, "solref", mjNREF, fcomp.def.flex.solref, text, false, false);
-    ReadAttr(cont, "solimp", mjNIMP, fcomp.def.flex.solimp, text, false, false);
-    ReadAttr(cont, "margin", 1, &fcomp.def.flex.margin, text);
-    ReadAttr(cont, "gap", 1, &fcomp.def.flex.gap, text);
+    ReadAttrInt(cont, "contype", &dflex.contype);
+    ReadAttrInt(cont, "conaffinity", &dflex.conaffinity);
+    ReadAttrInt(cont, "condim", &dflex.condim);
+    ReadAttrInt(cont, "priority", &dflex.priority);
+    ReadAttr(cont, "friction", 3, dflex.friction, text, false, false);
+    ReadAttr(cont, "solmix", 1, &dflex.solmix, text);
+    ReadAttr(cont, "solref", mjNREF, dflex.solref, text, false, false);
+    ReadAttr(cont, "solimp", mjNIMP, dflex.solimp, text, false, false);
+    ReadAttr(cont, "margin", 1, &dflex.margin, text);
+    ReadAttr(cont, "gap", 1, &dflex.gap, text);
     if (MapValue(cont, "internal", &n, bool_map, 2)) {
-      fcomp.def.flex.internal = (n==1);
+      dflex.internal = (n==1);
     }
-    MapValue(cont, "selfcollide", &fcomp.def.flex.selfcollide, flexself_map, 5);
-    ReadAttrInt(cont, "activelayers", &fcomp.def.flex.activelayers);
+    MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
+    ReadAttrInt(cont, "activelayers", &dflex.activelayers);
   }
 
   // pin
@@ -2506,21 +2603,12 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   // plugin
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
-    ReadAttrTxt(eplugin, "plugin", fcomp.plugin_name);
-    ReadAttrTxt(eplugin, "instance", fcomp.plugin_instance_name);
-    if (fcomp.plugin_instance_name.empty()) {
-      fcomp.plugin_instance = (mjCPlugin*)mjm_addPlugin(model);
-      fcomp.plugin_instance->name = "flexcomp_" + fcomp.name;
-      fcomp.plugin_instance_name = fcomp.plugin_instance->name;
-    } else {
-      model->hasImplicitPluginElem = true;
-    }
-    ReadPluginConfigs(eplugin, fcomp.plugin_instance);
+    OnePlugin(eplugin, &fcomp.plugin);
   }
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make((mjCModel*)mjm_getModel(pbody), pbody, error, 200);
+  bool res = fcomp.Make(model, pbody, error, 200);
 
   // throw error
   if (!res) {
@@ -2540,8 +2628,8 @@ void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
   mjm_setString(plugin->name, name.c_str());
   mjm_setString(plugin->instance_name, instance_name.c_str());
   if (instance_name.empty()) {
-    plugin->instance = mjm_addPlugin(model);
-    ReadPluginConfigs(elem, (mjCPlugin*)plugin->instance);
+    plugin->instance = mjm_addPlugin(&model->spec)->instance;
+    ReadPluginConfigs(elem, plugin);
   } else {
     model->hasImplicitPluginElem = true;
   }
@@ -2555,7 +2643,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
 void mjXReader::Default(XMLElement* section, int parentid) {
   XMLElement* elem;
   string text, name;
-  mjCDef* def;
+  mjmDefault* def;
   int thisid;
 
   // create new default, except at top level (already added in mjCModel ctor)
@@ -2570,14 +2658,14 @@ void mjXReader::Default(XMLElement* section, int parentid) {
   }
   if (parentid>=0) {
     thisid = (int)model->defaults.size();
-    def = model->AddDef(text, parentid);
+    def = mjm_addDefault(&model->spec, text.c_str(), parentid);
     if (!def) {
       throw mjXError(section, "repeated default class name");
     }
   } else {
     thisid = 0;
-    def = model->defaults[0];
-    def->name = text;
+    def = &model->defaults[0]->spec;
+    mjm_setString(def->name, text.c_str());
   }
 
   // iterate over elements other than nested defaults
@@ -2587,34 +2675,34 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     name = elem->Value();
 
     // read mesh
-    if (name=="mesh") OneMesh(elem, &def->mesh);
+    if (name=="mesh") OneMesh(elem, def->mesh);
 
     // read material
-    else if (name=="material") OneMaterial(elem, &def->material.spec);
+    else if (name=="material") OneMaterial(elem, def->material);
 
     // read joint
-    else if (name=="joint") OneJoint(elem, &def->joint.spec);
+    else if (name=="joint") OneJoint(elem, def->joint);
 
     // read geom
-    else if (name=="geom") OneGeom(elem, &def->geom.spec);
+    else if (name=="geom") OneGeom(elem, def->geom);
 
     // read site
-    else if (name=="site") OneSite(elem, def->site.spec);
+    else if (name=="site") OneSite(elem, def->site);
 
     // read camera
-    else if (name=="camera") OneCamera(elem, &def->camera.spec);
+    else if (name=="camera") OneCamera(elem, def->camera);
 
     // read light
-    else if (name=="light") OneLight(elem, &def->light.spec);
+    else if (name=="light") OneLight(elem, def->light);
 
     // read pair
-    else if (name=="pair") OnePair(elem, &def->pair);
+    else if (name=="pair") OnePair(elem, def->pair);
 
     // read equality
-    else if (name=="equality") OneEquality(elem, &def->equality.spec);
+    else if (name=="equality") OneEquality(elem, def->equality);
 
     // read tendon
-    else if (name=="tendon") OneTendon(elem, &def->tendon.spec);
+    else if (name=="tendon") OneTendon(elem, def->tendon);
 
     // read actuator
     else if (name=="general"     ||
@@ -2626,19 +2714,22 @@ void mjXReader::Default(XMLElement* section, int parentid) {
              name=="cylinder"    ||
              name=="muscle"      ||
              name=="adhesion") {
-      OneActuator(elem, &def->actuator.spec);
+      OneActuator(elem, def->actuator);
     }
 
     // copy into private attributes
-    mjm_finalize(def->geom.spec.element);
-    mjm_finalize(def->joint.spec.element);
-    mjm_finalize(def->site.spec.element);
-    mjm_finalize(def->camera.spec.element);
-    mjm_finalize(def->light.spec.element);
-    mjm_finalize(def->actuator.spec.element);
-    mjm_finalize(def->material.spec.element);
-    mjm_finalize(def->equality.spec.element);
-    mjm_finalize(def->tendon.spec.element);
+    mjm_finalize(def->joint->element);
+    mjm_finalize(def->geom->element);
+    mjm_finalize(def->site->element);
+    mjm_finalize(def->camera->element);
+    mjm_finalize(def->light->element);
+    mjm_finalize(def->flex->element);
+    mjm_finalize(def->mesh->element);
+    mjm_finalize(def->material->element);
+    mjm_finalize(def->pair->element);
+    mjm_finalize(def->equality->element);
+    mjm_finalize(def->tendon->element);
+    mjm_finalize(def->actuator->element);
 
     // advance
     elem = NextSiblingElement(elem);
@@ -2696,15 +2787,16 @@ void mjXReader::Extension(XMLElement* section) {
             throw mjXError(
                 child, "explicit plugin instance must appear before implicit plugin elements");
           }
-          mjCPlugin* pp = (mjCPlugin*)mjm_addPlugin(model);
-          GetXMLPos(child, pp);
-          ReadAttrTxt(child, "name", pp->name, /* required = */ true);
-          if (pp->name.empty()) {
+          string name;
+          mjmPlugin* p = mjm_addPlugin(&model->spec);
+          mjm_setString(p->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+          ReadAttrTxt(child, "name", name, /* required = */ true);
+          mjm_setString(p->name, name.c_str());
+          if (!p->name) {
             throw mjXError(child, "plugin instance must have a name");
           }
-          ReadPluginConfigs(child, pp);
-          pp->plugin_slot = plugin_slot;
-          pp->nstate = -1;  // actual value to be filled in by the plugin later
+          ReadPluginConfigs(child, p);
+          p->plugin_slot = plugin_slot;
         }
         child = NextSiblingElement(child);
       }
@@ -2728,15 +2820,20 @@ void mjXReader::Custom(XMLElement* section) {
   while (elem) {
     // get sub-element name
     name = elem->Value();
+    string elname;
 
     // numeric
     if (name=="numeric") {
       // create custom
-      mjCNumeric* pnum = model->AddNumeric();
-      GetXMLPos(elem, pnum);
+      mjmNumeric* pnum = mjm_addNumeric(&model->spec);
+
+      // write error info
+      mjm_setString(pnum->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", pnum->name, true);
+      ReadAttrTxt(elem, "name", elname, true);
+      mjm_setString(pnum->name, elname.c_str());
       if (ReadAttrInt(elem, "size", &pnum->size)) {
         int sz = pnum->size < 500 ? pnum->size : 500;
         for (int i=0; i<sz; i++) {
@@ -2754,39 +2851,49 @@ void mjXReader::Custom(XMLElement* section) {
       }
 
       // copy data
-      for (int i=0; i<pnum->size; i++) {
-        pnum->data.push_back(data[i]);
-      }
+      mjm_setDouble(pnum->data, data, pnum->size);
     }
 
     // text
     else if (name=="text") {
       // create custom
-      mjCText* pte = model->AddText();
-      GetXMLPos(elem, pte);
+      mjmText* pte = mjm_addText(&model->spec);
+
+      // write error info
+      mjm_setString(pte->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", pte->name, true);
+      ReadAttrTxt(elem, "name", elname, true);
+      mjm_setString(pte->name, elname.c_str());
       ReadAttrTxt(elem, "data", text, true);
       if (text.empty()) {
         throw mjXError(elem, "text field cannot be empty");
       }
 
       // copy data
-      pte->data = text;
+      mjm_setString(pte->data, text.c_str());
     }
 
     // tuple
     else if (name=="tuple") {
       // create custom
-      mjCTuple* ptu = model->AddTuple();
-      GetXMLPos(elem, ptu);
+      mjmTuple* ptu = mjm_addTuple(&model->spec);
+
+      // write error info
+      mjm_setString(ptu->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", ptu->name, true);
+      ReadAttrTxt(elem, "name", elname, true);
+      mjm_setString(ptu->name, elname.c_str());
 
       // read objects and add
       XMLElement* obj = FirstChildElement(elem);
+      std::vector<int> objtype;
+      std::string objname = "";
+      std::vector<double> objprm;
+
       while (obj) {
         // get sub-element name
         name = obj->Value();
@@ -2799,21 +2906,25 @@ void mjXReader::Custom(XMLElement* section) {
           if (otype==mjOBJ_UNKNOWN) {
             throw mjXError(obj, "unknown object type");
           }
-          ptu->objtype.push_back(otype);
+          objtype.push_back(otype);
 
           // read name and assign
           ReadAttrTxt(obj, "objname", text, true);
-          ptu->objname.push_back(text);
+          objname += text + " ";
 
           // read parameter and assign
           double oprm = 0;
           ReadAttr(obj, "prm", 1, &oprm, text);
-          ptu->objprm.push_back(oprm);
+          objprm.push_back(oprm);
         }
 
         // advance to next object
         obj = NextSiblingElement(obj);
       }
+
+      mjm_setInt(ptu->objtype, objtype.data(), objtype.size());
+      mjm_setStringVec(ptu->objname, objname.c_str());
+      mjm_setDouble(ptu->objprm, objprm.data(), objprm.size());
     }
 
     // advance to next element
@@ -2827,7 +2938,7 @@ void mjXReader::Custom(XMLElement* section) {
 void mjXReader::Visual(XMLElement* section) {
   string text, name;
   XMLElement* elem;
-  mjVisual* vis = &model->visual;
+  mjVisual* vis = &model->spec.visual;
 
   // iterate over child elements
   elem = FirstChildElement(section);
@@ -2957,7 +3068,7 @@ void mjXReader::Visual(XMLElement* section) {
 // asset section parser
 void mjXReader::Asset(XMLElement* section) {
   int n;
-  string text, name;
+  string text, name, texname, content_type;
   XMLElement* elem;
 
   // iterate over child elements
@@ -2967,24 +3078,34 @@ void mjXReader::Asset(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // texture sub-element
     if (name=="texture") {
       // create texture
-      mjCTexture* ptex = model->AddTexture();
-      GetXMLPos(elem, ptex);
+      mjmTexture* ptex = mjm_addTexture(&model->spec);
+
+      // write error info
+      mjm_setString(ptex->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
       if (MapValue(elem, "type", &n, texture_map, texture_sz)) {
         ptex->type = (mjtTexture)n;
       }
-      ReadAttrTxt(elem, "name", ptex->name);
-      ReadAttrTxt(elem, "content_type", ptex->content_type);
-      ReadAttrTxt(elem, "file", ptex->file);
+      if (ReadAttrTxt(elem, "name", texname)) {
+        mjm_setString(ptex->name, texname.c_str());
+      }
+      if (ReadAttrTxt(elem, "content_type", content_type)) {
+        mjm_setString(ptex->content_type, content_type.c_str());
+      }
+      auto file = ReadAttrFile(elem, "file", TextureDir());
+      if (file.has_value()) {
+        mjm_setString(ptex->file, file->c_str());
+      }
       ReadAttrInt(elem, "width", &ptex->width);
       ReadAttrInt(elem, "height", &ptex->height);
       ReadAttr(elem, "rgb1", 3, ptex->rgb1, text);
@@ -3019,75 +3140,94 @@ void mjXReader::Asset(XMLElement* section) {
       }
 
       // separate files
-      ReadAttrTxt(elem, "fileright", ptex->cubefiles[0]);
-      ReadAttrTxt(elem, "fileleft",  ptex->cubefiles[1]);
-      ReadAttrTxt(elem, "fileup",    ptex->cubefiles[2]);
-      ReadAttrTxt(elem, "filedown",  ptex->cubefiles[3]);
-      ReadAttrTxt(elem, "filefront", ptex->cubefiles[4]);
-      ReadAttrTxt(elem, "fileback",  ptex->cubefiles[5]);
+      std::vector<string> cubefiles(6);
+      cubefiles[0] = ReadAttrFile(elem, "fileright", TextureDir()).value_or("");
+      cubefiles[1] = ReadAttrFile(elem, "fileleft", TextureDir()).value_or("");
+      cubefiles[2] = ReadAttrFile(elem, "fileup", TextureDir()).value_or("");
+      cubefiles[3] = ReadAttrFile(elem, "filedown", TextureDir()).value_or("");
+      cubefiles[4] = ReadAttrFile(elem, "filefront", TextureDir()).value_or("");
+      cubefiles[5] = ReadAttrFile(elem, "fileback", TextureDir()).value_or("");
+      for (int i = 0; i < cubefiles.size(); i++) {
+        mjm_setInStringVec(ptex->cubefiles, i, cubefiles[i].c_str());
+      }
     }
 
     // material sub-element
     else if (name=="material") {
       // create material and parse
-      mjmMaterial* pmat = mjm_addMaterial(model, def);
+      mjmMaterial* pmat = mjm_addMaterial(&model->spec, def);
       OneMaterial(elem, pmat);
     }
 
     // mesh sub-element
     else if (name=="mesh") {
       // create mesh and parse
-      mjCMesh* pmesh = model->AddMesh(def);
+      mjmMesh* pmesh = mjm_addMesh(&model->spec, def);
       OneMesh(elem, pmesh);
     }
 
     // skin sub-element... deprecate ???
     else if (name=="skin") {
       // create skin and parse
-      mjCSkin* pskin = model->AddSkin();
+      mjmSkin* pskin = mjm_addSkin(&model->spec);
       OneSkin(elem, pskin);
     }
 
     // hfield sub-element
     else if (name=="hfield") {
       // create hfield
-      mjCHField* phf = model->AddHField();
-      GetXMLPos(elem, phf);
+      mjmHField* phf = mjm_addHField(&model->spec);
+
+      // write error info
+      mjm_setString(phf->info,
+          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 
       // read attributes
-      ReadAttrTxt(elem, "name", phf->name);
-      ReadAttrTxt(elem, "content_type", phf->content_type);
-      ReadAttrTxt(elem, "file", phf->file);
+      string name, content_type;
+      if (ReadAttrTxt(elem, "name", name)) {
+        mjm_setString(phf->name, name.c_str());
+      }
+      if (ReadAttrTxt(elem, "content_type", content_type)) {
+        mjm_setString(phf->content_type, content_type.c_str());
+      }
+      auto file = ReadAttrFile(elem, "file", AssetDir());
+      if (file.has_value()) {
+        mjm_setString(phf->file, file->c_str());
+      }
       ReadAttrInt(elem, "nrow", &phf->nrow);
       ReadAttrInt(elem, "ncol", &phf->ncol);
       ReadAttr(elem, "size", 4, phf->size, text, true);
 
       // allocate buffer for dynamic hfield, copy user data if given
-      if (phf->file.empty() && phf->nrow>0 && phf->ncol>0) {
+      if (!file.has_value() && phf->nrow>0 && phf->ncol>0) {
         int nrow = phf->nrow;
         int ncol = phf->ncol;
-        phf->data = (float*) mju_malloc(nrow*ncol*sizeof(float));
 
         // read user data
-        phf->set_userdata(ReadAttrVec<float>(elem, "elevation"));
+        auto userdata = ReadAttrVec<float>(elem, "elevation");
 
         // user data given, copy into data
-        if (!phf->userdata().empty()) {
-          if (phf->userdata().size() != nrow*ncol) {
+        if (userdata.has_value()) {
+          if (userdata->size() != nrow*ncol) {
             throw mjXError(elem, "elevation data length must match nrow*ncol");
           }
 
           // copy in reverse row order, so XML string is top-to-bottom
-          const float* userdata = phf->userdata().data();
+          std::vector<float> flipped(nrow*ncol);
           for (int i = 0; i < nrow; i++) {
             int flip = nrow-1-i;
-            memcpy(phf->data + flip*ncol, userdata + i*ncol, ncol*sizeof(float));
+            for (int j = 0; j < ncol; j++) {
+              flipped[flip*ncol + j] = userdata->data()[i*ncol + j];
+            }
           }
+
+          mjm_setFloat(phf->userdata, flipped.data(), flipped.size());
         }
 
         // user data not given, set to 0
         else {
-          memset(phf->data, 0, phf->nrow*phf->ncol*sizeof(float));
+          std::vector<float> zero(nrow*ncol);
+          mjm_setFloat(phf->userdata, zero.data(), zero.size());
         }
       }
     }
@@ -3122,9 +3262,9 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     name = elem->Value();
 
     // get class if specified, otherwise use body
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = (mjCDef*)mjm_getDefault(pbody->element);
+      def = (mjmDefault*)mjm_getDefault(pbody->element);
     }
 
     // inertial sub-element
@@ -3192,7 +3332,7 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     else if (name=="site") {
       // create site and parse
       mjmSite* site = mjm_addSite(pbody,  def);
-      OneSite(elem, *site);
+      OneSite(elem, site);
       mjm_setFrame(site->element, frame);
     }
 
@@ -3244,9 +3384,9 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     // body sub-element
     else if (name=="body") {
       // read childdef
-      mjCDef* childdef = 0;
+      mjmDefault* childdef = 0;
       if (ReadAttrTxt(elem, "childclass", text)) {
-        childdef = model->FindDef(text);
+        childdef = &model->FindDef(text)->spec;
         if (!childdef) {
           throw mjXError(elem, "unknown default childclass");
         }
@@ -3311,27 +3451,34 @@ void mjXReader::Contact(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // geom pair to include
     if (name=="pair") {
       // create pair and parse
-      mjCPair* ppair = model->AddPair(def);
+      mjmPair* ppair = mjm_addPair(&model->spec, def);
       OnePair(elem, ppair);
     }
 
     // body pair to exclude
     else if (name=="exclude") {
-      mjCBodyPair* pexclude = model->AddExclude();
-      GetXMLPos(elem, pexclude);
+      mjmExclude* pexclude = mjm_addExclude(&model->spec);
+      string exname, exbody1, exbody2;
+
+      // write error info
+      mjm_setString(pexclude->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read name and body names
-      ReadAttrTxt(elem, "name", pexclude->name);
-      ReadAttrTxt(elem, "body1", pexclude->bodyname1, true);
-      ReadAttrTxt(elem, "body2", pexclude->bodyname2, true);
+      if (ReadAttrTxt(elem, "name", exname)) {
+        mjm_setString(pexclude->name, exname.c_str());
+      }
+      ReadAttrTxt(elem, "body1", exbody1, true);
+      mjm_setString(pexclude->bodyname1, exbody1.c_str());
+      ReadAttrTxt(elem, "body2", exbody2, true);
+      mjm_setString(pexclude->bodyname2, exbody2.c_str());
     }
 
     // advance to next element
@@ -3349,13 +3496,13 @@ void mjXReader::Equality(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // create equality constraint and parse
-    mjmEquality* pequality = mjm_addEquality(model, def);
+    mjmEquality* pequality = mjm_addEquality(&model->spec, def);
     OneEquality(elem, pequality);
 
     // advance to next element
@@ -3377,22 +3524,22 @@ void mjXReader::Deformable(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // flex sub-element
     if (name=="flex") {
       // create flex and parse
-      mjCFlex* pflex = model->AddFlex();
+      mjmFlex* pflex = mjm_addFlex(&model->spec);
       OneFlex(elem, pflex);
     }
 
     // skin sub-element
     else if (name=="skin") {
       // create skin and parse
-      mjCSkin* pskin = model->AddSkin();
+      mjmSkin* pskin = mjm_addSkin(&model->spec);
       OneSkin(elem, pskin);
     }
 
@@ -3413,13 +3560,13 @@ void mjXReader::Tendon(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // create equality constraint and parse
-    mjmTendon* pten = mjm_addTendon(model, def);
+    mjmTendon* pten = mjm_addTendon(&model->spec, def);
     OneTendon(elem, pten);
 
     // process wrap sub-elements
@@ -3479,13 +3626,13 @@ void mjXReader::Actuator(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjCDef* def = GetClass(elem);
+    mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = model->defaults[0];
+      def = &model->defaults[0]->spec;
     }
 
     // create actuator and parse
-    mjmActuator* pact = mjm_addActuator(model, def);
+    mjmActuator* pact = mjm_addActuator(&model->spec, def);
     OneActuator(elem, pact);
 
     // advance to next element
@@ -3501,7 +3648,7 @@ void mjXReader::Sensor(XMLElement* section) {
   XMLElement* elem = FirstChildElement(section);
   while (elem) {
     // create sensor, get string type
-    mjmSensor* psen = mjm_addSensor(model);
+    mjmSensor* psen = mjm_addSensor(&model->spec);
     string type = elem->Value();
     string text, name, objname, refname;
     std::vector<double> userdata;
@@ -3809,7 +3956,6 @@ void mjXReader::Sensor(XMLElement* section) {
 
 // keyframe section parser
 void mjXReader::Keyframe(XMLElement* section) {
-  string text;
   XMLElement* elem;
   int n;
   double data[1000];
@@ -3817,53 +3963,50 @@ void mjXReader::Keyframe(XMLElement* section) {
   // iterate over child elements
   elem = FirstChildElement(section);
   while (elem) {
+    string text, name = "";
+
     // add keyframe
-    mjCKey* pk = model->AddKey();
+    mjmKey* pk = mjm_addKey(&model->spec);
 
     // read name, time
-    ReadAttrTxt(elem, "name", pk->name);
+    ReadAttrTxt(elem, "name", name);
+    mjm_setString(pk->name, name.c_str());
     ReadAttr(elem, "time", 1, &pk->time, text);
 
     // read qpos
     n = ReadAttr(elem, "qpos", 1000, data, text, false, false);
     if (n) {
-      pk->qpos.resize(n);
-      mjuu_copyvec(pk->qpos.data(), data, n);
+      mjm_setDouble(pk->qpos, data, n);
     }
 
     // read qvel
     n = ReadAttr(elem, "qvel", 1000, data, text, false, false);
     if (n) {
-      pk->qvel.resize(n);
-      mjuu_copyvec(pk->qvel.data(), data, n);
+      mjm_setDouble(pk->qvel, data, n);
     }
 
     // read act
     n = ReadAttr(elem, "act", 1000, data, text, false, false);
     if (n) {
-      pk->act.resize(n);
-      mjuu_copyvec(pk->act.data(), data, n);
+      mjm_setDouble(pk->act, data, n);
     }
 
     // read mpos
     n = ReadAttr(elem, "mpos", 1000, data, text, false, false);
     if (n) {
-      pk->mpos.resize(n);
-      mjuu_copyvec(pk->mpos.data(), data, n);
+      mjm_setDouble(pk->mpos, data, n);
     }
 
     // read mquat
     n = ReadAttr(elem, "mquat", 1000, data, text, false, false);
     if (n) {
-      pk->mquat.resize(n);
-      mjuu_copyvec(pk->mquat.data(), data, n);
+      mjm_setDouble(pk->mquat, data, n);
     }
 
     // read ctrl
     n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
     if (n) {
-      pk->ctrl.resize(n);
-      mjuu_copyvec(pk->ctrl.data(), data, n);
+      mjm_setDouble(pk->ctrl, data, n);
     }
 
     // advance to next element
@@ -3874,12 +4017,12 @@ void mjXReader::Keyframe(XMLElement* section) {
 
 
 // get defaults class
-mjCDef* mjXReader::GetClass(XMLElement* section) {
+mjmDefault* mjXReader::GetClass(XMLElement* section) {
   string text;
-  mjCDef* def = 0;
+  mjmDefault* def = 0;
 
   if (ReadAttrTxt(section, "class", text)) {
-    def = model->FindDef(text);
+    def = &model->FindDef(text)->spec;
     if (!def) {
       throw mjXError(section, "unknown default class");
     }
@@ -3890,7 +4033,54 @@ mjCDef* mjXReader::GetClass(XMLElement* section) {
 
 
 
-// get xml position
-void mjXReader::GetXMLPos(XMLElement* elem, mjCBase* obj) {
-  obj->info = "line = " + std::to_string(elem->GetLineNum());
+
+// return true if c is a directory path separator (i.e. '/' or '\' on windows)
+static bool IsSeperator(char c) {
+  return c == '/' || c == '\\';
+}
+
+void mjXReader::SetModelFileDir(std::string modelfiledir) {
+  modelfiledir_ = modelfiledir;
+  if (!modelfiledir_.empty() && !IsSeperator(modelfiledir_.back())) {
+    modelfiledir_.append("/");
+  }
+}
+
+void mjXReader::SetAssetDir(std::string assetdir) {
+  assetdir_ = assetdir;
+  if (!assetdir_.empty() && !IsSeperator(assetdir_.back())) {
+    assetdir_.append("/");
+  }
+}
+
+void mjXReader::SetMeshDir(std::string meshdir) {
+  meshdir_ = meshdir;
+  if (!meshdir_.empty() && !IsSeperator(meshdir_.back())) {
+    meshdir_.append("/");
+  }
+}
+
+void mjXReader::SetTextureDir(std::string texturedir) {
+  texturedir_ = texturedir;
+  if (!texturedir_.empty() && !IsSeperator(texturedir_.back())) {
+    texturedir_.append("/");
+  }
+}
+
+std::string mjXReader::AssetDir() const {
+  return modelfiledir_ + assetdir_;
+}
+
+std::string mjXReader::MeshDir() const {
+  if (meshdir_.empty()) {
+    return AssetDir();
+  }
+  return modelfiledir_ + meshdir_;
+}
+
+std::string mjXReader::TextureDir() const {
+  if (texturedir_.empty()) {
+    return AssetDir();
+  }
+  return modelfiledir_ + texturedir_;
 }

@@ -14,6 +14,8 @@
 
 #include "test/fixture.h"
 
+#include <array>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -21,12 +23,15 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/base/const_init.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
@@ -165,6 +170,122 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
     }
   }
   return ctrl;
+}
+
+MockFilesystem::MockFilesystem(std::string unit_test_name) {
+  prefix_ = absl::StrCat("MjMock.", unit_test_name);
+  dir_ = "/";
+  if (mjp_getResourceProvider(prefix_.c_str()) != nullptr) {
+    return;
+  }
+
+  mjpResourceProvider resourceProvider;
+  mjp_defaultResourceProvider(&resourceProvider);
+  resourceProvider.prefix = prefix_.c_str();
+  resourceProvider.data = (void *) this;
+
+  resourceProvider.open = +[](mjResource* resource) {
+    MockFilesystem *fs = static_cast<MockFilesystem*>(resource->provider->data);
+    std::string filename = fs->StripPrefix(resource->name);
+    return fs->FileExists(filename) ? 1 : 0;
+  };
+
+  resourceProvider.read =+[](mjResource* resource, const void** buffer) {
+    MockFilesystem *fs = static_cast<MockFilesystem*>(resource->provider->data);
+    std::string filename = fs->StripPrefix(resource->name);
+    return (int) fs->GetFile(filename, (const unsigned char**) buffer);
+  };
+
+  resourceProvider.getdir = +[](mjResource* resource, const char** dir,
+                                int* ndir) {
+    MockFilesystem *fs = static_cast<MockFilesystem*>(resource->provider->data);
+    *dir = resource->name;
+
+    // find last directory path separator
+    int length = fs->Prefix().size() + 1;
+    for (int i = length; resource->name[i]; ++i) {
+     if (resource->name[i] == '/' || resource->name[i] == '\\') {
+        length = i + 1;
+      }
+    }
+    *ndir = length;
+  };
+
+  resourceProvider.close = +[](mjResource* resource) {};
+  mjp_registerResourceProvider(&resourceProvider);
+}
+
+bool MockFilesystem::AddFile(std::string filename, const unsigned char* data,
+                         std::size_t ndata) {
+  std::string fullfilename = PathReduce(dir_, filename);
+  auto [it, inserted] = filenames_.insert(fullfilename);
+  if (inserted) {
+    data_[fullfilename] = std::vector(data, data + ndata);
+  }
+  return inserted;
+}
+
+bool MockFilesystem::FileExists(const std::string& filename) {
+  std::string fullfilename = PathReduce(dir_, filename);
+  return filenames_.find(fullfilename) != filenames_.end();
+}
+
+std::size_t MockFilesystem::GetFile(const std::string& filename,
+                                const unsigned char** buffer) const {
+  std::string fullfilename = PathReduce(dir_, filename);
+  auto it = data_.find(fullfilename);
+  if (it == data_.end()) {
+    return 0;
+  }
+  *buffer = it->second.data();
+  return it->second.size();
+}
+
+void MockFilesystem::ChangeDirectory(std::string dir) {
+  if (dir.empty()) {
+    return;
+  }
+
+  dir_ = PathReduce(dir_, dir);
+  if (dir_.back() != '/') {
+    dir_ = absl::StrCat(dir_, "/");
+  }
+}
+
+std::string MockFilesystem::FullPath(const std::string& path) const {
+  return absl::StrCat(prefix_, ":", PathReduce(dir_, path));
+}
+
+std::string MockFilesystem::StripPrefix(const char* path) const {
+  return &path[prefix_.size() + 1];
+}
+
+std::string MockFilesystem::PathReduce(const std::string& current_dir,
+                                       const std::string& path) {
+  std::stringstream stream;
+  if (!path.empty() && path[0] != '/') {
+    stream = std::stringstream(absl::StrCat(current_dir, path));
+  } else {
+    stream = std::stringstream(path);
+  }
+
+  std::string temp;
+  std::vector<std::string> dirs;
+  while (std::getline(stream, temp, '/')) {
+    if (temp == ".." && !dirs.empty()) {
+      dirs.pop_back();
+      continue;
+    }
+
+    if (temp != "." && !temp.empty()) {
+      dirs.push_back(temp);
+    }
+  }
+  if (dirs.empty()) {
+    return "/";
+  }
+
+  return absl::StrJoin(dirs, "/");
 }
 
 }  // namespace mujoco

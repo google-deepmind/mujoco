@@ -437,7 +437,47 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
     }
   }
 }
+
+TEST_F(XMLReaderTest, RepeatedDefaultName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="sphere">
+        <geom type="sphere" size="1"/>
+      </default>
+      <default class="sphere">
+        <geom type="capsule" size="1 1"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom class="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("repeated default class name"));
+}
+
 // ------------------------ test including -------------------------------------
+
+// credit: https://www.mjt.me.uk/posts/smallest-png/
+static constexpr unsigned char kTinyPng[] =
+    { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00,
+      0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
+      0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03, 0x00,
+      0x00, 0x00, 0x66, 0xBC, 0x3A, 0x25, 0x00, 0x00, 0x00,
+      0x03, 0x50, 0x4C, 0x54, 0x45, 0xB5, 0xD0, 0xD0, 0x63,
+      0x04, 0x16, 0xEA, 0x00, 0x00, 0x00, 0x1F, 0x49, 0x44,
+      0x41, 0x54, 0x68, 0x81, 0xED, 0xC1, 0x01, 0x0D, 0x00,
+      0x00, 0x00, 0xC2, 0xA0, 0xF7, 0x4F, 0x6D, 0x0E, 0x37,
+      0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0xBE, 0x0D, 0x21, 0x00, 0x00, 0x01, 0x9A, 0x60, 0xE1,
+      0xD5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+      0xAE, 0x42, 0x60, 0x82 };
 
 TEST_F(XMLReaderTest, IncludeTest) {
   static constexpr char xml[] = R"(
@@ -517,7 +557,6 @@ TEST_F(XMLReaderTest, IncludeSameFileTest) {
     <geom name="box" type="box" size="1 1 1"/>
   </mujoco>)";
 
-
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
 
@@ -533,7 +572,229 @@ TEST_F(XMLReaderTest, IncludeSameFileTest) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, IncludePathTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="plane" type="plane" size="1 1 1"/>
+      <include file="submodels/model1.xml"/>
+      <include file="submodels/model2.xml"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <geom name="box" type="box" size="1 1 1"/>
+  </mujoco>)";
+
+  static constexpr char xml2[]= R"(
+  <mujoco>
+    <geom name="ball" type="sphere" size="2"/>
+    <include file="subsubmodels/model3.xml"/>
+  </mujoco>)";
+
+  static constexpr char xml3[]= R"(
+  <mujoco>
+    <geom name="another_box" type="box" size="2 2 2"/>
+  </mujoco>)";
+
+  MockFilesystem fs("IncludePathTest");
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  fs.ChangeDirectory("submodels/");
+  fs.AddFile("model1.xml", (const unsigned char*) xml1, sizeof(xml1));
+  fs.AddFile("model2.xml", (const unsigned char*) xml2, sizeof(xml2));
+  fs.AddFile("subsubmodels/model3.xml", (const unsigned char*) xml3, sizeof(xml3));
+  fs.ChangeDirectory("/");
+
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+                              nullptr, 0);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, FallbackIncludePathTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="plane" type="plane" size="1 1 1"/>
+      <include file="model1.xml"/>
+      <include file="submodels/model2.xml"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <geom name="box" type="box" size="1 1 1"/>
+  </mujoco>)";
+
+  static constexpr char xml2[]= R"(
+  <mujoco>
+    <geom name="ball" type="sphere" size="2"/>
+    <include file="subsubmodels/model3.xml"/>
+  </mujoco>)";
+
+  static constexpr char xml3[]= R"(
+  <mujoco>
+    <geom name="another_box" type="box" size="2 2 2"/>
+  </mujoco>)";
+
+  MockFilesystem fs("FallbackIncludePathTest");
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  fs.AddFile("model1.xml", (const unsigned char*) xml1, sizeof(xml1));
+  fs.AddFile("submodels/model2.xml", (const unsigned char*) xml2, sizeof(xml2));
+  fs.AddFile("subsubmodels/model3.xml", (const unsigned char*) xml3,
+   sizeof(xml3));
+
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+                              error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, IncludeAssetsTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+   <include file="assets/assets.xml"/>
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char assets[] = R"(
+  <mujoco>
+    <asset>
+      <texture file="tiny.png" type="2d"/>
+      <material name="material" texture="tiny"/>
+      <include file="subassets/assets.xml"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char subassets[] = R"(
+  <mujoco>
+    <texture file="subtiny.png" type="2d"/>
+    <material name="submaterial" texture="subtiny"/>
+  </mujoco>
+  )";
+
+  MockFilesystem fs("IncludeAssetsTest");
+  fs.AddFile("assets/tiny.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("assets/subassets/subtiny.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("assets/assets.xml", (const unsigned char*) assets,
+   sizeof(assets));
+  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*) subassets,
+   sizeof(subassets));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  // loading the file should be successful
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, nullptr, 0);
+
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, FallbackIncludeAssetsTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+   <include file="assets/assets.xml"/>
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char assets[] = R"(
+  <mujoco>
+    <asset>
+      <texture file="tiny.png" type="2d"/>
+      <material name="material" texture="tiny"/>
+      <include file="subassets/assets.xml"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char subassets[] = R"(
+  <mujoco>
+    <texture file="subtiny.png" type="2d"/>
+    <material name="submaterial" texture="subtiny"/>
+  </mujoco>
+  )";
+
+  MockFilesystem fs("FallbackIncludeAssetsTest");
+  fs.AddFile("assets/tiny.png", kTinyPng, sizeof(kTinyPng));
+
+  // need to fallback for backwards compatibility
+  fs.AddFile("subtiny.png", kTinyPng, sizeof(kTinyPng));
+
+  fs.AddFile("assets/assets.xml", (const unsigned char*) assets,
+   sizeof(assets));
+  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*) subassets,
+   sizeof(subassets));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  // loading the file should be successful
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+                              error.data(), error.size());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+   <include file="assets/assets.xml"/>
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char assets[] = R"(
+  <mujoco>
+    <asset>
+      <texture file="tiny.png" type="2d"/>
+      <material name="material" texture="tiny"/>
+      <include file="subassets/assets.xml"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char subassets[] = R"(
+  <mujoco>
+    <texture file="MjMock.IncludeAbsoluteTest:assets/subtiny.png" type="2d"/>
+    <material name="submaterial" texture="subtiny"/>
+  </mujoco>
+  )";
+
+  MockFilesystem fs("IncludeAbsoluteTest");
+  fs.AddFile("assets/tiny.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("assets/subtiny.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("assets/assets.xml", (const unsigned char*) assets,
+   sizeof(assets));
+  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*) subassets,
+   sizeof(subassets));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  std::array<char, 1024> error;
+  // loading the file should be successful
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+                              error.data(), error.size());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+}
 // ------------------------ test frame parsing ---------------------------------
+
 TEST_F(XMLReaderTest, ParseFrame) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1040,10 +1301,10 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
   <mujoco>
     <default>
       <default class="position">
-        <position kp="3" kv="4"/>
+        <position kp="3" kv="4" inheritrange="2"/>
       </default>
       <default class="intvelocity">
-        <intvelocity kp="5" kv="6" actrange="-1 1"/>
+        <intvelocity kp="5" kv="6" inheritrange="0.5"/>
       </default>
       <default class="velocity">
         <velocity kv="7"/>
@@ -1052,7 +1313,7 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="0 2"/>
       </body>
     </worldbody>
     <actuator>
@@ -1082,6 +1343,10 @@ TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
       EXPECT_EQ(model->actuator_gainprm[i*mjNGAIN + j], 0.0);
     }
   }
+  EXPECT_EQ(model->actuator_ctrlrange[0*2 + 0], -1.0);
+  EXPECT_EQ(model->actuator_ctrlrange[0*2 + 1], 3.0);
+  EXPECT_EQ(model->actuator_actrange[1*2 + 0], 0.5);
+  EXPECT_EQ(model->actuator_actrange[1*2 + 1], 1.5);
   mj_deleteModel(model);
 }
 

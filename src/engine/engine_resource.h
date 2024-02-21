@@ -18,7 +18,7 @@
 #include <stddef.h>
 
 #include <mujoco/mjexport.h>
-#include "engine/engine_plugin.h"
+#include <mujoco/mujoco.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +26,7 @@ extern "C" {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-MJAPI mjResource* mju_openResource(const char* name);
+MJAPI mjResource* mju_openResource(const char* name, char* error, size_t error_sz);
 
 // close the given resource; no-op if resource is NULL
 MJAPI void mju_closeResource(mjResource* resource);
@@ -35,12 +35,13 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
-// sets for a resource with a name partitioned as {dir}{filename}, the dir and ndir pointers
+// set for a resource with a name partitioned as {dir}{filename}, the dir and ndir pointers
 MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 
-// Returns > 0 if resource has been modified since last read, 0 if not, and < 0
-// if inconclusive
-MJAPI int mju_isModifiedResource(const mjResource* resource);
+// return 0 if the resource's timestamp matches the provided timestamp
+// return > 0 if the the resource is younger than the given timestamp
+// return < 0 if the resource is older than the given timestamp
+MJAPI int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
 
 // get the length of the dirname portion of a given path
 int mju_dirnamelen(const char* path);

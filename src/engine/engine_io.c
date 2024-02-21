@@ -722,8 +722,10 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   mjResource* r = NULL;
 
   // first try vfs, otherwise try a provider or OS filesystem
-  if ((r = mju_openVfsResource(filename, vfs)) == NULL) {
-    if ((r = mju_openResource(filename)) == NULL) {
+  if (!(r = mju_openVfsResource(filename, vfs))) {
+    char error[1024];
+    if (!(r = mju_openResource(filename, error, 1024))) {
+       mju_warning("%s", error);
       return NULL;
     }
   }
@@ -1699,7 +1701,7 @@ void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value) {
 
 
 
-// reset data, set fields from specified keyframe
+// Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
   _resetData(m, d, 0);
 

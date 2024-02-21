@@ -32,8 +32,11 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
+#include "user/user_util.h"
 #include "xml/xml_util.h"
 #include "xml/xml_numeric_format.h"
 
@@ -156,57 +159,37 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
   return nullptr;
 }
 
-// constructor
-mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool checkptr) {
-  if (schema[0][0][0] == '<' || schema[0][0][0] == '>') {
-    throw "expected element, found bracket";
+static std::string ResolveFilePath(XMLElement* e, std::string filename,
+    const std::string& dir) {
+  std::string path = "";
+  if (mjuu_isabspath(filename)) {
+    return filename;
   }
 
-  // check entire schema for null pointers
-  if (checkptr) {
-    char msg[100];
+  // TODO(kylebayes): We first look in the base model directory for files to
+  // remain backwards compatible.
+  std::string full_filename = dir + filename;
+  mjResource *resource = mju_openResource(full_filename.c_str(), nullptr, 0);
+  if (resource != nullptr) {
+    mju_closeResource(resource);
+    return filename;
+  }
 
-    for (int i=0; i<nrow; i++) {
-      // base pointers
-      if (!schema[i][0]) {
-        mju::sprintf_arr(msg, "null pointer found in row %d", i);
-        throw msg;
+  XMLElement* parent = e->Parent()->ToElement();
+  for (; parent; parent = parent->Parent()->ToElement()) {
+    if (!std::strcmp(parent->Value(), "include")) {
+      auto file_attr = mjXUtil::ReadAttrStr(parent, "dir", false);
+      if (file_attr.has_value()) {
+        path = file_attr.value();
       }
-
-      // detect element
-      if (schema[i][0][0]!='<' && schema[i][0][0]!='>') {
-        // first 3 pointers required
-        if (!schema[i][1] || !schema[i][2]) {
-          mju::sprintf_arr(msg, "null pointer in row %d, element %s", i, schema[i][0]);
-          throw msg;
-        }
-
-        // check type
-        if (schema[i][1][0]!='!' && schema[i][1][0]!='?' &&
-            schema[i][1][0]!='*' && schema[i][1][0]!='R') {
-          mju::sprintf_arr(msg, "invalid type in row %d, element %s", i, schema[i][0]);
-          throw msg;
-        }
-
-        // number of attributes
-        int nattr = atoi(schema[i][2]);
-        if (nattr < 0 || nattr > mjXATTRNUM-3) {
-          mju::sprintf_arr(msg,
-                           "invalid number of attributes in row %d, element %s", i, schema[i][0]);
-          throw msg;
-        }
-
-        // attribute pointers
-        for (int j=0; j<nattr; j++) {
-          if (!schema[i][3+j]) {
-            mju::sprintf_arr(msg, "null attribute %d in row %d, element %s", j, i, schema[i][0]);
-            throw msg;
-          }
-        }
-      }
+      break;
     }
   }
+  return path + filename;
+}
 
+// constructor
+mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow) {
   // set name and type
   name_ = schema[0][0];
   type_ = schema[0][1][0];
@@ -218,42 +201,32 @@ mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool check
   }
 
   // process sub-elements of complex element
-  if (nrow>1) {
-    // check for bracketed block
-    if (schema[1][0][0]!='<' || schema[nrow-1][0][0]!='>') {
-      throw "expected brackets after complex element";
-    }
-
+  if (nrow > 1) {
     // parse block into simple and complex elements, create children
     int start = 2;
     while (start < nrow-1) {
       int end = start;
 
       // look for bracketed block at start+1
-      if (schema[start+1][0][0]=='<') {
+      if (schema[start+1][0][0] == '<') {
         // look for corresponding closing bracket
         int cnt = 0;
         while (end <= nrow-1) {
-          if (schema[end][0][0]=='<') {
+          if (schema[end][0][0] == '<') {
             cnt++;
-          } else if (schema[end][0][0]=='>') {
+          } else if (schema[end][0][0] == '>') {
             cnt--;
-            if (cnt==0) {
+            if (cnt == 0) {
               break;
             }
           }
 
           end++;
         }
-
-        // closing bracket not found
-        if (end > nrow-1) {
-          throw "matching closing bracket not found";
-        }
       }
 
-      // add element, check for error
-      subschema_.emplace_back(schema+start, end-start+1, false);
+      // add child element
+      subschema_.emplace_back(schema+start, end-start+1);
 
       // proceed with next subelement
       start = end+1;
@@ -621,8 +594,8 @@ mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, bool required);
 
 
 // if attribute is present, return attribute as a string
-std::optional<std::string> mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr,
-                                                bool required) {
+std::optional<std::string>
+mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr, bool required) {
   const char* pstr = elem->Attribute(attr);
 
   // check if attribute exists
@@ -637,7 +610,16 @@ std::optional<std::string> mjXUtil::ReadAttrStr(XMLElement* elem, const char* at
   return std::string(pstr);
 }
 
-
+// if attribute is present, return attribute as a filename
+std::optional<std::string>
+mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr,
+                      const std::string& dir, bool required) {
+  auto maybe_str = ReadAttrStr(elem, attr, required);
+  if (!maybe_str.has_value()) {
+    return std::nullopt;
+  }
+  return ResolveFilePath(elem, maybe_str.value(), dir);
+}
 
 // if attribute is present, return numerical value of attribute
 template<typename T>
@@ -963,7 +945,8 @@ static int Round(double x) {
 
 // write attribute
 template<typename T>
-void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, const T* def) {
+void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, const T* def,
+                        bool trim) {
   // make sure all are defined
   if constexpr (std::is_floating_point_v<T>) {
     for (int i=0; i<n; i++) {
@@ -976,6 +959,13 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
   // skip default attributes
   if (SameVector(data, def, n)) {
     return;
+  }
+
+  // trim identical trailing default values
+  if (trim) {
+    while (n > 0 && data[n-1] == def[n-1]) {
+      n--;
+    }
   }
 
   // increase precision for testing
@@ -1004,17 +994,17 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
 
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 const double* data, const double* def);
+                                 const double* data, const double* def, bool trim);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 const float* data, const float* def);
+                                 const float* data, const float* def, bool trim);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 const int* data, const int* def);
+                                 const int* data, const int* def, bool trim);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
                                  const unsigned char* data,
-                                 const unsigned char* def);
+                                 const unsigned char* def, bool trim);
 
 
 // write vector<double> attribute, default = zero array

@@ -265,7 +265,7 @@ class ConvexTest(absltest.TestCase):
       <worldbody>
         <geom size="40 40 40" type="plane"/>
         <body pos="0 0 0.7" euler="45 0 0">
-          <joint axis="1 0 0" type="free"/>
+          <freejoint/>
           <geom size="0.5 0.5 0.5" type="box"/>
         </body>
       </worldbody>
@@ -281,7 +281,35 @@ class ConvexTest(absltest.TestCase):
     # extract the contact points with penetration
     c = jax.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(c, d.contact, field.name, 'box_plane', 1e-2)
+      _assert_attr_eq(c, d.contact, field.name, 'box_plane', 1e-5)
+
+  _FLAT_BOX_PLANE = """
+    <mujoco>
+      <worldbody>
+        <geom size="40 40 40" type="plane"/>
+        <body pos="0 0 0.45">
+          <freejoint/>
+          <geom size="0.5 0.5 0.5" type="box"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_flat_box_plane(self):
+    """Tests box collision with a plane."""
+    with jax.disable_jit():
+      d, dx = _collide(self._FLAT_BOX_PLANE)
+
+    np.testing.assert_array_less(dx.contact.dist, 0)
+
+    # sort positions for comparison
+    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
+    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
+    d.contact.pos[:] = d.contact.pos[idx]
+
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'flat_box_plane', 1e-5)
 
   _BOX_BOX = """
     <mujoco>

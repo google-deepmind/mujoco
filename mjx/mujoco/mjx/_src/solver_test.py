@@ -33,8 +33,8 @@ def _assert_eq(a, b, name, tol=_TOLERANCE):
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
 
-def _assert_attr_eq(a, b, attr):
-  _assert_eq(getattr(a, attr), getattr(b, attr), attr)
+def _assert_attr_eq(a, b, attr, tol=_TOLERANCE):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr, tol=tol)
 
 
 class SolverTest(absltest.TestCase):
@@ -42,13 +42,20 @@ class SolverTest(absltest.TestCase):
   def test_newton(self):
     """Test newton solver."""
     m = test_util.load_test_file('constraints.xml')
+    # it's critical that mgrad is optimally calculated, so lower iterations
+    # to be sure that MJX is converging as quickly as MuJoCo
+    m.opt.iterations = 1
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    mujoco.mj_forward(m, d)
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
 
-    _assert_attr_eq(d, dx, 'qacc_warmstart')
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
     nnz = dx.efc_J.any(axis=1)
@@ -58,23 +65,30 @@ class SolverTest(absltest.TestCase):
     """Test CG solver."""
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    m.opt.solver = mujoco.mjtSolver.mjSOL_CG
-    mujoco.mj_forward(m, d)
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
 
-    _assert_attr_eq(d, dx, 'qacc_warmstart')
+    # CG does not converge as quickly as Newton but is cheaper to calculate
+    m.opt.solver = mujoco.mjtSolver.mjSOL_CG
+    m.opt.iterations = 8
+
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
     _assert_attr_eq(d, dx, 'qacc')
-    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    _assert_attr_eq(d, dx, 'qfrc_constraint', tol=8e-4)
     nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=5e-4)
 
   def test_no_warmstart(self):
     """Test no warmstart."""
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
     m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_WARMSTART
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
@@ -83,17 +97,21 @@ class SolverTest(absltest.TestCase):
     # without warmstart, the solution is not as close
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-2)
 
-  def test_dense(self):
-    """Test solver works with dense mass matrices."""
+  def test_sparse(self):
+    """Test solver works with sparse mass matrices."""
     m = test_util.load_test_file('constraints.xml')
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    mujoco.mj_forward(m, d)
-    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    mujoco.mj_step(m, d, 20)  # significant constraint forces at 20 steps
 
-    _assert_attr_eq(d, dx, 'qacc_warmstart')
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
     nnz = dx.efc_J.any(axis=1)

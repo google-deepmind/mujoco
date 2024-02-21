@@ -4938,6 +4938,7 @@ public unsafe struct _mjVFS
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000 * 1000)] public char[] filename;
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UIntPtr[] filesize;
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public IntPtr[] filedata;
+  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UInt64[] filestamp;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5365,8 +5366,6 @@ public unsafe struct mjModel_ {
   public int* mesh_texcoordadr;
   public int* mesh_texcoordnum;
   public int* mesh_graphadr;
-  public double* mesh_pos;
-  public double* mesh_quat;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;
@@ -5374,6 +5373,8 @@ public unsafe struct mjModel_ {
   public int* mesh_facenormal;
   public int* mesh_facetexcoord;
   public int* mesh_graph;
+  public double* mesh_pos;
+  public double* mesh_quat;
   public int* mesh_pathadr;
   public int* skin_matid;
   public int* skin_group;
@@ -6321,7 +6322,7 @@ public static unsafe extern void mj_defaultVFS(void* vfs);
 public static unsafe extern int mj_addFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string directory, [MarshalAs(UnmanagedType.LPStr)]string filename);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_makeEmptyFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename, int filesize);
+public static unsafe extern int mj_addBufferVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string name, void* buffer, int nbuffer);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_findFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
@@ -6331,6 +6332,9 @@ public static unsafe extern int mj_deleteFileVFS(void* vfs, [MarshalAs(Unmanaged
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteVFS(void* vfs);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_makeEmptyFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename, int filesize);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjModel_* mj_loadXML([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs, StringBuilder error, int error_sz);

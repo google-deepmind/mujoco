@@ -35,7 +35,6 @@ using tinyxml2::XMLElement;
 XMLElement* FirstChildElement(XMLElement* e, const char* name = nullptr);
 XMLElement* NextSiblingElement(XMLElement* e, const char* name = nullptr);
 
-
 // XML Error info
 class [[nodiscard]] mjXError {
  public:
@@ -56,7 +55,7 @@ class [[nodiscard]] mjXError {
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow, bool checkptr = true);
+  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
 
   std::string GetError();                         // return error
   void Print(std::stringstream& str, int level) const;      // print schema
@@ -108,6 +107,10 @@ class mjXUtil {
   // if attribute is present, return attribute as a string
   static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem, const char* attr,
                                                 bool required = false);
+
+  // if attribute is present, return attribute as a filename
+  static std::optional<std::string> ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
+                                                 const std::string& dir = "", bool required = false);
 
   // if attribute is present, return numerical value of attribute
   template<typename T>
@@ -195,7 +198,7 @@ class mjXUtil {
   // write attribute- any type
   template<typename T>
   static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
-                        const T* def = 0);
+                        const T* def = 0, bool trim = false);
 
   // write vector<double> attribute, with and without default
   static void WriteVector(tinyxml2::XMLElement* elem, std::string name,

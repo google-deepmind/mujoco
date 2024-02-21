@@ -58,6 +58,8 @@ target_link_libraries(
   fixture
   PUBLIC absl::core_headers
          absl::synchronization
+         absl::flat_hash_map
+         absl::flat_hash_set
          gtest
          gmock
          mujoco::mujoco

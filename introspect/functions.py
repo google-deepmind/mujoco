@@ -66,9 +66,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
-    ('mj_makeEmptyFileVFS',
+    ('mj_addBufferVFS',
      FunctionDecl(
-         name='mj_makeEmptyFileVFS',
+         name='mj_addBufferVFS',
          return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
@@ -78,17 +78,23 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='filename',
+                 name='name',
                  type=PointerType(
                      inner_type=ValueType(name='char', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
-                 name='filesize',
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nbuffer',
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Make empty file in VFS, return 0: success, 1: full, 2: repeated name.',  # pylint: disable=line-too-long
+         doc='Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_findFileVFS',
      FunctionDecl(
@@ -143,6 +149,30 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Delete all files from VFS.',
+     )),
+    ('mj_makeEmptyFileVFS',
+     FunctionDecl(
+         name='mj_makeEmptyFileVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filesize',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='deprecated: use mj_copyBufferVFS.',
      )),
     ('mj_loadXML',
      FunctionDecl(
@@ -675,7 +705,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Reset data, set fields from specified keyframe.',
+         doc='Reset data. If 0 <= key < nkey, set fields from specified keyframe.',  # pylint: disable=line-too-long
      )),
     ('mj_markStack',
      FunctionDecl(

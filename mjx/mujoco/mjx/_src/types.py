@@ -15,7 +15,7 @@
 """Base types used in MJX."""
 
 import enum
-from typing import Sequence
+from typing import List, Optional
 
 import jax
 import jax.numpy as jp
@@ -218,6 +218,7 @@ class Option(PyTreeNode):
 
   Attributes:
     timestep:         timestep
+    impratio:         ratio of friction-to-normal contact impedance
     tolerance:        main solver tolerance
     ls_tolerance:     CG/Newton linesearch tolerance
     gravity:          gravitational acceleration                 (3,)
@@ -238,9 +239,11 @@ class Option(PyTreeNode):
     disableflags:     bit flags for disabling standard features
   """
   timestep: jax.Array
+  # unsupported: apirate
+  impratio: jax.Array
   tolerance: jax.Array
   ls_tolerance: jax.Array
-  # unsupported: apirate, impratio, noslip_tolerance, mpr_tolerance
+  # unsupported: noslip_tolerance, mpr_tolerance
   gravity: jax.Array
   wind: jax.Array
   density: jax.Array
@@ -498,10 +501,10 @@ class Model(PyTreeNode):
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
-  geom_convex_face: Sequence[jax.Array]
-  geom_convex_vert: Sequence[jax.Array]
-  geom_convex_edge: Sequence[jax.Array]
-  geom_convex_facenormal: Sequence[jax.Array]
+  geom_convex_face: List[Optional[jax.Array]]
+  geom_convex_vert: List[Optional[jax.Array]]
+  geom_convex_edge: List[Optional[jax.Array]]
+  geom_convex_facenormal: List[Optional[jax.Array]]
   pair_solref: jax.Array
   pair_solreffriction: jax.Array
   pair_solimp: jax.Array
@@ -579,8 +582,8 @@ class Contact(PyTreeNode):
         solref=jp.zeros((ncon, mujoco.mjNREF)),
         solreffriction=jp.zeros((ncon, mujoco.mjNREF)),
         solimp=jp.zeros((ncon, mujoco.mjNIMP,)),
-        geom1=jp.zeros(ncon, dtype=jp.int32),
-        geom2=jp.zeros(ncon, dtype=jp.int32),
+        geom1=jp.zeros(ncon, dtype=int),
+        geom2=jp.zeros(ncon, dtype=int),
     )
 
 

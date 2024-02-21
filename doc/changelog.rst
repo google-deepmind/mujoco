@@ -5,17 +5,38 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+1. Added the :at:`inheritrange` attribute to :ref:`position<actuator-position>` and
+   :ref:`intvelocity<actuator-intvelocity>` actuators, allowing convenient setting of the actuator's
+   :at:`ctrlrange` or :at:`actrange` (respectively), according to the range of the transmission
+   target (joint or tendon). See :ref:`position/inheritrange<actuator-position-inheritrange>` for
+   details.
+2. Deprecated :ref:`mj_makeEmptyFileVFS` in favor of :ref:`mj_addBufferVFS`. :ref:`mjVFS` now computes checksums of
+   its internal file buffers. :ref:`mj_addBufferVFS` allocates an empty buffer with a given name in an mjVFS and
+   copies the data buffer into it, combining and replacing the deprecated two-step process of calling
+   :ref:`mj_makeEmptyFileVFS` followed by a direct copy into the given mjVFS internal file buffer.
+
 MJX
 ^^^
 
-1. Improved performance of getting and putting device data.
+3. Improved performance of getting and putting device data.
 
    - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
    - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
    - Speed up calculation of ``mjx.ncon`` for models with many geoms.
    - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
-2. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
+4. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
    ``mjx.get_data_into`` function call.
+5. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
+6. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
+7. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
+
+Python bindings
+^^^^^^^^^^^^^^^
+7. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
+   of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
+
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------

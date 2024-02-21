@@ -691,11 +691,12 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
-struct mjVFS_ {                             // virtual file system for loading from memory
-  int    nfile;                             // number of files present
-  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t filesize[mjMAXVFS];                // file size in bytes
-  void*  filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                               // virtual file system for loading from memory
+  int      nfile;                             // number of files present
+  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t   filesize[mjMAXVFS];                // file size in bytes
+  void*    filedata[mjMAXVFS];                // buffer with file data
+  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
 };
 typedef struct mjVFS_ mjVFS;
 struct mjOption_ {                // physics options
@@ -1154,8 +1155,6 @@ struct mjModel_ {
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
-  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -1163,6 +1162,8 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
+  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
 
   // skins
@@ -1375,6 +1376,7 @@ typedef struct mjModel_ mjModel;
 struct mjResource_ {
   char* name;                                   // name of resource (filename, etc)
   void* data;                                   // opaque data pointer
+  char timestamp[512];                          // timestamp of the resource
   const struct mjpResourceProvider* provider;   // pointer to the provider
 };
 typedef struct mjResource_ mjResource;
@@ -2406,10 +2408,11 @@ typedef struct mjvSceneState_ mjvSceneState;
 //----------------------------- MJAPI FUNCTIONS --------------------------------
 void mj_defaultVFS(mjVFS* vfs);
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
-int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
+int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 int mj_findFileVFS(const mjVFS* vfs, const char* filename);
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 void mj_deleteVFS(mjVFS* vfs);
+int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
 mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 void mj_freeLastXML(void);

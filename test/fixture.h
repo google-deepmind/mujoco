@@ -22,6 +22,8 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 
@@ -98,6 +100,51 @@ std::string SaveAndReadXml(const mjModel* model);
 // Adds control noise.
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);
+
+// Installs a mock filesystem via a resource provider. To obtain thread safety,
+// each filesystem is scoped for individual unit tests with destructive
+// operations not permitted.
+class MockFilesystem {
+ public:
+  // constructs mock filesystem.  A unique name (normally the unit test name)
+  // should be passed in.
+  MockFilesystem(std::string unit_test_name);
+
+  // Move and copy operations are forbidden.
+  MockFilesystem(MockFilesystem&& other) = delete;
+  MockFilesystem& operator=(MockFilesystem&& other) = delete;
+  MockFilesystem(const MockFilesystem& other) = delete;
+  MockFilesystem& operator=(const MockFilesystem& other) = delete;
+
+  // Returns the prefix registered for the resource provider.
+  const std::string& Prefix() const { return prefix_; }
+
+  // Adds file to the current directory. Returns false if file already exists.
+  bool AddFile(std::string filename, const unsigned char* data,
+               std::size_t ndata);
+
+  // Returns true if mock filesystem has file.
+  bool FileExists(const std::string& filename);
+
+  // Change the current directory.
+  void ChangeDirectory(std::string dir);
+
+  // Helper functions for resource provider callbacks.
+  std::size_t GetFile(const std::string& filename,
+                      const unsigned char** buffer) const;
+  std::string FullPath(const std::string& path) const;
+
+
+ private:
+  std::string StripPrefix(const char* path) const;
+  static std::string PathReduce(const std::string& current_dir,
+                                const std::string& path);
+
+  absl::flat_hash_set<std::string> filenames_;
+  absl::flat_hash_map<std::string, std::vector<unsigned char>> data_;
+  std::string prefix_;
+  std::string dir_;  // current directory
+};
 
 // Installs all plugins
 class PluginTest : public MujocoTest {

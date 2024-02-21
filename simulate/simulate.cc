@@ -1969,14 +1969,7 @@ void Simulate::Sync() {
   }
 
   if (pending_.load_key) {
-    int i = this->key;
-    d_->time = m_->key_time[i];
-    mju_copy(d_->qpos, m_->key_qpos + i*m_->nq, m_->nq);
-    mju_copy(d_->qvel, m_->key_qvel + i*m_->nv, m_->nv);
-    mju_copy(d_->act, m_->key_act + i*m_->na, m_->na);
-    mju_copy(d_->mocap_pos, m_->key_mpos + i*3*m_->nmocap, 3*m_->nmocap);
-    mju_copy(d_->mocap_quat, m_->key_mquat + i*4*m_->nmocap, 4*m_->nmocap);
-    mju_copy(d_->ctrl, m_->key_ctrl + i*m_->nu, m_->nu);
+    mj_resetDataKeyframe(m_, d_, this->key);
     mj_forward(m_, d_);
     update_profiler = true;
     update_sensor = true;

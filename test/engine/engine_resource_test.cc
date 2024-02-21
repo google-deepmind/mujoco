@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_resource.c
 
+#include <array>
 #include <cstring>
 
 #include <gmock/gmock.h>
@@ -228,7 +229,7 @@ TEST_F(ResourceTest, GeneralTest) {
   EXPECT_GT(i, 0);
 
   // open resource
-  mjResource* resource = mju_openResource("str:file");
+  mjResource* resource = mju_openResource("str:file", nullptr, 0);
   ASSERT_THAT(resource,  NotNull());
 
   const char* buffer = NULL;
@@ -239,7 +240,7 @@ TEST_F(ResourceTest, GeneralTest) {
   mju_closeResource(resource);
 }
 
-TEST_F(ResourceTest, GeneralTestFailure) {
+TEST_F(ResourceTest, GeneralFailureTest) {
   mjpResourceProvider provider = {
     "str", open_str, read_str, close_str
   };
@@ -248,19 +249,14 @@ TEST_F(ResourceTest, GeneralTestFailure) {
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  static std::array<char, 1024> error;
 
   // open resource
-  mjResource* resource = mju_openResource("str:notfound");
+  mjResource* resource = mju_openResource("str:notfound",
+                                          error.data(), error.size());
   ASSERT_THAT(resource, IsNull());
 
-  EXPECT_THAT(warning, HasSubstr("could not open"));
+  EXPECT_THAT(error.data(), HasSubstr("could not open"));
 }
 
 TEST_F(ResourceTest, NameWithValidPrefix) {
@@ -281,7 +277,7 @@ TEST_F(ResourceTest, NameWithValidPrefix) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("nop:found");
+  mjResource* resource = mju_openResource("nop:found", nullptr, 0);
   ASSERT_THAT(resource, NotNull());
   mju_closeResource(resource);
 }
@@ -304,7 +300,7 @@ TEST_F(ResourceTest, NameWithUpperCasePrefix) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("NOP:found");
+  mjResource* resource = mju_openResource("NOP:found", nullptr, 0);
   ASSERT_THAT(resource, NotNull());
   mju_closeResource(resource);
 }
@@ -327,7 +323,7 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("nopfound");
+  mjResource* resource = mju_openResource("nopfound", nullptr, 0);
   ASSERT_THAT(resource, IsNull());
 }
 

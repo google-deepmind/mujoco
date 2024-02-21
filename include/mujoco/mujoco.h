@@ -82,8 +82,8 @@ MJAPI void mj_defaultVFS(mjVFS* vfs);
 // Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
-// Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
-MJAPI int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
+// Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 
 // Return file index in VFS, or -1 if not found in VFS.
 MJAPI int mj_findFileVFS(const mjVFS* vfs, const char* filename);
@@ -94,6 +94,8 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 // Delete all files from VFS.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
+// deprecated: use mj_copyBufferVFS.
+MJAPI int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
 
 //---------------------------------- Parse and compile ---------------------------------------------
 
@@ -182,7 +184,7 @@ MJAPI void mj_resetData(const mjModel* m, mjData* d);
 // Reset data to defaults, fill everything else with debug_value.
 MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 
-// Reset data, set fields from specified keyframe.
+// Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // Mark a new frame on the mjData stack.

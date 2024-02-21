@@ -25,13 +25,9 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjtnum.h>
+#include "user/user_api.h"
 #include "user/user_objects.h"
-
-typedef enum _mjtInertiaFromGeom {
-  mjINERTIAFROMGEOM_FALSE = 0,    // do not use; inertial element required
-  mjINERTIAFROMGEOM_TRUE,         // always use; overwrite inertial element
-  mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
-} mjtInertiaFromGeom;
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
@@ -46,31 +42,33 @@ typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 // constructed, 'Compile' can be called to generate the corresponding mjModel object
 // (which is the low-level model).  The mjCModel object can then be deleted.
 
-class mjCModel {
+class mjCModel : private mjmModel {
   friend class mjCBody;
-  friend class mjCJoint;
+  friend class mjCCamera;
   friend class mjCGeom;
   friend class mjCFlex;
+  friend class mjCHField;
+  friend class mjCFrame;
+  friend class mjCJoint;
+  friend class mjCEquality;
   friend class mjCMesh;
   friend class mjCSkin;
-  friend class mjCHField;
-  friend class mjCPair;
-  friend class mjCBodyPair;
   friend class mjCSite;
-  friend class mjCEquality;
   friend class mjCTendon;
-  friend class mjCWrap;
+  friend class mjCTexture;
   friend class mjCActuator;
   friend class mjCSensor;
-  friend class mjCNumeric;
-  friend class mjCTuple;
-  friend class mjCKey;
+  friend class mjCDef;
   friend class mjXReader;
   friend class mjXWriter;
 
  public:
   mjCModel();                                          // constructor
   ~mjCModel();                                         // destructor
+  void CopyFromSpec();                                 // copy spec to private attributes
+  void PointToLocal();
+
+  mjmModel spec;
 
   mjModel*    Compile(const mjVFS* vfs = 0);           // COMPILER: construct mjModel
   bool        CopyBack(const mjModel*);                // DECOMPILER: copy numeric back
@@ -119,6 +117,10 @@ class mjCModel {
   mjCBase*    FindObject(mjtObj type, std::string name);  // find object given type and name
   bool        IsNullPose(const mjtNum* pos, const mjtNum* quat); // detect null pose
 
+  //------------------------ getters
+  std::string get_meshdir(void) const { return meshdir_; }
+  std::string get_texturedir(void) const { return texturedir_; }
+
   //------------------------ API for plugins
   void        ResolvePlugin(mjCBase* obj,     // resolve plugin instance, create a new one if needed
                             const std::string& plugin_name,
@@ -130,53 +132,6 @@ class mjCModel {
   std::string comment;            // comment at top of XML
   std::string modelfiledir;       // path to model file
   std::vector<mjCDef*> defaults;  // settings for each defaults class
-
-  //------------------------ compiler settings
-  bool autolimits;                // infer "limited" attribute based on range
-  double boundmass;               // enforce minimum body mass
-  double boundinertia;            // enforce minimum body diagonal inertia
-  double settotalmass;            // rescale masses and inertias; <=0: ignore
-  bool balanceinertia;            // automatically impose A + B >= C rule
-  bool strippath;                 // automatically strip paths from mesh files
-  bool fitaabb;                   // meshfit to aabb instead of inertia box
-  bool degree;                    // angles in radians or degrees
-  char euler[3];                  // sequence for euler rotations
-  std::string meshdir;            // mesh and hfield directory
-  std::string texturedir;         // texture directory
-  bool discardvisual;             // discard visual geoms in parser
-  bool convexhull;                // compute mesh convex hulls
-  bool usethread;                 // use multiple threads to speed up compiler
-  bool fusestatic;                // fuse static bodies with parent
-  int inertiafromgeom;            // use geom inertias (mjtInertiaFromGeom)
-  int inertiagrouprange[2];       // range of geom groups used to compute inertia
-  bool exactmeshinertia;          // if false, use old formula
-  mjLROpt LRopt;                  // options for lengthrange computation
-
-  //------------------------ statistics override (if defined)
-  double meaninertia;             // mean diagonal inertia
-  double meanmass;                // mean body mass
-  double meansize;                // mean body size
-  double extent;                  // spatial extent
-  double center[3];               // center of model
-
-  //------------------------ engine data
-  std::string modelname;          // model name
-  mjOption option;                // options
-  mjVisual visual;                // visual options
-  std::size_t memory;             // size of arena+stack memory in bytes
-  int nemax;                      // max number of equality constraints
-  int njmax;                      // max number of constraints (Jacobian rows)
-  int nconmax;                    // max number of detected contacts (mjContact array size)
-  size_t nstack;                  // (deprecated) number of fields in mjData stack
-  int nuserdata;                  // number extra fields in mjData
-  int nuser_body;                 // number of mjtNums in body_user
-  int nuser_jnt;                  // number of mjtNums in jnt_user
-  int nuser_geom;                 // number of mjtNums in geom_user
-  int nuser_site;                 // number of mjtNums in site_user
-  int nuser_cam;                  // number of mjtNums in cam_user
-  int nuser_tendon;               // number of mjtNums in tendon_user
-  int nuser_actuator;             // number of mjtNums in actuator_user
-  int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
@@ -230,7 +185,6 @@ class mjCModel {
   int nnumeric;                   // number of numeric fields
   int ntext;                      // number of text fields
   int ntuple;                     // number of tuple fields
-  int nkey;                       // number of keyframes
   int nmocap;                     // number of mocap bodies
   int nplugin;                    // number of plugin instances
 
@@ -323,5 +277,13 @@ class mjCModel {
   mjCError errInfo;               // last error info
   int fixCount;                   // how many bodies have been fixed
   std::vector<mjtNum> qpos0;      // save qpos0, to recognize changed key_qpos in write
+
+  // variable-size attributes
+  std::string modelname_;
+  std::string meshdir_;
+  std::string texturedir_;
+  std::string spec_modelname_;
+  std::string spec_meshdir_;
+  std::string spec_texturedir_;
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

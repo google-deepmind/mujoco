@@ -694,6 +694,38 @@ TEST_F(XMLWriterTest, WritesDefaults) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesActuatorDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="position">
+        <position kp="3" kv="4" />
+      </default>
+      <default class="intvelocity">
+        <intvelocity kp="5" kv="6" />
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="0 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" class="position"/>
+      <intvelocity joint="jnt" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
+  EXPECT_THAT(saved_xml, HasSubstr(
+      "<general biastype=\"affine\" gainprm=\"3\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, WritesDensity) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -964,6 +996,92 @@ TEST_F(XMLWriterTest, ActdimDefaults) {
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, TrimsDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" friction="0.9" solref="0.1" solimp="0.1 0.2"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="0 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" kp="3" kv="4"/>
+      <damper joint="jnt" kv="10" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("friction=\"0.9\""));
+  EXPECT_THAT(saved_xml, HasSubstr("solref=\"0.1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("solimp=\"0.1 0.2\""));
+  EXPECT_THAT(saved_xml, HasSubstr("gainprm=\"3\" biasprm=\"0 -3 -4\""));
+  EXPECT_THAT(saved_xml, HasSubstr("gainprm=\"0 0 -10\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, InheritrangeSavedAsRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="slide" type="slide" range="0 2"/>
+      </body>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge" type="hinge" range="-2 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="slide" inheritrange="2"/>
+      <intvelocity joint="hinge" inheritrange="0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 3\""));
+  EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1.5 -0.5\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, InheritedInheritrangeSavedAsRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="position">
+        <position kp="3" kv="4" inheritrange="2"/>
+      </default>
+      <default class="intvelocity">
+        <intvelocity kp="5" kv="6" inheritrange="0.5"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" range="0 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" class="position"/>
+      <intvelocity joint="jnt" class="intvelocity"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("inheritrange")));
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 3\""));
+  EXPECT_THAT(saved_xml, HasSubstr("actrange=\"0.5 1.5\""));
   mj_deleteModel(model);
 }
 

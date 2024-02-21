@@ -529,6 +529,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     expected_ncon = 4
     mujoco.mj_forward(self.model, self.data)
     self.assertLen(self.data.contact, expected_ncon)
+    np.testing.assert_array_equal(self.data.contact.geom, [[0, 1]] * 4)
 
     expected_pos = []
     for contact in self.data.contact:
@@ -550,6 +551,13 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       contact.H = expected_H[-1]
     self.assertLen(expected_H, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.H, expected_H)
+
+    expected_geom = []
+    for i, contact in enumerate(self.data.contact):
+      expected_geom.append([i, i + 1])
+      contact.geom = expected_geom[-1]
+    self.assertLen(expected_geom, expected_ncon)
+    np.testing.assert_array_equal(self.data.contact.geom, expected_geom)
 
   def test_realloc_con_efc(self):
     self.assertEmpty(self.data.contact)

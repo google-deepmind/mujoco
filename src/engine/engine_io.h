@@ -104,7 +104,7 @@ MJAPI void mj_resetData(const mjModel* m, mjData* d);
 // set data to defaults, fill everything else with debug_value
 MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 
-// reset data, set fields from specified keyframe
+// Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // mjData arena allocate

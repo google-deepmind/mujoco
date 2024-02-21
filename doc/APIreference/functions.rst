@@ -1109,14 +1109,14 @@ mj_addFileVFS
 Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
 2 on name collision, or -1 when an internal error occurs.
 
-.. _mj_makeEmptyFileVFS:
+.. _mj_addBufferVFS:
 
-mj_makeEmptyFileVFS
-~~~~~~~~~~~~~~~~~~~
+mj_addBufferVFS
+~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_makeEmptyFileVFS
+.. mujoco-include:: mj_addBufferVFS
 
-Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
+Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 
 .. _mj_findFileVFS:
 
@@ -1144,6 +1144,15 @@ mj_deleteVFS
 .. mujoco-include:: mj_deleteVFS
 
 Delete all files from VFS.
+
+.. _mj_makeEmptyFileVFS:
+
+mj_makeEmptyFileVFS
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_makeEmptyFileVFS
+
+deprecated: use mj_copyBufferVFS.
 
 .. _Initialization:
 
@@ -1280,7 +1289,7 @@ mj_resetDataKeyframe
 
 .. mujoco-include:: mj_resetDataKeyframe
 
-Reset data, set fields from specified keyframe.
+Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 
 .. _mj_markStack:
 

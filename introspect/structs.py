@@ -121,6 +121,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='buffer with file data',
              ),
+             StructFieldDecl(
+                 name='filestamp',
+                 type=ArrayType(
+                     inner_type=ValueType(name='uint64_t'),
+                     extents=(2000,),
+                 ),
+                 doc='checksum of the file data',
+             ),
          ),
      )),
     ('mjOption',
@@ -2592,20 +2600,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='graph data address; -1: no graph         (nmesh x 1)',
              ),
              StructFieldDecl(
-                 name='mesh_pos',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='translation applied to asset vertices    (nmesh x 3)',
-             ),
-             StructFieldDecl(
-                 name='mesh_quat',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='rotation applied to asset vertices       (nmesh x 4)',
-             ),
-             StructFieldDecl(
                  name='mesh_vert',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
@@ -2653,6 +2647,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='convex graph data                        (nmeshgraph x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='mesh_pos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='translation applied to asset vertices    (nmesh x 3)',
+             ),
+             StructFieldDecl(
+                 name='mesh_quat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='rotation applied to asset vertices       (nmesh x 4)',
              ),
              StructFieldDecl(
                  name='mesh_pathadr',

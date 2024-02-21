@@ -118,7 +118,7 @@ SHARED_CSS_VARIABLES = {
 html_theme_options = {
     'light_css_variables': {
         'font-stack--monospace': 'Inconsolata,Consolas,ui-monospace,monospace',
-        'at-color': '#bc103e',
+        'at-color': '#830b2b',
         'at-val-color': '#bc103e',
         'body-color': '#14234b',
         'color-highlight-on-target': '#e5e8ed',
@@ -131,7 +131,7 @@ html_theme_options = {
         'wy-nav-side-background-color': '#0053d6',
     },
     'dark_css_variables': {
-        'at-color': '#ff95a6',
+        'at-color': '#ffaab7',
         'at-val-color': '#ff95a6',
         'body-color': '#14234b',
         'color-admonition-background': '#1e1e21',

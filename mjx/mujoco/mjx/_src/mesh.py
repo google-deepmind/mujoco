@@ -212,10 +212,14 @@ def get(m: mujoco.MjModel) -> Dict[str, Sequence[Optional[np.ndarray]]]:
   """Derives geom mesh attributes for mjx.Model from MjModel."""
   kwargs = {k: [] for k in _DERIVED_ARGS}
   verts, faces = _get_faces_verts(m)
+  geom_con = m.geom_conaffinity | m.geom_contype
   for geomid in range(m.ngeom):
     dataid = m.geom_dataid[geomid]
-    typ = m.geom_type[geomid]
-    if typ == GeomType.BOX:
+    if not geom_con[geomid]:
+      # ignore visual-only meshes
+      kwargs = {k: kwargs[k] + [None] for k in _DERIVED_ARGS}
+      continue
+    elif m.geom_type[geomid] == GeomType.BOX:
       vert, face = _box(m.geom_size[geomid])
     elif dataid >= 0:
       vert, face = verts[dataid], faces[dataid]
