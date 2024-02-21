@@ -1246,7 +1246,7 @@ void mjCFrame::Compile() {
   }
 
   CopyFromSpec();
-  const char* err = alt_.Set(quat, model->degree, model->euler);
+  const char* err = alt_.Set(quat, model->spec.degree, model->spec.euler);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
   }
@@ -2599,7 +2599,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -3218,7 +3218,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // make filename
-      string filename = mjuu_makefullname(model->modelfiledir, model->texturedir, cubefiles_[i]);
+      string filename = mjuu_makefullname(model->modelfiledir, model->texturedir_, cubefiles_[i]);
 
       // load PNG or custom
       unsigned int w, h;
@@ -3318,7 +3318,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // make filename
-    string filename = mjuu_makefullname(model->modelfiledir, model->texturedir, file_);
+    string filename = mjuu_makefullname(model->modelfiledir, model->texturedir_, file_);
 
     // dispatch
     if (type==mjTEXTURE_2D) {

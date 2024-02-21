@@ -86,30 +86,8 @@ mjCModel::mjCModel() {
   mjm_defaultModel(spec);
   comment.clear();
   modelfiledir.clear();
-
-  //------------------------ compiler settings
-  autolimits = true;
-  boundmass = 0;
-  boundinertia = 0;
-  settotalmass = -1;
-  balanceinertia = false;
-  strippath = false;
-  fitaabb = false;
-  degree = true;
-  euler[0] = 'x';
-  euler[1] = 'y';
-  euler[2] = 'z';
-  meshdir.clear();
-  texturedir.clear();
-  discardvisual = false;
-  convexhull = true;
-  usethread = true;
-  fusestatic = false;
-  inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
-  inertiagrouprange[0] = 0;
-  inertiagrouprange[1] = mjNGROUP-1;
-  exactmeshinertia = false;
-  mj_defaultLROpt(&LRopt);
+  spec_meshdir_.clear();
+  spec_texturedir_.clear();
 
   //------------------------ auto-computed statistics
 #ifndef MEMORY_SANITIZER
@@ -211,13 +189,25 @@ mjCModel::mjCModel() {
 
 
   // point to model from spec
+  PointToLocal();
+}
+
+
+
+void mjCModel::PointToLocal() {
   spec.element = (mjElement)this;
+  spec.meshdir = (mjString)&spec_meshdir_;
+  spec.texturedir = (mjString)&spec_texturedir_;
 }
 
 
 
 void mjCModel::CopyFromSpec() {
   *static_cast<mjmModel*>(this) = spec;
+  meshdir_ = spec_meshdir_;
+  texturedir_ = spec_texturedir_;
+  meshdir = (mjString)&meshdir_;
+  texturedir = (mjString)&texturedir_;
 }
 
 
@@ -2828,16 +2818,16 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // append directory separator
-  if (!meshdir.empty()) {
-    int n = meshdir.length();
-    if (meshdir[n-1]!='/' && meshdir[n-1]!='\\') {
-      meshdir += '/';
+  if (!meshdir_.empty()) {
+    int n = meshdir_.length();
+    if (meshdir_[n-1]!='/' && meshdir_[n-1]!='\\') {
+      meshdir_ += '/';
     }
   }
-  if (!texturedir.empty()) {
-    int n = texturedir.length();
-    if (texturedir[n-1]!='/' && texturedir[n-1]!='\\') {
-      texturedir += '/';
+  if (!texturedir_.empty()) {
+    int n = texturedir_.length();
+    if (texturedir_[n-1]!='/' && texturedir_[n-1]!='\\') {
+      texturedir_ += '/';
     }
   }
 

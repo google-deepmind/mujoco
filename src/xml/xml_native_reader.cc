@@ -818,7 +818,7 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = FirstChildElement(root, "compiler"); section;
        section = NextSiblingElement(section, "compiler")) {
-    Compiler(section, model);
+    Compiler(section, &model->spec);
   }
 
   for (XMLElement* section = FirstChildElement(root, "option"); section;
@@ -909,7 +909,7 @@ void mjXReader::Parse(XMLElement* root) {
 
 
 // compiler section parser
-void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
+void mjXReader::Compiler(XMLElement* section, mjmModel* mod) {
   string text;
   int n;
 
@@ -945,12 +945,17 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
     memcpy(mod->euler, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
-    mod->meshdir = text;
-    mod->texturedir = text;
+    mjm_setString(mod->meshdir, text.c_str());
+    mjm_setString(mod->texturedir, text.c_str());
   }
   // meshdir and texturedir take precedence over assetdir
-  ReadAttrTxt(section, "meshdir", mod->meshdir);
-  ReadAttrTxt(section, "texturedir", mod->texturedir);
+  std::string meshdir, texturedir;
+  if (ReadAttrTxt(section, "meshdir", meshdir)) {
+    mjm_setString(mod->meshdir, meshdir.c_str());
+  };
+  if (ReadAttrTxt(section, "texturedir", texturedir)) {
+    mjm_setString(mod->texturedir, texturedir.c_str());
+  }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
     mod->discardvisual = (n==1);
   }

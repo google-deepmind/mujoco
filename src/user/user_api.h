@@ -69,11 +69,39 @@ typedef enum _mjtLimited {        // type of limit specification
 } mjtLimited;
 
 
+typedef enum _mjtInertiaFromGeom {
+  mjINERTIAFROMGEOM_FALSE = 0,    // do not use; inertial element required
+  mjINERTIAFROMGEOM_TRUE,         // always use; overwrite inertial element
+  mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
+} mjtInertiaFromGeom;
+
+
 //---------------------------------- attribute structs (mjm) ---------------------------------------
 
 typedef struct _mjmModel {         // model specification
   mjElement element;               // internal, do not modify
   mjStatistic stat;                // statistics override (if defined)
+
+  //------------------------ compiler settings
+  mjtByte autolimits;              // infer "limited" attribute based on range
+  double boundmass;                // enforce minimum body mass
+  double boundinertia;             // enforce minimum body diagonal inertia
+  double settotalmass;             // rescale masses and inertias; <=0: ignore
+  mjtByte balanceinertia;          // automatically impose A + B >= C rule
+  mjtByte strippath;               // automatically strip paths from mesh files
+  mjtByte fitaabb;                 // meshfit to aabb instead of inertia box
+  mjtByte degree;                  // angles in radians or degrees
+  char euler[3];                   // sequence for euler rotations
+  mjString meshdir;                // mesh and hfield directory
+  mjString texturedir;             // texture directory
+  mjtByte discardvisual;           // discard visual geoms in parser
+  mjtByte convexhull;              // compute mesh convex hulls
+  mjtByte usethread;               // use multiple threads to speed up compiler
+  mjtByte fusestatic;              // fuse static bodies with parent
+  int inertiafromgeom;             // use geom inertias (mjtInertiaFromGeom)
+  int inertiagrouprange[2];        // range of geom groups used to compute inertia
+  mjtByte exactmeshinertia;        // if false, use old formula
+  mjLROpt LRopt;                   // options for lengthrange computation
 } mjmModel;
 
 typedef struct _mjmOrientation {   // alternative orientation specifiers
@@ -320,8 +348,8 @@ typedef struct _mjmFlex {
   // other properties
   int dim;                         // element dimensionality
   double radius;                   // radius around primitive element
-  bool internal;                   // enable internal collisions
-  bool flatskin;                   // render flex skin with flat shading
+  mjtByte internal;                // enable internal collisions
+  mjtByte flatskin;                // render flex skin with flat shading
   int selfcollide;                 // mode for flex self colllision
   int activelayers;                // number of active element layers in 3D
   int group;                       // group for visualizatioh
@@ -442,7 +470,7 @@ typedef struct _mjmMaterial {      // material specification
   mjString name;                   // name
   mjString classname;              // class name
   mjString texture;                // name of texture (empty: none)
-  bool texuniform;                 // make texture cube uniform
+  mjtByte texuniform;              // make texture cube uniform
   float texrepeat[2];              // texture repetition for 2D mapping
   float emission;                  // emission
   float specular;                  // specular

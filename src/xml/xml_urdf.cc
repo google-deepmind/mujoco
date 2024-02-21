@@ -93,7 +93,7 @@ void mjXURDF::Parse(
   if (mjc) {
     XMLElement *section;
     if ((section = FindSubElem(mjc, "compiler"))) {
-      mjXReader::Compiler(section, model);
+      mjXReader::Compiler(section, &model->spec);
     }
 
     if ((section = FindSubElem(mjc, "option"))) {
@@ -106,7 +106,7 @@ void mjXURDF::Parse(
   }
 
   // enforce required compiler defaults for URDF
-  model->degree = false;
+  model->spec.degree = false;
 
   // get model name
   ReadAttrTxt(root, "name", model->modelname);
@@ -310,7 +310,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         }
       }
       // create geom if not discarded
-      if (!model->discardvisual) {
+      if (!model->spec.discardvisual) {
         pgeom = Geom(elem, pbody, false);
 
         // save color
@@ -563,7 +563,7 @@ mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
                                       .value_or(default_meshscale);
 
     // strip file name if necessary
-    if (model->strippath) {
+    if (model->spec.strippath) {
       meshfile = mjuu_strippath(meshfile);
     }
 

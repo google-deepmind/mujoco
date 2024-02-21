@@ -347,7 +347,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -1950,7 +1950,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
       throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {

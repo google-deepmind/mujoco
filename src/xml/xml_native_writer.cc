@@ -821,11 +821,11 @@ void mjXWriter::Compiler(XMLElement* root) {
     WriteAttrTxt(section, "convexhull", FindValue(bool_map, 2, model->convexhull));
   }
   WriteAttrTxt(section, "angle", "radian");
-  if (!model->meshdir.empty()) {
-    WriteAttrTxt(section, "meshdir", model->meshdir);
+  if (!model->get_meshdir().empty()) {
+    WriteAttrTxt(section, "meshdir", model->get_meshdir());
   }
-  if (!model->texturedir.empty()) {
-    WriteAttrTxt(section, "texturedir", model->texturedir);
+  if (!model->get_texturedir().empty()) {
+    WriteAttrTxt(section, "texturedir", model->get_texturedir());
   }
   if (!model->usethread) {
     WriteAttrTxt(section, "usethread", "false");

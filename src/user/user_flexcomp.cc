@@ -124,7 +124,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
   }
 
   // compute orientation
-  const char* alterr = alt.Set(quat, model->degree, model->euler);
+  const char* alterr = alt.Set(quat, model->spec.degree, model->spec.euler);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
@@ -814,7 +814,7 @@ template <typename T> static T* VecToArray(std::vector<T>& vector, bool clear = 
 // make mesh
 bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   // strip path
-  if (!file.empty() && model->strippath) {
+  if (!file.empty() && model->spec.strippath) {
     file = mjuu_strippath(file);
   }
 
@@ -837,7 +837,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+  string filename = mjuu_makefullname(model->modelfiledir, mjm_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {
@@ -933,7 +933,7 @@ static int findstring(const char* buffer, int buffer_sz, const char* str) {
 // load points and elements from GMSH file
 bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   // strip path
-  if (!file.empty() && model->strippath) {
+  if (!file.empty() && model->spec.strippath) {
     file = mjuu_strippath(file);
   }
 
@@ -943,7 +943,7 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+  string filename = mjuu_makefullname(model->modelfiledir, mjm_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {

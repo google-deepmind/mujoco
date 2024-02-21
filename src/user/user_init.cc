@@ -31,6 +31,28 @@ void mjm_defaultModel(mjmModel& model) {
   model.stat.meansize = mjNAN;
   model.stat.extent = mjNAN;
   model.stat.center[0] = mjNAN;
+
+  // compiler settings
+  model.autolimits = true;
+  model.boundmass = 0;
+  model.boundinertia = 0;
+  model.settotalmass = -1;
+  model.balanceinertia = false;
+  model.strippath = false;
+  model.fitaabb = false;
+  model.degree = true;
+  model.euler[0] = 'x';
+  model.euler[1] = 'y';
+  model.euler[2] = 'z';
+  model.discardvisual = false;
+  model.convexhull = true;
+  model.usethread = true;
+  model.fusestatic = false;
+  model.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+  model.inertiagrouprange[0] = 0;
+  model.inertiagrouprange[1] = mjNGROUP-1;
+  model.exactmeshinertia = false;
+  mj_defaultLROpt(&model.LRopt);
 }
 
 

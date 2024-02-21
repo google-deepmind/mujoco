@@ -376,9 +376,9 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
 
       // set reasonable default for parsing a URDF
       // this is separate from the Parser to allow multiple URDFs to be loaded.
-      model->strippath = true;
-      model->fusestatic = true;
-      model->discardvisual = true;
+      model->spec.strippath = true;
+      model->spec.fusestatic = true;
+      model->spec.discardvisual = true;
 
       parser.SetModel(model);
       parser.Parse(root);
