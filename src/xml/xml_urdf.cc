@@ -97,11 +97,11 @@ void mjXURDF::Parse(
     }
 
     if ((section = FindSubElem(mjc, "option"))) {
-      mjXReader::Option(section, &model->option);
+      mjXReader::Option(section, &model->spec.option);
     }
 
     if ((section = FindSubElem(mjc, "size"))) {
-      mjXReader::Size(section, model);
+      mjXReader::Size(section, &model->spec);
     }
   }
 
@@ -109,7 +109,10 @@ void mjXURDF::Parse(
   model->spec.degree = false;
 
   // get model name
-  ReadAttrTxt(root, "name", model->modelname);
+  std::string modelname;
+  if (ReadAttrTxt(root, "name", modelname)) {
+    mjm_setString(model->spec.modelname, modelname.c_str());
+  }
 
   // find and register all materials
   MakeMaterials(root);

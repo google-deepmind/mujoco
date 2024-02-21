@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_API_H_
 #define MUJOCO_SRC_USER_USER_API_H_
 
+#include <stddef.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
@@ -82,7 +83,7 @@ typedef struct _mjmModel {         // model specification
   mjElement element;               // internal, do not modify
   mjStatistic stat;                // statistics override (if defined)
 
-  //------------------------ compiler settings
+  // compiler settings
   mjtByte autolimits;              // infer "limited" attribute based on range
   double boundmass;                // enforce minimum body mass
   double boundinertia;             // enforce minimum body diagonal inertia
@@ -102,7 +103,30 @@ typedef struct _mjmModel {         // model specification
   int inertiagrouprange[2];        // range of geom groups used to compute inertia
   mjtByte exactmeshinertia;        // if false, use old formula
   mjLROpt LRopt;                   // options for lengthrange computation
+
+  // engine data
+  mjString modelname;             // model name
+  mjOption option;                // options
+  mjVisual visual;                // visual options
+  size_t memory;                  // size of arena+stack memory in bytes
+  int nemax;                      // max number of equality constraints
+  int njmax;                      // max number of constraints (Jacobian rows)
+  int nconmax;                    // max number of detected contacts (mjContact array size)
+  size_t nstack;                  // (deprecated) number of fields in mjData stack
+  int nuserdata;                  // number extra fields in mjData
+  int nuser_body;                 // number of mjtNums in body_user
+  int nuser_jnt;                  // number of mjtNums in jnt_user
+  int nuser_geom;                 // number of mjtNums in geom_user
+  int nuser_site;                 // number of mjtNums in site_user
+  int nuser_cam;                  // number of mjtNums in cam_user
+  int nuser_tendon;               // number of mjtNums in tendon_user
+  int nuser_actuator;             // number of mjtNums in actuator_user
+  int nuser_sensor;               // number of mjtNums in sensor_user
+
+  // sizes
+  int nkey;                       // number of keyframes
 } mjmModel;
+
 
 typedef struct _mjmOrientation {   // alternative orientation specifiers
   double axisangle[4];             // rotation axis and angle

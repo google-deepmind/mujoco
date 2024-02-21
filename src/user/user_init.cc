@@ -53,6 +53,24 @@ void mjm_defaultModel(mjmModel& model) {
   model.inertiagrouprange[1] = mjNGROUP-1;
   model.exactmeshinertia = false;
   mj_defaultLROpt(&model.LRopt);
+
+  // engine data
+  mj_defaultOption(&model.option);
+  mj_defaultVisual(&model.visual);
+  model.memory = -1;
+  model.nemax = 0;
+  model.njmax = -1;
+  model.nconmax = -1;
+  model.nstack = -1;
+  model.nuserdata = 0;
+  model.nuser_body = -1;
+  model.nuser_jnt = -1;
+  model.nuser_geom = -1;
+  model.nuser_site = -1;
+  model.nuser_cam = -1;
+  model.nuser_tendon = -1;
+  model.nuser_actuator = -1;
+  model.nuser_sensor = -1;
 }
 
 

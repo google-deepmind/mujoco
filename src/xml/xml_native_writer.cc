@@ -775,7 +775,7 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   // create document and root
   XMLDocument doc;
   XMLElement* root = doc.NewElement("mujoco");
-  root->SetAttribute("model", model->modelname.c_str());
+  root->SetAttribute("model", mjm_getString(model->modelname));
 
   // insert root
   doc.InsertFirstChild(root);

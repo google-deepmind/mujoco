@@ -57,6 +57,8 @@ class mjCModel : private mjmModel {
   friend class mjCTendon;
   friend class mjCTexture;
   friend class mjCActuator;
+  friend class mjCSensor;
+  friend class mjCDef;
   friend class mjXReader;
   friend class mjXWriter;
 
@@ -131,25 +133,6 @@ class mjCModel : private mjmModel {
   std::string modelfiledir;       // path to model file
   std::vector<mjCDef*> defaults;  // settings for each defaults class
 
-  //------------------------ engine data
-  std::string modelname;          // model name
-  mjOption option;                // options
-  mjVisual visual;                // visual options
-  std::size_t memory;             // size of arena+stack memory in bytes
-  int nemax;                      // max number of equality constraints
-  int njmax;                      // max number of constraints (Jacobian rows)
-  int nconmax;                    // max number of detected contacts (mjContact array size)
-  size_t nstack;                  // (deprecated) number of fields in mjData stack
-  int nuserdata;                  // number extra fields in mjData
-  int nuser_body;                 // number of mjtNums in body_user
-  int nuser_jnt;                  // number of mjtNums in jnt_user
-  int nuser_geom;                 // number of mjtNums in geom_user
-  int nuser_site;                 // number of mjtNums in site_user
-  int nuser_cam;                  // number of mjtNums in cam_user
-  int nuser_tendon;               // number of mjtNums in tendon_user
-  int nuser_actuator;             // number of mjtNums in actuator_user
-  int nuser_sensor;               // number of mjtNums in sensor_user
-
  private:
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
   mjModel* _Compile(const mjVFS* vfs);
@@ -202,7 +185,6 @@ class mjCModel : private mjmModel {
   int nnumeric;                   // number of numeric fields
   int ntext;                      // number of text fields
   int ntuple;                     // number of tuple fields
-  int nkey;                       // number of keyframes
   int nmocap;                     // number of mocap bodies
   int nplugin;                    // number of plugin instances
 
@@ -297,8 +279,10 @@ class mjCModel : private mjmModel {
   std::vector<mjtNum> qpos0;      // save qpos0, to recognize changed key_qpos in write
 
   // variable-size attributes
+  std::string modelname_;
   std::string meshdir_;
   std::string texturedir_;
+  std::string spec_modelname_;
   std::string spec_meshdir_;
   std::string spec_texturedir_;
 };

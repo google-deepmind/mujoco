@@ -22,7 +22,6 @@
 
 #include <mujoco/mujoco.h>
 #include "user/user_api.h"
-#include "user/user_model.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
 
@@ -45,7 +44,7 @@ class mjXReader : public mjXBase {
   // XML sections embedded in all formats
   static void Compiler(tinyxml2::XMLElement* section, mjmModel* mod);  // compiler section
   static void Option(tinyxml2::XMLElement* section, mjOption* opt);    // option section
-  static void Size(tinyxml2::XMLElement* section, mjCModel* mod);      // size section
+  static void Size(tinyxml2::XMLElement* section, mjmModel* mod);      // size section
 
  private:
   // XML section specific to MJCF

@@ -39,7 +39,6 @@
 #include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
-#include "user/user_model.h"
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
@@ -805,7 +804,10 @@ void mjXReader::Parse(XMLElement* root) {
   }
 
   // get model name
-  ReadAttrTxt(root, "model", model->modelname);
+  string modelname;
+  if (ReadAttrTxt(root, "model", modelname)) {
+    mjm_setString(model->spec.modelname, modelname.c_str());
+  }
 
   // get comment
   if (root->FirstChild() && root->FirstChild()->ToComment()) {
@@ -823,12 +825,12 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = FirstChildElement(root, "option"); section;
        section = NextSiblingElement(section, "option")) {
-    Option(section, &model->option);
+    Option(section, &model->spec.option);
   }
 
   for (XMLElement* section = FirstChildElement(root, "size"); section;
        section = NextSiblingElement(section, "size")) {
-    Size(section, model);
+    Size(section, &model->spec);
   }
 
   //------------------ parse MJCF-specific sections
@@ -1096,7 +1098,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
 
 // size section parser
-void mjXReader::Size(XMLElement* section, mjCModel* mod) {
+void mjXReader::Size(XMLElement* section, mjmModel* mod) {
   // read memory bytes
   {
     constexpr char err_msg[] =
@@ -2936,7 +2938,7 @@ void mjXReader::Custom(XMLElement* section) {
 void mjXReader::Visual(XMLElement* section) {
   string text, name;
   XMLElement* elem;
-  mjVisual* vis = &model->visual;
+  mjVisual* vis = &model->spec.visual;
 
   // iterate over child elements
   elem = FirstChildElement(section);

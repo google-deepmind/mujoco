@@ -88,6 +88,7 @@ mjCModel::mjCModel() {
   modelfiledir.clear();
   spec_meshdir_.clear();
   spec_texturedir_.clear();
+  spec_modelname_ = "MuJoCo Model";
 
   //------------------------ auto-computed statistics
 #ifndef MEMORY_SANITIZER
@@ -99,28 +100,8 @@ mjCModel::mjCModel() {
   center_auto[0] = center_auto[1] = center_auto[2] = 0;
 #endif
 
-  //------------------------ engine data
-  modelname = "MuJoCo Model";
-  mj_defaultOption(&option);
-  mj_defaultVisual(&visual);
-  memory = -1;
-  nemax = 0;
-  njmax = -1;
-  nconmax = -1;
-  nstack = -1;
-  nuserdata = 0;
-  nkey = 0;
   nmocap = 0;
   nplugin = 0;
-  nuser_body = -1;
-  nuser_jnt = -1;
-  nuser_geom = -1;
-  nuser_site = -1;
-  nuser_cam = -1;
-  nuser_tendon = -1;
-  nuser_actuator = -1;
-  nuser_sensor = -1;
-
   //------------------------ private variables
   cameras.clear();
   lights.clear();
@@ -196,6 +177,7 @@ mjCModel::mjCModel() {
 
 void mjCModel::PointToLocal() {
   spec.element = (mjElement)this;
+  spec.modelname = (mjString)&spec_modelname_;
   spec.meshdir = (mjString)&spec_meshdir_;
   spec.texturedir = (mjString)&spec_texturedir_;
 }
@@ -204,8 +186,10 @@ void mjCModel::PointToLocal() {
 
 void mjCModel::CopyFromSpec() {
   *static_cast<mjmModel*>(this) = spec;
+  modelname_ = spec_modelname_;
   meshdir_ = spec_meshdir_;
   texturedir_ = spec_texturedir_;
+  modelname = (mjString)&modelname_;
   meshdir = (mjString)&meshdir_;
   texturedir = (mjString)&texturedir_;
 }
@@ -1072,7 +1056,7 @@ void mjCModel::SetSizes(void) {
   for (int i=0; i<nplugin; i++) npluginattr += (int)plugins[i]->flattened_attributes.size();
 
   // nnames
-  nnames = (int)modelname.size() + 1;
+  nnames = (int)modelname_.size() + 1;
   for (int i=0; i<nbody; i++)    nnames += (int)bodies[i]->name.length() + 1;
   for (int i=0; i<njnt; i++)     nnames += (int)joints[i]->name.length() + 1;
   for (int i=0; i<ngeom; i++)    nnames += (int)geoms[i]->name.length() + 1;
@@ -1351,9 +1335,9 @@ static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* 
 // copy names, compute name addresses
 void mjCModel::CopyNames(mjModel* m) {
   // start with model name
-  int adr = (int)modelname.size()+1;
+  int adr = (int)modelname_.size()+1;
   int* map_adr = m->names_map;
-  mju_strncpy(m->names, modelname.c_str(), m->nnames);
+  mju_strncpy(m->names, modelname_.c_str(), m->nnames);
   memset(m->names_map, -1, sizeof(int) * m->nnames_map);
 
   // process all lists
