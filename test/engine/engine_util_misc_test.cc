@@ -247,7 +247,6 @@ TEST_F(Base64Test, mju_encodeBase64) {
   EXPECT_THAT(buffer.data(), StrEq("D4a+//A="));
   EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
   EXPECT_THAT(n, buffer.size());
-
 }
 
 TEST_F(Base64Test, mju_encodeBase64_align0) {

@@ -121,6 +121,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='buffer with file data',
              ),
+             StructFieldDecl(
+                 name='filestamp',
+                 type=ArrayType(
+                     inner_type=ValueType(name='uint64_t'),
+                     extents=(2000,),
+                 ),
+                 doc='checksum of the file data',
+             ),
          ),
      )),
     ('mjOption',

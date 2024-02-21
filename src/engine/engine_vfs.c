@@ -15,7 +15,9 @@
 #include "engine/engine_vfs.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "engine/engine_array_safety.h"
 #include "engine/engine_resource.h"
@@ -51,6 +53,38 @@ static void vfs_strippath(char* newname, const char* oldname) {
       newname[j] = (char)(((int)newname[j]) +'a' - 'A');
     }
   }
+}
+
+
+
+// copies data into a buffer and produces a hash of the data
+static uint64_t vfs_memcpy(void* dest, const void* restrict src, size_t n) {
+  uint64_t hash = 0xcbf29ce484222325;  // magic number
+  uint64_t prime = 0x100000001b3;      // magic prime
+  const uint8_t* bytes = (uint8_t*) src;
+  uint8_t* buffer = (uint8_t*) dest;
+  for (size_t i = 0; i < n; i++) {
+    buffer[i] = bytes[i];
+
+    // do FNV-1 hash
+    hash |= bytes[i];
+    hash *= prime;
+  }
+  return hash;
+}
+
+
+
+// VFS hash function implemented using the FNV-1 hash
+static uint64_t vfs_hash(const void* restrict buffer, size_t n) {
+  uint64_t hash = 0xcbf29ce484222325;  // magic number
+  uint64_t prime = 0x100000001b3;      // magic prime
+  const uint8_t* bytes = (uint8_t*) buffer;
+  for (size_t i = 0; i < n; i++) {
+    hash |= bytes[i];
+    hash *= prime;
+  }
+  return hash;
 }
 
 
@@ -95,7 +129,9 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   if (!vfs->filedata[vfs->nfile]) {
     return -1;
   }
-  // assign size and count
+
+  // assign size, count, and checksum
+  vfs->filestamp[vfs->nfile] = vfs_hash(vfs->filedata[vfs->nfile], filesize);
   vfs->filesize[vfs->nfile] = filesize;
   vfs->nfile++;
 
@@ -136,9 +172,55 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
     mjERROR("could not allocate memory");
   }
   memset(vfs->filedata[vfs->nfile], 0, filesize);
+  vfs->filestamp[vfs->nfile] = 0;
 
   // assign size and count
   vfs->filesize[vfs->nfile] = filesize;
+  vfs->nfile++;
+
+  return 0;
+}
+
+
+
+// add file from buffer into VFS
+int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer) {
+  if (!vfs || !buffer || !name) {
+    mjERROR("null pointer");
+  }
+
+  if (vfs->nfile >= mjMAXVFS-1) {
+    return 1;
+  }
+
+  // check buffer size
+  if (nbuffer <= 0) {
+    mjERROR("expects positive buffer size");
+  }
+
+  // strip path
+  char newname[mjMAXVFSNAME];
+  vfs_strippath(newname, name);
+
+  // check for repeated name
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
+      return 2;
+    }
+  }
+
+  // assign name
+  mjSTRNCPY(vfs->filename[vfs->nfile], newname);
+
+  // allocate and clear
+  vfs->filedata[vfs->nfile] = mju_malloc(nbuffer);
+  if (!vfs->filedata[vfs->nfile]) {
+    mjERROR("could not allocate memory");
+  }
+  vfs->filestamp[vfs->nfile] = vfs_memcpy(vfs->filedata[vfs->nfile], buffer, nbuffer);
+
+  // assign size and count
+  vfs->filesize[vfs->nfile] = nbuffer;
   vfs->nfile++;
 
   return 0;
@@ -216,7 +298,13 @@ static int vfs_open_callback(mjResource* resource) {
   }
 
   const mjVFS* vfs = (const mjVFS*) resource->data;
-  return mj_findFileVFS(vfs, resource->name) >= 0;
+  int i = mj_findFileVFS(vfs, resource->name);
+  resource->timestamp[0] = '\0';
+  if (i >= 0 && vfs->filestamp[i]) {
+    mju_encodeBase64(resource->timestamp, (uint8_t*) &vfs->filestamp[i],
+                     sizeof(uint64_t));
+  }
+  return i >= 0;
 }
 
 

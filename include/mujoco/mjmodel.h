@@ -16,6 +16,7 @@
 #define MUJOCO_MJMODEL_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 #include <mujoco/mjtnum.h>
@@ -390,11 +391,12 @@ typedef struct mjLROpt_ mjLROpt;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 
-struct mjVFS_ {                             // virtual file system for loading from memory
-  int    nfile;                             // number of files present
-  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t filesize[mjMAXVFS];                // file size in bytes
-  void*  filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                               // virtual file system for loading from memory
+  int      nfile;                             // number of files present
+  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t   filesize[mjMAXVFS];                // file size in bytes
+  void*    filedata[mjMAXVFS];                // buffer with file data
+  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
 };
 typedef struct mjVFS_ mjVFS;
 

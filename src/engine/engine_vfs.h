@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_VFS_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_VFS_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
@@ -29,8 +31,11 @@ MJAPI void mj_defaultVFS(mjVFS* vfs);
 // add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on disk
 MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
-// make empty file in VFS, return 0: success, 1: full, 2: repeated name
+// deprecated: use mj_copyBufferVFS
 MJAPI int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
+
+// add file from buffer into VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load
+MJAPI int mj_copyBufferVFS(mjVFS* vfs, const char* filename, const void* buffer, int nbuffer);
 
 // return file index in VFS, or -1 if not found in VFS
 MJAPI int mj_findFileVFS(const mjVFS* vfs, const char* filename);
