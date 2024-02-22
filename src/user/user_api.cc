@@ -370,6 +370,18 @@ mjmBody* mjm_findChild(mjmBody* bodyspec, const char* name) {
 
 
 
+// find mesh by name
+mjmMesh* mjm_findMesh(mjmModel* modelspec, const char* name) {
+  mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
+  mjCMesh* mesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, std::string(name));
+  if (!mesh) {
+    return nullptr;
+  }
+  return &(static_cast<mjCMesh*>(mesh)->spec);
+}
+
+
+
 // set frame
 void mjm_setFrame(mjElement dest, mjmFrame* frame) {
   if (!frame) {

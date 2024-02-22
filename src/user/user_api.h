@@ -824,10 +824,13 @@ MJAPI mjmModel* mjm_getModel(mjmBody* body);
 MJAPI mjmDefault* mjm_getDefault(mjElement element);
 
 // Find body in model by name.
-MJAPI mjmBody* mjm_findBody(mjmModel* modelspec, const char* name);
+MJAPI mjmBody* mjm_findBody(mjmModel* model, const char* name);
 
 // Find child body by name.
 MJAPI mjmBody* mjm_findChild(mjmBody* body, const char* name);
+
+// Find mesh by name.
+MJAPI mjmMesh* mjm_findMesh(mjmModel* model, const char* name);
 
 // Get element id.
 MJAPI int mjm_getId(mjElement element);

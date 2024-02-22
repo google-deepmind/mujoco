@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -19,11 +20,10 @@
 
 #include <mujoco/mjmodel.h>
 #include "user/user_api.h"
-#include "user/user_model.h"
-#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_urdf.h"
+#include "xml/xml_util.h"
 
 #include "tinyxml2.h"
 
@@ -575,7 +575,7 @@ mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
     meshname = mjuu_stripext(meshname);
 
     // look for existing mesh
-    mjCMesh* mesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, meshname);
+    mjmMesh* mesh = mjm_findMesh(&model->spec, meshname.c_str());
     mjmMesh* pmesh = 0;
 
     // does not exist: create
@@ -584,16 +584,16 @@ mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
     }
 
     // exists with different scale: append name with '1', create
-    else if (mesh->spec.scale[0]!=meshscale[0] ||
-             mesh->spec.scale[1]!=meshscale[1] ||
-             mesh->spec.scale[2]!=meshscale[2]) {
+    else if (mesh->scale[0]!=meshscale[0] ||
+             mesh->scale[1]!=meshscale[1] ||
+             mesh->scale[2]!=meshscale[2]) {
       pmesh = mjm_addMesh(&model->spec, 0);
       meshname = meshname + "1";
     }
 
     // point to already existing spec
     else {
-      pmesh = &mesh->spec;
+      pmesh = mesh;
     }
 
     // set fields
