@@ -16,10 +16,10 @@
 
 import copy
 import dataclasses
-
 import typing
-from typing import Any, Dict, Optional, Sequence, TypeVar, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, TypeVar, Union
 import jax
+from jax import numpy as jp
 import numpy as np
 
 _T = TypeVar('_T')
@@ -161,3 +161,45 @@ def _tree_replace(
   return base.replace(
       **{attr[0]: _tree_replace(getattr(base, attr[0]), attr[1:], val)}
   )
+
+
+# TODO(robotics-simulation): consider jaxtyping for PyTree type annotations
+def filter_k(
+    tree: Union[PyTreeNode, Any], mask: jax.Array, k: int
+) -> Tuple[jax.Array, jax.Array]:
+  """Filters k values over a pytree that satisfy a mask condition.
+
+  Args:
+    tree: the PyTreeNode
+    mask: the mask condition to filter values in the pytree
+    k: int, filter the first k values that meet the mask condition
+
+  Returns:
+    PyTreeNode with first k elements that met the mask condition
+    Mask, True if the value in the Pytree was set to 0
+  """
+  index = jax.lax.associative_scan(jp.add, jp.array(mask, dtype=jp.int32))
+  last = index[-1]
+  fill_mask = (1 - (jp.arange(k) < last)).astype(bool)
+  index = jp.where(mask, index - 1, k + 1)
+
+  return (
+      jax.tree_map(
+          lambda x: jax.ops.segment_sum(x, index, num_segments=k), tree
+      ),
+      fill_mask,
+  )
+
+
+def fill(
+    tree: Union[PyTreeNode, Any],
+    default: Union[PyTreeNode, Any],
+    fill_mask: jax.Array,
+) -> PyTreeNode:
+  """Fills a pytree with a default, given a fill mask."""
+  def _fill(x, d):
+    mask = jp.expand_dims(fill_mask, axis=np.arange(len(x.shape) - 1) + 1)
+    return (1 - mask) * x + mask * d
+
+  return jax.tree_map(_fill, tree, default)
+

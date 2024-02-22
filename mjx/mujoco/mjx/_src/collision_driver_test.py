@@ -493,25 +493,25 @@ class NconTest(parameterized.TestCase):
     self.assertEqual(ncon, 0)
 
 
-class TopKContactTest(absltest.TestCase):
-  """Tests top-k contacts."""
+class ContactCullingTest(absltest.TestCase):
+  """Tests contact culling."""
 
-  _CAPSULES = """
+  _CAPSULES_TOP_K = """
     <mujoco>
       <custom>
         <numeric data="2" name="max_contact_points"/>
       </custom>
       <worldbody>
         <body pos="0 0 0.54">
-          <joint axis="1 0 0" type="free"/>
+          <freejoint/>
           <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
         </body>
         <body pos="0 0 0.54">
-          <joint axis="1 0 0" type="free"/>
+          <freejoint/>
           <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
         </body>
         <body pos="0 0 0.54">
-          <joint axis="1 0 0" type="free"/>
+          <freejoint/>
           <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
         </body>
       </worldbody>
@@ -519,7 +519,8 @@ class TopKContactTest(absltest.TestCase):
   """
 
   def test_top_k_contacts(self):
-    m = mujoco.MjModel.from_xml_string(self._CAPSULES)
+    """Tests contact culling after the collision functions were dispatched."""
+    m = mujoco.MjModel.from_xml_string(self._CAPSULES_TOP_K)
     mx_top_k = mjx.put_model(m)
     mx_all = mx_top_k.replace(
         nnumeric=0, name_numericadr=np.array([]), numeric_data=np.array([])
@@ -537,6 +538,54 @@ class TopKContactTest(absltest.TestCase):
     self.assertEqual(dx_all.contact.dist.shape, (3,))
     self.assertEqual(dx_top_k.contact.dist.shape, (2,))
 
+  _CAPSULES_MAX_PAIR = """
+    <mujoco>
+      <custom>
+        <numeric data="2" name="max_geom_pairs_broadphase"/>
+      </custom>
+      <worldbody>
+        <body pos="0 0 0.54">
+          <freejoint/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
+        </body>
+        <body pos="0 0 0.54">
+          <freejoint/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
+        </body>
+        <body pos="0 0 0.54">
+          <freejoint/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
+        </body>
+        <body pos="0 0 1.0">
+          <freejoint/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_max_pair(self):
+    """Tests contact culling before the collision functions were dispatched."""
+    with jax.disable_jit():
+      m = mujoco.MjModel.from_xml_string(self._CAPSULES_MAX_PAIR)
+      mx_top_k = mjx.put_model(m)
+      mx_all = mx_top_k.replace(
+          nnumeric=0, name_numericadr=np.array([]), numeric_data=np.array([])
+      )
+      d = mujoco.MjData(m)
+      dx = mjx.put_data(m, d)
+
+      collision_jit_fn = jax.jit(mjx.collision)
+      kinematics_jit_fn = jax.jit(mjx.kinematics)
+      dx = kinematics_jit_fn(mx_all, dx)
+
+      dx_all = collision_jit_fn(mx_all, dx)
+      dx_top_k = collision_jit_fn(mx_top_k, dx)
+
+      self.assertEqual(dx_all.contact.dist.shape, (6,))
+      self.assertEqual(dx_top_k.contact.dist.shape, (2,))
+
 
 if __name__ == '__main__':
   absltest.main()
+
