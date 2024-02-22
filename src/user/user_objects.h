@@ -1394,9 +1394,11 @@ class mjCDef {
   friend class mjXWriter;
 
  public:
-  mjCDef(void);                           // constructor
-  void Compile(const mjCModel* model);    // compiler
-  void PointToLocal();
+  mjCDef(void);                            // constructor
+  mjCDef(const mjCDef& other);             // copy constructor
+  void Compile(const mjCModel* model);     // compiler
+  mjCDef& operator=(const mjCDef& other);  // copy assignment
+  void PointToLocal(void);
 
   // identifiers
   std::string name;               // class name

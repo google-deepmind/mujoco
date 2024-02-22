@@ -483,7 +483,16 @@ mjCDef::mjCDef(void) {
   mjm_defaultEquality(equality.spec);
   mjm_defaultTendon(tendon.spec);
   mjm_defaultActuator(actuator.spec);
+
+  // make sure all the pointers are local
   PointToLocal();
+}
+
+
+
+// copy constructor
+mjCDef::mjCDef(const mjCDef& other) {
+  *this = other;
 }
 
 
@@ -501,7 +510,31 @@ void mjCDef::Compile(const mjCModel* model) {
 
 
 
-// assignment operator (TODO: use overloading)
+// assignment operator
+mjCDef& mjCDef::operator=(const mjCDef& other) {
+  if (this != &other) {
+    name = other.name;
+    parentid = other.parentid;
+    childid = other.childid;
+    joint = other.joint;
+    geom = other.geom;
+    site = other.site;
+    camera = other.camera;
+    light = other.light;
+    flex = other.flex;
+    mesh = other.mesh;
+    material = other.material;
+    pair = other.pair;
+    equality = other.equality;
+    tendon = other.tendon;
+    actuator = other.actuator;
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCDef::PointToLocal() {
   joint.PointToLocal();
   geom.PointToLocal();

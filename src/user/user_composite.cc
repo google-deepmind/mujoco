@@ -125,13 +125,6 @@ bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
       jnt.spec.joint->group = 3;
       defjoint[(mjtCompKind)i].push_back(jnt);
     }
-
-    // TODO: push_back might invoke a copy constructor, we undo its effect on pointers here
-    for (int i=0; i<mjNCOMPKINDS; i++) {
-      for (int j=0; j<defjoint[(mjtCompKind)i].size(); j++) {
-        defjoint[(mjtCompKind)i][j].PointToLocal();
-      }
-    }
   }
   return true;
 }

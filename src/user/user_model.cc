@@ -543,7 +543,6 @@ mjCDef* mjCModel::AddDef(string name, int parentid) {
   if (parentid>=0 && parentid<thisid) {
     *def = *defaults[parentid];
     defaults[parentid]->childid.push_back(thisid);
-    def->PointToLocal();
   }
   def->parentid = parentid;
   def->name = name;

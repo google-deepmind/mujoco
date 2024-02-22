@@ -405,7 +405,6 @@ int mjm_getId(mjElement element) {
 void mjm_setDefault(mjElement element, mjmDefault* defspec) {
   mjCBase* baseC = reinterpret_cast<mjCBase*>(element);
   baseC->def = reinterpret_cast<mjCDef*>(defspec->element);
-  baseC->def->PointToLocal();
 }
 
 
