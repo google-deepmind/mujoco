@@ -1372,7 +1372,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
     mjm_setString(pmesh->file, file->c_str());
   }
   ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
-  ReadAttr(elem, "refpos", 4, pmesh->refquat, text);
+  ReadAttr(elem, "refquat", 4, pmesh->refquat, text);
   ReadAttr(elem, "scale", 3, pmesh->scale, text);
 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
