@@ -182,11 +182,12 @@ def filter_k(
   last = index[-1]
   fill_mask = (1 - (jp.arange(k) < last)).astype(bool)
   index = jp.where(mask, index - 1, k + 1)
+  seg_index = jax.ops.segment_sum(
+      jp.arange(mask.shape[-1]), index, num_segments=k
+  )
 
   return (
-      jax.tree_map(
-          lambda x: jax.ops.segment_sum(x, index, num_segments=k), tree
-      ),
+      jax.tree_map(lambda x: x[seg_index], tree),
       fill_mask,
   )
 
