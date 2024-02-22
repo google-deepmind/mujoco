@@ -29,6 +29,7 @@ from mujoco.mjx._src.collision_convex import capsule_convex
 from mujoco.mjx._src.collision_convex import convex_convex
 from mujoco.mjx._src.collision_convex import plane_convex
 from mujoco.mjx._src.collision_convex import sphere_convex
+from mujoco.mjx._src.warp_capsule_capsule import capsule_capsule_opt
 from mujoco.mjx._src.collision_primitive import capsule_capsule
 from mujoco.mjx._src.collision_primitive import plane_capsule
 from mujoco.mjx._src.collision_primitive import plane_sphere
@@ -52,7 +53,7 @@ _COLLISION_FUNC = {
     (GeomType.SPHERE, GeomType.CAPSULE): sphere_capsule,
     (GeomType.SPHERE, GeomType.BOX): sphere_convex,
     (GeomType.SPHERE, GeomType.MESH): sphere_convex,
-    (GeomType.CAPSULE, GeomType.CAPSULE): capsule_capsule,
+    (GeomType.CAPSULE, GeomType.CAPSULE): capsule_capsule_opt,
     (GeomType.CAPSULE, GeomType.BOX): capsule_convex,
     (GeomType.CAPSULE, GeomType.MESH): capsule_convex,
     (GeomType.BOX, GeomType.BOX): convex_convex,
