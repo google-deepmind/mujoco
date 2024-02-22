@@ -19,7 +19,7 @@
 
 
 // this is a C-API
-#if defined(__cplusplus)
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -187,12 +187,16 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
+#ifndef ADDRESS_SANITIZER
+
 // Mark a new frame on the mjData stack.
 MJAPI void mj_markStack(mjData* d);
 
 // Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call
 // to mj_markStack must no longer be used afterwards.
 MJAPI void mj_freeStack(mjData* d);
+
+#endif  // ADDRESS_SANITIZER
 
 // Allocate a number of bytes on mjData stack at a specific alignment.
 // Call mju_error on stack overflow.
@@ -1340,8 +1344,36 @@ MJAPI void mju_defaultTask(mjTask* task);
 // Wait for a task to complete.
 MJAPI void mju_taskJoin(mjTask* task);
 
+//---------------------- Sanitizer instrumentation helpers -----------------------------------------
+//
+// Most MuJoCo users can ignore these functions, the following comments are aimed primarily at
+// MuJoCo developers.
+//
+// When built and run under address sanitizer (asan), mj_markStack and mj_freeStack are instrumented
+// to detect leakage of mjData stack frames. When the compiler inlines several callees that call
+// into mark/free into the same function, this instrumentation requires that the compiler retains
+// separate mark/free calls for each original callee. The memory-clobbered asm blocks act as a
+// barrier to prevent mark/free calls from being combined under optimization.
 
-#if defined(__cplusplus)
+#ifdef ADDRESS_SANITIZER
+
+void mj__markStack(mjData*) __attribute__((noinline));
+static inline void mj_markStack(mjData* d) __attribute__((always_inline)) {
+  asm volatile("" ::: "memory");
+  mj__markStack(d);
+  asm volatile("" ::: "memory");
+}
+
+void mj__freeStack(mjData*) __attribute__((noinline));
+static inline void mj_freeStack(mjData* d) __attribute__((always_inline)) {
+  asm volatile("" ::: "memory");
+  mj__freeStack(d);
+  asm volatile("" ::: "memory");
+}
+
+#endif  // ADDRESS_SANITIZER
+
+#ifdef __cplusplus
 }
 #endif
 

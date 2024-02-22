@@ -110,11 +110,20 @@ MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 // mjData arena allocate
 MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 
+#ifndef ADDRESS_SANITIZER
+
 // mjData mark stack frame
 MJAPI void mj_markStack(mjData* d);
 
 // mjData free stack frame
 MJAPI void mj_freeStack(mjData* d);
+
+#else
+
+void mj__markStack(mjData* d) __attribute__((noinline));
+void mj__freeStack(mjData* d) __attribute__((noinline));
+
+#endif  // ADDRESS_SANITIZER
 
 // mjData stack allocate
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);

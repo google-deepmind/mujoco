@@ -80,7 +80,8 @@ extern "C" {
 #endif
 
 #ifdef ADDRESS_SANITIZER
-int _mj_comparePcFuncName(void* pc1, void* pc2);
+int mj__comparePcFuncName(void* pc1, void* pc2);
+const char* mj__getPcDebugInfo(void* pc);
 #endif
 
 #ifdef __cplusplus

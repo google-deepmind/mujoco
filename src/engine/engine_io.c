@@ -1439,10 +1439,12 @@ static inline void markstackinternal(mjData* d, mjStackInfo* stack_info) {
 
 
 // mjData mark stack frame
-#ifdef ADDRESS_SANITIZER
-__attribute__((noinline))
+#ifndef ADDRESS_SANITIZER
+void mj_markStack(mjData* d)
+#else
+void mj__markStack(mjData* d)
 #endif
-void mj_markStack(mjData* d) {
+{
   if (!d->threadpool) {
     mjStackInfo stack_info = get_stack_info_from_data(d);
     markstackinternal(d, &stack_info);
@@ -1469,15 +1471,10 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
   mjStackFrame* s = (mjStackFrame*) stack_info->stack_base;
 #ifdef ADDRESS_SANITIZER
   // raise an error if caller function name doesn't match the most recent caller of mj_markStack
-  if (!_mj_comparePcFuncName(s->pc, __sanitizer_return_address())) {
-    #define mjSYMBOLIZELEN 256
-    char dbginfo[mjSYMBOLIZELEN];
-    __sanitizer_symbolize_pc(
-      s->pc, "mj_markStack %F at %S has no corresponding mj_freeStack",
-      dbginfo, sizeof(dbginfo));
-    dbginfo[mjSYMBOLIZELEN - 1] = '\0';
-    mjERROR("%s", dbginfo);
-    #undef mjSYMBOLIZELEN
+  if (!mj__comparePcFuncName(s->pc, __sanitizer_return_address())) {
+    mjERROR("mj_markStack %s has no corresponding mj_freeStack (detected %s)",
+            mj__getPcDebugInfo(s->pc),
+            mj__getPcDebugInfo(__sanitizer_return_address()));
   }
 #endif
 
@@ -1494,10 +1491,12 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
 
 
 // mjData free stack frame
-#ifdef ADDRESS_SANITIZER
-__attribute__((noinline))
+#ifndef ADDRESS_SANITIZER
+void mj_freeStack(mjData* d)
+#else
+void mj__freeStack(mjData* d)
 #endif
-void mj_freeStack(mjData* d) {
+{
   if (!d->threadpool) {
     mjStackInfo stack_info = get_stack_info_from_data(d);
     freestackinternal(&stack_info);
