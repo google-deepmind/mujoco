@@ -1275,6 +1275,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->joint.CopyFromSpec();
     *this = _def->joint;
   }
 
@@ -1468,6 +1469,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->geom.CopyFromSpec();
     *this = _def->geom;
   }
 
@@ -2068,6 +2070,7 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->site.CopyFromSpec();
     *this = _def->site;
   }
 
@@ -2209,6 +2212,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->camera.CopyFromSpec();
     *this = _def->camera;
   }
 
@@ -2345,6 +2349,7 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->light.CopyFromSpec();
     *this = _def->light;
   }
 
@@ -3376,6 +3381,7 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->material.CopyFromSpec();
     *this = _def->material;
   }
 
@@ -3434,6 +3440,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->pair.CopyFromSpec();
     *this = _def->pair;
   }
 
@@ -3693,6 +3700,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->equality.CopyFromSpec();
     *this = _def->equality;
   }
 
@@ -3818,6 +3826,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->tendon.CopyFromSpec();
     *this = _def->tendon;
   }
 
@@ -4197,6 +4206,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->actuator.CopyFromSpec();
     *this = _def->actuator;
   }
 

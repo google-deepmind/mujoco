@@ -42,14 +42,6 @@ void mjm_deleteModel(mjmModel* modelspec) {
 
 
 
-// copy spec into private attributes
-MJAPI void mjm_finalize(mjElement object) {
-  mjCBase* baseC = reinterpret_cast<mjCBase*>(object);
-  baseC->CopyFromSpec();
-}
-
-
-
 // add child body to body, return child spec
 mjmBody* mjm_addBody(mjmBody* bodyspec, mjmDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;

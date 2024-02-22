@@ -2717,20 +2717,6 @@ void mjXReader::Default(XMLElement* section, int parentid) {
       OneActuator(elem, def->actuator);
     }
 
-    // copy into private attributes
-    mjm_finalize(def->joint->element);
-    mjm_finalize(def->geom->element);
-    mjm_finalize(def->site->element);
-    mjm_finalize(def->camera->element);
-    mjm_finalize(def->light->element);
-    mjm_finalize(def->flex->element);
-    mjm_finalize(def->mesh->element);
-    mjm_finalize(def->material->element);
-    mjm_finalize(def->pair->element);
-    mjm_finalize(def->equality->element);
-    mjm_finalize(def->tendon->element);
-    mjm_finalize(def->actuator->element);
-
     // advance
     elem = NextSiblingElement(elem);
   }

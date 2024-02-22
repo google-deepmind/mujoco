@@ -168,6 +168,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
+    _def->mesh.CopyFromSpec();
     *this = _def->mesh;
   }
 

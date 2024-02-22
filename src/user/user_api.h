@@ -727,9 +727,6 @@ MJAPI mjmModel* mjm_createModel();
 // Delete model.
 MJAPI void mjm_deleteModel(mjmModel* modelspec);
 
-// Copy spec into private attributes.
-MJAPI void mjm_finalize(mjElement object);
-
 // Add child body to body, return child spec.
 MJAPI mjmBody* mjm_addBody(mjmBody* body, mjmDefault* def);
 
