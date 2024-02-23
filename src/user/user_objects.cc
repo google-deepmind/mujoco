@@ -4142,8 +4142,6 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
 
 void mjCWrap::PointToLocal() {
   spec.element = (mjElement)this;
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
   spec.info = (mjString)&info;
 }
 

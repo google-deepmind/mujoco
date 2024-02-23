@@ -582,8 +582,6 @@ typedef struct _mjmTendon {        // tendon specification
 
 typedef struct _mjmWrap {          // wrapping object specification
   mjElement element;               // internal, do not modify
-  mjString name;                   // name
-  mjString classname;              // class name
   mjString info;                   // message appended to errors
 } mjmWrap;
 

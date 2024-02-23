@@ -1135,8 +1135,6 @@ class mjCWrap : public mjCBase, private mjmWrap {
 
  public:
   mjmWrap spec;
-  using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void PointToLocal();
