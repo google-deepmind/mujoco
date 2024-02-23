@@ -1397,6 +1397,7 @@ class mjCDef {
   void Compile(const mjCModel* model);     // compiler
   mjCDef& operator=(const mjCDef& other);  // copy assignment
   void PointToLocal(void);
+  void CopyFromSpec(void);
 
   // identifiers
   std::string name;               // class name

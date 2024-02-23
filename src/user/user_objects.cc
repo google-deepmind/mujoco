@@ -566,6 +566,23 @@ void mjCDef::PointToLocal() {
 
 
 
+void mjCDef::CopyFromSpec() {
+  joint.CopyFromSpec();
+  geom.CopyFromSpec();
+  site.CopyFromSpec();
+  camera.CopyFromSpec();
+  light.CopyFromSpec();
+  flex.CopyFromSpec();
+  mesh.CopyFromSpec();
+  material.CopyFromSpec();
+  pair.CopyFromSpec();
+  equality.CopyFromSpec();
+  tendon.CopyFromSpec();
+  actuator.CopyFromSpec();
+}
+
+
+
 //------------------------- class mjCBase implementation -------------------------------------------
 
 // constructor

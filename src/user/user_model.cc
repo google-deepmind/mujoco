@@ -541,6 +541,7 @@ mjCDef* mjCModel::AddDef(string name, int parentid) {
 
   // initialize contents
   if (parentid>=0 && parentid<thisid) {
+    defaults[parentid]->CopyFromSpec();
     *def = *defaults[parentid];
     defaults[parentid]->childid.push_back(thisid);
   }
