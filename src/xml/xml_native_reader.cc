@@ -1346,8 +1346,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjmFlex* pflex) {
   }
 
   // write error info
-  mjm_setString(pflex->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pflex->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1417,8 +1416,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjmMesh* pmesh) {
   }
 
   // write error info
-  mjm_setString(pmesh->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pmesh->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1511,8 +1509,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjmSkin* pskin) {
   mjm_setFloat(pskin->bindquat, bindquat.data(), bindquat.size());
 
   // write error info
-  mjm_setString(pskin->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pskin->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1543,8 +1540,7 @@ void mjXReader::OneMaterial(XMLElement* elem, mjmMaterial* pmat) {
   ReadAttr(elem, "rgba", 4, pmat->rgba, text);
 
   // write error info
-  mjm_setString(pmat->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pmat->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1591,8 +1587,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjmJoint* pjoint) {
   }
 
   // write error info
-  mjm_setString(pjoint->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pjoint->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1667,8 +1662,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjmGeom* pgeom) {
   }
 
   // write error info
-  mjm_setString(pgeom->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pgeom->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1705,8 +1699,7 @@ void mjXReader::OneSite(XMLElement* elem, mjmSite* site) {
   }
 
   // write error info
-  mjm_setString(site->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(site->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1760,8 +1753,7 @@ void mjXReader::OneCamera(XMLElement* elem, mjmCamera* pcam) {
   mjm_setDouble(pcam->userdata, userdata.data(), userdata.size());
 
   // write error info
-  mjm_setString(pcam->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pcam->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1803,8 +1795,7 @@ void mjXReader::OneLight(XMLElement* elem, mjmLight* plight) {
   ReadAttr(elem, "specular", 3, plight->specular, text);
 
   // write error info
-  mjm_setString(plight->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(plight->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1839,8 +1830,7 @@ void mjXReader::OnePair(XMLElement* elem, mjmPair* ppair) {
   ReadAttr(elem, "friction", 5, ppair->friction, text, false, false);
 
   // write error info
-  mjm_setString(ppair->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(ppair->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1918,8 +1908,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjmEquality* pequality) {
   ReadAttr(elem, "solimp", mjNIMP, pequality->solimp, text, false, false);
 
   // write error info
-  mjm_setString(pequality->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pequality->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1963,8 +1952,7 @@ void mjXReader::OneTendon(XMLElement* elem, mjmTendon* pten) {
   }
 
   // write error info
-  mjm_setString(pten->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pten->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -2254,8 +2242,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjmActuator* pact) {
   }
 
   // write info
-  mjm_setString(pact->info,
-      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+  mjm_setString(pact->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -2814,8 +2801,7 @@ void mjXReader::Custom(XMLElement* section) {
       mjmNumeric* pnum = mjm_addNumeric(&model->spec);
 
       // write error info
-      mjm_setString(pnum->info,
-          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+      mjm_setString(pnum->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
@@ -2846,8 +2832,7 @@ void mjXReader::Custom(XMLElement* section) {
       mjmText* pte = mjm_addText(&model->spec);
 
       // write error info
-      mjm_setString(pte->info,
-          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+      mjm_setString(pte->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
@@ -2867,8 +2852,7 @@ void mjXReader::Custom(XMLElement* section) {
       mjmTuple* ptu = mjm_addTuple(&model->spec);
 
       // write error info
-      mjm_setString(ptu->info,
-          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+      mjm_setString(ptu->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
@@ -3075,8 +3059,7 @@ void mjXReader::Asset(XMLElement* section) {
       mjmTexture* ptex = mjm_addTexture(&model->spec);
 
       // write error info
-      mjm_setString(ptex->info,
-          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+      mjm_setString(ptex->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       if (MapValue(elem, "type", &n, texture_map, texture_sz)) {
@@ -3165,8 +3148,7 @@ void mjXReader::Asset(XMLElement* section) {
       mjmHField* phf = mjm_addHField(&model->spec);
 
       // write error info
-      mjm_setString(phf->info,
-          std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+      mjm_setString(phf->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       string name, content_type;
@@ -3930,8 +3912,7 @@ void mjXReader::Sensor(XMLElement* section) {
     }
 
     // write info
-    mjm_setString(psen->info,
-        std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
+    mjm_setString(psen->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
     // advance to next element
     elem = NextSiblingElement(elem);
