@@ -775,6 +775,77 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 }
 
 
+// compute subtree angular momentum matrix
+void mj_subtreeAngMomMat(const mjModel *m, mjData *d, mjtNum *agm, int body)
+{
+    int nv = m->nv;
+    mj_markStack(d);
+    mjtNum* jacp_b = mj_stackAllocNum(d, 3*nv);
+    mjtNum* jacr_b = mj_stackAllocNum(d, 3*nv);
+    mjtNum r_com_b[3];   
+    mjtNum R_com_b[9];
+    mjtNum r_com[3];      
+    mjtNum Ib[9];     
+    mjtNum Xbcom[9];  
+    mjtNum temp1[9];
+    mjtNum temp2[9];
+    mjtNum* term1 = mj_stackAllocNum(d, 3*nv);
+    mjtNum* term2 = mj_stackAllocNum(d, 3*nv);
+
+    // clear output and other matrices
+    mju_zero(agm, 3*nv);
+    mju_zero(R_com_b, 9);
+    mju_zero(Ib, 9);
+
+    // save the location of the subtree COM
+    mju_copy3(r_com, d->subtree_com+3*body);
+
+    for (int b=body; b < m->nbody; b++)
+    {
+        // end of body subtree, break from the loop
+        if (b > body && m->body_parentid[b] < body)
+        {
+            break;
+        }
+
+        // linear and angular velocity Jacobian of the body COM (inertial frame)
+        mj_jacBodyCom(m, d, jacp_b, jacr_b, b);
+
+        // orientation of the COM (intertial) frame of b-th body
+        mju_copy(Xbcom, d->ximat+9*b, 9);
+
+        // save the inertia matrix of b-th body
+        Ib[0] = m->body_inertia[3*b];   // Ib(1,1)
+        Ib[4] = m->body_inertia[3*b+1]; // Ib(2,2)
+        Ib[8] = m->body_inertia[3*b+2]; // Ib(3,3)
+
+        // compute the body angular momentum about self COM in world frame
+        mju_mulMatMat(temp1, Xbcom, Ib, 3, 3, 3);      // Xbcom*Ib
+        mju_mulMatMatT(temp2, temp1, Xbcom, 3, 3, 3);  // Xbcom*Ib*Xbcom^T
+        mju_mulMatMat(term1, temp2, jacr_b, 3, 3, nv); // Xbcom*Ib*Xbcom^T*Jr
+
+        // compute the location of body COM w.r.t. subtree COM
+        mju_sub3(r_com_b, (d->xipos+3*b), r_com);
+
+        // skew symm matrix representing r_com_b vector
+        R_com_b[1] = -r_com_b[2];
+        R_com_b[2] = r_com_b[1];
+        R_com_b[3] = r_com_b[2];
+        R_com_b[5] = -r_com_b[0];
+        R_com_b[6] = -r_com_b[1];
+        R_com_b[7] = r_com_b[0];
+
+        // moment of linear momentum
+        mju_mulMatMat(term2, R_com_b, jacp_b, 3, 3, nv); // R_com_b*Jp
+        mju_scl(term2, term2, m->body_mass[b], 3 * nv);  // R_com_b*Jp*mi
+
+        // amg += Xbcom*Ib*Xbcom^T*Jr + R_com_b*Jp*m
+        mju_addTo(agm, term1, 3*nv);
+        mju_addTo(agm, term2, 3*nv);
+    }
+}
+
+
 
 //-------------------------- name functions --------------------------------------------------------
 
