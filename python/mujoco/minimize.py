@@ -39,9 +39,9 @@ class Status(enum.Enum):
 
 _STATUS_MESSAGE = {
     Status.FACTORIZATION_FAILED: 'factorization failed.',
-    Status.NO_IMPORVEMENT: 'no improvement found.',
+    Status.NO_IMPORVEMENT: 'insufficient reduction.',
     Status.MAX_ITER: 'maximum iterations reached.',
-    Status.DX_TOL: 'norm(step) < tolerance.',
+    Status.DX_TOL: 'norm(dx) < tol.',
 }
 
 
@@ -72,7 +72,9 @@ def jacobian_fd(
     residual: Callable[[np.ndarray], np.ndarray],
     x: np.ndarray,
     r: np.ndarray,
-    eps: float,
+    eps: np.float64,
+    central: bool,
+    n_res: int,
     bounds: Optional[List[np.ndarray]] = None,
 ):
   """Finite-difference Jacobian of a residual function.
@@ -82,37 +84,74 @@ def jacobian_fd(
     x: point at which to evaluate the Jacobian.
     r: residual at x.
     eps: finite-difference step size.
-    bounds: optional pair of lower and upper bounds of the solution.
+    central: whether to use central differences.
+    n_res: number or residual evaluations so far.
+    bounds: optional pair of lower and upper bounds.
 
   Returns:
     jac: Jacobian of the residual at x.
+    n_res: updated number of residual evaluations.
+
   """
   nx = x.size
   nr = r.size
   jac = np.zeros((nr, nx))
   xh = x.copy()
-  for i in range(nx):
-    if bounds is not None:
-      # Have bounds: scale eps, don't cross bounds.
-      lower, upper = bounds
-      eps_i = eps * (upper[i] - lower[i])
-      if xh[i] < upper[i] - eps_i:
-        # Not near upper bound, use forward.
-        xh[i] += eps_i
-        rh = residual(xh)
-        jac[:, i] = (rh - r) / eps_i
+  if bounds is None:
+    # No bounds, simple forward or central differencing.
+    for i in range(nx):
+      xh[i] = x[i] + eps
+      rp = residual(xh)
+      if central:
+        xh[i] = x[i] - eps
+        rm = residual(xh)
+        jac[:, i] = (rp - rm) / (2*eps)
       else:
-        # Near upper bound, use backward.
-        xh[i] -= eps_i
-        rh = residual(xh)
-        jac[:, i] = (r - rh) / eps_i
-    else:
-      # No bounds, just use forward fin-diff.
-      xh[i] += eps
-      rh = residual(xh)
-      jac[:, i] = (rh - r) / eps
-    xh[i] = x[i]
-  return jac
+        jac[:, i] = (rp - r) / eps
+      xh[i] = x[i]
+    n_res += 2*nx if central else nx
+  else:
+    lower, upper = bounds
+    midpoint = 0.5 * (upper - lower)
+    for i in range(nx):
+      # Scale eps, don't cross bounds.
+      eps_i = eps * (upper[i] - lower[i])
+      if central:
+        # Use central differencing if away from bounds.
+        if x[i] - eps_i < lower[i]:
+          # Near lower bound, use forward.
+          xh[i] = x[i] + eps_i
+          rp = residual(xh)
+          jac[:, i] = (rp - r) / eps_i
+          n_res += 1
+        elif x[i] + eps_i > upper[i]:
+          # Near upper bound, use backward.
+          xh[i] = x[i] - eps_i
+          rm = residual(xh)
+          jac[:, i] = (r - rm) / eps_i
+          n_res += 1
+        else:
+          # Use central.
+          xh[i] = x[i] + eps_i
+          rp = residual(xh)
+          xh[i] = x[i] - eps_i
+          rm = residual(xh)
+          jac[:, i] = (rp - rm) / (2*eps_i)
+          n_res += 2
+      else:
+        # Below midpoint use forward differencing, otherwise backward.
+        if x[i] < midpoint[i]:
+          xh[i] = x[i] + eps_i
+          rp = residual(xh)
+          jac[:, i] = (rp - r) / eps_i
+        else:
+          xh[i] = x[i] - eps_i
+          rm = residual(xh)
+          jac[:, i] = (r - rm) / eps_i
+        n_res += 1
+      # Reset.
+      xh[i] = x[i]
+  return jac, n_res
 
 
 def least_squares(
@@ -120,13 +159,14 @@ def least_squares(
     residual: Callable[[np.ndarray], np.ndarray],
     bounds: Optional[List[np.ndarray]] = None,
     jacobian: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
-    eps: Optional[float] = -6,
-    mu_min: Optional[float] = -6,
-    mu_max: Optional[float] = 8,
-    mu_delta: Optional[float] = 0.5,
-    tol: Optional[float] = 1e-7,
-    max_iter: Optional[int] = 100,
-    verbose: Optional[Union[Verbosity, int]] = Verbosity.ITER,
+    eps: float = 1e-6,
+    central: bool = False,
+    mu_min: float = 1e-6,
+    mu_max: float = 1e8,
+    mu_factor: float = 10.0**0.1,
+    tol: float = 1e-7,
+    max_iter: int = 100,
+    verbose: Union[Verbosity, int] = Verbosity.ITER,
     output: Optional[TextIO] = None,
 ) -> Tuple[np.ndarray, List[IterLog]]:
   """Nonlinear Least Squares minimization with box bounds.
@@ -137,10 +177,11 @@ def least_squares(
     bounds: optional pair of lower and upper bounds on the solution.
     jacobian: optional function that returns Jacobian of the residual at a given
       point and residual. If not given, `residual` will be finite-differenced.
-    eps: log10 of the perurbation used for automatic finite-differencing.
-    mu_min: log10 of the minimum value of the regularizer.
-    mu_max: log10 of the maximum value of the regularizer.
-    mu_delta: log10 of the factor increasing or decreasing the regularizer.
+    eps: perurbation used for automatic finite-differencing.
+    central: whether to use central differences.
+    mu_min: minimum value of the regularizer.
+    mu_max: maximum value of the regularizer.
+    mu_factor: factor increasing or decreasing the regularizer.
     tol: termination tolerance on the step size.
     max_iter: maximum number of iterations.
     verbose: verbosity level.
@@ -155,29 +196,43 @@ def least_squares(
   # Convert verbosity to int.
   verbose = Verbosity(verbose).value
 
+  # Constant for Armijo's sufficient-reduction rule
+  armijo_c1 = 1e-2
+
   # Initialize locals.
-  x = x0.copy()
-  mu = -np.inf  # Optimistically start with no regularization.
-  n = x.size
+  status = Status.MAX_ITER
   i = 0
-  trace = []
+  x = x0.astype(np.float64)
+  n = x.size
+  xnew = np.zeros((n,))
   dx = np.zeros((n,))
   scratch = np.zeros((n, n + 7))
-  dx_norm = 0.0
-  xnew = np.zeros((n,))
-  status = Status.MAX_ITER
+  eps = np.float64(eps)
+  mu = np.float64(0.0)  # Optimistically start with no regularization.
+  n_reduc = 0  # Number of sequential mu reductions.
+
+  # Initialize logging.
+  trace = []
   n_res = 0
   n_jac = 0
   t_res = 0.0
   t_jac = 0.0
-  t_qp = 0.0
 
-  # Regularization control functions.
+  if mu_factor <= 1:
+    raise ValueError('mu_factor must be > 1.')
+
+  # Decrease mu agressively: sequential decreases grow exponentially.
+  def decrease_mu(mu, n_reduc):
+    dmu = (1/mu_factor) ** (2**n_reduc)
+    mu = 0.0 if mu * dmu < mu_min else mu * dmu
+    n_reduc += 1
+    return mu, n_reduc
+
+  # Increase mu carefully: always increase by mu_factor.
   def increase_mu(mu):
-    return min(mu_max, max(mu_min, mu_delta + mu))
-
-  def decrease_mu(mu):
-    return -np.inf if mu - mu_delta < mu_min else mu - mu_delta
+    mu = max(mu_min, mu_factor * mu)
+    n_reduc = 0  # Reset n_reduc.
+    return mu, n_reduc
 
   if bounds is not None:
     # Checks bounds.
@@ -192,12 +247,19 @@ def least_squares(
     # Clip.
     np.clip(x, bounds[0], bounds[1], out=x)
 
+  # Check for NaNs.
+  if not np.all(np.isfinite(x)):
+    raise ValueError('x0 must be finite.')
+
   # Get initial residual.
   t_start = time.time()
   r = residual(x)
   rnew = r
   t_res += time.time() - t_start
   n_res += 1
+
+  if r.dtype != np.float64:
+    raise ValueError('residual function must return float64 arrays.')
 
   # Minimize.
   for i in range(max_iter):
@@ -210,9 +272,8 @@ def least_squares(
     # Get Jacobian jac.
     t_start = time.time()
     if jacobian is None:
-      jac = jacobian_fd(residual, x, r, 10**eps, bounds)
+      jac, n_res = jacobian_fd(residual, x, r, eps, central, n_res, bounds)
       t_res += time.time() - t_start
-      n_res += n
     else:
       jac = jacobian(x, r)
       t_jac += time.time() - t_start
@@ -221,31 +282,28 @@ def least_squares(
     # Get gradient, Gauss-Newton Hessian.
     grad = jac.T @ r
     hess = jac.T @ jac
-    gnorm = np.linalg.norm(grad)
 
     # Bounds relative to x
-    dbounds = [None, None] if bounds is None else [bounds[0] - x, bounds[1] - x]
+    dlower = None if bounds is None else bounds[0] - x
+    dupper = None if bounds is None else bounds[1] - x
 
-    # Find some reduction.
-    reduction = -1
-    while reduction < 0:
-      # Increase mu until factorizabl.
+    # Find reduction satisfying Armijo's rule.
+    armijo = -1
+    reduction = 0.0
+    while armijo < 0:
+      # Increase mu until factorizable.
       factorizable = False
       while not factorizable:
-        # Formula from https://arxiv.org/abs/2112.02089
-        reg = np.sqrt(gnorm * 10**mu) * np.eye(n)
-        t_start = time.time()
-        nfree = mujoco.mju_boxQP(
-            dx, scratch, None, hess + reg, grad, dbounds[0], dbounds[1]
+        n_free = mujoco.mju_boxQP(
+            dx, scratch, None, hess + mu * np.eye(n), grad, dlower, dupper
         )
-        t_qp += time.time() - t_start
-        if nfree > -1:
+        if n_free >= 0:
           factorizable = True
         elif mu >= mu_max:
           status = Status.FACTORIZATION_FAILED
           break
         else:
-          mu += mu_delta
+          mu, n_reduc = increase_mu(mu)
 
       if status != Status.MAX_ITER:
         break
@@ -260,12 +318,13 @@ def least_squares(
       # New objective, evaluate reduction.
       ynew = 0.5 * rnew.dot(rnew)
       reduction = y - ynew
+      armijo = reduction + armijo_c1*grad.dot(dx)
 
-      if reduction < 0:
+      if armijo < 0:
         if mu >= mu_max:
           status = Status.NO_IMPORVEMENT
           break
-        mu = increase_mu(mu)
+        mu, n_reduc = increase_mu(mu)
 
     if status != Status.MAX_ITER:
       break
@@ -273,19 +332,23 @@ def least_squares(
     # Compute reduction ratio.
     expected_reduction = -(grad.dot(dx) + 0.5 * dx.T @ hess @ dx)
     reduction_ratio = 0.0
-    if expected_reduction == 0:
-      print('Zero expected reduction: exact minimum found?', file=output)
-    elif expected_reduction < 0:
-      print('Negative expected reduction: should not occur.', file=output)
+    if expected_reduction <= 0:
+      if verbose > Verbosity.SILENT.value:
+        if expected_reduction == 0:
+          print('Zero expected reduction: exact minimum found?', file=output)
+        elif expected_reduction < 0:
+          print('Negative expected reduction: should not occur.', file=output)
     else:
       reduction_ratio = reduction / expected_reduction
 
     # Iteration message.
+    dx_norm = np.linalg.norm(dx)
     if verbose >= Verbosity.ITER.value:
+      logmu = np.log10(mu) if mu > 0 else -np.inf
       message = (
-          f'iter: {i:<3d}  y: {y:<8.3g}  mu: {mu:>4.1f}  '
-          f'ratio: {reduction_ratio:<5.2g}  '
-          f'dx: {dx_norm:<8.3g}  reduction: {reduction:<8.3g}'
+          f'iter: {i:<3d}  y: {y:<9.4g}  log10mu: {logmu:>4.1f}  '
+          f'ratio: {reduction_ratio:<7.2g}  '
+          f'dx: {dx_norm:<7.2g}  reduction: {reduction:<7.2g}'
       )
       print(message, file=output)
 
@@ -296,39 +359,43 @@ def least_squares(
     trace.append(log)
 
     # Check for success.
-    dx_norm = np.linalg.norm(dx)
     if dx_norm < tol:
       status = Status.DX_TOL
       break
 
     # Modify regularizer like in (Bazaraa, Sherali, and Shetty)
     if reduction_ratio > 0.75:
-      mu = decrease_mu(mu)
+      mu, n_reduc = decrease_mu(mu, n_reduc)
     elif reduction_ratio < 0.25:
-      mu = increase_mu(mu)
+      mu, n_reduc = increase_mu(mu)
 
     # Accept proposal.
     x = xnew
     r = rnew
 
+  # Append final log to trace.
+  # Note: unlike other iter logs, this is at the end point.
+  yfinal = 0.5 * r.dot(r)
+  red = np.float64(0.0)
+  log = IterLog(candidate=x, objective=yfinal, reduction=red, regularizer=mu)
+  trace.append(log)
+
   # Print final diagnostics.
   if verbose > Verbosity.SILENT.value:
     message = f'Terminated after {i} iterations: '
     message += _STATUS_MESSAGE[status]
-
-    message += f' Residual evals: {n_res:d}'
+    message += f' y: {yfinal:<.4g}, Residual evals: {n_res:d}'
     if n_jac > 0:
       message += f', Jacobian evals: {n_jac:d}'
     print(message, file=output)
 
     time_total = time.time() - t_start_total
     if time_total > 0:
-      qp_percent = 100 * t_qp / time_total
       r_percent = 100 * t_res / time_total
       time_scale = 1 if time_total > 1 else 1000
       time_units = 's' if time_total > 1 else 'ms'
       message = f'total time {time_scale * time_total:<.1f}{time_units}'
-      message += f' of which QP {qp_percent:<.1f}%, residual {r_percent:<.1f}%'
+      message += f' of which residual {r_percent:<.1f}%'
       if t_jac > 0:
         jac_percent = 100 * t_jac / time_total
         message += f' Jacobian {jac_percent:<.1f}%'

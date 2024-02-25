@@ -25,18 +25,19 @@ import numpy as np
 class MinimizeTest(absltest.TestCase):
 
   def test_basic(self) -> None:
-    def residual(x: np.ndarray) -> float:
-      return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)])
+    def residual(x: np.ndarray) -> np.ndarray:
+      return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)], dtype=np.float64)
 
-    out = io.StringIO()
-    x0 = np.array((0.0, 0.0))
-    x, _ = minimize.least_squares(x0, residual, output=out)
-    expected_x = np.array((1.0, 1.0))
-    np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(step) < tol')
+    for central in [False, True]:
+      out = io.StringIO()
+      x0 = np.array((0.0, 0.0))
+      x, _ = minimize.least_squares(x0, residual, output=out, central=central)
+      expected_x = np.array((1.0, 1.0))
+      np.testing.assert_array_almost_equal(x, expected_x)
+      self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
 
   def test_start_at_minimum(self) -> None:
-    def residual(x: np.ndarray) -> float:
+    def residual(x: np.ndarray) -> np.ndarray:
       return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)])
 
     out = io.StringIO()
@@ -44,11 +45,11 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(step) < tol')
+    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
     self.assertContainsSubsequence(out.getvalue(), 'exact minimum found')
 
   def test_jac_callback(self) -> None:
-    def residual(x: np.ndarray) -> float:
+    def residual(x: np.ndarray) -> np.ndarray:
       return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)])
 
     def jacobian(x: np.ndarray, r: np.ndarray) -> Tuple[float, np.ndarray]:
@@ -60,19 +61,19 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, jacobian=jacobian, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(step) < tol')
+    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
 
     # Try with bad Jacobian, expect no improvement.
     def jac_bad1(x: np.ndarray, r: np.ndarray) -> Tuple[float, np.ndarray]:
       return -jacobian(x, r)
     out1 = io.StringIO()
     minimize.least_squares(x0, residual, jacobian=jac_bad1, output=out1)
-    self.assertContainsSubsequence(out1.getvalue(), 'no improvement found.')
+    self.assertContainsSubsequence(out1.getvalue(), 'insufficient reduction')
 
   def test_max_iter(self) -> None:
     dim = 20  # High-D Rosenbrock
 
-    def residual(x: np.ndarray) -> float:
+    def residual(x: np.ndarray) -> np.ndarray:
       res0 = [1 - x[i] for i in range(dim - 1)]
       res1 = [10 * (x[i] - x[i + 1] ** 2) for i in range(dim - 1)]
       return np.asarray(res0 + res1)
@@ -89,7 +90,7 @@ class MinimizeTest(absltest.TestCase):
     np.testing.assert_array_almost_equal(x, expected_x)
 
   def test_bounds(self) -> None:
-    def residual(x: np.ndarray) -> float:
+    def residual(x: np.ndarray) -> np.ndarray:
       return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)])
 
     out = io.StringIO()
@@ -104,27 +105,35 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, bounds=bounds_types['inbounds'],
                                   output=out)
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(step) < tol')
+    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
 
     # Test different bounds conditions.
     verbose = minimize.Verbosity.FULLITER
-    for bounds in bounds_types.values():
-      out = io.StringIO()
-      x, trace = minimize.least_squares(x0, residual, bounds=bounds, output=out,
-                                        verbose=verbose)
-      self.assertContainsSubsequence(out.getvalue(), 'norm(step) < tol')
-      grad = trace[-1].jacobian.T @ trace[-1].residual
-      # If x_i is on the boundary, gradient points out, otherwise it is 0.
-      for i, xi in enumerate(x):
-        if xi == bounds[0][i]:
-          self.assertGreater(grad[i], 0)
-        elif xi == bounds[1][i]:
-          self.assertLess(grad[i], 0)
-        else:
-          self.assertAlmostEqual(grad[i], 0, places=4)
+
+    for central in [False, True]:
+      for bounds in bounds_types.values():
+        out = io.StringIO()
+        x, trace = minimize.least_squares(
+            x0,
+            residual,
+            bounds=bounds,
+            output=out,
+            central=central,
+            verbose=verbose,
+        )
+        self.assertContainsSubsequence(out.getvalue(), ' < tol')
+        grad = trace[-2].jacobian.T @ trace[-2].residual
+        # If x_i is on the boundary, gradient points out, otherwise it is 0.
+        for i, xi in enumerate(x):
+          if xi == bounds[0][i]:
+            self.assertGreater(grad[i], 0)
+          elif xi == bounds[1][i]:
+            self.assertLess(grad[i], 0)
+          else:
+            self.assertAlmostEqual(grad[i], 0, places=4)
 
   def test_bad_bounds(self) -> None:
-    def residual(x: np.ndarray) -> float:
+    def residual(x: np.ndarray) -> np.ndarray:
       return np.array([1 - x[0], 10 * (x[1] - x[0] ** 2)])
 
     out = io.StringIO()
