@@ -37,6 +37,121 @@ using ::testing::ContainsRegex;
 using ::testing::MatchesRegex;
 using ::testing::Pointwise;
 using ::testing::ElementsAreArray;
+using AngMomMatTest = MujocoTest;
+
+static constexpr char AngMomTestingModel[] = R"(
+<mujoco>
+<option integrator = "RK4" timestep = "0.001" jacobian = "dense"/>
+<worldbody>
+  <body name="link1">
+    <joint type="hinge" pos="0 0 0" axis="0 1 0"/>
+    <geom type="capsule" size="0.05" fromto="0 0 0  1 0 0"/>
+    <body name="link2" pos="1 0 0">
+      <joint type="ball" />
+      <geom type="capsule" size="0.05" fromto="0 0 0  0 1 0"/>
+    </body>      
+  </body>
+</worldbody>
+</mujoco>
+  )";
+
+// compare subtree angular momentum computed in two ways
+TEST_F(AngMomMatTest, CompareAngMom) {
+  mjModel* model = LoadModelFromString(AngMomTestingModel);
+  int nv = model->nv;
+  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
+  mjData* data = mj_makeData(model);
+
+  // let the mechanism move and generate some angular momentum
+  for (int i=0; i < 500; i++) {
+    mj_step(model, data);
+  }
+
+  // get the reference value of angular momentum
+  mj_subtreeVel(model,data);
+  mjtNum angmom_ref[3];
+  mju_copy3(angmom_ref, data->subtree_angmom+3*bodyid);
+
+  // compute angular momentum using the angular momentum matrix
+  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+  mj_subtreeAngMomMat(model, data, angmom_mat, bodyid);
+  mjtNum angmom_test[3];
+  mju_mulMatVec(angmom_test, angmom_mat, data->qvel, 3, nv);
+
+  // compare the two angular momentum values
+  static const mjtNum tol = 1e-3;
+  for(int i=0; i<3; i++) {
+    EXPECT_THAT(angmom_ref[i], DoubleNear(angmom_test[i], tol));
+  }
+
+  mju_free(angmom_mat);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// compare subtree angular momentum matrix computed in two ways: analytical and fdm
+TEST_F(AngMomMatTest, CompareAngMomMats) {
+  mjModel* model = LoadModelFromString(AngMomTestingModel);
+  int nv = model->nv;
+  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
+  mjData* data = mj_makeData(model);
+  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+  mjtNum* angmom_mat_fdm = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+
+  // let the mechanism move and generate some angular momentum
+  for (int i=0; i < 500; i++) {
+    mj_step(model, data);
+  }
+
+  // compute the angular momentum matrix using the analytical method
+  mj_subtreeAngMomMat(model, data, angmom_mat, bodyid);
+
+  // compute the angular momentum matrix using finite differences
+  static const mjtNum eps = 1e-3;
+  static const mjtNum tol = 1e-4;
+
+  // backup original qvel and save the angular momentum (H)
+  mjtNum* qvel0 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
+  mju_copy(qvel0, data->qvel, nv);
+  mj_subtreeVel(model, data);
+  mjtNum agm0[3];
+  mju_copy3(agm0, data->subtree_angmom+3*bodyid);
+
+  // acceleration nudge
+  mjtNum* nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
+  mju_zero(nudge, nv);
+
+  // H = angmomMat * qvel
+  // dH = angmomMat * dqvel
+  // the following proves that angmomMat is only a function of qpos
+  for(int i=0; i < nv; i++) {
+    // reset qvel, nudge i-th dof, update data->qvel, reset nudge
+    mju_copy(data->qvel, qvel0, nv);
+    nudge[i] = 1;
+    mju_addToScl(data->qvel, nudge, eps, nv);
+    nudge[i] = 0;
+
+    // compute new value of H
+    mj_forward(model, data);
+    mj_subtreeVel(model, data);
+
+    for(int j=0; j < 3; j++) {
+      angmom_mat_fdm[nv*j+i] = (data->subtree_angmom[3*bodyid+j] - agm0[j]) / (1 * eps);
+      EXPECT_THAT(angmom_mat_fdm[nv*j+i], DoubleNear(angmom_mat[nv*j+i], tol));
+    }
+  }
+
+  // restore original qvel (doesn't in the test here)
+  mju_copy(data->qvel, qvel0, nv);
+
+  mju_free(nudge);
+  mju_free(qvel0);
+  mju_free(angmom_mat_fdm);
+  mju_free(angmom_mat);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
