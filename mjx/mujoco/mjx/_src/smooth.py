@@ -228,8 +228,10 @@ def factor_m(m: Model, d: Data) -> Data:
     return d
 
   # build up indices for where we will do backwards updates over qLD
-  # TODO(erikfrey): do fewer updates by combining non-overlapping ranges
   dof_madr = jp.array(m.dof_Madr)
+  depth = []
+  for i in range(m.nv):
+    depth.append(depth[m.dof_parentid[i]] + 1 if m.dof_parentid[i] != -1 else 0)
   updates = {}
   madr_ds = []
   for i in range(m.nv):
@@ -240,21 +242,31 @@ def factor_m(m: Model, d: Data) -> Data:
       madr_ij, j = madr_ij + 1, m.dof_parentid[j]
       if j == -1:
         break
-      madr_j_range = tuple(m.dof_Madr[j : j + 2])
-      updates.setdefault(madr_j_range, []).append((madr_d, madr_ij))
+      out_beg, out_end = tuple(m.dof_Madr[j : j + 2])
+      updates.setdefault(depth[j], []).append((out_beg, out_end, madr_d, madr_ij))
 
   qld = d.qM
 
-  for (out_beg, out_end), vals in sorted(updates.items(), reverse=True):
-    madr_d, madr_ij = jp.array(vals).T
+  for _, updates in sorted(updates.items(), reverse=True):
+    # combine the updatess into one update batch (per depth level)
+    rows = []
+    madr_ijs = []
+    pivots = []
+    out = []
 
-    @jax.vmap
-    def off_diag_fn(madr_d, madr_ij, qld=qld, width=out_end - out_beg):
-      qld_row = jax.lax.dynamic_slice(qld, (madr_ij,), (width,))
-      return -(qld_row[0] / qld[madr_d]) * qld_row
+    for (b, e, madr_d, madr_ij) in updates:
+      width = e - b
+      rows.append(np.arange(madr_ij, madr_ij + width))
+      madr_ijs.append(np.full((width,), madr_ij))
+      pivots.append(np.full((width,), madr_d))
+      out.append(np.arange(b, e))
+    rows = jp.array(np.concatenate(rows))
+    madr_ijs = jp.array(np.concatenate(madr_ijs))
+    pivots = jp.array(np.concatenate(pivots))
+    out = jp.array(np.concatenate(out))
 
-    qld_update = jp.sum(off_diag_fn(madr_d, madr_ij), axis=0)
-    qld = qld.at[out_beg:out_end].add(qld_update)
+    # apply the update batch
+    qld = qld.at[out].add(-(qld[madr_ijs] / qld[pivots]) * qld[rows])
     # TODO(erikfrey): determine if this minimum value guarding is necessary:
     # qld = qld.at[dof_madr].set(jp.maximum(qld[dof_madr], _MJ_MINVAL))
 
