@@ -800,11 +800,9 @@ void mj_subtreeAngMomMat(const mjModel *m, mjData *d, mjtNum *agm, int body)
     // save the location of the subtree COM
     mju_copy3(r_com, d->subtree_com+3*body);
 
-    for (int b=body; b < m->nbody; b++)
-    {
+    for (int b=body; b < m->nbody; b++) {
         // end of body subtree, break from the loop
-        if (b > body && m->body_parentid[b] < body)
-        {
+        if (b > body && m->body_parentid[b] < body) {
             break;
         }
 
