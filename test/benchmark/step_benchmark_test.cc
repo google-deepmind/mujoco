@@ -14,7 +14,7 @@
 
 // A benchmark which steps various models without rendering, and measures speed.
 
-#include <array>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 #include <gmock/gmock.h>
@@ -28,16 +28,11 @@
 namespace mujoco {
 namespace {
 
-// number of steps to roll out before benhmarking
+// number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 500;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
-
-// copy array into vector
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   mjData* data = mj_makeData(model);
