@@ -781,8 +781,9 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   doc.InsertFirstChild(root);
 
   // write comment if present
-  if (!model->comment.empty()) {
-    XMLComment* comment = doc.NewComment(model->comment.c_str());
+  string text = mjm_getString(model->comment);
+  if (!text.empty()) {
+    XMLComment* comment = doc.NewComment(text.c_str());
     root->LinkEndChild(comment);
   }
 

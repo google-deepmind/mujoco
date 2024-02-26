@@ -837,7 +837,8 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  string filename = mjuu_makefullname(model->modelfiledir, mjm_getString(model->spec.meshdir), file);
+  string filename = mjuu_makefullname(mjm_getString(model->spec.modelfiledir),
+                                      mjm_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {
@@ -943,7 +944,8 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  string filename = mjuu_makefullname(model->modelfiledir, mjm_getString(model->spec.meshdir), file);
+  string filename = mjuu_makefullname(mjm_getString(model->spec.modelfiledir),
+                                      mjm_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {

@@ -84,8 +84,8 @@ static void copyvec(T1* dest, T2* src, int n) {
 // constructor
 mjCModel::mjCModel() {
   mjm_defaultModel(spec);
-  comment.clear();
-  modelfiledir.clear();
+  spec_comment_.clear();
+  spec_modelfiledir_.clear();
   spec_meshdir_.clear();
   spec_texturedir_.clear();
   spec_modelname_ = "MuJoCo Model";
@@ -177,6 +177,8 @@ mjCModel::mjCModel() {
 
 void mjCModel::PointToLocal() {
   spec.element = (mjElement)this;
+  spec.comment = (mjString)&spec_comment_;
+  spec.modelfiledir = (mjString)&spec_modelfiledir_;
   spec.modelname = (mjString)&spec_modelname_;
   spec.meshdir = (mjString)&spec_meshdir_;
   spec.texturedir = (mjString)&spec_texturedir_;
@@ -186,9 +188,13 @@ void mjCModel::PointToLocal() {
 
 void mjCModel::CopyFromSpec() {
   *static_cast<mjmModel*>(this) = spec;
+  comment_ = spec_comment_;
+  modelfiledir_ = spec_modelfiledir_;
   modelname_ = spec_modelname_;
   meshdir_ = spec_meshdir_;
   texturedir_ = spec_texturedir_;
+  comment = (mjString)&comment_;
+  modelfiledir = (mjString)&modelfiledir_;
   modelname = (mjString)&modelname_;
   meshdir = (mjString)&meshdir_;
   texturedir = (mjString)&texturedir_;

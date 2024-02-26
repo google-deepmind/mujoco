@@ -510,6 +510,9 @@ void mjm_setDouble(mjDoubleVec dest, const double* array, int size) {
 // get string
 const char* mjm_getString(const mjString source) {
   std::string* str = reinterpret_cast<std::string*>(source);
+  if (!str) {
+    return nullptr;
+  }
   return str->c_str();
 }
 

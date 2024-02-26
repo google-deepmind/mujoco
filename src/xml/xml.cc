@@ -15,6 +15,7 @@
 #include "xml/xml.h"
 
 #include <locale.h>
+#include "user/user_api.h"
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <xlocale.h>
@@ -348,9 +349,9 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
   if (dir != nullptr) {
-    model->modelfiledir = std::string(dir, ndir);
+    mjm_setString(model->spec.modelfiledir, std::string(dir, ndir).c_str());
   } else {
-    model->modelfiledir = "";
+    mjm_setString(model->spec.modelfiledir, "");
   }
 
   // close resource
@@ -362,8 +363,8 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
       // find include elements, replace them with subtree from xml file
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
-      parser.SetModelFileDir(model->modelfiledir);
-      mjIncludeXML(parser, root, model->modelfiledir, vfs, included);
+      parser.SetModelFileDir(mjm_getString(model->spec.modelfiledir));
+      mjIncludeXML(parser, root, mjm_getString(model->spec.modelfiledir), vfs, included);
 
       // parse MuJoCo model
       parser.SetModel(model);

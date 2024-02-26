@@ -125,6 +125,13 @@ typedef struct _mjmModel {         // model specification
 
   // sizes
   int nkey;                       // number of keyframes
+
+  // global data
+  mjString comment;               // comment at top of XML
+  mjString modelfiledir;          // path to model file
+
+  // other
+  bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
 } mjmModel;
 
 

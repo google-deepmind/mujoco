@@ -811,9 +811,9 @@ void mjXReader::Parse(XMLElement* root) {
 
   // get comment
   if (root->FirstChild() && root->FirstChild()->ToComment()) {
-    model->comment = root->FirstChild()->Value();
+    mjm_setString(model->spec.comment, root->FirstChild()->Value());
   } else {
-    model->comment.clear();
+    mjm_setString(model->spec.comment, "");
   }
 
   //------------------- parse MuJoCo sections embedded in all XML formats

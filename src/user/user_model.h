@@ -129,9 +129,8 @@ class mjCModel : private mjmModel {
 
 
   //------------------------ global data
-  std::string comment;            // comment at top of XML
-  std::string modelfiledir;       // path to model file
   std::vector<mjCDef*> defaults;  // settings for each defaults class
+  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;  // list of active plugins
 
  private:
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
@@ -245,8 +244,6 @@ class mjCModel : private mjmModel {
   std::vector<mjCText*>     texts;       // list of text fields
   std::vector<mjCTuple*>    tuples;      // list of tuple fields
   std::vector<mjCKey*>      keys;        // list of keyframe fields
-
-  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;  // list of active plugins
   std::vector<mjCPlugin*>   plugins;     // list of plugin instances
 
   // pointers to objects created inside kinematic tree
@@ -272,16 +269,19 @@ class mjCModel : private mjmModel {
   // map from object names to ids
   mjListKeyMap ids;
 
-  bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
   bool compiled;                  // already compiled flag (cannot be compiled again)
   mjCError errInfo;               // last error info
   int fixCount;                   // how many bodies have been fixed
   std::vector<mjtNum> qpos0;      // save qpos0, to recognize changed key_qpos in write
 
   // variable-size attributes
+  std::string comment_;           // comment at top of XML
+  std::string modelfiledir_;      // path to model file
   std::string modelname_;
   std::string meshdir_;
   std::string texturedir_;
+  std::string spec_comment_;
+  std::string spec_modelfiledir_;
   std::string spec_modelname_;
   std::string spec_meshdir_;
   std::string spec_texturedir_;
