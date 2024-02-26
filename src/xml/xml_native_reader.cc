@@ -31,8 +31,8 @@
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjvisualize.h>
 #include <mujoco/mjtnum.h>
+#include <mujoco/mjvisualize.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -3986,12 +3986,14 @@ void mjXReader::Keyframe(XMLElement* section) {
 // get defaults class
 mjmDefault* mjXReader::GetClass(XMLElement* section) {
   string text;
-  mjmDefault* def = 0;
+  mjmDefault* def = nullptr;
 
   if (ReadAttrTxt(section, "class", text)) {
-    def = &model->FindDef(text)->spec;
+    def = mjm_findDefault(&model->spec, text.c_str());
     if (!def) {
-      throw mjXError(section, "unknown default class");
+      throw mjXError(
+          section,
+          std::string("unknown default class name '" + text + "'").c_str());
     }
   }
 

@@ -33,12 +33,13 @@ namespace mujoco {
 namespace {
 
 using ::std::string;
+using ::testing::AllOf;
 using ::testing::Eq;
+using ::testing::FloatEq;
 using ::testing::HasSubstr;
 using ::testing::IsNan;
 using ::testing::IsNull;
 using ::testing::NotNull;
-using ::testing::FloatEq;
 
 using XMLReaderTest = MujocoTest;
 
@@ -460,6 +461,29 @@ TEST_F(XMLReaderTest, RepeatedDefaultName) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated default class name"));
+}
+
+TEST_F(XMLReaderTest, InvalidDefaultClassName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="sphere">
+        <geom type="sphere" size="1"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom class="invalid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              AllOf(HasSubstr("unknown default class name 'invalid'"),
+                    HasSubstr("Element 'geom'"), HasSubstr("line 10")));
 }
 
 // ------------------------ test including -------------------------------------

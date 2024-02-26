@@ -821,6 +821,9 @@ MJAPI mjmModel* mjm_getModel(mjmBody* body);
 // Get default corresponding to an mjElement.
 MJAPI mjmDefault* mjm_getDefault(mjElement element);
 
+// Find default in model by class name.
+MJAPI mjmDefault* mjm_findDefault(mjmModel* model, const char* classname);
+
 // Find body in model by name.
 MJAPI mjmBody* mjm_findBody(mjmModel* model, const char* name);
 

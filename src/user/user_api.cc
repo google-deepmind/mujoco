@@ -346,6 +346,18 @@ mjmDefault* mjm_getDefault(mjElement element) {
 
 
 
+// find default in model by class name
+mjmDefault* mjm_findDefault(mjmModel* modelspec, const char* classname) {
+  mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
+  mjCDef* cdef = model->FindDef(classname);
+  if (!cdef) {
+    return nullptr;
+  }
+  return &cdef->spec;
+}
+
+
+
 // find body in model by name
 mjmBody* mjm_findBody(mjmModel* modelspec, const char* name) {
   mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
