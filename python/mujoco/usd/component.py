@@ -22,12 +22,6 @@ class USDMesh:
         rgba: Tuple[int] = (1,1,1,1),
         texture_file: Optional[str] = None
     ):
-        """ Initializes a new USD mesh
-        Args:
-            model: an MjModel instance.
-            dataid: id of the mesh
-            texture_file: texture associated with the mesh
-        """
         self.stage = stage
         self.model = model
         self.geom = geom

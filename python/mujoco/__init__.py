@@ -46,9 +46,6 @@ from mujoco._render import *
 from mujoco._structs import *
 from mujoco.gl_context import *
 from mujoco.renderer import Renderer
-from mujoco.usd.usd_exporter import USDExporter
-from mujoco.usd.usd_component import *
-from mujoco.usd.usd_utils import *
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

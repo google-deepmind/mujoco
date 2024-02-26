@@ -34,7 +34,7 @@ class USDExporter:
         specialized_materials_file: str = None,
         verbose: bool = True,
     ):
-        """ Initializes a new USD Renderer
+        """Initializes a new USD Renderer
         Args:
             model: an MjModel instance.
             height: image height in pixels.
@@ -98,10 +98,6 @@ class USDExporter:
         # loading required textures for the scene
         self._load_textures()
 
-        self.extra_added_water = False
-        self.extra_added_stove = False
-        self.extra_added_coffee = False
-
     @property
     def usd(self):
         return self.stage.GetRootLayer().ExportToString()
@@ -141,7 +137,7 @@ class USDExporter:
         data: _structs.MjData,
         scene_option: Optional[_structs.MjvOption] = None,
     ):
-        """ Updates the scene with latest sim data
+        """Updates the scene with latest sim data
         Args:
             data: structure storing current simulation state
             scene_option: we use this to determine which geom groups to activate
