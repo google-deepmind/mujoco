@@ -137,26 +137,26 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mjtNum agmf[3], agmb[3];
   for(int i=0; i < nv; i++) {
     // reset vel, forward nudge i-th dof, update data->qvel, reset nudge
-    mju_copy(dd->qvel, qvel0, mm->nv);
+    mju_copy(data->qvel, qvel0, model->nv);
     nudge[i] = 1;
-    mju_addToScl(dd->qvel, nudge, eps, mm->nv);
+    mju_addToScl(data->qvel, nudge, eps, model->nv);
     nudge[i] = 0;
 
     // new value of angmom
     mj_forward(model, data);
     mj_subtreeVel(model, data);
-    mju_copy3(agmf, dd->subtree_angmom+3*bodyid);
+    mju_copy3(agmf, data->subtree_angmom+3*bodyid);
 
     // reset vel, backward nudge i-th dof, update data->qvel, reset nudge
-    mju_copy(dd->qvel, qvel0, mm->nv);
+    mju_copy(data->qvel, qvel0, model->nv);
     nudge[i] = -1;
-    mju_addToScl(dd->qvel, nudge, eps, mm->nv);
+    mju_addToScl(data->qvel, nudge, eps, model->nv);
     nudge[i] = 0;
 
     // new value of angmom
     mj_forward(model, data);
     mj_subtreeVel(model, data);
-    mju_copy3(agmb, dd->subtree_angmom+3*bodyid);
+    mju_copy3(agmb, data->subtree_angmom+3*bodyid);
 
     for(int j=0; j < 3; j++) {
       angmom_mat_fdm[nv*j+i] = (agmf[j] - agmb[j]) / (2 * eps);
