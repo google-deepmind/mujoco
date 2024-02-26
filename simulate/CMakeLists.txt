@@ -43,6 +43,7 @@ endif()
 
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
+option(SIMULATE_BUILD_VR "Build VR-enabled simulate executable binary." ON)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
@@ -135,6 +136,14 @@ target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 target_link_libraries(libsimulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+
+if(SIMULATE_BUILD_VR)
+  target_sources(
+    libsimulate
+    PUBLIC simulate_vr/simulate_vr.h
+    PRIVATE simulate_vr/simulate_vr.cc simulate_vr/glad/glad.h simulate_vr/glad/glad.c
+  )
+endif()
 
 if(APPLE)
   target_sources(libsimulate PRIVATE macos_gui.mm)

@@ -33,7 +33,20 @@ set(MUJOCO_DEP_VERSION_glfw3
     7482de6071d21db77a7236155da44c172a7f6c9e # 3.3.8
     CACHE STRING "Version of `glfw` to be fetched."
 )
+
+# set(MUJOCO_DEP_VERSION_openxr
+#     dc1e23937fe45eabcce80f6588cf47449edb29d1 # 1.0.33
+#     CACHE STRING "Version of `OpenXR` to be fetched."
+# )
+
+set(MUJOCO_DEP_VERSION_openvr
+    f51d87ecf8f7903e859b0aa4d617ff1e5f33db5a # 2.2.3
+    CACHE STRING "Version of `OpenVR` to be fetched."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)
+# mark_as_advanced(MUJOCO_DEP_VERSION_openxr)
+mark_as_advanced(MUJOCO_DEP_VERSION_openvr)
 
 find_package(Threads REQUIRED)
 
@@ -102,3 +115,27 @@ if(NOT SIMULATE_STANDALONE)
   target_compile_options(glfw PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(glfw PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()
+
+# if(SIMULATE_BUILD_VR)
+#   # FetchContent_Declare(
+#   #   openxr
+#   #   GIT_REPOSITORY https://github.com/KhronosGroup/OpenXR-SDK.git
+#   #   GIT_TAG ${MUJOCO_DEP_VERSION_openxr}
+#   # )
+#   # FetchContent_GetProperties(openxr)
+#   # if(NOT openxr_POPULATED)
+#   #   FetchContent_Populate(openxr)
+#   #   include_directories(${openxr_SOURCE_DIR}/include/openxr)
+#   # endif()
+
+#   FetchContent_Declare(
+#     openvr
+#     GIT_REPOSITORY https://github.com/ValveSoftware/openvr.git
+#     GIT_TAG ${MUJOCO_DEP_VERSION_openvr}
+#   )
+#   FetchContent_GetProperties(openvr)
+#   if(NOT openvr_POPULATED)
+#     FetchContent_Populate(openvr)
+#     include_directories(${openvr_SOURCE_DIR}/headers)
+#   endif()
+# endif()

@@ -1804,6 +1804,12 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
       uistate(this->platform_ui->state()) {
   mjv_defaultScene(&scn);
   mjv_defaultSceneState(&scnstate_);
+
+#ifdef mjBUILDSIMULATEVR
+  hmd.initHmd();
+  hmd.initTextures(this->scn);
+  hmd.transform(this->scn, this->m_);
+#endif
 }
 
 // synchronize model and data
@@ -2133,6 +2139,12 @@ void Simulate::Sync() {
   } else {
     mjv_applyPerturbPose(m_, d_, &this->pert, 1);  // mocap and dynamic bodies
   }
+
+
+#ifdef mjBUILDSIMULATEVR
+  hmd.transform(this->scn, this->m_);
+  hmd.update(this->scn);
+#endif
 }
 
 //------------------------- Tell the render thread to load a file and wait -------------------------
@@ -2265,6 +2277,14 @@ void Simulate::LoadOnRenderThread() {
 
   // re-create scene and context
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
+
+#ifdef mjBUILDSIMULATEVR
+  hmd.findVrTransformations(this->m_);
+
+  hmd.setOBuffer(this->m_->vis);
+  hmd.transform(this->scn, this->m_);
+#endif // mjBUILDSIMULATEVR
+
   if (this->is_passive_) {
     mjopt_prev_ = m_->opt;
     opt_prev_ = opt;
@@ -2307,6 +2327,10 @@ void Simulate::LoadOnRenderThread() {
   } else {
     mjv_updateSceneState(this->m_, this->d_, &this->opt, &this->scnstate_);
   }
+
+#ifdef mjBUILDSIMULATEVR
+  hmd.update(this->scn);
+#endif // mjBUILDSIMULATEVR
 
   // set window title to model name
   if (this->m_->names) {
@@ -2483,7 +2507,27 @@ void Simulate::Render() {
   }
 
   // render scene
+#ifdef mjBUILDSIMULATEVR
+  if (hmd.isInitialized()) {
+    mjrRect rectVR = { 0,0,0,0 };
+    rectVR.width = 2 * (int)hmd.width;
+    rectVR.height = (int)hmd.height;
+
+    // render in offscreen buffer
+    mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
+    // separate rectangle because adding UI to the side feels weird
+    // TODO readd ui to rect
+    mjr_render(rectVR, &this->scn, &this->platform_ui->mjr_context());
+    hmd.render(this->platform_ui->mjr_context(), this->uistate);
+    mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
+  }
+  else {
+    // not a pretty solution to not initialized
+    mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+  }
+#else //mjBUILDSIMULATEVR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+#endif //mjBUILDSIMULATEVR
 
   // show last loading error
   if (this->load_error[0]) {
