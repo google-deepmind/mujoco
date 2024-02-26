@@ -43,13 +43,22 @@ static constexpr char AngMomTestingModel[] = R"(
 <mujoco>
 <option integrator = "RK4" timestep = "0.001" jacobian = "dense"/>
 <worldbody>
-  <body name="link1">
-    <joint type="hinge" pos="0 0 0" axis="0 1 0"/>
-    <geom type="capsule" size="0.05" fromto="0 0 0  1 0 0"/>
-    <body name="link2" pos="1 0 0">
-      <joint type="ball" />
-      <geom type="capsule" size="0.05" fromto="0 0 0  0 1 0"/>
-    </body>      
+  <geom type="plane" size="0 0 .05" pos="0 0 0" quat="0.9848 0.1736 0 0"/>
+  <body name="link1" pos="0 0 0.5">
+    <freejoint/>
+    <geom type="ellipsoid" size="0.15 0.17 0.19"/>
+    <body name="link2" >
+      <joint type="hinge" axis="1 0 0" />
+      <geom type="capsule" size="0.05" fromto="0 0 0  0 0.5 0"/>
+      <body pos="0 0.6 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom type="capsule" size="0.05 0.2" quat="0.707 0 0.707 0"/>
+        <body name="link3">
+          <joint type="ball" pos="0.2 0 0"/>
+          <geom type="capsule" pos="0.4 0 0" size="0.03 0.4" quat="0.707 0 0.707 0"/>
+        </body>
+      </body>
+    </body>   
   </body>
 </worldbody>
 </mujoco>
@@ -62,8 +71,8 @@ TEST_F(AngMomMatTest, CompareAngMom) {
   int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
   mjData* data = mj_makeData(model);
 
-  // let the mechanism move and generate some angular momentum
-  for (int i=0; i < 500; i++) {
+  // let the mechanism move for 1 sec and gain some angular momentum
+  for (int i=0; i < 1000; i++) {
     mj_step(model, data);
   }
 
@@ -79,7 +88,7 @@ TEST_F(AngMomMatTest, CompareAngMom) {
   mju_mulMatVec(angmom_test, angmom_mat, data->qvel, 3, nv);
 
   // compare the two angular momentum values
-  static const mjtNum tol = 1e-3;
+  static const mjtNum tol = 1e-4;
   for(int i=0; i<3; i++) {
     EXPECT_THAT(angmom_ref[i], DoubleNear(angmom_test[i], tol));
   }
@@ -98,8 +107,8 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
   mjtNum* angmom_mat_fdm = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
 
-  // let the mechanism move and generate some angular momentum
-  for (int i=0; i < 500; i++) {
+  // let the mechanism move for 1 sec and gain some angular momentum
+  for (int i=0; i < 1000; i++) {
     mj_step(model, data);
   }
 
@@ -107,10 +116,10 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mj_subtreeAngMomMat(model, data, angmom_mat, bodyid);
 
   // compute the angular momentum matrix using finite differences
-  static const mjtNum eps = 1e-3;
-  static const mjtNum tol = 1e-4;
+  static const mjtNum eps = 1e-6;
+  static const mjtNum tol = 1e-5;
 
-  // backup original qvel and save the angular momentum (H)
+  // save current qvel and computed angular momentum (H)
   mjtNum* qvel0 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
   mju_copy(qvel0, data->qvel, nv);
   mj_subtreeVel(model, data);
@@ -124,24 +133,38 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   // H = angmomMat * qvel
   // dH = angmomMat * dqvel
   // the following proves that angmomMat is only a function of qpos
+  // using centre difference method
+  mjtNum agmf[3], agmb[3];
   for(int i=0; i < nv; i++) {
-    // reset qvel, nudge i-th dof, update data->qvel, reset nudge
-    mju_copy(data->qvel, qvel0, nv);
+    // reset vel, forward nudge i-th dof, update data->qvel, reset nudge
+    mju_copy(dd->qvel, qvel0, mm->nv);
     nudge[i] = 1;
-    mju_addToScl(data->qvel, nudge, eps, nv);
+    mju_addToScl(dd->qvel, nudge, eps, mm->nv);
     nudge[i] = 0;
 
-    // compute new value of H
+    // new value of angmom
     mj_forward(model, data);
     mj_subtreeVel(model, data);
+    mju_copy3(agmf, dd->subtree_angmom+3*bodyid);
+
+    // reset vel, backward nudge i-th dof, update data->qvel, reset nudge
+    mju_copy(dd->qvel, qvel0, mm->nv);
+    nudge[i] = -1;
+    mju_addToScl(dd->qvel, nudge, eps, mm->nv);
+    nudge[i] = 0;
+
+    // new value of angmom
+    mj_forward(model, data);
+    mj_subtreeVel(model, data);
+    mju_copy3(agmb, dd->subtree_angmom+3*bodyid);
 
     for(int j=0; j < 3; j++) {
-      angmom_mat_fdm[nv*j+i] = (data->subtree_angmom[3*bodyid+j] - agm0[j]) / (1 * eps);
+      angmom_mat_fdm[nv*j+i] = (agmf[j] - agmb[j]) / (2 * eps);
       EXPECT_THAT(angmom_mat_fdm[nv*j+i], DoubleNear(angmom_mat[nv*j+i], tol));
     }
   }
 
-  // restore original qvel (doesn't in the test here)
+  // restore original qvel (doesn't matter in the test here)
   mju_copy(data->qvel, qvel0, nv);
 
   mju_free(nudge);
