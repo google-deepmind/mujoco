@@ -140,6 +140,7 @@ def _check_input(m: Model, args: Any, in_types: str) -> None:
       'u': m.nu,
       'a': m.na,
       's': m.nsite,
+      'c': m.ncam,
   }
   for idx, (arg, typ) in enumerate(zip(args, in_types)):
     if len(arg) != size[typ]:
@@ -193,6 +194,7 @@ def flat(
       'v': split according to degrees of freedom (len(qvel))
       'u': split according to actuators
       'a': split according to actuator activations
+      'c': split according to camera
     out_types: string specifying the types the output dimension matches
     *args: the input arguments corresponding to ``in_types``
     group_by: the type to group by, either joints or actuators
@@ -205,23 +207,13 @@ def flat(
   """
   _check_input(m, args, in_types)
 
-  if group_by not in {'j', 'u'}:
+  if group_by not in {'j', 'u', 'c'}:
     raise NotImplementedError(f'group by type "{group_by}" not implemented.')
 
-  def key_j(ids):
+  def key_j(type_ids):
     if any(t in 'jqv' for t in in_types + out_types):
-      return tuple(m.jnt_type[ids])
+      return tuple(m.jnt_type[type_ids['j']])
     return ()
-
-  def key_u(ids_u, ids_j):
-    return (
-        m.actuator_biastype[ids_u],
-        m.actuator_gaintype[ids_u],
-        m.actuator_dyntype[ids_u],
-        m.actuator_trntype[ids_u],
-        m.jnt_type[ids_j],
-        m.actuator_trnid[ids_u, 1] == -1,  # key by refsite being present
-    )
 
   def type_ids_j(m, i):
     return {
@@ -230,6 +222,17 @@ def flat(
         'v': np.nonzero(m.dof_bodyid == i)[0],
         'q': np.nonzero(_q_bodyid(m) == i)[0],
     }
+
+  def key_u(type_ids):
+    ids_u, ids_j = type_ids['u'], type_ids['j']
+    return (
+        m.actuator_biastype[ids_u],
+        m.actuator_gaintype[ids_u],
+        m.actuator_dyntype[ids_u],
+        m.actuator_trntype[ids_u],
+        m.jnt_type[ids_j],
+        m.actuator_trnid[ids_u, 1] == -1,  # key by refsite being present
+    )
 
   def type_ids_u(m, i):
     typ_ids = {
@@ -256,19 +259,26 @@ def flat(
 
     return typ_ids
 
+  def key_c(type_ids):
+    return m.cam_mode[type_ids['c']], m.cam_targetbodyid[type_ids['c']] >= 0
+
+  def type_ids_c(unused_m, i):
+    return {
+        'c': i,
+    }
+
+  type_ids_fn = {'j': type_ids_j, 'u': type_ids_u, 'c': type_ids_c}[group_by]
+  key_fn = {'j': key_j, 'u': key_u, 'c': key_c}[group_by]
+
   # build up a grouping of type take-ids in body/actuator order
   key_typ_ids, order = {}, []
   all_types = set(in_types + out_types)
-  n_items = {'j': m.nbody, 'u': m.nu}[group_by]
+  n_items = {'j': m.nbody, 'u': m.nu, 'c': m.ncam}[group_by]
   for i in np.arange(n_items, dtype=np.int32):
-    typ_ids = type_ids_j(m, i) if group_by == 'j' else type_ids_u(m, i)
+    typ_ids = type_ids_fn(m, i)
 
     # create grouping key
-    key = (
-        key_j(typ_ids['j'])
-        if group_by == 'j'
-        else key_u(typ_ids['u'], typ_ids['j'])
-    )
+    key = key_fn(typ_ids)
     order.append((key, typ_ids))
 
     # add ids per type to the corresponding group
@@ -307,7 +317,7 @@ def flat(
   # concatenate back to a single tree and drop the grouping dimension
   f_ret_is_seq = isinstance(ys[0], (list, tuple))
   ys = ys if f_ret_is_seq else [[y] for y in ys]
-  flat_ = {'j': 'b', 'u': 'uaj'}[group_by]
+  flat_ = {'j': 'b', 'u': 'uaj', 'c': 'c'}[group_by]
   ys = [
       [v if typ in flat_ else jp.concatenate(v) for v, typ in zip(y, out_types)]
       for y in ys

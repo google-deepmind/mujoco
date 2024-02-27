@@ -128,6 +128,7 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
       for f in types.Model.fields()
       if f.type is jax.Array
   }
+  device_fields['cam_mat0'] = device_fields['cam_mat0'].reshape((-1, 3, 3))
   device_fields.update(mesh.get(m))
   device_fields = jax.device_put(device_fields, device=device)
 
@@ -185,6 +186,8 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       geom_xmat=jp.zeros((m.ngeom, 3, 3), dtype=float),
       site_xpos=jp.zeros((m.nsite, 3), dtype=float),
       site_xmat=jp.zeros((m.nsite, 3, 3), dtype=float),
+      cam_xpos=jp.zeros((m.ncam, 3), dtype=float),
+      cam_xmat=jp.zeros((m.ncam, 3, 3), dtype=float),
       subtree_com=zero_nbody_3,
       cdof=zero_nv_6,
       cinert=zero_nbody_10,
@@ -301,7 +304,7 @@ def get_data_into(
 
       value = getattr(d_i, field.name)
 
-      if field.name in ('xmat', 'ximat', 'geom_xmat', 'site_xmat'):
+      if field.name in ('xmat', 'ximat', 'geom_xmat', 'site_xmat', 'cam_xmat'):
         value = value.reshape((-1, 9))
 
       if field.name in ('efc_frictionloss', 'efc_D', 'efc_aref', 'efc_force'):
@@ -368,7 +371,7 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
       if f.type is jax.Array
   }
 
-  for fname in ('xmat', 'ximat', 'geom_xmat', 'site_xmat'):
+  for fname in ('xmat', 'ximat', 'geom_xmat', 'site_xmat', 'cam_xmat'):
     fields[fname] = fields[fname].reshape((-1, 3, 3))
 
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.

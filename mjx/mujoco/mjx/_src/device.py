@@ -69,9 +69,12 @@ _TRANSFORMS = {
     (types.Data, 'xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Data, 'geom_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Data, 'site_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
+    (types.Data, 'cam_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
+    (types.Model, 'cam_mat0'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Contact, 'frame'): (
         lambda x: x.reshape(x.shape[:-1] + (3, 3))  # pylint: disable=g-long-lambda
-        if x is not None and x.shape[0] else jp.zeros((0, 3, 3))
+        if x is not None and x.shape[0]
+        else jp.zeros((0, 3, 3))
     ),
 }
 
@@ -80,9 +83,12 @@ _INVERSE_TRANSFORMS = {
     (types.Data, 'xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Data, 'geom_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Data, 'site_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
+    (types.Data, 'cam_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
+    (types.Model, 'cam_mat0'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Contact, 'frame'): (
         lambda x: x.reshape(x.shape[:-2] + (9,))  # pylint: disable=g-long-lambda
-        if x is not None and x.shape[0] else jp.zeros((0, 9))
+        if x is not None and x.shape[0]
+        else jp.zeros((0, 9))
     ),
 }
 

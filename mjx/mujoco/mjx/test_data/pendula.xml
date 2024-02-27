@@ -19,15 +19,22 @@
 
   <worldbody>
     <site name="origin"/>
+    <camera pos="0 1.5 0.8" xyaxes="-1 0 0 0 -0.2 .8"/>
+    <camera mode="targetbodycom" pos="1 -1 2"/>
+    <camera mode="targetbodycom" target="body" pos="0 -1 2"/>
+    <camera mode="targetbody" target="body" pos="0 -1 -2"/>
 
     <!-- a single free body -->
     <body pos="0 0 0">
+      <camera mode="fixed" pos="0 0.1 0.1" euler="2.7 0 0"/>
+      <camera pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
+      <camera pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="track"/>
       <freejoint/>
       <geom/>
     </body>
 
     <!-- a single ball joint with a limit -->
-    <body pos="0.5 0 0">
+    <body name="body" pos="0.5 0 0">
       <joint name="joint1" type="ball" range="0 35"/>
       <site name="s1" pos="1.3 0 0"/>
       <geom/>

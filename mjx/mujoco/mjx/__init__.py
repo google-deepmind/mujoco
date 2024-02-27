@@ -36,6 +36,7 @@ from mujoco.mjx._src.io import put_data
 from mujoco.mjx._src.io import put_model
 from mujoco.mjx._src.passive import passive
 from mujoco.mjx._src.ray import ray
+from mujoco.mjx._src.smooth import camlight
 from mujoco.mjx._src.smooth import com_pos
 from mujoco.mjx._src.smooth import com_vel
 from mujoco.mjx._src.smooth import crb

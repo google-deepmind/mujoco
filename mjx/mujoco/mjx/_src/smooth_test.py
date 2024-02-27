@@ -94,6 +94,10 @@ class SmoothTest(absltest.TestCase):
     dx = jax.jit(mjx.transmission)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'actuator_length')
     _assert_attr_eq(d, dx, 'actuator_moment')
+    # camlight
+    dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'cam_xpos')
+    _assert_eq(d.cam_xmat.reshape((-1, 3, 3)), dx.cam_xmat, 'cam_xmat')
 
   def test_disable_gravity(self):
     m = mujoco.MjModel.from_xml_string("""

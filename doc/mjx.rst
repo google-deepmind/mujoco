@@ -245,6 +245,8 @@ The following features are **in development** and coming soon:
      - ``TENDON``
    * - :ref:`Sensors <mjtSensor>`
      - All except ``PLUGIN``, ``USER``
+   * - Lights
+     - Positions and directions of lights
 
 The following features are **unsupported**:
 

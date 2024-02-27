@@ -21,6 +21,7 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import scan
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
+from mujoco.mjx._src.types import CamLightType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import JointType
@@ -96,25 +97,21 @@ def kinematics(m: Model, d: Data) -> Data:
       m.body_quat,
   )
 
-  @jax.vmap
-  def local_to_global(pos1, quat1, pos2, quat2):
-    pos = pos1 + math.rotate(pos2, quat1)
-    mat = math.quat_to_mat(math.quat_mul(quat1, quat2))
-    return pos, mat
+  v_local_to_global = jax.vmap(support.local_to_global)
 
   # TODO(erikfrey): confirm that quats are more performant for mjx than mats
-  xipos, ximat = local_to_global(xpos, xquat, m.body_ipos, m.body_iquat)
+  xipos, ximat = v_local_to_global(xpos, xquat, m.body_ipos, m.body_iquat)
   d = d.replace(qpos=qpos, xanchor=xanchor, xaxis=xaxis, xpos=xpos)
   d = d.replace(xquat=xquat, xmat=xmat, xipos=xipos, ximat=ximat)
 
   if m.ngeom:
-    geom_xpos, geom_xmat = local_to_global(
+    geom_xpos, geom_xmat = v_local_to_global(
         xpos[m.geom_bodyid], xquat[m.geom_bodyid], m.geom_pos, m.geom_quat
     )
     d = d.replace(geom_xpos=geom_xpos, geom_xmat=geom_xmat)
 
   if m.nsite:
-    site_xpos, site_xmat = local_to_global(
+    site_xpos, site_xmat = v_local_to_global(
         xpos[m.site_bodyid], xquat[m.site_bodyid], m.site_pos, m.site_quat
     )
     d = d.replace(site_xpos=site_xpos, site_xmat=site_xmat)
@@ -195,6 +192,76 @@ def com_pos(m: Model, d: Data) -> Data:
       d.xaxis,
   )
   d = d.replace(cdof=cdof)
+
+  return d
+
+
+def camlight(m: Model, d: Data) -> Data:
+  """Computes camera and light positions and orientations."""
+  if m.ncam == 0:
+    return d.replace(cam_xpos=jp.zeros((0, 3)), cam_xmat=jp.zeros((0, 3, 3)))
+
+  # use target body only if target body is specified
+  is_target_cam = (m.cam_mode == CamLightType.TARGETBODY) | (
+      m.cam_mode == CamLightType.TARGETBODYCOM
+  )
+  cam_mode = np.where(
+      is_target_cam & (m.cam_targetbodyid < 0), CamLightType.FIXED, m.cam_mode
+  )
+
+  cam_xpos, cam_xmat = jax.vmap(support.local_to_global)(
+      d.xpos[m.cam_bodyid], d.xquat[m.cam_bodyid], m.cam_pos, m.cam_quat
+  )
+
+  def fn(
+      camid,
+      cam_mode,
+      cam_xpos,
+      cam_xmat,
+      body_xpos,
+      subtree_com,
+      target_body_xpos,
+      target_subtree_com,
+  ):
+    if cam_mode == CamLightType.TRACK:
+      cam_xmat = m.cam_mat0[camid]
+      cam_xpos = body_xpos + m.cam_pos0[camid]
+    elif cam_mode == CamLightType.TRACKCOM:
+      cam_xmat = m.cam_mat0[camid]
+      cam_xpos = subtree_com + m.cam_poscom0[camid]
+    elif cam_mode in (CamLightType.TARGETBODY, CamLightType.TARGETBODYCOM):
+      # get position to look at
+      pos = target_body_xpos
+      if cam_mode == CamLightType.TARGETBODYCOM:
+        pos = target_subtree_com
+      # zaxis = -desired camera direction, in global frame
+      mat_3 = math.normalize(cam_xpos - pos)
+      # xaxis: orthogonal to zaxis and to (0,0,1)
+      mat_1 = math.normalize(jp.cross(jp.array([0.0, 0.0, 1.0]), mat_3))
+      mat_2 = math.normalize(jp.cross(mat_3, mat_1))
+      cam_xmat = jp.array([mat_1, mat_2, mat_3]).T
+    return cam_xpos, cam_xmat
+
+  cam_xpos, cam_xmat = scan.flat(
+      m,
+      fn,
+      'c' * 8,
+      'cc',
+      jp.arange(m.ncam),
+      cam_mode,
+      cam_xpos,
+      cam_xmat,
+      d.xpos[m.cam_bodyid],
+      d.subtree_com[m.cam_bodyid],
+      d.xpos[m.cam_targetbodyid],
+      d.subtree_com[m.cam_targetbodyid],
+      group_by='c',
+  )
+
+  d = d.replace(
+      cam_xpos=cam_xpos,
+      cam_xmat=cam_xmat,
+  )
 
   return d
 

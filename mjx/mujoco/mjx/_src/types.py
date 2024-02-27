@@ -213,6 +213,24 @@ class BiasType(enum.IntEnum):
   # unsupported: MUSCLE, USER
 
 
+class CamLightType(enum.IntEnum):
+  """Type of camera light.
+
+  Attributes:
+    FIXED: pos and rot fixed in body
+    TRACK: pos tracks body, rot fixed in global
+    TRACKCOM: pos tracks subtree com, rot fixed in body
+    TARGETBODY: pos fixed in body, rot tracks target body
+    TARGETBODYCOM: pos fixed in body, rot tracks target subtree com
+  """
+
+  FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED
+  TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK
+  TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM
+  TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY
+  TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM
+
+
 class Option(PyTreeNode):
   """Physics options.
 
@@ -283,6 +301,7 @@ class Model(PyTreeNode):
     njnt: number of joints
     ngeom: number of geoms
     nsite: number of sites
+    ncam: number of cameras
     nmesh: number of meshes
     nmeshvert: number of vertices in all meshes
     nmeshface: number of triangular faces in all meshes
@@ -360,6 +379,14 @@ class Model(PyTreeNode):
     site_bodyid: id of site's body                            (nsite,)
     site_pos: local position offset rel. to body              (nsite, 3)
     site_quat: local orientation offset rel. to body          (nsite, 4)
+    cam_mode:  camera tracking mode (mjtCamLight)             (ncam,)
+    cam_bodyid:  id of camera's body                          (ncam,)
+    cam_targetbodyid:  id of targeted body; -1: none          (ncam,)
+    cam_pos:  position rel. to body frame                     (ncam, 3)
+    cam_quat:  orientation rel. to body frame                 (ncam, 4)
+    cam_poscom0:  global position rel. to sub-com in qpos0    (ncam, 3)
+    cam_pos0:  global position rel. to body in qpos0          (ncam, 3)
+    cam_mat0:  global orientation in qpos0                    (ncam, 9)
     mat_rgba: rgba                                            (nmat, 4)
     mesh_vertadr: first vertex address                        (nmesh x 1)
     mesh_faceadr: first face address                          (nmesh x 1)
@@ -416,6 +443,7 @@ class Model(PyTreeNode):
   njnt: int
   ngeom: int
   nsite: int
+  ncam: int
   nmesh: int
   nmeshvert: int
   nmeshface: int
@@ -493,6 +521,14 @@ class Model(PyTreeNode):
   site_bodyid: np.ndarray
   site_pos: jax.Array
   site_quat: jax.Array
+  cam_mode: np.ndarray
+  cam_bodyid: np.ndarray
+  cam_targetbodyid: np.ndarray
+  cam_pos: jax.Array
+  cam_quat: jax.Array
+  cam_poscom0: jax.Array
+  cam_pos0: jax.Array
+  cam_mat0: jax.Array
   mesh_vertadr: np.ndarray
   mesh_faceadr: np.ndarray
   mesh_vert: np.ndarray
@@ -588,7 +624,7 @@ class Contact(PyTreeNode):
 
 
 class Data(PyTreeNode):
-  """Dynamic state that updates each step.
+  r"""Dynamic state that updates each step.\
 
   Attributes:
     solver_niter: number of solver iterations, per island         (mjNISLAND,)
@@ -614,6 +650,8 @@ class Data(PyTreeNode):
     geom_xmat: Cartesian geom orientation                         (ngeom, 3, 3)
     site_xpos: Cartesian site position                            (nsite, 3)
     site_xmat: Cartesian site orientation                         (nsite, 9)
+    cam_xpos: Cartesian camera position                           (ncam, 3)
+    cam_xmat: Cartesian camera orientation                        (ncam, 9)
     subtree_com: center of mass of each subtree                   (nbody, 3)
     cdof: com-based motion axis of each dof                       (nv, 6)
     cinert: com-based body inertia and mass                       (nbody, 10)
@@ -673,6 +711,8 @@ class Data(PyTreeNode):
   geom_xmat: jax.Array
   site_xpos: jax.Array
   site_xmat: jax.Array
+  cam_xpos: jax.Array
+  cam_xmat: jax.Array
   subtree_com: jax.Array
   cdof: jax.Array
   cinert: jax.Array

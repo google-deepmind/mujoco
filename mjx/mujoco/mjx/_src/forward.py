@@ -65,6 +65,7 @@ def fwd_position(m: Model, d: Data) -> Data:
   # TODO(robotics-simulation): tendon
   d = smooth.kinematics(m, d)
   d = smooth.com_pos(m, d)
+  d = smooth.camlight(m, d)
   d = smooth.crb(m, d)
   d = smooth.factor_m(m, d)
   d = collision_driver.collision(m, d)
