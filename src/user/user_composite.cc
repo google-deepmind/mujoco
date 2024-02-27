@@ -790,7 +790,7 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
   bool secondlast = ix==lastidx-1;
 
   // compute edge and tangent vectors
-  mjtNum edge[3], tprev[3], tnext[3];
+  mjtNum edge[3], tprev[3], tnext[3], length_prev = 0;
   mjuu_setvec(edge, uservert[3*(ix+1)+0]-uservert[3*ix+0],
                     uservert[3*(ix+1)+1]-uservert[3*ix+1],
                     uservert[3*(ix+1)+2]-uservert[3*ix+2]);
@@ -798,7 +798,7 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
     mjuu_setvec(tprev, uservert[3*ix+0]-uservert[3*(ix-1)+0],
                        uservert[3*ix+1]-uservert[3*(ix-1)+1],
                        uservert[3*ix+2]-uservert[3*(ix-1)+2]);
-    mjuu_normvec(tprev, 3);
+    length_prev = mjuu_normvec(tprev, 3);
   }
   if (!last) {
     mjuu_setvec(tnext, uservert[3*(ix+2)+0]-uservert[3*(ix+1)+0],
@@ -842,7 +842,7 @@ mjmBody* mjCComposite::AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtN
                            offset[2]+uservert[3*ix+2]);
     mjuu_copyvec(body->quat, this_quat, 4);
   } else {
-    mjuu_setvec(body->pos, length, 0, 0);
+    mjuu_setvec(body->pos, length_prev, 0, 0);
     mjtNum negquat[4] = {prev_quat[0], -prev_quat[1], -prev_quat[2], -prev_quat[3]};
     mjuu_mulquat(dquat, negquat, this_quat);
     mjuu_copyvec(body->quat, dquat, 4);
