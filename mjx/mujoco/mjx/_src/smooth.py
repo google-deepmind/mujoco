@@ -289,7 +289,7 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
   # x <- inv(L') * x
   for _, vals in sorted(updates_j.items(), reverse=True):
     j, madr_ij, i = np.array(vals).T
-    x = x.at[j].add(-(d.qLD[madr_ij] * x[i]))
+    x = x.at[j].add(-d.qLD[madr_ij] * x[i])
 
   # x <- inv(D) * x
   x = x * d.qLDiagInv
@@ -297,7 +297,7 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
   # x <- inv(L) * x
   for _, vals in sorted(updates_i.items()):
     i, madr_ij, j = np.array(vals).T
-    x = x.at[i].add(-(d.qLD[madr_ij] * x[j]))
+    x = x.at[i].add(-d.qLD[madr_ij] * x[j])
 
   return x
 
