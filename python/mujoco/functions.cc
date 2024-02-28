@@ -1353,7 +1353,28 @@ PYBIND11_MODULE(_functions, pymodule) {
             DsDa.has_value() ? DsDa->data() : nullptr,
             DmDq.has_value() ? DmDq->data() : nullptr);
       });
-  Def<traits::mjd_subQuat>(pymodule);
+  Def<traits::mjd_subQuat>(
+      pymodule,
+      [](Eigen::Ref<const EigenVectorX> qa, Eigen::Ref<const EigenVectorX> qb,
+         std::optional<Eigen::Ref<EigenArrayXX>> Da,
+         std::optional<Eigen::Ref<EigenArrayXX>> Db) {
+        if (qa.size() != 4) {
+          throw py::type_error("qa must have size 4");
+        }
+        if (qb.size() != 4) {
+          throw py::type_error("qb must have size 4");
+        }
+        if (Da.has_value() && Da->size() != 9) {
+          throw py::type_error("Da must have size 9");
+        }
+        if (Db.has_value() && Db->size() != 9) {
+          throw py::type_error("Db must have size 9");
+        }
+        return InterceptMjErrors(::mjd_subQuat)(
+            qa.data(), qb.data(),
+            Da.has_value() ? Da->data() : nullptr,
+            Db.has_value() ? Db->data() : nullptr);
+      });
   Def<traits::mjd_quatIntegrate>(pymodule);
 
   pymodule.def(
