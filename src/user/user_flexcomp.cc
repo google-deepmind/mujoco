@@ -155,7 +155,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
     break;
 
   default:
-    return comperr(error, "Uknown flexcomp type", error_sz);
+    return comperr(error, "Unknown flexcomp type", error_sz);
   }
   if (!res) {
     return false;

@@ -161,7 +161,7 @@ TEST_F(UserFlexTest, PointAndElementNotInDirect) {
   EXPECT_THAT(error.data(), HasSubstr("Point and element required"));
 }
 
-TEST_F(UserFlexTest, UknownFlexCompType) {
+TEST_F(UserFlexTest, UnknownFlexCompType) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>

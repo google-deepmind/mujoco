@@ -342,7 +342,7 @@ bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_s
     return MakeBox(model, body, error, error_sz);
 
   default:
-    return comperr(error, "Uknown shape in composite", error_sz);
+    return comperr(error, "Unknown shape in composite", error_sz);
   }
 }
 
