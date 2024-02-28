@@ -228,7 +228,6 @@ def factor_m(m: Model, d: Data) -> Data:
     return d
 
   # build up indices for where we will do backwards updates over qLD
-  dof_madr = jp.array(m.dof_Madr)
   depth = []
   for i in range(m.nv):
     depth.append(depth[m.dof_parentid[i]] + 1 if m.dof_parentid[i] != -1 else 0)
@@ -248,7 +247,7 @@ def factor_m(m: Model, d: Data) -> Data:
   qld = d.qM
 
   for _, updates in sorted(updates.items(), reverse=True):
-    # combine the updatess into one update batch (per depth level)
+    # combine the updates into one update batch (per depth level)
     rows = []
     madr_ijs = []
     pivots = []
@@ -260,18 +259,18 @@ def factor_m(m: Model, d: Data) -> Data:
       madr_ijs.append(np.full((width,), madr_ij))
       pivots.append(np.full((width,), madr_d))
       out.append(np.arange(b, e))
-    rows = jp.array(np.concatenate(rows))
-    madr_ijs = jp.array(np.concatenate(madr_ijs))
-    pivots = jp.array(np.concatenate(pivots))
-    out = jp.array(np.concatenate(out))
+    rows = np.concatenate(rows)
+    madr_ijs = np.concatenate(madr_ijs)
+    pivots = np.concatenate(pivots)
+    out = np.concatenate(out)
 
     # apply the update batch
     qld = qld.at[out].add(-(qld[madr_ijs] / qld[pivots]) * qld[rows])
     # TODO(erikfrey): determine if this minimum value guarding is necessary:
     # qld = qld.at[dof_madr].set(jp.maximum(qld[dof_madr], _MJ_MINVAL))
 
-  qld_diag = qld[dof_madr]
-  qld = (qld / qld[jp.array(madr_ds)]).at[dof_madr].set(qld_diag)
+  qld_diag = qld[m.dof_Madr]
+  qld = (qld / qld[jp.array(madr_ds)]).at[m.dof_Madr].set(qld_diag)
 
   d = d.replace(qLD=qld, qLDiagInv=1 / qld_diag)
 
