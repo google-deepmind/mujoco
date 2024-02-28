@@ -339,6 +339,10 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
   if not support.is_sparse(m):
     return jax.scipy.linalg.cho_solve((d.qLD, False), x)
 
+  depth = []
+  for i in range(m.nv):
+    depth.append(depth[m.dof_parentid[i]] + 1 if m.dof_parentid[i] != -1 else 0)
+
   updates_i, updates_j = {}, {}
   for i in range(m.nv):
     madr_ij, j = m.dof_Madr[i], i
@@ -346,21 +350,21 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
       madr_ij, j = madr_ij + 1, m.dof_parentid[j]
       if j == -1:
         break
-      updates_i.setdefault(i, []).append((madr_ij, j))
-      updates_j.setdefault(j, []).append((madr_ij, i))
+      updates_i.setdefault(depth[i], []).append((i, madr_ij, j))
+      updates_j.setdefault(depth[j], []).append((j, madr_ij, i))
 
   # x <- inv(L') * x
-  for j, vals in sorted(updates_j.items(), reverse=True):
-    madr_ij, i = jp.array(vals).T
-    x = x.at[j].add(-jp.sum(d.qLD[madr_ij] * x[i]))
+  for _, vals in sorted(updates_j.items(), reverse=True):
+    j, madr_ij, i = np.array(vals).T
+    x = x.at[j].add(-d.qLD[madr_ij] * x[i])
 
   # x <- inv(D) * x
   x = x * d.qLDiagInv
 
   # x <- inv(L) * x
-  for i, vals in sorted(updates_i.items()):
-    madr_ij, j = jp.array(vals).T
-    x = x.at[i].add(-jp.sum(d.qLD[madr_ij] * x[j]))
+  for _, vals in sorted(updates_i.items()):
+    i, madr_ij, j = np.array(vals).T
+    x = x.at[i].add(-d.qLD[madr_ij] * x[j])
 
   return x
 
