@@ -401,7 +401,7 @@ the callbacks:
 
 .. code-block:: C
 
-   int data_open_callback(mjResource* resource) {
+   int str_open_callback(mjResource* resource) {
      // call some util function to validate
      if (!is_valid_data_uri(resource->name)) {
        return 0; // return failure
