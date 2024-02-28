@@ -321,7 +321,7 @@ def factor_m(m: Model, d: Data) -> Data:
       return -(qld_row[0] / qld[madr_d]) * qld_row
 
     qld_update = jp.sum(off_diag_fn(madr_d, madr_ij), axis=0)
-    qld = qld.at[out_beg:out_end].add(qld_update)
+    qld = qld.at[jp.arange(out_beg, out_end)].add(qld_update)
     # TODO(erikfrey): determine if this minimum value guarding is necessary:
     # qld = qld.at[dof_madr].set(jp.maximum(qld[dof_madr], _MJ_MINVAL))
 
