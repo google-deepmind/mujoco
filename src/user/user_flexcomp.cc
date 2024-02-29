@@ -84,6 +84,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 // make flexcomp object
 bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
   mjmFlex* dflex = def.spec.flex;
+  int dim = dflex->dim;
   bool radial = (type==mjFCOMPTYPE_BOX ||
                  type==mjFCOMPTYPE_CYLINDER ||
                  type==mjFCOMPTYPE_ELLIPSOID);
@@ -96,9 +97,14 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
     return comperr(error, "Parent body must have name", error_sz);
   }
 
+  // check dim
+  if (dim<1 || dim>3) {
+    return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
+  }
+
   // check counts
   for (int i=0; i<3; i++) {
-    if (count[i]<1 || (radial && count[i]<2)) {
+    if (count[i]<1 || ((radial && count[i]<2) && dim==3)) {
       return comperr(error, "Count too small", error_sz);
     }
   }
@@ -142,6 +148,11 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
     res = MakeBox(error, error_sz);
     break;
 
+  case mjFCOMPTYPE_SQUARE:
+  case mjFCOMPTYPE_DISC:
+    res = MakeSquare(error, error_sz);
+    break;
+
   case mjFCOMPTYPE_MESH:
     res = MakeMesh(model, error, error_sz);
     break;
@@ -159,12 +170,6 @@ bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz
   }
   if (!res) {
     return false;
-  }
-
-  // get dim and check
-  int dim = dflex->dim;
-  if (dim<1 || dim>3) {
-    return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
   }
 
   // force flatskin shading for box, cylinder and 3D grid
@@ -540,18 +545,29 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 
   // 2D
   else if (dim==2) {
-    int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
     for (int ix=0; ix<count[0]; ix++) {
       for (int iy=0; iy<count[1]; iy++) {
+        int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
+
         // add point
-        point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
-        point.push_back(spacing[1]*(iy - 0.5*(count[1]-1)));
+        mjtNum pos[2] = {spacing[0]*(ix- 0.5*(count[0]-1)),
+                         spacing[1]*(iy- 0.5*(count[1]-1))};
+        point.push_back(pos[0]);
+        point.push_back(pos[1]);
         point.push_back(0);
 
         // add texture coordinates, if not specified explicitly
         if (!hastex) {
           texcoord.push_back(ix/(mjtNum)mjMAX(count[0]-1, 1));
           texcoord.push_back(iy/(mjtNum)mjMAX(count[1]-1, 1));
+        }
+
+        // flip triangles if radial projection is requested
+        if (((pos[0] < -mjEPS && pos[1] > -mjEPS) ||
+             (pos[0] > -mjEPS && pos[1] < -mjEPS)) &&
+            type == mjFCOMPTYPE_DISC) {
+          quad2tri[0][2] = 3;
+          quad2tri[1][0] = 1;
         }
 
         // add elements
@@ -691,6 +707,37 @@ void mjCFlexcomp::BoxProject(double* pos, int ix, int iy, int iz) {
     pos[1] *= size[1];
     pos[2] *= size[2];
   }
+}
+
+
+
+// make 2d square or disc
+bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
+  // set 2D
+  def.spec.flex->dim = 2;
+
+  // create square
+  if (!MakeGrid(error, error_sz)) {
+    return false;
+  }
+
+  // do projection
+  if (type==mjFCOMPTYPE_DISC) {
+    double size[2] = {
+      0.5*spacing[0]*(count[0]-1),
+      0.5*spacing[1]*(count[1]-1),
+    };
+
+    for (int i=0; i<point.size()/3; i++) {
+      mjtNum* pos = point.data() + i*3;
+      double L0 = mjMAX(mju_abs(pos[0]), mju_abs(pos[1]));
+      mjuu_normvec(pos, 2);
+      pos[0] *= size[0]*L0;
+      pos[1] *= size[1]*L0;
+    }
+  }
+
+  return true;
 }
 
 

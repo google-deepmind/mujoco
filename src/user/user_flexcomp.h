@@ -29,6 +29,8 @@ typedef enum _mjtFcompType {
   mjFCOMPTYPE_BOX,
   mjFCOMPTYPE_CYLINDER,
   mjFCOMPTYPE_ELLIPSOID,
+  mjFCOMPTYPE_SQUARE,
+  mjFCOMPTYPE_DISC,
   mjFCOMPTYPE_MESH,
   mjFCOMPTYPE_GMSH,
   mjFCOMPTYPE_DIRECT,
@@ -44,6 +46,7 @@ class mjCFlexcomp {
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz);
+  bool MakeSquare(char* error, int error_sz);
   bool MakeMesh(mjCModel* model, char* error, int error_sz);
   bool MakeGMSH(mjCModel* model, char* error, int error_sz);
   void LoadGMSH(mjCModel* model, mjResource* resource);
