@@ -201,7 +201,8 @@ def _geom_mesh_kwargs(
   vert = np.array(tm_convex.vertices)
   face = _merge_coplanar(tm_convex)
   return {
-      'geom_convex_face': face,
+      'geom_convex_face': vert[face],
+      'geom_convex_face_vert_idx': face,
       'geom_convex_vert': vert,
       'geom_convex_edge': _get_unique_edges(vert, face),
       'geom_convex_facenormal': _get_face_norm(vert, face),

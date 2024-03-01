@@ -199,3 +199,13 @@ def local_to_global(
   pos = world_pos + math.rotate(local_pos, world_quat)
   mat = math.quat_to_mat(math.quat_mul(world_quat, local_quat))
   return pos, mat
+
+
+def get_custom_numeric(m: Union[Model, mujoco.MjModel], name: str) -> float:
+  """Returns a custom numeric given an MjModel or mjx.Model."""
+  for i in range(m.nnumeric):
+    name_ = m.names[m.name_numericadr[i] :].decode('utf-8').split('\x00', 1)[0]
+    if name_ == name:
+      return m.numeric_data[m.numeric_adr[i]]
+
+  return -1

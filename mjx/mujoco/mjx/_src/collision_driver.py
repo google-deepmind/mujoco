@@ -20,6 +20,8 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_base
+from mujoco.mjx._src import support
+from mujoco.mjx._src import math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.collision_base import Candidate
 from mujoco.mjx._src.collision_base import CandidateSet
@@ -181,11 +183,13 @@ def _pair_info(
   """Returns geom pair info for calculating collision."""
   g1, g2 = jp.array(geom1), jp.array(geom2)
   info1 = GeomInfo(
+      g1,
       d.geom_xpos[g1],
       d.geom_xmat[g1],
       m.geom_size[g1],
   )
   info2 = GeomInfo(
+      g2,
       d.geom_xpos[g2],
       d.geom_xmat[g2],
       m.geom_size[g2],
@@ -236,6 +240,18 @@ def _body_pair_filter(
   return False
 
 
+def _broadphase_enabled(
+    geom_types: Tuple[GeomType, GeomType],
+    n_pairs: int,
+    max_pairs: int,
+) -> bool:
+  return (
+      GeomType.PLANE not in geom_types
+      and max_pairs > -1
+      and n_pairs > max_pairs
+  )
+
+
 def _collide_geoms(
     m: Model,
     d: Data,
@@ -264,18 +280,32 @@ def _collide_geoms(
     else:
       params.append(_dynamic_params(m, candidates))
 
-  # call contact function
+  params = jax.tree_map(lambda *x: jp.concatenate(x), *params)
   g1, g2, in_axes = _pair_info(m, d, geom1, geom2)
+
+  # Run a crude version of broadphase.
+  max_pairs = int(support.get_custom_numeric(m, 'max_geom_pairs'))
+  run_broadphase = _broadphase_enabled(geom_types, len(geom1), max_pairs)
+  n_pairs = max_pairs if run_broadphase else len(geom1)
+  if run_broadphase:
+    # broadphase over geom pairs, using bounding spheres
+    size1 = jp.max(m.geom_size[jp.array(geom1)], axis=-1)
+    size2 = jp.max(m.geom_size[jp.array(geom2)], axis=-1)
+    # TODO(btaba): consider re-using collision info for (sphere, sphere)
+    dists = jax.vmap(jp.linalg.norm)(g2.pos - g1.pos) - (size1 + size2)
+    _, idx = jax.lax.top_k(dists, k=n_pairs)
+    g1, g2, params = jax.tree_map(
+        lambda x, idx=idx: x[idx, ...], (g1, g2, params)
+    )
+
+  # call contact function
   res = jax.vmap(fn, in_axes=in_axes)(g1, g2)
   dist, pos, frame = jax.tree_map(jp.concatenate, res)
 
-  params = jax.tree_map(lambda *x: jp.concatenate(x), *params)
-  geom1, geom2 = jp.array(geom1), jp.array(geom2)
   # repeat params by the number of contacts per geom pair
-  n_repeat = dist.shape[-1] // geom1.shape[0]
   geom1, geom2, params = jax.tree_map(
-      lambda x: jp.repeat(x, n_repeat, axis=0),
-      (geom1, geom2, params),
+      lambda x: jp.repeat(x, fn.ncon, axis=0),  # pytype: disable=attribute-error
+      (g1.geom_id, g2.geom_id, params),
   )
 
   con = Contact(
@@ -291,16 +321,6 @@ def _collide_geoms(
       geom2=geom2,
   )
   return con
-
-
-def _max_contact_points(m: Union[Model, mujoco.MjModel]) -> int:
-  """Returns the maximum number of contact points when set as a numeric."""
-  for i in range(m.nnumeric):
-    name = m.names[m.name_numericadr[i] :].decode('utf-8').split('\x00', 1)[0]
-    if name == 'max_contact_points':
-      return int(m.numeric_data[m.numeric_adr[i]])
-
-  return -1
 
 
 def collision_candidates(m: Union[Model, mujoco.MjModel]) -> CandidateSet:
@@ -351,14 +371,17 @@ def ncon(m: Union[Model, mujoco.MjModel]) -> int:
     return 0
 
   candidates = collision_candidates(m)
-  max_count = _max_contact_points(m)
+  max_count = int(support.get_custom_numeric(m, 'max_contact_points'))
+  max_pairs = int(support.get_custom_numeric(m, 'max_geom_pairs'))
 
   count = 0
   for k, v in candidates.items():
     fn = get_collision_fn(k[0:2])
     if fn is None:
       continue
-    count += len(v) * fn.ncon  # pytype: disable=attribute-error
+    run_broadphase = _broadphase_enabled((k[0], k[1]), len(v), max_pairs)
+    n_pair = max_pairs if run_broadphase else len(v)
+    count += n_pair * fn.ncon  # pytype: disable=attribute-error
 
   return min(max_count, count) if max_count > -1 else count
 
@@ -380,7 +403,7 @@ def collision(m: Model, d: Data) -> Data:
 
   contact = jax.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
-  max_contact_points = _max_contact_points(m)
+  max_contact_points = int(support.get_custom_numeric(m, 'max_contact_points'))
   if max_contact_points > -1 and contact.dist.shape[0] > max_contact_points:
     # get top-k contacts
     _, idx = jax.lax.top_k(-contact.dist, k=max_contact_points)

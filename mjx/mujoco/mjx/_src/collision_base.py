@@ -44,6 +44,7 @@ CandidateSet = Dict[
 class GeomInfo(PyTreeNode):
   """Collision info for a geom."""
 
+  geom_id: jax.Array
   pos: jax.Array
   mat: jax.Array
   size: jax.Array

@@ -32,10 +32,11 @@ MJX
 6. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
 7. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
 8. Added support for cameras in ``mjx.Model`` and ``mjx.Data``. Fixes :github:issue:`1422`.
+9. Added an implementation of broadphase using `top_k` and bounding spheres.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-9. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
+10. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
    of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
 
 

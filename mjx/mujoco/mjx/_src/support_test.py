@@ -116,6 +116,20 @@ class SupportTest(parameterized.TestCase):
 
     np.testing.assert_almost_equal(qfrc, qfrc_expected, 6)
 
+  def test_custom_numeric(self):
+    xml = """
+    <mujoco model="right_shadow_hand">
+        <custom>
+          <numeric data="15" name="max_contact_points"/>
+          <numeric data="42" name="max_geom_pairs"/>
+        </custom>
+    </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+    self.assertEqual(support.get_custom_numeric(m, 'something'), -1)
+    self.assertEqual(support.get_custom_numeric(m, 'max_contact_points'), 15)
+    self.assertEqual(support.get_custom_numeric(m, 'max_geom_pairs'), 42)
+
 
 if __name__ == '__main__':
   absltest.main()

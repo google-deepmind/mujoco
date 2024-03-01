@@ -7,6 +7,7 @@
 
   <custom>
     <numeric data="15" name="max_contact_points"/>
+    <numeric data="15" name="max_geom_pairs"/>
   </custom>
 
   <default>

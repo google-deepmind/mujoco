@@ -47,7 +47,7 @@ class GeomMeshKwargsTest(absltest.TestCase):
 
     # check face vertices
     map_ = {v: k for k, v in enumerate(vidx)}
-    h_face = np.vectorize(map_.get)(h['geom_convex_face'])
+    h_face = np.vectorize(map_.get)(h['geom_convex_face_vert_idx'])
     face_verts = sorted([tuple(sorted(set(s))) for s in h_face.tolist()])
     expected_face_verts = sorted([
         (0, 3, 4), (1, 3, 4), (0, 2, 4), (0, 1, 2, 3), (1, 2, 4)])
