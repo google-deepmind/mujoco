@@ -223,7 +223,9 @@ void mjCComposite::SetDefault(void) {
 
 
 // make composite object
-bool mjCComposite::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
+bool mjCComposite::Make(mjmModel* modelspec, mjmBody* body, char* error, int error_sz) {
+  mjCModel* model = (mjCModel*)modelspec->element;
+
   // check geom type
   if ((def[0].spec.geom->type!=mjGEOM_SPHERE &&
        def[0].spec.geom->type!=mjGEOM_CAPSULE &&

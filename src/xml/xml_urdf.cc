@@ -20,6 +20,7 @@
 
 #include <mujoco/mjmodel.h>
 #include "user/user_api.h"
+#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_urdf.h"
@@ -93,25 +94,25 @@ void mjXURDF::Parse(
   if (mjc) {
     XMLElement *section;
     if ((section = FindSubElem(mjc, "compiler"))) {
-      mjXReader::Compiler(section, &model->spec);
+      mjXReader::Compiler(section, model);
     }
 
     if ((section = FindSubElem(mjc, "option"))) {
-      mjXReader::Option(section, &model->spec.option);
+      mjXReader::Option(section, &model->option);
     }
 
     if ((section = FindSubElem(mjc, "size"))) {
-      mjXReader::Size(section, &model->spec);
+      mjXReader::Size(section, model);
     }
   }
 
   // enforce required compiler defaults for URDF
-  model->spec.degree = false;
+  model->degree = false;
 
   // get model name
   std::string modelname;
   if (ReadAttrTxt(root, "name", modelname)) {
-    mjm_setString(model->spec.modelname, modelname.c_str());
+    mjm_setString(model->modelname, modelname.c_str());
   }
 
   // find and register all materials
@@ -205,7 +206,7 @@ void mjXURDF::Parse(
   // override the pose for the base link and add a free joint
   for (int i = 0; i < (int)urName.size(); i++) {
     if (urParent[i] < 0) {
-      mjmBody* world = mjm_findBody(&model->spec, "world");
+      mjmBody* world = mjm_findBody(model, "world");
       mjmBody* pbody = mjm_findChild(world, urName[i].c_str());
       mjuu_copyvec(pbody->pos, pos, 3);
       mjuu_copyvec(pbody->quat, quat, 4);
@@ -231,7 +232,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
   // get body name and pointer to mjmBody
   ReadAttrTxt(body_elem, "name", name, true);
   name = GetPrefixedName(name);
-  world = mjm_findBody(&model->spec, "world");
+  world = mjm_findBody(model, "world");
   pbody = mjm_findChild(world, name.c_str());
   if (!pbody) {
     throw mjXError(body_elem, "URDF body not found");  // SHOULD NOT OCCUR
@@ -313,7 +314,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         }
       }
       // create geom if not discarded
-      if (!model->spec.discardvisual) {
+      if (!model->discardvisual) {
         pgeom = Geom(elem, pbody, false);
 
         // save color
@@ -389,7 +390,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);
   name = GetPrefixedName(name);
-  world = mjm_findBody(&model->spec, "world");
+  world = mjm_findBody(model, "world");
   parent = mjm_findChild(world, name.c_str());
   if (!parent) {                      // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid parent name in URDF joint definition");
@@ -399,7 +400,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   elem = FindSubElem(joint_elem, "child", true);
   ReadAttrTxt(elem, "link", name, true);
   name = GetPrefixedName(name);
-  world = mjm_findBody(&model->spec, "world");
+  world = mjm_findBody(model, "world");
   pbody = mjm_findChild(world, name.c_str());
   if (!pbody) {                       // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid child name in URDF joint definition");
@@ -566,7 +567,7 @@ mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
                                       .value_or(default_meshscale);
 
     // strip file name if necessary
-    if (model->spec.strippath) {
+    if (model->strippath) {
       meshfile = mjuu_strippath(meshfile);
     }
 
@@ -575,19 +576,19 @@ mjmGeom* mjXURDF::Geom(XMLElement* geom_elem, mjmBody* pbody, bool collision) {
     meshname = mjuu_stripext(meshname);
 
     // look for existing mesh
-    mjmMesh* mesh = mjm_findMesh(&model->spec, meshname.c_str());
+    mjmMesh* mesh = mjm_findMesh(model, meshname.c_str());
     mjmMesh* pmesh = 0;
 
     // does not exist: create
     if (!mesh) {
-      pmesh = mjm_addMesh(&model->spec, 0);
+      pmesh = mjm_addMesh(model, 0);
     }
 
     // exists with different scale: append name with '1', create
     else if (mesh->scale[0]!=meshscale[0] ||
              mesh->scale[1]!=meshscale[1] ||
              mesh->scale[2]!=meshscale[2]) {
-      pmesh = mjm_addMesh(&model->spec, 0);
+      pmesh = mjm_addMesh(model, 0);
       meshname = meshname + "1";
     }
 
@@ -684,14 +685,14 @@ void mjXURDF::AddToTree(int n) {
   // get pointer to parent in mjCModel tree
   mjmBody *parent = 0, *child = 0, *world = 0;
   if (urParent[n]>=0) {
-    world = mjm_findBody(&model->spec, "world");
+    world = mjm_findBody(model, "world");
     parent = mjm_findChild(world, urName[urParent[n]].c_str());
 
     if (!parent)
       throw mjXError(0, "URDF body parent should already be in tree: %s",
                      urName[urParent[n]].c_str());       // SHOULD NOT OCCUR
   } else {
-    parent = &model->GetWorld()->spec;
+    parent = mjm_findBody(model, "world");
   }
 
   // add this body

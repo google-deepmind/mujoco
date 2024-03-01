@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "user/user_api.h"
-#include "user/user_model.h"
 #include "xml/xml_base.h"
 #include "tinyxml2.h"
 

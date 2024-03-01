@@ -729,6 +729,18 @@ typedef struct _mjmDefault {       // default specification
 // Create model.
 MJAPI mjmModel* mjm_createModel();
 
+// Copy back model.
+MJAPI void mjm_copyBack(mjmModel* model, const mjModel* m);
+
+// Compile model.
+MJAPI mjModel* mjm_compileModel(mjmModel* model, const mjVFS* vfs);
+
+// Get error message from model.
+MJAPI const char* mjm_getError(mjmModel* model);
+
+// Return 1 if model has warnings.
+MJAPI int mjm_isWarning(mjmModel* model);
+
 // Delete model.
 MJAPI void mjm_deleteModel(mjmModel* modelspec);
 
@@ -820,7 +832,7 @@ MJAPI mjmKey* mjm_addKey(mjmModel* model);
 MJAPI mjmPlugin* mjm_addPlugin(mjmModel* model);
 
 // Add default to model.
-MJAPI mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid);
+MJAPI mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid, int* id);
 
 // Get model from body.
 MJAPI mjmModel* mjm_getModel(mjmBody* body);
@@ -830,6 +842,9 @@ MJAPI mjmDefault* mjm_getDefault(mjElement element);
 
 // Find default in model by class name.
 MJAPI mjmDefault* mjm_findDefault(mjmModel* model, const char* classname);
+
+// Get global default from model.
+MJAPI mjmDefault* mjm_getModelDefault(mjmModel* model);
 
 // Find body in model by name.
 MJAPI mjmBody* mjm_findBody(mjmModel* model, const char* name);
@@ -878,6 +893,9 @@ MJAPI const double* mjm_getDouble(mjDoubleVec source, int* size);
 
 // Set plugin attributes.
 MJAPI void mjm_setPluginAttributes(mjmPlugin* plugin, void* attributes);
+
+// Set active plugins.
+MJAPI void mjm_setActivePlugins(mjmModel* model, void* activeplugins);
 
 // Set default.
 MJAPI void mjm_setDefault(mjElement element, mjmDefault* def);

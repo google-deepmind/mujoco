@@ -61,6 +61,7 @@ class mjCModel : private mjmModel {
 
  public:
   mjCModel();
+  mjCModel(const mjCModel& other);
   ~mjCModel();
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
@@ -105,7 +106,7 @@ class mjCModel : private mjmModel {
   // API for access to other variables
   bool IsCompiled();                                       // is model already compiled
   int GetFixed();                                          // number of fixed massless bodies
-  mjCError GetError();                                     // copy of error object
+  const mjCError& GetError(void);                          // get reference of error object
   mjCBody* GetWorld();                                     // pointer to world body
   mjCDef* FindDef(std::string name);                       // find default class name
   mjCDef* AddDef(std::string name, int parentid);          // add default class to array

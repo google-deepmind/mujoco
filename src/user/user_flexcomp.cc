@@ -82,7 +82,8 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjCModel* model, mjmBody* body, char* error, int error_sz) {
+bool mjCFlexcomp::Make(mjmModel* modelspec, mjmBody* body, char* error, int error_sz) {
+  mjCModel* model = (mjCModel*)modelspec->element;
   mjmFlex* dflex = def.spec.flex;
   int dim = dflex->dim;
   bool radial = (type==mjFCOMPTYPE_BOX ||

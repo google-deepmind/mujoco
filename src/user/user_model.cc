@@ -175,6 +175,13 @@ mjCModel::mjCModel() {
 
 
 
+mjCModel::mjCModel(const mjCModel& other) {
+  *this = other;
+  PointToLocal();
+}
+
+
+
 void mjCModel::PointToLocal() {
   spec.element = (mjElement)this;
   spec.comment = (mjString)&spec_comment_;
@@ -504,8 +511,8 @@ int mjCModel::GetFixed(void) {
 
 
 
-// copy of error object
-mjCError mjCModel::GetError(void) {
+// get reference of error object
+const mjCError& mjCModel::GetError(void) {
   return errInfo;
 }
 

@@ -764,6 +764,14 @@ mjXWriter::mjXWriter(void) {
 }
 
 
+// cast model
+void mjXWriter::SetModel(mjmModel* modelspec) {
+  if (modelspec) {
+    model = (mjCModel*)modelspec->element;
+  }
+}
+
+
 // save existing model in MJCF canonical format, must be compiled
 string mjXWriter::Write(char *error, size_t error_sz) {
   // check model

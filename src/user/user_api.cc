@@ -28,8 +28,40 @@
 
 // create model
 mjmModel* mjm_createModel() {
-  mjCModel* modelC = new mjCModel();
+  mjCModel* modelC = new mjCModel;
   return &modelC->spec;
+}
+
+
+
+// copy back model
+void mjm_copyBack(mjmModel* model, const mjModel* m) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  modelC->CopyBack(m);
+}
+
+
+
+// compile model
+mjModel* mjm_compileModel(mjmModel* model, const mjVFS* vfs) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  return modelC->Compile(vfs);
+}
+
+
+
+// get error message from model
+const char* mjm_getError(mjmModel* model) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  return modelC->GetError().message;
+}
+
+
+
+// check if model has warnings
+int mjm_isWarning(mjmModel* model) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  return modelC->GetError().warning;
 }
 
 
@@ -320,8 +352,9 @@ mjmPlugin* mjm_addPlugin(mjmModel* model) {
 
 
 // add default to model
-mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid) {
+mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid, int* id) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  *id = (int)modelC->defaults.size();
   mjCDef* def = modelC->AddDef(classname, parentid);
   if (def) {
     return &def->spec;
@@ -346,14 +379,26 @@ mjmDefault* mjm_getDefault(mjElement element) {
 
 
 
-// find default in model by class name
-mjmDefault* mjm_findDefault(mjmModel* modelspec, const char* classname) {
-  mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
-  mjCDef* cdef = model->FindDef(classname);
+// Find default with given name in model.
+mjmDefault* mjm_findDefault(mjmModel* model, const char* classname) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  mjCDef* cdef = modelC->FindDef(classname);
   if (!cdef) {
     return nullptr;
   }
   return &cdef->spec;
+}
+
+
+
+// get default[0] from model
+mjmDefault* mjm_getModelDefault(mjmModel* model) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  mjCDef* def = modelC->defaults[0];
+  if (!def) {
+    return nullptr;
+  }
+  return &def->spec;
 }
 
 
@@ -535,6 +580,16 @@ void mjm_setPluginAttributes(mjmPlugin* plugin, void* attributes) {
   std::map<std::string, std::string, std::less<>>* config_attribs =
       reinterpret_cast<std::map<std::string, std::string, std::less<>>*>(attributes);
   pluginC->config_attribs = std::move(*config_attribs);
+}
+
+
+
+// Set active plugins.
+void mjm_setActivePlugins(mjmModel* model, void* activeplugins) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  std::vector<std::pair<const mjpPlugin*, int>>* active_plugins =
+      reinterpret_cast<std::vector<std::pair<const mjpPlugin*, int>>*>(activeplugins);
+  modelC->active_plugins = std::move(*active_plugins);
 }
 
 

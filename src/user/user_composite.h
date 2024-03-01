@@ -69,7 +69,7 @@ class mjCComposite {
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
   void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
-  bool Make(mjCModel* model, mjmBody* body, char* error, int error_sz);
+  bool Make(mjmModel* modelspec, mjmBody* body, char* error, int error_sz);
 
   bool MakeParticle(mjCModel* model, mjmBody* body, char* error, int error_sz);
   bool MakeGrid(mjCModel* model, mjmBody* body, char* error, int error_sz);

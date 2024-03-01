@@ -35,7 +35,7 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_vfs.h"
-#include "user/user_model.h"
+#include "user/user_api.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_native_writer.h"
@@ -99,7 +99,7 @@ class LocaleOverride {
 }  // namespace
 
 // Main writer function - calls mjXWrite
-std::string mjWriteXML(mjCModel* model, char* error, int error_sz) {
+std::string mjWriteXML(mjmModel* model, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -272,7 +272,7 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
 
 
 // Main parser function
-mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
+mjmModel* mjParseXML(const char* filename, const mjVFS* vfs,
                      char* error, int error_sz) {
   LocaleOverride locale_override;
 
@@ -285,7 +285,7 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // clear
-  mjCModel* model = 0;
+  mjmModel* model = nullptr;
   if (error) {
     error[0] = '\0';
   }
@@ -344,14 +344,14 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  model = new mjCModel;
+  model = mjm_createModel();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
   if (dir != nullptr) {
-    mjm_setString(model->spec.modelfiledir, std::string(dir, ndir).c_str());
+    mjm_setString(model->modelfiledir, std::string(dir, ndir).c_str());
   } else {
-    mjm_setString(model->spec.modelfiledir, "");
+    mjm_setString(model->modelfiledir, "");
   }
 
   // close resource
@@ -363,8 +363,8 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
       // find include elements, replace them with subtree from xml file
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
-      parser.SetModelFileDir(mjm_getString(model->spec.modelfiledir));
-      mjIncludeXML(parser, root, mjm_getString(model->spec.modelfiledir), vfs, included);
+      parser.SetModelFileDir(mjm_getString(model->modelfiledir));
+      mjIncludeXML(parser, root, mjm_getString(model->modelfiledir), vfs, included);
 
       // parse MuJoCo model
       parser.SetModel(model);
@@ -377,9 +377,9 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
 
       // set reasonable default for parsing a URDF
       // this is separate from the Parser to allow multiple URDFs to be loaded.
-      model->spec.strippath = true;
-      model->spec.fusestatic = true;
-      model->spec.discardvisual = true;
+      model->strippath = true;
+      model->fusestatic = true;
+      model->discardvisual = true;
 
       parser.SetModel(model);
       parser.Parse(root);
@@ -393,7 +393,7 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    delete model;
+    mjm_deleteModel(model);
     return nullptr;
   }
 

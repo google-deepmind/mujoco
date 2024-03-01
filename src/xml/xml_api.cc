@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -25,7 +26,7 @@
 #include <type_traits>
 
 #include <mujoco/mjmodel.h>
-#include "user/user_model.h"
+#include "user/user_api.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
@@ -36,7 +37,7 @@
 class GlobalModel {
  public:
   // deletes current model and takes ownership of model
-  void Set(mjCModel* model = nullptr);
+  void Set(mjmModel* model = nullptr);
 
   // writes XML to string
   std::optional<std::string> ToXML(const mjModel* m, char* error,
@@ -45,7 +46,7 @@ class GlobalModel {
  private:
   // using raw pointers as GlobalModel needs to be trivially destructible
   std::mutex* mutex_ = new std::mutex();
-  mjCModel* model_ = nullptr;
+  mjmModel* model_ = nullptr;
 };
 
 std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
@@ -55,7 +56,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  model_->CopyBack(m);
+  mjm_copyBack(model_, m);
   std::string result = mjWriteXML(model_, error, error_sz);
   if (result.empty()) {
     return std::nullopt;
@@ -63,10 +64,10 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
   return result;
 }
 
-void GlobalModel::Set(mjCModel* model) {
+void GlobalModel::Set(mjmModel* model) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (model_ != nullptr) {
-    delete model_;
+    mjm_deleteModel(model_);
   }
   model_ = model;
 }
@@ -90,21 +91,23 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
                     char* error, int error_sz) {
 
   // parse new model
-  std::unique_ptr<mjCModel> model(mjParseXML(filename, vfs, error, error_sz));
+  std::unique_ptr<mjmModel, std::function<void(mjmModel*)>> model(
+      mjParseXML(filename, vfs, error, error_sz),
+      [](mjmModel* m) { mjm_deleteModel(m); });
   if (!model) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = model->Compile(vfs);
+  mjModel* m = mjm_compileModel(model.get(), vfs);
   if (!m) {
-    mjCopyError(error, model->GetError().message, error_sz);
+    mjCopyError(error, mjm_getError(model.get()), error_sz);
     return nullptr;
   }
 
   // handle compile warning
-  if (model->GetError().warning) {
-    mjCopyError(error, model->GetError().message, error_sz);
+  if (mjm_isWarning(model.get())) {
+    mjCopyError(error, mjm_getError(model.get()), error_sz);
   } else if (error) {
     error[0] = '\0';
   }
