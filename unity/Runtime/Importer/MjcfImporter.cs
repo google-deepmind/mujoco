@@ -284,6 +284,11 @@ public class MjcfImporter {
         CreateGameObjectWithCamera(parentObject, child);
         break;
       }
+      case "plugin": {
+        Debug.Log($"Plugin elements are only partially supported.");
+        break;
+      }
+
       default: {
         Debug.Log($"The importer does not yet support tags <{child.Name}>.");
         break;
