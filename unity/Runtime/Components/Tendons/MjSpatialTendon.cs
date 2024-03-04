@@ -14,6 +14,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
 using System.Xml;
@@ -111,6 +112,7 @@ public class MjSpatialTendon : MjBaseTendon {
     return mjcf;
   }
 
+  [Conditional("UNITY_EDITOR")]
   public unsafe void OnDrawGizmosSelected() {
     if (Application.isPlaying && MjScene.InstanceExists) {
       // Lifted from src/engine/engine_vis_visualize.c
@@ -134,7 +136,7 @@ public class MjSpatialTendon : MjBaseTendon {
           // At the moment we use handles instead of Gizmos (to be able to set width).
           // This means rendering won't be performed outside editor; We could implement a "TendonRenderer" component
           // (added using a context tool) that uses a LineRenderer. Then we could have nice features such as updating
-          // tendon colors or width based on length or tension. That would also allow in-build rendering. 
+          // tendon colors or width based on length or tension. That would also allow in-build rendering.
           Handles.color = Color.magenta;  // Currently we ignore tendon material.
           Handles.DrawLine(startPos, endPos, (float)sz/0.003f);  // Handle width in UI points. We map the default width to 1 pixel.
         }
