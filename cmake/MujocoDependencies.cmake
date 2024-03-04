@@ -59,7 +59,7 @@ set(MUJOCO_DEP_VERSION_benchmark
 )
 
 set(MUJOCO_DEP_VERSION_sdflib
-    7c49cfba9bbec763b5d0f7b90b26555f3dde8088
+    1927bee6bb8225258a39c8cbf14e18a4d50409ae
     CACHE STRING "Version of `SdfLib` to be fetched."
 )
 
