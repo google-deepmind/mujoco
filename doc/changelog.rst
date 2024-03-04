@@ -37,7 +37,7 @@ MJX
 Python bindings
 ^^^^^^^^^^^^^^^
 10. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
-   of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
+    of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
 
 
 Version 3.1.2 (February 05, 2024)
