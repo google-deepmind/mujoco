@@ -7,7 +7,7 @@ from pxr import Usd, UsdGeom, UsdShade, UsdLux
 
 import mujoco
 from mujoco import mjtGeom
-from mujoco.usd.usd_utils import *
+from mujoco.usd.utils import *
 from mujoco import _structs, _enums
 
 class USDMesh:
@@ -140,7 +140,7 @@ class USDMesh:
             # settings the bsdf shader attributes
             bsdf_shader.CreateIdAttr("UsdPreviewSurface")
 
-            bsdf_shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(tuple(color))
+            bsdf_shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(tuple(self.rgba[:3]))
             bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(float(self.rgba[-1]))
             bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(self.geom.shininess)
             bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(1.0 - self.geom.shininess)

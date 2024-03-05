@@ -13,8 +13,8 @@ from scipy.spatial.transform import Rotation as R
 
 import mujoco
 from mujoco import mjtGeom
-from mujoco.usd.usd_utils import *
-from mujoco.usd.usd_component import *
+from mujoco.usd.utils import *
+from mujoco.usd.component import *
 from mujoco import mjv_averageCamera
 from mujoco import _structs, _constants, _enums
 
@@ -78,9 +78,6 @@ class USDExporter:
         self.camera_names = camera_names
         self.specialized_materials_file = specialized_materials_file
         self.verbose = verbose
-
-        # assert specialized_materials_file.endswith('.json')
-        # self.specialized_materials = json.loads(specialized_materials_file)
 
         self.frame_count = 0 # maintains how many times we have saved the scene
         self.updates = 0
@@ -165,7 +162,6 @@ class USDExporter:
         self.updates += 1
 
     def _load_textures(self):
-        # TODO: remove code once added internally to mujoco
         data_adr = 0
         self.texture_files = []
         for texture_id in tqdm(range(self.model.ntex)):
@@ -280,7 +276,7 @@ class USDExporter:
             light = self.scene.lights[i]
             if not np.allclose(light.pos, [0, 0, 0]):
                 self.usd_lights.append(USDSphereLight(stage=self.stage,
-                                                    objid=i))
+                                                      objid=i))
             else:
                 self.usd_lights.append(None)
                         
@@ -292,9 +288,7 @@ class USDExporter:
                                           intensity=self.light_intensity,
                                           color=light.diffuse,
                                           frame=self.updates)
-                
-        print("done updating")
-            
+                            
     def _load_cameras(self):
         self.usd_cameras = []
         for name in self.camera_names:            
