@@ -223,7 +223,9 @@ if(SIMULATE_BUILD_EXECUTABLE)
     set(_INSTALL_SIMULATE OFF)
   endif()
 
-  if(_INSTALL_SIMULATE)
+  option(MUJOCO_SIMULATE_INSTALL "If ON, also install simulate executable." ${_INSTALL_SIMULATE})
+
+  if(MUJOCO_SIMULATE_INSTALL)
 
     include(TargetAddRpath)
 

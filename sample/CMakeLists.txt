@@ -118,7 +118,9 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   set(_INSTALL_SAMPLES OFF)
 endif()
 
-if(_INSTALL_SAMPLES)
+option(MUJOCO_SAMPLES_INSTALL "If ON, also install samples executables." ${_INSTALL_SAMPLES})
+
+if(MUJOCO_SAMPLES_INSTALL)
 
   include(TargetAddRpath)
 
