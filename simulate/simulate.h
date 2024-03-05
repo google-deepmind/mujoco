@@ -32,7 +32,7 @@
 
 #ifdef mjBUILDSIMULATEVR
   #include "simulate_vr/simulate_vr.h"
-#endif
+#endif // mjBUILDSIMULATEVR
 
 namespace mujoco {
 

@@ -61,7 +61,7 @@ private:
 
   // constant properties
   vr::IVRSystem* system;          // opaque pointer returned by VR_Init
-  int device_id;                         // hmd device id
+  int device_id;                  // hmd device id
   unsigned int idtex;             // OpenGL texture id for Submit
   float eyeoffset[2][3];          // head-to-eye offsets (assume no rotation)
 

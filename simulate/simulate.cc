@@ -1809,7 +1809,7 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
   hmd.initHmd();
   hmd.initTextures(this->scn);
   hmd.transform(this->scn, this->m_);
-#endif
+#endif // mjBUILDSIMULATEVR
 }
 
 // synchronize model and data
@@ -2144,7 +2144,7 @@ void Simulate::Sync() {
 #ifdef mjBUILDSIMULATEVR
   hmd.transform(this->scn, this->m_);
   hmd.update(this->scn);
-#endif
+#endif // mjBUILDSIMULATEVR
 }
 
 //------------------------- Tell the render thread to load a file and wait -------------------------

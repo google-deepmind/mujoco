@@ -21,7 +21,7 @@
 
 using namespace vr;
 
-// initialization funcitons
+// initialization functions
 void mjvrHMD::initHmd() {
   int n;
 
