@@ -293,7 +293,7 @@ def _collide_geoms(
     size2 = jp.max(m.geom_size[jp.array(geom2)], axis=-1)
     # TODO(btaba): consider re-using collision info for (sphere, sphere)
     dists = jax.vmap(jp.linalg.norm)(g2.pos - g1.pos) - (size1 + size2)
-    _, idx = jax.lax.top_k(dists, k=n_pairs)
+    _, idx = jax.lax.top_k(-dists, k=n_pairs)
     g1, g2, params = jax.tree_map(
         lambda x, idx=idx: x[idx, ...], (g1, g2, params)
     )

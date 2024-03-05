@@ -583,6 +583,7 @@ class TopKContactTest(absltest.TestCase):
 
       self.assertEqual(dx_all.contact.dist.shape, (6,))
       self.assertEqual(dx_top_k.contact.dist.shape, (2,))
+      self.assertTrue((dx_top_k.contact.dist < 0).all())
 
 
 if __name__ == '__main__':
