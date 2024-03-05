@@ -14,7 +14,6 @@
 
 // Tests for xml/xml_native_writer.cc.
 
-#include <type_traits>
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 #include <unistd.h>
 #endif
@@ -31,7 +30,6 @@
 #include <absl/strings/match.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
-#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "src/xml/xml_numeric_format.h"
@@ -1156,74 +1154,6 @@ TEST_F(XMLWriterLocaleTest, IgnoresLocale) {
 
 
 // ------------------- test loading and saving multiple files ------------------
-namespace mju = ::mujoco::util;
-static constexpr int kFieldSize = 500;
-
-// The maximum spacing between a normalised floating point number x and an
-// adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
-// for losses during non-idempotent operations such as vector normalizations.
-template <typename T>
-auto Compare(T val1, T val2) {
-  using ReturnType =
-      std::conditional_t<std::is_same_v<T, float>, float, double>;
-  ReturnType error;
-  if (mju_abs(val1) <= 1 || mju_abs(val2) <= 1) {
-      // Absolute precision for small numbers
-      error = mju_abs(val1-val2);
-  } else {
-    // Relative precision for larger numbers
-    ReturnType magnitude = mju_abs(val1) + mju_abs(val2);
-    error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
-  }
-  ReturnType safety_factor = 10;
-  return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()
-             ? 0
-             : error;
-}
-
-mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
-                    char (&field)[kFieldSize]) {
-  mjtNum dif, maxdif = 0.0;
-
-  // define symbols corresponding to number of columns
-  // (needed in MJMODEL_POINTERS)
-  MJMODEL_POINTERS_PREAMBLE(m1);
-
-  // compare ints
-  #define X(name) \
-    if (m1->name != m2->name) {maxdif = 1.0; mju::strcpy_arr(field, #name);}
-    MJMODEL_INTS
-  #undef X
-  if (maxdif > 0) return maxdif;
-
-  // compare arrays
-  #define X(type, name, nr, nc)                                    \
-    for (int r=0; r < m1->nr; r++)                                 \
-      for (int c=0; c < nc; c++) {                                 \
-        dif = Compare(m1->name[r*nc+c], m2->name[r*nc+c]);  \
-        if (dif > maxdif) { maxdif = dif; mju::strcpy_arr(field, #name);} }
-    MJMODEL_POINTERS
-  #undef X
-
-  // compare scalars in mjOption
-  #define X(type, name)                                            \
-    dif = Compare(m1->opt.name, m2->opt.name);                     \
-    if (dif > maxdif) {maxdif = dif; mju::strcpy_arr(field, #name);}
-    MJOPTION_SCALARS
-  #undef X
-
-  // compare arrays in mjOption
-  #define X(name, n)                                             \
-    for (int c=0; c < n; c++) {                                  \
-      dif = Compare(m1->opt.name[c], m2->opt.name[c]);           \
-      if (dif > maxdif) {maxdif = dif; mju::strcpy_arr(field, #name);} }
-    MJOPTION_VECTORS
-  #undef X
-
-  // Return largest difference and field name
-  return maxdif;
-}
-
 TEST_F(XMLWriterTest, WriteReadCompare) {
   // full precision float printing
   FullFloatPrecision increase_precision;
@@ -1270,7 +1200,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
               absl::StrContains(p.path().string(), "belt.xml") ? 1e-13 : 0;
 
           // compare and delete
-          char field[kFieldSize] = "";
+          std::string field = "";
           mjtNum result = CompareModel(m, mtemp, field);
           EXPECT_LE(result, tol)
               << "Loaded and saved models are different!\n"
