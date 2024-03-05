@@ -173,6 +173,13 @@ the advantages of working in minimal coordinates.
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
 
+.. _mj_angmomMat:
+
+This function computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, providing the linear mapping from
+generalized velocities to subtree angular momentum. More precisely if :math:`h` is the subtree angular momentum of
+body index ``body`` in ``mjData.subtree_angmom`` (reported by the :ref:`subtreeangmom<sensor-subtreeangmom>` sensor)
+and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = H \dot q`.
+
 .. _mj_mulM:
 
 This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format

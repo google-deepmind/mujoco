@@ -6628,6 +6628,9 @@ public static unsafe extern void mj_jacSite(mjModel_* m, mjData_* d, double* jac
 public static unsafe extern void mj_jacPointAxis(mjModel_* m, mjData_* d, double* jacPoint, double* jacAxis, double* point, double* axis, int body);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_angmomMat(mjModel_* m, mjData_* d, double* mat, int body);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_name2id(mjModel_* m, int type, [MarshalAs(UnmanagedType.LPStr)]string name);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

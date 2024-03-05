@@ -430,6 +430,9 @@ MJAPI void mj_jacSite(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* j
 MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacAxis,
                            const mjtNum point[3], const mjtNum axis[3], int body);
 
+// Compute subtree angular momentum matrix.
+MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
+
 // Get id of object with the specified mjtObj type and name, returns -1 if id not found.
 MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 

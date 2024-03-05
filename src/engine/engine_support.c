@@ -776,6 +776,76 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 
 
 
+// compute subtree angular momentum matrix
+void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
+  int nv = m->nv;
+  mj_markStack(d);
+
+  // stack allocations
+  mjtNum* jacp = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
+  mjtNum* term1 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* term2 = mj_stackAllocNum(d, 3*nv);
+
+  // clear output
+  mju_zero(mat, 3*nv);
+
+  // save the location of the subtree COM
+  mjtNum subtree_com[3];
+  mju_copy3(subtree_com, d->subtree_com+3*body);
+
+  for (int b=body; b < m->nbody; b++) {
+    // end of body subtree, break from the loop
+    if (b > body && m->body_parentid[b] < body) {
+      break;
+    }
+
+    // linear and angular velocity Jacobian of the body COM (inertial frame)
+    mj_jacBodyCom(m, d, jacp, jacr, b);
+
+    // orientation of the COM (inertial) frame of b-th body
+    mjtNum ximat[9];
+    mju_copy(ximat, d->ximat+9*b, 9);
+
+    // save the inertia matrix of b-th body
+    mjtNum inertia[9] = {0};
+    inertia[0] = m->body_inertia[3*b];   // inertia(1,1)
+    inertia[4] = m->body_inertia[3*b+1]; // inertia(2,2)
+    inertia[8] = m->body_inertia[3*b+2]; // inertia(3,3)
+
+    // term1 = body angular momentum about self COM in world frame
+    mjtNum tmp1[9], tmp2[9];
+    mju_mulMatMat(tmp1, ximat, inertia, 3, 3, 3);  // tmp1  = ximat * inertia
+    mju_mulMatMatT(tmp2, tmp1, ximat, 3, 3, 3);    // tmp2  = ximat * inertia * ximat^T
+    mju_mulMatMat(term1, tmp2, jacr, 3, 3, nv);    // term1 = ximat * inertia * ximat^T * jacr
+
+    // location of body COM w.r.t subtree COM
+    mjtNum com[3];
+    mju_sub3(com, d->xipos+3*b, subtree_com);
+
+    // skew symmetric matrix representing body_com vector
+    mjtNum com_mat[9] = {0};
+    com_mat[1] = -com[2];
+    com_mat[2] = com[1];
+    com_mat[3] = com[2];
+    com_mat[5] = -com[0];
+    com_mat[6] = -com[1];
+    com_mat[7] = com[0];
+
+    // term2 = moment of linear momentum
+    mju_mulMatMat(term2, com_mat, jacp, 3, 3, nv);   // term2 = com_mat * jacp
+    mju_scl(term2, term2, m->body_mass[b], 3 * nv);  // term2 = com_mat * jacp * mass
+
+    // mat += term1 + term2
+    mju_addTo(mat, term1, 3*nv);
+    mju_addTo(mat, term2, 3*nv);
+  }
+
+  mj_freeStack(d);
+}
+
+
+
 //-------------------------- name functions --------------------------------------------------------
 
 // get number of objects and name addresses for given object type

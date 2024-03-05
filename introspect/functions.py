@@ -2402,6 +2402,36 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.',  # pylint: disable=line-too-long
      )),
+    ('mj_angmomMat',
+     FunctionDecl(
+         name='mj_angmomMat',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='body',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Compute subtree angular momentum matrix.',
+     )),
     ('mj_name2id',
      FunctionDecl(
          name='mj_name2id',
