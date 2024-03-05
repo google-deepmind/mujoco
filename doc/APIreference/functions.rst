@@ -224,7 +224,7 @@ mj_mulJacVec
 
 .. mujoco-include:: mj_mulJacVec
 
-This function multiplies the constraint Jacobian :ref:`mjData`.efc_J by a vector. Note that the Jacobian can be either dense or
+This function multiplies the constraint Jacobian mjData.efc_J by a vector. Note that the Jacobian can be either dense or
 sparse; the function is aware of this setting. Multiplication by J maps velocities from joint space to constraint space.
 
 .. _mj_mulJacTVec:
@@ -341,7 +341,7 @@ mj_mulM
 
 .. mujoco-include:: mj_mulM
 
-This function multiplies the joint-space inertia matrix stored in :ref:`mjData`.qM by a vector. qM has a custom sparse format
+This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
 that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
 mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
 sparsity.
@@ -373,7 +373,7 @@ mj_applyFT
 .. mujoco-include:: mj_applyFT
 
 This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
-:ref:`mjData`.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
+mjData.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
 we want to add the result to a different vector.
 
 .. _mj_objectVelocity:
@@ -394,7 +394,7 @@ mj_objectAcceleration
 
 Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation. If acceleration or force
 sensors are not present in the model, :ref:`mj_rnePostConstraint` must be manually called in order to calculate
-:ref:`mjData`.cacc -- the total body acceleration, including contributions from the constraint solver.
+mjData.cacc -- the total body acceleration, including contributions from the constraint solver.
 
 .. _mj_contactForce:
 
@@ -1022,7 +1022,7 @@ mj_printFormattedModel
 
 .. mujoco-include:: mj_printFormattedModel
 
-Print :ref:`mjModel` to text file, specifying format.
+Print mjModel to text file, specifying format.
 float_format must be a valid printf-style format string for a single float value.
 
 .. _mj_printModel:
@@ -1041,7 +1041,7 @@ mj_printFormattedData
 
 .. mujoco-include:: mj_printFormattedData
 
-Print :ref:`mjData` to text file, specifying format.
+Print mjData to text file, specifying format.
 float_format must be a valid printf-style format string for a single float value
 
 .. _mj_printData:
@@ -1205,7 +1205,7 @@ mj_copyModel
 
 .. mujoco-include:: mj_copyModel
 
-Copy :ref:`mjModel`, allocate new if dest is NULL.
+Copy mjModel, allocate new if dest is NULL.
 
 .. _mj_saveModel:
 
@@ -1251,7 +1251,7 @@ mj_makeData
 
 .. mujoco-include:: mj_makeData
 
-Allocate :ref:`mjData` corresponding to given model.
+Allocate mjData corresponding to given model.
 If the model buffer is unallocated the initial configuration will not be set.
 
 .. _mj_copyData:
@@ -1261,7 +1261,7 @@ mj_copyData
 
 .. mujoco-include:: mj_copyData
 
-Copy :ref:`mjData`.
+Copy mjData.
 m is only required to contain the size fields from MJMODEL_INTS.
 
 .. _mj_resetData:
@@ -1298,7 +1298,7 @@ mj_markStack
 
 .. mujoco-include:: mj_markStack
 
-Mark a new frame on the :ref:`mjData` stack.
+Mark a new frame on the mjData stack.
 
 .. _mj_freeStack:
 
@@ -1307,7 +1307,7 @@ mj_freeStack
 
 .. mujoco-include:: mj_freeStack
 
-Free the current :ref:`mjData` stack frame. All pointers returned by mj_stackAlloc since the last call
+Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call
 to mj_markStack must no longer be used afterwards.
 
 .. _mj_stackAllocByte:
@@ -1317,7 +1317,7 @@ mj_stackAllocByte
 
 .. mujoco-include:: mj_stackAllocByte
 
-Allocate a number of bytes on :ref:`mjData` stack at a specific alignment.
+Allocate a number of bytes on mjData stack at a specific alignment.
 Call mju_error on stack overflow.
 
 .. _mj_stackAllocNum:
@@ -1327,7 +1327,7 @@ mj_stackAllocNum
 
 .. mujoco-include:: mj_stackAllocNum
 
-Allocate array of mjtNums on :ref:`mjData` stack. Call mju_error on stack overflow.
+Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
 
 .. _mj_stackAllocInt:
 
@@ -1336,7 +1336,7 @@ mj_stackAllocInt
 
 .. mujoco-include:: mj_stackAllocInt
 
-Allocate array of ints on :ref:`mjData` stack. Call mju_error on stack overflow.
+Allocate array of ints on mjData stack. Call mju_error on stack overflow.
 
 .. _mj_deleteData:
 
@@ -1345,7 +1345,7 @@ mj_deleteData
 
 .. mujoco-include:: mj_deleteData
 
-Free memory allocation in :ref:`mjData`.
+Free memory allocation in mjData.
 
 .. _mj_resetCallbacks:
 
@@ -1363,7 +1363,7 @@ mj_setConst
 
 .. mujoco-include:: mj_setConst
 
-Set constant fields of :ref:`mjModel`, corresponding to qpos0 configuration.
+Set constant fields of mjModel, corresponding to qpos0 configuration.
 
 .. _mj_setLengthRange:
 
@@ -2167,7 +2167,7 @@ mj_warning
 
 .. mujoco-include:: mj_warning
 
-High-level warning function: count warnings in :ref:`mjData`, print only the first.
+High-level warning function: count warnings in mjData, print only the first.
 
 .. _mju_writeLog:
 
@@ -3314,7 +3314,7 @@ mjd_transitionFD
 Finite-differenced discrete-time transition matrices.
 
 Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
-vector in an :ref:`mjData` instance, and letting :math:`y, s` denote the next state and sensor
+vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
 values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`.
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
 These matrices and their dimensions are:
@@ -3345,7 +3345,7 @@ mjd_inverseFD
 
 Finite differenced continuous-time inverse-dynamics Jacobians.
 
-Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an :ref:`mjData` instance, and
+Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an mjData instance, and
 letting :math:`f, s` denote the forces computed by the inverse dynamics (``qfrc_inverse``), the function
 :ref:`mj_inverse` computes :math:`(x,a) \rightarrow (f,s)`. :ref:`mjd_inverseFD` computes seven associated Jacobians
 using finite-differencing. These matrices and their dimensions are:
@@ -3532,7 +3532,7 @@ mju_bindThreadPool
 
 .. mujoco-include:: mju_bindThreadPool
 
-Adds a thread pool to :ref:`mjData` and configures it for multi-threaded use.
+Adds a thread pool to mjData and configures it for multi-threaded use.
 
 .. _mju_threadPoolEnqueue:
 
