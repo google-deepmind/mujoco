@@ -2,7 +2,7 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+Version 3.1.3 (March 5th, 2024)
 -----------------------------------
 
 General
