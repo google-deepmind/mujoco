@@ -142,6 +142,7 @@ Bug fixes
 11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where ``SYSTEM_VERSION_COMPAT`` is set.
     The minimum supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
     :github:issue:`1213`.
+12. Fixed mass computation of meshes: Use the correct mesh volume instead of approximating it using the inertia box.
 
 Version 3.0.1 (November 15, 2023)
 ---------------------------------
