@@ -490,7 +490,7 @@ mjtByte mjm_setInStringVec(mjStringVec dest, int i, const char* text) {
 // split text and copy into string array
 void mjm_setStringVec(mjStringVec dest, const char* text) {
   std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
-  mjXUtil::String2Vector(text, *v);
+  *v = mjXUtil::String2Vector<std::string>(text);
 }
 
 
