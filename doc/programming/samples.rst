@@ -162,9 +162,8 @@ The default humanoid.xml model specifies offscreen rendering with 800x800 resolu
 can compress the (large) raw date file into a playable movie file:
 
 .. code-block:: Shell
-
-     ffmpeg -f rawvideo -pixel_format rgb24 -video_size 800x800
-       -framerate 60 -i rgb.out -vf "vflip" video.mp4
+     ffmpeg -f rawvideo -pixel_format rgb24 -video_size 2560x1440 
+       -framerate 60 -i rgb.out -vf "vflip,format=yuv420p" video.mp4
 
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
 invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by
