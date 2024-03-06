@@ -156,7 +156,7 @@ command-line arguments. For example, a 5 second animation at 60 frames per secon
 
 .. code-block:: Shell
 
-     render humanoid.xml 5 60 rgb.out
+     record humanoid.xml 5 60 rgb.out
 
 The default humanoid.xml model specifies offscreen rendering with 800x800 resolution. With this information in hand, we
 can compress the (large) raw date file into a playable movie file:
