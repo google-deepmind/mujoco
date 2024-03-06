@@ -218,7 +218,7 @@ void closeOpenGL(void) {
 int main(int argc, const char** argv) {
   // check command-line arguments
   if (argc < 5 || argc > 6) {
-    std::printf(" USAGE:  record modelfile duration fps rgbfile [depthoverlay]\n");
+    std::printf(" USAGE:  record modelfile duration fps rgbfile [adddepth]\n");
     return 0;
   }
 
@@ -255,9 +255,9 @@ int main(int argc, const char** argv) {
     mju_error("Could not open rgbfile for writing");
   }
 
-  int depthoverlay = 1;
-  if (argc > 5 && std::sscanf(argv[5], "%d", &depthoverlay) != 1) {
-    mju_error("Invalid depthoverlay argument");
+  int adddepth = 1;
+  if (argc > 5 && std::sscanf(argv[5], "%d", &adddepth) != 1) {
+    mju_error("Invalid adddepth argument");
   }
 
   // main loop
@@ -281,7 +281,7 @@ int main(int argc, const char** argv) {
       mjr_readPixels(rgb, depth, viewport, &con);
 
       // insert subsampled depth image in lower-left corner of rgb image
-      if (depthoverlay) {
+      if (adddepth) {
         const int NS = 3;           // depth image sub-sampling
         for (int r=0; r<H; r+=NS)
           for (int c=0; c<W; c+=NS) {

@@ -159,7 +159,7 @@ simulation rate), and output file name are specified as command-line arguments.
 
 .. code-block:: Shell
 
-   record modelfile duration fps rgbfile [depthoverlay]
+   record modelfile duration fps rgbfile [adddepth]
 
 Where the command line arguments are
 
@@ -184,7 +184,7 @@ Where the command line arguments are
    * - ``rgbfile``
      - (required)
      - path to raw recording file
-   * - ``depthoverlay``
+   * - ``adddepth``
      - 1
      - add a depth image overlay to the lower left corner (0 for no overlay)
 
