@@ -130,14 +130,14 @@ class mjCBoundingVolumeHierarchy {
   // make bounding volume hierarchy
   void CreateBVH(void);
   void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
-  void AllocateBoundingVolumes(int nbvh);
+  void AllocateBoundingVolumes(int nleaf);
   void RemoveInactiveVolumes(int nmax);
   mjCBoundingVolume* GetBoundingVolume(int id);
 
  private:
   int MakeBVH(std::vector<const mjCBoundingVolume*>& elements, int lev = 0);
 
-  std::vector<mjCBoundingVolume> bvh_;
+  std::vector<mjCBoundingVolume> bvleaf_;
   std::string name_;
   double ipos_[3];
   double iquat_[4];

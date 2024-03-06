@@ -100,7 +100,6 @@ mjCModel::mjCModel() {
   center_auto[0] = center_auto[1] = center_auto[2] = 0;
 #endif
 
-  nmocap = 0;
   nplugin = 0;
   //------------------------ private variables
   cameras.clear();
@@ -326,6 +325,7 @@ void mjCModel::Clear(void) {
   nB = 0;
   njmax = -1;
   nconmax = -1;
+  nmocap = 0;
 
   // pointer lists created by Compile
   bodies.clear();
@@ -2734,6 +2734,16 @@ static void warninghandler(const char* msg) {
 
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs) {
+  if (compiled) {
+    // clear kinematic tree
+    for (int i=0; i<bodies.size(); i++) {
+      bodies[i]->subtreedofs = 0;
+    }
+    mjCBody* world = bodies[0];
+    Clear();
+    bodies.push_back(world);
+  }
+
   CopyFromSpec();
 
   // The volatile keyword is necessary to prevent a possible memory leak due to
@@ -2797,11 +2807,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   double test = mjNAN;
   if (mjuu_defined(test)) {
     throw mjCError(0, "NaN test does not work for present compiler/options");
-  }
-
-  // check for repeated compilation
-  if (compiled) {
-    throw mjCError(0, "model already compiled");
   }
 
   // check for joints in world body

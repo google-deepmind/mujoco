@@ -220,6 +220,29 @@ void mjCMesh::CopyFromSpec() {
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
+
+  // clear precompiled asset. TODO: use asset cache
+  if (vert_) mju_free(vert_);
+  if (normal_) mju_free(normal_);
+  if (texcoord_) mju_free(texcoord_);
+  if (center_) mju_free(center_);
+  if (face_) mju_free(face_);
+  if (facenormal_) mju_free(facenormal_);
+  if (facetexcoord_) mju_free(facetexcoord_);
+  if (graph_) mju_free(graph_);
+  nvert_= 0;
+  nnormal_ = 0;
+  ntexcoord_ = 0;
+  nface_ = 0;
+  szgraph_ = 0;
+  vert_ = NULL;
+  normal_ = NULL;
+  center_ = NULL;
+  texcoord_ = NULL;
+  face_ = NULL;
+  facenormal_ = NULL;
+  facetexcoord_ = NULL;
+  graph_ = NULL;
 }
 
 
@@ -2265,6 +2288,12 @@ void mjCFlex::CopyFromSpec() {
   vert = (mjDoubleVec)&vert_;
   texcoord = (mjFloatVec)&texcoord_;
   elem = (mjIntVec)&elem_;
+
+  // clear precompiled asset. TODO: use asset cache
+  nedge = 0;
+  edge.clear();
+  shell.clear();
+  evpair.clear();
 }
 
 

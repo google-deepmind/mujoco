@@ -207,7 +207,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
 
   // compare ints
   #define X(name) \
-    if (m1->name != m2->name) {maxdif = 1.0; field = #name;}
+    if (m1->name != m2->name) {maxdif = m1->name - m2->name; field = #name;}
     MJMODEL_INTS
   #undef X
   if (maxdif > 0) return maxdif;

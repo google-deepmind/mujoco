@@ -17,6 +17,7 @@
 
 #include <string>
 
+#include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include "user/user_api.h"
 
@@ -26,7 +27,7 @@
 std::string mjWriteXML(mjmModel* model, char* error, int error_sz);
 
 // Main parser function
-mjmModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
+MJAPI mjmModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 
 
 #endif  // MUJOCO_SRC_XML_XML_H_

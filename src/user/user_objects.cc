@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <map>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -268,26 +270,31 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 
 
 
-void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nbvh) {
-  bvh_.resize(nbvh);
+void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
+  nbvh = 0;
+  child.clear();
+  nodeid.clear();
+  level.clear();
+  bvleaf_.clear();
+  bvleaf_.resize(nleaf);
 }
 
 
 void mjCBoundingVolumeHierarchy::RemoveInactiveVolumes(int nmax) {
-  bvh_.erase(bvh_.begin() + nmax, bvh_.end());
+  bvleaf_.erase(bvleaf_.begin() + nmax, bvleaf_.end());
 }
 
 
 mjCBoundingVolume* mjCBoundingVolumeHierarchy::GetBoundingVolume(int id) {
-  return bvh_.data() + id;
+  return bvleaf_.data() + id;
 }
 
 
 // create bounding volume hierarchy
 void mjCBoundingVolumeHierarchy::CreateBVH() {
-  std::vector<const mjCBoundingVolume*> elements(bvh_.size());
-  for (int i=0; i<bvh_.size(); i++) {
-    elements[i] = bvh_.data() + i;
+  std::vector<const mjCBoundingVolume*> elements(bvleaf_.size());
+  for (int i=0; i<bvleaf_.size(); i++) {
+    elements[i] = bvleaf_.data() + i;
   }
   MakeBVH(elements);
 }
@@ -2507,6 +2514,16 @@ void mjCHField::CopyFromSpec() {
   file = (mjString)&file_;
   content_type = (mjString)&content_type_;
   userdata = (mjFloatVec)&userdata_;
+
+  // clear precompiled asset. TODO: use asset cache
+  if (data) {
+    mju_free(data);
+    data = 0;
+  }
+  if (!file_.empty()) {
+    nrow = 0;
+    ncol = 0;
+  }
 }
 
 
@@ -2742,6 +2759,12 @@ void mjCTexture::CopyFromSpec() {
   file = (mjString)&file_;
   content_type = (mjString)&content_type_;
   cubefiles = (mjStringVec)&cubefiles_;
+
+  // clear precompiled asset. TODO: use asset cache
+  if (rgb) {
+    mju_free(rgb);
+    rgb = 0;
+  }
 }
 
 
@@ -3912,6 +3935,13 @@ void mjCTendon::CopyFromSpec() {
   userdata_ = spec_userdata_;
   material = (mjString)&material_;
   userdata = (mjDoubleVec)&userdata_;
+
+  // clear precompiled
+  for (int i=0; i<path.size(); i++) {
+    if (path[i]->type==mjWRAP_CYLINDER) {
+      path[i]->type = mjWRAP_SPHERE;
+    }
+  }
 }
 
 
@@ -5402,27 +5432,31 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
 void mjCPlugin::Compile(void) {
   const mjpPlugin* plugin = mjp_getPluginAtSlot(spec.plugin_slot);
 
+  // clear precompiled
+  flattened_attributes.clear();
+  std::map<std::string, std::string, std::less<>> config_attribs_copy = config_attribs;
+
   // concatenate all of the plugin's attribute values (as null-terminated strings) into
   // flattened_attributes, in the order declared in the mjpPlugin
   // each valid attribute found is appended to flattened_attributes and removed from xml_attributes
   for (int i = 0; i < plugin->nattribute; ++i) {
     std::string_view attr(plugin->attributes[i]);
-    auto it = config_attribs.find(attr);
-    if (it == config_attribs.end()) {
+    auto it = config_attribs_copy.find(attr);
+    if (it == config_attribs_copy.end()) {
       flattened_attributes.push_back('\0');
     } else {
       auto original_size = flattened_attributes.size();
       flattened_attributes.resize(original_size + it->second.size() + 1);
       std::memcpy(&flattened_attributes[original_size], it->second.c_str(),
                   it->second.size() + 1);
-      config_attribs.erase(it);
+      config_attribs_copy.erase(it);
     }
   }
 
   // anything left in xml_attributes at this stage is not a valid attribute
-  if (!config_attribs.empty()) {
+  if (!config_attribs_copy.empty()) {
     std::string error =
-        "unrecognized attribute 'plugin:" + config_attribs.begin()->first +
+        "unrecognized attribute 'plugin:" + config_attribs_copy.begin()->first +
         "' for plugin " + std::string(plugin->name) + "'";
     throw mjCError(parent, "%s", error.c_str());
   }
