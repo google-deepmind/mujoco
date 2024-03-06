@@ -198,6 +198,8 @@ we can compress the (large) raw date file into a playable movie file:
      ffmpeg -f rawvideo -pixel_format rgb24 -video_size 2560x1440 
        -framerate 60 -i rgb.out -vf "vflip,format=yuv420p" video.mp4
 
+Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be the identical.
+
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
 invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by
 defining the symbols MJ_OSMESA or MJ_EGL when compiling record.cc. The functions ``initOpenGL`` and ``closeOpenGL``
