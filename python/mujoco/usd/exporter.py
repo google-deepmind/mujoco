@@ -291,9 +291,10 @@ class USDExporter:
                             
     def _load_cameras(self):
         self.usd_cameras = []
-        for name in self.camera_names:            
-            self.usd_cameras.append(USDCamera(stage=self.stage,
-                                    objid=name))
+        if self.camera_names is not None:
+            for name in self.camera_names:            
+                self.usd_cameras.append(USDCamera(stage=self.stage,
+                                        objid=name))
         
     def _update_cameras(
         self,
