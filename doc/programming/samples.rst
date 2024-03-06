@@ -154,6 +154,38 @@ multi-samples for the offscreen buffer are specified in the MuJoCo model with th
 attributes, while the simulation duration, frames-per-second to be rendered (usually much less than the physics
 simulation rate), and output file name are specified as command-line arguments.
 
+.. code-block:: Shell
+
+   record modelfile duration fps rgbfile [adddepth]
+
+Where the command line arguments are
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 1 5
+   :header-rows: 1
+
+   * - Argument
+     - Default
+     - Meaning
+   * - ``modelfile``
+     - (required)
+     - path to model
+   * - ``duration``
+     - (required)
+     - duration of the recording in seconds
+   * - ``fps``
+     - (required)
+     - number of frames per second
+   * - ``rgbfile``
+     - (required)
+     - path to raw recording file
+   * - ``adddepth``
+     - 1
+     - add a depth image overlay to the lower left corner (0 for no overlay)
+
+For example, a 5 second animation at 60 frames per second is created with:
 
 .. code-block:: Shell
 
