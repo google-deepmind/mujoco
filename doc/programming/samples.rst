@@ -150,16 +150,17 @@ This code sample simulates the passive dynamics of a given model, renders it off
 values, and saves them into a raw data file that can then be converted into a movie file with tools such as ffmpeg. The
 rendering is simplified compared to :ref:`simulate.cc <saSimulate>` because there is no user interaction, visualization
 options or timing; instead we simply render with the default settings as fast as possible. The dimensions and number of
-multi-samples for the offscreen buffer are specified in the MuJoCo model, while the simulation duration, frames-per-
-second to be rendered (usually much less than the physics simulation rate), and output file name are specified as
-command-line arguments. For example, a 5 second animation at 60 frames per second is created with:
+multi-samples for the offscreen buffer are specified in the MuJoCo model with the visual/global/{offwidth,offheight}
+attributes, while the simulation duration, frames-per-second to be rendered (usually much less than the physics
+simulation rate), and output file name are specified as command-line arguments.
+
 
 .. code-block:: Shell
 
      record humanoid.xml 5 60 rgb.out
 
-The default humanoid.xml model specifies offscreen rendering with 800x800 resolution. With this information in hand, we
-can compress the (large) raw date file into a playable movie file:
+The default humanoid.xml model specifies offscreen rendering with 2560x1440 resolution. With this information in hand,
+we can compress the (large) raw date file into a playable movie file:
 
 .. code-block:: Shell
      ffmpeg -f rawvideo -pixel_format rgb24 -video_size 2560x1440 
