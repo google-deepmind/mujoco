@@ -22,8 +22,8 @@
 
 
 // default model attributes
-void mjm_defaultModel(mjmModel& model) {
-  memset(&model, 0, sizeof(mjmModel));
+void mjm_defaultModel(mjSpec& model) {
+  memset(&model, 0, sizeof(mjSpec));
 
   // default statistics
   model.stat.meaninertia = mjNAN;

@@ -27,7 +27,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(mjmModel* modelspec);
+  void SetModel(mjSpec* modelspec);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);

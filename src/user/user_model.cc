@@ -193,7 +193,7 @@ void mjCModel::PointToLocal() {
 
 
 void mjCModel::CopyFromSpec() {
-  *static_cast<mjmModel*>(this) = spec;
+  *static_cast<mjSpec*>(this) = spec;
   comment_ = spec_comment_;
   modelfiledir_ = spec_modelfiledir_;
   modelname_ = spec_modelname_;

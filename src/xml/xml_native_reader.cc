@@ -913,7 +913,7 @@ void mjXReader::Parse(XMLElement* root) {
 
 
 // compiler section parser
-void mjXReader::Compiler(XMLElement* section, mjmModel* mod) {
+void mjXReader::Compiler(XMLElement* section, mjSpec* mod) {
   string text;
   int n;
 
@@ -1100,7 +1100,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
 
 // size section parser
-void mjXReader::Size(XMLElement* section, mjmModel* mod) {
+void mjXReader::Size(XMLElement* section, mjSpec* mod) {
   // read memory bytes
   {
     constexpr char err_msg[] =

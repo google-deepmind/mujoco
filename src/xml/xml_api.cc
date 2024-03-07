@@ -37,7 +37,7 @@
 class GlobalModel {
  public:
   // deletes current model and takes ownership of model
-  void Set(mjmModel* model = nullptr);
+  void Set(mjSpec* model = nullptr);
 
   // writes XML to string
   std::optional<std::string> ToXML(const mjModel* m, char* error,
@@ -46,7 +46,7 @@ class GlobalModel {
  private:
   // using raw pointers as GlobalModel needs to be trivially destructible
   std::mutex* mutex_ = new std::mutex();
-  mjmModel* model_ = nullptr;
+  mjSpec* model_ = nullptr;
 };
 
 std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
@@ -64,7 +64,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
   return result;
 }
 
-void GlobalModel::Set(mjmModel* model) {
+void GlobalModel::Set(mjSpec* model) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (model_ != nullptr) {
     mjm_deleteModel(model_);
@@ -91,9 +91,9 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
                     char* error, int error_sz) {
 
   // parse new model
-  std::unique_ptr<mjmModel, std::function<void(mjmModel*)>> model(
+  std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> model(
       mjParseXML(filename, vfs, error, error_sz),
-      [](mjmModel* m) { mjm_deleteModel(m); });
+      [](mjSpec* m) { mjm_deleteModel(m); });
   if (!model) {
     return nullptr;
   }

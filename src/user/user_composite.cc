@@ -223,7 +223,7 @@ void mjCComposite::SetDefault(void) {
 
 
 // make composite object
-bool mjCComposite::Make(mjmModel* modelspec, mjmBody* body, char* error, int error_sz) {
+bool mjCComposite::Make(mjSpec* modelspec, mjmBody* body, char* error, int error_sz) {
   mjCModel* model = (mjCModel*)modelspec->element;
 
   // check geom type

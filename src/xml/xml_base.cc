@@ -44,7 +44,7 @@ mjXBase::mjXBase() {
 
 
 // set model field
-void mjXBase::SetModel(mjmModel* _model) {
+void mjXBase::SetModel(mjSpec* _model) {
   model = _model;
 }
 

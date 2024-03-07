@@ -38,7 +38,7 @@ using ::testing::NotNull;
 // ----------------------------- test set/get  --------------------------------
 
 TEST_F(MujocoTest, ReadWriteData) {
-  mjmModel* model = mjm_createModel();
+  mjSpec* model = mjm_createModel();
   mjmBody* world = mjm_findBody(model, "world");
   mjmBody* body = mjm_addBody(world, 0);
   mjmSite* site = mjm_addSite(body, 0);
@@ -86,7 +86,7 @@ TEST_F(PluginTest, RecompileCompare) {
 
         // load model
         std::array<char, 1000> error;
-        mjmModel* model =
+        mjSpec* model =
             mjParseXML(xml.c_str(), nullptr, error.data(), error.size());
 
         // compile twice

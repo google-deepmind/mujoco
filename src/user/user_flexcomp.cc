@@ -82,7 +82,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjmModel* modelspec, mjmBody* body, char* error, int error_sz) {
+bool mjCFlexcomp::Make(mjSpec* modelspec, mjmBody* body, char* error, int error_sz) {
   mjCModel* model = (mjCModel*)modelspec->element;
   mjmFlex* dflex = def.spec.flex;
   int dim = dflex->dim;

@@ -27,7 +27,7 @@
 
 
 // create model
-mjmModel* mjm_createModel() {
+mjSpec* mjm_createModel() {
   mjCModel* modelC = new mjCModel;
   return &modelC->spec;
 }
@@ -35,40 +35,40 @@ mjmModel* mjm_createModel() {
 
 
 // copy back model
-void mjm_copyBack(mjmModel* model, const mjModel* m) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+void mjm_copyBack(mjSpec* s, const mjModel* m) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   modelC->CopyBack(m);
 }
 
 
 
 // compile model
-mjModel* mjm_compileModel(mjmModel* model, const mjVFS* vfs) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjModel* mjm_compileModel(mjSpec* s, const mjVFS* vfs) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   return modelC->Compile(vfs);
 }
 
 
 
 // get error message from model
-const char* mjm_getError(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+const char* mjm_getError(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   return modelC->GetError().message;
 }
 
 
 
 // check if model has warnings
-int mjm_isWarning(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+int mjm_isWarning(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   return modelC->GetError().warning;
 }
 
 
 
 // delete model
-void mjm_deleteModel(mjmModel* modelspec) {
-  mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
+void mjm_deleteModel(mjSpec* s) {
+  mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
   delete model;
 }
 
@@ -143,8 +143,8 @@ mjmLight* mjm_addLight(mjmBody* bodyspec, mjmDefault* defspec) {
 
 
 // add flex to model
-mjmFlex* mjm_addFlex(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmFlex* mjm_addFlex(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCFlex* flex = modelC->AddFlex();
   return &flex->spec;
 }
@@ -165,9 +165,9 @@ mjmFrame* mjm_addFrame(mjmBody* bodyspec, mjmFrame* parentframe) {
 
 
 // add mesh to model
-mjmMesh* mjm_addMesh(mjmModel* model, mjmDefault* defspec) {
+mjmMesh* mjm_addMesh(mjSpec* s, mjmDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCMesh* mesh = modelC->AddMesh(def);
   return &mesh->spec;
 }
@@ -175,8 +175,8 @@ mjmMesh* mjm_addMesh(mjmModel* model, mjmDefault* defspec) {
 
 
 // add height field to model
-mjmHField* mjm_addHField(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmHField* mjm_addHField(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCHField* heightField = modelC->AddHField();
   return &heightField->spec;
 }
@@ -184,8 +184,8 @@ mjmHField* mjm_addHField(mjmModel* model) {
 
 
 // add skin to model
-mjmSkin* mjm_addSkin(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmSkin* mjm_addSkin(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCSkin* skin = modelC->AddSkin();
   return &skin->spec;
 }
@@ -193,8 +193,8 @@ mjmSkin* mjm_addSkin(mjmModel* model) {
 
 
 // add texture to model
-mjmTexture* mjm_addTexture(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmTexture* mjm_addTexture(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCTexture* texture = modelC->AddTexture();
   return &texture->spec;
 }
@@ -202,8 +202,8 @@ mjmTexture* mjm_addTexture(mjmModel* model) {
 
 
 // add material to model
-mjmMaterial* mjm_addMaterial(mjmModel* model, mjmDefault* defspec) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmMaterial* mjm_addMaterial(mjSpec* s, mjmDefault* defspec) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCMaterial* material = modelC->AddMaterial(def);
   return &material->spec;
@@ -212,8 +212,8 @@ mjmMaterial* mjm_addMaterial(mjmModel* model, mjmDefault* defspec) {
 
 
 // add pair to model
-mjmPair* mjm_addPair(mjmModel* model, mjmDefault* defspec) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmPair* mjm_addPair(mjSpec* s, mjmDefault* defspec) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCPair* pair = modelC->AddPair(def);
   return &pair->spec;
@@ -222,8 +222,8 @@ mjmPair* mjm_addPair(mjmModel* model, mjmDefault* defspec) {
 
 
 // add pair exclusion to model
-mjmExclude* mjm_addExclude(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmExclude* mjm_addExclude(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCBodyPair* bodypair = modelC->AddExclude();
   return &bodypair->spec;
 }
@@ -231,8 +231,8 @@ mjmExclude* mjm_addExclude(mjmModel* model) {
 
 
 // add equality to model
-mjmEquality* mjm_addEquality(mjmModel* model, mjmDefault* defspec) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmEquality* mjm_addEquality(mjSpec* s, mjmDefault* defspec) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCEquality* equality = modelC->AddEquality(def);
   return &equality->spec;
@@ -241,8 +241,8 @@ mjmEquality* mjm_addEquality(mjmModel* model, mjmDefault* defspec) {
 
 
 // add tendon to model
-mjmTendon* mjm_addTendon(mjmModel* model, mjmDefault* defspec) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmTendon* mjm_addTendon(mjSpec* s, mjmDefault* defspec) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCTendon* tendon = modelC->AddTendon(def);
   return &tendon->spec;
@@ -287,8 +287,8 @@ mjmWrap* mjm_wrapPulley(mjmTendon* tendonspec, double divisor) {
 
 
 // add actuator to model
-mjmActuator* mjm_addActuator(mjmModel* model, mjmDefault* defspec) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmActuator* mjm_addActuator(mjSpec* s, mjmDefault* defspec) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCActuator* actuator = modelC->AddActuator(def);
   return &actuator->spec;
@@ -297,8 +297,8 @@ mjmActuator* mjm_addActuator(mjmModel* model, mjmDefault* defspec) {
 
 
 // add sensor to model
-mjmSensor* mjm_addSensor(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmSensor* mjm_addSensor(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCSensor* sensor = modelC->AddSensor();
   return &sensor->spec;
 }
@@ -306,8 +306,8 @@ mjmSensor* mjm_addSensor(mjmModel* model) {
 
 
 // add numeric to model
-mjmNumeric* mjm_addNumeric(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmNumeric* mjm_addNumeric(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCNumeric* numeric = modelC->AddNumeric();
   return &numeric->spec;
 }
@@ -315,8 +315,8 @@ mjmNumeric* mjm_addNumeric(mjmModel* model) {
 
 
 // add text to model
-mjmText* mjm_addText(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmText* mjm_addText(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCText* text = modelC->AddText();
   return &text->spec;
 }
@@ -324,8 +324,8 @@ mjmText* mjm_addText(mjmModel* model) {
 
 
 // add tuple to model
-mjmTuple* mjm_addTuple(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmTuple* mjm_addTuple(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCTuple* tuple = modelC->AddTuple();
   return &tuple->spec;
 }
@@ -333,8 +333,8 @@ mjmTuple* mjm_addTuple(mjmModel* model) {
 
 
 // add keyframe to model
-mjmKey* mjm_addKey(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmKey* mjm_addKey(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCKey* key = modelC->AddKey();
   return &key->spec;
 }
@@ -342,8 +342,8 @@ mjmKey* mjm_addKey(mjmModel* model) {
 
 
 // add plugin to model
-mjmPlugin* mjm_addPlugin(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmPlugin* mjm_addPlugin(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCPlugin* plugin = modelC->AddPlugin();
   plugin->spec.instance = (mjElement)plugin;
   return &plugin->spec;
@@ -352,8 +352,8 @@ mjmPlugin* mjm_addPlugin(mjmModel* model) {
 
 
 // add default to model
-mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid, int* id) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmDefault* mjm_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   *id = (int)modelC->defaults.size();
   mjCDef* def = modelC->AddDef(classname, parentid);
   if (def) {
@@ -366,8 +366,8 @@ mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid,
 
 
 // get objects
-mjmModel* mjm_getModel(mjmBody* bodyspec) {
-  return &(reinterpret_cast<mjCBody*>(bodyspec->element)->model->spec);
+mjSpec* mjm_getSpec(mjmBody* body) {
+  return &(reinterpret_cast<mjCBody*>(body->element)->model->spec);
 }
 
 
@@ -380,8 +380,8 @@ mjmDefault* mjm_getDefault(mjElement element) {
 
 
 // Find default with given name in model.
-mjmDefault* mjm_findDefault(mjmModel* model, const char* classname) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmDefault* mjm_findDefault(mjSpec* s, const char* classname) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* cdef = modelC->FindDef(classname);
   if (!cdef) {
     return nullptr;
@@ -392,8 +392,8 @@ mjmDefault* mjm_findDefault(mjmModel* model, const char* classname) {
 
 
 // get default[0] from model
-mjmDefault* mjm_getModelDefault(mjmModel* model) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+mjmDefault* mjm_getModelDefault(mjSpec* s) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = modelC->defaults[0];
   if (!def) {
     return nullptr;
@@ -404,8 +404,8 @@ mjmDefault* mjm_getModelDefault(mjmModel* model) {
 
 
 // find body in model by name
-mjmBody* mjm_findBody(mjmModel* modelspec, const char* name) {
-  mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
+mjmBody* mjm_findBody(mjSpec* s, const char* name) {
+  mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
   mjCBase* body = model->FindObject(mjOBJ_BODY, std::string(name));
   if (!body) {
     return 0;
@@ -428,8 +428,8 @@ mjmBody* mjm_findChild(mjmBody* bodyspec, const char* name) {
 
 
 // find mesh by name
-mjmMesh* mjm_findMesh(mjmModel* modelspec, const char* name) {
-  mjCModel* model = reinterpret_cast<mjCModel*>(modelspec->element);
+mjmMesh* mjm_findMesh(mjSpec* s, const char* name) {
+  mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
   mjCMesh* mesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, std::string(name));
   if (!mesh) {
     return nullptr;
@@ -585,8 +585,8 @@ void mjm_setPluginAttributes(mjmPlugin* plugin, void* attributes) {
 
 
 // Set active plugins.
-void mjm_setActivePlugins(mjmModel* model, void* activeplugins) {
-  mjCModel* modelC = reinterpret_cast<mjCModel*>(model->element);
+void mjm_setActivePlugins(mjSpec* s, void* activeplugins) {
+  mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   std::vector<std::pair<const mjpPlugin*, int>>* active_plugins =
       reinterpret_cast<std::vector<std::pair<const mjpPlugin*, int>>*>(activeplugins);
   modelC->active_plugins = std::move(*active_plugins);
