@@ -394,8 +394,10 @@ class Model(PyTreeNode):
     mesh_face: vertex face data                               (nmeshface, 3)
     geom_convex_face: vertex face data, MJX only              (ngeom,)
     geom_convex_vert: vertex data, MJX only                   (ngeom,)
-    geom_convex_edge: unique edge data, MJX only              (ngeom,)
+    geom_convex_edge_dir: unique edge direction, MJX only     (ngeom,)
     geom_convex_facenormal: normal face data, MJX only        (ngeom,)
+    geom_convex_face_edge: edges for each face                (ngeom,)
+    geom_convex_face_edge_normal: edge normals for each face  (ngeom,)
     pair_dim: contact dimensionality                          (npair,)
     pair_geom1: id of geom1                                   (npair,)
     pair_geom2: id of geom2                                   (npair,)
@@ -539,8 +541,10 @@ class Model(PyTreeNode):
   pair_geom2: np.ndarray
   geom_convex_face: List[Optional[jax.Array]]
   geom_convex_vert: List[Optional[jax.Array]]
-  geom_convex_edge: List[Optional[jax.Array]]
+  geom_convex_edge_dir: List[Optional[jax.Array]]
   geom_convex_facenormal: List[Optional[jax.Array]]
+  geom_convex_face_edge: List[Optional[jax.Array]]
+  geom_convex_face_edge_normal: List[Optional[jax.Array]]
   pair_solref: jax.Array
   pair_solreffriction: jax.Array
   pair_solimp: jax.Array

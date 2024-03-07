@@ -371,15 +371,14 @@ class ConvexTest(absltest.TestCase):
   _CONVEX_CONVEX = """
     <mujoco>
       <asset>
-        <mesh name="tetrahedron" file="meshes/tetrahedron.stl" scale="0.1 0.1 0.1" />
         <mesh name="dodecahedron" file="meshes/dodecahedron.stl" scale="0.01 0.01 0.01" />
       </asset>
       <worldbody>
         <body pos="0.0 2.0 0.096">
           <joint axis="1 0 0" type="free"/>
-          <geom size="0.2 0.2 0.2" type="mesh" mesh="tetrahedron"/>
+          <geom size="0.2 0.2 0.2" type="mesh" mesh="dodecahedron"/>
         </body>
-        <body pos="0.0 2.0 0.289" euler="0.1 -0.1 45">
+        <body pos="0.0 2.0 0.281" euler="0.1 -0.1 45">
           <joint axis="1 0 0" type="free"/>
           <geom size="0.1 0.1 0.1" type="mesh" mesh="dodecahedron"/>
         </body>
@@ -388,12 +387,9 @@ class ConvexTest(absltest.TestCase):
   """
 
   def test_convex_convex(self):
-    """Tests generic convex-convex collision."""
+    """Tests generic convex-convex collision via _sat_approx."""
     directory = epath.resource_path('mujoco.mjx')
     assets = {
-        'meshes/tetrahedron.stl': (
-            directory / 'test_data' / 'meshes/tetrahedron.stl'
-        ).read_bytes(),
         'meshes/dodecahedron.stl': (
             directory / 'test_data' / 'meshes/dodecahedron.stl'
         ).read_bytes(),
@@ -491,6 +487,31 @@ class NconTest(parameterized.TestCase):
     m.opt.disableflags |= DisableBit.CONTACT
     ncon = collision_driver.ncon(m)
     self.assertEqual(ncon, 0)
+
+  def test_ncon_meshes(self):
+    m = test_util.load_test_file('shadow_hand/scene_right.xml')
+
+    ncon = collision_driver.ncon(m)
+    self.assertEqual(ncon, 15)
+
+    mx = mjx.put_model(m)
+    ncon = collision_driver.ncon(mx)
+    self.assertEqual(ncon, 15)
+
+    # get rid of max_contact_points, test only max_geom_pairs
+    for i in range(m.nnumeric):
+      name_ = (
+          m.names[m.name_numericadr[i] :].decode('utf-8').split('\x00', 1)[0]
+      )
+      if name_ == 'max_contact_points':
+        m.numeric_data[m.numeric_adr[i]] = -1
+
+    ncon = collision_driver.ncon(m)
+    self.assertEqual(ncon, 307)
+
+    mx = mjx.put_model(m)
+    ncon = collision_driver.ncon(mx)
+    self.assertEqual(ncon, 307)
 
 
 class TopKContactTest(absltest.TestCase):

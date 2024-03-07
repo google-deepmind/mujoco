@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+
+1. Improved performance of SAT for convex collisions.
+
 Version 3.1.3 (March 5th, 2024)
 -----------------------------------
 

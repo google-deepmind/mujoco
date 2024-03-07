@@ -20,8 +20,8 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_base
+from mujoco.mjx._src import mesh
 from mujoco.mjx._src import support
-from mujoco.mjx._src import math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.collision_base import Candidate
 from mujoco.mjx._src.collision_base import CandidateSet
@@ -42,7 +42,6 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import GeomType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
-
 
 # pair-wise collision functions
 _COLLISION_FUNC = {
@@ -91,7 +90,18 @@ def _add_candidate(
   def mesh_key(i):
     convex_data = [[None] * m.ngeom] * 3
     if isinstance(m, Model):
-      convex_data = [m.geom_convex_face, m.geom_convex_vert, m.geom_convex_edge]
+      convex_data = [
+          m.geom_convex_face,
+          m.geom_convex_vert,
+          m.geom_convex_edge_dir,
+      ]
+    elif isinstance(m, mujoco.MjModel):
+      kwargs = mesh.get(m)
+      convex_data = [
+          kwargs['geom_convex_face'],
+          kwargs['geom_convex_vert'],
+          kwargs['geom_convex_edge_dir'],
+      ]
     key = tuple((-1,) if v[i] is None else v[i].shape for v in convex_data)
     return key
 
@@ -181,36 +191,39 @@ def _pair_info(
     m: Model, d: Data, geom1: Sequence[int], geom2: Sequence[int]
 ) -> Tuple[GeomInfo, GeomInfo, Sequence[Dict[str, Optional[int]]]]:
   """Returns geom pair info for calculating collision."""
-  g1, g2 = jp.array(geom1), jp.array(geom2)
-  info1 = GeomInfo(
-      g1,
-      d.geom_xpos[g1],
-      d.geom_xmat[g1],
-      m.geom_size[g1],
-  )
-  info2 = GeomInfo(
-      g2,
-      d.geom_xpos[g2],
-      d.geom_xmat[g2],
-      m.geom_size[g2],
-  )
-  in_axes1 = in_axes2 = jax.tree_map(lambda x: 0, info1)
-  if m.geom_convex_face[geom1[0]] is not None:
-    info1 = info1.replace(
-        face=jp.stack([m.geom_convex_face[i] for i in geom1]),
-        vert=jp.stack([m.geom_convex_vert[i] for i in geom1]),
-        edge=jp.stack([m.geom_convex_edge[i] for i in geom1]),
-        facenorm=jp.stack([m.geom_convex_facenormal[i] for i in geom1]),
+  def mesh_info(geom):
+    g = jp.array(geom)
+    info = GeomInfo(
+        g,
+        d.geom_xpos[g],
+        d.geom_xmat[g],
+        m.geom_size[g],
     )
-    in_axes1 = in_axes1.replace(face=0, vert=0, edge=0, facenorm=0)
-  if m.geom_convex_face[geom2[0]] is not None:
-    info2 = info2.replace(
-        face=jp.stack([m.geom_convex_face[i] for i in geom2]),
-        vert=jp.stack([m.geom_convex_vert[i] for i in geom2]),
-        edge=jp.stack([m.geom_convex_edge[i] for i in geom2]),
-        facenorm=jp.stack([m.geom_convex_facenormal[i] for i in geom2]),
-    )
-    in_axes2 = in_axes2.replace(face=0, vert=0, edge=0, facenorm=0)
+    in_axes = jax.tree_map(lambda x: 0, info)
+    is_mesh = m.geom_convex_face[geom[0]] is not None
+    if is_mesh:
+      info = info.replace(
+          face=jp.stack([m.geom_convex_face[i] for i in geom]),
+          vert=jp.stack([m.geom_convex_vert[i] for i in geom]),
+          edge=jp.stack([m.geom_convex_edge_dir[i] for i in geom]),
+          facenorm=jp.stack([m.geom_convex_facenormal[i] for i in geom]),
+          face_edge_normal=jp.stack(
+              [m.geom_convex_face_edge_normal[i] for i in geom]
+          ),
+          face_edge=jp.stack([m.geom_convex_face_edge[i] for i in geom]),
+      )
+      in_axes = in_axes.replace(
+          face=0,
+          vert=0,
+          edge=0,
+          facenorm=0,
+          face_edge=0,
+          face_edge_normal=0,
+      )
+    return info, in_axes
+
+  info1, in_axes1 = mesh_info(geom1)
+  info2, in_axes2 = mesh_info(geom2)
   return info1, info2, [in_axes1, in_axes2]
 
 
@@ -289,9 +302,8 @@ def _collide_geoms(
   n_pairs = max_pairs if run_broadphase else len(geom1)
   if run_broadphase:
     # broadphase over geom pairs, using bounding spheres
-    size1 = jp.max(m.geom_size[jp.array(geom1)], axis=-1)
-    size2 = jp.max(m.geom_size[jp.array(geom2)], axis=-1)
-    # TODO(btaba): consider re-using collision info for (sphere, sphere)
+    size1 = jp.max(m.geom_size[g1.geom_id], axis=-1)
+    size2 = jp.max(m.geom_size[g2.geom_id], axis=-1)
     dists = jax.vmap(jp.linalg.norm)(g2.pos - g1.pos) - (size1 + size2)
     _, idx = jax.lax.top_k(-dists, k=n_pairs)
     g1, g2, params = jax.tree_map(

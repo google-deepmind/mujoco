@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from mujoco.mjx._src import mesh
 import numpy as np
+import trimesh
 
 
 class GeomMeshKwargsTest(absltest.TestCase):
@@ -33,7 +34,18 @@ class GeomMeshKwargsTest(absltest.TestCase):
     face = np.array(
         [[0, 1, 2], [0, 3, 1], [0, 4, 3], [0, 2, 4], [2, 1, 4], [1, 3, 4]]
     )
-    h = mesh._geom_mesh_kwargs(vert, face)
+    tm = trimesh.Trimesh(vertices=vert, faces=face)
+    tm_convex = trimesh.convex.convex_hull(tm)
+    convex_vert = np.array(tm_convex.vertices)
+    convex_face = np.array(tm_convex.faces)
+    mesh_info = mesh.MeshInfo(
+        name='test',
+        vert=vert,
+        face=face,
+        convex_vert=convex_vert,
+        convex_face=convex_face,
+    )
+    h = mesh._geom_mesh_kwargs(mesh_info)
 
     # get index of vertices in h['geom_convex_vert'] for vertices in vert
     dist = np.repeat(vert, vert.shape[0], axis=0) - np.tile(
@@ -57,7 +69,7 @@ class GeomMeshKwargsTest(absltest.TestCase):
     )
 
     # check edges
-    unique_edge = np.vectorize(map_.get)(h['geom_convex_edge'])
+    unique_edge = np.vectorize(map_.get)(h['geom_convex_edge_dir'])
     unique_edge = np.array(sorted(unique_edge.tolist()))
     np.testing.assert_array_equal(
         unique_edge,
@@ -66,6 +78,51 @@ class GeomMeshKwargsTest(absltest.TestCase):
 
     # face normals
     self.assertEqual(h['geom_convex_facenormal'].shape, (5, 3))
+
+    # face edges
+    edges = np.concatenate(h['geom_convex_face_edge'])
+    edges = np.vectorize(map_.get)(edges)
+    mask = edges[:, 0] != edges[:, 1]
+    edges = edges[mask]
+    sort_col_idx = np.argsort(edges, axis=1)
+    edges = np.take_along_axis(edges, sort_col_idx, axis=1)
+    sort_row_idx = np.lexsort((edges[:, 1], edges[:, 0]))
+    edges = edges[sort_row_idx]
+    np.testing.assert_array_equal(
+        edges,
+        np.array([
+            [0, 2],
+            [0, 2],
+            [0, 3],
+            [0, 3],
+            [0, 4],
+            [0, 4],
+            [1, 2],
+            [1, 2],
+            [1, 3],
+            [1, 3],
+            [1, 4],
+            [1, 4],
+            [2, 4],
+            [2, 4],
+            [3, 4],
+            [3, 4],
+        ]),
+    )
+
+    # face edge normals
+    edge_normal = h['geom_convex_face_edge_normal']
+    edge_normal = np.concatenate(edge_normal)
+    edge_normal = edge_normal[mask]
+    edge_normal = np.take_along_axis(
+        edge_normal, sort_col_idx[..., None], axis=1
+    )
+    edge_normal = edge_normal[sort_row_idx]
+    edge_normal_02 = np.array([[0.4472136, -0.0, 0.89442719], [-1.0, 0.0, 0.0]])
+    np.testing.assert_array_almost_equal(
+        edge_normal[:2],
+        np.array([edge_normal_02, edge_normal_02]),
+    )
 
 
 class ConvexHull2DTest(absltest.TestCase):
@@ -109,7 +166,7 @@ class UniqueEdgesTest(absltest.TestCase):
         [[-0.1, 0.0, -0.1], [0.0, 0.1, 0.1], [0.1, 0.0, -0.1], [0.0, -0.1, 0.1]]
     )
     face = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [2, 1, 3]])
-    idx = mesh._get_unique_edges(vert, face)
+    idx = mesh._get_unique_edge_dir(vert, face)
     np.testing.assert_array_equal(
         idx, np.array([[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]])
     )
