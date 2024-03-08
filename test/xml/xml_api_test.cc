@@ -64,6 +64,7 @@ TEST_F(LoadXmlTest, InvalidXmlFailsToLoad) {
     mj_deleteModel(model);
   }
 }
+
 TEST_F(LoadXmlTest, MultipleBodies) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -91,6 +92,7 @@ TEST_F(LoadXmlTest, MultipleBodies) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
 // TODO(nimrod): Add more tests for mj_loadXML.
 
 
