@@ -6,11 +6,11 @@ Simulate VR is an extension of `simulate` that renders the scene for VR/XR/AR he
 
 To build simulate with VR, switch the option in [simulate CMakeLists](/simulate/CMakeLists.txt#L51) to ON, then configure, build and install normally. I prefer to keep it in a separate location from usual build and install, because launching with built-in VR takes a bit longer. The VR capability is also fully integrated into `libsimulate`, so should be usable from the loaded library or python bindings (untested).
 
-If the model contains a custom numeric variable starting with `VR_`, it will be used as an origin point/orientation for the headset. For example, see [balloons](/model/balloons/balloons.xml#L108-117).
+If the model contains a custom numeric variable starting with `VR_`, it will be used as an origin point/orientation for the headset. For example, see [balloons](/model/balloons/balloons.xml#L108-L117).
 
 ## Running
 
-1. Connect the headset to the computer and to the SteamVR. For non-native integration with SteamVR see
+1. Connect the headset to the computer and to the SteamVR. For non-native integration with SteamVR see [Supported devices](#supported-devices).
 2. Run simulate as you normally do.
 
 ## Used libraries
