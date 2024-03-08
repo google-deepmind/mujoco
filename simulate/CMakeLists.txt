@@ -48,7 +48,7 @@ endif()
 
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
-option(SIMULATE_BUILD_VR "Build VR-enabled simulate executable binary." ON)
+option(SIMULATE_BUILD_VR "Build VR-enabled simulate executable binary." OFF)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
