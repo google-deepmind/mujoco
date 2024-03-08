@@ -63,10 +63,6 @@ set(MUJOCO_DEP_VERSION_sdflib
     CACHE STRING "Version of `SdfLib` to be fetched."
 )
 
-set(MUJOCO_DEP_VERSION_openvr
-    f51d87ecf8f7903e859b0aa4d617ff1e5f33db5a # 2.2.3
-    CACHE STRING "Version of `OpenVR` to be fetched."
-)
 
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
 mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
@@ -79,7 +75,6 @@ mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
 mark_as_advanced(MUJOCO_DEP_VERSION_sdflib)
-mark_as_advanced(MUJOCO_DEP_VERSION_openvr)
 
 include(FetchContent)
 include(FindOrFetch)
@@ -210,20 +205,6 @@ findorfetch(
 )
 target_compile_options(SdfLib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(SdfLib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-
-
-if(MUJOCO_BUILD_SIMULATE_VR)
-  FetchContent_Declare(
-    openvr
-    GIT_REPOSITORY https://github.com/ValveSoftware/openvr.git
-    GIT_TAG ${MUJOCO_DEP_VERSION_openvr}
-  )
-  FetchContent_GetProperties(openvr)
-  if(NOT openvr_POPULATED)
-    FetchContent_Populate(openvr)
-    include_directories(${openvr_SOURCE_DIR}/headers)
-  endif()
-endif()
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)
