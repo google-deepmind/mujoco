@@ -83,7 +83,7 @@ static void copyvec(T1* dest, T2* src, int n) {
 
 // constructor
 mjCModel::mjCModel() {
-  mjm_defaultModel(spec);
+  mjm_defaultSpec(spec);
   spec_comment_.clear();
   spec_modelfiledir_.clear();
   spec_meshdir_.clear();

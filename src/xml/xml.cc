@@ -344,7 +344,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  model = mjm_createModel();
+  model = mjm_createSpec();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
@@ -393,7 +393,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    mjm_deleteModel(model);
+    mjm_deleteSpec(model);
     return nullptr;
   }
 

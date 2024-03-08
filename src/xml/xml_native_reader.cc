@@ -2643,7 +2643,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     }
   } else {
     thisid = 0;
-    def = mjm_getModelDefault(model);
+    def = mjm_getSpecDefault(model);
     mjm_setString(def->name, text.c_str());
   }
 
@@ -3046,7 +3046,7 @@ void mjXReader::Asset(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // texture sub-element
@@ -3418,7 +3418,7 @@ void mjXReader::Contact(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // geom pair to include
@@ -3463,7 +3463,7 @@ void mjXReader::Equality(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // create equality constraint and parse
@@ -3491,7 +3491,7 @@ void mjXReader::Deformable(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // flex sub-element
@@ -3527,7 +3527,7 @@ void mjXReader::Tendon(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // create equality constraint and parse
@@ -3593,7 +3593,7 @@ void mjXReader::Actuator(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // create actuator and parse

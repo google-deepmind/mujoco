@@ -38,8 +38,8 @@ using ::testing::NotNull;
 // ----------------------------- test set/get  --------------------------------
 
 TEST_F(MujocoTest, ReadWriteData) {
-  mjSpec* model = mjm_createModel();
-  mjmBody* world = mjm_findBody(model, "world");
+  mjSpec* spec = mjm_createSpec();
+  mjmBody* world = mjm_findBody(spec, "world");
   mjmBody* body = mjm_addBody(world, 0);
   mjmSite* site = mjm_addSite(body, 0);
 
@@ -59,7 +59,7 @@ TEST_F(MujocoTest, ReadWriteData) {
     EXPECT_EQ(vec[i], i);
   }
 
-  mjm_deleteModel(model);
+  mjm_deleteSpec(spec);
 }
 
 // ------------------- test recompilation multiple files ----------------------
@@ -86,12 +86,12 @@ TEST_F(PluginTest, RecompileCompare) {
 
         // load model
         std::array<char, 1000> error;
-        mjSpec* model =
+        mjSpec* spec =
             mjParseXML(xml.c_str(), nullptr, error.data(), error.size());
 
         // compile twice
-        mjModel* m_old = mjm_compileModel(model, nullptr);
-        mjModel* m_new = mjm_compileModel(model, nullptr);
+        mjModel* m_old = mjm_compile(spec, nullptr);
+        mjModel* m_new = mjm_compile(spec, nullptr);
 
         ASSERT_THAT(m_old, NotNull())
             << "Failed to compile " << xml << ": " << error.data();
@@ -108,7 +108,7 @@ TEST_F(PluginTest, RecompileCompare) {
             << "Different field: " << field << '\n';
 
         // delete models
-        mjm_deleteModel(model);
+        mjm_deleteSpec(spec);
         mj_deleteModel(m_old);
         mj_deleteModel(m_new);
       }

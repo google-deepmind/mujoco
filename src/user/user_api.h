@@ -727,13 +727,13 @@ typedef struct _mjmDefault {       // default specification
 //---------------------------------- API functions -------------------------------------------------
 
 // Create model.
-MJAPI mjSpec* mjm_createModel();
+MJAPI mjSpec* mjm_createSpec();
 
 // Copy back model.
 MJAPI void mjm_copyBack(mjSpec* s, const mjModel* m);
 
 // Compile model.
-MJAPI mjModel* mjm_compileModel(mjSpec* s, const mjVFS* vfs);
+MJAPI mjModel* mjm_compile(mjSpec* s, const mjVFS* vfs);
 
 // Get error message from model.
 MJAPI const char* mjm_getError(mjSpec* s);
@@ -742,7 +742,7 @@ MJAPI const char* mjm_getError(mjSpec* s);
 MJAPI int mjm_isWarning(mjSpec* s);
 
 // Delete model.
-MJAPI void mjm_deleteModel(mjSpec* s);
+MJAPI void mjm_deleteSpec(mjSpec* s);
 
 // Add child body to body, return child spec.
 MJAPI mjmBody* mjm_addBody(mjmBody* body, mjmDefault* def);
@@ -790,7 +790,7 @@ MJAPI mjmMaterial* mjm_addMaterial(mjSpec* s, mjmDefault* def);
 MJAPI mjmPair* mjm_addPair(mjSpec* s, mjmDefault* def);
 
 // Add excluded body pair to model.
-MJAPI mjmExclude* mjm_addExclude(mjSpec *model);
+MJAPI mjmExclude* mjm_addExclude(mjSpec* s);
 
 // Add equality to model.
 MJAPI mjmEquality* mjm_addEquality(mjSpec* s, mjmDefault* def);
@@ -844,7 +844,7 @@ MJAPI mjmDefault* mjm_getDefault(mjElement element);
 MJAPI mjmDefault* mjm_findDefault(mjSpec* s, const char* classname);
 
 // Get global default from model.
-MJAPI mjmDefault* mjm_getModelDefault(mjSpec* s);
+MJAPI mjmDefault* mjm_getSpecDefault(mjSpec* s);
 
 // Find body in model by name.
 MJAPI mjmBody* mjm_findBody(mjSpec* s, const char* name);
@@ -910,7 +910,7 @@ MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inert
 //---------------------------------- Initialization functions --------------------------------------
 
 // Default model attributes.
-MJAPI void mjm_defaultModel(mjSpec& model);
+MJAPI void mjm_defaultSpec(mjSpec& model);
 
 // Default body attributes.
 MJAPI void mjm_defaultBody(mjmBody& body);

@@ -223,8 +223,8 @@ void mjCComposite::SetDefault(void) {
 
 
 // make composite object
-bool mjCComposite::Make(mjSpec* modelspec, mjmBody* body, char* error, int error_sz) {
-  mjCModel* model = (mjCModel*)modelspec->element;
+bool mjCComposite::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
+  mjCModel* model = (mjCModel*)spec->element;
 
   // check geom type
   if ((def[0].spec.geom->type!=mjGEOM_SPHERE &&

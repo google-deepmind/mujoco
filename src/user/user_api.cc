@@ -27,7 +27,7 @@
 
 
 // create model
-mjSpec* mjm_createModel() {
+mjSpec* mjm_createSpec() {
   mjCModel* modelC = new mjCModel;
   return &modelC->spec;
 }
@@ -43,7 +43,7 @@ void mjm_copyBack(mjSpec* s, const mjModel* m) {
 
 
 // compile model
-mjModel* mjm_compileModel(mjSpec* s, const mjVFS* vfs) {
+mjModel* mjm_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   return modelC->Compile(vfs);
 }
@@ -67,7 +67,7 @@ int mjm_isWarning(mjSpec* s) {
 
 
 // delete model
-void mjm_deleteModel(mjSpec* s) {
+void mjm_deleteSpec(mjSpec* s) {
   mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
   delete model;
 }
@@ -392,7 +392,7 @@ mjmDefault* mjm_findDefault(mjSpec* s, const char* classname) {
 
 
 // get default[0] from model
-mjmDefault* mjm_getModelDefault(mjSpec* s) {
+mjmDefault* mjm_getSpecDefault(mjSpec* s) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = modelC->defaults[0];
   if (!def) {

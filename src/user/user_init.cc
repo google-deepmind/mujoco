@@ -22,7 +22,7 @@
 
 
 // default model attributes
-void mjm_defaultModel(mjSpec& model) {
+void mjm_defaultSpec(mjSpec& model) {
   memset(&model, 0, sizeof(mjSpec));
 
   // default statistics

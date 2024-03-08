@@ -67,7 +67,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
 void GlobalModel::Set(mjSpec* model) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (model_ != nullptr) {
-    mjm_deleteModel(model_);
+    mjm_deleteSpec(model_);
   }
   model_ = model;
 }
@@ -93,13 +93,13 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   // parse new model
   std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> model(
       mjParseXML(filename, vfs, error, error_sz),
-      [](mjSpec* m) { mjm_deleteModel(m); });
+      [](mjSpec* m) { mjm_deleteSpec(m); });
   if (!model) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = mjm_compileModel(model.get(), vfs);
+  mjModel* m = mjm_compile(model.get(), vfs);
   if (!m) {
     mjCopyError(error, mjm_getError(model.get()), error_sz);
     return nullptr;
