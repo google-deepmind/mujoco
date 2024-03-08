@@ -63,7 +63,6 @@ set(MUJOCO_DEP_VERSION_sdflib
     CACHE STRING "Version of `SdfLib` to be fetched."
 )
 
-
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
 mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
