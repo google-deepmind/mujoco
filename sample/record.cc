@@ -217,8 +217,8 @@ void closeOpenGL(void) {
 
 int main(int argc, const char** argv) {
   // check command-line arguments
-  if (argc!=5) {
-    std::printf(" USAGE:  record modelfile duration fps rgbfile\n");
+  if (argc < 5 || argc > 6) {
+    std::printf(" USAGE:  record modelfile duration fps rgbfile [adddepth]\n");
     return 0;
   }
 
@@ -255,6 +255,11 @@ int main(int argc, const char** argv) {
     mju_error("Could not open rgbfile for writing");
   }
 
+  int adddepth = 1;
+  if (argc > 5 && std::sscanf(argv[5], "%d", &adddepth) != 1) {
+    mju_error("Invalid adddepth argument");
+  }
+
   // main loop
   double frametime = 0;
   int framecount = 0;
@@ -276,12 +281,15 @@ int main(int argc, const char** argv) {
       mjr_readPixels(rgb, depth, viewport, &con);
 
       // insert subsampled depth image in lower-left corner of rgb image
-      const int NS = 3;           // depth image sub-sampling
-      for (int r=0; r<H; r+=NS)
-        for (int c=0; c<W; c+=NS) {
-          int adr = (r/NS)*W + c/NS;
-          rgb[3*adr] = rgb[3*adr+1] = rgb[3*adr+2] = (unsigned char)((1.0f-depth[r*W+c])*255.0f);
+      if (adddepth) {
+        const int NS = 3;           // depth image sub-sampling
+        for (int r=0; r<H; r+=NS) {
+          for (int c=0; c<W; c+=NS) {
+            int adr = (r/NS)*W + c/NS;
+            rgb[3*adr] = rgb[3*adr+1] = rgb[3*adr+2] = (unsigned char)((1.0f-depth[r*W+c])*255.0f);
+          }
         }
+      }
 
       // write rgb image to file
       std::fwrite(rgb, 3, W*H, fp);
