@@ -297,8 +297,7 @@ class ConvexTest(absltest.TestCase):
 
   def test_flat_box_plane(self):
     """Tests box collision with a plane."""
-    with jax.disable_jit():
-      d, dx = _collide(self._FLAT_BOX_PLANE)
+    d, dx = _collide(self._FLAT_BOX_PLANE)
 
     np.testing.assert_array_less(dx.contact.dist, 0)
 
@@ -586,25 +585,24 @@ class TopKContactTest(absltest.TestCase):
 
   def test_max_pair(self):
     """Tests contact culling before the collision functions were dispatched."""
-    with jax.disable_jit():
-      m = mujoco.MjModel.from_xml_string(self._CAPSULES_MAX_PAIR)
-      mx_top_k = mjx.put_model(m)
-      mx_all = mx_top_k.replace(
-          nnumeric=0, name_numericadr=np.array([]), numeric_data=np.array([])
-      )
-      d = mujoco.MjData(m)
-      dx = mjx.put_data(m, d)
+    m = mujoco.MjModel.from_xml_string(self._CAPSULES_MAX_PAIR)
+    mx_top_k = mjx.put_model(m)
+    mx_all = mx_top_k.replace(
+        nnumeric=0, name_numericadr=np.array([]), numeric_data=np.array([])
+    )
+    d = mujoco.MjData(m)
+    dx = mjx.put_data(m, d)
 
-      collision_jit_fn = jax.jit(mjx.collision)
-      kinematics_jit_fn = jax.jit(mjx.kinematics)
-      dx = kinematics_jit_fn(mx_all, dx)
+    collision_jit_fn = jax.jit(mjx.collision)
+    kinematics_jit_fn = jax.jit(mjx.kinematics)
+    dx = kinematics_jit_fn(mx_all, dx)
 
-      dx_all = collision_jit_fn(mx_all, dx)
-      dx_top_k = collision_jit_fn(mx_top_k, dx)
+    dx_all = collision_jit_fn(mx_all, dx)
+    dx_top_k = collision_jit_fn(mx_top_k, dx)
 
-      self.assertEqual(dx_all.contact.dist.shape, (6,))
-      self.assertEqual(dx_top_k.contact.dist.shape, (2,))
-      self.assertTrue((dx_top_k.contact.dist < 0).all())
+    self.assertEqual(dx_all.contact.dist.shape, (6,))
+    self.assertEqual(dx_top_k.contact.dist.shape, (2,))
+    self.assertTrue((dx_top_k.contact.dist < 0).all())
 
 
 if __name__ == '__main__':
