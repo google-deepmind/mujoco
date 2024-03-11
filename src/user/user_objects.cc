@@ -605,6 +605,21 @@ mjCBase::mjCBase() {
 
 
 
+mjCBase::mjCBase(const mjCBase& other) {
+  *this = other;
+}
+
+
+
+mjCBase& mjCBase::operator=(const mjCBase& other) {
+  if (this != &other) {
+    *static_cast<mjCBase_*>(this) = static_cast<const mjCBase_&>(other);
+  }
+  return *this;
+}
+
+
+
 // load resource if found (fallback to OS filesystem)
 mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
   // try reading from provided VFS
@@ -1349,6 +1364,24 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
 
 
+mjCJoint::mjCJoint(const mjCJoint& other) {
+  *this = other;
+}
+
+
+
+mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCJoint_*>(this) = static_cast<const mjCJoint_&>(other);
+    *static_cast<mjmJoint*>(this) = static_cast<const mjmJoint&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 bool mjCJoint::is_limited() const { return islimited(limited, range); }
 bool mjCJoint::is_actfrclimited() const { return islimited(actfrclimited, actfrcrange); }
 
@@ -1539,6 +1572,24 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // in case this geom is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCGeom::mjCGeom(const mjCGeom& other) {
+  *this = other;
+}
+
+
+
+mjCGeom& mjCGeom::operator=(const mjCGeom& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCGeom_*>(this) = static_cast<const mjCGeom_&>(other);
+    *static_cast<mjmGeom*>(this) = static_cast<const mjmGeom&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -2144,6 +2195,24 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
 
 
+mjCSite::mjCSite(const mjCSite& other) {
+  *this = other;
+}
+
+
+
+mjCSite& mjCSite::operator=(const mjCSite& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCSite_*>(this) = static_cast<const mjCSite_&>(other);
+    *static_cast<mjmSite*>(this) = static_cast<const mjmSite&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCSite::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
@@ -2286,6 +2355,24 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
 
 
+mjCCamera::mjCCamera(const mjCCamera& other) {
+  *this = other;
+}
+
+
+
+mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCCamera_*>(this) = static_cast<const mjCCamera_&>(other);
+    *static_cast<mjmCamera*>(this) = static_cast<const mjmCamera&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCCamera::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
@@ -2416,6 +2503,24 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   PointToLocal();
   CopyFromSpec();
+}
+
+
+
+mjCLight::mjCLight(const mjCLight& other) {
+  *this = other;
+}
+
+
+
+mjCLight& mjCLight::operator=(const mjCLight& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCLight_*>(this) = static_cast<const mjCLight_&>(other);
+    *static_cast<mjmLight*>(this) = static_cast<const mjmLight&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
