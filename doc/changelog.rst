@@ -5,6 +5,14 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+MJX
+^^^
+
+1. Improved performance of SAT for convex collisions.
+
+Version 3.1.3 (March 5th, 2024)
+-----------------------------------
+
 General
 ^^^^^^^
 1. Added the :at:`inheritrange` attribute to :ref:`position<actuator-position>` and
@@ -16,28 +24,31 @@ General
    its internal file buffers. :ref:`mj_addBufferVFS` allocates an empty buffer with a given name in an mjVFS and
    copies the data buffer into it, combining and replacing the deprecated two-step process of calling
    :ref:`mj_makeEmptyFileVFS` followed by a direct copy into the given mjVFS internal file buffer.
+3. Added :ref:`mj_angmomMat` which computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, providing the linear
+   mapping from generalized velocities to subtree angular momentum :math:`h = H \dot q`. Contribution by
+   :github:user:`v-r-a`.
 
 MJX
 ^^^
 
-3. Improved performance of getting and putting device data.
+4. Improved performance of getting and putting device data.
 
    - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
    - Avoid reallocating host ``mjData`` arrays when array shapes are unchanged.
    - Speed up calculation of ``mjx.ncon`` for models with many geoms.
    - Avoid calling ``mjx.ncon`` in ``mjx.get_data_into`` when ``nc`` can be derived from ``mjx.Data``.
-4. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
+5. Fixed a bug in ``mjx-viewer`` that prevented it from running.  Updated ``mjx-viewer`` to use newer
    ``mjx.get_data_into`` function call.
-5. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
-6. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
-7. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
-8. Added support for cameras in ``mjx.Model`` and ``mjx.Data``. Fixes :github:issue:`1422`.
-9. Added an implementation of broadphase using `top_k` and bounding spheres.
+6. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
+7. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
+8. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
+9. Added support for cameras in ``mjx.Model`` and ``mjx.Data``. Fixes :github:issue:`1422`.
+10. Added an implementation of broadphase using `top_k` and bounding spheres.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-10. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
-   of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
+11. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
+    of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
 
 
 Version 3.1.2 (February 05, 2024)
@@ -142,6 +153,7 @@ Bug fixes
 11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where ``SYSTEM_VERSION_COMPAT`` is set.
     The minimum supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
     :github:issue:`1213`.
+12. Fixed mass computation of meshes: Use the correct mesh volume instead of approximating it using the inertia box.
 
 Version 3.0.1 (November 15, 2023)
 ---------------------------------

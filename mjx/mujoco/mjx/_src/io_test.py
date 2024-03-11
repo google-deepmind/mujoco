@@ -110,7 +110,7 @@ class ModelIOTest(parameterized.TestCase):
     np.testing.assert_almost_equal(mx.geom_pos, m.geom_pos)
     self.assertLen(mx.geom_convex_face, 6)
     self.assertLen(mx.geom_convex_vert, 6)
-    self.assertLen(mx.geom_convex_edge, 6)
+    self.assertLen(mx.geom_convex_edge_dir, 6)
     self.assertLen(mx.geom_convex_facenormal, 6)
 
     np.testing.assert_allclose(mx.jnt_type, m.jnt_type)

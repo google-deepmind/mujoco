@@ -368,6 +368,16 @@ public static class MjEngineTool {
       }
     }
   }
+
+  public static void LoadPlugins() {
+    if(!Directory.Exists("Packages/org.mujoco/Runtime/Plugins/")) return;
+
+    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/")) {
+      MujocoLib.mj_loadPluginLibrary(pluginPath);
+    }
+
+  }
+
 }
 
 public static class MjSceneImportSettings {

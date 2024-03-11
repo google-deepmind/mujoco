@@ -39,7 +39,7 @@ typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 // by loading an XML file via mjCXML.  Once an mjCModel object is
 // constructed, 'Compile' can be called to generate the corresponding mjModel object
 // (which is the low-level model).  The mjCModel object can then be deleted.
-class mjCModel : private mjmModel {
+class mjCModel : private mjSpec {
   friend class mjCBody;
   friend class mjCCamera;
   friend class mjCGeom;
@@ -66,7 +66,7 @@ class mjCModel : private mjmModel {
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
 
-  mjmModel spec;
+  mjSpec spec;
 
   mjModel* Compile(const mjVFS* vfs = nullptr);  // construct mjModel
   bool CopyBack(const mjModel*);                 // DECOMPILER: copy numeric back

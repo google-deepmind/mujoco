@@ -223,8 +223,8 @@ void mjCComposite::SetDefault(void) {
 
 
 // make composite object
-bool mjCComposite::Make(mjmModel* modelspec, mjmBody* body, char* error, int error_sz) {
-  mjCModel* model = (mjCModel*)modelspec->element;
+bool mjCComposite::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
+  mjCModel* model = (mjCModel*)spec->element;
 
   // check geom type
   if ((def[0].spec.geom->type!=mjGEOM_SPHERE &&
@@ -420,9 +420,9 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
       }
     }
     mjXUtil::Vector2String(userface, face);
-    } else {
+  } else {
     dim = 2;  // can only load a surface for now
-    mjXUtil::String2Vector(userface, face);
+    face = mjXUtil::String2Vector<int>(userface);
     for (int i=0; i<face.size(); face[i++]--) {};
     mjXUtil::Vector2String(userface, face);
   }
@@ -439,7 +439,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjmBody* body, char* error, int
     }
   }
   if (!userface.empty()) {
-    mjXUtil::String2Vector(userface, face);
+    face = mjXUtil::String2Vector<int>(userface);
     for (int j=0; j<face.size()/3; j++) {
       mjtNum area[3];
       mjtNum edge1[3];
@@ -1306,7 +1306,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   // copy skin from existing mesh
   if (type==mjCOMPTYPE_PARTICLE && username.empty()) {
     std::vector<int> skinface;
-    mjXUtil::String2Vector(userface, skinface);
+    skinface = mjXUtil::String2Vector<int>(userface);
     int nvert = uservert.size()/3;
 
     for (int j=0; j<2; j++) {

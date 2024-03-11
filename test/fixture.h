@@ -101,6 +101,10 @@ std::string SaveAndReadXml(const mjModel* model);
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);
 
+// Compares all fields of two mjModels.
+// Returns the name of the different field and the max difference.
+mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field);
+
 // Installs a mock filesystem via a resource provider. To obtain thread safety,
 // each filesystem is scoped for individual unit tests with destructive
 // operations not permitted.

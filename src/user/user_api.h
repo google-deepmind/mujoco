@@ -79,7 +79,7 @@ typedef enum _mjtInertiaFromGeom {
 
 //---------------------------------- attribute structs (mjm) ---------------------------------------
 
-typedef struct _mjmModel {         // model specification
+typedef struct _mjSpec {           // model specification
   mjElement element;               // internal, do not modify
   mjStatistic stat;                // statistics override (if defined)
 
@@ -132,7 +132,7 @@ typedef struct _mjmModel {         // model specification
 
   // other
   bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
-} mjmModel;
+} mjSpec;
 
 
 typedef struct _mjmOrientation {   // alternative orientation specifiers
@@ -727,22 +727,22 @@ typedef struct _mjmDefault {       // default specification
 //---------------------------------- API functions -------------------------------------------------
 
 // Create model.
-MJAPI mjmModel* mjm_createModel();
+MJAPI mjSpec* mjm_createSpec();
 
 // Copy back model.
-MJAPI void mjm_copyBack(mjmModel* model, const mjModel* m);
+MJAPI void mjm_copyBack(mjSpec* s, const mjModel* m);
 
 // Compile model.
-MJAPI mjModel* mjm_compileModel(mjmModel* model, const mjVFS* vfs);
+MJAPI mjModel* mjm_compile(mjSpec* s, const mjVFS* vfs);
 
 // Get error message from model.
-MJAPI const char* mjm_getError(mjmModel* model);
+MJAPI const char* mjm_getError(mjSpec* s);
 
 // Return 1 if model has warnings.
-MJAPI int mjm_isWarning(mjmModel* model);
+MJAPI int mjm_isWarning(mjSpec* s);
 
 // Delete model.
-MJAPI void mjm_deleteModel(mjmModel* modelspec);
+MJAPI void mjm_deleteSpec(mjSpec* s);
 
 // Add child body to body, return child spec.
 MJAPI mjmBody* mjm_addBody(mjmBody* body, mjmDefault* def);
@@ -769,34 +769,34 @@ MJAPI mjmLight* mjm_addLight(mjmBody* body, mjmDefault* def);
 MJAPI mjmFrame* mjm_addFrame(mjmBody* body, mjmFrame* parentframe);
 
 // Add flex to model.
-MJAPI mjmFlex* mjm_addFlex(mjmModel* model);
+MJAPI mjmFlex* mjm_addFlex(mjSpec* s);
 
 // Add mesh to model.
-MJAPI mjmMesh* mjm_addMesh(mjmModel* model, mjmDefault* def);
+MJAPI mjmMesh* mjm_addMesh(mjSpec* s, mjmDefault* def);
 
 // Add height field to model.
-MJAPI mjmHField* mjm_addHField(mjmModel* model);
+MJAPI mjmHField* mjm_addHField(mjSpec* s);
 
 // Add skin to model.
-MJAPI mjmSkin* mjm_addSkin(mjmModel* model);
+MJAPI mjmSkin* mjm_addSkin(mjSpec* s);
 
 // Add texture to model.
-MJAPI mjmTexture* mjm_addTexture(mjmModel* model);
+MJAPI mjmTexture* mjm_addTexture(mjSpec* s);
 
 // Add material to model.
-MJAPI mjmMaterial* mjm_addMaterial(mjmModel* model, mjmDefault* def);
+MJAPI mjmMaterial* mjm_addMaterial(mjSpec* s, mjmDefault* def);
 
 // Add pair to model.
-MJAPI mjmPair* mjm_addPair(mjmModel* model, mjmDefault* def);
+MJAPI mjmPair* mjm_addPair(mjSpec* s, mjmDefault* def);
 
 // Add excluded body pair to model.
-MJAPI mjmExclude* mjm_addExclude(mjmModel *model);
+MJAPI mjmExclude* mjm_addExclude(mjSpec* s);
 
 // Add equality to model.
-MJAPI mjmEquality* mjm_addEquality(mjmModel* model, mjmDefault* def);
+MJAPI mjmEquality* mjm_addEquality(mjSpec* s, mjmDefault* def);
 
 // Add tendon to model.
-MJAPI mjmTendon* mjm_addTendon(mjmModel* model, mjmDefault* def);
+MJAPI mjmTendon* mjm_addTendon(mjSpec* s, mjmDefault* def);
 
 // Wrap site using tendon.
 MJAPI mjmWrap* mjm_wrapSite(mjmTendon* tendon, const char* name);
@@ -811,49 +811,49 @@ MJAPI mjmWrap* mjm_wrapJoint(mjmTendon* tendon, const char* name, double coef);
 MJAPI mjmWrap* mjm_wrapPulley(mjmTendon* tendon, double divisor);
 
 // Add actuator to model.
-MJAPI mjmActuator* mjm_addActuator(mjmModel* model, mjmDefault* def);
+MJAPI mjmActuator* mjm_addActuator(mjSpec* s, mjmDefault* def);
 
 // Add sensor to model.
-MJAPI mjmSensor* mjm_addSensor(mjmModel* model);
+MJAPI mjmSensor* mjm_addSensor(mjSpec* s);
 
 // Add numeric to model.
-MJAPI mjmNumeric* mjm_addNumeric(mjmModel* model);
+MJAPI mjmNumeric* mjm_addNumeric(mjSpec* s);
 
 // Add text to model.
-MJAPI mjmText* mjm_addText(mjmModel* model);
+MJAPI mjmText* mjm_addText(mjSpec* s);
 
 // Add tuple to model.
-MJAPI mjmTuple* mjm_addTuple(mjmModel* model);
+MJAPI mjmTuple* mjm_addTuple(mjSpec* s);
 
 // Add keyframe to model.
-MJAPI mjmKey* mjm_addKey(mjmModel* model);
+MJAPI mjmKey* mjm_addKey(mjSpec* s);
 
 // Add plugin to model.
-MJAPI mjmPlugin* mjm_addPlugin(mjmModel* model);
+MJAPI mjmPlugin* mjm_addPlugin(mjSpec* s);
 
 // Add default to model.
-MJAPI mjmDefault* mjm_addDefault(mjmModel* model, const char* classname, int parentid, int* id);
+MJAPI mjmDefault* mjm_addDefault(mjSpec* s, const char* classname, int parentid, int* id);
 
-// Get model from body.
-MJAPI mjmModel* mjm_getModel(mjmBody* body);
+// Get model spec from body.
+MJAPI mjSpec* mjm_getSpec(mjmBody* body);
 
 // Get default corresponding to an mjElement.
 MJAPI mjmDefault* mjm_getDefault(mjElement element);
 
 // Find default in model by class name.
-MJAPI mjmDefault* mjm_findDefault(mjmModel* model, const char* classname);
+MJAPI mjmDefault* mjm_findDefault(mjSpec* s, const char* classname);
 
 // Get global default from model.
-MJAPI mjmDefault* mjm_getModelDefault(mjmModel* model);
+MJAPI mjmDefault* mjm_getSpecDefault(mjSpec* s);
 
 // Find body in model by name.
-MJAPI mjmBody* mjm_findBody(mjmModel* model, const char* name);
+MJAPI mjmBody* mjm_findBody(mjSpec* s, const char* name);
 
 // Find child body by name.
 MJAPI mjmBody* mjm_findChild(mjmBody* body, const char* name);
 
 // Find mesh by name.
-MJAPI mjmMesh* mjm_findMesh(mjmModel* model, const char* name);
+MJAPI mjmMesh* mjm_findMesh(mjSpec* s, const char* name);
 
 // Get element id.
 MJAPI int mjm_getId(mjElement element);
@@ -895,7 +895,7 @@ MJAPI const double* mjm_getDouble(mjDoubleVec source, int* size);
 MJAPI void mjm_setPluginAttributes(mjmPlugin* plugin, void* attributes);
 
 // Set active plugins.
-MJAPI void mjm_setActivePlugins(mjmModel* model, void* activeplugins);
+MJAPI void mjm_setActivePlugins(mjSpec* s, void* activeplugins);
 
 // Set default.
 MJAPI void mjm_setDefault(mjElement element, mjmDefault* def);
@@ -910,7 +910,7 @@ MJAPI const char* mjm_setFullInertia(mjmBody* body, double quat[4], double inert
 //---------------------------------- Initialization functions --------------------------------------
 
 // Default model attributes.
-MJAPI void mjm_defaultModel(mjmModel& model);
+MJAPI void mjm_defaultSpec(mjSpec& model);
 
 // Default body attributes.
 MJAPI void mjm_defaultBody(mjmBody& body);

@@ -20,10 +20,12 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
 
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -34,6 +36,7 @@
 #include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco {
@@ -170,6 +173,71 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
     }
   }
   return ctrl;
+}
+
+// The maximum spacing between a normalised floating point number x and an
+// adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
+// for losses during non-idempotent operations such as vector normalizations.
+template <typename T>
+auto Compare(T val1, T val2) {
+  using ReturnType =
+      std::conditional_t<std::is_same_v<T, float>, float, double>;
+  ReturnType error;
+  if (mju_abs(val1) <= 1 || mju_abs(val2) <= 1) {
+      // Absolute precision for small numbers
+      error = mju_abs(val1-val2);
+  } else {
+    // Relative precision for larger numbers
+    ReturnType magnitude = mju_abs(val1) + mju_abs(val2);
+    error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
+  }
+  ReturnType safety_factor = 10;
+  return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()
+             ? 0
+             : error;
+}
+
+mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
+                    std::string& field) {
+  mjtNum dif, maxdif = 0.0;
+
+  // define symbols corresponding to number of columns
+  // (needed in MJMODEL_POINTERS)
+  MJMODEL_POINTERS_PREAMBLE(m1);
+
+  // compare ints
+  #define X(name) \
+    if (m1->name != m2->name) {maxdif = m1->name - m2->name; field = #name;}
+    MJMODEL_INTS
+  #undef X
+  if (maxdif > 0) return maxdif;
+
+  // compare arrays
+  #define X(type, name, nr, nc)                                    \
+    for (int r=0; r < m1->nr; r++)                                 \
+      for (int c=0; c < nc; c++) {                                 \
+        dif = Compare(m1->name[r*nc+c], m2->name[r*nc+c]);  \
+        if (dif > maxdif) { maxdif = dif; field = #name;} }
+    MJMODEL_POINTERS
+  #undef X
+
+  // compare scalars in mjOption
+  #define X(type, name)                                            \
+    dif = Compare(m1->opt.name, m2->opt.name);                     \
+    if (dif > maxdif) {maxdif = dif; field = #name;}
+    MJOPTION_SCALARS
+  #undef X
+
+  // compare arrays in mjOption
+  #define X(name, n)                                             \
+    for (int c=0; c < n; c++) {                                  \
+      dif = Compare(m1->opt.name[c], m2->opt.name[c]);           \
+      if (dif > maxdif) {maxdif = dif; field = #name;} }
+    MJOPTION_VECTORS
+  #undef X
+
+  // Return largest difference and field name
+  return maxdif;
 }
 
 MockFilesystem::MockFilesystem(std::string unit_test_name) {

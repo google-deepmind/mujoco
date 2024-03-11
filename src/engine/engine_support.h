@@ -107,6 +107,9 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
               const mjtNum point[3], mjtNum* jac, int flg_rot);
 
+// compute subtree angular momentum matrix
+MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
+
 
 //-------------------------- name functions --------------------------------------------------------
 

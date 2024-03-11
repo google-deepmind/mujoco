@@ -444,6 +444,14 @@ PYBIND11_MODULE(_functions, pymodule) {
             jacr.has_value() ? jacr->data() : nullptr,
             &(*point)[0], &(*axis)[0], body);
       });
+  Def<traits::mj_angmomMat>(
+      pymodule, [](const raw::MjModel* m, raw::MjData* d,
+                   Eigen::Ref<EigenArrayXX> mat, int body) {
+        if (mat.rows() != 3 || mat.cols() != m->nv) {
+          throw py::type_error("mat should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_angmomMat)(m, d, mat.data(), body);
+      });
   Def<traits::mj_name2id>(pymodule);
   Def<traits::mj_id2name>(pymodule);
   Def<traits::mj_fullM>(

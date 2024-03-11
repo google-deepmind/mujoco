@@ -543,7 +543,7 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   mjtNum invmass = mju_dot(jacM2+0*nv, jacM2+0*nv, nv) +
                    mju_dot(jacM2+1*nv, jacM2+1*nv, nv) +
                    mju_dot(jacM2+2*nv, jacM2+2*nv, nv);
-  pert->localmass = 3 / mju_max(invmass, mjMINVAL);
+  pert->localmass = (invmass == 0) ? 1 : 3 / mju_max(invmass, mjMINVAL);
 
   // scale localmass with flex average number of edges per vertex
   if (pert->flexselect >= 0 && !m->flex_rigid[pert->flexselect]) {
@@ -642,7 +642,8 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
   mjtNum *body_rotvel = bvel;
 
   // body rotational inertia
-  mjtNum inertia = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel+1]);
+  mjtNum invweight = m->body_invweight0[2*sel+1];
+  mjtNum inertia = invweight ? 1.0/mju_max(mjMINVAL, invweight) : 1;
 
   if (((pert->active | pert->active2) & mjPERT_TRANSLATE)) {
     // compute selection point in world coordinates

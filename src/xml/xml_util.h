@@ -163,17 +163,9 @@ class mjXUtil {
   static bool ReadAttrInt(tinyxml2::XMLElement* elem, const char* attr, int* data,
                           bool required = false);
 
-  // read vector<string> from string
-  static void String2Vector(const std::string& txt, std::vector<std::string>& vec);
-
-  // read vector<double> from string
-  static void String2Vector(const std::string& txt, std::vector<double>& vec);
-
-  // read vector<float> from string
-  static void String2Vector(const std::string& txt, std::vector<float>& vec);
-
-  // read vector<int> from string
-  static void String2Vector(const std::string& txt, std::vector<int>& vec);
+  // convert string to vector
+  template<typename T>
+  static std::vector<T> String2Vector(const std::string& s);
 
   // write vector<string> to string
   static void Vector2String(std::string& txt, const std::vector<std::string>& vec);
@@ -220,6 +212,8 @@ class mjXUtil {
   template<typename T>
   static bool ReadAttrValues(tinyxml2::XMLElement* elem, const char* attr,
                              std::function<void (int, T)> push, int max = -1);
+  template<typename T> static T StrToNum(char* str, char** c);
+
 };
 
 #endif  // MUJOCO_SRC_XML_XML_UTIL_H_

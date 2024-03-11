@@ -14,8 +14,11 @@
 # ==============================================================================
 """Mesh processing."""
 
+import collections
+import dataclasses
 import itertools
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
+import warnings
 
 import mujoco
 # pylint: disable=g-importing-member
@@ -44,8 +47,10 @@ _CONVEX_CACHE: Dict[Tuple[int, int], Dict[str, np.ndarray]] = {}
 _DERIVED_ARGS = [
     'geom_convex_face',
     'geom_convex_vert',
-    'geom_convex_edge',
+    'geom_convex_edge_dir',
     'geom_convex_facenormal',
+    'geom_convex_face_edge',
+    'geom_convex_face_edge_normal',
 ]
 DERIVED = {(Model, d) for d in _DERIVED_ARGS}
 
@@ -73,8 +78,8 @@ def _get_face_norm(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
   return face_norm
 
 
-def _get_unique_edges(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
-  """Returns unique edges.
+def _get_unique_edge_dir(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
+  """Returns unique edge directions.
 
   Args:
     vert: (n_vert, 3) vertices
@@ -109,6 +114,52 @@ def _get_unique_edges(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
   return edges[unique_edge_idx]
 
 
+def _get_face_edge_normals(
+    face: np.ndarray, face_norm: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
+  """Returns face edges and face edge normals."""
+  # get face edges and scatter the face norms
+  r_face = np.roll(face, 1, axis=1)
+  face_edge = np.array([face, r_face]).transpose((1, 2, 0))
+  face_edge.sort(axis=2)
+  face_edge_flat = np.concatenate(face_edge)
+  edge_face_idx = np.repeat(np.arange(face.shape[0]), face.shape[1])
+  edge_face_norm = face_norm[edge_face_idx]
+
+  # get the edge normals associated with each edge
+  edge_map_list = collections.defaultdict(list)
+  for i in range(face_edge_flat.shape[0]):
+    if face_edge_flat[i][0] == face_edge_flat[i][1]:
+      continue
+    edge_map_list[tuple(face_edge_flat[i])].append(edge_face_norm[i])
+
+  edge_map = {}
+  for k, v in edge_map_list.items():
+    v = np.array(v)
+    if len(v) > 2:
+      # Meshes can be of poor quality and contain edges adjacent to more than
+      # two faces. We take the first two unique face normals.
+      v = np.unique(v, axis=0)[:2]
+    elif len(v) == 1:
+      # Some edges are either degenerate or _MAX_HULL_FACE_VERTICES was hit
+      # and face vertices were down sampled. In either case, we ignore these
+      # edges.
+      continue
+    edge_map[k] = v
+
+  # for each face, list the edge normals
+  face_edge_normal = []
+  for face_idx in range(face_edge.shape[0]):
+    normals = []
+    for edge in face_edge[face_idx]:
+      k = tuple(edge)
+      normals.append(edge_map.get(k, np.zeros((2, 3))))
+    face_edge_normal.append(np.array(normals))
+  face_edge_normal = np.array(face_edge_normal)
+
+  return face_edge, face_edge_normal
+
+
 def _convex_hull_2d(points: np.ndarray, normal: np.ndarray) -> np.ndarray:
   """Calculates the convex hull for a set of points on a plane."""
   # project points onto the closest axis plane
@@ -128,7 +179,16 @@ def _convex_hull_2d(points: np.ndarray, normal: np.ndarray) -> np.ndarray:
   return hull_point_idx
 
 
-def _merge_coplanar(tm: trimesh.Trimesh) -> np.ndarray:
+@dataclasses.dataclass
+class MeshInfo:
+  name: str
+  vert: np.ndarray
+  face: np.ndarray
+  convex_vert: Optional[np.ndarray]
+  convex_face: Optional[np.ndarray]
+
+
+def _merge_coplanar(tm: trimesh.Trimesh, mesh_info: MeshInfo) -> np.ndarray:
   """Merges coplanar facets."""
   if not tm.facets:
     return tm.faces.copy()  # no facets
@@ -152,6 +212,13 @@ def _merge_coplanar(tm: trimesh.Trimesh) -> np.ndarray:
     face = point_idx[hull_point_idx]
 
     # resize faces that exceed max polygon vertices
+    if face.shape[0] > _MAX_HULL_FACE_VERTICES:
+      warnings.warn(
+          f'Mesh "{mesh_info.name}" has a coplanar face with more than'
+          f' {_MAX_HULL_FACE_VERTICES} vertices. This may lead to performance '
+          'issues and inaccuracies in collision detection. Consider '
+          'decimating the mesh.'
+      )
     every = face.shape[0] // _MAX_HULL_FACE_VERTICES + 1
     face = face[::every]
     facets.append(face)
@@ -173,48 +240,82 @@ def _merge_coplanar(tm: trimesh.Trimesh) -> np.ndarray:
   return np.concatenate([faces, facets])
 
 
-def _get_faces_verts(
+def _mesh_info(
     m: mujoco.MjModel,
-) -> Tuple[Sequence[np.ndarray], Sequence[np.ndarray]]:
-  """Extracts mesh faces and vertices from MjModel."""
-  verts, faces = [], []
+) -> List[MeshInfo]:
+  """Extracts mesh info from MjModel."""
+  mesh_infos = []
   for i in range(m.nmesh):
+    name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_MESH.value, i)
+
     last = (i + 1) >= m.nmesh
     face_start = m.mesh_faceadr[i]
     face_end = m.mesh_faceadr[i + 1] if not last else m.mesh_face.shape[0]
     face = m.mesh_face[face_start:face_end]
-    faces.append(face)
 
     vert_start = m.mesh_vertadr[i]
     vert_end = m.mesh_vertadr[i + 1] if not last else m.mesh_vert.shape[0]
     vert = m.mesh_vert[vert_start:vert_end]
-    verts.append(vert)
-  return verts, faces
+
+    graphadr = m.mesh_graphadr[i]
+    if graphadr < 0:
+      mesh_infos.append(MeshInfo(name, vert, face, None, None))
+      continue
+
+    graph = m.mesh_graph[graphadr:]
+    numvert, numface = graph[0], graph[1]
+
+    # unused vert_edgeadr
+    # vert_edgeadr = graph[2 : numvert + 2]
+    last_idx = numvert + 2
+
+    vert_globalid = graph[last_idx : last_idx + numvert]
+    last_idx += numvert
+
+    # unused edge_localid
+    # edge_localid = graph[last_idx : last_idx + numvert + 3 * numface]
+    last_idx += numvert + 3 * numface
+
+    face_globalid = graph[last_idx : last_idx + 3 * numface]
+    face_globalid = face_globalid.reshape((numface, 3))
+
+    convex_vert = vert[vert_globalid]
+    vertex_map = dict(zip(vert_globalid, np.arange(vert_globalid.shape[0])))
+    convex_face = np.vectorize(vertex_map.get)(face_globalid)
+    mesh_infos.append(MeshInfo(name, vert, face, convex_vert, convex_face))
+
+  return mesh_infos
 
 
 def _geom_mesh_kwargs(
-    vert: np.ndarray, face: np.ndarray
+    mesh_info: MeshInfo,
 ) -> Dict[str, np.ndarray]:
   """Generates convex mesh attributes for mjx.Model."""
-  tm = trimesh.Trimesh(vertices=vert, faces=face)
-  tm_convex = trimesh.convex.convex_hull(tm)
+  tm_convex = trimesh.Trimesh(
+      vertices=mesh_info.convex_vert, faces=mesh_info.convex_face
+  )
   vert = np.array(tm_convex.vertices)
-  face = _merge_coplanar(tm_convex)
+  face = _merge_coplanar(tm_convex, mesh_info)
+  facenormal = _get_face_norm(vert, face)
+  face_edge, face_edge_normal = _get_face_edge_normals(face, facenormal)
   return {
       'geom_convex_face': vert[face],
       'geom_convex_face_vert_idx': face,
       'geom_convex_vert': vert,
-      'geom_convex_edge': _get_unique_edges(vert, face),
-      'geom_convex_facenormal': _get_face_norm(vert, face),
+      'geom_convex_edge_dir': _get_unique_edge_dir(vert, face),
+      'geom_convex_facenormal': facenormal,
+      'geom_convex_face_edge': face_edge,
+      'geom_convex_face_edge_normal': face_edge_normal,
   }
 
 
 def get(m: mujoco.MjModel) -> Dict[str, Sequence[Optional[np.ndarray]]]:
   """Derives geom mesh attributes for mjx.Model from MjModel."""
   kwargs = {k: [] for k in _DERIVED_ARGS}
-  verts, faces = _get_faces_verts(m)
+  mesh_infos = _mesh_info(m)
   geom_con = m.geom_conaffinity | m.geom_contype
   for geomid in range(m.ngeom):
+    mesh_info = None
     dataid = m.geom_dataid[geomid]
     if not geom_con[geomid]:
       # ignore visual-only meshes
@@ -222,15 +323,22 @@ def get(m: mujoco.MjModel) -> Dict[str, Sequence[Optional[np.ndarray]]]:
       continue
     elif m.geom_type[geomid] == GeomType.BOX:
       vert, face = _box(m.geom_size[geomid])
-    elif dataid >= 0:
-      vert, face = verts[dataid], faces[dataid]
-    else:
+      mesh_info = MeshInfo(
+          name='box',
+          vert=vert,
+          face=face,
+          convex_vert=vert,
+          convex_face=face,
+      )
+    elif dataid < 0:
       kwargs = {k: kwargs[k] + [None] for k in _DERIVED_ARGS}
       continue
 
+    mesh_info = mesh_info or mesh_infos[dataid]
+    vert, face = mesh_info.vert, mesh_info.face
     key = (hash(vert.data.tobytes()), hash(face.data.tobytes()))
     if key not in _CONVEX_CACHE:
-      _CONVEX_CACHE[key] = _geom_mesh_kwargs(vert, face)
+      _CONVEX_CACHE[key] = _geom_mesh_kwargs(mesh_info)
 
     kwargs = {k: kwargs[k] + [_CONVEX_CACHE[key][k]] for k in _DERIVED_ARGS}
 

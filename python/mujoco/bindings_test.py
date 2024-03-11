@@ -744,6 +744,16 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     # Expect next states to be equal.
     np.testing.assert_array_equal(state1a, state1b)
 
+  def test_mj_angmomMat(self):  # pylint: disable=invalid-name
+    self.data.qvel = np.ones(self.model.nv, np.float64)
+    mujoco.mj_forward(self.model, self.data)
+    mujoco.mj_subtreeVel(self.model, self.data)
+
+    mat = np.empty((3, 10), np.float64)
+    mujoco.mj_angmomMat(self.model, self.data, mat, 0)
+    np.testing.assert_almost_equal(mat @ self.data.qvel,
+                                   self.data.subtree_angmom[0, :])
+
   def test_mj_jacSite(self):  # pylint: disable=invalid-name
     mujoco.mj_forward(self.model, self.data)
     site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, 'mysite')

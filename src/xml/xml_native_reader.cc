@@ -913,7 +913,7 @@ void mjXReader::Parse(XMLElement* root) {
 
 
 // compiler section parser
-void mjXReader::Compiler(XMLElement* section, mjmModel* mod) {
+void mjXReader::Compiler(XMLElement* section, mjSpec* mod) {
   string text;
   int n;
 
@@ -1100,7 +1100,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
 
 // size section parser
-void mjXReader::Size(XMLElement* section, mjmModel* mod) {
+void mjXReader::Size(XMLElement* section, mjSpec* mod) {
   // read memory bytes
   {
     constexpr char err_msg[] =
@@ -1304,18 +1304,15 @@ void mjXReader::OneFlex(XMLElement* elem, mjmFlex* pflex) {
     mjm_setStringVec(pflex->vertbody, text.c_str());
   }
   if (ReadAttrTxt(elem, "vertex", text)) {
-    std::vector<double> vert;
-    String2Vector(text, vert);
+    std::vector<double> vert = String2Vector<double>(text);
     mjm_setDouble(pflex->vert, vert.data(), vert.size());
   }
   if (ReadAttrTxt(elem, "element", text, true)) {
-    std::vector<int> elem;
-    String2Vector(text, elem);
+    std::vector<int> elem = String2Vector<int>(text);
     mjm_setInt(pflex->elem, elem.data(), elem.size());
   }
   if (ReadAttrTxt(elem, "texcoord", text)) {
-    std::vector<float> texcoord;
-    String2Vector(text, texcoord);
+    std::vector<float> texcoord = String2Vector<float>(text);
     mjm_setFloat(pflex->texcoord, texcoord.data(), texcoord.size());
   }
 
@@ -1447,22 +1444,19 @@ void mjXReader::OneSkin(XMLElement* elem, mjmSkin* pskin) {
 
   // read vertex data
   if (ReadAttrTxt(elem, "vertex", text)) {
-    std::vector<float> vert;
-    String2Vector(text, vert);
+    std::vector<float> vert = String2Vector<float>(text);
     mjm_setFloat(pskin->vert, vert.data(), vert.size());
   }
 
   // read texcoord data
   if (ReadAttrTxt(elem, "texcoord", text)) {
-    std::vector<float> texcoord;
-    String2Vector(text, texcoord);
+    std::vector<float> texcoord = String2Vector<float>(text);
     mjm_setFloat(pskin->texcoord, texcoord.data(), texcoord.size());
   }
 
   // read user face data
   if (ReadAttrTxt(elem, "face", text)) {
-    std::vector<int> face;
-    String2Vector(text, face);
+    std::vector<int> face = String2Vector<int>(text);
     mjm_setInt(pskin->face, face.data(), face.size());
   }
 
@@ -1490,15 +1484,13 @@ void mjXReader::OneSkin(XMLElement* elem, mjmSkin* pskin) {
     bindquat.push_back(data[3]);
 
     // read vertid
-    vector<int> tempid;
     ReadAttrTxt(bone, "vertid", text, true);
-    String2Vector(text, tempid);
+    vector<int> tempid = String2Vector<int>(text);
     mjm_appendIntVec(pskin->vertid, tempid.data(), tempid.size());
 
     // read vertweight
-    vector<float> tempweight;
     ReadAttrTxt(bone, "vertweight", text, true);
-    String2Vector(text, tempweight);
+    vector<float> tempweight = String2Vector<float>(text);
     mjm_appendFloatVec(pskin->vertweight, tempweight.data(), tempweight.size());
 
     // advance to next bone
@@ -2277,8 +2269,8 @@ void mjXReader::OneComposite(XMLElement* elem, mjmBody* pbody, mjmDefault* def) 
   ReadAttrTxt(elem, "curve", curves);
   ReadAttrTxt(elem, "initial", comp.initial);
   ReadAttr(elem, "size", 3, comp.size, text, false, false);
-  if (ReadAttrTxt(elem, "vertex", text)){
-    String2Vector(text, comp.uservert);
+  if (ReadAttrTxt(elem, "vertex", text)) {
+    comp.uservert = String2Vector<float>(text);
   }
 
   // shell
@@ -2521,13 +2513,13 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
     fcomp.rigid = (n==1);
   }
   if (ReadAttrTxt(elem, "point", text)){
-    String2Vector(text, fcomp.point);
+    fcomp.point = String2Vector<mjtNum>(text);
   }
   if (ReadAttrTxt(elem, "element", text)){
-    String2Vector(text, fcomp.element);
+    fcomp.element = String2Vector<int>(text);
   }
   if (ReadAttrTxt(elem, "texcoord", text)) {
-    String2Vector(text, fcomp.texcoord);
+    fcomp.texcoord = String2Vector<float>(text);
   }
 
   // edge
@@ -2566,22 +2558,22 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjmBody* pbody) {
   XMLElement* epin = FirstChildElement(elem, "pin");
   while (epin) {
     // accumulate id, coord, range
-    vector<int> temp;
-    if (ReadAttrTxt(epin, "id", text)){
-      String2Vector(text, temp);
-      fcomp.pinid.insert(fcomp.pinid.end(), temp.begin(), temp.end());
+    if (ReadAttrTxt(epin, "id", text)) {
+      vector<int> v = String2Vector<int>(text);
+      fcomp.pinid.insert(fcomp.pinid.end(), v.begin(), v.end());
     }
-    if (ReadAttrTxt(epin, "range", text)){
-      String2Vector(text, temp);
-      fcomp.pinrange.insert(fcomp.pinrange.end(), temp.begin(), temp.end());
+    if (ReadAttrTxt(epin, "range", text)) {
+      vector<int> v = String2Vector<int>(text);
+      fcomp.pinrange.insert(fcomp.pinrange.end(), v.begin(), v.end());
     }
-    if (ReadAttrTxt(epin, "grid", text)){
-      String2Vector(text, temp);
-      fcomp.pingrid.insert(fcomp.pingrid.end(), temp.begin(), temp.end());
+    if (ReadAttrTxt(epin, "grid", text)) {
+
+      vector<int> v = String2Vector<int>(text);
+      fcomp.pingrid.insert(fcomp.pingrid.end(), v.begin(), v.end());
     }
-    if (ReadAttrTxt(epin, "gridrange", text)){
-      String2Vector(text, temp);
-      fcomp.pingridrange.insert(fcomp.pingridrange.end(), temp.begin(), temp.end());
+    if (ReadAttrTxt(epin, "gridrange", text)) {
+      vector<int> v = String2Vector<int>(text);
+      fcomp.pingridrange.insert(fcomp.pingridrange.end(), v.begin(), v.end());
     }
 
     // advance
@@ -2651,7 +2643,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     }
   } else {
     thisid = 0;
-    def = mjm_getModelDefault(model);
+    def = mjm_getSpecDefault(model);
     mjm_setString(def->name, text.c_str());
   }
 
@@ -2884,7 +2876,7 @@ void mjXReader::Custom(XMLElement* section) {
 
           // read name and assign
           ReadAttrTxt(obj, "objname", text, true);
-          objname += text + " ";
+          objname += " " + text;
 
           // read parameter and assign
           double oprm = 0;
@@ -3054,7 +3046,7 @@ void mjXReader::Asset(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // texture sub-element
@@ -3426,7 +3418,7 @@ void mjXReader::Contact(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // geom pair to include
@@ -3471,7 +3463,7 @@ void mjXReader::Equality(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // create equality constraint and parse
@@ -3499,7 +3491,7 @@ void mjXReader::Deformable(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // flex sub-element
@@ -3535,7 +3527,7 @@ void mjXReader::Tendon(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // create equality constraint and parse
@@ -3601,7 +3593,7 @@ void mjXReader::Actuator(XMLElement* section) {
     // get class if specified, otherwise use default0
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = mjm_getModelDefault(model);
+      def = mjm_getSpecDefault(model);
     }
 
     // create actuator and parse

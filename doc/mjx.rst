@@ -126,7 +126,7 @@ Minimal example
 
 .. code-block:: python
 
-  # Throw a ball at 100 different velocities.
+   # Throw a ball at 100 different velocities.
 
    import jax
    import mujoco
@@ -299,8 +299,8 @@ Collisions between large meshes
   SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
 
   For
-  collisions between convex meshes and primitives (spheres, capsules, planes), use **3000 vertices or less** for your convex meshes.
-  For collisions between convex meshes and other convex meshes, use **30 vertices or less**.
+  collisions with convex meshes, the convex decompositon of the mesh should have
+  roughly **200 vertices or less** for reasonable performance.
   With careful
   tuning, MJX can simulate scenes with mesh collisions -- see the MJX
   `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
@@ -335,33 +335,35 @@ Performance tuning
 
 For MJX to perform well, some configuration parameters should be adjusted from their default MuJoCo values:
 
-:ref:`option` element
-  The ``iterations`` and ``ls_iterations`` attributes---which control solver and linesearch iterations, respectively---
-  should be brought down to just low enough that the simulation remains stable.  Accurate solver forces are not so
-  important in reinforcement learning in which domain randomization is often used to add noise to physics for sim-to-real.
-  The ``NEWTON`` :ref:`Solver <mjtSolver>` often delivers reasonable convergence with one solver iteration, and performs
-  well on GPU.  ``CG`` is currently a better choice for TPU.
+:ref:`option/iterations<option-iterations>` and :ref:`option/ls_iterations<option-ls_iterations>`
+  The :ref:`iterations<option-iterations>` and :ref:`ls_iterations<option-ls_iterations>` attributes---which control
+  solver and linesearch iterations, respectively---should be brought down to just low enough that the simulation remains
+  stable. Accurate solver forces are not so important in reinforcement learning in which domain randomization is often
+  used to add noise to physics for sim-to-real. The ``NEWTON`` :ref:`Solver <mjtSolver>` delivers excellent convergence
+  with very few (often just one) solver iterations, and performs well on GPU. ``CG`` is currently a better choice for
+  TPU.
 
-:ref:`contact-pair` element
+:ref:`contact/pair<contact-pair>`
   Consider explicitly marking geoms for collision detection to reduce the number of contacts that MJX must consider
   during each step.  Enabling only an explicit list of valid contacts can have a dramatic effect on simulation
   performance in MJX.  Doing this well often requires an understanding of the task -- for example, the
   `OpenAI Gym Humanoid <https://github.com/openai/gym/blob/master/gym/envs/mujoco/humanoid_v4.py>`__ task resets when
   the humanoid starts to fall, so full contact with the floor is not needed.
 
-:ref:`option-flag` element
-  Disabling ``eulerdamp`` can help performance and is often not needed for stability.
+:ref:`option/flag/eulerdamp<option-flag-eulerdamp>`
+  Disabling ``eulerdamp`` can help performance and is often not needed for stability. Read the
+  :ref:`Numerical Integration<geIntegration>` section for details regarding the semantics of this flag.
 
-:ref:`option-jacobian` element
+:ref:`option/jacobian<option-jacobian>`
   Explicitly setting "dense" or "sparse" may speed up simulation depending on your device. Modern TPUs have specialized
   hardware for rapidly operating over sparse matrices, whereas GPUs tend to be faster with dense matrices as long as
-  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv`` is 60 or
-  greater, or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse" with the
-  Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup of 10%
-  to 20%, as long as the dense matrices can fit on the device.
+  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv >= 60`` (60 or
+  more degrees of freedom), or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse"
+  with the Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup
+  of 10% to 20%, as long as the dense matrices can fit on the device.
 
-GPU performance tuning
-----------------------
+GPU performance
+---------------
 
 The following environment variables should be set:
 

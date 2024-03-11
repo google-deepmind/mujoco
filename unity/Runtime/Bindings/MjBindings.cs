@@ -108,7 +108,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 313;
+public const int mjVERSION_HEADER = 314;
 
 
 // ------------------------------------Enums------------------------------------
@@ -6626,6 +6626,9 @@ public static unsafe extern void mj_jacSite(mjModel_* m, mjData_* d, double* jac
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_jacPointAxis(mjModel_* m, mjData_* d, double* jacPoint, double* jacAxis, double* point, double* axis, int body);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_angmomMat(mjModel_* m, mjData_* d, double* mat, int body);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_name2id(mjModel_* m, int type, [MarshalAs(UnmanagedType.LPStr)]string name);

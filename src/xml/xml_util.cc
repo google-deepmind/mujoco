@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cerrno>
 #include <climits>
 #include <cmath>
 #include <cstddef>
@@ -42,7 +43,6 @@
 
 namespace {
 
-using std::istringstream;
 using std::size_t;
 using std::string;
 using std::stringstream;
@@ -735,74 +735,52 @@ bool mjXUtil::ReadAttrInt(XMLElement* elem, const char* attr, int* data, bool re
 
 
 
-// read vector<string> from string
-void mjXUtil::String2Vector(const string& txt, vector<string>& vec) {
-  stringstream strm(txt);
-  vec.clear();
-
-  while (!strm.eof()) {
-    string word;
-    strm >> word;
-    if (strm.fail()) {
-      break;
-    } else {
-      vec.push_back(word);
-    }
-  }
+template<> int mjXUtil::StrToNum(char* str, char** c) {
+  return std::strtol(str, c, 10);
 }
 
-
-
-// read vector<mjtNum> from string
-void mjXUtil::String2Vector(const string& txt, vector<double>& vec) {
-  stringstream strm(txt);
-  vec.clear();
-
-  while (!strm.eof()) {
-    double num;
-    strm >> num;
-    if (strm.fail()) {
-      break;
-    } else {
-      vec.push_back(num);
-    }
-  }
+template<> float mjXUtil::StrToNum(char* str, char** c) {
+  return std::strtof(str, c);
 }
 
-
-
-// read vector<float> from string
-void mjXUtil::String2Vector(const string& txt, vector<float>& vec) {
-  stringstream strm(txt);
-  vec.clear();
-
-  while (!strm.eof()) {
-    float num;
-    strm >> num;
-    if (strm.fail()) {
-      break;
-    } else {
-      vec.push_back(num);
-    }
-  }
+template<> double mjXUtil::StrToNum(char* str, char** c) {
+  return std::strtod(str, c);
 }
 
+template <typename T>
+std::vector<T> mjXUtil::String2Vector(const std::string& s) {
+  errno = 0;
+  std::vector<T> v;
+  char* cs = (char*) s.c_str();
+  char* ch = cs;
 
+  // reserve worst case
+  v.reserve((s.size() >> 1) + 1);
 
-// read vector<int> from string
-void mjXUtil::String2Vector(const string& txt, vector<int>& vec) {
-  stringstream strm(txt);
-  vec.clear();
-
-  while (!strm.eof()) {
-    int num;
-    strm >> num;
-    if (strm.fail()) {
-      break;
-    } else {
-      vec.push_back(num);
-    }
+  for (;;) {
+    cs = ch;
+    T num = StrToNum<T>(cs, &ch);
+    if (cs == ch) break;
+    if (errno) break;
+    v.push_back(num);
   }
+
+  v.shrink_to_fit();
+  return v;
+}
+
+template std::vector<int> mjXUtil::String2Vector(const std::string& s);
+template std::vector<float> mjXUtil::String2Vector(const std::string& s);
+template std::vector<double> mjXUtil::String2Vector(const std::string& s);
+template<>
+std::vector<std::string> mjXUtil::String2Vector(const std::string& s) {
+  std::vector<std::string> v;
+  std::stringstream ss(s);
+  std::string word;
+  while (ss >> word) {
+    v.push_back(word);
+  }
+  return v;
 }
 
 

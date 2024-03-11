@@ -99,7 +99,7 @@ class LocaleOverride {
 }  // namespace
 
 // Main writer function - calls mjXWrite
-std::string mjWriteXML(mjmModel* model, char* error, int error_sz) {
+std::string mjWriteXML(mjSpec* model, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -272,7 +272,7 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
 
 
 // Main parser function
-mjmModel* mjParseXML(const char* filename, const mjVFS* vfs,
+mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
                      char* error, int error_sz) {
   LocaleOverride locale_override;
 
@@ -285,7 +285,7 @@ mjmModel* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // clear
-  mjmModel* model = nullptr;
+  mjSpec* model = nullptr;
   if (error) {
     error[0] = '\0';
   }
@@ -344,7 +344,7 @@ mjmModel* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  model = mjm_createModel();
+  model = mjm_createSpec();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
@@ -393,7 +393,7 @@ mjmModel* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    mjm_deleteModel(model);
+    mjm_deleteSpec(model);
     return nullptr;
   }
 

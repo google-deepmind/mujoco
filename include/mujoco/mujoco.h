@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 313
+#define mjVERSION_HEADER 314
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -429,6 +429,9 @@ MJAPI void mj_jacSite(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* j
 // Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.
 MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacAxis,
                            const mjtNum point[3], const mjtNum axis[3], int body);
+
+// Compute subtree angular momentum matrix.
+MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 
 // Get id of object with the specified mjtObj type and name, returns -1 if id not found.
 MJAPI int mj_name2id(const mjModel* m, int type, const char* name);

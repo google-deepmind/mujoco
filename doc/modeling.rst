@@ -1611,6 +1611,54 @@ Here we provide guidance on how to accomplish some common modeling tasks. There 
 that everything in this section can be inferred from the rest of the documentation. Nevertheless the inference process
 is not always obvious, so it may be useful to have it spelled out.
 
+.. _CPerformance:
+
+Performance tuning
+~~~~~~~~~~~~~~~~~~
+
+Here is a list of steps one can take in order to maximize simulation throughput. All of the recommendations below
+involve some tweaking. It is recommended that these be carried out in interactive fashion while looking at the
+:ref:`simulate<saSimulate>` utility's built-in profiler. A detailed and sometimes more useful profile is also reported
+by the :ref:`testspeed<saTestspeed>` utility. When embarking on the more elaborate steps below, target the most
+expensive pipeline component reported by the profiler. Note that some of these are subtly different for MJX, see
+dedicated section :ref:`therein<MjxPerformance>`.
+
+1. :ref:`timestep<option-timestep>`: Try to increase the simulation timestep. As explained at the end of the
+   :ref:`Numerical Integration<geIntegration>` section, the timestep is the single most important parameter in any
+   model. The default value is chosen for stability rather than efficiency, and can often be increased. At some point,
+   increasing it further will cause diveregence, so the optimal timestep is the largest timestep at which divergence
+   never happens or is very rare. The actual value is model-dependent.
+2. :ref:`integrator<option-integrator>`: Choose your integrator according to the recommendations at the end of the
+   :ref:`Numerical Integration<geIntegration>` section. The default recommended choice is the ``implicitfast``
+   integrator.
+3. :ref:`jacobian<option-jacobian>`: Try switching the Jacobian setting between "dense" and "sparse". These two options
+   use seperate code paths using dense or sparse algebra, but are otherwise compationally identical, so the faster one
+   is always preferred. The default "auto" heuristic does not always make the right choice.
+4. **Constraint solver:** If the profiler reports that a large chunk of time is spent in the solver, consider the
+   following:
+
+   - :ref:`solver<option-solver>`: The default Newton is often the fastest solver, as it requires the smallest
+     number of iterations to converge. For large models the CG solver might be faster, for models with more degrees of
+     freedom than constraints, the PGS solver will be fastest, though this situation is not common.
+   - :ref:`iterations<option-iterations>` and :ref:`tolerance<option-tolerance>`: Try reducing the number of iterations
+     or, equivalently, increasing the solver's termination tolerance. In particular for the Newton solver, which
+     typically acheives numerical convergence in 2-3 (expensive) iterations, the last iteration increases the precision
+     to a level that has no noticable effect, and can be skipped.
+
+5. **Collisions:** If the profiler reports that collision detection takes up a large chunk of the computation
+   time, consider the following steps:
+
+   - Reduce the number of checked collisions using the
+     :ref:`contype<body-geom-contype>` / :ref:`conaffinity<body-geom-conaffinity>` mechanism described in the
+     :ref:`Collison detection<Collision>` section.
+   - Modify collision geometries, replacing expensive collision tests (e.g. mesh-mesh) with cheaper primitive-primitive
+     collisions. As a rule of thumb, collisions which have custom pair functions in the collision table at the top of
+     `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__
+     are significantly cheaper than those that use the generic convex-convex collider ``mjc_Convex``. The most expensive
+     collisions are those involving SDF geometries.
+   - If replacing collision meshes with primitives is not feasible, decimate the meshes as much as possible. Open source
+     tools like trimesh, Blender, MeshLab and CoACD are very useful in this regard.
+
 .. _CBacklash:
 
 Backlash

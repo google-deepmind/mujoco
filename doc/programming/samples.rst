@@ -150,21 +150,60 @@ This code sample simulates the passive dynamics of a given model, renders it off
 values, and saves them into a raw data file that can then be converted into a movie file with tools such as ffmpeg. The
 rendering is simplified compared to :ref:`simulate.cc <saSimulate>` because there is no user interaction, visualization
 options or timing; instead we simply render with the default settings as fast as possible. The dimensions and number of
-multi-samples for the offscreen buffer are specified in the MuJoCo model, while the simulation duration, frames-per-
-second to be rendered (usually much less than the physics simulation rate), and output file name are specified as
-command-line arguments. For example, a 5 second animation at 60 frames per second is created with:
+multi-samples for the offscreen buffer are specified in the MuJoCo model with the visual/global/{`offwidth
+<https://mujoco.readthedocs.io/en/stable/XMLreference.html#visual-global-offwidth>`__, `offheight
+<https://mujoco.readthedocs.io/en/stable/XMLreference.html#visual-global-offheight>`__} and visual/quality/`offsamples
+<https://mujoco.readthedocs.io/en/stable/XMLreference.html#visual-quality-offsamples>`_ attributes, while the simulation
+duration, frames-per-second to be rendered (usually much less than the physics simulation rate), and output file name
+are specified as command-line arguments.
 
 .. code-block:: Shell
 
-     render humanoid.xml 5 60 rgb.out
+   record modelfile duration fps rgbfile [adddepth]
 
-The default humanoid.xml model specifies offscreen rendering with 800x800 resolution. With this information in hand, we
-can compress the (large) raw date file into a playable movie file:
+Where the command line arguments are
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 1 5
+   :header-rows: 1
+
+   * - Argument
+     - Default
+     - Meaning
+   * - ``modelfile``
+     - (required)
+     - path to model
+   * - ``duration``
+     - (required)
+     - duration of the recording in seconds
+   * - ``fps``
+     - (required)
+     - number of frames per second
+   * - ``rgbfile``
+     - (required)
+     - path to raw recording file
+   * - ``adddepth``
+     - 1
+     - overlay depth image in the lower left corner (0: none)
+
+For example, a 5 second animation at 60 frames per second is created with:
 
 .. code-block:: Shell
 
-     ffmpeg -f rawvideo -pixel_format rgb24 -video_size 800x800
-       -framerate 60 -i rgb.out -vf "vflip" video.mp4
+   record humanoid.xml 5 60 rgb.out
+
+The default `humanoid.xml <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid.xml>`__ model
+specifies offscreen rendering with 2560x1440 resolution. With this information in hand, we can compress the (large) raw
+data file into a playable movie file:
+
+.. code-block:: Shell
+
+   ffmpeg -f rawvideo -pixel_format rgb24 -video_size 2560x1440
+          -framerate 60 -i rgb.out -vf "vflip,format=yuv420p" video.mp4
+
+Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be the identical.
 
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
 invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by
