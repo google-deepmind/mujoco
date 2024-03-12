@@ -64,7 +64,34 @@ TEST_F(LoadXmlTest, InvalidXmlFailsToLoad) {
     mj_deleteModel(model);
   }
 }
-// TODO(nimrod): Add more tests for mj_loadXML.
+
+TEST_F(LoadXmlTest, MultipleBodies) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size="1"/>
+      </body>
+      <body>
+        <joint/>
+        <geom size="0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  EXPECT_EQ(model->nbody, 3);
+
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, NotNull());
+  mj_step(model, data);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 using SaveLastXmlTest = MujocoTest;
 
