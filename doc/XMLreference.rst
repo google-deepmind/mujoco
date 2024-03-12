@@ -1208,12 +1208,13 @@ specified as OBJ or XML and an error message is returned.
 The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
 components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
 negative scaling values can be used to flip the mesh; this is a legitimate operation. The size parameters of the
-referening geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
+referencing geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
 rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
 
 A mesh can also be defined without faces (a point cloud essentially). In that case
-the convex hull is constructed automatically, even if the compiler attribute convexhull is false. This makes it easy to
-construct simple shapes directly in the XML. For example, a pyramid can be created as:
+the convex hull is constructed automatically, even if the compiler attribute :at:`convexhull` is
+false. This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can
+be created as follows:
 
 .. code-block:: xml
 
@@ -1234,7 +1235,7 @@ that the joint position is (0,0,0) in the body frame, and simply reference the m
 a forearm, containing all the information needed to put the mesh where one would expect it to be. The body position is
 specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the typical
 length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have to use
-the geom position and orientation (or the :at:`refpos`, :at:`refquat`` mechanism) to compensate, but in practice this is
+the geom position and orientation (or the :at:`refpos`, :at:`refquat` mechanism) to compensate, but in practice this is
 rarely needed.
 
 .. code-block:: xml
@@ -1261,7 +1262,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    the desired vertices and faces have already been generated and do not apply removal or re-indexing;
 #. If vertex normals are not provided, generate normals automatically, using a weighted average of the surrounding face
    normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
-   the edge, unless smoothnormal is true. Note that normals cannot be provided with STL meshes;
+   the edge, unless :ref:`smoothnormal` is true. Note that normals cannot be provided with STL meshes;
 #. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
 #. Construct the convex hull if specified;
 #. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
