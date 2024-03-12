@@ -208,24 +208,28 @@ struct mjuiItemSingle_ {          // check and button-related
   int modifier;                   // 0: none, 1: control, 2: shift; 4: alt
   int shortcut;                   // shortcut key; 0: undefined
 };
+typedef struct mjuiItemSingle_ mjuiItemSingle;
 
 
 struct mjuiItemMulti_ {                  // static, radio and select-related
   int nelem;                             // number of elements in group
   char name[mjMAXUIMULTI][mjMAXUINAME];  // element names
 };
+typedef struct mjuiItemMulti_ mjuiItemMulti;
 
 
 struct mjuiItemSlider_ {          // slider-related
   double range[2];                // slider range
   double divisions;               // number of range divisions
 };
+typedef struct mjuiItemSlider_ mjuiItemSlider;
 
 
 struct mjuiItemEdit_ {            // edit-related
   int nelem;                      // number of elements in list
   double range[mjMAXUIEDIT][2];   // element range (min>=max: ignore)
 };
+typedef struct mjuiItemEdit_ mjuiItemEdit;
 
 
 struct mjuiItem_ {                // UI item
