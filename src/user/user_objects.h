@@ -158,9 +158,7 @@ class mjCBase_ {
   std::string classname;          // defaults class name
   int id;                         // object id
   std::string info;               // error message info set by the user
-  mjCDef* def;                    // defaults class used to init this object
   mjCModel* model;                // pointer to model that created object
-  mjCFrame* frame;                // pointer to frame transformation
 };
 
 class mjCBase : public mjCBase_ {
@@ -182,6 +180,9 @@ class mjCBase : public mjCBase_ {
 
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
+
+  mjCDef* def;                    // defaults class used to init this object
+  mjCFrame* frame;                // pointer to frame transformation
 
  protected:
   mjCBase();                                 // constructor
@@ -276,8 +277,11 @@ class mjCBody : public mjCBody_, private mjmBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
  private:
-  mjCBody(mjCModel*);             // constructor
-  ~mjCBody();                     // destructor
+  mjCBody(mjCModel*);                        // constructor
+  mjCBody(const mjCBody& other);             // copy constructor
+  mjCBody& operator=(const mjCBody& other);  // copy assignment
+  ~mjCBody();                                // destructor
+
   void Compile(void);             // compiler
   void GeomFrame(void);           // get inertial info from geoms
 
@@ -323,8 +327,10 @@ class mjCFrame : public mjCFrame_, private mjmFrame {
   void PointToLocal(void);
 
  private:
-  mjCFrame(mjCModel* = 0, mjCFrame* = 0);  // constructor
-  void Compile(void);                      // compiler
+  mjCFrame(mjCModel* = 0, mjCFrame* = 0);      // constructor
+  mjCFrame(const mjCFrame& other);             // copy constructor
+  mjCFrame& operator=(const mjCFrame& other);  // copy assignment
+  void Compile(void);                          // compiler
 };
 
 

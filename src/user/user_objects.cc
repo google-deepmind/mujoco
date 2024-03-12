@@ -614,6 +614,12 @@ mjCBase::mjCBase(const mjCBase& other) {
 mjCBase& mjCBase::operator=(const mjCBase& other) {
   if (this != &other) {
     *static_cast<mjCBase_*>(this) = static_cast<const mjCBase_&>(other);
+    if (other.def) {
+      def = new mjCDef(*other.def);
+    }
+    if (other.frame) {
+      frame = new mjCFrame(*other.frame);
+    }
   }
   return *this;
 }
@@ -698,6 +704,60 @@ mjCBody::mjCBody(mjCModel* _model) {
   // point to local (needs to be after defaults)
   PointToLocal();
 }
+
+
+
+mjCBody::mjCBody(const mjCBody& other) {
+  *this = other;
+}
+
+
+
+mjCBody& mjCBody::operator=(const mjCBody& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCBody_*>(this) = static_cast<const mjCBody_&>(other);
+    *static_cast<mjmBody*>(this) = static_cast<const mjmBody&>(other);
+    this->bodies.clear();
+    this->frames.clear();
+    this->geoms.clear();
+    this->joints.clear();
+    this->sites.clear();
+    this->cameras.clear();
+    this->lights.clear();
+
+    // copy all children
+    for (int i=0; i<other.bodies.size(); i++) {
+      this->bodies.push_back(new mjCBody(*other.bodies[i]));  // triggers recursive call
+    }
+    for (int i=0; i<other.frames.size(); i++) {
+      this->frames.push_back(new mjCFrame(*other.frames[i]));
+    }
+    for (int i=0; i<other.geoms.size(); i++) {
+      this->geoms.push_back(new mjCGeom(*other.geoms[i]));
+      this->geoms.back()->body = this;
+    }
+    for (int i=0; i<other.joints.size(); i++) {
+      this->joints.push_back(new mjCJoint(*other.joints[i]));
+      this->joints.back()->body = this;
+    }
+    for (int i=0; i<other.sites.size(); i++) {
+      this->sites.push_back(new mjCSite(*other.sites[i]));
+      this->sites.back()->body = this;
+    }
+    for (int i=0; i<other.cameras.size(); i++) {
+      this->cameras.push_back(new mjCCamera(*other.cameras[i]));
+      this->cameras.back()->body = this;
+    }
+    for (int i=0; i<other.lights.size(); i++) {
+      this->lights.push_back(new mjCLight(*other.lights[i]));
+      this->lights.back()->body = this;
+    }
+  }
+  PointToLocal();
+  return *this;
+}
+
 
 
 void mjCBody::PointToLocal() {
@@ -1289,6 +1349,24 @@ mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
   frame = _frame ? _frame : NULL;
   PointToLocal();
   CopyFromSpec();
+}
+
+
+
+mjCFrame::mjCFrame(const mjCFrame& other) {
+  *this = other;
+}
+
+
+
+mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCFrame_*>(this) = static_cast<const mjCFrame_&>(other);
+    *static_cast<mjmFrame*>(this) = static_cast<const mjmFrame&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
