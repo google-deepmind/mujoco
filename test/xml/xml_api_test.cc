@@ -93,8 +93,6 @@ TEST_F(LoadXmlTest, MultipleBodies) {
   mj_deleteModel(model);
 }
 
-// TODO(nimrod): Add more tests for mj_loadXML.
-
 
 using SaveLastXmlTest = MujocoTest;
 
