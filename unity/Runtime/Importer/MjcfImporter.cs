@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Mujoco {
 // API for importing Mujoco XML files into Unity scenes.
@@ -28,7 +29,21 @@ public class MjcfImporter {
   public static Material DefaultMujocoMaterial {
     get {
       if (_DefaultMujocoMaterial == null) {
-        _DefaultMujocoMaterial = new Material(Shader.Find("Standard"));
+        if (GraphicsSettings.renderPipelineAsset != null) 
+            {
+                if (GraphicsSettings.renderPipelineAsset.GetType().ToString().Contains("HighDefinition"))
+                {
+                    _DefaultMujocoMaterial = new Material(Shader.Find("HDRP/Lit"));
+                }
+                else if (GraphicsSettings.renderPipelineAsset.GetType().ToString().Contains("Universal"))
+                {
+                    _DefaultMujocoMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                }
+            }
+        else
+        {
+          _DefaultMujocoMaterial = new Material(Shader.Find("Standard"));
+        }
       }
 
       return _DefaultMujocoMaterial;
