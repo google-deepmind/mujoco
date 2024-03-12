@@ -180,8 +180,9 @@ void scanPluginLibraries() {
 #endif
 
 
-  // try to open the ${EXECDIR}/plugin directory
+  // try to open the ${EXECDIR}/MUJOCO_PLUGIN_DIR directory
   // ${EXECDIR} is the directory containing the simulate binary itself
+  // MUJOCO_PLUGIN_DIR is the MUJOCO_PLUGIN_DIR preprocessor macro
   const std::string executable_dir = getExecutableDir();
   if (executable_dir.empty()) {
     return;
