@@ -77,5 +77,26 @@ public class MjGeomEditor : MjShapeComponentEditor {
       GameObject.DestroyImmediate(geom);
     }
   }
+
+  void OnEnable() {
+    // Ensure we only subscribe handler once
+    EditorApplication.contextualPropertyMenu -= OnHeightFieldContextMenu;
+    EditorApplication.contextualPropertyMenu += OnHeightFieldContextMenu;
+  }
+
+  void OnDestroy() {
+    EditorApplication.contextualPropertyMenu -= OnHeightFieldContextMenu;
+  }
+
+  void OnHeightFieldContextMenu(GenericMenu menu, SerializedProperty property) {
+    if (property.type != nameof(MjHeightFieldShape))
+      return;
+
+    menu.AddItem(new GUIContent("Add Unity Terrain"), false, () =>
+    {
+      var geom = target as MjGeom;
+      geom.HField.AddTerrain();
+    });
+  }
 }
 }

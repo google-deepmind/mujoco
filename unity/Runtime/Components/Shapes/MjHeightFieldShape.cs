@@ -17,18 +17,23 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using UnityEngine;
+
 // internal imports
 namespace Mujoco {
 
 [Serializable]
 public class MjHeightFieldShape : IMjShape {
-  [Tooltip("Terrain's heightmap should have a minimum value of zero (fully black).")]
+  [Tooltip("Terrain's heightmap should have a minimum value of zero (fully black). Right click HField to add Unity Terrain."),
+  ContextMenuItem("Add Unity Terrain", "AddTerrain")]
   public Terrain Terrain;
 
   [Tooltip("The path, relative to Application.dataPath, where the heightmap " +
            "data will be saved/exported in PNG format. Leave blank if hfield data should " +
            "be set instead programmatically (faster).")]
   public string HeightMapExportPath;
+
+  [Tooltip("This thickness will be added below the 0 height in the hfield, to prevent penetration. ")]
+  public float BaseHeight = 0.1f;
 
   public bool ExportImage => !string.IsNullOrEmpty(HeightMapExportPath);
 
@@ -75,7 +80,7 @@ public class MjHeightFieldShape : IMjShape {
     var assetName = scene.GenerationContext.AddHeightFieldAsset(this);
 
     if (Application.isPlaying) {
-      scene.postInitEvent += (unused_first, unused_second) =>
+      scene.postInitEvent += (_, _) =>
           HeightFieldId =
               MujocoLib.mj_name2id(scene.Model, (int)MujocoLib.mjtObj.mjOBJ_HFIELD, assetName);
     }
@@ -83,9 +88,9 @@ public class MjHeightFieldShape : IMjShape {
     if (UpdateLimit > 0) {
       _updateCountdown = UpdateLimit;
       if (UpdateLimit > 1) {
-        scene.preUpdateEvent += (unused_first, unused_second) => CountdownUpdateCondition();
+        scene.preUpdateEvent += (_, _) => CountdownUpdateCondition();
       }
-      TerrainCallbacks.heightmapChanged += (unused_first, unused_second, unused_third) =>
+      TerrainCallbacks.heightmapChanged += (_, _, _) =>
           RebuildHeightField();
     }
 
@@ -160,5 +165,23 @@ public class MjHeightFieldShape : IMjShape {
   }
 
   public void DebugDraw(Transform transform) {}
+
+  public void AddTerrain() {
+    GameObject terrainObject = new GameObject("Terrain");
+    Terrain newTerrain = terrainObject.AddComponent<Terrain>();
+    newTerrain.terrainData = new TerrainData();
+    newTerrain.terrainData.size = new Vector3(100, 1, 100);
+
+    var transform = GameObject
+      .FindObjectsByType<MjGeom>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+      .First(g => g.HField == this).transform;
+
+    terrainObject.transform.parent = transform;
+    newTerrain.materialTemplate = new Material(Shader.Find("Nature/Terrain/Diffuse"));
+    var coll = newTerrain.gameObject.AddComponent<TerrainCollider>();
+    coll.terrainData = newTerrain.terrainData;
+    Terrain = newTerrain;
+    terrainObject.transform.localPosition = new Vector3(-50, 0, -50);
+  }
 }
 }
