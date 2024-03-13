@@ -660,6 +660,9 @@ class mjCFlex: public mjCFlex_, private mjmFlex {
 
  private:
   mjCFlex(mjCModel* = 0);
+  mjCFlex(const mjCFlex& other);             // copy constructor
+  mjCFlex& operator=(const mjCFlex& other);  // copy assignment
+
   void Compile(const mjVFS* vfs);         // compiler
   void CreateBVH(void);                   // create flex BVH
   void CreateShellPair(void);             // create shells and evpairs
@@ -735,6 +738,8 @@ class mjCMesh: public mjCMesh_, private mjmMesh {
   friend class mjXWriter;
  public:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);
+  mjCMesh(const mjCMesh& other);             // copy constructor
+  mjCMesh& operator=(const mjCMesh& other);  // copy assignment
   ~mjCMesh();
 
   mjmMesh spec;
@@ -890,7 +895,10 @@ class mjCSkin: public mjCSkin_, private mjmSkin {
 
  private:
   mjCSkin(mjCModel* = 0);                     // constructor
+  mjCSkin(const mjCSkin& other);             // copy constructor
+  mjCSkin& operator=(const mjCSkin& other);  // copy assignment
   ~mjCSkin();                                 // destructor
+
   void Compile(const mjVFS* vfs);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 };
@@ -929,8 +937,11 @@ class mjCHField : public mjCHField_, private mjmHField {
   std::vector<float>& get_userdata() { return userdata_; }
 
  private:
-  mjCHField(mjCModel* model);             // constructor
-  ~mjCHField();                           // destructor
+  mjCHField(mjCModel* model);                    // constructor
+  mjCHField(const mjCHField& other);             // copy constructor
+  mjCHField& operator=(const mjCHField& other);  // copy assignment
+  ~mjCHField();                                  // destructor
+
   float* data;                            // elevation data, row-major format
   void Compile(const mjVFS* vfs);         // compiler
 
@@ -974,7 +985,10 @@ class mjCTexture : public mjCTexture_, private mjmTexture {
   std::vector<std::string> get_cubefiles() const { return cubefiles_; }
 
  private:
-  mjCTexture(mjCModel*);                  // constructor
+  mjCTexture(mjCModel*);                           // constructor
+  mjCTexture(const mjCTexture& other);             // copy constructor
+  mjCTexture& operator=(const mjCTexture& other);  // copy assignment
+
   void Compile(const mjVFS* vfs);         // compiler
 
   void Builtin2D(void);                   // make builtin 2D
@@ -1027,7 +1041,10 @@ class mjCMaterial : public mjCMaterial_, private mjmMaterial {
   void del_texture() { texture_.clear(); }
 
  private:
-  mjCMaterial(mjCModel* = 0, mjCDef* = 0);  // constructor
+  mjCMaterial(mjCModel* = 0, mjCDef* = 0);           // constructor
+  mjCMaterial(const mjCMaterial& other);             // copy constructor
+  mjCMaterial& operator=(const mjCMaterial& other);  // copy assignment
+
   void Compile(void);                       // compiler
 };
 
@@ -1068,7 +1085,10 @@ class mjCPair : public mjCPair_, private mjmPair {
   }
 
  private:
-  mjCPair(mjCModel* = 0, mjCDef* = 0);  // constructor
+  mjCPair(mjCModel* = 0, mjCDef* = 0);       // constructor
+  mjCPair(const mjCPair& other);             // copy constructor
+  mjCPair& operator=(const mjCPair& other);  // copy assignment
+
   void Compile(void);                   // compiler
 
   mjCGeom* geom1;                 // geom1
@@ -1112,7 +1132,10 @@ class mjCBodyPair : public mjCBodyPair_, private mjmExclude {
   }
 
  private:
-  mjCBodyPair(mjCModel*);          // constructor
+  mjCBodyPair(mjCModel*);                            // constructor
+  mjCBodyPair(const mjCBodyPair& other);             // copy constructor
+  mjCBodyPair& operator=(const mjCBodyPair& other);  // copy assignment
+
   void Compile(void);              // compiler
 };
 
@@ -1147,7 +1170,10 @@ class mjCEquality : public mjCEquality_, private mjmEquality {
   void PointToLocal();
 
  private:
-  mjCEquality(mjCModel* = 0, mjCDef* = 0);  // constructor
+  mjCEquality(mjCModel* = 0, mjCDef* = 0);           // constructor
+  mjCEquality(const mjCEquality& other);             // copy constructor
+  mjCEquality& operator=(const mjCEquality& other);  // copy assignment
+
   void Compile(void);                       // compiler
 };
 
@@ -1203,8 +1229,11 @@ class mjCTendon : public mjCTendon_, private mjmTendon {
   bool is_limited() const;
 
  private:
-  mjCTendon(mjCModel* = 0, mjCDef* = 0);      // constructor
-  ~mjCTendon();                               // destructor
+  mjCTendon(mjCModel* = 0, mjCDef* = 0);         // constructor
+  mjCTendon(const mjCTendon& other);             // copy constructor
+  mjCTendon& operator=(const mjCTendon& other);  // copy assignment
+  ~mjCTendon();                                  // destructor
+
   void Compile(void);                         // compiler
 };
 
@@ -1233,7 +1262,10 @@ class mjCWrap : public mjCWrap_, private mjmWrap {
   mjCBase* obj;                   // wrap object pointer
 
  private:
-  mjCWrap(mjCModel*, mjCTendon*);     // constructor
+  mjCWrap(mjCModel*, mjCTendon*);            // constructor
+  mjCWrap(const mjCWrap& other);             // copy constructor
+  mjCWrap& operator=(const mjCWrap& other);  // copy assignment
+
   void Compile(void);                 // compiler
 
   mjCTendon* tendon;              // tendon owning this wrap
@@ -1263,7 +1295,10 @@ class mjCPlugin : public mjCPlugin_ {
   mjCBase* parent;   // parent object (only used when generating error message)
 
  private:
-  mjCPlugin(mjCModel*);            // constructor
+  mjCPlugin(mjCModel*);                          // constructor
+  mjCPlugin(const mjCPlugin& other);             // copy constructor
+  mjCPlugin& operator=(const mjCPlugin& other);  // copy assignment
+
   void Compile(void);              // compiler
 };
 
@@ -1311,7 +1346,10 @@ class mjCActuator : public mjCActuator_, private mjmActuator {
   bool is_actlimited() const;
 
  private:
-  mjCActuator(mjCModel* = 0, mjCDef* = 0);  // constructor
+  mjCActuator(mjCModel* = 0, mjCDef* = 0);           // constructor
+  mjCActuator(const mjCActuator& other);             // copy constructor
+  mjCActuator& operator=(const mjCActuator& other);  // copy assignment
+
   void Compile(void);                       // compiler
   void CopyFromSpec();
   void PointToLocal();
@@ -1354,7 +1392,10 @@ class mjCSensor : public mjCSensor_, private mjmSensor {
   const std::string& get_refname() { return spec_refname_; }
 
  private:
-  mjCSensor(mjCModel*);           // constructor
+  mjCSensor(mjCModel*);                          // constructor
+  mjCSensor(const mjCSensor& other);             // copy constructor
+  mjCSensor& operator=(const mjCSensor& other);  // copy assignment
+
   void Compile(void);             // compiler
   void CopyFromSpec();
   void MakePointerLocal();
@@ -1386,8 +1427,11 @@ class mjCNumeric : public mjCNumeric_, private mjmNumeric {
   void CopyFromSpec();
 
  private:
-  mjCNumeric(mjCModel*);              // constructor
-  ~mjCNumeric();                      // destructor
+  mjCNumeric(mjCModel*);                           // constructor
+  mjCNumeric(const mjCNumeric& other);             // copy constructor
+  mjCNumeric& operator=(const mjCNumeric& other);  // copy assignment
+  ~mjCNumeric();                                   // destructor
+
   void Compile(void);                 // compiler
 };
 
@@ -1415,8 +1459,11 @@ class mjCText : public mjCText_, private mjmText {
   void CopyFromSpec();
 
  private:
-  mjCText(mjCModel*);                 // constructor
-  ~mjCText();                         // destructor
+  mjCText(mjCModel*);                        // constructor
+  mjCText(const mjCText& other);             // copy constructor
+  mjCText& operator=(const mjCText& other);  // copy assignment
+  ~mjCText();                                // destructor
+
   void Compile(void);                 // compiler
 };
 
@@ -1449,8 +1496,11 @@ class mjCTuple : public mjCTuple_, private mjmTuple {
   void CopyFromSpec();
 
  private:
-  mjCTuple(mjCModel*);            // constructor
-  ~mjCTuple();                    // destructor
+  mjCTuple(mjCModel*);                         // constructor
+  mjCTuple(const mjCTuple& other);             // copy constructor
+  mjCTuple& operator=(const mjCTuple& other);  // copy assignment
+  ~mjCTuple();                                 // destructor
+
   void Compile(void);             // compiler
 };
 
@@ -1488,8 +1538,11 @@ class mjCKey : public mjCKey_, private mjmKey {
   void CopyFromSpec();
 
  private:
-  mjCKey(mjCModel*);               // constructor
-  ~mjCKey();                       // destructor
+  mjCKey(mjCModel*);                       // constructor
+  mjCKey(const mjCKey& other);             // copy constructor
+  mjCKey& operator=(const mjCKey& other);  // copy assignment
+  ~mjCKey();                               // destructor
+
   void Compile(const mjModel* m);  // compiler
 };
 
