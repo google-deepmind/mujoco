@@ -3228,7 +3228,7 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
     // get class if specified, otherwise use body
     mjmDefault* def = GetClass(elem);
     if (!def) {
-      def = (mjmDefault*)mjm_getDefault(pbody->element);
+      def = mjm_getDefault(frame ? frame->element : pbody->element);
     }
 
     // inertial sub-element
@@ -3335,9 +3335,29 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
 
     // frame sub-element
     else if (name=="frame") {
+      // read childdef
+      mjmDefault* childdef = 0;
+      if (ReadAttrTxt(elem, "childclass", text)) {
+        childdef = mjm_findDefault(model, text.c_str());
+        mjm_findDefault(model, text.c_str());
+        if (!childdef) {
+          throw mjXError(elem, "unknown default childclass");
+        }
+      }
+
+      // create frame
       mjmFrame* pframe = mjm_addFrame(pbody, frame);
       mjm_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjm_setDefault(pframe->element, childdef ? childdef : def);
 
+      // read attributes
+      std::string name, childclass;
+      if (ReadAttrTxt(elem, "name", name)) {
+        mjm_setString(pframe->name, name.c_str());
+      }
+      if (ReadAttrTxt(elem, "childclass", childclass)) {
+        mjm_setString(pframe->childclass, childclass.c_str());
+      }
       ReadAttr(elem, "pos", 3, pframe->pos, text);
       ReadQuat(elem, "quat", pframe->quat, text);
       ReadAlternative(elem, pframe->alt);
@@ -3368,7 +3388,7 @@ void mjXReader::Body(XMLElement* section, mjmBody* pbody, mjmFrame* frame) {
         mjm_setString(pchild->name, name.c_str());
       }
       if (ReadAttrTxt(elem, "childclass", childclass)) {
-        mjm_setString(pchild->classname, childclass.c_str());
+        mjm_setString(pchild->childclass, childclass.c_str());
       }
       ReadAttr(elem, "pos", 3, pchild->pos, text);
       ReadQuat(elem, "quat", pchild->quat, text);

@@ -156,7 +156,7 @@ typedef struct _mjmPlugin {        // plugin specification
 typedef struct _mjmBody {          // body specification
   mjElement element;               // internal, do not modify
   mjString name;                   // name
-  mjString classname;              // childclass name
+  mjString childclass;             // childclass name
 
   // body frame
   double pos[3];                   // frame position
@@ -183,6 +183,8 @@ typedef struct _mjmBody {          // body specification
 
 typedef struct _mjmFrame {         // frame specification
   mjElement element;               // internal, do not modify
+  mjString name;                   // name
+  mjString childclass;             // childclass name
   double pos[3];                   // position
   double quat[4];                  // orientation
   mjmOrientation alt;              // alternative orientation

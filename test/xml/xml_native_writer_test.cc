@@ -724,6 +724,39 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesFrameDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default class="dframe">
+      <geom size=".1"/>
+    </default>
+
+    <worldbody>
+      <frame name="f1" euler="0 0 30">
+        <geom size=".5" euler="0 0 20"/>
+      </frame>
+
+      <body>
+        <frame pos="0 1 0" name="f2" childclass="dframe">
+          <geom pos="0 1 0"/>
+          <body pos="1 0 0">
+            <geom pos="0 0 1"/>
+          </body>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f2\" childclass=\"dframe\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("<frame>")));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, WritesDensity) {
   static constexpr char xml[] = R"(
   <mujoco>

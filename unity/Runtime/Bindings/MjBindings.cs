@@ -302,6 +302,7 @@ public enum mjtObj : int{
   mjOBJ_KEY = 24,
   mjOBJ_PLUGIN = 25,
   mjNOBJECT = 26,
+  mjOBJ_FRAME = 100,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,

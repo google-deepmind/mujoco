@@ -321,6 +321,8 @@ class mjCFrame : public mjCFrame_, private mjmFrame {
 
  public:
   mjmFrame spec;
+  using mjCBase::name;
+  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);

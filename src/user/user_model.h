@@ -250,6 +250,7 @@ class mjCModel : private mjSpec {
   std::vector<mjCSite*>   sites;    // list of sites attached to this body
   std::vector<mjCCamera*> cameras;  // list of cameras
   std::vector<mjCLight*>  lights;   // list of lights
+  std::vector<mjCFrame*>  frames;   // list of frames
 
   // array of pointers to each object list (enumerated by type)
   std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists;

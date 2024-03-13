@@ -807,7 +807,7 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   Extension(root);
   Custom(root);
   Asset(root);
-  Body(InsertEnd(root, "worldbody"), model->GetWorld());
+  Body(InsertEnd(root, "worldbody"), model->GetWorld(), /*frame=*/nullptr);
   Contact(root);
   Deformable(root);
   Equality(root);
@@ -1449,11 +1449,17 @@ void mjXWriter::Asset(XMLElement* root) {
 
 
 // recursive body writer
-void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
+void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame) {
   double unitq[4] = {1, 0, 0, 0};
 
   if (!body) {
     throw mjXError(0, "missing body in XML write");  // SHOULD NOT OCCUR
+  }
+
+  // write frame if classname is defined
+  if (frame) {
+    WriteAttrTxt(elem, "name", frame->name);
+    WriteAttrTxt(elem, "childclass", frame->classname);
   }
 
   // write body attributes and inertial
@@ -1490,26 +1496,31 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 
   // write joints
   for (int i=0; i<body->joints.size(); i++) {
+    if (body->joints[i]->frame != frame) continue;
     OneJoint(InsertEnd(elem, "joint"), body->joints[i], body->joints[i]->def);
   }
 
   // write geoms
   for (int i=0; i<body->geoms.size(); i++) {
+    if (body->geoms[i]->frame != frame) continue;
     OneGeom(InsertEnd(elem, "geom"), body->geoms[i], body->geoms[i]->def);
   }
 
   // write sites
   for (int i=0; i<body->sites.size(); i++) {
+    if (body->sites[i]->frame != frame) continue;
     OneSite(InsertEnd(elem, "site"), body->sites[i], body->sites[i]->def);
   }
 
   // write cameras
   for (int i=0; i<body->cameras.size(); i++) {
+    if (body->cameras[i]->frame != frame) continue;
     OneCamera(InsertEnd(elem, "camera"), body->cameras[i], body->cameras[i]->def);
   }
 
   // write lights
   for (int i=0; i<body->lights.size(); i++) {
+    if (body->lights[i]->frame != frame) continue;
     OneLight(InsertEnd(elem, "light"), body->lights[i], body->lights[i]->def);
   }
 
@@ -1518,9 +1529,20 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     OnePlugin(InsertEnd(elem, "plugin"), &body->plugin);
   }
 
+  // write frames
+  for (int i=0; i<body->frames.size(); i++) {
+    if (body->frames[i]->frame != frame) continue;
+    if (!body->frames[i]->name.empty() || !body->frames[i]->classname.empty()) {
+      Body(InsertEnd(elem, "frame"), body, body->frames[i]);
+    } else {
+      Body(elem, body, body->frames[i]);
+    }
+  }
+
   // write child bodies recursively
   for (int i=0; i<body->bodies.size(); i++) {
-    Body(InsertEnd(elem, "body"), body->bodies[i]);
+    if (body->bodies[i]->frame != frame) continue;
+    Body(InsertEnd(elem, "body"), body->bodies[i], nullptr);
   }
 }
 

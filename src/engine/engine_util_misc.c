@@ -1060,6 +1060,9 @@ const char* mju_type2Str(int type) {
   case mjOBJ_PLUGIN:
     return "plugin";
 
+  case mjOBJ_FRAME:
+    return "frame";
+
   default:
     return 0;
   }

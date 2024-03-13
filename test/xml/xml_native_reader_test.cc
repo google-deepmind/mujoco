@@ -822,33 +822,70 @@ TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
 TEST_F(XMLReaderTest, ParseFrame) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <default>
+      <default class="frame">
+        <geom size=".1"/>
+      </default>
+      <default class="body">
+        <geom size=".2"/>
+      </default>
+      <default class="geom">
+        <geom size=".3"/>
+      </default>
+    </default>
+
     <worldbody>
       <frame euler="0 0 30">
-        <geom size=".1" euler="0 0 20"/>
+        <geom size=".5" euler="0 0 20"/>
       </frame>
 
       <body>
-        <frame pos="0 1 0">
-          <geom size=".1" pos="0 1 0"/>
-          <body pos="1 0 0">
-            <geom size=".1" pos="0 0 1"/>
+        <frame pos="0 1 0" childclass="frame">
+          <geom pos="0 1 0"/>
+          <body pos="1 0 0" childclass="body">
+            <geom pos="0 0 1"/>
+            <geom pos="0 0 1" class="geom"/>
           </body>
         </frame>
       </body>
 
       <frame euler="0 0 30">
         <frame euler="0 0 20">
-          <geom size=".1"/>
+          <geom size=".6"/>
         </frame>
       </frame>
     </worldbody>
   </mujoco>
-
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(m->geom_size[ 0], .5);
+  EXPECT_THAT(m->geom_size[ 3], .6);
+  EXPECT_THAT(m->geom_size[ 6], .1);
+  EXPECT_THAT(m->geom_size[ 9], .2);
+  EXPECT_THAT(m->geom_size[12], .3);
   mj_deleteModel(m);
+}
+
+TEST_F(XMLReaderTest, DuplicateFrameName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame1" euler="0 0 30">
+        <geom size=".1"/>
+      </frame>
+
+      <frame name="frame1" euler="0 0 30">
+        <geom size=".1"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("repeated name 'frame1'"));
 }
 
 // ----------------------- test camera parsing ---------------------------------

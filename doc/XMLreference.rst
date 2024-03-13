@@ -2174,8 +2174,8 @@ defined. Its body name is automatically defined as "world".
 
 :at:`childclass`: :at-val:`string, optional`
    If this attribute is present, all descendant elements that admit a defaults class will use the class specified here,
-   unless they specify their own class or another body with a childclass attribute is encountered along the chain of
-   nested bodies. Recall :ref:`CDefault`.
+   unless they specify their own class or another body or frame with a childclass attribute is encountered along the
+   chain of nested bodies and frames. Recall :ref:`CDefault`.
 
 .. _body-mocap:
 
@@ -4028,6 +4028,18 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
 and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+
+.. _frame-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the frame.
+
+.. _frame-childclass:
+
+:at:`childclass`: :at-val:`string, optional`
+   If this attribute is present, all descendant elements that admit a defaults class will use the class specified here,
+   unless they specify their own class or another frame or body with a childclass attribute is encountered along the
+   chain of nested bodies and frames. Recall :ref:`CDefault`.
 
 .. _frame-pos:
 

@@ -636,6 +636,7 @@ void mjCModel::MakeLists(mjCBody* body) {
   for (int i=0; i<body->sites.size(); i++) sites.push_back(body->sites[i]);
   for (int i=0; i<body->cameras.size(); i++) cameras.push_back(body->cameras[i]);
   for (int i=0; i<body->lights.size(); i++) lights.push_back(body->lights[i]);
+  for (int i=0; i<body->frames.size(); i++) frames.push_back(body->frames[i]);
 
   // recursive call to all child bodies
   for (int i=0; i<body->bodies.size(); i++) MakeLists(body->bodies[i]);
@@ -2679,18 +2680,20 @@ static void reassignid(vector<T*>& list) {
 template <class T>
 static void processlist(mjListKeyMap& ids, vector<T*>& list,
                         mjtObj type, bool checkrepeat = true) {
-  // loop over list elements
-  for (size_t i=0; i < list.size(); i++) {
-    // check for incompatible id setting; SHOULD NOT OCCUR
-    if (list[i]->id!=-1 && list[i]->id!=i) {
-      throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
+  // assign ids for regular elements
+  if (type < mjNOBJECT) {
+    for (size_t i=0; i < list.size(); i++) {
+      // check for incompatible id setting; SHOULD NOT OCCUR
+      if (list[i]->id!=-1 && list[i]->id!=i) {
+        throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
+      }
+
+      // id equals position in array
+      list[i]->id = i;
+
+      // add to ids map
+      ids[type][list[i]->name] = i;
     }
-
-    // id equals position in array
-    list[i]->id = i;
-
-    // add to ids map
-    ids[type][list[i]->name] = i;
   }
 
   // check for repeated names
@@ -2854,6 +2857,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
       processlist(ids, *object_lists[i], (mjtObj) i);
     }
   }
+
+  // check repeated names in meta elements
+  processlist(ids, frames, mjOBJ_FRAME);
 
   // delete visual assets
   if (discardvisual) {

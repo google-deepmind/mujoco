@@ -250,7 +250,10 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_KEY,                      // keyframe
   mjOBJ_PLUGIN,                   // plugin instance
 
-  mjNOBJECT                       // number of object types
+  mjNOBJECT,                      // number of object types
+
+  // meta elements, do not appear in mjModel
+  mjOBJ_FRAME         = 100       // frame
 } mjtObj;
 
 

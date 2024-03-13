@@ -765,7 +765,7 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
 void mjCBody::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
+  spec.childclass = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
   spec.plugin.name = (mjString)&plugin_name;
   spec.plugin.instance_name = (mjString)&plugin_instance_name;
@@ -1375,6 +1375,8 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 
 void mjCFrame::PointToLocal() {
   spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.childclass = (mjString)&classname;
   spec.info = (mjString)&info;
 }
 
