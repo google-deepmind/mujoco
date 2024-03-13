@@ -1262,7 +1262,8 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    the desired vertices and faces have already been generated and do not apply removal or re-indexing;
 #. If vertex normals are not provided, generate normals automatically, using a weighted average of the surrounding face
    normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
-   the edge, unless :ref:`smoothnormal` is true. Note that normals cannot be provided with STL meshes;
+   the edge, unless :ref:`smoothnormal<asset-mesh-smoothnormal>` is true.
+   Note that normals cannot be provided with STL meshes;
 #. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
 #. Construct the convex hull if specified;
 #. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is

@@ -49,6 +49,12 @@ Python bindings
 ^^^^^^^^^^^^^^^
 11. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
     of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
+12. Added the ``mujoco.minimize`` Python module for nonlinear least-squares, designed for System Identification (sysID).
+    The sysID tutorial is work in progress, but a pedagogical colab notebook with examples, including Inverse
+    Kinematics, is available here: |ls_colab|
+
+.. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
 
 Version 3.1.2 (February 05, 2024)
