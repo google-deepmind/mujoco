@@ -331,9 +331,9 @@ def closest_segment_point_and_dist(
   return closest, dist
 
 
-def closest_segment_to_segment_points(
+def closest_segment_to_segment_points_w_barycentric(
     a0: jax.Array, a1: jax.Array, b0: jax.Array, b1: jax.Array
-) -> Tuple[jax.Array, jax.Array]:
+) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
   """Returns closest points between two line segments."""
   # Gets the closest segment points by first finding the closest points
   # between two lines. Points are then clipped to be on the line segments
@@ -364,6 +364,10 @@ def closest_segment_to_segment_points(
   t_a = jp.clip(orig_t_a, -half_len_a, half_len_a)
   t_b = jp.clip(orig_t_b, -half_len_b, half_len_b)
 
+  # reparametrize t_a, t_b
+  t_a_01 = (orig_t_a + half_len_a) / jp.maximum(len_a, 1e-6)
+  t_b_01 = (orig_t_b + half_len_b) / jp.maximum(len_b, 1e-6)
+
   best_a = a_mid + dir_a * t_a
   best_b = b_mid + dir_b * t_b
 
@@ -377,4 +381,12 @@ def closest_segment_to_segment_points(
   best_a = jp.where(d1 < d2, new_a, best_a)
   best_b = jp.where(d1 < d2, best_b, new_b)
 
-  return best_a, best_b
+  return best_a, best_b, t_a_01, t_b_01
+
+
+def closest_segment_to_segment_points(
+    a0: jax.Array, a1: jax.Array, b0: jax.Array, b1: jax.Array
+) -> Tuple[jax.Array, jax.Array]:
+  """Returns closest points between two line segments."""
+  a, b, *_ = closest_segment_to_segment_points_w_barycentric(a0, a1, b0, b1)
+  return a, b

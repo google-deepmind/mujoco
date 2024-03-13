@@ -138,6 +138,32 @@ class SphereCollisionTest(parameterized.TestCase):
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(dx.contact, d.contact, field.name, 'sphere_convex', 1e-4)
 
+    # test deep penetration
+    xml = self._SPHERE_CONVEX.replace(
+        '<body pos="0.52 0 0.52">', '<body pos="0.49 0 0.49">'
+    )
+    d, dx = _collide(xml)
+
+    self.assertTrue((dx.contact.dist < 0).all())
+    self.assertTrue((d.contact.dist < 0).all())
+    np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
+    )
+
+    # test sphere center on vertex
+    xml = self._SPHERE_CONVEX.replace(
+        '<body pos="0.52 0 0.52">', '<body pos="0.5 0 0.5">'
+    )
+    d, dx = _collide(xml)
+
+    self.assertTrue((dx.contact.dist < 0).all())
+    self.assertTrue((d.contact.dist < 0).all())
+    np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
+    )
+
 
 class CapsuleCollisionTest(parameterized.TestCase):
   _CAP_PLANE = """
@@ -212,7 +238,7 @@ class CapsuleCollisionTest(parameterized.TestCase):
       <worldbody>
         <body pos="0 0 0.54">
           <joint axis="1 0 0" type="free"/>
-          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule"/>
+          <geom fromto="-0.4 0 0 1.0 0 0" size="0.05" type="capsule"/>
         </body>
         <body>
           <joint axis="1 0 0" type="free"/>
@@ -226,8 +252,31 @@ class CapsuleCollisionTest(parameterized.TestCase):
     """Tests a capsule-convex collision for a face contact."""
     d, dx = _collide(self._CAP_BOX)
 
+    # sort positions for comparison
+    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
+    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
+    d.contact.pos[:] = d.contact.pos[idx]
+    d.contact.frame[:] = d.contact.frame[idx]
+    d.contact.dist[:] = d.contact.dist[idx]
+
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(dx.contact, d.contact, field.name, 'capsule_convex', 1e-4)
+
+    # test deep face penetration
+    xml = self._CAP_BOX.replace('<body pos="0 0 0.54">', '<body pos="0 0 0.4">')
+
+    _, dx = _collide(xml)
+    self.assertTrue((dx.contact.dist < 0).all())
+    np.testing.assert_array_almost_equal(
+        dx.contact.pos, np.array([[0.5, 0, 0.425], [-0.4, 0, 0.425]])
+    )
+    np.testing.assert_array_almost_equal(
+        dx.contact.dist, np.array([-0.15, -0.15])
+    )
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame[:, 0], np.array([[0, 0, -1]] * 2)
+    )
 
   _CAP_EDGE_BOX = """
     <mujoco>
@@ -255,6 +304,19 @@ class CapsuleCollisionTest(parameterized.TestCase):
     c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'capsule_convex_edge', 1e-4)
+
+    # test deep edge penetration
+    xml = self._CAP_EDGE_BOX.replace(
+        '<body pos="0.5 0 0.55"', '<body pos="0.5 0 0.48"'
+    )
+    _, dx = _collide(xml)
+    np.testing.assert_array_equal(dx.contact.dist < 0, np.array([True, False]))
+    np.testing.assert_array_almost_equal(
+        dx.contact.pos[0], np.array([0.483, 0, 0.471]), decimal=3
+    )
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame[0, 0], np.array([-0.5, 0, -0.866]), decimal=3
+    )
 
 
 class ConvexTest(absltest.TestCase):

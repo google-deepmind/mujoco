@@ -9,6 +9,7 @@ MJX
 ^^^
 
 1. Improved performance of SAT for convex collisions.
+2. Fixed bug for sphere/capsule-convex deep penetration.
 
 Version 3.1.3 (March 5th, 2024)
 -----------------------------------

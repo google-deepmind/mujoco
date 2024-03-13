@@ -249,6 +249,10 @@ def sphere_convex(sphere: GeomInfo, convex: GeomInfo) -> Contact:
 
   # Get the normal, dist, and contact position.
   n, d = math.normalize_with_norm(pt - sphere_pos)
+  n = jp.where(inside | (d < 1e-6), normal, n)
+  # Ensure normal points towards convex centroid.
+  n *= jp.where(jp.dot(pt, n) < 0, 1, -1)
+
   spt = sphere_pos + n * sphere.size[0]
   dist = d - sphere.size[0]
   pos = (pt + spt) * 0.5
@@ -294,8 +298,8 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   face = faces[best_idx]
   normal = normals[best_idx]
 
-  # Clip the edge against side planes and create two contact points against the
-  # face.
+  # Clip the segment against side planes and create two contact points against
+  # the face.
   edge_p0 = jp.roll(face, 1, axis=0)
   edge_p1 = face
   edge_normals = jax.vmap(jp.cross, in_axes=[0, None])(
@@ -311,29 +315,40 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   )
   # Create variables for the face contact.
   pos = (cap_pts_clipped + face_pts) * 0.5
-  norm = jp.stack([normal] * 2, 0)
+  contact_normal = -jp.stack([normal] * 2, 0)
   penetration = jp.where(
       mask & has_support, jp.dot(face_pts - cap_pts_clipped, normal), -1
   )
 
   # Get a potential edge contact.
-  edge_closest, cap_closest = jax.vmap(
-      math.closest_segment_to_segment_points, in_axes=[0, 0, None, None]
+  edge_closest, cap_closest, t_a, t_b = jax.vmap(
+      math.closest_segment_to_segment_points_w_barycentric,
+      in_axes=[0, 0, None, None],
   )(edge_p0, edge_p1, cap_pts[0], cap_pts[1])
   e_idx = ((edge_closest - cap_closest) ** 2).sum(axis=1).argmin()
   cap_closest_pt, edge_closest_pt = cap_closest[e_idx], edge_closest[e_idx]
-  edge_axis = cap_closest_pt - edge_closest_pt
-  edge_axis, edge_dist = math.normalize_with_norm(edge_axis)
+  edge_dist = math.norm(cap_closest_pt - edge_closest_pt)
+  t_a, t_b = t_a[e_idx], t_b[e_idx]
+  in_segment = ((t_a > 0) & (t_a < 1)) | ((t_b > 0) & (t_b < 1))
+  # Ensure edge_axis points towards the convex centroid.
+  edge_axis = jp.cross(edge_p0[e_idx] - edge_p1[e_idx], axis)
+  sign = jp.where(jp.dot(edge_closest_pt, edge_axis) < 0, 1, -1)
+  edge_axis *= sign
+  degenerate_edge_axis = (edge_axis**2).sum() < 1e-6
+  edge_axis = math.normalize(edge_axis)
+
+  # Determine edge contact position.
   edge_pos = (
-      edge_closest_pt + (cap_closest_pt - edge_axis * cap.size[0])
+      edge_closest_pt + (cap_closest_pt + edge_axis * cap.size[0])
   ) * 0.5
-  edge_norm = edge_axis
   edge_penetration = cap.size[0] - edge_dist
-  has_edge_contact = edge_penetration > 0
+  has_edge_contact = (edge_penetration > 0) & in_segment & ~degenerate_edge_axis
 
   # Get the contact info.
   pos = jp.where(has_edge_contact, pos.at[0].set(edge_pos), pos)
-  n = -jp.where(has_edge_contact, norm.at[0].set(edge_norm), norm)
+  n = jp.where(
+      has_edge_contact, contact_normal.at[0].set(edge_axis), contact_normal
+  )
 
   # Go back to world frame.
   pos = convex.pos + pos @ convex.mat.T
