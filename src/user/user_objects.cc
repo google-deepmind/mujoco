@@ -506,6 +506,8 @@ mjCDef::mjCDef(const mjCDef& other) {
 
 // compiler
 void mjCDef::Compile(const mjCModel* model) {
+  CopyFromSpec();
+
   // enforce length of all default userdata arrays
   joint.userdata_.resize(model->nuser_jnt);
   geom.userdata_.resize(model->nuser_geom);
@@ -614,6 +616,12 @@ mjCBase::mjCBase(const mjCBase& other) {
 mjCBase& mjCBase::operator=(const mjCBase& other) {
   if (this != &other) {
     *static_cast<mjCBase_*>(this) = static_cast<const mjCBase_&>(other);
+    if (other.def) {
+      def = new mjCDef(*other.def);
+    }
+    if (other.frame) {
+      frame = new mjCFrame(*other.frame);
+    }
   }
   return *this;
 }
@@ -698,6 +706,60 @@ mjCBody::mjCBody(mjCModel* _model) {
   // point to local (needs to be after defaults)
   PointToLocal();
 }
+
+
+
+mjCBody::mjCBody(const mjCBody& other) {
+  *this = other;
+}
+
+
+
+mjCBody& mjCBody::operator=(const mjCBody& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCBody_*>(this) = static_cast<const mjCBody_&>(other);
+    *static_cast<mjmBody*>(this) = static_cast<const mjmBody&>(other);
+    this->bodies.clear();
+    this->frames.clear();
+    this->geoms.clear();
+    this->joints.clear();
+    this->sites.clear();
+    this->cameras.clear();
+    this->lights.clear();
+
+    // copy all children
+    for (int i=0; i<other.bodies.size(); i++) {
+      this->bodies.push_back(new mjCBody(*other.bodies[i]));  // triggers recursive call
+    }
+    for (int i=0; i<other.frames.size(); i++) {
+      this->frames.push_back(new mjCFrame(*other.frames[i]));
+    }
+    for (int i=0; i<other.geoms.size(); i++) {
+      this->geoms.push_back(new mjCGeom(*other.geoms[i]));
+      this->geoms.back()->body = this;
+    }
+    for (int i=0; i<other.joints.size(); i++) {
+      this->joints.push_back(new mjCJoint(*other.joints[i]));
+      this->joints.back()->body = this;
+    }
+    for (int i=0; i<other.sites.size(); i++) {
+      this->sites.push_back(new mjCSite(*other.sites[i]));
+      this->sites.back()->body = this;
+    }
+    for (int i=0; i<other.cameras.size(); i++) {
+      this->cameras.push_back(new mjCCamera(*other.cameras[i]));
+      this->cameras.back()->body = this;
+    }
+    for (int i=0; i<other.lights.size(); i++) {
+      this->lights.push_back(new mjCLight(*other.lights[i]));
+      this->lights.back()->body = this;
+    }
+  }
+  PointToLocal();
+  return *this;
+}
+
 
 
 void mjCBody::PointToLocal() {
@@ -1293,6 +1355,24 @@ mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
 
 
 
+mjCFrame::mjCFrame(const mjCFrame& other) {
+  *this = other;
+}
+
+
+
+mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCFrame_*>(this) = static_cast<const mjCFrame_&>(other);
+    *static_cast<mjmFrame*>(this) = static_cast<const mjmFrame&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCFrame::PointToLocal() {
   spec.element = (mjElement)this;
   spec.info = (mjString)&info;
@@ -1347,7 +1427,6 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->joint.CopyFromSpec();
     *this = _def->joint;
   }
 
@@ -1355,7 +1434,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this joint is not compiled
@@ -1559,7 +1638,6 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->geom.CopyFromSpec();
     *this = _def->geom;
   }
 
@@ -1567,7 +1645,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this geom is not compiled
@@ -2178,11 +2256,10 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->site.CopyFromSpec();
     *this = _def->site;
   }
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this site is not compiled
@@ -2338,7 +2415,6 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->camera.CopyFromSpec();
     *this = _def->camera;
   }
 
@@ -2346,7 +2422,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
@@ -2493,7 +2569,6 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->light.CopyFromSpec();
     *this = _def->light;
   }
 
@@ -2835,7 +2910,7 @@ mjCTexture::mjCTexture(mjCModel* _model) {
   // clear internal variables
   rgb = 0;
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
@@ -3559,7 +3634,6 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->material.CopyFromSpec();
     *this = _def->material;
   }
 
@@ -3567,11 +3641,29 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCMaterial::mjCMaterial(const mjCMaterial& other) {
+  *this = other;
+}
+
+
+
+mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCMaterial_*>(this) = static_cast<const mjCMaterial_&>(other);
+    *static_cast<mjmMaterial*>(this) = static_cast<const mjmMaterial&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -3618,7 +3710,6 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->pair.CopyFromSpec();
     *this = _def->pair;
   }
 
@@ -3626,11 +3717,31 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCPair::mjCPair(const mjCPair& other) {
+  *this = other;
+}
+
+
+
+mjCPair& mjCPair::operator=(const mjCPair& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCPair_*>(this) = static_cast<const mjCPair_&>(other);
+    *static_cast<mjmPair*>(this) = static_cast<const mjmPair&>(other);
+    this->geom1 = other.geom1;
+    this->geom2 = other.geom2;
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -3878,7 +3989,6 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->equality.CopyFromSpec();
     *this = _def->equality;
   }
 
@@ -3886,12 +3996,31 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
   CopyFromSpec();
 }
+
+
+
+mjCEquality::mjCEquality(const mjCEquality& other) {
+  *this = other;
+}
+
+
+
+mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCEquality_*>(this) = static_cast<const mjCEquality_&>(other);
+    *static_cast<mjmEquality*>(this) = static_cast<const mjmEquality&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
 
 
 void mjCEquality::PointToLocal() {
@@ -4004,7 +4133,6 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->tendon.CopyFromSpec();
     *this = _def->tendon;
   }
 
@@ -4012,12 +4140,31 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
   CopyFromSpec();
 }
+
+
+
+mjCTendon::mjCTendon(const mjCTendon& other) {
+  *this = other;
+}
+
+
+
+mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
+    *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
 
 
 bool mjCTendon::is_limited() const { return islimited(limited, range); }
@@ -4389,7 +4536,6 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->actuator.CopyFromSpec();
     *this = _def->actuator;
   }
 
@@ -4400,8 +4546,26 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // in case this actuator is not compiled
   CopyFromSpec();
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
+}
+
+
+
+mjCActuator::mjCActuator(const mjCActuator& other) {
+  *this = other;
+}
+
+
+
+mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCActuator_*>(this) = static_cast<const mjCActuator_&>(other);
+    *static_cast<mjmActuator*>(this) = static_cast<const mjmActuator&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 

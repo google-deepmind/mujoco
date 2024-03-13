@@ -168,7 +168,6 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    _def->mesh.CopyFromSpec();
     *this = _def->mesh;
   }
 
@@ -179,8 +178,66 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   // in case this body is not compiled
   CopyFromSpec();
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
+}
+
+
+
+mjCMesh::mjCMesh(const mjCMesh& other) {
+  *this = other;
+}
+
+
+
+mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCMesh_*>(this) = static_cast<const mjCMesh_&>(other);
+    *static_cast<mjmMesh*>(this) = static_cast<const mjmMesh&>(other);
+    if (other.vert_) {
+      size_t nvert = 3*other.nvert_*sizeof(float);
+      this->vert_ = (float*)mju_malloc(nvert);
+      memcpy(this->vert_, other.vert_, nvert);
+    }
+    if (other.normal_) {
+      size_t nnormal = 3*other.nnormal_*sizeof(float);
+      this->normal_ = (float*)mju_malloc(nnormal);
+      memcpy(this->normal_, other.normal_, nnormal);
+    }
+    if (other.center_) {
+      size_t ncenter = 3*other.nface_*sizeof(double);
+      this->center_ = (double*)mju_malloc(ncenter);
+      memcpy(this->center_, other.center_, ncenter);
+    }
+    if (other.texcoord_) {
+      size_t ntexcoord = 2*other.ntexcoord_*sizeof(float);
+      this->texcoord_ = (float*)mju_malloc(ntexcoord);
+      memcpy(this->texcoord_, other.texcoord_, ntexcoord);
+    }
+    if (other.face_) {
+      size_t nface = 3*other.nface_*sizeof(int);
+      this->face_ = (int*)mju_malloc(nface);
+      memcpy(this->face_, other.face_, nface);
+    }
+    if (other.facenormal_) {
+      size_t nfacenormal = 3*other.nface_*sizeof(int);
+      this->facenormal_ = (int*)mju_malloc(nfacenormal);
+      memcpy(this->facenormal_, other.facenormal_, nfacenormal);
+    }
+    if (other.facetexcoord_) {
+      size_t nfacetexcoord = 3*other.nface_*sizeof(int);
+      this->facetexcoord_ = (int*)mju_malloc(nfacetexcoord);
+      memcpy(this->facetexcoord_, other.facetexcoord_, nfacetexcoord);
+    }
+    if (other.graph_) {
+      size_t szgraph = szgraph_*sizeof(int);
+      this->graph_ = (int*)mju_malloc(szgraph);
+      memcpy(this->graph_, other.graph_, szgraph);
+    }
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -1873,7 +1930,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
   bodyid.clear();
   matid = -1;
 
-  // point to local (needs to be after defaults)
+  // point to local
   PointToLocal();
 
   // in case this camera is not compiled
@@ -2259,6 +2316,22 @@ mjCFlex::mjCFlex(mjCModel* _model) {
 
   PointToLocal();
   CopyFromSpec();
+}
+
+
+mjCFlex::mjCFlex(const mjCFlex& other) {
+  *this = other;
+}
+
+
+mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCFlex_*>(this) = static_cast<const mjCFlex_&>(other);
+    *static_cast<mjmFlex*>(this) = static_cast<const mjmFlex&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
