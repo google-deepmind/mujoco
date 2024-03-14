@@ -302,12 +302,12 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   # the face.
   edge_p0 = jp.roll(face, 1, axis=0)
   edge_p1 = face
-  edge_normals = jax.vmap(jp.cross, in_axes=[0, None])(
+  side_planes = jax.vmap(jp.cross, in_axes=[0, None])(
       edge_p1 - edge_p0,
       normal,
   )
   cap_pts_clipped, mask = _clip_edge_to_planes(
-      cap_pts[0], cap_pts[1], edge_p0, edge_normals
+      cap_pts[0], cap_pts[1], edge_p0, side_planes
   )
   cap_pts_clipped = cap_pts_clipped - normal * cap.size[0]
   face_pts = jax.vmap(_project_pt_onto_plane, in_axes=[0, None, None])(
@@ -321,28 +321,34 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   )
 
   # Get a potential edge contact.
-  edge_closest, cap_closest, t_a, t_b = jax.vmap(
-      math.closest_segment_to_segment_points_w_barycentric,
+  edge_closest, cap_closest = jax.vmap(
+      math.closest_segment_to_segment_points,
       in_axes=[0, 0, None, None],
   )(edge_p0, edge_p1, cap_pts[0], cap_pts[1])
   e_idx = ((edge_closest - cap_closest) ** 2).sum(axis=1).argmin()
   cap_closest_pt, edge_closest_pt = cap_closest[e_idx], edge_closest[e_idx]
-  edge_dist = math.norm(cap_closest_pt - edge_closest_pt)
-  t_a, t_b = t_a[e_idx], t_b[e_idx]
-  in_segment = ((t_a > 0) & (t_a < 1)) | ((t_b > 0) & (t_b < 1))
-  # Ensure edge_axis points towards the convex centroid.
-  edge_axis = jp.cross(edge_p0[e_idx] - edge_p1[e_idx], axis)
-  sign = jp.where(jp.dot(edge_closest_pt, edge_axis) < 0, 1, -1)
-  edge_axis *= sign
-  degenerate_edge_axis = (edge_axis**2).sum() < 1e-6
-  edge_axis = math.normalize(edge_axis)
+  edge_dir = edge_closest_pt - cap_closest_pt
+  degenerate_edge_dir = jp.sum(jp.square(edge_dir)) < 1e-6
+  edge_dir, edge_dist = math.normalize_with_norm(edge_dir)
+  face_edge_normals = convex.face_edge_normal[best_idx][e_idx]
+  in_edge_voronoi = ((face_edge_normals @ edge_dir) < 0).all()
+  edge_axis = math.normalize(-edge_closest_pt)  # approximate edge axis
+  edge_axis = jp.where(
+      ~degenerate_edge_dir & in_edge_voronoi,
+      edge_dir,  # shallow edge penetration
+      edge_axis,  # deep edge penetration
+  )
 
   # Determine edge contact position.
   edge_pos = (
       edge_closest_pt + (cap_closest_pt + edge_axis * cap.size[0])
   ) * 0.5
   edge_penetration = cap.size[0] - edge_dist
-  has_edge_contact = (edge_penetration > 0) & in_segment & ~degenerate_edge_axis
+  # prefer face contact if the edge axis is parallel to the face normal
+  edge_dir_parallel_to_face = (
+      jp.abs(edge_dir.dot(normal)) > 0.99
+  ) & ~degenerate_edge_dir
+  has_edge_contact = (edge_penetration > 0) & ~edge_dir_parallel_to_face
 
   # Get the contact info.
   pos = jp.where(has_edge_contact, pos.at[0].set(edge_pos), pos)
