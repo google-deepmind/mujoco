@@ -91,10 +91,16 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
     raise NotImplementedError('only condim=3 is supported')
 
   # check collision geom types
-  for g1, g2, *_ in collision_driver.collision_candidates(m):
+  for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
+    g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
     if collision_driver.get_collision_fn((g1, g2)) is None:
-      g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
       raise NotImplementedError(f'({g1}, {g2}) has no collision function')
+    *_, params = collision_driver.get_params(m, c)
+    margin_gap = not np.allclose(np.concatenate([params.margin, params.gap]), 0)
+    if mujoco.mjtGeom.mjGEOM_MESH in (g1, g2) and margin_gap:
+      raise NotImplementedError(
+          f'Margin and gap not implemented for ({g1}, {g2})'
+      )
 
   for enum_field, enum_type, mj_type in (
       (m.actuator_biastype, types.BiasType, mujoco.mjtBias),

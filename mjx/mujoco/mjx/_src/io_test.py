@@ -209,6 +209,25 @@ class ModelIOTest(parameterized.TestCase):
           </worldbody>
         </mujoco>"""))
 
+  def test_margin_gap_mesh_not_implemented(self):
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <asset>
+            <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1" scale="1 1 1"/>
+          </asset>
+          <worldbody>
+            <body>
+              <freejoint/>
+              <geom type="mesh" mesh="box" margin="0.3"/>
+            </body>
+            <body>
+              <freejoint/>
+              <geom size="0.05"/>
+            </body>
+          </worldbody>
+        </mujoco>"""))
+
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""
