@@ -10,6 +10,7 @@ MJX
 
 1. Improved performance of SAT for convex collisions.
 2. Fixed bug for sphere/capsule-convex deep penetration.
+3. Fixed bug where ``mjx.Data`` produced by ``mjx.put_data`` had different treedef than ``mjx.make_data``.
 
 Version 3.1.3 (March 5th, 2024)
 -----------------------------------

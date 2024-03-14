@@ -172,7 +172,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       ctrl=zero_nu,
       qfrc_applied=zero_nv,
       xfrc_applied=zero_nbody_6,
-      eq_active=jp.zeros(m.neq, dtype=int),
+      eq_active=jp.zeros(m.neq, dtype=jp.uint8),
       qacc=zero_nv,
       act_dot=zero_na,
       xpos=zero_nbody_3,
@@ -373,6 +373,9 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
 
   for fname in ('xmat', 'ximat', 'geom_xmat', 'site_xmat', 'cam_xmat'):
     fields[fname] = fields[fname].reshape((-1, 3, 3))
+
+  # MJX does not support islanding, so only transfer the first solver_niter
+  fields['solver_niter'] = fields['solver_niter'][0]
 
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.
   # efc_J is also optionally column-sparse (typically for large nv).  MJX is
