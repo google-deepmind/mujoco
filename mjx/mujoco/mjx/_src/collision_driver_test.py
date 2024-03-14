@@ -323,6 +323,8 @@ class CapsuleCollisionTest(parameterized.TestCase):
 
   def test_capsule_convex_edge_shallow_tip(self):
     """Tests shallow edge penetration on the tip of the capsule."""
+    # the capsule sphere is inside the edge voronoi region, so there is an
+    # edge contact
     xml = self._CAP_EDGE_BOX.replace(
         '<geom fromto="-0.6 0 0 0.6 0 0" size="0.05"',
         '<geom fromto="0.6 0 0.6 -0.05 0 0" size="0.1"',
@@ -336,7 +338,30 @@ class CapsuleCollisionTest(parameterized.TestCase):
     # extract the contact point with penetration
     c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip', 1e-4)
+      _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip1', 1e-4)
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame[0][0, :3], np.array([-0.43952, 0.0, -0.898233])
+    )
+
+    # the capsule sphere is outside the edge voronoi region, so there is a
+    # face contact
+    xml = self._CAP_EDGE_BOX.replace(
+        '<geom fromto="-0.6 0 0 0.6 0 0" size="0.05"',
+        '<geom fromto="-0.6 0 0.6 -0.05 0 0" size="0.1"',
+    )
+    xml = xml.replace('<body pos="0.5 0 0.55"', '<body pos="0.5 0 0.52"')
+    d, dx = _collide(xml)
+
+    c = dx.contact
+    self.assertEqual(c.pos.shape[0], 2)
+    self.assertGreater(c.dist[1], 0)
+    # extract the contact point with penetration
+    c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip2', 1e-4)
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame[0][0, :3], np.array([0.0, 0.0, -1.0])
+    )
 
 
 class ConvexTest(absltest.TestCase):

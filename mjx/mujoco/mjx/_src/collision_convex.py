@@ -331,10 +331,12 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   degenerate_edge_dir = jp.sum(jp.square(edge_dir)) < 1e-6
   edge_dir, edge_dist = math.normalize_with_norm(edge_dir)
   face_edge_normals = convex.face_edge_normal[best_idx][e_idx]
-  in_edge_voronoi = ((face_edge_normals @ edge_dir) < 0).all()
+  inside_edge_voronoi_front = ((face_edge_normals @ edge_dir) < 0).all()
+  inside_edge_voronoi_back = ((face_edge_normals @ edge_dir) > 0).all()
+  outside_edge_voronoi = ~inside_edge_voronoi_front & ~inside_edge_voronoi_back
   edge_axis = math.normalize(-edge_closest_pt)  # approximate edge axis
   edge_axis = jp.where(
-      ~degenerate_edge_dir & in_edge_voronoi,
+      ~degenerate_edge_dir & inside_edge_voronoi_front,
       edge_dir,  # shallow edge penetration
       edge_axis,  # deep edge penetration
   )
@@ -348,7 +350,11 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   edge_dir_parallel_to_face = (
       jp.abs(edge_dir.dot(normal)) > 0.99
   ) & ~degenerate_edge_dir
-  has_edge_contact = (edge_penetration > 0) & ~edge_dir_parallel_to_face
+  has_edge_contact = (
+      (edge_penetration > 0)
+      & ~edge_dir_parallel_to_face
+      & ~outside_edge_voronoi
+  )
 
   # Get the contact info.
   pos = jp.where(has_edge_contact, pos.at[0].set(edge_pos), pos)
