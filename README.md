@@ -55,7 +55,7 @@ running on Google Colab:
  - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a humanoid on one leg:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
  - The **least-squares** tutorial explains how to use the Python-based nonlinear least-squares solver:
-   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least-squares.ipynb)
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb)
  - The **MJX** tutorial provides usage examples of
    [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in
    JAX:
