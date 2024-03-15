@@ -60,6 +60,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
+#include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -967,6 +968,19 @@ void mjCMesh::RemoveRepeated() {
 void mjCMesh::LoadOBJ(mjResource* resource) {
   tinyobj::ObjReader objReader;
   const void* bytes = nullptr;
+
+  // try loading from cache
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+  if (cache) {
+    auto asset = cache->Get(resource->name);
+    if (asset.has_value() &&
+        !mju_isModifiedResource(resource, asset->Timestamp().c_str())) {
+      if (LoadCachedOBJ(asset.value())) {
+        return;
+      }
+    }
+  }
+
   int buffer_sz = mju_readResource(resource, &bytes);
   if (buffer_sz < 0) {
     throw mjCError(this, "could not read OBJ file '%s'", resource->name);
@@ -1030,8 +1044,116 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
   for (int i=0; i<usertexcoord_.size()/2; i++) {
     usertexcoord_[2*i+1] = 1-usertexcoord_[2*i+1];
   }
+
+  // try caching asset
+  if (cache) {
+    mjCAsset asset("", resource->name, resource->timestamp);
+
+    asset.AddVector("uservert_", uservert_);
+    asset.AddVector("usernormal_", usernormal_);
+    asset.AddVector("usertexcoord_", usertexcoord_);
+
+    if (!objReader.GetShapes().empty()) {
+      const auto& mesh = objReader.GetShapes()[0].mesh;
+      std::vector<int> vertex_index;
+      vertex_index.reserve(mesh.indices.size());
+
+      std::vector<int> normal_index;
+      normal_index.reserve(mesh.indices.size());
+
+      std::vector<int> texcoord_index;
+      texcoord_index.reserve(mesh.indices.size());
+
+      for (tinyobj::index_t index : mesh.indices) {
+        vertex_index.push_back(index.vertex_index);
+        normal_index.push_back(index.normal_index);
+        texcoord_index.push_back(index.texcoord_index);
+      }
+
+      asset.AddVector("num_face_vertices", mesh.num_face_vertices);
+      asset.AddVector("vertex_index", vertex_index);
+      asset.AddVector("normal_index", normal_index);
+      asset.AddVector("texcoord_index", texcoord_index);
+    } else {
+      asset.AddVector("num_face_vertices", std::vector<unsigned char>());
+      asset.AddVector("vertex_index", std::vector<int>());
+      asset.AddVector("normal_index", std::vector<int>());
+      asset.AddVector("texcoord_index", std::vector<int>());
+    }
+    cache->Insert(std::move(asset));
+  }
 }
 
+
+
+// load OBJ from cached asset, return true on success
+bool mjCMesh::LoadCachedOBJ(const mjCAsset& asset) {
+  // check that asset has all data
+  if (!asset.HasData("uservert_") || !asset.HasData("usernormal_")
+      || !asset.HasData("usertexcoord_") || !asset.HasData("num_face_vertices")
+      || !asset.HasData("vertex_index") || !asset.HasData("normal_index")
+      || !asset.HasData("texcoord_index")) {
+    return false;
+  }
+  uservert_ = asset.GetVector<float>("uservert_").value();
+  usernormal_ = asset.GetVector<float>("usernormal_").value();
+  usertexcoord_ = asset.GetVector<float>("usertexcoord_").value();
+
+  vector<int> vertex_index = asset.GetVector<int>("vertex_index").value();
+  vector<int> normal_index = asset.GetVector<int>("normal_index").value();
+  vector<int> texcoord_index = asset.GetVector<int>("texcoord_index").value();
+  vector<unsigned char> num_face_vertices =
+      asset.GetVector<unsigned char>("num_face_vertices").value();
+
+  bool righthand = (scale[0] * scale[1] * scale[2]) > 0;
+
+
+  for (int face = 0, i = 0; i < vertex_index.size();) {
+    int nfacevert = num_face_vertices[face];
+    if (nfacevert < 3 || nfacevert > 4) {
+      throw mjCError(
+          this, "only tri or quad meshes are supported for OBJ (file '%s')",
+          asset.Id().c_str());
+    }
+
+    userface_.push_back(vertex_index[i]);
+    userface_.push_back(vertex_index[i + (righthand == 1 ? 1 : 2)]);
+    userface_.push_back(vertex_index[i + (righthand == 1 ? 2 : 1)]);
+
+    if (!usernormal_.empty()) {
+      userfacenormal_.push_back(normal_index[i]);
+      userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
+      userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+    }
+
+    if (!usertexcoord_.empty()) {
+      userfacetexcoord_.push_back(texcoord_index[i]);
+      userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
+      userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+    }
+
+    if (nfacevert == 4) {
+      userface_.push_back(vertex_index[i]);
+      userface_.push_back(vertex_index[i + (righthand == 1 ? 2 : 3)]);
+      userface_.push_back(vertex_index[i + (righthand == 1 ? 3 : 2)]);
+
+      if (!usernormal_.empty()) {
+        userfacenormal_.push_back(normal_index[i]);
+        userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
+        userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+      }
+
+      if (!usertexcoord_.empty()) {
+        userfacetexcoord_.push_back(texcoord_index[i]);
+        userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
+        userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+      }
+    }
+    i += nfacevert;
+    ++face;
+  }
+  return true;
+}
 
 // load STL binary mesh
 void mjCMesh::LoadSTL(mjResource* resource) {

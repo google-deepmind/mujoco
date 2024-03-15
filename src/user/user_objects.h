@@ -26,6 +26,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "user/user_api.h"
+#include "user/user_cache.h"
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -827,6 +828,7 @@ class mjCMesh: public mjCMesh_, private mjmMesh {
 
  private:
   void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
+  bool LoadCachedOBJ(const mjCAsset& asset);  // load OBJ from cache asset, return true on success
   void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
   void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
   void LoadSDF();                             // generate mesh using marching cubes

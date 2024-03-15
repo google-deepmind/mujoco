@@ -13,8 +13,11 @@
 // limitations under the License.
 
 #include "user/user_api.h"
+
+#include <cstddef>
 #include <functional>
 #include <map>
+#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,9 +25,8 @@
 #include <mujoco/mujoco.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "user/user_cache.h"
 #include "xml/xml_util.h"
-
-
 
 // create model
 mjSpec* mjm_createSpec() {
@@ -600,4 +602,17 @@ const char* mjm_setFullInertia(mjmBody* bodyspec, double quat[4], double inertia
   return body->FullInertia(quat, inertia);
 }
 
+// -------------------------- GLOBAL ASSET CACHE -------------------------------
 
+void mj_setCacheSize(mjCache cache, std::size_t size) {
+  mjCCache* ccache = reinterpret_cast<mjCCache*>(cache);
+  if (ccache) {
+    ccache->SetMaxSize(size);
+  }
+}
+
+
+
+mjCache mj_globalCache() {
+  return NULL;  // currently disabled
+}

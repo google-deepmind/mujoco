@@ -16,6 +16,7 @@
 
 #include <array>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -114,6 +115,59 @@ TEST_F(PluginTest, RecompileCompare) {
       }
     }
   }
+}
+
+// ------------------- test cache with modified assets -------------------------
+TEST_F(PluginTest, RecompileCompareCache) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh file="cube.obj"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="cube"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char cube1[] = R"(
+  v -0.500000 -0.500000  0.500000
+  v  0.500000 -0.500000  0.500000
+  v -0.500000  0.500000  0.500000
+  v  0.500000  0.500000  0.500000
+  v -0.500000  0.500000 -0.500000
+  v  0.500000  0.500000 -0.500000
+  v -0.500000 -0.500000 -0.500000
+  v  0.500000 -0.500000 -0.500000)";
+
+  static constexpr char cube2[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube1, sizeof(cube1));
+
+  std::array<char, 1024> error;
+
+  // load model once
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  EXPECT_EQ(m->mesh_vert[0], -0.5);
+  mj_deleteModel(m);
+
+  // update cube.obj, load again
+  mj_deleteFileVFS(vfs.get(), "cube.obj");
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube2, sizeof(cube2));
+  m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  EXPECT_EQ(m->mesh_vert[0], -1);
+  mj_deleteModel(m);
+
+  mj_deleteVFS(vfs.get());
 }
 
 }  // namespace

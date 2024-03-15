@@ -983,6 +983,16 @@ MJAPI void mjm_defaultKey(mjmKey& key);
 // Default plugin attributes.
 MJAPI void mjm_defaultPlugin(mjmPlugin& plugin);
 
+//------------------------- Cache functions ------------------------------------
+
+typedef struct _mjCache* mjCache;
+
+// Set the size of the cache in bytes.
+MJAPI void mj_setCacheSize(mjCache cache, size_t size);
+
+// Get internal global cache context.
+MJAPI mjCache mj_globalCache();
+
 #ifdef __cplusplus
 }
 #endif

@@ -15,6 +15,8 @@
 set(MUJOCO_USER_SRCS
     user_api.cc
     user_api.h
+    user_cache.cc
+    user_cache.h
     user_composite.cc
     user_composite.h
     user_flexcomp.cc
