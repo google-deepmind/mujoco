@@ -34,6 +34,7 @@
 #include <mujoco/mjplugin.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 
 // internal helper for mju_fileToMemory (closes fp automatically)
 static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize);
@@ -113,10 +114,8 @@ mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
     memcpy(&spec->mtime, &file_stat.st_mtime, sizeof(time_t));
   } else {
     memset(&spec->mtime, 0, sizeof(time_t));
-    resource->timestamp[0] = '\0';
   }
-  strftime(resource->timestamp, 512, "%Y-%m-%d-%H:%M:%S",
-           localtime(&(spec->mtime)));
+  mju_encodeBase64(resource->timestamp, (uint8_t*) &spec->mtime, sizeof(time_t));
   return resource;
 }
 
@@ -199,19 +198,6 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
 
 
 
-// modified callback for OS filesystem
-static int mju_isModifiedFile(const char* name, const file_spec* spec) {
-  if (spec != NULL) {
-    struct stat file_stat;
-    if (stat(name, &file_stat) == 0) {
-      return difftime(spec->mtime, file_stat.st_mtime) < 0;
-    }
-  }
-  return 1;  // modified (default)
-}
-
-
-
 // return 0 if the resource's timestamp matches the provided timestamp
 // return > 0 if the the resource is younger than the given timestamp
 // return < 0 if the resource is older than the given timestamp
@@ -224,7 +210,18 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
     return 1;  // default (modified)
   }
 
-  return mju_isModifiedFile(resource->name, (file_spec*) resource->data);
+  // fallback to OS filesystem
+  if (mju_isValidBase64(timestamp) != sizeof(time_t)) {
+    return 1;  // error (assume modified)
+  }
+
+  time_t time1, time2;
+  mju_decodeBase64((uint8_t*) &time1, timestamp);
+  time2 = ((file_spec*) resource->data)->mtime;
+  double diff = difftime(time2, time1);
+  if (diff < 0) return -1;
+  if (diff > 0) return  1;
+  return 0;
 }
 
 
