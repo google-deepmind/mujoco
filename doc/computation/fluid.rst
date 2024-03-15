@@ -85,15 +85,13 @@ Ellipsoid model
    :figwidth: 50%
    :align: right
 
-   The flight-capable Drosophila Melanogaster model in this figure will be described in a
-   forthcoming publication.
+   The flight-capable Drosophila Melanogaster model in this figure is described in :cite:t:`Vaxenburg2024`.
 
 
 In this section we describe and derive a stateless model of the forces exerted onto a moving rigid body by the
 surrounding fluid, based on an ellipsoidal approximation of geom shape. This model provides finer-grained control of the
 different types of fluid forces than the inertia-based model of the previous section. The motivating use-case for this
 model is insect flight, see figure on the right.
-
 
 Summary
 ~~~~~~~
