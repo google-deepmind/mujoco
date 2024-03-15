@@ -292,43 +292,48 @@ mjCBoundingVolume* mjCBoundingVolumeHierarchy::GetBoundingVolume(int id) {
 
 // create bounding volume hierarchy
 void mjCBoundingVolumeHierarchy::CreateBVH() {
-  std::vector<const mjCBoundingVolume*> elements(bvleaf_.size());
-  for (int i=0; i<bvleaf_.size(); i++) {
-    elements[i] = bvleaf_.data() + i;
+  // precompute the positions of each element in the hierarchy's axes, and drop
+  // visual-only elements.
+  std::vector<BVElement> elements;
+  elements.reserve(bvleaf_.size());
+  mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+  for (int i = 0; i < bvleaf_.size(); i++) {
+    if (bvleaf_[i].conaffinity || bvleaf_[i].contype) {
+      BVElement element;
+      element.e = &bvleaf_[i];
+      element.index = i;
+      mjtNum vert[3] = {element.e->pos[0] - ipos_[0],
+                        element.e->pos[1] - ipos_[1],
+                        element.e->pos[2] - ipos_[2]};
+      mju_rotVecQuat(element.lpos, vert, qinv);
+      elements.push_back(std::move(element));
+    }
   }
-  MakeBVH(elements);
+  MakeBVH(elements.begin(), elements.end());
 }
 
-
 // compute bounding volume hierarchy
-int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& elements, int lev) {
-  if (elements.empty()) {
+int mjCBoundingVolumeHierarchy::MakeBVH(
+    std::vector<BVElement>::iterator elements_begin,
+    std::vector<BVElement>::iterator elements_end, int lev) {
+  int nelements = elements_end - elements_begin;
+  if (nelements == 0) {
     return -1;
   }
-
-  bool is_visual = true;
-  int nelements = elements.size();
   mjtNum AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
   // inverse transformation
   mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
 
   // accumulate AAMM over elements
-  for (int i=0; i<nelements; i++) {
-    // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
-      continue;
-    } else {
-      is_visual = false;
-    }
-
+  for (auto element = elements_begin; element != elements_end; ++element) {
     // transform element aabb to aamm format
-    mjtNum aamm[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
-                      elements[i]->aabb[1] - elements[i]->aabb[4],
-                      elements[i]->aabb[2] - elements[i]->aabb[5],
-                      elements[i]->aabb[0] + elements[i]->aabb[3],
-                      elements[i]->aabb[1] + elements[i]->aabb[4],
-                      elements[i]->aabb[2] + elements[i]->aabb[5]};
+    mjtNum aamm[6] = {element->e->aabb[0] - element->e->aabb[3],
+                      element->e->aabb[1] - element->e->aabb[4],
+                      element->e->aabb[2] - element->e->aabb[5],
+                      element->e->aabb[0] + element->e->aabb[3],
+                      element->e->aabb[1] + element->e->aabb[4],
+                      element->e->aabb[2] + element->e->aabb[5]};
 
     // update node AAMM
     for (int v=0; v<8; v++) {
@@ -338,11 +343,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
       vert[2] = (v&4 ? aamm[5] : aamm[2]);
 
       // rotate to the body inertial frame if specified
-      if (elements[i]->quat) {
-        mju_rotVecQuat(box, vert, elements[i]->quat);
-        box[0] += elements[i]->pos[0] - ipos_[0];
-        box[1] += elements[i]->pos[1] - ipos_[1];
-        box[2] += elements[i]->pos[2] - ipos_[2];
+      if (element->e->quat) {
+        mju_rotVecQuat(box, vert, element->e->quat);
+        box[0] += element->e->pos[0] - ipos_[0];
+        box[1] += element->e->pos[1] - ipos_[1];
+        box[2] += element->e->pos[2] - ipos_[2];
         mju_rotVecQuat(vert, box, qinv);
       }
 
@@ -353,11 +358,6 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
       AAMM[4] = mjMAX(AAMM[4], vert[1]);
       AAMM[5] = mjMAX(AAMM[5], vert[2]);
     }
-  }
-
-  // a body with only visual geoms does not have a bvh
-  if (is_visual) {
-    return nbvh;
   }
 
   // inflate flat AABBs
@@ -388,7 +388,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
     for (int i=0; i<2; i++) {
       child[2*index+i] = -1;
     }
-    nodeid[index] = (int*)elements[0]->GetId();
+    nodeid[index] = (int*)elements_begin->e->GetId();
     return index;
   }
 
@@ -398,66 +398,23 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
   axis = edges[axis] > edges[2] ? axis : 2;
 
   // find median along the axis
-  std::vector<mjtNum> pos(nelements);
-
-  for (int i=0; i<nelements; i++) {
-    // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
-    mjtNum lpos[3];
-    mju_rotVecQuat(lpos, vert, qinv);
-    pos[i] = lpos[axis];
-  }
-
-  auto m = pos.size()/2;
-  std::nth_element(pos.begin(), pos.begin() + m, pos.end());
-  mjtNum threshold = pos[m];
-
-  // split using median
-  std::vector<const mjCBoundingVolume*> left;
-  std::vector<const mjCBoundingVolume*> right;
-  int skipped = 0;
-
-  for (int i=0; i<nelements; i++) {
-    // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
-    mjtNum lpos[3];
-    mju_rotVecQuat(lpos, vert, qinv);
-
-    // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
-      skipped++;
-      continue;
-    }
-    if (lpos[axis] < threshold) {
-      left.push_back(elements[i]);
-    } else if (lpos[axis] > threshold) {
-      right.push_back(elements[i]);
-    } else {
-      if (left.size() < right.size()) left.push_back(elements[i]);
-      else right.push_back(elements[i]);
-    }
-  }
+  auto m = nelements/2;
+  // Note: nth element performs a partial sort of elements
+  BVElementCompare compare;
+  compare.axis = axis;
+  std::nth_element(elements_begin, elements_begin + m, elements_end, compare);
 
   // recursive calls
-  if (!left.empty()) {
-    child[2*index+0] = MakeBVH(left, lev+1);
+  if (m > 0) {
+    child[2*index+0] = MakeBVH(elements_begin, elements_begin + m, lev+1);
   }
 
-  if (!right.empty()) {
-    child[2*index+1] = MakeBVH(right, lev+1);
+  if (m != nelements) {
+    child[2*index+1] = MakeBVH(elements_begin + m, elements_end, lev+1);
   }
 
   // SHOULD NOT OCCUR
-  if (left.size()+right.size()+skipped != nelements) {
-    mju_error("some elements were lost, body=%s parent=%d children=%lu",
-              name_.c_str(), nelements, left.size()+right.size()+skipped);
-  }
-
-  if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
+  if (child[2*index+0]==-1 && child[2*index+1]==-1) {
     mju_error("this should have been a leaf, body=%s nelements=%d",
               name_.c_str(), nelements);
   }
@@ -468,8 +425,6 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
 
   return index;
 }
-
-
 
 //------------------------- class mjCDef implementation --------------------------------------------
 

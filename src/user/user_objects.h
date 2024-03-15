@@ -15,10 +15,8 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
-#include <array>
 #include <functional>
 #include <map>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -144,7 +142,28 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   mjCBoundingVolume* GetBoundingVolume(int id);
 
  private:
-  int MakeBVH(std::vector<const mjCBoundingVolume*>& elements, int lev = 0);
+  // internal class used during BVH construction, for partial sorting of bounding volumes
+  struct BVElement {
+    const mjCBoundingVolume* e;
+    // index of the element in the original input to BVH, used to ensure a stable sort
+    int index;
+    // position of the element in the BVH axes
+    mjtNum lpos[3];
+  };
+
+  struct BVElementCompare {
+    int axis = 0;
+
+    bool operator()(const BVElement& e1, const BVElement& e2) const {
+      if (e1.lpos[axis] != e2.lpos[axis]) {
+        return e1.lpos[axis] < e2.lpos[axis];
+      }
+      return e1.index < e2.index;
+    }
+  };
+
+  int MakeBVH(std::vector<BVElement>::iterator elements_begin,
+              std::vector<BVElement>::iterator elements_end, int lev = 0);
 };
 
 
