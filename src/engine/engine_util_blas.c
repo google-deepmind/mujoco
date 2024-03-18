@@ -181,7 +181,7 @@ void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
 
 
 // multiply 3x3 matrices,
-void mju_mulMatMat3(mjtNum res[9], const mjtNum a[3], const mjtNum b[9]) {
+void mju_mulMatMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
   res[0] = a[0]*b[0] + a[1]*b[3] + a[2]*b[6];
   res[1] = a[0]*b[1] + a[1]*b[4] + a[2]*b[7];
   res[2] = a[0]*b[2] + a[1]*b[5] + a[2]*b[8];
@@ -196,7 +196,7 @@ void mju_mulMatMat3(mjtNum res[9], const mjtNum a[3], const mjtNum b[9]) {
 
 
 // multiply 3x3 matrices, first argument transposed
-void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[3], const mjtNum b[9]) {
+void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
   res[0] = a[0]*b[0] + a[3]*b[3] + a[6]*b[6];
   res[1] = a[0]*b[1] + a[3]*b[4] + a[6]*b[7];
   res[2] = a[0]*b[2] + a[3]*b[5] + a[6]*b[8];
@@ -211,7 +211,7 @@ void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[3], const mjtNum b[9]) {
 
 
 // multiply 3x3 matrices, second argument transposed
-void mju_mulMatMatT3(mjtNum res[9], const mjtNum a[3], const mjtNum b[9]) {
+void mju_mulMatMatT3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
   res[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
   res[1] = a[0]*b[3] + a[1]*b[4] + a[2]*b[5];
   res[2] = a[0]*b[6] + a[1]*b[7] + a[2]*b[8];
