@@ -216,7 +216,7 @@ class USDMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_utils.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -245,10 +245,12 @@ class USDPrimitiveMesh:
     self.rgba = rgba
     self.texture_file = texture_file
 
-    self.usd_prim = Usd.Prim()
-    self.usd_mesh = Usd.Mesh()
-    self.prim_mesh = Usd.PrimMesh()
-    self.transform_op = Usd.TransformOp()
+    # self.usd_prim = Usd.Prim()
+    # self.usd_mesh = Usd.Mesh()
+    # self.prim_mesh = Usd.PrimMesh()
+    # self.transform_op = Usd.TransformOp()
+
+    self.prim_mesh = None
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -364,7 +366,7 @@ class USDPrimitiveMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -393,9 +395,9 @@ class USDPrimitive:
     self.rgba = rgba
     self.texture_file = texture_file
 
-    self.usd_prim = Usd.Prim()
-    self.usd_primitive_shape = Usd.PrimitiveShape()
-    self.transform_op = Usd.TransformOp()
+    # self.usd_prim = Usd.Prim()
+    # self.usd_primitive_shape = Usd.PrimitiveShape()
+    # self.transform_op = Usd.TransformOp()
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -481,7 +483,7 @@ class USDPrimitive:
     UsdShade.MaterialBindingAPI(self.usd_primitive_shape).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -851,7 +853,7 @@ class USDCamera:
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
 
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=cam_mat, translation_vector=cam_pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
