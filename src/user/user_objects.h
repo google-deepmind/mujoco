@@ -146,8 +146,6 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   // internal class used during BVH construction, for partial sorting of bounding volumes
   struct BVElement {
     const mjCBoundingVolume* e;
-    // index of the element in the original input to BVH, used to ensure a stable sort
-    int index;
     // position of the element in the BVH axes
     mjtNum lpos[3];
   };
@@ -159,7 +157,8 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
       if (e1.lpos[axis] != e2.lpos[axis]) {
         return e1.lpos[axis] < e2.lpos[axis];
       }
-      return e1.index < e2.index;
+      // comparing pointers gives a stable sort, because they both come from the same array
+      return e1.e < e2.e;
     }
   };
 

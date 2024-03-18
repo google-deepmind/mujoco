@@ -301,7 +301,6 @@ void mjCBoundingVolumeHierarchy::CreateBVH() {
     if (bvleaf_[i].conaffinity || bvleaf_[i].contype) {
       BVElement element;
       element.e = &bvleaf_[i];
-      element.index = i;
       mjtNum vert[3] = {element.e->pos[0] - ipos_[0],
                         element.e->pos[1] - ipos_[1],
                         element.e->pos[2] - ipos_[2]};
@@ -398,10 +397,10 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   axis = edges[axis] > edges[2] ? axis : 2;
 
   // find median along the axis
-  auto m = nelements/2;
-  // Note: nth element performs a partial sort of elements
+  // note: nth_element performs a partial sort of elements
   BVElementCompare compare;
   compare.axis = axis;
+  int m = nelements / 2;
   std::nth_element(elements_begin, elements_begin + m, elements_end, compare);
 
   // recursive calls
