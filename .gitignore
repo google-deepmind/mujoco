@@ -18,6 +18,7 @@
 *.egg-info/
 build/
 build_cmake/
+# python/dist/
 
 # Exclude macOS folder attributes
 .DS_Store
@@ -29,5 +30,3 @@ Info.framework.plist
 __pycache__/
 *.py[cod]
 *$py.class
-
-python/dist
