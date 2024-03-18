@@ -638,7 +638,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   mju_sub3(tmp1, pos1, pos2);
   mju_rotVecMatT(pos12, tmp1, mat2);
 
-  mju_mulMatTMat(rot, mat1, mat2, 3, 3, 3);
+  mju_mulMatTMat3(rot, mat1, mat2);
   mju_transpose(rott, rot, 3, 3);
 
   for (i = 0; i < 9; i++)
@@ -804,7 +804,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
 }
 
   if (q2) {
-    mju_mulMatMatT(r, rotmore, rot, 3, 3, 3);
+    mju_mulMatMatT3(r, rotmore, rot);
 
     // mju_rotVecMat(p,pos12,rotmore);
     // mju_rotVecMat(tmp1,size2,rotmore);
@@ -956,7 +956,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   }
 
 
-  mju_mulMatMatT(r, q2 ? mat2 : mat1, rotmore, 3, 3, 3);
+  mju_mulMatMatT3(r, q2 ? mat2 : mat1, rotmore);
   mju_copy3(p, q2 ? pos2 : pos1);
 
   tmp2[0] = (q2 ? -1 : 1) * r[2];
@@ -1319,7 +1319,7 @@ edgeedge:
     }
   }
 
-  mju_mulMatMatT(r, mat1, rotmore, 3, 3, 3);
+  mju_mulMatMatT3(r, mat1, rotmore);
 
   mju_rotVecMat(tmp1, rnorm, r);
 

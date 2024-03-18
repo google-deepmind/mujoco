@@ -721,8 +721,8 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
   for (iter=0; iter < 500; iter++) {
     // make quaternion matrix eigvec, compute D = eigvec'*mat*eigvec
     mju_quat2Mat(eigvec, quat);
-    mju_mulMatTMat(tmp, eigvec, mat, 3, 3, 3);
-    mju_mulMatMat(D, tmp, eigvec, 3, 3, 3);
+    mju_mulMatTMat3(tmp, eigvec, mat);
+    mju_mulMatMat3(D, tmp, eigvec);
 
     // assign eigenvalues
     eigval[0] = D[0];

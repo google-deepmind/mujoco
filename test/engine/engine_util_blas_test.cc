@@ -95,5 +95,38 @@ TEST_F(EngineUtilBlasTest, MjuSymmetrize) {
                                3, 3.5, 3));
 }
 
+TEST_F(EngineUtilBlasTest, MjuMulMat3) {
+  const mjtNum mat1[9] = {
+    1, 2, 3,
+    4, 5, 6,
+    7, 8, 9
+  };
+  const mjtNum mat2[9] = {
+    2, 3, 4,
+    5, 6, 7,
+    8, 9, 10
+  };
+  mjtNum res1[9] = {0};
+  mjtNum res2[9] = {0};
+
+  mju_mulMatMat3(res1, mat1, mat2);
+  mju_mulMatMat(res2, mat1, mat2, 3, 3, 3);
+  for (int i = 0; i < 9; ++i) {
+    EXPECT_EQ(res1[i], res2[i]);
+  }
+
+  mju_mulMatTMat3(res1, mat1, mat2);
+  mju_mulMatTMat(res2, mat1, mat2, 3, 3, 3);
+  for (int i = 0; i < 9; ++i) {
+    EXPECT_EQ(res1[i], res2[i]);
+  }
+
+  mju_mulMatMatT3(res1, mat1, mat2);
+  mju_mulMatMatT(res2, mat1, mat2, 3, 3, 3);
+  for (int i = 0; i < 9; ++i) {
+    EXPECT_EQ(res1[i], res2[i]);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

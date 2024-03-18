@@ -815,8 +815,8 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // term1 = body angular momentum about self COM in world frame
     mjtNum tmp1[9], tmp2[9];
-    mju_mulMatMat(tmp1, ximat, inertia, 3, 3, 3);  // tmp1  = ximat * inertia
-    mju_mulMatMatT(tmp2, tmp1, ximat, 3, 3, 3);    // tmp2  = ximat * inertia * ximat^T
+    mju_mulMatMat3(tmp1, ximat, inertia);          // tmp1  = ximat * inertia
+    mju_mulMatMatT3(tmp2, tmp1, ximat);            // tmp2  = ximat * inertia * ximat^T
     mju_mulMatMat(term1, tmp2, jacr, 3, 3, nv);    // term1 = ximat * inertia * ximat^T * jacr
 
     // location of body COM w.r.t subtree COM
