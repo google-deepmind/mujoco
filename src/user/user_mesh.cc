@@ -200,41 +200,62 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
       size_t nvert = 3*other.nvert_*sizeof(float);
       this->vert_ = (float*)mju_malloc(nvert);
       memcpy(this->vert_, other.vert_, nvert);
+    } else {
+      this->vert_ = NULL;
     }
     if (other.normal_) {
       size_t nnormal = 3*other.nnormal_*sizeof(float);
       this->normal_ = (float*)mju_malloc(nnormal);
       memcpy(this->normal_, other.normal_, nnormal);
+    } else {
+      this->normal_ = NULL;
     }
     if (other.center_) {
       size_t ncenter = 3*other.nface_*sizeof(double);
       this->center_ = (double*)mju_malloc(ncenter);
       memcpy(this->center_, other.center_, ncenter);
+    } else {
+      this->center_ = NULL;
     }
     if (other.texcoord_) {
       size_t ntexcoord = 2*other.ntexcoord_*sizeof(float);
       this->texcoord_ = (float*)mju_malloc(ntexcoord);
       memcpy(this->texcoord_, other.texcoord_, ntexcoord);
+    } else {
+      this->texcoord_ = NULL;
     }
     if (other.face_) {
       size_t nface = 3*other.nface_*sizeof(int);
       this->face_ = (int*)mju_malloc(nface);
       memcpy(this->face_, other.face_, nface);
+    } else {
+      this->face_ = NULL;
     }
     if (other.facenormal_) {
       size_t nfacenormal = 3*other.nface_*sizeof(int);
       this->facenormal_ = (int*)mju_malloc(nfacenormal);
       memcpy(this->facenormal_, other.facenormal_, nfacenormal);
+    } else {
+      this->facenormal_ = NULL;
     }
     if (other.facetexcoord_) {
       size_t nfacetexcoord = 3*other.nface_*sizeof(int);
       this->facetexcoord_ = (int*)mju_malloc(nfacetexcoord);
       memcpy(this->facetexcoord_, other.facetexcoord_, nfacetexcoord);
+    } else {
+      this->facetexcoord_ = NULL;
     }
     if (other.graph_) {
       size_t szgraph = szgraph_*sizeof(int);
       this->graph_ = (int*)mju_malloc(szgraph);
       memcpy(this->graph_, other.graph_, szgraph);
+    } else {
+      this->graph_ = NULL;
+    }
+    if (other.plugin.instance) {
+      mjCPlugin* new_plugin = new mjCPlugin(*reinterpret_cast<mjCPlugin*>(other.plugin.instance));
+      plugin = new_plugin->spec;
+      model->plugins.push_back(new_plugin);
     }
   }
   PointToLocal();
@@ -2057,6 +2078,24 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 
   // in case this camera is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCSkin::mjCSkin(const mjCSkin& other) {
+  *this = other;
+}
+
+
+
+mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCSkin_*>(this) = static_cast<const mjCSkin_&>(other);
+    *static_cast<mjmSkin*>(this) = static_cast<const mjmSkin&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 

@@ -570,12 +570,6 @@ mjCBase::mjCBase(const mjCBase& other) {
 mjCBase& mjCBase::operator=(const mjCBase& other) {
   if (this != &other) {
     *static_cast<mjCBase_*>(this) = static_cast<const mjCBase_&>(other);
-    if (other.def) {
-      def = new mjCDef(*other.def);
-    }
-    if (other.frame) {
-      frame = new mjCFrame(*other.frame);
-    }
   }
   return *this;
 }
@@ -663,7 +657,8 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 
 
-mjCBody::mjCBody(const mjCBody& other) {
+mjCBody::mjCBody(const mjCBody& other, mjCModel* _model) {
+  model = _model;
   *this = other;
 }
 
@@ -671,43 +666,63 @@ mjCBody::mjCBody(const mjCBody& other) {
 
 mjCBody& mjCBody::operator=(const mjCBody& other) {
   if (this != &other) {
-    this->spec = other.spec;
+    spec = other.spec;
     *static_cast<mjCBody_*>(this) = static_cast<const mjCBody_&>(other);
     *static_cast<mjmBody*>(this) = static_cast<const mjmBody&>(other);
-    this->bodies.clear();
-    this->frames.clear();
-    this->geoms.clear();
-    this->joints.clear();
-    this->sites.clear();
-    this->cameras.clear();
-    this->lights.clear();
+    std::map<mjCFrame*, int> fmap;
+    mjCFrame *np = nullptr;
+    bodies.clear();
+    frames.clear();
+    geoms.clear();
+    joints.clear();
+    sites.clear();
+    cameras.clear();
+    lights.clear();
+
+    // create frames and map them to the old ones
+    for (int i=0; i<other.frames.size(); i++) {
+      frames.push_back(new mjCFrame(*other.frames[i]));
+      frames.back()->model = model;
+      fmap[other.frames[i]] = i;
+    }
 
     // copy all children
     for (int i=0; i<other.bodies.size(); i++) {
-      this->bodies.push_back(new mjCBody(*other.bodies[i]));  // triggers recursive call
+      bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
+      bodies.back()->frame = other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : np;
     }
     for (int i=0; i<other.frames.size(); i++) {
-      this->frames.push_back(new mjCFrame(*other.frames[i]));
+      frames[i]->frame = other.frames[i]->frame ? frames[fmap[other.frames[i]->frame]] : np;
     }
     for (int i=0; i<other.geoms.size(); i++) {
-      this->geoms.push_back(new mjCGeom(*other.geoms[i]));
-      this->geoms.back()->body = this;
+      geoms.push_back(new mjCGeom(*other.geoms[i]));
+      geoms.back()->body = this;
+      geoms.back()->model = model;
+      geoms.back()->frame = other.geoms[i]->frame ? frames[fmap[other.geoms[i]->frame]] : np;
     }
     for (int i=0; i<other.joints.size(); i++) {
-      this->joints.push_back(new mjCJoint(*other.joints[i]));
-      this->joints.back()->body = this;
+      joints.push_back(new mjCJoint(*other.joints[i]));
+      joints.back()->body = this;
+      joints.back()->model = model;
+      joints.back()->frame = other.joints[i]->frame ? frames[fmap[other.joints[i]->frame]] : np;
     }
     for (int i=0; i<other.sites.size(); i++) {
-      this->sites.push_back(new mjCSite(*other.sites[i]));
-      this->sites.back()->body = this;
+      sites.push_back(new mjCSite(*other.sites[i]));
+      sites.back()->body = this;
+      sites.back()->model = model;
+      sites.back()->frame = other.sites[i]->frame ? frames[fmap[other.sites[i]->frame]] : np;
     }
     for (int i=0; i<other.cameras.size(); i++) {
-      this->cameras.push_back(new mjCCamera(*other.cameras[i]));
-      this->cameras.back()->body = this;
+      cameras.push_back(new mjCCamera(*other.cameras[i]));
+      cameras.back()->body = this;
+      cameras.back()->model = model;
+      cameras.back()->frame = other.cameras[i]->frame ? frames[fmap[other.cameras[i]->frame]] : np;
     }
     for (int i=0; i<other.lights.size(); i++) {
-      this->lights.push_back(new mjCLight(*other.lights[i]));
-      this->lights.back()->body = this;
+      lights.push_back(new mjCLight(*other.lights[i]));
+      lights.back()->body = this;
+      lights.back()->model = model;
+      lights.back()->frame = other.lights[i]->frame ? frames[fmap[other.lights[i]->frame]] : np;
     }
   }
   PointToLocal();
@@ -2618,7 +2633,7 @@ mjCHField::mjCHField(mjCModel* _model) {
   model = _model;
 
   // clear variables
-  data = 0;
+  data.clear();
   spec_file_.clear();
   spec_userdata_.clear();
 
@@ -2627,6 +2642,24 @@ mjCHField::mjCHField(mjCModel* _model) {
 
   // copy from spec
   CopyFromSpec();
+}
+
+
+
+mjCHField::mjCHField(const mjCHField& other) {
+  *this = other;
+}
+
+
+
+mjCHField& mjCHField::operator=(const mjCHField& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCHField_*>(this) = static_cast<const mjCHField_&>(other);
+    *static_cast<mjmHField*>(this) = static_cast<const mjmHField&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -2652,10 +2685,7 @@ void mjCHField::CopyFromSpec() {
   userdata = (mjFloatVec)&userdata_;
 
   // clear precompiled asset. TODO: use asset cache
-  if (data) {
-    mju_free(data);
-    data = 0;
-  }
+  data.clear();
   if (!file_.empty()) {
     nrow = 0;
     ncol = 0;
@@ -2666,9 +2696,7 @@ void mjCHField::CopyFromSpec() {
 
 // destructor
 mjCHField::~mjCHField() {
-  if (data) {
-    mju_free(data);
-  }
+  data.clear();
   userdata_.clear();
   spec_userdata_.clear();
 }
@@ -2708,13 +2736,13 @@ void mjCHField::LoadCustom(mjResource* resource) {
   }
 
   // allocate
-  data = (float*) mju_malloc(nrow*ncol*sizeof(float));
-  if (!data) {
+  data.assign(nrow*ncol, 0);
+  if (data.empty()) {
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
   // copy data
-  memcpy(data, (void*)(pint+2), nrow*ncol*sizeof(float));
+  memcpy(data.data(), (void*)(pint+2), nrow*ncol*sizeof(float));
 }
 
 
@@ -2747,8 +2775,8 @@ void mjCHField::LoadPNG(mjResource* resource) {
   }
 
   // allocate
-  data = (float*) mju_malloc(w*h*sizeof(float));
-  if (!data) {
+  data.assign(w*h, 0);
+  if (data.empty()) {
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
@@ -2770,11 +2798,11 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
   // copy userdata into data
   if (!userdata_.empty()) {
-    data = (float*) mju_malloc(nrow*ncol*sizeof(float));
-    if (!data) {
+    data.assign(nrow*ncol, 0);
+    if (data.empty()) {
       throw mjCError(this, "could not allocate buffers in hfield");
     }
-    memcpy(data, userdata_.data(), nrow*ncol*sizeof(float));
+    memcpy(data.data(), userdata_.data(), nrow*ncol*sizeof(float));
   }
 
   // check size parameters
@@ -2791,7 +2819,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
   // load from file if specified
   if (!file_.empty()) {
     // make sure hfield was not already specified manually
-    if (nrow || ncol || data) {
+    if (nrow || ncol || !data.empty()) {
       throw mjCError(this,
                      "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
     }
@@ -2824,7 +2852,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
   }
 
   // make sure hfield was specified (from file or manually)
-  if (nrow<1 || ncol<1 || data==0) {
+  if (nrow<1 || ncol<1 || data.empty()) {
     throw mjCError(this, "hfield '%s' (id = %d) not specified", name.c_str(), id);
   }
 
@@ -2864,13 +2892,30 @@ mjCTexture::mjCTexture(mjCModel* _model) {
   spec_cubefiles_.assign(6, "");
 
   // clear internal variables
-  rgb = 0;
+  rgb.clear();
 
   // point to local
   PointToLocal();
 
   // in case this camera is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCTexture::mjCTexture(const mjCTexture& other) {
+  *this = other;
+}
+
+
+
+mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCTexture_*>(this) = static_cast<const mjCTexture_&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -2897,20 +2942,14 @@ void mjCTexture::CopyFromSpec() {
   cubefiles = (mjStringVec)&cubefiles_;
 
   // clear precompiled asset. TODO: use asset cache
-  if (rgb) {
-    mju_free(rgb);
-    rgb = 0;
-  }
+  rgb.clear();
 }
 
 
 
 // free data storage allocated by lodepng
 mjCTexture::~mjCTexture() {
-  if (rgb) {
-    mju_free(rgb);
-    rgb = 0;
-  }
+  rgb.clear();
 }
 
 
@@ -2997,21 +3036,21 @@ void mjCTexture::Builtin2D(void) {
         double pos = 2*sqrt(x*x+y*y) - 1;
 
         // interpolate through sigmoid
-        interp(rgb + 3*(r*width+c), rgb2, rgb1, pos);
+        interp(rgb.data() + 3*(r*width+c), rgb2, rgb1, pos);
       }
     }
   }
 
   // checker
   else if (builtin==mjBUILTIN_CHECKER) {
-    checker(rgb, RGB1, RGB2, width, height);
+    checker(rgb.data(), RGB1, RGB2, width, height);
   }
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
     for (int r=0; r<height; r++) {
       for (int c=0; c<width; c++) {
-        memcpy(rgb+3*(r*width+c), RGB1, 3);
+        memcpy(rgb.data()+3*(r*width+c), RGB1, 3);
       }
     }
   }
@@ -3021,28 +3060,28 @@ void mjCTexture::Builtin2D(void) {
   // edge
   if (mark==mjMARK_EDGE) {
     for (int r=0; r<height; r++) {
-      memcpy(rgb+3*(r*width+0), RGBm, 3);
-      memcpy(rgb+3*(r*width+width-1), RGBm, 3);
+      memcpy(rgb.data()+3*(r*width+0), RGBm, 3);
+      memcpy(rgb.data()+3*(r*width+width-1), RGBm, 3);
     }
     for (int c=0; c<width; c++) {
-      memcpy(rgb+3*(0*width+c), RGBm, 3);
-      memcpy(rgb+3*((height-1)*width+c), RGBm, 3);
+      memcpy(rgb.data()+3*(0*width+c), RGBm, 3);
+      memcpy(rgb.data()+3*((height-1)*width+c), RGBm, 3);
     }
   }
 
   // cross
   else if (mark==mjMARK_CROSS) {
     for (int r=0; r<height; r++) {
-      memcpy(rgb+3*(r*width+width/2), RGBm, 3);
+      memcpy(rgb.data()+3*(r*width+width/2), RGBm, 3);
     }
     for (int c=0; c<width; c++) {
-      memcpy(rgb+3*(height/2*width+c), RGBm, 3);
+      memcpy(rgb.data()+3*(height/2*width+c), RGBm, 3);
     }
   }
 
   // random dots
   else if (mark==mjMARK_RANDOM && random>0) {
-    randomdot(rgb, markrgb, width, height, random);
+    randomdot(rgb.data(), markrgb, width, height, random);
   }
 }
 
@@ -3051,65 +3090,67 @@ void mjCTexture::Builtin2D(void) {
 // make builtin: Cube
 void mjCTexture::BuiltinCube(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3], RGBi[3];
+  int w = width;
+  int ww = width*width;
 
   // convert fixed colors
-  for (int j=0; j<3; j++) {
-    RGB1[j] = (mjtByte)(255*rgb1[j]);
-    RGB2[j] = (mjtByte)(255*rgb2[j]);
-    RGBm[j] = (mjtByte)(255*markrgb[j]);
+  for (int j = 0; j < 3; j++) {
+    RGB1[j] = (mjtByte)(255 * rgb1[j]);
+    RGB2[j] = (mjtByte)(255 * rgb2[j]);
+    RGBm[j] = (mjtByte)(255 * markrgb[j]);
   }
 
   //------------------ faces
 
   // gradient
-  if (builtin==mjBUILTIN_GRADIENT) {
-    for (int r=0; r<width; r++) {
-      for (int c=0; c<width; c++) {
+  if (builtin == mjBUILTIN_GRADIENT) {
+    for (int r = 0; r < w; r++) {
+      for (int c = 0; c < w; c++) {
         // compute normalized pixel coordinates
-        double x = 2*c/((double)(width-1)) - 1;
-        double y = 1 - 2*r/((double)(width-1));
+        double x = 2 * c / ((double)(w - 1)) - 1;
+        double y = 1 - 2 * r / ((double)(w - 1));
 
         // compute normalized elevation for sides and up/down
-        double elside = asin(y/sqrt(1+x*x+y*y)) / (0.5*mjPI);
-        double elup = 1 - acos(1.0/sqrt(1+x*x+y*y)) / (0.5*mjPI);
+        double elside = asin(y / sqrt(1 + x * x + y * y)) / (0.5 * mjPI);
+        double elup = 1 - acos(1.0 / sqrt(1 + x * x + y * y)) / (0.5 * mjPI);
 
         // set sides
         interp(RGBi, rgb1, rgb2, elside);
-        memcpy(rgb+0*3*width*width+3*(r*width+c), RGBi, 3);     // 0: right
-        memcpy(rgb+1*3*width*width+3*(r*width+c), RGBi, 3);     // 1: left
-        memcpy(rgb+4*3*width*width+3*(r*width+c), RGBi, 3);     // 4: front
-        memcpy(rgb+5*3*width*width+3*(r*width+c), RGBi, 3);     // 5: back
+        memcpy(rgb.data() + 0 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 0: right
+        memcpy(rgb.data() + 1 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 1: left
+        memcpy(rgb.data() + 4 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 4: front
+        memcpy(rgb.data() + 5 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 5: back
 
         // set up and down
-        interp(rgb+2*3*width*width+3*(r*width+c), rgb1, rgb2, elup);    // 2: up
-        interp(rgb+3*3*width*width+3*(r*width+c), rgb1, rgb2, -elup);   // 3: down
+        interp(rgb.data() + 2 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, elup);  // 2: up
+        interp(rgb.data() + 3 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, -elup);  // 3: down
       }
     }
   }
 
   // checker
-  else if (builtin==mjBUILTIN_CHECKER) {
-    checker(rgb+0*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+1*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+2*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+3*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+4*3*width*width, RGB2, RGB1, width, width);
-    checker(rgb+5*3*width*width, RGB2, RGB1, width, width);
+  else if (builtin == mjBUILTIN_CHECKER) {
+    checker(rgb.data() + 0 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 1 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 2 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 3 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 4 * 3 * ww, RGB2, RGB1, w, w);
+    checker(rgb.data() + 5 * 3 * ww, RGB2, RGB1, w, w);
   }
 
   // flat
-  else if (builtin==mjBUILTIN_FLAT) {
-    for (int r=0; r<width; r++) {
-      for (int c=0; c<width; c++) {
+  else if (builtin == mjBUILTIN_FLAT) {
+    for (int r = 0; r < w; r++) {
+      for (int c = 0; c < w; c++) {
         // set sides and up
-        memcpy(rgb+0*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+1*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+2*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+4*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+5*3*width*width+3*(r*width+c), RGB1, 3);
+        memcpy(rgb.data() + 0 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 1 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 2 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 4 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 5 * 3 * ww + 3 * (r * w + c), RGB1, 3);
 
         // set down
-        memcpy(rgb+3*3*width*width+3*(r*width+c), RGB2, 3);
+        memcpy(rgb.data() + 3 * 3 * ww + 3 * (r * w + c), RGB2, 3);
       }
     }
   }
@@ -3117,38 +3158,36 @@ void mjCTexture::BuiltinCube(void) {
   //------------------ marks
 
   // edge
-  if (mark==mjMARK_EDGE) {
-    for (int j=0; j<6; j++) {
-      for (int r=0; r<width; r++) {
-        memcpy(rgb+j*3*width*width+3*(r*width+0), RGBm, 3);
-        memcpy(rgb+j*3*width*width+3*(r*width+width-1), RGBm, 3);
+  if (mark == mjMARK_EDGE) {
+    for (int j = 0; j < 6; j++) {
+      for (int r = 0; r < w; r++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (r * w + 0), RGBm, 3);
+        memcpy(rgb.data() + j * 3 * ww + 3 * (r * w + w - 1), RGBm, 3);
       }
-      for (int c=0; c<width; c++) {
-        memcpy(rgb+j*3*width*width+3*(0*width+c), RGBm, 3);
-        memcpy(rgb+j*3*width*width+3*((width-1)*width+c), RGBm, 3);
+      for (int c = 0; c < w; c++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (0 * w + c), RGBm, 3);
+        memcpy(rgb.data() + j * 3 * ww + 3 * ((w - 1) * w + c), RGBm, 3);
       }
     }
   }
 
   // cross
-  else if (mark==mjMARK_CROSS) {
-    for (int j=0; j<6; j++) {
-      for (int r=0; r<width; r++) {
-        memcpy(rgb+j*3*width*width+3*(r*width+width/2), RGBm, 3);
+  else if (mark == mjMARK_CROSS) {
+    for (int j = 0; j < 6; j++) {
+      for (int r = 0; r < w; r++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (r * w + w / 2), RGBm, 3);
       }
-      for (int c=0; c<width; c++) {
-        memcpy(rgb+j*3*width*width+3*(width/2*width+c), RGBm, 3);
+      for (int c = 0; c < w; c++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (w / 2 * w + c), RGBm, 3);
       }
     }
   }
 
   // random dots
-  else if (mark==mjMARK_RANDOM && random>0) {
-    randomdot(rgb, markrgb, width, height, random);
+  else if (mark == mjMARK_RANDOM && random > 0) {
+    randomdot(rgb.data(), markrgb, w, height, random);
   }
 }
-
-
 
 // load PNG file
 void mjCTexture::LoadPNG(mjResource* resource,
@@ -3307,12 +3346,12 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
   height = h;
 
   // allocate and copy data
-  rgb = (mjtByte*) mju_malloc(3*width*height);
-  if (!rgb) {
+  rgb.assign(3*width*height, 0);
+  if (rgb.empty()) {
     throw mjCError(this, "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
   }
-  memcpy(rgb, image.data(), 3*width*height);
+  memcpy(rgb.data(), image.data(), 3*width*height);
   image.clear();
 }
 
@@ -3348,8 +3387,8 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   }
 
   // allocate data
-  rgb = (mjtByte*) mju_malloc(3*width*height);
-  if (!rgb) {
+  rgb.assign(3*width*height, 0);
+  if (rgb.empty()) {
     throw mjCError(this,
                    "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
@@ -3357,7 +3396,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
 
   // copy: repeated
   if (gridsize[0]==1 && gridsize[1]==1) {
-    memcpy(rgb, image.data(), 3*width*width);
+    memcpy(rgb.data(), image.data(), 3*width*width);
   }
 
   // copy: grid
@@ -3391,7 +3430,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
         int rstart = width*(k/gridsize[1]);
         int cstart = width*(k%gridsize[1]);
         for (int j=0; j<width; j++) {
-          memcpy(rgb+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
+          memcpy(rgb.data()+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
         }
 
         // mark as defined
@@ -3447,11 +3486,11 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // first file: set size and allocate data
-      if (!rgb) {
+      if (rgb.empty()) {
         width = w;
         height = 6*width;
-        rgb = (mjtByte*) mju_malloc(3*width*height);
-        if (!rgb) {
+        rgb.assign(3*width*height, 0);
+        if (rgb.empty()) {
           throw mjCError(this,
                          "Could not allocate memory for texture '%s' (id %d)",
                          (const char*)name.c_str(), id);
@@ -3466,7 +3505,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // copy data
-      memcpy(rgb+i*3*width*width, image.data(), 3*width*width);
+      memcpy(rgb.data()+i*3*width*width, image.data(), 3*width*width);
       image.clear();
 
       // mark as defined
@@ -3509,8 +3548,8 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // allocate data
-    rgb = (mjtByte*) mju_malloc(3*width*height);
-    if (!rgb) {
+    rgb.assign(3*width*height, 0);
+    if (rgb.empty()) {
       throw mjCError(this,
                      "Could not allocate memory for texture '%s' (id %d)",
                      (const char*)name.c_str(), id);
@@ -3570,7 +3609,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR
-  if (!rgb) {
+  if (rgb.empty()) {
     throw mjCError(this,
                    "texture '%s' (id %d) was not specified", (const char*)name.c_str(), id);
   }
@@ -3877,6 +3916,24 @@ mjCBodyPair::mjCBodyPair(mjCModel* _model) {
 
 
 
+mjCBodyPair::mjCBodyPair(const mjCBodyPair& other) {
+  *this = other;
+}
+
+
+
+mjCBodyPair& mjCBodyPair::operator=(const mjCBodyPair& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCBodyPair_*>(this) = static_cast<const mjCBodyPair_&>(other);
+    *static_cast<mjmExclude*>(this) = static_cast<const mjmExclude&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCBodyPair::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
@@ -4114,8 +4171,12 @@ mjCTendon::mjCTendon(const mjCTendon& other) {
 mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
   if (this != &other) {
     this->spec = other.spec;
+    *static_cast<mjCTendon_*>(this) = static_cast<const mjCTendon_&>(other);
     *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
-    *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
+    for (int i=0; i<other.path.size(); i++) {
+      path.push_back(new mjCWrap(*other.path[i]));
+      path.back()->tendon = this;
+    }
   }
   PointToLocal();
   return *this;
@@ -4162,6 +4223,15 @@ mjCTendon::~mjCTendon() {
   }
 
   path.clear();
+}
+
+
+
+void mjCTendon::SetModel(mjCModel* _model) {
+  model = _model;
+  for (int i=0; i<path.size(); i++) {
+    path[i]->model = _model;
+  }
 }
 
 
@@ -4391,6 +4461,25 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
 
   // point to local
   PointToLocal();
+}
+
+
+
+mjCWrap::mjCWrap(const mjCWrap& other) {
+  *this = other;
+}
+
+
+
+mjCWrap& mjCWrap::operator=(const mjCWrap& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCWrap_*>(this) = static_cast<const mjCWrap_&>(other);
+    *static_cast<mjmWrap*>(this) = static_cast<const mjmWrap&>(other);
+    obj = nullptr;
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -4822,12 +4911,30 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   CopyFromSpec();
 
   // point to local
-  MakePointerLocal();
+  PointToLocal();
 }
 
 
 
-void mjCSensor::MakePointerLocal() {
+mjCSensor::mjCSensor(const mjCSensor& other) {
+  *this = other;
+}
+
+
+
+mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCSensor_*>(this) = static_cast<const mjCSensor_&>(other);
+    *static_cast<mjmSensor*>(this) = static_cast<const mjmSensor&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
+void mjCSensor::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
@@ -5271,6 +5378,24 @@ mjCNumeric::mjCNumeric(mjCModel* _model) {
 
 
 
+mjCNumeric::mjCNumeric(const mjCNumeric& other) {
+  *this = other;
+}
+
+
+
+mjCNumeric& mjCNumeric::operator=(const mjCNumeric& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCNumeric_*>(this) = static_cast<const mjCNumeric_&>(other);
+    *static_cast<mjmNumeric*>(this) = static_cast<const mjmNumeric&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCNumeric::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
@@ -5341,6 +5466,24 @@ mjCText::mjCText(mjCModel* _model) {
 
 
 
+mjCText::mjCText(const mjCText& other) {
+  *this = other;
+}
+
+
+
+mjCText& mjCText::operator=(const mjCText& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCText_*>(this) = static_cast<const mjCText_&>(other);
+    *static_cast<mjmText*>(this) = static_cast<const mjmText&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCText::PointToLocal() {
   spec.element = (mjElement)this;
   spec.name = (mjString)&name;
@@ -5398,6 +5541,24 @@ mjCTuple::mjCTuple(mjCModel* _model) {
 
   // in case this tuple is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCTuple::mjCTuple(const mjCTuple& other) {
+  *this = other;
+}
+
+
+
+mjCTuple& mjCTuple::operator=(const mjCTuple& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCTuple_*>(this) = static_cast<const mjCTuple_&>(other);
+    *static_cast<mjmTuple*>(this) = static_cast<const mjmTuple&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -5498,6 +5659,24 @@ mjCKey::mjCKey(mjCModel* _model) {
 
   // in case this keyframe is not compiled
   CopyFromSpec();
+}
+
+
+
+mjCKey::mjCKey(const mjCKey& other) {
+  *this = other;
+}
+
+
+
+mjCKey& mjCKey::operator=(const mjCKey& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCKey_*>(this) = static_cast<const mjCKey_&>(other);
+    *static_cast<mjmKey*>(this) = static_cast<const mjmKey&>(other);
+  }
+  PointToLocal();
+  return *this;
 }
 
 
@@ -5649,6 +5828,23 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   spec.name = (mjString)&name;
   spec.instance_name = (mjString)&instance_name;
   spec.info = (mjString)&info;
+}
+
+
+
+mjCPlugin::mjCPlugin(const mjCPlugin& other) {
+  *this = other;
+}
+
+
+
+mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCPlugin_*>(this) = static_cast<const mjCPlugin_&>(other);
+    parent = this;
+  }
+  return *this;
 }
 
 

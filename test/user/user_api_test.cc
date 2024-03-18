@@ -65,6 +65,9 @@ TEST_F(MujocoTest, ReadWriteData) {
 
 // ------------------- test recompilation multiple files ----------------------
 TEST_F(PluginTest, RecompileCompare) {
+  mjtNum tol = 0;
+  std::string field = "";
+
   // full precision float printing
   FullFloatPrecision increase_precision;
 
@@ -85,33 +88,55 @@ TEST_F(PluginTest, RecompileCompare) {
           continue;
         }
 
-        // load model
-        std::array<char, 1000> error;
-        mjSpec* spec =
-            mjParseXML(xml.c_str(), nullptr, error.data(), error.size());
+        // load spec
+        std::array<char, 1000> err;
+        mjSpec* s = mjParseXML(xml.c_str(), nullptr, err.data(), err.size());
 
-        // compile twice
-        mjModel* m_old = mjm_compile(spec, nullptr);
-        mjModel* m_new = mjm_compile(spec, nullptr);
+        // copy spec
+        mjSpec* s_copy = mjm_copySpec(s);
+
+        // compile twice and compare
+        mjModel* m_old = mjm_compile(s, nullptr);
+        mjModel* m_new = mjm_compile(s, nullptr);
+        mjModel* m_copy = mjm_compile(s_copy, nullptr);
 
         ASSERT_THAT(m_old, NotNull())
-            << "Failed to compile " << xml << ": " << error.data();
+            << "Failed to compile " << xml << ": " << err.data();
         ASSERT_THAT(m_new, NotNull())
-            << "Failed to recompile " << xml << ": " << error.data();
+            << "Failed to recompile " << xml << ": " << err.data();
+        ASSERT_THAT(m_copy, NotNull())
+            << "Failed to compile " << xml << ": " << err.data();
 
-        // compare and delete
-        std::string field = "";
-        mjtNum result = CompareModel(m_old, m_new, field);
-        mjtNum tol = 0;
-        EXPECT_LE(result, tol)
-            << "Loaded and saved models are different!\n"
+        EXPECT_LE(CompareModel(m_old, m_new, field), tol)
+            << "Compiled and recompiled models are different!\n"
+            << "Affected file " << p.path().string() << '\n'
+            << "Different field: " << field << '\n';
+
+        EXPECT_LE(CompareModel(m_old, m_copy, field), tol)
+            << "Original and copied models are different!\n"
+            << "Affected file " << p.path().string() << '\n'
+            << "Different field: " << field << '\n';
+
+        // copy to a new spec, compile and compare
+        mjSpec* s_copy2 = mjm_copySpec(s);
+        mjModel* m_copy2 = mjm_compile(s_copy2, nullptr);
+
+        ASSERT_THAT(m_copy2, NotNull())
+            << "Failed to compile " << xml << ": " << err.data();
+
+        EXPECT_LE(CompareModel(m_old, m_copy2, field), tol)
+            << "Original and re-copied models are different!\n"
             << "Affected file " << p.path().string() << '\n'
             << "Different field: " << field << '\n';
 
         // delete models
-        mjm_deleteSpec(spec);
+        mjm_deleteSpec(s);
+        mjm_deleteSpec(s_copy);
+        mjm_deleteSpec(s_copy2);
         mj_deleteModel(m_old);
         mj_deleteModel(m_new);
+        mj_deleteModel(m_copy);
+        mj_deleteModel(m_copy2);
       }
     }
   }

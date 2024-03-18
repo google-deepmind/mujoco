@@ -731,6 +731,9 @@ typedef struct _mjmDefault {       // default specification
 // Create model.
 MJAPI mjSpec* mjm_createSpec();
 
+// Copy model.
+MJAPI mjSpec* mjm_copySpec(const mjSpec* s);
+
 // Copy back model.
 MJAPI void mjm_copyBack(mjSpec* s, const mjModel* m);
 

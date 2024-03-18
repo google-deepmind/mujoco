@@ -138,6 +138,175 @@ mjCModel::mjCModel() {
   world->def = defaults[0];
   bodies.push_back(world);
 
+  // create mjCBase lists from children lists
+  CreateObjectLists();
+
+  // point to model from spec
+  PointToLocal();
+
+  // this class allocated the plugins
+  plugin_owner = true;
+}
+
+
+
+mjCModel::mjCModel(const mjCModel& other) {
+  *this = other;
+}
+
+
+
+mjCModel& mjCModel::operator=(const mjCModel& other) {
+  if (this != &other) {
+    plugin_owner = false;
+    this->spec = other.spec;
+    *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
+    *static_cast<mjSpec*>(this) = static_cast<const mjSpec&>(other);
+    std::map<mjCDef*, int> def_map;
+    for (int i = 0; i < other.defaults.size(); i++) {
+      defaults.push_back(new mjCDef(*other.defaults[i]));
+      def_map[other.defaults[i]] = i;
+    }
+    for (const mjCFlex* flex : other.flexes) {
+      flexes.push_back(new mjCFlex(*flex));
+      flexes.back()->model = this;
+      flexes.back()->def = defaults[def_map[flex->def]];
+    }
+    for (const mjCMesh* mesh : other.meshes) {
+      meshes.push_back(new mjCMesh(*mesh));
+      meshes.back()->model = this;
+      meshes.back()->def = defaults[def_map[mesh->def]];
+    }
+    for (const mjCSkin* skin : other.skins) {
+      skins.push_back(new mjCSkin(*skin));
+      skins.back()->model = this;
+      skins.back()->def = defaults[def_map[skin->def]];
+    }
+    for (const mjCHField* hfield : other.hfields) {
+      hfields.push_back(new mjCHField(*hfield));
+      hfields.back()->model = this;
+      hfields.back()->def = defaults[def_map[hfield->def]];
+    }
+    for (const mjCTexture* texture : other.textures) {
+      textures.push_back(new mjCTexture(*texture));
+      textures.back()->model = this;
+      textures.back()->def = defaults[def_map[texture->def]];
+    }
+    for (const mjCMaterial* material : other.materials) {
+      materials.push_back(new mjCMaterial(*material));
+      materials.back()->model = this;
+      materials.back()->def = defaults[def_map[material->def]];
+    }
+    for (const mjCPair* pair : other.pairs) {
+      pairs.push_back(new mjCPair(*pair));
+      pairs.back()->model = this;
+      pairs.back()->def = defaults[def_map[pair->def]];
+    }
+    for (const mjCBodyPair* exclude : other.excludes) {
+      excludes.push_back(new mjCBodyPair(*exclude));
+      excludes.back()->model = this;
+      excludes.back()->def = defaults[def_map[exclude->def]];
+    }
+    for (const mjCEquality* equality : other.equalities) {
+      equalities.push_back(new mjCEquality(*equality));
+      equalities.back()->model = this;
+      equalities.back()->def = defaults[def_map[equality->def]];
+    }
+    for (const mjCTendon* tendon : other.tendons) {
+      tendons.push_back(new mjCTendon(*tendon));
+      tendons.back()->SetModel(this);
+      tendons.back()->def = defaults[def_map[tendon->def]];
+    }
+    for (const mjCActuator* actuator : other.actuators) {
+      actuators.push_back(new mjCActuator(*actuator));
+      actuators.back()->model = this;
+      actuators.back()->def = defaults[def_map[actuator->def]];
+    }
+    for (const mjCSensor* sensor : other.sensors) {
+      sensors.push_back(new mjCSensor(*sensor));
+      sensors.back()->model = this;
+      sensors.back()->def = defaults[def_map[sensor->def]];
+    }
+    for (const mjCNumeric* numeric : other.numerics) {
+      numerics.push_back(new mjCNumeric(*numeric));
+      numerics.back()->model = this;
+      numerics.back()->def = defaults[def_map[numeric->def]];
+    }
+    for (const mjCText* text : other.texts) {
+      texts.push_back(new mjCText(*text));
+      texts.back()->model = this;
+      texts.back()->def = defaults[def_map[text->def]];
+    }
+    for (const mjCTuple* tuple : other.tuples) {
+      tuples.push_back(new mjCTuple(*tuple));
+      tuples.back()->model = this;
+      tuples.back()->def = defaults[def_map[tuple->def]];
+    }
+    for (const mjCKey* key : other.keys) {
+      keys.push_back(new mjCKey(*key));
+      keys.back()->model = this;
+      keys.back()->def = defaults[def_map[key->def]];
+    }
+
+    // plugins are global
+    plugins = other.plugins;
+    active_plugins = other.active_plugins;
+
+    // the world copy constructor takes care of copying the tree
+    mjCBody* world = new mjCBody(*other.bodies[0], this);
+
+    // create global lists
+    bodies.push_back(world);
+    MakeLists(bodies[0]);
+
+    // update defaults for the copied objects
+    for (int i = 1; i < other.bodies.size(); i++) {
+      bodies[i]->def = defaults[def_map[other.bodies[i]->def]];
+    }
+    for (int i = 0; i < other.joints.size(); i++) {
+      joints[i]->def = defaults[def_map[other.joints[i]->def]];
+    }
+    for (int i = 0; i < other.geoms.size(); i++) {
+      geoms[i]->def = defaults[def_map[other.geoms[i]->def]];
+    }
+    for (int i = 0; i < other.sites.size(); i++) {
+      sites[i]->def = defaults[def_map[other.sites[i]->def]];
+    }
+    for (int i = 0; i < other.cameras.size(); i++) {
+      cameras[i]->def = defaults[def_map[other.cameras[i]->def]];
+    }
+    for (int i = 0; i < other.lights.size(); i++) {
+      lights[i]->def = defaults[def_map[other.lights[i]->def]];
+    }
+
+    // copy name maps
+    for (int i=0; i<mjNOBJECT; i++) {
+      ids[i] = other.ids[i];
+    }
+
+    // cast children to mjCBase
+    CreateObjectLists();
+
+    // restore to the same state as other
+    if (!compiled) {
+      bodies.clear();
+      frames.clear();
+      joints.clear();
+      geoms.clear();
+      sites.clear();
+      cameras.clear();
+      lights.clear();
+      bodies.push_back(world);
+    }
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
+// TODO: we should not use C-type casting with multiple C++ inheritance
+void mjCModel::CreateObjectLists() {
   for (int i = 0; i < mjNOBJECT; ++i) {
     object_lists[i] = nullptr;
   }
@@ -166,17 +335,6 @@ mjCModel::mjCModel() {
   object_lists[mjOBJ_TUPLE]    = (std::vector<mjCBase*>*) &tuples;
   object_lists[mjOBJ_KEY]      = (std::vector<mjCBase*>*) &keys;
   object_lists[mjOBJ_PLUGIN]   = (std::vector<mjCBase*>*) &plugins;
-
-
-  // point to model from spec
-  PointToLocal();
-}
-
-
-
-mjCModel::mjCModel(const mjCModel& other) {
-  *this = other;
-  PointToLocal();
 }
 
 
@@ -230,8 +388,11 @@ mjCModel::~mjCModel() {
   for (int i=0; i<texts.size(); i++) delete texts[i];
   for (int i=0; i<tuples.size(); i++) delete tuples[i];
   for (int i=0; i<keys.size(); i++) delete keys[i];
-  for (int i=0; i<plugins.size(); i++) delete plugins[i];
   for (int i=0; i<defaults.size(); i++) delete defaults[i];
+
+  if (plugin_owner) {
+    for (int i=0; i<plugins.size(); i++) delete plugins[i];
+  }
 
   // clear pointer lists created in model construction
   flexes.clear();
@@ -339,7 +500,6 @@ void mjCModel::Clear(void) {
   hasImplicitPluginElem = false;
   compiled = false;
   errInfo = mjCError();
-  fixCount = 0;
   qpos0.clear();
 }
 
@@ -500,13 +660,6 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
 // compiled flag
 bool mjCModel::IsCompiled(void) {
   return compiled;
-}
-
-
-
-// number of massless bodies that were fixed
-int mjCModel::GetFixed(void) {
-  return fixCount;
 }
 
 
@@ -2144,7 +2297,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->hfield_adr[i] = data_adr;
 
     // copy elevation data
-    memcpy(m->hfield_data + data_adr, phf->data, phf->nrow*phf->ncol*sizeof(float));
+    memcpy(m->hfield_data + data_adr, phf->data.data(), phf->nrow*phf->ncol*sizeof(float));
 
     // advance counter
     data_adr += phf->nrow*phf->ncol;
@@ -2163,7 +2316,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_adr[i] = data_adr;
 
     // copy rgb data
-    memcpy(m->tex_rgb + data_adr, ptex->rgb, 3*ptex->width*ptex->height);
+    memcpy(m->tex_rgb + data_adr, ptex->rgb.data(), 3*ptex->width*ptex->height);
 
     // advance counter
     data_adr += 3*ptex->width*ptex->height;

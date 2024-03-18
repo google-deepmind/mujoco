@@ -177,7 +177,6 @@ class mjCBase_ {
   std::string classname;          // defaults class name
   int id;                         // object id
   std::string info;               // error message info set by the user
-  mjCModel* model;                // pointer to model that created object
 };
 
 class mjCBase : public mjCBase_ {
@@ -202,6 +201,7 @@ class mjCBase : public mjCBase_ {
 
   mjCDef* def;                    // defaults class used to init this object
   mjCFrame* frame;                // pointer to frame transformation
+  mjCModel* model;                // pointer to model that created object
 
  protected:
   mjCBase();                                 // constructor
@@ -296,10 +296,10 @@ class mjCBody : public mjCBody_, private mjmBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
  private:
-  mjCBody(mjCModel*);                        // constructor
-  mjCBody(const mjCBody& other);             // copy constructor
-  mjCBody& operator=(const mjCBody& other);  // copy assignment
-  ~mjCBody();                                // destructor
+  mjCBody(mjCModel*);                               // constructor
+  mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
+  mjCBody& operator=(const mjCBody& other);         // copy assignment
+  ~mjCBody();                                       // destructor
 
   void Compile(void);             // compiler
   void GeomFrame(void);           // get inertial info from geoms
@@ -755,6 +755,7 @@ class mjCMesh_ : public mjCBase {
 };
 
 class mjCMesh: public mjCMesh_, private mjmMesh {
+  friend class mjCModel;
   friend class mjCFlexcomp;
   friend class mjXWriter;
  public:
@@ -932,6 +933,8 @@ class mjCSkin: public mjCSkin_, private mjmSkin {
 
 class mjCHField_ : public mjCBase {
  protected:
+  std::vector<float> data;  // elevation data, row-major format
+
   std::string file_;
   std::string content_type_;
   std::vector<float> userdata_;
@@ -964,7 +967,6 @@ class mjCHField : public mjCHField_, private mjmHField {
   mjCHField& operator=(const mjCHField& other);  // copy assignment
   ~mjCHField();                                  // destructor
 
-  float* data;                            // elevation data, row-major format
   void Compile(const mjVFS* vfs);         // compiler
 
   void LoadCustom(mjResource* resource);  // load from custom format
@@ -978,6 +980,8 @@ class mjCHField : public mjCHField_, private mjmHField {
 
 class mjCTexture_ : public mjCBase {
  protected:
+  std::vector<mjtByte> rgb;                   // rgb data
+
   std::string file_;
   std::string content_type_;
   std::vector<std::string> cubefiles_;
@@ -1029,8 +1033,6 @@ class mjCTexture : public mjCTexture_, private mjmTexture {
   void LoadCustom(mjResource* resource,
                   std::vector<unsigned char>& image,
                   unsigned int& w, unsigned int& h);
-
-  mjtByte* rgb;                   // rgb data
 };
 
 
@@ -1247,6 +1249,7 @@ class mjCTendon : public mjCTendon_, private mjmTendon {
 
   void CopyFromSpec();
   void PointToLocal();
+  void SetModel(mjCModel* _model);
 
   bool is_limited() const;
 
@@ -1315,10 +1318,10 @@ class mjCPlugin : public mjCPlugin_ {
  public:
   mjmPlugin spec;
   mjCBase* parent;   // parent object (only used when generating error message)
+  mjCPlugin(const mjCPlugin& other);             // copy constructor
 
  private:
   mjCPlugin(mjCModel*);                          // constructor
-  mjCPlugin(const mjCPlugin& other);             // copy constructor
   mjCPlugin& operator=(const mjCPlugin& other);  // copy assignment
 
   void Compile(void);              // compiler
@@ -1385,6 +1388,7 @@ class mjCActuator : public mjCActuator_, private mjmActuator {
 class mjCSensor_ : public mjCBase {
  protected:
   int refid;                      // id of reference frame
+  mjCBase* obj;                   // sensorized object
 
   // variable-size data
   std::string plugin_name;
@@ -1420,9 +1424,7 @@ class mjCSensor : public mjCSensor_, private mjmSensor {
 
   void Compile(void);             // compiler
   void CopyFromSpec();
-  void MakePointerLocal();
-
-  mjCBase* obj;                   // sensorized object
+  void PointToLocal();
 };
 
 

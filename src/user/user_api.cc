@@ -36,6 +36,14 @@ mjSpec* mjm_createSpec() {
 
 
 
+// copy model
+mjSpec* mjm_copySpec(const mjSpec* s) {
+  mjCModel* modelC = new mjCModel(*reinterpret_cast<mjCModel*>(s->element));
+  return &modelC->spec;
+}
+
+
+
 // copy back model
 void mjm_copyBack(mjSpec* s, const mjModel* m) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
