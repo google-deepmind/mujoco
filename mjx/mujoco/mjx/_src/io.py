@@ -239,6 +239,7 @@ def _get_contact(
 
   ncon = cx.dist.shape[0]
   c.efc_address[:] = np.arange(efc_start, efc_start + ncon * 4, 4)[con_id]
+  c.dim[:] = 3
 
 
 def get_data(
