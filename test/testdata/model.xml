@@ -17,8 +17,13 @@
                   1.618     0      -1
                  -1.618     0       1
                  -1.618     0      -1"/>
-    <hfield name="hfield" nrow="3" ncol="3" size=".2 .2 .1 .03"/>
+    <hfield name="hfield" nrow="3" ncol="3" size=".2 .2 .03 .03"
+            elevation="1 0 1
+                       0 1 0
+                       1 0 1"/>
     <texture builtin="gradient" height="100" rgb1="1 1 1" rgb2="0 0 0" type="skybox" width="100"/>
+    <texture name="grid" type="cube" builtin="checker" width="32" height="32" rgb1=".1 .2 .3" rgb2="1 1 1"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
   </asset>
 
   <default>
@@ -41,7 +46,7 @@
     <geom name="floor" type="plane" size="4 4 .1"/>
     <geom type="hfield" hfield="hfield" pos="-.4 .6 .05" rgba="0 0 1 1"/>
     <body name="head" pos="0 0 .7">
-      <geom type="ellipsoid" size=".2 .2 .4" rgba="1 1 0 1" density="100"/>
+      <geom type="ellipsoid" size=".2 .2 .4" density="100" material="grid"/>
       <site name="head" pos="0 0 .4" size=".1 .1 .05" type="box"/>
       <site name="anchor0" pos="0 .2 0"/>
       <site name="rf" pos="0 0 -0.41" zaxis="0 0 -1"/>
