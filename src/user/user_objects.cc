@@ -683,6 +683,7 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     for (int i=0; i<other.frames.size(); i++) {
       frames.push_back(new mjCFrame(*other.frames[i]));
       frames.back()->model = model;
+      frames.back()->body = this;
       fmap[other.frames[i]] = i;
     }
 
@@ -726,6 +727,13 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     }
   }
   PointToLocal();
+  return *this;
+}
+
+
+
+mjCBody& mjCBody::operator+=(mjCBody& other) {
+  bodies.push_back(&other);
   return *this;
 }
 
@@ -780,6 +788,21 @@ mjCBody::~mjCBody() {
   sites.clear();
   cameras.clear();
   lights.clear();
+}
+
+
+
+// apply prefix and suffix, propagate to children
+void mjCBody::SetNameSpace() {
+  if (!name.empty()) {
+    name = prefix + name + suffix;
+  }
+
+  for (auto& body : bodies) {
+    body->prefix = prefix;
+    body->suffix = suffix;
+    body->SetNameSpace();
+  }
 }
 
 
@@ -1317,6 +1340,7 @@ mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
   mjm_defaultFrame(spec);
   compiled = false;
   model = _model;
+  body = NULL;
   frame = _frame ? _frame : NULL;
   PointToLocal();
   CopyFromSpec();
@@ -1338,6 +1362,27 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
   }
   PointToLocal();
   return *this;
+}
+
+
+// attach body to frame
+mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
+  mjCBody* subtree = new mjCBody(other, model);
+  subtree->SetFrame(this);
+  subtree->SetNameSpace();
+
+  // add to tree
+  *body += *subtree;
+
+  // TODO: needs to attach only referencing elements
+  *model += *other.model;
+  return *this;
+}
+
+
+
+void mjCFrame::SetParent(mjCBody* _body) {
+  body = _body;
 }
 
 

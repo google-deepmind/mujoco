@@ -154,6 +154,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel();
   mjCModel(const mjCModel& other);
   mjCModel& operator=(const mjCModel& other);
+  mjCModel& operator+=(const mjCModel& other);
   ~mjCModel();
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
@@ -202,6 +203,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCDef* FindDef(std::string name);                       // find default class name
   mjCDef* AddDef(std::string name, int parentid);          // add default class to array
   mjCBase* FindObject(mjtObj type, std::string name);      // find object given type and name
+  mjCBody* FindBody(mjCBody* body, std::string name);      // find body given name
+  mjCFrame* FindFrame(mjCBody* body, std::string name);    // find frame given name
   bool IsNullPose(const mjtNum* pos, const mjtNum* quat);  // detect null pose
 
   // accessors

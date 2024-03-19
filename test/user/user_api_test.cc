@@ -195,5 +195,96 @@ TEST_F(PluginTest, RecompileCompareCache) {
   mj_deleteVFS(vfs.get());
 }
 
+// -------------------------------- test attach -------------------------------
+TEST_F(MujocoTest, Attach) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <freejoint/>
+        <geom size=".1"/>
+        <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="cylinder">
+        <joint type="hinge"/>
+        <geom type="cylinder" size=".1 1 0"/>
+          <body name="named"/>
+          <body/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <freejoint/>
+        <geom size=".1"/>
+        <frame name="frame" pos=".1 0 0" euler="0 90 0">
+          <body name="attached-cylinder-1">
+            <joint type="hinge"/>
+            <geom type="cylinder" size=".1 1 0"/>
+              <body name="attached-named-1"/>
+              <body/>
+          </body>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  // model with one free sphere and a frame
+  mjSpec* parent = ParseSpecFromString(xml_parent, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+
+  // get frame
+  mjmFrame* frame = mjm_findFrame(parent, "frame");
+  EXPECT_THAT(frame, NotNull());
+
+  // model with one cylinder and a hinge
+  mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  // get subtree
+  mjmBody* body = mjm_findBody(child, "cylinder");
+  EXPECT_THAT(body, NotNull());
+
+  // attach child to parent frame
+  EXPECT_THAT(
+      mjm_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+
+  // compile new model
+  mjModel* m_attached = mjm_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull());
+
+  // check full name stored in mjModel
+  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 2), "attached-cylinder-1");
+
+  // check body 2 is attached to body 1
+  EXPECT_THAT(m_attached->body_parentid[2], 1);
+
+  // compare with expected XML
+  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';;
+
+  // destroy everything
+  mjm_deleteSpec(parent);
+  mjm_deleteSpec(child);
+  mj_deleteModel(m_attached);
+  mj_deleteModel(m_expected);
+}
+
 }  // namespace
 }  // namespace mujoco

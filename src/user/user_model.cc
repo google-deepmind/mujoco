@@ -162,6 +162,26 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     this->spec = other.spec;
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
     *static_cast<mjSpec*>(this) = static_cast<const mjSpec&>(other);
+
+    // the world copy constructor takes care of copying the tree
+    mjCBody* world = new mjCBody(*other.bodies[0], this);
+    bodies.push_back(world);
+
+    // add everything else
+    *this += other;
+
+    // copy name maps
+    for (int i=0; i<mjNOBJECT; i++) {
+      ids[i] = other.ids[i];
+    }
+  }
+  return *this;
+}
+
+
+
+mjCModel& mjCModel::operator+=(const mjCModel& other) {
+  if (this != &other) {
     std::map<mjCDef*, int> def_map;
     for (int i = 0; i < other.defaults.size(); i++) {
       defaults.push_back(new mjCDef(*other.defaults[i]));
@@ -252,11 +272,7 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     plugins = other.plugins;
     active_plugins = other.active_plugins;
 
-    // the world copy constructor takes care of copying the tree
-    mjCBody* world = new mjCBody(*other.bodies[0], this);
-
     // create global lists
-    bodies.push_back(world);
     MakeLists(bodies[0]);
 
     // update defaults for the copied objects
@@ -279,16 +295,12 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
       lights[i]->def = defaults[def_map[other.lights[i]->def]];
     }
 
-    // copy name maps
-    for (int i=0; i<mjNOBJECT; i++) {
-      ids[i] = other.ids[i];
-    }
-
     // cast children to mjCBase
     CreateObjectLists();
 
     // restore to the same state as other
     if (!compiled) {
+      mjCBody* world = bodies[0];
       bodies.clear();
       frames.clear();
       joints.clear();
@@ -747,6 +759,44 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) {
     return nullptr;
   }
   return findobject(name, *object_lists[type], ids[type]);
+}
+
+
+
+// find body by name
+mjCBody* mjCModel::FindBody(mjCBody* body, std::string name) {
+  if (body->name == name) {
+    return body;
+  }
+
+  for (auto child : body->bodies) {
+    auto candidate = FindBody(child, name);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return nullptr;
+}
+
+
+
+// find frame by name
+mjCFrame* mjCModel::FindFrame(mjCBody* body, std::string name) {
+  for (auto frame : body->frames) {
+    if (frame->name == name) {
+      return frame;
+    }
+  }
+
+  for (auto body : body->bodies) {
+    auto candidate = FindFrame(body, name);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return nullptr;
 }
 
 

@@ -19,6 +19,7 @@
 #include <map>
 #include <new>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -27,6 +28,25 @@
 #include "user/user_objects.h"
 #include "user/user_cache.h"
 #include "xml/xml_util.h"
+
+
+// prepend prefix
+template <typename T>
+static T& operator+(std::string_view prefix, T& base) {
+  base.prefix = std::string(prefix);
+  return base;
+}
+
+
+
+// append suffix
+template <typename T>
+static T& operator+(T& base, std::string_view suffix) {
+  base.suffix = std::string(suffix);
+  return base;
+}
+
+
 
 // create model
 mjSpec* mjm_createSpec() {
@@ -56,6 +76,17 @@ void mjm_copyBack(mjSpec* s, const mjModel* m) {
 mjModel* mjm_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   return modelC->Compile(vfs);
+}
+
+
+
+// attach body to a frame of the parent
+int mjm_attachBody(mjmFrame* parent, const mjmBody* child,
+                   const char* prefix, const char* suffix) {
+  mjCFrame* frame_parent = reinterpret_cast<mjCFrame*>(parent->element);
+  mjCBody* child_body = reinterpret_cast<mjCBody*>(child->element);
+  *frame_parent += std::string(prefix) + *child_body + std::string(suffix);
+  return 0;
 }
 
 
@@ -169,6 +200,7 @@ mjmFrame* mjm_addFrame(mjmBody* bodyspec, mjmFrame* parentframe) {
   }
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCFrame* frameC = body->AddFrame(parentframeC);
+  frameC->SetParent(body);
   return &frameC->spec;
 }
 
@@ -416,11 +448,13 @@ mjmDefault* mjm_getSpecDefault(mjSpec* s) {
 // find body in model by name
 mjmBody* mjm_findBody(mjSpec* s, const char* name) {
   mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
-  mjCBase* body = model->FindObject(mjOBJ_BODY, std::string(name));
-  if (!body) {
-    return 0;
+  mjCBase* body = 0;
+  if (model->IsCompiled()) {
+    body = model->FindObject(mjOBJ_BODY, std::string(name));  // fast lookup
+  } else {
+    body = model->FindBody(model->GetWorld(), std::string(name));  // recursive search
   }
-  return &(static_cast<mjCBody*>(body)->spec);
+  return body ? &(static_cast<mjCBody*>(body)->spec) : nullptr;
 }
 
 
@@ -429,10 +463,7 @@ mjmBody* mjm_findBody(mjSpec* s, const char* name) {
 mjmBody* mjm_findChild(mjmBody* bodyspec, const char* name) {
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCBase* child = body->FindObject(mjOBJ_BODY, std::string(name));
-  if (!child) {
-    return 0;
-  }
-  return &(static_cast<mjCBody*>(child)->spec);
+  return child ? &(static_cast<mjCBody*>(child)->spec) : nullptr;
 }
 
 
@@ -441,10 +472,16 @@ mjmBody* mjm_findChild(mjmBody* bodyspec, const char* name) {
 mjmMesh* mjm_findMesh(mjSpec* s, const char* name) {
   mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
   mjCMesh* mesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, std::string(name));
-  if (!mesh) {
-    return nullptr;
-  }
-  return &(static_cast<mjCMesh*>(mesh)->spec);
+  return mesh ? &(static_cast<mjCMesh*>(mesh)->spec) : nullptr;
+}
+
+
+
+// find frame by name
+mjmFrame* mjm_findFrame(mjSpec* s, const char* name) {
+  mjCModel* model = reinterpret_cast<mjCModel*>(s->element);
+  mjCFrame* frame = (mjCFrame*)model->FindFrame(model->GetWorld(), std::string(name));
+  return frame ? &(static_cast<mjCFrame*>(frame)->spec) : nullptr;
 }
 
 

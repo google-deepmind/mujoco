@@ -740,6 +740,10 @@ MJAPI void mjm_copyBack(mjSpec* s, const mjModel* m);
 // Compile model.
 MJAPI mjModel* mjm_compile(mjSpec* s, const mjVFS* vfs);
 
+// Attach child body to a frame of the parent, return 0 if success
+MJAPI int mjm_attachBody(mjmFrame* parent, const mjmBody* child,
+                         const char* prefix, const char* suffix);
+
 // Get error message from model.
 MJAPI const char* mjm_getError(mjSpec* s);
 
@@ -859,6 +863,9 @@ MJAPI mjmBody* mjm_findChild(mjmBody* body, const char* name);
 
 // Find mesh by name.
 MJAPI mjmMesh* mjm_findMesh(mjSpec* s, const char* name);
+
+// Find frame by name.
+MJAPI mjmFrame* mjm_findFrame(mjSpec* s, const char* name);
 
 // Get element id.
 MJAPI int mjm_getId(mjElement element);

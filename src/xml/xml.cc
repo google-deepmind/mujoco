@@ -15,7 +15,7 @@
 #include "xml/xml.h"
 
 #include <locale.h>
-#include "user/user_api.h"
+#include <cstring>
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <xlocale.h>
@@ -29,6 +29,7 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
@@ -398,4 +399,34 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   return model;
+}
+
+
+static void RegisterResourceProvider() {
+  // register string resource provider if not registered before
+  if (mjp_getResourceProvider("LoadModelFromString:") == nullptr) {
+    mjpResourceProvider resourceProvider;
+    mjp_defaultResourceProvider(&resourceProvider);
+    resourceProvider.prefix = "LoadModelFromString";
+    resourceProvider.open = +[](mjResource* resource) {
+      resource->data = &(resource->name[strlen("LoadModelFromString:")]);
+      return 1;
+    };
+    resourceProvider.read =
+        +[](mjResource* resource, const void** buffer) {
+          *buffer = resource->data;
+          return (int) strlen((const char*) resource->data);
+        };
+    resourceProvider.close = +[](mjResource* resource) {};
+    mjp_registerResourceProvider(&resourceProvider);
+  }
+}
+
+
+mjSpec* ParseSpecFromString(std::string_view xml, char* error,
+                            int error_size, mjVFS* vfs) {
+  RegisterResourceProvider();
+  std::string xml2 = {xml.begin(), xml.end()};
+  std::string str = "LoadModelFromString:" +  xml2;
+  return mjParseXML(str.c_str(), vfs, error, error_size);
 }

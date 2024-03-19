@@ -173,10 +173,12 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
 class mjCBase_ {
  public:
-  std::string name;               // object name
-  std::string classname;          // defaults class name
-  int id;                         // object id
-  std::string info;               // error message info set by the user
+  int id;                 // object id
+  std::string name;       // object name
+  std::string classname;  // defaults class name
+  std::string info;       // error message info set by the user
+  std::string prefix;     // prefix for model operations
+  std::string suffix;     // suffix for model operations
 };
 
 class mjCBase : public mjCBase_ {
@@ -251,6 +253,7 @@ class mjCBody : public mjCBody_, private mjmBody {
   friend class mjCSite;
   friend class mjCCamera;
   friend class mjCComposite;
+  friend class mjCFrame;
   friend class mjCLight;
   friend class mjCFlex;
   friend class mjCFlexcomp;
@@ -272,10 +275,16 @@ class mjCBody : public mjCBody_, private mjmBody {
   mjCCamera*  AddCamera(mjCDef* = 0);
   mjCLight*   AddLight(mjCDef* = 0);
 
+  // API for adding existing objects to body
+  mjCBody& operator+=(mjCBody& other);
+
   // API for accessing objects
   int NumObjects(mjtObj type);
   mjCBase* GetObject(mjtObj type, int id);
   mjCBase* FindObject(mjtObj type, std::string name, bool recursive = true);
+
+  // Propagate suffix and prefix to the whole tree
+  void SetNameSpace();
 
   // set explicitinertial to true
   void MakeInertialExplicit();
@@ -346,12 +355,18 @@ class mjCFrame : public mjCFrame_, private mjmFrame {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void SetParent(mjCBody* _body);
+
+  mjCFrame& operator+=(const mjCBody& other);
+  mjCFrame& operator+=(const mjCFrame& other);
 
  private:
   mjCFrame(mjCModel* = 0, mjCFrame* = 0);      // constructor
   mjCFrame(const mjCFrame& other);             // copy constructor
   mjCFrame& operator=(const mjCFrame& other);  // copy assignment
   void Compile(void);                          // compiler
+
+  mjCBody* body;  // body that owns the frame
 };
 
 
