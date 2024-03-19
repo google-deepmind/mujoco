@@ -15,6 +15,7 @@
 from typing import List, Optional, Tuple
 
 import mujoco
+import mujoco.usd.utils
 import numpy as np
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
@@ -36,9 +37,9 @@ class USDMesh:
       stage: Usd.Stage,
       model: mujoco.MjModel,
       geom: mujoco.MjvGeom,
-      objid: int,
+      objid: str,
       dataid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
@@ -216,7 +217,7 @@ class USDMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_utils.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -235,8 +236,8 @@ class USDPrimitiveMesh:
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
@@ -246,9 +247,9 @@ class USDPrimitiveMesh:
     self.texture_file = texture_file
 
     self.usd_prim = Usd.Prim()
-    self.usd_mesh = Usd.Mesh()
-    self.prim_mesh = Usd.PrimMesh()
-    self.transform_op = Usd.TransformOp()
+    self.usd_mesh = UsdGeom.Mesh()
+    self.prim_mesh = None
+    self.transform_op = Gf.Matrix4d(1.)
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -364,7 +365,7 @@ class USDPrimitiveMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -383,8 +384,8 @@ class USDPrimitive:
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
@@ -395,7 +396,7 @@ class USDPrimitive:
 
     self.usd_prim = Usd.Prim()
     self.usd_primitive_shape = Usd.PrimitiveShape()
-    self.transform_op = Usd.TransformOp()
+    self.transform_op = Gf.Matrix4d(1.)
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -481,7 +482,7 @@ class USDPrimitive:
     UsdShade.MaterialBindingAPI(self.usd_primitive_shape).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -500,8 +501,8 @@ class USDCapsule(USDPrimitive):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -536,8 +537,8 @@ class USDEllipsoid(USDPrimitive):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -569,8 +570,8 @@ class USDCubeMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -586,8 +587,6 @@ class USDCubeMesh(USDPrimitiveMesh):
         width=self.geom.size[0] * 2,
         height=self.geom.size[1] * 2,
         depth=self.geom.size[2] * 2,
-        create_uv_map=True,
-        map_texture_to_each_face=True,
     )
 
     self.prim_mesh.translate(-self.prim_mesh.get_center())
@@ -623,8 +622,8 @@ class USDSphereMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -637,7 +636,7 @@ class USDSphereMesh(USDPrimitiveMesh):
     self.usd_prim = stage.GetPrimAtPath(mesh_path)
 
     self.prim_mesh = o3d.geometry.TriangleMesh.create_sphere(
-        radius=float(self.geom.size[0]), create_uv_map=True
+        radius=float(self.geom.size[0])
     )
 
     self.prim_mesh.translate(-self.prim_mesh.get_center())
@@ -673,8 +672,8 @@ class USDCylinderMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -689,7 +688,6 @@ class USDCylinderMesh(USDPrimitiveMesh):
     self.prim_mesh = o3d.geometry.TriangleMesh.create_cylinder(
         radius=self.geom.size[0],
         height=self.geom.size[2] * 2,
-        create_uv_map=True,
     )
 
     self.prim_mesh.translate(-self.prim_mesh.get_center())
@@ -725,8 +723,8 @@ class USDPlaneMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      objid: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -742,8 +740,6 @@ class USDPlaneMesh(USDPrimitiveMesh):
         width=self.geom.size[0] * 2 if self.geom.size[0] > 0 else 100,
         height=self.geom.size[1] * 2 if self.geom.size[1] > 0 else 100,
         depth=0.001,
-        create_uv_map=True,
-        map_texture_to_each_face=True,
     )
 
     self.prim_mesh.translate(-self.prim_mesh.get_center())
@@ -776,7 +772,7 @@ class USDPlaneMesh(USDPrimitiveMesh):
 class USDSphereLight:
 
   def __init__(
-      self, stage: Usd.Stage, objid: int, radius: Optional[float] = 0.3
+      self, stage: Usd.Stage, objid: str, radius: Optional[float] = 0.3
   ):
     self.stage = stage
 
@@ -808,7 +804,7 @@ class USDSphereLight:
 
 class USDDomeLight:
 
-  def __init__(self, stage: Usd.Stage, objid: int):
+  def __init__(self, stage: Usd.Stage, objid: str):
     self.stage = stage
 
     xform_path = f"/World/Light_Xform_{objid}"
@@ -829,7 +825,7 @@ class USDDomeLight:
 
 class USDCamera:
 
-  def __init__(self, stage: Usd.Stage, objid: int):
+  def __init__(self, stage: Usd.Stage, objid: str):
     self.stage = stage
 
     xform_path = f"/World/Camera_Xform_{objid}"
@@ -851,7 +847,7 @@ class USDCamera:
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
 
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=cam_mat, translation_vector=cam_pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
