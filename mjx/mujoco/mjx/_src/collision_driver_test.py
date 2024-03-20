@@ -132,37 +132,70 @@ class SphereCollisionTest(parameterized.TestCase):
     </mujoco>
   """
 
-  def test_sphere_convex(self):
-    d, dx = _collide(self._SPHERE_CONVEX)
+  def test_sphere_convex_face(self):
+    # no contact
+    xml = self._SPHERE_CONVEX.replace(
+        '<body pos="0.52 0 0.52">', '<body pos="0.55 0 0.5">'
+    )
+    d, dx = _collide(xml)
+    self.assertEmpty(d.contact.dist)
+    self.assertGreater(dx.contact.dist, 0)
 
+    # face contact
+    xml = self._SPHERE_CONVEX.replace(
+        '<body pos="0.52 0 0.52">', '<body pos="0.51 0 0.25">'
+    )
+    d, dx = _collide(xml)
     for field in dataclasses.fields(Contact):
-      _assert_attr_eq(dx.contact, d.contact, field.name, 'sphere_convex', 1e-4)
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'face', 1e-4)
 
-    # test deep penetration
+    # deep face contact
+    xml = self._SPHERE_CONVEX.replace(
+        '<body pos="0.52 0 0.52">', '<body pos="0.48 0 0.47">'
+    )
+    d, dx = _collide(xml)
+    self.assertTrue((dx.contact.dist < 0).all())
+    self.assertTrue((d.contact.dist < 0).all())
+    np.testing.assert_allclose(dx.contact.dist, [-0.07], atol=1e-5)
+    np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
+    np.testing.assert_array_almost_equal(
+        dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
+    )
+
+  def test_sphere_convex_edge(self):
+    # edge contact
+    d, dx = _collide(self._SPHERE_CONVEX)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'edge', 1e-4)
+
+    # deep edge penetration
     xml = self._SPHERE_CONVEX.replace(
         '<body pos="0.52 0 0.52">', '<body pos="0.49 0 0.49">'
     )
     d, dx = _collide(xml)
-
     self.assertTrue((dx.contact.dist < 0).all())
     self.assertTrue((d.contact.dist < 0).all())
+    np.testing.assert_allclose(dx.contact.dist, [-0.06], atol=1e-5)
     np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
     np.testing.assert_array_almost_equal(
         dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
     )
 
-    # test sphere center on vertex
+    # vertex contact
+    xml = self._SPHERE_CONVEX.replace(
+        '<body pos="0.52 0 0.52">', '<body pos="0.5 0.52 0.51">'
+    )
+    d, dx = _collide(xml)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'vertex', 1e-4)
+
+    # sphere center on vertex
     xml = self._SPHERE_CONVEX.replace(
         '<body pos="0.52 0 0.52">', '<body pos="0.5 0 0.5">'
     )
     d, dx = _collide(xml)
-
-    self.assertTrue((dx.contact.dist < 0).all())
-    self.assertTrue((d.contact.dist < 0).all())
-    np.testing.assert_array_almost_equal(dx.contact.pos, d.contact.pos)
-    np.testing.assert_array_almost_equal(
-        dx.contact.frame, d.contact.frame.reshape((-1, 3, 3))
-    )
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'vertex_center', 1e-4)
 
 
 class CapsuleCollisionTest(parameterized.TestCase):
@@ -309,16 +342,17 @@ class CapsuleCollisionTest(parameterized.TestCase):
   def test_capsule_convex_edge_deep(self):
     """Tests deep edge penetration."""
     xml = self._CAP_EDGE_BOX.replace(
-        '<body pos="0.5 0 0.55"', '<body pos="0.5 0 0.48"'
+        '<body pos="0.5 0 0.55"', '<body pos="0.5 0 0.42"'
     )
     _, dx = _collide(xml)
+
     np.testing.assert_array_equal(dx.contact.dist < 0, np.array([True, False]))
+    np.testing.assert_array_almost_equal(dx.contact.dist[0], np.array([-0.13]))
     np.testing.assert_array_almost_equal(
-        dx.contact.pos[0], np.array([0.478, 0, 0.475]), decimal=3
+        dx.contact.pos[0], np.array([0.5, 0, 0.435]), decimal=3
     )
-    s2 = np.sqrt(2) / 2.0
     np.testing.assert_array_almost_equal(
-        dx.contact.frame[0, 0], np.array([-s2, 0, -s2]), decimal=3
+        dx.contact.frame[0, 0], np.array([0, 0, -1]), decimal=3
     )
 
   def test_capsule_convex_edge_shallow_tip(self):
