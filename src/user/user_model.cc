@@ -983,21 +983,12 @@ void mjCModel::IndexAssets(bool discard) {
 
     // find mesh by name
     if (!pgeom->get_meshname().empty()) {
-      mjCBase* m = FindObject(mjOBJ_MESH, pgeom->get_meshname());
-      if (m) {
-        if (discard && geoms[i]->visual_) {
-          // do not associate with a mesh
-          pgeom->mesh = nullptr;
-        } else {
-          // associate mesh with geom
-          pgeom->mesh = (mjCMesh*)m;
-
-          // mark mesh as not visual
-          // this is irreversible so only performed when IndexAssets is called with discard
-          if (discard) {
-            pgeom->mesh->SetNotVisual();
-          }
+      mjCBase* pmesh = FindObject(mjOBJ_MESH, pgeom->get_meshname());
+      if (pmesh) {
+        if (!pgeom->visual_) {
+          ((mjCMesh*)pmesh)->SetNotVisual();  // reset to true by mesh->Compile()
         }
+        pgeom->mesh = (discard && pgeom->visual_) ? nullptr : (mjCMesh*)pmesh;
       } else {
         throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->get_meshname().c_str(), i);
       }

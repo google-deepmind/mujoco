@@ -432,6 +432,7 @@ void mjCMesh::LoadSDF() {
 // compiler
 void mjCMesh::Compile(const mjVFS* vfs) {
   CopyFromSpec();
+  visual_ = true;
 
   // load file
   if (!file_.empty()) {
