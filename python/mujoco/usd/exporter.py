@@ -240,7 +240,7 @@ class USDExporter:
           stage=self.stage,
           model=self.model,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           dataid=self.model.geom_dataid[geom.objid],
           rgba=geom.rgba,
           texture_file=texture_file,
@@ -249,7 +249,7 @@ class USDExporter:
       usd_geom = component_module.USDPlaneMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -257,7 +257,7 @@ class USDExporter:
       usd_geom = component_module.USDSphereMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -265,7 +265,7 @@ class USDExporter:
       usd_geom = component_module.USDCapsule(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -273,7 +273,7 @@ class USDExporter:
       usd_geom = component_module.USDEllipsoid(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -281,7 +281,7 @@ class USDExporter:
       usd_geom = component_module.USDCylinderMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -289,7 +289,7 @@ class USDExporter:
       usd_geom = component_module.USDCubeMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -333,7 +333,7 @@ class USDExporter:
       light = self.scene.lights[i]
       if not np.allclose(light.pos, [0, 0, 0]):
         self.usd_lights.append
-        (component_module.USDSphereLight(stage=self.stage, objid=str(i)))
+        (component_module.USDSphereLight(stage=self.stage, obj_name=str(i)))
       else:
         self.usd_lights.append(None)
 
@@ -354,14 +354,12 @@ class USDExporter:
           frame=self.updates,
       )
 
-    print("done updating")
-
   def _load_cameras(self):
     self.usd_cameras = []
     if self.camera_names is not None:
       for name in self.camera_names:
         self.usd_cameras.append(
-            component_module.USDCamera(stage=self.stage, objid=name))
+            component_module.USDCamera(stage=self.stage, obj_name=name))
 
   def _update_cameras(
       self,
@@ -377,7 +375,8 @@ class USDExporter:
           data, scene_option=scene_option, camera=camera_name
       )
 
-      avg_camera = mujoco.mjv_averageCamera(self.scene.camera[0], self.scene.camera[1])
+      avg_camera = mujoco.mjv_averageCamera(
+          self.scene.camera[0], self.scene.camera[1])
 
       forward = avg_camera.forward
       up = avg_camera.up
@@ -401,11 +400,12 @@ class USDExporter:
   ):
 
     if light_type == "sphere":
-      new_light = component_module.USDSphereLight(stage=self.stage, objid=str(objid), radius=radius)
+      new_light = component_module.USDSphereLight(stage=self.stage, obj_name=str(objid), radius=radius)
 
       new_light.update(pos=np.array(pos), intensity=intensity, color=color, frame=0)
     elif light_type == "dome":
-      new_light = component_module.USDDomeLight(stage=self.stage, objid=str(objid))
+      new_light = component_module.USDDomeLight(
+          stage=self.stage, obj_name=str(objid))
 
       new_light.update(intensity=intensity, color=color, frame=0)
 
@@ -415,7 +415,8 @@ class USDExporter:
       rotation_xyz: List[float],
       objid: Optional[int] = 1,
   ):
-    new_camera = component_module.USDCamera(stage=self.stage, objid=str(objid))
+    new_camera = component_module.USDCamera(
+        stage=self.stage, obj_name=str(objid))
 
     r = scipy.spatial.transform.Rotation.from_euler(
         "xyz", rotation_xyz, degrees=True)
