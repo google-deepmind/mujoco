@@ -199,6 +199,9 @@ def _reload(
     path = load_tuple[2] if len(load_tuple) == 3 else ''
     simulate.load(m, d, path)
 
+    # Make sure any load_error message is cleared
+    simulate.load_error = ''
+
     if notify_loaded:
       notify_loaded()
 
