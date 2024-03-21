@@ -1637,7 +1637,7 @@ void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
-  if (invalidorientation_.first>=0 || invalidorientation_.second>=0)
+  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && model->exactmeshinertia)
     throw mjCError(this,
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
