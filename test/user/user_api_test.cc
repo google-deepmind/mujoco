@@ -215,13 +215,27 @@ TEST_F(MujocoTest, Attach) {
   static constexpr char xml_child[] = R"(
   <mujoco>
     <worldbody>
-      <body name="cylinder">
-        <joint type="hinge"/>
+      <body name="body">
+        <joint type="hinge" name="hinge"/>
         <geom type="cylinder" size=".1 1 0"/>
           <body name="named"/>
           <body/>
       </body>
+      <body name="discard"/>
     </worldbody>
+    <sensor>
+      <framepos name="keep" objtype="body" objname="body"/>
+      <framepos name="discard" objtype="body" objname="discard"/>
+    </sensor>
+    <tendon>
+      <fixed name="fixed">
+        <joint joint="hinge" coef="2"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position joint="hinge"/>
+      <position tendon="fixed"/>
+    </actuator>
   </mujoco>)";
 
   static constexpr char xml_result[] = R"(
@@ -231,8 +245,8 @@ TEST_F(MujocoTest, Attach) {
         <freejoint/>
         <geom size=".1"/>
         <frame name="frame" pos=".1 0 0" euler="0 90 0">
-          <body name="attached-cylinder-1">
-            <joint type="hinge"/>
+          <body name="attached-body-1">
+            <joint type="hinge" name="attached-hinge-1"/>
             <geom type="cylinder" size=".1 1 0"/>
               <body name="attached-named-1"/>
               <body/>
@@ -240,6 +254,18 @@ TEST_F(MujocoTest, Attach) {
         </frame>
       </body>
     </worldbody>
+    <sensor>
+      <framepos name="attached-keep-1" objtype="body" objname="attached-body-1"/>
+    </sensor>
+    <tendon>
+      <fixed name="attached-fixed-1">
+        <joint joint="attached-hinge-1" coef="2"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position joint="attached-hinge-1"/>
+      <position tendon="attached-fixed-1"/>
+    </actuator>
   </mujoco>)";
 
   // model with one free sphere and a frame
@@ -255,7 +281,7 @@ TEST_F(MujocoTest, Attach) {
   EXPECT_THAT(child, NotNull()) << er.data();
 
   // get subtree
-  mjmBody* body = mjm_findBody(child, "cylinder");
+  mjmBody* body = mjm_findBody(child, "body");
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
@@ -267,7 +293,7 @@ TEST_F(MujocoTest, Attach) {
   EXPECT_THAT(m_attached, NotNull());
 
   // check full name stored in mjModel
-  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 2), "attached-cylinder-1");
+  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 2), "attached-body-1");
 
   // check body 2 is attached to body 1
   EXPECT_THAT(m_attached->body_parentid[2], 1);

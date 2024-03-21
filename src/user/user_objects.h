@@ -198,6 +198,12 @@ class mjCBase : public mjCBase_ {
   // Copy spec into private attributes
   virtual void CopyFromSpec() {}
 
+  // Throws an error if any of the references is missing
+  virtual void ResolveReferences(const mjCModel* m) {}
+
+  // Appends prefix and suffix to reference
+  virtual void NameSpace(const mjCModel* m) {}
+
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 
@@ -284,7 +290,7 @@ class mjCBody : public mjCBody_, private mjmBody {
   mjCBase* FindObject(mjtObj type, std::string name, bool recursive = true);
 
   // Propagate suffix and prefix to the whole tree
-  void SetNameSpace();
+  void NameSpace(const mjCModel* m);
 
   // set explicitinertial to true
   void MakeInertialExplicit();
@@ -682,6 +688,8 @@ class mjCFlex: public mjCFlex_, private mjmFlex {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
 
   // used by mjXWriter and mjCModel
   const std::string& get_material() { return material_; }
@@ -937,6 +945,8 @@ class mjCSkin: public mjCSkin_, private mjmSkin {
   mjCSkin& operator=(const mjCSkin& other);  // copy assignment
   ~mjCSkin();                                 // destructor
 
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
   void Compile(const mjVFS* vfs);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 };
@@ -1115,6 +1125,8 @@ class mjCPair : public mjCPair_, private mjmPair {
 
   void CopyFromSpec();
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
 
   std::string get_geomname1() { return geomname1_; }
   std::string get_geomname2() { return geomname2_; }
@@ -1162,6 +1174,8 @@ class mjCBodyPair : public mjCBodyPair_, private mjmExclude {
 
   void CopyFromSpec();
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
 
   std::string get_bodyname1() const { return bodyname1_; }
   std::string get_bodyname2() const { return bodyname2_; }
@@ -1207,6 +1221,8 @@ class mjCEquality : public mjCEquality_, private mjmEquality {
 
   void CopyFromSpec();
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
 
  private:
   mjCEquality(mjCModel* = 0, mjCDef* = 0);           // constructor
@@ -1264,6 +1280,8 @@ class mjCTendon : public mjCTendon_, private mjmTendon {
 
   void CopyFromSpec();
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
   void SetModel(mjCModel* _model);
 
   bool is_limited() const;
@@ -1299,14 +1317,15 @@ class mjCWrap : public mjCWrap_, private mjmWrap {
   using mjCBase::info;
 
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
+
   mjCBase* obj;                   // wrap object pointer
 
  private:
   mjCWrap(mjCModel*, mjCTendon*);            // constructor
   mjCWrap(const mjCWrap& other);             // copy constructor
   mjCWrap& operator=(const mjCWrap& other);  // copy assignment
-
-  void Compile(void);                 // compiler
 
   mjCTendon* tendon;              // tendon owning this wrap
 };
@@ -1393,6 +1412,10 @@ class mjCActuator : public mjCActuator_, private mjmActuator {
   void Compile(void);                       // compiler
   void CopyFromSpec();
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
+
+  mjCBase* ptarget;  // transmission target
 };
 
 
@@ -1403,7 +1426,6 @@ class mjCActuator : public mjCActuator_, private mjmActuator {
 class mjCSensor_ : public mjCBase {
  protected:
   int refid;                      // id of reference frame
-  mjCBase* obj;                   // sensorized object
 
   // variable-size data
   std::string plugin_name;
@@ -1440,6 +1462,11 @@ class mjCSensor : public mjCSensor_, private mjmSensor {
   void Compile(void);             // compiler
   void CopyFromSpec();
   void PointToLocal();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
+
+  mjCBase* obj;                   // sensorized object
+  mjCBase* ref;                   // sensorized reference
 };
 
 
@@ -1533,6 +1560,8 @@ class mjCTuple : public mjCTuple_, private mjmTuple {
 
   void PointToLocal();
   void CopyFromSpec();
+  void ResolveReferences(const mjCModel* m);
+  void NameSpace(const mjCModel* m);
 
  private:
   mjCTuple(mjCModel*);                         // constructor

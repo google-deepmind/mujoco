@@ -2120,6 +2120,14 @@ void mjCSkin::PointToLocal() {
 
 
 
+void mjCSkin::NameSpace(const mjCModel* m) {
+  for (int i=0; i<(int)spec_bodyname_.size(); i++) {
+    spec_bodyname_[i] = m->prefix + spec_bodyname_[i] + m->suffix;
+  }
+}
+
+
+
 void mjCSkin::CopyFromSpec() {
   *static_cast<mjmSkin*>(this) = spec;
   file_ = spec_file_;
@@ -2159,6 +2167,20 @@ mjCSkin::~mjCSkin() {
   spec_vertid_.clear();
   spec_vertweight_.clear();
   bodyid.clear();
+}
+
+
+
+void mjCSkin::ResolveReferences(const mjCModel* m) {
+  size_t nbone = bodyname_.size();
+  bodyid.resize(nbone);
+  for (int i=0; i<nbone; i++) {
+    mjCBase* pbody = m->FindObject(mjOBJ_BODY, bodyname_[i]);
+    if (!pbody) {
+      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
+    }
+    bodyid[i] = pbody->id;
+  }
 }
 
 
@@ -2243,14 +2265,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // resolve body names
-  bodyid.resize(nbone);
-  for (int i=0; i<nbone; i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname_[i]);
-    if (!pbody) {
-      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
-    }
-    bodyid[i] = pbody->id;
-  }
+  ResolveReferences(model);
 
   // resolve material name
   mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
@@ -2510,6 +2525,15 @@ void mjCFlex::PointToLocal() {
 }
 
 
+
+void mjCFlex::NameSpace(const mjCModel* m) {
+  for (int i=0; i<(int)spec_vertbody_.size(); i++) {
+    spec_vertbody_[i] = m->prefix + spec_vertbody_[i] + m->suffix;
+  }
+}
+
+
+
 void mjCFlex::CopyFromSpec() {
   *static_cast<mjmFlex*>(this) = spec;
   spec.info = (mjString)&info;
@@ -2539,6 +2563,18 @@ bool mjCFlex::HasTexcoord() const {
 
 void mjCFlex::DelTexcoord() {
   texcoord_.clear();
+}
+
+
+void mjCFlex::ResolveReferences(const mjCModel* m) {
+  for (int i=0; i<(int)vertbody_.size(); i++) {
+    mjCBase* pbody = m->FindObject(mjOBJ_BODY, vertbody_[i]);
+    if (pbody) {
+      vertbodyid.push_back(pbody->id);
+    } else {
+        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
+    }
+  }
 }
 
 
@@ -2603,14 +2639,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // resolve body ids
-  for (int i=0; i<(int)vertbody_.size(); i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody_[i]);
-    if (pbody) {
-      vertbodyid.push_back(pbody->id);
-    } else {
-        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
-    }
-  }
+  ResolveReferences(model);
 
   // process elements
   for (int e=0; e<(int)elem_.size()/(dim+1); e++) {

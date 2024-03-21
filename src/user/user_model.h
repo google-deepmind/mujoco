@@ -34,6 +34,11 @@ typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
 class mjCModel_ {
+ public:
+  // attach namespaces
+  std::string prefix;
+  std::string suffix;
+
  protected:
   bool compiled;      // already compiled flag
 
@@ -185,6 +190,12 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
 
+  // copy vector of elements to this model
+  template <class T> void CopyList(std::vector<T*>& dest,
+                                   const std::vector<T*>& source,
+                                   std::map<mjCDef*, int>& def_map,
+                                   const std::vector<mjCDef*>& defaults);
+
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
                                  const std::vector<bool>& discard);
@@ -197,15 +208,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
 
   // API for access to other variables
-  bool IsCompiled();                                       // is model already compiled
-  const mjCError& GetError(void);                          // get reference of error object
-  mjCBody* GetWorld();                                     // pointer to world body
-  mjCDef* FindDef(std::string name);                       // find default class name
-  mjCDef* AddDef(std::string name, int parentid);          // add default class to array
-  mjCBase* FindObject(mjtObj type, std::string name);      // find object given type and name
-  mjCBody* FindBody(mjCBody* body, std::string name);      // find body given name
-  mjCFrame* FindFrame(mjCBody* body, std::string name);    // find frame given name
-  bool IsNullPose(const mjtNum* pos, const mjtNum* quat);  // detect null pose
+  bool IsCompiled() const;                                       // is model already compiled
+  const mjCError& GetError(void) const;                          // get reference of error object
+  mjCBody* GetWorld() const;                                     // pointer to world body
+  mjCDef* FindDef(std::string name) const;                       // find default class name
+  mjCDef* AddDef(std::string name, int parentid);                // add default class to array
+  mjCBase* FindObject(mjtObj type, std::string name) const;      // find object given type and name
+  mjCBody* FindBody(mjCBody* body, std::string name) const;      // find body given name
+  mjCFrame* FindFrame(mjCBody* body, std::string name) const;    // find frame given name
+  bool IsNullPose(const mjtNum* pos, const mjtNum* quat) const;  // detect null pose
 
   // accessors
   std::string get_meshdir(void) const { return meshdir_; }
@@ -288,6 +299,9 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // create mjCBase lists from children lists
   void CreateObjectLists();
+
+  // populate objects ids
+  void ProcessLists();
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

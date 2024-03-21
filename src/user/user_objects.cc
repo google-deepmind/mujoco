@@ -793,15 +793,45 @@ mjCBody::~mjCBody() {
 
 
 // apply prefix and suffix, propagate to children
-void mjCBody::SetNameSpace() {
+void mjCBody::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = prefix + name + suffix;
   }
 
+  for (auto& joint : joints) {
+    if (!joint->name.empty()) {
+      joint->name = prefix + joint->name + suffix;
+    }
+  }
+
+  for (auto& geom : geoms) {
+    if (!geom->name.empty()) {
+      geom->name = prefix + geom->name + suffix;
+    }
+  }
+
+  for (auto& site : sites) {
+    if (!site->name.empty()) {
+      site->name = prefix + site->name + suffix;
+    }
+  }
+
+  for (auto& camera : cameras) {
+    if (!camera->name.empty()) {
+      camera->name = prefix + camera->name + suffix;
+    }
+  }
+
+  for (auto& light : lights) {
+    if (!light->name.empty()) {
+      light->name = prefix + light->name + suffix;
+    }
+  }
+
   for (auto& body : bodies) {
-    body->prefix = prefix;
-    body->suffix = suffix;
-    body->SetNameSpace();
+    body->prefix = m->prefix;
+    body->suffix = m->suffix;
+    body->NameSpace(m);
   }
 }
 
@@ -1368,8 +1398,10 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 // attach body to frame
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   mjCBody* subtree = new mjCBody(other, model);
+  other.model->prefix = subtree->prefix;
+  other.model->suffix = subtree->suffix;
   subtree->SetFrame(this);
-  subtree->SetNameSpace();
+  subtree->NameSpace(other.model);
 
   // add to tree
   *body += *subtree;
@@ -3777,8 +3809,8 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
     this->spec = other.spec;
     *static_cast<mjCPair_*>(this) = static_cast<const mjCPair_&>(other);
     *static_cast<mjmPair*>(this) = static_cast<const mjmPair&>(other);
-    this->geom1 = other.geom1;
-    this->geom2 = other.geom2;
+    this->geom1 = nullptr;
+    this->geom2 = nullptr;
   }
   PointToLocal();
   return *this;
@@ -3797,6 +3829,16 @@ void mjCPair::PointToLocal() {
 
 
 
+void mjCPair::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_geomname1_ = m->prefix + spec_geomname1_ + m->suffix;
+  spec_geomname2_ = m->prefix + spec_geomname2_ + m->suffix;
+}
+
+
+
 void mjCPair::CopyFromSpec() {
   *static_cast<mjmPair*>(this) = spec;
   geomname1_ = spec_geomname1_;
@@ -3807,30 +3849,18 @@ void mjCPair::CopyFromSpec() {
 
 
 
-// compiler
-void mjCPair::Compile(void) {
-  CopyFromSpec();
-
-  // check condim
-  if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
-    throw mjCError(this, "invalid condim in collision %d", "", id);
-  }
-
+void mjCPair::ResolveReferences(const mjCModel* m) {
   // find geom 1
-  geom1 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname1_);
+  geom1 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname1_);
   if (!geom1) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname1_.c_str(), id);
   }
 
   // find geom 2
-  geom2 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname2_);
+  geom2 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname2_);
   if (!geom2) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname2_.c_str(), id);
   }
-
-  // mark geoms as not visual
-  geom1->SetNotVisual();
-  geom2->SetNotVisual();
 
   // swap if body1 > body2
   if (geom1->body->id > geom2->body->id) {
@@ -3845,6 +3875,25 @@ void mjCPair::Compile(void) {
 
   // get geom ids and body signature
   signature = ((geom1->body->id)<<16) + geom2->body->id;
+}
+
+
+
+// compiler
+void mjCPair::Compile(void) {
+  CopyFromSpec();
+
+  // check condim
+  if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
+    throw mjCError(this, "invalid condim in collision %d", "", id);
+  }
+
+  // find geoms
+  ResolveReferences(model);
+
+  // mark geoms as not visual
+  geom1->SetNotVisual();
+  geom2->SetNotVisual();
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) {
@@ -3989,6 +4038,16 @@ void mjCBodyPair::PointToLocal() {
 
 
 
+void mjCBodyPair::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_bodyname1_ = m->prefix + spec_bodyname1_ + m->suffix;
+  spec_bodyname2_ = m->prefix + spec_bodyname2_ + m->suffix;
+}
+
+
+
 void mjCBodyPair::CopyFromSpec() {
   *static_cast<mjmExclude*>(this) = spec;
   bodyname1_ = spec_bodyname1_;
@@ -3999,18 +4058,15 @@ void mjCBodyPair::CopyFromSpec() {
 
 
 
-// compiler
-void mjCBodyPair::Compile(void) {
-  CopyFromSpec();
-
+void mjCBodyPair::ResolveReferences(const mjCModel* m) {
   // find body 1
-  mjCBody* pb1 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname1_);
+  mjCBody* pb1 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname1_);
   if (!pb1) {
     throw mjCError(this, "body '%s' not found in bodypair %d", bodyname1_.c_str(), id);
   }
 
   // find body 2
-  mjCBody* pb2 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname2_);
+  mjCBody* pb2 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname2_);
   if (!pb2) {
     throw mjCError(this, "body '%s' not found in bodypair %d", bodyname2_.c_str(), id);
   }
@@ -4030,6 +4086,16 @@ void mjCBodyPair::Compile(void) {
   body1 = pb1->id;
   body2 = pb2->id;
   signature = (body1<<16) + body2;
+}
+
+
+
+// compiler
+void mjCBodyPair::Compile(void) {
+  CopyFromSpec();
+
+  // find bodies
+  ResolveReferences(model);
 }
 
 
@@ -4091,6 +4157,17 @@ void mjCEquality::PointToLocal() {
 }
 
 
+
+void mjCEquality::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_name1_ = m->prefix + spec_name1_ + m->suffix;
+  spec_name2_ = m->prefix + spec_name2_ + m->suffix;
+}
+
+
+
 void mjCEquality::CopyFromSpec() {
   *static_cast<mjmEquality*>(this) = spec;
   name1_ = spec_name1_;
@@ -4100,10 +4177,8 @@ void mjCEquality::CopyFromSpec() {
 }
 
 
-// compiler
-void mjCEquality::Compile(void) {
-  CopyFromSpec();
 
+void mjCEquality::ResolveReferences(const mjCModel* m) {
   mjtObj objtype;
   mjCBase *px1, *px2;
   mjtJoint jt1, jt2;
@@ -4122,7 +4197,7 @@ void mjCEquality::Compile(void) {
   }
 
   // find object 1, get id
-  px1 = model->FindObject(objtype, name1_);
+  px1 = m->FindObject(objtype, name1_);
   if (!px1) {
     throw mjCError(this, "unknown element '%s' in equality constraint %d", name1_.c_str(), id);
   }
@@ -4130,7 +4205,7 @@ void mjCEquality::Compile(void) {
 
   // find object 2, get id
   if (!name2_.empty()) {
-    px2 = model->FindObject(objtype, name2_);
+    px2 = m->FindObject(objtype, name2_);
     if (!px2) {
       throw mjCError(this, "unknown element '%s' in equality constraint %d", name2_.c_str(), id);
     }
@@ -4153,11 +4228,6 @@ void mjCEquality::Compile(void) {
     obj2id = 0;
   }
 
-  // make sure flex is not rigid
-  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
-    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
-  }
-
   // make sure the two objects are different
   if (obj1id==obj2id) {
     throw mjCError(this, "element '%s' is repeated in equality constraint %d", name1_.c_str(), id);
@@ -4172,6 +4242,21 @@ void mjCEquality::Compile(void) {
       throw mjCError(this, "only HINGE and SLIDE joint allowed in constraint '%s' (id = %d)",
                      name.c_str(), id);
     }
+  }
+}
+
+
+
+// compiler
+void mjCEquality::Compile(void) {
+  CopyFromSpec();
+
+  // find objects
+  ResolveReferences(model);
+
+  // make sure flex is not rigid
+  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
+    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
   }
 }
 
@@ -4239,6 +4324,17 @@ void mjCTendon::PointToLocal() {
   spec.material = (mjString)&spec_material_;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
   spec.info = (mjString)&info;
+}
+
+
+
+void mjCTendon::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  for (int i=0; i<path.size(); i++) {
+    path[i]->NameSpace(model);
+  }
 }
 
 
@@ -4361,6 +4457,14 @@ mjCWrap* mjCTendon::GetWrap(int id) {
 
 
 
+void mjCTendon::ResolveReferences(const mjCModel* m) {
+  for (int i=0; i<path.size(); i++) {
+    path[i]->ResolveReferences(m);
+  }
+}
+
+
+
 // compiler
 void mjCTendon::Compile(void) {
   CopyFromSpec();
@@ -4395,9 +4499,7 @@ void mjCTendon::Compile(void) {
   }
 
   // compile objects in path
-  for (int i=0; i<sz; i++) {
-    path[i]->Compile();
-  }
+  ResolveReferences(model);
 
   // check path
   for (int i=0; i<sz; i++) {
@@ -4536,15 +4638,21 @@ void mjCWrap::PointToLocal() {
 
 
 
-// compiler
-void mjCWrap::Compile(void) {
+void mjCWrap::NameSpace(const mjCModel* m) {
+  name = m->prefix + name + m->suffix;
+  sidesite = m->prefix + sidesite + m->suffix;
+}
+
+
+
+void mjCWrap::ResolveReferences(const mjCModel* m) {
   mjCBase *pside;
 
   // handle wrap object types
   switch (type) {
   case mjWRAP_JOINT:                          // joint
     // find joint by name
-    obj = model->FindObject(mjOBJ_JOINT, name);
+    obj = m->FindObject(mjOBJ_JOINT, name);
     if (!obj) {
       throw mjCError(this,
                      "joint '%s' not found in tendon %d, wrap %d",
@@ -4555,7 +4663,7 @@ void mjCWrap::Compile(void) {
 
   case mjWRAP_SPHERE:                         // geom (cylinder type set here)
     // find geom by name
-    obj = model->FindObject(mjOBJ_GEOM, name);
+    obj = m->FindObject(mjOBJ_GEOM, name);
     if (!obj) {
       throw mjCError(this,
                      "geom '%s' not found in tendon %d, wrap %d",
@@ -4574,7 +4682,7 @@ void mjCWrap::Compile(void) {
     // process side site
     if (!sidesite.empty()) {
       // find site by name
-      pside = model->FindObject(mjOBJ_SITE, sidesite);
+      pside = m->FindObject(mjOBJ_SITE, sidesite);
       if (!pside) {
         throw mjCError(this,
                        "side site '%s' not found in tendon %d, wrap %d",
@@ -4598,7 +4706,7 @@ void mjCWrap::Compile(void) {
 
   case mjWRAP_SITE:                           // site
     // find site by name
-    obj = model->FindObject(mjOBJ_SITE, name);
+    obj = m->FindObject(mjOBJ_SITE, name);
     if (!obj) {
       throw mjCError(this, "site '%s' not found in wrap %d", name.c_str(), id);
     }
@@ -4618,6 +4726,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   mjm_defaultActuator(spec);
 
   // clear private variables
+  ptarget = nullptr;
   spec_target_.clear();
   spec_slidersite_.clear();
   spec_refsite_.clear();
@@ -4653,6 +4762,7 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
     this->spec = other.spec;
     *static_cast<mjCActuator_*>(this) = static_cast<const mjCActuator_&>(other);
     *static_cast<mjmActuator*>(this) = static_cast<const mjmActuator&>(other);
+    ptarget = nullptr;
   }
   PointToLocal();
   return *this;
@@ -4681,6 +4791,17 @@ void mjCActuator::PointToLocal() {
 
 
 
+void mjCActuator::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_target_ = m->prefix + spec_target_ + m->suffix;
+  spec_refsite_ = m->prefix + spec_refsite_ + m->suffix;
+  spec_slidersite_ = m->prefix + spec_slidersite_ + m->suffix;
+}
+
+
+
 void mjCActuator::CopyFromSpec() {
   *static_cast<mjmActuator*>(this) = spec;
   userdata_ = spec_userdata_;
@@ -4699,31 +4820,13 @@ void mjCActuator::CopyFromSpec() {
 
 
 
-// compiler
-void mjCActuator::Compile(void) {
-  CopyFromSpec();
+void mjCActuator::ResolveReferences(const mjCModel* m) {
   mjCJoint* pjnt;
-
-  // resize userdata
-  if (userdata_.size() > model->nuser_actuator) {
-    throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
-                   name.c_str(), id);
-  }
-  userdata_.resize(model->nuser_actuator);
-
-  // check for missing target name
-  if (target_.empty()) {
-    throw mjCError(this,
-                   "missing transmission target for actuator '%s' (id = %d)", name.c_str(), id);
-  }
-
-  // find transmission target in object arrays
-  mjCBase* ptarget = 0;
   switch (trntype) {
   case mjTRN_JOINT:
   case mjTRN_JOINTINPARENT:
     // get joint
-    ptarget = model->FindObject(mjOBJ_JOINT, target_);
+    ptarget = m->FindObject(mjOBJ_JOINT, target_);
     if (!ptarget) {
       throw mjCError(this,
                      "unknown transmission target '%s' for actuator id = %d", target_.c_str(), id);
@@ -4743,7 +4846,7 @@ void mjCActuator::Compile(void) {
     if (slidersite_.empty()) {
       throw mjCError(this, "missing base site for slider-crank '%s' (id = %d)", name.c_str(), id);
     }
-    ptarget = model->FindObject(mjOBJ_SITE, slidersite_);
+    ptarget = m->FindObject(mjOBJ_SITE, slidersite_);
     if (!ptarget) {
       throw mjCError(this, "base site '%s' not found for actuator %d", slidersite_.c_str(), id);
     }
@@ -4756,18 +4859,18 @@ void mjCActuator::Compile(void) {
     }
 
     // proceed with regular target
-    ptarget = model->FindObject(mjOBJ_SITE, target_);
+    ptarget = m->FindObject(mjOBJ_SITE, target_);
     break;
 
   case mjTRN_TENDON:
     // get tendon
-    ptarget = model->FindObject(mjOBJ_TENDON, target_);
+    ptarget = m->FindObject(mjOBJ_TENDON, target_);
     break;
 
   case mjTRN_SITE:
     // get refsite, copy into trnid[1]
     if (!refsite_.empty()) {
-      ptarget = model->FindObject(mjOBJ_SITE, refsite_);
+      ptarget = m->FindObject(mjOBJ_SITE, refsite_);
       if (!ptarget) {
         throw mjCError(this, "reference site '%s' not found for actuator %d", refsite_.c_str(), id);
       }
@@ -4775,12 +4878,12 @@ void mjCActuator::Compile(void) {
     }
 
     // proceed with regular site target
-    ptarget = model->FindObject(mjOBJ_SITE, target_);
+    ptarget = m->FindObject(mjOBJ_SITE, target_);
     break;
 
   case mjTRN_BODY:
     // get body
-    ptarget = model->FindObject(mjOBJ_BODY, target_);
+    ptarget = m->FindObject(mjOBJ_BODY, target_);
     break;
 
   default:
@@ -4793,6 +4896,29 @@ void mjCActuator::Compile(void) {
   } else {
     trnid[0] = ptarget->id;
   }
+}
+
+
+
+// compiler
+void mjCActuator::Compile(void) {
+  CopyFromSpec();
+
+  // resize userdata
+  if (userdata_.size() > model->nuser_actuator) {
+    throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  userdata_.resize(model->nuser_actuator);
+
+  // check for missing target name
+  if (target_.empty()) {
+    throw mjCError(this,
+                   "missing transmission target for actuator '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // find transmission target in object arrays
+  ResolveReferences(model);
 
   // handle inheritrange
   if (gaintype == mjGAIN_FIXED && biastype == mjBIAS_AFFINE &&
@@ -4812,7 +4938,7 @@ void mjCActuator::Compile(void) {
 
     const double* target_range;
     if (trntype == mjTRN_JOINT) {
-      pjnt = (mjCJoint*) ptarget;
+      mjCJoint* pjnt = (mjCJoint*) ptarget;
       if (pjnt->spec.type != mjJNT_HINGE && pjnt->spec.type != mjJNT_SLIDE) {
         throw mjCError(this, "inheritrange can only be used with hinge and slide joints, "
                        "actuator '%s' (id = %d)", name.c_str(), id);
@@ -4950,6 +5076,7 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   spec_refname_.clear();
   spec_userdata_.clear();
   obj = nullptr;
+  ref = nullptr;
   refid = -1;
 
   // in case this sensor is not compiled
@@ -4972,6 +5099,8 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
     this->spec = other.spec;
     *static_cast<mjCSensor_*>(this) = static_cast<const mjCSensor_&>(other);
     *static_cast<mjmSensor*>(this) = static_cast<const mjmSensor&>(other);
+    obj = nullptr;
+    ref = nullptr;
   }
   PointToLocal();
   return *this;
@@ -4993,6 +5122,16 @@ void mjCSensor::PointToLocal() {
 
 
 
+void mjCSensor::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_objname_ = m->prefix + spec_objname_ + m->suffix;
+  spec_refname_ = m->prefix + spec_refname_ + m->suffix;
+}
+
+
+
 void mjCSensor::CopyFromSpec() {
   *static_cast<mjmSensor*>(this) = spec;
   userdata_ = spec_userdata_;
@@ -5009,27 +5148,7 @@ void mjCSensor::CopyFromSpec() {
 
 
 
-// compiler
-void mjCSensor::Compile(void) {
-  CopyFromSpec();
-
-  // resize userdata
-  if (userdata_.size() > model->nuser_sensor) {
-    throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
-                   name.c_str(), id);
-  }
-  userdata_.resize(model->nuser_sensor);
-
-  // require non-negative noise
-  if (noise<0) {
-    throw mjCError(this, "negative noise in sensor '%s' (id = %d)", name.c_str(), id);
-  }
-
-  // require non-negative cutoff
-  if (cutoff<0) {
-    throw mjCError(this, "negative cutoff in sensor '%s' (id = %d)", name.c_str(), id);
-  }
-
+void mjCSensor::ResolveReferences(const mjCModel* m) {
   // get objid from objtype and objname
   if (objtype!=mjOBJ_UNKNOWN) {
     // check for missing object name
@@ -5040,7 +5159,7 @@ void mjCSensor::Compile(void) {
     }
 
     // find name
-    obj = model->FindObject(objtype, objname_);
+    obj = m->FindObject(objtype, objname_);
     if (!obj) {
       throw mjCError(this,
                      "unrecognized name of sensorized object in sensor '%s' (id = %d)",
@@ -5067,8 +5186,8 @@ void mjCSensor::Compile(void) {
     }
 
     // find name
-    mjCBase* pref = model->FindObject(reftype, refname_);
-    if (!pref) {
+    ref = m->FindObject(reftype, refname_);
+    if (!ref) {
       throw mjCError(this,
                      "unrecognized name of reference frame object in sensor '%s' (id = %d)",
                      name.c_str(), id);
@@ -5083,8 +5202,35 @@ void mjCSensor::Compile(void) {
     }
 
     // get sensorized object id
-    refid = pref->id;
+    refid = ref->id;
   }
+}
+
+
+
+// compiler
+void mjCSensor::Compile(void) {
+  CopyFromSpec();
+
+  // resize userdata
+  if (userdata_.size() > model->nuser_sensor) {
+    throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  userdata_.resize(model->nuser_sensor);
+
+  // require non-negative noise
+  if (noise<0) {
+    throw mjCError(this, "negative noise in sensor '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // require non-negative cutoff
+  if (cutoff<0) {
+    throw mjCError(this, "negative cutoff in sensor '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // Find referenced object
+  ResolveReferences(model);
 
   // process according to sensor type
   switch (type) {
@@ -5126,7 +5272,7 @@ void mjCSensor::Compile(void) {
 
     // check for camera resolution for camera projection sensor
     if (type==mjSENS_CAMPROJECTION) {
-      mjCCamera* camref = (mjCCamera*) model->FindObject(mjOBJ_CAMERA, refname_);
+      mjCCamera* camref = (mjCCamera*)ref;
       if (!camref->resolution[0] || !camref->resolution[1]) {
         throw mjCError(this,
                        "camera projection sensor requires camera resolution '%s' (id = %d)",
@@ -5619,6 +5765,17 @@ void mjCTuple::PointToLocal() {
 
 
 
+void mjCTuple::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  for (int i=0; i<spec_objname_.size(); i++) {
+    spec_objname_[i] = m->prefix + spec_objname_[i] + m->suffix;
+  }
+}
+
+
+
 void mjCTuple::CopyFromSpec() {
   *static_cast<mjmTuple*>(this) = spec;
   objtype_ = spec_objtype_;
@@ -5644,10 +5801,7 @@ mjCTuple::~mjCTuple() {
 
 
 
-// compiler
-void mjCTuple::Compile(void) {
-  CopyFromSpec();
-
+void mjCTuple::ResolveReferences(const mjCModel* m) {
   // check for empty tuple
   if (objtype_.empty()) {
     throw mjCError(this, "tuple '%s' (id = %d) is empty", name.c_str(), id);
@@ -5665,7 +5819,7 @@ void mjCTuple::Compile(void) {
   // find objects, fill in ids
   for (int i=0; i<objtype_.size(); i++) {
     // find object by type and name
-    mjCBase* res = model->FindObject(objtype_[i], objname_[i]);
+    mjCBase* res = m->FindObject(objtype_[i], objname_[i]);
     if (!res) {
       throw mjCError(this, "unrecognized object '%s' in tuple %d", objname_[i].c_str(), id);
     }
@@ -5678,6 +5832,14 @@ void mjCTuple::Compile(void) {
     // assign id
     obj[i] = res;
   }
+}
+
+
+
+// compiler
+void mjCTuple::Compile(void) {
+  CopyFromSpec();
+  ResolveReferences(model);
 }
 
 

@@ -120,6 +120,8 @@ mjCModel::mjCModel() {
   tuples.clear();
   keys.clear();
   defaults.clear();
+  prefix = "";
+  suffix = "";
   Clear();
 
   //------------------------ master default set
@@ -180,100 +182,65 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
 
 
 
+// copy vector of elements from another model to this model
+template <class T>
+void mjCModel::CopyList(std::vector<T*>& dest,
+                        const std::vector<T*>& source,
+                        std::map<mjCDef*, int>& def_map,
+                        const std::vector<mjCDef*>& defaults) {
+  // loop over the elements from the other model
+  for (T* element : source) {
+    try {
+      // try to find the referenced object in this model
+      element->NameSpace(element->model);
+      element->CopyFromSpec();
+      element->ResolveReferences(this);
+    } catch (mjCError err) {
+      // if not present, skip the element
+      continue;
+    }
+    // copy the element from the other model to this model
+    dest.push_back(new T(*element));
+    dest.back()->model = this;
+    dest.back()->def = defaults[def_map[element->def]];
+  }
+}
+
+
+
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   if (this != &other) {
+    // create global lists
+    MakeLists(bodies[0]);
+    CreateObjectLists();
+    ProcessLists();
+
+    // copy all elements not in the tree
     std::map<mjCDef*, int> def_map;
     for (int i = 0; i < other.defaults.size(); i++) {
       defaults.push_back(new mjCDef(*other.defaults[i]));
       def_map[other.defaults[i]] = i;
     }
-    for (const mjCFlex* flex : other.flexes) {
-      flexes.push_back(new mjCFlex(*flex));
-      flexes.back()->model = this;
-      flexes.back()->def = defaults[def_map[flex->def]];
-    }
-    for (const mjCMesh* mesh : other.meshes) {
-      meshes.push_back(new mjCMesh(*mesh));
-      meshes.back()->model = this;
-      meshes.back()->def = defaults[def_map[mesh->def]];
-    }
-    for (const mjCSkin* skin : other.skins) {
-      skins.push_back(new mjCSkin(*skin));
-      skins.back()->model = this;
-      skins.back()->def = defaults[def_map[skin->def]];
-    }
-    for (const mjCHField* hfield : other.hfields) {
-      hfields.push_back(new mjCHField(*hfield));
-      hfields.back()->model = this;
-      hfields.back()->def = defaults[def_map[hfield->def]];
-    }
-    for (const mjCTexture* texture : other.textures) {
-      textures.push_back(new mjCTexture(*texture));
-      textures.back()->model = this;
-      textures.back()->def = defaults[def_map[texture->def]];
-    }
-    for (const mjCMaterial* material : other.materials) {
-      materials.push_back(new mjCMaterial(*material));
-      materials.back()->model = this;
-      materials.back()->def = defaults[def_map[material->def]];
-    }
-    for (const mjCPair* pair : other.pairs) {
-      pairs.push_back(new mjCPair(*pair));
-      pairs.back()->model = this;
-      pairs.back()->def = defaults[def_map[pair->def]];
-    }
-    for (const mjCBodyPair* exclude : other.excludes) {
-      excludes.push_back(new mjCBodyPair(*exclude));
-      excludes.back()->model = this;
-      excludes.back()->def = defaults[def_map[exclude->def]];
-    }
-    for (const mjCEquality* equality : other.equalities) {
-      equalities.push_back(new mjCEquality(*equality));
-      equalities.back()->model = this;
-      equalities.back()->def = defaults[def_map[equality->def]];
-    }
-    for (const mjCTendon* tendon : other.tendons) {
-      tendons.push_back(new mjCTendon(*tendon));
-      tendons.back()->SetModel(this);
-      tendons.back()->def = defaults[def_map[tendon->def]];
-    }
-    for (const mjCActuator* actuator : other.actuators) {
-      actuators.push_back(new mjCActuator(*actuator));
-      actuators.back()->model = this;
-      actuators.back()->def = defaults[def_map[actuator->def]];
-    }
-    for (const mjCSensor* sensor : other.sensors) {
-      sensors.push_back(new mjCSensor(*sensor));
-      sensors.back()->model = this;
-      sensors.back()->def = defaults[def_map[sensor->def]];
-    }
-    for (const mjCNumeric* numeric : other.numerics) {
-      numerics.push_back(new mjCNumeric(*numeric));
-      numerics.back()->model = this;
-      numerics.back()->def = defaults[def_map[numeric->def]];
-    }
-    for (const mjCText* text : other.texts) {
-      texts.push_back(new mjCText(*text));
-      texts.back()->model = this;
-      texts.back()->def = defaults[def_map[text->def]];
-    }
-    for (const mjCTuple* tuple : other.tuples) {
-      tuples.push_back(new mjCTuple(*tuple));
-      tuples.back()->model = this;
-      tuples.back()->def = defaults[def_map[tuple->def]];
-    }
-    for (const mjCKey* key : other.keys) {
-      keys.push_back(new mjCKey(*key));
-      keys.back()->model = this;
-      keys.back()->def = defaults[def_map[key->def]];
-    }
+    CopyList(flexes, other.flexes, def_map, defaults);
+    CopyList(meshes, other.meshes, def_map, defaults);
+    CopyList(skins, other.skins, def_map, defaults);
+    CopyList(hfields, other.hfields, def_map, defaults);
+    CopyList(textures, other.textures, def_map, defaults);
+    CopyList(materials, other.materials, def_map, defaults);
+    CopyList(pairs, other.pairs, def_map, defaults);
+    CopyList(excludes, other.excludes, def_map, defaults);
+    CopyList(tendons, other.tendons, def_map, defaults);
+    CopyList(equalities, other.equalities, def_map, defaults);
+    CopyList(actuators, other.actuators, def_map, defaults);
+    CopyList(sensors, other.sensors, def_map, defaults);
+    CopyList(numerics, other.numerics, def_map, defaults);
+    CopyList(texts, other.texts, def_map, defaults);
+    CopyList(tuples, other.tuples, def_map, defaults);
+    CopyList(keys, other.keys, def_map, defaults);
 
     // plugins are global
     plugins = other.plugins;
     active_plugins = other.active_plugins;
-
-    // create global lists
-    MakeLists(bodies[0]);
 
     // update defaults for the copied objects
     for (int i = 1; i < other.bodies.size(); i++) {
@@ -296,7 +263,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     }
 
     // cast children to mjCBase
-    CreateObjectLists();
+
 
     // restore to the same state as other
     if (!compiled) {
@@ -670,28 +637,28 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
 //------------------------ API FOR ACCESS TO PRIVATE VARIABLES -------------------------------------
 
 // compiled flag
-bool mjCModel::IsCompiled(void) {
+bool mjCModel::IsCompiled(void) const {
   return compiled;
 }
 
 
 
 // get reference of error object
-const mjCError& mjCModel::GetError(void) {
+const mjCError& mjCModel::GetError(void) const {
   return errInfo;
 }
 
 
 
 // pointer to world body
-mjCBody* mjCModel::GetWorld(void) {
+mjCBody* mjCModel::GetWorld(void) const {
   return bodies[0];
 }
 
 
 
 // find default class name in array
-mjCDef* mjCModel::FindDef(string name) {
+mjCDef* mjCModel::FindDef(string name) const {
   for (int i=0; i<(int)defaults.size(); i++) {
     if (defaults[i]->name==name) {
       return defaults[i];
@@ -754,7 +721,7 @@ static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyM
 }
 
 // find object in global lists given string type and name
-mjCBase* mjCModel::FindObject(mjtObj type, string name) {
+mjCBase* mjCModel::FindObject(mjtObj type, string name) const {
   if (!object_lists[type]) {
     return nullptr;
   }
@@ -764,7 +731,7 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) {
 
 
 // find body by name
-mjCBody* mjCModel::FindBody(mjCBody* body, std::string name) {
+mjCBody* mjCModel::FindBody(mjCBody* body, std::string name) const {
   if (body->name == name) {
     return body;
   }
@@ -782,7 +749,7 @@ mjCBody* mjCModel::FindBody(mjCBody* body, std::string name) {
 
 
 // find frame by name
-mjCFrame* mjCModel::FindFrame(mjCBody* body, std::string name) {
+mjCFrame* mjCModel::FindFrame(mjCBody* body, std::string name) const{
   for (auto frame : body->frames) {
     if (frame->name == name) {
       return frame;
@@ -802,7 +769,7 @@ mjCFrame* mjCModel::FindFrame(mjCBody* body, std::string name) {
 
 
 // detect null pose
-bool mjCModel::IsNullPose(const mjtNum* pos, const mjtNum* quat) {
+bool mjCModel::IsNullPose(const mjtNum* pos, const mjtNum* quat) const {
   bool result = true;
 
   // check position if given
@@ -2913,6 +2880,21 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
 }
 
 
+
+// set object ids, check for repeated names
+void mjCModel::ProcessLists() {
+  for (int i = 0; i < mjNOBJECT; i++) {
+    if (i != mjOBJ_XBODY && object_lists[i]) {
+      processlist(ids, *object_lists[i], (mjtObj) i);
+    }
+  }
+
+  // check repeated names in meta elements
+  processlist(ids, frames, mjOBJ_FRAME);
+}
+
+
+
 // error handler for low-level engine
 static thread_local std::jmp_buf error_jmp_buf;
 static thread_local char errortext[500] = "";
@@ -3046,14 +3028,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   CheckEmptyNames();
 
   // set object ids, check for repeated names
-  for (int i = 0; i < mjNOBJECT; i++) {
-    if (i != mjOBJ_XBODY && object_lists[i]) {
-      processlist(ids, *object_lists[i], (mjtObj) i);
-    }
-  }
-
-  // check repeated names in meta elements
-  processlist(ids, frames, mjOBJ_FRAME);
+  ProcessLists();
 
   // delete visual assets
   if (discardvisual) {
