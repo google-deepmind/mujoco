@@ -424,7 +424,7 @@ increasing Reynolds numbers, and a single reference area :math:`A_D` may not be 
 drag for highly irregular or slender bodies. For example, experimental fits are derived from problems ranging from
 falling playing cards :cite:p:`wang2004,andersen2005a,andersen2005b` to particle transport :cite:p:`loth2008,
 bagheri2016`. See screen capture of the
-`cards.xml <https://github.com/deepmind/mujoco/blob/main/model/card/cards.xml>`__ model on the right.
+`cards.xml <https://github.com/deepmind/mujoco/blob/main/model/cards/cards.xml>`__ model on the right.
 
 We derive a formula for :math:`\mathbf{f}_\text{D}` based on two surfaces :math:`A^\text{proj}_\mathbf{v}` and
 :math:`A_\text{max}`. The first, :math:`A^\text{proj}_\mathbf{v}`, is the cylindrical projection of the body onto a
