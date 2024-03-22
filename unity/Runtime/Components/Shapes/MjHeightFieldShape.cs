@@ -88,9 +88,9 @@ public class MjHeightFieldShape : IMjShape {
     if (UpdateLimit > 0) {
       _updateCountdown = UpdateLimit;
       if (UpdateLimit > 1) {
-        scene.preUpdateEvent += (_, _) => CountdownUpdateCondition();
+        scene.preUpdateEvent += (unused_first, unused_second) => CountdownUpdateCondition();
       }
-      TerrainCallbacks.heightmapChanged += (_, _, _) =>
+      TerrainCallbacks.heightmapChanged += (unused_first, unused_second, unused_third) =>
           RebuildHeightField();
     }
 
