@@ -130,7 +130,7 @@ static void ReadFromBuffer(T* dst, const char* src) {
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultMesh(spec);
+  mjs_defaultMesh(spec);
 
   // clear internal variables
   mjuu_setvec(pos_surface_, 0, 0, 0);
@@ -195,7 +195,7 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCMesh_*>(this) = static_cast<const mjCMesh_&>(other);
-    *static_cast<mjmMesh*>(this) = static_cast<const mjmMesh&>(other);
+    *static_cast<mjsMesh*>(this) = static_cast<const mjsMesh&>(other);
     if (other.vert_) {
       size_t nvert = 3*other.nvert_*sizeof(float);
       this->vert_ = (float*)mju_malloc(nvert);
@@ -282,7 +282,7 @@ void mjCMesh::PointToLocal() {
 
 
 void mjCMesh::CopyFromSpec() {
-  *static_cast<mjmMesh*>(this) = spec;
+  *static_cast<mjsMesh*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   uservert_ = spec_uservert_;
@@ -2054,7 +2054,7 @@ void mjCMesh::MakeCenter(void) {
 
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
-  mjm_defaultSkin(spec);
+  mjs_defaultSkin(spec);
 
   // set model pointer
   model = _model;
@@ -2093,7 +2093,7 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCSkin_*>(this) = static_cast<const mjCSkin_&>(other);
-    *static_cast<mjmSkin*>(this) = static_cast<const mjmSkin&>(other);
+    *static_cast<mjsSkin*>(this) = static_cast<const mjsSkin&>(other);
   }
   PointToLocal();
   return *this;
@@ -2129,7 +2129,7 @@ void mjCSkin::NameSpace(const mjCModel* m) {
 
 
 void mjCSkin::CopyFromSpec() {
-  *static_cast<mjmSkin*>(this) = spec;
+  *static_cast<mjsSkin*>(this) = spec;
   file_ = spec_file_;
   material_ = spec_material_;
   vert_ = spec_vert_;
@@ -2478,7 +2478,7 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
-  mjm_defaultFlex(spec);
+  mjs_defaultFlex(spec);
 
   // set model
   model = _model;
@@ -2505,7 +2505,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCFlex_*>(this) = static_cast<const mjCFlex_&>(other);
-    *static_cast<mjmFlex*>(this) = static_cast<const mjmFlex&>(other);
+    *static_cast<mjsFlex*>(this) = static_cast<const mjsFlex&>(other);
   }
   PointToLocal();
   return *this;
@@ -2535,7 +2535,7 @@ void mjCFlex::NameSpace(const mjCModel* m) {
 
 
 void mjCFlex::CopyFromSpec() {
-  *static_cast<mjmFlex*>(this) = spec;
+  *static_cast<mjsFlex*>(this) = spec;
   spec.info = (mjString)&info;
   material_ = spec_material_;
   vertbody_ = spec_vertbody_;

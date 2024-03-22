@@ -56,7 +56,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  mjm_copyBack(model_, m);
+  mjs_copyBack(model_, m);
   std::string result = mjWriteXML(model_, error, error_sz);
   if (result.empty()) {
     return std::nullopt;
@@ -67,7 +67,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
 void GlobalModel::Set(mjSpec* model) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (model_ != nullptr) {
-    mjm_deleteSpec(model_);
+    mjs_deleteSpec(model_);
   }
   model_ = model;
 }
@@ -93,21 +93,21 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   // parse new model
   std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> model(
       mjParseXML(filename, vfs, error, error_sz),
-      [](mjSpec* m) { mjm_deleteSpec(m); });
+      [](mjSpec* m) { mjs_deleteSpec(m); });
   if (!model) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = mjm_compile(model.get(), vfs);
+  mjModel* m = mjs_compile(model.get(), vfs);
   if (!m) {
-    mjCopyError(error, mjm_getError(model.get()), error_sz);
+    mjCopyError(error, mjs_getError(model.get()), error_sz);
     return nullptr;
   }
 
   // handle compile warning
-  if (mjm_isWarning(model.get())) {
-    mjCopyError(error, mjm_getError(model.get()), error_sz);
+  if (mjs_isWarning(model.get())) {
+    mjCopyError(error, mjs_getError(model.get()), error_sz);
   } else if (error) {
     error[0] = '\0';
   }

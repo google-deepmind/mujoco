@@ -72,7 +72,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
   rigid = false;
   centered = false;
 
-  mjm_defaultPlugin(plugin);
+  mjs_defaultPlugin(plugin);
   plugin_name = "";
   plugin_instance_name = "";
   plugin.name = (mjString)&plugin_name;
@@ -82,9 +82,9 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
+bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   mjCModel* model = (mjCModel*)spec->element;
-  mjmFlex* dflex = def.spec.flex;
+  mjsFlex* dflex = def.spec.flex;
   int dim = dflex->dim;
   bool radial = (type==mjFCOMPTYPE_BOX ||
                  type==mjFCOMPTYPE_CYLINDER ||
@@ -94,7 +94,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
                  type==mjFCOMPTYPE_GMSH);
 
   // check parent body name
-  if (std::string(mjm_getString(body->name)).empty()) {
+  if (std::string(mjs_getString(body->name)).empty()) {
     return comperr(error, "Parent body must have name", error_sz);
   }
 
@@ -381,7 +381,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
 
   // create flex, copy parameters
   mjCFlex* flex = model->AddFlex();
-  mjmFlex* pf = &flex->spec;
+  mjsFlex* pf = &flex->spec;
   int id = flex->id;
 
   *flex = def.flex;
@@ -389,13 +389,13 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
 
   flex->model = model;
   flex->id = id;
-  mjm_setString(pf->name, name.c_str());
-  mjm_setInt(pf->elem, element.data(), element.size());
-  mjm_setFloat(pf->texcoord, texcoord.data(), texcoord.size());
+  mjs_setString(pf->name, name.c_str());
+  mjs_setInt(pf->elem, element.data(), element.size());
+  mjs_setFloat(pf->texcoord, texcoord.data(), texcoord.size());
 
   // rigid: set parent name, nothing else to do
   if (rigid) {
-    mjm_appendString(pf->vertbody, mjm_getString(body->name));
+    mjs_appendString(pf->vertbody, mjs_getString(body->name));
     return true;
   }
 
@@ -418,22 +418,22 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
 
     // pinned: parent body
     if (pinned[i]) {
-      mjm_appendString(pf->vertbody, mjm_getString(body->name));
+      mjs_appendString(pf->vertbody, mjs_getString(body->name));
 
       // add plugin
       if (plugin.active) {
-        mjmPlugin* pplugin = &body->plugin;
+        mjsPlugin* pplugin = &body->plugin;
         pplugin->active = true;
         pplugin->instance = (mjElement)plugin.instance;
-        mjm_setString(pplugin->name, mjm_getString(plugin.name));
-        mjm_setString(pplugin->instance_name, plugin_instance_name.c_str());
+        mjs_setString(pplugin->name, mjs_getString(plugin.name));
+        mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }
     }
 
     // not pinned: new body
     else {
       // add new body at vertex coordinates
-      mjmBody* pb = mjm_addBody(body, 0);
+      mjsBody* pb = mjs_addBody(body, 0);
 
       // set frame and inertial
       pb->pos[0] = point[3*i];
@@ -448,7 +448,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
 
       // add radial slider
       if (radial) {
-        mjmJoint* jnt = mjm_addJoint(pb, 0);
+        mjsJoint* jnt = mjs_addJoint(pb, 0);
 
         // set properties
         jnt->type = mjJNT_SLIDE;
@@ -461,7 +461,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
       else {
         for (int j=0; j<3; j++) {
           // add joint to body
-          mjmJoint* jnt = mjm_addJoint(pb, 0);
+          mjsJoint* jnt = mjs_addJoint(pb, 0);
 
           // set properties
           jnt->type = mjJNT_SLIDE;
@@ -474,8 +474,8 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
       // construct body name, add to vertbody
       char txt[100];
       mju::sprintf_arr(txt, "%s_%d", name.c_str(), i);
-      mjm_setString(pb->name, txt);
-      mjm_appendString(pf->vertbody, mjm_getString(pb->name));
+      mjs_setString(pb->name, txt);
+      mjs_appendString(pf->vertbody, mjs_getString(pb->name));
 
       // clear flex vertex coordinates if allocated
       if (!centered) {
@@ -486,26 +486,26 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjmBody* body, char* error, int error_sz) {
 
       // add plugin
       if (plugin.active) {
-        mjmPlugin* pplugin = &pb->plugin;
+        mjsPlugin* pplugin = &pb->plugin;
         pplugin->active = true;
         pplugin->instance = (mjElement)plugin.instance;
-        mjm_setString(pplugin->name, mjm_getString(plugin.name));
-        mjm_setString(pplugin->instance_name, plugin_instance_name.c_str());
+        mjs_setString(pplugin->name, mjs_getString(plugin.name));
+        mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }
     }
   }
 
   if (!centered) {
-    mjm_setDouble(pf->vert, point.data(), point.size());
+    mjs_setDouble(pf->vert, point.data(), point.size());
   }
 
   // create edge equality constraint
   if (equality) {
-    mjmEquality* pe = mjm_addEquality(&model->spec, &def.spec);
-    mjm_setDefault(pe->element, &model->defaults[0]->spec);
+    mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+    mjs_setDefault(pe->element, &model->defaults[0]->spec);
     pe->type = mjEQ_FLEX;
     pe->active = true;
-    mjm_setString(pe->name1, name.c_str());
+    mjs_setString(pe->name1, name.c_str());
   }
 
   return true;
@@ -885,8 +885,8 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  string filename = mjuu_makefullname(mjm_getString(model->spec.modelfiledir),
-                                      mjm_getString(model->spec.meshdir), file);
+  string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+                                      mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {
@@ -992,8 +992,8 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  string filename = mjuu_makefullname(mjm_getString(model->spec.modelfiledir),
-                                      mjm_getString(model->spec.meshdir), file);
+  string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+                                      mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {

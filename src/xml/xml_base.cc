@@ -24,6 +24,7 @@
 #include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "xml/xml_util.h"
 #include "tinyxml2.h"
 
 namespace {
@@ -51,7 +52,7 @@ void mjXBase::SetModel(mjSpec* _model) {
 
 
 // read alternative orientation specification
-int mjXBase::ReadAlternative(XMLElement* elem, mjmOrientation& alt) {
+int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
   string text;
   int read = (int)(elem->Attribute("quat") != 0) +
              (ReadAttr(elem, "axisangle", 4, alt.axisangle, text) ? 1 : 0) +

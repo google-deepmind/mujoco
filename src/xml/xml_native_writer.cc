@@ -553,33 +553,33 @@ void mjXWriter::OneEquality(XMLElement* elem, mjCEquality* peq, mjCDef* def) {
 
     switch (peq->type) {
     case mjEQ_CONNECT:
-      WriteAttrTxt(elem, "body1", mjm_getString(peq->name1));
-      WriteAttrTxt(elem, "body2", mjm_getString(peq->name2));
+      WriteAttrTxt(elem, "body1", mjs_getString(peq->name1));
+      WriteAttrTxt(elem, "body2", mjs_getString(peq->name2));
       WriteAttr(elem, "anchor", 3, peq->data);
       break;
 
     case mjEQ_WELD:
-      WriteAttrTxt(elem, "body1", mjm_getString(peq->name1));
-      WriteAttrTxt(elem, "body2", mjm_getString(peq->name2));
+      WriteAttrTxt(elem, "body1", mjs_getString(peq->name1));
+      WriteAttrTxt(elem, "body2", mjs_getString(peq->name2));
       WriteAttr(elem, "anchor", 3, peq->data);
       WriteAttr(elem, "torquescale", 1, peq->data+10);
       WriteAttr(elem, "relpose", 7, peq->data+3);
       break;
 
     case mjEQ_JOINT:
-      WriteAttrTxt(elem, "joint1", mjm_getString(peq->name1));
-      WriteAttrTxt(elem, "joint2", mjm_getString(peq->name2));
+      WriteAttrTxt(elem, "joint1", mjs_getString(peq->name1));
+      WriteAttrTxt(elem, "joint2", mjs_getString(peq->name2));
       WriteAttr(elem, "polycoef", 5, peq->data);
       break;
 
     case mjEQ_TENDON:
-      WriteAttrTxt(elem, "tendon1", mjm_getString(peq->name1));
-      WriteAttrTxt(elem, "tendon2", mjm_getString(peq->name2));
+      WriteAttrTxt(elem, "tendon1", mjs_getString(peq->name1));
+      WriteAttrTxt(elem, "tendon2", mjs_getString(peq->name2));
       WriteAttr(elem, "polycoef", 5, peq->data);
       break;
 
     case mjEQ_FLEX:
-      WriteAttrTxt(elem, "flex", mjm_getString(peq->name1));
+      WriteAttrTxt(elem, "flex", mjs_getString(peq->name1));
       break;
 
     default:
@@ -731,9 +731,9 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
 
 // write plugin
-void mjXWriter::OnePlugin(XMLElement* elem, mjmPlugin* plugin) {
-  const std::string instance_name = std::string(mjm_getString(plugin->instance_name));
-  const std::string plugin_name = std::string(mjm_getString(plugin->name));
+void mjXWriter::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
+  const std::string instance_name = std::string(mjs_getString(plugin->instance_name));
+  const std::string plugin_name = std::string(mjs_getString(plugin->name));
   if (!instance_name.empty()) {
     WriteAttrTxt(elem, "instance", instance_name);
   } else {
@@ -783,13 +783,13 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   // create document and root
   XMLDocument doc;
   XMLElement* root = doc.NewElement("mujoco");
-  root->SetAttribute("model", mjm_getString(model->modelname));
+  root->SetAttribute("model", mjs_getString(model->modelname));
 
   // insert root
   doc.InsertFirstChild(root);
 
   // write comment if present
-  string text = mjm_getString(model->comment);
+  string text = mjs_getString(model->comment);
   if (!text.empty()) {
     XMLComment* comment = doc.NewComment(text.c_str());
     root->LinkEndChild(comment);

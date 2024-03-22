@@ -432,18 +432,18 @@ mjCDef::mjCDef(void) {
   name.clear();
   parentid = -1;
   childid.clear();
-  mjm_defaultJoint(joint.spec);
-  mjm_defaultGeom(geom.spec);
-  mjm_defaultSite(site.spec);
-  mjm_defaultCamera(camera.spec);
-  mjm_defaultLight(light.spec);
-  mjm_defaultFlex(flex.spec);
-  mjm_defaultMesh(mesh.spec);
-  mjm_defaultMaterial(material.spec);
-  mjm_defaultPair(pair.spec);
-  mjm_defaultEquality(equality.spec);
-  mjm_defaultTendon(tendon.spec);
-  mjm_defaultActuator(actuator.spec);
+  mjs_defaultJoint(joint.spec);
+  mjs_defaultGeom(geom.spec);
+  mjs_defaultSite(site.spec);
+  mjs_defaultCamera(camera.spec);
+  mjs_defaultLight(light.spec);
+  mjs_defaultFlex(flex.spec);
+  mjs_defaultMesh(mesh.spec);
+  mjs_defaultMaterial(material.spec);
+  mjs_defaultPair(pair.spec);
+  mjs_defaultEquality(equality.spec);
+  mjs_defaultTendon(tendon.spec);
+  mjs_defaultActuator(actuator.spec);
 
   // make sure all the pointers are local
   PointToLocal();
@@ -626,7 +626,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   // set model pointer
   model = _model;
 
-  mjm_defaultBody(spec);
+  mjs_defaultBody(spec);
   parentid = -1;
   weldid = -1;
   dofnum = 0;
@@ -668,7 +668,7 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
   if (this != &other) {
     spec = other.spec;
     *static_cast<mjCBody_*>(this) = static_cast<const mjCBody_&>(other);
-    *static_cast<mjmBody*>(this) = static_cast<const mjmBody&>(other);
+    *static_cast<mjsBody*>(this) = static_cast<const mjsBody&>(other);
     std::map<mjCFrame*, int> fmap;
     mjCFrame *np = nullptr;
     bodies.clear();
@@ -751,7 +751,7 @@ void mjCBody::PointToLocal() {
 
 
 void mjCBody::CopyFromSpec() {
-  *static_cast<mjmBody*>(this) = spec;
+  *static_cast<mjsBody*>(this) = spec;
   userdata_ = spec_userdata_;
   userdata = (mjDoubleVec)&userdata_;
   mju_copy4(alt_.axisangle, alt.axisangle);
@@ -1367,7 +1367,7 @@ void mjCBody::Compile(void) {
 
 // initialize frame
 mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
-  mjm_defaultFrame(spec);
+  mjs_defaultFrame(spec);
   compiled = false;
   model = _model;
   body = NULL;
@@ -1388,7 +1388,7 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCFrame_*>(this) = static_cast<const mjCFrame_&>(other);
-    *static_cast<mjmFrame*>(this) = static_cast<const mjmFrame&>(other);
+    *static_cast<mjsFrame*>(this) = static_cast<const mjsFrame&>(other);
   }
   PointToLocal();
   return *this;
@@ -1429,7 +1429,7 @@ void mjCFrame::PointToLocal() {
 
 
 void mjCFrame::CopyFromSpec() {
-  *static_cast<mjmFrame*>(this) = spec;
+  *static_cast<mjsFrame*>(this) = spec;
   mju_copy3(pos, spec.pos);
   mju_copy4(quat, spec.quat);
   mju_copy4(alt_.axisangle, alt.axisangle);
@@ -1467,7 +1467,7 @@ void mjCFrame::Compile() {
 
 // initialize default joint
 mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultJoint(spec);
+  mjs_defaultJoint(spec);
 
   // clear internal variables
   spec_userdata_.clear();
@@ -1501,7 +1501,7 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCJoint_*>(this) = static_cast<const mjCJoint_&>(other);
-    *static_cast<mjmJoint*>(this) = static_cast<const mjmJoint&>(other);
+    *static_cast<mjsJoint*>(this) = static_cast<const mjsJoint&>(other);
   }
   PointToLocal();
   return *this;
@@ -1525,7 +1525,7 @@ void mjCJoint::PointToLocal() {
 
 
 void mjCJoint::CopyFromSpec() {
-  *static_cast<mjmJoint*>(this) = spec;
+  *static_cast<mjsJoint*>(this) = spec;
   userdata_ = spec_userdata_;
   userdata = (mjDoubleVec)&spec_userdata_;
 }
@@ -1664,7 +1664,7 @@ int mjCJoint::Compile(void) {
 
 // initialize default geom
 mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultGeom(spec);
+  mjs_defaultGeom(spec);
 
   mass_ = 0;
   body = 0;
@@ -1712,7 +1712,7 @@ mjCGeom& mjCGeom::operator=(const mjCGeom& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCGeom_*>(this) = static_cast<const mjCGeom_&>(other);
-    *static_cast<mjmGeom*>(this) = static_cast<const mjmGeom&>(other);
+    *static_cast<mjsGeom*>(this) = static_cast<const mjsGeom&>(other);
   }
   PointToLocal();
   return *this;
@@ -1737,7 +1737,7 @@ void mjCGeom::PointToLocal(void) {
 
 
 void mjCGeom::CopyFromSpec() {
-  *static_cast<mjmGeom*>(this) = spec;
+  *static_cast<mjsGeom*>(this) = spec;
   userdata_ = spec_userdata_;
   hfieldname_ = spec_hfieldname_;
   meshname_ = spec_meshname_;
@@ -2294,7 +2294,7 @@ void mjCGeom::Compile(void) {
 
 // initialize default site
 mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultSite(spec);
+  mjs_defaultSite(spec);
 
   // clear internal variables
   body = 0;
@@ -2330,7 +2330,7 @@ mjCSite& mjCSite::operator=(const mjCSite& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCSite_*>(this) = static_cast<const mjCSite_&>(other);
-    *static_cast<mjmSite*>(this) = static_cast<const mjmSite&>(other);
+    *static_cast<mjsSite*>(this) = static_cast<const mjsSite&>(other);
   }
   PointToLocal();
   return *this;
@@ -2350,7 +2350,7 @@ void mjCSite::PointToLocal() {
 
 
 void mjCSite::CopyFromSpec() {
-  *static_cast<mjmSite*>(this) = spec;
+  *static_cast<mjsSite*>(this) = spec;
   userdata_ = spec_userdata_;
   material_ = spec_material_;
   userdata = (mjDoubleVec)&userdata_;
@@ -2454,7 +2454,7 @@ void mjCSite::Compile(void) {
 
 // initialize defaults
 mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultCamera(spec);
+  mjs_defaultCamera(spec);
 
   // clear private variables
   body = 0;
@@ -2489,7 +2489,7 @@ mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCCamera_*>(this) = static_cast<const mjCCamera_&>(other);
-    *static_cast<mjmCamera*>(this) = static_cast<const mjmCamera&>(other);
+    *static_cast<mjsCamera*>(this) = static_cast<const mjsCamera&>(other);
   }
   PointToLocal();
   return *this;
@@ -2509,7 +2509,7 @@ void mjCCamera::PointToLocal() {
 
 
 void mjCCamera::CopyFromSpec() {
-  *static_cast<mjmCamera*>(this) = spec;
+  *static_cast<mjsCamera*>(this) = spec;
   userdata_ = spec_userdata_;
   targetbody_ = spec_targetbody_;
   userdata = (mjDoubleVec)&userdata_;
@@ -2608,7 +2608,7 @@ void mjCCamera::Compile(void) {
 
 // initialize defaults
 mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultLight(spec);
+  mjs_defaultLight(spec);
 
   // clear private variables
   body = 0;
@@ -2640,7 +2640,7 @@ mjCLight& mjCLight::operator=(const mjCLight& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCLight_*>(this) = static_cast<const mjCLight_&>(other);
-    *static_cast<mjmLight*>(this) = static_cast<const mjmLight&>(other);
+    *static_cast<mjsLight*>(this) = static_cast<const mjsLight&>(other);
   }
   PointToLocal();
   return *this;
@@ -2659,7 +2659,7 @@ void mjCLight::PointToLocal() {
 
 
 void mjCLight::CopyFromSpec() {
-  *static_cast<mjmLight*>(this) = spec;
+  *static_cast<mjsLight*>(this) = spec;
   targetbody_ = spec_targetbody_;
   targetbody = (mjString)&targetbody_;
 }
@@ -2704,7 +2704,7 @@ void mjCLight::Compile(void) {
 
 // constructor
 mjCHField::mjCHField(mjCModel* _model) {
-  mjm_defaultHField(spec);
+  mjs_defaultHField(spec);
 
   // set model pointer
   model = _model;
@@ -2733,7 +2733,7 @@ mjCHField& mjCHField::operator=(const mjCHField& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCHField_*>(this) = static_cast<const mjCHField_&>(other);
-    *static_cast<mjmHField*>(this) = static_cast<const mjmHField&>(other);
+    *static_cast<mjsHField*>(this) = static_cast<const mjsHField&>(other);
   }
   PointToLocal();
   return *this;
@@ -2753,7 +2753,7 @@ void mjCHField::PointToLocal() {
 
 
 void mjCHField::CopyFromSpec() {
-  *static_cast<mjmHField*>(this) = spec;
+  *static_cast<mjsHField*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   userdata_ = spec_userdata_;
@@ -2956,7 +2956,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCTexture::mjCTexture(mjCModel* _model) {
-  mjm_defaultTexture(spec);
+  mjs_defaultTexture(spec);
 
   // set model pointer
   model = _model;
@@ -3010,7 +3010,7 @@ void mjCTexture::PointToLocal() {
 
 
 void mjCTexture::CopyFromSpec() {
-  *static_cast<mjmTexture*>(this) = spec;
+  *static_cast<mjsTexture*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   cubefiles_ = spec_cubefiles_;
@@ -3698,7 +3698,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultMaterial(spec);
+  mjs_defaultMaterial(spec);
 
   // clear internal
   spec_texture_.clear();
@@ -3732,7 +3732,7 @@ mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCMaterial_*>(this) = static_cast<const mjCMaterial_&>(other);
-    *static_cast<mjmMaterial*>(this) = static_cast<const mjmMaterial&>(other);
+    *static_cast<mjsMaterial*>(this) = static_cast<const mjsMaterial&>(other);
   }
   PointToLocal();
   return *this;
@@ -3751,7 +3751,7 @@ void mjCMaterial::PointToLocal() {
 
 
 void mjCMaterial::CopyFromSpec() {
-  *static_cast<mjmMaterial*>(this) = spec;
+  *static_cast<mjsMaterial*>(this) = spec;
   texture_ = spec_texture_;
   texture = (mjString)&texture_;
 }
@@ -3769,7 +3769,7 @@ void mjCMaterial::Compile(void) {
 
 // constructor
 mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultPair(spec);
+  mjs_defaultPair(spec);
 
   // set defaults
   spec_geomname1_.clear();
@@ -3808,7 +3808,7 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCPair_*>(this) = static_cast<const mjCPair_&>(other);
-    *static_cast<mjmPair*>(this) = static_cast<const mjmPair&>(other);
+    *static_cast<mjsPair*>(this) = static_cast<const mjsPair&>(other);
     this->geom1 = nullptr;
     this->geom2 = nullptr;
   }
@@ -3840,7 +3840,7 @@ void mjCPair::NameSpace(const mjCModel* m) {
 
 
 void mjCPair::CopyFromSpec() {
-  *static_cast<mjmPair*>(this) = spec;
+  *static_cast<mjsPair*>(this) = spec;
   geomname1_ = spec_geomname1_;
   geomname2_ = spec_geomname2_;
   geomname1 = (mjString)&geomname1_;
@@ -4020,7 +4020,7 @@ mjCBodyPair& mjCBodyPair::operator=(const mjCBodyPair& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCBodyPair_*>(this) = static_cast<const mjCBodyPair_&>(other);
-    *static_cast<mjmExclude*>(this) = static_cast<const mjmExclude&>(other);
+    *static_cast<mjsExclude*>(this) = static_cast<const mjsExclude&>(other);
   }
   PointToLocal();
   return *this;
@@ -4049,7 +4049,7 @@ void mjCBodyPair::NameSpace(const mjCModel* m) {
 
 
 void mjCBodyPair::CopyFromSpec() {
-  *static_cast<mjmExclude*>(this) = spec;
+  *static_cast<mjsExclude*>(this) = spec;
   bodyname1_ = spec_bodyname1_;
   bodyname2_ = spec_bodyname2_;
   bodyname1 = (mjString)&bodyname1_;
@@ -4104,7 +4104,7 @@ void mjCBodyPair::Compile(void) {
 
 // initialize default constraint
 mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultEquality(spec);
+  mjs_defaultEquality(spec);
 
   // clear internal variables
   spec_name1_.clear();
@@ -4139,7 +4139,7 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCEquality_*>(this) = static_cast<const mjCEquality_&>(other);
-    *static_cast<mjmEquality*>(this) = static_cast<const mjmEquality&>(other);
+    *static_cast<mjsEquality*>(this) = static_cast<const mjsEquality&>(other);
   }
   PointToLocal();
   return *this;
@@ -4169,7 +4169,7 @@ void mjCEquality::NameSpace(const mjCModel* m) {
 
 
 void mjCEquality::CopyFromSpec() {
-  *static_cast<mjmEquality*>(this) = spec;
+  *static_cast<mjsEquality*>(this) = spec;
   name1_ = spec_name1_;
   name2_ = spec_name2_;
   name1 = (mjString)&name1_;
@@ -4266,7 +4266,7 @@ void mjCEquality::Compile(void) {
 
 // constructor
 mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultTendon(spec);
+  mjs_defaultTendon(spec);
 
   // clear internal variables
   spec_material_.clear();
@@ -4302,7 +4302,7 @@ mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCTendon_*>(this) = static_cast<const mjCTendon_&>(other);
-    *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
+    *static_cast<mjsTendon*>(this) = static_cast<const mjsTendon&>(other);
     for (int i=0; i<other.path.size(); i++) {
       path.push_back(new mjCWrap(*other.path[i]));
       path.back()->tendon = this;
@@ -4340,7 +4340,7 @@ void mjCTendon::NameSpace(const mjCModel* m) {
 
 
 void mjCTendon::CopyFromSpec() {
-  *static_cast<mjmTendon*>(this) = spec;
+  *static_cast<mjsTendon*>(this) = spec;
   material_ = spec_material_;
   userdata_ = spec_userdata_;
   material = (mjString)&material_;
@@ -4622,7 +4622,7 @@ mjCWrap& mjCWrap::operator=(const mjCWrap& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCWrap_*>(this) = static_cast<const mjCWrap_&>(other);
-    *static_cast<mjmWrap*>(this) = static_cast<const mjmWrap&>(other);
+    *static_cast<mjsWrap*>(this) = static_cast<const mjsWrap&>(other);
     obj = nullptr;
   }
   PointToLocal();
@@ -4723,7 +4723,7 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
 
 // initialize defaults
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultActuator(spec);
+  mjs_defaultActuator(spec);
 
   // clear private variables
   ptarget = nullptr;
@@ -4761,7 +4761,7 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCActuator_*>(this) = static_cast<const mjCActuator_&>(other);
-    *static_cast<mjmActuator*>(this) = static_cast<const mjmActuator&>(other);
+    *static_cast<mjsActuator*>(this) = static_cast<const mjsActuator&>(other);
     ptarget = nullptr;
   }
   PointToLocal();
@@ -4803,7 +4803,7 @@ void mjCActuator::NameSpace(const mjCModel* m) {
 
 
 void mjCActuator::CopyFromSpec() {
-  *static_cast<mjmActuator*>(this) = spec;
+  *static_cast<mjsActuator*>(this) = spec;
   userdata_ = spec_userdata_;
   target_ = spec_target_;
   refsite_ = spec_refsite_;
@@ -5066,7 +5066,7 @@ void mjCActuator::Compile(void) {
 
 // initialize defaults
 mjCSensor::mjCSensor(mjCModel* _model) {
-  mjm_defaultSensor(spec);
+  mjs_defaultSensor(spec);
 
   // set model
   model = _model;
@@ -5098,7 +5098,7 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCSensor_*>(this) = static_cast<const mjCSensor_&>(other);
-    *static_cast<mjmSensor*>(this) = static_cast<const mjmSensor&>(other);
+    *static_cast<mjsSensor*>(this) = static_cast<const mjsSensor&>(other);
     obj = nullptr;
     ref = nullptr;
   }
@@ -5133,7 +5133,7 @@ void mjCSensor::NameSpace(const mjCModel* m) {
 
 
 void mjCSensor::CopyFromSpec() {
-  *static_cast<mjmSensor*>(this) = spec;
+  *static_cast<mjsSensor*>(this) = spec;
   userdata_ = spec_userdata_;
   objname_ = spec_objname_;
   refname_ = spec_refname_;
@@ -5552,7 +5552,7 @@ void mjCSensor::Compile(void) {
 
 // constructor
 mjCNumeric::mjCNumeric(mjCModel* _model) {
-  mjm_defaultNumeric(spec);
+  mjs_defaultNumeric(spec);
 
   // set model pointer
   model = _model;
@@ -5579,7 +5579,7 @@ mjCNumeric& mjCNumeric::operator=(const mjCNumeric& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCNumeric_*>(this) = static_cast<const mjCNumeric_&>(other);
-    *static_cast<mjmNumeric*>(this) = static_cast<const mjmNumeric&>(other);
+    *static_cast<mjsNumeric*>(this) = static_cast<const mjsNumeric&>(other);
   }
   PointToLocal();
   return *this;
@@ -5597,7 +5597,7 @@ void mjCNumeric::PointToLocal() {
 
 
 void mjCNumeric::CopyFromSpec() {
-  *static_cast<mjmNumeric*>(this) = spec;
+  *static_cast<mjsNumeric*>(this) = spec;
   data_ = spec_data_;
   data = (mjDoubleVec)&data_;
 }
@@ -5640,7 +5640,7 @@ void mjCNumeric::Compile(void) {
 
 // constructor
 mjCText::mjCText(mjCModel* _model) {
-  mjm_defaultText(spec);
+  mjs_defaultText(spec);
 
   // set model pointer
   model = _model;
@@ -5667,7 +5667,7 @@ mjCText& mjCText::operator=(const mjCText& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCText_*>(this) = static_cast<const mjCText_&>(other);
-    *static_cast<mjmText*>(this) = static_cast<const mjmText&>(other);
+    *static_cast<mjsText*>(this) = static_cast<const mjsText&>(other);
   }
   PointToLocal();
   return *this;
@@ -5685,7 +5685,7 @@ void mjCText::PointToLocal() {
 
 
 void mjCText::CopyFromSpec() {
-  *static_cast<mjmText*>(this) = spec;
+  *static_cast<mjsText*>(this) = spec;
   data_ = spec_data_;
   data = (mjString)&data_;
 }
@@ -5716,7 +5716,7 @@ void mjCText::Compile(void) {
 
 // constructor
 mjCTuple::mjCTuple(mjCModel* _model) {
-  mjm_defaultTuple(spec);
+  mjs_defaultTuple(spec);
 
   // set model pointer
   model = _model;
@@ -5746,7 +5746,7 @@ mjCTuple& mjCTuple::operator=(const mjCTuple& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCTuple_*>(this) = static_cast<const mjCTuple_&>(other);
-    *static_cast<mjmTuple*>(this) = static_cast<const mjmTuple&>(other);
+    *static_cast<mjsTuple*>(this) = static_cast<const mjsTuple&>(other);
   }
   PointToLocal();
   return *this;
@@ -5777,7 +5777,7 @@ void mjCTuple::NameSpace(const mjCModel* m) {
 
 
 void mjCTuple::CopyFromSpec() {
-  *static_cast<mjmTuple*>(this) = spec;
+  *static_cast<mjsTuple*>(this) = spec;
   objtype_ = spec_objtype_;
   objname_ = spec_objname_;
   objprm_ = spec_objprm_;
@@ -5848,7 +5848,7 @@ void mjCTuple::Compile(void) {
 
 // constructor
 mjCKey::mjCKey(mjCModel* _model) {
-  mjm_defaultKey(spec);
+  mjs_defaultKey(spec);
 
   // set model pointer
   model = _model;
@@ -5880,7 +5880,7 @@ mjCKey& mjCKey::operator=(const mjCKey& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCKey_*>(this) = static_cast<const mjCKey_&>(other);
-    *static_cast<mjmKey*>(this) = static_cast<const mjmKey&>(other);
+    *static_cast<mjsKey*>(this) = static_cast<const mjsKey&>(other);
   }
   PointToLocal();
   return *this;
@@ -5903,7 +5903,7 @@ void mjCKey::PointToLocal() {
 
 
 void mjCKey::CopyFromSpec() {
-  *static_cast<mjmKey*>(this) = spec;
+  *static_cast<mjsKey*>(this) = spec;
   qpos_ = spec_qpos_;
   qvel_ = spec_qvel_;
   act_ = spec_act_;
@@ -6031,7 +6031,7 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   instance_name.clear();
 
   // public interface
-  mjm_defaultPlugin(spec);
+  mjs_defaultPlugin(spec);
   spec.name = (mjString)&name;
   spec.instance_name = (mjString)&instance_name;
   spec.info = (mjString)&info;

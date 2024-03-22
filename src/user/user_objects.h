@@ -82,7 +82,7 @@ class [[nodiscard]] mjCError {
 
 
 // alternative specifications of frame orientation
-class mjCAlternative : public mjmOrientation {
+class mjCAlternative : public mjsOrientation {
  public:
   mjCAlternative();                               // constuctor
   const char* Set(double* quat,                   // set frame quat
@@ -253,7 +253,7 @@ class mjCBody_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCBody : public mjCBody_, private mjmBody {
+class mjCBody : public mjCBody_, private mjsBody {
   friend class mjCJoint;
   friend class mjCGeom;
   friend class mjCSite;
@@ -300,7 +300,7 @@ class mjCBody : public mjCBody_, private mjmBody {
   const char* FullInertia(double quat[4], double inertia[3]);
 
   // variables set by user
-  mjmBody spec;
+  mjsBody spec;
 
   // inherited
   using mjCBase::name;
@@ -343,7 +343,7 @@ class mjCFrame_ : public mjCBase {
   mjCAlternative alt_;
 };
 
-class mjCFrame : public mjCFrame_, private mjmFrame {
+class mjCFrame : public mjCFrame_, private mjsFrame {
   friend class mjCBase;
   friend class mjCBody;
   friend class mjCGeom;
@@ -354,7 +354,7 @@ class mjCFrame : public mjCFrame_, private mjmFrame {
   friend class mjCModel;
 
  public:
-  mjmFrame spec;
+  mjsFrame spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -389,7 +389,7 @@ class mjCJoint_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCJoint : public mjCJoint_, private mjmJoint {
+class mjCJoint : public mjCJoint_, private mjsJoint {
   friend class mjCDef;
   friend class mjCEquality;
   friend class mjCBody;
@@ -399,7 +399,7 @@ class mjCJoint : public mjCJoint_, private mjmJoint {
   friend class mjXURDF;
 
  public:
-  mjmJoint spec;
+  mjsJoint spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -457,7 +457,7 @@ class mjCGeom_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCGeom : public mjCGeom_, private mjmGeom {
+class mjCGeom : public mjCGeom_, private mjsGeom {
   friend class mjCDef;
   friend class mjCMesh;
   friend class mjCPair;
@@ -469,7 +469,7 @@ class mjCGeom : public mjCGeom_, private mjmGeom {
 
  public:
   using mjCBase::name;
-  mjmGeom spec;                       // variables set by user
+  mjsGeom spec;                       // variables set by user
   double GetVolume(void);             // compute geom volume
   void SetInertia(void);              // compute and set geom inertia
   bool IsVisual(void) const { return visual_; }
@@ -526,7 +526,7 @@ class mjCSite_ : public mjCBase {
   int matid;                      // material id for rendering
 };
 
-class mjCSite : public mjCSite_, private mjmSite {
+class mjCSite : public mjCSite_, private mjsSite {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
@@ -534,9 +534,9 @@ class mjCSite : public mjCSite_, private mjmSite {
   friend class mjXURDF;
 
  public:
-  mjmSite spec;                   // variables set by user
+  mjsSite spec;                   // variables set by user
 
-  // use strings from mjCBase rather than mjStrings from mjmSite
+  // use strings from mjCBase rather than mjStrings from mjsSite
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -572,7 +572,7 @@ class mjCCamera_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCCamera : public mjCCamera_, private mjmCamera {
+class mjCCamera : public mjCCamera_, private mjsCamera {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
@@ -580,7 +580,7 @@ class mjCCamera : public mjCCamera_, private mjmCamera {
   friend class mjXWriter;
 
  public:
-  mjmCamera spec;
+  mjsCamera spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -612,14 +612,14 @@ class mjCLight_ : public mjCBase {
   std::string spec_targetbody_;
 };
 
-class mjCLight : public mjCLight_, private mjmLight {
+class mjCLight : public mjCLight_, private mjsLight {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmLight spec;
+  mjsLight spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -673,7 +673,7 @@ class mjCFlex_ : public mjCBase {
   std::vector<float> spec_texcoord_;
 };
 
-class mjCFlex: public mjCFlex_, private mjmFlex {
+class mjCFlex: public mjCFlex_, private mjsFlex {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjCFlexcomp;
@@ -681,7 +681,7 @@ class mjCFlex: public mjCFlex_, private mjmFlex {
   friend class mjXWriter;
 
  public:
-  mjmFlex spec;
+  mjsFlex spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -777,7 +777,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<double> face_aabb_;     // bounding boxes of all faces
 };
 
-class mjCMesh: public mjCMesh_, private mjmMesh {
+class mjCMesh: public mjCMesh_, private mjsMesh {
   friend class mjCModel;
   friend class mjCFlexcomp;
   friend class mjXWriter;
@@ -787,7 +787,7 @@ class mjCMesh: public mjCMesh_, private mjmMesh {
   mjCMesh& operator=(const mjCMesh& other);  // copy assignment
   ~mjCMesh();
 
-  mjmMesh spec;
+  mjsMesh spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -914,12 +914,12 @@ class mjCSkin_ : public mjCBase {
   std::vector<int> bodyid;            // body ids
 };
 
-class mjCSkin: public mjCSkin_, private mjmSkin {
+class mjCSkin: public mjCSkin_, private mjsSkin {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmSkin spec;
+  mjsSkin spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -968,13 +968,13 @@ class mjCHField_ : public mjCBase {
   std::vector<float> spec_userdata_;
 };
 
-class mjCHField : public mjCHField_, private mjmHField {
+class mjCHField : public mjCHField_, private mjsHField {
   friend class mjCGeom;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmHField spec;
+  mjsHField spec;
   using mjCBase::name;
   using mjCBase::info;
 
@@ -1015,7 +1015,7 @@ class mjCTexture_ : public mjCBase {
   std::vector<std::string> spec_cubefiles_;
 };
 
-class mjCTexture : public mjCTexture_, private mjmTexture {
+class mjCTexture : public mjCTexture_, private mjsTexture {
   friend class mjCModel;
   friend class mjXReader;
   friend class mjXWriter;
@@ -1023,7 +1023,7 @@ class mjCTexture : public mjCTexture_, private mjmTexture {
  public:
   ~mjCTexture();                  // destructor
 
-  mjmTexture spec;
+  mjsTexture spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1072,13 +1072,13 @@ class mjCMaterial_ : public mjCBase {
   std::string spec_texture_;
 };
 
-class mjCMaterial : public mjCMaterial_, private mjmMaterial {
+class mjCMaterial : public mjCMaterial_, private mjsMaterial {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmMaterial spec;
+  mjsMaterial spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1111,14 +1111,14 @@ class mjCPair_ : public mjCBase {
   std::string spec_geomname2_;
 };
 
-class mjCPair : public mjCPair_, private mjmPair {
+class mjCPair : public mjCPair_, private mjsPair {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmPair spec;
+  mjsPair spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1163,12 +1163,12 @@ class mjCBodyPair_ : public mjCBase {
   std::string spec_bodyname2_;
 };
 
-class mjCBodyPair : public mjCBodyPair_, private mjmExclude {
+class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
   friend class mjCBody;
   friend class mjCModel;
 
  public:
-  mjmExclude spec;
+  mjsExclude spec;
   using mjCBase::name;
   using mjCBase::info;
 
@@ -1207,14 +1207,14 @@ class mjCEquality_ : public mjCBase {
   std::string spec_name2_;
 };
 
-class mjCEquality : public mjCEquality_, private mjmEquality {
+class mjCEquality : public mjCEquality_, private mjsEquality {
   friend class mjCDef;
   friend class mjCBody;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmEquality spec;
+  mjsEquality spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1248,13 +1248,13 @@ class mjCTendon_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCTendon : public mjCTendon_, private mjmTendon {
+class mjCTendon : public mjCTendon_, private mjsTendon {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmTendon spec;
+  mjsTendon spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1308,12 +1308,12 @@ class mjCWrap_ : public mjCBase {
   std::string sidesite;           // name of side site
 };
 
-class mjCWrap : public mjCWrap_, private mjmWrap {
+class mjCWrap : public mjCWrap_, private mjsWrap {
   friend class mjCTendon;
   friend class mjCModel;
 
  public:
-  mjmWrap spec;
+  mjsWrap spec;
   using mjCBase::info;
 
   void PointToLocal();
@@ -1350,7 +1350,7 @@ class mjCPlugin : public mjCPlugin_ {
   friend class mjXWriter;
 
  public:
-  mjmPlugin spec;
+  mjsPlugin spec;
   mjCBase* parent;   // parent object (only used when generating error message)
   mjCPlugin(const mjCPlugin& other);             // copy constructor
 
@@ -1383,13 +1383,13 @@ class mjCActuator_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCActuator : public mjCActuator_, private mjmActuator {
+class mjCActuator : public mjCActuator_, private mjsActuator {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmActuator spec;
+  mjsActuator spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1438,13 +1438,13 @@ class mjCSensor_ : public mjCBase {
   std::vector<double> spec_userdata_;
 };
 
-class mjCSensor : public mjCSensor_, private mjmSensor {
+class mjCSensor : public mjCSensor_, private mjsSensor {
   friend class mjCDef;
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmSensor spec;
+  mjsSensor spec;
   using mjCBase::name;
   using mjCBase::classname;
   using mjCBase::info;
@@ -1480,12 +1480,12 @@ class mjCNumeric_ : public mjCBase {
   std::vector<double> spec_data_;
 };
 
-class mjCNumeric : public mjCNumeric_, private mjmNumeric {
+class mjCNumeric : public mjCNumeric_, private mjsNumeric {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmNumeric spec;
+  mjsNumeric spec;
   using mjCBase::name;
   using mjCBase::info;
 
@@ -1512,12 +1512,12 @@ class mjCText_ : public mjCBase {
   std::string spec_data_;
 };
 
-class mjCText : public mjCText_, private mjmText {
+class mjCText : public mjCText_, private mjsText {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmText spec;
+  mjsText spec;
   using mjCBase::name;
   using mjCBase::info;
 
@@ -1549,12 +1549,12 @@ class mjCTuple_ : public mjCBase {
   std::vector<double> spec_objprm_;
 };
 
-class mjCTuple : public mjCTuple_, private mjmTuple {
+class mjCTuple : public mjCTuple_, private mjsTuple {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmTuple spec;
+  mjsTuple spec;
   using mjCBase::name;
   using mjCBase::info;
 
@@ -1593,12 +1593,12 @@ class mjCKey_ : public mjCBase {
   std::vector<double> spec_ctrl_;
 };
 
-class mjCKey : public mjCKey_, private mjmKey {
+class mjCKey : public mjCKey_, private mjsKey {
   friend class mjCModel;
   friend class mjXWriter;
 
  public:
-  mjmKey spec;
+  mjsKey spec;
   using mjCBase::name;
   using mjCBase::info;
 

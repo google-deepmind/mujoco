@@ -42,7 +42,7 @@ typedef enum _mjtFcompType {
 class mjCFlexcomp {
  public:
   mjCFlexcomp(void);
-  bool Make(mjSpec* spec, mjmBody* body, char* error, int error_sz);
+  bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz);
@@ -93,7 +93,7 @@ class mjCFlexcomp {
   // plugin support
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjmPlugin plugin;
+  mjsPlugin plugin;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_FLEXCOMP_H_

@@ -39,28 +39,28 @@ using ::testing::NotNull;
 // ----------------------------- test set/get  --------------------------------
 
 TEST_F(MujocoTest, ReadWriteData) {
-  mjSpec* spec = mjm_createSpec();
-  mjmBody* world = mjm_findBody(spec, "world");
-  mjmBody* body = mjm_addBody(world, 0);
-  mjmSite* site = mjm_addSite(body, 0);
+  mjSpec* spec = mjs_createSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* body = mjs_addBody(world, 0);
+  mjsSite* site = mjs_addSite(body, 0);
 
   {
     double vec[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     const char* str = "sitename";
 
-    mjm_setString(site->name, str);
-    mjm_setDouble(site->userdata, vec, 10);
+    mjs_setString(site->name, str);
+    mjs_setDouble(site->userdata, vec, 10);
   }
 
-  EXPECT_THAT(mjm_getString(site->name), HasSubstr("sitename"));
+  EXPECT_THAT(mjs_getString(site->name), HasSubstr("sitename"));
 
   int nsize;
-  const double* vec = mjm_getDouble(site->userdata, &nsize);
+  const double* vec = mjs_getDouble(site->userdata, &nsize);
   for (int i = 0; i < nsize; ++i) {
     EXPECT_EQ(vec[i], i);
   }
 
-  mjm_deleteSpec(spec);
+  mjs_deleteSpec(spec);
 }
 
 // ------------------- test recompilation multiple files ----------------------
@@ -93,12 +93,12 @@ TEST_F(PluginTest, RecompileCompare) {
         mjSpec* s = mjParseXML(xml.c_str(), nullptr, err.data(), err.size());
 
         // copy spec
-        mjSpec* s_copy = mjm_copySpec(s);
+        mjSpec* s_copy = mjs_copySpec(s);
 
         // compile twice and compare
-        mjModel* m_old = mjm_compile(s, nullptr);
-        mjModel* m_new = mjm_compile(s, nullptr);
-        mjModel* m_copy = mjm_compile(s_copy, nullptr);
+        mjModel* m_old = mjs_compile(s, nullptr);
+        mjModel* m_new = mjs_compile(s, nullptr);
+        mjModel* m_copy = mjs_compile(s_copy, nullptr);
 
         ASSERT_THAT(m_old, NotNull())
             << "Failed to compile " << xml << ": " << err.data();
@@ -118,8 +118,8 @@ TEST_F(PluginTest, RecompileCompare) {
             << "Different field: " << field << '\n';
 
         // copy to a new spec, compile and compare
-        mjSpec* s_copy2 = mjm_copySpec(s);
-        mjModel* m_copy2 = mjm_compile(s_copy2, nullptr);
+        mjSpec* s_copy2 = mjs_copySpec(s);
+        mjModel* m_copy2 = mjs_compile(s_copy2, nullptr);
 
         ASSERT_THAT(m_copy2, NotNull())
             << "Failed to compile " << xml << ": " << err.data();
@@ -130,9 +130,9 @@ TEST_F(PluginTest, RecompileCompare) {
             << "Different field: " << field << '\n';
 
         // delete models
-        mjm_deleteSpec(s);
-        mjm_deleteSpec(s_copy);
-        mjm_deleteSpec(s_copy2);
+        mjs_deleteSpec(s);
+        mjs_deleteSpec(s_copy);
+        mjs_deleteSpec(s_copy2);
         mj_deleteModel(m_old);
         mj_deleteModel(m_new);
         mj_deleteModel(m_copy);
@@ -273,7 +273,7 @@ TEST_F(MujocoTest, Attach) {
   EXPECT_THAT(parent, NotNull()) << er.data();
 
   // get frame
-  mjmFrame* frame = mjm_findFrame(parent, "frame");
+  mjsFrame* frame = mjs_findFrame(parent, "frame");
   EXPECT_THAT(frame, NotNull());
 
   // model with one cylinder and a hinge
@@ -281,15 +281,15 @@ TEST_F(MujocoTest, Attach) {
   EXPECT_THAT(child, NotNull()) << er.data();
 
   // get subtree
-  mjmBody* body = mjm_findBody(child, "body");
+  mjsBody* body = mjs_findBody(child, "body");
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
   EXPECT_THAT(
-      mjm_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+      mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
 
   // compile new model
-  mjModel* m_attached = mjm_compile(parent, 0);
+  mjModel* m_attached = mjs_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
 
   // check full name stored in mjModel
@@ -306,8 +306,8 @@ TEST_F(MujocoTest, Attach) {
             << "Different field: " << field << '\n';;
 
   // destroy everything
-  mjm_deleteSpec(parent);
-  mjm_deleteSpec(child);
+  mjs_deleteSpec(parent);
+  mjs_deleteSpec(child);
   mj_deleteModel(m_attached);
   mj_deleteModel(m_expected);
 }

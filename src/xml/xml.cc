@@ -345,14 +345,14 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  model = mjm_createSpec();
+  model = mjs_createSpec();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
   if (dir != nullptr) {
-    mjm_setString(model->modelfiledir, std::string(dir, ndir).c_str());
+    mjs_setString(model->modelfiledir, std::string(dir, ndir).c_str());
   } else {
-    mjm_setString(model->modelfiledir, "");
+    mjs_setString(model->modelfiledir, "");
   }
 
   // close resource
@@ -364,8 +364,8 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
       // find include elements, replace them with subtree from xml file
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
-      parser.SetModelFileDir(mjm_getString(model->modelfiledir));
-      mjIncludeXML(parser, root, mjm_getString(model->modelfiledir), vfs, included);
+      parser.SetModelFileDir(mjs_getString(model->modelfiledir));
+      mjIncludeXML(parser, root, mjs_getString(model->modelfiledir), vfs, included);
 
       // parse MuJoCo model
       parser.SetModel(model);
@@ -394,7 +394,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    mjm_deleteSpec(model);
+    mjs_deleteSpec(model);
     return nullptr;
   }
 
