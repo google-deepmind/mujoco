@@ -49,4 +49,5 @@ from mujoco.mjx._src.solver import solve
 from mujoco.mjx._src.support import full_m
 from mujoco.mjx._src.support import is_sparse
 from mujoco.mjx._src.support import mul_m
+from mujoco.mjx._src.test_util import benchmark
 from mujoco.mjx._src.types import *

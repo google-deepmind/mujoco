@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 """Engine support functions."""
-
 from typing import Optional, Tuple, Union
 
 import jax
