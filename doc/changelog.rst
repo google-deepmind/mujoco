@@ -59,6 +59,11 @@ Python bindings
 .. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
               :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
+Simulate
+^^^^^^^^
+13. Fixed bug in order of enable flag strings. Before this change, using the simulate UI to toggle the
+    :ref:`invdiscrete<option-flag-invdiscrete>` or :ref:`sensornoise<option-flag-sensornoise>`
+    flags would actually toggle the other flag.
 
 Version 3.1.2 (February 05, 2024)
 -----------------------------------
