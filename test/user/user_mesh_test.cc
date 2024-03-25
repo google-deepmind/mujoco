@@ -945,6 +945,31 @@ TEST_F(MjCMeshTest, NaNConvexHullDisallowed) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, InvalidIndexInFace) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  0 1 0  0 0 1  0.707 0 0.707"
+        face="0 2 6  0 3 2" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "in face 0, vertex index 6 does not exist"));
+  mj_deleteModel(model);
+}
+
+
 
 }  // namespace
 }  // namespace mujoco

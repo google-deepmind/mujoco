@@ -549,7 +549,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     // check vertices exist
     for (int i=0; i<userface_.size(); i++) {
       if (userface_[i] >= nvert_ || userface_[i] < 0) {
-        throw mjCError(this, "index in face does not exist in vertex array");
+        throw mjCError(this, "in face %d, vertex index %d does not exist",
+                       nullptr, i / 3, userface_[i]);
       }
     }
 
