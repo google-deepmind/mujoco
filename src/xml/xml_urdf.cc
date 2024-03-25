@@ -20,7 +20,6 @@
 
 #include <mujoco/mjmodel.h>
 #include "user/user_api.h"
-#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_urdf.h"
@@ -633,9 +632,10 @@ void mjXURDF::Origin(XMLElement* origin_elem, double* pos, double* quat) {
     ReadAttr(temp, "xyz", 3, pos, text);
 
     // orientation
-    mjCAlternative alt;
+    mjsOrientation alt;
+    mjs_defaultOrientation(alt);
     if (ReadAttr(temp, "rpy", 3, alt.euler, text)) {
-      alt.Set(quat, 0, "XYZ");
+      mjs_resolveOrientation(quat, 0, "XYZ", &alt);
     }
   }
 }

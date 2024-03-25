@@ -498,6 +498,14 @@ void mjs_setFrame(mjElement dest, mjsFrame* frame) {
 
 
 
+// Resolve alternative orientations.
+const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
+                                   const mjsOrientation* orientation) {
+  return ResolveOrientation(quat, degree, sequence, *orientation);
+}
+
+
+
 // get id
 int mjs_getId(mjElement element) {
   return reinterpret_cast<mjCBase*>(element)->id;

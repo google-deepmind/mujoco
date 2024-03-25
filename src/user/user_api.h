@@ -915,6 +915,10 @@ MJAPI void mjs_setDefault(mjElement element, mjmDefault* def);
 // Set frame.
 MJAPI void mjs_setFrame(mjElement dest, mjsFrame* frame);
 
+// Resolve alternative orientations to quat.
+MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
+                                         const mjsOrientation* orientation);
+
 // Compute quat and inertia from body->fullinertia.
 MJAPI const char* mjs_setFullInertia(mjsBody* body, double quat[4], double inertia[3]);
 
@@ -923,6 +927,9 @@ MJAPI const char* mjs_setFullInertia(mjsBody* body, double quat[4], double inert
 
 // Default model attributes.
 MJAPI void mjs_defaultSpec(mjSpec& model);
+
+// Default orientation attributes.
+MJAPI void mjs_defaultOrientation(mjsOrientation& orient);
 
 // Default body attributes.
 MJAPI void mjs_defaultBody(mjsBody& body);

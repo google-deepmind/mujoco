@@ -141,17 +141,22 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
 
 
 
-//------------------ class mjCAlternative implementation -------------------------------------------
-
-// constructor
-mjCAlternative::mjCAlternative() {
-  axisangle[0] = xyaxes[0] = zaxis[0] = euler[0] = mjNAN;
-}
-
+//------------------ alternative orientation implementation ----------------------------------------
 
 // compute frame orientation given alternative specifications
 // used for geom, site, body and camera frames
-const char* mjCAlternative::Set(double* quat, bool degree, const char* sequence) {
+const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
+                               const mjsOrientation& orient) {
+  mjtNum axisangle[4];
+  mjtNum xyaxes[6];
+  mjtNum zaxis[3];
+  mjtNum euler[3];
+
+  mjuu_copyvec(axisangle, orient.axisangle, 4);
+  mjuu_copyvec(xyaxes, orient.xyaxes, 6);
+  mjuu_copyvec(zaxis, orient.zaxis, 3);
+  mjuu_copyvec(euler, orient.euler, 3);
+
   // set quat using axisangle
   if (mjuu_defined(axisangle[0])) {
     // convert to radians if necessary, normalize axis
@@ -754,14 +759,6 @@ void mjCBody::CopyFromSpec() {
   *static_cast<mjsBody*>(this) = spec;
   userdata_ = spec_userdata_;
   userdata = (mjDoubleVec)&userdata_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
-  mju_copy4(ialt_.axisangle, ialt.axisangle);
-  mju_copy(ialt_.xyaxes, ialt.xyaxes, 6);
-  mju_copy3(ialt_.zaxis, ialt.zaxis);
-  mju_copy3(ialt_.euler, ialt.euler);
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -1195,7 +1192,7 @@ void mjCBody::Compile(void) {
   }
 
   // check and process orientation alternatives for body
-  const char* err = alt_.Set(quat, model->degree, model->euler);
+  const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
   if (err) {
     throw mjCError(this, "error '%s' in frame alternative", err);
   }
@@ -1432,10 +1429,6 @@ void mjCFrame::CopyFromSpec() {
   *static_cast<mjsFrame*>(this) = spec;
   mju_copy3(pos, spec.pos);
   mju_copy4(quat, spec.quat);
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
 }
 
 
@@ -1446,7 +1439,7 @@ void mjCFrame::Compile() {
   }
 
   CopyFromSpec();
-  const char* err = alt_.Set(quat, model->spec.degree, model->spec.euler);
+  const char* err = ResolveOrientation(quat, model->spec.degree, model->spec.euler, alt);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
   }
@@ -1746,10 +1739,6 @@ void mjCGeom::CopyFromSpec() {
   hfieldname = (mjString)&hfieldname_;
   meshname = (mjString)&meshname_;
   material = (mjString)&material_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -2181,7 +2170,7 @@ void mjCGeom::Compile(void) {
 
   // not 'fromto': try alternative
   else {
-    const char* err = alt_.Set(quat, model->degree, model->euler);
+    const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
@@ -2355,10 +2344,6 @@ void mjCSite::CopyFromSpec() {
   material_ = spec_material_;
   userdata = (mjDoubleVec)&userdata_;
   material = (mjString)&material_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
 }
 
 
@@ -2430,7 +2415,7 @@ void mjCSite::Compile(void) {
 
   // alternative orientation
   else {
-    const char* err = alt_.Set(quat, model->degree, model->euler);
+    const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
@@ -2514,10 +2499,6 @@ void mjCCamera::CopyFromSpec() {
   targetbody_ = spec_targetbody_;
   userdata = (mjDoubleVec)&userdata_;
   targetbody = (mjString)&targetbody_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
 }
 
 
@@ -2534,7 +2515,7 @@ void mjCCamera::Compile(void) {
   userdata_.resize(model->nuser_cam);
 
   // process orientation specifications
-  const char* err = alt_.Set(quat, model->degree, model->euler);
+  const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }

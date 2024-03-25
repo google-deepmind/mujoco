@@ -73,6 +73,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
   centered = false;
 
   mjs_defaultPlugin(plugin);
+  mjs_defaultOrientation(alt);
   plugin_name = "";
   plugin_instance_name = "";
   plugin.name = (mjString)&plugin_name;
@@ -131,7 +132,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // compute orientation
-  const char* alterr = alt.Set(quat, model->spec.degree, model->spec.euler);
+  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.euler, &alt);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }

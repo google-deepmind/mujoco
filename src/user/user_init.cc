@@ -75,6 +75,13 @@ void mjs_defaultSpec(mjSpec& model) {
 
 
 
+// default orientation attributes
+void mjs_defaultOrientation(mjsOrientation& orient) {
+  orient.axisangle[0] = orient.xyaxes[0] = orient.zaxis[0] = orient.euler[0] = mjNAN;
+}
+
+
+
 // default body attributes
 void mjs_defaultBody(mjsBody& body) {
   memset(&body, 0, sizeof(mjsBody));

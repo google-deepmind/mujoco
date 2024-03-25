@@ -30,7 +30,6 @@
 
 // forward declarations of all mjC/X classes
 class mjCError;
-class mjCAlternative;
 class mjCBase;
 class mjCBody;
 class mjCFrame;
@@ -82,13 +81,10 @@ class [[nodiscard]] mjCError {
 
 
 // alternative specifications of frame orientation
-class mjCAlternative : public mjsOrientation {
- public:
-  mjCAlternative();                               // constuctor
-  const char* Set(double* quat,                   // set frame quat
-                  bool degree,                    // angle format: degree/radian
-                  const char* sequence);          // euler sequence format: "xyz"
-};
+const char* ResolveOrientation(double* quat,             // set frame quat
+                               bool degree,              // angle format: degree/radian
+                               const char* sequence,     // euler sequence format: "xyz"
+                               const mjsOrientation& orient);
 
 
 
@@ -223,10 +219,6 @@ class mjCBase : public mjCBase_ {
 // Describes a rigid body
 
 class mjCBody_ : public mjCBase {
- public:
-  mjCAlternative alt_;
-  mjCAlternative ialt_;
-
  protected:
   // variables computed by 'Compile' and 'AddXXX'
   int parentid;                   // parent index in global array
@@ -340,7 +332,6 @@ class mjCBody : public mjCBody_, private mjsBody {
 class mjCFrame_ : public mjCBase {
  protected:
   bool compiled;                           // frame already compiled
-  mjCAlternative alt_;
 };
 
 class mjCFrame : public mjCFrame_, private mjsFrame {
@@ -433,7 +424,6 @@ class mjCGeom_ : public mjCBase {
   bool inferinertia;           // true if inertia should be computed from geom
 
  protected:
-  mjCAlternative alt_;
   bool visual_;                       // true: geom does not collide and is unreferenced
   int matid;                          // id of geom's material
   mjCMesh* mesh;                      // geom's mesh
@@ -513,8 +503,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
 
 class mjCSite_ : public mjCBase {
  protected:
-  mjCAlternative alt_;
-
   // variable-size data
   std::string material_;
   std::vector<double> userdata_;
@@ -565,7 +553,6 @@ class mjCCamera_ : public mjCBase {
  protected:
   mjCBody* body;                  // camera's body
   int targetbodyid;               // id of target body; -1: none
-  mjCAlternative alt_;
   std::string targetbody_;
   std::string spec_targetbody_;
   std::vector<double> userdata_;

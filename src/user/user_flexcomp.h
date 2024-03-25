@@ -79,7 +79,7 @@ class mjCFlexcomp {
   // pose transform relative to parent body
   double pos[3];                  // position
   double quat[4];                 // orientation
-  mjCAlternative alt;             // alternative orientation
+  mjsOrientation alt;             // alternative orientation
 
   // set by user or computed internally
   bool rigid;                     // all vertices are in parent body (all pinned)
