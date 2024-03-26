@@ -50,6 +50,11 @@ class mjCFlexcomp {
   bool MakeMesh(mjCModel* model, char* error, int error_sz);
   bool MakeGMSH(mjCModel* model, char* error, int error_sz);
   void LoadGMSH(mjCModel* model, mjResource* resource);
+  void LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
+                  int elemend, int elembegin);
+  void LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
+                  int elemend, int elembegin);
+
 
   int GridID(int ix, int iy);
   int GridID(int ix, int iy, int iz);

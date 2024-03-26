@@ -3808,8 +3808,12 @@ saving the XML:
    in MuJoCo can be used as a rigid geom attached to a single body. In contrast, the flex generated here corresponds to
    a soft mesh with the same initial shape, where each vertex is a separate moving body (unless pinned).
 
-   **gmsh** is similar to mesh, but it loads a `GMSH file <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
-   in format 4.1 (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
+   .. _gmsh-file-docs:
+
+   **gmsh** is similar to mesh, but it loads a GMSH file in
+   `format 4.1 <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
+   and `format 2.2 <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format-version-2-_0028Legacy_0029>`__
+   (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
    the file header. This is a very rich file format, allowing all kinds of elements with different dimensionality and
    topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes and
    assumes that the nodes are specified in a single block. Only the Nodes and Elements sections of the GMHS file are
@@ -3817,7 +3821,7 @@ saving the XML:
    GMSH file contains meshes that are not supported by MuJoCo. :at:`dim` is automatically set to the dimensionality
    specified in the GMSH file. Presently this is the only mechanism to load a large tetrahedral mesh in MuJoCo and
    generate a corresponding soft entity. If such a mesh is available in a different file format, use the freely
-   available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
+   available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH in one of the supported versions.
 
    **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
    flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
@@ -3873,7 +3877,7 @@ saving the XML:
 :at:`file`: :at-val:`string, optional`
    The name of the file from which a **mesh** or a **gmsh** is loaded. For mesh, the file extentsion is used to
    determine the file format. Supported formats are the same as in :ref:`mesh assets<asset-mesh>`. For gmsh, the file is
-   expected to be in GMSH format 4.1, ascii or binary.
+   expected to be in GMSH format 4.1 or 2.2, ascii or binary, see :ref:`here<gmsh-file-docs>`.
 
 .. _body-flexcomp-rigid:
 

@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "user/user_api.h"
-#include "user/user_flexcomp.h"
-#include <stdio.h>
-
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <sstream>
+#include <stdio.h>
 #include <string>
 #include <vector>
-#include <sstream>
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
@@ -34,6 +32,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+#include "user/user_flexcomp.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -56,6 +55,12 @@ template <typename T>
 static void ReadFromBuffer(T* dst, const char* src) {
   std::memcpy(dst, src, sizeof(T));
 }
+
+
+static void ReadStrFromBuffer(char* dest, const char* src, int maxlen) {
+  std::strncpy(dest, src, maxlen);
+}
+
 
 
 // constructor: set defaults outside mjCDef
@@ -87,12 +92,12 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   mjCModel* model = (mjCModel*)spec->element;
   mjsFlex* dflex = def.spec.flex;
   int dim = dflex->dim;
-  bool radial = (type==mjFCOMPTYPE_BOX ||
-                 type==mjFCOMPTYPE_CYLINDER ||
-                 type==mjFCOMPTYPE_ELLIPSOID);
-  bool direct = (type==mjFCOMPTYPE_DIRECT ||
-                 type==mjFCOMPTYPE_MESH ||
-                 type==mjFCOMPTYPE_GMSH);
+  bool radial = (type == mjFCOMPTYPE_BOX ||
+                 type == mjFCOMPTYPE_CYLINDER ||
+                 type == mjFCOMPTYPE_ELLIPSOID);
+  bool direct = (type == mjFCOMPTYPE_DIRECT ||
+                 type == mjFCOMPTYPE_MESH ||
+                 type == mjFCOMPTYPE_GMSH);
 
   // check parent body name
   if (std::string(mjs_getString(body->name)).empty()) {
@@ -100,13 +105,13 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check dim
-  if (dim<1 || dim>3) {
+  if (dim < 1 || dim > 3) {
     return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
   }
 
   // check counts
-  for (int i=0; i<3; i++) {
-    if (count[i]<1 || ((radial && count[i]<2) && dim==3)) {
+  for (int i=0; i < 3; i++) {
+    if (count[i] < 1 || ((radial && count[i] < 2) && dim == 3)) {
       return comperr(error, "Count too small", error_sz);
     }
   }
@@ -114,9 +119,9 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   // check spacing
   double minspace = 2*dflex->radius + dflex->margin;
   if (!direct) {
-    if (spacing[0]<minspace ||
-        spacing[1]<minspace ||
-        spacing[2]<minspace) {
+    if (spacing[0] < minspace ||
+        spacing[1] < minspace ||
+        spacing[2] < minspace) {
       return comperr(error, "Spacing must be larger than geometry size", error_sz);
     }
   }
@@ -175,8 +180,8 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // force flatskin shading for box, cylinder and 3D grid
-  if (type==mjFCOMPTYPE_BOX || type==mjFCOMPTYPE_CYLINDER ||
-      (type==mjFCOMPTYPE_GRID && dim==3)) {
+  if (type == mjFCOMPTYPE_BOX || type == mjFCOMPTYPE_CYLINDER ||
+      (type == mjFCOMPTYPE_GRID && dim == 3)) {
     dflex->flatskin = true;
   }
 
@@ -190,10 +195,10 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   if (pingridrange.size()%(2*dim)) {
     return comperr(error, "Pin grid range number of must be multiple of 2*dim", error_sz);
   }
-  if (type!=mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty())) {
+  if (type != mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) can only be used with grid type", error_sz);
   }
-  if (dim==1 && !(pingrid.empty() && pingridrange.empty())) {
+  if (dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) cannot be used with dim=1", error_sz);
   }
 
@@ -216,8 +221,8 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   int npnt = point.size()/3;
 
   // check elem vertex ids
-  for (int i=0; i<(int)element.size(); i++) {
-    if (element[i]<0 || element[i]>=npnt) {
+  for (int i=0; i < (int)element.size(); i++) {
+    if (element[i] < 0 || element[i] >= npnt) {
       char msg[100];
       snprintf(msg, sizeof(msg), "element %d has point id %d, number of points is %d", i,
                element[i], npnt);
@@ -226,8 +231,8 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // apply scaling for direct types
-  if (direct && (scale[0]!=1 || scale[1]!=1 || scale[2]!=1)) {
-    for (int i=0; i<npnt; i++) {
+  if (direct && (scale[0] != 1 || scale[1] != 1 || scale[2] != 1)) {
+    for (int i=0; i < npnt; i++) {
       point[3*i] *= scale[0];
       point[3*i+1] *= scale[1];
       point[3*i+2] *= scale[2];
@@ -238,7 +243,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   mjtNum posn[3], quatn[4];
   mju_d2n(posn, pos, 3);
   mju_d2n(quatn, quat, 4);
-  for (int i=0; i<npnt; i++) {
+  for (int i=0; i < npnt; i++) {
     mjtNum newp[3], oldp[3] = {point[3*i], point[3*i+1], point[3*i+2]};
     mju_trnVecPose(newp, posn, quatn, oldp);
     point[3*i] = newp[0];
@@ -252,9 +257,9 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   // handle pins if user did not specify rigid
   if (!rigid) {
     // process pinid
-    for (int i=0; i<(int)pinid.size(); i++) {
+    for (int i=0; i < (int)pinid.size(); i++) {
       // check range
-      if (pinid[i]<0 || pinid[i]>=npnt) {
+      if (pinid[i] < 0 || pinid[i] >= npnt) {
         return comperr(error, "pinid out of range", error_sz);
       }
 
@@ -263,58 +268,58 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
     }
 
     // process pinrange
-    for (int i=0; i<(int)pinrange.size(); i+=2) {
+    for (int i=0; i < (int)pinrange.size(); i+=2) {
       // check range
-      if (pinrange[i]<0 || pinrange[i]>=npnt ||
-          pinrange[i+1]<0 || pinrange[i+1]>=npnt) {
+      if (pinrange[i] < 0 || pinrange[i] >= npnt ||
+          pinrange[i+1] < 0 || pinrange[i+1] >= npnt) {
         return comperr(error, "pinrange out of range", error_sz);
       }
 
       // set
-      for (int k=pinrange[i]; k<=pinrange[i+1]; k++) {
+      for (int k=pinrange[i]; k <= pinrange[i+1]; k++) {
         pinned[k] = true;
       }
     }
 
     // process pingrid
-    for (int i=0; i<(int)pingrid.size(); i+=dim) {
+    for (int i=0; i < (int)pingrid.size(); i+=dim) {
       // check range
-      for (int k=0; k<dim; k++) {
-        if (pingrid[i+k]<0 || pingrid[i+k]>=count[k]) {
+      for (int k=0; k < dim; k++) {
+        if (pingrid[i+k] < 0 || pingrid[i+k] >= count[k]) {
           return comperr(error, "pingrid out of range", error_sz);
         }
       }
 
       // set
-      if (dim==2) {
+      if (dim == 2) {
         pinned[GridID(pingrid[i], pingrid[i+1])] = true;
       }
-      else if (dim==3) {
+      else if (dim == 3) {
         pinned[GridID(pingrid[i], pingrid[i+1], pingrid[i+2])] = true;
       }
     }
 
     // process pingridrange
-    for (int i=0; i<(int)pingridrange.size(); i+=2*dim) {
+    for (int i=0; i < (int)pingridrange.size(); i+=2*dim) {
       // check range
-      for (int k=0; k<2*dim; k++) {
-        if (pingridrange[i+k]<0 || pingridrange[i+k]>=count[k%dim]) {
+      for (int k=0; k < 2*dim; k++) {
+        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dim]) {
           return comperr(error, "pingridrange out of range", error_sz);
         }
       }
 
       // set
-      if (dim==2) {
-        for (int ix=pingridrange[i]; ix<=pingridrange[i+2]; ix++) {
-          for (int iy=pingridrange[i+1]; iy<=pingridrange[i+3]; iy++) {
+      if (dim == 2) {
+        for (int ix=pingridrange[i]; ix <= pingridrange[i+2]; ix++) {
+          for (int iy=pingridrange[i+1]; iy <= pingridrange[i+3]; iy++) {
             pinned[GridID(ix, iy)] = true;
           }
         }
       }
       else if (dim==3) {
-        for (int ix=pingridrange[i]; ix<=pingridrange[i+3]; ix++) {
-          for (int iy=pingridrange[i+1]; iy<=pingridrange[i+4]; iy++) {
-            for (int iz=pingridrange[i+2]; iz<=pingridrange[i+5]; iz++) {
+        for (int ix=pingridrange[i]; ix <= pingridrange[i+3]; ix++) {
+          for (int iy=pingridrange[i+1]; iy <= pingridrange[i+4]; iy++) {
+            for (int iz=pingridrange[i+2]; iz <= pingridrange[i+5]; iz++) {
               pinned[GridID(ix, iy, iz)] = true;
             }
           }
@@ -329,7 +334,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
 
     // check if all or none are pinned
     bool allpin = true, nopin = true;
-    for (int i=0; i<npnt; i++) {
+    for (int i=0; i < npnt; i++) {
       if (pinned[i]) {
         nopin = false;
       }
@@ -351,17 +356,17 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   if (direct) {
     // find used
     used = std::vector<bool> (npnt, false);
-    for (int i=0; i<(int)element.size(); i++) {
+    for (int i=0; i < (int)element.size(); i++) {
       used[element[i]] = true;
     }
 
     // construct reindex
     bool hasunused = false;
     std::vector<int> reindex (npnt, 0);
-    for (int i=0; i<npnt; i++) {
+    for (int i=0; i < npnt; i++) {
       if (!used[i]) {
         hasunused = true;
-        for (int k=i+1; k<npnt; k++) {
+        for (int k=i+1; k < npnt; k++) {
           reindex[k]--;
         }
       }
@@ -369,7 +374,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
 
     // reindex elements if unused present
     if (hasunused) {
-      for (int i=0; i<(int)element.size(); i++) {
+      for (int i=0; i < (int)element.size(); i++) {
         element[i] += reindex[element[i]];
       }
     }
@@ -411,7 +416,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // create bodies, construct flex vert and vertbody
-  for (int i=0; i<npnt; i++) {
+  for (int i=0; i < npnt; i++) {
     // not used: skip
     if (!used[i]) {
       continue;
@@ -460,7 +465,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
 
       // add three orthogonal sliders
       else {
-        for (int j=0; j<3; j++) {
+        for (int j=0; j < 3; j++) {
           // add joint to body
           mjsJoint* jnt = mjs_addJoint(pb, 0);
 
@@ -530,15 +535,15 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   bool hastex = texcoord.empty();
 
   // 1D
-  if (dim==1) {
-    for (int ix=0; ix<count[0]; ix++) {
+  if (dim == 1) {
+    for (int ix=0; ix < count[0]; ix++) {
       // add point
       point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
       point.push_back(0);
       point.push_back(0);
 
       // add element
-      if (ix<count[0]-1) {
+      if (ix < count[0]-1) {
         element.push_back(ix);
         element.push_back(ix+1);
       }
@@ -546,14 +551,14 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   }
 
   // 2D
-  else if (dim==2) {
-    for (int ix=0; ix<count[0]; ix++) {
-      for (int iy=0; iy<count[1]; iy++) {
+  else if (dim == 2) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iy=0; iy < count[1]; iy++) {
         int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
 
         // add point
-        mjtNum pos[2] = {spacing[0]*(ix- 0.5*(count[0]-1)),
-                         spacing[1]*(iy- 0.5*(count[1]-1))};
+        mjtNum pos[2] = {spacing[0]*(ix - 0.5*(count[0]-1)),
+                         spacing[1]*(iy - 0.5*(count[1]-1))};
         point.push_back(pos[0]);
         point.push_back(pos[1]);
         point.push_back(0);
@@ -573,15 +578,15 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
         }
 
         // add elements
-        if (ix<count[0]-1 && iy<count[1]-1) {
+        if (ix < count[0]-1 && iy < count[1]-1) {
           int vert[4] = {
             count[2]*count[1]*(ix+0) + count[2]*(iy+0),
             count[2]*count[1]*(ix+1) + count[2]*(iy+0),
             count[2]*count[1]*(ix+1) + count[2]*(iy+1),
             count[2]*count[1]*(ix+0) + count[2]*(iy+1),
           };
-          for (int s = 0; s < 2; s++) {
-            for (int v = 0; v < 3; v++) {
+          for (int s =0; s < 2; s++) {
+            for (int v=0; v < 3; v++) {
               element.push_back(vert[quad2tri[s][v]]);
             }
           }
@@ -595,16 +600,16 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
     int cube2tets[6][4] = {{0, 3, 1, 7}, {0, 1, 4, 7},
                            {1, 3, 2, 7}, {1, 2, 6, 7},
                            {1, 5, 4, 7}, {1, 6, 5, 7}};
-    for (int ix=0; ix<count[0]; ix++) {
-      for (int iy=0; iy<count[1]; iy++) {
-        for (int iz=0; iz<count[2]; iz++) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iy=0; iy < count[1]; iy++) {
+        for (int iz=0; iz < count[2]; iz++) {
           // add point
           point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
           point.push_back(spacing[1]*(iy - 0.5*(count[1]-1)));
           point.push_back(spacing[2]*(iz - 0.5*(count[2]-1)));
 
           // add elements
-          if (ix<count[0]-1 && iy<count[1]-1 && iz<count[2]-1) {
+          if (ix < count[0]-1 && iy < count[1]-1 && iz < count[2]-1) {
             int vert[8] = {
               count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+0,
               count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+0,
@@ -615,8 +620,8 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
               count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+1,
               count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+1,
             };
-            for (int s = 0; s < 6; s++) {
-              for (int v = 0; v < 4; v++) {
+            for (int s=0; s < 6; s++) {
+              for (int v=0; v < 4; v++) {
                 element.push_back(vert[cube2tets[s][v]]);
               }
             }
@@ -639,34 +644,34 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 // get point id from box coordinates and side
 int mjCFlexcomp::BoxID(int ix, int iy, int iz) {
   // side iz=0
-  if (iz==0) {
+  if (iz == 0) {
     return ix*count[1] + iy + 1;
   }
 
   // side iz=max
-  else if (iz==count[2]-1) {
+  else if (iz == count[2]-1) {
     return count[0]*count[1] + ix*count[1] + iy + 1;
   }
 
   // side iy=0
-  else if (iy==0) {
-    return 2*count[0]*count[1] + ix*(count[2]-2) + iz-1 + 1;
+  else if (iy == 0) {
+    return 2*count[0]*count[1] + ix*(count[2]-2) + iz - 1 + 1;
   }
 
   // side iy=max
-  else if (iy==count[1]-1) {
-    return 2*count[0]*count[1] + count[0]*(count[2]-2) + ix*(count[2]-2) + iz-1 + 1;
+  else if (iy == count[1]-1) {
+    return 2*count[0]*count[1] + count[0]*(count[2]-2) + ix*(count[2]-2) + iz - 1 + 1;
   }
 
   // side ix=0
-  else if (ix==0) {
-    return 2*count[0]*count[1] + 2*count[0]*(count[2]-2) + (iy-1)*(count[2]-2) + iz-1 + 1;
+  else if (ix == 0) {
+    return 2*count[0]*count[1] + 2*count[0]*(count[2]-2) + (iy-1)*(count[2]-2) + iz - 1 + 1;
   }
 
   // side ix=max
   else {
     return 2*count[0]*count[1] + 2*count[0]*(count[2]-2) + (count[1]-2)*(count[2]-2) +
-           (iy-1)*(count[2]-2) + iz-1 + 1;
+           (iy-1)*(count[2]-2) + iz - 1 + 1;
   }
 }
 
@@ -730,7 +735,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
       0.5*spacing[1]*(count[1]-1),
     };
 
-    for (int i=0; i<point.size()/3; i++) {
+    for (int i=0; i < point.size()/3; i++) {
       mjtNum* pos = point.data() + i*3;
       double L0 = mjMAX(mju_abs(pos[0]), mju_abs(pos[1]));
       mjuu_normvec(pos, 2);
@@ -757,9 +762,9 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   point.push_back(0);
 
   // iz=0/max
-  for (int iz=0; iz<count[2]; iz+=count[2]-1) {
-    for (int ix=0; ix<count[0]; ix++) {
-      for (int iy=0; iy<count[1]; iy++) {
+  for (int iz=0; iz < count[2]; iz+=count[2]-1) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iy=0; iy < count[1]; iy++) {
         // add point
         BoxProject(pos, ix, iy, iz);
         point.push_back(pos[0]);
@@ -767,7 +772,7 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
         point.push_back(pos[2]);
 
         // add elements
-        if (ix<count[0]-1 && iy<count[1]-1) {
+        if (ix < count[0]-1 && iy < count[1]-1) {
           element.push_back(0);
           element.push_back(BoxID(ix, iy, iz));
           element.push_back(BoxID(ix+1, iy, iz));
@@ -783,11 +788,11 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   }
 
   // iy=0/max
-  for (int iy=0; iy<count[1]; iy+=count[1]-1) {
-    for (int ix=0; ix<count[0]; ix++) {
-      for (int iz=0; iz<count[2]; iz++) {
+  for (int iy=0; iy < count[1]; iy+=count[1]-1) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iz=0; iz < count[2]; iz++) {
         // add point
-        if (iz>0 && iz<count[2]-1) {
+        if (iz>0 && iz < count[2]-1) {
           BoxProject(pos, ix, iy, iz);
           point.push_back(pos[0]);
           point.push_back(pos[1]);
@@ -795,7 +800,7 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
         }
 
         // add elements
-        if (ix<count[0]-1 && iz<count[2]-1) {
+        if (ix < count[0]-1 && iz < count[2]-1) {
           element.push_back(0);
           element.push_back(BoxID(ix, iy, iz));
           element.push_back(BoxID(ix+1, iy, iz));
@@ -811,11 +816,11 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   }
 
   // ix=0/max
-  for (int ix=0; ix<count[0]; ix+=count[0]-1) {
-    for (int iy=0; iy<count[1]; iy++) {
-      for (int iz=0; iz<count[2]; iz++) {
+  for (int ix=0; ix < count[0]; ix+=count[0]-1) {
+    for (int iy=0; iy < count[1]; iy++) {
+      for (int iz=0; iz < count[2]; iz++) {
         // add point
-        if (iz>0 && iz<count[2]-1 && iy>0 && iy<count[1]-1) {
+        if (iz > 0 && iz < count[2]-1 && iy > 0 && iy < count[1]-1) {
           BoxProject(pos, ix, iy, iz);
           point.push_back(pos[0]);
           point.push_back(pos[1]);
@@ -823,7 +828,7 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
         }
 
         // add elements
-        if (iy<count[1]-1 && iz<count[2]-1) {
+        if (iy < count[1]-1 && iz < count[2]-1) {
           element.push_back(0);
           element.push_back(BoxID(ix, iy, iz));
           element.push_back(BoxID(ix, iy+1, iz));
@@ -881,7 +886,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // check dim
-  if (def.spec.flex->dim!=2) {
+  if (def.spec.flex->dim != 2) {
     return comperr(error, "Flex dim must be 2 in for mesh", error_sz);
   }
 
@@ -943,7 +948,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
 
   // copy vertices, convert from float to mjtNum
   point = vector<mjtNum> (mesh.nvert()*3);
-  for (int i=0; i<mesh.nvert()*3; i++) {
+  for (int i=0; i < mesh.nvert()*3; i++) {
     point[i] = (mjtNum) mesh.vert_[i];
   }
 
@@ -957,12 +962,11 @@ static int findstring(const char* buffer, int buffer_sz, const char* str) {
   int len = (int)strlen(str);
 
   // scan buffer
-  for (int i=0; i<buffer_sz-len; i++) {
-
+  for (int i=0; i < buffer_sz-len; i++) {
     // check for string at position i
     bool found = true;
-    for (int k=0; k<len; k++) {
-      if (buffer[i+k]!=str[k]) {
+    for (int k=0; k < len; k++) {
+      if (buffer[i+k] != str[k]) {
         found = false;
         break;
       }
@@ -1020,64 +1024,19 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
 
 
 
-// load GMSH file from resource
-void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
-  // get buffer from resource
-  char* buffer = 0;
-  int buffer_sz = mju_readResource(resource, (const void**) &buffer);
-
-  // check buffer
-  if (buffer_sz<0) {
-    throw mjCError(NULL, "Could not read GMSH file");
-  } else if (buffer_sz==0) {
-    throw mjCError(NULL, "Empty GMSH file");
-  } else if (buffer_sz<11 || strncmp(buffer, "$MeshFormat", 11)) {
-    throw mjCError(NULL, "GMSH file must begin with $MeshFormat");
-  }
-
-  // check version, determine ascii or binary
-  double version;
-  int binary;
-  if (sscanf(buffer+11, "%lf %d", &version, &binary) != 2) {
-    throw mjCError(NULL, "Could not read GMSH file header");
-  }
-  if (mju_round(100*version)!=410) {
-    throw mjCError(NULL, "Only GMSH file format 4.1 supported");
-  }
-
-  // find section begin/end
-  int nodebegin = findstring(buffer, buffer_sz, "$Nodes");
-  int nodeend =   findstring(buffer, buffer_sz, "$EndNodes");
-  int elembegin = findstring(buffer, buffer_sz, "$Elements");
-  int elemend =   findstring(buffer, buffer_sz, "$EndElements");
-
-  // check sections
-  if (nodebegin<0) {
-    throw mjCError(NULL, "GMSH file missing $Nodes");
-  }
-  if (nodeend<nodebegin) {
-    throw mjCError(NULL, "GMSH file missing $EndNodes after $Nodes");
-  }
-  if (elembegin<0) {
-    throw mjCError(NULL, "GMSH file missing $Elements");
-  }
-  if (elemend<elembegin) {
-    throw mjCError(NULL, "GMSH file missing $EndElements after $Elements");
-  }
-
-  // correct begin for string size, +1 for LF in binary (CRLF in Win ascii works)
-  nodebegin += (int)strlen("$Nodes") + 1;
-  elembegin += (int)strlen("$Elements") + 1;
-
+// load GMSH format 4.1
+void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
+                            int nodebegin, int elemend, int elembegin){
+  // header size
+  constexpr int kGmsh41HeaderSize = 52;
   // base for node tags, to be subtracted from element data
   size_t minNodeTag, numEntityBlocks, numNodes, maxNodeTag, numNodesInBlock, tag;
   int entityDim, entityTag, parametric;
 
   // ascii nodes
-  if (binary==0) {
+  if (binary == 0) {
     // convert node char buffer to stringstream
-    buffer[nodeend] = 0;
-    stringstream ss(buffer+nodebegin);
+    stringstream ss(string(buffer + nodebegin, nodeend - nodebegin));
 
     // read header
     ss >> numEntityBlocks >> numNodes >> minNodeTag >> maxNodeTag;
@@ -1087,31 +1046,31 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     }
 
     // require single block
-    if (numEntityBlocks!=1 || numNodes!=numNodesInBlock) {
+    if (numEntityBlocks != 1 || numNodes != numNodesInBlock) {
       throw mjCError(NULL, "All nodes must be in single block");
     }
 
     // check dimensionality and save
-    if (entityDim<1 || entityDim>3) {
+    if (entityDim < 1 || entityDim > 3) {
       throw mjCError(NULL, "Entity must be 1D, 2D or 3D");
     }
     def.spec.flex->dim = entityDim;
 
     // read and discard node tags; require range from minNodeTag to maxNodeTag
-    for (size_t i=0; i<numNodes; i++) {
+    for (size_t i=0; i < numNodes; i++) {
       size_t tag;
       ss >> tag;
       if (!ss.good()) {
         throw mjCError(NULL, "Error reading node tags");
       }
-      if (tag!=i+minNodeTag) {
+      if (tag != i+minNodeTag) {
         throw mjCError(NULL, "Node tags must be sequential");
       }
     }
 
     // read points
     point.reserve(3*numNodes);
-    for (size_t i=0; i<3*numNodes; i++) {
+    for (size_t i=0; i < 3*numNodes; i++) {
       double x;
       ss >> x;
       if (!ss.good()) {
@@ -1120,45 +1079,49 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
       point.push_back(x);
     }
   }
-
   // binary nodes
   else {
-    // check header size: 5 size_t, 3 int
-    if (nodeend-nodebegin < 52) {
+    // check header size
+    if (nodeend-nodebegin < kGmsh41HeaderSize) {
       throw mjCError(NULL, "Invalid nodes header");
     }
 
     // read header
-    ReadFromBuffer(&numEntityBlocks, buffer+nodebegin);
-    ReadFromBuffer(&numNodes, buffer+nodebegin+8);
-    ReadFromBuffer(&minNodeTag, buffer+nodebegin+16);
-    ReadFromBuffer(&maxNodeTag, buffer+nodebegin+24);
-    ReadFromBuffer(&entityDim, buffer+nodebegin+32);
-    ReadFromBuffer(&entityTag, buffer+nodebegin+36);
-    ReadFromBuffer(&parametric, buffer+nodebegin+40);
-    ReadFromBuffer(&numNodesInBlock, buffer+nodebegin+44);
+    ReadFromBuffer(&numEntityBlocks, buffer + nodebegin);
+    ReadFromBuffer(&numNodes, buffer + nodebegin + 8);
+    ReadFromBuffer(&minNodeTag, buffer + nodebegin + 16);
+    ReadFromBuffer(&maxNodeTag, buffer + nodebegin + 24);
+    ReadFromBuffer(&entityDim, buffer + nodebegin + 32);
+    ReadFromBuffer(&entityTag, buffer + nodebegin + 36);
+    ReadFromBuffer(&parametric, buffer + nodebegin + 40);
+    ReadFromBuffer(&numNodesInBlock, buffer + nodebegin + 44);
 
     // require single block
-    if (numEntityBlocks!=1 || numNodes!=numNodesInBlock) {
+    if (numEntityBlocks != 1 || numNodes != numNodesInBlock) {
       throw mjCError(NULL, "All nodes must be in single block");
     }
 
     // check dimensionality and save
-    if (entityDim<1 || entityDim>3) {
+    if (entityDim < 1 || entityDim > 3) {
       throw mjCError(NULL, "Entity must be 1D, 2D or 3D");
     }
     def.spec.flex->dim = entityDim;
 
+    // nodeData: node tag and 3 nodes
+    constexpr int numNodeComponents = 4;
+    constexpr int componentSize = 8;
+    int nodeDataSize = numNodeComponents*componentSize;
+
     // check section byte size
-    if (nodeend-nodebegin < 52+numNodes*4*8) {
+    if (nodeend-nodebegin < kGmsh41HeaderSize + numNodes*nodeDataSize) {
       throw mjCError(NULL, "Insufficient byte size of Nodes");
     }
 
     // check node tags: must range from minNodeTag to maxNodeTag
-    const char* tagbuffer = buffer + nodebegin + 52;
-    for (size_t i=0; i<numNodes; i++) {
-      ReadFromBuffer(&tag, tagbuffer+i*8);
-      if (tag!=i+minNodeTag) {
+    const char* tagbuffer = buffer + nodebegin + kGmsh41HeaderSize;
+    for (size_t i=0; i < numNodes; i++) {
+      ReadFromBuffer(&tag, tagbuffer + i*componentSize);
+      if (tag != i+minNodeTag) {
         throw mjCError(NULL, "Node tags must be sequential");
       }
     }
@@ -1166,9 +1129,9 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     // read points
     double x;
     point.reserve(3*numNodes);
-    const char* pointbuffer = buffer + nodebegin + 52 + 8*numNodes;
-    for (size_t i=0; i<3*numNodes; i++) {
-      ReadFromBuffer(&x, pointbuffer+i*8);
+    const char* pointbuffer = buffer + nodebegin + kGmsh41HeaderSize + componentSize*numNodes;
+    for (size_t i=0; i < 3*numNodes; i++) {
+      ReadFromBuffer(&x, pointbuffer + i*componentSize);
       point.push_back(x);
     }
   }
@@ -1177,10 +1140,10 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
   int elementType;
 
   // ascii elements
-  if (binary==0) {
+  if (binary == 0) {
     // convert element char buffer to stringstream
     buffer[elemend] = 0;
-    stringstream ss(buffer+elembegin);
+    stringstream ss(buffer + elembegin);
 
     // read header
     ss >> numEntityBlocks >> numElements >> minElementTag >> maxElementTag;
@@ -1190,28 +1153,28 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     }
 
     // require single block
-    if (numEntityBlocks!=1 || numElements!=numElementsInBlock) {
+    if (numEntityBlocks != 1 || numElements != numElementsInBlock) {
       throw mjCError(NULL, "All elements must be in single block");
     }
 
     // dimensionality must be same as nodes
-    if (entityDim!=def.spec.flex->dim) {
+    if (entityDim != def.spec.flex->dim) {
       throw mjCError(NULL, "Inconsistent dimensionality in Elements");
     }
 
     // type must be consistent with dimensionality
-    if ((entityDim==1 && elementType!=1) ||
-        (entityDim==2 && elementType!=2) ||
-        (entityDim==3 && elementType!=4)) {
+    if ((entityDim == 1 && elementType != 1) ||
+        (entityDim == 2 && elementType != 2) ||
+        (entityDim == 3 && elementType != 4)) {
       throw mjCError(NULL, "Element type inconsistent with dimensionality");
     }
 
     // read elements, discard tags
     element.reserve((entityDim+1)*numElements);
-    for (size_t i=0; i<numElements; i++) {
+    for (size_t i=0; i < numElements; i++) {
       size_t tag, nodeid;
       ss >> tag;
-      for (int k=0; k<=entityDim; k++) {
+      for (int k=0; k <= entityDim; k++) {
         ss >> nodeid;
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
@@ -1223,58 +1186,355 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
 
   // binary elements
   else {
-    // check header size: 5 size_t, 3 int
-    if (elemend-elembegin < 52) {
+    // check header size
+    if (elemend-elembegin < kGmsh41HeaderSize) {
       throw mjCError(NULL, "Invalid elements header");
     }
 
     // read header
-    ReadFromBuffer(&numEntityBlocks, buffer+elembegin);
-    ReadFromBuffer(&numElements, buffer+elembegin+8);
-    ReadFromBuffer(&minElementTag, buffer+elembegin+16);
-    ReadFromBuffer(&maxElementTag, buffer+elembegin+24);
-    ReadFromBuffer(&entityDim, buffer+elembegin+32);
-    ReadFromBuffer(&entityTag, buffer+elembegin+36);
-    ReadFromBuffer(&elementType, buffer+elembegin+40);
-    ReadFromBuffer(&numElementsInBlock, buffer+elembegin+44);
+    ReadFromBuffer(&numEntityBlocks, buffer + elembegin);
+    ReadFromBuffer(&numElements, buffer + elembegin + 8);
+    ReadFromBuffer(&minElementTag, buffer + elembegin + 16);
+    ReadFromBuffer(&maxElementTag, buffer + elembegin + 24);
+    ReadFromBuffer(&entityDim, buffer + elembegin + 32);
+    ReadFromBuffer(&entityTag, buffer + elembegin + 36);
+    ReadFromBuffer(&elementType, buffer + elembegin + 40);
+    ReadFromBuffer(&numElementsInBlock, buffer + elembegin + 44);
 
     // require single block
-    if (numEntityBlocks!=1 || numElements!=numElementsInBlock) {
+    if (numEntityBlocks != 1 || numElements != numElementsInBlock) {
       throw mjCError(NULL, "All elements must be in single block");
     }
 
     // dimensionality must be same as nodes
-    if (entityDim!=def.spec.flex->dim) {
+    if (entityDim != def.spec.flex->dim) {
       throw mjCError(NULL, "Inconsistent dimensionality in Elements");
     }
 
     // type must be consistent with dimensionality
-    if ((entityDim==1 && elementType!=1) ||
-        (entityDim==2 && elementType!=2) ||
-        (entityDim==3 && elementType!=4)) {
+    if ((entityDim == 1 && elementType != 1) ||
+        (entityDim == 2 && elementType != 2) ||
+        (entityDim == 3 && elementType != 4)) {
       throw mjCError(NULL, "Element type inconsistent with dimensionality");
     }
 
+    // elementData: element tag and n node tags
+    int numElementComponents = (entityDim+2);
+    constexpr int componentSize = 8;
+    int elementDataSize = numElementComponents*componentSize;
+
     // check section byte size
-    if (elemend-elembegin < 52+numElements*(entityDim+2)*8) {
+    if (elemend - elembegin < kGmsh41HeaderSize + numElements*elementDataSize) {
       throw mjCError(NULL, "Insufficient byte size of Elements");
     }
 
     // read elements, discard tags
     element.reserve((entityDim+1)*numElements);
-    const char* elembuffer = buffer + elembegin + 52;
-    for (size_t i=0; i<numElements; i++) {
+    const char* elembuffer = buffer + elembegin + kGmsh41HeaderSize;
+    for (size_t i=0; i < numElements; i++) {
       // skip element tag
-      elembuffer += 8;
+      elembuffer += componentSize;
 
       // read vertex ids
       size_t elemid;
-      for (int k=0; k<=entityDim; k++) {
+      for (int k=0; k <= entityDim; k++) {
         ReadFromBuffer(&elemid, elembuffer);
         int elementid = elemid - minNodeTag;
         element.push_back(elementid);
-        elembuffer += 8;
+        elembuffer += componentSize;
       }
     }
+  }
+}
+
+
+
+// load GMSH format 2.2
+void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
+                             int nodebegin, int elemend, int elembegin) {
+  // ascii nodes
+  if (binary == 0) {
+    // convert node char buffer to stringstream
+    stringstream ss(string(buffer + nodebegin, nodeend - nodebegin));
+
+    // read header
+    size_t maxNodeTag = 0;
+    ss >> maxNodeTag;
+    if (!ss.good()) {
+      throw mjCError(NULL, "Error reading Nodes header");
+    }
+    size_t numNodes = maxNodeTag;
+
+    // read points, discard tag
+    point.reserve(3*numNodes);
+    for (size_t i=0; i < numNodes; i++) {
+      size_t tag;
+      double x;
+      ss >> tag;
+      if (!ss.good()) {
+        throw mjCError(NULL, "Error reading node tags");
+      }
+      // reading nodes
+      for (int k=0; k < 3; k++) {
+        ss >> x;
+        if (!ss.good()) {
+          throw mjCError(NULL, "Error reading node coordinates");
+        }
+        point.push_back(x);
+      }
+    }
+  }
+
+  // binary nodes
+  else {
+    // header size for gmshApp
+    constexpr int nodeHeaderSizeGmshApp = 5;
+    // header size compatible with both gmshApp and Ftetwild
+    constexpr int nodeHeaderSize = nodeHeaderSizeGmshApp - 1;
+    // check header size
+    if (nodeend-nodebegin < nodeHeaderSize) {
+      throw mjCError(NULL, "Invalid nodes header");
+    }
+
+    // parse maxNodeTag and then cast it to int
+    char maxNodeTagChar[20];
+    ReadStrFromBuffer(maxNodeTagChar, buffer + nodebegin, std::min(10, nodeend - nodebegin));
+    size_t measuredHeaderSize = strnlen(maxNodeTagChar, 20) - 1;
+    size_t maxNodeTag = std::stoi(maxNodeTagChar);
+    size_t numNodes = maxNodeTag;
+
+    // node data: node tag and 3 nodes
+    int nodeSize = sizeof(double);
+    int indexSize = sizeof(int);
+    int nodeDataSize = indexSize + 3*nodeSize;
+
+    // check section byte size
+    if (nodeend - nodebegin < nodeHeaderSize + numNodes*nodeDataSize) {
+      throw mjCError(NULL, "Insufficient byte size of Nodes");
+    }
+
+    // read point, discard tag
+    point.reserve(3*numNodes);
+    // beginning of buffer containing node info
+    const char* tagBuffer = buffer + nodebegin + measuredHeaderSize;
+    for (int i=0; i < numNodes; i++) {
+      int tag;
+      int offset = i*(sizeof(int) + sizeof(double)*3);
+      ReadFromBuffer(&tag, tagBuffer + offset);
+      for (int k=0; k < 3; k++) {
+        double x;
+        const char* nodeBuffer = tagBuffer + sizeof(int) + sizeof(double)*k;
+        ReadFromBuffer(&x, nodeBuffer + offset);
+        point.push_back(x);
+      }
+    }
+  }
+
+  size_t entityDim = 3;
+  def.spec.flex->dim = entityDim;
+
+  // ascii elements
+  if (binary == 0) {
+    // convert element char buffer to stringstream
+    buffer[elemend] = 0;
+    stringstream ss(buffer + elembegin);
+
+    // read header
+    size_t maxElementTag = 0;
+    ss >> maxElementTag;
+    if (!ss.good()) {
+      throw mjCError(NULL, "Error reading Elements header");
+    }
+    size_t numElements = maxElementTag;
+    // read elements, discard all tags
+    element.reserve((entityDim+1)*numElements);
+    for (size_t i=0; i < numElements; i++) {
+      int tag = 0, type = 0, numTags = 0, nodeTag = 0, physicalEntityTag = 0,
+          elmentModelEntityTag = 0;
+      ss >> tag >> type >> numTags;
+      if (!ss.good()) {
+          throw mjCError(NULL, "Error reading Elements");
+      }
+      if (numTags > 0) {
+        ss >> physicalEntityTag >> elmentModelEntityTag;
+        if (!ss.good()) {
+          throw mjCError(NULL, "Error reading Elements");
+        }
+      }
+      for (int k=0; k <= entityDim; k++) {
+        ss >> nodeTag;
+        if (!ss.good()) {
+          throw mjCError(NULL, "Error reading Elements");
+        }
+        element.push_back((int)(nodeTag-1));
+      }
+    }
+  }
+  // binary elements
+  else {
+    // header size for gmshApp
+    constexpr int elementHeaderSizeGmshApp = 6;
+    // header size for Ftetwild
+    constexpr int elementHeaderSizeFtetwild = 17;
+    // check header size
+    if (elemend - elembegin < elementHeaderSizeGmshApp) {
+      throw mjCError(NULL, "Invalid elements header");
+    }
+
+    // reading elements
+    char maxElementTagChar[20];
+    ReadStrFromBuffer(maxElementTagChar, buffer + elembegin, std::min(10, elemend - elembegin));
+    int measuredHeaderSize = strnlen(maxElementTagChar, 20) - 1;
+    int maxElementTag = std::stoi(maxElementTagChar);
+    int numElements = maxElementTag;
+    int tag, numTags;
+    int nodeTag;
+
+    // size of single component in element data
+    int componentSize = sizeof(int);
+    // element buffer
+    const char* elementsBuffer = buffer + elembegin + measuredHeaderSize;
+
+    ReadFromBuffer(&numTags, elementsBuffer + componentSize*2);
+    ReadFromBuffer(&tag, elementsBuffer + componentSize*3);
+
+    // element data(Ftetwild): tag and 4 nodeTag
+    constexpr int numComponentsFtetwild = 5;
+    // element data(gmshApp): 4 Info components, 2 entity tag and 4 nodeTags
+    constexpr int numInfoComponents = 4;
+    constexpr int numEntityTagComponents = 2;
+    constexpr int numNodeTags = 4;
+    constexpr int numComponentsGmshApp = numInfoComponents +
+                                         numEntityTagComponents + numNodeTags;
+
+    // single element data size
+    int elementDataSizeFtetwild = numComponentsFtetwild*componentSize;
+    int elementDataSizeGmshApp = numComponentsGmshApp*componentSize;
+
+    // elements section buffer size
+    int elementsBufferSizeFtetwild = elementHeaderSizeFtetwild +
+                                     numElements*elementDataSizeFtetwild;
+    int elementsBufferSizeGmshApp = elementHeaderSizeGmshApp +
+                                    numElements*elementDataSizeGmshApp;
+
+    // check section byte size for ftetwild
+    if (elemend - elembegin < elementsBufferSizeFtetwild) {
+      throw mjCError(NULL, "Insufficient byte size of Elements");
+    }
+
+    // Handling elements produced by gmsh
+    if (numTags > 0) {
+      // check section byte size for gmsh
+      if (elemend - elembegin < elementsBufferSizeGmshApp) {
+        throw mjCError(NULL, "Insufficient byte size of Elements");
+      }
+
+      // read first element
+      for (int k =0; k<numNodeTags; k++) {
+        ReadFromBuffer(&nodeTag, elementsBuffer + componentSize*(6+k));
+        element.push_back(nodeTag-1);
+      }
+
+      // read every other element
+      for (int i=1; i < numElements; i++) {
+        const char* numTagsBuffer = elementsBuffer + componentSize*2;
+        const char* tagBuffer = elementsBuffer + componentSize*3;
+        int offset = i*elementDataSizeGmshApp;
+        ReadFromBuffer(&numTags, numTagsBuffer + offset);
+        ReadFromBuffer(&tag, tagBuffer+offset);
+        for (int k =0; k < numNodeTags; k++) {
+          const char* nodeTagBuffer = elementsBuffer + componentSize*(6+k);
+          ReadFromBuffer(&nodeTag, nodeTagBuffer + offset);
+          element.push_back(nodeTag-1);
+        }
+      }
+    }
+
+    // Handling elements produced by ftetwild
+    else {
+      // read first element
+      for (int k =0; k < numNodeTags; k++) {
+        const char* nodeTagBuffer = elementsBuffer + componentSize*(4+k);
+        ReadFromBuffer(&nodeTag, nodeTagBuffer);
+        element.push_back(nodeTag-1);
+      }
+
+      // read every other element
+      for (int i=0; i<numElements-1; i++) {
+        int offset = componentSize*(4+2) + i*elementDataSizeFtetwild;
+        const char* tagBuffer = elementsBuffer + componentSize*2;
+        ReadFromBuffer(&tag, tagBuffer + offset);
+        for (int k=0; k < numNodeTags; k++) {
+          const char* nodeTagBuffer = elementsBuffer + componentSize*(3+k);
+          ReadFromBuffer(&nodeTag, nodeTagBuffer + offset);
+          element.push_back(nodeTag-1);
+        }
+      }
+    }
+  }
+}
+
+
+
+// load GMSH file from resource
+void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
+  // get buffer from resource
+  char* buffer = 0;
+  int buffer_sz = mju_readResource(resource, (const void**) &buffer);
+
+
+  // check buffer
+  if (buffer_sz < 0) {
+    throw mjCError(NULL, "Could not read GMSH file");
+  } else if (buffer_sz == 0) {
+    throw mjCError(NULL, "Empty GMSH file");
+  } else if (buffer_sz < 11 || strncmp(buffer, "$MeshFormat", 11)) {
+    throw mjCError(NULL, "GMSH file must begin with $MeshFormat");
+  }
+
+  // check version, determine ascii or binary
+  double version;
+  int binary;
+  if (sscanf(buffer + 11, "%lf %d", &version, &binary) != 2) {
+    throw mjCError(NULL, "Could not read GMSH file header");
+  }
+  if (mju_round(100*version) != 220 && mju_round(100*version) != 410) {
+    throw mjCError(NULL, "Only GMSH file format versions 4.1 and 2.2 are supported");
+  }
+
+  // find section begin/end
+  int nodebegin = findstring(buffer, buffer_sz, "$Nodes");
+  int nodeend =   findstring(buffer, buffer_sz, "$EndNodes");
+  int elembegin = findstring(buffer, buffer_sz, "$Elements");
+  int elemend =   findstring(buffer, buffer_sz, "$EndElements");
+
+
+  // check sections
+  if (nodebegin < 0) {
+    throw mjCError(NULL, "GMSH file missing $Nodes");
+  }
+  if (nodeend < nodebegin) {
+    throw mjCError(NULL, "GMSH file missing $EndNodes after $Nodes");
+  }
+  if (elembegin < 0) {
+    throw mjCError(NULL, "GMSH file missing $Elements");
+  }
+  if (elemend < elembegin) {
+    throw mjCError(NULL, "GMSH file missing $EndElements after $Elements");
+  }
+
+  // correct begin for string size, +1 for LF in binary (CRLF in Win ascii works)
+  nodebegin += (int)strlen("$Nodes") + 1;
+  elembegin += (int)strlen("$Elements") + 1;
+
+
+  // Support for 4.1
+  if (mju_round(100*version) == 410) {
+    LoadGMSH41(buffer, binary, nodeend, nodebegin, elemend, elembegin);
+  }
+
+  // Support for 2.2
+  else if (mju_round(100*version) == 220) {
+    LoadGMSH22(buffer, binary, nodeend, nodebegin, elemend, elembegin);
   }
 }
