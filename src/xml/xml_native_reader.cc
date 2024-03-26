@@ -2241,7 +2241,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjmDefault* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjsDefault* def) {
   string text;
   int n;
 
@@ -2371,7 +2371,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjmDefault* def) 
     comp.add[kind] = true;
 
     // get element
-    mjmDefault* dspec = &comp.defjoint[(mjtCompKind)kind].back().spec;
+    mjsDefault* dspec = &comp.defjoint[(mjtCompKind)kind].back().spec;
     mjsJoint& djoint = *dspec->joint;
     mjsEquality& dequality = *dspec->equality;
 
@@ -2623,7 +2623,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
 void mjXReader::Default(XMLElement* section, int parentid) {
   XMLElement* elem;
   string text, name;
-  mjmDefault* def;
+  mjsDefault* def;
   int thisid;
 
   // create new default, except at top level (already added in mjCModel ctor)
@@ -3044,7 +3044,7 @@ void mjXReader::Asset(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(model);
     }
@@ -3226,7 +3226,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
     name = elem->Value();
 
     // get class if specified, otherwise use body
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getDefault(frame ? frame->element : pbody->element);
     }
@@ -3336,7 +3336,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
     // frame sub-element
     else if (name=="frame") {
       // read childdef
-      mjmDefault* childdef = 0;
+      mjsDefault* childdef = 0;
       if (ReadAttrTxt(elem, "childclass", text)) {
         childdef = mjs_findDefault(model, text.c_str());
         mjs_findDefault(model, text.c_str());
@@ -3368,7 +3368,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
     // body sub-element
     else if (name=="body") {
       // read childdef
-      mjmDefault* childdef = 0;
+      mjsDefault* childdef = 0;
       if (ReadAttrTxt(elem, "childclass", text)) {
         childdef = mjs_findDefault(model, text.c_str());
         mjs_findDefault(model, text.c_str());
@@ -3436,7 +3436,7 @@ void mjXReader::Contact(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(model);
     }
@@ -3481,7 +3481,7 @@ void mjXReader::Equality(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(model);
     }
@@ -3509,7 +3509,7 @@ void mjXReader::Deformable(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(model);
     }
@@ -3545,7 +3545,7 @@ void mjXReader::Tendon(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(model);
     }
@@ -3611,7 +3611,7 @@ void mjXReader::Actuator(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjmDefault* def = GetClass(elem);
+    mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(model);
     }
@@ -4001,9 +4001,9 @@ void mjXReader::Keyframe(XMLElement* section) {
 
 
 // get defaults class
-mjmDefault* mjXReader::GetClass(XMLElement* section) {
+mjsDefault* mjXReader::GetClass(XMLElement* section) {
   string text;
-  mjmDefault* def = nullptr;
+  mjsDefault* def = nullptr;
 
   if (ReadAttrTxt(section, "class", text)) {
     def = mjs_findDefault(model, text.c_str());

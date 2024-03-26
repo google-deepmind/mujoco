@@ -1622,7 +1622,7 @@ class mjCDef {
   int parentid;                   // id of parent class
   std::vector<int> childid;       // ids of child classes
 
-  mjmDefault spec;
+  mjsDefault spec;
 
   // default objects (TODO: they should become private)
   mjCJoint    joint;

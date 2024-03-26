@@ -116,7 +116,7 @@ void mjs_deleteSpec(mjSpec* s) {
 
 
 // add child body to body, return child spec
-mjsBody* mjs_addBody(mjsBody* bodyspec, mjmDefault* defspec) {
+mjsBody* mjs_addBody(mjsBody* bodyspec, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element)->AddBody(def);
   return &body->spec;
@@ -125,7 +125,7 @@ mjsBody* mjs_addBody(mjsBody* bodyspec, mjmDefault* defspec) {
 
 
 // add site to body, return site spec
-mjsSite* mjs_addSite(mjsBody* bodyspec, mjmDefault* defspec) {
+mjsSite* mjs_addSite(mjsBody* bodyspec, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCSite* site = body->AddSite(def);
@@ -135,7 +135,7 @@ mjsSite* mjs_addSite(mjsBody* bodyspec, mjmDefault* defspec) {
 
 
 // add joint to body
-mjsJoint* mjs_addJoint(mjsBody* bodyspec, mjmDefault* defspec) {
+mjsJoint* mjs_addJoint(mjsBody* bodyspec, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCJoint* joint = body->AddJoint(def);
@@ -154,7 +154,7 @@ mjsJoint* mjs_addFreeJoint(mjsBody* bodyspec) {
 
 
 // add geom to body
-mjsGeom* mjs_addGeom(mjsBody* bodyspec, mjmDefault* defspec) {
+mjsGeom* mjs_addGeom(mjsBody* bodyspec, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCGeom* geom = body->AddGeom(def);
@@ -164,7 +164,7 @@ mjsGeom* mjs_addGeom(mjsBody* bodyspec, mjmDefault* defspec) {
 
 
 // add camera to body
-mjsCamera* mjs_addCamera(mjsBody* bodyspec, mjmDefault* defspec) {
+mjsCamera* mjs_addCamera(mjsBody* bodyspec, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCCamera* camera = body->AddCamera(def);
@@ -174,7 +174,7 @@ mjsCamera* mjs_addCamera(mjsBody* bodyspec, mjmDefault* defspec) {
 
 
 // add light to body
-mjsLight* mjs_addLight(mjsBody* bodyspec, mjmDefault* defspec) {
+mjsLight* mjs_addLight(mjsBody* bodyspec, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCBody* body = reinterpret_cast<mjCBody*>(bodyspec->element);
   mjCLight* light = body->AddLight(def);
@@ -207,7 +207,7 @@ mjsFrame* mjs_addFrame(mjsBody* bodyspec, mjsFrame* parentframe) {
 
 
 // add mesh to model
-mjsMesh* mjs_addMesh(mjSpec* s, mjmDefault* defspec) {
+mjsMesh* mjs_addMesh(mjSpec* s, mjsDefault* defspec) {
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCMesh* mesh = modelC->AddMesh(def);
@@ -244,7 +244,7 @@ mjsTexture* mjs_addTexture(mjSpec* s) {
 
 
 // add material to model
-mjsMaterial* mjs_addMaterial(mjSpec* s, mjmDefault* defspec) {
+mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* defspec) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCMaterial* material = modelC->AddMaterial(def);
@@ -254,7 +254,7 @@ mjsMaterial* mjs_addMaterial(mjSpec* s, mjmDefault* defspec) {
 
 
 // add pair to model
-mjsPair* mjs_addPair(mjSpec* s, mjmDefault* defspec) {
+mjsPair* mjs_addPair(mjSpec* s, mjsDefault* defspec) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCPair* pair = modelC->AddPair(def);
@@ -273,7 +273,7 @@ mjsExclude* mjs_addExclude(mjSpec* s) {
 
 
 // add equality to model
-mjsEquality* mjs_addEquality(mjSpec* s, mjmDefault* defspec) {
+mjsEquality* mjs_addEquality(mjSpec* s, mjsDefault* defspec) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCEquality* equality = modelC->AddEquality(def);
@@ -283,7 +283,7 @@ mjsEquality* mjs_addEquality(mjSpec* s, mjmDefault* defspec) {
 
 
 // add tendon to model
-mjsTendon* mjs_addTendon(mjSpec* s, mjmDefault* defspec) {
+mjsTendon* mjs_addTendon(mjSpec* s, mjsDefault* defspec) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCTendon* tendon = modelC->AddTendon(def);
@@ -329,7 +329,7 @@ mjsWrap* mjs_wrapPulley(mjsTendon* tendonspec, double divisor) {
 
 
 // add actuator to model
-mjsActuator* mjs_addActuator(mjSpec* s, mjmDefault* defspec) {
+mjsActuator* mjs_addActuator(mjSpec* s, mjsDefault* defspec) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = defspec ? reinterpret_cast<mjCDef*>(defspec->element) : 0;
   mjCActuator* actuator = modelC->AddActuator(def);
@@ -394,7 +394,7 @@ mjsPlugin* mjs_addPlugin(mjSpec* s) {
 
 
 // add default to model
-mjmDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
+mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   *id = (int)modelC->defaults.size();
   mjCDef* def = modelC->AddDef(classname, parentid);
@@ -415,14 +415,14 @@ mjSpec* mjs_getSpec(mjsBody* body) {
 
 
 // get default
-mjmDefault* mjs_getDefault(mjElement element) {
+mjsDefault* mjs_getDefault(mjElement element) {
   return &(reinterpret_cast<mjCBase*>(element)->def->spec);
 }
 
 
 
 // Find default with given name in model.
-mjmDefault* mjs_findDefault(mjSpec* s, const char* classname) {
+mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* cdef = modelC->FindDef(classname);
   if (!cdef) {
@@ -434,7 +434,7 @@ mjmDefault* mjs_findDefault(mjSpec* s, const char* classname) {
 
 
 // get default[0] from model
-mjmDefault* mjs_getSpecDefault(mjSpec* s) {
+mjsDefault* mjs_getSpecDefault(mjSpec* s) {
   mjCModel* modelC = reinterpret_cast<mjCModel*>(s->element);
   mjCDef* def = modelC->defaults[0];
   if (!def) {
@@ -514,7 +514,7 @@ int mjs_getId(mjElement element) {
 
 
 // set default
-void mjs_setDefault(mjElement element, mjmDefault* defspec) {
+void mjs_setDefault(mjElement element, mjsDefault* defspec) {
   mjCBase* baseC = reinterpret_cast<mjCBase*>(element);
   baseC->def = reinterpret_cast<mjCDef*>(defspec->element);
 }
