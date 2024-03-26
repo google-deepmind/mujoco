@@ -1050,11 +1050,11 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
 }
 
 // get string hash, see http://www.cse.yorku.ca/~oz/hash.html
-uint64_t mj_hashdjb2(const char* s, uint64_t n) {
+uint64_t mj_hashString(const char* s, uint64_t n) {
   uint64_t h = 5381;
   int c;
   while ((c = *s++)) {
-    h  = ((h << 5) + h) + c;
+    h = ((h << 5) + h) ^ c;
   }
   return h % n;
 }
@@ -1070,7 +1070,7 @@ int mj_name2id(const mjModel* m, int type, const char* name) {
 
   // search
   if (num) {    // look up at hash address
-    uint64_t hash = mj_hashdjb2(name, num);
+    uint64_t hash = mj_hashString(name, num);
     uint64_t i = hash;
 
     do {

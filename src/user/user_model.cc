@@ -1492,7 +1492,7 @@ static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* 
       continue;
     }
 
-    uint64_t j = mj_hashdjb2(list[i]->name.c_str(), map_size);
+    uint64_t j = mj_hashString(list[i]->name.c_str(), map_size);
 
     // find first empty slot using linear probing
     for (; map[j]!=-1; j=(j+1) % map_size) {}
