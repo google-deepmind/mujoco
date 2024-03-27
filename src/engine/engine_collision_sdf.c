@@ -140,9 +140,18 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     b[2] = a[2] / size[2];
     mjtNum k0 = mju_norm3(a);
     mjtNum k1 = mju_norm3(b);
-    gradient[0] = a[0]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[0]/(k1*k1);
-    gradient[1] = a[1]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[1]/(k1*k1);
-    gradient[2] = a[2]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[2]/(k1*k1);
+    mjtNum invK0 = 1. / k0;
+    mjtNum invK1 = 1. / k1;
+    mjtNum gk0[3] = {b[0]*invK0, b[1]*invK0, b[2]*invK0};
+    mjtNum gk1[3] = {b[0]*invK1/(size[0]*size[0]),
+                     b[1]*invK1/(size[1]*size[1]),
+                     b[2]*invK1/(size[2]*size[2])};
+    mjtNum df_dk0 = (2.*k0 - 1.) * invK1;
+    mjtNum df_dk1 = k0*(k0 - 1.) * invK1 * invK1;
+    gradient[0] = gk0[0]*df_dk0 - gk1[0]*df_dk1;
+    gradient[1] = gk0[1]*df_dk0 - gk1[1]*df_dk1;
+    gradient[2] = gk0[2]*df_dk0 - gk1[2]*df_dk1;
+    mju_normalize3(gradient);
     break;
   case mjGEOM_CYLINDER:
     c = mju_sqrt(x[0]*x[0]+x[1]*x[1]);
