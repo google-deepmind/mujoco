@@ -306,7 +306,7 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
   // overwrite plugin name
   if (plugin_instance_name.empty() && plugin.active) {
     plugin_instance_name = "composite" + prefix;
-    ((mjCPlugin*)plugin.instance)->name = plugin_instance_name;
+    (static_cast<mjCPlugin*>(plugin.instance))->name = plugin_instance_name;
   }
 
   // dispatch
@@ -432,7 +432,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
   mjtNum t = 1;
   if (dim == 2 && plugin.active) {
     try {
-      mjCPlugin* pplugin = (mjCPlugin*)plugin.instance;
+      mjCPlugin* pplugin = static_cast<mjCPlugin*>(plugin.instance);
       t = std::stod(pplugin->config_attribs["thickness"], nullptr);
     } catch (const std::invalid_argument& e) {
       return comperr(error, "Invalid thickness attribute", error_sz);
@@ -512,9 +512,9 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
     // add plugin
     if (plugin.active) {
       mjsPlugin* pplugin = &b->plugin;
-      mjCPlugin* cplugin = (mjCPlugin*)plugin.instance;
+      mjCPlugin* cplugin = static_cast<mjCPlugin*>(plugin.instance);
       pplugin->active = true;
-      pplugin->instance = (mjElement)plugin.instance;
+      pplugin->instance = plugin.instance;
       mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       mjs_setString(pplugin->name, mjs_getString(plugin.name));
 
@@ -868,7 +868,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtN
   if (plugin.active) {
     mjsPlugin* pplugin = &body->plugin;
     pplugin->active = true;
-    pplugin->instance = (mjElement)plugin.instance;
+    pplugin->instance = plugin.instance;
     mjs_setString(pplugin->name, mjs_getString(plugin.name));
     mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
   }

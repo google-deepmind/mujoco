@@ -131,6 +131,7 @@ static void ReadFromBuffer(T* dst, const char* src) {
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   mjs_defaultMesh(spec);
+  elemtype = mjOBJ_MESH;
 
   // clear internal variables
   mjuu_setvec(pos_surface_, 0, 0, 0);
@@ -253,7 +254,7 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
       this->graph_ = NULL;
     }
     if (other.plugin.instance) {
-      mjCPlugin* new_plugin = new mjCPlugin(*reinterpret_cast<mjCPlugin*>(other.plugin.instance));
+      mjCPlugin* new_plugin = new mjCPlugin(*static_cast<mjCPlugin*>(other.plugin.instance));
       plugin = new_plugin->spec;
       model->plugins.push_back(new_plugin);
     }
@@ -265,7 +266,7 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 
 
 void mjCMesh::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -358,8 +359,9 @@ void mjCMesh::LoadSDF() {
                    name.c_str(), id);
   }
 
-  mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
+  mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+  plugin.instance = plugin_instance;
   const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
   if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
@@ -2056,6 +2058,7 @@ void mjCMesh::MakeCenter(void) {
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
   mjs_defaultSkin(spec);
+  elemtype = mjOBJ_SKIN;
 
   // set model pointer
   model = _model;
@@ -2103,7 +2106,7 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
 
 
 void mjCSkin::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -2480,6 +2483,7 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
   mjs_defaultFlex(spec);
+  elemtype = mjOBJ_FLEX;
 
   // set model
   model = _model;
@@ -2514,7 +2518,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 
 
 void mjCFlex::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.material = (mjString)&spec_material_;
@@ -2756,7 +2760,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   for (int i=0; i<(int)vertbodyid.size(); i++) {
     if (model->bodies[vertbodyid[i]]->plugin.instance) {
-      mjCPlugin* plugin_instance = (mjCPlugin*)model->bodies[vertbodyid[i]]->plugin.instance;
+      mjCPlugin* plugin_instance =
+          static_cast<mjCPlugin*>(model->bodies[vertbodyid[i]]->plugin.instance);
       plugin_instance->config_attribs["face"] = userface;
       plugin_instance->config_attribs["edge"] = useredge;
     }

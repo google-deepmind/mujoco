@@ -33,7 +33,7 @@
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
-class mjCModel_ {
+class mjCModel_ : public mjElement {
  public:
   // attach namespaces
   std::string prefix;

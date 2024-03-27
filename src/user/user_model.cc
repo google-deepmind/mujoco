@@ -84,6 +84,7 @@ static void copyvec(T1* dest, T2* src, int n) {
 // constructor
 mjCModel::mjCModel() {
   mjs_defaultSpec(spec);
+  elemtype = mjOBJ_UNKNOWN;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
   spec_meshdir_.clear();
@@ -319,7 +320,7 @@ void mjCModel::CreateObjectLists() {
 
 
 void mjCModel::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.comment = (mjString)&spec_comment_;
   spec.modelfiledir = (mjString)&spec_modelfiledir_;
   spec.modelname = (mjString)&spec_modelname_;
@@ -3226,7 +3227,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     std::vector<std::vector<int>> plugin_to_actuators(nplugin);
     for (int i = 0; i < nu; ++i) {
       if (actuators[i]->plugin.active) {
-        int actuator_plugin = ((mjCPlugin*)actuators[i]->plugin.instance)->id;
+        int actuator_plugin = static_cast<mjCPlugin*>(actuators[i]->plugin.instance)->id;
         m->actuator_plugin[i] = actuator_plugin;
         plugin_to_actuators[actuator_plugin].push_back(i);
       } else {
@@ -3236,7 +3237,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
     for (int i = 0; i < nbody; ++i) {
       if (bodies[i]->plugin.active) {
-        m->body_plugin[i] = ((mjCPlugin*)bodies[i]->plugin.instance)->id;
+        m->body_plugin[i] = static_cast<mjCPlugin*>(bodies[i]->plugin.instance)->id;
       } else {
         m->body_plugin[i] = -1;
       }
@@ -3244,7 +3245,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
     for (int i = 0; i < ngeom; ++i) {
       if (geoms[i]->plugin.active) {
-        m->geom_plugin[i] = ((mjCPlugin*)geoms[i]->plugin.instance)->id;
+        m->geom_plugin[i] = static_cast<mjCPlugin*>(geoms[i]->plugin.instance)->id;
       } else {
         m->geom_plugin[i] = -1;
       }
@@ -3253,7 +3254,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     std::vector<std::vector<int>> plugin_to_sensors(nplugin);
     for (int i = 0; i < nsensor; ++i) {
       if (sensors[i]->type == mjSENS_PLUGIN) {
-        int sensor_plugin = ((mjCPlugin*)sensors[i]->plugin.instance)->id;
+        int sensor_plugin = static_cast<mjCPlugin*>(sensors[i]->plugin.instance)->id;
         m->sensor_plugin[i] = sensor_plugin;
         plugin_to_sensors[sensor_plugin].push_back(i);
       } else {

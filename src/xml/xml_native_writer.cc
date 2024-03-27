@@ -739,8 +739,8 @@ void mjXWriter::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
   } else {
     WriteAttrTxt(elem, "plugin", plugin_name);
     const mjpPlugin* pplugin = mjp_getPluginAtSlot(
-        ((mjCPlugin*)plugin->instance)->spec.plugin_slot);
-    const char* c = &((mjCPlugin*)plugin->instance)->flattened_attributes[0];
+        static_cast<mjCPlugin*>(plugin->instance)->spec.plugin_slot);
+    const char* c = &(static_cast<mjCPlugin*>(plugin->instance)->flattened_attributes[0]);
     for (int i = 0; i < pplugin->nattribute; ++i) {
       std::string value(c);
       if (!value.empty()) {

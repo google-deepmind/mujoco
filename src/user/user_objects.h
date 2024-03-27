@@ -167,7 +167,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
 
-class mjCBase_ {
+class mjCBase_ : public mjElement {
  public:
   int id;                 // object id
   std::string name;       // object name
@@ -1606,7 +1606,7 @@ class mjCKey : public mjCKey_, private mjsKey {
 //------------------------- class mjCDef -----------------------------------------------------------
 // Describes one set of defaults
 
-class mjCDef {
+class mjCDef : public mjElement {
   friend class mjXWriter;
 
  public:

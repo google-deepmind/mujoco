@@ -516,7 +516,7 @@ void mjCDef::PointToLocal() {
   equality.PointToLocal();
   tendon.PointToLocal();
   actuator.PointToLocal();
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.joint = &joint.spec;
   spec.geom = &geom.spec;
@@ -632,6 +632,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   model = _model;
 
   mjs_defaultBody(spec);
+  elemtype = mjOBJ_BODY;
   parentid = -1;
   weldid = -1;
   dofnum = 0;
@@ -745,7 +746,7 @@ mjCBody& mjCBody::operator+=(mjCBody& other) {
 
 
 void mjCBody::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.childclass = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -1337,9 +1338,10 @@ void mjCBody::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    plugin.instance = plugin_instance;
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_PASSIVE)) {
       throw mjCError(this, "plugin '%s' does not support passive forces", pplugin->name);
     }
@@ -1365,6 +1367,7 @@ void mjCBody::Compile(void) {
 // initialize frame
 mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
   mjs_defaultFrame(spec);
+  elemtype = mjOBJ_FRAME;
   compiled = false;
   model = _model;
   body = NULL;
@@ -1417,7 +1420,7 @@ void mjCFrame::SetParent(mjCBody* _body) {
 
 
 void mjCFrame::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.childclass = (mjString)&classname;
   spec.info = (mjString)&info;
@@ -1461,6 +1464,7 @@ void mjCFrame::Compile() {
 // initialize default joint
 mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   mjs_defaultJoint(spec);
+  elemtype = mjOBJ_JOINT;
 
   // clear internal variables
   spec_userdata_.clear();
@@ -1508,7 +1512,7 @@ bool mjCJoint::is_actfrclimited() const { return islimited(actfrclimited, actfrc
 
 
 void mjCJoint::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -1658,6 +1662,7 @@ int mjCJoint::Compile(void) {
 // initialize default geom
 mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   mjs_defaultGeom(spec);
+  elemtype = mjOBJ_GEOM;
 
   mass_ = 0;
   body = 0;
@@ -1715,7 +1720,7 @@ mjCGeom& mjCGeom::operator=(const mjCGeom& other) {
 
 // to be called after any default copy constructor
 void mjCGeom::PointToLocal(void) {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.info = (mjString)&info;
   spec.classname = (mjString)&classname;
@@ -2263,9 +2268,10 @@ void mjCGeom::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    plugin.instance = plugin_instance;
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
       throw mjCError(this, "plugin '%s' does not support sign distance fields", pplugin->name);
     }
@@ -2284,6 +2290,7 @@ void mjCGeom::Compile(void) {
 // initialize default site
 mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
   mjs_defaultSite(spec);
+  elemtype = mjOBJ_SITE;
 
   // clear internal variables
   body = 0;
@@ -2328,7 +2335,7 @@ mjCSite& mjCSite::operator=(const mjCSite& other) {
 
 
 void mjCSite::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.info = (mjString)&info;
   spec.classname = (mjString)&classname;
@@ -2440,6 +2447,7 @@ void mjCSite::Compile(void) {
 // initialize defaults
 mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   mjs_defaultCamera(spec);
+  elemtype = mjOBJ_CAMERA;
 
   // clear private variables
   body = 0;
@@ -2483,7 +2491,7 @@ mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
 
 
 void mjCCamera::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -2590,6 +2598,7 @@ void mjCCamera::Compile(void) {
 // initialize defaults
 mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
   mjs_defaultLight(spec);
+  elemtype = mjOBJ_LIGHT;
 
   // clear private variables
   body = 0;
@@ -2630,7 +2639,7 @@ mjCLight& mjCLight::operator=(const mjCLight& other) {
 
 
 void mjCLight::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.targetbody = (mjString)&spec_targetbody_;
@@ -2686,6 +2695,7 @@ void mjCLight::Compile(void) {
 // constructor
 mjCHField::mjCHField(mjCModel* _model) {
   mjs_defaultHField(spec);
+  elemtype = mjOBJ_HFIELD;
 
   // set model pointer
   model = _model;
@@ -2723,7 +2733,7 @@ mjCHField& mjCHField::operator=(const mjCHField& other) {
 
 
 void mjCHField::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.file = (mjString)&spec_file_;
   spec.content_type = (mjString)&spec_content_type_;
@@ -2938,6 +2948,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
 // initialize defaults
 mjCTexture::mjCTexture(mjCModel* _model) {
   mjs_defaultTexture(spec);
+  elemtype = mjOBJ_TEXTURE;
 
   // set model pointer
   model = _model;
@@ -2979,7 +2990,7 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
 
 
 void mjCTexture::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -3680,6 +3691,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 // initialize defaults
 mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
   mjs_defaultMaterial(spec);
+  elemtype = mjOBJ_MATERIAL;
 
   // clear internal
   spec_texture_.clear();
@@ -3722,7 +3734,7 @@ mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
 
 
 void mjCMaterial::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.texture = (mjString)&spec_texture_;
@@ -3751,6 +3763,7 @@ void mjCMaterial::Compile(void) {
 // constructor
 mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
   mjs_defaultPair(spec);
+  elemtype = mjOBJ_PAIR;
 
   // set defaults
   spec_geomname1_.clear();
@@ -3800,7 +3813,7 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
 
 
 void mjCPair::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.geomname1 = (mjString)&spec_geomname1_;
@@ -4010,7 +4023,7 @@ mjCBodyPair& mjCBodyPair::operator=(const mjCBodyPair& other) {
 
 
 void mjCBodyPair::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.bodyname1 = (mjString)&spec_bodyname1_;
   spec.bodyname2 = (mjString)&spec_bodyname2_;
@@ -4086,6 +4099,7 @@ void mjCBodyPair::Compile(void) {
 // initialize default constraint
 mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
   mjs_defaultEquality(spec);
+  elemtype = mjOBJ_EQUALITY;
 
   // clear internal variables
   spec_name1_.clear();
@@ -4129,7 +4143,7 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 
 
 void mjCEquality::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.name1 = (mjString)&spec_name1_;
@@ -4248,6 +4262,7 @@ void mjCEquality::Compile(void) {
 // constructor
 mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   mjs_defaultTendon(spec);
+  elemtype = mjOBJ_TENDON;
 
   // clear internal variables
   spec_material_.clear();
@@ -4299,7 +4314,7 @@ bool mjCTendon::is_limited() const { return islimited(limited, range); }
 
 
 void mjCTendon::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.material = (mjString)&spec_material_;
@@ -4576,6 +4591,8 @@ void mjCTendon::Compile(void) {
 
 // constructor
 mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
+  elemtype = mjOBJ_UNKNOWN;
+
   // set model and tendon pointer
   model = _model;
   tendon = _tendon;
@@ -4613,7 +4630,7 @@ mjCWrap& mjCWrap::operator=(const mjCWrap& other) {
 
 
 void mjCWrap::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.info = (mjString)&info;
 }
 
@@ -4705,6 +4722,7 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
 // initialize defaults
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   mjs_defaultActuator(spec);
+  elemtype = mjOBJ_ACTUATOR;
 
   // clear private variables
   ptarget = nullptr;
@@ -4758,7 +4776,7 @@ bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange)
 
 
 void mjCActuator::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -5032,9 +5050,10 @@ void mjCActuator::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    plugin.instance = plugin_instance;
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
       throw mjCError(this, "plugin '%s' does not support actuators", pplugin->name);
     }
@@ -5048,6 +5067,7 @@ void mjCActuator::Compile(void) {
 // initialize defaults
 mjCSensor::mjCSensor(mjCModel* _model) {
   mjs_defaultSensor(spec);
+  elemtype = mjOBJ_SENSOR;
 
   // set model
   model = _model;
@@ -5090,7 +5110,7 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
 
 
 void mjCSensor::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -5504,9 +5524,10 @@ void mjCSensor::Compile(void) {
 
     // resolve plugin instance, or create one if using the "plugin" attribute shortcut
     {
-      mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-      model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-      const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+      mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+      model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+      plugin.instance = plugin_instance;
+      const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
       if (!(pplugin->capabilityflags & mjPLUGIN_SENSOR)) {
         throw mjCError(this, "plugin '%s' does not support sensors", pplugin->name);
       }
@@ -5534,6 +5555,7 @@ void mjCSensor::Compile(void) {
 // constructor
 mjCNumeric::mjCNumeric(mjCModel* _model) {
   mjs_defaultNumeric(spec);
+  elemtype = mjOBJ_NUMERIC;
 
   // set model pointer
   model = _model;
@@ -5569,7 +5591,7 @@ mjCNumeric& mjCNumeric::operator=(const mjCNumeric& other) {
 
 
 void mjCNumeric::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.data = (mjDoubleVec)&spec_data_;
   spec.info = (mjString)&info;
@@ -5622,6 +5644,7 @@ void mjCNumeric::Compile(void) {
 // constructor
 mjCText::mjCText(mjCModel* _model) {
   mjs_defaultText(spec);
+  elemtype = mjOBJ_TEXT;
 
   // set model pointer
   model = _model;
@@ -5657,7 +5680,7 @@ mjCText& mjCText::operator=(const mjCText& other) {
 
 
 void mjCText::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.data = (mjString)&spec_data_;
   spec.info = (mjString)&info;
@@ -5698,6 +5721,7 @@ void mjCText::Compile(void) {
 // constructor
 mjCTuple::mjCTuple(mjCModel* _model) {
   mjs_defaultTuple(spec);
+  elemtype = mjOBJ_TUPLE;
 
   // set model pointer
   model = _model;
@@ -5736,7 +5760,7 @@ mjCTuple& mjCTuple::operator=(const mjCTuple& other) {
 
 
 void mjCTuple::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.objtype = (mjIntVec)&spec_objtype_;
   spec.objname = (mjStringVec)&spec_objname_;
@@ -5830,6 +5854,7 @@ void mjCTuple::Compile(void) {
 // constructor
 mjCKey::mjCKey(mjCModel* _model) {
   mjs_defaultKey(spec);
+  elemtype = mjOBJ_KEY;
 
   // set model pointer
   model = _model;
@@ -5870,7 +5895,7 @@ mjCKey& mjCKey::operator=(const mjCKey& other) {
 
 
 void mjCKey::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.qpos = (mjDoubleVec)&spec_qpos_;
   spec.qvel = (mjDoubleVec)&spec_qvel_;
@@ -6013,6 +6038,7 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
 
   // public interface
   mjs_defaultPlugin(spec);
+  elemtype = mjOBJ_PLUGIN;
   spec.name = (mjString)&name;
   spec.instance_name = (mjString)&instance_name;
   spec.info = (mjString)&info;

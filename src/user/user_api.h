@@ -29,7 +29,6 @@ extern "C" {
 
 //---------------------------------- handles to internal objects -----------------------------------
 
-typedef struct _mjElement* mjElement;
 typedef struct _mjString* mjString;
 typedef struct _mjStringVec* mjStringVec;
 typedef struct _mjIntVec* mjIntVec;
@@ -77,10 +76,15 @@ typedef enum _mjtInertiaFromGeom {
 } mjtInertiaFromGeom;
 
 
-//---------------------------------- attribute structs (mjm) ---------------------------------------
+//---------------------------------- attribute structs (mjs) ---------------------------------------
+
+typedef struct _mjElement {        // element type, do not modify
+  mjtObj elemtype;                 // element type
+} mjElement;
+
 
 typedef struct _mjSpec {           // model specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjStatistic stat;                // statistics override (if defined)
 
   // compiler settings
@@ -144,7 +148,7 @@ typedef struct _mjsOrientation {   // alternative orientation specifiers
 
 
 typedef struct _mjsPlugin {        // plugin specification
-  mjElement instance;              // internal, do not modify
+  mjElement* instance;             // object type
   mjString name;                   // name
   mjString instance_name;          // instance name
   int plugin_slot;                 // global registered slot number of the plugin
@@ -154,7 +158,7 @@ typedef struct _mjsPlugin {        // plugin specification
 
 
 typedef struct _mjsBody {          // body specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString childclass;             // childclass name
 
@@ -182,7 +186,7 @@ typedef struct _mjsBody {          // body specification
 
 
 typedef struct _mjsFrame {         // frame specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString childclass;             // childclass name
   double pos[3];                   // position
@@ -193,7 +197,7 @@ typedef struct _mjsFrame {         // frame specification
 
 
 typedef struct _mjsJoint {         // joint specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjtJoint type;                   // joint type
@@ -233,7 +237,7 @@ typedef struct _mjsJoint {         // joint specification
 
 
 typedef struct _mjsGeom {          // geom specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // classname
   mjtGeom type;                    // geom type
@@ -282,7 +286,7 @@ typedef struct _mjsGeom {          // geom specification
 
 
 typedef struct _mjsSite {          // site specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -306,7 +310,7 @@ typedef struct _mjsSite {          // site specification
 
 
 typedef struct _mjsCamera {        // camera specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -335,7 +339,7 @@ typedef struct _mjsCamera {        // camera specification
 
 
 typedef struct _mjsLight {         // light specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -362,7 +366,7 @@ typedef struct _mjsLight {         // light specification
 
 
 typedef struct _mjsFlex {
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -403,7 +407,7 @@ typedef struct _mjsFlex {
 
 
 typedef struct _mjsMesh {          // mesh specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjString content_type;           // content type of file
@@ -424,7 +428,7 @@ typedef struct _mjsMesh {          // mesh specification
 
 
 typedef struct _mjsHField {        // height field specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString content_type;           // content type of file
   mjString file;                   // file: (nrow, ncol, [elevation data])
@@ -438,7 +442,7 @@ typedef struct _mjsHField {        // height field specification
 
 
 typedef struct _mjsSkin {          // skin specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjString file;                   // skin file
@@ -465,7 +469,7 @@ typedef struct _mjsSkin {          // skin specification
 
 
 typedef struct _mjsTexture {       // texture specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjtTexture type;                 // texture type
@@ -499,7 +503,7 @@ typedef struct _mjsTexture {       // texture specification
 
 
 typedef struct _mjsMaterial {      // material specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjString texture;                // name of texture (empty: none)
@@ -515,7 +519,7 @@ typedef struct _mjsMaterial {      // material specification
 
 
 typedef struct _mjsPair {
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjString geomname1;              // name of geom 1
@@ -534,7 +538,7 @@ typedef struct _mjsPair {
 
 
 typedef struct _mjsExclude {
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString bodyname1;              // name of geom 1
   mjString bodyname2;              // name of geom 2
@@ -543,7 +547,7 @@ typedef struct _mjsExclude {
 
 
 typedef struct _mjsEquality {      // equality specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
   mjtEq type;                      // constraint type
@@ -558,7 +562,7 @@ typedef struct _mjsEquality {      // equality specification
 
 
 typedef struct _mjsTendon {        // tendon specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -590,13 +594,13 @@ typedef struct _mjsTendon {        // tendon specification
 
 
 typedef struct _mjsWrap {          // wrapping object specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString info;                   // message appended to errors
 } mjsWrap;
 
 
 typedef struct _mjsActuator {      // actuator specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -640,7 +644,7 @@ typedef struct _mjsActuator {      // actuator specification
 
 
 typedef struct _mjsSensor {        // sensor specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -668,7 +672,7 @@ typedef struct _mjsSensor {        // sensor specification
 
 
 typedef struct _mjsNumeric {       // custom numeric field specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjDoubleVec data;                // initialization data
   int size;                        // array size, can be bigger than data size
@@ -677,7 +681,7 @@ typedef struct _mjsNumeric {       // custom numeric field specification
 
 
 typedef struct _mjsText {          // custom text specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjString data;                   // text string
   mjString info;                   // message appended to compiler errors
@@ -685,7 +689,7 @@ typedef struct _mjsText {          // custom text specification
 
 
 typedef struct _mjsTuple {         // tuple specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   mjIntVec objtype;                // object types
   mjStringVec objname;             // object names
@@ -695,7 +699,7 @@ typedef struct _mjsTuple {         // tuple specification
 
 
 typedef struct _mjsKey {           // keyframe specification
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjString name;                   // name
   double time;                     // time
   mjDoubleVec qpos;                // qpos
@@ -710,7 +714,7 @@ typedef struct _mjsKey {           // keyframe specification
 
 typedef struct _mjsDefault {       // default specification
   mjString name;                   // name
-  mjElement element;               // internal, do not modify
+  mjElement* element;              // object type
   mjsJoint* joint;                 // joint defaults
   mjsGeom* geom;                   // geom defaults
   mjsSite* site;                   // site defaults
@@ -847,7 +851,7 @@ MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid,
 MJAPI mjSpec* mjs_getSpec(mjsBody* body);
 
 // Get default corresponding to an mjElement.
-MJAPI mjsDefault* mjs_getDefault(mjElement element);
+MJAPI mjsDefault* mjs_getDefault(mjElement* element);
 
 // Find default in model by class name.
 MJAPI mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
@@ -868,7 +872,7 @@ MJAPI mjsMesh* mjs_findMesh(mjSpec* s, const char* name);
 MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
 
 // Get element id.
-MJAPI int mjs_getId(mjElement element);
+MJAPI int mjs_getId(mjElement* element);
 
 // Copy text to string.
 MJAPI void mjs_setString(mjString dest, const char* text);
@@ -910,10 +914,10 @@ MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 MJAPI void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 
 // Set default.
-MJAPI void mjs_setDefault(mjElement element, mjsDefault* def);
+MJAPI void mjs_setDefault(mjElement* element, mjsDefault* def);
 
 // Set frame.
-MJAPI void mjs_setFrame(mjElement dest, mjsFrame* frame);
+MJAPI void mjs_setFrame(mjElement* dest, mjsFrame* frame);
 
 // Resolve alternative orientations to quat.
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
