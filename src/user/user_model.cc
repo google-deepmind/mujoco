@@ -932,103 +932,154 @@ void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   elements.clear();
 }
 
+// set nuser fields
+void mjCModel::SetNuser(){
+  if (nuser_body == -1) {
+    nuser_body = 0;
+    for (int i=0; i<bodies.size(); i++) {
+      nuser_body = mjMAX(nuser_body, bodies[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_jnt == -1) {
+    nuser_jnt = 0;
+    for (int i=0; i<joints.size(); i++) {
+      nuser_jnt = mjMAX(nuser_jnt, joints[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_geom == -1) {
+    nuser_geom = 0;
+    for (int i=0; i<geoms.size(); i++) {
+      nuser_geom = mjMAX(nuser_geom, geoms[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_site == -1) {
+    nuser_site = 0;
+    for (int i=0; i<sites.size(); i++) {
+      nuser_site = mjMAX(nuser_site, sites[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_cam == -1) {
+    nuser_cam = 0;
+    for (int i=0; i<cameras.size(); i++) {
+      nuser_cam = mjMAX(nuser_cam, cameras[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_tendon == -1) {
+    nuser_tendon = 0;
+    for (int i=0; i<tendons.size(); i++) {
+      nuser_tendon = mjMAX(nuser_tendon, tendons[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_actuator == -1) {
+    nuser_actuator = 0;
+    for (int i=0; i<actuators.size(); i++) {
+      nuser_actuator = mjMAX(nuser_actuator, actuators[i]->spec_userdata_.size());
+    }
+  }
+  if (nuser_sensor == -1) {
+    nuser_sensor = 0;
+    for (int i=0; i<sensors.size(); i++) {
+      nuser_sensor = mjMAX(nuser_sensor, sensors[i]->spec_userdata_.size());
+    }
+  }
+}
 
 // index assets
 void mjCModel::IndexAssets(bool discard) {
   // assets referenced in geoms
   for (int i=0; i<geoms.size(); i++) {
-    mjCGeom* pgeom = geoms[i];
+    mjCGeom* geom = geoms[i];
 
     // find material by name
-    if (!pgeom->get_material().empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pgeom->get_material());
-      if (m) {
-        pgeom->matid = m->id;
+    if (!geom->get_material().empty()) {
+      mjCBase* material = FindObject(mjOBJ_MATERIAL, geom->get_material());
+      if (material) {
+        geom->matid = material->id;
       } else {
-        throw mjCError(pgeom, "material '%s' not found in geom %d", pgeom->get_material().c_str(), i);
+        throw mjCError(geom, "material '%s' not found in geom %d", geom->get_material().c_str(), i);
       }
     }
 
     // find mesh by name
-    if (!pgeom->get_meshname().empty()) {
-      mjCBase* pmesh = FindObject(mjOBJ_MESH, pgeom->get_meshname());
-      if (pmesh) {
-        if (!pgeom->visual_) {
-          ((mjCMesh*)pmesh)->SetNotVisual();  // reset to true by mesh->Compile()
+    if (!geom->get_meshname().empty()) {
+      mjCBase* mesh = FindObject(mjOBJ_MESH, geom->get_meshname());
+      if (mesh) {
+        if (!geom->visual_) {
+          ((mjCMesh*)mesh)->SetNotVisual();  // reset to true by mesh->Compile()
         }
-        pgeom->mesh = (discard && pgeom->visual_) ? nullptr : (mjCMesh*)pmesh;
+        geom->mesh = (discard && geom->visual_) ? nullptr : (mjCMesh*)mesh;
       } else {
-        throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->get_meshname().c_str(), i);
+        throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
       }
     }
 
     // find hfield by name
-    if (!pgeom->get_hfieldname().empty()) {
-      mjCBase* m = FindObject(mjOBJ_HFIELD, pgeom->get_hfieldname());
-      if (m) {
-        pgeom->hfield = (mjCHField*)m;
+    if (!geom->get_hfieldname().empty()) {
+      mjCBase* hfield = FindObject(mjOBJ_HFIELD, geom->get_hfieldname());
+      if (hfield) {
+        geom->hfield = (mjCHField*)hfield;
       } else {
-        throw mjCError(pgeom, "hfield '%s' not found in geom %d", pgeom->get_hfieldname().c_str(), i);
+        throw mjCError(geom, "hfield '%s' not found in geom %d", geom->get_hfieldname().c_str(), i);
       }
     }
   }
 
   // assets referenced in skins
   for (int i=0; i<skins.size(); i++) {
-    mjCSkin* pskin = skins[i];
+    mjCSkin* skin = skins[i];
 
     // find material by name
-    if (!pskin->material_.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pskin->material_);
-      if (m) {
-        pskin->matid = m->id;
+    if (!skin->material_.empty()) {
+      mjCBase* material = FindObject(mjOBJ_MATERIAL, skin->material_);
+      if (material) {
+        skin->matid = material->id;
       } else {
-        throw mjCError(pskin, "material '%s' not found in skin %d", pskin->material_.c_str(), i);
+        throw mjCError(skin, "material '%s' not found in skin %d", skin->material_.c_str(), i);
       }
     }
   }
 
   // materials referenced in sites
   for (int i=0; i<sites.size(); i++) {
-    mjCSite* psite = sites[i];
+    mjCSite* site = sites[i];
 
     // find material by name
-    if (!psite->material_.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, psite->get_material());
-      if (m) {
-        psite->matid = m->id;
+    if (!site->material_.empty()) {
+      mjCBase* material = FindObject(mjOBJ_MATERIAL, site->get_material());
+      if (material) {
+        site->matid = material->id;
       } else {
-        throw mjCError(psite, "material '%s' not found in site %d", psite->material_.c_str(), i);
+        throw mjCError(site, "material '%s' not found in site %d", site->material_.c_str(), i);
       }
     }
   }
 
   // materials referenced in tendons
   for (int i=0; i<tendons.size(); i++) {
-    mjCTendon* pten = tendons[i];
+    mjCTendon* tendon = tendons[i];
 
     // find material by name
-    if (!pten->material_.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pten->material_);
-      if (m) {
-        pten->matid = m->id;
+    if (!tendon->material_.empty()) {
+      mjCBase* material = FindObject(mjOBJ_MATERIAL, tendon->material_);
+      if (material) {
+        tendon->matid = material->id;
       } else {
-        throw mjCError(pten, "material '%s' not found in tendon %d", pten->material_.c_str(), i);
+        throw mjCError(tendon, "material '%s' not found in tendon %d", tendon->material_.c_str(), i);
       }
     }
   }
 
   // textures referenced in materials
   for (int i=0; i<materials.size(); i++) {
-    mjCMaterial* pmat = materials[i];
+    mjCMaterial* material = materials[i];
 
     // find texture by name
-    if (!pmat->texture_.empty()) {
-      mjCBase* m = FindObject(mjOBJ_TEXTURE, pmat->texture_);
-      if (m) {
-        pmat->texid = m->id;
+    if (!material->texture_.empty()) {
+      mjCBase* texture = FindObject(mjOBJ_TEXTURE, material->texture_);
+      if (texture) {
+        material->texid = texture->id;
       } else {
-        throw mjCError(pmat, "texture '%s' not found in material %d", pmat->texture_.c_str(), i);
+        throw mjCError(material, "texture '%s' not found in material %d", material->texture_.c_str(), i);
       }
     }
   }
@@ -3039,8 +3090,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     DeleteAll(textures);
   }
 
-  // convert names into indices
-  IndexAssets(false);
+  // map names to asset references
+  IndexAssets(/*discard=*/false);
 
   // mark meshes that need convex hull
   for (int i=0; i<geoms.size(); i++) {
@@ -3050,59 +3101,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     }
   }
 
+  // automatically set nuser fields
+  SetNuser();
+
   // compile meshes (needed for geom compilation)
   for (int i=0; i<meshes.size(); i++) {
     meshes[i]->Compile(vfs);
-  }
-
-  // automatically set nuser fields
-  if (nuser_body == -1) {
-    nuser_body = 0;
-    for (int i=0; i<bodies.size(); i++) {
-      nuser_body = mjMAX(nuser_body, bodies[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_jnt == -1) {
-    nuser_jnt = 0;
-    for (int i=0; i<joints.size(); i++) {
-      nuser_jnt = mjMAX(nuser_jnt, joints[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_geom == -1) {
-    nuser_geom = 0;
-    for (int i=0; i<geoms.size(); i++) {
-      nuser_geom = mjMAX(nuser_geom, geoms[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_site == -1) {
-    nuser_site = 0;
-    for (int i=0; i<sites.size(); i++) {
-      nuser_site = mjMAX(nuser_site, sites[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_cam == -1) {
-    nuser_cam = 0;
-    for (int i=0; i<cameras.size(); i++) {
-      nuser_cam = mjMAX(nuser_cam, cameras[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_tendon == -1) {
-    nuser_tendon = 0;
-    for (int i=0; i<tendons.size(); i++) {
-      nuser_tendon = mjMAX(nuser_tendon, tendons[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_actuator == -1) {
-    nuser_actuator = 0;
-    for (int i=0; i<actuators.size(); i++) {
-      nuser_actuator = mjMAX(nuser_actuator, actuators[i]->spec_userdata_.size());
-    }
-  }
-  if (nuser_sensor == -1) {
-    nuser_sensor = 0;
-    for (int i=0; i<sensors.size(); i++) {
-      nuser_sensor = mjMAX(nuser_sensor, sensors[i]->spec_userdata_.size());
-    }
   }
 
   // compile objects in kinematic tree

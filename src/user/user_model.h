@@ -256,6 +256,7 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // compile phases
   void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
+  void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
   void SetSizes();                      // compute sizes
