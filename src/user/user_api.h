@@ -230,6 +230,7 @@ typedef struct _mjsJoint {         // joint specification
 
   // other
   int group;                       // group
+  mjtByte actgravcomp;             // is gravcomp force applied via actuators
   double urdfeffort;               // effort (urdf)
   mjDoubleVec userdata;            // user data
   mjString info;                   // message appended to compiler errors

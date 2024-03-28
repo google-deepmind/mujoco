@@ -1768,6 +1768,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->jnt_group[jid] = pj->group;
       m->jnt_limited[jid] = (mjtByte)pj->is_limited();
       m->jnt_actfrclimited[jid] = (mjtByte)pj->is_actfrclimited();
+      m->jnt_actgravcomp[jid] = pj->actgravcomp;
       m->jnt_qposadr[jid] = qposadr;
       m->jnt_dofadr[jid] = dofadr;
       m->jnt_bodyid[jid] = pj->body->id;

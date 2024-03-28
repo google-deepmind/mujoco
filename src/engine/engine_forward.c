@@ -244,7 +244,7 @@ static mjtNum nextActivation(const mjModel* m, const mjData* d,
 
 
 // clamp vector to range
-static void mju_clamp(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
+static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
                       const int* index) {
   for (int i=0; i < n; i++) {
     int j = index ? index[i] : i;
@@ -277,7 +277,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mjtNum *ctrl = mj_stackAllocNum(d, nu);
   mju_copy(ctrl, d->ctrl, nu);
   if (!mjDISABLED(mjDSBL_CLAMPCTRL)) {
-    mju_clamp(ctrl, m->actuator_ctrlrange, m->actuator_ctrllimited, nu, NULL);
+    clampVec(ctrl, m->actuator_ctrlrange, m->actuator_ctrllimited, nu, NULL);
   }
 
   // check controls, set all to 0 if any are bad
@@ -463,13 +463,47 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // clamp actuator_force
-  mju_clamp(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
+  clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
 
   // qfrc_actuator = moment' * force
   mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
 
-  // clamp qfrc_actuator
-  mju_clamp(d->qfrc_actuator, m->jnt_actfrcrange, m->jnt_actfrclimited, m->njnt, m->jnt_dofadr);
+  // actuator-level gravity compensation
+  if (!mjDISABLED(mjDSBL_GRAVITY) && mju_norm3(m->opt.gravity)) {
+    int njnt = m->njnt;
+    for (int i=0; i < njnt; i++) {
+      // skip if gravcomp added as passive force
+      if (!m->jnt_actgravcomp[i]) {
+        continue;
+      }
+
+      // get number of dofs for this joint
+      int dofnum;
+      switch (m->jnt_type[i]) {
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        dofnum = 1;
+        break;
+
+      case mjJNT_BALL:
+        dofnum = 3;
+        break;
+
+      case mjJNT_FREE:
+        dofnum = 6;
+        break;
+      }
+
+      // add gravcomp force
+      int dofadr = m->jnt_dofadr[i];
+      for (int j=0; j < dofnum; j++) {
+        d->qfrc_actuator[dofadr+j] += d->qfrc_gravcomp[dofadr+j];
+      }
+    }
+  }
+
+  // clamp qfrc_actuator to joint-level actuator force limits
+  clampVec(d->qfrc_actuator, m->jnt_actfrcrange, m->jnt_actfrclimited, m->njnt, m->jnt_dofadr);
 
   mj_freeStack(d);
   TM_END(mjTIMER_ACTUATION);
@@ -481,13 +515,13 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   int nv = m->nv;
 
-  // qforce = sum of all non-constraint forces
+  // qfrc_smooth = sum of all non-constraint forces
   mju_sub(d->qfrc_smooth, d->qfrc_passive, d->qfrc_bias, nv);    // qfrc_bias is negative
   mju_addTo(d->qfrc_smooth, d->qfrc_applied, nv);
   mju_addTo(d->qfrc_smooth, d->qfrc_actuator, nv);
   mj_xfrcAccumulate(m, d, d->qfrc_smooth);
 
-  // qacc_smooth = M \ qfr_smooth
+  // qacc_smooth = M \ qfrc_smooth
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
 }
 

@@ -926,9 +926,9 @@ struct mjModel_ {
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
-  int nuserdata;                  // number of extra fields in mjData
-  int nsensordata;                // number of fields in sensor data vector
-  int npluginstate;               // number of fields in plugin state vector
+  int nuserdata;                  // number of mjtNums reserved for the user
+  int nsensordata;                // number of mjtNums in sensor data vector
+  int npluginstate;               // number of mjtNums in plugin state vector
 
   size_t narena;                  // number of bytes in the mjData arena (inclusive of stack)
   size_t nbuffer;                 // number of bytes in buffer
@@ -993,6 +993,7 @@ struct mjModel_ {
   int*      jnt_group;            // group for visibility                     (njnt x 1)
   mjtByte*  jnt_limited;          // does joint have limits                   (njnt x 1)
   mjtByte*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
+  mjtByte*  jnt_actgravcomp;      // is gravcomp force applied via actuators  (njnt x 1)
   mjtNum*   jnt_solref;           // constraint solver reference: limit       (njnt x mjNREF)
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)

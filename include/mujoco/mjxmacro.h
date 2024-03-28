@@ -215,6 +215,7 @@
     XMJV( int,     jnt_group,             njnt,          1                    ) \
     X   ( mjtByte, jnt_limited,           njnt,          1                    ) \
     X   ( mjtByte, jnt_actfrclimited,     njnt,          1                    ) \
+    X   ( mjtByte, jnt_actgravcomp,       njnt,          1                    ) \
     X   ( mjtNum,  jnt_solref,            njnt,          mjNREF               ) \
     X   ( mjtNum,  jnt_solimp,            njnt,          mjNIMP               ) \
     X   ( mjtNum,  jnt_pos,               njnt,          3                    ) \

@@ -5218,6 +5218,7 @@ public unsafe struct mjModel_ {
   public int* jnt_group;
   public byte* jnt_limited;
   public byte* jnt_actfrclimited;
+  public byte* jnt_actgravcomp;
   public double* jnt_solref;
   public double* jnt_solimp;
   public double* jnt_pos;

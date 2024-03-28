@@ -138,10 +138,11 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"mesh", "?", "1", "scale"},
         {"material", "?", "8", "texture", "emission", "specular", "shininess",
             "reflectance", "rgba", "texrepeat", "texuniform"},
-        {"joint", "?", "21", "type", "group", "pos", "axis", "springdamper",
+        {"joint", "?", "22", "type", "group", "pos", "axis", "springdamper",
             "limited", "actuatorfrclimited", "solreflimit", "solimplimit",
             "solreffriction", "solimpfriction", "stiffness", "range", "actuatorfrcrange",
-            "margin", "ref", "springref", "armature", "damping", "frictionloss", "user"},
+            "actuatorgravcomp", "margin", "ref", "springref", "armature", "damping",
+            "frictionloss", "user"},
         {"geom", "?", "31", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
@@ -240,11 +241,11 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"<"},
         {"inertial", "?", "9", "pos", "quat", "mass", "diaginertia",
             "axisangle", "xyaxes", "zaxis", "euler", "fullinertia"},
-        {"joint", "*", "23", "name", "class", "type", "group", "pos", "axis",
+        {"joint", "*", "24", "name", "class", "type", "group", "pos", "axis",
             "springdamper", "limited", "actuatorfrclimited",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
-            "stiffness", "range", "actuatorfrcrange", "margin", "ref", "springref",
-            "armature", "damping", "frictionloss", "user"},
+            "stiffness", "range", "actuatorfrcrange", "actuatorgravcomp", "margin", "ref",
+            "springref", "armature", "damping", "frictionloss", "user"},
         {"freejoint", "*", "2", "name", "group"},
         {"geom", "*", "33", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
@@ -1573,6 +1574,9 @@ void mjXReader::OneJoint(XMLElement* elem, mjsJoint* pjoint) {
   ReadAttr(elem, "armature", 1, &pjoint->armature, text);
   ReadAttr(elem, "damping", 1, &pjoint->damping, text);
   ReadAttr(elem, "frictionloss", 1, &pjoint->frictionloss, text);
+  if (MapValue(elem, "actuatorgravcomp", &n, bool_map, 2)) {
+    pjoint->actgravcomp = (n==1);
+  }
 
   // read userdata
   if (ReadVector(elem, "user", userdata, text)) {

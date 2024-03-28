@@ -307,6 +307,7 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttr(elem, "range", 2, pjoint->range, def->joint.range);
   WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, pjoint->actfrclimited,
                def->joint.actfrclimited);
+  WriteAttrKey(elem, "actuatorgravcomp", bool_map, 2, pjoint->actgravcomp, def->joint.actgravcomp);
   WriteAttr(elem, "actuatorfrcrange", 2, pjoint->actfrcrange, def->joint.actfrcrange);
   WriteAttr(elem, "margin", 1, &pjoint->margin, &def->joint.margin);
   WriteAttr(elem, "armature", 1, &pjoint->armature, &def->joint.armature);
