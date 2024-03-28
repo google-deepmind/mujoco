@@ -230,20 +230,20 @@ def _pair_info(
       info = info.replace(
           face=jp.stack([m.geom_convex_face[i] for i in geom]),
           vert=jp.stack([m.geom_convex_vert[i] for i in geom]),
-          edge=jp.stack([m.geom_convex_edge_dir[i] for i in geom]),
+          edge_dir=jp.stack([m.geom_convex_edge_dir[i] for i in geom]),
           facenorm=jp.stack([m.geom_convex_facenormal[i] for i in geom]),
-          face_edge_normal=jp.stack(
-              [m.geom_convex_face_edge_normal[i] for i in geom]
+          edge=jp.stack([m.geom_convex_edge[i] for i in geom]),
+          edge_face_normal=jp.stack(
+              [m.geom_convex_edge_face_normal[i] for i in geom]
           ),
-          face_edge=jp.stack([m.geom_convex_face_edge[i] for i in geom]),
       )
       in_axes = in_axes.replace(
           face=0,
           vert=0,
-          edge=0,
+          edge_dir=0,
           facenorm=0,
-          face_edge=0,
-          face_edge_normal=0,
+          edge=0,
+          edge_face_normal=0,
       )
     return info, in_axes
 

@@ -80,7 +80,7 @@ class GeomMeshKwargsTest(absltest.TestCase):
     self.assertEqual(h['geom_convex_facenormal'].shape, (5, 3))
 
     # face edges
-    edges = np.concatenate(h['geom_convex_face_edge'])
+    edges = h['geom_convex_edge']
     edges = np.vectorize(map_.get)(edges)
     mask = edges[:, 0] != edges[:, 1]
     edges = edges[mask]
@@ -92,27 +92,18 @@ class GeomMeshKwargsTest(absltest.TestCase):
         edges,
         np.array([
             [0, 2],
-            [0, 2],
-            [0, 3],
             [0, 3],
             [0, 4],
-            [0, 4],
-            [1, 2],
             [1, 2],
             [1, 3],
-            [1, 3],
-            [1, 4],
             [1, 4],
             [2, 4],
-            [2, 4],
-            [3, 4],
             [3, 4],
         ]),
     )
 
     # face edge normals
-    edge_normal = h['geom_convex_face_edge_normal']
-    edge_normal = np.concatenate(edge_normal)
+    edge_normal = h['geom_convex_edge_face_normal']
     edge_normal = edge_normal[mask]
     edge_normal = np.take_along_axis(
         edge_normal, sort_col_idx[..., None], axis=1
@@ -120,8 +111,8 @@ class GeomMeshKwargsTest(absltest.TestCase):
     edge_normal = edge_normal[sort_row_idx]
     edge_normal_02 = np.array([[0.4472136, -0.0, 0.89442719], [-1.0, 0.0, 0.0]])
     np.testing.assert_array_almost_equal(
-        edge_normal[:2],
-        np.array([edge_normal_02, edge_normal_02]),
+        edge_normal[:1],
+        np.array([edge_normal_02]),
     )
 
 

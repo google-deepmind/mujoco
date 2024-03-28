@@ -543,8 +543,8 @@ class Model(PyTreeNode):
   geom_convex_vert: List[Optional[jax.Array]]
   geom_convex_edge_dir: List[Optional[jax.Array]]
   geom_convex_facenormal: List[Optional[jax.Array]]
-  geom_convex_face_edge: List[Optional[jax.Array]]
-  geom_convex_face_edge_normal: List[Optional[jax.Array]]
+  geom_convex_edge: List[Optional[jax.Array]]
+  geom_convex_edge_face_normal: List[Optional[jax.Array]]
   pair_solref: jax.Array
   pair_solreffriction: jax.Array
   pair_solimp: jax.Array

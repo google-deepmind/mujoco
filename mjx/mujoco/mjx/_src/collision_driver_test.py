@@ -527,7 +527,7 @@ class ConvexTest(absltest.TestCase):
   """
 
   def test_convex_convex(self):
-    """Tests generic convex-convex collision via _sat_approx."""
+    """Tests generic convex-convex collision via _sat_gaussmap."""
     directory = epath.resource_path('mujoco.mjx')
     assets = {
         'meshes/dodecahedron.stl': (
@@ -541,6 +541,44 @@ class ConvexTest(absltest.TestCase):
     self.assertLess(c.dist[0], 0)
     np.testing.assert_array_less(0, c.dist[1:])
     np.testing.assert_array_almost_equal(c.frame[0, 0], np.array([0, 0, 1]))
+
+  _CONVEX_CONVEX_THIN = """
+    <mujoco>
+      <asset>
+        <mesh name="poly"
+         vertex="0.3 0 0  0 0.5 0  -0.3 0 0  0 -0.5 0  0 -1 1  0 1 1"
+         face="0 1 5  0 5 4  0 4 3  3 4 2  2 4 5  1 2 5  0 2 1  0 3 2"/>
+      </asset>
+      <worldbody>
+        <body pos="0.0 2.0 0.35" euler="0 0 90">
+          <freejoint/>
+          <geom size="0.2 0.2 0.2" type="mesh" mesh="poly"/>
+        </body>
+        <body pos="0.0 2.0 2.281" euler="180 0 0">
+          <freejoint/>
+          <geom size="0.2 0.2 0.2" type="mesh" mesh="poly"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_convex_convex_edge(self):
+    """Tests convex-convex collisions with edge contact via _sat_gaussmap."""
+    _, dx = _collide(self._CONVEX_CONVEX_THIN)
+    c = dx.contact
+
+    # Only one contact point for an edge contact.
+    self.assertLess(c.dist[0], 0)
+    np.testing.assert_array_less(0, c.dist[1:])
+    np.testing.assert_array_almost_equal(c.frame[0, 0], np.array([0, 0, 1]))
+    np.testing.assert_array_almost_equal(
+        c.pos[0], np.array([0, 2, 1.3155]), decimal=5)
+
+    _, dx = _collide(
+        self._CONVEX_CONVEX_THIN.replace(
+            'pos="0.0 2.0 0.35"', 'pos="0.0 2.0 0"'))
+    c = dx.contact
+    self.assertTrue((c.dist > 0).all())
 
 
 class BodyPairFilterTest(absltest.TestCase):
@@ -647,11 +685,11 @@ class NconTest(parameterized.TestCase):
         m.numeric_data[m.numeric_adr[i]] = -1
 
     ncon = collision_driver.ncon(m)
-    self.assertEqual(ncon, 307)
+    self.assertEqual(ncon, 98)
 
     mx = mjx.put_model(m)
     ncon = collision_driver.ncon(mx)
-    self.assertEqual(ncon, 307)
+    self.assertEqual(ncon, 98)
 
 
 class TopKContactTest(absltest.TestCase):

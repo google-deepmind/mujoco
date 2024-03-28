@@ -49,8 +49,8 @@ _DERIVED_ARGS = [
     'geom_convex_vert',
     'geom_convex_edge_dir',
     'geom_convex_facenormal',
-    'geom_convex_face_edge',
-    'geom_convex_face_edge_normal',
+    'geom_convex_edge',
+    'geom_convex_edge_face_normal',
 ]
 DERIVED = {(Model, d) for d in _DERIVED_ARGS}
 
@@ -114,7 +114,7 @@ def _get_unique_edge_dir(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
   return edges[unique_edge_idx]
 
 
-def _get_face_edge_normals(
+def _get_edge_normals(
     face: np.ndarray, face_norm: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:
   """Returns face edges and face edge normals."""
@@ -133,7 +133,7 @@ def _get_face_edge_normals(
       continue
     edge_map_list[tuple(face_edge_flat[i])].append(edge_face_norm[i])
 
-  edge_map = {}
+  edges, edge_face_normals = [], []
   for k, v in edge_map_list.items():
     v = np.array(v)
     if len(v) > 2:
@@ -145,19 +145,10 @@ def _get_face_edge_normals(
       # and face vertices were down sampled. In either case, we ignore these
       # edges.
       continue
-    edge_map[k] = v
+    edges.append(k)
+    edge_face_normals.append(v)
 
-  # for each face, list the edge normals
-  face_edge_normal = []
-  for face_idx in range(face_edge.shape[0]):
-    normals = []
-    for edge in face_edge[face_idx]:
-      k = tuple(edge)
-      normals.append(edge_map.get(k, np.zeros((2, 3))))
-    face_edge_normal.append(np.array(normals))
-  face_edge_normal = np.array(face_edge_normal)
-
-  return face_edge, face_edge_normal
+  return np.array(edges), np.array(edge_face_normals)
 
 
 def _convex_hull_2d(points: np.ndarray, normal: np.ndarray) -> np.ndarray:
@@ -297,15 +288,15 @@ def _geom_mesh_kwargs(
   vert = np.array(tm_convex.vertices)
   face = _merge_coplanar(tm_convex, mesh_info)
   facenormal = _get_face_norm(vert, face)
-  face_edge, face_edge_normal = _get_face_edge_normals(face, facenormal)
+  edge, edge_face_normal = _get_edge_normals(face, facenormal)
   return {
       'geom_convex_face': vert[face],
       'geom_convex_face_vert_idx': face,
       'geom_convex_vert': vert,
       'geom_convex_edge_dir': _get_unique_edge_dir(vert, face),
       'geom_convex_facenormal': facenormal,
-      'geom_convex_face_edge': face_edge,
-      'geom_convex_face_edge_normal': face_edge_normal,
+      'geom_convex_edge': edge,
+      'geom_convex_edge_face_normal': edge_face_normal,
   }
 
 

@@ -299,8 +299,9 @@ Collisions between large meshes
   SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
 
   For
-  collisions with convex meshes, the convex decompositon of the mesh should have
-  roughly **200 vertices or less** for reasonable performance.
+  collisions with convex meshes and primitives, the convex decompositon of the mesh should have
+  roughly **200 vertices or less** for reasonable performance. For convex-convex collisions,
+  the convex mesh should have roughly **fewer than 32 vertices**.
   With careful
   tuning, MJX can simulate scenes with mesh collisions -- see the MJX
   `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
