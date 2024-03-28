@@ -128,8 +128,7 @@ public class MjcfGenerationContext {
       mjcf.SetAttribute("ncol", hFieldComponent.HeightMapWidth.ToString());
     }
 
-    var baseHeight = hFieldComponent.Terrain.transform.localPosition.y +
-                     hFieldComponent.MinimumHeight;
+    var baseHeight = hFieldComponent.BaseHeight;
     var heightRange = Mathf.Clamp(
         hFieldComponent.MaximumHeight - hFieldComponent.MinimumHeight,
         0.00001f,
