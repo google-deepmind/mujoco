@@ -1057,9 +1057,10 @@ Here we describe the XML attributes common to all sensor types, so as to avoid r
 :at:`name`: :at-val:`string, optional`
    Name of the sensor.
 :at:`noise`: :at-val:`real, "0"`
-   The standard deviation of zero-mean Gaussian noise added to the sensor output, when the :at:`sensornoise`
-   attribute of :ref:`flag <option-flag>` is enabled. Sensor noise respects the sensor data type:
-   quaternions and unit vectors remain normalized, non-negative quantities remain non-negative.
+   The standard deviation of the noise model of this sensor. In versions prior to 3.1.4, this would lead to noise being
+   added to the sensors. In release 3.1.4 this feature was removed, see :doc:`3.1.4 changelog <changelog>` for a
+   detailed justification. As of subsequent versions, this attrbute serves as a convenient location for saving standard
+   deviation information for later use.
 :at:`cutoff`: :at-val:`real, "0"`
    When this value is positive, it limits the absolute value of the sensor output. It is also used to normalize the
    sensor output in the sensor data plots in :ref:`simulate.cc <saSimulate>`.

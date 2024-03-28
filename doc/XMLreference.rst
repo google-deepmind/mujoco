@@ -2129,12 +2129,6 @@ from its default.
    When this flag is enabled, :ref:`mj_inverse` will  interpret ``qacc`` as having been computed from the difference of
    two sequential velocities, and undo the above modification.
 
-.. _option-flag-sensornoise:
-
-:at:`sensornoise`: :at-val:`[disable, enable], "disable"`
-   This flag enables the simulation of sensor noise. When disabled (which is the default) noise is not added to
-   sensordata, even if the sensors specify non-zero noise amplitudes. When enabled, zero-mean Gaussian noise is added to
-   the underlying deterministic sensor data. Its standard deviation is determined by the noise parameter of each sensor.
 
 .. _option-flag-multiccd:
 

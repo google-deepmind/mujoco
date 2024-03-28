@@ -101,10 +101,10 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         "solver", "iterations", "ls_iterations", "noslip_iterations", "mpr_iterations",
         "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
-        {"flag", "?", "22", "constraint", "equality", "frictionloss", "limit", "contact",
+        {"flag", "?", "21", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
             "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp",
-            "override", "energy", "fwdinv", "invdiscrete", "sensornoise", "multiccd", "island"},
+            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "island"},
     {">"},
 
     {"size", "*", "14", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -1091,7 +1091,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("energy",      mjENBL_ENERGY)
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
-    READENBL("sensornoise", mjENBL_SENSORNOISE)
     READENBL("multiccd",    mjENBL_MULTICCD)
     READENBL("island",      mjENBL_ISLAND)
 #undef READENBL

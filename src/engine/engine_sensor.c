@@ -32,77 +32,8 @@
 #include "engine/engine_util_spatial.h"
 
 
+
 //-------------------------------- utility ---------------------------------------------------------
-
-// add sensor noise after each stage
-static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
-  int adr, dim;
-  mjtNum rnd[4], noise, quat[4], res[4];
-
-  // process sensors matching stage and having positive noise
-  for (int i=0; i < m->nsensor; i++) {
-    if (m->sensor_needstage[i] == stage && m->sensor_noise[i] > 0) {
-      // get sensor info
-      adr = m->sensor_adr[i];
-      dim = m->sensor_dim[i];
-      noise = m->sensor_noise[i];
-
-      // real or positive: add noise directly, with clamp for positive
-      if (m->sensor_datatype[i] == mjDATATYPE_REAL ||
-          m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
-        for (int j=0; j < dim; j++) {
-          // get random numbers; use only the first one
-          rnd[0] = mju_standardNormal(rnd+1);
-
-          // positive
-          if (m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
-            // add noise only if positive, keep it positive
-            if (d->sensordata[adr+j] > 0) {
-              d->sensordata[adr+j] = mju_max(0, d->sensordata[adr+j]+rnd[0]*noise);
-            }
-          }
-
-          // real
-          else {
-            d->sensordata[adr+j] += rnd[0]*noise;
-          }
-        }
-      }
-
-      // axis or quat: rotate around random axis by random angle
-      else {
-        // get four random numbers
-        rnd[0] = mju_standardNormal(rnd+1);
-        rnd[2] = mju_standardNormal(rnd+3);
-
-        // scale angle, normalize axis, make quaternion
-        rnd[0] *= noise;
-        mju_normalize3(rnd+1);
-        mju_axisAngle2Quat(quat, rnd+1, rnd[0]);
-
-        // axis
-        if (m->sensor_datatype[i] == mjDATATYPE_AXIS) {
-          // apply quaternion rotation to axis, assign
-          mju_rotVecQuat(res, d->sensordata+adr, quat);
-          mju_copy3(d->sensordata+adr, res);
-        }
-
-        // quaternion
-        else if (m->sensor_datatype[i] == mjDATATYPE_QUATERNION) {
-          // apply quaternion rotation to quaternion, assign
-          mju_mulQuat(d->sensordata+adr, d->sensordata+adr, quat);
-        }
-
-        // unknown datatype
-        else {
-          mjERROR("unknown datatype in sensor %d", i);
-        }
-      }
-    }
-  }
-}
-
-
 
 // apply cutoff after each stage
 static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
@@ -442,11 +373,6 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
     mjcb_sensor(m, d, mjSTAGE_POS);
   }
 
-  // add noise if enabled
-  if (mjENABLED(mjENBL_SENSORNOISE)) {
-    add_noise(m, d, mjSTAGE_POS);
-  }
-
   // compute plugin sensor values
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
@@ -621,11 +547,6 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
   // fill in user sensors if detected
   if (nusersensor && mjcb_sensor) {
     mjcb_sensor(m, d, mjSTAGE_VEL);
-  }
-
-  // add noise if enabled
-  if (mjENABLED(mjENBL_SENSORNOISE)) {
-    add_noise(m, d, mjSTAGE_VEL);
   }
 
   // trigger computation of plugins
@@ -837,11 +758,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
   // fill in user sensors if detected
   if (nusersensor && mjcb_sensor) {
     mjcb_sensor(m, d, mjSTAGE_ACC);
-  }
-
-  // add noise if enabled
-  if (mjENABLED(mjENBL_SENSORNOISE)) {
-    add_noise(m, d, mjSTAGE_ACC);
   }
 
   // trigger computation of plugins

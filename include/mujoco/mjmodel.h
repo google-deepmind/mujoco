@@ -74,12 +74,11 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_ENERGY       = 1<<1,     // energy computation
   mjENBL_FWDINV       = 1<<2,     // record solver statistics
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
-  mjENBL_SENSORNOISE  = 1<<4,     // add noise to sensor data
                                   // experimental features:
-  mjENBL_MULTICCD     = 1<<5,     // multi-point convex collision detection
-  mjENBL_ISLAND       = 1<<6,     // constraint island discovery
+  mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
+  mjENBL_ISLAND       = 1<<5,     // constraint island discovery
 
-  mjNENABLE           = 7         // number of enable flags
+  mjNENABLE           = 6         // number of enable flags
 } mjtEnableBit;
 
 
