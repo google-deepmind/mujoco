@@ -105,4 +105,14 @@
       <site site="weight2"/>
     </spatial>
   </tendon>
+
+  <custom>
+    <!-- Set initial VR view transforms. First 3 elements are translation, next 4 is rotation quat, 8th is scale. -->
+    <!-- rotation and scale are optional, can input 3, 7, or 8 elements. -->
+    <!-- If the rotations and scale are not provided, the default ones will be used. -->
+    <!-- Translation is (camera moves) [right-left up-down back-forward] -->
+    <!-- works for Vive and Valve -->
+    <numeric name="VR_T1" size="3" data="0 1 -1" />
+  </custom>
+
 </mujoco>
