@@ -45,9 +45,15 @@ Simulate
 
 Python bindings
 ^^^^^^^^^^^^^^^
+
+.. youtube:: xHDS0n5DpqM
+   :align: right
+   :width: 240px
+
 9. Added the ``mujoco.minimize`` Python module for nonlinear least-squares, designed for System Identification (sysID).
    The sysID tutorial is work in progress, but a pedagogical colab notebook with examples, including Inverse
    Kinematics, is available here: |ls_colab|
+   |br| The video on the right shows example clips from the tutorial.
 
 .. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
               :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
