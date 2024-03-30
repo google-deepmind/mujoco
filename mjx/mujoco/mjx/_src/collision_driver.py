@@ -36,6 +36,7 @@ from mujoco.mjx._src.collision_primitive import plane_capsule
 from mujoco.mjx._src.collision_primitive import plane_sphere
 from mujoco.mjx._src.collision_primitive import sphere_capsule
 from mujoco.mjx._src.collision_primitive import sphere_sphere
+from mujoco.mjx._src.constraint import count_constraints
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
@@ -328,6 +329,12 @@ def _collide_geoms(
       (g1.geom_id, g2.geom_id, params),
   )
 
+  efc_active = (d.efc_J != 0).any(axis=1)
+  nefc = efc_active.sum()
+  _, _, _, nc = count_constraints(m, d)
+  nc = efc_active[-nc:].sum()
+  efc_start = nefc - nc
+
   con = Contact(
       dist=dist,
       pos=pos,
@@ -339,6 +346,7 @@ def _collide_geoms(
       solimp=params.solimp,
       geom1=geom1,
       geom2=geom2,
+      efc_address=jp.arange(fn.ncon) * 4 + efc_start,
   )
   return con
 

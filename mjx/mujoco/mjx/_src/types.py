@@ -596,6 +596,7 @@ class Contact(PyTreeNode):
     solimp: constraint solver impedance                               (mjNIMP,)
     geom1: id of geom 1
     geom2: id of geom 2
+    efc_address: address in efc
   """
   dist: jax.Array
   pos: jax.Array
@@ -608,7 +609,8 @@ class Contact(PyTreeNode):
   # unsupported: mu, H, dim
   geom1: jax.Array
   geom2: jax.Array
-  # unsupported: efc_address, exclude
+  efc_address: jax.Array
+  # unsupported: exclude
 
   @classmethod
   def zero(cls, ncon: int = 0) -> 'Contact':
@@ -624,6 +626,7 @@ class Contact(PyTreeNode):
         solimp=jp.zeros((ncon, mujoco.mjNIMP,)),
         geom1=jp.zeros(ncon, dtype=int),
         geom2=jp.zeros(ncon, dtype=int),
+        efc_address=jp.zeros(ncon, dtype=int),
     )
 
 
