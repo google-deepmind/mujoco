@@ -129,10 +129,7 @@ public class MjcfGenerationContext {
     }
 
     var baseHeight = hFieldComponent.BaseHeight;
-    var heightRange = Mathf.Clamp(
-        hFieldComponent.MaximumHeight - hFieldComponent.MinimumHeight,
-        0.00001f,
-        Mathf.Infinity);
+    var heightRange = hFieldComponent.HeightMapScale.y;
     mjcf.SetAttribute(
         "size",
         MjEngineTool.MakeLocaleInvariant(
