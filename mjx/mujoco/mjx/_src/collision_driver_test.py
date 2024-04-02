@@ -198,6 +198,29 @@ class SphereCollisionTest(parameterized.TestCase):
       _assert_attr_eq(dx.contact, d.contact, field.name, 'vertex_center', 1e-4)
 
 
+class EllipsoidCollisionTest(parameterized.TestCase):
+
+  _ELLIPSOID_PLANE = """
+    <mujoco>
+      <worldbody>
+        <geom name="floor" size="0 0 .05" type="plane"/>
+        <body pos="0 0 0.03" euler="45 0 0">
+          <freejoint/>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_plane_ellipsoid(self):
+    """Tests ellipsoid plane contact."""
+    d, dx = _collide(self._ELLIPSOID_PLANE)
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'ellipsoid-plane', 1e-5)
+
+
 class CapsuleCollisionTest(parameterized.TestCase):
   _CAP_PLANE = """
     <mujoco>

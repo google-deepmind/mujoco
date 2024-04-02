@@ -65,6 +65,19 @@ def plane_capsule(plane: GeomInfo, cap: GeomInfo) -> Contact:
   return jax.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
 
+def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Contact:
+  """Calculates one contact between an ellipsoid and a plane."""
+  n = plane.mat[:, 2]
+  size = ellipsoid.size
+  sphere_support = -math.normalize((ellipsoid.mat.T @ n) * size)
+  pos = ellipsoid.pos + ellipsoid.mat @ (sphere_support * size)
+  dist = jp.dot(n, pos - plane.pos)
+  pos = pos - n * dist * 0.5
+  return jax.tree_map(
+      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
+  )
+
+
 def _sphere_sphere(
     pos1: jax.Array, radius1: jax.Array, pos2: jax.Array, radius2: jax.Array
 ) -> Contact:
@@ -121,6 +134,7 @@ def capsule_capsule(cap1: GeomInfo, cap2: GeomInfo) -> Contact:
 # store ncon as function attributes
 plane_sphere.ncon = 1
 plane_capsule.ncon = 2
+plane_ellipsoid.ncon = 1
 sphere_sphere.ncon = 1
 sphere_capsule.ncon = 1
 capsule_capsule.ncon = 1
