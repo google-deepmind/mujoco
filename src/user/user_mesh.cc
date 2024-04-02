@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
@@ -1293,6 +1294,12 @@ void mjCMesh::LoadMSH(mjResource* resource) {
     throw mjCError(this, "invalid sizes in MSH file '%s'", resource->name);
   }
 
+  if (nvert_ >= INT_MAX / sizeof(float) / 3 ||
+      nnormal_ >= INT_MAX / sizeof(float) / 3 ||
+      ntexcoord_ >= INT_MAX / sizeof(float) / 2 ||
+      nface_ >= INT_MAX / sizeof(int) / 3) {
+    throw mjCError(this, "too large sizes in MSH file '%s'.", resource->name);
+  }
   // check file size
   if (buffer_sz != 4*sizeof(int) + 3*nvert_*sizeof(float) + 3*nnormal_*sizeof(float) +
       2*ntexcoord_*sizeof(float) + 3*nface_*sizeof(int)) {
