@@ -421,7 +421,7 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    impedance is constant, then the penetration depth at rest is
 
    .. math::
-      r = \au \cdot (1 - d) \cdot \text{stiffness}
+      r = \frac{\au (1 - d)}{\text{stiffness}}
 
 .. tip::
    In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
@@ -430,6 +430,9 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
 
    The negative-value "direct" format is more flexible, for example allowing for perfectly elastic collisions
    (:math:`\text{damping} = 0`). It is the recommended format for system identification.
+
+   A :math:`\text{dampratio}` of 1 in the positive-value format is equivalent to
+   :math:`\text{damping} = 2 \sqrt{ \text{stiffness} }` in the direct format.
 
 .. _CContact:
 
