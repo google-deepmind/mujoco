@@ -245,11 +245,6 @@ class USDPrimitiveMesh:
     self.rgba = rgba
     self.texture_file = texture_file
 
-    # self.usd_prim = Usd.Prim()
-    # self.usd_mesh = Usd.Mesh()
-    # self.prim_mesh = Usd.PrimMesh()
-    # self.transform_op = Usd.TransformOp()
-
     self.prim_mesh = None
 
   def _set_refinement_properties(self):
@@ -394,10 +389,6 @@ class USDPrimitive:
     self.obj_name = obj_name
     self.rgba = rgba
     self.texture_file = texture_file
-
-    # self.usd_prim = Usd.Prim()
-    # self.usd_primitive_shape = Usd.PrimitiveShape()
-    # self.transform_op = Usd.TransformOp()
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
