@@ -395,7 +395,7 @@ class USDExporter:
       intensity: int,
       radius: Optional[float] = 1.0,
       color: Optional[np.ndarray] = np.array([0.3, 0.3, 0.3]),
-      objid: Optional[int] = 1,
+      obj_name: Optional[str] = "light_1",
       light_type: Optional[str] = "sphere",
   ):
 
@@ -413,7 +413,7 @@ class USDExporter:
       self,
       pos: List[float],
       rotation_xyz: List[float],
-      objid: Optional[int] = 1,
+      obj_name: Optional[str] = "camera_1",
   ):
     new_camera = component_module.USDCamera(
         stage=self.stage, obj_name=str(objid))

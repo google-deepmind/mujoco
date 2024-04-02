@@ -378,123 +378,6 @@ class USDPrimitiveMesh:
       self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
 
 
-class USDPrimitive:
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-    self.stage = stage
-    self.geom = geom
-    self.obj_name = obj_name
-    self.rgba = rgba
-    self.texture_file = texture_file
-
-    self.usd_prim = Usd.Prim()
-    self.usd_primitive_shape = Usd.PrimitiveShape()
-    self.transform_op = Usd.TransformOp()
-
-  def _set_refinement_properties(self):
-    self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
-
-  def _attach_material(self):
-    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.obj_name}")
-    mtl = UsdShade.Material.Define(self.stage, mtl_path)
-    if self.texture_file:
-      bsdf_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("Principled_BSDF")
-      )
-      image_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("Image_Texture")
-      )
-      uvmap_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("uvmap")
-      )
-
-      # settings the bsdf shader attributes
-      bsdf_shader.CreateIdAttr("UsdPreviewSurface")
-      bsdf_shader.CreateInput(
-          "diffuseColor", Sdf.ValueTypeNames.Color3f
-      ).ConnectToSource(image_shader.ConnectableAPI(), "rgb")
-      bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(
-          float(self.rgba[-1])
-      )
-      bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
-          self.geom.shininess
-      )
-      bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
-          1.0 - self.geom.shininess
-      )
-
-      mtl.CreateSurfaceOutput().ConnectToSource(
-          bsdf_shader.ConnectableAPI(), "surface"
-      )
-
-      self.usd_primitive_shape.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
-      UsdShade.MaterialBindingAPI(self.usd_primitive_shape).Bind(mtl)
-
-      # setting the image texture attributes
-      image_shader.CreateIdAttr("UsdUVTexture")
-      image_shader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
-          self.texture_file
-      )
-      image_shader.CreateInput(
-          "sourceColorSpace", Sdf.ValueTypeNames.Token
-      ).Set("sRGB")
-      image_shader.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-          uvmap_shader.ConnectableAPI(), "result"
-      )
-      image_shader.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
-
-      # setting uvmap shader attributes
-      uvmap_shader.CreateIdAttr("UsdPrimvarReader_float2")
-      uvmap_shader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("UVMap")
-      uvmap_shader.CreateOutput("results", Sdf.ValueTypeNames.Float2)
-    else:
-      bsdf_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("Principled_BSDF")
-      )
-
-      # settings the bsdf shader attributes
-      bsdf_shader.CreateIdAttr("UsdPreviewSurface")
-      bsdf_shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
-          tuple(self.rgba[:3])
-      )
-      bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(
-          float(self.rgba[-1])
-      )
-      bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
-          self.geom.shininess
-      )
-      bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
-          1.0 - self.geom.shininess
-      )
-
-    mtl.CreateSurfaceOutput().ConnectToSource(
-        bsdf_shader.ConnectableAPI(), "surface"
-    )
-
-    self.usd_primitive_shape.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
-    UsdShade.MaterialBindingAPI(self.usd_primitive_shape).Bind(mtl)
-
-  def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
-        rotation_matrix=mat, translation_vector=pos
-    ).T
-    self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
-    self.update_visibility(visible, frame)
-
-  def update_visibility(self, visible: bool, frame: int):
-    if visible:
-      self.usd_prim.GetAttribute("visibility").Set("inherited", frame)
-    else:
-      self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
-
-
 class USDCapsule(USDPrimitive):
 
   def __init__(
@@ -522,7 +405,7 @@ class USDCapsule(USDPrimitive):
     self._set_size_attributes()
     self._attach_material()
 
-    self._set_refinement_properties()
+    # self._set_refinement_properties()
 
   def _set_size_attributes(self):
     self.usd_primitive_shape.GetRadiusAttr().Set(float(self.geom.size[0]))
@@ -558,7 +441,7 @@ class USDEllipsoid(USDPrimitive):
     self._set_size_attributes()
     self._attach_material()
 
-    self._set_refinement_properties()
+    # self._set_refinement_properties()
 
   def _set_size_attributes(self):
     self.scale_op.Set(Gf.Vec3d(self.geom.size.tolist()))
@@ -849,7 +732,7 @@ class USDCamera:
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
 
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=cam_mat, translation_vector=cam_pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
