@@ -164,10 +164,9 @@ public enum mjtEnableBit : int{
   mjENBL_ENERGY = 2,
   mjENBL_FWDINV = 4,
   mjENBL_INVDISCRETE = 8,
-  mjENBL_SENSORNOISE = 16,
-  mjENBL_MULTICCD = 32,
-  mjENBL_ISLAND = 64,
-  mjNENABLE = 7,
+  mjENBL_MULTICCD = 16,
+  mjENBL_ISLAND = 32,
+  mjNENABLE = 6,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -5218,6 +5217,7 @@ public unsafe struct mjModel_ {
   public int* jnt_group;
   public byte* jnt_limited;
   public byte* jnt_actfrclimited;
+  public byte* jnt_actgravcomp;
   public double* jnt_solref;
   public double* jnt_solimp;
   public double* jnt_pos;

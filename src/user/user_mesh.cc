@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
@@ -60,6 +61,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
+#include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -129,7 +131,8 @@ static void ReadFromBuffer(T* dst, const char* src) {
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultMesh(spec);
+  mjs_defaultMesh(spec);
+  elemtype = mjOBJ_MESH;
 
   // clear internal variables
   mjuu_setvec(pos_surface_, 0, 0, 0);
@@ -194,46 +197,67 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCMesh_*>(this) = static_cast<const mjCMesh_&>(other);
-    *static_cast<mjmMesh*>(this) = static_cast<const mjmMesh&>(other);
+    *static_cast<mjsMesh*>(this) = static_cast<const mjsMesh&>(other);
     if (other.vert_) {
       size_t nvert = 3*other.nvert_*sizeof(float);
       this->vert_ = (float*)mju_malloc(nvert);
       memcpy(this->vert_, other.vert_, nvert);
+    } else {
+      this->vert_ = NULL;
     }
     if (other.normal_) {
       size_t nnormal = 3*other.nnormal_*sizeof(float);
       this->normal_ = (float*)mju_malloc(nnormal);
       memcpy(this->normal_, other.normal_, nnormal);
+    } else {
+      this->normal_ = NULL;
     }
     if (other.center_) {
       size_t ncenter = 3*other.nface_*sizeof(double);
       this->center_ = (double*)mju_malloc(ncenter);
       memcpy(this->center_, other.center_, ncenter);
+    } else {
+      this->center_ = NULL;
     }
     if (other.texcoord_) {
       size_t ntexcoord = 2*other.ntexcoord_*sizeof(float);
       this->texcoord_ = (float*)mju_malloc(ntexcoord);
       memcpy(this->texcoord_, other.texcoord_, ntexcoord);
+    } else {
+      this->texcoord_ = NULL;
     }
     if (other.face_) {
       size_t nface = 3*other.nface_*sizeof(int);
       this->face_ = (int*)mju_malloc(nface);
       memcpy(this->face_, other.face_, nface);
+    } else {
+      this->face_ = NULL;
     }
     if (other.facenormal_) {
       size_t nfacenormal = 3*other.nface_*sizeof(int);
       this->facenormal_ = (int*)mju_malloc(nfacenormal);
       memcpy(this->facenormal_, other.facenormal_, nfacenormal);
+    } else {
+      this->facenormal_ = NULL;
     }
     if (other.facetexcoord_) {
       size_t nfacetexcoord = 3*other.nface_*sizeof(int);
       this->facetexcoord_ = (int*)mju_malloc(nfacetexcoord);
       memcpy(this->facetexcoord_, other.facetexcoord_, nfacetexcoord);
+    } else {
+      this->facetexcoord_ = NULL;
     }
     if (other.graph_) {
       size_t szgraph = szgraph_*sizeof(int);
       this->graph_ = (int*)mju_malloc(szgraph);
       memcpy(this->graph_, other.graph_, szgraph);
+    } else {
+      this->graph_ = NULL;
+    }
+    if (other.plugin.instance) {
+      mjCPlugin* new_plugin = new mjCPlugin(*static_cast<mjCPlugin*>(other.plugin.instance));
+      plugin = new_plugin->spec;
+      model->plugins.push_back(new_plugin);
     }
   }
   PointToLocal();
@@ -243,7 +267,7 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 
 
 void mjCMesh::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -260,7 +284,7 @@ void mjCMesh::PointToLocal() {
 
 
 void mjCMesh::CopyFromSpec() {
-  *static_cast<mjmMesh*>(this) = spec;
+  *static_cast<mjsMesh*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   uservert_ = spec_uservert_;
@@ -336,8 +360,9 @@ void mjCMesh::LoadSDF() {
                    name.c_str(), id);
   }
 
-  mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
+  mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+  plugin.instance = plugin_instance;
   const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
   if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
@@ -410,6 +435,7 @@ void mjCMesh::LoadSDF() {
 // compiler
 void mjCMesh::Compile(const mjVFS* vfs) {
   CopyFromSpec();
+  visual_ = true;
 
   // load file
   if (!file_.empty()) {
@@ -526,7 +552,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     // check vertices exist
     for (int i=0; i<userface_.size(); i++) {
       if (userface_[i] >= nvert_ || userface_[i] < 0) {
-        throw mjCError(this, "index in face does not exist in vertex array");
+        throw mjCError(this, "in face %d, vertex index %d does not exist",
+                       nullptr, i / 3, userface_[i]);
       }
     }
 
@@ -967,6 +994,19 @@ void mjCMesh::RemoveRepeated() {
 void mjCMesh::LoadOBJ(mjResource* resource) {
   tinyobj::ObjReader objReader;
   const void* bytes = nullptr;
+
+  // try loading from cache
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+  if (cache) {
+    auto asset = cache->Get(resource->name);
+    if (asset.has_value() &&
+        !mju_isModifiedResource(resource, asset->Timestamp().c_str())) {
+      if (LoadCachedOBJ(asset.value())) {
+        return;
+      }
+    }
+  }
+
   int buffer_sz = mju_readResource(resource, &bytes);
   if (buffer_sz < 0) {
     throw mjCError(this, "could not read OBJ file '%s'", resource->name);
@@ -1030,8 +1070,116 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
   for (int i=0; i<usertexcoord_.size()/2; i++) {
     usertexcoord_[2*i+1] = 1-usertexcoord_[2*i+1];
   }
+
+  // try caching asset
+  if (cache) {
+    mjCAsset asset("", resource->name, resource->timestamp);
+
+    asset.AddVector("uservert_", uservert_);
+    asset.AddVector("usernormal_", usernormal_);
+    asset.AddVector("usertexcoord_", usertexcoord_);
+
+    if (!objReader.GetShapes().empty()) {
+      const auto& mesh = objReader.GetShapes()[0].mesh;
+      std::vector<int> vertex_index;
+      vertex_index.reserve(mesh.indices.size());
+
+      std::vector<int> normal_index;
+      normal_index.reserve(mesh.indices.size());
+
+      std::vector<int> texcoord_index;
+      texcoord_index.reserve(mesh.indices.size());
+
+      for (tinyobj::index_t index : mesh.indices) {
+        vertex_index.push_back(index.vertex_index);
+        normal_index.push_back(index.normal_index);
+        texcoord_index.push_back(index.texcoord_index);
+      }
+
+      asset.AddVector("num_face_vertices", mesh.num_face_vertices);
+      asset.AddVector("vertex_index", vertex_index);
+      asset.AddVector("normal_index", normal_index);
+      asset.AddVector("texcoord_index", texcoord_index);
+    } else {
+      asset.AddVector("num_face_vertices", std::vector<unsigned char>());
+      asset.AddVector("vertex_index", std::vector<int>());
+      asset.AddVector("normal_index", std::vector<int>());
+      asset.AddVector("texcoord_index", std::vector<int>());
+    }
+    cache->Insert(std::move(asset));
+  }
 }
 
+
+
+// load OBJ from cached asset, return true on success
+bool mjCMesh::LoadCachedOBJ(const mjCAsset& asset) {
+  // check that asset has all data
+  if (!asset.HasData("uservert_") || !asset.HasData("usernormal_")
+      || !asset.HasData("usertexcoord_") || !asset.HasData("num_face_vertices")
+      || !asset.HasData("vertex_index") || !asset.HasData("normal_index")
+      || !asset.HasData("texcoord_index")) {
+    return false;
+  }
+  uservert_ = asset.GetVector<float>("uservert_").value();
+  usernormal_ = asset.GetVector<float>("usernormal_").value();
+  usertexcoord_ = asset.GetVector<float>("usertexcoord_").value();
+
+  vector<int> vertex_index = asset.GetVector<int>("vertex_index").value();
+  vector<int> normal_index = asset.GetVector<int>("normal_index").value();
+  vector<int> texcoord_index = asset.GetVector<int>("texcoord_index").value();
+  vector<unsigned char> num_face_vertices =
+      asset.GetVector<unsigned char>("num_face_vertices").value();
+
+  bool righthand = (scale[0] * scale[1] * scale[2]) > 0;
+
+
+  for (int face = 0, i = 0; i < vertex_index.size();) {
+    int nfacevert = num_face_vertices[face];
+    if (nfacevert < 3 || nfacevert > 4) {
+      throw mjCError(
+          this, "only tri or quad meshes are supported for OBJ (file '%s')",
+          asset.Id().c_str());
+    }
+
+    userface_.push_back(vertex_index[i]);
+    userface_.push_back(vertex_index[i + (righthand == 1 ? 1 : 2)]);
+    userface_.push_back(vertex_index[i + (righthand == 1 ? 2 : 1)]);
+
+    if (!usernormal_.empty()) {
+      userfacenormal_.push_back(normal_index[i]);
+      userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
+      userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+    }
+
+    if (!usertexcoord_.empty()) {
+      userfacetexcoord_.push_back(texcoord_index[i]);
+      userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
+      userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+    }
+
+    if (nfacevert == 4) {
+      userface_.push_back(vertex_index[i]);
+      userface_.push_back(vertex_index[i + (righthand == 1 ? 2 : 3)]);
+      userface_.push_back(vertex_index[i + (righthand == 1 ? 3 : 2)]);
+
+      if (!usernormal_.empty()) {
+        userfacenormal_.push_back(normal_index[i]);
+        userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
+        userfacenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+      }
+
+      if (!usertexcoord_.empty()) {
+        userfacetexcoord_.push_back(texcoord_index[i]);
+        userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
+        userfacetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+      }
+    }
+    i += nfacevert;
+    ++face;
+  }
+  return true;
+}
 
 // load STL binary mesh
 void mjCMesh::LoadSTL(mjResource* resource) {
@@ -1146,6 +1294,12 @@ void mjCMesh::LoadMSH(mjResource* resource) {
     throw mjCError(this, "invalid sizes in MSH file '%s'", resource->name);
   }
 
+  if (nvert_ >= INT_MAX / sizeof(float) / 3 ||
+      nnormal_ >= INT_MAX / sizeof(float) / 3 ||
+      ntexcoord_ >= INT_MAX / sizeof(float) / 2 ||
+      nface_ >= INT_MAX / sizeof(int) / 3) {
+    throw mjCError(this, "too large sizes in MSH file '%s'.", resource->name);
+  }
   // check file size
   if (buffer_sz != 4*sizeof(int) + 3*nvert_*sizeof(float) + 3*nnormal_*sizeof(float) +
       2*ntexcoord_*sizeof(float) + 3*nface_*sizeof(int)) {
@@ -1493,7 +1647,7 @@ void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
-  if (invalidorientation_.first>=0 || invalidorientation_.second>=0)
+  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && model->exactmeshinertia)
     throw mjCError(this,
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
@@ -1910,7 +2064,8 @@ void mjCMesh::MakeCenter(void) {
 
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
-  mjm_defaultSkin(spec);
+  mjs_defaultSkin(spec);
+  elemtype = mjOBJ_SKIN;
 
   // set model pointer
   model = _model;
@@ -1939,8 +2094,26 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 
 
 
+mjCSkin::mjCSkin(const mjCSkin& other) {
+  *this = other;
+}
+
+
+
+mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCSkin_*>(this) = static_cast<const mjCSkin_&>(other);
+    *static_cast<mjsSkin*>(this) = static_cast<const mjsSkin&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCSkin::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -1958,8 +2131,16 @@ void mjCSkin::PointToLocal() {
 
 
 
+void mjCSkin::NameSpace(const mjCModel* m) {
+  for (int i=0; i<(int)spec_bodyname_.size(); i++) {
+    spec_bodyname_[i] = m->prefix + spec_bodyname_[i] + m->suffix;
+  }
+}
+
+
+
 void mjCSkin::CopyFromSpec() {
-  *static_cast<mjmSkin*>(this) = spec;
+  *static_cast<mjsSkin*>(this) = spec;
   file_ = spec_file_;
   material_ = spec_material_;
   vert_ = spec_vert_;
@@ -1997,6 +2178,20 @@ mjCSkin::~mjCSkin() {
   spec_vertid_.clear();
   spec_vertweight_.clear();
   bodyid.clear();
+}
+
+
+
+void mjCSkin::ResolveReferences(const mjCModel* m) {
+  size_t nbone = bodyname_.size();
+  bodyid.resize(nbone);
+  for (int i=0; i<nbone; i++) {
+    mjCBase* pbody = m->FindObject(mjOBJ_BODY, bodyname_[i]);
+    if (!pbody) {
+      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
+    }
+    bodyid[i] = pbody->id;
+  }
 }
 
 
@@ -2081,14 +2276,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // resolve body names
-  bodyid.resize(nbone);
-  for (int i=0; i<nbone; i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname_[i]);
-    if (!pbody) {
-      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
-    }
-    bodyid[i] = pbody->id;
-  }
+  ResolveReferences(model);
 
   // resolve material name
   mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
@@ -2301,7 +2489,8 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
-  mjm_defaultFlex(spec);
+  mjs_defaultFlex(spec);
+  elemtype = mjOBJ_FLEX;
 
   // set model
   model = _model;
@@ -2328,7 +2517,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCFlex_*>(this) = static_cast<const mjCFlex_&>(other);
-    *static_cast<mjmFlex*>(this) = static_cast<const mjmFlex&>(other);
+    *static_cast<mjsFlex*>(this) = static_cast<const mjsFlex&>(other);
   }
   PointToLocal();
   return *this;
@@ -2336,7 +2525,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 
 
 void mjCFlex::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.material = (mjString)&spec_material_;
@@ -2348,8 +2537,17 @@ void mjCFlex::PointToLocal() {
 }
 
 
+
+void mjCFlex::NameSpace(const mjCModel* m) {
+  for (int i=0; i<(int)spec_vertbody_.size(); i++) {
+    spec_vertbody_[i] = m->prefix + spec_vertbody_[i] + m->suffix;
+  }
+}
+
+
+
 void mjCFlex::CopyFromSpec() {
-  *static_cast<mjmFlex*>(this) = spec;
+  *static_cast<mjsFlex*>(this) = spec;
   spec.info = (mjString)&info;
   material_ = spec_material_;
   vertbody_ = spec_vertbody_;
@@ -2377,6 +2575,18 @@ bool mjCFlex::HasTexcoord() const {
 
 void mjCFlex::DelTexcoord() {
   texcoord_.clear();
+}
+
+
+void mjCFlex::ResolveReferences(const mjCModel* m) {
+  for (int i=0; i<(int)vertbody_.size(); i++) {
+    mjCBase* pbody = m->FindObject(mjOBJ_BODY, vertbody_[i]);
+    if (pbody) {
+      vertbodyid.push_back(pbody->id);
+    } else {
+        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
+    }
+  }
 }
 
 
@@ -2441,14 +2651,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // resolve body ids
-  for (int i=0; i<(int)vertbody_.size(); i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody_[i]);
-    if (pbody) {
-      vertbodyid.push_back(pbody->id);
-    } else {
-        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
-    }
-  }
+  ResolveReferences(model);
 
   // process elements
   for (int e=0; e<(int)elem_.size()/(dim+1); e++) {
@@ -2564,7 +2767,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   for (int i=0; i<(int)vertbodyid.size(); i++) {
     if (model->bodies[vertbodyid[i]]->plugin.instance) {
-      mjCPlugin* plugin_instance = (mjCPlugin*)model->bodies[vertbodyid[i]]->plugin.instance;
+      mjCPlugin* plugin_instance =
+          static_cast<mjCPlugin*>(model->bodies[vertbodyid[i]]->plugin.instance);
       plugin_instance->config_attribs["face"] = userface;
       plugin_instance->config_attribs["edge"] = useredge;
     }

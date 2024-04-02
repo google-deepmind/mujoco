@@ -169,7 +169,10 @@ def _file_loader(path: str) -> _LoaderWithPathType:
   """Loads an MJCF model from file path."""
 
   def load(path=path) -> Tuple[mujoco.MjModel, mujoco.MjData, str]:
-    m = mujoco.MjModel.from_xml_path(path)
+    if len(path) >= 4 and path[-4:] == '.mjb':
+      m = mujoco.MjModel.from_binary_path(path)
+    else:
+      m = mujoco.MjModel.from_xml_path(path)
     d = mujoco.MjData(m)
     return m, d, path
 
@@ -198,6 +201,9 @@ def _reload(
 
     path = load_tuple[2] if len(load_tuple) == 3 else ''
     simulate.load(m, d, path)
+
+    # Make sure any load_error message is cleared
+    simulate.load_error = ''
 
     if notify_loaded:
       notify_loaded()

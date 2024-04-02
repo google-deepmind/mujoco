@@ -2129,12 +2129,6 @@ from its default.
    When this flag is enabled, :ref:`mj_inverse` will  interpret ``qacc`` as having been computed from the difference of
    two sequential velocities, and undo the above modification.
 
-.. _option-flag-sensornoise:
-
-:at:`sensornoise`: :at-val:`[disable, enable], "disable"`
-   This flag enables the simulation of sensor noise. When disabled (which is the default) noise is not added to
-   sensordata, even if the sensors specify non-zero noise amplitudes. When enabled, zero-mean Gaussian noise is added to
-   the underlying deterministic sensor data. Its standard deviation is determined by the noise parameter of each sensor.
 
 .. _option-flag-multiccd:
 
@@ -2354,24 +2348,6 @@ rotations as unit quaternions.
    joint inertia in the model reference configuration. Note that the format is the same as the solref parameter of the
    constraint solver.
 
-.. _body-joint-limited:
-
-:at:`limited`: :at-val:`[false, true, auto], "auto"`
-   This attribute specifies if the joint has limits. It interacts with the range attribute below. If this attribute
-   is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
-   attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
-   if range is defined.
-
-.. _body-joint-actuatorfrclimited:
-
-:at:`actuatorfrclimited`: :at-val:`[false, true, auto], "auto"`
-   This attribute specifies whether actuator forces acting on the joint should be clamped. See :ref:`CForceRange` for
-   details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| This
-   attribute interacts with the actuatorfrcrange attribute below. If this attribute is "false", actuator force
-   clamping is disabled. If it is "true", actuator force clamping is enabled. If this attribute is "auto", and
-   :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if actuatorfrcrange
-   is defined.
-
 .. _body-joint-solreflimit:
 
 .. _body-joint-solimplimit:
@@ -2400,8 +2376,16 @@ rotations as unit quaternions.
    joints, the limit is imposed on the angle of rotation (relative to the reference configuration) regardless of the
    axis of rotation. Only the second range parameter is used for ball joints; the first range parameter should be set to
    0. See the :ref:`Limit <coLimit>` section in the Computation chapter for more information.
-   |br| Setting this attribute without specifying :at:`limited` is an error, unless :at:`autolimits` is set in
+   |br| Setting this attribute without specifying :at:`limited` is an error if :at:`autolimits` is "false" in
    :ref:`compiler <compiler>`.
+
+.. _body-joint-limited:
+
+:at:`limited`: :at-val:`[false, true, auto], "auto"`
+   This attribute specifies if the joint has limits. It interacts with the range attribute below. If this attribute
+   is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
+   attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
+   if range is defined.
 
 .. _body-joint-actuatorfrcrange:
 
@@ -2409,7 +2393,27 @@ rotations as unit quaternions.
    Range for clamping total actuator forces acting on this joint. See :ref:`CForceRange` for details. It is available
    only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| The compiler expects the first
    value to be smaller than the second value. |br| Setting this attribute without specifying :at:`actuatorfrclimited`
-   is an error, unless :at:`compiler-autolimits` is set.
+   is an error if :at:`compiler-autolimits` is "false".
+
+.. _body-joint-actuatorfrclimited:
+
+:at:`actuatorfrclimited`: :at-val:`[false, true, auto], "auto"`
+   This attribute specifies whether actuator forces acting on the joint should be clamped. See :ref:`CForceRange` for
+   details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| This
+   attribute interacts with the actuatorfrcrange attribute below. If this attribute is "false", actuator force
+   clamping is disabled. If it is "true", actuator force clamping is enabled. If this attribute is "auto", and
+   :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if
+   :at:`actuatorfrcrange` is defined.
+
+.. _body-joint-actuatorgravcomp:
+
+:at:`actuatorgravcomp`: :at-val:`[false, true], "false"`
+   If this flag is enabled, gravity compensation applied to this joint is added to actuator forces
+   (``mjData.qfrc_actuator``) rather than passive forces (``mjData.qfrc_passive``). Notionally, this means that gravity
+   compensation is the result of a control system rather than natural buoyancy. In practice, enabling this flag is
+   useful when joint-level actuator force clamping is used. In this case, the total actuation force applied on a joint,
+   including gravity compensation, is guaranteed to not exceeed the specified limits. See :ref:`CForceRange` and
+   :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` for more details on this type of force limit.
 
 .. _body-joint-margin:
 
@@ -3808,8 +3812,12 @@ saving the XML:
    in MuJoCo can be used as a rigid geom attached to a single body. In contrast, the flex generated here corresponds to
    a soft mesh with the same initial shape, where each vertex is a separate moving body (unless pinned).
 
-   **gmsh** is similar to mesh, but it loads a `GMSH file <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
-   in format 4.1 (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
+   .. _gmsh-file-docs:
+
+   **gmsh** is similar to mesh, but it loads a GMSH file in
+   `format 4.1 <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
+   and `format 2.2 <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format-version-2-_0028Legacy_0029>`__
+   (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
    the file header. This is a very rich file format, allowing all kinds of elements with different dimensionality and
    topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes and
    assumes that the nodes are specified in a single block. Only the Nodes and Elements sections of the GMHS file are
@@ -3817,7 +3825,7 @@ saving the XML:
    GMSH file contains meshes that are not supported by MuJoCo. :at:`dim` is automatically set to the dimensionality
    specified in the GMSH file. Presently this is the only mechanism to load a large tetrahedral mesh in MuJoCo and
    generate a corresponding soft entity. If such a mesh is available in a different file format, use the freely
-   available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
+   available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH in one of the supported versions.
 
    **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
    flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
@@ -3873,7 +3881,7 @@ saving the XML:
 :at:`file`: :at-val:`string, optional`
    The name of the file from which a **mesh** or a **gmsh** is loaded. For mesh, the file extentsion is used to
    determine the file format. Supported formats are the same as in :ref:`mesh assets<asset-mesh>`. For gmsh, the file is
-   expected to be in GMSH format 4.1, ascii or binary.
+   expected to be in GMSH format 4.1 or 2.2, ascii or binary, see :ref:`here<gmsh-file-docs>`.
 
 .. _body-flexcomp-rigid:
 
@@ -5092,14 +5100,14 @@ specify them independently.
 
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The first value must be smaller than the second value.
-   |br| Setting this attribute without specifying :at:`ctrllimited` is an error, unless :at:`autolimits` is set in
+   |br| Setting this attribute without specifying :at:`ctrllimited` is an error if :at:`autolimits` is "false" in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-forcerange:
 
 :at:`forcerange`: :at-val:`real(2), "0 0"`
    Range for clamping the force output. The first value must be no greater than the second value.
-   |br| Setting this attribute without specifying :at:`forcelimited` is an error, unless :at:`autolimits` is set in
+   |br| Setting this attribute without specifying :at:`forcelimited` is an error if :at:`autolimits` is "false" in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-actrange:
@@ -5107,7 +5115,7 @@ specify them independently.
 :at:`actrange`: :at-val:`real(2), "0 0"`
    Range for clamping the activation state. The first value must be no greater than the second value.
    See the :ref:`Activation clamping <CActRange>` section for more details.
-   |br| Setting this attribute without specifying :at:`actlimited` is an error, unless :at:`autolimits` is set in
+   |br| Setting this attribute without specifying :at:`actlimited` is an error if :at:`autolimits` is "false" in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-lengthrange:
@@ -6485,10 +6493,12 @@ arms determined by the transmission). This sensor can be attached to any actuato
 :el-prefix:`sensor/` |-| **jointactuatorfrc** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates an actuator force sensor, measured at a joint. The quantity being sensed is the
-generalized force contributed by all actuators to a single scalar joint (hinge or slider). This type of sensor is
-important when multiple actuators act on a single joint or when a single actuator act on multiple joints. See
-:ref:`CForceRange` for details.
+This element creates an actuator force sensor, measured at a joint. The quantity being sensed is the generalized force
+contributed by all actuators to a single scalar joint (hinge or slider). If the joint's
+:ref:`actuatorgravcomp<body-joint-actuatorgravcomp>` attribute is "true", this sensor will also measure contributions by
+gravity compensation forces (which are added directly to the joint and would *not* register in the
+:ref:`actuatorfrc<sensor-actuatorfrc>`) sensor. This type of sensor is important when multiple actuators act on a single
+joint or when a single actuator act on multiple joints. See :ref:`CForceRange` for details.
 
 
 .. _sensor-jointactuatorfrc-name:
@@ -7381,6 +7391,8 @@ if omitted.
 .. _default-joint-limited:
 
 .. _default-joint-actuatorfrclimited:
+
+.. _default-joint-actuatorgravcomp:
 
 .. _default-joint-solreflimit:
 

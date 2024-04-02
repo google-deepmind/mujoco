@@ -91,10 +91,16 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
     raise NotImplementedError('only condim=3 is supported')
 
   # check collision geom types
-  for g1, g2, *_ in collision_driver.collision_candidates(m):
+  for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
+    g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
     if collision_driver.get_collision_fn((g1, g2)) is None:
-      g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
       raise NotImplementedError(f'({g1}, {g2}) has no collision function')
+    *_, params = collision_driver.get_params(m, c)
+    margin_gap = not np.allclose(np.concatenate([params.margin, params.gap]), 0)
+    if mujoco.mjtGeom.mjGEOM_MESH in (g1, g2) and margin_gap:
+      raise NotImplementedError(
+          f'Margin and gap not implemented for ({g1}, {g2})'
+      )
 
   for enum_field, enum_type, mj_type in (
       (m.actuator_biastype, types.BiasType, mujoco.mjtBias),
@@ -172,7 +178,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       ctrl=zero_nu,
       qfrc_applied=zero_nv,
       xfrc_applied=zero_nbody_6,
-      eq_active=jp.zeros(m.neq, dtype=int),
+      eq_active=jp.zeros(m.neq, dtype=jp.uint8),
       qacc=zero_nv,
       act_dot=zero_na,
       xpos=zero_nbody_3,
@@ -233,6 +239,7 @@ def _get_contact(
 
   ncon = cx.dist.shape[0]
   c.efc_address[:] = np.arange(efc_start, efc_start + ncon * 4, 4)[con_id]
+  c.dim[:] = 3
 
 
 def get_data(
@@ -373,6 +380,9 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
 
   for fname in ('xmat', 'ximat', 'geom_xmat', 'site_xmat', 'cam_xmat'):
     fields[fname] = fields[fname].reshape((-1, 3, 3))
+
+  # MJX does not support islanding, so only transfer the first solver_niter
+  fields['solver_niter'] = fields['solver_niter'][0]
 
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.
   # efc_J is also optionally column-sparse (typically for large nv).  MJX is

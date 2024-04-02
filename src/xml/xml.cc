@@ -15,7 +15,7 @@
 #include "xml/xml.h"
 
 #include <locale.h>
-#include "user/user_api.h"
+#include <cstring>
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <xlocale.h>
@@ -29,6 +29,7 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
@@ -344,14 +345,14 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  model = mjm_createSpec();
+  model = mjs_createSpec();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
   if (dir != nullptr) {
-    mjm_setString(model->modelfiledir, std::string(dir, ndir).c_str());
+    mjs_setString(model->modelfiledir, std::string(dir, ndir).c_str());
   } else {
-    mjm_setString(model->modelfiledir, "");
+    mjs_setString(model->modelfiledir, "");
   }
 
   // close resource
@@ -363,8 +364,8 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
       // find include elements, replace them with subtree from xml file
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
-      parser.SetModelFileDir(mjm_getString(model->modelfiledir));
-      mjIncludeXML(parser, root, mjm_getString(model->modelfiledir), vfs, included);
+      parser.SetModelFileDir(mjs_getString(model->modelfiledir));
+      mjIncludeXML(parser, root, mjs_getString(model->modelfiledir), vfs, included);
 
       // parse MuJoCo model
       parser.SetModel(model);
@@ -393,9 +394,39 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    mjm_deleteSpec(model);
+    mjs_deleteSpec(model);
     return nullptr;
   }
 
   return model;
+}
+
+
+static void RegisterResourceProvider() {
+  // register string resource provider if not registered before
+  if (mjp_getResourceProvider("LoadModelFromString:") == nullptr) {
+    mjpResourceProvider resourceProvider;
+    mjp_defaultResourceProvider(&resourceProvider);
+    resourceProvider.prefix = "LoadModelFromString";
+    resourceProvider.open = +[](mjResource* resource) {
+      resource->data = &(resource->name[strlen("LoadModelFromString:")]);
+      return 1;
+    };
+    resourceProvider.read =
+        +[](mjResource* resource, const void** buffer) {
+          *buffer = resource->data;
+          return (int) strlen((const char*) resource->data);
+        };
+    resourceProvider.close = +[](mjResource* resource) {};
+    mjp_registerResourceProvider(&resourceProvider);
+  }
+}
+
+
+mjSpec* ParseSpecFromString(std::string_view xml, char* error,
+                            int error_size, mjVFS* vfs) {
+  RegisterResourceProvider();
+  std::string xml2 = {xml.begin(), xml.end()};
+  std::string str = "LoadModelFromString:" +  xml2;
+  return mjParseXML(str.c_str(), vfs, error, error_size);
 }

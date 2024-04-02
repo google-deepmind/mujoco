@@ -14,6 +14,6 @@ if __name__ == "__main__":
 
   exp.update_scene(d)
 
-  exp.save_scene(filetype="usd")
+  exp.save_scene(filetype="usda")
 
 

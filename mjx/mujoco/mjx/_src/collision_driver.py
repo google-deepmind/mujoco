@@ -14,7 +14,7 @@
 # ==============================================================================
 """Collide geometries."""
 
-from typing import Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import jax
 from jax import numpy as jp
@@ -33,6 +33,7 @@ from mujoco.mjx._src.collision_convex import plane_convex
 from mujoco.mjx._src.collision_convex import sphere_convex
 from mujoco.mjx._src.collision_primitive import capsule_capsule
 from mujoco.mjx._src.collision_primitive import plane_capsule
+from mujoco.mjx._src.collision_primitive import plane_ellipsoid
 from mujoco.mjx._src.collision_primitive import plane_sphere
 from mujoco.mjx._src.collision_primitive import sphere_capsule
 from mujoco.mjx._src.collision_primitive import sphere_sphere
@@ -48,6 +49,7 @@ _COLLISION_FUNC = {
     (GeomType.PLANE, GeomType.SPHERE): plane_sphere,
     (GeomType.PLANE, GeomType.CAPSULE): plane_capsule,
     (GeomType.PLANE, GeomType.BOX): plane_convex,
+    (GeomType.PLANE, GeomType.ELLIPSOID): plane_ellipsoid,
     (GeomType.PLANE, GeomType.MESH): plane_convex,
     (GeomType.SPHERE, GeomType.SPHERE): sphere_sphere,
     (GeomType.SPHERE, GeomType.CAPSULE): sphere_capsule,
@@ -187,6 +189,31 @@ def _dynamic_params(
   return SolverParams(friction, solref, solreffriction, solimp, margin, gap)
 
 
+def get_params(
+    m: Union[Model, mujoco.MjModel], candidates: Sequence[Candidate]
+) -> Tuple[List[int], List[int], SolverParams]:
+  """Gets solver params for a list of collision candidates."""
+  # group sol params by different candidate types
+  typ_cands = {}
+  for c in candidates:
+    typ = (c.ipair > -1, c.geomp > -1)
+    typ_cands.setdefault(typ, []).append(c)
+
+  geom1, geom2, params = [], [], []
+  for (pair, priority), candidates in typ_cands.items():
+    geom1.extend([c.geom1 for c in candidates])
+    geom2.extend([c.geom2 for c in candidates])
+    if pair:
+      params.append(_pair_params(m, candidates))
+    elif priority:
+      params.append(_priority_params(m, candidates))
+    else:
+      params.append(_dynamic_params(m, candidates))
+
+  params = jax.tree_map(lambda *x: jp.concatenate(x), *params)
+  return geom1, geom2, params
+
+
 def _pair_info(
     m: Model, d: Data, geom1: Sequence[int], geom2: Sequence[int]
 ) -> Tuple[GeomInfo, GeomInfo, Sequence[Dict[str, Optional[int]]]]:
@@ -205,20 +232,20 @@ def _pair_info(
       info = info.replace(
           face=jp.stack([m.geom_convex_face[i] for i in geom]),
           vert=jp.stack([m.geom_convex_vert[i] for i in geom]),
-          edge=jp.stack([m.geom_convex_edge_dir[i] for i in geom]),
+          edge_dir=jp.stack([m.geom_convex_edge_dir[i] for i in geom]),
           facenorm=jp.stack([m.geom_convex_facenormal[i] for i in geom]),
-          face_edge_normal=jp.stack(
-              [m.geom_convex_face_edge_normal[i] for i in geom]
+          edge=jp.stack([m.geom_convex_edge[i] for i in geom]),
+          edge_face_normal=jp.stack(
+              [m.geom_convex_edge_face_normal[i] for i in geom]
           ),
-          face_edge=jp.stack([m.geom_convex_face_edge[i] for i in geom]),
       )
       in_axes = in_axes.replace(
           face=0,
           vert=0,
-          edge=0,
+          edge_dir=0,
           facenorm=0,
-          face_edge=0,
-          face_edge_normal=0,
+          edge=0,
+          edge_face_normal=0,
       )
     return info, in_axes
 
@@ -276,24 +303,7 @@ def _collide_geoms(
   if not fn:
     return Contact.zero()
 
-  # group sol params by different candidate types
-  typ_cands = {}
-  for c in candidates:
-    typ = (c.ipair > -1, c.geomp > -1)
-    typ_cands.setdefault(typ, []).append(c)
-
-  geom1, geom2, params = [], [], []
-  for (pair, priority), candidates in typ_cands.items():
-    geom1.extend([c.geom1 for c in candidates])
-    geom2.extend([c.geom2 for c in candidates])
-    if pair:
-      params.append(_pair_params(m, candidates))
-    elif priority:
-      params.append(_priority_params(m, candidates))
-    else:
-      params.append(_dynamic_params(m, candidates))
-
-  params = jax.tree_map(lambda *x: jp.concatenate(x), *params)
+  geom1, geom2, params = get_params(m, candidates)
   g1, g2, in_axes = _pair_info(m, d, geom1, geom2)
 
   # Run a crude version of broadphase.

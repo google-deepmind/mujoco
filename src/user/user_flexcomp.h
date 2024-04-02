@@ -42,7 +42,7 @@ typedef enum _mjtFcompType {
 class mjCFlexcomp {
  public:
   mjCFlexcomp(void);
-  bool Make(mjSpec* spec, mjmBody* body, char* error, int error_sz);
+  bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz);
@@ -50,6 +50,11 @@ class mjCFlexcomp {
   bool MakeMesh(mjCModel* model, char* error, int error_sz);
   bool MakeGMSH(mjCModel* model, char* error, int error_sz);
   void LoadGMSH(mjCModel* model, mjResource* resource);
+  void LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
+                  int elemend, int elembegin);
+  void LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
+                  int elemend, int elembegin);
+
 
   int GridID(int ix, int iy);
   int GridID(int ix, int iy, int iz);
@@ -79,7 +84,7 @@ class mjCFlexcomp {
   // pose transform relative to parent body
   double pos[3];                  // position
   double quat[4];                 // orientation
-  mjCAlternative alt;             // alternative orientation
+  mjsOrientation alt;             // alternative orientation
 
   // set by user or computed internally
   bool rigid;                     // all vertices are in parent body (all pinned)
@@ -93,7 +98,7 @@ class mjCFlexcomp {
   // plugin support
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjmPlugin plugin;
+  mjsPlugin plugin;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_FLEXCOMP_H_

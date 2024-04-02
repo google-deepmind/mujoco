@@ -39,7 +39,8 @@ template<typename T> std::size_t mjCAsset::Add(const std::string& name,
   const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
   mjCAssetData& block = it->second;
 
-  block.bytes = std::make_shared<uint8_t[]>(nbytes);
+  block.bytes = std::shared_ptr<uint8_t>(new uint8_t[nbytes],
+                                        [](uint8_t *p) {delete [] p;});
   std::copy(ptr, ptr + nbytes, block.bytes.get());
   block.nbytes = nbytes;
   nbytes_ += nbytes;

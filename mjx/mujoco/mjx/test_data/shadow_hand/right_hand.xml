@@ -156,7 +156,7 @@
                     diaginertia="1.28092e-06 1.12092e-06 5.3e-07"/>
                   <joint name="rh_FFJ1" class="middle_distal"/>
                   <geom class="plastic_visual" mesh="f_distal_pst"/>
-                  <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214"/>
+                  <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214" contype="0" conaffinity="2"/>
                 </body>
               </body>
             </body>
@@ -181,7 +181,7 @@
                     diaginertia="1.28092e-06 1.12092e-06 5.3e-07"/>
                   <joint name="rh_MFJ1" class="middle_distal"/>
                   <geom class="plastic_visual" mesh="f_distal_pst"/>
-                  <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214"/>
+                  <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214" contype="0" conaffinity="2"/>
                 </body>
               </body>
             </body>
@@ -206,7 +206,7 @@
                     diaginertia="1.28092e-06 1.12092e-06 5.3e-07"/>
                   <joint name="rh_RFJ1" class="middle_distal"/>
                   <geom class="plastic_visual" mesh="f_distal_pst"/>
-                  <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214"/>
+                  <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214" contype="0" conaffinity="2"/>
                 </body>
               </body>
             </body>
@@ -236,7 +236,7 @@
                       diaginertia="1.28092e-06 1.12092e-06 5.3e-07"/>
                     <joint name="rh_LFJ1" class="middle_distal"/>
                     <geom class="plastic_visual" mesh="f_distal_pst"/>
-                    <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214"/>
+                    <geom class="plastic_collision" type="mesh" mesh="f_distal_pst_214" contype="0" conaffinity="2"/>
                   </body>
                 </body>
               </body>
@@ -266,7 +266,7 @@
                       diaginertia="2.37794e-06 2.27794e-06 1e-06"/>
                     <joint name="rh_THJ1" class="thdistal"/>
                     <geom class="plastic_visual" mesh="th_distal_pst"/>
-                    <geom class="plastic_collision" type="mesh" mesh="th_distal_pst_190"/>
+                    <geom class="plastic_collision" type="mesh" mesh="th_distal_pst_190" contype="0" conaffinity="2"/>
                   </body>
                 </body>
               </body>

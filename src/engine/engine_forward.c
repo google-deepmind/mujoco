@@ -243,6 +243,19 @@ static mjtNum nextActivation(const mjModel* m, const mjData* d,
 
 
 
+// clamp vector to range
+static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
+                      const int* index) {
+  for (int i=0; i < n; i++) {
+    int j = index ? index[i] : i;
+    if (limited[i]) {
+      vec[j] = mju_clip(vec[j], range[2*i], range[2*i + 1]);
+    }
+  }
+}
+
+
+
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
@@ -262,18 +275,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // local, clamped copy of ctrl
   mj_markStack(d);
   mjtNum *ctrl = mj_stackAllocNum(d, nu);
-  if (mjDISABLED(mjDSBL_CLAMPCTRL)) {
-    mju_copy(ctrl, d->ctrl, nu);
-  } else {
-    for (int i=0; i < nu; i++) {
-      // clamp ctrl
-      if (m->actuator_ctrllimited[i]) {
-        mjtNum *ctrlrange = m->actuator_ctrlrange + 2*i;
-        ctrl[i] = mju_clip(d->ctrl[i], ctrlrange[0], ctrlrange[1]);
-      } else {
-        ctrl[i] = d->ctrl[i];
-      }
-    }
+  mju_copy(ctrl, d->ctrl, nu);
+  if (!mjDISABLED(mjDSBL_CLAMPCTRL)) {
+    clampVec(ctrl, m->actuator_ctrlrange, m->actuator_ctrllimited, nu, NULL);
   }
 
   // check controls, set all to 0 if any are bad
@@ -459,25 +463,47 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // clamp actuator_force
-  for (int i=0; i < nu; i++) {
-    if (m->actuator_forcelimited[i]) {
-      mjtNum *forcerange = m->actuator_forcerange + 2*i;
-      force[i] = mju_clip(force[i], forcerange[0], forcerange[1]);
-    }
-  }
+  clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
 
   // qfrc_actuator = moment' * force
   mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
 
-  // clamp qfrc_actuator
-  int njnt = m->njnt;
-  for (int i=0; i < njnt; i++) {
-    if (m->jnt_actfrclimited[i]) {
-      mjtNum *forcerange = m->jnt_actfrcrange + 2*i;
-      mjtNum *qfrc = d->qfrc_actuator + m->jnt_dofadr[i];
-      qfrc[0] = mju_clip(qfrc[0], forcerange[0], forcerange[1]);
+  // actuator-level gravity compensation
+  if (!mjDISABLED(mjDSBL_GRAVITY) && mju_norm3(m->opt.gravity)) {
+    int njnt = m->njnt;
+    for (int i=0; i < njnt; i++) {
+      // skip if gravcomp added as passive force
+      if (!m->jnt_actgravcomp[i]) {
+        continue;
+      }
+
+      // get number of dofs for this joint
+      int dofnum;
+      switch (m->jnt_type[i]) {
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        dofnum = 1;
+        break;
+
+      case mjJNT_BALL:
+        dofnum = 3;
+        break;
+
+      case mjJNT_FREE:
+        dofnum = 6;
+        break;
+      }
+
+      // add gravcomp force
+      int dofadr = m->jnt_dofadr[i];
+      for (int j=0; j < dofnum; j++) {
+        d->qfrc_actuator[dofadr+j] += d->qfrc_gravcomp[dofadr+j];
+      }
     }
   }
+
+  // clamp qfrc_actuator to joint-level actuator force limits
+  clampVec(d->qfrc_actuator, m->jnt_actfrcrange, m->jnt_actfrclimited, m->njnt, m->jnt_dofadr);
 
   mj_freeStack(d);
   TM_END(mjTIMER_ACTUATION);
@@ -489,13 +515,13 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   int nv = m->nv;
 
-  // qforce = sum of all non-constraint forces
+  // qfrc_smooth = sum of all non-constraint forces
   mju_sub(d->qfrc_smooth, d->qfrc_passive, d->qfrc_bias, nv);    // qfrc_bias is negative
   mju_addTo(d->qfrc_smooth, d->qfrc_applied, nv);
   mju_addTo(d->qfrc_smooth, d->qfrc_actuator, nv);
   mj_xfrcAccumulate(m, d, d->qfrc_smooth);
 
-  // qacc_smooth = M \ qfr_smooth
+  // qacc_smooth = M \ qfrc_smooth
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
 }
 
@@ -706,9 +732,10 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 // advance state and time given activation derivatives, acceleration, and optional velocity
 static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
-  // advance activations and clamp
+  // advance activations
   if (m->na && !mjDISABLED(mjDSBL_ACTUATION)) {
-    for (int i=0; i < m->nu; i++) {
+    int nu = m->nu;
+    for (int i=0; i < nu; i++) {
       int actadr = m->actuator_actadr[i];
       int actadr_end = actadr + m->actuator_actnum[i];
       for (int j=actadr; j < actadr_end; j++) {

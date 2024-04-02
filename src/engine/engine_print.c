@@ -361,14 +361,6 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
   if (m->nbody) fprintf(fp, "\n");
 
-  // BVHs
-  for (int i=0; i < m->nbvh; i++) {
-    fprintf(fp, "\nBVH %d:\n", i);
-    object_class = &m->nbvh;
-    MJMODEL_POINTERS
-  }
-  if (m->nbvh) fprintf(fp, "\n");
-
   // joints
   for (int i=0; i < m->njnt; i++) {
     fprintf(fp, "\nJOINT %d:\n", i);
@@ -731,6 +723,15 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
 
 #undef X
+
+  // BVHs
+  fprintf(fp, "BVH:\n");
+  fprintf(fp, "  %-8s%-8s%-8s%-10s%-s\n","id", "depth", "nodeid", "child[0]" ,"child[1]");
+  for (int i=0; i < m->nbvh; i++) {
+    fprintf(fp, "  %-8d%-8d% -8d% -10d% -d\n",
+            i, m->bvh_depth[i], m->bvh_nodeid[i], m->bvh_child[2*i], m->bvh_child[2*i+1]);
+  }
+  fprintf(fp, "\n");
 
   if (filename) {
     fclose(fp);

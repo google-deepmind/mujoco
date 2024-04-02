@@ -50,10 +50,10 @@ class GeomInfo(PyTreeNode):
   size: jax.Array
   face: Optional[jax.Array] = None
   vert: Optional[jax.Array] = None
-  edge: Optional[jax.Array] = None
+  edge_dir: Optional[jax.Array] = None
   facenorm: Optional[jax.Array] = None
-  face_edge: Optional[jax.Array] = None
-  face_edge_normal: Optional[jax.Array] = None
+  edge: Optional[jax.Array] = None
+  edge_face_normal: Optional[jax.Array] = None
 
 
 class SolverParams(PyTreeNode):

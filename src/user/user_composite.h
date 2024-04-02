@@ -69,25 +69,25 @@ class mjCComposite {
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
   void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
-  bool Make(mjSpec* spec, mjmBody* body, char* error, int error_sz);
+  bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
 
-  bool MakeParticle(mjCModel* model, mjmBody* body, char* error, int error_sz);
-  bool MakeGrid(mjCModel* model, mjmBody* body, char* error, int error_sz);
-  bool MakeRope(mjCModel* model, mjmBody* body, char* error, int error_sz);
-  bool MakeCable(mjCModel* model, mjmBody* body, char* error, int error_sz);
-  bool MakeBox(mjCModel* model, mjmBody* body, char* error, int error_sz);
+  bool MakeParticle(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeGrid(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeRope(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeBox(mjCModel* model, mjsBody* body, char* error, int error_sz);
   void MakeShear(mjCModel* model);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
   void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
-  void MakeClothBones(mjCModel* model, mjmSkin* skin);
-  void MakeClothBonesSubgrid(mjCModel* model, mjmSkin* skin);
-  void MakeCableBones(mjCModel* model, mjmSkin* skin);
-  void MakeCableBonesSubgrid(mjCModel* model, mjmSkin* skin);
+  void MakeClothBones(mjCModel* model, mjsSkin* skin);
+  void MakeClothBonesSubgrid(mjCModel* model, mjsSkin* skin);
+  void MakeCableBones(mjCModel* model, mjsSkin* skin);
+  void MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin);
 
   void MakeSkin3(mjCModel* model);
-  void MakeSkin3Box(mjmSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
-  void MakeSkin3Smooth(mjmSkin* skin, int c0, int c1, int side,
+  void MakeSkin3Box(mjsSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
+  void MakeSkin3Smooth(mjsSkin* skin, int c0, int c1, int side,
                        const std::map<std::string, int>& vmap, const char* format);
 
   void BoxProject(double* pos);
@@ -116,7 +116,7 @@ class mjCComposite {
   // plugin support
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjmPlugin plugin;
+  mjsPlugin plugin;
 
   // skin
   bool skin;                      // generate skin
@@ -136,11 +136,11 @@ class mjCComposite {
   int dim;                        // dimensionality
 
  private:
-  mjmBody* AddRopeBody(mjCModel* model, mjmBody* body, int ix, int ix1);
-  mjmBody* AddCableBody(mjCModel* model, mjmBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
+  mjsBody* AddRopeBody(mjCModel* model, mjsBody* body, int ix, int ix1);
+  mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
 
   // temporary skin vectors
-  void CopyIntoSkin(mjmSkin* skin);
+  void CopyIntoSkin(mjsSkin* skin);
   std::vector<int> face;
   std::vector<float> vert;
   std::vector<float> bindpos;

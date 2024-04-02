@@ -215,6 +215,14 @@ The following features are **in development** and coming soon:
 
    * - Category
      - Feature
+   * - :ref:`Geom <mjtGeom>`
+     - ``SDF``, ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
+   * - :ref:`Condim <coContact>`
+     - 1, 4, 6
+   * - :ref:`Constraint <mjtConstraint>`
+     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+   * - :ref:`Integrator <mjtIntegrator>`
+     - ``IMPLICIT``, ``IMPLICITFAST``
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
    * - :ref:`Transmission <mjtTrn>`
@@ -227,16 +235,8 @@ The following features are **in development** and coming soon:
      - ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
      - ``NONE``, ``JOINT``, ``PULLEY``, ``SITE``, ``SPHERE``, ``CYLINDER``
-   * - :ref:`Geom <mjtGeom>`
-     - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
-   * - :ref:`Constraint <mjtConstraint>`
-     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
-   * - :ref:`Integrator <mjtIntegrator>`
-     - ``IMPLICIT``, ``IMPLICITFAST``
    * - :ref:`Cone <mjtCone>`
      - ``ELLIPTIC``
-   * - :ref:`Condim <coContact>`
-     - 1, 4, 6
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
@@ -258,6 +258,8 @@ The following features are **unsupported**:
 
    * - Category
      - Feature
+   * - :ref:`margin<body-geom-margin>` and :ref:`gap<body-geom-gap>`
+     - Unimplemented for collisions with ``Mesh`` :ref:`Geom <mjtGeom>`.
    * - :ref:`Transmission <mjtTrn>`
      - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_BODY``
    * - :ref:`Actuator Dynamics <mjtDyn>`
@@ -270,8 +272,6 @@ The following features are **unsupported**:
      - ``PGS``
    * - :ref:`Sensors <mjtSensor>`
      - ``PLUGIN``, ``USER``
-   * - :ref:`Geom <mjtGeom>`
-     - ``SDF``
 
 .. _MjxSharpBits:
 
@@ -299,8 +299,9 @@ Collisions between large meshes
   SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
 
   For
-  collisions with convex meshes, the convex decompositon of the mesh should have
-  roughly **200 vertices or less** for reasonable performance.
+  collisions with convex meshes and primitives, the convex decompositon of the mesh should have
+  roughly **200 vertices or less** for reasonable performance. For convex-convex collisions,
+  the convex mesh should have roughly **fewer than 32 vertices**.
   With careful
   tuning, MJX can simulate scenes with mesh collisions -- see the MJX
   `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__

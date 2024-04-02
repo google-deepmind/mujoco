@@ -20,6 +20,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_resource.h"
+#include "src/engine/engine_vfs.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -28,7 +30,7 @@ namespace {
 using ::testing::NotNull;
 using EngineVfsTest = MujocoTest;
 
-TEST_F(EngineVfsTest, AddFileTest) {
+TEST_F(EngineVfsTest, AddFile) {
   constexpr char path[] = "engine/testdata/actuation/";
   const std::string dir = GetTestDataFilePath(path);
   std::string file1 = "activation.xml";
@@ -81,7 +83,7 @@ TEST_F(EngineVfsTest, AddFileTest) {
   mj_deleteVFS(vfs.get());
 }
 
-TEST_F(EngineVfsTest, AddBufferTest) {
+TEST_F(EngineVfsTest, AddBuffer) {
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
   std::string buffer = "<mujoco/>";
@@ -91,6 +93,33 @@ TEST_F(EngineVfsTest, AddBufferTest) {
   mjModel* model = mj_loadXML("model", vfs.get(), error.data(), error.size());
   EXPECT_THAT(model, NotNull());
   mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(EngineVfsTest, Timestamps) {
+  static constexpr char cube[] = R"(
+  v -0.500000 -0.500000  0.500000
+  v  0.500000 -0.500000  0.500000
+  v -0.500000  0.500000  0.500000
+  v  0.500000  0.500000  0.500000
+  v -0.500000  0.500000 -0.500000
+  v  0.500000  0.500000 -0.500000
+  v -0.500000 -0.500000 -0.500000
+  v  0.500000 -0.500000 -0.500000)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  mjResource* resource = mju_openVfsResource("cube.obj", vfs.get());
+
+  // same timestamps
+  EXPECT_EQ(mju_isModifiedResource(resource, resource->timestamp), 0);
+
+  // different timestamps
+  EXPECT_EQ(mju_isModifiedResource(resource, "QQ=="), 1);
+
+  mju_closeResource(resource);
   mj_deleteVFS(vfs.get());
 }
 

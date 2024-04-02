@@ -141,17 +141,22 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
 
 
 
-//------------------ class mjCAlternative implementation -------------------------------------------
-
-// constructor
-mjCAlternative::mjCAlternative() {
-  axisangle[0] = xyaxes[0] = zaxis[0] = euler[0] = mjNAN;
-}
-
+//------------------ alternative orientation implementation ----------------------------------------
 
 // compute frame orientation given alternative specifications
 // used for geom, site, body and camera frames
-const char* mjCAlternative::Set(double* quat, bool degree, const char* sequence) {
+const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
+                               const mjsOrientation& orient) {
+  mjtNum axisangle[4];
+  mjtNum xyaxes[6];
+  mjtNum zaxis[3];
+  mjtNum euler[3];
+
+  mjuu_copyvec(axisangle, orient.axisangle, 4);
+  mjuu_copyvec(xyaxes, orient.xyaxes, 6);
+  mjuu_copyvec(zaxis, orient.zaxis, 3);
+  mjuu_copyvec(euler, orient.euler, 3);
+
   // set quat using axisangle
   if (mjuu_defined(axisangle[0])) {
     // convert to radians if necessary, normalize axis
@@ -292,43 +297,47 @@ mjCBoundingVolume* mjCBoundingVolumeHierarchy::GetBoundingVolume(int id) {
 
 // create bounding volume hierarchy
 void mjCBoundingVolumeHierarchy::CreateBVH() {
-  std::vector<const mjCBoundingVolume*> elements(bvleaf_.size());
-  for (int i=0; i<bvleaf_.size(); i++) {
-    elements[i] = bvleaf_.data() + i;
+  // precompute the positions of each element in the hierarchy's axes, and drop
+  // visual-only elements.
+  std::vector<BVElement> elements;
+  elements.reserve(bvleaf_.size());
+  mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+  for (int i = 0; i < bvleaf_.size(); i++) {
+    if (bvleaf_[i].conaffinity || bvleaf_[i].contype) {
+      BVElement element;
+      element.e = &bvleaf_[i];
+      mjtNum vert[3] = {element.e->pos[0] - ipos_[0],
+                        element.e->pos[1] - ipos_[1],
+                        element.e->pos[2] - ipos_[2]};
+      mju_rotVecQuat(element.lpos, vert, qinv);
+      elements.push_back(std::move(element));
+    }
   }
-  MakeBVH(elements);
+  MakeBVH(elements.begin(), elements.end());
 }
 
-
 // compute bounding volume hierarchy
-int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& elements, int lev) {
-  if (elements.empty()) {
+int mjCBoundingVolumeHierarchy::MakeBVH(
+    std::vector<BVElement>::iterator elements_begin,
+    std::vector<BVElement>::iterator elements_end, int lev) {
+  int nelements = elements_end - elements_begin;
+  if (nelements == 0) {
     return -1;
   }
-
-  bool is_visual = true;
-  int nelements = elements.size();
   mjtNum AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
   // inverse transformation
   mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
 
   // accumulate AAMM over elements
-  for (int i=0; i<nelements; i++) {
-    // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
-      continue;
-    } else {
-      is_visual = false;
-    }
-
+  for (auto element = elements_begin; element != elements_end; ++element) {
     // transform element aabb to aamm format
-    mjtNum aamm[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
-                      elements[i]->aabb[1] - elements[i]->aabb[4],
-                      elements[i]->aabb[2] - elements[i]->aabb[5],
-                      elements[i]->aabb[0] + elements[i]->aabb[3],
-                      elements[i]->aabb[1] + elements[i]->aabb[4],
-                      elements[i]->aabb[2] + elements[i]->aabb[5]};
+    mjtNum aamm[6] = {element->e->aabb[0] - element->e->aabb[3],
+                      element->e->aabb[1] - element->e->aabb[4],
+                      element->e->aabb[2] - element->e->aabb[5],
+                      element->e->aabb[0] + element->e->aabb[3],
+                      element->e->aabb[1] + element->e->aabb[4],
+                      element->e->aabb[2] + element->e->aabb[5]};
 
     // update node AAMM
     for (int v=0; v<8; v++) {
@@ -338,11 +347,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
       vert[2] = (v&4 ? aamm[5] : aamm[2]);
 
       // rotate to the body inertial frame if specified
-      if (elements[i]->quat) {
-        mju_rotVecQuat(box, vert, elements[i]->quat);
-        box[0] += elements[i]->pos[0] - ipos_[0];
-        box[1] += elements[i]->pos[1] - ipos_[1];
-        box[2] += elements[i]->pos[2] - ipos_[2];
+      if (element->e->quat) {
+        mju_rotVecQuat(box, vert, element->e->quat);
+        box[0] += element->e->pos[0] - ipos_[0];
+        box[1] += element->e->pos[1] - ipos_[1];
+        box[2] += element->e->pos[2] - ipos_[2];
         mju_rotVecQuat(vert, box, qinv);
       }
 
@@ -353,11 +362,6 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
       AAMM[4] = mjMAX(AAMM[4], vert[1]);
       AAMM[5] = mjMAX(AAMM[5], vert[2]);
     }
-  }
-
-  // a body with only visual geoms does not have a bvh
-  if (is_visual) {
-    return nbvh;
   }
 
   // inflate flat AABBs
@@ -388,7 +392,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
     for (int i=0; i<2; i++) {
       child[2*index+i] = -1;
     }
-    nodeid[index] = (int*)elements[0]->GetId();
+    nodeid[index] = (int*)elements_begin->e->GetId();
     return index;
   }
 
@@ -398,66 +402,23 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
   axis = edges[axis] > edges[2] ? axis : 2;
 
   // find median along the axis
-  std::vector<mjtNum> pos(nelements);
-
-  for (int i=0; i<nelements; i++) {
-    // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
-    mjtNum lpos[3];
-    mju_rotVecQuat(lpos, vert, qinv);
-    pos[i] = lpos[axis];
-  }
-
-  auto m = pos.size()/2;
-  std::nth_element(pos.begin(), pos.begin() + m, pos.end());
-  mjtNum threshold = pos[m];
-
-  // split using median
-  std::vector<const mjCBoundingVolume*> left;
-  std::vector<const mjCBoundingVolume*> right;
-  int skipped = 0;
-
-  for (int i=0; i<nelements; i++) {
-    // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
-    mjtNum lpos[3];
-    mju_rotVecQuat(lpos, vert, qinv);
-
-    // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
-      skipped++;
-      continue;
-    }
-    if (lpos[axis] < threshold) {
-      left.push_back(elements[i]);
-    } else if (lpos[axis] > threshold) {
-      right.push_back(elements[i]);
-    } else {
-      if (left.size() < right.size()) left.push_back(elements[i]);
-      else right.push_back(elements[i]);
-    }
-  }
+  // note: nth_element performs a partial sort of elements
+  BVElementCompare compare;
+  compare.axis = axis;
+  int m = nelements / 2;
+  std::nth_element(elements_begin, elements_begin + m, elements_end, compare);
 
   // recursive calls
-  if (!left.empty()) {
-    child[2*index+0] = MakeBVH(left, lev+1);
+  if (m > 0) {
+    child[2*index+0] = MakeBVH(elements_begin, elements_begin + m, lev+1);
   }
 
-  if (!right.empty()) {
-    child[2*index+1] = MakeBVH(right, lev+1);
+  if (m != nelements) {
+    child[2*index+1] = MakeBVH(elements_begin + m, elements_end, lev+1);
   }
 
   // SHOULD NOT OCCUR
-  if (left.size()+right.size()+skipped != nelements) {
-    mju_error("some elements were lost, body=%s parent=%d children=%lu",
-              name_.c_str(), nelements, left.size()+right.size()+skipped);
-  }
-
-  if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
+  if (child[2*index+0]==-1 && child[2*index+1]==-1) {
     mju_error("this should have been a leaf, body=%s nelements=%d",
               name_.c_str(), nelements);
   }
@@ -469,8 +430,6 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
   return index;
 }
 
-
-
 //------------------------- class mjCDef implementation --------------------------------------------
 
 // constructor
@@ -478,18 +437,18 @@ mjCDef::mjCDef(void) {
   name.clear();
   parentid = -1;
   childid.clear();
-  mjm_defaultJoint(joint.spec);
-  mjm_defaultGeom(geom.spec);
-  mjm_defaultSite(site.spec);
-  mjm_defaultCamera(camera.spec);
-  mjm_defaultLight(light.spec);
-  mjm_defaultFlex(flex.spec);
-  mjm_defaultMesh(mesh.spec);
-  mjm_defaultMaterial(material.spec);
-  mjm_defaultPair(pair.spec);
-  mjm_defaultEquality(equality.spec);
-  mjm_defaultTendon(tendon.spec);
-  mjm_defaultActuator(actuator.spec);
+  mjs_defaultJoint(joint.spec);
+  mjs_defaultGeom(geom.spec);
+  mjs_defaultSite(site.spec);
+  mjs_defaultCamera(camera.spec);
+  mjs_defaultLight(light.spec);
+  mjs_defaultFlex(flex.spec);
+  mjs_defaultMesh(mesh.spec);
+  mjs_defaultMaterial(material.spec);
+  mjs_defaultPair(pair.spec);
+  mjs_defaultEquality(equality.spec);
+  mjs_defaultTendon(tendon.spec);
+  mjs_defaultActuator(actuator.spec);
 
   // make sure all the pointers are local
   PointToLocal();
@@ -557,7 +516,7 @@ void mjCDef::PointToLocal() {
   equality.PointToLocal();
   tendon.PointToLocal();
   actuator.PointToLocal();
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.joint = &joint.spec;
   spec.geom = &geom.spec;
@@ -616,12 +575,6 @@ mjCBase::mjCBase(const mjCBase& other) {
 mjCBase& mjCBase::operator=(const mjCBase& other) {
   if (this != &other) {
     *static_cast<mjCBase_*>(this) = static_cast<const mjCBase_&>(other);
-    if (other.def) {
-      def = new mjCDef(*other.def);
-    }
-    if (other.frame) {
-      frame = new mjCFrame(*other.frame);
-    }
   }
   return *this;
 }
@@ -678,7 +631,8 @@ mjCBody::mjCBody(mjCModel* _model) {
   // set model pointer
   model = _model;
 
-  mjm_defaultBody(spec);
+  mjs_defaultBody(spec);
+  elemtype = mjOBJ_BODY;
   parentid = -1;
   weldid = -1;
   dofnum = 0;
@@ -709,7 +663,8 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 
 
-mjCBody::mjCBody(const mjCBody& other) {
+mjCBody::mjCBody(const mjCBody& other, mjCModel* _model) {
+  model = _model;
   *this = other;
 }
 
@@ -717,43 +672,64 @@ mjCBody::mjCBody(const mjCBody& other) {
 
 mjCBody& mjCBody::operator=(const mjCBody& other) {
   if (this != &other) {
-    this->spec = other.spec;
+    spec = other.spec;
     *static_cast<mjCBody_*>(this) = static_cast<const mjCBody_&>(other);
-    *static_cast<mjmBody*>(this) = static_cast<const mjmBody&>(other);
-    this->bodies.clear();
-    this->frames.clear();
-    this->geoms.clear();
-    this->joints.clear();
-    this->sites.clear();
-    this->cameras.clear();
-    this->lights.clear();
+    *static_cast<mjsBody*>(this) = static_cast<const mjsBody&>(other);
+    std::map<mjCFrame*, int> fmap;
+    mjCFrame *np = nullptr;
+    bodies.clear();
+    frames.clear();
+    geoms.clear();
+    joints.clear();
+    sites.clear();
+    cameras.clear();
+    lights.clear();
+
+    // create frames and map them to the old ones
+    for (int i=0; i<other.frames.size(); i++) {
+      frames.push_back(new mjCFrame(*other.frames[i]));
+      frames.back()->model = model;
+      frames.back()->body = this;
+      fmap[other.frames[i]] = i;
+    }
 
     // copy all children
     for (int i=0; i<other.bodies.size(); i++) {
-      this->bodies.push_back(new mjCBody(*other.bodies[i]));  // triggers recursive call
+      bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
+      bodies.back()->frame = other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : np;
     }
     for (int i=0; i<other.frames.size(); i++) {
-      this->frames.push_back(new mjCFrame(*other.frames[i]));
+      frames[i]->frame = other.frames[i]->frame ? frames[fmap[other.frames[i]->frame]] : np;
     }
     for (int i=0; i<other.geoms.size(); i++) {
-      this->geoms.push_back(new mjCGeom(*other.geoms[i]));
-      this->geoms.back()->body = this;
+      geoms.push_back(new mjCGeom(*other.geoms[i]));
+      geoms.back()->body = this;
+      geoms.back()->model = model;
+      geoms.back()->frame = other.geoms[i]->frame ? frames[fmap[other.geoms[i]->frame]] : np;
     }
     for (int i=0; i<other.joints.size(); i++) {
-      this->joints.push_back(new mjCJoint(*other.joints[i]));
-      this->joints.back()->body = this;
+      joints.push_back(new mjCJoint(*other.joints[i]));
+      joints.back()->body = this;
+      joints.back()->model = model;
+      joints.back()->frame = other.joints[i]->frame ? frames[fmap[other.joints[i]->frame]] : np;
     }
     for (int i=0; i<other.sites.size(); i++) {
-      this->sites.push_back(new mjCSite(*other.sites[i]));
-      this->sites.back()->body = this;
+      sites.push_back(new mjCSite(*other.sites[i]));
+      sites.back()->body = this;
+      sites.back()->model = model;
+      sites.back()->frame = other.sites[i]->frame ? frames[fmap[other.sites[i]->frame]] : np;
     }
     for (int i=0; i<other.cameras.size(); i++) {
-      this->cameras.push_back(new mjCCamera(*other.cameras[i]));
-      this->cameras.back()->body = this;
+      cameras.push_back(new mjCCamera(*other.cameras[i]));
+      cameras.back()->body = this;
+      cameras.back()->model = model;
+      cameras.back()->frame = other.cameras[i]->frame ? frames[fmap[other.cameras[i]->frame]] : np;
     }
     for (int i=0; i<other.lights.size(); i++) {
-      this->lights.push_back(new mjCLight(*other.lights[i]));
-      this->lights.back()->body = this;
+      lights.push_back(new mjCLight(*other.lights[i]));
+      lights.back()->body = this;
+      lights.back()->model = model;
+      lights.back()->frame = other.lights[i]->frame ? frames[fmap[other.lights[i]->frame]] : np;
     }
   }
   PointToLocal();
@@ -762,8 +738,15 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
 
 
 
+mjCBody& mjCBody::operator+=(mjCBody& other) {
+  bodies.push_back(&other);
+  return *this;
+}
+
+
+
 void mjCBody::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.childclass = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -774,17 +757,9 @@ void mjCBody::PointToLocal() {
 
 
 void mjCBody::CopyFromSpec() {
-  *static_cast<mjmBody*>(this) = spec;
+  *static_cast<mjsBody*>(this) = spec;
   userdata_ = spec_userdata_;
   userdata = (mjDoubleVec)&userdata_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
-  mju_copy4(ialt_.axisangle, ialt.axisangle);
-  mju_copy(ialt_.xyaxes, ialt.xyaxes, 6);
-  mju_copy3(ialt_.zaxis, ialt.zaxis);
-  mju_copy3(ialt_.euler, ialt.euler);
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -811,6 +786,51 @@ mjCBody::~mjCBody() {
   sites.clear();
   cameras.clear();
   lights.clear();
+}
+
+
+
+// apply prefix and suffix, propagate to children
+void mjCBody::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = prefix + name + suffix;
+  }
+
+  for (auto& joint : joints) {
+    if (!joint->name.empty()) {
+      joint->name = prefix + joint->name + suffix;
+    }
+  }
+
+  for (auto& geom : geoms) {
+    if (!geom->name.empty()) {
+      geom->name = prefix + geom->name + suffix;
+    }
+  }
+
+  for (auto& site : sites) {
+    if (!site->name.empty()) {
+      site->name = prefix + site->name + suffix;
+    }
+  }
+
+  for (auto& camera : cameras) {
+    if (!camera->name.empty()) {
+      camera->name = prefix + camera->name + suffix;
+    }
+  }
+
+  for (auto& light : lights) {
+    if (!light->name.empty()) {
+      light->name = prefix + light->name + suffix;
+    }
+  }
+
+  for (auto& body : bodies) {
+    body->prefix = m->prefix;
+    body->suffix = m->suffix;
+    body->NameSpace(m);
+  }
 }
 
 
@@ -1173,7 +1193,7 @@ void mjCBody::Compile(void) {
   }
 
   // check and process orientation alternatives for body
-  const char* err = alt_.Set(quat, model->degree, model->euler);
+  const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
   if (err) {
     throw mjCError(this, "error '%s' in frame alternative", err);
   }
@@ -1318,9 +1338,10 @@ void mjCBody::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    plugin.instance = plugin_instance;
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_PASSIVE)) {
       throw mjCError(this, "plugin '%s' does not support passive forces", pplugin->name);
     }
@@ -1345,9 +1366,11 @@ void mjCBody::Compile(void) {
 
 // initialize frame
 mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
-  mjm_defaultFrame(spec);
+  mjs_defaultFrame(spec);
+  elemtype = mjOBJ_FRAME;
   compiled = false;
   model = _model;
+  body = NULL;
   frame = _frame ? _frame : NULL;
   PointToLocal();
   CopyFromSpec();
@@ -1365,16 +1388,39 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCFrame_*>(this) = static_cast<const mjCFrame_&>(other);
-    *static_cast<mjmFrame*>(this) = static_cast<const mjmFrame&>(other);
+    *static_cast<mjsFrame*>(this) = static_cast<const mjsFrame&>(other);
   }
   PointToLocal();
   return *this;
 }
 
 
+// attach body to frame
+mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
+  mjCBody* subtree = new mjCBody(other, model);
+  other.model->prefix = subtree->prefix;
+  other.model->suffix = subtree->suffix;
+  subtree->SetFrame(this);
+  subtree->NameSpace(other.model);
+
+  // add to tree
+  *body += *subtree;
+
+  // TODO: needs to attach only referencing elements
+  *model += *other.model;
+  return *this;
+}
+
+
+
+void mjCFrame::SetParent(mjCBody* _body) {
+  body = _body;
+}
+
+
 
 void mjCFrame::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.childclass = (mjString)&classname;
   spec.info = (mjString)&info;
@@ -1383,13 +1429,9 @@ void mjCFrame::PointToLocal() {
 
 
 void mjCFrame::CopyFromSpec() {
-  *static_cast<mjmFrame*>(this) = spec;
+  *static_cast<mjsFrame*>(this) = spec;
   mju_copy3(pos, spec.pos);
   mju_copy4(quat, spec.quat);
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
 }
 
 
@@ -1400,7 +1442,7 @@ void mjCFrame::Compile() {
   }
 
   CopyFromSpec();
-  const char* err = alt_.Set(quat, model->spec.degree, model->spec.euler);
+  const char* err = ResolveOrientation(quat, model->spec.degree, model->spec.euler, alt);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
   }
@@ -1421,7 +1463,8 @@ void mjCFrame::Compile() {
 
 // initialize default joint
 mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultJoint(spec);
+  mjs_defaultJoint(spec);
+  elemtype = mjOBJ_JOINT;
 
   // clear internal variables
   spec_userdata_.clear();
@@ -1455,7 +1498,7 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCJoint_*>(this) = static_cast<const mjCJoint_&>(other);
-    *static_cast<mjmJoint*>(this) = static_cast<const mjmJoint&>(other);
+    *static_cast<mjsJoint*>(this) = static_cast<const mjsJoint&>(other);
   }
   PointToLocal();
   return *this;
@@ -1469,7 +1512,7 @@ bool mjCJoint::is_actfrclimited() const { return islimited(actfrclimited, actfrc
 
 
 void mjCJoint::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -1479,7 +1522,7 @@ void mjCJoint::PointToLocal() {
 
 
 void mjCJoint::CopyFromSpec() {
-  *static_cast<mjmJoint*>(this) = spec;
+  *static_cast<mjsJoint*>(this) = spec;
   userdata_ = spec_userdata_;
   userdata = (mjDoubleVec)&spec_userdata_;
 }
@@ -1618,7 +1661,8 @@ int mjCJoint::Compile(void) {
 
 // initialize default geom
 mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultGeom(spec);
+  mjs_defaultGeom(spec);
+  elemtype = mjOBJ_GEOM;
 
   mass_ = 0;
   body = 0;
@@ -1666,7 +1710,7 @@ mjCGeom& mjCGeom::operator=(const mjCGeom& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCGeom_*>(this) = static_cast<const mjCGeom_&>(other);
-    *static_cast<mjmGeom*>(this) = static_cast<const mjmGeom&>(other);
+    *static_cast<mjsGeom*>(this) = static_cast<const mjsGeom&>(other);
   }
   PointToLocal();
   return *this;
@@ -1676,7 +1720,7 @@ mjCGeom& mjCGeom::operator=(const mjCGeom& other) {
 
 // to be called after any default copy constructor
 void mjCGeom::PointToLocal(void) {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.info = (mjString)&info;
   spec.classname = (mjString)&classname;
@@ -1691,7 +1735,7 @@ void mjCGeom::PointToLocal(void) {
 
 
 void mjCGeom::CopyFromSpec() {
-  *static_cast<mjmGeom*>(this) = spec;
+  *static_cast<mjsGeom*>(this) = spec;
   userdata_ = spec_userdata_;
   hfieldname_ = spec_hfieldname_;
   meshname_ = spec_meshname_;
@@ -1700,10 +1744,6 @@ void mjCGeom::CopyFromSpec() {
   hfieldname = (mjString)&hfieldname_;
   meshname = (mjString)&meshname_;
   material = (mjString)&material_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -2135,7 +2175,7 @@ void mjCGeom::Compile(void) {
 
   // not 'fromto': try alternative
   else {
-    const char* err = alt_.Set(quat, model->degree, model->euler);
+    const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
@@ -2228,9 +2268,10 @@ void mjCGeom::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    plugin.instance = plugin_instance;
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
       throw mjCError(this, "plugin '%s' does not support sign distance fields", pplugin->name);
     }
@@ -2248,7 +2289,8 @@ void mjCGeom::Compile(void) {
 
 // initialize default site
 mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultSite(spec);
+  mjs_defaultSite(spec);
+  elemtype = mjOBJ_SITE;
 
   // clear internal variables
   body = 0;
@@ -2284,7 +2326,7 @@ mjCSite& mjCSite::operator=(const mjCSite& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCSite_*>(this) = static_cast<const mjCSite_&>(other);
-    *static_cast<mjmSite*>(this) = static_cast<const mjmSite&>(other);
+    *static_cast<mjsSite*>(this) = static_cast<const mjsSite&>(other);
   }
   PointToLocal();
   return *this;
@@ -2293,7 +2335,7 @@ mjCSite& mjCSite::operator=(const mjCSite& other) {
 
 
 void mjCSite::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.info = (mjString)&info;
   spec.classname = (mjString)&classname;
@@ -2304,15 +2346,11 @@ void mjCSite::PointToLocal() {
 
 
 void mjCSite::CopyFromSpec() {
-  *static_cast<mjmSite*>(this) = spec;
+  *static_cast<mjsSite*>(this) = spec;
   userdata_ = spec_userdata_;
   material_ = spec_material_;
   userdata = (mjDoubleVec)&userdata_;
   material = (mjString)&material_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
 }
 
 
@@ -2384,7 +2422,7 @@ void mjCSite::Compile(void) {
 
   // alternative orientation
   else {
-    const char* err = alt_.Set(quat, model->degree, model->euler);
+    const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
@@ -2408,7 +2446,8 @@ void mjCSite::Compile(void) {
 
 // initialize defaults
 mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultCamera(spec);
+  mjs_defaultCamera(spec);
+  elemtype = mjOBJ_CAMERA;
 
   // clear private variables
   body = 0;
@@ -2443,7 +2482,7 @@ mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCCamera_*>(this) = static_cast<const mjCCamera_&>(other);
-    *static_cast<mjmCamera*>(this) = static_cast<const mjmCamera&>(other);
+    *static_cast<mjsCamera*>(this) = static_cast<const mjsCamera&>(other);
   }
   PointToLocal();
   return *this;
@@ -2452,7 +2491,7 @@ mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
 
 
 void mjCCamera::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -2463,15 +2502,11 @@ void mjCCamera::PointToLocal() {
 
 
 void mjCCamera::CopyFromSpec() {
-  *static_cast<mjmCamera*>(this) = spec;
+  *static_cast<mjsCamera*>(this) = spec;
   userdata_ = spec_userdata_;
   targetbody_ = spec_targetbody_;
   userdata = (mjDoubleVec)&userdata_;
   targetbody = (mjString)&targetbody_;
-  mju_copy4(alt_.axisangle, alt.axisangle);
-  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
-  mju_copy3(alt_.zaxis, alt.zaxis);
-  mju_copy3(alt_.euler, alt.euler);
 }
 
 
@@ -2488,7 +2523,7 @@ void mjCCamera::Compile(void) {
   userdata_.resize(model->nuser_cam);
 
   // process orientation specifications
-  const char* err = alt_.Set(quat, model->degree, model->euler);
+  const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }
@@ -2562,7 +2597,8 @@ void mjCCamera::Compile(void) {
 
 // initialize defaults
 mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultLight(spec);
+  mjs_defaultLight(spec);
+  elemtype = mjOBJ_LIGHT;
 
   // clear private variables
   body = 0;
@@ -2594,7 +2630,7 @@ mjCLight& mjCLight::operator=(const mjCLight& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCLight_*>(this) = static_cast<const mjCLight_&>(other);
-    *static_cast<mjmLight*>(this) = static_cast<const mjmLight&>(other);
+    *static_cast<mjsLight*>(this) = static_cast<const mjsLight&>(other);
   }
   PointToLocal();
   return *this;
@@ -2603,7 +2639,7 @@ mjCLight& mjCLight::operator=(const mjCLight& other) {
 
 
 void mjCLight::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.targetbody = (mjString)&spec_targetbody_;
@@ -2613,7 +2649,7 @@ void mjCLight::PointToLocal() {
 
 
 void mjCLight::CopyFromSpec() {
-  *static_cast<mjmLight*>(this) = spec;
+  *static_cast<mjsLight*>(this) = spec;
   targetbody_ = spec_targetbody_;
   targetbody = (mjString)&targetbody_;
 }
@@ -2658,13 +2694,14 @@ void mjCLight::Compile(void) {
 
 // constructor
 mjCHField::mjCHField(mjCModel* _model) {
-  mjm_defaultHField(spec);
+  mjs_defaultHField(spec);
+  elemtype = mjOBJ_HFIELD;
 
   // set model pointer
   model = _model;
 
   // clear variables
-  data = 0;
+  data.clear();
   spec_file_.clear();
   spec_userdata_.clear();
 
@@ -2677,8 +2714,26 @@ mjCHField::mjCHField(mjCModel* _model) {
 
 
 
+mjCHField::mjCHField(const mjCHField& other) {
+  *this = other;
+}
+
+
+
+mjCHField& mjCHField::operator=(const mjCHField& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCHField_*>(this) = static_cast<const mjCHField_&>(other);
+    *static_cast<mjsHField*>(this) = static_cast<const mjsHField&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCHField::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.file = (mjString)&spec_file_;
   spec.content_type = (mjString)&spec_content_type_;
@@ -2689,7 +2744,7 @@ void mjCHField::PointToLocal() {
 
 
 void mjCHField::CopyFromSpec() {
-  *static_cast<mjmHField*>(this) = spec;
+  *static_cast<mjsHField*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   userdata_ = spec_userdata_;
@@ -2698,10 +2753,7 @@ void mjCHField::CopyFromSpec() {
   userdata = (mjFloatVec)&userdata_;
 
   // clear precompiled asset. TODO: use asset cache
-  if (data) {
-    mju_free(data);
-    data = 0;
-  }
+  data.clear();
   if (!file_.empty()) {
     nrow = 0;
     ncol = 0;
@@ -2712,9 +2764,7 @@ void mjCHField::CopyFromSpec() {
 
 // destructor
 mjCHField::~mjCHField() {
-  if (data) {
-    mju_free(data);
-  }
+  data.clear();
   userdata_.clear();
   spec_userdata_.clear();
 }
@@ -2754,13 +2804,13 @@ void mjCHField::LoadCustom(mjResource* resource) {
   }
 
   // allocate
-  data = (float*) mju_malloc(nrow*ncol*sizeof(float));
-  if (!data) {
+  data.assign(nrow*ncol, 0);
+  if (data.empty()) {
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
   // copy data
-  memcpy(data, (void*)(pint+2), nrow*ncol*sizeof(float));
+  memcpy(data.data(), (void*)(pint+2), nrow*ncol*sizeof(float));
 }
 
 
@@ -2793,8 +2843,8 @@ void mjCHField::LoadPNG(mjResource* resource) {
   }
 
   // allocate
-  data = (float*) mju_malloc(w*h*sizeof(float));
-  if (!data) {
+  data.assign(w*h, 0);
+  if (data.empty()) {
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
@@ -2816,11 +2866,11 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
   // copy userdata into data
   if (!userdata_.empty()) {
-    data = (float*) mju_malloc(nrow*ncol*sizeof(float));
-    if (!data) {
+    data.assign(nrow*ncol, 0);
+    if (data.empty()) {
       throw mjCError(this, "could not allocate buffers in hfield");
     }
-    memcpy(data, userdata_.data(), nrow*ncol*sizeof(float));
+    memcpy(data.data(), userdata_.data(), nrow*ncol*sizeof(float));
   }
 
   // check size parameters
@@ -2837,7 +2887,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
   // load from file if specified
   if (!file_.empty()) {
     // make sure hfield was not already specified manually
-    if (nrow || ncol || data) {
+    if (nrow || ncol || !data.empty()) {
       throw mjCError(this,
                      "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
     }
@@ -2870,7 +2920,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
   }
 
   // make sure hfield was specified (from file or manually)
-  if (nrow<1 || ncol<1 || data==0) {
+  if (nrow<1 || ncol<1 || data.empty()) {
     throw mjCError(this, "hfield '%s' (id = %d) not specified", name.c_str(), id);
   }
 
@@ -2897,7 +2947,8 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCTexture::mjCTexture(mjCModel* _model) {
-  mjm_defaultTexture(spec);
+  mjs_defaultTexture(spec);
+  elemtype = mjOBJ_TEXTURE;
 
   // set model pointer
   model = _model;
@@ -2910,7 +2961,7 @@ mjCTexture::mjCTexture(mjCModel* _model) {
   spec_cubefiles_.assign(6, "");
 
   // clear internal variables
-  rgb = 0;
+  rgb.clear();
 
   // point to local
   PointToLocal();
@@ -2921,8 +2972,25 @@ mjCTexture::mjCTexture(mjCModel* _model) {
 
 
 
+mjCTexture::mjCTexture(const mjCTexture& other) {
+  *this = other;
+}
+
+
+
+mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCTexture_*>(this) = static_cast<const mjCTexture_&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCTexture::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -2934,7 +3002,7 @@ void mjCTexture::PointToLocal() {
 
 
 void mjCTexture::CopyFromSpec() {
-  *static_cast<mjmTexture*>(this) = spec;
+  *static_cast<mjsTexture*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   cubefiles_ = spec_cubefiles_;
@@ -2943,20 +3011,14 @@ void mjCTexture::CopyFromSpec() {
   cubefiles = (mjStringVec)&cubefiles_;
 
   // clear precompiled asset. TODO: use asset cache
-  if (rgb) {
-    mju_free(rgb);
-    rgb = 0;
-  }
+  rgb.clear();
 }
 
 
 
 // free data storage allocated by lodepng
 mjCTexture::~mjCTexture() {
-  if (rgb) {
-    mju_free(rgb);
-    rgb = 0;
-  }
+  rgb.clear();
 }
 
 
@@ -3043,21 +3105,21 @@ void mjCTexture::Builtin2D(void) {
         double pos = 2*sqrt(x*x+y*y) - 1;
 
         // interpolate through sigmoid
-        interp(rgb + 3*(r*width+c), rgb2, rgb1, pos);
+        interp(rgb.data() + 3*(r*width+c), rgb2, rgb1, pos);
       }
     }
   }
 
   // checker
   else if (builtin==mjBUILTIN_CHECKER) {
-    checker(rgb, RGB1, RGB2, width, height);
+    checker(rgb.data(), RGB1, RGB2, width, height);
   }
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
     for (int r=0; r<height; r++) {
       for (int c=0; c<width; c++) {
-        memcpy(rgb+3*(r*width+c), RGB1, 3);
+        memcpy(rgb.data()+3*(r*width+c), RGB1, 3);
       }
     }
   }
@@ -3067,28 +3129,28 @@ void mjCTexture::Builtin2D(void) {
   // edge
   if (mark==mjMARK_EDGE) {
     for (int r=0; r<height; r++) {
-      memcpy(rgb+3*(r*width+0), RGBm, 3);
-      memcpy(rgb+3*(r*width+width-1), RGBm, 3);
+      memcpy(rgb.data()+3*(r*width+0), RGBm, 3);
+      memcpy(rgb.data()+3*(r*width+width-1), RGBm, 3);
     }
     for (int c=0; c<width; c++) {
-      memcpy(rgb+3*(0*width+c), RGBm, 3);
-      memcpy(rgb+3*((height-1)*width+c), RGBm, 3);
+      memcpy(rgb.data()+3*(0*width+c), RGBm, 3);
+      memcpy(rgb.data()+3*((height-1)*width+c), RGBm, 3);
     }
   }
 
   // cross
   else if (mark==mjMARK_CROSS) {
     for (int r=0; r<height; r++) {
-      memcpy(rgb+3*(r*width+width/2), RGBm, 3);
+      memcpy(rgb.data()+3*(r*width+width/2), RGBm, 3);
     }
     for (int c=0; c<width; c++) {
-      memcpy(rgb+3*(height/2*width+c), RGBm, 3);
+      memcpy(rgb.data()+3*(height/2*width+c), RGBm, 3);
     }
   }
 
   // random dots
   else if (mark==mjMARK_RANDOM && random>0) {
-    randomdot(rgb, markrgb, width, height, random);
+    randomdot(rgb.data(), markrgb, width, height, random);
   }
 }
 
@@ -3097,65 +3159,67 @@ void mjCTexture::Builtin2D(void) {
 // make builtin: Cube
 void mjCTexture::BuiltinCube(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3], RGBi[3];
+  int w = width;
+  int ww = width*width;
 
   // convert fixed colors
-  for (int j=0; j<3; j++) {
-    RGB1[j] = (mjtByte)(255*rgb1[j]);
-    RGB2[j] = (mjtByte)(255*rgb2[j]);
-    RGBm[j] = (mjtByte)(255*markrgb[j]);
+  for (int j = 0; j < 3; j++) {
+    RGB1[j] = (mjtByte)(255 * rgb1[j]);
+    RGB2[j] = (mjtByte)(255 * rgb2[j]);
+    RGBm[j] = (mjtByte)(255 * markrgb[j]);
   }
 
   //------------------ faces
 
   // gradient
-  if (builtin==mjBUILTIN_GRADIENT) {
-    for (int r=0; r<width; r++) {
-      for (int c=0; c<width; c++) {
+  if (builtin == mjBUILTIN_GRADIENT) {
+    for (int r = 0; r < w; r++) {
+      for (int c = 0; c < w; c++) {
         // compute normalized pixel coordinates
-        double x = 2*c/((double)(width-1)) - 1;
-        double y = 1 - 2*r/((double)(width-1));
+        double x = 2 * c / ((double)(w - 1)) - 1;
+        double y = 1 - 2 * r / ((double)(w - 1));
 
         // compute normalized elevation for sides and up/down
-        double elside = asin(y/sqrt(1+x*x+y*y)) / (0.5*mjPI);
-        double elup = 1 - acos(1.0/sqrt(1+x*x+y*y)) / (0.5*mjPI);
+        double elside = asin(y / sqrt(1 + x * x + y * y)) / (0.5 * mjPI);
+        double elup = 1 - acos(1.0 / sqrt(1 + x * x + y * y)) / (0.5 * mjPI);
 
         // set sides
         interp(RGBi, rgb1, rgb2, elside);
-        memcpy(rgb+0*3*width*width+3*(r*width+c), RGBi, 3);     // 0: right
-        memcpy(rgb+1*3*width*width+3*(r*width+c), RGBi, 3);     // 1: left
-        memcpy(rgb+4*3*width*width+3*(r*width+c), RGBi, 3);     // 4: front
-        memcpy(rgb+5*3*width*width+3*(r*width+c), RGBi, 3);     // 5: back
+        memcpy(rgb.data() + 0 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 0: right
+        memcpy(rgb.data() + 1 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 1: left
+        memcpy(rgb.data() + 4 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 4: front
+        memcpy(rgb.data() + 5 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 5: back
 
         // set up and down
-        interp(rgb+2*3*width*width+3*(r*width+c), rgb1, rgb2, elup);    // 2: up
-        interp(rgb+3*3*width*width+3*(r*width+c), rgb1, rgb2, -elup);   // 3: down
+        interp(rgb.data() + 2 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, elup);  // 2: up
+        interp(rgb.data() + 3 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, -elup);  // 3: down
       }
     }
   }
 
   // checker
-  else if (builtin==mjBUILTIN_CHECKER) {
-    checker(rgb+0*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+1*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+2*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+3*3*width*width, RGB1, RGB2, width, width);
-    checker(rgb+4*3*width*width, RGB2, RGB1, width, width);
-    checker(rgb+5*3*width*width, RGB2, RGB1, width, width);
+  else if (builtin == mjBUILTIN_CHECKER) {
+    checker(rgb.data() + 0 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 1 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 2 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 3 * 3 * ww, RGB1, RGB2, w, w);
+    checker(rgb.data() + 4 * 3 * ww, RGB2, RGB1, w, w);
+    checker(rgb.data() + 5 * 3 * ww, RGB2, RGB1, w, w);
   }
 
   // flat
-  else if (builtin==mjBUILTIN_FLAT) {
-    for (int r=0; r<width; r++) {
-      for (int c=0; c<width; c++) {
+  else if (builtin == mjBUILTIN_FLAT) {
+    for (int r = 0; r < w; r++) {
+      for (int c = 0; c < w; c++) {
         // set sides and up
-        memcpy(rgb+0*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+1*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+2*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+4*3*width*width+3*(r*width+c), RGB1, 3);
-        memcpy(rgb+5*3*width*width+3*(r*width+c), RGB1, 3);
+        memcpy(rgb.data() + 0 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 1 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 2 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 4 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(rgb.data() + 5 * 3 * ww + 3 * (r * w + c), RGB1, 3);
 
         // set down
-        memcpy(rgb+3*3*width*width+3*(r*width+c), RGB2, 3);
+        memcpy(rgb.data() + 3 * 3 * ww + 3 * (r * w + c), RGB2, 3);
       }
     }
   }
@@ -3163,38 +3227,36 @@ void mjCTexture::BuiltinCube(void) {
   //------------------ marks
 
   // edge
-  if (mark==mjMARK_EDGE) {
-    for (int j=0; j<6; j++) {
-      for (int r=0; r<width; r++) {
-        memcpy(rgb+j*3*width*width+3*(r*width+0), RGBm, 3);
-        memcpy(rgb+j*3*width*width+3*(r*width+width-1), RGBm, 3);
+  if (mark == mjMARK_EDGE) {
+    for (int j = 0; j < 6; j++) {
+      for (int r = 0; r < w; r++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (r * w + 0), RGBm, 3);
+        memcpy(rgb.data() + j * 3 * ww + 3 * (r * w + w - 1), RGBm, 3);
       }
-      for (int c=0; c<width; c++) {
-        memcpy(rgb+j*3*width*width+3*(0*width+c), RGBm, 3);
-        memcpy(rgb+j*3*width*width+3*((width-1)*width+c), RGBm, 3);
+      for (int c = 0; c < w; c++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (0 * w + c), RGBm, 3);
+        memcpy(rgb.data() + j * 3 * ww + 3 * ((w - 1) * w + c), RGBm, 3);
       }
     }
   }
 
   // cross
-  else if (mark==mjMARK_CROSS) {
-    for (int j=0; j<6; j++) {
-      for (int r=0; r<width; r++) {
-        memcpy(rgb+j*3*width*width+3*(r*width+width/2), RGBm, 3);
+  else if (mark == mjMARK_CROSS) {
+    for (int j = 0; j < 6; j++) {
+      for (int r = 0; r < w; r++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (r * w + w / 2), RGBm, 3);
       }
-      for (int c=0; c<width; c++) {
-        memcpy(rgb+j*3*width*width+3*(width/2*width+c), RGBm, 3);
+      for (int c = 0; c < w; c++) {
+        memcpy(rgb.data() + j * 3 * ww + 3 * (w / 2 * w + c), RGBm, 3);
       }
     }
   }
 
   // random dots
-  else if (mark==mjMARK_RANDOM && random>0) {
-    randomdot(rgb, markrgb, width, height, random);
+  else if (mark == mjMARK_RANDOM && random > 0) {
+    randomdot(rgb.data(), markrgb, w, height, random);
   }
 }
-
-
 
 // load PNG file
 void mjCTexture::LoadPNG(mjResource* resource,
@@ -3353,12 +3415,12 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
   height = h;
 
   // allocate and copy data
-  rgb = (mjtByte*) mju_malloc(3*width*height);
-  if (!rgb) {
+  rgb.assign(3*width*height, 0);
+  if (rgb.empty()) {
     throw mjCError(this, "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
   }
-  memcpy(rgb, image.data(), 3*width*height);
+  memcpy(rgb.data(), image.data(), 3*width*height);
   image.clear();
 }
 
@@ -3394,8 +3456,8 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   }
 
   // allocate data
-  rgb = (mjtByte*) mju_malloc(3*width*height);
-  if (!rgb) {
+  rgb.assign(3*width*height, 0);
+  if (rgb.empty()) {
     throw mjCError(this,
                    "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
@@ -3403,7 +3465,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
 
   // copy: repeated
   if (gridsize[0]==1 && gridsize[1]==1) {
-    memcpy(rgb, image.data(), 3*width*width);
+    memcpy(rgb.data(), image.data(), 3*width*width);
   }
 
   // copy: grid
@@ -3437,7 +3499,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
         int rstart = width*(k/gridsize[1]);
         int cstart = width*(k%gridsize[1]);
         for (int j=0; j<width; j++) {
-          memcpy(rgb+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
+          memcpy(rgb.data()+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
         }
 
         // mark as defined
@@ -3493,11 +3555,11 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // first file: set size and allocate data
-      if (!rgb) {
+      if (rgb.empty()) {
         width = w;
         height = 6*width;
-        rgb = (mjtByte*) mju_malloc(3*width*height);
-        if (!rgb) {
+        rgb.assign(3*width*height, 0);
+        if (rgb.empty()) {
           throw mjCError(this,
                          "Could not allocate memory for texture '%s' (id %d)",
                          (const char*)name.c_str(), id);
@@ -3512,7 +3574,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // copy data
-      memcpy(rgb+i*3*width*width, image.data(), 3*width*width);
+      memcpy(rgb.data()+i*3*width*width, image.data(), 3*width*width);
       image.clear();
 
       // mark as defined
@@ -3555,8 +3617,8 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // allocate data
-    rgb = (mjtByte*) mju_malloc(3*width*height);
-    if (!rgb) {
+    rgb.assign(3*width*height, 0);
+    if (rgb.empty()) {
       throw mjCError(this,
                      "Could not allocate memory for texture '%s' (id %d)",
                      (const char*)name.c_str(), id);
@@ -3616,7 +3678,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR
-  if (!rgb) {
+  if (rgb.empty()) {
     throw mjCError(this,
                    "texture '%s' (id %d) was not specified", (const char*)name.c_str(), id);
   }
@@ -3628,7 +3690,8 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultMaterial(spec);
+  mjs_defaultMaterial(spec);
+  elemtype = mjOBJ_MATERIAL;
 
   // clear internal
   spec_texture_.clear();
@@ -3662,7 +3725,7 @@ mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCMaterial_*>(this) = static_cast<const mjCMaterial_&>(other);
-    *static_cast<mjmMaterial*>(this) = static_cast<const mjmMaterial&>(other);
+    *static_cast<mjsMaterial*>(this) = static_cast<const mjsMaterial&>(other);
   }
   PointToLocal();
   return *this;
@@ -3671,7 +3734,7 @@ mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
 
 
 void mjCMaterial::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.texture = (mjString)&spec_texture_;
@@ -3681,7 +3744,7 @@ void mjCMaterial::PointToLocal() {
 
 
 void mjCMaterial::CopyFromSpec() {
-  *static_cast<mjmMaterial*>(this) = spec;
+  *static_cast<mjsMaterial*>(this) = spec;
   texture_ = spec_texture_;
   texture = (mjString)&texture_;
 }
@@ -3699,7 +3762,8 @@ void mjCMaterial::Compile(void) {
 
 // constructor
 mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultPair(spec);
+  mjs_defaultPair(spec);
+  elemtype = mjOBJ_PAIR;
 
   // set defaults
   spec_geomname1_.clear();
@@ -3738,9 +3802,9 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCPair_*>(this) = static_cast<const mjCPair_&>(other);
-    *static_cast<mjmPair*>(this) = static_cast<const mjmPair&>(other);
-    this->geom1 = other.geom1;
-    this->geom2 = other.geom2;
+    *static_cast<mjsPair*>(this) = static_cast<const mjsPair&>(other);
+    this->geom1 = nullptr;
+    this->geom2 = nullptr;
   }
   PointToLocal();
   return *this;
@@ -3749,7 +3813,7 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
 
 
 void mjCPair::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.geomname1 = (mjString)&spec_geomname1_;
@@ -3759,8 +3823,18 @@ void mjCPair::PointToLocal() {
 
 
 
+void mjCPair::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_geomname1_ = m->prefix + spec_geomname1_ + m->suffix;
+  spec_geomname2_ = m->prefix + spec_geomname2_ + m->suffix;
+}
+
+
+
 void mjCPair::CopyFromSpec() {
-  *static_cast<mjmPair*>(this) = spec;
+  *static_cast<mjsPair*>(this) = spec;
   geomname1_ = spec_geomname1_;
   geomname2_ = spec_geomname2_;
   geomname1 = (mjString)&geomname1_;
@@ -3769,30 +3843,18 @@ void mjCPair::CopyFromSpec() {
 
 
 
-// compiler
-void mjCPair::Compile(void) {
-  CopyFromSpec();
-
-  // check condim
-  if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
-    throw mjCError(this, "invalid condim in collision %d", "", id);
-  }
-
+void mjCPair::ResolveReferences(const mjCModel* m) {
   // find geom 1
-  geom1 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname1_);
+  geom1 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname1_);
   if (!geom1) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname1_.c_str(), id);
   }
 
   // find geom 2
-  geom2 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname2_);
+  geom2 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname2_);
   if (!geom2) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname2_.c_str(), id);
   }
-
-  // mark geoms as not visual
-  geom1->SetNotVisual();
-  geom2->SetNotVisual();
 
   // swap if body1 > body2
   if (geom1->body->id > geom2->body->id) {
@@ -3807,6 +3869,25 @@ void mjCPair::Compile(void) {
 
   // get geom ids and body signature
   signature = ((geom1->body->id)<<16) + geom2->body->id;
+}
+
+
+
+// compiler
+void mjCPair::Compile(void) {
+  CopyFromSpec();
+
+  // check condim
+  if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
+    throw mjCError(this, "invalid condim in collision %d", "", id);
+  }
+
+  // find geoms
+  ResolveReferences(model);
+
+  // mark geoms as not visual
+  geom1->SetNotVisual();
+  geom2->SetNotVisual();
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) {
@@ -3923,8 +4004,26 @@ mjCBodyPair::mjCBodyPair(mjCModel* _model) {
 
 
 
+mjCBodyPair::mjCBodyPair(const mjCBodyPair& other) {
+  *this = other;
+}
+
+
+
+mjCBodyPair& mjCBodyPair::operator=(const mjCBodyPair& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCBodyPair_*>(this) = static_cast<const mjCBodyPair_&>(other);
+    *static_cast<mjsExclude*>(this) = static_cast<const mjsExclude&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCBodyPair::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.bodyname1 = (mjString)&spec_bodyname1_;
   spec.bodyname2 = (mjString)&spec_bodyname2_;
@@ -3933,8 +4032,18 @@ void mjCBodyPair::PointToLocal() {
 
 
 
+void mjCBodyPair::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_bodyname1_ = m->prefix + spec_bodyname1_ + m->suffix;
+  spec_bodyname2_ = m->prefix + spec_bodyname2_ + m->suffix;
+}
+
+
+
 void mjCBodyPair::CopyFromSpec() {
-  *static_cast<mjmExclude*>(this) = spec;
+  *static_cast<mjsExclude*>(this) = spec;
   bodyname1_ = spec_bodyname1_;
   bodyname2_ = spec_bodyname2_;
   bodyname1 = (mjString)&bodyname1_;
@@ -3943,18 +4052,15 @@ void mjCBodyPair::CopyFromSpec() {
 
 
 
-// compiler
-void mjCBodyPair::Compile(void) {
-  CopyFromSpec();
-
+void mjCBodyPair::ResolveReferences(const mjCModel* m) {
   // find body 1
-  mjCBody* pb1 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname1_);
+  mjCBody* pb1 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname1_);
   if (!pb1) {
     throw mjCError(this, "body '%s' not found in bodypair %d", bodyname1_.c_str(), id);
   }
 
   // find body 2
-  mjCBody* pb2 = (mjCBody*)model->FindObject(mjOBJ_BODY, bodyname2_);
+  mjCBody* pb2 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname2_);
   if (!pb2) {
     throw mjCError(this, "body '%s' not found in bodypair %d", bodyname2_.c_str(), id);
   }
@@ -3978,11 +4084,22 @@ void mjCBodyPair::Compile(void) {
 
 
 
+// compiler
+void mjCBodyPair::Compile(void) {
+  CopyFromSpec();
+
+  // find bodies
+  ResolveReferences(model);
+}
+
+
+
 //------------------ class mjCEquality implementation ----------------------------------------------
 
 // initialize default constraint
 mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultEquality(spec);
+  mjs_defaultEquality(spec);
+  elemtype = mjOBJ_EQUALITY;
 
   // clear internal variables
   spec_name1_.clear();
@@ -4017,7 +4134,7 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCEquality_*>(this) = static_cast<const mjCEquality_&>(other);
-    *static_cast<mjmEquality*>(this) = static_cast<const mjmEquality&>(other);
+    *static_cast<mjsEquality*>(this) = static_cast<const mjsEquality&>(other);
   }
   PointToLocal();
   return *this;
@@ -4026,7 +4143,7 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 
 
 void mjCEquality::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.name1 = (mjString)&spec_name1_;
@@ -4035,8 +4152,19 @@ void mjCEquality::PointToLocal() {
 }
 
 
+
+void mjCEquality::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_name1_ = m->prefix + spec_name1_ + m->suffix;
+  spec_name2_ = m->prefix + spec_name2_ + m->suffix;
+}
+
+
+
 void mjCEquality::CopyFromSpec() {
-  *static_cast<mjmEquality*>(this) = spec;
+  *static_cast<mjsEquality*>(this) = spec;
   name1_ = spec_name1_;
   name2_ = spec_name2_;
   name1 = (mjString)&name1_;
@@ -4044,10 +4172,8 @@ void mjCEquality::CopyFromSpec() {
 }
 
 
-// compiler
-void mjCEquality::Compile(void) {
-  CopyFromSpec();
 
+void mjCEquality::ResolveReferences(const mjCModel* m) {
   mjtObj objtype;
   mjCBase *px1, *px2;
   mjtJoint jt1, jt2;
@@ -4066,7 +4192,7 @@ void mjCEquality::Compile(void) {
   }
 
   // find object 1, get id
-  px1 = model->FindObject(objtype, name1_);
+  px1 = m->FindObject(objtype, name1_);
   if (!px1) {
     throw mjCError(this, "unknown element '%s' in equality constraint %d", name1_.c_str(), id);
   }
@@ -4074,7 +4200,7 @@ void mjCEquality::Compile(void) {
 
   // find object 2, get id
   if (!name2_.empty()) {
-    px2 = model->FindObject(objtype, name2_);
+    px2 = m->FindObject(objtype, name2_);
     if (!px2) {
       throw mjCError(this, "unknown element '%s' in equality constraint %d", name2_.c_str(), id);
     }
@@ -4097,11 +4223,6 @@ void mjCEquality::Compile(void) {
     obj2id = 0;
   }
 
-  // make sure flex is not rigid
-  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
-    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
-  }
-
   // make sure the two objects are different
   if (obj1id==obj2id) {
     throw mjCError(this, "element '%s' is repeated in equality constraint %d", name1_.c_str(), id);
@@ -4121,11 +4242,27 @@ void mjCEquality::Compile(void) {
 
 
 
+// compiler
+void mjCEquality::Compile(void) {
+  CopyFromSpec();
+
+  // find objects
+  ResolveReferences(model);
+
+  // make sure flex is not rigid
+  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
+    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
+  }
+}
+
+
+
 //------------------ class mjCTendon implementation ------------------------------------------------
 
 // constructor
 mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultTendon(spec);
+  mjs_defaultTendon(spec);
+  elemtype = mjOBJ_TENDON;
 
   // clear internal variables
   spec_material_.clear();
@@ -4160,8 +4297,12 @@ mjCTendon::mjCTendon(const mjCTendon& other) {
 mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
   if (this != &other) {
     this->spec = other.spec;
-    *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
-    *static_cast<mjmTendon*>(this) = static_cast<const mjmTendon&>(other);
+    *static_cast<mjCTendon_*>(this) = static_cast<const mjCTendon_&>(other);
+    *static_cast<mjsTendon*>(this) = static_cast<const mjsTendon&>(other);
+    for (int i=0; i<other.path.size(); i++) {
+      path.push_back(new mjCWrap(*other.path[i]));
+      path.back()->tendon = this;
+    }
   }
   PointToLocal();
   return *this;
@@ -4173,7 +4314,7 @@ bool mjCTendon::is_limited() const { return islimited(limited, range); }
 
 
 void mjCTendon::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.material = (mjString)&spec_material_;
@@ -4183,8 +4324,19 @@ void mjCTendon::PointToLocal() {
 
 
 
+void mjCTendon::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  for (int i=0; i<path.size(); i++) {
+    path[i]->NameSpace(model);
+  }
+}
+
+
+
 void mjCTendon::CopyFromSpec() {
-  *static_cast<mjmTendon*>(this) = spec;
+  *static_cast<mjsTendon*>(this) = spec;
   material_ = spec_material_;
   userdata_ = spec_userdata_;
   material = (mjString)&material_;
@@ -4208,6 +4360,15 @@ mjCTendon::~mjCTendon() {
   }
 
   path.clear();
+}
+
+
+
+void mjCTendon::SetModel(mjCModel* _model) {
+  model = _model;
+  for (int i=0; i<path.size(); i++) {
+    path[i]->model = _model;
+  }
 }
 
 
@@ -4292,6 +4453,14 @@ mjCWrap* mjCTendon::GetWrap(int id) {
 
 
 
+void mjCTendon::ResolveReferences(const mjCModel* m) {
+  for (int i=0; i<path.size(); i++) {
+    path[i]->ResolveReferences(m);
+  }
+}
+
+
+
 // compiler
 void mjCTendon::Compile(void) {
   CopyFromSpec();
@@ -4326,9 +4495,7 @@ void mjCTendon::Compile(void) {
   }
 
   // compile objects in path
-  for (int i=0; i<sz; i++) {
-    path[i]->Compile();
-  }
+  ResolveReferences(model);
 
   // check path
   for (int i=0; i<sz; i++) {
@@ -4424,6 +4591,8 @@ void mjCTendon::Compile(void) {
 
 // constructor
 mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
+  elemtype = mjOBJ_UNKNOWN;
+
   // set model and tendon pointer
   model = _model;
   tendon = _tendon;
@@ -4441,22 +4610,47 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
 
 
 
+mjCWrap::mjCWrap(const mjCWrap& other) {
+  *this = other;
+}
+
+
+
+mjCWrap& mjCWrap::operator=(const mjCWrap& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCWrap_*>(this) = static_cast<const mjCWrap_&>(other);
+    *static_cast<mjsWrap*>(this) = static_cast<const mjsWrap&>(other);
+    obj = nullptr;
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCWrap::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.info = (mjString)&info;
 }
 
 
 
-// compiler
-void mjCWrap::Compile(void) {
+void mjCWrap::NameSpace(const mjCModel* m) {
+  name = m->prefix + name + m->suffix;
+  sidesite = m->prefix + sidesite + m->suffix;
+}
+
+
+
+void mjCWrap::ResolveReferences(const mjCModel* m) {
   mjCBase *pside;
 
   // handle wrap object types
   switch (type) {
   case mjWRAP_JOINT:                          // joint
     // find joint by name
-    obj = model->FindObject(mjOBJ_JOINT, name);
+    obj = m->FindObject(mjOBJ_JOINT, name);
     if (!obj) {
       throw mjCError(this,
                      "joint '%s' not found in tendon %d, wrap %d",
@@ -4467,7 +4661,7 @@ void mjCWrap::Compile(void) {
 
   case mjWRAP_SPHERE:                         // geom (cylinder type set here)
     // find geom by name
-    obj = model->FindObject(mjOBJ_GEOM, name);
+    obj = m->FindObject(mjOBJ_GEOM, name);
     if (!obj) {
       throw mjCError(this,
                      "geom '%s' not found in tendon %d, wrap %d",
@@ -4486,7 +4680,7 @@ void mjCWrap::Compile(void) {
     // process side site
     if (!sidesite.empty()) {
       // find site by name
-      pside = model->FindObject(mjOBJ_SITE, sidesite);
+      pside = m->FindObject(mjOBJ_SITE, sidesite);
       if (!pside) {
         throw mjCError(this,
                        "side site '%s' not found in tendon %d, wrap %d",
@@ -4510,7 +4704,7 @@ void mjCWrap::Compile(void) {
 
   case mjWRAP_SITE:                           // site
     // find site by name
-    obj = model->FindObject(mjOBJ_SITE, name);
+    obj = m->FindObject(mjOBJ_SITE, name);
     if (!obj) {
       throw mjCError(this, "site '%s' not found in wrap %d", name.c_str(), id);
     }
@@ -4527,9 +4721,11 @@ void mjCWrap::Compile(void) {
 
 // initialize defaults
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultActuator(spec);
+  mjs_defaultActuator(spec);
+  elemtype = mjOBJ_ACTUATOR;
 
   // clear private variables
+  ptarget = nullptr;
   spec_target_.clear();
   spec_slidersite_.clear();
   spec_refsite_.clear();
@@ -4564,7 +4760,8 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCActuator_*>(this) = static_cast<const mjCActuator_&>(other);
-    *static_cast<mjmActuator*>(this) = static_cast<const mjmActuator&>(other);
+    *static_cast<mjsActuator*>(this) = static_cast<const mjsActuator&>(other);
+    ptarget = nullptr;
   }
   PointToLocal();
   return *this;
@@ -4579,7 +4776,7 @@ bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange)
 
 
 void mjCActuator::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -4593,8 +4790,19 @@ void mjCActuator::PointToLocal() {
 
 
 
+void mjCActuator::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_target_ = m->prefix + spec_target_ + m->suffix;
+  spec_refsite_ = m->prefix + spec_refsite_ + m->suffix;
+  spec_slidersite_ = m->prefix + spec_slidersite_ + m->suffix;
+}
+
+
+
 void mjCActuator::CopyFromSpec() {
-  *static_cast<mjmActuator*>(this) = spec;
+  *static_cast<mjsActuator*>(this) = spec;
   userdata_ = spec_userdata_;
   target_ = spec_target_;
   refsite_ = spec_refsite_;
@@ -4611,31 +4819,13 @@ void mjCActuator::CopyFromSpec() {
 
 
 
-// compiler
-void mjCActuator::Compile(void) {
-  CopyFromSpec();
+void mjCActuator::ResolveReferences(const mjCModel* m) {
   mjCJoint* pjnt;
-
-  // resize userdata
-  if (userdata_.size() > model->nuser_actuator) {
-    throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
-                   name.c_str(), id);
-  }
-  userdata_.resize(model->nuser_actuator);
-
-  // check for missing target name
-  if (target_.empty()) {
-    throw mjCError(this,
-                   "missing transmission target for actuator '%s' (id = %d)", name.c_str(), id);
-  }
-
-  // find transmission target in object arrays
-  mjCBase* ptarget = 0;
   switch (trntype) {
   case mjTRN_JOINT:
   case mjTRN_JOINTINPARENT:
     // get joint
-    ptarget = model->FindObject(mjOBJ_JOINT, target_);
+    ptarget = m->FindObject(mjOBJ_JOINT, target_);
     if (!ptarget) {
       throw mjCError(this,
                      "unknown transmission target '%s' for actuator id = %d", target_.c_str(), id);
@@ -4655,7 +4845,7 @@ void mjCActuator::Compile(void) {
     if (slidersite_.empty()) {
       throw mjCError(this, "missing base site for slider-crank '%s' (id = %d)", name.c_str(), id);
     }
-    ptarget = model->FindObject(mjOBJ_SITE, slidersite_);
+    ptarget = m->FindObject(mjOBJ_SITE, slidersite_);
     if (!ptarget) {
       throw mjCError(this, "base site '%s' not found for actuator %d", slidersite_.c_str(), id);
     }
@@ -4668,18 +4858,18 @@ void mjCActuator::Compile(void) {
     }
 
     // proceed with regular target
-    ptarget = model->FindObject(mjOBJ_SITE, target_);
+    ptarget = m->FindObject(mjOBJ_SITE, target_);
     break;
 
   case mjTRN_TENDON:
     // get tendon
-    ptarget = model->FindObject(mjOBJ_TENDON, target_);
+    ptarget = m->FindObject(mjOBJ_TENDON, target_);
     break;
 
   case mjTRN_SITE:
     // get refsite, copy into trnid[1]
     if (!refsite_.empty()) {
-      ptarget = model->FindObject(mjOBJ_SITE, refsite_);
+      ptarget = m->FindObject(mjOBJ_SITE, refsite_);
       if (!ptarget) {
         throw mjCError(this, "reference site '%s' not found for actuator %d", refsite_.c_str(), id);
       }
@@ -4687,12 +4877,12 @@ void mjCActuator::Compile(void) {
     }
 
     // proceed with regular site target
-    ptarget = model->FindObject(mjOBJ_SITE, target_);
+    ptarget = m->FindObject(mjOBJ_SITE, target_);
     break;
 
   case mjTRN_BODY:
     // get body
-    ptarget = model->FindObject(mjOBJ_BODY, target_);
+    ptarget = m->FindObject(mjOBJ_BODY, target_);
     break;
 
   default:
@@ -4705,6 +4895,29 @@ void mjCActuator::Compile(void) {
   } else {
     trnid[0] = ptarget->id;
   }
+}
+
+
+
+// compiler
+void mjCActuator::Compile(void) {
+  CopyFromSpec();
+
+  // resize userdata
+  if (userdata_.size() > model->nuser_actuator) {
+    throw mjCError(this, "user has more values than nuser_actuator in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  userdata_.resize(model->nuser_actuator);
+
+  // check for missing target name
+  if (target_.empty()) {
+    throw mjCError(this,
+                   "missing transmission target for actuator '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // find transmission target in object arrays
+  ResolveReferences(model);
 
   // handle inheritrange
   if (gaintype == mjGAIN_FIXED && biastype == mjBIAS_AFFINE &&
@@ -4724,7 +4937,7 @@ void mjCActuator::Compile(void) {
 
     const double* target_range;
     if (trntype == mjTRN_JOINT) {
-      pjnt = (mjCJoint*) ptarget;
+      mjCJoint* pjnt = (mjCJoint*) ptarget;
       if (pjnt->spec.type != mjJNT_HINGE && pjnt->spec.type != mjJNT_SLIDE) {
         throw mjCError(this, "inheritrange can only be used with hinge and slide joints, "
                        "actuator '%s' (id = %d)", name.c_str(), id);
@@ -4837,9 +5050,10 @@ void mjCActuator::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-    model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-    const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    plugin.instance = plugin_instance;
+    const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
       throw mjCError(this, "plugin '%s' does not support actuators", pplugin->name);
     }
@@ -4852,7 +5066,8 @@ void mjCActuator::Compile(void) {
 
 // initialize defaults
 mjCSensor::mjCSensor(mjCModel* _model) {
-  mjm_defaultSensor(spec);
+  mjs_defaultSensor(spec);
+  elemtype = mjOBJ_SENSOR;
 
   // set model
   model = _model;
@@ -4862,19 +5077,40 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   spec_refname_.clear();
   spec_userdata_.clear();
   obj = nullptr;
+  ref = nullptr;
   refid = -1;
 
   // in case this sensor is not compiled
   CopyFromSpec();
 
   // point to local
-  MakePointerLocal();
+  PointToLocal();
 }
 
 
 
-void mjCSensor::MakePointerLocal() {
-  spec.element = (mjElement)this;
+mjCSensor::mjCSensor(const mjCSensor& other) {
+  *this = other;
+}
+
+
+
+mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCSensor_*>(this) = static_cast<const mjCSensor_&>(other);
+    *static_cast<mjsSensor*>(this) = static_cast<const mjsSensor&>(other);
+    obj = nullptr;
+    ref = nullptr;
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
+void mjCSensor::PointToLocal() {
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.userdata = (mjDoubleVec)&spec_userdata_;
@@ -4887,8 +5123,18 @@ void mjCSensor::MakePointerLocal() {
 
 
 
+void mjCSensor::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_objname_ = m->prefix + spec_objname_ + m->suffix;
+  spec_refname_ = m->prefix + spec_refname_ + m->suffix;
+}
+
+
+
 void mjCSensor::CopyFromSpec() {
-  *static_cast<mjmSensor*>(this) = spec;
+  *static_cast<mjsSensor*>(this) = spec;
   userdata_ = spec_userdata_;
   objname_ = spec_objname_;
   refname_ = spec_refname_;
@@ -4903,27 +5149,7 @@ void mjCSensor::CopyFromSpec() {
 
 
 
-// compiler
-void mjCSensor::Compile(void) {
-  CopyFromSpec();
-
-  // resize userdata
-  if (userdata_.size() > model->nuser_sensor) {
-    throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
-                   name.c_str(), id);
-  }
-  userdata_.resize(model->nuser_sensor);
-
-  // require non-negative noise
-  if (noise<0) {
-    throw mjCError(this, "negative noise in sensor '%s' (id = %d)", name.c_str(), id);
-  }
-
-  // require non-negative cutoff
-  if (cutoff<0) {
-    throw mjCError(this, "negative cutoff in sensor '%s' (id = %d)", name.c_str(), id);
-  }
-
+void mjCSensor::ResolveReferences(const mjCModel* m) {
   // get objid from objtype and objname
   if (objtype!=mjOBJ_UNKNOWN) {
     // check for missing object name
@@ -4934,7 +5160,7 @@ void mjCSensor::Compile(void) {
     }
 
     // find name
-    obj = model->FindObject(objtype, objname_);
+    obj = m->FindObject(objtype, objname_);
     if (!obj) {
       throw mjCError(this,
                      "unrecognized name of sensorized object in sensor '%s' (id = %d)",
@@ -4961,8 +5187,8 @@ void mjCSensor::Compile(void) {
     }
 
     // find name
-    mjCBase* pref = model->FindObject(reftype, refname_);
-    if (!pref) {
+    ref = m->FindObject(reftype, refname_);
+    if (!ref) {
       throw mjCError(this,
                      "unrecognized name of reference frame object in sensor '%s' (id = %d)",
                      name.c_str(), id);
@@ -4977,8 +5203,35 @@ void mjCSensor::Compile(void) {
     }
 
     // get sensorized object id
-    refid = pref->id;
+    refid = ref->id;
   }
+}
+
+
+
+// compiler
+void mjCSensor::Compile(void) {
+  CopyFromSpec();
+
+  // resize userdata
+  if (userdata_.size() > model->nuser_sensor) {
+    throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  userdata_.resize(model->nuser_sensor);
+
+  // require non-negative noise
+  if (noise<0) {
+    throw mjCError(this, "negative noise in sensor '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // require non-negative cutoff
+  if (cutoff<0) {
+    throw mjCError(this, "negative cutoff in sensor '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // Find referenced object
+  ResolveReferences(model);
 
   // process according to sensor type
   switch (type) {
@@ -5020,7 +5273,7 @@ void mjCSensor::Compile(void) {
 
     // check for camera resolution for camera projection sensor
     if (type==mjSENS_CAMPROJECTION) {
-      mjCCamera* camref = (mjCCamera*) model->FindObject(mjOBJ_CAMERA, refname_);
+      mjCCamera* camref = (mjCCamera*)ref;
       if (!camref->resolution[0] || !camref->resolution[1]) {
         throw mjCError(this,
                        "camera projection sensor requires camera resolution '%s' (id = %d)",
@@ -5271,9 +5524,10 @@ void mjCSensor::Compile(void) {
 
     // resolve plugin instance, or create one if using the "plugin" attribute shortcut
     {
-      mjCPlugin** plugin_instance = (mjCPlugin**)&plugin.instance;
-      model->ResolvePlugin(this, plugin_name, plugin_instance_name, plugin_instance);
-      const mjpPlugin* pplugin = mjp_getPluginAtSlot((*plugin_instance)->spec.plugin_slot);
+      mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+      model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+      plugin.instance = plugin_instance;
+      const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
       if (!(pplugin->capabilityflags & mjPLUGIN_SENSOR)) {
         throw mjCError(this, "plugin '%s' does not support sensors", pplugin->name);
       }
@@ -5300,7 +5554,8 @@ void mjCSensor::Compile(void) {
 
 // constructor
 mjCNumeric::mjCNumeric(mjCModel* _model) {
-  mjm_defaultNumeric(spec);
+  mjs_defaultNumeric(spec);
+  elemtype = mjOBJ_NUMERIC;
 
   // set model pointer
   model = _model;
@@ -5317,8 +5572,26 @@ mjCNumeric::mjCNumeric(mjCModel* _model) {
 
 
 
+mjCNumeric::mjCNumeric(const mjCNumeric& other) {
+  *this = other;
+}
+
+
+
+mjCNumeric& mjCNumeric::operator=(const mjCNumeric& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCNumeric_*>(this) = static_cast<const mjCNumeric_&>(other);
+    *static_cast<mjsNumeric*>(this) = static_cast<const mjsNumeric&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCNumeric::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.data = (mjDoubleVec)&spec_data_;
   spec.info = (mjString)&info;
@@ -5327,7 +5600,7 @@ void mjCNumeric::PointToLocal() {
 
 
 void mjCNumeric::CopyFromSpec() {
-  *static_cast<mjmNumeric*>(this) = spec;
+  *static_cast<mjsNumeric*>(this) = spec;
   data_ = spec_data_;
   data = (mjDoubleVec)&data_;
 }
@@ -5370,7 +5643,8 @@ void mjCNumeric::Compile(void) {
 
 // constructor
 mjCText::mjCText(mjCModel* _model) {
-  mjm_defaultText(spec);
+  mjs_defaultText(spec);
+  elemtype = mjOBJ_TEXT;
 
   // set model pointer
   model = _model;
@@ -5387,8 +5661,26 @@ mjCText::mjCText(mjCModel* _model) {
 
 
 
+mjCText::mjCText(const mjCText& other) {
+  *this = other;
+}
+
+
+
+mjCText& mjCText::operator=(const mjCText& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCText_*>(this) = static_cast<const mjCText_&>(other);
+    *static_cast<mjsText*>(this) = static_cast<const mjsText&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCText::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.data = (mjString)&spec_data_;
   spec.info = (mjString)&info;
@@ -5397,7 +5689,7 @@ void mjCText::PointToLocal() {
 
 
 void mjCText::CopyFromSpec() {
-  *static_cast<mjmText*>(this) = spec;
+  *static_cast<mjsText*>(this) = spec;
   data_ = spec_data_;
   data = (mjString)&data_;
 }
@@ -5428,7 +5720,8 @@ void mjCText::Compile(void) {
 
 // constructor
 mjCTuple::mjCTuple(mjCModel* _model) {
-  mjm_defaultTuple(spec);
+  mjs_defaultTuple(spec);
+  elemtype = mjOBJ_TUPLE;
 
   // set model pointer
   model = _model;
@@ -5448,8 +5741,26 @@ mjCTuple::mjCTuple(mjCModel* _model) {
 
 
 
+mjCTuple::mjCTuple(const mjCTuple& other) {
+  *this = other;
+}
+
+
+
+mjCTuple& mjCTuple::operator=(const mjCTuple& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCTuple_*>(this) = static_cast<const mjCTuple_&>(other);
+    *static_cast<mjsTuple*>(this) = static_cast<const mjsTuple&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCTuple::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.objtype = (mjIntVec)&spec_objtype_;
   spec.objname = (mjStringVec)&spec_objname_;
@@ -5459,8 +5770,19 @@ void mjCTuple::PointToLocal() {
 
 
 
+void mjCTuple::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  for (int i=0; i<spec_objname_.size(); i++) {
+    spec_objname_[i] = m->prefix + spec_objname_[i] + m->suffix;
+  }
+}
+
+
+
 void mjCTuple::CopyFromSpec() {
-  *static_cast<mjmTuple*>(this) = spec;
+  *static_cast<mjsTuple*>(this) = spec;
   objtype_ = spec_objtype_;
   objname_ = spec_objname_;
   objprm_ = spec_objprm_;
@@ -5484,10 +5806,7 @@ mjCTuple::~mjCTuple() {
 
 
 
-// compiler
-void mjCTuple::Compile(void) {
-  CopyFromSpec();
-
+void mjCTuple::ResolveReferences(const mjCModel* m) {
   // check for empty tuple
   if (objtype_.empty()) {
     throw mjCError(this, "tuple '%s' (id = %d) is empty", name.c_str(), id);
@@ -5505,7 +5824,7 @@ void mjCTuple::Compile(void) {
   // find objects, fill in ids
   for (int i=0; i<objtype_.size(); i++) {
     // find object by type and name
-    mjCBase* res = model->FindObject(objtype_[i], objname_[i]);
+    mjCBase* res = m->FindObject(objtype_[i], objname_[i]);
     if (!res) {
       throw mjCError(this, "unrecognized object '%s' in tuple %d", objname_[i].c_str(), id);
     }
@@ -5522,11 +5841,20 @@ void mjCTuple::Compile(void) {
 
 
 
+// compiler
+void mjCTuple::Compile(void) {
+  CopyFromSpec();
+  ResolveReferences(model);
+}
+
+
+
 //------------------ class mjCKey implementation ---------------------------------------------------
 
 // constructor
 mjCKey::mjCKey(mjCModel* _model) {
-  mjm_defaultKey(spec);
+  mjs_defaultKey(spec);
+  elemtype = mjOBJ_KEY;
 
   // set model pointer
   model = _model;
@@ -5548,8 +5876,26 @@ mjCKey::mjCKey(mjCModel* _model) {
 
 
 
+mjCKey::mjCKey(const mjCKey& other) {
+  *this = other;
+}
+
+
+
+mjCKey& mjCKey::operator=(const mjCKey& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCKey_*>(this) = static_cast<const mjCKey_&>(other);
+    *static_cast<mjsKey*>(this) = static_cast<const mjsKey&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCKey::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.qpos = (mjDoubleVec)&spec_qpos_;
   spec.qvel = (mjDoubleVec)&spec_qvel_;
@@ -5563,7 +5909,7 @@ void mjCKey::PointToLocal() {
 
 
 void mjCKey::CopyFromSpec() {
-  *static_cast<mjmKey*>(this) = spec;
+  *static_cast<mjsKey*>(this) = spec;
   qpos_ = spec_qpos_;
   qvel_ = spec_qvel_;
   act_ = spec_act_;
@@ -5691,10 +6037,28 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   instance_name.clear();
 
   // public interface
-  mjm_defaultPlugin(spec);
+  mjs_defaultPlugin(spec);
+  elemtype = mjOBJ_PLUGIN;
   spec.name = (mjString)&name;
   spec.instance_name = (mjString)&instance_name;
   spec.info = (mjString)&info;
+}
+
+
+
+mjCPlugin::mjCPlugin(const mjCPlugin& other) {
+  *this = other;
+}
+
+
+
+mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCPlugin_*>(this) = static_cast<const mjCPlugin_&>(other);
+    parent = this;
+  }
+  return *this;
 }
 
 

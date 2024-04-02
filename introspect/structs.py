@@ -1218,17 +1218,17 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='nuserdata',
                  type=ValueType(name='int'),
-                 doc='number of extra fields in mjData',
+                 doc='number of mjtNums reserved for the user',
              ),
              StructFieldDecl(
                  name='nsensordata',
                  type=ValueType(name='int'),
-                 doc='number of fields in sensor data vector',
+                 doc='number of mjtNums in sensor data vector',
              ),
              StructFieldDecl(
                  name='npluginstate',
                  type=ValueType(name='int'),
-                 doc='number of fields in plugin state vector',
+                 doc='number of mjtNums in plugin state vector',
              ),
              StructFieldDecl(
                  name='narena',
@@ -1555,6 +1555,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtByte'),
                  ),
                  doc='does joint have actuator force limits    (njnt x 1)',
+             ),
+             StructFieldDecl(
+                 name='jnt_actgravcomp',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='is gravcomp force applied via actuators  (njnt x 1)',
              ),
              StructFieldDecl(
                  name='jnt_solref',

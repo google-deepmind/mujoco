@@ -15,6 +15,7 @@
 from typing import List, Optional, Tuple
 
 import mujoco
+import mujoco.usd.utils
 import numpy as np
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
@@ -38,7 +39,7 @@ class USDMesh:
       geom: mujoco.MjvGeom,
       obj_name: str,
       dataid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
@@ -236,7 +237,7 @@ class USDPrimitiveMesh:
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
@@ -245,7 +246,10 @@ class USDPrimitiveMesh:
     self.rgba = rgba
     self.texture_file = texture_file
 
+    self.usd_prim = Usd.Prim()
+    self.usd_mesh = UsdGeom.Mesh()
     self.prim_mesh = None
+    self.transform_op = Gf.Matrix4d(1.)
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -374,119 +378,6 @@ class USDPrimitiveMesh:
       self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
 
 
-class USDPrimitive:
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
-      texture_file: Optional[str] = None,
-  ):
-    self.stage = stage
-    self.geom = geom
-    self.obj_name = obj_name
-    self.rgba = rgba
-    self.texture_file = texture_file
-
-  def _set_refinement_properties(self):
-    self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
-
-  def _attach_material(self):
-    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.obj_name}")
-    mtl = UsdShade.Material.Define(self.stage, mtl_path)
-    if self.texture_file:
-      bsdf_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("Principled_BSDF")
-      )
-      image_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("Image_Texture")
-      )
-      uvmap_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("uvmap")
-      )
-
-      # settings the bsdf shader attributes
-      bsdf_shader.CreateIdAttr("UsdPreviewSurface")
-      bsdf_shader.CreateInput(
-          "diffuseColor", Sdf.ValueTypeNames.Color3f
-      ).ConnectToSource(image_shader.ConnectableAPI(), "rgb")
-      bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(
-          float(self.rgba[-1])
-      )
-      bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
-          self.geom.shininess
-      )
-      bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
-          1.0 - self.geom.shininess
-      )
-
-      mtl.CreateSurfaceOutput().ConnectToSource(
-          bsdf_shader.ConnectableAPI(), "surface"
-      )
-
-      self.usd_primitive_shape.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
-      UsdShade.MaterialBindingAPI(self.usd_primitive_shape).Bind(mtl)
-
-      # setting the image texture attributes
-      image_shader.CreateIdAttr("UsdUVTexture")
-      image_shader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
-          self.texture_file
-      )
-      image_shader.CreateInput(
-          "sourceColorSpace", Sdf.ValueTypeNames.Token
-      ).Set("sRGB")
-      image_shader.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-          uvmap_shader.ConnectableAPI(), "result"
-      )
-      image_shader.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
-
-      # setting uvmap shader attributes
-      uvmap_shader.CreateIdAttr("UsdPrimvarReader_float2")
-      uvmap_shader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("UVMap")
-      uvmap_shader.CreateOutput("results", Sdf.ValueTypeNames.Float2)
-    else:
-      bsdf_shader = UsdShade.Shader.Define(
-          self.stage, mtl_path.AppendPath("Principled_BSDF")
-      )
-
-      # settings the bsdf shader attributes
-      bsdf_shader.CreateIdAttr("UsdPreviewSurface")
-      bsdf_shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
-          tuple(self.rgba[:3])
-      )
-      bsdf_shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(
-          float(self.rgba[-1])
-      )
-      bsdf_shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(
-          self.geom.shininess
-      )
-      bsdf_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(
-          1.0 - self.geom.shininess
-      )
-
-    mtl.CreateSurfaceOutput().ConnectToSource(
-        bsdf_shader.ConnectableAPI(), "surface"
-    )
-
-    self.usd_primitive_shape.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
-    UsdShade.MaterialBindingAPI(self.usd_primitive_shape).Bind(mtl)
-
-  def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd.utils.create_transform_matrix(
-        rotation_matrix=mat, translation_vector=pos
-    ).T
-    self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
-    self.update_visibility(visible, frame)
-
-  def update_visibility(self, visible: bool, frame: int):
-    if visible:
-      self.usd_prim.GetAttribute("visibility").Set("inherited", frame)
-    else:
-      self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
-
-
 class USDCapsule(USDPrimitive):
 
   def __init__(
@@ -494,7 +385,7 @@ class USDCapsule(USDPrimitive):
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -514,7 +405,7 @@ class USDCapsule(USDPrimitive):
     self._set_size_attributes()
     self._attach_material()
 
-    self._set_refinement_properties()
+    # self._set_refinement_properties()
 
   def _set_size_attributes(self):
     self.usd_primitive_shape.GetRadiusAttr().Set(float(self.geom.size[0]))
@@ -530,7 +421,7 @@ class USDEllipsoid(USDPrimitive):
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -550,7 +441,7 @@ class USDEllipsoid(USDPrimitive):
     self._set_size_attributes()
     self._attach_material()
 
-    self._set_refinement_properties()
+    # self._set_refinement_properties()
 
   def _set_size_attributes(self):
     self.scale_op.Set(Gf.Vec3d(self.geom.size.tolist()))
@@ -563,7 +454,7 @@ class USDCubeMesh(USDPrimitiveMesh):
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -579,8 +470,6 @@ class USDCubeMesh(USDPrimitiveMesh):
         width=self.geom.size[0] * 2,
         height=self.geom.size[1] * 2,
         depth=self.geom.size[2] * 2,
-        create_uv_map=True,
-        map_texture_to_each_face=True,
     )
 
     self.prim_mesh.translate(-self.prim_mesh.get_center())
@@ -617,7 +506,7 @@ class USDSphereMesh(USDPrimitiveMesh):
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -667,7 +556,7 @@ class USDCylinderMesh(USDPrimitiveMesh):
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -719,7 +608,7 @@ class USDPlaneMesh(USDPrimitiveMesh):
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
@@ -814,7 +703,6 @@ class USDDomeLight:
     self.usd_light.GetNormalizeAttr().Set(True)
 
   def update(self, intensity: int, color: np.ndarray, frame: int):
-
     self.usd_light.GetIntensityAttr().Set(intensity)
     self.usd_light.GetExposureAttr().Set(0.0)
     self.usd_light.GetColorAttr().Set(Gf.Vec3d(color.tolist()))

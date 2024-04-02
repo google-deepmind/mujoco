@@ -138,8 +138,7 @@ def _validate(m: mujoco.MjModel):
     raise NotImplementedError('Tendons are not supported.')
 
   # check collision geom types
-  candidate_set = collision_driver.collision_candidates(m)
-  for g1, g2, *_ in candidate_set:
+  for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
     g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
     if g1 == mujoco.mjtGeom.mjGEOM_PLANE and g2 in (
         mujoco.mjtGeom.mjGEOM_PLANE,
@@ -149,6 +148,12 @@ def _validate(m: mujoco.MjModel):
       continue
     if collision_driver.get_collision_fn((g1, g2)) is None:
       raise NotImplementedError(f'({g1}, {g2}) collisions not implemented.')
+    *_, params = collision_driver.get_params(m, c)
+    margin_gap = not np.allclose(np.concatenate([params.margin, params.gap]), 0)
+    if mujoco.mjtGeom.mjGEOM_MESH in (g1, g2) and margin_gap:
+      raise NotImplementedError(
+          f'Margin and gap not implemented for ({g1}, {g2})'
+      )
 
   # TODO(erikfrey): warn for high solver iterations, nefc, etc.
 

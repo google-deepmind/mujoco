@@ -22,7 +22,7 @@
 
 
 // default model attributes
-void mjm_defaultSpec(mjSpec& model) {
+void mjs_defaultSpec(mjSpec& model) {
   memset(&model, 0, sizeof(mjSpec));
 
   // default statistics
@@ -75,9 +75,16 @@ void mjm_defaultSpec(mjSpec& model) {
 
 
 
+// default orientation attributes
+void mjs_defaultOrientation(mjsOrientation& orient) {
+  orient.axisangle[0] = orient.xyaxes[0] = orient.zaxis[0] = orient.euler[0] = mjNAN;
+}
+
+
+
 // default body attributes
-void mjm_defaultBody(mjmBody& body) {
-  memset(&body, 0, sizeof(mjmBody));
+void mjs_defaultBody(mjsBody& body) {
+  memset(&body, 0, sizeof(mjsBody));
 
   // body frame
   body.pos[0] = mjNAN;
@@ -94,8 +101,8 @@ void mjm_defaultBody(mjmBody& body) {
 
 
 // default frame attributes
-void mjm_defaultFrame(mjmFrame& frame) {
-  memset(&frame, 0, sizeof(mjmFrame));
+void mjs_defaultFrame(mjsFrame& frame) {
+  memset(&frame, 0, sizeof(mjsFrame));
   mju_zero3(frame.pos);
   mjuu_setvec(frame.quat, 1, 0, 0, 0);
   frame.alt.axisangle[0] = frame.alt.xyaxes[0] = frame.alt.zaxis[0] = frame.alt.euler[0] = mjNAN;
@@ -104,8 +111,8 @@ void mjm_defaultFrame(mjmFrame& frame) {
 
 
 // default joint attributes
-void mjm_defaultJoint(mjmJoint& joint) {
-  memset(&joint, 0, sizeof(mjmJoint));
+void mjs_defaultJoint(mjsJoint& joint) {
+  memset(&joint, 0, sizeof(mjsJoint));
 
   joint.type = mjJNT_HINGE;
   joint.axis[2] = 1;
@@ -119,8 +126,8 @@ void mjm_defaultJoint(mjmJoint& joint) {
 
 
 // default geom attributes
-void mjm_defaultGeom(mjmGeom& geom) {
-  memset(&geom, 0, sizeof(mjmGeom));
+void mjs_defaultGeom(mjsGeom& geom) {
+  memset(&geom, 0, sizeof(mjsGeom));
 
   // type
   geom.type = mjGEOM_SPHERE;
@@ -163,9 +170,9 @@ void mjm_defaultGeom(mjmGeom& geom) {
 
 
 // default site attributes
-void mjm_defaultSite(mjmSite& site) {
+void mjs_defaultSite(mjsSite& site) {
   // set everything to 0 / false / NULL
-  memset(&site, 0, sizeof(mjmSite));
+  memset(&site, 0, sizeof(mjsSite));
 
   // type
   site.type = mjGEOM_SPHERE;
@@ -184,8 +191,8 @@ void mjm_defaultSite(mjmSite& site) {
 
 
 // default cam attributes
-void mjm_defaultCamera(mjmCamera& cam) {
-  memset(&cam, 0, sizeof(mjmCamera));
+void mjs_defaultCamera(mjsCamera& cam) {
+  memset(&cam, 0, sizeof(mjsCamera));
 
   // type
   cam.mode = mjCAMLIGHT_FIXED;
@@ -203,8 +210,8 @@ void mjm_defaultCamera(mjmCamera& cam) {
 
 
 // default light attributes
-void mjm_defaultLight(mjmLight& light) {
-  memset(&light, 0, sizeof(mjmLight));
+void mjs_defaultLight(mjsLight& light) {
+  memset(&light, 0, sizeof(mjsLight));
 
   // mode
   light.mode = mjCAMLIGHT_FIXED;
@@ -223,8 +230,8 @@ void mjm_defaultLight(mjmLight& light) {
 
 
 // default flex attributes
-void mjm_defaultFlex(mjmFlex& flex) {
-  memset(&flex, 0, sizeof(mjmFlex));
+void mjs_defaultFlex(mjsFlex& flex) {
+  memset(&flex, 0, sizeof(mjsFlex));
 
   // set contact defaults
   flex.contype = 1;
@@ -247,8 +254,8 @@ void mjm_defaultFlex(mjmFlex& flex) {
 
 
 // default mesh attributes
-void mjm_defaultMesh(mjmMesh& mesh) {
-  memset(&mesh, 0, sizeof(mjmMesh));
+void mjs_defaultMesh(mjsMesh& mesh) {
+  memset(&mesh, 0, sizeof(mjsMesh));
   mjuu_setvec(mesh.refpos, 0, 0, 0);
   mjuu_setvec(mesh.refquat, 1, 0, 0, 0);
   mjuu_setvec(mesh.scale, 1, 1, 1);
@@ -258,15 +265,15 @@ void mjm_defaultMesh(mjmMesh& mesh) {
 
 
 // default height field attributes
-void mjm_defaultHField(mjmHField& hfield) {
-  memset(&hfield, 0, sizeof(mjmHField));
+void mjs_defaultHField(mjsHField& hfield) {
+  memset(&hfield, 0, sizeof(mjsHField));
 }
 
 
 
 // default skin attributes
-void mjm_defaultSkin(mjmSkin& skin) {
-  memset(&skin, 0, sizeof(mjmSkin));
+void mjs_defaultSkin(mjsSkin& skin) {
+  memset(&skin, 0, sizeof(mjsSkin));
   skin.rgba[0] = skin.rgba[1] = skin.rgba[2] = 0.5f;
   skin.rgba[3] = 1.0f;
   skin.inflate = 0;
@@ -276,8 +283,8 @@ void mjm_defaultSkin(mjmSkin& skin) {
 
 
 // default texture attributes
-void mjm_defaultTexture(mjmTexture& texture) {
-  memset(&texture, 0, sizeof(mjmTexture));
+void mjs_defaultTexture(mjsTexture& texture) {
+  memset(&texture, 0, sizeof(mjsTexture));
   texture.type = mjTEXTURE_CUBE;
   mjuu_setvec(texture.rgb1, 0.8, 0.8, 0.8);
   mjuu_setvec(texture.rgb2, 0.5, 0.5, 0.5);
@@ -290,8 +297,8 @@ void mjm_defaultTexture(mjmTexture& texture) {
 
 
 // default material attributes
-void mjm_defaultMaterial(mjmMaterial& material) {
-  memset(&material, 0, sizeof(mjmMaterial));
+void mjs_defaultMaterial(mjsMaterial& material) {
+  memset(&material, 0, sizeof(mjsMaterial));
   material.texuniform = false;
   material.texrepeat[0] = material.texrepeat[1] = 1;
   material.emission = 0;
@@ -304,8 +311,8 @@ void mjm_defaultMaterial(mjmMaterial& material) {
 
 
 // default pair attributes
-void mjm_defaultPair(mjmPair& pair) {
-  memset(&pair, 0, sizeof(mjmPair));
+void mjs_defaultPair(mjsPair& pair) {
+  memset(&pair, 0, sizeof(mjsPair));
   pair.condim = 3;
   mj_defaultSolRefImp(pair.solref, pair.solimp);
   pair.friction[0] = 1;
@@ -318,8 +325,8 @@ void mjm_defaultPair(mjmPair& pair) {
 
 
 // default equality attributes
-void mjm_defaultEquality(mjmEquality& equality) {
-  memset(&equality, 0, sizeof(mjmEquality));
+void mjs_defaultEquality(mjsEquality& equality) {
+  memset(&equality, 0, sizeof(mjsEquality));
   equality.type = mjEQ_CONNECT;
   equality.active = 1;
   mj_defaultSolRefImp(equality.solref, equality.solimp);
@@ -330,8 +337,8 @@ void mjm_defaultEquality(mjmEquality& equality) {
 
 
 // default tendon attributes
-void mjm_defaultTendon(mjmTendon& tendon) {
-  memset(&tendon, 0, sizeof(mjmTendon));
+void mjs_defaultTendon(mjsTendon& tendon) {
+  memset(&tendon, 0, sizeof(mjsTendon));
   tendon.limited = mjLIMITED_AUTO;
   tendon.springlength[0] = tendon.springlength[1] = -1;
   mj_defaultSolRefImp(tendon.solref_limit, tendon.solimp_limit);
@@ -344,8 +351,8 @@ void mjm_defaultTendon(mjmTendon& tendon) {
 
 
 // default actuator attributes
-void mjm_defaultActuator(mjmActuator& actuator) {
-  memset(&actuator, 0, sizeof(mjmActuator));
+void mjs_defaultActuator(mjsActuator& actuator) {
+  memset(&actuator, 0, sizeof(mjsActuator));
 
   // gain, bias
   actuator.gaintype = mjGAIN_FIXED;
@@ -370,8 +377,8 @@ void mjm_defaultActuator(mjmActuator& actuator) {
 
 
 // default sensor attributes
-void mjm_defaultSensor(mjmSensor& sensor) {
-  memset(&sensor, 0, sizeof(mjmSensor));
+void mjs_defaultSensor(mjsSensor& sensor) {
+  memset(&sensor, 0, sizeof(mjsSensor));
   sensor.type = mjSENS_TOUCH;
   sensor.datatype = mjDATATYPE_REAL;
   sensor.needstage = mjSTAGE_ACC;
@@ -380,36 +387,36 @@ void mjm_defaultSensor(mjmSensor& sensor) {
 
 
 // Default numeric attributes.
-void mjm_defaultNumeric(mjmNumeric& numeric) {
-  memset(&numeric, 0, sizeof(mjmNumeric));
+void mjs_defaultNumeric(mjsNumeric& numeric) {
+  memset(&numeric, 0, sizeof(mjsNumeric));
 }
 
 
 
 // Default text attributes.
-void mjm_defaultText(mjmText& text) {
-  memset(&text, 0, sizeof(mjmText));
+void mjs_defaultText(mjsText& text) {
+  memset(&text, 0, sizeof(mjsText));
 }
 
 
 
 // Default tuple attributes.
-void mjm_defaultTuple(mjmTuple& tuple) {
-  memset(&tuple, 0, sizeof(mjmTuple));
+void mjs_defaultTuple(mjsTuple& tuple) {
+  memset(&tuple, 0, sizeof(mjsTuple));
 }
 
 
 
 // Default keyframe attributes.
-void mjm_defaultKey(mjmKey& key) {
-  memset(&key, 0, sizeof(mjmKey));
+void mjs_defaultKey(mjsKey& key) {
+  memset(&key, 0, sizeof(mjsKey));
 }
 
 
 
 // default plugin attributes
-void mjm_defaultPlugin(mjmPlugin& plugin) {
-  memset(&plugin, 0, sizeof(mjmPlugin));
+void mjs_defaultPlugin(mjsPlugin& plugin) {
+  memset(&plugin, 0, sizeof(mjsPlugin));
   plugin.plugin_slot = -1;
 }
 

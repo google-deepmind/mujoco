@@ -464,19 +464,19 @@ TEST_F(MjCMeshTest, TinyInertiaFails) {
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
 }
 
-TEST_F(MjCMeshTest, MalformedFaceFails) {
+TEST_F(MjCMeshTest, FlippedFaceAllowedInexactInertia) {
   const std::string xml_path = GetTestDataFilePath(kMalformedFaceOBJPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(model, testing::IsNull());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "Error: faces of mesh 'malformed_face' have inconsistent orientation. "
-        "Please check the faces containing the vertices 1 and 2."));
+  EXPECT_THAT(model, testing::NotNull());
+  EXPECT_THAT(model->nmeshface, 4);
+  mj_deleteModel(model);
 }
 
-TEST_F(MjCMeshTest, FlippedFaceFails) {
+TEST_F(MjCMeshTest, FlippedFaceFailsExactInertia) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler exactmeshinertia="true"/>
     <asset>
       <mesh name="example_mesh"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
@@ -944,6 +944,31 @@ TEST_F(MjCMeshTest, NaNConvexHullDisallowed) {
   EXPECT_THAT(error.data(), HasSubstr("vertex coordinate 0 is not finite"));
   mj_deleteModel(model);
 }
+
+TEST_F(MjCMeshTest, InvalidIndexInFace) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  0 1 0  0 0 1  0.707 0 0.707"
+        face="0 2 6  0 3 2" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "in face 0, vertex index 6 does not exist"));
+  mj_deleteModel(model);
+}
+
 
 
 }  // namespace

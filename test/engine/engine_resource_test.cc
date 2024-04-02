@@ -15,7 +15,10 @@
 // Tests for engine/engine_resource.c
 
 #include <array>
+#include <cstdint>
 #include <cstring>
+#include <ctime>
+#include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -24,6 +27,7 @@
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"
 #include "src/engine/engine_resource.h"
+#include "src/engine/engine_util_misc.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -325,6 +329,35 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
   // open resource
   mjResource* resource = mju_openResource("nopfound", nullptr, 0);
   ASSERT_THAT(resource, IsNull());
+}
+
+TEST_F(ResourceTest, OSFilesystemTimestamps) {
+  time_t t;
+
+  // some random file
+  const char* const file = "engine/testdata/collision_box/boxbox_deep.xml";
+  const std::string xml_path = GetTestDataFilePath(file);
+
+  mjResource* resource = mju_openResource(xml_path.c_str(), nullptr, 0);
+  mju_decodeBase64((uint8_t*) &t, resource->timestamp);
+
+  // equal timestamps
+  EXPECT_EQ(mju_isModifiedResource(resource, resource->timestamp), 0);
+
+  std::array<char, 512> test_timestamp;
+
+  // older resource timestamp
+  t++;
+  mju_encodeBase64(test_timestamp.data(), (uint8_t*) &t, sizeof(time_t));
+  EXPECT_EQ(mju_isModifiedResource(resource, test_timestamp.data()), -1);
+
+
+  // newer resource timestamp
+  t -= 2;
+  mju_encodeBase64(test_timestamp.data(), (uint8_t*) &t, sizeof(time_t));
+  EXPECT_EQ(mju_isModifiedResource(resource, test_timestamp.data()), 1);
+
+  mju_closeResource(resource);
 }
 
 }  // namespace

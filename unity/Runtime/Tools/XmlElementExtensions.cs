@@ -37,6 +37,28 @@ public static class XmlElementExtensions {
     }
   }
 
+  public static bool GetLimitedAttribute(
+      this XmlElement element, string name, bool rangeDefined) {
+    var strValue = element.GetStringAttribute(name, "auto");
+    if (strValue == "auto" && rangeDefined && element.GetAutolimitsEnabled()) return true;
+    if (strValue == "auto") return false;
+
+    bool parsedValue;
+    if (bool.TryParse(strValue, out parsedValue)) {
+      return parsedValue;
+    } else {
+      throw new ArgumentException($"'{strValue}' is not a bool.");
+    }
+  }
+
+  public static bool GetAutolimitsEnabled(
+      this XmlElement element) {
+    bool autolimits = (element.OwnerDocument?.GetElementsByTagName("compiler")[0]?["compiler"])
+                      ?.GetBoolAttribute("autolimits", true) ??
+                      true;
+    return autolimits;
+  }
+
   public static float GetFloatAttribute(
       this XmlElement element, string name, float defaultValue = 0.0f) {
     if (!element.HasAttribute(name)) {

@@ -30,7 +30,7 @@
 
 // data associated with an asset
 struct mjCAssetData {
-  std::shared_ptr<uint8_t[]> bytes;  // raw serialized bytes of cached data
+  std::shared_ptr<uint8_t> bytes;    // raw serialized bytes of cached data
   std::size_t nbytes;                // number of bytes stored
 };
 
@@ -80,6 +80,11 @@ class mjCAsset {
     return blocks_.find(name) != blocks_.end();
   }
 
+  const std::string& Timestamp() const { return timestamp_; }
+  const std::string& Id() const { return id_; }
+  std::size_t InsertNum() const { return insert_num_; }
+  std::size_t AccessCount() const { return access_count_; }
+
  private:
   mjCAsset() = default;
 
@@ -105,10 +110,6 @@ class mjCAsset {
   void SetTimestamp(std::string timestamp) { timestamp_ = timestamp; }
 
   // accessors
-  const std::string& Id() const { return id_; }
-  const std::string& Timestamp() const { return timestamp_; }
-  std::size_t InsertNum() const { return insert_num_; }
-  std::size_t AccessCount() const { return access_count_; }
   std::size_t BytesCount() const { return nbytes_; }
   const std::unordered_map<std::string, mjCAssetData>& Blocks() const {
     return blocks_;
@@ -128,14 +129,23 @@ class mjCAsset {
   std::set<std::string> references_;
 };
 
+struct mjCAssetCompare {
+  bool operator()(const mjCAsset* e1, const mjCAsset* e2) const {
+    if (e1->AccessCount() != e2->AccessCount()) {
+      return e1->AccessCount() < e2->AccessCount();
+    }
+    return e1->InsertNum() < e2->InsertNum();
+  }
+};
+
 // the class container for a thread-safe asset cache
 class mjCCache {
  public:
   explicit mjCCache(std::size_t size)  :  max_size_(size) {}
 
   // move only
-  mjCCache(mjCCache&& other) = default;
-  mjCCache& operator=(mjCCache&& other) = default;
+  mjCCache(mjCCache&& other) = delete;
+  mjCCache& operator=(mjCCache&& other) = delete;
   mjCCache(const mjCCache& other) = delete;
   mjCCache& operator=(const mjCCache& other) = delete;
 
@@ -186,20 +196,11 @@ class mjCCache {
   std::size_t size_ = 0;        // current size of the cache in bytes
   std::size_t max_size_ = 0;    // max size of the cache in bytes
 
-  // compare function for the priority queue
-  static constexpr auto compare_ = [](const mjCAsset* e1,
-                                      const mjCAsset* e2) {
-    if (e1->AccessCount() != e2->AccessCount()) {
-      return e1->AccessCount() < e2->AccessCount();
-    }
-    return e1->InsertNum() < e2->InsertNum();
-  };
-
   // internal constant look up table for assets
   std::unordered_map<std::string, mjCAsset> lookup_;
 
   // internal priority queue for the cache
-  std::set<mjCAsset*, decltype(compare_)> entries_;
+  std::set<mjCAsset*, mjCAssetCompare> entries_;
 
   // models using the cache along with the assets they reference
   std::unordered_map<std::string, std::unordered_set<mjCAsset*>> models_;
