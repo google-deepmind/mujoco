@@ -1366,6 +1366,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
         }
+        if (nodeTag > numElements || nodeTag < 1) {
+          throw mjCError(NULL, "Invalid node tag");
+        }
         element.push_back((int)(nodeTag-1));
       }
     }
@@ -1432,6 +1435,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       // read first element
       for (int k =0; k<numNodeTags; k++) {
         ReadFromBuffer(&nodeTag, elementsBuffer + componentSize*(6+k));
+        if (nodeTag > numElements || nodeTag < 1) {
+          throw mjCError(NULL, "Invalid node tag");
+        }
         element.push_back(nodeTag-1);
       }
 
@@ -1445,6 +1451,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
         for (int k =0; k < numNodeTags; k++) {
           const char* nodeTagBuffer = elementsBuffer + componentSize*(6+k);
           ReadFromBuffer(&nodeTag, nodeTagBuffer + offset);
+          if (nodeTag > numElements || nodeTag < 1) {
+            throw mjCError(NULL, "Invalid node tag");
+          }
           element.push_back(nodeTag-1);
         }
       }
@@ -1456,6 +1465,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       for (int k =0; k < numNodeTags; k++) {
         const char* nodeTagBuffer = elementsBuffer + componentSize*(4+k);
         ReadFromBuffer(&nodeTag, nodeTagBuffer);
+        if (nodeTag > numElements || nodeTag < 1) {
+          throw mjCError(NULL, "Invalid node tag");
+        }
         element.push_back(nodeTag-1);
       }
 
@@ -1467,6 +1479,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
         for (int k=0; k < numNodeTags; k++) {
           const char* nodeTagBuffer = elementsBuffer + componentSize*(3+k);
           ReadFromBuffer(&nodeTag, nodeTagBuffer + offset);
+          if (nodeTag > numElements || nodeTag < 1) {
+            throw mjCError(NULL, "Invalid node tag");
+          }
           element.push_back(nodeTag-1);
         }
       }

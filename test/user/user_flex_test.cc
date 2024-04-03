@@ -220,8 +220,8 @@ TEST_F(UserFlexTest, CreateBVHSuccess) {
       GetTestDataFilePath("user/testdata/robot_arm.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
@@ -232,8 +232,8 @@ TEST_F(UserFlexTest, LoadMSHBinaryGMSH_41_Success) {
       GetTestDataFilePath("user/testdata/shark_41_binary_gmshApp.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nflexvert, 652);
   EXPECT_EQ(m->nflexelem, 1654);
   mj_step(m, d);
@@ -246,8 +246,8 @@ TEST_F(UserFlexTest, LoadMSHBinaryGMSH_22_Success) {
       GetTestDataFilePath("user/testdata/shark_22_binary_gmshApp.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nflexvert, 644);
   EXPECT_EQ(m->nflexelem, 1635);
   mj_step(m, d);
@@ -260,8 +260,8 @@ TEST_F(UserFlexTest, LoadMSHBinaryFTETWILD_22_Success) {
       GetTestDataFilePath("user/testdata/shark_22_binary_fTetWild.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nflexvert, 644);
   EXPECT_EQ(m->nflexelem, 1635);
   mj_step(m, d);
@@ -274,8 +274,8 @@ TEST_F(UserFlexTest, LoadMSHASCIIGMSH_41_Success) {
       GetTestDataFilePath("user/testdata/shark_41_ascii_gmshApp.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nflexvert, 652);
   EXPECT_EQ(m->nflexelem, 1654);
   mj_step(m, d);
@@ -288,8 +288,8 @@ TEST_F(UserFlexTest, LoadMSHASCIIGMSH_22_Success) {
       GetTestDataFilePath("user/testdata/shark_22_ascii_gmshApp.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nflexvert, 652);
   EXPECT_EQ(m->nflexelem, 1654);
   mj_step(m, d);
@@ -302,8 +302,8 @@ TEST_F(UserFlexTest, LoadMSHASCIIFTETWILD_22_Success) {
       GetTestDataFilePath("user/testdata/shark_22_ascii_fTetWild.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nflexvert, 652);
   EXPECT_EQ(m->nflexelem, 1654);
   mj_step(m, d);
@@ -383,8 +383,7 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumElements_Fail) {
           "user/testdata/malformed_shark_22_ascii_missing_num_elements.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Element size must be a multiple of dim+1"));
+  EXPECT_THAT(error.data(), HasSubstr("XML Error: Error: Invalid node tag"));
   mj_deleteModel(m);
 }
 
