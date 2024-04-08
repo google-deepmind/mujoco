@@ -22,8 +22,8 @@ been described elsewhere.
 
 .. _Motivation:
 
-Motivation for soft contact model
----------------------------------
+Soft contact model
+------------------
 
 Robots as well as humans interact with their environment primarily through physical contact. Given the increasing
 importance of physics modeling in robotics, machine learning, animation, virtual reality, biomechanics and other fields,
@@ -1557,8 +1557,10 @@ Forward dynamics
 ~~~~~~~~~~~~~~~~
 
 The source file `engine_forward.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_forward.c>`__
-contains the high-level forward dynamics pipeline:
+contains the high-level forward dynamics pipeline.
 
+Top level
+^^^^^^^^^
 - The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
 - :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
   acceleration ``mjData.qacc``.
@@ -1566,7 +1568,10 @@ contains the high-level forward dynamics pipeline:
   distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
   velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
   pipeline does not support the Runge Kutta integrator.
+- :ref:`mj_fwdPosition` invokes stages **2-11**, the position-dependent part of the pipeline.
 
+Stages
+^^^^^^
 1. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
    is detected, the state is automatically reset and the corresponding warning is raised:
    :ref:`mj_checkPos`, :ref:`mj_checkVel`
@@ -1581,9 +1586,9 @@ contains the high-level forward dynamics pipeline:
 8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
    :ref:`mj_collision`
 9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
-10. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
-11. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
+10. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
     tendons: :ref:`mj_transmission`
+11. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
 12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
     :ref:`mj_energyPos`
 13. Compute the tendon, flex edge and actuator velocities: :ref:`mj_fwdVelocity`
