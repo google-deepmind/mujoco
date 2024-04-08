@@ -751,6 +751,9 @@ visualization should somehow be simplified.
    anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
    affects offscreen rendering. For regular window rendering, multi-sampling is specified in an OS-dependent way when
    the OpenGL context for the window is first created, and cannot be changed from within MuJoCo.
+   |br| When rendering segmentation images, multi-sampling is automatically disabled so as not to average segmentation
+   indices. However, some rendering backends ignore the automatic disabling. If your segmentation images contain bad
+   indices, try manually setting this attribute to 0.
 
 .. _visual-quality-numslices:
 
