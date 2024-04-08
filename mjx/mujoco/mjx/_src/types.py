@@ -310,6 +310,7 @@ class Model(PyTreeNode):
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
     nnumeric: number of numeric custom fields
+    nuserdata: size of userdata array
     nM: number of non-zeros in sparse inertia matrix
     opt: physics options
     stat: model statistics
@@ -454,6 +455,7 @@ class Model(PyTreeNode):
   nexclude: int
   neq: int
   nnumeric: int
+  nuserdata: int
   nM: int  # pylint:disable=invalid-name
   opt: Option
   stat: Statistic
@@ -685,6 +687,7 @@ class Data(PyTreeNode):
     qfrc_inverse: net external force; should equal:               (nv,)
       qfrc_applied + J'*xfrc_applied + qfrc_actuator
     efc_force: constraint force in constraint space               (nefc,)
+    userdata: user data, not touched by engine                    (nuserdata,)
   """
   # solver statistics:
   solver_niter: jax.Array
@@ -703,6 +706,8 @@ class Data(PyTreeNode):
   # dynamics:
   qacc: jax.Array
   act_dot: jax.Array
+  # user data:
+  userdata: jax.Array
   # position dependent:
   xpos: jax.Array
   xquat: jax.Array

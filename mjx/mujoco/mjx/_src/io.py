@@ -219,6 +219,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       qfrc_constraint=zero_nv,
       qfrc_inverse=zero_nv,
       efc_force=zero_nefc,
+      userdata=jp.zeros(m.nuserdata, dtype=float),
   )
 
   return d

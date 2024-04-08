@@ -36,10 +36,11 @@ MJX
 5. Fixed bug for sphere/capsule-convex deep penetration.
 6. Fixed bug where ``mjx.Data`` produced by ``mjx.put_data`` had different treedef than ``mjx.make_data``.
 7. Throw an error for margin/gap for convex mesh collisions, since they are not supported.
+8. Added support for userdata.
 
 Simulate
 ^^^^^^^^
-8. Fixed bug in order of enable flag strings. Before this change, using the simulate UI to toggle the
+9. Fixed bug in order of enable flag strings. Before this change, using the simulate UI to toggle the
    :ref:`invdiscrete<option-flag-invdiscrete>` or the (now removed) ``sensornoise`` flags would actually toggle the
    other flag.
 
@@ -50,7 +51,7 @@ Python bindings
    :align: right
    :width: 240px
 
-9. Added the ``mujoco.minimize`` Python module for nonlinear least-squares, designed for System Identification (sysID).
+10. Added the ``mujoco.minimize`` Python module for nonlinear least-squares, designed for System Identification (sysID).
    The sysID tutorial is work in progress, but a pedagogical colab notebook with examples, including Inverse
    Kinematics, is available here: |ls_colab|
    |br| The video on the right shows example clips from the tutorial.
