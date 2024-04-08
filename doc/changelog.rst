@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.1.4 (April 8th, 2024)
+-------------------------------
 
 General
 ^^^^^^^
@@ -14,7 +14,7 @@ General
       :ref:`corresponding attribute<CSensor>` are kept and now function as a convenient location for the user to save
       standard-deviation information for their own use. This feature was removed because:
 
-      - There was no mechanism to seed the randon noise generator.
+      - There was no mechanism to seed the random noise generator.
       - It was not thread-safe, even if seeding would have been provided, sampling on multiple threads would lead to
         non-reproducible results.
       - This feature was seen as overreach by the engine. Adding noise should be the user's responsibility.
