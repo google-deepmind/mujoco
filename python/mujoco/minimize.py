@@ -32,14 +32,14 @@ class Verbosity(enum.Enum):
 
 class Status(enum.Enum):
   FACTORIZATION_FAILED = enum.auto()
-  NO_IMPORVEMENT = enum.auto()
+  NO_IMPROVEMENT = enum.auto()
   MAX_ITER = enum.auto()
   DX_TOL = enum.auto()
 
 
 _STATUS_MESSAGE = {
     Status.FACTORIZATION_FAILED: 'factorization failed.',
-    Status.NO_IMPORVEMENT: 'insufficient reduction.',
+    Status.NO_IMPROVEMENT: 'insufficient reduction.',
     Status.MAX_ITER: 'maximum iterations reached.',
     Status.DX_TOL: 'norm(dx) < tol.',
 }
@@ -322,7 +322,7 @@ def least_squares(
 
       if armijo < 0:
         if mu >= mu_max:
-          status = Status.NO_IMPORVEMENT
+          status = Status.NO_IMPROVEMENT
           break
         mu, n_reduc = increase_mu(mu)
 
