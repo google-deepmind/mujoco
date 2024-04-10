@@ -44,8 +44,8 @@ MJX
 Simulate
 ^^^^^^^^
 12. Fixed bug in order of enable flag strings. Before this change, using the simulate UI to toggle the
-   :ref:`invdiscrete<option-flag-invdiscrete>` or the (now removed) ``sensornoise`` flags would actually toggle the
-   other flag.
+    :ref:`invdiscrete<option-flag-invdiscrete>` or the (now removed) ``sensornoise`` flags would actually toggle the
+    other flag.
 
 Python bindings
 ^^^^^^^^^^^^^^^
