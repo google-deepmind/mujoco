@@ -15,7 +15,10 @@
 from typing import List, Optional, Tuple
 
 import mujoco
+
 import mujoco.usd.utils
+import mujoco.usd.shapes as shapes_component
+
 import numpy as np
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
@@ -217,7 +220,7 @@ class USDMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd.utils.create_transform_matrix(
+    transformation_mat = utils_component.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -234,12 +237,14 @@ class USDPrimitiveMesh:
 
   def __init__(
       self,
+      mesh_config: List[dict],
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
+    self.mesh_config = mesh_config
     self.stage = stage
     self.geom = geom
     self.obj_name = obj_name
@@ -250,6 +255,40 @@ class USDPrimitiveMesh:
     self.usd_mesh = UsdGeom.Mesh()
     self.prim_mesh = None
     self.transform_op = Gf.Matrix4d(1.)
+
+    _, self.prim_mesh = shapes_component.mesh_generator(mesh_config)
+
+    xform_path = f"/World/{self.obj_name}_Xform"
+    mesh_path = f"{xform_path}/{obj_name}"
+    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
+    self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
+    self.usd_prim = stage.GetPrimAtPath(mesh_path)
+
+    self.prim_mesh.translate(-self.prim_mesh.get_center())
+
+    mesh_vert, mesh_face, mesh_facenum = self._get_mesh_geometry()
+    self.usd_mesh.GetPointsAttr().Set(mesh_vert)
+    self.usd_mesh.GetFaceVertexCountsAttr().Set(
+        [3 for _ in range(mesh_facenum)]
+    )
+    self.usd_mesh.GetFaceVertexIndicesAttr().Set(mesh_face)
+
+    # setting mesh uv properties
+    mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
+    self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
+        "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
+    )
+
+    self.texcoords.Set(mesh_texcoord)
+    self.texcoords.SetIndices(Vt.IntArray([i for i in range(mesh_facenum * 3)]))
+
+    self._set_refinement_properties()
+
+    # setting attributes for the shape
+    self._attach_material()
+
+    # defining ops required by update function
+    self.transform_op = self.usd_xform.AddTransformOp()
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -365,7 +404,7 @@ class USDPrimitiveMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd.utils.create_transform_matrix(
+    transformation_mat = utils_component.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -376,284 +415,6 @@ class USDPrimitiveMesh:
       self.usd_prim.GetAttribute("visibility").Set("inherited", frame)
     else:
       self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
-
-
-class USDCapsule(USDPrimitive):
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
-
-    xform_path = f"/World/Capsule_Xform_{obj_name}"
-    capsule_path = f"{xform_path}/Capsule_{obj_name}"
-    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.usd_primitive_shape = UsdGeom.Capsule.Define(stage, capsule_path)
-    self.usd_prim = stage.GetPrimAtPath(capsule_path)
-
-    # defining ops required by update function
-    self.transform_op = self.usd_xform.AddTransformOp()
-    self.scale_op = self.usd_xform.AddScaleOp()
-
-    # setting attributes for the shape
-    self._set_size_attributes()
-    self._attach_material()
-
-    # self._set_refinement_properties()
-
-  def _set_size_attributes(self):
-    self.usd_primitive_shape.GetRadiusAttr().Set(float(self.geom.size[0]))
-    self.usd_primitive_shape.GetHeightAttr().Set(
-        float(self.geom.size[2] * 2)
-    )  # mujoco gives the half length
-
-
-class USDEllipsoid(USDPrimitive):
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
-
-    xform_path = f"/World/Ellipsoid_Xform_{obj_name}"
-    ellipsoid_path = f"{xform_path}/Ellipsoid_{obj_name}"
-    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.usd_primitive_shape = UsdGeom.Sphere.Define(stage, ellipsoid_path)
-    self.usd_prim = stage.GetPrimAtPath(ellipsoid_path)
-
-    # defining ops required by update function
-    self.transform_op = self.usd_xform.AddTransformOp()
-    self.scale_op = self.usd_xform.AddScaleOp()
-
-    # setting attributes for the shape
-    self._set_size_attributes()
-    self._attach_material()
-
-    # self._set_refinement_properties()
-
-  def _set_size_attributes(self):
-    self.scale_op.Set(Gf.Vec3d(self.geom.size.tolist()))
-
-
-class USDCubeMesh(USDPrimitiveMesh):
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
-
-    xform_path = f"/World/CubeMesh_Xform_{obj_name}"
-    mesh_path = f"{xform_path}/CubeMesh_{obj_name}"
-    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
-    self.usd_prim = stage.GetPrimAtPath(mesh_path)
-
-    self.prim_mesh = o3d.geometry.TriangleMesh.create_box(
-        width=self.geom.size[0] * 2,
-        height=self.geom.size[1] * 2,
-        depth=self.geom.size[2] * 2,
-    )
-
-    self.prim_mesh.translate(-self.prim_mesh.get_center())
-
-    mesh_vert, mesh_face, mesh_facenum = self._get_mesh_geometry()
-    self.usd_mesh.GetPointsAttr().Set(mesh_vert)
-    self.usd_mesh.GetFaceVertexCountsAttr().Set(
-        [3 for _ in range(mesh_facenum)]
-    )
-    self.usd_mesh.GetFaceVertexIndicesAttr().Set(mesh_face)
-
-    # setting mesh uv properties
-    mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
-    self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
-        "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
-    )
-
-    self.texcoords.Set(mesh_texcoord)
-    self.texcoords.SetIndices(Vt.IntArray([i for i in range(mesh_facenum * 3)]))
-
-    self._set_refinement_properties()
-
-    # setting attributes for the shape
-    self._attach_material()
-
-    # defining ops required by update function
-    self.transform_op = self.usd_xform.AddTransformOp()
-
-
-class USDSphereMesh(USDPrimitiveMesh):
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
-
-    xform_path = f"/World/SphereMesh_Xform_{obj_name}"
-    mesh_path = f"{xform_path}/SphereMesh_{obj_name}"
-    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
-    self.usd_prim = stage.GetPrimAtPath(mesh_path)
-
-    self.prim_mesh = o3d.geometry.TriangleMesh.create_sphere(
-        radius=float(self.geom.size[0]), create_uv_map=True
-    )
-
-    self.prim_mesh.translate(-self.prim_mesh.get_center())
-
-    mesh_vert, mesh_face, mesh_facenum = self._get_mesh_geometry()
-    self.usd_mesh.GetPointsAttr().Set(mesh_vert)
-    self.usd_mesh.GetFaceVertexCountsAttr().Set(
-        [3 for _ in range(mesh_facenum)]
-    )
-    self.usd_mesh.GetFaceVertexIndicesAttr().Set(mesh_face)
-
-    # setting mesh uv properties
-    mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
-    self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
-        "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
-    )
-
-    self.texcoords.Set(mesh_texcoord)
-    self.texcoords.SetIndices(Vt.IntArray([i for i in range(mesh_facenum * 3)]))
-
-    self._set_refinement_properties()
-
-    # setting attributes for the shape
-    self._attach_material()
-
-    # defining ops required by update function
-    self.transform_op = self.usd_xform.AddTransformOp()
-
-
-class USDCylinderMesh(USDPrimitiveMesh):
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
-
-    xform_path = f"/World/CylinderMesh_Xform_{obj_name}"
-    mesh_path = f"{xform_path}/CylinderMesh_{obj_name}"
-    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
-    self.usd_prim = stage.GetPrimAtPath(mesh_path)
-
-    self.prim_mesh = o3d.geometry.TriangleMesh.create_cylinder(
-        radius=self.geom.size[0],
-        height=self.geom.size[2] * 2,
-        create_uv_map=True,
-    )
-
-    self.prim_mesh.translate(-self.prim_mesh.get_center())
-
-    mesh_vert, mesh_face, mesh_facenum = self._get_mesh_geometry()
-    self.usd_mesh.GetPointsAttr().Set(mesh_vert)
-    self.usd_mesh.GetFaceVertexCountsAttr().Set(
-        [3 for _ in range(mesh_facenum)]
-    )
-    self.usd_mesh.GetFaceVertexIndicesAttr().Set(mesh_face)
-
-    # setting mesh uv properties
-    mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
-    self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
-        "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
-    )
-
-    self.texcoords.Set(mesh_texcoord)
-    self.texcoords.SetIndices(Vt.IntArray([i for i in range(mesh_facenum * 3)]))
-
-    self._set_refinement_properties()
-
-    # setting attributes for the shape
-    self._attach_material()
-
-    # defining ops required by update function
-    self.transform_op = self.usd_xform.AddTransformOp()
-
-
-class USDPlaneMesh(USDPrimitiveMesh):
-
-  def __init__(
-      self,
-      stage: Usd.Stage,
-      geom: mujoco.MjvGeom,
-      obj_name: str,
-      rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      texture_file: Optional[str] = None,
-  ):
-
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
-
-    xform_path = f"/World/Plane_Xform_{obj_name}"
-    plane_path = f"{xform_path}/PlaneMesh_{obj_name}"
-    self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.usd_mesh = UsdGeom.Mesh.Define(stage, plane_path)
-    self.usd_prim = stage.GetPrimAtPath(plane_path)
-
-    self.prim_mesh = o3d.geometry.TriangleMesh.create_box(
-        width=self.geom.size[0] * 2 if self.geom.size[0] > 0 else 100,
-        height=self.geom.size[1] * 2 if self.geom.size[1] > 0 else 100,
-        depth=0.001,
-        create_uv_map=True,
-        map_texture_to_each_face=True,
-    )
-
-    self.prim_mesh.translate(-self.prim_mesh.get_center())
-
-    mesh_vert, mesh_face, mesh_facenum = self._get_mesh_geometry()
-    self.usd_mesh.GetPointsAttr().Set(mesh_vert)
-    self.usd_mesh.GetFaceVertexCountsAttr().Set(
-        [3 for _ in range(mesh_facenum)]
-    )
-    self.usd_mesh.GetFaceVertexIndicesAttr().Set(mesh_face)
-
-    # setting mesh uv properties
-    mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
-    self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
-        "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
-    )
-
-    self.texcoords.Set(mesh_texcoord)
-    self.texcoords.SetIndices(Vt.IntArray([i for i in range(mesh_facenum * 3)]))
-
-    self._set_refinement_properties()
-
-    # setting attributes for the shape
-    self._attach_material()
-
-    # defining ops required by update function
-    self.transform_op = self.usd_xform.AddTransformOp()
-
 
 class USDSphereLight:
 
@@ -732,7 +493,7 @@ class USDCamera:
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
 
-    transformation_mat = mujoco.usd.utils.create_transform_matrix(
+    transformation_mat = utils_component.create_transform_matrix(
         rotation_matrix=cam_mat, translation_vector=cam_pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)

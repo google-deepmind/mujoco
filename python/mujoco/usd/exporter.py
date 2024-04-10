@@ -15,7 +15,10 @@
 import os
 
 import mujoco
+
+import mujoco.usd.shapes as shapes_module
 import mujoco.usd.component as component_module
+
 import numpy as np
 import scipy
 import termcolor
@@ -230,11 +233,13 @@ class USDExporter:
   def _load_geom(self, geom: mujoco.MjvGeom):
 
     geom_name = mujoco.mj_id2name(self.model, geom.objtype, geom.objid)
+    if not geom_name:
+      geom_name = f"unnamed_geom{geom.objid}"
+
     assert geom_name not in self.geom_name2usd
 
     texture_file = self.texture_files[geom.texid] if geom.texid != -1 else None
 
-    # handles meshes in scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
       usd_geom = component_module.USDMesh(
           stage=self.stage,
@@ -245,56 +250,20 @@ class USDExporter:
           rgba=geom.rgba,
           texture_file=texture_file,
       )
-    elif geom.type == mujoco.mjtGeom.mjGEOM_PLANE:
-      usd_geom = component_module.USDPlaneMesh(
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
-    elif geom.type == mujoco.mjtGeom.mjGEOM_SPHERE:
-      usd_geom = component_module.USDSphereMesh(
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
-    elif geom.type == mujoco.mjtGeom.mjGEOM_CAPSULE:
-      usd_geom = component_module.USDCapsule(
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
-    elif geom.type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
-      usd_geom = component_module.USDEllipsoid(
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
-    elif geom.type == mujoco.mjtGeom.mjGEOM_CYLINDER:
-      usd_geom = component_module.USDCylinderMesh(
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
-    elif geom.type == mujoco.mjtGeom.mjGEOM_BOX:
-      usd_geom = component_module.USDCubeMesh(
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
     else:
-      usd_geom = None
+      mesh_config = shapes_module.mesh_config_generator(
+          name=geom_name,
+          geom_type=geom.type,
+          size=geom.size   
+      )
+      usd_geom = component_module.USDPrimitiveMesh(
+          mesh_config=mesh_config,
+          stage=self.stage,
+          geom=geom,
+          obj_name=geom_name,
+          rgba=geom.rgba,
+          texture_file=texture_file,
+      )
 
     self.geom_name2usd[geom_name] = usd_geom
 
@@ -306,6 +275,8 @@ class USDExporter:
     for i in range(self.scene.ngeom):
       geom = self.scene.geoms[i]
       geom_name = mujoco.mj_id2name(self.model, geom.objtype, geom.objid)
+      if not geom_name:
+        geom_name = f"unnamed_geom{geom.objid}"
 
       if geom_name not in self.geom_name2usd:
         self._load_geom(geom)
