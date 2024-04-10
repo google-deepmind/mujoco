@@ -213,6 +213,8 @@ def least_squares(
 
   # Initialize logging.
   trace = []
+  last_n_res = 0
+  last_n_jac = 0
   n_res = 0
   n_jac = 0
   t_res = 0.0
@@ -348,9 +350,12 @@ def least_squares(
       message = (
           f'iter: {i:<3d}  y: {y:<9.4g}  log10mu: {logmu:>4.1f}  '
           f'ratio: {reduction_ratio:<7.2g}  '
-          f'dx: {dx_norm:<7.2g}  reduction: {reduction:<7.2g}'
+          f'dx: {dx_norm:<7.2g}  reduction: {reduction:<7.2g}  '
+          f'Res evals: {n_res-last_n_res:d}  Jac evals {n_jac-last_n_jac:d}'
       )
       print(message, file=output)
+      last_n_res = n_res
+      last_n_jac = n_jac
 
     # Append log to trace.
     log = IterLog(candidate=x, objective=y, reduction=reduction, regularizer=mu)
