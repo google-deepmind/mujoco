@@ -4,6 +4,30 @@ import pprint
 import numpy as np
 import open3d as o3d
 
+def create_hemisphere(
+    radius: float,
+    resolution: int = 20,
+    theta_steps: int = 50,
+    phi_steps: int = 50
+):
+
+    points = []
+    for i in range(phi_steps + 1):
+        phi = np.pi / 2 * i / phi_steps
+        for j in range(theta_steps + 1):
+            theta = 2 * np.pi * j / theta_steps
+            x = radius * np.sin(phi) * np.cos(theta)
+            y = radius * np.sin(phi) * np.sin(theta)
+            z = radius * np.cos(phi)
+            points.append([x, y, z])
+
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    mesh = pcd.compute_convex_hull()[0]
+
+    return mesh
+
 def mesh_config_generator(
     name: str,
     geom_type: mujoco.mjtGeom,
@@ -29,19 +53,22 @@ def mesh_config_generator(
       }
     elif geom_type == mujoco.mjtGeom.mjGEOM_CAPSULE:
       cylinder = mesh_config_generator(name, mujoco.mjtGeom.mjGEOM_CYLINDER, size)
-      left_sphere = mesh_config_generator(name, mujoco.mjtGeom.mjGEOM_SPHERE, size)
-      right_sphere = copy.deepcopy(left_sphere)
-      left_sphere["sphere"]["transform"] = {
-        "translate": (0, 0, -size[2])
-      }
-      right_sphere["sphere"]["transform"] = {
-        "translate": (0, 0, size[2])
-      } 
       return {
         "name": name,
         "cylinder": cylinder["cylinder"],
-        "left_sphere": left_sphere["sphere"],
-        "right_sphere": right_sphere["sphere"],
+        "left_hemisphere": {
+          "radius": size[0],
+          "transform": {
+            "translate": (0, 0, -size[2]),
+            "rotate": (np.pi, 0, 0)
+          }
+        },
+        "right_hemisphere": {
+          "radius": size[0],
+          "transform": {
+            "translate": (0, 0, size[2])
+          }
+        },
       }
     elif geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
       sphere = mesh_config_generator(name, mujoco.mjtGeom.mjGEOM_SPHERE, [1.0])
@@ -94,6 +121,10 @@ def mesh_generator(
             create_uv_map=True,
             map_texture_to_each_face=True,
         )
+      elif "hemisphere" in shape: 
+        prim_mesh = create_hemisphere(
+          radius=mesh_config[shape]["radius"]
+        )
       elif "sphere" in shape:
         prim_mesh = o3d.geometry.TriangleMesh.create_sphere(
             radius=mesh_config[shape]["radius"],
@@ -107,12 +138,25 @@ def mesh_generator(
         )
 
       if "transform" in config:
-        for transform, val in config["transform"].items():
-          if transform == "translate":
-            prim_mesh.translate(val)
-          if transform == "scale":
-            prim_mesh.vertices = o3d.utility.Vector3dVector(
-              np.asarray(prim_mesh.vertices) * np.array(val))
+
+        if "rotate" in config["transform"]:
+          R = mesh.get_rotation_matrix_from_xyz(config["transform"]["rotate"])
+          prim_mesh.rotate(R, center=(0, 0, 0))
+        if "scale" in config["transform"]:
+          prim_mesh.vertices = o3d.utility.Vector3dVector(
+          np.asarray(prim_mesh.vertices) * np.array(config["transform"]["scale"]))
+        if "translate" in config["transform"]:
+          prim_mesh.translate(config["transform"]["translate"])
+
+        # for transform, val in config["transform"].items():
+        #   if transform == "translate":
+        #     prim_mesh.translate(val)
+        #   elif transform == "scale":
+        #     prim_mesh.vertices = o3d.utility.Vector3dVector(
+        #       np.asarray(prim_mesh.vertices) * np.array(val))
+        #   elif transform == "rotate":
+        #     R = mesh.get_rotation_matrix_from_xyz(val)
+        #     prim_mesh.rotate(R, center=(0, 0, 0))
 
       if not mesh:
         mesh = prim_mesh
