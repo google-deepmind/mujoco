@@ -76,6 +76,7 @@ def jacobian_fd(
     central: bool,
     n_res: int,
     bounds: Optional[List[np.ndarray]] = None,
+    process_pool = None,
 ):
   """Finite-difference Jacobian of a residual function.
 
@@ -93,6 +94,13 @@ def jacobian_fd(
     n_res: updated number of residual evaluations.
 
   """
+
+  assert bounds is not None
+  assert central == False
+
+  residual_args = []
+
+
   nx = x.size
   nr = r.size
   jac = np.zeros((nr, nx))
@@ -138,19 +146,44 @@ def jacobian_fd(
           rm = residual(xh)
           jac[:, i] = (rp - rm) / (2*eps_i)
           n_res += 2
-      else:
+      else: # This is the only case that should evaluate because of above
         # Below midpoint use forward differencing, otherwise backward.
         if x[i] < midpoint[i]:
           xh[i] = x[i] + eps_i
-          rp = residual(xh)
-          jac[:, i] = (rp - r) / eps_i
+
+          residual_args.append((i, True, eps_i, np.copy(xh)))
+          # rp = residual(xh)
+          # jac[:, i] = (rp - r) / eps_i
         else:
           xh[i] = x[i] - eps_i
-          rm = residual(xh)
-          jac[:, i] = (r - rm) / eps_i
+
+          residual_args.append((i, False, eps_i, np.copy(xh)))
+          # rm = residual(xh)
+          # jac[:, i] = (r - rm) / eps_i
         n_res += 1
       # Reset.
       xh[i] = x[i]
+
+  if process_pool is None:
+    for i, eps_sign, eps_i, xh in residual_args:
+      if eps_sign:
+        rp = residual(xh)
+        jac[:, i] = (rp - r) / eps_i
+      else:
+        rm = residual(xh)
+        jac[:, i] = (r - rm) / eps_i
+  else:
+    rpm_list = process_pool.map(residual, [arg[3] for arg in residual_args])
+
+    assert len(rpm_list) == len(residual_args)
+    for (i, eps_sign, eps_i, _), rpm in zip(residual_args, rpm_list):
+      if eps_sign:
+        rp = rpm
+        jac[:, i] = (rp - r) / eps_i
+      else:
+        rm = rpm
+        jac[:, i] = (r - rm) / eps_i
+
   return jac, n_res
 
 
@@ -168,6 +201,7 @@ def least_squares(
     max_iter: int = 100,
     verbose: Union[Verbosity, int] = Verbosity.ITER,
     output: Optional[TextIO] = None,
+    process_pool = None,
 ) -> Tuple[np.ndarray, List[IterLog]]:
   """Nonlinear Least Squares minimization with box bounds.
 
@@ -274,7 +308,7 @@ def least_squares(
     # Get Jacobian jac.
     t_start = time.time()
     if jacobian is None:
-      jac, n_res = jacobian_fd(residual, x, r, eps, central, n_res, bounds)
+      jac, n_res = jacobian_fd(residual, x, r, eps, central, n_res, bounds, process_pool)
       t_res += time.time() - t_start
     else:
       jac = jacobian(x, r)
