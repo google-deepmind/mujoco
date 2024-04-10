@@ -74,7 +74,7 @@ def jacobian_fd(
     r: np.ndarray,
     eps: np.float64,
     central: bool,
-    n_res: int,
+    jn_res: int,
     bounds: Optional[List[np.ndarray]] = None,
     process_pool = None,
 ):
@@ -86,12 +86,12 @@ def jacobian_fd(
     r: residual at x.
     eps: finite-difference step size.
     central: whether to use central differences.
-    n_res: number or residual evaluations so far.
+    jn_res: number of jacobian residual evaluations so far.
     bounds: optional pair of lower and upper bounds.
 
   Returns:
     jac: Jacobian of the residual at x.
-    n_res: updated number of residual evaluations.
+    jn_res: updated number of jacobian residual evaluations.
 
   """
 
@@ -117,7 +117,7 @@ def jacobian_fd(
       else:
         jac[:, i] = (rp - r) / eps
       xh[i] = x[i]
-    n_res += 2*nx if central else nx
+    jn_res += 2*nx if central else nx
   else:
     lower, upper = bounds
     midpoint = 0.5 * (upper - lower)
@@ -131,13 +131,13 @@ def jacobian_fd(
           xh[i] = x[i] + eps_i
           rp = residual(xh)
           jac[:, i] = (rp - r) / eps_i
-          n_res += 1
+          jn_res += 1
         elif x[i] + eps_i > upper[i]:
           # Near upper bound, use backward.
           xh[i] = x[i] - eps_i
           rm = residual(xh)
           jac[:, i] = (r - rm) / eps_i
-          n_res += 1
+          jn_res += 1
         else:
           # Use central.
           xh[i] = x[i] + eps_i
@@ -145,7 +145,7 @@ def jacobian_fd(
           xh[i] = x[i] - eps_i
           rm = residual(xh)
           jac[:, i] = (rp - rm) / (2*eps_i)
-          n_res += 2
+          jn_res += 2
       else: # This is the only case that should evaluate because of above
         # Below midpoint use forward differencing, otherwise backward.
         if x[i] < midpoint[i]:
@@ -160,7 +160,7 @@ def jacobian_fd(
           residual_args.append((i, False, eps_i, np.copy(xh)))
           # rm = residual(xh)
           # jac[:, i] = (r - rm) / eps_i
-        n_res += 1
+        jn_res += 1
       # Reset.
       xh[i] = x[i]
 
@@ -184,7 +184,7 @@ def jacobian_fd(
         rm = rpm
         jac[:, i] = (r - rm) / eps_i
 
-  return jac, n_res
+  return jac, jn_res
 
 
 def least_squares(
@@ -248,8 +248,10 @@ def least_squares(
   # Initialize logging.
   trace = []
   last_n_res = 0
+  last_n_jres = 0
   last_n_jac = 0
   n_res = 0
+  n_jres = 0
   n_jac = 0
   t_res = 0.0
   t_jac = 0.0
@@ -308,8 +310,9 @@ def least_squares(
     # Get Jacobian jac.
     t_start = time.time()
     if jacobian is None:
-      jac, n_res = jacobian_fd(residual, x, r, eps, central, n_res, bounds, process_pool)
-      t_res += time.time() - t_start
+      jac, n_jres = jacobian_fd(residual, x, r, eps, central, n_jres, bounds, process_pool)
+      t_jac += time.time() - t_start
+      n_jac += 1
     else:
       jac = jacobian(x, r)
       t_jac += time.time() - t_start
@@ -385,10 +388,11 @@ def least_squares(
           f'iter: {i:<3d}  y: {y:<9.4g}  log10mu: {logmu:>4.1f}  '
           f'ratio: {reduction_ratio:<7.2g}  '
           f'dx: {dx_norm:<7.2g}  reduction: {reduction:<7.2g}  '
-          f'Res evals: {n_res-last_n_res:d}  Jac evals {n_jac-last_n_jac:d}'
+          f'Res evals: {n_res-last_n_res:d}  Jac res evals {n_jres-last_n_jres:d}  Jac evals {n_jac-last_n_jac:d}'
       )
       print(message, file=output)
       last_n_res = n_res
+      last_n_jres = n_jres
       last_n_jac = n_jac
 
     # Append log to trace.
@@ -412,6 +416,21 @@ def least_squares(
     x = xnew
     r = rnew
 
+  # Final Iteration message.
+  if status != Status.DX_TOL and verbose >= Verbosity.ITER.value:
+    dx_norm = np.linalg.norm(dx)
+    logmu = np.log10(mu) if mu > 0 else -np.inf
+    message = (
+        f'iter: {i:<3d}  y: {y:<9.4g}  log10mu: {logmu:>4.1f}  '
+        f'ratio: {reduction_ratio:<7.2g}  '
+        f'dx: {dx_norm:<7.2g}  reduction: {reduction:<7.2g}  '
+        f'Res evals: {n_res-last_n_res:d}  Jac res evals {n_jres-last_n_jres:d}  Jac evals {n_jac-last_n_jac:d}'
+    )
+    print(message, file=output)
+    last_n_res = n_res
+    last_n_jres = n_jres
+    last_n_jac = n_jac
+
   # Append final log to trace.
   # Note: unlike other iter logs, this is at the end point.
   yfinal = 0.5 * r.dot(r)
@@ -424,6 +443,8 @@ def least_squares(
     message = f'Terminated after {i} iterations: '
     message += _STATUS_MESSAGE[status]
     message += f' y: {yfinal:<.4g}, Residual evals: {n_res:d}'
+    if n_jres > 0:
+      message += f', Jacobian residual evals: {n_jres:d}'
     if n_jac > 0:
       message += f', Jacobian evals: {n_jac:d}'
     print(message, file=output)
