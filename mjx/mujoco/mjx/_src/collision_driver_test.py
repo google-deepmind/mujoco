@@ -220,6 +220,50 @@ class EllipsoidCollisionTest(parameterized.TestCase):
       _assert_attr_eq(
           dx.contact, d.contact, field.name, 'ellipsoid-plane', 1e-5)
 
+  _ELLIPSOID_ELLIPSOID = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+        <body pos="0 0 0.09">
+          <freejoint/>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_ellipsoid_ellipsoid(self):
+    """Tests ellipsoid ellipsoid contact."""
+    d, dx = _collide(self._ELLIPSOID_ELLIPSOID)
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'ellipsoid-ellipsoid', 1e-5)
+
+  _ELLIPSOID_CAPSULE = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+        <body pos="0 0 0.0999">
+          <freejoint/>
+          <geom size=".05" fromto="-.1 0 0 .1 0 0" type="capsule"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_capsule_ellipsoid(self):
+    """Tests ellipsoid capsule contact."""
+    d, dx = _collide(self._ELLIPSOID_CAPSULE)
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-4)
+
 
 class CapsuleCollisionTest(parameterized.TestCase):
   _CAP_PLANE = """
