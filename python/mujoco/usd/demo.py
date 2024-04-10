@@ -1,7 +1,6 @@
 
 import mujoco
-# from mujoco.usd import exporter
-import exporter
+from mujoco.usd import exporter
 
 if __name__ == "__main__":
 

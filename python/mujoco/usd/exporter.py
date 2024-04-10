@@ -16,10 +16,8 @@ import os
 
 import mujoco
 
-# import mujoco.usd.shapes as shapes_module
-# import mujoco.usd.component as component_module
-import shapes as shapes_module
-import component as component_module
+import mujoco.usd.shapes as shapes_module
+import mujoco.usd.component as component_module
 
 import numpy as np
 import scipy
