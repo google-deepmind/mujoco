@@ -511,3 +511,41 @@ void mju_makeFrame(mjtNum frame[9]) {
   // zaxis = cross(xaxis, yaxis)
   mju_cross(frame+6, frame, frame+3);
 }
+
+
+
+// convert sequence of Euler angles (radians) to quaternion
+// seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations
+void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq) {
+  if (strnlen(seq, 4) != 3) {
+    mjERROR("seq must contain exactly 3 characters");
+  }
+
+  // init
+  double tmp[4] = {1, 0, 0, 0};
+
+  // loop over euler angles, accumulate rotations
+  for (int i=0; i<3; i++) {
+    // construct quaternion rotation
+    mjtNum rot[4] = {cos(euler[i]/2), 0, 0, 0};
+    mjtNum sa = sin(euler[i]/2);
+    if (seq[i]=='x' || seq[i]=='X') {
+      rot[1] = sa;
+    } else if (seq[i]=='y' || seq[i]=='Y') {
+      rot[2] = sa;
+    } else if (seq[i]=='z' || seq[i]=='Z') {
+      rot[3] = sa;
+    } else {
+      mjERROR("seq[%d] is '%c', should be one of x, y, z, X, Y, Z", i, seq[i]);
+    }
+
+    // accumulate rotation
+    if (seq[i]=='x' || seq[i]=='y' || seq[i]=='z') {
+      mju_mulQuat(tmp, tmp, rot);  // moving axes: post-multiply
+    } else {
+      mju_mulQuat(tmp, rot, tmp);  // fixed axes: pre-multiply
+    }
+  }
+
+  mju_copy4(quat, tmp);
+}

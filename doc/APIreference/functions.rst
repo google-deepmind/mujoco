@@ -2840,6 +2840,16 @@ mju_quatZ2Vec
 
 Construct quaternion performing rotation from z-axis to given vector.
 
+.. _mju_euler2Quat:
+
+mju_euler2Quat
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_euler2Quat
+
+Convert sequence of Euler angles (radians) to quaternion.
+seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations.
+
 .. _Poses:
 
 Poses

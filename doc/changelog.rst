@@ -5,10 +5,14 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+1. Added :ref:`mju_euler2Quat` for converting an Euler-angle sequence to quaternion.
+
 MJX
 ^^^
-1. Added support for userdata.
-2. Added ellipsoid-ellipsoid and ellipsoid-capsule collisions using signed distance functions (SDFs).
+2. Added support for userdata.
+3. Added ellipsoid-ellipsoid and ellipsoid-capsule collisions using signed distance functions (SDFs).
 
 Version 3.1.4 (April 8th, 2024)
 -------------------------------

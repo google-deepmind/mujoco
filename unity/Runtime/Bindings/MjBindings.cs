@@ -7130,6 +7130,9 @@ public static unsafe extern void mju_quatIntegrate(double* quat, double* vel, do
 public static unsafe extern void mju_quatZ2Vec(double* quat, double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_euler2Quat(double* quat, double* euler, [MarshalAs(UnmanagedType.LPStr)]string seq);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_mulPose(double* posres, double* quatres, double* pos1, double* quat1, double* pos2, double* quat2);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

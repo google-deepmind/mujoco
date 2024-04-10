@@ -6982,6 +6982,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Construct quaternion performing rotation from z-axis to given vector.',  # pylint: disable=line-too-long
      )),
+    ('mju_euler2Quat',
+     FunctionDecl(
+         name='mju_euler2Quat',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='quat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='euler',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='seq',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc="Convert sequence of Euler angles (radians) to quaternion. seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations.",  # pylint: disable=line-too-long
+     )),
     ('mju_mulPose',
      FunctionDecl(
          name='mju_mulPose',
