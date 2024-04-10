@@ -6,7 +6,7 @@ import exporter
 if __name__ == "__main__":
 
   # load a model to mujoco
-  m = mujoco.MjModel.from_xml_path("/Users/abhishek/Documents/research/mujoco/model/humanoid/humanoid.xml")
+  m = mujoco.MjModel.from_xml_path("/Users/abhishek/Documents/research/mujoco/test/engine/testdata/catenary.xml")
   d = mujoco.MjData(m)
 
   # create an instance of the USDExporter
