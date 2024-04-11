@@ -254,11 +254,6 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
     } else {
       this->graph_ = NULL;
     }
-    if (other.plugin.instance) {
-      mjCPlugin* new_plugin = new mjCPlugin(*static_cast<mjCPlugin*>(other.plugin.instance));
-      plugin = new_plugin->spec;
-      model->plugins.push_back(new_plugin);
-    }
   }
   PointToLocal();
   return *this;

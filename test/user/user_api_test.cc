@@ -196,7 +196,125 @@ TEST_F(PluginTest, RecompileCompareCache) {
 }
 
 // -------------------------------- test attach -------------------------------
-TEST_F(MujocoTest, Attach) {
+TEST_F(MujocoTest, AttachSame) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint type="hinge" name="hinge"/>
+        <geom type="cylinder" size=".1 1 0"/>
+        <light mode="targetbody" target="child"/>
+        <body name="child"/>
+      </body>
+      <body name="ignore"/>
+      <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
+    </worldbody>
+    <sensor>
+      <framepos name="sensor" objtype="body" objname="body"/>
+      <framepos name="ignore" objtype="body" objname="ignore"/>
+    </sensor>
+    <tendon>
+      <fixed name="fixed">
+        <joint joint="hinge" coef="2"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position name="hinge" joint="hinge"/>
+      <position name="fixed" tendon="fixed"/>
+    </actuator>
+    <contact>
+      <exclude body1="body" body2="child"/>
+    </contact>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint type="hinge" name="hinge"/>
+        <geom type="cylinder" size=".1 1 0"/>
+        <light mode="targetbody" target="child"/>
+        <body name="child"/>
+      </body>
+      <body name="ignore"/>
+      <frame name="frame" pos=".1 0 0" euler="0 90 0">
+        <body name="attached-body-1">
+          <joint type="hinge" name="attached-hinge-1"/>
+          <geom type="cylinder" size=".1 1 0"/>
+          <light mode="targetbody" target="attached-child-1"/>
+          <body name="attached-child-1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <sensor>
+      <framepos name="sensor" objtype="body" objname="body"/>
+      <framepos name="ignore" objtype="body" objname="ignore"/>
+      <framepos name="attached-sensor-1" objtype="body" objname="attached-body-1"/>
+    </sensor>
+    <tendon>
+      <fixed name="fixed">
+        <joint joint="hinge" coef="2"/>
+      </fixed>
+      <fixed name="attached-fixed-1">
+        <joint joint="attached-hinge-1" coef="2"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position name="hinge" joint="hinge"/>
+      <position name="fixed" tendon="fixed"/>
+      <position name="attached-hinge-1" joint="attached-hinge-1"/>
+      <position name="attached-fixed-1" tendon="attached-fixed-1"/>
+    </actuator>
+    <contact>
+      <exclude body1="body" body2="child"/>
+      <exclude body1="attached-body-1" body2="attached-child-1"/>
+    </contact>
+  </mujoco>)";
+
+  // create parent
+  mjSpec* parent = ParseSpecFromString(xml, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+
+  // get frame
+  mjsFrame* frame = mjs_findFrame(parent, "frame");
+  EXPECT_THAT(frame, NotNull());
+
+  // get subtree
+  mjsBody* body = mjs_findBody(parent, "body");
+  EXPECT_THAT(body, NotNull());
+
+  // attach child to parent frame
+  EXPECT_THAT(
+      mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+
+  // compile new model
+  mjModel* m_attached = mjs_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull());
+
+  // check full name stored in mjModel
+  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 4), "attached-body-1");
+
+  // check body 3 is attached to the world
+  EXPECT_THAT(m_attached->body_parentid[3], 0);
+
+  // compare with expected XML
+  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';;
+
+  // destroy everything
+  mjs_deleteSpec(parent);
+  mj_deleteModel(m_attached);
+  mj_deleteModel(m_expected);
+}
+
+TEST_F(MujocoTest, AttachDifferent) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
   std::string field = "";

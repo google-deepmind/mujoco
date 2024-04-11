@@ -815,15 +815,11 @@ void mjCBody::NameSpace(const mjCModel* m) {
   }
 
   for (auto& camera : cameras) {
-    if (!camera->name.empty()) {
-      camera->name = prefix + camera->name + suffix;
-    }
+    camera->NameSpace(m);
   }
 
   for (auto& light : lights) {
-    if (!light->name.empty()) {
-      light->name = prefix + light->name + suffix;
-    }
+    light->NameSpace(m);
   }
 
   for (auto& body : bodies) {
@@ -1408,6 +1404,10 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // TODO: needs to attach only referencing elements
   *model += *other.model;
+
+  // clear suffixes and return
+  other.model->suffix.clear();
+  other.model->prefix.clear();
   return *this;
 }
 
@@ -2501,6 +2501,15 @@ void mjCCamera::PointToLocal() {
 
 
 
+void mjCCamera::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
+}
+
+
+
 void mjCCamera::CopyFromSpec() {
   *static_cast<mjsCamera*>(this) = spec;
   userdata_ = spec_userdata_;
@@ -2644,6 +2653,15 @@ void mjCLight::PointToLocal() {
   spec.classname = (mjString)&classname;
   spec.targetbody = (mjString)&spec_targetbody_;
   spec.info = (mjString)&info;
+}
+
+
+
+void mjCLight::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
 }
 
 
@@ -3990,6 +4008,7 @@ void mjCPair::Compile(void) {
 mjCBodyPair::mjCBodyPair(mjCModel* _model) {
   // set model pointer
   model = _model;
+  elemtype = mjOBJ_EXCLUDE;
 
   // set defaults
   spec_bodyname1_.clear();
@@ -4329,7 +4348,7 @@ void mjCTendon::NameSpace(const mjCModel* m) {
     name = m->prefix + name + m->suffix;
   }
   for (int i=0; i<path.size(); i++) {
-    path[i]->NameSpace(model);
+    path[i]->NameSpace(m);
   }
 }
 

@@ -584,6 +584,7 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   void Compile(void);                     // compiler
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 };
 
 
@@ -622,6 +623,7 @@ class mjCLight : public mjCLight_, private mjsLight {
   void Compile(void);                     // compiler
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 };
 
 

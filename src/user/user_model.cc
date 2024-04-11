@@ -190,95 +190,99 @@ void mjCModel::CopyList(std::vector<T*>& dest,
                         std::map<mjCDef*, int>& def_map,
                         const std::vector<mjCDef*>& defaults) {
   // loop over the elements from the other model
-  for (T* element : source) {
+  int nsource = (int)source.size();
+  for (int i = 0; i < nsource; i++) {
+    T* candidate = new T(*source[i]);
     try {
       // try to find the referenced object in this model
-      element->NameSpace(element->model);
-      element->CopyFromSpec();
-      element->ResolveReferences(this);
+      candidate->NameSpace(source[i]->model);
+      candidate->CopyFromSpec();
+      candidate->ResolveReferences(this);
     } catch (mjCError err) {
       // if not present, skip the element
+      delete candidate;
       continue;
     }
     // copy the element from the other model to this model
-    dest.push_back(new T(*element));
+    dest.push_back(candidate);
     dest.back()->model = this;
-    dest.back()->def = defaults[def_map[element->def]];
+    dest.back()->def = defaults[def_map[candidate->def]];
+    dest.back()->id = -1;
+  }
+  if (!dest.empty()) {
+    processlist(ids, dest, dest[0]->elemtype);
   }
 }
 
 
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
-  if (this != &other) {
-    // create global lists
-    MakeLists(bodies[0]);
-    CreateObjectLists();
-    ProcessLists();
+  // create global lists
+  MakeLists(bodies[0]);
+  CreateObjectLists();
+  ProcessLists();
 
-    // copy all elements not in the tree
-    std::map<mjCDef*, int> def_map;
-    for (int i = 0; i < other.defaults.size(); i++) {
-      defaults.push_back(new mjCDef(*other.defaults[i]));
-      def_map[other.defaults[i]] = i;
-    }
-    CopyList(flexes, other.flexes, def_map, defaults);
-    CopyList(meshes, other.meshes, def_map, defaults);
-    CopyList(skins, other.skins, def_map, defaults);
-    CopyList(hfields, other.hfields, def_map, defaults);
-    CopyList(textures, other.textures, def_map, defaults);
-    CopyList(materials, other.materials, def_map, defaults);
-    CopyList(pairs, other.pairs, def_map, defaults);
-    CopyList(excludes, other.excludes, def_map, defaults);
-    CopyList(tendons, other.tendons, def_map, defaults);
-    CopyList(equalities, other.equalities, def_map, defaults);
-    CopyList(actuators, other.actuators, def_map, defaults);
-    CopyList(sensors, other.sensors, def_map, defaults);
-    CopyList(numerics, other.numerics, def_map, defaults);
-    CopyList(texts, other.texts, def_map, defaults);
-    CopyList(tuples, other.tuples, def_map, defaults);
-    CopyList(keys, other.keys, def_map, defaults);
-
-    // plugins are global
-    plugins = other.plugins;
-    active_plugins = other.active_plugins;
-
-    // update defaults for the copied objects
-    for (int i = 1; i < other.bodies.size(); i++) {
-      bodies[i]->def = defaults[def_map[other.bodies[i]->def]];
-    }
-    for (int i = 0; i < other.joints.size(); i++) {
-      joints[i]->def = defaults[def_map[other.joints[i]->def]];
-    }
-    for (int i = 0; i < other.geoms.size(); i++) {
-      geoms[i]->def = defaults[def_map[other.geoms[i]->def]];
-    }
-    for (int i = 0; i < other.sites.size(); i++) {
-      sites[i]->def = defaults[def_map[other.sites[i]->def]];
-    }
-    for (int i = 0; i < other.cameras.size(); i++) {
-      cameras[i]->def = defaults[def_map[other.cameras[i]->def]];
-    }
-    for (int i = 0; i < other.lights.size(); i++) {
-      lights[i]->def = defaults[def_map[other.lights[i]->def]];
-    }
-
-    // cast children to mjCBase
-
-
-    // restore to the same state as other
-    if (!compiled) {
-      mjCBody* world = bodies[0];
-      bodies.clear();
-      frames.clear();
-      joints.clear();
-      geoms.clear();
-      sites.clear();
-      cameras.clear();
-      lights.clear();
-      bodies.push_back(world);
-    }
+  // copy all elements not in the tree
+  std::map<mjCDef*, int> def_map;
+  int ndefaults = (int)other.defaults.size();
+  for (int i = 0; i < ndefaults; i++) {
+    defaults.push_back(new mjCDef(*other.defaults[i]));
+    def_map[other.defaults[i]] = i;
   }
+  CopyList(flexes, other.flexes, def_map, defaults);
+  CopyList(meshes, other.meshes, def_map, defaults);
+  CopyList(skins, other.skins, def_map, defaults);
+  CopyList(hfields, other.hfields, def_map, defaults);
+  CopyList(textures, other.textures, def_map, defaults);
+  CopyList(materials, other.materials, def_map, defaults);
+  CopyList(pairs, other.pairs, def_map, defaults);
+  CopyList(excludes, other.excludes, def_map, defaults);
+  CopyList(tendons, other.tendons, def_map, defaults);
+  CopyList(equalities, other.equalities, def_map, defaults);
+  CopyList(actuators, other.actuators, def_map, defaults);
+  CopyList(sensors, other.sensors, def_map, defaults);
+  CopyList(numerics, other.numerics, def_map, defaults);
+  CopyList(texts, other.texts, def_map, defaults);
+  CopyList(tuples, other.tuples, def_map, defaults);
+  CopyList(keys, other.keys, def_map, defaults);
+
+  // plugins are global
+  plugins = other.plugins;
+  active_plugins = other.active_plugins;
+
+  // update defaults for the copied objects
+  for (int i = 1; i < other.bodies.size(); i++) {
+    bodies[i]->def = defaults[def_map[other.bodies[i]->def]];
+  }
+  for (int i = 0; i < other.joints.size(); i++) {
+    joints[i]->def = defaults[def_map[other.joints[i]->def]];
+  }
+  for (int i = 0; i < other.geoms.size(); i++) {
+    geoms[i]->def = defaults[def_map[other.geoms[i]->def]];
+  }
+  for (int i = 0; i < other.sites.size(); i++) {
+    sites[i]->def = defaults[def_map[other.sites[i]->def]];
+  }
+  for (int i = 0; i < other.cameras.size(); i++) {
+    cameras[i]->def = defaults[def_map[other.cameras[i]->def]];
+  }
+  for (int i = 0; i < other.lights.size(); i++) {
+    lights[i]->def = defaults[def_map[other.lights[i]->def]];
+  }
+
+  // restore to the same state as other
+  if (!compiled) {
+    mjCBody* world = bodies[0];
+    bodies.clear();
+    frames.clear();
+    joints.clear();
+    geoms.clear();
+    sites.clear();
+    cameras.clear();
+    lights.clear();
+    bodies.push_back(world);
+  }
+
   PointToLocal();
   return *this;
 }
