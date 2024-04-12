@@ -1663,10 +1663,10 @@ important caveats:
   systems with contact. Contact events have high `Lyapunov exponents
   <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
   `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
-- Exact reproducibillity is only guaranteed within a **single version**. Small numerical differences are quite common
-  between versioned releases, for example due to code optimizations. This means that when saving an initial state and an
-  open-loop control sequence, the resulting rolled-out trajectory will be identical within the same version but will
-  likely be different between MuJoCo versions.
+- Exact reproducibility is only guaranteed within a **single version**, on the **same architecture**. Small numerical
+  differences are quite common between versioned releases, for example due to code optimizations. This means that when
+  saving an initial state and an open-loop control sequence, the resulting rolled-out trajectory will be identical
+  within the same version, but will likely be different between MuJoCo versions or different operating systems.
 
 .. _derivatives:
 
