@@ -193,6 +193,18 @@ class ModelIOTest(parameterized.TestCase):
           </worldbody>
         </mujoco>"""))
 
+  def test_gravcomp_not_implemented(self):
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <worldbody>
+            <body gravcomp="1">
+              <freejoint/>
+              <geom size="0.05"/>
+            </body>
+          </worldbody>
+        </mujoco>"""))
+
   def test_cylinder_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""

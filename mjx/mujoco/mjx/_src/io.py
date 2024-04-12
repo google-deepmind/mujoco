@@ -90,6 +90,9 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if (m.geom_condim != 3).any() or (m.pair_dim != 3).any():
     raise NotImplementedError('only condim=3 is supported')
 
+  if m.body_gravcomp.any():
+    raise NotImplementedError('gravcomp is not supported')
+
   # check collision geom types
   for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
     g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)

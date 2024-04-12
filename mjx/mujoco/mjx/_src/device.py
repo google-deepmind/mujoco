@@ -128,14 +128,15 @@ def _validate(m: mujoco.MjModel):
     if unsupported:
       raise NotImplementedError(f'{unsupported} not implemented.')
 
-  # check condim
-  if any(dim != 3 for dim in m.geom_condim) or any(
-      dim != 3 for dim in m.pair_dim
-  ):
-    raise NotImplementedError('Only condim=3 is supported.')
-
   if m.ntendon:
     raise NotImplementedError('Tendons are not supported.')
+
+  # check condim
+  if (m.geom_condim != 3).any() or (m.pair_dim != 3).any():
+    raise NotImplementedError('Only condim=3 is supported.')
+
+  if m.body_gravcomp.any():
+    raise NotImplementedError('gravcomp is not supported')
 
   # check collision geom types
   for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
