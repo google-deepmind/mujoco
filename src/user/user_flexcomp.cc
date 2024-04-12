@@ -13,11 +13,11 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <climits>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <sstream>
-#include <stdio.h>
 #include <string>
 #include <vector>
 
@@ -33,6 +33,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 #include "user/user_flexcomp.h"
+#include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -1069,6 +1070,9 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
     }
 
     // read points
+    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
+      throw mjCError(NULL, "Invalid number of nodes.");
+    }
     point.reserve(3*numNodes);
     for (size_t i=0; i < 3*numNodes; i++) {
       double x;
@@ -1127,10 +1131,13 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
     }
 
     // read points
-    double x;
+    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
+      throw mjCError(NULL, "Invalid number of nodes.");
+    }
     point.reserve(3*numNodes);
     const char* pointbuffer = buffer + nodebegin + kGmsh41HeaderSize + componentSize*numNodes;
     for (size_t i=0; i < 3*numNodes; i++) {
+      double x;
       ReadFromBuffer(&x, pointbuffer + i*componentSize);
       point.push_back(x);
     }
@@ -1160,6 +1167,10 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
     // dimensionality must be same as nodes
     if (entityDim != def.spec.flex->dim) {
       throw mjCError(NULL, "Inconsistent dimensionality in Elements");
+    }
+
+    if (numElements < 0 || numElements >= INT_MAX / 4) {
+      throw mjCError(NULL, "Invalid numElements.");
     }
 
     // type must be consistent with dimensionality
@@ -1218,6 +1229,10 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
       throw mjCError(NULL, "Element type inconsistent with dimensionality");
     }
 
+    if (numElements < 0 || numElements >= INT_MAX / 4) {
+      throw mjCError(NULL, "Invalid numElements.");
+    }
+
     // elementData: element tag and n node tags
     int numElementComponents = (entityDim+2);
     constexpr int componentSize = 8;
@@ -1265,6 +1280,10 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     }
     size_t numNodes = maxNodeTag;
 
+    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
+      throw mjCError(NULL, "Invalid number of nodes.");
+    }
+
     // read points, discard tag
     point.reserve(3*numNodes);
     for (size_t i=0; i < numNodes; i++) {
@@ -1297,9 +1316,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     }
 
     // parse maxNodeTag and then cast it to int
-    char maxNodeTagChar[20];
+    char maxNodeTagChar[11] = {0};
     ReadStrFromBuffer(maxNodeTagChar, buffer + nodebegin, std::min(10, nodeend - nodebegin));
-    size_t measuredHeaderSize = strnlen(maxNodeTagChar, 20) - 1;
+    size_t measuredHeaderSize = strnlen(maxNodeTagChar, 10) - 1;
     size_t maxNodeTag = std::stoi(maxNodeTagChar);
     size_t numNodes = maxNodeTag;
 
@@ -1314,6 +1333,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     }
 
     // read point, discard tag
+    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
+      throw mjCError(NULL, "Invalid number of nodes.");
+    }
     point.reserve(3*numNodes);
     // beginning of buffer containing node info
     const char* tagBuffer = buffer + nodebegin + measuredHeaderSize;
@@ -1346,6 +1368,11 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       throw mjCError(NULL, "Error reading Elements header");
     }
     size_t numElements = maxElementTag;
+
+    if (numElements < 0 || numElements >= INT_MAX / 4) {
+      throw mjCError(NULL, "Invalid number of elements.");
+    }
+
     // read elements, discard all tags
     element.reserve((entityDim+1)*numElements);
     for (size_t i=0; i < numElements; i++) {
@@ -1385,9 +1412,9 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     }
 
     // reading elements
-    char maxElementTagChar[20];
+    char maxElementTagChar[11] = {0};
     ReadStrFromBuffer(maxElementTagChar, buffer + elembegin, std::min(10, elemend - elembegin));
-    int measuredHeaderSize = strnlen(maxElementTagChar, 20) - 1;
+    int measuredHeaderSize = strnlen(maxElementTagChar, 10) - 1;
     int maxElementTag = std::stoi(maxElementTagChar);
     int numElements = maxElementTag;
     int tag, numTags;
@@ -1462,7 +1489,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     // Handling elements produced by ftetwild
     else {
       // read first element
-      for (int k =0; k < numNodeTags; k++) {
+      for (int k = 0; k < numNodeTags; k++) {
         const char* nodeTagBuffer = elementsBuffer + componentSize*(4+k);
         ReadFromBuffer(&nodeTag, nodeTagBuffer);
         if (nodeTag > numElements || nodeTag < 1) {
@@ -1524,6 +1551,10 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
   int elemend =   findstring(buffer, buffer_sz, "$EndElements");
 
 
+  // correct begin for string size, +1 for LF in binary (CRLF in Win ascii works)
+  nodebegin += (int)strlen("$Nodes") + 1;
+  elembegin += (int)strlen("$Elements") + 1;
+
   // check sections
   if (nodebegin < 0) {
     throw mjCError(NULL, "GMSH file missing $Nodes");
@@ -1538,11 +1569,6 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
     throw mjCError(NULL, "GMSH file missing $EndElements after $Elements");
   }
 
-  // correct begin for string size, +1 for LF in binary (CRLF in Win ascii works)
-  nodebegin += (int)strlen("$Nodes") + 1;
-  elembegin += (int)strlen("$Elements") + 1;
-
-
   // Support for 4.1
   if (mju_round(100*version) == 410) {
     LoadGMSH41(buffer, binary, nodeend, nodebegin, elemend, elembegin);
@@ -1551,5 +1577,7 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
   // Support for 2.2
   else if (mju_round(100*version) == 220) {
     LoadGMSH22(buffer, binary, nodeend, nodebegin, elemend, elembegin);
+  } else {
+    throw mjCError(NULL, "Unsupported GMSH file format version");
   }
 }
