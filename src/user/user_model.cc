@@ -2123,6 +2123,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhnum[i] = pme->tree().nbvh;
     m->mesh_bvhadr[i] = pme->tree().nbvh ? bvh_adr : -1;
+    copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
     copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
     copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 

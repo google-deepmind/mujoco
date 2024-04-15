@@ -815,12 +815,12 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
-  double* GetPosPtr(mjtGeomInertia type);              // get position
-  double* GetQuatPtr(mjtGeomInertia type);             // get orientation
+  double* GetPosPtr(mjtGeomInertia type);           // get position
+  double* GetQuatPtr(mjtGeomInertia type);          // get orientation
   double* GetOffsetPosPtr();                        // get position offset for geom
   double* GetOffsetQuatPtr();                       // get orientation offset for geom
-  double* GetInertiaBoxPtr(mjtGeomInertia type);       // get inertia box
-  double& GetVolumeRef(mjtGeomInertia type);           // get volume
+  double* GetInertiaBoxPtr(mjtGeomInertia type);    // get inertia box
+  double& GetVolumeRef(mjtGeomInertia type);        // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
@@ -852,7 +852,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void ApplyTransformations();                // apply user transformations
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void RemoveRepeated(void);                  // remove repeated vertices
-  void CheckMesh(mjtGeomInertia type);           // check if the mesh is valid
+  void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
 
   // mesh data to be copied into mjModel
   float* vert_;                       // vertex data (3*nvert), relative to (pos, quat)

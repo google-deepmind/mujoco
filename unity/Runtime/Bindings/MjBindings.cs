@@ -5374,6 +5374,7 @@ public unsafe struct mjModel_ {
   public int* mesh_facenormal;
   public int* mesh_facetexcoord;
   public int* mesh_graph;
+  public double* mesh_scale;
   public double* mesh_pos;
   public double* mesh_quat;
   public int* mesh_pathadr;

@@ -2,6 +2,15 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+1. Added `mjModel.mesh_scale`: the scaling applied to asset vertices, as specified in the :ref:`scale<asset-mesh-scale>`
+   attribute.
+
+
 Version 3.1.4 (April 10th, 2024)
 --------------------------------
 

@@ -2656,6 +2656,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='convex graph data                        (nmeshgraph x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='mesh_scale',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='scaling applied to asset vertices        (nmesh x 3)',
+             ),
+             StructFieldDecl(
                  name='mesh_pos',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
