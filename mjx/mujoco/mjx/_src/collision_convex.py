@@ -186,7 +186,7 @@ def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
   plane_pos = convex.mat.T @ (plane.pos - convex.pos)
   n = convex.mat.T @ plane.mat[:, 2]
   support = (plane_pos - vert) @ n
-  idx = _manifold_points(vert, support > 0, n)
+  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-4), n)
   pos = vert[idx]
 
   # convert to world frame
