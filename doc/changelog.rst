@@ -11,6 +11,12 @@ General
    attribute.
 
 
+MJX
+^^^
+
+1. Add cylinder plane collisions.
+
+
 Version 3.1.4 (April 10th, 2024)
 --------------------------------
 
