@@ -1,0 +1,272 @@
+<mujoco model="anymal_c">
+  <compiler angle="radian" meshdir="." texturedir="assets" autolimits="true"/>
+  <option timestep="0.002" iterations="1" ls_iterations="4" solver="Newton">
+      <flag eulerdamp="disable"/>
+  </option>
+  <option cone="pyramidal" impratio="100"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <default>
+    <material specular="0" shininess="0.25"/>
+    <default class="anymal_c">
+      <joint damping="1"/>
+
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+        <default class="visual_zflip">
+          <geom quat="0 0 0 1"/>
+        </default>
+      </default>
+      <default class="collision">
+        <geom group="3" type="capsule"/>
+        <default class="foot">
+
+          <geom type="sphere" size="0.03" pos="0 0 0.02325" priority="1" solimp="0.015 1 0.031" solref="0.02 1" condim="3"
+            friction="0.8 0.02 0.01"/>
+        </default>
+      </default>
+
+      <default class="affine">
+        <position kp="230" ctrlrange="-6.28 6.28" forcerange="-80 80"/>
+      </default>
+
+    </default>
+  </default>
+
+  <asset>
+    <material name="black_plastic" rgba="0.007 0.007 0.007 1"/>
+    <material name="green" rgba="0.052 0.178 0.033 1"/>
+    <material name="red" rgba="0.178 0.006 0.005 1"/>
+    <material name="yellow" rgba="0.178 0.119 0.006 1"/>
+    <material name="lwl" rgba="0.8 0.8 0.8 1"/>
+    <material name="base" texture="base"/>
+    <material name="top_shell" texture="top_shell"/>
+    <material name="bottom_shell" texture="bottom_shell"/>
+    <material name="hip_l" texture="hip_l"/>
+    <material name="thigh" texture="thigh"/>
+    <material name="shank_l" texture="shank_l"/>
+    <material name="foot" texture="foot"/>
+    <material name="hip_r" texture="hip_r"/>
+    <material name="shank" texture="shank_r"/>
+    <material name="hatch" texture="hatch"/>
+    <material name="remote" texture="remote"/>
+    <material name="handle" texture="handle"/>
+    <material name="face" texture="face"/>
+    <material name="depth_camera" texture="depth_camera"/>
+    <material name="wide_angle_camera" texture="wide_angle_camera"/>
+    <material name="battery" texture="battery"/>
+    <material name="lidar_cage" texture="lidar_cage"/>
+    <material name="lidar" texture="lidar"/>
+    <material name="drive" texture="drive"/>
+
+    <texture type="2d" name="base" file="base.png"/>
+    <texture type="2d" name="top_shell" file="top_shell.png"/>
+    <texture type="2d" name="bottom_shell" file="bottom_shell.png"/>
+    <texture type="2d" name="remote" file="remote.png"/>
+    <texture type="2d" name="hatch" file="hatch.png"/>
+    <texture type="2d" name="handle" file="handle.png"/>
+    <texture type="2d" name="face" file="face.png"/>
+    <texture type="2d" name="battery" file="battery.png"/>
+    <texture type="2d" name="lidar_cage" file="lidar_cage.png"/>
+    <texture type="2d" name="depth_camera" file="depth_camera.png"/>
+    <texture type="2d" name="wide_angle_camera" file="wide_angle_camera.png"/>
+    <texture type="2d" name="lidar" file="lidar.png"/>
+    <texture type="2d" name="drive" file="drive.png"/>
+    <texture type="2d" name="hip_l" file="hip_l.png"/>
+    <texture type="2d" name="shank_l" file="shank_l.png"/>
+    <texture type="2d" name="foot" file="foot.png"/>
+    <texture type="2d" name="thigh" file="thigh.png"/>
+    <texture type="2d" name="shank_r" file="shank_r.png"/>
+    <texture type="2d" name="hip_r" file="hip_r.png"/>
+
+    <mesh file="base_0.obj"/>
+    <mesh file="base_1.obj"/>
+    <mesh file="base_2.obj"/>
+    <mesh file="base_3.obj"/>
+    <mesh file="base_4.obj"/>
+    <mesh file="base_5.obj"/>
+    <mesh file="top_shell.obj"/>
+    <mesh file="bottom_shell.obj"/>
+    <mesh file="remote.obj"/>
+    <mesh file="handle.obj"/>
+    <mesh file="face.obj"/>
+    <mesh file="wide_angle_camera.obj"/>
+    <mesh file="depth_camera.obj"/>
+    <mesh file="battery.obj"/>
+    <mesh file="lidar_cage.obj"/>
+    <mesh file="lidar.obj"/>
+    <mesh file="drive.obj"/>
+    <mesh file="hip_l.obj"/>
+    <mesh file="thigh.obj"/>
+    <mesh file="shank_l.obj"/>
+    <mesh file="foot.obj"/>
+    <mesh file="hip_r.obj"/>
+    <mesh file="hatch.obj"/>
+    <mesh file="shank_r.obj"/>
+    <!-- Skybox makes the sky light blue rather than black. Groundplane makes an infinite ground area. -->
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" size="0 0 0.05" type="plane" conaffinity="1" material="groundplane"/>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <body name="base" pos="0 0 0.62" quat="0 0 0 1" childclass="anymal_c">
+      <camera name="track" pos="0 -2.5 0" xyaxes="1 0 0 0 1 5" mode="trackcom"/>
+      <camera name="fwd" pos="0 0.45 0" xyaxes="1 0 0 0 0 1"/>
+
+      <freejoint/>
+      <inertial mass="19.2035" pos="0.0025 0 0.0502071" quat="0.5 0.5 0.5 0.5" diaginertia="0.639559 0.624031 0.217374"/>
+      <geom mesh="base_0" material="green" class="visual"/>
+      <geom mesh="base_1" material="yellow" class="visual"/>
+      <geom mesh="base_2" material="red" class="visual"/>
+      <geom mesh="base_3" material="black_plastic" class="visual"/>
+      <geom mesh="base_4" material="lwl" class="visual"/>
+      <geom mesh="base_5" material="base" class="visual"/>
+      <geom material="top_shell" mesh="top_shell" class="visual"/>
+      <geom material="bottom_shell" mesh="bottom_shell" class="visual"/>
+      <geom material="remote" mesh="remote" class="visual"/>
+      <geom material="handle" mesh="handle" class="visual"/>
+      <geom pos="0.4145 0 0" material="face" mesh="face" class="visual"/>
+      <geom pos="-0.4145 0 0" material="face" mesh="face" class="visual_zflip"/>
+      <geom material="battery" mesh="battery" class="visual"/>
+      <geom pos="0.116 0 0.073" material="hatch" mesh="hatch" class="visual"/>
+      <body name="LF_HIP" pos="0.2999 0.104 0" quat="0.258819 0.965926 0 0">
+        <inertial mass="2.781" pos="0.0566606 -0.015294 -0.00829784" quat="-0.127978 0.709783 -0.135278 0.679359"
+          diaginertia="0.00585729 0.00491868 0.00329081"/>
+        <joint name="LF_HAA" axis="1 0 0" range="-0.72 0.49"/>
+        <geom quat="0.258819 -0.965926 0 0" material="hip_l" mesh="hip_l" class="visual"/>
+        <geom pos="0.0599 -0.0725816 -0.041905" quat="0.183013 -0.683013 0.683013 0.183013" material="drive"
+          mesh="drive" class="visual"/>
+        <body name="LF_THIGH" pos="0.0599 -0.0725816 -0.041905" quat="0.183013 -0.683013 0.683013 0.183013">
+          <inertial mass="3.071" pos="0.0308147 4.64995e-05 -0.245696" quat="0.993166 -0.00515309 -0.0806592 0.0841972"
+            diaginertia="0.03025 0.0298943 0.00418465"/>
+          <joint name="LF_HFE" axis="1 0 0" range="-9.42478 9.42478"/>
+          <geom quat="1 0 0 -1" material="thigh" mesh="thigh" class="visual"/>
+          <geom pos="0.1003 0 -0.285" material="drive" mesh="drive" class="visual"/>
+          <body name="LF_SHANK" pos="0.1003 0 -0.285">
+            <inertial mass="0.58842" pos="0.005462 -0.0612528 -0.0806598"
+              quat="0.992934 -0.115904 -0.00105487 -0.0254421" diaginertia="0.0101637 0.00923838 0.00111927"/>
+            <joint name="LF_KFE" axis="1 0 0" range="-9.42478 9.42478"/>
+            <geom quat="1 0 0 -1" material="shank_l" mesh="shank_l" class="visual"/>
+            <geom pos="0.01305 -0.08795 -0.33797" quat="0.382683 0 0 -0.92388" material="foot" mesh="foot"
+              class="visual"/>
+            <geom class="foot" pos="0.01305 -0.08795 -0.31547"/>
+          </body>
+        </body>
+      </body>
+      <body name="RF_HIP" pos="0.2999 -0.104 0" quat="0.258819 -0.965926 0 0">
+        <inertial mass="2.781" pos="0.0567633 0.015294 -0.00829784" quat="0.13524 0.679072 0.127985 0.710065"
+          diaginertia="0.00585928 0.0049205 0.00329064"/>
+        <joint name="RF_HAA" axis="1 0 0" range="-0.49 0.72"/>
+        <geom quat="0.258819 0.965926 0 0" material="hip_r" mesh="hip_r" class="visual"/>
+        <geom pos="0.0599 0.0725816 -0.041905" quat="0.183013 0.683013 0.683013 -0.183013" material="drive" mesh="drive"
+          class="visual"/>
+        <body name="RF_THIGH" pos="0.0599 0.0725816 -0.041905" quat="0.183013 0.683013 0.683013 -0.183013">
+          <inertial mass="3.071" pos="0.0308147 4.64995e-05 -0.245696" quat="0.992775 -0.00512735 -0.0806685 0.0886811"
+            diaginertia="0.0302511 0.0298933 0.0041845"/>
+          <joint name="RF_HFE" axis="-1 0 0" range="-9.42478 9.42478"/>
+          <geom quat="1 0 0 -1" material="thigh" mesh="thigh" class="visual"/>
+          <geom pos="0.1003 0 -0.285" material="drive" mesh="drive" class="visual"/>
+          <body name="RF_SHANK" pos="0.1003 0 -0.285">
+            <inertial mass="0.58842" pos="0.005462 0.0612528 -0.0806598" quat="0.992934 0.115904 -0.00105487 0.0254421"
+              diaginertia="0.0101637 0.00923838 0.00111927"/>
+            <joint name="RF_KFE" axis="-1 0 0" range="-9.42478 9.42478"/>
+            <geom quat="1 0 0 1" material="shank" mesh="shank_r" class="visual"/>
+            <geom pos="0.01305 0.08795 -0.33797" quat="0.382683 0 0 0.92388" material="foot" mesh="foot" class="visual"/>
+            <geom class="foot" pos="0.01305 0.08795 -0.31547"/>
+          </body>
+        </body>
+      </body>
+      <body name="LH_HIP" pos="-0.2999 0.104 0" quat="0 0 0.965926 -0.258819">
+        <inertial mass="2.781" pos="0.0567633 0.015294 -0.00829784" quat="0.13524 0.679072 0.127985 0.710065"
+          diaginertia="0.00585928 0.0049205 0.00329064"/>
+        <joint name="LH_HAA" axis="-1 0 0" range="-0.72 0.49"/>
+        <geom quat="-0.258819 -0.965926 0 0" material="hip_r" mesh="hip_r" class="visual"/>
+        <geom pos="0.0599 0.0725816 -0.041905" quat="0.183013 0.683013 0.683013 -0.183013" material="drive" mesh="drive"
+          class="visual"/>
+        <body name="LH_THIGH" pos="0.0599 0.0725816 -0.041905" quat="0.183013 0.683013 0.683013 -0.183013">
+          <inertial mass="3.071" pos="0.0308147 4.64995e-05 -0.245696" quat="0.992775 -0.00512735 -0.0806685 0.0886811"
+            diaginertia="0.0302511 0.0298933 0.0041845"/>
+          <joint name="LH_HFE" axis="1 0 0" range="-9.42478 9.42478"/>
+          <geom quat="1 0 0 -1" material="thigh" mesh="thigh" class="visual"/>
+          <geom pos="0.1003 0 -0.285" material="drive" mesh="drive" class="visual"/>
+          <body name="LH_SHANK" pos="0.1003 0 -0.285">
+            <inertial mass="0.58842" pos="0.005462 0.0612528 -0.0806598" quat="0.992934 0.115904 -0.00105487 0.0254421"
+              diaginertia="0.0101637 0.00923838 0.00111927"/>
+            <joint name="LH_KFE" axis="1 0 0" range="-9.42478 9.42478"/>
+            <geom quat="-1 0 0 -1" material="shank" mesh="shank_r" class="visual"/>
+            <geom pos="0.01305 0.08795 -0.33797" quat="-0.382683 0 0 -0.92388" material="foot" mesh="foot"
+              class="visual"/>
+            <geom class="foot" pos="0.01305 0.08795 -0.31547"/>
+          </body>
+        </body>
+      </body>
+      <body name="RH_HIP" pos="-0.2999 -0.104 0" quat="0 0 -0.965926 -0.258819">
+        <inertial mass="2.781" pos="0.0566606 -0.015294 -0.00829784" quat="-0.127978 0.709783 -0.135278 0.679359"
+          diaginertia="0.00585729 0.00491868 0.00329081"/>
+        <joint name="RH_HAA" axis="-1 0 0" range="-0.49 0.72"/>
+        <geom quat="-0.258819 0.965926 0 0" material="hip_l" mesh="hip_l" class="visual"/>
+        <geom pos="0.0599 -0.0725816 -0.041905" quat="-0.183013 0.683013 -0.683013 -0.183013" material="drive"
+          mesh="drive" class="visual"/>
+        <body name="RH_THIGH" pos="0.0599 -0.0725816 -0.041905" quat="-0.183013 0.683013 -0.683013 -0.183013">
+          <inertial mass="3.071" pos="0.0308147 4.64995e-05 -0.245696" quat="0.993166 -0.00515309 -0.0806592 0.0841972"
+            diaginertia="0.03025 0.0298943 0.00418465"/>
+          <joint name="RH_HFE" axis="-1 0 0" range="-9.42478 9.42478"/>
+          <geom quat="1 0 0 -1" material="thigh" mesh="thigh" class="visual"/>
+          <geom pos="0.1003 0 -0.285" material="drive" mesh="drive" class="visual"/>
+          <body name="RH_SHANK" pos="0.1003 0 -0.285">
+            <inertial mass="0.58842" pos="0.005462 -0.0612528 -0.0806598"
+              quat="0.992934 -0.115904 -0.00105487 -0.0254421" diaginertia="0.0101637 0.00923838 0.00111927"/>
+            <joint name="RH_KFE" axis="-1 0 0" range="-9.42478 9.42478"/>
+            <geom quat="1 0 0 -1" material="shank_l" mesh="shank_l" class="visual"/>
+            <geom pos="0.01305 -0.08795 -0.33797" quat="0.382683 0 0 -0.92388" material="foot" mesh="foot"
+              class="visual"/>
+            <geom class="foot" pos="0.01305 -0.08795 -0.31547"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="base" body2="LF_THIGH"/>
+    <exclude body1="base" body2="RF_THIGH"/>
+    <exclude body1="base" body2="LH_THIGH"/>
+    <exclude body1="base" body2="RH_THIGH"/>
+    <exclude body1="LF_SHANK" body2="RF_SHANK"/>
+    <exclude body1="LF_SHANK" body2="LH_SHANK"/>
+    <exclude body1="RH_SHANK" body2="RF_SHANK"/>
+    <exclude body1="RH_SHANK" body2="LF_SHANK"/>
+    <exclude body1="LH_SHANK" body2="RF_SHANK"/>
+    <exclude body1="LH_SHANK" body2="RH_SHANK"/>
+  </contact>
+
+  <actuator>
+    <position class="affine" joint="LF_HAA" name="LF_HAA"/>
+    <position class="affine" joint="LF_HFE" name="LF_HFE"/>
+    <position class="affine" joint="LF_KFE" name="LF_KFE"/>
+    <position class="affine" joint="RF_HAA" name="RF_HAA"/>
+    <position class="affine" joint="RF_HFE" name="RF_HFE"/>
+    <position class="affine" joint="RF_KFE" name="RF_KFE"/>
+    <position class="affine" joint="LH_HAA" name="LH_HAA"/>
+    <position class="affine" joint="LH_HFE" name="LH_HFE"/>
+    <position class="affine" joint="LH_KFE" name="LH_KFE"/>
+    <position class="affine" joint="RH_HAA" name="RH_HAA"/>
+    <position class="affine" joint="RH_HFE" name="RH_HFE"/>
+    <position class="affine" joint="RH_KFE" name="RH_KFE"/>
+  </actuator>
+
+<!-- A higher standing position -->
+  <keyframe> 
+    <key name="standing" qpos='0.0 0.0 0.56 1.0 0.0 0.0 0.0 0.0 0.5235987755982988 -0.7853981 0.0 0.5235987755982988 -0.7853981 0.0 -0.5235987755982988 0.7853981 0.0 -0.5235987755982988 0.7853981'
+      />
+  </keyframe>
+</mujoco>
