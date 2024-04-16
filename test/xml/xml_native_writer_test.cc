@@ -935,6 +935,35 @@ TEST_F(XMLWriterTest, WritesHfield) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesLight) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="r1">
+        <light radius="1"/>
+      </default>
+    </default>
+    <worldbody>
+      <light/>
+      <light class="r1"/>
+      <light class="r1" radius="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  // save and read, compare data
+  mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
+  EXPECT_EQ(mtemp->nlight, 3);
+  EXPECT_EQ(mtemp->light_radius[0], 0);
+  EXPECT_EQ(mtemp->light_radius[1], 1);
+  EXPECT_EQ(mtemp->light_radius[2], 2);
+
+  mj_deleteModel(mtemp);
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, SpringlengthOneValue) {
   static constexpr char xml[] = R"(
   <mujoco>

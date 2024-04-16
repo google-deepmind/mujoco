@@ -295,6 +295,7 @@
     XMJV( mjtByte, light_active,          nlight,        1                    ) \
     X   ( mjtNum,  light_pos,             nlight,        3                    ) \
     X   ( mjtNum,  light_dir,             nlight,        3                    ) \
+    X   ( mjtNum,  light_radius,          nlight,        1                    ) \
     X   ( mjtNum,  light_poscom0,         nlight,        3                    ) \
     X   ( mjtNum,  light_pos0,            nlight,        3                    ) \
     X   ( mjtNum,  light_dir0,            nlight,        3                    ) \

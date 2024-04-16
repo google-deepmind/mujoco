@@ -3181,6 +3181,12 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 :at:`dir`: :at-val:`real(3), "0 0 -1"`
    Direction of the light.
 
+.. _body-light-radius:
+
+:at:`radius`: :at-val:`real, "0"`
+   Radius of the light, affects shadow softness. This attribute has no effect in MuJoCo's native renderer, but it can be
+   useful when rendering scenes with an external renderer.
+
 .. _body-light-attenuation:
 
 :at:`attenuation`: :at-val:`real(3), "1 0 0"`
@@ -7585,6 +7591,8 @@ if omitted.
 .. _default-light-pos:
 
 .. _default-light-dir:
+
+.. _default-light-radius:
 
 .. _default-light-directional:
 

@@ -1985,6 +1985,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_active[lid] = (mjtByte)pl->active;
       copyvec(m->light_pos+3*lid, pl->pos, 3);
       copyvec(m->light_dir+3*lid, pl->dir, 3);
+      m->light_radius[lid] = pl->radius;
       copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;

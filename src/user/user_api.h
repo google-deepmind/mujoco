@@ -347,6 +347,7 @@ typedef struct _mjsLight {         // light specification
   // frame
   double pos[3];                   // position
   double dir[3];                   // direction
+  double radius;                   // radius
   mjtCamLight mode;                // tracking mode
   mjString targetbody;             // target body for targeting
 

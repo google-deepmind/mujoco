@@ -5297,6 +5297,7 @@ public unsafe struct mjModel_ {
   public byte* light_active;
   public double* light_pos;
   public double* light_dir;
+  public double* light_radius;
   public double* light_poscom0;
   public double* light_pos0;
   public double* light_dir0;
