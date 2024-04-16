@@ -198,7 +198,7 @@ class mjCBase : public mjCBase_ {
   virtual void ResolveReferences(const mjCModel* m) {}
 
   // Appends prefix and suffix to reference
-  virtual void NameSpace(const mjCModel* m) {}
+  virtual void NameSpace(const mjCModel* m);
 
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
@@ -274,7 +274,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCLight*   AddLight(mjCDef* = 0);
 
   // API for adding existing objects to body
-  mjCBody& operator+=(mjCBody& other);
+  mjCBody& operator+=(const mjCBody& other);
 
   // API for accessing objects
   int NumObjects(mjtObj type);
@@ -322,6 +322,11 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void CopyFromSpec();                 // copy spec into attributes
   void PointToLocal(void);
+
+  // copy src list of elements into dst; set body, model and frame
+  template <typename T>
+  void CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
+                std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe = nullptr);
 };
 
 
