@@ -7,8 +7,8 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Added `mjModel.mesh_scale`: the scaling applied to asset vertices, as specified in the :ref:`scale<asset-mesh-scale>`
-   attribute.
+1. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
+   :ref:`scale<asset-mesh-scale>` attribute.
 2. Added the :ref:`light/radius<body-light-radius>` attribute and corresponding ``mjModel.light_radius`` field. This
    value has no effect in MuJoCo's native renderer, but can be usful when rendering scenes with an external renderer.
 
