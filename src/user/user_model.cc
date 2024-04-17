@@ -3118,7 +3118,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // compile objects in kinematic tree
   for (int i=0; i<bodies.size(); i++) {
-    bodies[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights
+    bodies[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights, frames
   }
 
   // compile all other objects except for keyframes

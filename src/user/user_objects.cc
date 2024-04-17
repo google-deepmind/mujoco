@@ -628,7 +628,6 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
     return;
   }
   frame = _frame;
-  frame->Compile();
 }
 
 
@@ -735,10 +734,19 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   other.model->prefix = other.prefix;
   other.model->suffix = other.suffix;
 
-  // map old frames to indices
+  // copy input frame
+  frames.push_back(new mjCFrame(other));
+  frames.back()->body = this;
+  frames.back()->model = model;
+  frames.back()->frame = other.frame;
+
+  // map input frames to index in this->frames
   std::map<mjCFrame*, int> fmap;
-  for (int i=0; i<subtree->frames.size(); i++) {
-    fmap[subtree->frames[i]] = i;
+  for (auto frame : subtree->frames) {
+    if (frame == static_cast<const mjCFrame*>(&other)) {
+      fmap[frame] = frames.size() - 1;
+      break;
+    }
   }
 
   // copy children that are inside the input frame
@@ -1211,6 +1219,11 @@ void mjCBody::MakeInertialExplicit() {
 // compiler
 void mjCBody::Compile(void) {
   CopyFromSpec();
+
+  // compile all frames
+  for (int i=0; i<frames.size(); i++) {
+    frames[i]->Compile();
+  }
 
   // resize userdata
   if (userdata_.size() > model->nuser_body) {
