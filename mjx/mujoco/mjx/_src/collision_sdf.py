@@ -33,8 +33,7 @@ from mujoco.mjx._src.collision_base import GeomInfo
 from mujoco.mjx._src.dataclasses import PyTreeNode
 # pylint: enable=g-importing-member
 
-
-# the objective function, inputs: pos (that we optimize for) and size (known)
+# the SDF function takes position in, and returns a distance or objective
 SDFFn = Callable[[jax.Array], jax.Array]
 
 

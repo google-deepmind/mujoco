@@ -198,7 +198,7 @@ class mjCBase : public mjCBase_ {
   virtual void ResolveReferences(const mjCModel* m) {}
 
   // Appends prefix and suffix to reference
-  virtual void NameSpace(const mjCModel* m) {}
+  virtual void NameSpace(const mjCModel* m);
 
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
@@ -274,7 +274,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCLight*   AddLight(mjCDef* = 0);
 
   // API for adding existing objects to body
-  mjCBody& operator+=(mjCBody& other);
+  mjCBody& operator+=(const mjCBody& other);
 
   // API for accessing objects
   int NumObjects(mjtObj type);
@@ -322,6 +322,11 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void CopyFromSpec();                 // copy spec into attributes
   void PointToLocal(void);
+
+  // copy src list of elements into dst; set body, model and frame
+  template <typename T>
+  void CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
+                std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe = nullptr);
 };
 
 
@@ -815,12 +820,12 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
-  double* GetPosPtr(mjtGeomInertia type);              // get position
-  double* GetQuatPtr(mjtGeomInertia type);             // get orientation
+  double* GetPosPtr(mjtGeomInertia type);           // get position
+  double* GetQuatPtr(mjtGeomInertia type);          // get orientation
   double* GetOffsetPosPtr();                        // get position offset for geom
   double* GetOffsetQuatPtr();                       // get orientation offset for geom
-  double* GetInertiaBoxPtr(mjtGeomInertia type);       // get inertia box
-  double& GetVolumeRef(mjtGeomInertia type);           // get volume
+  double* GetInertiaBoxPtr(mjtGeomInertia type);    // get inertia box
+  double& GetVolumeRef(mjtGeomInertia type);        // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
@@ -852,7 +857,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void ApplyTransformations();                // apply user transformations
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void RemoveRepeated(void);                  // remove repeated vertices
-  void CheckMesh(mjtGeomInertia type);           // check if the mesh is valid
+  void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
 
   // mesh data to be copied into mjModel
   float* vert_;                       // vertex data (3*nvert), relative to (pos, quat)

@@ -465,6 +465,50 @@ class CapsuleCollisionTest(parameterized.TestCase):
     )
 
 
+class CylinderTest(absltest.TestCase):
+  """Tests the cylinder contact functions."""
+
+  _CYLINDER_PLANE = """
+    <mujoco>
+      <worldbody>
+        <geom size="40 40 40" type="plane"/>
+        <body pos="0 0 0.04">
+          <joint type="free"/>
+          <geom fromto="-0.1 0 0 0.1 0 0" size="0.05" type="cylinder"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_cylinder_plane(self):
+    d, dx = _collide(self._CYLINDER_PLANE)
+
+    # cylinder is lying flat
+    np.testing.assert_array_less(dx.contact.dist[:2], 0)
+    np.testing.assert_array_less(-dx.contact.dist[2:], 0)
+
+    # sort position for comparison
+    idx = np.lexsort((dx.contact.pos[:, 0], dx.contact.pos[:, 1]))
+    dx = dx.tree_replace({'contact.pos': dx.contact.pos[idx]})
+    idx = np.lexsort((d.contact.pos[:, 0], d.contact.pos[:, 1]))
+    d.contact.pos[:] = d.contact.pos[idx]
+
+    # extract the contact points with penetration
+    c = jax.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(c, d.contact, field.name, 'cylinder_plane', 1e-5)
+
+    # cylinder is vertical
+    xml = self._CYLINDER_PLANE.replace(
+        '<geom fromto="-0.1 0 0 0.1 0 0"', '<geom fromto="0 0 -0.1 0 0 0.1"')
+    xml = xml.replace('pos="0 0 0.04"', 'pos="0 0 0.095"')
+    d, dx = _collide(xml)
+
+    np.testing.assert_array_less(dx.contact.dist, 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(dx.contact, d.contact, field.name, 'cylinder_plane', 1e-5)
+
+
 class ConvexTest(absltest.TestCase):
   """Tests the convex contact functions."""
 

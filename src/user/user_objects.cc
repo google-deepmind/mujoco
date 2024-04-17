@@ -581,6 +581,14 @@ mjCBase& mjCBase::operator=(const mjCBase& other) {
 
 
 
+void mjCBase::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+}
+
+
+
 // load resource if found (fallback to OS filesystem)
 mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
   // try reading from provided VFS
@@ -675,8 +683,6 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     spec = other.spec;
     *static_cast<mjCBody_*>(this) = static_cast<const mjCBody_&>(other);
     *static_cast<mjsBody*>(this) = static_cast<const mjsBody&>(other);
-    std::map<mjCFrame*, int> fmap;
-    mjCFrame *np = nullptr;
     bodies.clear();
     frames.clear();
     geoms.clear();
@@ -685,52 +691,8 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     cameras.clear();
     lights.clear();
 
-    // create frames and map them to the old ones
-    for (int i=0; i<other.frames.size(); i++) {
-      frames.push_back(new mjCFrame(*other.frames[i]));
-      frames.back()->model = model;
-      frames.back()->body = this;
-      fmap[other.frames[i]] = i;
-    }
-
-    // copy all children
-    for (int i=0; i<other.bodies.size(); i++) {
-      bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
-      bodies.back()->frame = other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : np;
-    }
-    for (int i=0; i<other.frames.size(); i++) {
-      frames[i]->frame = other.frames[i]->frame ? frames[fmap[other.frames[i]->frame]] : np;
-    }
-    for (int i=0; i<other.geoms.size(); i++) {
-      geoms.push_back(new mjCGeom(*other.geoms[i]));
-      geoms.back()->body = this;
-      geoms.back()->model = model;
-      geoms.back()->frame = other.geoms[i]->frame ? frames[fmap[other.geoms[i]->frame]] : np;
-    }
-    for (int i=0; i<other.joints.size(); i++) {
-      joints.push_back(new mjCJoint(*other.joints[i]));
-      joints.back()->body = this;
-      joints.back()->model = model;
-      joints.back()->frame = other.joints[i]->frame ? frames[fmap[other.joints[i]->frame]] : np;
-    }
-    for (int i=0; i<other.sites.size(); i++) {
-      sites.push_back(new mjCSite(*other.sites[i]));
-      sites.back()->body = this;
-      sites.back()->model = model;
-      sites.back()->frame = other.sites[i]->frame ? frames[fmap[other.sites[i]->frame]] : np;
-    }
-    for (int i=0; i<other.cameras.size(); i++) {
-      cameras.push_back(new mjCCamera(*other.cameras[i]));
-      cameras.back()->body = this;
-      cameras.back()->model = model;
-      cameras.back()->frame = other.cameras[i]->frame ? frames[fmap[other.cameras[i]->frame]] : np;
-    }
-    for (int i=0; i<other.lights.size(); i++) {
-      lights.push_back(new mjCLight(*other.lights[i]));
-      lights.back()->body = this;
-      lights.back()->model = model;
-      lights.back()->frame = other.lights[i]->frame ? frames[fmap[other.lights[i]->frame]] : np;
-    }
+    // add elements to lists
+    *this += other;
   }
   PointToLocal();
   return *this;
@@ -738,9 +700,56 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
 
 
 
-mjCBody& mjCBody::operator+=(mjCBody& other) {
-  bodies.push_back(&other);
+// copy children of other body into body
+mjCBody& mjCBody::operator+=(const mjCBody& other) {
+  // map other frames to indices
+  std::map<mjCFrame*, int> fmap;
+  for (int i=0; i<other.frames.size(); i++) {
+    fmap[other.frames[i]] = i;
+  }
+
+  // copy frames, needs to happen first
+  CopyList(frames, other.frames, fmap);
+
+  // copy all children
+  CopyList(geoms, other.geoms, fmap);
+  CopyList(joints, other.joints, fmap);
+  CopyList(sites, other.sites, fmap);
+  CopyList(cameras, other.cameras, fmap);
+  CopyList(lights, other.lights, fmap);
+
+  for (int i=0; i<other.bodies.size(); i++) {
+    bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
+    bodies.back()->frame =
+        other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : nullptr;
+  }
+
   return *this;
+}
+
+
+
+// copy src list of elements into dst; set body, model and frame
+template <typename T>
+void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
+                       std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe) {
+  int nsrc = (int)src.size();
+  for (int i=0; i<nsrc; i++) {
+    if (pframe && src[i]->frame != pframe) {
+      continue;  // skip if the element is not inside pframe
+    }
+    dst.push_back(new T(*src[i]));
+    dst.back()->body = this;
+    dst.back()->model = model;
+
+    // assign dst frame to src frame
+    dst.back()->frame = src[i]->frame ? frames[fmap[src[i]->frame]] : nullptr;
+
+    // set namespace from pframe if given
+    if (pframe) {
+      dst.back()->NameSpace(pframe->model);
+    }
+  }
 }
 
 
@@ -797,21 +806,15 @@ void mjCBody::NameSpace(const mjCModel* m) {
   }
 
   for (auto& joint : joints) {
-    if (!joint->name.empty()) {
-      joint->name = prefix + joint->name + suffix;
-    }
+    joint->NameSpace(m);
   }
 
   for (auto& geom : geoms) {
-    if (!geom->name.empty()) {
-      geom->name = prefix + geom->name + suffix;
-    }
+    geom->NameSpace(m);
   }
 
   for (auto& site : sites) {
-    if (!site->name.empty()) {
-      site->name = prefix + site->name + suffix;
-    }
+    site->NameSpace(m);
   }
 
   for (auto& camera : cameras) {
@@ -1391,6 +1394,7 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 }
 
 
+
 // attach body to frame
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   mjCBody* subtree = new mjCBody(other, model);
@@ -1399,10 +1403,10 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   subtree->SetFrame(this);
   subtree->NameSpace(other.model);
 
-  // add to tree
-  *body += *subtree;
+  // add to body children
+  body->bodies.push_back(subtree);
 
-  // TODO: needs to attach only referencing elements
+  // attach referencing elements
   *model += *other.model;
 
   // clear suffixes and return

@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -41,7 +42,6 @@
 namespace {
 namespace mju = ::mujoco::util;
 using std::vector;
-using std::string;
 using std::stringstream;
 }  // namespace
 
@@ -62,6 +62,15 @@ static void ReadStrFromBuffer(char* dest, const char* src, int maxlen) {
   std::strncpy(dest, src, maxlen);
 }
 
+bool IsValidElementHeader22(const std::string& line) {
+  // making sure characters are numbers
+  for (char c : line) {
+    if (!std::isdigit(c)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 
 // constructor: set defaults outside mjCDef
@@ -879,7 +888,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // get extension and check; must be STL, OBJ or MSH
-  string ext = mjuu_getext(file);
+  std::string ext = mjuu_getext(file);
   if (strcasecmp(ext.c_str(), ".stl") &&
       strcasecmp(ext.c_str(), ".obj") &&
       strcasecmp(ext.c_str(), ".msh")) {
@@ -892,8 +901,8 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
-                                      mjs_getString(model->spec.meshdir), file);
+  std::string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+                                           mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {
@@ -998,8 +1007,8 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
-                                      mjs_getString(model->spec.meshdir), file);
+  std::string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+                                           mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {
@@ -1037,13 +1046,18 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
   // ascii nodes
   if (binary == 0) {
     // convert node char buffer to stringstream
-    stringstream ss(string(buffer + nodebegin, nodeend - nodebegin));
+    stringstream ss(std::string(buffer + nodebegin, nodeend - nodebegin));
 
     // read header
     ss >> numEntityBlocks >> numNodes >> minNodeTag >> maxNodeTag;
     ss >> entityDim >> entityTag >> parametric >> numNodesInBlock;
     if (!ss.good()) {
       throw mjCError(NULL, "Error reading Nodes header");
+    }
+
+    // check number of nodes is a positive number
+    if (numNodes < 0) {
+      throw mjCError(NULL, "Invalid number of nodes");
     }
 
     // require single block
@@ -1105,6 +1119,11 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
       throw mjCError(NULL, "All nodes must be in single block");
     }
 
+    // check number of nodes is a positive number
+    if (numNodes < 0) {
+      throw mjCError(NULL, "Invalid number of nodes");
+    }
+
     // check dimensionality and save
     if (entityDim < 1 || entityDim > 3) {
       throw mjCError(NULL, "Entity must be 1D, 2D or 3D");
@@ -1150,7 +1169,7 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
   if (binary == 0) {
     // convert element char buffer to stringstream
     buffer[elemend] = 0;
-    stringstream ss(buffer + elembegin);
+    stringstream ss(std::string(buffer + elembegin, elemend - elembegin));
 
     // read header
     ss >> numEntityBlocks >> numElements >> minElementTag >> maxElementTag;
@@ -1162,6 +1181,11 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
     // require single block
     if (numEntityBlocks != 1 || numElements != numElementsInBlock) {
       throw mjCError(NULL, "All elements must be in single block");
+    }
+
+    // check number of elements is a positive number
+    if (numElements < 0) {
+      throw mjCError(NULL, "Invalid number of elements");
     }
 
     // dimensionality must be same as nodes
@@ -1217,6 +1241,11 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
       throw mjCError(NULL, "All elements must be in single block");
     }
 
+    // check number of elements is a positive number
+    if (numElements < 0) {
+      throw mjCError(NULL, "Invalid number of elements");
+    }
+
     // dimensionality must be same as nodes
     if (entityDim != def.spec.flex->dim) {
       throw mjCError(NULL, "Inconsistent dimensionality in Elements");
@@ -1270,7 +1299,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
   // ascii nodes
   if (binary == 0) {
     // convert node char buffer to stringstream
-    stringstream ss(string(buffer + nodebegin, nodeend - nodebegin));
+    stringstream ss(std::string(buffer + nodebegin, nodeend - nodebegin));
 
     // read header
     size_t maxNodeTag = 0;
@@ -1322,6 +1351,11 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     size_t maxNodeTag = std::stoi(maxNodeTagChar);
     size_t numNodes = maxNodeTag;
 
+    // check number of nodes is a positive number
+    if (numNodes < 0) {
+      throw mjCError(NULL, "Invalid number of nodes");
+    }
+
     // node data: node tag and 3 nodes
     int nodeSize = sizeof(double);
     int indexSize = sizeof(int);
@@ -1352,20 +1386,25 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     }
   }
 
-  size_t entityDim = 3;
-  def.spec.flex->dim = entityDim;
 
   // ascii elements
   if (binary == 0) {
     // convert element char buffer to stringstream
     buffer[elemend] = 0;
-    stringstream ss(buffer + elembegin);
+    stringstream ss(std::string(buffer + elembegin, elemend - elembegin));
+    std::string line;
 
+    // checking header template
+    std::getline(ss, line);
+    if (!IsValidElementHeader22(line)) {
+      throw mjCError(NULL, "Invalid elements header");
+    }
+    ss.seekg(-(line.size()+1), std::ios::cur);
     // read header
     size_t maxElementTag = 0;
     ss >> maxElementTag;
     if (!ss.good()) {
-      throw mjCError(NULL, "Error reading Elements header");
+      throw mjCError(NULL, "GetMaxElementTag::Error reading Elements header");
     }
     size_t numElements = maxElementTag;
 
@@ -1373,14 +1412,36 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       throw mjCError(NULL, "Invalid number of elements.");
     }
 
+
+    // check number of elements is a positive number
+    if (numElements < 0) {
+      throw mjCError(NULL, "Invalid number of elements");
+    }
+
+    // reading first element's type
+    int tag = 0, type = 0, numTags = 0;
+    ss >> tag >> type >> numTags;
+    if (!ss.good()) {
+      throw mjCError(NULL, "Error reading Elements");
+    }
+    int numNodeTags = type;
+    if (numNodeTags < 1 || numNodeTags >4) {
+      throw mjCError(NULL, "Invalid number of node tags");
+    }
+
+    // setting entityDim
+    size_t entityDim = numNodeTags - 1;
+    def.spec.flex->dim = entityDim;
+
     // read elements, discard all tags
-    element.reserve((entityDim+1)*numElements);
-    for (size_t i=0; i < numElements; i++) {
-      int tag = 0, type = 0, numTags = 0, nodeTag = 0, physicalEntityTag = 0,
-          elmentModelEntityTag = 0;
-      ss >> tag >> type >> numTags;
-      if (!ss.good()) {
+    element.reserve(numNodeTags*numElements);
+    for (size_t i=0; i<numElements; i++) {
+      int nodeTag = 0, physicalEntityTag = 0, elmentModelEntityTag = 0;
+      if (i != 0) {
+        ss >> tag >> type >> numTags;
+        if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
+        }
       }
       if (numTags > 0) {
         ss >> physicalEntityTag >> elmentModelEntityTag;
@@ -1388,7 +1449,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
           throw mjCError(NULL, "Error reading Elements");
         }
       }
-      for (int k=0; k <= entityDim; k++) {
+      for (int k=0; k < numNodeTags; k++) {
         ss >> nodeTag;
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
@@ -1419,23 +1480,34 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     int numElements = maxElementTag;
     int tag, numTags;
     int nodeTag;
+    int numNodeTags;
+
+    // check number of elements is a positive number
+    if (numElements < 0) {
+      throw mjCError(NULL, "Invalid number of elements");
+    }
 
     // size of single component in element data
     int componentSize = sizeof(int);
     // element buffer
     const char* elementsBuffer = buffer + elembegin + measuredHeaderSize;
-
+    ReadFromBuffer(&numNodeTags, elementsBuffer);
     ReadFromBuffer(&numTags, elementsBuffer + componentSize*2);
     ReadFromBuffer(&tag, elementsBuffer + componentSize*3);
 
+    if (numNodeTags < 1 || numNodeTags >4) {
+      throw mjCError(NULL, "Invalid number of node tags");
+    }
+    size_t entityDim = numNodeTags - 1;
+    def.spec.flex->dim = entityDim;
+
     // element data(Ftetwild): tag and 4 nodeTag
     constexpr int numComponentsFtetwild = 5;
-    // element data(gmshApp): 4 Info components, 2 entity tag and 4 nodeTags
+    // element data(gmshApp): 4 Info components, 2 entity tag and entityDim+1 nodeTags
     constexpr int numInfoComponents = 4;
     constexpr int numEntityTagComponents = 2;
-    constexpr int numNodeTags = 4;
-    constexpr int numComponentsGmshApp = numInfoComponents +
-                                         numEntityTagComponents + numNodeTags;
+
+    int numComponentsGmshApp = numInfoComponents + numEntityTagComponents + numNodeTags;
 
     // single element data size
     int elementDataSizeFtetwild = numComponentsFtetwild*componentSize;
@@ -1523,7 +1595,6 @@ void mjCFlexcomp::LoadGMSH(mjCModel* model, mjResource* resource) {
   // get buffer from resource
   char* buffer = 0;
   int buffer_sz = mju_readResource(resource, (const void**) &buffer);
-
 
   // check buffer
   if (buffer_sz < 0) {

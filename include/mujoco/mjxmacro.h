@@ -295,6 +295,7 @@
     XMJV( mjtByte, light_active,          nlight,        1                    ) \
     X   ( mjtNum,  light_pos,             nlight,        3                    ) \
     X   ( mjtNum,  light_dir,             nlight,        3                    ) \
+    X   ( mjtNum,  light_radius,          nlight,        1                    ) \
     X   ( mjtNum,  light_poscom0,         nlight,        3                    ) \
     X   ( mjtNum,  light_pos0,            nlight,        3                    ) \
     X   ( mjtNum,  light_dir0,            nlight,        3                    ) \
@@ -365,6 +366,7 @@
     XMJV( int,     mesh_bvhadr,           nmesh,         1                    ) \
     XMJV( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
+    X   ( mjtNum,  mesh_scale,            nmesh,         3                    ) \
     X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
     X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \

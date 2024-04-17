@@ -534,11 +534,15 @@ mjModel* mj_makeModel(
   m->nuser_actuator = nuser_actuator;
   m->nuser_sensor = nuser_sensor;
   m->nnames = nnames;
-  m->nnames_map = mjLOAD_MULTIPLE
-                  * (nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh
-                     + nskin + nhfield + ntex + nmat + npair + nexclude + neq
-                     + ntendon  + nu + nsensor + nnumeric + ntext + ntuple
-                     + nkey + nplugin);
+  long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
+                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nu + nsensor +
+                    nnumeric + ntext + ntuple + nkey + nplugin;
+  if (nnames_map >= INT_MAX / mjLOAD_MULTIPLE) {
+    mju_free(m);
+    mju_warning("Invalid model: size of nnames_map is larger than INT_MAX");
+    return 0;
+  }
+  m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
   m->npaths = npaths;
 
 #define X(name)                                    \

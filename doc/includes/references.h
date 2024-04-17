@@ -1082,6 +1082,7 @@ struct mjModel_ {
   mjtByte*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
+  mjtNum*   light_radius;         // radius of the light                      (nlight x 1)
   mjtNum*   light_poscom0;        // global position rel. to sub-com in qpos0 (nlight x 3)
   mjtNum*   light_pos0;           // global position rel. to body in qpos0    (nlight x 3)
   mjtNum*   light_dir0;           // global direction in qpos0                (nlight x 3)
@@ -1165,6 +1166,7 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  mjtNum*   mesh_scale;           // scaling applied to asset vertices        (nmesh x 3)
   mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
   mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
@@ -1194,20 +1196,20 @@ struct mjModel_ {
   int*      skin_pathadr;         // address of asset path for skin; -1: none (nskin x 1)
 
   // height fields
-  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                    (nhfield x 4)
-  int*      hfield_nrow;          // number of rows in grid                     (nhfield x 1)
-  int*      hfield_ncol;          // number of columns in grid                  (nhfield x 1)
-  int*      hfield_adr;           // address in hfield_data                     (nhfield x 1)
-  float*    hfield_data;          // elevation data                             (nhfielddata x 1)
-  int*      hfield_pathadr;       // address of asset path for hfield; -1: none (nhfield x 1)
+  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
+  int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
+  int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
+  int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
+  float*    hfield_data;          // elevation data                           (nhfielddata x 1)
+  int*      hfield_pathadr;       // address of hfield asset path; -1: none   (nhfield x 1)
 
   // textures
-  int*      tex_type;             // texture type (mjtTexture)                  (ntex x 1)
-  int*      tex_height;           // number of rows in texture image            (ntex x 1)
-  int*      tex_width;            // number of columns in texture image         (ntex x 1)
-  int*      tex_adr;              // address in rgb                             (ntex x 1)
-  mjtByte*  tex_rgb;              // rgb (alpha = 1)                            (ntexdata x 1)
-  int*      tex_pathadr;         // address of asset path for texture; -1: none (ntex x 1)
+  int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
+  int*      tex_height;           // number of rows in texture image          (ntex x 1)
+  int*      tex_width;            // number of columns in texture image       (ntex x 1)
+  int*      tex_adr;              // address in rgb                           (ntex x 1)
+  mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
+  int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
   int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
