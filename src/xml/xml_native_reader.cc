@@ -153,7 +153,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "?", "16", "fovy", "ipd", "resolution", "pos", "quat", "axisangle", "xyaxes",
             "zaxis", "euler", "mode", "focal", "focalpixel", "principal", "principalpixel",
             "sensorsize", "user"},
-        {"light", "?", "12", "pos", "dir", "directional", "castshadow", "active",
+        {"light", "?", "13", "pos", "dir", "radius", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
          "gap", "margin"},
@@ -263,9 +263,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "*", "19", "name", "class", "fovy", "ipd", "resolution", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "target", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "*", "15", "name", "class", "directional", "castshadow", "active",
-            "pos", "dir", "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular",
-            "mode", "target"},
+        {"light", "*", "16", "name", "class", "directional", "castshadow", "active",
+            "pos", "dir", "radius", "attenuation", "cutoff", "exponent", "ambient", "diffuse",
+            "specular", "mode", "target"},
         {"plugin", "*", "2", "plugin", "instance"},
         {"<"},
           {"config", "*", "2", "key", "value"},
@@ -1783,6 +1783,7 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* plight) {
   }
   ReadAttr(elem, "pos", 3, plight->pos, text);
   ReadAttr(elem, "dir", 3, plight->dir, text);
+  ReadAttr(elem, "radius", 1, &plight->radius, text);
   ReadAttr(elem, "attenuation", 3, plight->attenuation, text);
   ReadAttr(elem, "cutoff", 1, &plight->cutoff, text);
   ReadAttr(elem, "exponent", 1, &plight->exponent, text);

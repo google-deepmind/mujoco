@@ -78,6 +78,65 @@ def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Contact:
   )
 
 
+def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Contact:
+  """Calculates one contact between an cylinder and a plane."""
+  n = plane.mat[:, 2]
+  axis = cylinder.mat[:, 2]
+
+  # make sure axis points towards plane
+  prjaxis = jp.dot(n, axis)
+  sign = -math.sign(prjaxis)
+  axis, prjaxis = axis * sign, prjaxis * sign
+
+  # compute normal distance to cylinder center
+  dist0 = jp.dot(cylinder.pos - plane.pos, n)
+
+  # remove component of -normal along axis, compute length
+  vec = axis * prjaxis - n
+  len_ = math.norm(vec)
+
+  vec = jp.where(
+      len_ < 1e-12,
+      # disk parallel to plane: pick x-axis of cylinder, scale by radius
+      cylinder.mat[:, 0] * cylinder.size[0],
+      # general configuration: normalize vector, scale by radius
+      vec / len_ * cylinder.size[0]
+  )
+
+  # project vector on normal
+  prjvec = jp.dot(vec, n)
+
+  # scale axis by half-length
+  axis *= cylinder.size[1]
+  prjaxis *= cylinder.size[1]
+
+  # compute sideways vector: vec1
+  prjvec1 = -prjvec * 0.5
+  vec1 = math.normalize(jp.cross(vec, axis)) * cylinder.size[0]
+  vec1 *= jp.sqrt(3.0) * 0.5
+
+  # disk parallel to plane
+  d1 = dist0 + prjaxis + prjvec
+  d2 = dist0 + prjaxis + prjvec1
+  dist = jp.array([d1, d2, d2])
+  pos = cylinder.pos + axis + jp.array([
+      vec  - n * d1 * 0.5,
+      vec1 + vec * -0.5 - n * d2 * 0.5,
+      -vec1 + vec * -0.5 - n * d2 * 0.5,
+  ])
+
+  # cylinder parallel to plane
+  cond = jp.abs(prjaxis) < 1e-3
+  d3 = dist0 - prjaxis + prjvec
+  dist = jp.where(cond, dist.at[1].set(d3), dist)
+  pos = jp.where(
+      cond, pos.at[1].set(cylinder.pos + vec - axis - n * d3 * 0.5), pos
+  )
+
+  frame = jp.stack([math.make_frame(n)] * 3, axis=0)
+  return dist, pos, frame
+
+
 def _sphere_sphere(
     pos1: jax.Array, radius1: jax.Array, pos2: jax.Array, radius2: jax.Array
 ) -> Contact:
@@ -135,6 +194,7 @@ def capsule_capsule(cap1: GeomInfo, cap2: GeomInfo) -> Contact:
 plane_sphere.ncon = 1
 plane_capsule.ncon = 2
 plane_ellipsoid.ncon = 1
+plane_cylinder.ncon = 3
 sphere_sphere.ncon = 1
 sphere_capsule.ncon = 1
 capsule_capsule.ncon = 1

@@ -1868,5 +1868,29 @@ TEST_F(XMLReaderTest, ExtentNegativeNotAllowed) {
   EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
+TEST_F(XMLReaderTest, LightRadius) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="r1">
+        <light radius="1"/>
+      </default>
+    </default>
+    <worldbody>
+      <light/>
+      <light class="r1"/>
+      <light class="r1" radius="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->light_radius[0], 0);
+  EXPECT_EQ(model->light_radius[1], 1);
+  EXPECT_EQ(model->light_radius[2], 2);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

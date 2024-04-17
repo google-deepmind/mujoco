@@ -1033,11 +1033,31 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "CONTACT\n");
   for (int i=0; i < d->ncon; i++) {
     fprintf(fp, "  %d:\n     dim           %d\n", i, d->contact[i].dim);
-    fprintf(fp, "     gfev          %d %d %d %d : %d %d %d %d\n",
-            d->contact[i].geom[0], d->contact[i].flex[0],
-            d->contact[i].elem[0], d->contact[i].vert[0],
-            d->contact[i].geom[1], d->contact[i].flex[1],
-            d->contact[i].elem[1], d->contact[i].vert[1]);
+    int g1 = d->contact[i].geom[0];
+    int g2 = d->contact[i].geom[1];
+
+    // special case for geom-geom contacts
+    if (g1 > -1 && g2 > -1) {
+      fprintf(fp, "     geoms         ");
+      const char* geom1 = mj_id2name(m, mjOBJ_GEOM, g1);
+      const char* geom2 = mj_id2name(m, mjOBJ_GEOM, g2);
+      if (geom1) {
+        fprintf(fp, "%s : ", geom1);
+      } else {
+        fprintf(fp, "%d : ", g1);
+      }
+      if (geom2) {
+        fprintf(fp, "%s\n", geom2);
+      } else {
+        fprintf(fp, "%d\n", g2);
+      }
+    } else {
+      fprintf(fp, "     gfev          %d %d %d %d : %d %d %d %d\n",
+              d->contact[i].geom[0], d->contact[i].flex[0],
+              d->contact[i].elem[0], d->contact[i].vert[0],
+              d->contact[i].geom[1], d->contact[i].flex[1],
+              d->contact[i].elem[1], d->contact[i].vert[1]);
+    }
     fprintf(fp, "     exclude       %d\n     efc_address   %d\n",
             d->contact[i].exclude, d->contact[i].efc_address);
     printVector("     solref       ", d->contact[i].solref, mjNREF, fp, float_format);

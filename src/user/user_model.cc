@@ -1985,6 +1985,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_active[lid] = (mjtByte)pl->active;
       copyvec(m->light_pos+3*lid, pl->pos, 3);
       copyvec(m->light_dir+3*lid, pl->dir, 3);
+      m->light_radius[lid] = pl->radius;
       copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
@@ -2123,6 +2124,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhnum[i] = pme->tree().nbvh;
     m->mesh_bvhadr[i] = pme->tree().nbvh ? bvh_adr : -1;
+    copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
     copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
     copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 

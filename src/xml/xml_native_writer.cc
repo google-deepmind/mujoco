@@ -508,6 +508,7 @@ void mjXWriter::OneLight(XMLElement* elem, mjCLight* plight, mjCDef* def) {
   }
 
   // defaults and regular
+  WriteAttr(elem, "radius", 1, &plight->radius, &def->light.radius);
   WriteAttrKey(elem, "directional", bool_map, 2, plight->directional, def->light.directional);
   WriteAttrKey(elem, "castshadow", bool_map, 2, plight->castshadow, def->light.castshadow);
   WriteAttrKey(elem, "active", bool_map, 2, plight->active, def->light.active);
@@ -1170,6 +1171,11 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   // camera
   elem = InsertEnd(section, "camera");
   OneCamera(elem, &def->camera, par);
+  if (!elem->FirstAttribute()) section->DeleteChild(elem);
+
+  // light
+  elem = InsertEnd(section, "light");
+  OneLight(elem, &def->light, par);
   if (!elem->FirstAttribute()) section->DeleteChild(elem);
 
   // pair
