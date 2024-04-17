@@ -1454,7 +1454,7 @@ void mjXWriter::Asset(XMLElement* root) {
 
 
 
-// recursive body writer
+// recursive body and frame writer
 void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame) {
   double unitq[4] = {1, 0, 0, 0};
 
@@ -1462,14 +1462,14 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame) {
     throw mjXError(0, "missing body in XML write");  // SHOULD NOT OCCUR
   }
 
-  // write frame if classname is defined
+  // write frame if defined
   if (frame) {
     WriteAttrTxt(elem, "name", frame->name);
     WriteAttrTxt(elem, "childclass", frame->classname);
   }
 
   // write body attributes and inertial
-  if (body!=model->GetWorld()) {
+  else if (body!=model->GetWorld()) {
     WriteAttrTxt(elem, "name", body->name);
     WriteAttrTxt(elem, "childclass", body->classname);
 
@@ -1537,10 +1537,18 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame) {
 
   // write frames
   for (int i=0; i<body->frames.size(); i++) {
-    if (body->frames[i]->frame != frame) continue;
+    // skip current frame
+    if (body->frames[i]->frame != frame) {
+      continue;
+    }
+
+    // write frame if named or has defaults
     if (!body->frames[i]->name.empty() || !body->frames[i]->classname.empty()) {
       Body(InsertEnd(elem, "frame"), body, body->frames[i]);
-    } else {
+    }
+
+    // otherwise skip
+    else {
       Body(elem, body, body->frames[i]);
     }
   }

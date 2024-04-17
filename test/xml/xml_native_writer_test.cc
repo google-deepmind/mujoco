@@ -736,7 +736,7 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
         <geom size=".5" euler="0 0 20"/>
       </frame>
 
-      <body>
+      <body name="body">
         <frame pos="0 1 0" name="f2" childclass="dframe">
           <geom pos="0 1 0"/>
           <body pos="1 0 0">
@@ -752,7 +752,10 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
   EXPECT_THAT(model, NotNull()) << error.data();
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f1\""));
-  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f2\" childclass=\"dframe\""));
+  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f2\" childclass=\"dframe\">"));
+  EXPECT_THAT(saved_xml, HasSubstr("geom pos=\"0 2 0\""));
+  EXPECT_THAT(saved_xml, HasSubstr("body pos=\"1 1 0\""));
+  EXPECT_THAT(saved_xml, HasSubstr("geom pos=\"0 0 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("<frame>")));
   mj_deleteModel(model);
 }

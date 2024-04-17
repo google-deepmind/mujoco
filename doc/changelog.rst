@@ -19,6 +19,7 @@ MJX
 Bug fixes
 ^^^^^^^^^
 4. Defaults of lights were not being saved, now fixed.
+5. Prevent overwriting of frame names by body names when saving an XML.  Bug introduced in 3.1.4.
 
 
 Version 3.1.4 (April 10th, 2024)
