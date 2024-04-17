@@ -750,6 +750,10 @@ MJAPI mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs);
 MJAPI int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                          const char* prefix, const char* suffix);
 
+// Attach child frame to a parent body, return 0 if success
+MJAPI int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
+                          const char* prefix, const char* suffix);
+
 // Get error message from model.
 MJAPI const char* mjs_getError(mjSpec* s);
 

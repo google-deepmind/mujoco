@@ -729,6 +729,49 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 
 
 
+// attach frame to body
+mjCBody& mjCBody::operator+=(const mjCFrame& other) {
+  mjCBody* subtree = other.body;
+  other.model->prefix = other.prefix;
+  other.model->suffix = other.suffix;
+
+  // map old frames to indices
+  std::map<mjCFrame*, int> fmap;
+  for (int i=0; i<subtree->frames.size(); i++) {
+    fmap[subtree->frames[i]] = i;
+  }
+
+  // copy children that are inside the input frame
+  CopyList(frames, subtree->frames, fmap, &other);  // needs to be done first
+  CopyList(geoms, subtree->geoms, fmap, &other);
+  CopyList(joints, subtree->joints, fmap, &other);
+  CopyList(sites, subtree->sites, fmap, &other);
+  CopyList(cameras, subtree->cameras, fmap, &other);
+  CopyList(lights, subtree->lights, fmap, &other);
+
+  for (int i=0; i<subtree->bodies.size(); i++) {
+    if (subtree->bodies[i]->frame != &other) {
+      continue;
+    }
+    bodies.push_back(new mjCBody(*subtree->bodies[i], model));  // triggers recursive call
+    bodies.back()->frame =
+        subtree->bodies[i]->frame ? frames[fmap[subtree->bodies[i]->frame]] : nullptr;
+  }
+
+  // name space
+  this->NameSpace(other.model);
+
+  // attach referencing elements
+  *model += *other.model;
+
+  // clear namespace and return body
+  other.model->prefix.clear();
+  other.model->suffix.clear();
+  return *this;
+}
+
+
+
 // copy src list of elements into dst; set body, model and frame
 template <typename T>
 void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
