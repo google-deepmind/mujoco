@@ -19,7 +19,9 @@ MJX
 Bug fixes
 ^^^^^^^^^
 4. Defaults of lights were not being saved, now fixed.
-5. Prevent overwriting of frame names by body names when saving an XML.  Bug introduced in 3.1.4.
+5. Prevent overwriting of frame names by body names when saving an XML.  Introduced in 3.1.4.
+6. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+   not optional.
 
 
 Version 3.1.4 (April 10th, 2024)
