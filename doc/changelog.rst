@@ -15,13 +15,20 @@ General
 MJX
 ^^^
 3. Added cylinder plane collisions.
+4. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
+5. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
+6. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
+7. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
+8. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
+   geoms.
+9. Fixed a bug where capsules might be ignored in broadphase colliision checking.
 
 Bug fixes
 ^^^^^^^^^
-4. Defaults of lights were not being saved, now fixed.
-5. Prevent overwriting of frame names by body names when saving an XML.  Introduced in 3.1.4.
-6. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
-   not optional.
+10. Defaults of lights were not being saved, now fixed.
+11. Prevent overwriting of frame names by body names when saving an XML.  Introduced in 3.1.4.
+12. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+    not optional.
 
 
 Version 3.1.4 (April 10th, 2024)

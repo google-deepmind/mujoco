@@ -24,6 +24,7 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.dataclasses import PyTreeNode
+from mujoco.mjx._src.types import ConstraintType
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
@@ -32,6 +33,9 @@ from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
 import numpy as np
+
+
+_CONDIM_EFC_COUNT = {1: 1, 3: 4, 4: 6, 6: 10}
 
 
 class _Efc(PyTreeNode):
@@ -277,7 +281,7 @@ def _instantiate_limit_slide_hinge(m: Model, d: Data) -> Optional[_Efc]:
 def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
   """Calculates constraint rows for contacts."""
 
-  if collision_driver.ncon(m) == 0:
+  if d.ncon == 0:
     return None
 
   @jax.vmap
@@ -314,34 +318,49 @@ def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
   return _Efc(j, pos, pos, invweight, solref, solimp, frictionloss)
 
 
-def count_constraints(
-    m: Union[Model, mujoco.MjModel], d: Optional[Data] = None
-) -> Tuple[int, int, int, int]:
+def counts(efc_type: np.ndarray) -> Tuple[int, int, int, int]:
   """Returns equality, friction, limit, and contact constraint counts."""
-  if m.opt.disableflags & DisableBit.CONSTRAINT:
-    return 0, 0, 0, 0
-
-  if m.opt.disableflags & DisableBit.EQUALITY:
-    ne = 0
-  else:
-    ne_connect = (m.eq_type == EqType.CONNECT).sum()
-    ne_weld = (m.eq_type == EqType.WELD).sum()
-    ne_joint = (m.eq_type == EqType.JOINT).sum()
-    ne = ne_connect * 3 + ne_weld * 6 + ne_joint
-
-  nf = 0
-
-  if m.opt.disableflags & DisableBit.LIMIT:
-    nl = 0
-  else:
-    nl = int(m.jnt_limited.sum())
-
-  if d is None:
-    nc = collision_driver.ncon(m) * 4
-  else:
-    nc = d.efc_J.shape[-2] - ne - nf - nl
+  ne = (efc_type == ConstraintType.EQUALITY).sum()
+  nf = 0  # no support for friction loss yet
+  nl = (efc_type == ConstraintType.LIMIT_JOINT).sum()
+  nc = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
 
   return ne, nf, nl, nc
+
+
+def make_efc_type(
+    m: Union[Model, mujoco.MjModel], dim: Optional[np.ndarray] = None
+) -> np.ndarray:
+  """Returns efc_type that outlines the type of each constraint row."""
+  if m.opt.disableflags & DisableBit.CONSTRAINT:
+    return np.empty(0, dtype=int)
+
+  dim = collision_driver.make_condim(m) if dim is None else dim
+  efc_types = []
+
+  if not m.opt.disableflags & DisableBit.EQUALITY:
+    num_rows = (m.eq_type == EqType.CONNECT).sum() * 3
+    num_rows += (m.eq_type == EqType.WELD).sum() * 6
+    num_rows += (m.eq_type == EqType.JOINT).sum()
+    efc_types.extend([ConstraintType.EQUALITY] * num_rows)
+
+  if not m.opt.disableflags & DisableBit.LIMIT:
+    efc_types.extend([ConstraintType.LIMIT_JOINT] * m.jnt_limited.sum())
+
+  if not m.opt.disableflags & DisableBit.CONTACT:
+    num_rows = sum(_CONDIM_EFC_COUNT[d] for d in dim)
+    efc_types.extend([ConstraintType.CONTACT_PYRAMIDAL] * num_rows)
+
+  return np.array(efc_types)
+
+
+def make_efc_address(efc_type: np.ndarray, dim: np.ndarray) -> np.ndarray:
+  """Returns efc_address that maps contacts to constraint row address."""
+  nc = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
+  nc_start = efc_type.size - nc
+  offsets = np.cumsum([0] + [_CONDIM_EFC_COUNT[d] for d in dim])[:-1]
+
+  return nc_start + offsets
 
 
 def make_constraint(m: Model, d: Data) -> Data:

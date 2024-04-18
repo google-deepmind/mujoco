@@ -23,7 +23,6 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_driver
-from mujoco.mjx._src import mesh
 from mujoco.mjx._src import types
 import numpy as np
 
@@ -92,14 +91,10 @@ _INVERSE_TRANSFORMS = {
     ),
 }
 
-_DERIVED = mesh.DERIVED.union(
+_DERIVED = {
     # efc_J is dense in MJX, sparse in MJ. ignore for now.
-    {(types.Data, 'efc_J'), (types.Option, 'has_fluid_params')}
-)
-
-
-def _model_derived(value: mujoco.MjModel) -> Dict[str, Any]:
-  return {k: jax.device_put(v) for k, v in mesh.get(value).items()}
+    (types.Data, 'efc_J'), (types.Option, 'has_fluid_params')
+}
 
 
 def _data_derived(value: mujoco.MjData) -> Dict[str, Any]:
@@ -138,23 +133,21 @@ def _validate(m: mujoco.MjModel):
   if m.body_gravcomp.any():
     raise NotImplementedError('gravcomp is not supported')
 
-  # check collision geom types
-  for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
-    g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
-    if g1 == mujoco.mjtGeom.mjGEOM_PLANE and g2 in (
-        mujoco.mjtGeom.mjGEOM_PLANE,
-        mujoco.mjtGeom.mjGEOM_HFIELD,
-    ):
-      # MuJoCo does not collide planes with other planes or hfields
-      continue
-    if collision_driver.get_collision_fn((g1, g2)) is None:
-      raise NotImplementedError(f'({g1}, {g2}) collisions not implemented.')
-    *_, params = collision_driver.get_params(m, c)
-    margin_gap = not np.allclose(np.concatenate([params.margin, params.gap]), 0)
-    if mujoco.mjtGeom.mjGEOM_MESH in (g1, g2) and margin_gap:
-      raise NotImplementedError(
-          f'Margin and gap not implemented for ({g1}, {g2})'
-      )
+  for g1, g2, ip in collision_driver.geom_pairs(m):
+    t1, t2 = m.geom_type[[g1, g2]]
+    # check collision function exists for type pair
+    if not collision_driver.has_collision_fn(t1, t2):
+      t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
+      raise NotImplementedError(f'({t1}, {t2}) collisions not implemented.')
+    # margin/gap not supported for geoms
+    if mujoco.mjtGeom.mjGEOM_MESH in (t1, t2):
+      if ip != -1:
+        margin = m.pair_margin[ip]
+      else:
+        margin = m.geom_margin[g1] + m.geom_margin[g2]
+      if margin.any():
+        t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
+        raise NotImplementedError(f'({t1}, {t2}) margin/gap not implemented.')
 
   # TODO(erikfrey): warn for high solver iterations, nefc, etc.
 
@@ -229,7 +222,7 @@ def device_put(value):
 
   derived_kwargs = {}
   if isinstance(value, mujoco.MjModel):
-    derived_kwargs = _model_derived(value)
+    derived_kwargs = {}
   elif isinstance(value, mujoco.MjData):
     derived_kwargs = _data_derived(value)
   elif isinstance(value, mujoco.MjOption):
