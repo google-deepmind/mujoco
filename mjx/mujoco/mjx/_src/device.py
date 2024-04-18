@@ -284,7 +284,7 @@ def device_get_into(result, value):
       )
 
     for i in range(batch_size):
-      value_i = jax.tree_map(lambda x, i=i: x[i], value)
+      value_i = jax.tree_util.tree_map(lambda x, i=i: x[i], value)
       device_get_into(result[i], value_i)
 
   else:

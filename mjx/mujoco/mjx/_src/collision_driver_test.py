@@ -402,7 +402,7 @@ class CapsuleCollisionTest(parameterized.TestCase):
     self.assertEqual(c.pos.shape[0], 2)
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
-    c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'capsule_convex_edge', 1e-4)
 
@@ -437,7 +437,7 @@ class CapsuleCollisionTest(parameterized.TestCase):
     self.assertEqual(c.pos.shape[0], 2)
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
-    c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip1', 1e-4)
     np.testing.assert_array_almost_equal(
@@ -457,7 +457,7 @@ class CapsuleCollisionTest(parameterized.TestCase):
     self.assertEqual(c.pos.shape[0], 2)
     self.assertGreater(c.dist[1], 0)
     # extract the contact point with penetration
-    c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'edge_shallow_tip2', 1e-4)
     np.testing.assert_array_almost_equal(
@@ -494,7 +494,7 @@ class CylinderTest(absltest.TestCase):
     d.contact.pos[:] = d.contact.pos[idx]
 
     # extract the contact points with penetration
-    c = jax.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
+    c = jax.tree_util.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'cylinder_plane', 1e-5)
 
@@ -531,7 +531,7 @@ class ConvexTest(absltest.TestCase):
     np.testing.assert_array_less(dx.contact.dist[:2], 0)
     np.testing.assert_array_less(-dx.contact.dist[2:], 0)
     # extract the contact points with penetration
-    c = jax.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
+    c = jax.tree_util.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'box_plane', 1e-5)
 
@@ -615,7 +615,7 @@ class ConvexTest(absltest.TestCase):
     np.testing.assert_array_less(dx.contact.dist[:1], 0)
     np.testing.assert_array_less(-dx.contact.dist[1:], 0)
     # extract the contact point with penetration
-    c = jax.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
+    c = jax.tree_util.tree_map(lambda x: jp.take(x, 0, axis=0)[None], dx.contact)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'box_box_edge', 1e-2)
 

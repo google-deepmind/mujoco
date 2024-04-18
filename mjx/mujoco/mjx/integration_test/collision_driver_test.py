@@ -79,7 +79,7 @@ class CollisionDriverIntegrationTest(parameterized.TestCase):
     self.assertSequenceEqual(set(idx_mjx), set(idx_mj))
     idx = sorted(range(len(idx_mj)), key=lambda x: idx_mj.index(idx_mjx[x]))
 
-    mjx_contact = jax.tree_map(
+    mjx_contact = jax.tree_util.tree_map(
         lambda x: x.take(np.array(idx), axis=0), dx.contact
     )
     for field in dataclasses.fields(Contact):

@@ -42,7 +42,7 @@ def plane_sphere(plane: GeomInfo, sphere: GeomInfo) -> Contact:
   """Calculates contact between a plane and a sphere."""
   n = plane.mat[:, 2]
   dist, pos = _plane_sphere(n, plane.pos, sphere.pos, sphere.size[0])
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 
@@ -62,7 +62,7 @@ def plane_capsule(plane: GeomInfo, cap: GeomInfo) -> Contact:
     dist = jp.expand_dims(dist, axis=0)
     pos = jp.expand_dims(pos, axis=0)
     contacts.append((dist, pos, frame))
-  return jax.tree_map(lambda *x: jp.concatenate(x), *contacts)
+  return jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
 
 def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Contact:
@@ -73,7 +73,7 @@ def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Contact:
   pos = ellipsoid.pos + ellipsoid.mat @ (sphere_support * size)
   dist = jp.dot(n, pos - plane.pos)
   pos = pos - n * dist * 0.5
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 
@@ -151,7 +151,7 @@ def _sphere_sphere(
 def sphere_sphere(s1: GeomInfo, s2: GeomInfo) -> Contact:
   """Calculates contact between two spheres."""
   dist, pos, n = _sphere_sphere(s1.pos, s1.size[0], s2.pos, s2.size[0])
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 
@@ -164,7 +164,7 @@ def sphere_capsule(sphere: GeomInfo, cap: GeomInfo) -> Contact:
       cap.pos - segment, cap.pos + segment, sphere.pos
   )
   dist, pos, n = _sphere_sphere(sphere.pos, sphere.size[0], pt, cap.size[0])
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 
@@ -186,7 +186,7 @@ def capsule_capsule(cap1: GeomInfo, cap2: GeomInfo) -> Contact:
   )
   radius1, radius2 = cap1.size[0], cap2.size[0]
   dist, pos, n = _sphere_sphere(pt1, radius1, pt2, radius2)
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 

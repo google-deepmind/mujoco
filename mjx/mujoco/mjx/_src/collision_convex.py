@@ -262,7 +262,7 @@ def sphere_convex(sphere: GeomInfo, convex: GeomInfo) -> Contact:
   n = convex.mat @ n
   pos = convex.mat @ pos + convex.pos
 
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 
@@ -347,7 +347,7 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
       degenerate_edge_dir,
       edge_closest_pt,
       cap_closest_pt,
-  ) = jax.tree_map(lambda x, i=e_idx: jp.take(x, i, axis=0), res)
+  ) = jax.tree_util.tree_map(lambda x, i=e_idx: jp.take(x, i, axis=0), res)
 
   edge_face_normals = edge_face_normal[e_idx]
   edge_voronoi_front = ((edge_face_normals @ edge_axis) < 0).all()

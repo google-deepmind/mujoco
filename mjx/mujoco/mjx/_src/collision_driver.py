@@ -216,7 +216,7 @@ def get_params(
     else:
       params.append(_dynamic_params(m, candidates))
 
-  params = jax.tree_map(lambda *x: jp.concatenate(x), *params)
+  params = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *params)
   return geom1, geom2, params
 
 
@@ -232,7 +232,7 @@ def _pair_info(
         d.geom_xmat[g],
         m.geom_size[g],
     )
-    in_axes = jax.tree_map(lambda x: 0, info)
+    in_axes = jax.tree_util.tree_map(lambda x: 0, info)
     is_mesh = m.geom_convex_face[geom[0]] is not None
     if is_mesh:
       info = info.replace(
@@ -322,16 +322,16 @@ def _collide_geoms(
     size2 = jp.max(m.geom_size[g2.geom_id], axis=-1)
     dists = jax.vmap(jp.linalg.norm)(g2.pos - g1.pos) - (size1 + size2)
     _, idx = jax.lax.top_k(-dists, k=n_pairs)
-    g1, g2, params = jax.tree_map(
+    g1, g2, params = jax.tree_util.tree_map(
         lambda x, idx=idx: x[idx, ...], (g1, g2, params)
     )
 
   # call contact function
   res = jax.vmap(fn, in_axes=in_axes)(g1, g2)
-  dist, pos, frame = jax.tree_map(jp.concatenate, res)
+  dist, pos, frame = jax.tree_util.tree_map(jp.concatenate, res)
 
   # repeat params by the number of contacts per geom pair
-  geom1, geom2, params = jax.tree_map(
+  geom1, geom2, params = jax.tree_util.tree_map(
       lambda x: jp.repeat(x, fn.ncon, axis=0),  # pytype: disable=attribute-error
       (g1.geom_id, g2.geom_id, params),
   )
@@ -429,12 +429,12 @@ def collision(m: Model, d: Data) -> Data:
   if not contacts:
     raise RuntimeError('No contacts found.')
 
-  contact = jax.tree_map(lambda *x: jp.concatenate(x), *contacts)
+  contact = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
   max_contact_points = int(support.get_custom_numeric(m, 'max_contact_points'))
   if max_contact_points > -1 and contact.dist.shape[0] > max_contact_points:
     # get top-k contacts
     _, idx = jax.lax.top_k(-contact.dist, k=max_contact_points)
-    contact = jax.tree_map(lambda x, idx=idx: jp.take(x, idx, axis=0), contact)
+    contact = jax.tree_util.tree_map(lambda x, idx=idx: jp.take(x, idx, axis=0), contact)
 
   return d.replace(contact=contact)

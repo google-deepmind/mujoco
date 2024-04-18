@@ -295,7 +295,7 @@ def get_data_into(
       j = m.dof_parentid[j]
 
   for i in range(batch_size):
-    d_i = jax.tree_map(lambda x, i=i: x[i], d) if batched else d
+    d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
     result_i = result[i] if batched else result
     ncon = (d_i.contact.dist <= 0).sum()
     efc_active = (d_i.efc_J != 0).any(axis=1)
@@ -353,7 +353,7 @@ def _put_contact(
   pad_fn = lambda x: np.concatenate(
       (x, np.zeros((pad_size,) + x.shape[1:], dtype=x.dtype))
   )
-  fields = jax.tree_map(pad_fn, fields)
+  fields = jax.tree_util.tree_map(pad_fn, fields)
   fields['dist'][-pad_size:] = np.inf
   fields = jax.device_put(fields, device=device)
 

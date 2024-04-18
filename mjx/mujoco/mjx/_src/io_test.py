@@ -435,7 +435,7 @@ class DataIOTest(parameterized.TestCase):
     mujoco.mj_step(m, d, 2)
     dx = mjx.put_data(m, d)
     # second data in batch has contact dist > 0, disables contact
-    dx_b = jax.tree_map(lambda x: jp.stack((x, x + 0.05)), dx)
+    dx_b = jax.tree_util.tree_map(lambda x: jp.stack((x, x + 0.05)), dx)
     ds = mjx.get_data(m, dx_b)
     self.assertLen(ds, 2)
     np.testing.assert_allclose(ds[0].qpos, d.qpos)

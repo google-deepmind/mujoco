@@ -111,7 +111,7 @@ def _instantiate_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     return j, cpos, jp.repeat(math.norm(cpos), 3)
 
   # concatenate to drop connect grouping dimension
-  j, pos, pos_norm = jax.tree_map(jp.concatenate, fn(data, id1, id2))
+  j, pos, pos_norm = jax.tree_util.tree_map(jp.concatenate, fn(data, id1, id2))
   invweight = m.body_invweight0[id1, 0] + m.body_invweight0[id2, 0]
   invweight = jp.repeat(invweight, 3)
   solref = jp.tile(m.eq_solref[ids], (3, 1))
@@ -164,7 +164,7 @@ def _instantiate_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     return j, pos, jp.repeat(math.norm(pos), 6)
 
   # concatenate to drop weld grouping dimension
-  j, pos, pos_norm = jax.tree_map(jp.concatenate, fn(data, id1, id2))
+  j, pos, pos_norm = jax.tree_util.tree_map(jp.concatenate, fn(data, id1, id2))
   invweight = m.body_invweight0[id1] + m.body_invweight0[id2]
   invweight = jp.repeat(invweight, 3)
   solref = jp.tile(m.eq_solref[ids], (6, 1))
@@ -308,7 +308,7 @@ def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
 
   res = fn(d.contact)
   # remove contact grouping dimension:
-  j, invweight, pos, solref, solimp = jax.tree_map(jp.concatenate, res)
+  j, invweight, pos, solref, solimp = jax.tree_util.tree_map(jp.concatenate, res)
   frictionloss = jp.zeros_like(pos)
 
   return _Efc(j, pos, pos, invweight, solref, solimp, frictionloss)
@@ -366,7 +366,7 @@ def make_constraint(m: Model, d: Data) -> Data:
     d = d.replace(efc_D=z, efc_aref=z, efc_frictionloss=z)
     return d
 
-  efc = jax.tree_map(lambda *x: jp.concatenate(x), *efcs)
+  efc = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *efcs)
 
   @jax.vmap
   def fn(efc):

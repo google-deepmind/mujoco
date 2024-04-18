@@ -92,7 +92,7 @@ class DeviceTest(parameterized.TestCase):
 
     # create mjx_data and batch it
     dx = mjx.make_data(mx)
-    dx = jax.tree_map(
+    dx = jax.tree_util.tree_map(
         lambda x: jp.repeat(x, batch_size).reshape((batch_size,) + x.shape),
         dx,
     )
@@ -105,7 +105,7 @@ class DeviceTest(parameterized.TestCase):
     device.device_get_into(ds, dx)
     dx = jax.device_get(dx)  # faster indexing for testing
     for i in range(batch_size):
-      _assert_eq(self, jax.tree_map(lambda x, i=i: x[i], dx), ds[i])
+      _assert_eq(self, jax.tree_util.tree_map(lambda x, i=i: x[i], dx), ds[i])
 
 
 class ValidateInputTest(absltest.TestCase):

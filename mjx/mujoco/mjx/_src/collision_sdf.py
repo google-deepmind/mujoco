@@ -131,7 +131,7 @@ def _optim(
 def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Contact:
   """"Calculates contact between a capsule and an ellipsoid."""
   pos, dist, n = _optim(_capsule, _ellipsoid, c, e)
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 
@@ -139,7 +139,7 @@ def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Contact:
 def ellipsoid_ellipsoid(e1: GeomInfo, e2: GeomInfo) -> Contact:
   """"Calculates contact between two ellipsoids."""
   pos, dist, n = _optim(_ellipsoid, _ellipsoid, e1, e2)
-  return jax.tree_map(
+  return jax.tree_util.tree_map(
       lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
   )
 

@@ -310,7 +310,7 @@ def rungekutta4(m: Model, d: Data) -> Data:
 
   kqvel = d.qvel  # intermediate RK solution
   # RK solutions sum
-  qvel, qacc, act_dot = jax.tree_map(
+  qvel, qacc, act_dot = jax.tree_util.tree_map(
       lambda k: B[0] * k, (kqvel, d.qacc, d.act_dot)
   )
   integrate_fn = lambda *args: _integrate_pos(*args, dt=m.opt.timestep)
@@ -318,7 +318,7 @@ def rungekutta4(m: Model, d: Data) -> Data:
   def f(carry, x):
     qvel, qacc, act_dot, kqvel, d = carry
     a, b, t = x  # tableau numbers
-    dqvel, dqacc, dact_dot = jax.tree_map(
+    dqvel, dqacc, dact_dot = jax.tree_util.tree_map(
         lambda k: a * k, (kqvel, d.qacc, d.act_dot)
     )
     # get intermediate RK solutions
