@@ -200,13 +200,15 @@ static constexpr char xml_child[] = R"(
   <mujoco>
     <worldbody>
       <frame name="pframe">
-        <body name="body">
-          <joint type="hinge" name="hinge"/>
-          <geom type="cylinder" size=".1 1 0"/>
-          <light mode="targetbody" target="targetbody"/>
-          <body name="targetbody"/>
-          <body/>
-        </body>
+        <frame name="cframe">
+          <body name="body">
+            <joint type="hinge" name="hinge"/>
+            <geom type="cylinder" size=".1 1 0"/>
+            <light mode="targetbody" target="targetbody"/>
+            <body name="targetbody"/>
+            <body/>
+          </body>
+        </frame>
       </frame>
       <body name="ignore"/>
       <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
@@ -437,13 +439,15 @@ TEST_F(MujocoTest, AttachFrame) {
         <geom size=".1"/>
         <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
         <frame name="pframe">
-          <body name="attached-body-1">
-            <joint type="hinge" name="attached-hinge-1"/>
-            <geom type="cylinder" size=".1 1 0"/>
-            <light mode="targetbody" target="attached-targetbody-1"/>
-              <body name="attached-targetbody-1"/>
-              <body/>
-          </body>
+          <frame name="cframe">
+            <body name="attached-body-1">
+              <joint type="hinge" name="attached-hinge-1"/>
+              <geom type="cylinder" size=".1 1 0"/>
+              <light mode="targetbody" target="attached-targetbody-1"/>
+                <body name="attached-targetbody-1"/>
+                <body/>
+            </body>
+          </frame>
         </frame>
       </body>
     </worldbody>

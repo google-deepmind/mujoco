@@ -362,6 +362,8 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
 
   mjCFrame& operator+=(const mjCBody& other);
 
+  bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
+
  private:
   mjCFrame(mjCModel* = 0, mjCFrame* = 0);      // constructor
   mjCFrame(const mjCFrame& other);             // copy constructor

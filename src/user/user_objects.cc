@@ -739,13 +739,15 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->body = this;
   frames.back()->model = model;
   frames.back()->frame = other.frame;
+  int i = frames.size();
 
   // map input frames to index in this->frames
   std::map<mjCFrame*, int> fmap;
   for (auto frame : subtree->frames) {
     if (frame == static_cast<const mjCFrame*>(&other)) {
       fmap[frame] = frames.size() - 1;
-      break;
+    } else if (other.IsAncestor(frame)) {
+      fmap[frame] = i++;
     }
   }
 
@@ -758,7 +760,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   CopyList(lights, subtree->lights, fmap, &other);
 
   for (int i=0; i<subtree->bodies.size(); i++) {
-    if (subtree->bodies[i]->frame != &other) {
+    if (!other.IsAncestor(subtree->bodies[i]->frame)) {
       continue;
     }
     bodies.push_back(new mjCBody(*subtree->bodies[i], model));  // triggers recursive call
@@ -786,7 +788,7 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
                        std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe) {
   int nsrc = (int)src.size();
   for (int i=0; i<nsrc; i++) {
-    if (pframe && src[i]->frame != pframe) {
+    if (pframe && !pframe->IsAncestor(src[i]->frame)) {
       continue;  // skip if the element is not inside pframe
     }
     dst.push_back(new T(*src[i]));
@@ -1469,6 +1471,21 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   other.model->suffix.clear();
   other.model->prefix.clear();
   return *this;
+}
+
+
+
+// return true if child is descendent of this frame
+bool mjCFrame::IsAncestor(const mjCFrame* child) const {
+  if (!child) {
+    return false;
+  }
+
+  if (child == this) {
+    return true;
+  }
+
+  return IsAncestor(child->frame);
 }
 
 
