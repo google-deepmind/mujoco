@@ -1280,8 +1280,39 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " <<
             p.path().string() << '\n';
 
-        // delete original structures
+        // delete data
         mj_deleteData(d);
+
+        // allocate buffer, save m into it
+        size_t sz = mj_sizeModel(m);
+        void* buffer = mju_malloc(sz);
+        mj_saveModel(m, nullptr, buffer, sz);
+
+        // make new VFS add buffer to it
+        mjVFS* vfs = (mjVFS*)mju_malloc(sizeof(mjVFS));
+        mj_defaultVFS(vfs);
+        int failed = mj_addBufferVFS(vfs, "model.mjb", buffer, sz);
+        EXPECT_EQ(failed, 0) << "Failed to add buffer to VFS";
+
+        // load model from VFS
+        mtemp = mj_loadModel("model.mjb", vfs);
+        ASSERT_THAT(mtemp, NotNull());
+
+        // compare with 0 tolerance
+        std::string field = "";
+        mjtNum result = CompareModel(m, mtemp, field);
+        EXPECT_EQ(result, 0)
+            << "Loaded and saved binary models are different!\n"
+            << "Affected file " << p.path().string() << '\n'
+            << "Different field: " << field << '\n';
+
+        // clean up
+        mj_deleteModel(mtemp);
+        mj_deleteVFS(vfs);
+        mju_free(vfs);
+        mju_free(buffer);
+
+        // delete model
         mj_deleteModel(m);
       }
     }
