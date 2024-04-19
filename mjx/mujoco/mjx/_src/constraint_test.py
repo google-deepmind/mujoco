@@ -65,7 +65,7 @@ class ConstraintTest(absltest.TestCase):
     pos = jp.ones(3)
 
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.REFSAFE
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     k, *_ = constraint._kbi(mx, solimp, solref, pos)
     self.assertEqual(k, 1 / (0.99**2 * timeconst**2))
 

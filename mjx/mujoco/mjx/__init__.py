@@ -17,8 +17,6 @@
 # pylint:disable=g-importing-member
 from mujoco.mjx._src.collision_driver import collision
 from mujoco.mjx._src.constraint import make_constraint
-from mujoco.mjx._src.device import device_get_into
-from mujoco.mjx._src.device import device_put
 from mujoco.mjx._src.forward import euler
 from mujoco.mjx._src.forward import forward
 from mujoco.mjx._src.forward import fwd_acceleration
