@@ -17,7 +17,7 @@ MJX
 .. admonition:: Breaking API changes
    :class: attention
 
-   3. Removed deprecated ``mjx.device_get_into`` and ```mjx.device_put``` functions as they lack critical new
+   3. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
       functionality.
 
       **Migration:** Use ``mjx.get_data_into`` instead of ``mjx.device_get_into``, and ``mjx.put_data`` instead of
