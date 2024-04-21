@@ -22,15 +22,14 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import constraint
-from mujoco.mjx._src import mesh
 from mujoco.mjx._src import support
 from mujoco.mjx._src import types
 import numpy as np
 import scipy
 
 
-def _put_option(o: mujoco.MjOption, device=None) -> types.Option:
-  """Puts mujoco.MjOption onto a device, resulting in mjx.Option."""
+def _make_option(o: mujoco.MjOption) -> types.Option:
+  """Returns mjx.Option given mujoco.MjOption."""
   if o.integrator not in set(types.IntegratorType):
     raise NotImplementedError(f'{mujoco.mjtIntegrator(o.integrator)}')
 
@@ -47,38 +46,20 @@ def _put_option(o: mujoco.MjOption, device=None) -> types.Option:
     if o.enableflags & 2**i:
       raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
 
-  static_fields = {
-      f.name: copy.copy(getattr(o, f.name))
-      for f in types.Option.fields()
-      if f.type in (int, bytes, np.ndarray)
-  }
-  static_fields['integrator'] = types.IntegratorType(o.integrator)
-  static_fields['cone'] = types.ConeType(o.cone)
-  static_fields['jacobian'] = types.JacobianType(o.jacobian)
-  static_fields['solver'] = types.SolverType(o.solver)
-  static_fields['disableflags'] = types.DisableBit(o.disableflags)
+  fields = {f.name: getattr(o, f.name, None) for f in types.Option.fields()}
+  fields['integrator'] = types.IntegratorType(o.integrator)
+  fields['cone'] = types.ConeType(o.cone)
+  fields['jacobian'] = types.JacobianType(o.jacobian)
+  fields['solver'] = types.SolverType(o.solver)
+  fields['disableflags'] = types.DisableBit(o.disableflags)
+  fields['has_fluid_params'] = o.density > 0 or o.viscosity > 0 or o.wind.any()
 
-  device_fields = {
-      f.name: copy.copy(getattr(o, f.name))
-      for f in types.Option.fields()
-      if f.type is jax.Array
-  }
-  device_fields = jax.device_put(device_fields, device=device)
-
-  has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
-
-  return types.Option(
-      has_fluid_params=has_fluid_params,
-      **static_fields,
-      **device_fields,
-  )
+  return types.Option(**fields)
 
 
-def _put_statistic(s: mujoco.MjStatistic, device=None) -> types.Statistic:
+def _make_statistic(s: mujoco.MjStatistic) -> types.Statistic:
   """Puts mujoco.MjStatistic onto a device, resulting in mjx.Statistic."""
-  return types.Statistic(
-      meaninertia=jax.device_put(s.meaninertia, device=device)
-  )
+  return types.Statistic(meaninertia=s.meaninertia)
 
 
 def put_model(m: mujoco.MjModel, device=None) -> types.Model:
@@ -93,17 +74,21 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if m.body_gravcomp.any():
     raise NotImplementedError('gravcomp is not supported')
 
-  # check collision geom types
-  for (g1, g2, *_), c in collision_driver.collision_candidates(m).items():
-    g1, g2 = mujoco.mjtGeom(g1), mujoco.mjtGeom(g2)
-    if collision_driver.get_collision_fn((g1, g2)) is None:
-      raise NotImplementedError(f'({g1}, {g2}) has no collision function')
-    *_, params = collision_driver.get_params(m, c)
-    margin_gap = not np.allclose(np.concatenate([params.margin, params.gap]), 0)
-    if mujoco.mjtGeom.mjGEOM_MESH in (g1, g2) and margin_gap:
-      raise NotImplementedError(
-          f'Margin and gap not implemented for ({g1}, {g2})'
-      )
+  for g1, g2, ip in collision_driver.geom_pairs(m):
+    t1, t2 = m.geom_type[[g1, g2]]
+    # check collision function exists for type pair
+    if not collision_driver.has_collision_fn(t1, t2):
+      t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
+      raise NotImplementedError(f'({t1}, {t2}) collisions not implemented.')
+    # margin/gap not supported for geoms
+    if mujoco.mjtGeom.mjGEOM_MESH in (t1, t2):
+      if ip != -1:
+        margin = m.pair_margin[ip]
+      else:
+        margin = m.geom_margin[g1] + m.geom_margin[g2]
+      if margin.any():
+        t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
+        raise NotImplementedError(f'({t1}, {t2}) margin/gap not implemented.')
 
   for enum_field, enum_type, mj_type in (
       (m.actuator_biastype, types.BiasType, mujoco.mjtBias),
@@ -121,40 +106,24 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if not np.allclose(m.dof_frictionloss, 0):
     raise NotImplementedError('dof_frictionloss is not implemented.')
 
-  opt = _put_option(m.opt, device=device)
-  stat = _put_statistic(m.stat, device=device)
+  fields = {f.name: getattr(m, f.name) for f in types.Model.fields()}
+  fields['geom_rgba'] = fields['geom_rgba'].reshape((-1, 4))
+  fields['mat_rgba'] = fields['mat_rgba'].reshape((-1, 4))
+  fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
+  fields['opt'] = _make_option(m.opt)
+  fields['stat'] = _make_statistic(m.stat)
+  model = types.Model(**{k: copy.copy(v) for k, v in fields.items()})
 
-  static_fields = {
-      f.name: getattr(m, f.name)
-      for f in types.Model.fields()
-      if f.type in (int, bytes, np.ndarray)
-  }
-  static_fields['geom_rgba'] = static_fields['geom_rgba'].reshape((-1, 4))
-  static_fields['mat_rgba'] = static_fields['mat_rgba'].reshape((-1, 4))
-
-  device_fields = {
-      f.name: copy.copy(getattr(m, f.name))  # copy because device_put is async
-      for f in types.Model.fields()
-      if f.type is jax.Array
-  }
-  device_fields['cam_mat0'] = device_fields['cam_mat0'].reshape((-1, 3, 3))
-  device_fields.update(mesh.get(m))
-  device_fields = jax.device_put(device_fields, device=device)
-
-  return types.Model(
-      opt=opt,
-      stat=stat,
-      **static_fields,
-      **device_fields,
-  )
+  return jax.device_put(model, device=device)
 
 
 def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   """Allocate and initialize Data."""
-
-  ncon = collision_driver.ncon(m)
-  ne, nf, nl, nc = constraint.count_constraints(m)
-  nefc = ne + nf + nl + nc
+  dim = collision_driver.make_condim(m)
+  efc_type = constraint.make_efc_type(m, dim)
+  efc_address = constraint.make_efc_address(efc_type, dim)
+  ne, nf, nl, nc = constraint.counts(efc_type)
+  ncon, nefc = dim.size, ne + nf + nl + nc
 
   zero_0 = jp.zeros(0, dtype=float)
   zero_nv = jp.zeros(m.nv, dtype=float)
@@ -170,8 +139,28 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   zero_njnt_3 = jp.zeros((m.njnt, 3), dtype=float)
   zero_nm = jp.zeros(m.nM, dtype=float)
 
-  # create first d to get num contacts and nc
+  contact = types.Contact(
+      dist=jp.zeros(ncon),
+      pos=jp.zeros((ncon, 3)),
+      frame=jp.zeros((ncon, 3, 3)),
+      includemargin=jp.zeros(ncon),
+      friction=jp.zeros((ncon, 5)),
+      solref=jp.zeros((ncon, mujoco.mjNREF)),
+      solreffriction=jp.zeros((ncon, mujoco.mjNREF)),
+      solimp=jp.zeros((ncon, mujoco.mjNIMP)),
+      dim=dim,
+      geom1=jp.zeros(ncon, dtype=int) - 1,
+      geom2=jp.zeros(ncon, dtype=int) - 1,
+      geom=jp.zeros((ncon, 2), dtype=int) - 1,
+      efc_address=efc_address,
+  )
+
   d = types.Data(
+      ne=ne,
+      nf=nf,
+      nl=nl,
+      nefc=nefc,
+      ncon=ncon,
       solver_niter=jp.array(0, dtype=int),
       time=jp.array(0.0),
       qpos=jp.array(m.qpos0),
@@ -206,7 +195,8 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       qM=zero_nm if support.is_sparse(m) else zero_nv_nv,
       qLD=zero_nm if support.is_sparse(m) else zero_nv_nv,
       qLDiagInv=zero_nv if support.is_sparse(m) else zero_0,
-      contact=types.Contact.zero(ncon),
+      contact=contact,
+      efc_type=efc_type,
       efc_J=jp.zeros((nefc, m.nv), dtype=float),
       efc_frictionloss=zero_nefc,
       efc_D=zero_nefc,
@@ -228,11 +218,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   return d
 
 
-def _get_contact(
-    c: mujoco._structs._MjContactList,
-    cx: types.Contact,
-    efc_start: int,
-):
+def _get_contact(c: mujoco._structs._MjContactList, cx: types.Contact):
   """Converts mjx.Contact to mujoco._structs._MjContactList."""
   con_id = np.nonzero(cx.dist <= 0)[0]
   for field in types.Contact.fields():
@@ -240,10 +226,6 @@ def _get_contact(
     if field.name == 'frame':
       value = value.reshape((-1, 9))
     getattr(c, field.name)[:] = value
-
-  ncon = cx.dist.shape[0]
-  c.efc_address[:] = np.arange(efc_start, efc_start + ncon * 4, 4)[con_id]
-  c.dim[:] = 3
 
 
 def get_data(
@@ -278,13 +260,6 @@ def get_data_into(
   d = jax.device_get(d)
 
   batch_size = d.qpos.shape[0] if batched else 1
-  ne, nf, nl, nc = constraint.count_constraints(m, d)
-  efc_type = np.array([
-      mujoco.mjtConstraint.mjCNSTR_EQUALITY,
-      mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF,
-      mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT,
-      mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL,
-  ]).repeat([ne, nf, nl, nc])
 
   dof_i, dof_j = [], []
   for i in range(m.nv):
@@ -295,12 +270,11 @@ def get_data_into(
       j = m.dof_parentid[j]
 
   for i in range(batch_size):
-    d_i = jax.tree_map(lambda x, i=i: x[i], d) if batched else d
+    d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
     result_i = result[i] if batched else result
     ncon = (d_i.contact.dist <= 0).sum()
     efc_active = (d_i.efc_J != 0).any(axis=1)
-    efc_con = efc_type == mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
-    nefc, nc = int(efc_active.sum()), int((efc_active & efc_con).sum())
+    nefc = int(efc_active.sum())
     result_i.nnzJ = nefc * m.nv
     if ncon != result_i.ncon or nefc != result_i.nefc:
       mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
@@ -310,61 +284,63 @@ def get_data_into(
 
     for field in types.Data.fields():
       if field.name == 'contact':
-        _get_contact(result_i.contact, d_i.contact, nefc - nc)
+        _get_contact(result_i.contact, d_i.contact)
+        # efc_address must be updated because rows were deleted above:
+        efc_map = np.cumsum(efc_active) - 1
+        result_i.contact.efc_address[:] = efc_map[result_i.contact.efc_address]
         continue
 
       value = getattr(d_i, field.name)
 
-      if field.name in ('xmat', 'ximat', 'geom_xmat', 'site_xmat', 'cam_xmat'):
+      if field.name in ('nefc', 'ncon'):
+        value = {'nefc': nefc, 'ncon': ncon}[field.name]
+      elif field.name.endswith('xmat') or field.name == 'ximat':
         value = value.reshape((-1, 9))
-
-      if field.name in ('efc_frictionloss', 'efc_D', 'efc_aref', 'efc_force'):
+      elif field.name.startswith('efc_'):
         value = value[efc_active]
-
-      if field.name == 'efc_J':
-        value = value[efc_active].reshape(-1)
-
-      if field.name == 'qM' and not support.is_sparse(m):
+        if field.name == 'efc_J':
+          value = value.reshape(-1)
+      elif field.name == 'qM' and not support.is_sparse(m):
         value = value[dof_i, dof_j]
-
-      if field.name == 'qLD' and not support.is_sparse(m):
+      elif field.name == 'qLD' and not support.is_sparse(m):
         value = value[dof_i, dof_j]
-
-      if field.name == 'qLDiagInv' and not support.is_sparse(m):
+      elif field.name == 'qLDiagInv' and not support.is_sparse(m):
         value = np.ones(m.nv)
 
-      if value.shape:
+      if isinstance(value, np.ndarray) and value.shape:
         getattr(result_i, field.name)[:] = value
       else:
         setattr(result_i, field.name, value)
 
-    result_i.efc_type[:] = efc_type[efc_active]
 
-
-def _put_contact(
-    c: mujoco._structs._MjContactList, ncon: int, device=None
+def _make_contact(
+    c: mujoco._structs._MjContactList,
+    dim: np.ndarray,
+    efc_address: np.ndarray,
 ) -> types.Contact:
-  """Puts mujoco.structs._MjContactList onto a device, resulting in mjx.Contact."""
-  fields = {
-      f.name: copy.copy(getattr(c, f.name)) for f in types.Contact.fields()
-  }
+  """Converts mujoco.structs._MjContactList into mjx.Contact."""
+  fields = {f.name: getattr(c, f.name) for f in types.Contact.fields()}
   fields['frame'] = fields['frame'].reshape((-1, 3, 3))
-  pad_size = ncon - c.dist.shape[0]
+  pad_size = dim.size - c.dist.shape[0]
   pad_fn = lambda x: np.concatenate(
       (x, np.zeros((pad_size,) + x.shape[1:], dtype=x.dtype))
   )
-  fields = jax.tree_map(pad_fn, fields)
+  fields = jax.tree_util.tree_map(pad_fn, fields)
   fields['dist'][-pad_size:] = np.inf
-  fields = jax.device_put(fields, device=device)
+  # TODO(erikfrey): move contacts to appropriate dim index
+  fields['dim'] = dim
+  fields['efc_address'] = efc_address
 
   return types.Contact(**fields)
 
 
 def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
-  ncon = collision_driver.ncon(m)
-  ne, nf, nl, nc = constraint.count_constraints(m)
-  nefc = ne + nf + nl + nc
+  dim = collision_driver.make_condim(m)
+  efc_type = constraint.make_efc_type(m, dim)
+  efc_address = constraint.make_efc_address(efc_type, dim)
+  ne, nf, nl, nc = constraint.counts(efc_type)
+  ncon, nefc = dim.size, ne + nf + nl + nc
 
   for d_val, val, name in (
       (d.ncon, ncon, 'ncon'),
@@ -376,12 +352,9 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
     if d_val > val:
       raise ValueError(f'd.{name} too high, d.{name} = {d_val}, model = {val}')
 
-  fields = {
-      f.name: copy.copy(getattr(d, f.name))  # copy because device_put is async
-      for f in types.Data.fields()
-      if f.type is jax.Array
-  }
+  fields = {f.name: getattr(d, f.name) for f in types.Data.fields()}
 
+  # MJX prefers square matrices for these fields:
   for fname in ('xmat', 'ximat', 'geom_xmat', 'site_xmat', 'cam_xmat'):
     fields[fname] = fields[fname].reshape((-1, 3, 3))
 
@@ -409,7 +382,7 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
       value_beg = sum([ne, nf, nl][:i])
       d_beg = sum([d.ne, d.nf, d.nl][:i])
       size = [d.ne, d.nf, d.nl, d.nefc - d.nl - d.nf - d.ne][i]
-      value[value_beg:value_beg+size] = fields[fname][d_beg:d_beg+size]
+      value[value_beg : value_beg + size] = fields[fname][d_beg : d_beg + size]
     fields[fname] = value
 
   # convert qM and qLD if jacobian is dense
@@ -424,7 +397,12 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
       fields['qLD'] = np.zeros((m.nv, m.nv))
     fields['qLDiagInv'] = np.zeros(0)
 
-  fields = jax.device_put(fields, device=device)
-  fields['contact'] = _put_contact(d.contact, ncon, device=device)
+  fields['contact'] = _make_contact(d.contact, dim, efc_address)
+  fields.update(
+      dict(ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type)
+  )
 
-  return types.Data(**fields)
+  # copy because device_put is async:
+  data = types.Data(**{k: copy.copy(v) for k, v in fields.items()})
+
+  return jax.device_put(data, device=device)

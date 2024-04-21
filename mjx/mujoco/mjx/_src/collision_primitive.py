@@ -20,34 +20,53 @@ import jax
 from jax import numpy as jp
 from mujoco.mjx._src import math
 # pylint: disable=g-importing-member
-from mujoco.mjx._src.collision_base import Contact
-from mujoco.mjx._src.collision_base import GeomInfo
+from mujoco.mjx._src.collision_types import Collision
+from mujoco.mjx._src.collision_types import GeomInfo
+from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
+
+
+def collider(ncon: int):
+  """Wraps collision functions for use by collision_driver."""
+  def wrapper(func):
+    def collide(m: Model, d: Data, _, geom: jax.Array) -> Collision:
+      g1, g2 = geom.T
+      info1 = GeomInfo(d.geom_xpos[g1], d.geom_xmat[g1], m.geom_size[g1])
+      info2 = GeomInfo(d.geom_xpos[g2], d.geom_xmat[g2], m.geom_size[g2])
+      dist, pos, frame = jax.vmap(func)(info1, info2)
+      if ncon > 1:
+        return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
+      return dist, pos, frame
+
+    collide.ncon = ncon
+    return collide
+
+  return wrapper
 
 
 def _plane_sphere(
     plane_normal: jax.Array,
     plane_pos: jax.Array,
     sphere_pos: jax.Array,
-    radius: jax.Array,
+    sphere_radius: jax.Array,
 ) -> Tuple[jax.Array, jax.Array]:
-  """Returns the penetration and contact point between a plane and sphere."""
-  cdist = jp.dot(sphere_pos - plane_pos, plane_normal)
-  dist = cdist - radius
-  pos = sphere_pos - plane_normal * (radius + 0.5 * dist)
+  """Returns the distance and contact point between a plane and sphere."""
+  dist = jp.dot(sphere_pos - plane_pos, plane_normal) - sphere_radius
+  pos = sphere_pos - plane_normal * (sphere_radius + 0.5 * dist)
   return dist, pos
 
 
-def plane_sphere(plane: GeomInfo, sphere: GeomInfo) -> Contact:
+@collider(ncon=1)
+def plane_sphere(plane: GeomInfo, sphere: GeomInfo) -> Collision:
   """Calculates contact between a plane and a sphere."""
   n = plane.mat[:, 2]
   dist, pos = _plane_sphere(n, plane.pos, sphere.pos, sphere.size[0])
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def plane_capsule(plane: GeomInfo, cap: GeomInfo) -> Contact:
+@collider(ncon=2)
+def plane_capsule(plane: GeomInfo, cap: GeomInfo) -> Collision:
   """Calculates two contacts between a capsule and a plane."""
   n, axis = plane.mat[:, 2], cap.mat[:, 2]
   # align contact frames with capsule axis
@@ -56,16 +75,17 @@ def plane_capsule(plane: GeomInfo, cap: GeomInfo) -> Contact:
   b = jp.where(b_norm < 0.5, jp.where((-0.5 < n[1]) & (n[1] < 0.5), y, z), b)
   frame = jp.array([[n, b, jp.cross(n, b)]])
   segment = axis * cap.size[1]
-  contacts = []
+  collisions = []
   for offset in [segment, -segment]:
     dist, pos = _plane_sphere(n, plane.pos, cap.pos + offset, cap.size[0])
     dist = jp.expand_dims(dist, axis=0)
     pos = jp.expand_dims(pos, axis=0)
-    contacts.append((dist, pos, frame))
-  return jax.tree_map(lambda *x: jp.concatenate(x), *contacts)
+    collisions.append((dist, pos, frame))
+  return jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *collisions)
 
 
-def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Contact:
+@collider(ncon=1)
+def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Collision:
   """Calculates one contact between an ellipsoid and a plane."""
   n = plane.mat[:, 2]
   size = ellipsoid.size
@@ -73,12 +93,11 @@ def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Contact:
   pos = ellipsoid.pos + ellipsoid.mat @ (sphere_support * size)
   dist = jp.dot(n, pos - plane.pos)
   pos = pos - n * dist * 0.5
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Contact:
+@collider(ncon=3)
+def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
   """Calculates one contact between an cylinder and a plane."""
   n = plane.mat[:, 2]
   axis = cylinder.mat[:, 2]
@@ -139,7 +158,7 @@ def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Contact:
 
 def _sphere_sphere(
     pos1: jax.Array, radius1: jax.Array, pos2: jax.Array, radius2: jax.Array
-) -> Contact:
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Returns the penetration, contact point, and normal between two spheres."""
   n, dist = math.normalize_with_norm(pos2 - pos1)
   n = jp.where(dist == 0.0, jp.array([1.0, 0.0, 0.0]), n)
@@ -148,15 +167,15 @@ def _sphere_sphere(
   return dist, pos, n
 
 
-def sphere_sphere(s1: GeomInfo, s2: GeomInfo) -> Contact:
+@collider(ncon=1)
+def sphere_sphere(s1: GeomInfo, s2: GeomInfo) -> Collision:
   """Calculates contact between two spheres."""
   dist, pos, n = _sphere_sphere(s1.pos, s1.size[0], s2.pos, s2.size[0])
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def sphere_capsule(sphere: GeomInfo, cap: GeomInfo) -> Contact:
+@collider(ncon=1)
+def sphere_capsule(sphere: GeomInfo, cap: GeomInfo) -> Collision:
   """Calculates one contact between a sphere and a capsule."""
   axis, length = cap.mat[:, 2], cap.size[1]
   segment = axis * length
@@ -164,19 +183,14 @@ def sphere_capsule(sphere: GeomInfo, cap: GeomInfo) -> Contact:
       cap.pos - segment, cap.pos + segment, sphere.pos
   )
   dist, pos, n = _sphere_sphere(sphere.pos, sphere.size[0], pt, cap.size[0])
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def capsule_capsule(cap1: GeomInfo, cap2: GeomInfo) -> Contact:
+@collider(ncon=1)
+def capsule_capsule(cap1: GeomInfo, cap2: GeomInfo) -> Collision:
   """Calculates one contact between two capsules."""
-  axis1, length1, axis2, length2 = (
-      cap1.mat[:, 2],
-      cap1.size[1],
-      cap2.mat[:, 2],
-      cap2.size[1],
-  )
+  axis1, length1 = cap1.mat[:, 2], cap1.size[1]
+  axis2, length2 = cap2.mat[:, 2], cap2.size[1]
   seg1, seg2 = axis1 * length1, axis2 * length2
   pt1, pt2 = math.closest_segment_to_segment_points(
       cap1.pos - seg1,
@@ -186,15 +200,4 @@ def capsule_capsule(cap1: GeomInfo, cap2: GeomInfo) -> Contact:
   )
   radius1, radius2 = cap1.size[0], cap2.size[0]
   dist, pos, n = _sphere_sphere(pt1, radius1, pt2, radius2)
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
-
-# store ncon as function attributes
-plane_sphere.ncon = 1
-plane_capsule.ncon = 2
-plane_ellipsoid.ncon = 1
-plane_cylinder.ncon = 3
-sphere_sphere.ncon = 1
-sphere_capsule.ncon = 1
-capsule_capsule.ncon = 1
+  return dist, pos, math.make_frame(n)

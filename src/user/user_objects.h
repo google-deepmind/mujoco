@@ -275,6 +275,7 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // API for adding existing objects to body
   mjCBody& operator+=(const mjCBody& other);
+  mjCBody& operator+=(const mjCFrame& other);
 
   // API for accessing objects
   int NumObjects(mjtObj type);
@@ -360,7 +361,8 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   void SetParent(mjCBody* _body);
 
   mjCFrame& operator+=(const mjCBody& other);
-  mjCFrame& operator+=(const mjCFrame& other);
+
+  bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
 
  private:
   mjCFrame(mjCModel* = 0, mjCFrame* = 0);      // constructor

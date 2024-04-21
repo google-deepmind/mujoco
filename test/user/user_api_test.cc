@@ -196,20 +196,20 @@ TEST_F(PluginTest, RecompileCompareCache) {
 }
 
 // -------------------------------- test attach -------------------------------
-TEST_F(MujocoTest, AttachSame) {
-  std::array<char, 1000> er;
-  mjtNum tol = 0;
-  std::string field = "";
-
-  static constexpr char xml[] = R"(
+static constexpr char xml_child[] = R"(
   <mujoco>
     <worldbody>
-      <body name="body">
-        <joint type="hinge" name="hinge"/>
-        <geom type="cylinder" size=".1 1 0"/>
-        <light mode="targetbody" target="child"/>
-        <body name="child"/>
-      </body>
+      <frame name="pframe">
+        <frame name="cframe">
+          <body name="body">
+            <joint type="hinge" name="hinge"/>
+            <geom type="cylinder" size=".1 1 0"/>
+            <light mode="targetbody" target="targetbody"/>
+            <body name="targetbody"/>
+            <body/>
+          </body>
+        </frame>
+      </frame>
       <body name="ignore"/>
       <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
     </worldbody>
@@ -227,9 +227,14 @@ TEST_F(MujocoTest, AttachSame) {
       <position name="fixed" tendon="fixed"/>
     </actuator>
     <contact>
-      <exclude body1="body" body2="child"/>
+      <exclude body1="body" body2="targetbody"/>
     </contact>
   </mujoco>)";
+
+TEST_F(MujocoTest, AttachSame) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
 
   static constexpr char xml_result[] = R"(
   <mujoco>
@@ -237,16 +242,18 @@ TEST_F(MujocoTest, AttachSame) {
       <body name="body">
         <joint type="hinge" name="hinge"/>
         <geom type="cylinder" size=".1 1 0"/>
-        <light mode="targetbody" target="child"/>
-        <body name="child"/>
+        <light mode="targetbody" target="targetbody"/>
+        <body name="targetbody"/>
+        <body/>
       </body>
       <body name="ignore"/>
       <frame name="frame" pos=".1 0 0" euler="0 90 0">
         <body name="attached-body-1">
           <joint type="hinge" name="attached-hinge-1"/>
           <geom type="cylinder" size=".1 1 0"/>
-          <light mode="targetbody" target="attached-child-1"/>
-          <body name="attached-child-1"/>
+          <light mode="targetbody" target="attached-targetbody-1"/>
+          <body name="attached-targetbody-1"/>
+          <body/>
         </body>
       </frame>
     </worldbody>
@@ -270,13 +277,13 @@ TEST_F(MujocoTest, AttachSame) {
       <position name="attached-fixed-1" tendon="attached-fixed-1"/>
     </actuator>
     <contact>
-      <exclude body1="body" body2="child"/>
-      <exclude body1="attached-body-1" body2="attached-child-1"/>
+      <exclude body1="body" body2="targetbody"/>
+      <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
     </contact>
   </mujoco>)";
 
   // create parent
-  mjSpec* parent = ParseSpecFromString(xml, er.data(), er.size());
+  mjSpec* parent = ParseSpecFromString(xml_child, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
 
   // get frame
@@ -296,10 +303,10 @@ TEST_F(MujocoTest, AttachSame) {
   EXPECT_THAT(m_attached, NotNull());
 
   // check full name stored in mjModel
-  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 4), "attached-body-1");
+  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 5), "attached-body-1");
 
   // check body 3 is attached to the world
-  EXPECT_THAT(m_attached->body_parentid[3], 0);
+  EXPECT_THAT(m_attached->body_parentid[4], 0);
 
   // compare with expected XML
   mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
@@ -330,32 +337,6 @@ TEST_F(MujocoTest, AttachDifferent) {
     </worldbody>
   </mujoco>)";
 
-  static constexpr char xml_child[] = R"(
-  <mujoco>
-    <worldbody>
-      <body name="body">
-        <joint type="hinge" name="hinge"/>
-        <geom type="cylinder" size=".1 1 0"/>
-          <body name="named"/>
-          <body/>
-      </body>
-      <body name="discard"/>
-    </worldbody>
-    <sensor>
-      <framepos name="keep" objtype="body" objname="body"/>
-      <framepos name="discard" objtype="body" objname="discard"/>
-    </sensor>
-    <tendon>
-      <fixed name="fixed">
-        <joint joint="hinge" coef="2"/>
-      </fixed>
-    </tendon>
-    <actuator>
-      <position joint="hinge"/>
-      <position tendon="fixed"/>
-    </actuator>
-  </mujoco>)";
-
   static constexpr char xml_result[] = R"(
   <mujoco>
     <worldbody>
@@ -366,14 +347,15 @@ TEST_F(MujocoTest, AttachDifferent) {
           <body name="attached-body-1">
             <joint type="hinge" name="attached-hinge-1"/>
             <geom type="cylinder" size=".1 1 0"/>
-              <body name="attached-named-1"/>
+            <light mode="targetbody" target="attached-targetbody-1"/>
+              <body name="attached-targetbody-1"/>
               <body/>
           </body>
         </frame>
       </body>
     </worldbody>
     <sensor>
-      <framepos name="attached-keep-1" objtype="body" objname="attached-body-1"/>
+      <framepos name="attached-sensor-1" objtype="body" objname="attached-body-1"/>
     </sensor>
     <tendon>
       <fixed name="attached-fixed-1">
@@ -381,9 +363,12 @@ TEST_F(MujocoTest, AttachDifferent) {
       </fixed>
     </tendon>
     <actuator>
-      <position joint="attached-hinge-1"/>
-      <position tendon="attached-fixed-1"/>
+      <position name="attached-hinge-1" joint="attached-hinge-1"/>
+      <position name="attached-fixed-1" tendon="attached-fixed-1"/>
     </actuator>
+    <contact>
+      <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
+    </contact>
   </mujoco>)";
 
   // model with one free sphere and a frame
@@ -403,8 +388,105 @@ TEST_F(MujocoTest, AttachDifferent) {
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
-  EXPECT_THAT(
+  EXPECT_EQ(
       mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+
+  // compile new model
+  mjModel* m_attached = mjs_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull());
+
+  // check full name stored in mjModel
+  EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 2), "attached-body-1");
+
+  // check body 2 is attached to body 1
+  EXPECT_THAT(m_attached->body_parentid[2], 1);
+
+  // compare with expected XML
+  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';;
+
+  // destroy everything
+  mjs_deleteSpec(parent);
+  mjs_deleteSpec(child);
+  mj_deleteModel(m_attached);
+  mj_deleteModel(m_expected);
+}
+
+TEST_F(MujocoTest, AttachFrame) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <freejoint/>
+        <geom size=".1"/>
+        <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <freejoint/>
+        <geom size=".1"/>
+        <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
+        <frame name="pframe">
+          <frame name="cframe">
+            <body name="attached-body-1">
+              <joint type="hinge" name="attached-hinge-1"/>
+              <geom type="cylinder" size=".1 1 0"/>
+              <light mode="targetbody" target="attached-targetbody-1"/>
+                <body name="attached-targetbody-1"/>
+                <body/>
+            </body>
+          </frame>
+        </frame>
+      </body>
+    </worldbody>
+    <sensor>
+      <framepos name="attached-sensor-1" objtype="body" objname="attached-body-1"/>
+    </sensor>
+    <tendon>
+      <fixed name="attached-fixed-1">
+        <joint joint="attached-hinge-1" coef="2"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position name="attached-hinge-1" joint="attached-hinge-1"/>
+      <position name="attached-fixed-1" tendon="attached-fixed-1"/>
+    </actuator>
+    <contact>
+      <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
+    </contact>
+  </mujoco>)";
+
+  // model with one free sphere and a frame
+  mjSpec* parent = ParseSpecFromString(xml_parent, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+
+  // get frame
+  mjsBody* body = mjs_findBody(parent, "sphere");
+  EXPECT_THAT(body, NotNull());
+
+  // model with one cylinder and a hinge
+  mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  // get subtree
+  mjsFrame* frame = mjs_findFrame(child, "pframe");
+  EXPECT_THAT(frame, NotNull());
+
+  // attach child to parent frame
+  EXPECT_THAT(
+      mjs_attachFrame(body, frame, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
 
   // compile new model
   mjModel* m_attached = mjs_compile(parent, 0);

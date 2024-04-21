@@ -55,7 +55,7 @@ class ScanTest(absltest.TestCase):
         <worldbody/>
       </mujoco>
     """)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     def fn(body_id):
       return body_id + 1
@@ -69,7 +69,7 @@ class ScanTest(absltest.TestCase):
   def test_flat_joints(self):
     """Tests scanning over bodies with joints of different types."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_DOF_XML)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     # we will test two functions:
     #   1) j_fn receives jnt_types as a jp array
@@ -105,7 +105,7 @@ class ScanTest(absltest.TestCase):
   def test_body_tree(self):
     """Tests tree scanning over bodies with different joint counts."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_DOF_XML)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     # we will test two functions:
     #   1) j_fn receives jnt_pos which is a jp array
@@ -196,7 +196,7 @@ class ScanTest(absltest.TestCase):
   def test_scan_actuators(self):
     """Tests scanning over actuators."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_ACT_XML)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     fn = lambda *args: args
     args = (

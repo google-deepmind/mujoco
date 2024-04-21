@@ -129,3 +129,17 @@ Drones
      - Preview
    * - `Skydio X2 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/skydio_x2>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/skydio_x2/x2.png
+   * - `Bitcraze Crazyflie 2 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/bitcraze_crazyflie_2>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/bitcraze_crazyflie_2/cf2.png
+
+
+Biomechanical
+^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+
+   * - Model
+     - Preview
+   * - `Fruitfly <https://github.com/google-deepmind/mujoco_menagerie/tree/main/flybody>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/flybody/flybody.png

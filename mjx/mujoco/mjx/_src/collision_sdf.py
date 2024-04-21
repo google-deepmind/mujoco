@@ -28,13 +28,33 @@ import jax
 from jax import numpy as jp
 from mujoco.mjx._src import math
 # pylint: disable=g-importing-member
-from mujoco.mjx._src.collision_base import Contact
-from mujoco.mjx._src.collision_base import GeomInfo
+from mujoco.mjx._src.collision_types import Collision
+from mujoco.mjx._src.collision_types import GeomInfo
 from mujoco.mjx._src.dataclasses import PyTreeNode
+from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
 
 # the SDF function takes position in, and returns a distance or objective
 SDFFn = Callable[[jax.Array], jax.Array]
+
+
+def collider(ncon: int):
+  """Wraps collision functions for use by collision_driver."""
+  def wrapper(func):
+    def collide(m: Model, d: Data, _, geom: jax.Array) -> Collision:
+      g1, g2 = geom.T
+      info1 = GeomInfo(d.geom_xpos[g1], d.geom_xmat[g1], m.geom_size[g1])
+      info2 = GeomInfo(d.geom_xpos[g2], d.geom_xmat[g2], m.geom_size[g2])
+      dist, pos, frame = jax.vmap(func)(info1, info2)
+      if ncon > 1:
+        return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
+      return dist, pos, frame
+
+    collide.ncon = ncon
+    return collide
+
+  return wrapper
 
 
 def _plane(pos: jax.Array, size: jax.Array) -> jax.Array:
@@ -128,22 +148,15 @@ def _optim(
   return pos, dist, n
 
 
-def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Contact:
+@collider(ncon=1)
+def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Collision:
   """"Calculates contact between a capsule and an ellipsoid."""
   pos, dist, n = _optim(_capsule, _ellipsoid, c, e)
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def ellipsoid_ellipsoid(e1: GeomInfo, e2: GeomInfo) -> Contact:
+@collider(ncon=1)
+def ellipsoid_ellipsoid(e1: GeomInfo, e2: GeomInfo) -> Collision:
   """"Calculates contact between two ellipsoids."""
   pos, dist, n = _optim(_ellipsoid, _ellipsoid, e1, e2)
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
-
-
-# store ncon as function attributes
-capsule_ellipsoid.ncon = 1
-ellipsoid_ellipsoid.ncon = 1
+  return dist, pos, math.make_frame(n)

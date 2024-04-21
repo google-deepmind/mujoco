@@ -628,7 +628,6 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
     return;
   }
   frame = _frame;
-  frame->Compile();
 }
 
 
@@ -729,13 +728,67 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 
 
 
+// attach frame to body
+mjCBody& mjCBody::operator+=(const mjCFrame& other) {
+  mjCBody* subtree = other.body;
+  other.model->prefix = other.prefix;
+  other.model->suffix = other.suffix;
+
+  // copy input frame
+  frames.push_back(new mjCFrame(other));
+  frames.back()->body = this;
+  frames.back()->model = model;
+  frames.back()->frame = other.frame;
+  int i = frames.size();
+
+  // map input frames to index in this->frames
+  std::map<mjCFrame*, int> fmap;
+  for (auto frame : subtree->frames) {
+    if (frame == static_cast<const mjCFrame*>(&other)) {
+      fmap[frame] = frames.size() - 1;
+    } else if (other.IsAncestor(frame)) {
+      fmap[frame] = i++;
+    }
+  }
+
+  // copy children that are inside the input frame
+  CopyList(frames, subtree->frames, fmap, &other);  // needs to be done first
+  CopyList(geoms, subtree->geoms, fmap, &other);
+  CopyList(joints, subtree->joints, fmap, &other);
+  CopyList(sites, subtree->sites, fmap, &other);
+  CopyList(cameras, subtree->cameras, fmap, &other);
+  CopyList(lights, subtree->lights, fmap, &other);
+
+  for (int i=0; i<subtree->bodies.size(); i++) {
+    if (!other.IsAncestor(subtree->bodies[i]->frame)) {
+      continue;
+    }
+    bodies.push_back(new mjCBody(*subtree->bodies[i], model));  // triggers recursive call
+    bodies.back()->frame =
+        subtree->bodies[i]->frame ? frames[fmap[subtree->bodies[i]->frame]] : nullptr;
+  }
+
+  // name space
+  this->NameSpace(other.model);
+
+  // attach referencing elements
+  *model += *other.model;
+
+  // clear namespace and return body
+  other.model->prefix.clear();
+  other.model->suffix.clear();
+  return *this;
+}
+
+
+
 // copy src list of elements into dst; set body, model and frame
 template <typename T>
 void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
                        std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe) {
   int nsrc = (int)src.size();
   for (int i=0; i<nsrc; i++) {
-    if (pframe && src[i]->frame != pframe) {
+    if (pframe && !pframe->IsAncestor(src[i]->frame)) {
       continue;  // skip if the element is not inside pframe
     }
     dst.push_back(new T(*src[i]));
@@ -1169,6 +1222,11 @@ void mjCBody::MakeInertialExplicit() {
 void mjCBody::Compile(void) {
   CopyFromSpec();
 
+  // compile all frames
+  for (int i=0; i<frames.size(); i++) {
+    frames[i]->Compile();
+  }
+
   // resize userdata
   if (userdata_.size() > model->nuser_body) {
     throw mjCError(this, "user has more values than nuser_body in body '%s' (id = %d)",
@@ -1413,6 +1471,21 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   other.model->suffix.clear();
   other.model->prefix.clear();
   return *this;
+}
+
+
+
+// return true if child is descendent of this frame
+bool mjCFrame::IsAncestor(const mjCFrame* child) const {
+  if (!child) {
+    return false;
+  }
+
+  if (child == this) {
+    return true;
+  }
+
+  return IsAncestor(child->frame);
 }
 
 

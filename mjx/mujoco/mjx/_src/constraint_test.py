@@ -65,14 +65,14 @@ class ConstraintTest(absltest.TestCase):
     pos = jp.ones(3)
 
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.REFSAFE
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     k, *_ = constraint._kbi(mx, solimp, solref, pos)
     self.assertEqual(k, 1 / (0.99**2 * timeconst**2))
 
   def test_disable_constraint(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONSTRAINT
-    ne, nf, nl, nc = mjx.count_constraints(m)
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
     self.assertEqual(ne, 0)
     self.assertEqual(nf, 0)
     self.assertEqual(nl, 0)
@@ -83,7 +83,7 @@ class ConstraintTest(absltest.TestCase):
   def test_disable_equality(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.EQUALITY
-    ne, nf, nl, nc = mjx.count_constraints(m)
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
     self.assertEqual(ne, 0)
     self.assertEqual(nf, 0)
     self.assertEqual(nl, 2)
@@ -94,7 +94,7 @@ class ConstraintTest(absltest.TestCase):
   def test_disable_contact(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONTACT
-    ne, nf, nl, nc = mjx.count_constraints(m)
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
     self.assertEqual(ne, 10)
     self.assertEqual(nf, 0)
     self.assertEqual(nl, 2)

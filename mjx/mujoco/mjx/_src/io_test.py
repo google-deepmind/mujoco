@@ -108,10 +108,6 @@ class ModelIOTest(parameterized.TestCase):
     np.testing.assert_allclose(mx.geom_bodyid, m.geom_bodyid)
     np.testing.assert_almost_equal(mx.geom_solref, m.geom_solref)
     np.testing.assert_almost_equal(mx.geom_pos, m.geom_pos)
-    self.assertLen(mx.geom_convex_face, 6)
-    self.assertLen(mx.geom_convex_vert, 6)
-    self.assertLen(mx.geom_convex_edge_dir, 6)
-    self.assertLen(mx.geom_convex_facenormal, 6)
 
     np.testing.assert_allclose(mx.jnt_type, m.jnt_type)
     np.testing.assert_allclose(mx.jnt_dofadr, m.jnt_dofadr)
@@ -256,6 +252,7 @@ class DataIOTest(parameterized.TestCase):
     nv = 19
     nefc = 185
 
+    self.assertEqual(d.nefc, nefc)
     self.assertEqual(d.qpos.shape, (nq,))
     self.assertEqual(d.qvel.shape, (nv,))
     self.assertEqual(d.act.shape, (0,))
@@ -423,8 +420,6 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.efc_J, d.efc_J)
     self.assertEqual(d_2.efc_aref.shape, (8,))  # nefc
     np.testing.assert_allclose(d_2.efc_aref, d.efc_aref)
-
-    # efc_address is created on demand
     np.testing.assert_allclose(d_2.contact.efc_address, d.contact.efc_address)
 
   def test_get_data_batched(self):
@@ -435,7 +430,7 @@ class DataIOTest(parameterized.TestCase):
     mujoco.mj_step(m, d, 2)
     dx = mjx.put_data(m, d)
     # second data in batch has contact dist > 0, disables contact
-    dx_b = jax.tree_map(lambda x: jp.stack((x, x + 0.05)), dx)
+    dx_b = jax.tree_util.tree_map(lambda x: jp.stack((x, x + 0.05)), dx)
     ds = mjx.get_data(m, dx_b)
     self.assertLen(ds, 2)
     np.testing.assert_allclose(ds[0].qpos, d.qpos)

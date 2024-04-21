@@ -106,11 +106,11 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_defaultOption>(pymodule);
   Def<traits::mj_defaultVisual>(pymodule);
   // Skipped: mj_copyModel (have MjModel.__copy__, memory managed by MjModel)
-  DEF_WITH_OMITTED_PY_ARGS(traits::mj_saveModel, "buffer_sz")(
-      pymodule,
-      [](const raw::MjModel* m, const std::optional<std::string>& filename,
+  pymodule.def(
+      "mj_saveModel",
+      [](const MjModelWrapper& m, const std::optional<std::string>& filename = std::nullopt,
          std::optional<
-             Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>> buffer) {
+             Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>> buffer = std::nullopt) {
         void* buffer_ptr = nullptr;
         int buffer_sz = 0;
         if (buffer.has_value()) {
@@ -118,9 +118,13 @@ PYBIND11_MODULE(_functions, pymodule) {
           buffer_sz = buffer->size();
         }
         return InterceptMjErrors(::mj_saveModel)(
-            m, filename.has_value() ? filename->c_str() : nullptr,
+            m.get(), filename.has_value() ? filename->c_str() : nullptr,
             buffer_ptr, buffer_sz);
-      });
+      },
+      py::arg("m"), py::arg_v("filename", std::nullopt),
+      py::arg_v("buffer", std::nullopt),
+      py::doc(traits::mj_saveModel::doc),
+      py::call_guard<py::gil_scoped_release>());
   // Skipped: mj_loadModel (have MjModel.from_binary_path)
   // Skipped: mj_deleteModel (have MjModel.__del__)
   Def<traits::mj_sizeModel>(pymodule);

@@ -20,7 +20,7 @@ import numpy as np
 import trimesh
 
 
-class GeomMeshKwargsTest(absltest.TestCase):
+class MeshTest(absltest.TestCase):
 
   def test_pyramid(self):
     """Tests that a triangulated pyramid converts to merged coplanar faces."""
@@ -37,29 +37,21 @@ class GeomMeshKwargsTest(absltest.TestCase):
     tm = trimesh.Trimesh(vertices=vert, faces=face)
     tm_convex = trimesh.convex.convex_hull(tm)
     convex_vert = np.array(tm_convex.vertices)
-    convex_face = np.array(tm_convex.faces)
-    mesh_info = mesh.MeshInfo(
-        name='test',
-        vert=vert,
-        face=face,
-        convex_vert=convex_vert,
-        convex_face=convex_face,
-    )
-    h = mesh._geom_mesh_kwargs(mesh_info)
+    convex_face = mesh._merge_coplanar(None, tm_convex, 0)
 
     # get index of vertices in h['geom_convex_vert'] for vertices in vert
     dist = np.repeat(vert, vert.shape[0], axis=0) - np.tile(
-        h['geom_convex_vert'], (vert.shape[0], 1)
+        convex_vert, (vert.shape[0], 1)
     )
     dist = (dist**2).sum(axis=1).reshape((vert.shape[0], -1))
     vidx = np.argmin(dist, axis=0)
 
     # check verts
-    np.testing.assert_array_equal(h['geom_convex_vert'], vert[vidx])
+    np.testing.assert_array_equal(convex_vert, vert[vidx])
 
     # check face vertices
     map_ = {v: k for k, v in enumerate(vidx)}
-    h_face = np.vectorize(map_.get)(h['geom_convex_face_vert_idx'])
+    h_face = np.vectorize(map_.get)(convex_face)
     face_verts = sorted([tuple(sorted(set(s))) for s in h_face.tolist()])
     expected_face_verts = sorted([
         (0, 3, 4), (1, 3, 4), (0, 2, 4), (0, 1, 2, 3), (1, 2, 4)])
@@ -69,7 +61,8 @@ class GeomMeshKwargsTest(absltest.TestCase):
     )
 
     # check edges
-    unique_edge = np.vectorize(map_.get)(h['geom_convex_edge_dir'])
+    edge_dir = mesh._get_unique_edge_dir(convex_vert, convex_face)
+    unique_edge = np.vectorize(map_.get)(edge_dir)
     unique_edge = np.array(sorted(unique_edge.tolist()))
     np.testing.assert_array_equal(
         unique_edge,
@@ -77,10 +70,11 @@ class GeomMeshKwargsTest(absltest.TestCase):
     )
 
     # face normals
-    self.assertEqual(h['geom_convex_facenormal'].shape, (5, 3))
+    face_normal = mesh._get_face_norm(convex_vert, convex_face)
+    self.assertEqual(face_normal.shape, (5, 3))
 
     # face edges
-    edges = h['geom_convex_edge']
+    edges, edge_normal = mesh._get_edge_normals(convex_face, face_normal)
     edges = np.vectorize(map_.get)(edges)
     mask = edges[:, 0] != edges[:, 1]
     edges = edges[mask]
@@ -103,7 +97,6 @@ class GeomMeshKwargsTest(absltest.TestCase):
     )
 
     # face edge normals
-    edge_normal = h['geom_convex_edge_face_normal']
     edge_normal = edge_normal[mask]
     edge_normal = np.take_along_axis(
         edge_normal, sort_col_idx[..., None], axis=1

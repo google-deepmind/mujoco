@@ -208,3 +208,8 @@ def get_custom_numeric(m: Union[Model, mujoco.MjModel], name: str) -> float:
       return m.numeric_data[m.numeric_adr[i]]
 
   return -1
+
+
+def get_custom_int(m: Union[Model, mujoco.MjModel], name: str) -> int:
+  """Returns a custom integer given an MjModel or mjx.Model."""
+  return int(get_custom_numeric(m, name))

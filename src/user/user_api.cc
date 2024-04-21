@@ -91,6 +91,17 @@ int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
 
 
 
+// attach frame to a parent body
+int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
+                    const char* prefix, const char* suffix) {
+  mjCBody* body_parent = static_cast<mjCBody*>(parent->element);
+  mjCFrame* child_frame = static_cast<mjCFrame*>(child->element);
+  *body_parent += std::string(prefix) + *child_frame + std::string(suffix);
+  return 0;
+}
+
+
+
 // get error message from model
 const char* mjs_getError(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
