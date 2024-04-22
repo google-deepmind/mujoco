@@ -263,6 +263,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   friend class mjXURDF;
 
  public:
+  mjCBody(mjCModel*);  // constructor
+  ~mjCBody();          // destructor
+
   // API for adding objects to body
   mjCBody*    AddBody(mjCDef* = 0);
   mjCFrame*   AddFrame(mjCFrame* = 0);
@@ -273,9 +276,10 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCCamera*  AddCamera(mjCDef* = 0);
   mjCLight*   AddLight(mjCDef* = 0);
 
-  // API for adding existing objects to body
+  // API for adding/removing objects to body
   mjCBody& operator+=(const mjCBody& other);
   mjCBody& operator+=(const mjCFrame& other);
+  mjCBody& operator-=(const mjCBody& subtree);
 
   // API for accessing objects
   int NumObjects(mjtObj type);
@@ -304,10 +308,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
  private:
-  mjCBody(mjCModel*);                               // constructor
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment
-  ~mjCBody();                                       // destructor
 
   void Compile(void);             // compiler
   void GeomFrame(void);           // get inertial info from geoms

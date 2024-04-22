@@ -216,6 +216,16 @@ void mjCModel::CopyList(std::vector<T*>& dest,
 
 
 
+template <class T>
+static void resetlist(std::vector<T*>& list) {
+  for (auto element : list) {
+    element->id = -1;
+  }
+  list.clear();
+}
+
+
+
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
   MakeLists(bodies[0]);
@@ -273,13 +283,85 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // restore to the same state as other
   if (!compiled) {
     mjCBody* world = bodies[0];
-    bodies.clear();
-    frames.clear();
-    joints.clear();
-    geoms.clear();
-    sites.clear();
-    cameras.clear();
-    lights.clear();
+    resetlist(bodies);
+    resetlist(joints);
+    resetlist(geoms);
+    resetlist(sites);
+    resetlist(cameras);
+    resetlist(lights);
+    resetlist(frames);
+    world->id = 0;
+    bodies.push_back(world);
+  }
+
+  PointToLocal();
+  return *this;
+}
+
+
+
+template <class T>
+void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
+  int nlist = (int)list.size();
+  int removed = 0;
+  for (int i = 0; i < nlist; i++) {
+    T* element = list[i];
+    element->id -= removed;
+    try {
+      // check if the element contains an error
+      element->CopyFromSpec();
+      element->ResolveReferences(&other);
+    } catch (mjCError err) {
+      continue;
+    }
+    try {
+      // check if the element references something that was removed
+      element->ResolveReferences(this);
+    } catch (mjCError err) {
+      delete element;
+      list.erase(list.begin() + i);
+      nlist--;
+      i--;
+      removed++;
+    }
+  }
+}
+
+
+
+mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
+  mjCModel oldmodel(*this);
+  oldmodel.MakeLists(oldmodel.bodies[0]);
+  oldmodel.CreateObjectLists();
+  oldmodel.ProcessLists();
+
+  // remove body from tree
+  *bodies[0] -= subtree;
+
+  // create global lists
+  MakeLists(bodies[0]);
+  CreateObjectLists();
+  ProcessLists();
+
+  // check if we have to remove anything else
+  RemoveFromList(pairs, oldmodel);
+  RemoveFromList(excludes, oldmodel);
+  RemoveFromList(tendons, oldmodel);
+  RemoveFromList(equalities, oldmodel);
+  RemoveFromList(actuators, oldmodel);
+  RemoveFromList(sensors, oldmodel);
+
+  // restore to the same state as before call
+  if (!compiled) {
+    mjCBody* world = bodies[0];
+    resetlist(bodies);
+    resetlist(joints);
+    resetlist(geoms);
+    resetlist(sites);
+    resetlist(cameras);
+    resetlist(lights);
+    resetlist(frames);
+    world->id = 0;
     bodies.push_back(world);
   }
 
@@ -721,6 +803,9 @@ static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyM
   auto id = ids.find(name);
   if (id == ids.end()) {
     return nullptr;
+  }
+  if (id->second > (int)list.size() - 1) {
+    throw mjCError(0, "object not found");
   }
   return list[id->second];
 }

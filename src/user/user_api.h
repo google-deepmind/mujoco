@@ -762,9 +762,12 @@ MJAPI void mjs_deleteSpec(mjSpec* s);
 MJAPI int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                          const char* prefix, const char* suffix);
 
-// Attach child frame to a parent body, return 0 if success.
+// Attach child frame to a parent body, return 0 on success.
 MJAPI int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix);
+
+// Detach body from mjSpec, remove all references, return 0 on success.
+MJAPI int mjs_detachBody(mjSpec* s, const mjsBody* b);
 
 
 //---------------------------------- Add tree elements ---------------------------------------------
@@ -792,6 +795,9 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, mjsDefault* def);
 
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
+
+// Delete body. TODO: make this a general mjs_deleteElement function
+MJAPI void mjs_deleteBody(mjsBody* b);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------
