@@ -715,8 +715,8 @@ typedef struct _mjsKey {           // keyframe specification
 
 
 typedef struct _mjsDefault {       // default specification
-  mjString name;                   // name
   mjElement* element;              // element type
+  mjString name;                   // class name
   mjsJoint* joint;                 // joint defaults
   mjsGeom* geom;                   // geom defaults
   mjsSite* site;                   // site defaults
