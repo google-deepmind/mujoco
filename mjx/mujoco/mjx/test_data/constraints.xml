@@ -14,7 +14,7 @@
   </default>
 
   <worldbody>
-    <geom pos="0 0 -1" type="plane" size="10 10 .01"/>
+    <geom pos="0 0 -1" type="plane" size="20 20 .01" condim="1"/>
 
     <body name="anchor1" pos="-3 0 0"/>
     <body name="beam1" pos="-3 0 0">
@@ -36,6 +36,26 @@
     <body name="beam4" pos="3 0 0">
       <joint name="joint4" axis="1 0 0" type="hinge" damping="1.0"/> <!-- tests no joint range -->
       <geom class="box"/>
+    </body>
+
+    <body name="box_condim1" pos="4 0 0">
+      <freejoint/>
+      <geom class="box" condim="1"/>
+    </body>
+
+    <body name="box_condim3" pos="5 0 0">
+      <freejoint/>
+      <geom class="box" condim="3"/>
+    </body>
+
+    <body name="box_condim4" pos="6 0 0">
+      <freejoint/>
+      <geom class="box" condim="4"/>
+    </body>
+
+    <body name="box_condim6" pos="6 0 0">
+      <freejoint/>
+      <geom class="box" condim="6"/>
     </body>
   </worldbody>
 

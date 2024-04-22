@@ -108,7 +108,7 @@ def has_collision_fn(t1: GeomType, t2: GeomType) -> bool:
 def geom_pairs(
     m: Union[Model, mujoco.MjModel],
 ) -> Iterator[Tuple[int, int, int]]:
-  """Returns geom pairs to check for collisions.
+  """Yields geom pairs to check for collisions.
 
   Args:
     m: a MuJoCo or MJX model
@@ -351,7 +351,11 @@ def collision(m: Model, d: Data) -> Data:
   for key, contact in groups.items():
     # determine which contacts we'll use for collision testing by running a
     # broad phase cull if requested
-    if max_geom_pairs > -1 and contact.geom.shape[0] > max_geom_pairs:
+    if (
+        max_geom_pairs > -1
+        and contact.geom.shape[0] > max_geom_pairs
+        and not set(key.types) & _GEOM_NO_BROADPHASE
+    ):
       pos1, pos2 = d.geom_xpos[contact.geom.T]
       size1, size2 = m.geom_rbound[contact.geom.T]
       dist = jax.vmap(jp.linalg.norm)(pos2 - pos1) - (size1 + size2)

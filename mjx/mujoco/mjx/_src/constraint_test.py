@@ -48,13 +48,31 @@ class ConstraintTest(absltest.TestCase):
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)
-
     dx = mjx.make_constraint(mx, dx)
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_J, dx.efc_J[nnz].reshape(-1), 'efc_J')
-    _assert_eq(d.efc_D, dx.efc_D[nnz], 'efc_D')
-    _assert_eq(d.efc_aref, dx.efc_aref[nnz], 'efc_aref')
-    _assert_eq(d.efc_frictionloss, dx.efc_frictionloss[nnz], 'efc_frictionloss')
+    d_efc_j = d.efc_J.reshape((-1, m.nv))
+
+    # ne, nf, nl order matches
+    efl = d.ne + d.nf + d.nl
+    _assert_eq(d_efc_j[:efl], dx.efc_J[:efl], 'efc_J')
+    _assert_eq(d.efc_D[:efl], dx.efc_D[:efl], 'efc_D')
+    _assert_eq(d.efc_aref[:efl], dx.efc_aref[:efl], 'efc_aref')
+    _assert_eq(dx.efc_frictionloss, 0, 'efc_frictionloss')
+
+    # contact order might not match, so check efcs contact by contact
+    for i in range(d.ncon):
+      geom_match = (dx.contact.geom == d.contact.geom[i]).all(axis=-1)
+      geom_match &= (dx.contact.pos == d.contact.pos[i]).all(axis=-1)
+      self.assertTrue(geom_match.any(), f'contact {i} not found in MJX contact')
+      j = np.nonzero(geom_match)[0][0]
+      self.assertEqual(d.contact.dim[i], dx.contact.dim[j])
+      nc = max(1, (d.contact.dim[i] - 1) * 2)
+      d_beg, dx_beg = d.contact.efc_address[i], dx.contact.efc_address[j]
+      d_end, dx_end = d_beg + nc, dx_beg + nc
+      _assert_eq(d_efc_j[d_beg:d_end], dx.efc_J[dx_beg:dx_end], 'efc_J')
+      _assert_eq(d.efc_D[d_beg:d_end], dx.efc_D[dx_beg:dx_end], 'efc_D')
+      d_efc_aref = d.efc_aref[d_beg:d_end]
+      dx_efc_aref = dx.efc_aref[dx_beg:dx_end]
+      _assert_eq(d_efc_aref, dx_efc_aref, 'efc_aref')
 
   def test_disable_refsafe(self):
     m = test_util.load_test_file('constraints.xml')
@@ -87,9 +105,9 @@ class ConstraintTest(absltest.TestCase):
     self.assertEqual(ne, 0)
     self.assertEqual(nf, 0)
     self.assertEqual(nl, 2)
-    self.assertEqual(nc, 64)
+    self.assertEqual(nc, 148)
     dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
-    self.assertEqual(dx.efc_J.shape[0], 66)  # only joint range, contact
+    self.assertEqual(dx.efc_J.shape[0], 150)  # only joint range, contact
 
   def test_disable_contact(self):
     m = test_util.load_test_file('constraints.xml')
