@@ -31,12 +31,13 @@ MJX
 9. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
    geoms.
 10. Fixed a bug where capsules might be ignored in broadphase colliision checking.
+11. Added cylinder collisions using SDFs.
 
 Bug fixes
 ^^^^^^^^^
-11. Defaults of lights were not being saved, now fixed.
-12. Prevent overwriting of frame names by body names when saving an XML.  Introduced in 3.1.4.
-13. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+12. Defaults of lights were not being saved, now fixed.
+13. Prevent overwriting of frame names by body names when saving an XML.  Introduced in 3.1.4.
+14. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
 
 

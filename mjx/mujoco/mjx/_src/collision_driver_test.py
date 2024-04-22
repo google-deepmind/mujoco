@@ -264,6 +264,29 @@ class EllipsoidCollisionTest(parameterized.TestCase):
       _assert_attr_eq(
           dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-4)
 
+  _ELLIPSOID_CYLINDER = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".15 .05" type="cylinder"/>
+        </body>
+        <body pos="0 0 0.09">
+          <freejoint/>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_ellipsoid_cylinder(self):
+    """Tests ellipsoid cylinder contact."""
+    d, dx = _collide(self._ELLIPSOID_CYLINDER)
+    d.contact.pos[0][2] = 0.04  # MJX finds the deepest point on the surface
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'ellipsoid-cylinder', 1e-4)
+
 
 class CapsuleCollisionTest(parameterized.TestCase):
   _CAP_PLANE = """

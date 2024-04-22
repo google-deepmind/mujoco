@@ -56,7 +56,10 @@ from mujoco.mjx._src.collision_primitive import plane_ellipsoid
 from mujoco.mjx._src.collision_primitive import plane_sphere
 from mujoco.mjx._src.collision_primitive import sphere_capsule
 from mujoco.mjx._src.collision_primitive import sphere_sphere
+from mujoco.mjx._src.collision_sdf import capsule_cylinder
 from mujoco.mjx._src.collision_sdf import capsule_ellipsoid
+from mujoco.mjx._src.collision_sdf import cylinder_cylinder
+from mujoco.mjx._src.collision_sdf import ellipsoid_cylinder
 from mujoco.mjx._src.collision_sdf import ellipsoid_ellipsoid
 from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.types import Contact
@@ -82,8 +85,11 @@ _COLLISION_FUNC = {
     (GeomType.CAPSULE, GeomType.CAPSULE): capsule_capsule,
     (GeomType.CAPSULE, GeomType.BOX): capsule_convex,
     (GeomType.CAPSULE, GeomType.ELLIPSOID): capsule_ellipsoid,
+    (GeomType.CAPSULE, GeomType.CYLINDER): capsule_cylinder,
     (GeomType.CAPSULE, GeomType.MESH): capsule_convex,
     (GeomType.ELLIPSOID, GeomType.ELLIPSOID): ellipsoid_ellipsoid,
+    (GeomType.ELLIPSOID, GeomType.CYLINDER): ellipsoid_cylinder,
+    (GeomType.CYLINDER, GeomType.CYLINDER): cylinder_cylinder,
     (GeomType.BOX, GeomType.BOX): convex_convex,
     (GeomType.BOX, GeomType.MESH): convex_convex,
     (GeomType.MESH, GeomType.MESH): convex_convex,
