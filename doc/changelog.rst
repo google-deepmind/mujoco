@@ -15,34 +15,37 @@ General
    - :ref:`material/metallic<asset-material-metallic>` attribute and corresponding ``mjModel.material_metallic`` field.
    - :ref:`material/roughness<asset-material-roughness>` attribute and corresponding ``mjModel.material_roughness``
      field.
+3. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
+   to ``size_t``.
 
 MJX
 ^^^
 .. admonition:: Breaking API changes
    :class: attention
 
-   3. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
+   4. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
       functionality.
 
       **Migration:** Use ``mjx.get_data_into`` instead of ``mjx.device_get_into``, and ``mjx.put_data`` instead of
       ``mjx.device_put``.
 
-4. Added cylinder plane collisions.
-5. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
-6. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
-7. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
-8. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
-9. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
-   geoms.
-10. Fixed a bug where capsules might be ignored in broadphase colliision checking.
-11. Added cylinder collisions using SDFs.
+5. Added cylinder plane collisions.
+6. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
+7. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
+8. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
+9. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
+10. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
+    geoms.
+11. Fixed a bug where capsules might be ignored in broadphase colliision checking.
+12. Added cylinder collisions using SDFs.
 
 Bug fixes
 ^^^^^^^^^
-12. Defaults of lights were not being saved, now fixed.
-13. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-14. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+13. Defaults of lights were not being saved, now fixed.
+14. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+15. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
+16. Fixed bug that prevented memory allocations larger than 2.15 GB.
 
 
 Version 3.1.4 (April 10th, 2024)

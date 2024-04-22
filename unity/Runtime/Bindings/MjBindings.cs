@@ -6430,10 +6430,10 @@ public static unsafe extern void mj_freeStack(mjData_* d);
 public static unsafe extern void* mj_stackAllocByte(mjData_* d, UIntPtr bytes, UIntPtr alignment);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double* mj_stackAllocNum(mjData_* d, int size);
+public static unsafe extern double* mj_stackAllocNum(mjData_* d, UIntPtr size);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int* mj_stackAllocInt(mjData_* d, int size);
+public static unsafe extern int* mj_stackAllocInt(mjData_* d, UIntPtr size);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteData(mjData_* d);

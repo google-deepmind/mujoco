@@ -1186,7 +1186,7 @@ void mjXReader::Size(XMLElement* section, mjSpec* mod) {
     }();
 
     if (memory.has_value()) {
-      if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
+      if (*memory / sizeof(mjtNum) > std::numeric_limits<std::size_t>::max()) {
         throw mjXError(section, "%s", err_msg);
       }
       mod->memory = *memory;

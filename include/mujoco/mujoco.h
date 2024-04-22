@@ -203,10 +203,10 @@ MJAPI void mj_freeStack(mjData* d);
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
-MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);
+MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 
 // Allocate array of ints on mjData stack. Call mju_error on stack overflow.
-MJAPI int* mj_stackAllocInt(mjData* d, int size);
+MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
 // Free memory allocation in mjData.
 MJAPI void mj_deleteData(mjData* d);

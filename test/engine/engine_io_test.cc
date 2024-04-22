@@ -667,6 +667,73 @@ TEST_F(EngineIoTest, CanMarkAndFreeStack) {
   mj_deleteModel(model);
 }
 
+TEST_F(EngineIoTest, LargeMemory) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <size memory="2400M"/>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  // allocate 2.3G of mjtNums
+  mj_markStack(data);
+  size_t num = 2300000000 / sizeof(mjtNum);
+  mjtNum* testNum = mj_stackAllocNum(data, num);
+  testNum[num-1] = 1;
+  mj_freeStack(data);
+
+  // allocate 2.3G of bytes
+  mj_markStack(data);
+  num = 2300000000;
+  char* testByte = (char*) mj_stackAllocByte(data, num, alignof(char));
+  testByte[num-1] = 1;
+  mj_freeStack(data);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineIoTest, VeryLargeMemory) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <size memory="64G"/>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  if (!model) {
+    // in some test environments, 64GB is too large
+    EXPECT_THAT(error.data(), HasSubstr("Could not allocate memory"));
+  } else {
+    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+    mjData* data = mj_makeData(model);
+    ASSERT_THAT(data, NotNull());
+
+    // allocate 63G of mjtNums
+    mj_markStack(data);
+    size_t num = 63000000000 / sizeof(mjtNum);
+    mjtNum* testNum = mj_stackAllocNum(data, num);
+    testNum[num-1] = 1;
+    mj_freeStack(data);
+
+    // allocate 63G of bytes
+    mj_markStack(data);
+    num = 63000000000;
+    char* testByte = (char*) mj_stackAllocByte(data, num, alignof(char));
+    testByte[num-1] = 1;
+    mj_freeStack(data);
+
+    mj_deleteData(data);
+    mj_deleteModel(model);
+  }
+}
+
 struct TestFunctionArgs_ {
   mjData* d;
   int input;
