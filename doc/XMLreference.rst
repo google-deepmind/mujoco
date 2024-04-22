@@ -1788,6 +1788,18 @@ properties are grouped together.
    instead. Only the first reflective geom in the model is rendered as such. This adds one extra rendering pass through
    all geoms, in addition to the extra rendering pass added by each shadow-casting light.
 
+.. _asset-material-metallic:
+
+:at:`metallic`: :at-val:`real, "0"`
+   This attribute corresponds to uniform metallicity coefficient applied to the entire material. This attribute has no
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+
+.. _asset-material-roughness:
+
+:at:`roughness`: :at-val:`real, "1"`
+   This attribute corresponds to uniform roughness coefficient applied to the entire material. This attribute has no
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+
 .. _asset-material-rgba:
 
 :at:`rgba`: :at-val:`real(4), "1 1 1 1"`
@@ -3165,6 +3177,12 @@ the direction specified by the dir attribute. It does not have a full spatial fr
    these clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows
    (especially those very close to the light) may be clipped.
 
+.. _body-light-bulbradius:
+
+:at:`radius`: :at-val:`real, "0.02"`
+   Radius of the light, affects shadow softness. This attribute has no effect in MuJoCo's native renderer, but it can be
+   useful when rendering scenes with an external renderer.
+
 .. _body-light-active:
 
 :at:`active`: :at-val:`[false, true], "true"`
@@ -3180,12 +3198,6 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 
 :at:`dir`: :at-val:`real(3), "0 0 -1"`
    Direction of the light.
-
-.. _body-light-radius:
-
-:at:`radius`: :at-val:`real, "0"`
-   Radius of the light, affects shadow softness. This attribute has no effect in MuJoCo's native renderer, but it can be
-   useful when rendering scenes with an external renderer.
 
 .. _body-light-attenuation:
 
@@ -7372,6 +7384,10 @@ if omitted.
 
 .. _default-material-reflectance:
 
+.. _default-material-metallic:
+
+.. _default-material-roughness:
+
 .. _default-material-rgba:
 
 .. _default-material-texrepeat:
@@ -7592,7 +7608,7 @@ if omitted.
 
 .. _default-light-dir:
 
-.. _default-light-radius:
+.. _default-light-bulbradius:
 
 .. _default-light-directional:
 

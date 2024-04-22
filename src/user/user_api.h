@@ -347,7 +347,6 @@ typedef struct _mjsLight {         // light specification
   // frame
   double pos[3];                   // position
   double dir[3];                   // direction
-  double radius;                   // radius
   mjtCamLight mode;                // tracking mode
   mjString targetbody;             // target body for targeting
 
@@ -355,6 +354,7 @@ typedef struct _mjsLight {         // light specification
   mjtByte active;                  // is light active
   mjtByte directional;             // is light directional or spot
   mjtByte castshadow;              // does light cast shadows
+  double bulbradius;               // bulb radius, for soft shadows
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
   float exponent;                  // OpenGL exponent
@@ -515,6 +515,8 @@ typedef struct _mjsMaterial {      // material specification
   float specular;                  // specular
   float shininess;                 // shininess
   float reflectance;               // reflectance
+  float metallic;                  // metallic
+  float roughness;                 // roughness
   float rgba[4];                   // rgba
   mjString info;                   // message appended to compiler errors
 } mjsMaterial;

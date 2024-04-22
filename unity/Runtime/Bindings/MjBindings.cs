@@ -5294,10 +5294,10 @@ public unsafe struct mjModel_ {
   public int* light_targetbodyid;
   public byte* light_directional;
   public byte* light_castshadow;
+  public float* light_bulbradius;
   public byte* light_active;
   public double* light_pos;
   public double* light_dir;
-  public double* light_radius;
   public double* light_poscom0;
   public double* light_pos0;
   public double* light_dir0;
@@ -5420,6 +5420,8 @@ public unsafe struct mjModel_ {
   public float* mat_specular;
   public float* mat_shininess;
   public float* mat_reflectance;
+  public float* mat_metallic;
+  public float* mat_roughness;
   public float* mat_rgba;
   public int* pair_dim;
   public int* pair_geom1;
@@ -5872,6 +5874,7 @@ public unsafe struct mjvLight_ {
   public byte headlight;
   public byte directional;
   public byte castshadow;
+  public float bulbradius;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6149,6 +6152,7 @@ public unsafe struct model {
   public float* cam_sensorsize;
   public byte* light_directional;
   public byte* light_castshadow;
+  public float* light_bulbradius;
   public byte* light_active;
   public float* light_attenuation;
   public float* light_cutoff;
@@ -6210,6 +6214,8 @@ public unsafe struct model {
   public float* mat_specular;
   public float* mat_shininess;
   public float* mat_reflectance;
+  public float* mat_metallic;
+  public float* mat_roughness;
   public float* mat_rgba;
   public int* eq_type;
   public int* eq_obj1id;

@@ -2070,7 +2070,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_active[lid] = (mjtByte)pl->active;
       copyvec(m->light_pos+3*lid, pl->pos, 3);
       copyvec(m->light_dir+3*lid, pl->dir, 3);
-      m->light_radius[lid] = pl->radius;
+      m->light_bulbradius[lid] = pl->bulbradius;
       copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
@@ -2487,6 +2487,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mat_specular[i] = pmat->specular;
     m->mat_shininess[i] = pmat->shininess;
     m->mat_reflectance[i] = pmat->reflectance;
+    m->mat_metallic[i] = pmat->metallic;
+    m->mat_roughness[i] = pmat->roughness;
     copyvec(m->mat_rgba+4*i, pmat->rgba, 4);
   }
 

@@ -9,8 +9,12 @@ General
 ^^^^^^^
 1. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
    :ref:`scale<asset-mesh-scale>` attribute.
-2. Added the :ref:`light/radius<body-light-radius>` attribute and corresponding ``mjModel.light_radius`` field. This
-   value has no effect in MuJoCo's native renderer, but can be usful when rendering scenes with an external renderer.
+2. Added visual properties which are ignored by the native renderer, but can be used by external renderers:
+
+   - :ref:`light/bulbradius<body-light-bulbradius>` attribute and corresponding ``mjModel.light_bulbradius`` field.
+   - :ref:`material/metallic<asset-material-metallic>` attribute and corresponding ``mjModel.material_metallic`` field.
+   - :ref:`material/roughness<asset-material-roughness>` attribute and corresponding ``mjModel.material_roughness``
+     field.
 
 MJX
 ^^^
@@ -36,7 +40,7 @@ MJX
 Bug fixes
 ^^^^^^^^^
 12. Defaults of lights were not being saved, now fixed.
-13. Prevent overwriting of frame names by body names when saving an XML.  Introduced in 3.1.4.
+13. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
 14. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
 
