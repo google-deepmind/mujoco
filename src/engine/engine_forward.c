@@ -258,17 +258,15 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, i
 
 // return number of dofs given joint type
 static int jnt_dofnum(mjtJoint type) {
-  switch (type) {
-  case mjJNT_HINGE:
-  case mjJNT_SLIDE:
-    return 1;
-
-  case mjJNT_BALL:
-    return 3;
-
-  case mjJNT_FREE:
+  if (type == mjJNT_FREE) {
     return 6;
   }
+
+  if (type == mjJNT_BALL) {
+    return 3;
+  }
+
+  return 1;
 }
 
 
