@@ -2105,6 +2105,13 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
 
+  // count bodies with gravity compensation, compute ngravcomp
+  int ngravcomp = 0;
+  for (int i=0; i<nbody; i++) {
+    ngravcomp += (m->body_gravcomp[i] > 0);
+  }
+  m->ngravcomp = ngravcomp;
+
   // compute nM and dof_Madr
   nM = 0;
   for (int i=0; i<nv; i++) {

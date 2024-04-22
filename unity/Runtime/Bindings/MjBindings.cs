@@ -5163,6 +5163,7 @@ public unsafe struct mjModel_ {
   public int nD;
   public int nB;
   public int ntree;
+  public int ngravcomp;
   public int nemax;
   public int njmax;
   public int nconmax;

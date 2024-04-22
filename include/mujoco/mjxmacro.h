@@ -139,6 +139,7 @@
     X   ( njmax )              \
     X   ( nconmax )            \
     XMJV( ntree )              \
+    X   ( ngravcomp )          \
     X   ( nuserdata )          \
     XMJV( nsensordata )        \
     X   ( npluginstate )       \

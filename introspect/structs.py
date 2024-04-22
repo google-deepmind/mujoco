@@ -1201,6 +1201,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of kinematic trees under world body',
              ),
              StructFieldDecl(
+                 name='ngravcomp',
+                 type=ValueType(name='int'),
+                 doc='number of bodies with nonzero gravcomp',
+             ),
+             StructFieldDecl(
                  name='nemax',
                  type=ValueType(name='int'),
                  doc='number of potential equality-constraint rows',
