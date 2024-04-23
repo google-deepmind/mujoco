@@ -635,6 +635,7 @@ void mjXURDF::Origin(XMLElement* origin_elem, double* pos, double* quat) {
     mjsOrientation alt;
     mjs_defaultOrientation(alt);
     if (ReadAttr(temp, "rpy", 3, alt.euler, text)) {
+      alt.type = mjORIENTATION_EULER;
       mjs_resolveOrientation(quat, 0, "XYZ", &alt);
     }
   }

@@ -69,11 +69,20 @@ typedef enum _mjtLimited {         // type of limit specification
 } mjtLimited;
 
 
-typedef enum _mjtInertiaFromGeom {
+typedef enum _mjtInertiaFromGeom { // whether to infer body inertias from child geoms
   mjINERTIAFROMGEOM_FALSE = 0,     // do not use; inertial element required
   mjINERTIAFROMGEOM_TRUE,          // always use; overwrite inertial element
   mjINERTIAFROMGEOM_AUTO           // use only if inertial element is missing
 } mjtInertiaFromGeom;
+
+
+typedef enum _mjtOrientation {     // type of orientation specifier
+  mjORIENTATION_QUAT = 0,          // quaternion
+  mjORIENTATION_AXISANGLE,         // axis and angle
+  mjORIENTATION_XYAXES,            // x and y axes
+  mjORIENTATION_ZAXIS,             // z axis (minimal rotation)
+  mjORIENTATION_EULER,             // Euler angles
+} mjtOrientation;
 
 
 //---------------------------------- attribute structs (mjs) ---------------------------------------
@@ -140,10 +149,11 @@ typedef struct _mjSpec {           // model specification
 
 
 typedef struct _mjsOrientation {   // alternative orientation specifiers
-  double axisangle[4];             // rotation axis and angle
+  mjtOrientation type;             // active orientation specifier
+  double axisangle[4];             // axis and angle
   double xyaxes[6];                // x and y axes
-  double zaxis[3];                 // z axis (use minimal rotation)
-  double euler[3];                 // euler angles
+  double zaxis[3];                 // z axis (minimal rotation)
+  double euler[3];                 // Euler angles
 } mjsOrientation;
 
 
@@ -957,7 +967,7 @@ MJAPI void mjs_setDefault(mjElement* element, mjsDefault* def);
 // Set element's enlcosing frame.
 MJAPI void mjs_setFrame(mjElement* dest, mjsFrame* frame);
 
-// Resolve alternative orientations to quat.
+// Resolve alternative orientations to quat, return error if any.
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
 

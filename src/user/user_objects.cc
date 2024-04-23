@@ -194,7 +194,7 @@ const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
   mjuu_copyvec(euler, orient.euler, 3);
 
   // set quat using axisangle
-  if (mjuu_defined(axisangle[0])) {
+  if (orient.type == mjORIENTATION_AXISANGLE) {
     // convert to radians if necessary, normalize axis
     if (degree) {
       axisangle[3] = axisangle[3] / 180.0 * mjPI;
@@ -212,7 +212,7 @@ const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
   }
 
   // set quat using xyaxes
-  if (mjuu_defined(xyaxes[0])) {
+  if (orient.type == mjORIENTATION_XYAXES) {
     // normalize x axis
     if (mjuu_normvec(xyaxes, 3)<mjEPS) {
       return "xaxis too small";
@@ -239,7 +239,7 @@ const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
   }
 
   // set quat using zaxis
-  if (mjuu_defined(zaxis[0])) {
+  if (orient.type == mjORIENTATION_ZAXIS) {
     if (mjuu_normvec(zaxis, 3)<mjEPS) {
       return "zaxis too small";
     }
@@ -248,7 +248,7 @@ const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
 
 
   // handle euler
-  if (mjuu_defined(euler[0])) {
+  if (orient.type == mjORIENTATION_EULER) {
     // convert to radians if necessary
     if (degree) {
       for (int i=0; i<3; i++) {

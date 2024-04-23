@@ -77,7 +77,7 @@ void mjs_defaultSpec(mjSpec& model) {
 
 // default orientation attributes
 void mjs_defaultOrientation(mjsOrientation& orient) {
-  orient.axisangle[0] = orient.xyaxes[0] = orient.zaxis[0] = orient.euler[0] = mjNAN;
+  memset(&orient, 0, sizeof(mjsOrientation));
 }
 
 
@@ -89,12 +89,12 @@ void mjs_defaultBody(mjsBody& body) {
   // body frame
   body.pos[0] = mjNAN;
   body.quat[0] = 1;
-  body.alt.axisangle[0] = body.alt.xyaxes[0] = body.alt.zaxis[0] = body.alt.euler[0] = mjNAN;
+  mjs_defaultOrientation(body.alt);
 
   // inertial frame
   body.ipos[0] = mjNAN;
   body.iquat[0] = 1;
-  body.ialt.axisangle[0] = body.ialt.xyaxes[0] = body.ialt.zaxis[0] = body.ialt.euler[0] = mjNAN;
+  mjs_defaultOrientation(body.ialt);
   body.fullinertia[0] = mjNAN;
 }
 
@@ -105,7 +105,7 @@ void mjs_defaultFrame(mjsFrame& frame) {
   memset(&frame, 0, sizeof(mjsFrame));
   mju_zero3(frame.pos);
   mjuu_setvec(frame.quat, 1, 0, 0, 0);
-  frame.alt.axisangle[0] = frame.alt.xyaxes[0] = frame.alt.zaxis[0] = frame.alt.euler[0] = mjNAN;
+  mjs_defaultOrientation(frame.alt);
 }
 
 
@@ -135,7 +135,7 @@ void mjs_defaultGeom(mjsGeom& geom) {
   // frame
   geom.quat[0] = 1;
   geom.fromto[0] = mjNAN;
-  geom.alt.axisangle[0] = geom.alt.xyaxes[0] = geom.alt.zaxis[0] = geom.alt.euler[0] = mjNAN;
+  mjs_defaultOrientation(geom.alt);
 
   // contact-related
   geom.contype = 1;
@@ -181,7 +181,7 @@ void mjs_defaultSite(mjsSite& site) {
   site.quat[0] = 1;
   site.size[0] = site.size[1] = site.size[2] = 0.005;
   site.fromto[0] = mjNAN;
-  site.alt.axisangle[0] = site.alt.xyaxes[0] = site.alt.zaxis[0] = site.alt.euler[0] = mjNAN;
+  mjs_defaultOrientation(site.alt);
 
   // color
   site.rgba[0] = site.rgba[1] = site.rgba[2] = 0.5f;
@@ -199,7 +199,7 @@ void mjs_defaultCamera(mjsCamera& cam) {
 
   // extrinsics
   cam.quat[0] = 1;
-  cam.alt.axisangle[0] = cam.alt.xyaxes[0] = cam.alt.zaxis[0] = cam.alt.euler[0] = mjNAN;
+  mjs_defaultOrientation(cam.alt);
 
   // intrinsics
   cam.fovy = 45;
