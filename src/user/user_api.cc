@@ -679,10 +679,11 @@ void mjs_setActivePlugins(mjSpec* s, void* activeplugins) {
 
 
 // compute full inertia
-const char* mjs_setFullInertia(mjsBody* bodyspec, double quat[4], double inertia[3]) {
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
-  return body->FullInertia(quat, inertia);
+const char* mjs_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
+  return FullInertia(quat, inertia, fullinertia);
 }
+
+
 
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 

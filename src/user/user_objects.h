@@ -39,9 +39,9 @@ class mjCSite;
 class mjCCamera;
 class mjCLight;
 class mjCHField;
-class mjCFlex;                        // defined in user_mesh
-class mjCMesh;                        // defined in user_mesh
-class mjCSkin;                        // defined in user_mesh
+class mjCFlex;         // defined in user_mesh.h
+class mjCMesh;         // defined in user_mesh.h
+class mjCSkin;         // defined in user_mesh.h
 class mjCTexture;
 class mjCMaterial;
 class mjCPair;
@@ -55,16 +55,15 @@ class mjCNumeric;
 class mjCText;
 class mjCTuple;
 class mjCDef;
-class mjCModel;                     // defined in user_model
-class mjXWriter;                    // defined in xml_native
-class mjXURDF;                      // defined in xml_urdf
+class mjCModel;        // defined in user_model.h
+class mjXWriter;       // defined in xml_native.h
+class mjXURDF;         // defined in xml_urdf.h
 
 
-//------------------------- helper classes and constants -------------------------------------------
+//------------------------- helper constants, classes and functions --------------------------------
 
 // number of positive size parameters for each geom type
 const int mjGEOMINFO[mjNGEOMTYPES] = {3, 0, 1, 2, 3, 2, 3, 0};
-
 
 // error information
 class [[nodiscard]] mjCError {
@@ -79,14 +78,14 @@ class [[nodiscard]] mjCError {
   bool warning;                   // is this a warning instead of error
 };
 
-
 // alternative specifications of frame orientation
 const char* ResolveOrientation(double* quat,             // set frame quat
                                bool degree,              // angle format: degree/radian
                                const char* sequence,     // euler sequence format: "xyz"
                                const mjsOrientation& orient);
 
-
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* FullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
 //------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
 
@@ -291,10 +290,6 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // set explicitinertial to true
   void MakeInertialExplicit();
-
-  // compute quat and diag inertia from fullinertia
-  // return nullptr on success, error string on failure
-  const char* FullInertia(double quat[4], double inertia[3]);
 
   // variables set by user
   mjsBody spec;

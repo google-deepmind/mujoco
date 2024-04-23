@@ -96,6 +96,42 @@ static bool islimited(int limited, const double range[2]) {
   return false;
 }
 
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* FullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
+  if (!mjuu_defined(fullinertia[0])) {
+    return nullptr;
+  }
+
+  mjtNum eigval[3], eigvec[9], quattmp[4];
+  mjtNum full[9] = {
+    fullinertia[0], fullinertia[3], fullinertia[4],
+    fullinertia[3], fullinertia[1], fullinertia[5],
+    fullinertia[4], fullinertia[5], fullinertia[2]
+  };
+
+  mju_eig3(eigval, eigvec, quattmp, full);
+
+  // check mimimal eigenvalue
+  if (eigval[2]<mjEPS) {
+    return "inertia must have positive eigenvalues";
+  }
+
+  // copy
+  if (quat) {
+    for (int i=0; i<4; i++) {
+      quat[i] = quattmp[i];
+    }
+  }
+
+  if (inertia) {
+    for (int i=0; i<3; i++) {
+      inertia[i] = eigval[i];
+    }
+  }
+
+  return nullptr;
+}
+
 
 //------------------------- class mjCError implementation ------------------------------------------
 
@@ -1182,47 +1218,11 @@ void mjCBody::GeomFrame(void) {
 
     // compute principal axes of inertia
     mjuu_copyvec(fullinertia, toti, 6);
-    const char* errq = FullInertia(iquat, inertia);
+    const char* errq = FullInertia(iquat, inertia, fullinertia);
     if (errq) {
       throw mjCError(this, "error '%s' in alternative for principal axes", errq);
     }
   }
-}
-
-
-
-// compute full inertia
-const char* mjCBody::FullInertia(double quat[4], double inertia[3]) {
-  if (!mjuu_defined(fullinertia[0])) {
-    return 0;
-  }
-
-  mjtNum eigval[3], eigvec[9], quattmp[4];
-  mjtNum full[9] = {
-    fullinertia[0], fullinertia[3], fullinertia[4],
-    fullinertia[3], fullinertia[1], fullinertia[5],
-    fullinertia[4], fullinertia[5], fullinertia[2]
-  };
-
-  mju_eig3(eigval, eigvec, quattmp, full);
-
-  // check mimimal eigenvalue
-  if (eigval[2]<mjEPS) {
-    return "inertia must have positive eigenvalues";
-  }
-
-  // copy
-  for (int i=0; i<4; i++) {
-    quat[i] = quattmp[i];
-  }
-
-  if (inertia) {
-    for (int i=0; i<3; i++) {
-      inertia[i] = eigval[i];
-    }
-  }
-
-  return 0;
 }
 
 
@@ -1271,7 +1271,7 @@ void mjCBody::Compile(void) {
   }
 
   // check and process orientation alternatives for inertia
-  const char* ierr = FullInertia(iquat, inertia);
+  const char* ierr = FullInertia(iquat, inertia, this->fullinertia);
   if (ierr) {
     throw mjCError(this, "error '%s' in inertia alternative", ierr);
   }
