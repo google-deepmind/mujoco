@@ -217,12 +217,14 @@ class ConstraintType(enum.IntEnum):
   Attributes:
     EQUALITY: equality constraint
     LIMIT_JOINT: joint limit
+    CONTACT_FRICTIONLESS: frictionless contact
     CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
   """
   EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
   # unsupported: FRICTION_DOF, FRICTION_TENDON
   LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT
-  # unsupported: LIMIT_TENDON, CONTACT_FRICTIONLESS
+  # unsupported: LIMIT_TENDON
+  CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
   CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
   # unsupported: CONTACT_ELLIPTIC
 

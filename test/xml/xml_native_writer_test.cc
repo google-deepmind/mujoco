@@ -943,13 +943,13 @@ TEST_F(XMLWriterTest, WritesLight) {
   <mujoco>
     <default>
       <default class="r1">
-        <light radius="1"/>
+        <light bulbradius="1"/>
       </default>
     </default>
     <worldbody>
       <light/>
       <light class="r1"/>
-      <light class="r1" radius="2"/>
+      <light class="r1" bulbradius="2"/>
     </worldbody>
   </mujoco>
   )";
@@ -959,9 +959,39 @@ TEST_F(XMLWriterTest, WritesLight) {
   // save and read, compare data
   mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
   EXPECT_EQ(mtemp->nlight, 3);
-  EXPECT_EQ(mtemp->light_radius[0], 0);
-  EXPECT_EQ(mtemp->light_radius[1], 1);
-  EXPECT_EQ(mtemp->light_radius[2], 2);
+  EXPECT_FLOAT_EQ(mtemp->light_bulbradius[0], 0.02);
+  EXPECT_FLOAT_EQ(mtemp->light_bulbradius[1], 1);
+  EXPECT_FLOAT_EQ(mtemp->light_bulbradius[2], 2);
+
+  mj_deleteModel(mtemp);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesMaterial) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="mat">
+        <material metallic="2" roughness="3"/>
+      </default>
+    </default>
+    <asset>
+      <material name="0" class="mat"/>
+      <material name="1" class="mat" metallic="4" roughness="5"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // save and read, compare data
+  mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
+  EXPECT_EQ(mtemp->nmat, 2);
+  EXPECT_EQ(mtemp->mat_metallic[0], 2);
+  EXPECT_EQ(mtemp->mat_metallic[1], 4);
+  EXPECT_EQ(mtemp->mat_roughness[0], 3);
+  EXPECT_EQ(mtemp->mat_roughness[1], 5);
 
   mj_deleteModel(mtemp);
   mj_deleteModel(model);

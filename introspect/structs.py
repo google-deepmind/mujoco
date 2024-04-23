@@ -1201,6 +1201,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of kinematic trees under world body',
              ),
              StructFieldDecl(
+                 name='ngravcomp',
+                 type=ValueType(name='int'),
+                 doc='number of bodies with nonzero gravcomp',
+             ),
+             StructFieldDecl(
                  name='nemax',
                  type=ValueType(name='int'),
                  doc='number of potential equality-constraint rows',
@@ -2096,6 +2101,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='does light cast shadows                  (nlight x 1)',
              ),
              StructFieldDecl(
+                 name='light_bulbradius',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='light radius for soft shadows            (nlight x 1)',
+             ),
+             StructFieldDecl(
                  name='light_active',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
@@ -2115,13 +2127,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='direction rel. to body frame             (nlight x 3)',
-             ),
-             StructFieldDecl(
-                 name='light_radius',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='radius of the light                      (nlight x 1)',
              ),
              StructFieldDecl(
                  name='light_poscom0',
@@ -2976,6 +2981,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='float'),
                  ),
                  doc='reflectance (0: disable)                 (nmat x 1)',
+             ),
+             StructFieldDecl(
+                 name='mat_metallic',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='metallic coef                            (nmat x 1)',
+             ),
+             StructFieldDecl(
+                 name='mat_roughness',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='roughness coef                           (nmat x 1)',
              ),
              StructFieldDecl(
                  name='mat_rgba',
@@ -5624,6 +5643,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='mjtByte'),
                  doc='does light cast shadows',
              ),
+             StructFieldDecl(
+                 name='bulbradius',
+                 type=ValueType(name='float'),
+                 doc='bulb radius for soft shadows',
+             ),
          ),
      )),
     ('mjvOption',
@@ -6720,6 +6744,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='light_bulbradius',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='light_active',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtByte'),
@@ -7141,6 +7172,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='mat_reflectance',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='mat_metallic',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='mat_roughness',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
                              ),

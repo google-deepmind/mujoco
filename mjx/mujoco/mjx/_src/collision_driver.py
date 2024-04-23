@@ -56,7 +56,10 @@ from mujoco.mjx._src.collision_primitive import plane_ellipsoid
 from mujoco.mjx._src.collision_primitive import plane_sphere
 from mujoco.mjx._src.collision_primitive import sphere_capsule
 from mujoco.mjx._src.collision_primitive import sphere_sphere
+from mujoco.mjx._src.collision_sdf import capsule_cylinder
 from mujoco.mjx._src.collision_sdf import capsule_ellipsoid
+from mujoco.mjx._src.collision_sdf import cylinder_cylinder
+from mujoco.mjx._src.collision_sdf import ellipsoid_cylinder
 from mujoco.mjx._src.collision_sdf import ellipsoid_ellipsoid
 from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.types import Contact
@@ -82,8 +85,11 @@ _COLLISION_FUNC = {
     (GeomType.CAPSULE, GeomType.CAPSULE): capsule_capsule,
     (GeomType.CAPSULE, GeomType.BOX): capsule_convex,
     (GeomType.CAPSULE, GeomType.ELLIPSOID): capsule_ellipsoid,
+    (GeomType.CAPSULE, GeomType.CYLINDER): capsule_cylinder,
     (GeomType.CAPSULE, GeomType.MESH): capsule_convex,
     (GeomType.ELLIPSOID, GeomType.ELLIPSOID): ellipsoid_ellipsoid,
+    (GeomType.ELLIPSOID, GeomType.CYLINDER): ellipsoid_cylinder,
+    (GeomType.CYLINDER, GeomType.CYLINDER): cylinder_cylinder,
     (GeomType.BOX, GeomType.BOX): convex_convex,
     (GeomType.BOX, GeomType.MESH): convex_convex,
     (GeomType.MESH, GeomType.MESH): convex_convex,
@@ -102,7 +108,7 @@ def has_collision_fn(t1: GeomType, t2: GeomType) -> bool:
 def geom_pairs(
     m: Union[Model, mujoco.MjModel],
 ) -> Iterator[Tuple[int, int, int]]:
-  """Returns geom pairs to check for collisions.
+  """Yields geom pairs to check for collisions.
 
   Args:
     m: a MuJoCo or MJX model
@@ -345,7 +351,11 @@ def collision(m: Model, d: Data) -> Data:
   for key, contact in groups.items():
     # determine which contacts we'll use for collision testing by running a
     # broad phase cull if requested
-    if max_geom_pairs > -1 and contact.geom.shape[0] > max_geom_pairs:
+    if (
+        max_geom_pairs > -1
+        and contact.geom.shape[0] > max_geom_pairs
+        and not set(key.types) & _GEOM_NO_BROADPHASE
+    ):
       pos1, pos2 = d.geom_xpos[contact.geom.T]
       size1, size2 = m.geom_rbound[contact.geom.T]
       dist = jax.vmap(jp.linalg.norm)(pos2 - pos1) - (size1 + size2)

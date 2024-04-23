@@ -136,8 +136,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"default", "R", "1", "class"},
     {"<"},
         {"mesh", "?", "1", "scale"},
-        {"material", "?", "8", "texture", "emission", "specular", "shininess",
-            "reflectance", "rgba", "texrepeat", "texuniform"},
+        {"material", "?", "10", "texture", "emission", "specular", "shininess",
+            "reflectance", "metallic", "roughness", "rgba", "texrepeat", "texuniform"},
         {"joint", "?", "22", "type", "group", "pos", "axis", "springdamper",
             "limited", "actuatorfrclimited", "solreflimit", "solimplimit",
             "solreffriction", "solimpfriction", "stiffness", "range", "actuatorfrcrange",
@@ -153,7 +153,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "?", "16", "fovy", "ipd", "resolution", "pos", "quat", "axisangle", "xyaxes",
             "zaxis", "euler", "mode", "focal", "focalpixel", "principal", "principalpixel",
             "sensorsize", "user"},
-        {"light", "?", "13", "pos", "dir", "radius", "directional", "castshadow", "active",
+        {"light", "?", "13", "pos", "dir", "bulbradius", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
          "gap", "margin"},
@@ -232,8 +232,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip"},
-        {"material", "*", "10", "name", "class", "texture",  "texrepeat", "texuniform",
-            "emission", "specular", "shininess", "reflectance", "rgba"},
+        {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
+            "emission", "specular", "shininess", "reflectance", "metallic", "roughness", "rgba"},
     {">"},
 
     {"body", "R", "11", "name", "childclass", "pos", "quat", "mocap",
@@ -264,7 +264,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "target", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "16", "name", "class", "directional", "castshadow", "active",
-            "pos", "dir", "radius", "attenuation", "cutoff", "exponent", "ambient", "diffuse",
+            "pos", "dir", "bulbradius", "attenuation", "cutoff", "exponent", "ambient", "diffuse",
             "specular", "mode", "target"},
         {"plugin", "*", "2", "plugin", "instance"},
         {"<"},
@@ -1186,7 +1186,7 @@ void mjXReader::Size(XMLElement* section, mjSpec* mod) {
     }();
 
     if (memory.has_value()) {
-      if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
+      if (*memory / sizeof(mjtNum) > std::numeric_limits<std::size_t>::max()) {
         throw mjXError(section, "%s", err_msg);
       }
       mod->memory = *memory;
@@ -1530,6 +1530,8 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* pmat) {
   ReadAttr(elem, "specular", 1, &pmat->specular, text);
   ReadAttr(elem, "shininess", 1, &pmat->shininess, text);
   ReadAttr(elem, "reflectance", 1, &pmat->reflectance, text);
+  ReadAttr(elem, "metallic", 1, &pmat->metallic, text);
+  ReadAttr(elem, "roughness", 1, &pmat->roughness, text);
   ReadAttr(elem, "rgba", 4, pmat->rgba, text);
 
   // write error info
@@ -1783,7 +1785,7 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* plight) {
   }
   ReadAttr(elem, "pos", 3, plight->pos, text);
   ReadAttr(elem, "dir", 3, plight->dir, text);
-  ReadAttr(elem, "radius", 1, &plight->radius, text);
+  ReadAttr(elem, "bulbradius", 1, &plight->bulbradius, text);
   ReadAttr(elem, "attenuation", 3, plight->attenuation, text);
   ReadAttr(elem, "cutoff", 1, &plight->cutoff, text);
   ReadAttr(elem, "exponent", 1, &plight->exponent, text);

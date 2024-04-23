@@ -1873,22 +1873,22 @@ TEST_F(XMLReaderTest, LightRadius) {
   <mujoco>
     <default>
       <default class="r1">
-        <light radius="1"/>
+        <light bulbradius="1"/>
       </default>
     </default>
     <worldbody>
       <light/>
       <light class="r1"/>
-      <light class="r1" radius="2"/>
+      <light class="r1" bulbradius="2"/>
     </worldbody>
   </mujoco>
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
-  EXPECT_EQ(model->light_radius[0], 0);
-  EXPECT_EQ(model->light_radius[1], 1);
-  EXPECT_EQ(model->light_radius[2], 2);
+  EXPECT_FLOAT_EQ(model->light_bulbradius[0], 0.02);
+  EXPECT_FLOAT_EQ(model->light_bulbradius[1], 1);
+  EXPECT_FLOAT_EQ(model->light_bulbradius[2], 2);
   mj_deleteModel(model);
 }
 

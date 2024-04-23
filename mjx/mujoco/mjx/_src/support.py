@@ -149,19 +149,6 @@ def jac(
   return jacp, jacr
 
 
-def jac_dif_pair(
-    m: Model,
-    d: Data,
-    pos: jax.Array,
-    body_1: jax.Array,
-    body_2: jax.Array,
-) -> jax.Array:
-  """Compute Jacobian difference for two body points."""
-  jacp2, _ = jac(m, d, pos, body_2)
-  jacp1, _ = jac(m, d, pos, body_1)
-  return jacp2 - jacp1
-
-
 def apply_ft(
     m: Model,
     d: Data,

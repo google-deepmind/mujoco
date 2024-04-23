@@ -17,7 +17,7 @@
 import os
 import sys
 import time
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 from xml.etree import ElementTree as ET
 
 from etils import epath
@@ -201,9 +201,9 @@ def _make_geom(
 
 def _make_actuator(
     actuator_type: str,
-    joint: str | None = None,
-    site: str | None = None,
-    refsite: str | None = None,
+    joint: Optional[str] = None,
+    site: Optional[str] = None,
+    refsite: Optional[str] = None,
 ) -> Dict[str, str]:
   """Returns attributes for an actuator."""
   if joint:

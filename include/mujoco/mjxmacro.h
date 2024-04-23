@@ -139,6 +139,7 @@
     X   ( njmax )              \
     X   ( nconmax )            \
     XMJV( ntree )              \
+    X   ( ngravcomp )          \
     X   ( nuserdata )          \
     XMJV( nsensordata )        \
     X   ( npluginstate )       \
@@ -292,10 +293,10 @@
     X   ( int,     light_targetbodyid,    nlight,        1                    ) \
     XMJV( mjtByte, light_directional,     nlight,        1                    ) \
     XMJV( mjtByte, light_castshadow,      nlight,        1                    ) \
+    XMJV( float,   light_bulbradius,      nlight,        1                    ) \
     XMJV( mjtByte, light_active,          nlight,        1                    ) \
     X   ( mjtNum,  light_pos,             nlight,        3                    ) \
     X   ( mjtNum,  light_dir,             nlight,        3                    ) \
-    X   ( mjtNum,  light_radius,          nlight,        1                    ) \
     X   ( mjtNum,  light_poscom0,         nlight,        3                    ) \
     X   ( mjtNum,  light_pos0,            nlight,        3                    ) \
     X   ( mjtNum,  light_dir0,            nlight,        3                    ) \
@@ -418,6 +419,8 @@
     XMJV( float,   mat_specular,          nmat,          1                    ) \
     XMJV( float,   mat_shininess,         nmat,          1                    ) \
     XMJV( float,   mat_reflectance,       nmat,          1                    ) \
+    XMJV( float,   mat_metallic,          nmat,          1                    ) \
+    XMJV( float,   mat_roughness,         nmat,          1                    ) \
     XMJV( float,   mat_rgba,              nmat,          4                    ) \
     X   ( int,     pair_dim,              npair,         1                    ) \
     X   ( int,     pair_geom1,            npair,         1                    ) \

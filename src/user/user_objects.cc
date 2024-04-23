@@ -689,6 +689,7 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     sites.clear();
     cameras.clear();
     lights.clear();
+    id = other.id;
 
     // add elements to lists
     *this += other;
@@ -803,6 +804,20 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
       dst.back()->NameSpace(pframe->model);
     }
   }
+}
+
+
+
+// find and remove subtree
+mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
+  for (int i=0; i<bodies.size(); i++) {
+    if (bodies[i] == &subtree) {
+      bodies.erase(bodies.begin() + i);
+      break;
+    }
+    *bodies[i] -= subtree;
+  }
+  return *this;
 }
 
 

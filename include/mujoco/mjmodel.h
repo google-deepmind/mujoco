@@ -637,6 +637,7 @@ struct mjModel_ {
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
   int ntree;                      // number of kinematic trees under world body
+  int ngravcomp;                  // number of bodies with nonzero gravcomp
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
@@ -794,10 +795,10 @@ struct mjModel_ {
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
   mjtByte*  light_directional;    // directional light                        (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
+  float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   mjtByte*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
-  mjtNum*   light_radius;         // radius of the light                      (nlight x 1)
   mjtNum*   light_poscom0;        // global position rel. to sub-com in qpos0 (nlight x 3)
   mjtNum*   light_pos0;           // global position rel. to body in qpos0    (nlight x 3)
   mjtNum*   light_dir0;           // global direction in qpos0                (nlight x 3)
@@ -934,6 +935,8 @@ struct mjModel_ {
   float*    mat_specular;         // specular (x white)                       (nmat x 1)
   float*    mat_shininess;        // shininess coef                           (nmat x 1)
   float*    mat_reflectance;      // reflectance (0: disable)                 (nmat x 1)
+  float*    mat_metallic;         // metallic coef                            (nmat x 1)
+  float*    mat_roughness;        // roughness coef                           (nmat x 1)
   float*    mat_rgba;             // rgba                                     (nmat x 4)
 
   // predefined geom pairs for collision detection; has precedence over exclude

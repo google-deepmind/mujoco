@@ -110,6 +110,16 @@ const char* mjs_getError(mjSpec* s) {
 
 
 
+// Detach body from mjSpec, return 0 if success.
+int mjs_detachBody(mjSpec* s, const mjsBody* b) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  mjCBody* body = static_cast<mjCBody*>(b->element);
+  *model -= *body;
+  return 0;
+}
+
+
+
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
@@ -122,6 +132,14 @@ int mjs_isWarning(mjSpec* s) {
 void mjs_deleteSpec(mjSpec* s) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   delete model;
+}
+
+
+
+// delete body
+void mjs_deleteBody(mjsBody* b) {
+  mjCBody* body = static_cast<mjCBody*>(b->element);
+  delete body;
 }
 
 

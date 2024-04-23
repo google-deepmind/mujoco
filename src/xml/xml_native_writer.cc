@@ -268,6 +268,8 @@ void mjXWriter::OneMaterial(XMLElement* elem, mjCMaterial* pmat, mjCDef* def) {
   WriteAttr(elem, "specular", 1, &pmat->specular, &def->material.specular);
   WriteAttr(elem, "shininess", 1, &pmat->shininess, &def->material.shininess);
   WriteAttr(elem, "reflectance", 1, &pmat->reflectance, &def->material.reflectance);
+  WriteAttr(elem, "metallic", 1, &pmat->metallic, &def->material.metallic);
+  WriteAttr(elem, "roughness", 1, &pmat->roughness, &def->material.roughness);
   WriteAttr(elem, "rgba", 4, pmat->rgba, def->material.rgba);
 }
 
@@ -508,7 +510,7 @@ void mjXWriter::OneLight(XMLElement* elem, mjCLight* plight, mjCDef* def) {
   }
 
   // defaults and regular
-  WriteAttr(elem, "radius", 1, &plight->radius, &def->light.radius);
+  WriteAttr(elem, "bulbradius", 1, &plight->bulbradius, &def->light.bulbradius);
   WriteAttrKey(elem, "directional", bool_map, 2, plight->directional, def->light.directional);
   WriteAttrKey(elem, "castshadow", bool_map, 2, plight->castshadow, def->light.castshadow);
   WriteAttrKey(elem, "active", bool_map, 2, plight->active, def->light.active);

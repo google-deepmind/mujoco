@@ -129,10 +129,10 @@ void mj__freeStack(mjData* d) __attribute__((noinline));
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // mjData stack allocate for array of mjtNums
-MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);
+MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 
 // mjData stack allocate for array of ints
-MJAPI int* mj_stackAllocInt(mjData* d, int size);
+MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
 // de-allocate data
 MJAPI void mj_deleteData(mjData* d);

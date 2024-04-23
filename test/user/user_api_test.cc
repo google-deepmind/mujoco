@@ -512,5 +512,54 @@ TEST_F(MujocoTest, AttachFrame) {
   mj_deleteModel(m_expected);
 }
 
+TEST_F(MujocoTest, DetachBody) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="pframe">
+        <frame name="cframe">
+        </frame>
+      </frame>
+      <body name="ignore"/>
+      <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
+    </worldbody>
+    <sensor>
+      <framepos name="ignore" objtype="body" objname="ignore"/>
+    </sensor>
+  </mujoco>)";
+
+  // model with one cylinder and a hinge
+  mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  // get subtree
+  mjsBody* body = mjs_findBody(child, "body");
+  EXPECT_THAT(body, NotNull());
+
+  // detach subtree
+  EXPECT_THAT(mjs_detachBody(child, body), 0);
+
+  // compile new model
+  mjModel* m_detached = mjs_compile(child, 0);
+  EXPECT_THAT(m_detached, NotNull());
+
+  // compare with expected XML
+  mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_detached, m_expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  // destroy everything
+  mjs_deleteSpec(child);
+  mjs_deleteBody(body);
+  mj_deleteModel(m_detached);
+  mj_deleteModel(m_expected);
+}
+
 }  // namespace
 }  // namespace mujoco

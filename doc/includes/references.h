@@ -922,6 +922,7 @@ struct mjModel_ {
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
   int ntree;                      // number of kinematic trees under world body
+  int ngravcomp;                  // number of bodies with nonzero gravcomp
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
@@ -1079,10 +1080,10 @@ struct mjModel_ {
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
   mjtByte*  light_directional;    // directional light                        (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
+  float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   mjtByte*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
-  mjtNum*   light_radius;         // radius of the light                      (nlight x 1)
   mjtNum*   light_poscom0;        // global position rel. to sub-com in qpos0 (nlight x 3)
   mjtNum*   light_pos0;           // global position rel. to body in qpos0    (nlight x 3)
   mjtNum*   light_dir0;           // global direction in qpos0                (nlight x 3)
@@ -1219,6 +1220,8 @@ struct mjModel_ {
   float*    mat_specular;         // specular (x white)                       (nmat x 1)
   float*    mat_shininess;        // shininess coef                           (nmat x 1)
   float*    mat_reflectance;      // reflectance (0: disable)                 (nmat x 1)
+  float*    mat_metallic;         // metallic coef                            (nmat x 1)
+  float*    mat_roughness;        // roughness coef                           (nmat x 1)
   float*    mat_rgba;             // rgba                                     (nmat x 4)
 
   // predefined geom pairs for collision detection; has precedence over exclude
@@ -2022,6 +2025,7 @@ struct mjvLight_ {                // OpenGL light
   mjtByte  headlight;             // headlight
   mjtByte  directional;           // directional light
   mjtByte  castshadow;            // does light cast shadows
+  float    bulbradius;            // bulb radius for soft shadows
 };
 typedef struct mjvLight_ mjvLight;
 struct mjvOption_ {                  // abstract visualization options
@@ -2236,6 +2240,7 @@ struct mjvSceneState_ {
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;
+    float* light_bulbradius;
     mjtByte* light_active;
     float* light_attenuation;
     float* light_cutoff;
@@ -2303,6 +2308,8 @@ struct mjvSceneState_ {
     float* mat_specular;
     float* mat_shininess;
     float* mat_reflectance;
+    float* mat_metallic;
+    float* mat_roughness;
     float* mat_rgba;
 
     int* eq_type;
@@ -2447,8 +2454,8 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 void mj_markStack(mjData* d);
 void mj_freeStack(mjData* d);
 void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
-mjtNum* mj_stackAllocNum(mjData* d, int size);
-int* mj_stackAllocInt(mjData* d, int size);
+mjtNum* mj_stackAllocNum(mjData* d, size_t size);
+int* mj_stackAllocInt(mjData* d, size_t size);
 void mj_deleteData(mjData* d);
 void mj_resetCallbacks(void);
 void mj_setConst(mjModel* m, mjData* d);

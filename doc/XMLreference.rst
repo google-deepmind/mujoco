@@ -182,6 +182,7 @@ how to use includes and how to modularize large files if desired.
    file is not in the same directory, it should be prefixed with a relative path.
 
 
+
 .. _mujoco:
 
 **mujoco** (!)
@@ -193,6 +194,363 @@ The unique top-level element, identifying the XML file as an MJCF model file.
 
 :at:`model`: :at-val:`string, "MuJoCo Model"`
    The name of the model. This name is shown in the title bar of :ref:`simulate.cc <saSimulate>`.
+
+
+
+.. _option:
+
+**option** (*)
+~~~~~~~~~~~~~~
+
+This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
+mjModel. These are simulation options and do not affect the compilation process in any way; they are simply copied into
+the low level model. Even though mjOption can be modified by the user at runtime, it is nevertheless a good idea to
+adjust it properly through the XML.
+
+.. _option-timestep:
+
+:at:`timestep`: :at-val:`real, "0.002"`
+   Simulation time step in seconds. This is the single most important parameter affecting the speed-accuracy trade-off
+   which is inherent in every physics simulation. Smaller values result in better accuracy and stability. To achieve
+   real-time performance, the time step must be larger than the CPU time per step (or 4 times larger when using the RK4
+   integrator). The CPU time is measured with internal timers. It should be monitored when adjusting the time step.
+   MuJoCo can simulate most robotic systems a lot faster than real-time, however models with many floating objects
+   (resulting in many contacts) are more demanding computationally. Keep in mind that stability is determined not only
+   by the time step but also by the :ref:`CSolver`; in particular softer constraints can be simulated with larger time
+   steps. When fine-tuning a challenging model, it is recommended to experiment with both settings jointly. In
+   optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
+   simulation as fast as possible. In that case the time step should be made as large as possible.
+
+.. _option-apirate:
+
+:at:`apirate`: :at-val:`real, "100"`
+   This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
+   mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
+   the physics simulation.
+
+.. _option-impratio:
+
+:at:`impratio`: :at-val:`real, "1"`
+   This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
+   setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
+   attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
+   of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
+   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
+   the overall effect of this attribute is qualitatively similar.
+
+.. _option-gravity:
+
+:at:`gravity`: :at-val:`real(3), "0 0 -9.81"`
+   Gravitational acceleration vector. In the default world orientation the Z-axis points up. The MuJoCo GUI is organized
+   around this convention (both the camera and perturbation commands are based on it) so we do not recommend deviating
+   from it.
+
+.. _option-wind:
+
+:at:`wind`: :at-val:`real(3), "0 0 0"`
+   Velocity vector of the medium (i.e., wind). This vector is subtracted from the 3D translational velocity of each
+   body, and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
+   <gePassive>` in the Computation chapter. The magnitude of these forces scales with the values of the next two
+   attributes.
+
+
+.. _option-magnetic:
+
+:at:`magnetic`: :at-val:`real(3), "0 -0.5 0"`
+   Global magnetic flux. This vector is used by magnetometer sensors, which are defined as sites and return the magnetic
+   flux at the site position expressed in the site frame.
+
+.. _option-density:
+
+:at:`density`: :at-val:`real, "0"`
+   Density of the medium, not to be confused with the geom density used to infer masses and inertias. This parameter is
+   used to simulate lift and drag forces, which scale quadratically with velocity. In SI units the density of air is
+   around 1.2 while the density of water is around 1000 depending on temperature. Setting density to 0 disables lift and
+   drag forces.
+
+.. _option-viscosity:
+
+:at:`viscosity`: :at-val:`real, "0"`
+   Viscosity of the medium. This parameter is used to simulate viscous forces, which scale linearly with velocity. In SI
+   units the viscosity of air is around 0.00002 while the viscosity of water is around 0.0009 depending on temperature.
+   Setting viscosity to 0 disables viscous forces. Note that the default Euler :ref:`integrator <geIntegration>` handles
+   damping in the joints implicitly – which improves stability and accuracy. It does not presently do this with body
+   viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
+   effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
+   :at:`implicit` or :at:`implicitfast` integrators.
+
+.. _option-o_margin:
+
+:at:`o_margin`: :at-val:`real, "0"`
+   This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
+   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom<body-geom>` or
+   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the
+   Computation chapter. The related gap parameter does not have a global override.
+
+.. _option-o_solref:
+.. _option-o_solimp:
+.. _option-o_friction:
+
+:at:`o_solref`, :at:`o_solimp`, :at:`o_friction`
+   These attributes replace the solref, solimp and friction parameters of all active contact pairs when contact override is
+   enabled. See :ref:`CSolver` for details.
+
+.. _option-integrator:
+
+:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
+   This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
+   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
+   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
+   :ref:`Numerical Integration<geIntegration>` for more details.
+
+.. _option-cone:
+
+:at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`
+   The type of contact friction cone. Elliptic cones are a better model of the physical reality, but pyramidal cones
+   sometimes make the solver faster and more robust.
+
+.. _option-jacobian:
+
+:at:`jacobian`: :at-val:`[dense, sparse, auto], "auto"`
+   The type of constraint Jacobian and matrices computed from it. Auto resolves to dense when the number of degrees of
+   freedom is up to 60, and sparse over 60.
+
+.. _option-solver:
+
+:at:`solver`: :at-val:`[PGS, CG, Newton], "Newton"`
+   This attribute selects one of the constraint solver :ref:`algorithms <soAlgorithms>` described in the Computation
+   chapter. Guidelines for solver selection and parameter tuning are available in the :ref:`Algorithms <CAlgorithms>`
+   section above.
+
+.. _option-iterations:
+
+:at:`iterations`: :at-val:`int, "100"`
+   Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
+   enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
+   with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
+   convergence, also shown in the profiler.
+
+.. _option-tolerance:
+
+:at:`tolerance`: :at-val:`real, "1e-8"`
+   Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
+   improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
+   gradient norm. Set the tolerance to 0 to disable early termination.
+
+.. _option-ls_iterations:
+
+:at:`ls_iterations`: :at-val:`int, "50"`
+   Maximum number of linesearch iterations performed by CG/Newton constraint solvers. Ensures that at most
+   :ref:`iterations<option-iterations>` times :ref:`ls_iterations<option-ls_iterations>` linesearch iterations are
+   performed during each constraint solve.
+
+.. _option-ls_tolerance:
+
+:at:`ls_tolerance`: :at-val:`real, "0.01"`
+   Tolerance threshold used for early termination of the linesearch algorithm.
+
+.. _option-noslip_iterations:
+
+:at:`noslip_iterations`: :at-val:`int, "0"`
+   Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
+   uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
+   The default setting 0 disables this post-processing step.
+
+.. _option-noslip_tolerance:
+
+:at:`noslip_tolerance`: :at-val:`real, "1e-6"`
+   Tolerance threshold used for early termination of the Noslip solver.
+
+.. _option-mpr_iterations:
+
+:at:`mpr_iterations`: :at-val:`int, "50"`
+   Maximum number of iterations of the MPR algorithm used for convex mesh collisions. This rarely needs to be adjusted,
+   except in situations where some geoms have very large aspect ratios.
+
+.. _option-mpr_tolerance:
+
+:at:`mpr_tolerance`: :at-val:`real, "1e-6"`
+   Tolerance threshold used for early termination of the MPR algorithm.
+
+.. _option-sdf_iterations:
+
+:at:`sdf_iterations`: :at-val:`int, "10"`
+   Number of iterations used for Signed Distance Field collisions (per initial point).
+
+.. _option-sdf_initpoints:
+
+:at:`sdf_initpoints`: :at-val:`int, "40"`
+   Number of starting points used for finding contacts with Signed Distance Field collisions.
+
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 240px
+
+.. _option-actuatorgroupdisable:
+
+:at:`actuatorgroupdisable`: :at-val:`int(31), optional`
+   List of actuator groups to disable. Actuators whose :ref:`group<actuator-general-group>` is in this list will produce
+   no force. If they are stateful, their activation states will not be integrated. Internally this list is
+   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``. If not set, all actuator
+   groups are enabled. See `example model
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+   and associated screen-capture on the right.
+
+.. _option-flag:
+
+:el-prefix:`option/` |-| **flag** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element sets the flags that enable and disable different parts of the simulation pipeline. The actual flags used at
+runtime are represented as the bits of two integers, namely mjModel.opt.disableflags and mjModel.opt.enableflags, used
+to disable standard features and enable optional features respectively. The reason for this separation is that setting
+both integers to 0 restores the default. In the XML we do not make this separation explicit, except for the default
+attribute values - which are "enable" for flags corresponding to standard features, and "disable" for flags
+corresponding to optional features. In the documentation below, we explain what happens when the setting is different
+from its default.
+
+.. _option-flag-constraint:
+
+:at:`constraint`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to the constraint solver. As a result, no constraint forces are
+   applied. Note that the next four flags disable the computations related to a specific type of constraint. Both this
+   flag and the type-specific flag must be set to "enable" for a given computation to be performed.
+
+.. _option-flag-equality:
+
+:at:`equality`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to equality constraints.
+
+.. _option-flag-frictionloss:
+
+:at:`frictionloss`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to friction loss constraints.
+
+.. _option-flag-limit:
+
+:at:`limit`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to joint and tendon limit constraints.
+
+.. _option-flag-contact:
+
+:at:`contact`: :at-val:`[disable, enable], "enable"`
+   This flag disables collision detection and all standard computations related to contact constraints.
+
+.. _option-flag-passive:
+
+:at:`passive`: :at-val:`[disable, enable], "enable"`
+   This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
+   forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
+
+.. _option-flag-gravity:
+
+:at:`gravity`: :at-val:`[disable, enable], "enable"`
+   This flag causes the gravitational acceleration vector in mjOption to be replaced with (0 0 0) at runtime, without
+   changing the value in mjOption. Once the flag is re-enabled, the value in mjOption is used.
+
+.. _option-flag-clampctrl:
+
+:at:`clampctrl`: :at-val:`[disable, enable], "enable"`
+   This flag disables the clamping of control inputs to all actuators, even if the actuator-specific attributes are set
+   to enable clamping.
+
+.. _option-flag-warmstart:
+
+:at:`warmstart`: :at-val:`[disable, enable], "enable"`
+   This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e., the
+   constraint force) from the previous time step to initialize the iterative optimization. This feature should be
+   disabled when evaluating the dynamics at a collection of states that do not form a trajectory - in which case warm
+   starts make no sense and are likely to slow down the solver.
+
+.. _option-flag-filterparent:
+
+:at:`filterparent`: :at-val:`[disable, enable], "enable"`
+   This flag disables the filtering of contact pairs where the two geoms belong to a parent and child body; recall
+   contact :ref:`selection <coSelection>` in the Computation chapter.
+
+.. _option-flag-actuation:
+
+:at:`actuation`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to actuator forces, including the actuator dynamics. As a
+   result, no actuator forces are applied to the simulation.
+
+.. _option-flag-refsafe:
+
+:at:`refsafe`: :at-val:`[disable, enable], "enable"`
+   This flag enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the
+   simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
+   stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
+   separately for each active constraint.
+
+.. _option-flag-sensor:
+
+:at:`sensor`: :at-val:`[disable, enable], "enable"`
+   This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
+   zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
+
+.. _option-flag-midphase:
+
+:at:`midphase`: :at-val:`[disable, enable], "enable"`
+   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
+   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
+
+.. _option-flag-eulerdamp:
+
+:at:`eulerdamp`: :at-val:`[disable, enable], "enable"`
+   This flag disables implicit integration with respect to joint damping in the Euler integrator. See the
+   :ref:`Numerical Integration<geIntegration>` section for more details.
+
+.. _option-flag-override:
+
+:at:`override`: :at-val:`[disable, enable], "disable"`
+   This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
+
+.. _option-flag-energy:
+
+:at:`energy`: :at-val:`[disable, enable], "disable"`
+   This flag enables the computation of kinetic and potential energy, stored in mjData.energy and displayed in the GUI.
+   This feature adds some CPU time but it is usually negligible. Monitoring energy for a system that is supposed to be
+   energy-conserving is one of the best ways to assess the accuracy of a complex simulation.
+
+.. _option-flag-fwdinv:
+
+:at:`fwdinv`: :at-val:`[disable, enable], "disable"`
+   This flag enables the automatic comparison of forward and inverse dynamics. When enabled, the inverse dynamics is
+   invoked after mj_forward (or internally within mj_step) and the difference in applied forces is recorded in
+   mjData.solver_fwdinv[2]. The first value is the relative norm of the discrepancy in joint space, the next is in
+   constraint space.
+
+.. _option-flag-invdiscrete:
+
+:at:`invdiscrete`: :at-val:`[disable, enable], "disable"`
+   This flag enables discrete-time inverse dynamics with :ref:`mj_inverse` for all
+   :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the
+   :ref:`numerical integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and
+   ``implicitfast``), modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced
+   accelerations :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``.
+   When this flag is enabled, :ref:`mj_inverse` will  interpret ``qacc`` as having been computed from the difference of
+   two sequential velocities, and undo the above modification.
+
+
+.. _option-flag-multiccd:
+
+:at:`multiccd`: :at-val:`[disable, enable], "disable"` |nbsp| |nbsp| |nbsp| (experimental feature)
+   This flag enables multiple-contact collision detection for geom pairs that use the general-purpose convex-convex
+   collider based on :ref:`libccd <coChecking>` e.g., mesh-mesh collisions. This can be useful when the contacting geoms
+   have a flat surface, and the single contact point generated by the convex-convex collider cannot accurately capture
+   the surface contact, leading to instabilities that typically manifest as sliding or wobbling. Multiple contact points
+   are found by rotating the two geoms by ±1e-3 radians around the tangential axes and re-running the collision
+   function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
+   currently considered experimental, and both the behavior and the way it is activated may change in the future.
+
+.. _option-flag-island:
+
+:at:`island`: :at-val:`[disable, enable], "disable"`
+   This flag enables discovery of constraint islands: disjoint sets of constraints and
+   degrees-of-freedom that do not interact. The flag currently has no effect on the physics pipeline, but enabling it
+   allows for `island visualization <https://youtu.be/Vc1tq0fFvQA>`__.
+   In a future release, the constraint solver will exploit the disjoint nature of constraint islands.
+
 
 
 .. _compiler:
@@ -625,525 +983,6 @@ parameters.
    If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
    value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to
    center the view of the free camera when the model is first loaded.
-
-
-.. _visual:
-
-**visual** (*)
-~~~~~~~~~~~~~~
-
-This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
-of mjModel. The settings here affect the visualizer, or more precisely the abstract phase of visualization which
-yields a list of geometric entities for subsequent rendering. The settings here are global, in contrast with the
-element-specific visual settings. The global and element-specific settings refer to non-overlapping properties. Some
-of the global settings affect properties such as triangulation of geometric primitives that cannot be set per element.
-Other global settings affect the properties of decorative objects, i.e., objects such as contact points and force
-arrows which do not correspond to model elements. The visual settings are grouped semantically into several
-subsections.
-|br| This element is a good candidate for the :ref:`file include <CInclude>` mechanism. One can create an XML file with
-coordinated visual settings corresponding to a "theme", and then include this file in multiple models.
-
-.. _visual-global:
-
-:el-prefix:`visual/` |-| **global** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
-is effectively a miscellaneous subsection.
-
-.. _visual-global-fovy:
-
-:at:`fovy`: :at-val:`real, "45"`
-   This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
-   the visualizer even if no cameras are explicitly defined in the model. It is always expressed in degrees, regardless
-   of the setting of the angle attribute of :ref:`compiler <compiler>`, and is also represented in the low level model
-   in degrees. This is because we pass it to OpenGL which uses degrees. The same convention applies to the fovy
-   attribute of the :ref:`camera <body-camera>` element below.
-
-.. _visual-global-ipd:
-
-:at:`ipd`: :at-val:`real, "0.068"`
-   This attribute specifies the inter-pupilary distance of the free camera. It only affects the rendering in
-   stereoscopic mode. The left and right viewpoints are offset by half of this value in the corresponding direction.
-
-.. _visual-global-azimuth:
-
-:at:`azimuth`: :at-val:`real, "90"`
-   This attribute specifies the initial azimuth of the free camera around the vertical z-axis, in degrees. A value of 0
-   corresponds to looking in the positive x direction, while the default value of 90 corresponds to looking in the
-   positive y direction. The look-at point itself is specified by the :ref:`statistic/center<statistic-center>`
-   attribute, while the distance from the look-at point is controlled by the :ref:`statistic/extent<statistic-extent>`
-   attribute.
-
-.. _visual-global-elevation:
-
-:at:`elevation`: :at-val:`real, "-45"`
-   This attribute specifies the initial elevation of the free camera with respect to the lookat point. Note that since
-   this is a rotation around a vector parallel to the camera's X-axis (right in pixel space), *negative* numbers
-   correspond to moving the camera *up* from the horizontal plane, and vice-versa. The look-at point itself is specified
-   by the :ref:`statistic/center<statistic-center>` attribute, while the distance from the look-at point is controlled
-   by the :ref:`statistic/extent<statistic-extent>` attribute.
-
-.. _visual-global-linewidth:
-
-:at:`linewidth`: :at-val:`real, "1"`
-   This attribute specifies the line-width in the sense of OpenGL. It affects the rendering in wire-frame mode.
-
-.. _visual-global-glow:
-
-:at:`glow`: :at-val:`real, "0.3"`
-   The value of this attribute is added to the emission coefficient of all geoms attached to the selected body. As a
-   result, the selected body appears to glow.
-
-.. _visual-global-realtime:
-
-:at:`realtime`: :at-val:`real, "1"`
-   This value sets the initial real-time factor of the model, when loaded in `simulate`. 1: real time. Less than 1:
-   slower than real time. Must be greater than 0.
-
-.. _visual-global-offwidth:
-
-:at:`offwidth`: :at-val:`int, "640"`
-   This and the next attribute specify the size in pixels of the off-screen OpenGL rendering buffer. This attribute
-   specifies the width of the buffer. The size of this buffer can also be adjusted at runtime, but it is usually more
-   convenient to set it in the XML.
-
-.. _visual-global-offheight:
-
-:at:`offheight`: :at-val:`int, "480"`
-   This attribute specifies the height in pixels of the OpenGL off-screen rendering buffer.
-
-.. _visual-global-ellipsoidinertia:
-
-:at:`ellipsoidinertia`: :at-val:`[false, true], "false"`
-   This attribute specifies how the equivalent inertia is visualized. "false":
-   use box, "true": use ellipsoid.
-
-.. _visual-global-bvactive:
-
-:at:`bvactive`: :at-val:`[false, true], "true"`
-   This attribute specifies whether collision and raycasting code should mark elements of Bounding Volume Hierarchies
-   as intersecting, for the purpose of visualization. Setting this attribute to "false" can speed up simulation for
-   models with high-resolution meshes.
-
-.. _visual-quality:
-
-:el-prefix:`visual/` |-| **quality** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element specifies settings that affect the quality of the rendering. Larger values result in higher quality but
-possibly slower speed. Note that :ref:`simulate.cc <saSimulate>` displays the frames per second (FPS). The target FPS is
-60 Hz; if the number shown in the visualizer is substantially lower, this means that the GPU is over-loaded and the
-visualization should somehow be simplified.
-
-.. _visual-quality-shadowsize:
-
-:at:`shadowsize`: :at-val:`int, "4096"`
-   This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
-   shadows. The size of the area over which a :ref:`light <body-light>` can cast shadows also affects smoothness, so
-   these settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to
-   handle significantly larger textures without slowing down.
-
-.. _visual-quality-offsamples:
-
-:at:`offsamples`: :at-val:`int, "4"`
-   This attribute specifies the number of multi-samples for offscreen rendering. Larger values produce better
-   anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
-   affects offscreen rendering. For regular window rendering, multi-sampling is specified in an OS-dependent way when
-   the OpenGL context for the window is first created, and cannot be changed from within MuJoCo.
-   |br| When rendering segmentation images, multi-sampling is automatically disabled so as not to average segmentation
-   indices. However, some rendering backends ignore the automatic disabling. If your segmentation images contain bad
-   indices, try manually setting this attribute to 0.
-
-.. _visual-quality-numslices:
-
-:at:`numslices`: :at-val:`int, "28"`
-   This and the next three attributes specify the density of internally-generated meshes for geometric primitives. Such
-   meshes are only used for rendering, while the collision detector works with the underlying analytic surfaces. This
-   value is passed to the various visualizer functions as the "slices" parameter as used in GLU. It specifies the number
-   of subdivisions around the Z-axis, similar to lines of longitude.
-
-.. _visual-quality-numstacks:
-
-:at:`numstacks`: :at-val:`int, "16"`
-   This value of this attribute is passed to the various visualization functions as the "stacks" parameter as used in
-   GLU. It specifies the number of subdivisions along the Z-axis, similar to lines of latitude.
-
-.. _visual-quality-numquads:
-
-:at:`numquads`: :at-val:`int, "4"`
-   This attribute specifies the number of rectangles for rendering box faces, automatically-generated planes (as opposed
-   to geom planes which have an element-specific attribute with the same function), and sides of height fields. Even
-   though a geometrically correct rendering can be obtained by setting this value to 1, illumination works better for
-   larger values because we use per-vertex illumination (as opposed to per-fragment).
-
-
-.. _visual-headlight:
-
-:el-prefix:`visual/` |-| **headlight** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element is used to adjust the properties of the headlight. There is always a built-in headlight, in addition to any
-lights explicitly defined in the model. The headlight is a directional light centered at the current camera and pointed
-in the direction in which the camera is looking. It does not cast shadows (which would be invisible anyway). Note that
-lights are additive, so if explicit lights are defined in the model, the intensity of the headlight would normally need
-to be reduced.
-
-.. _visual-headlight-ambient:
-
-:at:`ambient`: :at-val:`real(3), "0.1 0.1 0.1"`
-   The ambient component of the headlight, in the sense of OpenGL. The alpha component here and in the next two
-   attributes is set to 1 and cannot be adjusted.
-
-.. _visual-headlight-diffuse:
-
-:at:`diffuse`: :at-val:`real(3), "0.4 0.4 0.4"`
-   The diffuse component of the headlight, in the sense of OpenGL.
-
-.. _visual-headlight-specular:
-
-:at:`specular`: :at-val:`real(3), "0.5 0.5 0.5"`
-   The specular component of the headlight, in the sense of OpenGL.
-
-.. _visual-headlight-active:
-
-:at:`active`: :at-val:`int, "1"`
-   This attribute enables and disables the headlight. A value of 0 means disabled, any other value means enabled.
-
-
-.. _visual-map:
-
-:el-prefix:`visual/` |-| **map** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element is used to specify scaling quantities that affect both the visualization and built-in mouse perturbations.
-Unlike the scaling quantities in the next element which are specific to spatial extent, the quantities here are
-miscellaneous.
-
-.. _visual-map-stiffness:
-
-:at:`stiffness`: :at-val:`real, "100"`
-   This attribute controls the strength of mouse perturbations. The internal perturbation mechanism simulates a
-   mass-spring-damper with critical damping, unit mass, and stiffness given here. Larger values mean that a larger force
-   will be applied for the same displacement between the selected body and the mouse-controlled target.
-
-.. _visual-map-stiffnessrot:
-
-:at:`stiffnessrot`: :at-val:`real, "500"`
-   Same as above but applies to rotational perturbations rather than translational perturbations. Empirically, the
-   rotational stiffness needs to be larger in order for rotational mouse perturbations to have an effect.
-
-.. _visual-map-force:
-
-:at:`force`: :at-val:`real, "0.005"`
-   This attributes controls the visualization of both contact forces and perturbation forces. The length of the rendered
-   force vector equals the force magnitude multiplied by the value of this attribute and divided by the mean body mass
-   for the model (see :ref:`statistic <statistic>` element).
-
-.. _visual-map-torque:
-
-:at:`torque`: :at-val:`real, "0.1"`
-   Same as above, but controls the rendering of contact torque and perturbation torque rather than force (currently
-   disabled).
-
-.. _visual-map-alpha:
-
-:at:`alpha`: :at-val:`real, "0.3"`
-   When transparency is turned on in the visualizer, the geoms attached to all moving bodies are made more transparent.
-   This is done by multiplying the geom-specific alpha values by this value.
-
-.. _visual-map-fogstart:
-
-:at:`fogstart`: :at-val:`real, "3"`
-   The visualizer can simulate linear fog, in the sense of OpenGL. The start position of the fog is the model extent
-   (see :ref:`statistic <statistic>` element) multiplied by the value of this attribute.
-
-.. _visual-map-fogend:
-
-:at:`fogend`: :at-val:`real, "10"`
-   The end position of the fog is the model extent multiplied by the value of this attribute.
-
-.. _visual-map-znear:
-
-:at:`znear`: :at-val:`real, "0.01"`
-   This and the next attribute determine the clipping planes of the OpenGL projection. The near clipping plane is
-   particularly important: setting it too close causes (often severe) loss of resolution in the depth buffer, while
-   setting it too far causes objects of interest to be clipped, making it impossible to zoom in. The distance to the
-   near clipping plane is the model ``extent`` multiplied by the value of this attribute. Must be strictly positive.
-
-.. _visual-map-zfar:
-
-:at:`zfar`: :at-val:`real, "50"`
-   The distance to the far clipping plane is the model ``extent`` multiplied by the value of this attribute.
-
-.. _visual-map-haze:
-
-:at:`haze`: :at-val:`real, "0.3"`
-   Proportion of the distance-to-horizon that is covered by haze (when haze rendering is enabled and a skybox is
-   present).
-
-.. _visual-map-shadowclip:
-
-:at:`shadowclip`: :at-val:`real, "1"`
-   As mentioned above, shadow quality depends on the size of the shadow texture as well as the area where a given light
-   can cast shadows. For directional lights, the area would be infinite unless we limited it somehow. This attribute
-   specifies the limits, as +/- the model extent multiplied by the present value. These limits define a square in the
-   plane orthogonal to the light direction. If a shadow crosses the boundary of this virtual square, it will disappear
-   abruptly, revealing the edges of the square.
-
-.. _visual-map-shadowscale:
-
-:at:`shadowscale`: :at-val:`real, "0.6"`
-   This attribute plays a similar role as the previous one, but applies to spotlights rather than directional lights.
-   Spotlights have a cutoff angle, limited internally to 80 deg. However this angle is often too large to obtain good
-   quality shadows, and it is necessary to limit the shadow to a smaller cone. The angle of the cone in which shadows
-   can be cast is the light cutoff multiplied by the present value.
-
-.. _visual-map-actuatortendon:
-
-:at:`actuatortendon`: :at-val:`real, "2"`
-   Ratio of actuator width to tendon width for rendering of actuators attached to tendons.
-
-
-.. _visual-scale:
-
-:el-prefix:`visual/` |-| **scale** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The settings in this element control the spatial extent of various decorative objects. In all cases, the rendered size
-equals the mean body size (see :ref:`statistic <statistic>` element) multiplied by the value of an attribute
-documented below.
-
-.. _visual-scale-forcewidth:
-
-:at:`forcewidth`: :at-val:`real, "0.1"`
-   The radius of the arrows used to render contact forces and perturbation forces.
-
-.. _visual-scale-contactwidth:
-
-:at:`contactwidth`: :at-val:`real, "0.3"`
-   The radius of the cylinders used to render contact points. The normal direction of the cylinder is aligned with the
-   contact normal. Making the cylinder short and wide results in a "pancake" representation of the tangent plane.
-
-.. _visual-scale-contactheight:
-
-:at:`contactheight`: :at-val:`real, "0.1"`
-   The height of the cylinders used to render contact points.
-
-.. _visual-scale-connect:
-
-:at:`connect`: :at-val:`real, "0.2"`
-   The radius of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
-
-.. _visual-scale-com:
-
-:at:`com`: :at-val:`real, "0.4"`
-   The radius of the spheres used to render the centers of mass of kinematic sub-trees.
-
-.. _visual-scale-camera:
-
-:at:`camera`: :at-val:`real, "0.3"`
-   The size of the decorative object used to represent model cameras in the rendering.
-
-.. _visual-scale-light:
-
-:at:`light`: :at-val:`real, "0.3"`
-   The size of the decorative object used to represent model lights in the rendering.
-
-.. _visual-scale-selectpoint:
-
-:at:`selectpoint`: :at-val:`real, "0.2"`
-   The radius of the sphere used to render the selection point (i.e., the point where the user left-double-clicked to
-   select a body). Note that the local and global coordinates of this point can be printed in the 3D view by activating
-   the corresponding rendering flags. In this way, the coordinates of points of interest can be found.
-
-.. _visual-scale-jointlength:
-
-:at:`jointlength`: :at-val:`real, "1.0"`
-   The length of the arrows used to render joint axes.
-
-.. _visual-scale-jointwidth:
-
-:at:`jointwidth`: :at-val:`real, "0.1"`
-   The radius of the arrows used to render joint axes.
-
-.. _visual-scale-actuatorlength:
-
-:at:`actuatorlength`: :at-val:`real, "0.7"`
-   The length of the arrows used to render actuators acting on scalar joints only.
-
-.. _visual-scale-actuatorwidth:
-
-:at:`actuatorwidth`: :at-val:`real, "0.2"`
-   The radius of the arrows used to render actuators acting on scalar joints only.
-
-.. _visual-scale-framelength:
-
-:at:`framelength`: :at-val:`real, "1.0"`
-   The length of the cylinders used to render coordinate frames. The world frame is automatically scaled relative to
-   this setting.
-
-.. _visual-scale-framewidth:
-
-:at:`framewidth`: :at-val:`real, "0.1"`
-   The radius of the cylinders used to render coordinate frames.
-
-.. _visual-scale-constraint:
-
-:at:`constraint`: :at-val:`real, "0.1"`
-   The radius of the capsules used to render violations in spatial constraints.
-
-.. _visual-scale-slidercrank:
-
-:at:`slidercrank`: :at-val:`real, "0.2"`
-   The radius of the capsules used to render slider-crank mechanisms. The second part of the mechanism is automatically
-   scaled relative to this setting.
-
-.. _visual-scale-frustum:
-
-:at:`frustum`: :at-val:`real, "10"`
-   The distance of the zfar plane from the camera pinhole for rendering the frustum.
-
-
-.. _visual-rgba:
-
-:el-prefix:`visual/` |-| **rgba** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The settings in this element control the color and transparency (rgba) of various decorative objects. We will call this
-combined attribute "color" to simplify terminology below. All values should be in the range [0 1]. An alpha value of 0
-disables the rendering of the corresponding object.
-
-.. _visual-rgba-fog:
-
-:at:`fog`: :at-val:`real(4), "0 0 0 1"`
-   When fog is enabled, the color of all pixels fades towards the color specified here. The spatial extent of the fading
-   is controlled by the fogstart and fogend attributes of the :ref:`map <visual-map>` element above.
-
-.. _visual-rgba-haze:
-
-:at:`haze`: :at-val:`real(4), "1 1 1 1"`
-   Haze color at the horizon, used to transition between an infinite plane and a skybox smoothly. The default creates
-   white haze. To create a seamless transition, make sure the skybox colors near the horizon are similar to the plane
-   color/texture, and set the haze color somewhere in that color gamut.
-
-.. _visual-rgba-force:
-
-:at:`force`: :at-val:`real(4), "1 0.5 0.5 1"`
-   Color of the arrows used to render perturbation forces.
-
-.. _visual-rgba-inertia:
-
-:at:`inertia`: :at-val:`real(4), "0.8 0.2 0.2 0.6"`
-   Color of the boxes used to render equivalent body inertias. This is the only rgba setting that has transparency by
-   default, because it is usually desirable to see the geoms inside the inertia box.
-
-.. _visual-rgba-joint:
-
-:at:`joint`: :at-val:`real(4), "0.2 0.6 0.8 1"`
-   Color of the arrows used to render joint axes.
-
-.. _visual-rgba-actuator:
-
-:at:`actuator`: :at-val:`real(4), "0.2 0.25 0.2 1"`
-   Actuator color for neutral value of the control.
-
-.. _visual-rgba-actuatornegative:
-
-:at:`actuatornegative`: :at-val:`real(4), "0.2 0.6 0.9 1"`
-   Actuator color for most negative value of the control.
-
-.. _visual-rgba-actuatorpositive:
-
-:at:`actuatorpositive`: :at-val:`real(4), "0.9 0.4 0.2 1"`
-   Actuator color for most positive value of the control.
-
-.. _visual-rgba-com:
-
-:at:`com`: :at-val:`real(4), "0.9 0.9 0.9 1"`
-   Color of the spheres used to render sub-tree centers of mass.
-
-.. _visual-rgba-camera:
-
-:at:`camera`: :at-val:`real(4), "0.6 0.9 0.6 1"`
-   Color of the decorative object used to represent model cameras in the rendering.
-
-.. _visual-rgba-light:
-
-:at:`light`: :at-val:`real(4), "0.6 0.6 0.9 1"`
-   Color of the decorative object used to represent model lights in the rendering.
-
-.. _visual-rgba-selectpoint:
-
-:at:`selectpoint`: :at-val:`real(4), "0.9 0.9 0.1 1"`
-   Color of the sphere used to render the selection point.
-
-.. _visual-rgba-connect:
-
-:at:`connect`: :at-val:`real(4), "0.2 0.2 0.8 1"`
-   Color of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
-
-.. _visual-rgba-contactpoint:
-
-:at:`contactpoint`: :at-val:`real(4), "0.9 0.6 0.2 1"`
-   Color of the cylinders used to render contact points.
-
-.. _visual-rgba-contactforce:
-
-:at:`contactforce`: :at-val:`real(4), "0.7 0.9 0.9 1"`
-   Color of the arrows used to render contact forces. When splitting of contact forces into normal and tangential
-   components is enabled, this color is used to render the normal components.
-
-.. _visual-rgba-contactfriction:
-
-:at:`contactfriction`: :at-val:`real(4), "0.9 0.8 0.4 1"`
-   Color of the arrows used to render contact tangential forces, only when splitting is enabled.
-
-.. _visual-rgba-contacttorque:
-
-:at:`contacttorque`: :at-val:`real(4), "0.9 0.7 0.9 1"`
-   Color of the arrows used to render contact torques (currently disabled).
-
-.. _visual-rgba-contactgap:
-
-:at:`contactgap`: :at-val:`real(4), "0.5, 0.8, 0.9, 1"`
-   Color of contacts that fall in the contact gap (and are thereby excluded from contact force computations).
-
-.. _visual-rgba-rangefinder:
-
-:at:`rangefinder`: :at-val:`real(4), "1 1 0.1 1"`
-   Color of line geoms used to render rangefinder sensors.
-
-.. _visual-rgba-constraint:
-
-:at:`constraint`: :at-val:`real(4), "0.9 0 0 1"`
-   Color of the capsules corresponding to spatial constraint violations.
-
-.. _visual-rgba-slidercrank:
-
-:at:`slidercrank`: :at-val:`real(4), "0.5 0.3 0.8 1"`
-   Color of slider-crank mechanisms.
-
-.. _visual-rgba-crankbroken:
-
-:at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
-   Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
-   cannot be maintained, i.e., it is "broken".
-
-.. _visual-rgba-frustum:
-
-:at:`frustum`: :at-val:`real(4), "1 1 0 0.2"`
-   Color used to render the camera frustum.
-
-.. _visual-rgba-bv:
-
-:at:`bv`: :at-val:`real(4), "0 1 0 0.5"`
-   Color used to render bounding volumes.
-
-.. _visual-rgba-bvactive:
-
-:at:`bvactive`: :at-val:`real(4), "1 0 0 0.5"`
-   Color used to render active bounding volumes, if the :ref:`bvactive<visual-global-bvactive>` flag is "true".
 
 
 
@@ -1788,6 +1627,18 @@ properties are grouped together.
    instead. Only the first reflective geom in the model is rendered as such. This adds one extra rendering pass through
    all geoms, in addition to the extra rendering pass added by each shadow-casting light.
 
+.. _asset-material-metallic:
+
+:at:`metallic`: :at-val:`real, "0"`
+   This attribute corresponds to uniform metallicity coefficient applied to the entire material. This attribute has no
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+
+.. _asset-material-roughness:
+
+:at:`roughness`: :at-val:`real, "1"`
+   This attribute corresponds to uniform roughness coefficient applied to the entire material. This attribute has no
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+
 .. _asset-material-rgba:
 
 :at:`rgba`: :at-val:`real(4), "1 1 1 1"`
@@ -1797,360 +1648,6 @@ properties are grouped together.
    model element which defines its own local rgba attribute, the local definition has precedence. Note that this "local"
    definition could in fact come from a defaults class. The remaining material properties always apply.
 
-
-.. _option:
-
-**option** (*)
-~~~~~~~~~~~~~~
-
-This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
-mjModel. These are simulation options and do not affect the compilation process in any way; they are simply copied into
-the low level model. Even though mjOption can be modified by the user at runtime, it is nevertheless a good idea to
-adjust it properly through the XML.
-
-.. _option-timestep:
-
-:at:`timestep`: :at-val:`real, "0.002"`
-   Simulation time step in seconds. This is the single most important parameter affecting the speed-accuracy trade-off
-   which is inherent in every physics simulation. Smaller values result in better accuracy and stability. To achieve
-   real-time performance, the time step must be larger than the CPU time per step (or 4 times larger when using the RK4
-   integrator). The CPU time is measured with internal timers. It should be monitored when adjusting the time step.
-   MuJoCo can simulate most robotic systems a lot faster than real-time, however models with many floating objects
-   (resulting in many contacts) are more demanding computationally. Keep in mind that stability is determined not only
-   by the time step but also by the :ref:`CSolver`; in particular softer constraints can be simulated with larger time
-   steps. When fine-tuning a challenging model, it is recommended to experiment with both settings jointly. In
-   optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
-   simulation as fast as possible. In that case the time step should be made as large as possible.
-
-.. _option-apirate:
-
-:at:`apirate`: :at-val:`real, "100"`
-   This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
-   mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
-   the physics simulation.
-
-.. _option-impratio:
-
-:at:`impratio`: :at-val:`real, "1"`
-   This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
-   setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
-   attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
-   of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
-   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
-   the overall effect of this attribute is qualitatively similar.
-
-.. _option-gravity:
-
-:at:`gravity`: :at-val:`real(3), "0 0 -9.81"`
-   Gravitational acceleration vector. In the default world orientation the Z-axis points up. The MuJoCo GUI is organized
-   around this convention (both the camera and perturbation commands are based on it) so we do not recommend deviating
-   from it.
-
-.. _option-wind:
-
-:at:`wind`: :at-val:`real(3), "0 0 0"`
-   Velocity vector of the medium (i.e., wind). This vector is subtracted from the 3D translational velocity of each
-   body, and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
-   <gePassive>` in the Computation chapter. The magnitude of these forces scales with the values of the next two
-   attributes.
-
-
-.. _option-magnetic:
-
-:at:`magnetic`: :at-val:`real(3), "0 -0.5 0"`
-   Global magnetic flux. This vector is used by magnetometer sensors, which are defined as sites and return the magnetic
-   flux at the site position expressed in the site frame.
-
-.. _option-density:
-
-:at:`density`: :at-val:`real, "0"`
-   Density of the medium, not to be confused with the geom density used to infer masses and inertias. This parameter is
-   used to simulate lift and drag forces, which scale quadratically with velocity. In SI units the density of air is
-   around 1.2 while the density of water is around 1000 depending on temperature. Setting density to 0 disables lift and
-   drag forces.
-
-.. _option-viscosity:
-
-:at:`viscosity`: :at-val:`real, "0"`
-   Viscosity of the medium. This parameter is used to simulate viscous forces, which scale linearly with velocity. In SI
-   units the viscosity of air is around 0.00002 while the viscosity of water is around 0.0009 depending on temperature.
-   Setting viscosity to 0 disables viscous forces. Note that the default Euler :ref:`integrator <geIntegration>` handles
-   damping in the joints implicitly – which improves stability and accuracy. It does not presently do this with body
-   viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
-   effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
-   :at:`implicit` or :at:`implicitfast` integrators.
-
-.. _option-o_margin:
-
-:at:`o_margin`: :at-val:`real, "0"`
-   This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
-   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom<body-geom>` or
-   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the
-   Computation chapter. The related gap parameter does not have a global override.
-
-.. _option-o_solref:
-.. _option-o_solimp:
-.. _option-o_friction:
-
-:at:`o_solref`, :at:`o_solimp`, :at:`o_friction`
-   These attributes replace the solref, solimp and friction parameters of all active contact pairs when contact override is
-   enabled. See :ref:`CSolver` for details.
-
-.. _option-integrator:
-
-:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
-   This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
-   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
-   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
-   :ref:`Numerical Integration<geIntegration>` for more details.
-
-.. _option-cone:
-
-:at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`
-   The type of contact friction cone. Elliptic cones are a better model of the physical reality, but pyramidal cones
-   sometimes make the solver faster and more robust.
-
-.. _option-jacobian:
-
-:at:`jacobian`: :at-val:`[dense, sparse, auto], "auto"`
-   The type of constraint Jacobian and matrices computed from it. Auto resolves to dense when the number of degrees of
-   freedom is up to 60, and sparse over 60.
-
-.. _option-solver:
-
-:at:`solver`: :at-val:`[PGS, CG, Newton], "Newton"`
-   This attribute selects one of the constraint solver :ref:`algorithms <soAlgorithms>` described in the Computation
-   chapter. Guidelines for solver selection and parameter tuning are available in the :ref:`Algorithms <CAlgorithms>`
-   section above.
-
-.. _option-iterations:
-
-:at:`iterations`: :at-val:`int, "100"`
-   Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
-   enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
-   with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
-   convergence, also shown in the profiler.
-
-.. _option-tolerance:
-
-:at:`tolerance`: :at-val:`real, "1e-8"`
-   Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
-   improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
-   gradient norm. Set the tolerance to 0 to disable early termination.
-
-.. _option-ls_iterations:
-
-:at:`ls_iterations`: :at-val:`int, "50"`
-   Maximum number of linesearch iterations performed by CG/Newton constraint solvers. Ensures that at most
-   :ref:`iterations<option-iterations>` times :ref:`ls_iterations<option-ls_iterations>` linesearch iterations are
-   performed during each constraint solve.
-
-.. _option-ls_tolerance:
-
-:at:`ls_tolerance`: :at-val:`real, "0.01"`
-   Tolerance threshold used for early termination of the linesearch algorithm.
-
-.. _option-noslip_iterations:
-
-:at:`noslip_iterations`: :at-val:`int, "0"`
-   Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
-   uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
-   The default setting 0 disables this post-processing step.
-
-.. _option-noslip_tolerance:
-
-:at:`noslip_tolerance`: :at-val:`real, "1e-6"`
-   Tolerance threshold used for early termination of the Noslip solver.
-
-.. _option-mpr_iterations:
-
-:at:`mpr_iterations`: :at-val:`int, "50"`
-   Maximum number of iterations of the MPR algorithm used for convex mesh collisions. This rarely needs to be adjusted,
-   except in situations where some geoms have very large aspect ratios.
-
-.. _option-mpr_tolerance:
-
-:at:`mpr_tolerance`: :at-val:`real, "1e-6"`
-   Tolerance threshold used for early termination of the MPR algorithm.
-
-.. _option-sdf_iterations:
-
-:at:`sdf_iterations`: :at-val:`int, "10"`
-   Number of iterations used for Signed Distance Field collisions (per initial point).
-
-.. _option-sdf_initpoints:
-
-:at:`sdf_initpoints`: :at-val:`int, "40"`
-   Number of starting points used for finding contacts with Signed Distance Field collisions.
-
-.. youtube:: H9qG9Zf2W44
-   :align: right
-   :width: 240px
-
-.. _option-actuatorgroupdisable:
-
-:at:`actuatorgroupdisable`: :at-val:`int(31), optional`
-   List of actuator groups to disable. Actuators whose :ref:`group<actuator-general-group>` is in this list will produce
-   no force. If they are stateful, their activation states will not be integrated. Internally this list is
-   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``. If not set, all actuator
-   groups are enabled. See `example model
-   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
-   and associated screen-capture on the right.
-
-.. _option-flag:
-
-:el-prefix:`option/` |-| **flag** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element sets the flags that enable and disable different parts of the simulation pipeline. The actual flags used at
-runtime are represented as the bits of two integers, namely mjModel.opt.disableflags and mjModel.opt.enableflags, used
-to disable standard features and enable optional features respectively. The reason for this separation is that setting
-both integers to 0 restores the default. In the XML we do not make this separation explicit, except for the default
-attribute values - which are "enable" for flags corresponding to standard features, and "disable" for flags
-corresponding to optional features. In the documentation below, we explain what happens when the setting is different
-from its default.
-
-.. _option-flag-constraint:
-
-:at:`constraint`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to the constraint solver. As a result, no constraint forces are
-   applied. Note that the next four flags disable the computations related to a specific type of constraint. Both this
-   flag and the type-specific flag must be set to "enable" for a given computation to be performed.
-
-.. _option-flag-equality:
-
-:at:`equality`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to equality constraints.
-
-.. _option-flag-frictionloss:
-
-:at:`frictionloss`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to friction loss constraints.
-
-.. _option-flag-limit:
-
-:at:`limit`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to joint and tendon limit constraints.
-
-.. _option-flag-contact:
-
-:at:`contact`: :at-val:`[disable, enable], "enable"`
-   This flag disables collision detection and all standard computations related to contact constraints.
-
-.. _option-flag-passive:
-
-:at:`passive`: :at-val:`[disable, enable], "enable"`
-   This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
-   forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
-
-.. _option-flag-gravity:
-
-:at:`gravity`: :at-val:`[disable, enable], "enable"`
-   This flag causes the gravitational acceleration vector in mjOption to be replaced with (0 0 0) at runtime, without
-   changing the value in mjOption. Once the flag is re-enabled, the value in mjOption is used.
-
-.. _option-flag-clampctrl:
-
-:at:`clampctrl`: :at-val:`[disable, enable], "enable"`
-   This flag disables the clamping of control inputs to all actuators, even if the actuator-specific attributes are set
-   to enable clamping.
-
-.. _option-flag-warmstart:
-
-:at:`warmstart`: :at-val:`[disable, enable], "enable"`
-   This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e., the
-   constraint force) from the previous time step to initialize the iterative optimization. This feature should be
-   disabled when evaluating the dynamics at a collection of states that do not form a trajectory - in which case warm
-   starts make no sense and are likely to slow down the solver.
-
-.. _option-flag-filterparent:
-
-:at:`filterparent`: :at-val:`[disable, enable], "enable"`
-   This flag disables the filtering of contact pairs where the two geoms belong to a parent and child body; recall
-   contact :ref:`selection <coSelection>` in the Computation chapter.
-
-.. _option-flag-actuation:
-
-:at:`actuation`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to actuator forces, including the actuator dynamics. As a
-   result, no actuator forces are applied to the simulation.
-
-.. _option-flag-refsafe:
-
-:at:`refsafe`: :at-val:`[disable, enable], "enable"`
-   This flag enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the
-   simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
-   stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
-   separately for each active constraint.
-
-.. _option-flag-sensor:
-
-:at:`sensor`: :at-val:`[disable, enable], "enable"`
-   This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
-   zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
-
-.. _option-flag-midphase:
-
-:at:`midphase`: :at-val:`[disable, enable], "enable"`
-   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
-   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
-
-.. _option-flag-eulerdamp:
-
-:at:`eulerdamp`: :at-val:`[disable, enable], "enable"`
-   This flag disables implicit integration with respect to joint damping in the Euler integrator. See the
-   :ref:`Numerical Integration<geIntegration>` section for more details.
-
-.. _option-flag-override:
-
-:at:`override`: :at-val:`[disable, enable], "disable"`
-   This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
-
-.. _option-flag-energy:
-
-:at:`energy`: :at-val:`[disable, enable], "disable"`
-   This flag enables the computation of kinetic and potential energy, stored in mjData.energy and displayed in the GUI.
-   This feature adds some CPU time but it is usually negligible. Monitoring energy for a system that is supposed to be
-   energy-conserving is one of the best ways to assess the accuracy of a complex simulation.
-
-.. _option-flag-fwdinv:
-
-:at:`fwdinv`: :at-val:`[disable, enable], "disable"`
-   This flag enables the automatic comparison of forward and inverse dynamics. When enabled, the inverse dynamics is
-   invoked after mj_forward (or internally within mj_step) and the difference in applied forces is recorded in
-   mjData.solver_fwdinv[2]. The first value is the relative norm of the discrepancy in joint space, the next is in
-   constraint space.
-
-.. _option-flag-invdiscrete:
-
-:at:`invdiscrete`: :at-val:`[disable, enable], "disable"`
-   This flag enables discrete-time inverse dynamics with :ref:`mj_inverse` for all
-   :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the
-   :ref:`numerical integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and
-   ``implicitfast``), modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced
-   accelerations :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``.
-   When this flag is enabled, :ref:`mj_inverse` will  interpret ``qacc`` as having been computed from the difference of
-   two sequential velocities, and undo the above modification.
-
-
-.. _option-flag-multiccd:
-
-:at:`multiccd`: :at-val:`[disable, enable], "disable"` |nbsp| |nbsp| |nbsp| (experimental feature)
-   This flag enables multiple-contact collision detection for geom pairs that use the general-purpose convex-convex
-   collider based on :ref:`libccd <coChecking>` e.g., mesh-mesh collisions. This can be useful when the contacting geoms
-   have a flat surface, and the single contact point generated by the convex-convex collider cannot accurately capture
-   the surface contact, leading to instabilities that typically manifest as sliding or wobbling. Multiple contact points
-   are found by rotating the two geoms by ±1e-3 radians around the tangential axes and re-running the collision
-   function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
-   currently considered experimental, and both the behavior and the way it is activated may change in the future.
-
-.. _option-flag-island:
-
-:at:`island`: :at-val:`[disable, enable], "disable"`
-   This flag enables discovery of constraint islands: disjoint sets of constraints and
-   degrees-of-freedom that do not interact. The flag currently has no effect on the physics pipeline, but enabling it
-   allows for `island visualization <https://youtu.be/Vc1tq0fFvQA>`__.
-   In a future release, the constraint solver will exploit the disjoint nature of constraint islands.
 
 .. _body:
 
@@ -3165,6 +2662,12 @@ the direction specified by the dir attribute. It does not have a full spatial fr
    these clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows
    (especially those very close to the light) may be clipped.
 
+.. _body-light-bulbradius:
+
+:at:`radius`: :at-val:`real, "0.02"`
+   Radius of the light, affects shadow softness. This attribute has no effect in MuJoCo's native renderer, but it can be
+   useful when rendering scenes with an external renderer.
+
 .. _body-light-active:
 
 :at:`active`: :at-val:`[false, true], "true"`
@@ -3180,12 +2683,6 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 
 :at:`dir`: :at-val:`real(3), "0 0 -1"`
    Direction of the light.
-
-.. _body-light-radius:
-
-:at:`radius`: :at-val:`real, "0"`
-   Radius of the light, affects shadow softness. This attribute has no effect in MuJoCo's native renderer, but it can be
-   useful when rendering scenes with an external renderer.
 
 .. _body-light-attenuation:
 
@@ -7333,6 +6830,527 @@ This element sets the data for one of the keyframes. They are set in the order i
    Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe.
 
 
+
+.. _visual:
+
+**visual** (*)
+~~~~~~~~~~~~~~
+
+This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
+of mjModel. The settings here affect the visualizer, or more precisely the abstract phase of visualization which
+yields a list of geometric entities for subsequent rendering. The settings here are global, in contrast with the
+element-specific visual settings. The global and element-specific settings refer to non-overlapping properties. Some
+of the global settings affect properties such as triangulation of geometric primitives that cannot be set per element.
+Other global settings affect the properties of decorative objects, i.e., objects such as contact points and force
+arrows which do not correspond to model elements. The visual settings are grouped semantically into several
+subsections.
+|br| This element is a good candidate for the :ref:`file include <CInclude>` mechanism. One can create an XML file with
+coordinated visual settings corresponding to a "theme", and then include this file in multiple models.
+
+.. _visual-global:
+
+:el-prefix:`visual/` |-| **global** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
+is effectively a miscellaneous subsection.
+
+.. _visual-global-fovy:
+
+:at:`fovy`: :at-val:`real, "45"`
+   This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
+   the visualizer even if no cameras are explicitly defined in the model. It is always expressed in degrees, regardless
+   of the setting of the angle attribute of :ref:`compiler <compiler>`, and is also represented in the low level model
+   in degrees. This is because we pass it to OpenGL which uses degrees. The same convention applies to the fovy
+   attribute of the :ref:`camera <body-camera>` element below.
+
+.. _visual-global-ipd:
+
+:at:`ipd`: :at-val:`real, "0.068"`
+   This attribute specifies the inter-pupilary distance of the free camera. It only affects the rendering in
+   stereoscopic mode. The left and right viewpoints are offset by half of this value in the corresponding direction.
+
+.. _visual-global-azimuth:
+
+:at:`azimuth`: :at-val:`real, "90"`
+   This attribute specifies the initial azimuth of the free camera around the vertical z-axis, in degrees. A value of 0
+   corresponds to looking in the positive x direction, while the default value of 90 corresponds to looking in the
+   positive y direction. The look-at point itself is specified by the :ref:`statistic/center<statistic-center>`
+   attribute, while the distance from the look-at point is controlled by the :ref:`statistic/extent<statistic-extent>`
+   attribute.
+
+.. _visual-global-elevation:
+
+:at:`elevation`: :at-val:`real, "-45"`
+   This attribute specifies the initial elevation of the free camera with respect to the lookat point. Note that since
+   this is a rotation around a vector parallel to the camera's X-axis (right in pixel space), *negative* numbers
+   correspond to moving the camera *up* from the horizontal plane, and vice-versa. The look-at point itself is specified
+   by the :ref:`statistic/center<statistic-center>` attribute, while the distance from the look-at point is controlled
+   by the :ref:`statistic/extent<statistic-extent>` attribute.
+
+.. _visual-global-linewidth:
+
+:at:`linewidth`: :at-val:`real, "1"`
+   This attribute specifies the line-width in the sense of OpenGL. It affects the rendering in wire-frame mode.
+
+.. _visual-global-glow:
+
+:at:`glow`: :at-val:`real, "0.3"`
+   The value of this attribute is added to the emission coefficient of all geoms attached to the selected body. As a
+   result, the selected body appears to glow.
+
+.. _visual-global-realtime:
+
+:at:`realtime`: :at-val:`real, "1"`
+   This value sets the initial real-time factor of the model, when loaded in `simulate`. 1: real time. Less than 1:
+   slower than real time. Must be greater than 0.
+
+.. _visual-global-offwidth:
+
+:at:`offwidth`: :at-val:`int, "640"`
+   This and the next attribute specify the size in pixels of the off-screen OpenGL rendering buffer. This attribute
+   specifies the width of the buffer. The size of this buffer can also be adjusted at runtime, but it is usually more
+   convenient to set it in the XML.
+
+.. _visual-global-offheight:
+
+:at:`offheight`: :at-val:`int, "480"`
+   This attribute specifies the height in pixels of the OpenGL off-screen rendering buffer.
+
+.. _visual-global-ellipsoidinertia:
+
+:at:`ellipsoidinertia`: :at-val:`[false, true], "false"`
+   This attribute specifies how the equivalent inertia is visualized. "false":
+   use box, "true": use ellipsoid.
+
+.. _visual-global-bvactive:
+
+:at:`bvactive`: :at-val:`[false, true], "true"`
+   This attribute specifies whether collision and raycasting code should mark elements of Bounding Volume Hierarchies
+   as intersecting, for the purpose of visualization. Setting this attribute to "false" can speed up simulation for
+   models with high-resolution meshes.
+
+.. _visual-quality:
+
+:el-prefix:`visual/` |-| **quality** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element specifies settings that affect the quality of the rendering. Larger values result in higher quality but
+possibly slower speed. Note that :ref:`simulate.cc <saSimulate>` displays the frames per second (FPS). The target FPS is
+60 Hz; if the number shown in the visualizer is substantially lower, this means that the GPU is over-loaded and the
+visualization should somehow be simplified.
+
+.. _visual-quality-shadowsize:
+
+:at:`shadowsize`: :at-val:`int, "4096"`
+   This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
+   shadows. The size of the area over which a :ref:`light <body-light>` can cast shadows also affects smoothness, so
+   these settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to
+   handle significantly larger textures without slowing down.
+
+.. _visual-quality-offsamples:
+
+:at:`offsamples`: :at-val:`int, "4"`
+   This attribute specifies the number of multi-samples for offscreen rendering. Larger values produce better
+   anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
+   affects offscreen rendering. For regular window rendering, multi-sampling is specified in an OS-dependent way when
+   the OpenGL context for the window is first created, and cannot be changed from within MuJoCo.
+   |br| When rendering segmentation images, multi-sampling is automatically disabled so as not to average segmentation
+   indices. However, some rendering backends ignore the automatic disabling. If your segmentation images contain bad
+   indices, try manually setting this attribute to 0.
+
+.. _visual-quality-numslices:
+
+:at:`numslices`: :at-val:`int, "28"`
+   This and the next three attributes specify the density of internally-generated meshes for geometric primitives. Such
+   meshes are only used for rendering, while the collision detector works with the underlying analytic surfaces. This
+   value is passed to the various visualizer functions as the "slices" parameter as used in GLU. It specifies the number
+   of subdivisions around the Z-axis, similar to lines of longitude.
+
+.. _visual-quality-numstacks:
+
+:at:`numstacks`: :at-val:`int, "16"`
+   This value of this attribute is passed to the various visualization functions as the "stacks" parameter as used in
+   GLU. It specifies the number of subdivisions along the Z-axis, similar to lines of latitude.
+
+.. _visual-quality-numquads:
+
+:at:`numquads`: :at-val:`int, "4"`
+   This attribute specifies the number of rectangles for rendering box faces, automatically-generated planes (as opposed
+   to geom planes which have an element-specific attribute with the same function), and sides of height fields. Even
+   though a geometrically correct rendering can be obtained by setting this value to 1, illumination works better for
+   larger values because we use per-vertex illumination (as opposed to per-fragment).
+
+
+.. _visual-headlight:
+
+:el-prefix:`visual/` |-| **headlight** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element is used to adjust the properties of the headlight. There is always a built-in headlight, in addition to any
+lights explicitly defined in the model. The headlight is a directional light centered at the current camera and pointed
+in the direction in which the camera is looking. It does not cast shadows (which would be invisible anyway). Note that
+lights are additive, so if explicit lights are defined in the model, the intensity of the headlight would normally need
+to be reduced.
+
+.. _visual-headlight-ambient:
+
+:at:`ambient`: :at-val:`real(3), "0.1 0.1 0.1"`
+   The ambient component of the headlight, in the sense of OpenGL. The alpha component here and in the next two
+   attributes is set to 1 and cannot be adjusted.
+
+.. _visual-headlight-diffuse:
+
+:at:`diffuse`: :at-val:`real(3), "0.4 0.4 0.4"`
+   The diffuse component of the headlight, in the sense of OpenGL.
+
+.. _visual-headlight-specular:
+
+:at:`specular`: :at-val:`real(3), "0.5 0.5 0.5"`
+   The specular component of the headlight, in the sense of OpenGL.
+
+.. _visual-headlight-active:
+
+:at:`active`: :at-val:`int, "1"`
+   This attribute enables and disables the headlight. A value of 0 means disabled, any other value means enabled.
+
+
+.. _visual-map:
+
+:el-prefix:`visual/` |-| **map** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element is used to specify scaling quantities that affect both the visualization and built-in mouse perturbations.
+Unlike the scaling quantities in the next element which are specific to spatial extent, the quantities here are
+miscellaneous.
+
+.. _visual-map-stiffness:
+
+:at:`stiffness`: :at-val:`real, "100"`
+   This attribute controls the strength of mouse perturbations. The internal perturbation mechanism simulates a
+   mass-spring-damper with critical damping, unit mass, and stiffness given here. Larger values mean that a larger force
+   will be applied for the same displacement between the selected body and the mouse-controlled target.
+
+.. _visual-map-stiffnessrot:
+
+:at:`stiffnessrot`: :at-val:`real, "500"`
+   Same as above but applies to rotational perturbations rather than translational perturbations. Empirically, the
+   rotational stiffness needs to be larger in order for rotational mouse perturbations to have an effect.
+
+.. _visual-map-force:
+
+:at:`force`: :at-val:`real, "0.005"`
+   This attributes controls the visualization of both contact forces and perturbation forces. The length of the rendered
+   force vector equals the force magnitude multiplied by the value of this attribute and divided by the mean body mass
+   for the model (see :ref:`statistic <statistic>` element).
+
+.. _visual-map-torque:
+
+:at:`torque`: :at-val:`real, "0.1"`
+   Same as above, but controls the rendering of contact torque and perturbation torque rather than force (currently
+   disabled).
+
+.. _visual-map-alpha:
+
+:at:`alpha`: :at-val:`real, "0.3"`
+   When transparency is turned on in the visualizer, the geoms attached to all moving bodies are made more transparent.
+   This is done by multiplying the geom-specific alpha values by this value.
+
+.. _visual-map-fogstart:
+
+:at:`fogstart`: :at-val:`real, "3"`
+   The visualizer can simulate linear fog, in the sense of OpenGL. The start position of the fog is the model extent
+   (see :ref:`statistic <statistic>` element) multiplied by the value of this attribute.
+
+.. _visual-map-fogend:
+
+:at:`fogend`: :at-val:`real, "10"`
+   The end position of the fog is the model extent multiplied by the value of this attribute.
+
+.. _visual-map-znear:
+
+:at:`znear`: :at-val:`real, "0.01"`
+   This and the next attribute determine the clipping planes of the OpenGL projection. The near clipping plane is
+   particularly important: setting it too close causes (often severe) loss of resolution in the depth buffer, while
+   setting it too far causes objects of interest to be clipped, making it impossible to zoom in. The distance to the
+   near clipping plane is the model ``extent`` multiplied by the value of this attribute. Must be strictly positive.
+
+.. _visual-map-zfar:
+
+:at:`zfar`: :at-val:`real, "50"`
+   The distance to the far clipping plane is the model ``extent`` multiplied by the value of this attribute.
+
+.. _visual-map-haze:
+
+:at:`haze`: :at-val:`real, "0.3"`
+   Proportion of the distance-to-horizon that is covered by haze (when haze rendering is enabled and a skybox is
+   present).
+
+.. _visual-map-shadowclip:
+
+:at:`shadowclip`: :at-val:`real, "1"`
+   As mentioned above, shadow quality depends on the size of the shadow texture as well as the area where a given light
+   can cast shadows. For directional lights, the area would be infinite unless we limited it somehow. This attribute
+   specifies the limits, as +/- the model extent multiplied by the present value. These limits define a square in the
+   plane orthogonal to the light direction. If a shadow crosses the boundary of this virtual square, it will disappear
+   abruptly, revealing the edges of the square.
+
+.. _visual-map-shadowscale:
+
+:at:`shadowscale`: :at-val:`real, "0.6"`
+   This attribute plays a similar role as the previous one, but applies to spotlights rather than directional lights.
+   Spotlights have a cutoff angle, limited internally to 80 deg. However this angle is often too large to obtain good
+   quality shadows, and it is necessary to limit the shadow to a smaller cone. The angle of the cone in which shadows
+   can be cast is the light cutoff multiplied by the present value.
+
+.. _visual-map-actuatortendon:
+
+:at:`actuatortendon`: :at-val:`real, "2"`
+   Ratio of actuator width to tendon width for rendering of actuators attached to tendons.
+
+
+.. _visual-scale:
+
+:el-prefix:`visual/` |-| **scale** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The settings in this element control the spatial extent of various decorative objects. In all cases, the rendered size
+equals the mean body size (see :ref:`statistic <statistic>` element) multiplied by the value of an attribute
+documented below.
+
+.. _visual-scale-forcewidth:
+
+:at:`forcewidth`: :at-val:`real, "0.1"`
+   The radius of the arrows used to render contact forces and perturbation forces.
+
+.. _visual-scale-contactwidth:
+
+:at:`contactwidth`: :at-val:`real, "0.3"`
+   The radius of the cylinders used to render contact points. The normal direction of the cylinder is aligned with the
+   contact normal. Making the cylinder short and wide results in a "pancake" representation of the tangent plane.
+
+.. _visual-scale-contactheight:
+
+:at:`contactheight`: :at-val:`real, "0.1"`
+   The height of the cylinders used to render contact points.
+
+.. _visual-scale-connect:
+
+:at:`connect`: :at-val:`real, "0.2"`
+   The radius of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
+
+.. _visual-scale-com:
+
+:at:`com`: :at-val:`real, "0.4"`
+   The radius of the spheres used to render the centers of mass of kinematic sub-trees.
+
+.. _visual-scale-camera:
+
+:at:`camera`: :at-val:`real, "0.3"`
+   The size of the decorative object used to represent model cameras in the rendering.
+
+.. _visual-scale-light:
+
+:at:`light`: :at-val:`real, "0.3"`
+   The size of the decorative object used to represent model lights in the rendering.
+
+.. _visual-scale-selectpoint:
+
+:at:`selectpoint`: :at-val:`real, "0.2"`
+   The radius of the sphere used to render the selection point (i.e., the point where the user left-double-clicked to
+   select a body). Note that the local and global coordinates of this point can be printed in the 3D view by activating
+   the corresponding rendering flags. In this way, the coordinates of points of interest can be found.
+
+.. _visual-scale-jointlength:
+
+:at:`jointlength`: :at-val:`real, "1.0"`
+   The length of the arrows used to render joint axes.
+
+.. _visual-scale-jointwidth:
+
+:at:`jointwidth`: :at-val:`real, "0.1"`
+   The radius of the arrows used to render joint axes.
+
+.. _visual-scale-actuatorlength:
+
+:at:`actuatorlength`: :at-val:`real, "0.7"`
+   The length of the arrows used to render actuators acting on scalar joints only.
+
+.. _visual-scale-actuatorwidth:
+
+:at:`actuatorwidth`: :at-val:`real, "0.2"`
+   The radius of the arrows used to render actuators acting on scalar joints only.
+
+.. _visual-scale-framelength:
+
+:at:`framelength`: :at-val:`real, "1.0"`
+   The length of the cylinders used to render coordinate frames. The world frame is automatically scaled relative to
+   this setting.
+
+.. _visual-scale-framewidth:
+
+:at:`framewidth`: :at-val:`real, "0.1"`
+   The radius of the cylinders used to render coordinate frames.
+
+.. _visual-scale-constraint:
+
+:at:`constraint`: :at-val:`real, "0.1"`
+   The radius of the capsules used to render violations in spatial constraints.
+
+.. _visual-scale-slidercrank:
+
+:at:`slidercrank`: :at-val:`real, "0.2"`
+   The radius of the capsules used to render slider-crank mechanisms. The second part of the mechanism is automatically
+   scaled relative to this setting.
+
+.. _visual-scale-frustum:
+
+:at:`frustum`: :at-val:`real, "10"`
+   The distance of the zfar plane from the camera pinhole for rendering the frustum.
+
+
+.. _visual-rgba:
+
+:el-prefix:`visual/` |-| **rgba** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The settings in this element control the color and transparency (rgba) of various decorative objects. We will call this
+combined attribute "color" to simplify terminology below. All values should be in the range [0 1]. An alpha value of 0
+disables the rendering of the corresponding object.
+
+.. _visual-rgba-fog:
+
+:at:`fog`: :at-val:`real(4), "0 0 0 1"`
+   When fog is enabled, the color of all pixels fades towards the color specified here. The spatial extent of the fading
+   is controlled by the fogstart and fogend attributes of the :ref:`map <visual-map>` element above.
+
+.. _visual-rgba-haze:
+
+:at:`haze`: :at-val:`real(4), "1 1 1 1"`
+   Haze color at the horizon, used to transition between an infinite plane and a skybox smoothly. The default creates
+   white haze. To create a seamless transition, make sure the skybox colors near the horizon are similar to the plane
+   color/texture, and set the haze color somewhere in that color gamut.
+
+.. _visual-rgba-force:
+
+:at:`force`: :at-val:`real(4), "1 0.5 0.5 1"`
+   Color of the arrows used to render perturbation forces.
+
+.. _visual-rgba-inertia:
+
+:at:`inertia`: :at-val:`real(4), "0.8 0.2 0.2 0.6"`
+   Color of the boxes used to render equivalent body inertias. This is the only rgba setting that has transparency by
+   default, because it is usually desirable to see the geoms inside the inertia box.
+
+.. _visual-rgba-joint:
+
+:at:`joint`: :at-val:`real(4), "0.2 0.6 0.8 1"`
+   Color of the arrows used to render joint axes.
+
+.. _visual-rgba-actuator:
+
+:at:`actuator`: :at-val:`real(4), "0.2 0.25 0.2 1"`
+   Actuator color for neutral value of the control.
+
+.. _visual-rgba-actuatornegative:
+
+:at:`actuatornegative`: :at-val:`real(4), "0.2 0.6 0.9 1"`
+   Actuator color for most negative value of the control.
+
+.. _visual-rgba-actuatorpositive:
+
+:at:`actuatorpositive`: :at-val:`real(4), "0.9 0.4 0.2 1"`
+   Actuator color for most positive value of the control.
+
+.. _visual-rgba-com:
+
+:at:`com`: :at-val:`real(4), "0.9 0.9 0.9 1"`
+   Color of the spheres used to render sub-tree centers of mass.
+
+.. _visual-rgba-camera:
+
+:at:`camera`: :at-val:`real(4), "0.6 0.9 0.6 1"`
+   Color of the decorative object used to represent model cameras in the rendering.
+
+.. _visual-rgba-light:
+
+:at:`light`: :at-val:`real(4), "0.6 0.6 0.9 1"`
+   Color of the decorative object used to represent model lights in the rendering.
+
+.. _visual-rgba-selectpoint:
+
+:at:`selectpoint`: :at-val:`real(4), "0.9 0.9 0.1 1"`
+   Color of the sphere used to render the selection point.
+
+.. _visual-rgba-connect:
+
+:at:`connect`: :at-val:`real(4), "0.2 0.2 0.8 1"`
+   Color of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
+
+.. _visual-rgba-contactpoint:
+
+:at:`contactpoint`: :at-val:`real(4), "0.9 0.6 0.2 1"`
+   Color of the cylinders used to render contact points.
+
+.. _visual-rgba-contactforce:
+
+:at:`contactforce`: :at-val:`real(4), "0.7 0.9 0.9 1"`
+   Color of the arrows used to render contact forces. When splitting of contact forces into normal and tangential
+   components is enabled, this color is used to render the normal components.
+
+.. _visual-rgba-contactfriction:
+
+:at:`contactfriction`: :at-val:`real(4), "0.9 0.8 0.4 1"`
+   Color of the arrows used to render contact tangential forces, only when splitting is enabled.
+
+.. _visual-rgba-contacttorque:
+
+:at:`contacttorque`: :at-val:`real(4), "0.9 0.7 0.9 1"`
+   Color of the arrows used to render contact torques (currently disabled).
+
+.. _visual-rgba-contactgap:
+
+:at:`contactgap`: :at-val:`real(4), "0.5, 0.8, 0.9, 1"`
+   Color of contacts that fall in the contact gap (and are thereby excluded from contact force computations).
+
+.. _visual-rgba-rangefinder:
+
+:at:`rangefinder`: :at-val:`real(4), "1 1 0.1 1"`
+   Color of line geoms used to render rangefinder sensors.
+
+.. _visual-rgba-constraint:
+
+:at:`constraint`: :at-val:`real(4), "0.9 0 0 1"`
+   Color of the capsules corresponding to spatial constraint violations.
+
+.. _visual-rgba-slidercrank:
+
+:at:`slidercrank`: :at-val:`real(4), "0.5 0.3 0.8 1"`
+   Color of slider-crank mechanisms.
+
+.. _visual-rgba-crankbroken:
+
+:at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
+   Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
+   cannot be maintained, i.e., it is "broken".
+
+.. _visual-rgba-frustum:
+
+:at:`frustum`: :at-val:`real(4), "1 1 0 0.2"`
+   Color used to render the camera frustum.
+
+.. _visual-rgba-bv:
+
+:at:`bv`: :at-val:`real(4), "0 1 0 0.5"`
+   Color used to render bounding volumes.
+
+.. _visual-rgba-bvactive:
+
+:at:`bvactive`: :at-val:`real(4), "1 0 0 0.5"`
+   Color used to render active bounding volumes, if the :ref:`bvactive<visual-global-bvactive>` flag is "true".
+
+
+
 .. _default:
 
 **default** (R)
@@ -7371,6 +7389,10 @@ if omitted.
 .. _default-material-shininess:
 
 .. _default-material-reflectance:
+
+.. _default-material-metallic:
+
+.. _default-material-roughness:
 
 .. _default-material-rgba:
 
@@ -7592,7 +7614,7 @@ if omitted.
 
 .. _default-light-dir:
 
-.. _default-light-radius:
+.. _default-light-bulbradius:
 
 .. _default-light-directional:
 

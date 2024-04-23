@@ -284,35 +284,54 @@ def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
   if d.ncon == 0:
     return None
 
-  @jax.vmap
-  def fn(c: Contact):
-    dist = c.dist - c.includemargin
-    geom_bodyid = jp.array(m.geom_bodyid)
-    body1, body2 = geom_bodyid[c.geom1], geom_bodyid[c.geom2]
-    diff = support.jac_dif_pair(m, d, c.pos, body1, body2)
-    t = m.body_invweight0[body1, 0] + m.body_invweight0[body2, 0]
+  def contact_efc(c: Contact, condim: int):
 
-    # rotate Jacobian differences to contact frame
-    diff_con = c.frame @ diff.T
+    @jax.vmap
+    def fn(c: Contact):
+      dist = c.dist - c.includemargin
+      active = dist < 0
+      body1, body2 = jp.array(m.geom_bodyid)[c.geom]
+      jac1p, jac1r = support.jac(m, d, c.pos, body1)
+      jac2p, jac2r = support.jac(m, d, c.pos, body2)
+      diff = c.frame @ (jac2p - jac1p).T
+      if condim > 3:  # only calculate rotational diff if needed
+        diff = jp.concatenate((diff, c.frame @ (jac2r - jac1r).T), axis=0)
+      tran = m.body_invweight0[body1, 0] + m.body_invweight0[body2, 0]
 
-    # TODO(robotics-simulation): add support for other friction dimensions
-    # 4 pyramidal friction directions
-    js, invweights = [], []
-    for diff_tan, friction in zip(diff_con[1:], c.friction[:2]):
-      for f in (friction, -friction):
-        js.append(diff_con[0] + diff_tan * f)
-        invweights.append((t + f * f * t) * 2 * f * f / m.opt.impratio)
+      if condim == 1:
+        return diff[0] * active, tran, dist * active, c.solref, c.solimp
 
-    active = dist < 0
-    j, invweight = jp.stack(js) * active, jp.stack(invweights)
-    pos = jp.repeat(dist, 4) * active
-    solref, solimp = jp.tile(c.solref, (4, 1)), jp.tile(c.solimp, (4, 1))
+      # a pair of opposing pyramid edges per friction dimension
+      # repeat friction directions with positive and negative sign
+      fri = jp.repeat(c.friction[: condim - 1], 2, axis=0).at[1::2].mul(-1)
+      # repeat condims of jacdiff to match +/- friction directions
+      j = diff[0] + jp.repeat(diff[1:condim], 2, axis=0) * fri[:, None]
+      # pyramidal has common invweight across all edges
+      diag_approx = tran + fri[0] * fri[0] * tran
+      inv_w = diag_approx * 2 * fri[0] * fri[0] / m.opt.impratio
+      repeat_fn = lambda x: jp.repeat(x[None], (condim - 1) * 2, axis=0)
+      inv_w, pos, solref, solimp = jax.tree_util.tree_map(
+          repeat_fn, (inv_w, dist, c.solref, c.solimp)
+      )
+      return j * active, inv_w, pos * active, solref, solimp
 
-    return j, invweight, pos, solref, solimp
+    return fn(c)
 
-  res = fn(d.contact)
-  # remove contact grouping dimension:
-  j, invweight, pos, solref, solimp = jax.tree_util.tree_map(jp.concatenate, res)
+  # group efc calculations by condim
+  dims, begs = np.unique(d.contact.dim, return_index=True)
+  efcs = []
+  for i in range(len(dims)):
+    dim, beg = dims[i], begs[i]
+    end = begs[i + 1] if i < len(dims) - 1 else None
+    c = jax.tree_util.tree_map(lambda x, b=beg, e=end: x[b:e], d.contact)
+    efc = contact_efc(c, dim)
+    if dim > 1:
+      # remove efc grouping dimension
+      efc = jax.tree_util.tree_map(jp.concatenate, efc)
+    efcs.append(efc)
+
+  efc = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *efcs)
+  j, invweight, pos, solref, solimp = efc
   frictionloss = jp.zeros_like(pos)
 
   return _Efc(j, pos, pos, invweight, solref, solimp, frictionloss)
@@ -323,7 +342,9 @@ def counts(efc_type: np.ndarray) -> Tuple[int, int, int, int]:
   ne = (efc_type == ConstraintType.EQUALITY).sum()
   nf = 0  # no support for friction loss yet
   nl = (efc_type == ConstraintType.LIMIT_JOINT).sum()
-  nc = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
+  nc_f = (efc_type == ConstraintType.CONTACT_FRICTIONLESS).sum()
+  nc_p = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
+  nc = nc_f + nc_p
 
   return ne, nf, nl, nc
 

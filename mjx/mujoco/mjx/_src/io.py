@@ -68,9 +68,6 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if m.ntendon:
     raise NotImplementedError('tendons are not supported')
 
-  if (m.geom_condim != 3).any() or (m.pair_dim != 3).any():
-    raise NotImplementedError('only condim=3 is supported')
-
   if m.body_gravcomp.any():
     raise NotImplementedError('gravcomp is not supported')
 
@@ -321,13 +318,27 @@ def _make_contact(
   """Converts mujoco.structs._MjContactList into mjx.Contact."""
   fields = {f.name: getattr(c, f.name) for f in types.Contact.fields()}
   fields['frame'] = fields['frame'].reshape((-1, 3, 3))
-  pad_size = dim.size - c.dist.shape[0]
-  pad_fn = lambda x: np.concatenate(
-      (x, np.zeros((pad_size,) + x.shape[1:], dtype=x.dtype))
-  )
-  fields = jax.tree_util.tree_map(pad_fn, fields)
-  fields['dist'][-pad_size:] = np.inf
-  # TODO(erikfrey): move contacts to appropriate dim index
+  # reorder contacts so that their condims match those specified in dim.
+  # if we have fewer Contacts for a condim range, pad the range with zeros
+
+  # build a map for where to find a dim-matching contact, or -1 if none
+  contact_map = np.zeros_like(dim) - 1
+  for i, di in enumerate(fields['dim']):
+    space = [j for j, dj in enumerate(dim) if di == dj and contact_map[j] == -1]
+    if not space:
+      # this can happen if max_geom_pairs or max_contact_points is too low
+      raise ValueError(f'unable to place Contact[{i}], no space in condim {di}')
+    contact_map[space[0]] = i
+
+  if contact_map.size > 0:
+    # reorganize contact according, with a zero contact at the end for -1
+    zero = jax.tree_util.tree_map(
+        lambda x: np.zeros((1,) + x.shape[1:], dtype=x.dtype), fields
+    )
+    zero['dist'][:] = np.finfo(float).max
+    fields = jax.tree_util.tree_map(lambda *x: np.concatenate(x), fields, zero)
+    fields = jax.tree_util.tree_map(lambda x: x[contact_map], fields)
+
   fields['dim'] = dim
   fields['efc_address'] = efc_address
 
@@ -398,9 +409,7 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
     fields['qLDiagInv'] = np.zeros(0)
 
   fields['contact'] = _make_contact(d.contact, dim, efc_address)
-  fields.update(
-      dict(ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type)
-  )
+  fields.update(ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type)
 
   # copy because device_put is async:
   data = types.Data(**{k: copy.copy(v) for k, v in fields.items()})

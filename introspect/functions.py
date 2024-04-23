@@ -774,7 +774,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='size',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='size_t'),
              ),
          ),
          doc='Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
@@ -794,7 +794,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='size',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='size_t'),
              ),
          ),
          doc='Allocate array of ints on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long

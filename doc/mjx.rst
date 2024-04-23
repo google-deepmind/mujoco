@@ -191,7 +191,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``
    * - :ref:`Equality <mjtEq>`
      - ``CONNECT``, ``WELD``, ``JOINT``
    * - :ref:`Integrator <mjtIntegrator>`
@@ -199,7 +199,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Cone <mjtCone>`
      - ``PYRAMIDAL``
    * - :ref:`Condim <coContact>`
-     - 3
+     - 1, 3, 4, 6
    * - :ref:`Solver <mjtSolver>`
      - ``CG``, ``NEWTON``
    * - Fluid Model
@@ -217,10 +217,8 @@ The following features are **in development** and coming soon:
      - Feature
    * - :ref:`Geom <mjtGeom>`
      - ``SDF``, ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
-   * - :ref:`Condim <coContact>`
-     - 1, 4, 6
    * - :ref:`Constraint <mjtConstraint>`
-     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+     - :ref:`Frictionloss <coFriction>`, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - Dynamics

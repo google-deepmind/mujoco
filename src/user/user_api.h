@@ -347,7 +347,6 @@ typedef struct _mjsLight {         // light specification
   // frame
   double pos[3];                   // position
   double dir[3];                   // direction
-  double radius;                   // radius
   mjtCamLight mode;                // tracking mode
   mjString targetbody;             // target body for targeting
 
@@ -355,6 +354,7 @@ typedef struct _mjsLight {         // light specification
   mjtByte active;                  // is light active
   mjtByte directional;             // is light directional or spot
   mjtByte castshadow;              // does light cast shadows
+  double bulbradius;               // bulb radius, for soft shadows
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
   float exponent;                  // OpenGL exponent
@@ -515,6 +515,8 @@ typedef struct _mjsMaterial {      // material specification
   float specular;                  // specular
   float shininess;                 // shininess
   float reflectance;               // reflectance
+  float metallic;                  // metallic
+  float roughness;                 // roughness
   float rgba[4];                   // rgba
   mjString info;                   // message appended to compiler errors
 } mjsMaterial;
@@ -715,8 +717,8 @@ typedef struct _mjsKey {           // keyframe specification
 
 
 typedef struct _mjsDefault {       // default specification
-  mjString name;                   // name
   mjElement* element;              // element type
+  mjString name;                   // class name
   mjsJoint* joint;                 // joint defaults
   mjsGeom* geom;                   // geom defaults
   mjsSite* site;                   // site defaults
@@ -762,9 +764,12 @@ MJAPI void mjs_deleteSpec(mjSpec* s);
 MJAPI int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                          const char* prefix, const char* suffix);
 
-// Attach child frame to a parent body, return 0 if success.
+// Attach child frame to a parent body, return 0 on success.
 MJAPI int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix);
+
+// Detach body from mjSpec, remove all references, return 0 on success.
+MJAPI int mjs_detachBody(mjSpec* s, const mjsBody* b);
 
 
 //---------------------------------- Add tree elements ---------------------------------------------
@@ -792,6 +797,9 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, mjsDefault* def);
 
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
+
+// Delete body. TODO: make this a general mjs_deleteElement function
+MJAPI void mjs_deleteBody(mjsBody* b);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------

@@ -264,6 +264,29 @@ class EllipsoidCollisionTest(parameterized.TestCase):
       _assert_attr_eq(
           dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-4)
 
+  _ELLIPSOID_CYLINDER = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".15 .05" type="cylinder"/>
+        </body>
+        <body pos="0 0 0.09">
+          <freejoint/>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_ellipsoid_cylinder(self):
+    """Tests ellipsoid cylinder contact."""
+    d, dx = _collide(self._ELLIPSOID_CYLINDER)
+    d.contact.pos[0][2] = 0.04  # MJX finds the deepest point on the surface
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'ellipsoid-cylinder', 1e-4)
+
 
 class CapsuleCollisionTest(parameterized.TestCase):
   _CAP_PLANE = """
@@ -775,7 +798,8 @@ class DimTest(parameterized.TestCase):
   def test_ncon(self):
     m = test_util.load_test_file('constraints.xml')
     dim = collision_driver.make_condim(m)
-    np.testing.assert_array_equal(dim, np.array([3] * 16))
+    expected = [1] * 4 + [3] * 20 + [4] * 4 + [6] * 4
+    np.testing.assert_array_equal(dim, np.array(expected))
 
   def test_disable_contact(self):
     m = test_util.load_test_file('constraints.xml')
