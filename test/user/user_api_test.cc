@@ -36,7 +36,7 @@ using ::testing::HasSubstr;
 using ::testing::NotNull;
 
 
-// ----------------------------- test set/get  --------------------------------
+// ----------------------------- test set/get  ---------------------------------
 
 TEST_F(MujocoTest, ReadWriteData) {
   mjSpec* spec = mjs_createSpec();
@@ -63,7 +63,7 @@ TEST_F(MujocoTest, ReadWriteData) {
   mjs_deleteSpec(spec);
 }
 
-// ------------------- test recompilation multiple files ----------------------
+// ------------------- test recompilation multiple files -----------------------
 TEST_F(PluginTest, RecompileCompare) {
   mjtNum tol = 0;
   std::string field = "";
@@ -195,15 +195,21 @@ TEST_F(PluginTest, RecompileCompareCache) {
   mj_deleteVFS(vfs.get());
 }
 
-// -------------------------------- test attach -------------------------------
+// -------------------------------- test attach --------------------------------
 static constexpr char xml_child[] = R"(
   <mujoco>
+    <default>
+      <default class="cylinder">
+        <geom type="cylinder" size=".1 1 0"/>
+      </default>
+    </default>
+
     <worldbody>
       <frame name="pframe">
         <frame name="cframe">
           <body name="body">
             <joint type="hinge" name="hinge"/>
-            <geom type="cylinder" size=".1 1 0"/>
+            <geom class="cylinder"/>
             <light mode="targetbody" target="targetbody"/>
             <body name="targetbody"/>
             <body/>
@@ -213,19 +219,23 @@ static constexpr char xml_child[] = R"(
       <body name="ignore"/>
       <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
     </worldbody>
+
     <sensor>
       <framepos name="sensor" objtype="body" objname="body"/>
       <framepos name="ignore" objtype="body" objname="ignore"/>
     </sensor>
+
     <tendon>
       <fixed name="fixed">
         <joint joint="hinge" coef="2"/>
       </fixed>
     </tendon>
+
     <actuator>
       <position name="hinge" joint="hinge"/>
       <position name="fixed" tendon="fixed"/>
     </actuator>
+
     <contact>
       <exclude body1="body" body2="targetbody"/>
     </contact>
@@ -238,10 +248,16 @@ TEST_F(MujocoTest, AttachSame) {
 
   static constexpr char xml_result[] = R"(
   <mujoco>
+    <default>
+      <default class="cylinder">
+        <geom type="cylinder" size=".1 1 0"/>
+      </default>
+    </default>
+
     <worldbody>
       <body name="body">
         <joint type="hinge" name="hinge"/>
-        <geom type="cylinder" size=".1 1 0"/>
+        <geom class="cylinder"/>
         <light mode="targetbody" target="targetbody"/>
         <body name="targetbody"/>
         <body/>
@@ -250,18 +266,20 @@ TEST_F(MujocoTest, AttachSame) {
       <frame name="frame" pos=".1 0 0" euler="0 90 0">
         <body name="attached-body-1">
           <joint type="hinge" name="attached-hinge-1"/>
-          <geom type="cylinder" size=".1 1 0"/>
+          <geom class="cylinder"/>
           <light mode="targetbody" target="attached-targetbody-1"/>
           <body name="attached-targetbody-1"/>
           <body/>
         </body>
       </frame>
     </worldbody>
+
     <sensor>
       <framepos name="sensor" objtype="body" objname="body"/>
       <framepos name="ignore" objtype="body" objname="ignore"/>
       <framepos name="attached-sensor-1" objtype="body" objname="attached-body-1"/>
     </sensor>
+
     <tendon>
       <fixed name="fixed">
         <joint joint="hinge" coef="2"/>
@@ -270,12 +288,14 @@ TEST_F(MujocoTest, AttachSame) {
         <joint joint="attached-hinge-1" coef="2"/>
       </fixed>
     </tendon>
+
     <actuator>
       <position name="hinge" joint="hinge"/>
       <position name="fixed" tendon="fixed"/>
       <position name="attached-hinge-1" joint="attached-hinge-1"/>
       <position name="attached-fixed-1" tendon="attached-fixed-1"/>
     </actuator>
+
     <contact>
       <exclude body1="body" body2="targetbody"/>
       <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
@@ -328,10 +348,16 @@ TEST_F(MujocoTest, AttachDifferent) {
 
   static constexpr char xml_parent[] = R"(
   <mujoco>
+    <default>
+      <default class="geom_size">
+        <geom size="0.1"/>
+      </default>
+    </default>
+
     <worldbody>
       <body name="sphere">
         <freejoint/>
-        <geom size=".1"/>
+        <geom class="geom_size"/>
         <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
       </body>
     </worldbody>
@@ -339,14 +365,23 @@ TEST_F(MujocoTest, AttachDifferent) {
 
   static constexpr char xml_result[] = R"(
   <mujoco>
+    <default>
+      <default class="geom_size">
+        <geom size="0.1"/>
+      </default>
+      <default class="attached-cylinder-1">
+        <geom type="cylinder" size=".1 1 0"/>
+      </default>
+    </default>
+
     <worldbody>
       <body name="sphere">
         <freejoint/>
-        <geom size=".1"/>
+        <geom class="geom_size"/>
         <frame name="frame" pos=".1 0 0" euler="0 90 0">
           <body name="attached-body-1">
             <joint type="hinge" name="attached-hinge-1"/>
-            <geom type="cylinder" size=".1 1 0"/>
+            <geom class="attached-cylinder-1"/>
             <light mode="targetbody" target="attached-targetbody-1"/>
               <body name="attached-targetbody-1"/>
               <body/>
@@ -354,18 +389,22 @@ TEST_F(MujocoTest, AttachDifferent) {
         </frame>
       </body>
     </worldbody>
+
     <sensor>
       <framepos name="attached-sensor-1" objtype="body" objname="attached-body-1"/>
     </sensor>
+
     <tendon>
       <fixed name="attached-fixed-1">
         <joint joint="attached-hinge-1" coef="2"/>
       </fixed>
     </tendon>
+
     <actuator>
       <position name="attached-hinge-1" joint="attached-hinge-1"/>
       <position name="attached-fixed-1" tendon="attached-fixed-1"/>
     </actuator>
+
     <contact>
       <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
     </contact>
@@ -433,6 +472,12 @@ TEST_F(MujocoTest, AttachFrame) {
 
   static constexpr char xml_result[] = R"(
   <mujoco>
+    <default>
+      <default class="attached-cylinder-1">
+        <geom type="cylinder" size=".1 1 0"/>
+      </default>
+    </default>
+
     <worldbody>
       <body name="sphere">
         <freejoint/>
@@ -442,7 +487,7 @@ TEST_F(MujocoTest, AttachFrame) {
           <frame name="cframe">
             <body name="attached-body-1">
               <joint type="hinge" name="attached-hinge-1"/>
-              <geom type="cylinder" size=".1 1 0"/>
+              <geom class="attached-cylinder-1"/>
               <light mode="targetbody" target="attached-targetbody-1"/>
                 <body name="attached-targetbody-1"/>
                 <body/>
@@ -451,18 +496,22 @@ TEST_F(MujocoTest, AttachFrame) {
         </frame>
       </body>
     </worldbody>
+
     <sensor>
       <framepos name="attached-sensor-1" objtype="body" objname="attached-body-1"/>
     </sensor>
+
     <tendon>
       <fixed name="attached-fixed-1">
         <joint joint="attached-hinge-1" coef="2"/>
       </fixed>
     </tendon>
+
     <actuator>
       <position name="attached-hinge-1" joint="attached-hinge-1"/>
       <position name="attached-fixed-1" tendon="attached-fixed-1"/>
     </actuator>
+
     <contact>
       <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
     </contact>
