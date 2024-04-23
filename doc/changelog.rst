@@ -39,14 +39,15 @@ MJX
 11. Fixed a bug where capsules might be ignored in broadphase colliision checking.
 12. Added cylinder collisions using SDFs.
 13. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
+14. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
 
 Bug fixes
 ^^^^^^^^^
-14. Defaults of lights were not being saved, now fixed.
-15. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-16. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+15. Defaults of lights were not being saved, now fixed.
+16. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+17. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-16. Fixed bug that prevented memory allocations larger than 2.15 GB.
+18. Fixed bug that prevented memory allocations larger than 2.15 GB.
 
 
 Version 3.1.4 (April 10th, 2024)

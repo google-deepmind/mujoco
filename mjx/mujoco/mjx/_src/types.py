@@ -98,6 +98,7 @@ class GeomType(enum.IntEnum):
     CYLINDER: cylinder
     BOX: box
     MESH: mesh
+    SDF: signed distance field
   """
 
   PLANE = mujoco.mjtGeom.mjGEOM_PLANE
@@ -326,6 +327,9 @@ class Model(PyTreeNode):
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
     nnumeric: number of numeric custom fields
+    ntuple: number of tuple custom fields
+    nsensor: number of sensors
+    nkey: number of keyframes
     nuserdata: size of userdata array
     nM: number of non-zeros in sparse inertia matrix
     opt: physics options
@@ -448,8 +452,24 @@ class Model(PyTreeNode):
     actuator_gear: scale length and transmitted force         (nu, 6)
     numeric_adr: address of field in numeric_data             (nnumeric,)
     numeric_data: array of all numeric fields                 (nnumericdata,)
+    tuple_adr: address of text in text_data                   (ntuple,)
+    tuple_size: number of objects in tuple                    (ntuple,)
+    tuple_objtype: array of object types in all tuples        (ntupledata,)
+    tuple_objid: array of object ids in all tuples            (ntupledata,)
+    tuple_objprm: array of object params in all tuples        (ntupledata,)
+    name_bodyadr: body name pointers                          (nbody,)
+    name_jntadr: joint name pointers                          (njnt,)
+    name_geomadr: geom name pointers                          (ngeom,)
+    name_siteadr: site name pointers                          (nsite,)
+    name_camadr: camera name pointers                         (ncam,)
     name_meshadr: mesh name pointers                          (nmesh,)
+    name_pairadr: geom pair name pointers                     (npair,)
+    name_eqadr: equality constraint name pointers             (neq,)
+    name_actuatoradr: actuator name pointers                  (nu,)
+    name_sensoradr: sensor name pointers                      (nsensor,)
     name_numericadr: numeric name pointers                    (nnumeric,)
+    name_tupleadr: tuple name pointers                        (ntuple,)
+    name_keyadr: keyframe name pointers                       (nkey,)
     names: names of all objects, 0-terminated                 (nnames,)
   """
   nq: int
@@ -470,6 +490,9 @@ class Model(PyTreeNode):
   neq: int
   nnumeric: int
   nuserdata: int
+  ntuple: int
+  nsensor: int
+  nkey: int
   nM: int  # pylint:disable=invalid-name
   opt: Option
   stat: Statistic
@@ -591,8 +614,24 @@ class Model(PyTreeNode):
   actuator_gear: jax.Array
   numeric_adr: np.ndarray
   numeric_data: np.ndarray
+  tuple_adr: np.ndarray
+  tuple_size: np.ndarray
+  tuple_objtype: np.ndarray
+  tuple_objid: np.ndarray
+  tuple_objprm: np.ndarray
+  name_bodyadr: np.ndarray
+  name_jntadr: np.ndarray
+  name_geomadr: np.ndarray
+  name_siteadr: np.ndarray
+  name_camadr: np.ndarray
   name_meshadr: np.ndarray
+  name_pairadr: np.ndarray
+  name_eqadr: np.ndarray
+  name_actuatoradr: np.ndarray
+  name_sensoradr: np.ndarray
   name_numericadr: np.ndarray
+  name_tupleadr: np.ndarray
+  name_keyadr: np.ndarray
   names: bytes
 
 

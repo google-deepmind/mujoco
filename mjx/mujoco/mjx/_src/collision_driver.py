@@ -305,6 +305,11 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
   return groups
 
 
+def _numeric(m: Union[Model, mujoco.MjModel], name: str) -> int:
+  id_ = support.name2id(m, mujoco.mjtObj.mjOBJ_NUMERIC, name)
+  return int(m.numeric_data[id_]) if id_ >= 0 else -1
+
+
 def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
   """Returns the dims of the contacts for a Model."""
   if m.opt.disableflags & DisableBit.CONTACT:
@@ -314,7 +319,8 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
 
   # max_geom_pairs limits the number of pairs we process in a collision function
   # by first running a primitive broad phase culling on the pairs
-  max_geom_pairs = support.get_custom_int(m, 'max_geom_pairs')
+  max_geom_pairs = _numeric(m, 'max_geom_pairs')
+
   if max_geom_pairs > -1:
     for k in group_counts:
       if set(k.types) & _GEOM_NO_BROADPHASE:
@@ -323,7 +329,7 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
 
   # max_contact_points limits the number of contacts emitted by selecting the
   # contacts with the most penetration after calling collision functions
-  max_contact_points = support.get_custom_int(m, 'max_contact_points')
+  max_contact_points = _numeric(m, 'max_contact_points')
 
   condim_counts = {}
   for k, v in group_counts.items():
@@ -344,8 +350,8 @@ def collision(m: Model, d: Data) -> Data:
     return d
 
   groups = _contact_groups(m, d)
-  max_geom_pairs = support.get_custom_int(m, 'max_geom_pairs')
-  max_contact_points = support.get_custom_int(m, 'max_contact_points')
+  max_geom_pairs = _numeric(m, 'max_geom_pairs')
+  max_contact_points = _numeric(m, 'max_contact_points')
 
   # run collision functions on groups
   for key, contact in groups.items():
