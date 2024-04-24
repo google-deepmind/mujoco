@@ -89,7 +89,8 @@ int filetype(const char* filename) {
 
 
 // main function
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
+
   // model and error
   mjModel* m = 0;
   char error[1000];
