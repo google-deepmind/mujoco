@@ -68,9 +68,6 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if m.ntendon:
     raise NotImplementedError('tendons are not supported')
 
-  if m.body_gravcomp.any():
-    raise NotImplementedError('gravcomp is not supported')
-
   for g1, g2, ip in collision_driver.geom_pairs(m):
     t1, t2 = m.geom_type[[g1, g2]]
     # check collision function exists for type pair
@@ -201,6 +198,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       cvel=zero_nbody_6,
       cdof_dot=zero_nv_6,
       qfrc_bias=zero_nv,
+      qfrc_gravcomp=zero_nv,
       qfrc_passive=zero_nv,
       efc_aref=zero_nefc,
       qfrc_actuator=zero_nv,

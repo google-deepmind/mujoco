@@ -326,6 +326,7 @@ class Model(PyTreeNode):
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
+    ngravcomp: number of bodies with nonzero gravcomp
     nnumeric: number of numeric custom fields
     ntuple: number of tuple custom fields
     nsensor: number of sensors
@@ -352,6 +353,7 @@ class Model(PyTreeNode):
     body_mass: mass                                           (nbody,)
     body_subtreemass: mass of subtree starting at this body   (nbody,)
     body_inertia: diagonal inertia in ipos/iquat frame        (nbody, 3)
+    body_gravcomp: antigravity force, units of body weight    (nbody,)
     body_invweight0: mean inv inert in qpos0 (trn, rot)       (nbody, 2)
     jnt_type: type of joint (mjtJoint)                        (njnt,)
     jnt_qposadr: start addr in 'qpos' for joint's data        (njnt,)
@@ -359,6 +361,8 @@ class Model(PyTreeNode):
     jnt_bodyid: id of joint's body                            (njnt,)
     jnt_group: group for visibility                           (njnt,)
     jnt_limited: does joint have limits                       (njnt,)
+    jnt_actfrclimited: does joint have actuator force limits  (njnt,)
+    jnt_actgravcomp: is gravcomp force applied via actuators  (njnt,)
     jnt_solref: constraint solver reference: limit            (njnt, mjNREF)
     jnt_solimp: constraint solver impedance: limit            (njnt, mjNIMP)
     jnt_pos: local anchor position                            (njnt, 3)
@@ -488,6 +492,7 @@ class Model(PyTreeNode):
   npair: int
   nexclude: int
   neq: int
+  ngravcomp: int
   nnumeric: int
   nuserdata: int
   ntuple: int
@@ -514,6 +519,7 @@ class Model(PyTreeNode):
   body_mass: jax.Array
   body_subtreemass: jax.Array
   body_inertia: jax.Array
+  body_gravcomp: jax.Array
   body_invweight0: jax.Array
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
@@ -521,6 +527,7 @@ class Model(PyTreeNode):
   jnt_bodyid: np.ndarray
   jnt_limited: np.ndarray
   jnt_actfrclimited: np.ndarray
+  jnt_actgravcomp: np.ndarray
   jnt_solref: jax.Array
   jnt_solimp: jax.Array
   jnt_pos: jax.Array
@@ -671,7 +678,7 @@ class Contact(PyTreeNode):
 
 
 class Data(PyTreeNode):
-  r"""Dynamic state that updates each step.
+  r"""\Dynamic state that updates each step.
 
   Attributes:
     ne: number of equality constraints
@@ -725,6 +732,7 @@ class Data(PyTreeNode):
     cvel: com-based velocity [3D rot; 3D tran]                    (nbody, 6)
     cdof_dot: time-derivative of cdof                             (nv, 6)
     qfrc_bias: C(qpos,qvel)                                       (nv,)
+    qfrc_gravcomp: passive gravity compensation force             (nv,)
     qfrc_passive: passive force                                   (nv,)
     efc_aref: reference pseudo-acceleration                       (nefc,)
     qfrc_actuator: actuator force                                 (nv,)
@@ -795,6 +803,7 @@ class Data(PyTreeNode):
   cdof_dot: jax.Array
   qfrc_bias: jax.Array
   qfrc_passive: jax.Array
+  qfrc_gravcomp: jax.Array
   efc_aref: jax.Array
   # position, velcoity, control & acceleration dependent:
   qfrc_actuator: jax.Array
