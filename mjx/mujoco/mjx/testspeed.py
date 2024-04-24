@@ -47,8 +47,9 @@ _OUTPUT = flags.DEFINE_enum(
 
 def _main(argv: Sequence[str]):
   """Runs testpeed function."""
-  base_path = _BASE_PATH.value or epath.resource_path('mujoco.mjx')
-  f = base_path / 'test_data' / _MJCF.value
+  path = epath.resource_path('mujoco.mjx') / 'test_data'
+  path = _BASE_PATH.value or path
+  f = epath.Path(path) / _MJCF.value
   m = mujoco.MjModel.from_xml_path(f.as_posix())
 
   print(f'Rolling out {_NSTEP.value} steps at dt = {m.opt.timestep:.3f}...')
