@@ -1289,7 +1289,7 @@ TEST_F(ActuatorParseTest, DamperRequiresControlRange) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid control range"));
-  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, DamperPositiveControlRange) {
@@ -1505,7 +1505,7 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange for actuator"));
-  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {

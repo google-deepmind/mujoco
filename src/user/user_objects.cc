@@ -61,7 +61,7 @@ static void checksize(double* size, mjtGeom type, mjCBase* object, const char* n
   // plane: handle infinite
   if (type==mjGEOM_PLANE) {
     if (size[2]<=0) {
-      throw mjCError(object, "plane size(3) must be positive in object '%s' (id = %d)", name, id);
+      throw mjCError(object, "plane size(3) must be positive");
     }
   }
 
@@ -69,7 +69,7 @@ static void checksize(double* size, mjtGeom type, mjCBase* object, const char* n
   else {
     for (int i=0; i<mjGEOMINFO[type]; i++) {
       if (size[i]<=0) {
-        throw mjCError(object, "sizes must be positive in object '%s' (id = %d)", name, id);
+        throw mjCError(object, "size %d must be positive in geom", "", i);
       }
     }
   }
@@ -159,14 +159,14 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
     mju::strcat_arr(message, temp);
   }
 
-  // append info from mjCBase object
+  // append info from mjCBase element
   if (obj) {
     // with or without xml position
     if (!obj->info.empty()) {
-      mju::sprintf_arr(temp, "Object name = %s, id = %d, %s",
+      mju::sprintf_arr(temp, "Element name '%s', id %d, %s",
                        obj->name.c_str(), obj->id, obj->info.c_str());
     } else {
-      mju::sprintf_arr(temp, "Object name = %s, id = %d", obj->name.c_str(), obj->id);
+      mju::sprintf_arr(temp, "Element name '%s', id %d", obj->name.c_str(), obj->id);
     }
 
     // append to message
@@ -1244,8 +1244,7 @@ void mjCBody::Compile(void) {
 
   // resize userdata
   if (userdata_.size() > model->nuser_body) {
-    throw mjCError(this, "user has more values than nuser_body in body '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "user has more values than nuser_body in body");
   }
   userdata_.resize(model->nuser_body);
 
@@ -1627,17 +1626,14 @@ int mjCJoint::Compile(void) {
 
   // resize userdata
   if (userdata_.size() > model->nuser_jnt) {
-    throw mjCError(this, "user has more values than nuser_jnt in joint '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "user has more values than nuser_jnt in joint");
   }
   userdata_.resize(model->nuser_jnt);
 
   // check springdamper
   if (springdamper[0] || springdamper[1]) {
     if (springdamper[0]<=0 || springdamper[1]<=0) {
-      throw mjCError(this,
-                     "when defined, springdamper values must be positive in joint '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "when defined, springdamper values must be positive in joint");
     }
   }
 
@@ -1655,12 +1651,10 @@ int mjCJoint::Compile(void) {
   if (is_limited()) {
     // check data
     if (range[0]>=range[1] && type!=mjJNT_BALL) {
-      throw mjCError(this,
-                     "range[0] should be smaller than range[1] in joint '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "range[0] should be smaller than range[1] in joint");
     }
     if (range[0] && type==mjJNT_BALL) {
-      throw mjCError(this, "range[0] should be 0 in ball joint '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "range[0] should be 0 in ball joint");
     }
 
     // convert limits to radians
@@ -1688,9 +1682,7 @@ int mjCJoint::Compile(void) {
   if (is_actfrclimited()) {
     // check data
     if (actfrcrange[0]>=actfrcrange[1]) {
-      throw mjCError(this,
-                     "actfrcrange[0] should be smaller than actfrcrange[1] in joint '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "actfrcrange[0] should be smaller than actfrcrange[1] in joint");
     }
   }
 
@@ -1714,13 +1706,12 @@ int mjCJoint::Compile(void) {
 
   // normalize axis, check norm
   if (mjuu_normvec(axis, 3)<mjEPS) {
-    throw mjCError(this, "axis too small in joint '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "axis too small in joint");
   }
 
   // check data
   if (type==mjJNT_FREE && limited == mjLIMITED_TRUE) {
-    throw mjCError(this,
-                   "limits should not be defined in free joint '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "limits should not be defined in free joint");
   }
 
   // compute local position
@@ -1851,7 +1842,7 @@ double mjCGeom::GetVolume(void) {
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (mesh->id<0 || !((std::size_t) mesh->id <= model->meshes.size())) {
-      throw mjCError(this, "invalid mesh id in mesh geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
     return mesh->GetVolumeRef(typeinertia);
@@ -1904,7 +1895,7 @@ void mjCGeom::SetInertia(void) {
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (mesh->id<0 || !((std::size_t) mesh->id <= model->meshes.size())) {
-      throw mjCError(this, "invalid mesh id in mesh geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
     double* boxsz = mesh->GetInertiaBoxPtr(typeinertia);
@@ -2190,12 +2181,12 @@ void mjCGeom::Compile(void) {
 
   // check type
   if (type<0 || type>=mjNGEOMTYPES) {
-    throw mjCError(this, "invalid type in geom '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid type in geom");
   }
 
   // check condim
   if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
-    throw mjCError(this, "invalid condim in geom '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid condim in geom");
   }
 
   // check mesh
@@ -2210,8 +2201,7 @@ void mjCGeom::Compile(void) {
 
   // plane only allowed in static bodies
   if (type==mjGEOM_PLANE && body->weldid!=0) {
-    throw mjCError(this, "plane only allowed in static bodies: geom '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "plane only allowed in static bodies");
   }
 
   // check if can collide
@@ -2227,16 +2217,12 @@ void mjCGeom::Compile(void) {
         type!=mjGEOM_CYLINDER &&
         type!=mjGEOM_ELLIPSOID &&
         type!=mjGEOM_BOX) {
-      throw mjCError(this,
-                     "fromto requires capsule, cylinder, box or ellipsoid in geom '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "fromto requires capsule, cylinder, box or ellipsoid in geom");
     }
 
     // make sure pos is not defined; cannot use mjuu_defined because default is (0,0,0)
     if (pos[0] || pos[1] || pos[2]) {
-      throw mjCError(this,
-                     "both pos and fromto defined in geom '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "both pos and fromto defined in geom");
     }
 
     // size[1] = length (for capsule and cylinder)
@@ -2247,7 +2233,7 @@ void mjCGeom::Compile(void) {
     };
     size[1] = mjuu_normvec(vec, 3)/2;
     if (size[1]<mjEPS) {
-      throw mjCError(this, "fromto points too close in geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "fromto points too close in geom");
     }
 
     // adjust size for ellipsoid and box
@@ -2277,7 +2263,7 @@ void mjCGeom::Compile(void) {
   if (mesh) {
     // check for inapplicable fromto
     if (mjuu_defined(fromto[0])) {
-      throw mjCError(this, "fromto cannot be used with mesh geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "fromto cannot be used with mesh geom");
     }
 
     // save reference in case this is not an mjGEOM_MESH
@@ -2319,7 +2305,7 @@ void mjCGeom::Compile(void) {
 
   for (double s : size) {
     if (std::isnan(s)) {
-      throw mjCError(this, "nan size in geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "nan size in geom");
     }
   }
   // compute aabb
@@ -2343,8 +2329,7 @@ void mjCGeom::Compile(void) {
 
     // check for negative values
     if (mass_<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
-      throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
-                    name.c_str(), id);
+      throw mjCError(this, "mass, inertia or density are negative in geom");
   }
 
   // fluid-interaction coefficients, requires computed inertia and mass
@@ -2356,8 +2341,7 @@ void mjCGeom::Compile(void) {
   if (plugin.active) {
     if (plugin_name.empty() && plugin_instance_name.empty()) {
       throw mjCError(
-          this, "neither 'plugin' nor 'instance' is specified for geom '%s', (id = %d)",
-          name.c_str(), id);
+          this, "neither 'plugin' nor 'instance' is specified for geom");
     }
 
     mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
@@ -2453,20 +2437,18 @@ void mjCSite::Compile(void) {
 
   // resize userdata
   if (userdata_.size() > model->nuser_site) {
-    throw mjCError(this, "user has more values than nuser_site in site '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "user has more values than nuser_site in site");
   }
   userdata_.resize(model->nuser_site);
 
   // check type
   if (type<0 || type>=mjNGEOMTYPES) {
-    throw mjCError(this, "invalid type in site '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid type in site");
   }
 
   // do not allow meshes, hfields and planes
   if (type==mjGEOM_MESH || type==mjGEOM_HFIELD || type==mjGEOM_PLANE) {
-    throw mjCError(this, "meshes, hfields and planes not allowed in site '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "meshes, hfields and planes not allowed in site");
   }
 
   // 'fromto': compute pos, quat, size
@@ -2476,14 +2458,12 @@ void mjCSite::Compile(void) {
         type!=mjGEOM_CYLINDER &&
         type!=mjGEOM_ELLIPSOID &&
         type!=mjGEOM_BOX) {
-      throw mjCError(this,
-                     "fromto requires capsule, cylinder, box or ellipsoid in geom '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "fromto requires capsule, cylinder, box or ellipsoid in geom");
     }
 
     // make sure pos is not defined; cannot use mjuu_defined because default is (0,0,0)
     if (pos[0] || pos[1] || pos[2]) {
-      throw mjCError(this, "both pos and fromto defined in geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "both pos and fromto defined in geom");
     }
 
     // size[1] = length (for capsule and cylinder)
@@ -2494,7 +2474,7 @@ void mjCSite::Compile(void) {
     };
     size[1] = mjuu_normvec(vec, 3)/2;
     if (size[1]<mjEPS) {
-      throw mjCError(this, "fromto points too close in geom '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "fromto points too close in geom");
     }
 
     // adjust size for ellipsoid and box
@@ -2618,8 +2598,7 @@ void mjCCamera::Compile(void) {
 
   // resize userdata
   if (userdata_.size() > model->nuser_cam) {
-    throw mjCError(this, "user has more values than nuser_cam in camera '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "user has more values than nuser_cam in camera");
   }
   userdata_.resize(model->nuser_cam);
 
@@ -2643,7 +2622,7 @@ void mjCCamera::Compile(void) {
     if (tb) {
       targetbodyid = tb->id;
     } else {
-      throw mjCError(this, "unknown target body in camera '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "unknown target body in camera");
     }
   }
 
@@ -2656,14 +2635,12 @@ void mjCCamera::Compile(void) {
   // check that specs are not duplicated
   if ((principal_length[0] && principal_pixel[0]) ||
       (principal_length[1] && principal_pixel[1])) {
-    throw mjCError(this, "principal length duplicated in camera '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "principal length duplicated in camera");
   }
 
   if ((focal_length[0] && focal_pixel[0]) ||
       (focal_length[1] && focal_pixel[1])) {
-    throw mjCError(this, "focal length duplicated in camera '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "focal length duplicated in camera");
   }
 
   // compute number of pixels per unit length
@@ -2774,7 +2751,7 @@ void mjCLight::Compile(void) {
 
   // normalize direction, make sure it is not zero
   if (mjuu_normvec(dir, 3)<mjMINVAL) {
-    throw mjCError(this, "zero direction in light '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "zero direction in light");
   }
 
   // get targetbodyid
@@ -2783,7 +2760,7 @@ void mjCLight::Compile(void) {
     if (tb) {
       targetbodyid = tb->id;
     } else {
-      throw mjCError(this, "unknown target body in light '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "unknown target body in light");
     }
   }
 }
@@ -2976,8 +2953,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
   // check size parameters
   for (int i=0; i<4; i++)
     if (size[i]<=0)
-      throw mjCError(this,
-                     "size parameter is not positive in hfield '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "size parameter is not positive in hfield");
 
   // remove path from file if necessary
   if (model->strippath) {
@@ -2988,8 +2964,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
   if (!file_.empty()) {
     // make sure hfield was not already specified manually
     if (nrow || ncol || !data.empty()) {
-      throw mjCError(this,
-                     "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
+      throw mjCError(this, "hfield specified from file and manually");
     }
 
     std::string asset_type = GetAssetContentType(file_, content_type_);
@@ -3021,7 +2996,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
   // make sure hfield was specified (from file or manually)
   if (nrow<1 || ncol<1 || data.empty()) {
-    throw mjCError(this, "hfield '%s' (id = %d) not specified", name.c_str(), id);
+    throw mjCError(this, "hfield not specified");
   }
 
   // set elevation data to [0-1] range
@@ -3530,9 +3505,7 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
 void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
-    throw mjCError(this,
-                   "gridsize must be non-zero and no more than 12 squares in texture '%s' (id %d)",
-                   (const char*)name.c_str(), id);
+    throw mjCError(this, "gridsize must be non-zero and no more than 12 squares in texture");
   }
 
   // load PNG or custom
@@ -3590,8 +3563,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
       } else if (gridlayout[k]=='B') {
         i = 5;
       } else if (gridlayout[k]!='.')
-        throw mjCError(this, "gridlayout symbol is not among '.RLUDFB' in texture '%s' (id %d)",
-                       (const char*)file_.c_str(), id);
+        throw mjCError(this, "gridlayout symbol is not among '.RLUDFB' in texture");
 
       // load if specified
       if (i>=0) {
@@ -3660,9 +3632,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
         height = 6*width;
         rgb.assign(3*width*height, 0);
         if (rgb.empty()) {
-          throw mjCError(this,
-                         "Could not allocate memory for texture '%s' (id %d)",
-                         (const char*)name.c_str(), id);
+          throw mjCError(this, "Could not allocate memory for texture");
         }
       }
 
@@ -3706,9 +3676,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   if (builtin!=mjBUILTIN_NONE) {
     // check size
     if (width<1 || height<1) {
-      throw mjCError(this,
-                     "Invalid width or height of builtin texture '%s' (id %d)",
-                     (const char*)name.c_str(), id);
+      throw mjCError(this, "Invalid width or height of builtin texture");
     }
 
     // adjust height of cube texture
@@ -3719,9 +3687,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     // allocate data
     rgb.assign(3*width*height, 0);
     if (rgb.empty()) {
-      throw mjCError(this,
-                     "Could not allocate memory for texture '%s' (id %d)",
-                     (const char*)name.c_str(), id);
+      throw mjCError(this, "Could not allocate memory for texture");
     }
 
     // dispatch
@@ -3755,8 +3721,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     // 2D not allowed
     if (type==mjTEXTURE_2D) {
       throw mjCError(this,
-                     "Cannot load 2D texture from separate files, texture '%s' (id %d)",
-                     (const char*)name.c_str(), id);
+                     "Cannot load 2D texture from separate files, texture");
     }
 
     // at least one cubefile must be defined
@@ -3769,8 +3734,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
     if (!defined) {
       throw mjCError(this,
-                     "No cubefiles_ defined in cube or skybox texture '%s' (id %d)",
-                     (const char*)name.c_str(), id);
+                     "No cubefiles_ defined in cube or skybox texture");
     }
 
     // only cube and skybox
@@ -3779,8 +3743,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
   // make sure someone allocated data; SHOULD NOT OCCUR
   if (rgb.empty()) {
-    throw mjCError(this,
-                   "texture '%s' (id %d) was not specified", (const char*)name.c_str(), id);
+    throw mjCError(this, "texture '%s' (id %d) was not specified", name.c_str(), id);
   }
 }
 
@@ -3979,7 +3942,7 @@ void mjCPair::Compile(void) {
 
   // check condim
   if (condim!=1 && condim!=3 && condim!=4 && condim!=6) {
-    throw mjCError(this, "invalid condim in collision %d", "", id);
+    throw mjCError(this, "invalid condim in contact pair");
   }
 
   // find geoms
@@ -4289,7 +4252,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
   } else if (type==mjEQ_FLEX) {
     objtype = mjOBJ_FLEX;
   } else {
-    throw mjCError(this, "invalid type in equality constraint '%s' (id = %d)'", name.c_str(), id);
+    throw mjCError(this, "invalid type in equality constraint");
   }
 
   // find object 1, get id
@@ -4311,8 +4274,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
   // object 2 unspecified: set to -1
   else {
     if (objtype==mjOBJ_GEOM) {
-      throw mjCError(this, "both geom are required in equality constraint '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "both geom are required in equality constraint");
     } else {
       obj2id = -1;
       px2 = 0;
@@ -4335,8 +4297,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
     jt2 = (px2 ? ((mjCJoint*)px2)->type : mjJNT_HINGE);
     if ((jt1!=mjJNT_HINGE && jt1!=mjJNT_SLIDE) ||
         (jt2!=mjJNT_HINGE && jt2!=mjJNT_SLIDE)) {
-      throw mjCError(this, "only HINGE and SLIDE joint allowed in constraint '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "only HINGE and SLIDE joint allowed in constraint");
     }
   }
 }
@@ -4568,8 +4529,7 @@ void mjCTendon::Compile(void) {
 
   // resize userdata
   if (userdata_.size() > model->nuser_tendon) {
-    throw mjCError(this, "user has more values than nuser_tendon in tendon '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "user has more values than nuser_tendon in tendon");
   }
   userdata_.resize(model->nuser_tendon);
 
@@ -4677,12 +4637,12 @@ void mjCTendon::Compile(void) {
 
   // check limits
   if (range[0]>=range[1] && is_limited()) {
-    throw mjCError(this, "invalid limits in tendon '%s (id = %d)'", name.c_str(), id);
+    throw mjCError(this, "invalid limits in tendon");
   }
 
   // check springlength
   if (springlength[0] > springlength[1]) {
-    throw mjCError(this, "invalid springlength in tendon '%s (id = %d)'", name.c_str(), id);
+    throw mjCError(this, "invalid springlength in tendon");
   }
 }
 
@@ -4987,7 +4947,7 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
     break;
 
   default:
-    throw mjCError(this, "invalid transmission type in actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid transmission type in actuator");
   }
 
   // assign and check
@@ -5014,7 +4974,7 @@ void mjCActuator::Compile(void) {
   // check for missing target name
   if (target_.empty()) {
     throw mjCError(this,
-                   "missing transmission target for actuator '%s' (id = %d)", name.c_str(), id);
+                   "missing transmission target for actuator");
   }
 
   // find transmission target in object arrays
@@ -5033,7 +4993,7 @@ void mjCActuator::Compile(void) {
       range = actrange;
     } else {
       throw mjCError(this, "inheritrange only available for position "
-                     "and intvelocity actuators '%s' (id = %d)", name.c_str(), id);
+                     "and intvelocity actuators");
     }
 
     const double* target_range;
@@ -5041,7 +5001,7 @@ void mjCActuator::Compile(void) {
       mjCJoint* pjnt = (mjCJoint*) ptarget;
       if (pjnt->spec.type != mjJNT_HINGE && pjnt->spec.type != mjJNT_SLIDE) {
         throw mjCError(this, "inheritrange can only be used with hinge and slide joints, "
-                       "actuator '%s' (id = %d)", name.c_str(), id);
+                       "actuator");
       }
       target_range = pjnt->get_range();
     } else if (trntype == mjTRN_TENDON) {
@@ -5049,7 +5009,7 @@ void mjCActuator::Compile(void) {
       target_range = pten->get_range();
     } else {
       throw mjCError(this, "inheritrange can only be used with joint and tendon transmission, "
-                     "actuator '%s' (id = %d)", name.c_str(), id);
+                     "actuator");
     }
 
     if (target_range[0] == target_range[1]) {
@@ -5080,29 +5040,27 @@ void mjCActuator::Compile(void) {
 
   // check limits
   if (forcerange[0]>=forcerange[1] && is_forcelimited()) {
-    throw mjCError(this, "invalid force range for actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid force range for actuator");
   }
   if (ctrlrange[0]>=ctrlrange[1] && is_ctrllimited()) {
-    throw mjCError(this, "invalid control range for actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid control range for actuator");
   }
   if (actrange[0]>=actrange[1] && is_actlimited()) {
-    throw mjCError(this, "invalid actrange for actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid actrange for actuator");
   }
   if (is_actlimited() && dyntype == mjDYN_NONE) {
-    throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "actrange specified but dyntype is 'none' in actuator");
   }
 
   // check and set actdim
   if (actdim > 1 && dyntype != mjDYN_USER) {
-    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator");
   }
   if (actdim == 1 && dyntype == mjDYN_NONE) {
-    throw mjCError(this, "invalid actdim 1 in stateless actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid actdim 1 in stateless actuator");
   }
   if (actdim == 0 && dyntype != mjDYN_NONE) {
-    throw mjCError(this, "invalid actdim 0 in stateful actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid actdim 0 in stateful actuator");
   }
 
   // set actdim
@@ -5127,12 +5085,12 @@ void mjCActuator::Compile(void) {
 
     // range
     if (prm[0]>=prm[1]) {
-      throw mjCError(this, "range[0]<range[1] required in muscle '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "range[0]<range[1] required in muscle");
     }
 
     // lmin<1<lmax
     if (prm[4]>=1 || prm[5]<=1) {
-      throw mjCError(this, "lmin<1<lmax required in muscle '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "lmin<1<lmax required in muscle");
     }
 
     // scale, vmax, fpmax, fvmax>0
@@ -5255,17 +5213,13 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
   if (objtype!=mjOBJ_UNKNOWN) {
     // check for missing object name
     if (objname_.empty()) {
-      throw mjCError(this,
-                     "missing name of sensorized object in sensor '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "missing name of sensorized object in sensor");
     }
 
     // find name
     obj = m->FindObject(objtype, objname_);
     if (!obj) {
-      throw mjCError(this,
-                     "unrecognized name of sensorized object in sensor '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "unrecognized name '%s' of sensorized object", objname_.c_str());
     }
 
     // if geom mark it as non visual
@@ -5275,32 +5229,27 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
 
     // get sensorized object id
   } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN && type != mjSENS_USER) {
-    throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid type in sensor");
   }
 
   // get refid from reftype and refname
   if (reftype!=mjOBJ_UNKNOWN) {
     // check for missing object name
     if (refname_.empty()) {
-      throw mjCError(this,
-                     "missing name of reference frame object in sensor '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "missing name of reference frame object in sensor");
     }
 
     // find name
     ref = m->FindObject(reftype, refname_);
     if (!ref) {
-      throw mjCError(this,
-                     "unrecognized name of reference frame object in sensor '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "unrecognized name '%s' of reference frame object", refname_.c_str());
     }
 
     // must be attached to object with spatial frame
     if (reftype!=mjOBJ_BODY && reftype!=mjOBJ_XBODY &&
         reftype!=mjOBJ_GEOM && reftype!=mjOBJ_SITE && reftype!=mjOBJ_CAMERA) {
       throw mjCError(this,
-                     "reference frame object must be (x)body, geom, site or camera:"
-                     " sensor '%s' (id = %d)", name.c_str(), id);
+                     "reference frame object must be (x)body, geom, site or camera in sensor");
     }
 
     // get sensorized object id
@@ -5316,19 +5265,18 @@ void mjCSensor::Compile(void) {
 
   // resize userdata
   if (userdata_.size() > model->nuser_sensor) {
-    throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "user has more values than nuser_sensor in sensor");
   }
   userdata_.resize(model->nuser_sensor);
 
   // require non-negative noise
   if (noise<0) {
-    throw mjCError(this, "negative noise in sensor '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "negative noise in sensor");
   }
 
   // require non-negative cutoff
   if (cutoff<0) {
-    throw mjCError(this, "negative cutoff in sensor '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "negative cutoff in sensor");
   }
 
   // Find referenced object
@@ -5347,8 +5295,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_CAMPROJECTION:
     // must be attached to site
     if (objtype!=mjOBJ_SITE) {
-      throw mjCError(this,
-                     "sensor must be attached to site: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to site: sensor");
     }
 
     // set dim and datatype
@@ -5376,9 +5323,7 @@ void mjCSensor::Compile(void) {
     if (type==mjSENS_CAMPROJECTION) {
       mjCCamera* camref = (mjCCamera*)ref;
       if (!camref->resolution[0] || !camref->resolution[1]) {
-        throw mjCError(this,
-                       "camera projection sensor requires camera resolution '%s' (id = %d)",
-                       name.c_str(), id);
+        throw mjCError(this, "camera projection sensor requires camera resolution");
       }
     }
     break;
@@ -5388,14 +5333,12 @@ void mjCSensor::Compile(void) {
   case mjSENS_JOINTACTFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
-      throw mjCError(this,
-                     "sensor must be attached to joint: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to joint: sensor");
     }
 
     // make sure joint is slide or hinge
     if (((mjCJoint*)obj)->type!=mjJNT_SLIDE && ((mjCJoint*)obj)->type!=mjJNT_HINGE) {
-      throw mjCError(this,
-                     "joint must be slide or hinge in sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "joint must be slide or hinge in sensor");
     }
 
     // set
@@ -5414,8 +5357,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_TENDONVEL:
     // must be attached to tendon
     if (objtype!=mjOBJ_TENDON) {
-      throw mjCError(this,
-                     "sensor must be attached to tendon: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to tendon: sensor");
     }
 
     // set
@@ -5433,8 +5375,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_ACTUATORFRC:
     // must be attached to actuator
     if (objtype!=mjOBJ_ACTUATOR) {
-      throw mjCError(this,
-                     "sensor must be attached to actuator: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to actuator: sensor");
     }
 
     // set
@@ -5453,14 +5394,12 @@ void mjCSensor::Compile(void) {
   case mjSENS_BALLANGVEL:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
-      throw mjCError(this,
-                     "sensor must be attached to joint: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to joint: sensor");
     }
 
     // make sure joint is ball
     if (((mjCJoint*)obj)->type!=mjJNT_BALL) {
-      throw mjCError(this,
-                     "joint must be ball in sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "joint must be ball in sensor");
     }
 
     // set
@@ -5480,13 +5419,12 @@ void mjCSensor::Compile(void) {
   case mjSENS_JOINTLIMITFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
-      throw mjCError(this,
-                     "sensor must be attached to joint: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to joint: sensor");
     }
 
     // make sure joint has limit
     if (!((mjCJoint*)obj)->is_limited()) {
-      throw mjCError(this, "joint must be limited in sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "joint must be limited in sensor");
     }
 
     // set
@@ -5506,13 +5444,12 @@ void mjCSensor::Compile(void) {
   case mjSENS_TENDONLIMITFRC:
     // must be attached to tendon
     if (objtype!=mjOBJ_TENDON) {
-      throw mjCError(this,
-                     "sensor must be attached to tendon: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to tendon: sensor");
     }
 
     // make sure tendon has limit
     if (!((mjCTendon*)obj)->is_limited()) {
-      throw mjCError(this, "tendon must be limited in sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "tendon must be limited in sensor");
     }
 
     // set
@@ -5539,9 +5476,7 @@ void mjCSensor::Compile(void) {
     // must be attached to object with spatial frame
     if (objtype!=mjOBJ_BODY && objtype!=mjOBJ_XBODY &&
         objtype!=mjOBJ_GEOM && objtype!=mjOBJ_SITE && objtype!=mjOBJ_CAMERA) {
-      throw mjCError(this,
-                     "sensor must be attached to (x)body, geom, site or camera:"
-                     " sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to (x)body, geom, site or camera");
     }
 
     // set dim
@@ -5575,8 +5510,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_SUBTREEANGMOM:
     // must be attached to body
     if (objtype!=mjOBJ_BODY) {
-      throw mjCError(this,
-                     "sensor must be attached to body: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor must be attached to body: sensor");
     }
 
     // set
@@ -5598,18 +5532,16 @@ void mjCSensor::Compile(void) {
   case mjSENS_USER:
     // check for negative dim
     if (dim<0) {
-      throw mjCError(this, "sensor dim must be positive: sensor '%s' (id = %d)", name.c_str(), id);
+      throw mjCError(this, "sensor dim must be positive in sensor");
     }
 
     // make sure dim is consistent with datatype
     if (datatype==mjDATATYPE_AXIS && dim!=3) {
       throw mjCError(this,
-                     "datatype AXIS requires dim=3 in sensor '%s' (id = %d)", name.c_str(), id);
+                     "datatype AXIS requires dim=3 in sensor");
     }
     if (datatype==mjDATATYPE_QUATERNION && dim!=4) {
-      throw mjCError(this,
-                     "datatype QUATERNION requires dim=4 in sensor '%s' (id = %d)",
-                     name.c_str(), id);
+      throw mjCError(this, "datatype QUATERNION requires dim=4 in sensor");
     }
     break;
 
@@ -5618,9 +5550,7 @@ void mjCSensor::Compile(void) {
     datatype = mjDATATYPE_REAL;  // no noise added to plugin sensors, this attribute is unused
 
     if (plugin_name.empty() && plugin_instance_name.empty()) {
-      throw mjCError(
-          this, "neither 'plugin' nor 'instance' is specified for sensor '%s', (id = %d)",
-          name.c_str(), id);
+      throw mjCError(this, "neither 'plugin' nor 'instance' is specified for sensor");
     }
 
     // resolve plugin instance, or create one if using the "plugin" attribute shortcut
@@ -5643,9 +5573,7 @@ void mjCSensor::Compile(void) {
 
   // check cutoff for incompatible data types
   if (cutoff>0 && (datatype==mjDATATYPE_AXIS || datatype==mjDATATYPE_QUATERNION)) {
-    throw mjCError(this,
-                   "cutoff applied to axis or quaternion datatype in sensor '%s' (id = %d)",
-                   name.c_str(), id);
+    throw mjCError(this, "cutoff applied to axis or quaternion datatype in sensor");
   }
 }
 
