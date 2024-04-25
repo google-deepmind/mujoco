@@ -2955,6 +2955,15 @@ void mjCModel::FuseStatic(void) {
     sites.clear();
     FuseReindex(bodies[0]);
 
+    // recompute parent contype, conaffinity, and margin
+    par->contype = par->conaffinity = 0;
+    par->margin = 0;
+    for (const auto& geom : geoms) {
+      par->contype |= geom->contype;
+      par->conaffinity |= geom->conaffinity;
+      par->margin = mju_max(par->margin, geom->margin);
+    }
+
     //------------- delete body (without deleting children)
 
     // delete allocation

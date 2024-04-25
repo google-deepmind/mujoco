@@ -248,9 +248,9 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
     <worldbody>
       <body>
         <joint axis="1 0 0"/>
-        <geom size="0.5" pos="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
         <body>
-          <geom size="0.5" pos="0 1 0"/>
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
         </body>
       </body>
     </worldbody>
@@ -267,6 +267,11 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
 
   EXPECT_EQ(m_fuse->nbody, 2) << "Expecting a world body and one other body";
   EXPECT_EQ(m_no_fuse->nbody, 3) << "Expecting a world body and two others";
+
+  EXPECT_EQ(m_no_fuse->body_contype[2], 1);
+  EXPECT_EQ(m_no_fuse->body_conaffinity[2], 1);
+  EXPECT_EQ(m_fuse->body_contype[1], 1);
+  EXPECT_EQ(m_fuse->body_conaffinity[1], 1);
 
   mjData* d_fuse = mj_makeData(m_fuse);
   mjData* d_no_fuse = mj_makeData(m_no_fuse);
