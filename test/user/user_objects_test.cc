@@ -864,6 +864,52 @@ TEST_F(CameraSpecTest, FovyFromResolutionPixel) {
   mj_deleteModel(m);
 }
 
+TEST_F(CameraSpecTest, ParentTargetingNull) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom size="1"/>
+      <camera mode="targetbody" target="world"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+  // orientation can't be decided so we get an arbitrary but valid xmat
+  // (camera pointed towards the negative x-axis)
+  EXPECT_THAT(AsVector(data->cam_xmat, 9),
+              ElementsAre(0, 0, 1,
+                          1, 0, 0,
+                          0, 1, 0));
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(CameraSpecTest, ParentTargeting) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom size="1"/>
+      <camera pos="1 1 0" mode="targetbody" target="world"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+  // expect negative z-axis to point from camera to world
+  EXPECT_FLOAT_EQ(data->cam_xmat[2], mju_sqrt(0.5));
+  EXPECT_FLOAT_EQ(data->cam_xmat[5], mju_sqrt(0.5));
+  EXPECT_FLOAT_EQ(data->cam_xmat[8], 0);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // ------------- test actuator order -------------------------------------------
 
 using ActuatorTest = MujocoTest;

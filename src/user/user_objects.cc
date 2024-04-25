@@ -2647,11 +2647,6 @@ void mjCCamera::Compile(void) {
     }
   }
 
-  // make sure it is not targeting parent body
-  if (targetbodyid==body->id) {
-    throw mjCError(this, "parent-targeting in camera '%s' (id = %d)", name.c_str(), id);
-  }
-
   // make sure the image size is finite
   if (fovy >= 180) {
     throw mjCError(this, "fovy too large in camera '%s' (id = %d, value = %d)",
@@ -2790,11 +2785,6 @@ void mjCLight::Compile(void) {
     } else {
       throw mjCError(this, "unknown target body in light '%s' (id = %d)", name.c_str(), id);
     }
-  }
-
-  // make sure it is not self-targeting
-  if (targetbodyid==body->id) {
-    throw mjCError(this, "parent-targeting in light '%s' (id = %d)", name.c_str(), id);
   }
 }
 
