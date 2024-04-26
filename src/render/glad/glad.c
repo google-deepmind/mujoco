@@ -1441,7 +1441,6 @@ static int mjGlad_find_extensionsGL(void) {
 static void mjGlad_find_coreGL(void) {
 
   /* Thank you @elmindreda
-   * https://github.com/elmindreda/greg/blob/master/templates/greg.c.in#L176
    * https://github.com/glfw/glfw/blob/master/src/context.c#L36
    */
   int major, minor;
