@@ -41,14 +41,15 @@ MJX
 13. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
 14. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
 15. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
+16. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
 
 Bug fixes
 ^^^^^^^^^
-16. Defaults of lights were not being saved, now fixed.
-17. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-18. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+17. Defaults of lights were not being saved, now fixed.
+18. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+19. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-19. Fixed bug that prevented memory allocations larger than 2.15 GB.
+20. Fixed bug that prevented memory allocations larger than 2.15 GB.
 
 
 Version 3.1.4 (April 10th, 2024)
