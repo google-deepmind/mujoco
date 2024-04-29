@@ -1714,5 +1714,53 @@ TEST_F(MujocoTest, Frame) {
   mj_deleteData(d);
 }
 
+// ------------- test bvh ------------------------------------------------------
+TEST_F(MujocoTest, RobustBVH) {
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size=".1" pos="0 0 0"/>
+        <geom size=".1" pos="0 1 0"/>
+        <geom size=".1" pos="1 0 0"/>
+        <geom size=".1" pos="1 1 0"/>
+        <geom size=".1" pos="2 0 0"/>
+        <geom size=".1" pos="2 1 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size=".1" pos="0 0 0"/>
+        <geom size=".1" pos="0 1 0"/>
+        <geom size=".1" pos="1.00000000000001 0 0"/>
+        <geom size=".1" pos="1 1.00000000000001 0"/>
+        <geom size=".1" pos="2 0 0"/>
+        <geom size=".1" pos="2 1 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m1 = LoadModelFromString(xml1, error.data(), error.size());
+  EXPECT_THAT(m1, testing::NotNull()) << error.data();
+
+  mjModel* m2 = LoadModelFromString(xml2, error.data(), error.size());
+  EXPECT_THAT(m2, testing::NotNull()) << error.data();
+
+  EXPECT_EQ(m1->nbvh, m2->nbvh);
+  for (int i = 0; i < m1->nbvh; i++) {
+    EXPECT_EQ(m1->bvh_nodeid[i], m2->bvh_nodeid[i]);
+  }
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+}
+
 }  // namespace
 }  // namespace mujoco

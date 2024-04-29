@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
+#include <cstdlib>
 #include <functional>
 #include <map>
 #include <string>
@@ -27,6 +28,7 @@
 #include <mujoco/mjplugin.h>
 #include "user/user_api.h"
 #include "user/user_cache.h"
+#include "user/user_util.h"
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -149,7 +151,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
     int axis = 0;
 
     bool operator()(const BVElement& e1, const BVElement& e2) const {
-      if (e1.lpos[axis] != e2.lpos[axis]) {
+      if (std::abs(e1.lpos[axis] - e2.lpos[axis]) > mjEPS) {
         return e1.lpos[axis] < e2.lpos[axis];
       }
       // comparing pointers gives a stable sort, because they both come from the same array

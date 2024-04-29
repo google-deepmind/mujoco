@@ -432,10 +432,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
     return index;
   }
 
-  // find longest axis for splitting the bounding box
+  // find longest axis, by a margin of at least mjEPS, default to 0
+  int axis = 0;
   mjtNum edges[3] = { AAMM[3]-AAMM[0], AAMM[4]-AAMM[1], AAMM[5]-AAMM[2] };
-  int axis = edges[0] > edges[1] ? 0 : 1;
-  axis = edges[axis] > edges[2] ? axis : 2;
+  if (edges[1] >= edges[0] + mjEPS) axis = 1;
+  if (edges[2] >= edges[axis] + mjEPS) axis = 2;
 
   // find median along the axis
   // note: nth_element performs a partial sort of elements
