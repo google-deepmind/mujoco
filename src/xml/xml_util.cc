@@ -344,7 +344,8 @@ bool mjXSchema::NameMatch(XMLElement* elem, int level) {
   if (name_ == "body" &&
       ((level == 1 && !strcmp(elem->Value(), "worldbody")) ||
       (level != 1 && !strcmp(elem->Value(), "body")) ||
-      (level >= 1 && !strcmp(elem->Value(), "frame")))) {
+      (level >= 1 && !strcmp(elem->Value(), "frame")) ||
+      (level >= 1 && !strcmp(elem->Value(), "replicate")))) {
     return true;
   }
 

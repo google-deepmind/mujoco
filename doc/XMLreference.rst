@@ -110,9 +110,9 @@ Meta elements
 
 These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
 perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
-saving the XML. There are currently four meta-elements in MJCF:
+saving the XML. There are currently five meta-elements in MJCF:
 
-- :ref:`include<include>` and :ref:`frame<frame>`, which are outside of the schema.
+- :ref:`include<include>`, :ref:`frame<frame>`, and :ref:`replicate<replicate>` which are outside of the schema.
 - :ref:`composite<body-composite>` and :ref:`flexcomp<body-flexcomp>` which are part of the schema, but serve to
   procedurally generate other MJCF elements.
 
@@ -162,6 +162,72 @@ in their direct children. The attributes of the frame meta-element are documente
 
    Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
    of their child elements.
+
+.. _replicate:
+
+**replicate** (R)
+^^^^^^^^^^^^^^^^^
+
+The replicate element duplicates the enclosed kinematic tree elements with incremental translational and rotational
+offsets, adding namespace suffixes to avoid name collisions. Appended suffix strings are integers in the
+range ``[0...count-1]`` with the minimum number of digits required to represent the total element count (i.e., if
+replicating 200 times, suffixes will be ``000, 001, ...`` etc). All referencing elements are automatically replicated
+and namespaced appropriately. Detailed examples of models using replicate can be found in the
+`model/replicate/ <https://github.com/google-deepmind/mujoco/tree/main/model/replicate>`__ directory.
+
+.. _replicate-count:
+
+:at:`count`: :at-val:`int, required`
+   The number of replicas. Must be positive.
+
+.. _replicate-sep:
+
+:at:`sep`: :at-val:`string, optional`
+   The namespace separator. This optional string is prepended to the namespace suffix string. Note that for nested
+   replicate elements, the innermost namespace suffixes are appended first.
+
+.. _replicate-offset:
+
+:at:`offset`: :at-val:`real(3), optional`
+   Translational offset along the three coordinate axes. In general, the frame of the offset is with respect to the
+   previous replica, except for the first one which is with respect to the replicate element's parent.
+   If there is no rotation, these values are always in the frame of the replicate element's parent.
+
+.. _replicate-euler:
+
+:at:`euler`: :at-val:`real(3), optional`
+   Rotation angles around three coordinate axes between two subsequent replicas. The angular units and rotation sequence
+   respect the global :ref:`angle<compiler-angle>` and :ref:`eulerseq<compiler-eulerseq>` settings. Rotation is always
+   with respect to the frame of the previous replica, so total rotation is cumulative.
+
+.. collapse:: Usage example of replicate
+
+   Loading this model and saving it:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <replicate count="2" offset="0 1 0" euler="90 0 0">
+            <replicate count="2" sep="-" offset="1 0 0" euler="0 90 0">
+              <geom name="Alice" size=".1"/>
+            </replicate>
+          </replicate>
+        </worldbody>
+      </mujoco>
+
+   Results in this model:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <geom name="Alice-00" size="0.1"/>
+          <geom name="Alice-10" size="0.1" pos="1 0 0" quat="1 0 1 0"/>
+          <geom name="Alice-01" size="0.1" pos="0 1 0" quat="1 1 0 0"/>
+          <geom name="Alice-11" size="0.1" pos="1 1 0" quat="0.5 0.5 0.5 0.5"/>
+        </worldbody>
+      </mujoco>
 
 .. _include:
 
@@ -2766,7 +2832,8 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    geom and 3 orthogonal sliding joints, allowing translation but not rotation. The geom condim and priority attributes
    are set to 1 by default. This makes the spheres have frictionless contacts with all other geoms (unless the priority
    of some frictional geom is higher). The user can replace the default sliders with multiple joints of kind="particle"
-   and replace the default sphere with a custom geom.
+   and replace the default sphere with a custom geom. Note that the particle composite type is deprecated and might be
+   removed in a future version. Instead of particle, it is recommended to use :ref:`replicate`.
 
    The **grid** type creates a 1D or 2D grid of bodies, each having a sphere geom, a sphere site, and 3 orthogonal
    sliding joints by default. The :el:`pin` sub-element can be used to specify that some bodies should not have joints,

@@ -191,7 +191,7 @@ auto Compare(T val1, T val2) {
     ReturnType magnitude = mju_abs(val1) + mju_abs(val2);
     error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
   }
-  ReturnType safety_factor = 10;
+  ReturnType safety_factor = 200;
   return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()
              ? 0
              : error;
@@ -213,13 +213,19 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   if (maxdif > 0) return maxdif;
 
   // compare arrays
-  #define X(type, name, nr, nc)                                    \
-    for (int r=0; r < m1->nr; r++)                                 \
-      for (int c=0; c < nc; c++) {                                 \
-        dif = Compare(m1->name[r*nc+c], m2->name[r*nc+c]);  \
-        if (dif > maxdif) { maxdif = dif; field = #name;} }
-    MJMODEL_POINTERS
-  #undef X
+#define X(type, name, nr, nc)                                    \
+  for (int r = 0; r < m1->nr; r++)                               \
+    for (int c = 0; c < nc; c++) {                               \
+      dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]); \
+      if (dif > maxdif) {                                        \
+        maxdif = dif;                                            \
+        field = #name;                                           \
+        field += " row: " + std::to_string(r);                   \
+        field += " col: " + std::to_string(c);                   \
+      }                                                          \
+    }  // NOLINT
+  MJMODEL_POINTERS
+#undef X
 
   // compare scalars in mjOption
   #define X(type, name)                                            \

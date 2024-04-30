@@ -778,8 +778,8 @@ MJAPI int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
 MJAPI int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix);
 
-// Detach body from mjSpec, remove all references, return 0 on success.
-MJAPI int mjs_detachBody(mjSpec* s, const mjsBody* b);
+// Detach body from mjSpec, remove all references and delete the body, return 0 on success.
+MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
 
 
 //---------------------------------- Add tree elements ---------------------------------------------

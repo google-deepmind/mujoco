@@ -322,6 +322,7 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void CopyFromSpec();                 // copy spec into attributes
   void PointToLocal(void);
+  void NameSpace_(const mjCModel* m, bool propagate = true);
 
   // copy src list of elements into dst; set body, model and frame
   template <typename T>
@@ -496,6 +497,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void ComputeAABB(void);             // compute axis-aligned bounding box
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 
   // inherited
   using mjCBase::classname;
@@ -1080,6 +1082,7 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
 
   void CopyFromSpec();
   void PointToLocal();
+  void NameSpace(const mjCModel* m);
 
   std::string get_texture() { return texture_; }
   void del_texture() { texture_.clear(); }

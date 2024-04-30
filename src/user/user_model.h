@@ -307,7 +307,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CreateObjectLists();
 
   // populate objects ids
-  void ProcessLists();
+  void ProcessLists(bool checkrepeat = true);
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

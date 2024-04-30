@@ -27,6 +27,8 @@
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
+#include "src/user/user_api.h"
+#include "src/xml/xml.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -886,6 +888,171 @@ TEST_F(XMLReaderTest, DuplicateFrameName) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'frame1'"));
+}
+
+
+// ---------------------- test replicate parsing -------------------------------
+TEST_F(XMLReaderTest, ParseReplicate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
+    <worldbody>
+      <replicate count="2" offset="1 0 0">
+        <replicate count="2" offset="0 1 0" sep="_">
+          <geom name="geom" size="1" pos="0 0 1" material="material"/>
+          <site name="site" pos="1 0 0"/>
+        </replicate>
+      </replicate>
+
+      <replicate count="101" euler="0 0 1.8">
+        <geom name="g" size="1" pos="0 -1 0"/>
+      </replicate>
+    </worldbody>
+
+    <sensor>
+      <framepos name="sensor" objtype="site" objname="site"/>
+    </sensor>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_THAT(m->ngeom, 105);
+  EXPECT_THAT(m->nsensor, 4);
+
+  // check that the separator is used correctly
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
+      char geom_name[mjMAXUINAME] = "";
+      util::strcat_arr(geom_name, m->names + m->name_geomadr[2*i+j]);
+      EXPECT_THAT(m->geom_pos[6*i+3*j+0], i);
+      EXPECT_THAT(m->geom_pos[6*i+3*j+1], j);
+      EXPECT_THAT(m->geom_pos[6*i+3*j+2], 1);
+      EXPECT_THAT(std::string(geom_name),
+                  "geom_" + std::to_string(j) + std::to_string(i));
+    }
+  }
+
+  // check that 3 digits are used if count > 99
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 10; ++j) {
+      for (int k = 0; k < 10; ++k) {
+        int ngeom = 100*i+10*j+k;
+        if (ngeom > 99) break;
+        char geom_name[mjMAXUINAME] = "";
+        util::strcat_arr(geom_name, m->names + m->name_geomadr[4+ngeom]);
+        EXPECT_THAT(
+            std::string(geom_name),
+            "g" + std::to_string(i) + std::to_string(j) + std::to_string(k));
+      }
+    }
+  }
+
+  // check that the final pose is correct
+  int n = 104;
+  EXPECT_NEAR(m->geom_pos[3*n+0], 0, 1e-8);
+  EXPECT_NEAR(m->geom_pos[3*n+1], 1, 1e-8);
+  EXPECT_EQ(m->geom_pos[3*n+2], 0);
+  EXPECT_NEAR(m->geom_quat[4*n+0], 0, 1e-8);
+  EXPECT_EQ(m->geom_quat[4*n+1], 0);
+  EXPECT_EQ(m->geom_quat[4*n+2], 0);
+  EXPECT_EQ(m->geom_quat[4*n+3], 1);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(XMLReaderTest, ParseReplicatePartialReference) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 1"/>
+      <site name="world"/>
+
+      <replicate count="2" offset="1 0 0">
+        <body name="replicated">
+          <freejoint/>
+          <site name="replicated"/>
+          <geom name="replicated" size="1"/>
+        </body>
+      </replicate>
+    </worldbody>
+
+    <contact>
+      <pair geom1="floor" geom2="replicated" condim="1"/>
+      <exclude body1="world" body2="replicated" />
+    </contact>
+
+    <tendon>
+      <spatial>
+        <site site="world"/>
+        <site site="replicated"/>
+      </spatial>
+    </tendon>
+
+    <sensor>
+      <framepos name="sensor" objtype="site" objname="replicated" reftype="site" refname="world"/>
+    </sensor>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+
+  EXPECT_THAT(m->nbody, 3);
+  EXPECT_THAT(m->ngeom, 3);
+  EXPECT_THAT(m->npair, 2);
+  EXPECT_THAT(m->nexclude, 2);
+  EXPECT_THAT(m->ntendon, 2);
+  EXPECT_THAT(m->nsensor, 2);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="body">
+        <geom type="capsule"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <replicate count="2" euler="0 0 16.36" sep="-">
+        <body name="torso" pos="-5 0 1.282" childclass="body">
+          <body name="head" pos="0 0 .19">
+            <geom name="head" type="sphere" size=".09"/>
+          </body>
+        </body>
+      </replicate>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = ParseSpecFromString(xml, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+
+  mjsBody* torso = mjs_findBody(spec, "torso-0");
+  EXPECT_THAT(torso, NotNull());
+
+  mjsDefault* def = mjs_getDefault(torso->element);
+  EXPECT_THAT(def, NotNull());
+  EXPECT_THAT(def->geom->type, mjGEOM_CAPSULE);
+
+  mjsBody* head = mjs_findBody(spec, "head-0");
+  EXPECT_THAT(head, NotNull());
+
+  def = mjs_getDefault(head->element);
+  EXPECT_THAT(def, NotNull());
+  EXPECT_THAT(def->geom->type, mjGEOM_CAPSULE);
+
+  mjs_deleteSpec(spec);
 }
 
 // ----------------------- test camera parsing ---------------------------------

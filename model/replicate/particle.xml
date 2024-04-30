@@ -1,0 +1,23 @@
+<mujoco model="Particle">
+
+  <include file="container.xml"/>
+
+  <size memory="1G"/>
+
+  <option solver="CG" tolerance="1e-6" timestep=".01"/>
+
+  <worldbody>
+    <replicate count="10" offset=".07 0 0">
+      <replicate count="10" offset="0 .07 0">
+        <replicate count="10" offset="0 0 .07">
+          <body pos="-0.35 -0.35 0.65">
+            <joint type="slide" axis="1 0 0" group="3"/>
+            <joint type="slide" axis="0 1 0" group="3"/>
+            <joint type="slide" axis="0 0 1" group="3"/>
+            <geom size="0.025" condim="1" priority="1" rgba="0.8 0.2 0.1 1"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

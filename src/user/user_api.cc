@@ -111,10 +111,11 @@ const char* mjs_getError(mjSpec* s) {
 
 
 // Detach body from mjSpec, return 0 if success.
-int mjs_detachBody(mjSpec* s, const mjsBody* b) {
+int mjs_detachBody(mjSpec* s, mjsBody* b) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   mjCBody* body = static_cast<mjCBody*>(b->element);
   *model -= *body;
+  mjs_deleteBody(b);
   return 0;
 }
 

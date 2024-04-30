@@ -728,6 +728,9 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     lights.clear();
     id = other.id;
 
+    // copy defaults
+    def = other.def;
+
     // add elements to lists
     *this += other;
   }
@@ -797,17 +800,16 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   CopyList(cameras, subtree->cameras, fmap, &other);
   CopyList(lights, subtree->lights, fmap, &other);
 
-  for (int i=0; i<subtree->bodies.size(); i++) {
+  int nbodies = (int)subtree->bodies.size();
+  for (int i=0; i<nbodies; i++) {
     if (!other.IsAncestor(subtree->bodies[i]->frame)) {
       continue;
     }
     bodies.push_back(new mjCBody(*subtree->bodies[i], model));  // triggers recursive call
     bodies.back()->frame =
         subtree->bodies[i]->frame ? frames[fmap[subtree->bodies[i]->frame]] : nullptr;
+    bodies.back()->NameSpace_(other.model, /*propagate=*/ false);
   }
-
-  // name space
-  this->NameSpace(other.model);
 
   // attach referencing elements
   *model += *other.model;
@@ -832,14 +834,14 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
     dst.push_back(new T(*src[i]));
     dst.back()->body = this;
     dst.back()->model = model;
+    dst.back()->id = -1;
+    dst.back()->def = src[i]->def;
 
     // assign dst frame to src frame
     dst.back()->frame = src[i]->frame ? frames[fmap[src[i]->frame]] : nullptr;
 
-    // set namespace from pframe if given
-    if (pframe) {
-      dst.back()->NameSpace(pframe->model);
-    }
+    // set namespace
+    dst.back()->NameSpace(src[i]->model);
   }
 }
 
@@ -906,8 +908,25 @@ mjCBody::~mjCBody() {
 
 // apply prefix and suffix, propagate to children
 void mjCBody::NameSpace(const mjCModel* m) {
+  NameSpace_(m, true);
+}
+
+
+
+// apply prefix and suffix, propagate to all descendents or only to child bodies
+void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
   if (!name.empty()) {
-    name = prefix + name + suffix;
+    name = m->prefix + name + m->suffix;
+  }
+
+  for (auto& body : bodies) {
+    body->prefix = m->prefix;
+    body->suffix = m->suffix;
+    body->NameSpace_(m, propagate);
+  }
+
+  if (!propagate) {
+    return;
   }
 
   for (auto& joint : joints) {
@@ -928,12 +947,6 @@ void mjCBody::NameSpace(const mjCModel* m) {
 
   for (auto& light : lights) {
     light->NameSpace(m);
-  }
-
-  for (auto& body : bodies) {
-    body->prefix = m->prefix;
-    body->suffix = m->suffix;
-    body->NameSpace(m);
   }
 }
 
@@ -1836,6 +1849,23 @@ void mjCGeom::CopyFromSpec() {
 
 
 
+void mjCGeom::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
+  if (!spec_hfieldname_.empty() && model != m) {
+    spec_hfieldname_ = m->prefix + spec_hfieldname_ + m->suffix;
+  }
+  if (!spec_meshname_.empty() && model != m) {
+    spec_meshname_ = m->prefix + spec_meshname_ + m->suffix;
+  }
+}
+
+
+
 // compute geom volume
 double mjCGeom::GetVolume(void) {
   double height;
@@ -2196,7 +2226,7 @@ void mjCGeom::Compile(void) {
   }
 
   // check hfield
-  if ((type==mjGEOM_HFIELD && !hfield) || (type!=mjGEOM_HFIELD && hfield)) {
+  if ((type==mjGEOM_HFIELD && !hfield) || (type != mjGEOM_HFIELD && hfield)) {
     throw mjCError(this, "hfield geom '%s' (id = %d) must have valid hfieldid", name.c_str(), id);
   }
 
@@ -2272,7 +2302,7 @@ void mjCGeom::Compile(void) {
 
     // fit geom if type is not mjGEOM_MESH
     double meshpos[3];
-    if (type!=mjGEOM_MESH && type!=mjGEOM_SDF) {
+    if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
       mesh->FitGeom(this, meshpos);
 
       // remove reference to mesh
@@ -2578,7 +2608,9 @@ void mjCCamera::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
+  if (!spec_targetbody_.empty()) {
+    spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
+  }
 }
 
 
@@ -2726,7 +2758,9 @@ void mjCLight::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
+  if (!spec_targetbody_.empty()) {
+    spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
+  }
 }
 
 
@@ -3515,7 +3549,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   LoadFlip(filename, vfs, image, w, h);
 
   // check gridsize for compatibility
-  if (w/gridsize[1]!=h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
+  if (w/gridsize[1] != h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
     throw mjCError(this,
                    "PNG size must be integer multiple of gridsize in texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
@@ -3621,7 +3655,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       LoadFlip(filename, vfs, image, w, h);
 
       // PNG must be square
-      if (w!=h) {
+      if (w != h) {
         throw mjCError(this,
                        "Non-square PNG file '%s' in cube or skybox id %d",
                        (const char*)cubefiles_[i].c_str(), id);
@@ -3638,7 +3672,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // otherwise check size
-      else if (width!=w) {
+      else if (width != w) {
         throw mjCError(this,
                        "PNG file '%s' has incompatible size in texture id %d",
                        (const char*)cubefiles_[i].c_str(), id);
@@ -3674,14 +3708,14 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   CopyFromSpec();
 
   // builtin
-  if (builtin!=mjBUILTIN_NONE) {
+  if (builtin != mjBUILTIN_NONE) {
     // check size
     if (width<1 || height<1) {
       throw mjCError(this, "Invalid width or height of builtin texture");
     }
 
     // adjust height of cube texture
-    if (type!=mjTEXTURE_2D) {
+    if (type != mjTEXTURE_2D) {
       height = 6*width;
     }
 
@@ -3815,6 +3849,17 @@ void mjCMaterial::CopyFromSpec() {
 
 
 
+void mjCMaterial::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  if (!spec_texture_.empty() && model != m) {
+    spec_texture_ = m->prefix + spec_texture_ + m->suffix;
+  }
+}
+
+
+
 // compiler
 void mjCMaterial::Compile(void) {
   CopyFromSpec();
@@ -3891,8 +3936,8 @@ void mjCPair::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  spec_geomname1_ = m->prefix + spec_geomname1_ + m->suffix;
-  spec_geomname2_ = m->prefix + spec_geomname2_ + m->suffix;
+  prefix = m->prefix;
+  suffix = m->suffix;
 }
 
 
@@ -3908,17 +3953,31 @@ void mjCPair::CopyFromSpec() {
 
 
 void mjCPair::ResolveReferences(const mjCModel* m) {
-  // find geom 1
+  geomname1_ = prefix + geomname1_ + suffix;
+  geomname2_ = prefix + geomname2_ + suffix;
   geom1 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname1_);
+  geom2 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname2_);
+
+  if (!geom1 && geom2) {
+    geomname1_ = spec_geomname1_;
+    geom1 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname1_);
+  }
+  if (geom1 && !geom2) {
+    geomname2_ = spec_geomname2_;
+    geom2 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname2_);
+  }
+
   if (!geom1) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname1_.c_str(), id);
   }
-
-  // find geom 2
-  geom2 = (mjCGeom*)m->FindObject(mjOBJ_GEOM, geomname2_);
   if (!geom2) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname2_.c_str(), id);
   }
+
+  spec_geomname1_ = geomname1_;
+  spec_geomname2_ = geomname2_;
+  prefix.clear();
+  suffix.clear();
 
   // swap if body1 > body2
   if (geom1->body->id > geom2->body->id) {
@@ -3964,7 +4023,7 @@ void mjCPair::Compile(void) {
   }
 
   // set undefined condim, friction, solref, solimp: different priority
-  if (geom1->priority!=geom2->priority) {
+  if (geom1->priority != geom2->priority) {
     mjCGeom* pgh = (geom1->priority>geom2->priority ? geom1 : geom2);
 
     // condim
@@ -4101,8 +4160,8 @@ void mjCBodyPair::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  spec_bodyname1_ = m->prefix + spec_bodyname1_ + m->suffix;
-  spec_bodyname2_ = m->prefix + spec_bodyname2_ + m->suffix;
+  prefix = m->prefix;
+  suffix = m->suffix;
 }
 
 
@@ -4118,17 +4177,31 @@ void mjCBodyPair::CopyFromSpec() {
 
 
 void mjCBodyPair::ResolveReferences(const mjCModel* m) {
-  // find body 1
+  bodyname1_ = prefix + bodyname1_ + suffix;
+  bodyname2_ = prefix + bodyname2_ + suffix;
   mjCBody* pb1 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname1_);
+  mjCBody* pb2 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname2_);
+
+  if (!pb1 && pb2) {
+    bodyname1_ = spec_bodyname1_;
+    pb1 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname1_);
+  }
+  if (pb1 && !pb2) {
+    bodyname2_ = spec_bodyname2_;
+    pb2 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname2_);
+  }
+
   if (!pb1) {
     throw mjCError(this, "body '%s' not found in bodypair %d", bodyname1_.c_str(), id);
   }
-
-  // find body 2
-  mjCBody* pb2 = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname2_);
   if (!pb2) {
     throw mjCError(this, "body '%s' not found in bodypair %d", bodyname2_.c_str(), id);
   }
+
+  spec_bodyname1_ = bodyname1_;
+  spec_bodyname2_ = bodyname2_;
+  prefix.clear();
+  suffix.clear();
 
   // swap if body1 > body2
   if (pb1->id > pb2->id) {
@@ -4391,9 +4464,8 @@ void mjCTendon::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  for (int i=0; i<path.size(); i++) {
-    path[i]->NameSpace(m);
-  }
+  prefix = m->prefix;
+  suffix = m->suffix;
 }
 
 
@@ -4517,9 +4589,28 @@ mjCWrap* mjCTendon::GetWrap(int id) {
 
 
 void mjCTendon::ResolveReferences(const mjCModel* m) {
+  int nfailure = 0;
   for (int i=0; i<path.size(); i++) {
-    path[i]->ResolveReferences(m);
+    std::string pname = path[i]->name;
+    std::string psidesite = path[i]->sidesite;
+    try {
+      // look for wrapped element with namespace
+      path[i]->name = prefix + pname + suffix;
+      path[i]->sidesite = prefix + psidesite + suffix;
+      path[i]->ResolveReferences(m);
+    } catch(mjCError) {
+      // remove namespace from wrap names
+      path[i]->name = pname;
+      path[i]->sidesite = psidesite;
+      path[i]->ResolveReferences(m);
+      nfailure++;
+    }
   }
+  if (nfailure==path.size()) {
+    throw mjCError(this, "tendon '%s' (id = %d): no attached reference found", name.c_str(), id);
+  }
+  prefix.clear();
+  suffix.clear();
 }
 
 
@@ -4543,7 +4634,7 @@ void mjCTendon::Compile(void) {
   }
 
   // determine type
-  bool spatial = (path[0]->type!=mjWRAP_JOINT);
+  bool spatial = (path[0]->type != mjWRAP_JOINT);
 
   // require at least two objects in spatial path
   if (spatial && sz<2) {
@@ -4564,7 +4655,7 @@ void mjCTendon::Compile(void) {
     // fixed
     if (!spatial) {
       // make sure all objects are joints
-      if (path[i]->type!=mjWRAP_JOINT) {
+      if (path[i]->type != mjWRAP_JOINT) {
         throw mjCError(this, "tendon '%s' (id = %d): spatial object found in fixed path at pos %d",
                        name.c_str(), id, i);
       }
@@ -4607,7 +4698,7 @@ void mjCTendon::Compile(void) {
       case mjWRAP_SPHERE:
       case mjWRAP_CYLINDER:
         // geom must be bracketed by sites
-        if (i==0 || i==sz-1 || path[i-1]->type!=mjWRAP_SITE || path[i+1]->type!=mjWRAP_SITE) {
+        if (i==0 || i==sz-1 || path[i-1]->type != mjWRAP_SITE || path[i+1]->type != mjWRAP_SITE) {
           throw mjCError(this,
                          "tendon '%s' (id = %d): geom at pos %d not bracketed by sites",
                          name.c_str(), id, i);
@@ -5187,8 +5278,8 @@ void mjCSensor::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  spec_objname_ = m->prefix + spec_objname_ + m->suffix;
-  spec_refname_ = m->prefix + spec_refname_ + m->suffix;
+  prefix = m->prefix;
+  suffix = m->suffix;
 }
 
 
@@ -5210,15 +5301,35 @@ void mjCSensor::CopyFromSpec() {
 
 
 void mjCSensor::ResolveReferences(const mjCModel* m) {
+  objname_ = prefix + objname_ + suffix;
+  refname_ = prefix + refname_ + suffix;
+
+  // get references using the namespace
+  if (objtype != mjOBJ_UNKNOWN) {
+    obj = m->FindObject(objtype, objname_);
+  }
+  if (reftype != mjOBJ_UNKNOWN) {
+    ref = m->FindObject(reftype, refname_);
+  }
+
+  // if failure and both were requested, use namespace only on one
+  if (objtype != mjOBJ_UNKNOWN && reftype != mjOBJ_UNKNOWN && !obj && ref) {
+    objname_ = spec_objname_;
+    obj = m->FindObject(objtype, objname_);
+  }
+  if (objtype != mjOBJ_UNKNOWN && reftype != mjOBJ_UNKNOWN && obj && !ref) {
+    refname_ = spec_refname_;
+    ref = m->FindObject(reftype, refname_);
+  }
+
   // get objid from objtype and objname
-  if (objtype!=mjOBJ_UNKNOWN) {
+  if (objtype != mjOBJ_UNKNOWN) {
     // check for missing object name
     if (objname_.empty()) {
       throw mjCError(this, "missing name of sensorized object in sensor");
     }
 
     // find name
-    obj = m->FindObject(objtype, objname_);
     if (!obj) {
       throw mjCError(this, "unrecognized name '%s' of sensorized object", objname_.c_str());
     }
@@ -5234,21 +5345,20 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
   }
 
   // get refid from reftype and refname
-  if (reftype!=mjOBJ_UNKNOWN) {
+  if (reftype != mjOBJ_UNKNOWN) {
     // check for missing object name
     if (refname_.empty()) {
       throw mjCError(this, "missing name of reference frame object in sensor");
     }
 
     // find name
-    ref = m->FindObject(reftype, refname_);
     if (!ref) {
       throw mjCError(this, "unrecognized name '%s' of reference frame object", refname_.c_str());
     }
 
     // must be attached to object with spatial frame
-    if (reftype!=mjOBJ_BODY && reftype!=mjOBJ_XBODY &&
-        reftype!=mjOBJ_GEOM && reftype!=mjOBJ_SITE && reftype!=mjOBJ_CAMERA) {
+    if (reftype != mjOBJ_BODY && reftype != mjOBJ_XBODY &&
+        reftype != mjOBJ_GEOM && reftype != mjOBJ_SITE && reftype != mjOBJ_CAMERA) {
       throw mjCError(this,
                      "reference frame object must be (x)body, geom, site or camera in sensor");
     }
@@ -5256,6 +5366,11 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
     // get sensorized object id
     refid = ref->id;
   }
+
+  spec_objname_ = objname_;
+  spec_refname_ = refname_;
+  prefix.clear();
+  suffix.clear();
 }
 
 
@@ -5537,7 +5652,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure dim is consistent with datatype
-    if (datatype==mjDATATYPE_AXIS && dim!=3) {
+    if (datatype==mjDATATYPE_AXIS && dim != 3) {
       throw mjCError(this,
                      "datatype AXIS requires dim=3 in sensor");
     }
@@ -5843,7 +5958,7 @@ void mjCTuple::ResolveReferences(const mjCModel* m) {
   }
 
   // check for size conflict
-  if (objtype_.size()!=objname_.size() || objtype_.size()!=objprm_.size()) {
+  if (objtype_.size() != objname_.size() || objtype_.size() != objprm_.size()) {
     throw mjCError(this,
                    "tuple '%s' (id = %d) has object arrays with different sizes", name.c_str(), id);
   }
@@ -5984,7 +6099,7 @@ void mjCKey::Compile(const mjModel* m) {
     for (int i=0; i<m->nq; i++) {
       qpos_[i] = (double)m->qpos0[i];
     }
-  } else if (qpos_.size()!=m->nq) {
+  } else if (qpos_.size() != m->nq) {
     throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
@@ -5994,7 +6109,7 @@ void mjCKey::Compile(const mjModel* m) {
     for (int i=0; i<m->nv; i++) {
       qvel_[i] = 0;
     }
-  } else if (qvel_.size()!=m->nv) {
+  } else if (qvel_.size() != m->nv) {
     throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
@@ -6004,7 +6119,7 @@ void mjCKey::Compile(const mjModel* m) {
     for (int i=0; i<m->na; i++) {
       act_[i] = 0;
     }
-  } else if (act_.size()!=m->na) {
+  } else if (act_.size() != m->na) {
     throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
@@ -6021,7 +6136,7 @@ void mjCKey::Compile(const mjModel* m) {
         }
       }
     }
-  } else if (mpos_.size()!=3*m->nmocap) {
+  } else if (mpos_.size() != 3*m->nmocap) {
     throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
@@ -6039,7 +6154,7 @@ void mjCKey::Compile(const mjModel* m) {
         }
       }
     }
-  } else if (mquat_.size()!=4*m->nmocap) {
+  } else if (mquat_.size() != 4*m->nmocap) {
     throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
   }
 
@@ -6049,7 +6164,7 @@ void mjCKey::Compile(const mjModel* m) {
     for (int i=0; i<m->nu; i++) {
       ctrl_[i] = 0;
     }
-  } else if (ctrl_.size()!=m->nu) {
+  } else if (ctrl_.size() != m->nu) {
     throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 }

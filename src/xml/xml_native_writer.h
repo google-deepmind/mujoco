@@ -49,7 +49,7 @@ class mjXWriter : public mjXBase {
   void Extension(tinyxml2::XMLElement* root);                             // extension section
   void Custom(tinyxml2::XMLElement* root);                                // custom section
   void Asset(tinyxml2::XMLElement* root);                                 // asset section
-  void Body(tinyxml2::XMLElement* elem, mjCBody* body, mjCFrame* frame);  // body/world section
+  void Body(tinyxml2::XMLElement* elem, mjCBody* body);                   // body/world section
   void Contact(tinyxml2::XMLElement* root);                               // contact section
   void Deformable(tinyxml2::XMLElement* root);                            // deformable section
   void Equality(tinyxml2::XMLElement* root);                              // equality section
@@ -73,6 +73,7 @@ class mjXWriter : public mjXBase {
   void OneTendon(tinyxml2::XMLElement* elem,    mjCTendon* ptendon,     mjCDef* def);
   void OneActuator(tinyxml2::XMLElement* elem,  mjCActuator* pactuator, mjCDef* def);
   void OnePlugin(tinyxml2::XMLElement* elem,    mjsPlugin* plugin);
+  tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem, mjCFrame* frame);
 
   bool writingdefaults;                       // true during defaults write
 };

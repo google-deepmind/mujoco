@@ -7,15 +7,22 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
+
+.. youtube:: 5k0_wsIRAFc
+   :align: right
+   :width: 240px
+
+1. Added the :ref:`replicate<replicate>` to MJCF, a :ref:`meta-element<meta-element>` which permits to repeat a subtree
+   with incremental translational and rotational offsets.
+2. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
    :ref:`scale<asset-mesh-scale>` attribute.
-2. Added visual properties which are ignored by the native renderer, but can be used by external renderers:
+3. Added visual properties which are ignored by the native renderer, but can be used by external renderers:
 
    - :ref:`light/bulbradius<body-light-bulbradius>` attribute and corresponding ``mjModel.light_bulbradius`` field.
    - :ref:`material/metallic<asset-material-metallic>` attribute and corresponding ``mjModel.material_metallic`` field.
    - :ref:`material/roughness<asset-material-roughness>` attribute and corresponding ``mjModel.material_roughness``
      field.
-3. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
+4. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
    to ``size_t``.
 
 MJX
@@ -23,33 +30,33 @@ MJX
 .. admonition:: Breaking API changes
    :class: attention
 
-   4. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
+   5. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
       functionality.
 
       **Migration:** Use ``mjx.get_data_into`` instead of ``mjx.device_get_into``, and ``mjx.put_data`` instead of
       ``mjx.device_put``.
 
-5. Added cylinder plane collisions.
-6. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
-7. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
-8. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
-9. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
-10. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
+6. Added cylinder plane collisions.
+7. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
+8. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
+9. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
+10. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
+11. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
     geoms.
-11. Fixed a bug where capsules might be ignored in broadphase colliision checking.
-12. Added cylinder collisions using SDFs.
-13. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
-14. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
-15. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
-16. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
+12. Fixed a bug where capsules might be ignored in broadphase colliision checking.
+13. Added cylinder collisions using SDFs.
+14. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
+15. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
+16. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
+17. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
 
 Bug fixes
 ^^^^^^^^^
-17. Defaults of lights were not being saved, now fixed.
-18. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-19. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+18. Defaults of lights were not being saved, now fixed.
+19. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+20. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-20. Fixed bug that prevented memory allocations larger than 2.15 GB.
+21. Fixed bug that prevented memory allocations larger than 2.15 GB.
 
 
 Version 3.1.4 (April 10th, 2024)

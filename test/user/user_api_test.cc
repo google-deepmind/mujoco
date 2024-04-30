@@ -204,12 +204,17 @@ static constexpr char xml_child[] = R"(
       </default>
     </default>
 
+    <asset>
+      <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
     <worldbody>
       <frame name="pframe">
         <frame name="cframe">
           <body name="body">
             <joint type="hinge" name="hinge"/>
-            <geom class="cylinder"/>
+            <geom class="cylinder" material="material"/>
             <light mode="targetbody" target="targetbody"/>
             <body name="targetbody"/>
             <body/>
@@ -254,10 +259,15 @@ TEST_F(MujocoTest, AttachSame) {
       </default>
     </default>
 
+    <asset>
+      <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
     <worldbody>
       <body name="body">
         <joint type="hinge" name="hinge"/>
-        <geom class="cylinder"/>
+        <geom class="cylinder" material="material"/>
         <light mode="targetbody" target="targetbody"/>
         <body name="targetbody"/>
         <body/>
@@ -266,7 +276,7 @@ TEST_F(MujocoTest, AttachSame) {
       <frame name="frame" pos=".1 0 0" euler="0 90 0">
         <body name="attached-body-1">
           <joint type="hinge" name="attached-hinge-1"/>
-          <geom class="cylinder"/>
+          <geom class="cylinder" material="material"/>
           <light mode="targetbody" target="attached-targetbody-1"/>
           <body name="attached-targetbody-1"/>
           <body/>
@@ -374,6 +384,11 @@ TEST_F(MujocoTest, AttachDifferent) {
       </default>
     </default>
 
+    <asset>
+      <texture name="attached-texture-1" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="attached-material-1" texture="attached-texture-1" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
     <worldbody>
       <body name="sphere">
         <freejoint/>
@@ -381,7 +396,7 @@ TEST_F(MujocoTest, AttachDifferent) {
         <frame name="frame" pos=".1 0 0" euler="0 90 0">
           <body name="attached-body-1">
             <joint type="hinge" name="attached-hinge-1"/>
-            <geom class="attached-cylinder-1"/>
+            <geom class="attached-cylinder-1" material="attached-material-1"/>
             <light mode="targetbody" target="attached-targetbody-1"/>
               <body name="attached-targetbody-1"/>
               <body/>
@@ -478,6 +493,11 @@ TEST_F(MujocoTest, AttachFrame) {
       </default>
     </default>
 
+    <asset>
+      <texture name="attached-texture-1" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="attached-material-1" texture="attached-texture-1" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
     <worldbody>
       <body name="sphere">
         <freejoint/>
@@ -487,7 +507,7 @@ TEST_F(MujocoTest, AttachFrame) {
           <frame name="cframe">
             <body name="attached-body-1">
               <joint type="hinge" name="attached-hinge-1"/>
-              <geom class="attached-cylinder-1"/>
+              <geom class="attached-cylinder-1" material="attached-material-1"/>
               <light mode="targetbody" target="attached-targetbody-1"/>
                 <body name="attached-targetbody-1"/>
                 <body/>
@@ -568,6 +588,11 @@ TEST_F(MujocoTest, DetachBody) {
 
   static constexpr char xml_result[] = R"(
   <mujoco>
+    <asset>
+      <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
     <worldbody>
       <frame name="pframe">
         <frame name="cframe">
@@ -605,7 +630,6 @@ TEST_F(MujocoTest, DetachBody) {
 
   // destroy everything
   mjs_deleteSpec(child);
-  mjs_deleteBody(body);
   mj_deleteModel(m_detached);
   mj_deleteModel(m_expected);
 }

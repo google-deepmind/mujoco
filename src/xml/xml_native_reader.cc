@@ -74,6 +74,16 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjsPlugin* p) {
     mjs_setPluginAttributes(p, &config_attribs);
   }
 }
+
+static void UpdateString(std::string& psuffix, int count, int i) {
+  int ndigits = std::to_string(count).length();
+  std::string i_string = std::to_string(i);
+  std::string prefix = "";
+  while (ndigits-- > i_string.length()) {
+    prefix += '0';
+  }
+  psuffix += prefix + i_string;
+}
 }  // namespace
 
 
@@ -870,11 +880,6 @@ void mjXReader::Parse(XMLElement* root) {
     Asset(section);
   }
 
-  for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
-       section = NextSiblingElement(section, "worldbody")) {
-    Body(section, mjs_findBody(model, "world"), nullptr);
-  }
-
   for (XMLElement* section = FirstChildElement(root, "contact"); section;
        section = NextSiblingElement(section, "contact")) {
     Contact(section);
@@ -908,6 +913,11 @@ void mjXReader::Parse(XMLElement* root) {
   for (XMLElement* section = FirstChildElement(root, "keyframe"); section;
        section = NextSiblingElement(section, "keyframe")) {
     Keyframe(section);
+  }
+
+  for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
+       section = NextSiblingElement(section, "worldbody")) {
+    Body(section, mjs_findBody(model, "world"), nullptr);
   }
 }
 
@@ -3369,6 +3379,72 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       ReadAlternative(elem, pframe->alt);
 
       Body(elem, pbody, pframe);
+    }
+
+    // replicate sub-element
+    else if (name=="replicate") {
+      int count;
+      double offset[3] = {0, 0, 0};
+      double euler[3] = {0, 0, 0};
+      std::string separator = "";
+      ReadAttr(elem, "count", 1, &count, text, true);
+      ReadAttr(elem, "offset", 3, offset, text);
+      ReadAttr(elem, "euler", 3, euler, text);
+      ReadAttrTxt(elem, "sep", separator);
+
+      // store rotation difference
+      mjsOrientation alt;
+      mjs_defaultOrientation(alt);
+      alt.type = mjORIENTATION_EULER;
+      mjuu_copyvec(alt.euler, euler, 3);
+      double rotation[4] = {1, 0, 0, 0};
+      mjs_resolveOrientation(rotation, model->degree, model->euler, &alt);
+
+      // read childdef
+      mjsDefault* childdef = 0;
+      if (ReadAttrTxt(elem, "childclass", text)) {
+        childdef = mjs_findDefault(model, text.c_str());
+        mjs_findDefault(model, text.c_str());
+        if (!childdef) {
+          throw mjXError(elem, "unknown default childclass");
+        }
+      }
+
+      // create subtree
+      mjsBody* subtree = mjs_addBody(pbody, childdef);
+      double pos[3] = {0, 0, 0};
+      double quat[4] = {1, 0, 0, 0};
+
+      for (int i = 0; i < count; i++) {
+        // create parent frame
+        mjsFrame* pframe = mjs_addFrame(subtree, frame);
+        mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+        mjs_setDefault(pframe->element, childdef ? childdef : def);
+
+        // accumulate rotation
+        mjuu_setvec(pframe->pos, pos[0], pos[1], pos[2]);
+        mjuu_frameaccum(pos, quat, offset, rotation);
+
+        // overwrite orientation to increase precision
+        alt.euler[0] = i*euler[0];
+        alt.euler[1] = i*euler[1];
+        alt.euler[2] = i*euler[2];
+        mjs_resolveOrientation(quat, model->degree, model->euler, &alt);
+        mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
+
+        // process suffix
+        std::string suffix = separator;
+        UpdateString(suffix, count, i);
+
+        // process subtree
+        Body(elem, subtree, pframe);
+
+        // attach to parent
+        mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str());
+      }
+
+      // delete subtree
+      mjs_detachBody(model, subtree);
     }
 
     // body sub-element

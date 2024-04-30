@@ -230,21 +230,27 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
   MakeLists(bodies[0]);
   CreateObjectLists();
-  ProcessLists();
+  ProcessLists(/*checkrepeat=*/false);
 
   // copy all elements not in the tree
   std::map<mjCDef*, int> def_map;
   int ndefaults = (int)other.defaults.size();
   for (int i = 0; i < ndefaults; i++) {
-    defaults.push_back(new mjCDef(*other.defaults[i]));
+    if (this != &other) {
+      defaults.push_back(new mjCDef(*other.defaults[i]));
+    }
     def_map[other.defaults[i]] = i;
   }
+  if (this != &other) {
+    // do not copy assets for self-attach
+    CopyList(meshes, other.meshes, def_map, defaults);
+    CopyList(skins, other.skins, def_map, defaults);
+    CopyList(hfields, other.hfields, def_map, defaults);
+    CopyList(textures, other.textures, def_map, defaults);
+    CopyList(materials, other.materials, def_map, defaults);
+    CopyList(keys, other.keys, def_map, defaults);
+  }
   CopyList(flexes, other.flexes, def_map, defaults);
-  CopyList(meshes, other.meshes, def_map, defaults);
-  CopyList(skins, other.skins, def_map, defaults);
-  CopyList(hfields, other.hfields, def_map, defaults);
-  CopyList(textures, other.textures, def_map, defaults);
-  CopyList(materials, other.materials, def_map, defaults);
   CopyList(pairs, other.pairs, def_map, defaults);
   CopyList(excludes, other.excludes, def_map, defaults);
   CopyList(tendons, other.tendons, def_map, defaults);
@@ -254,7 +260,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(numerics, other.numerics, def_map, defaults);
   CopyList(texts, other.texts, def_map, defaults);
   CopyList(tuples, other.tuples, def_map, defaults);
-  CopyList(keys, other.keys, def_map, defaults);
 
   // plugins are global
   plugins = other.plugins;
@@ -309,6 +314,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
     element->id -= removed;
     try {
       // check if the element contains an error
+      element->NameSpace(&other);
       element->CopyFromSpec();
       element->ResolveReferences(&other);
     } catch (mjCError err) {
@@ -316,6 +322,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
     }
     try {
       // check if the element references something that was removed
+      element->NameSpace(this);
       element->ResolveReferences(this);
     } catch (mjCError err) {
       delete element;
@@ -333,7 +340,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   mjCModel oldmodel(*this);
   oldmodel.MakeLists(oldmodel.bodies[0]);
   oldmodel.CreateObjectLists();
-  oldmodel.ProcessLists();
+  oldmodel.ProcessLists(/*checkrepeat=*/false);
 
   // remove body from tree
   *bodies[0] -= subtree;
@@ -341,7 +348,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   // create global lists
   MakeLists(bodies[0]);
   CreateObjectLists();
-  ProcessLists();
+  ProcessLists(/*checkrepeat=*/false);
 
   // check if we have to remove anything else
   RemoveFromList(pairs, oldmodel);
@@ -3044,15 +3051,16 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
 
 
 // set object ids, check for repeated names
-void mjCModel::ProcessLists() {
+void mjCModel::ProcessLists(bool checkrepeat) {
   for (int i = 0; i < mjNOBJECT; i++) {
     if (i != mjOBJ_XBODY && object_lists[i]) {
-      processlist(ids, *object_lists[i], (mjtObj) i);
+      ids[i].clear();
+      processlist(ids, *object_lists[i], (mjtObj) i, checkrepeat);
     }
   }
 
   // check repeated names in meta elements
-  processlist(ids, frames, mjOBJ_FRAME);
+  processlist(ids, frames, mjOBJ_FRAME, checkrepeat);
 }
 
 
