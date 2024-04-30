@@ -3213,7 +3213,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // mark meshes that need convex hull
   for (int i=0; i<geoms.size(); i++) {
-    if (geoms[i]->mesh && geoms[i]->spec.type==mjGEOM_MESH &&
+    if (geoms[i]->mesh &&
+        (geoms[i]->spec.type==mjGEOM_MESH || geoms[i]->spec.type==mjGEOM_SDF) &&
         (geoms[i]->spec.contype || geoms[i]->spec.conaffinity)) {
       geoms[i]->mesh->set_needhull(true);
     }
