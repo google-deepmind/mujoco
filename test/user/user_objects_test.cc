@@ -755,6 +755,32 @@ TEST_F(MjCGeomTest, NanSize) {
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
+TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="bad_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="bad_mesh" mass="0"/>
+      </body>
+      <body>
+        <geom type="mesh" mesh="bad_mesh" density="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->body_mass[1], 0);
+  EXPECT_EQ(model->body_mass[2], 0);
+  mj_deleteModel(model);
+}
+
 // ------------- test height fields --------------------------------------------
 
 using MjCHFieldTest = MujocoTest;

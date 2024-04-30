@@ -2344,6 +2344,7 @@ void mjCGeom::Compile(void) {
 
   // compute geom mass and inertia
   if (inferinertia) {
+    // mass is defined
     if (mjuu_defined(mass)) {
       if (mass==0) {
         mass_ = 0;
@@ -2353,10 +2354,18 @@ void mjCGeom::Compile(void) {
         density = mass / GetVolume();
         SetInertia();
       }
-    } else {
-      mass_ = density * GetVolume();
-      SetInertia();
     }
+
+    // mass is not defined
+    else {
+      if (density == 0) {
+        mass_ = 0;
+      } else {
+        mass_ = density * GetVolume();
+        SetInertia();
+      }
+    }
+
 
     // check for negative values
     if (mass_<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
