@@ -92,20 +92,25 @@ TEST_F(PluginTest, RecompileCompare) {
         std::array<char, 1000> err;
         mjSpec* s = mjParseXML(xml.c_str(), nullptr, err.data(), err.size());
 
+        ASSERT_THAT(s, NotNull())
+            << "Failed to load " << xml << ": " << err.data();
+
         // copy spec
         mjSpec* s_copy = mjs_copySpec(s);
 
         // compile twice and compare
         mjModel* m_old = mjs_compile(s, nullptr);
+
+        ASSERT_THAT(m_old, NotNull())
+            << "Failed to compile " << xml << ": " << mjs_getError(s);
+
         mjModel* m_new = mjs_compile(s, nullptr);
         mjModel* m_copy = mjs_compile(s_copy, nullptr);
 
-        ASSERT_THAT(m_old, NotNull())
-            << "Failed to compile " << xml << ": " << err.data();
         ASSERT_THAT(m_new, NotNull())
-            << "Failed to recompile " << xml << ": " << err.data();
+            << "Failed to recompile " << xml << ": " << mjs_getError(s);
         ASSERT_THAT(m_copy, NotNull())
-            << "Failed to compile " << xml << ": " << err.data();
+            << "Failed to compile " << xml << ": " << mjs_getError(s_copy);
 
         EXPECT_LE(CompareModel(m_old, m_new, field), tol)
             << "Compiled and recompiled models are different!\n"
@@ -122,7 +127,7 @@ TEST_F(PluginTest, RecompileCompare) {
         mjModel* m_copy2 = mjs_compile(s_copy2, nullptr);
 
         ASSERT_THAT(m_copy2, NotNull())
-            << "Failed to compile " << xml << ": " << err.data();
+            << "Failed to compile " << xml << ": " << mjs_getError(s_copy2);
 
         EXPECT_LE(CompareModel(m_old, m_copy2, field), tol)
             << "Original and re-copied models are different!\n"
