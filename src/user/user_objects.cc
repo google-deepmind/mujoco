@@ -47,6 +47,7 @@
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_vfs.h"
 #include "user/user_api.h"
+#include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
 
@@ -131,6 +132,91 @@ const char* FullInertia(double quat[4], double inertia[3], const double fulliner
 
   return nullptr;
 }
+
+
+
+// fetches cached image from PNG asset, returns nullopt if not available
+static std::optional<std::vector<unsigned char>>
+LoadCachedPNG(mjCAsset& asset, unsigned& w, unsigned& h, LodePNGColorType color_type) {
+  if (!asset.HasData("dims") || !asset.HasData("image")) {
+    return std::nullopt;
+  }
+
+  std::vector<unsigned int> dims
+      = asset.GetVector<unsigned int>("dims").value();
+  auto maybe_cached_image = asset.GetVector<unsigned char>("image");
+
+  if (dims.size() != 3) {
+    return std::nullopt;
+  }
+
+  if ((maybe_cached_image->size() != dims[0] * dims[1]) || (color_type != dims[2])) {
+    return std::nullopt;
+  }
+
+  w = dims[0];
+  h = dims[1];
+
+  return maybe_cached_image;
+}
+
+
+
+// decodes PNG images from the given resource
+std::vector<unsigned char> LoadPNG(const mjCBase* obj, mjResource* resource,
+                                   unsigned& w, unsigned& h, LodePNGColorType color_type) {
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+
+  // try loading from cache
+  if (cache) {
+    auto asset = cache->Get(resource->name);
+    if (asset.has_value() &&
+        !mju_isModifiedResource(resource, asset->Timestamp().c_str())) {
+      auto maybe_cached_image = LoadCachedPNG(asset.value(), w, h, color_type);
+      if (maybe_cached_image.has_value()) {
+        return maybe_cached_image.value();
+      }
+    }
+  }
+
+  // open PNG resource
+  const unsigned char* buffer;
+  int buffer_sz = mju_readResource(resource, (const void**) &buffer);
+
+  if (buffer_sz < 0) {
+    throw mjCError(obj, "could not read PNG file '%s'", resource->name);
+  }
+
+  if (!buffer_sz) {
+    throw mjCError(obj, "empty PNG file '%s'", resource->name);
+  }
+
+  // decode PNG from buffer
+  std::vector<unsigned char> image;
+  unsigned err = lodepng::decode(image, w, h, buffer, buffer_sz, color_type, 8);
+
+  // check for errors
+  if (err) {
+    std::stringstream ss;
+    ss << "error decoding PNG file '" << resource->name << "': " << lodepng_error_text(err);
+    throw mjCError(obj, "%s", ss.str().c_str());
+  }
+
+  if (!w || !h) {
+    throw mjCError(obj, "error decoding PNG file '%s': zero dimension", resource->name);
+  }
+
+  // insert raw image data into cache
+  if (cache) {
+    mjCAsset asset("", resource->name, resource->timestamp);
+    asset.AddVector("dims", std::vector<unsigned>{w, h, static_cast<unsigned int>(color_type)});
+    asset.AddVector("image", image);
+    cache->Insert(std::move(asset));
+  }
+
+  return image;
+}
+
 
 
 //------------------------- class mjCError implementation ------------------------------------------
@@ -2938,45 +3024,19 @@ void mjCHField::LoadCustom(mjResource* resource) {
 
 // load elevation data from PNG format
 void mjCHField::LoadPNG(mjResource* resource) {
-  // determine data source
-  const void* inbuffer = 0;
-  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+  unsigned w, h;
+  std::vector<unsigned char> image = ::LoadPNG(this, resource, w, h, LCT_GREY);
 
-  if (inbuffer_sz < 1) {
-    throw mjCError(this, "could not read hfield PNG file '%s'", resource->name);
-  }
-
-  if (!inbuffer_sz) {
-    throw mjCError(this, "empty hfield PNG file '%s'", resource->name);
-  }
-
-  // load PNG from file or memory
-  unsigned int w, h, err;
-  std::vector<unsigned char> image;
-  err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_GREY, 8);
-
-  // check
-  if (err) {
-    throw mjCError(this, "PNG load error '%s' in hfield id = %d", lodepng_error_text(err), id);
-  }
-  if (!w || !h) {
-    throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", resource->name, id);
-  }
-
-  // allocate
-  data.assign(w*h, 0);
-  if (data.empty()) {
-    throw mjCError(this, "could not allocate buffers in hfield");
-  }
-
-  // assign and copy
   ncol = w;
   nrow = h;
-  for (int c=0; c<ncol; c++)
-    for (int r=0; r<nrow; r++) {
-      data[c+(nrow-1-r)*ncol] = (float)image[c+r*ncol];
+
+  // copy image data over with rows reversed
+  data.reserve(nrow * ncol);
+  for (int r = 0; r < nrow; r++) {
+    for (int c = 0; c < ncol; c++) {
+      data.push_back((float) image[c + (nrow - 1 - r)*ncol]);
     }
-  image.clear();
+  }
 }
 
 
@@ -3381,28 +3441,7 @@ void mjCTexture::BuiltinCube(void) {
 void mjCTexture::LoadPNG(mjResource* resource,
                          std::vector<unsigned char>& image,
                          unsigned int& w, unsigned int& h) {
-  const void* inbuffer = 0;
-  int inbuffer_sz = mju_readResource(resource, &inbuffer);
-
-  // still not found
-  if (inbuffer_sz < 1) {
-    throw mjCError(this, "could not read PNG texture file '%s'", resource->name);
-  } else if (!inbuffer_sz) {
-    throw mjCError(this, "PNG texture file '%s' is empty", resource->name);
-  }
-
-
-  // load PNG from file or memory
-  unsigned int err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_RGB, 8);
-
-  // check
-  if (err) {
-    throw mjCError(this,
-                   "PNG file load error '%s' in texture id = %d", lodepng_error_text(err), id);
-  }
-  if (w<1 || h<1) {
-    throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", resource->name, id);
-  }
+  image = ::LoadPNG(this, resource, w, h, LCT_RGB);
 }
 
 
