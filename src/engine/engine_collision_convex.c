@@ -163,6 +163,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     break;
 
   case mjGEOM_MESH:
+  case mjGEOM_SDF:
     // init search
     vertdata = m->mesh_vert + 3*m->mesh_vertadr[m->geom_dataid[g]];
     tmp = -1E+10;

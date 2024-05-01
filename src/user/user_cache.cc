@@ -51,6 +51,8 @@ template std::size_t mjCAsset::Add(const std::string& name,
 template std::size_t mjCAsset::Add(const std::string& name,
                                    const int* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
+                                   const unsigned int* data, std::size_t n);
+template std::size_t mjCAsset::Add(const std::string& name,
                                    const float* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
                                    const double* data, std::size_t n);
@@ -67,6 +69,8 @@ template std::size_t mjCAsset::AddVector(const std::string& name,
                                          const std::vector<uint8_t>& v);
 template std::size_t mjCAsset::AddVector(const std::string& name,
                                          const std::vector<int>& v);
+template std::size_t mjCAsset::AddVector(const std::string& name,
+                                         const std::vector<unsigned int>& v);
 template std::size_t mjCAsset::AddVector(const std::string& name,
                                          const std::vector<float>& v);
 template std::size_t mjCAsset::AddVector(const std::string& name,
@@ -101,6 +105,8 @@ const uint8_t* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
 const int* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
+const unsigned int* mjCAsset::Get(const std::string& name, std::size_t* n) const;
+template
 const float* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
 const double* mjCAsset::Get(const std::string& name, std::size_t* n) const;
@@ -121,6 +127,8 @@ mjCAsset::GetVector(const std::string& name) const {
 template std::optional<std::vector<uint8_t>>
 mjCAsset::GetVector(const std::string& name) const;
 template std::optional<std::vector<int>>
+mjCAsset::GetVector(const std::string& name) const;
+template std::optional<std::vector<unsigned int>>
 mjCAsset::GetVector(const std::string& name) const;
 template std::optional<std::vector<float>>
 mjCAsset::GetVector(const std::string& name) const;

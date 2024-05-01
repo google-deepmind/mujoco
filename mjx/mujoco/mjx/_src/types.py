@@ -15,10 +15,8 @@
 """Base types used in MJX."""
 
 import enum
-from typing import List, Optional
 
 import jax
-import jax.numpy as jp
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
@@ -100,6 +98,7 @@ class GeomType(enum.IntEnum):
     CYLINDER: cylinder
     BOX: box
     MESH: mesh
+    SDF: signed distance field
   """
 
   PLANE = mujoco.mjtGeom.mjGEOM_PLANE
@@ -213,6 +212,24 @@ class BiasType(enum.IntEnum):
   # unsupported: MUSCLE, USER
 
 
+class ConstraintType(enum.IntEnum):
+  """Type of constraint.
+
+  Attributes:
+    EQUALITY: equality constraint
+    LIMIT_JOINT: joint limit
+    CONTACT_FRICTIONLESS: frictionless contact
+    CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
+  """
+  EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
+  # unsupported: FRICTION_DOF, FRICTION_TENDON
+  LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT
+  # unsupported: LIMIT_TENDON
+  CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
+  CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
+  # unsupported: CONTACT_ELLIPTIC
+
+
 class CamLightType(enum.IntEnum):
   """Type of camera light.
 
@@ -309,7 +326,12 @@ class Model(PyTreeNode):
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
+    ngravcomp: number of bodies with nonzero gravcomp
     nnumeric: number of numeric custom fields
+    ntuple: number of tuple custom fields
+    nsensor: number of sensors
+    nkey: number of keyframes
+    nuserdata: size of userdata array
     nM: number of non-zeros in sparse inertia matrix
     opt: physics options
     stat: model statistics
@@ -331,6 +353,7 @@ class Model(PyTreeNode):
     body_mass: mass                                           (nbody,)
     body_subtreemass: mass of subtree starting at this body   (nbody,)
     body_inertia: diagonal inertia in ipos/iquat frame        (nbody, 3)
+    body_gravcomp: antigravity force, units of body weight    (nbody,)
     body_invweight0: mean inv inert in qpos0 (trn, rot)       (nbody, 2)
     jnt_type: type of joint (mjtJoint)                        (njnt,)
     jnt_qposadr: start addr in 'qpos' for joint's data        (njnt,)
@@ -338,6 +361,8 @@ class Model(PyTreeNode):
     jnt_bodyid: id of joint's body                            (njnt,)
     jnt_group: group for visibility                           (njnt,)
     jnt_limited: does joint have limits                       (njnt,)
+    jnt_actfrclimited: does joint have actuator force limits  (njnt,)
+    jnt_actgravcomp: is gravcomp force applied via actuators  (njnt,)
     jnt_solref: constraint solver reference: limit            (njnt, mjNREF)
     jnt_solimp: constraint solver impedance: limit            (njnt, mjNIMP)
     jnt_pos: local anchor position                            (njnt, 3)
@@ -370,6 +395,7 @@ class Model(PyTreeNode):
     geom_solref: constraint solver reference: contact         (ngeom, mjNREF)
     geom_solimp: constraint solver impedance: contact         (ngeom, mjNIMP)
     geom_size: geom-specific size parameters                  (ngeom, 3)
+    geom_rbound: radius of bounding sphere                    (ngeom,)
     geom_pos: local position offset rel. to body              (ngeom, 3)
     geom_quat: local orientation offset rel. to body          (ngeom, 4)
     geom_friction: friction for (slide, spin, roll)           (ngeom, 3)
@@ -387,17 +413,13 @@ class Model(PyTreeNode):
     cam_poscom0:  global position rel. to sub-com in qpos0    (ncam, 3)
     cam_pos0:  global position rel. to body in qpos0          (ncam, 3)
     cam_mat0:  global orientation in qpos0                    (ncam, 9)
-    mat_rgba: rgba                                            (nmat, 4)
-    mesh_vertadr: first vertex address                        (nmesh x 1)
-    mesh_faceadr: first face address                          (nmesh x 1)
+    mesh_vertadr: first vertex address                        (nmesh,)
+    mesh_faceadr: first face address                          (nmesh,)
+    mesh_graphadr: graph data address; -1: no graph           (nmesh,)
     mesh_vert: vertex positions for all meshes                (nmeshvert, 3)
     mesh_face: vertex face data                               (nmeshface, 3)
-    geom_convex_face: vertex face data, MJX only              (ngeom,)
-    geom_convex_vert: vertex data, MJX only                   (ngeom,)
-    geom_convex_edge_dir: unique edge direction, MJX only     (ngeom,)
-    geom_convex_facenormal: normal face data, MJX only        (ngeom,)
-    geom_convex_face_edge: edges for each face                (ngeom,)
-    geom_convex_face_edge_normal: edge normals for each face  (ngeom,)
+    mesh_graph: convex graph data                             (nmeshgraph,)
+    mat_rgba: rgba                                            (nmat, 4)
     pair_dim: contact dimensionality                          (npair,)
     pair_geom1: id of geom1                                   (npair,)
     pair_geom2: id of geom2                                   (npair,)
@@ -434,7 +456,24 @@ class Model(PyTreeNode):
     actuator_gear: scale length and transmitted force         (nu, 6)
     numeric_adr: address of field in numeric_data             (nnumeric,)
     numeric_data: array of all numeric fields                 (nnumericdata,)
+    tuple_adr: address of text in text_data                   (ntuple,)
+    tuple_size: number of objects in tuple                    (ntuple,)
+    tuple_objtype: array of object types in all tuples        (ntupledata,)
+    tuple_objid: array of object ids in all tuples            (ntupledata,)
+    tuple_objprm: array of object params in all tuples        (ntupledata,)
+    name_bodyadr: body name pointers                          (nbody,)
+    name_jntadr: joint name pointers                          (njnt,)
+    name_geomadr: geom name pointers                          (ngeom,)
+    name_siteadr: site name pointers                          (nsite,)
+    name_camadr: camera name pointers                         (ncam,)
+    name_meshadr: mesh name pointers                          (nmesh,)
+    name_pairadr: geom pair name pointers                     (npair,)
+    name_eqadr: equality constraint name pointers             (neq,)
+    name_actuatoradr: actuator name pointers                  (nu,)
+    name_sensoradr: sensor name pointers                      (nsensor,)
     name_numericadr: numeric name pointers                    (nnumeric,)
+    name_tupleadr: tuple name pointers                        (ntuple,)
+    name_keyadr: keyframe name pointers                       (nkey,)
     names: names of all objects, 0-terminated                 (nnames,)
   """
   nq: int
@@ -453,7 +492,12 @@ class Model(PyTreeNode):
   npair: int
   nexclude: int
   neq: int
+  ngravcomp: int
   nnumeric: int
+  nuserdata: int
+  ntuple: int
+  nsensor: int
+  nkey: int
   nM: int  # pylint:disable=invalid-name
   opt: Option
   stat: Statistic
@@ -475,6 +519,7 @@ class Model(PyTreeNode):
   body_mass: jax.Array
   body_subtreemass: jax.Array
   body_inertia: jax.Array
+  body_gravcomp: jax.Array
   body_invweight0: jax.Array
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
@@ -482,6 +527,7 @@ class Model(PyTreeNode):
   jnt_bodyid: np.ndarray
   jnt_limited: np.ndarray
   jnt_actfrclimited: np.ndarray
+  jnt_actgravcomp: np.ndarray
   jnt_solref: jax.Array
   jnt_solimp: jax.Array
   jnt_pos: jax.Array
@@ -514,6 +560,7 @@ class Model(PyTreeNode):
   geom_solref: jax.Array
   geom_solimp: jax.Array
   geom_size: jax.Array
+  geom_rbound: jax.Array
   geom_pos: jax.Array
   geom_quat: jax.Array
   geom_friction: jax.Array
@@ -533,18 +580,14 @@ class Model(PyTreeNode):
   cam_mat0: jax.Array
   mesh_vertadr: np.ndarray
   mesh_faceadr: np.ndarray
+  mesh_graphadr: np.ndarray
   mesh_vert: np.ndarray
   mesh_face: np.ndarray
+  mesh_graph: np.ndarray
   mat_rgba: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
-  geom_convex_face: List[Optional[jax.Array]]
-  geom_convex_vert: List[Optional[jax.Array]]
-  geom_convex_edge_dir: List[Optional[jax.Array]]
-  geom_convex_facenormal: List[Optional[jax.Array]]
-  geom_convex_edge: List[Optional[jax.Array]]
-  geom_convex_edge_face_normal: List[Optional[jax.Array]]
   pair_solref: jax.Array
   pair_solreffriction: jax.Array
   pair_solimp: jax.Array
@@ -578,7 +621,24 @@ class Model(PyTreeNode):
   actuator_gear: jax.Array
   numeric_adr: np.ndarray
   numeric_data: np.ndarray
+  tuple_adr: np.ndarray
+  tuple_size: np.ndarray
+  tuple_objtype: np.ndarray
+  tuple_objid: np.ndarray
+  tuple_objprm: np.ndarray
+  name_bodyadr: np.ndarray
+  name_jntadr: np.ndarray
+  name_geomadr: np.ndarray
+  name_siteadr: np.ndarray
+  name_camadr: np.ndarray
+  name_meshadr: np.ndarray
+  name_pairadr: np.ndarray
+  name_eqadr: np.ndarray
+  name_actuatoradr: np.ndarray
+  name_sensoradr: np.ndarray
   name_numericadr: np.ndarray
+  name_tupleadr: np.ndarray
+  name_keyadr: np.ndarray
   names: bytes
 
 
@@ -594,8 +654,11 @@ class Contact(PyTreeNode):
     solref: constraint solver reference, normal direction             (mjNREF,)
     solreffriction: constraint solver reference, friction directions  (mjNREF,)
     solimp: constraint solver impedance                               (mjNIMP,)
-    geom1: id of geom 1
-    geom2: id of geom 2
+    dim: contact space dimensionality: 1, 3, 4, or 6
+    geom1: id of geom 1; deprecated, use geom[0]
+    geom2: id of geom 2; deprecated, use geom[1]
+    geom: geom ids                                                    (2,)
+    efc_address: address in efc; -1: not included
   """
   dist: jax.Array
   pos: jax.Array
@@ -605,33 +668,25 @@ class Contact(PyTreeNode):
   solref: jax.Array
   solreffriction: jax.Array
   solimp: jax.Array
-  # unsupported: mu, H, dim
+  # unsupported: mu, H
+  dim: np.ndarray
   geom1: jax.Array
   geom2: jax.Array
-  # unsupported: efc_address, exclude
-
-  @classmethod
-  def zero(cls, ncon: int = 0) -> 'Contact':
-    """Returns a contact filled with zeros."""
-    return Contact(
-        dist=jp.zeros(ncon),
-        pos=jp.zeros((ncon, 3,)),
-        frame=jp.zeros((ncon, 3, 3)),
-        includemargin=jp.zeros(ncon),
-        friction=jp.zeros((ncon, 5)),
-        solref=jp.zeros((ncon, mujoco.mjNREF)),
-        solreffriction=jp.zeros((ncon, mujoco.mjNREF)),
-        solimp=jp.zeros((ncon, mujoco.mjNIMP,)),
-        geom1=jp.zeros(ncon, dtype=int),
-        geom2=jp.zeros(ncon, dtype=int),
-    )
+  geom: jax.Array
+  # unsupported: flex, elem, vert, exclude
+  efc_address: np.ndarray
 
 
 class Data(PyTreeNode):
-  r"""Dynamic state that updates each step.\
+  r"""\Dynamic state that updates each step.
 
   Attributes:
-    solver_niter: number of solver iterations, per island         (mjNISLAND,)
+    ne: number of equality constraints
+    nf: number of friction constraints
+    nl: number of limit constraints
+    nefc: number of constraints
+    ncon: number of contacts
+    solver_niter: number of solver iterations
     time: simulation time
     qpos: position                                                (nq,)
     qvel: velocity                                                (nv,)
@@ -661,14 +716,15 @@ class Data(PyTreeNode):
     cinert: com-based body inertia and mass                       (nbody, 10)
     actuator_length: actuator lengths                             (nu,)
     actuator_moment: actuator moments                             (nu, nv)
-    crb: com-based composite inertia and mass                     (nbody, 10)
+    crb: com-based composite inertia and mass                     (nbody, 10)  \
     qM: total inertia                                  if sparse: (nM,)
                                                        if dense:  (nv, nv)
     qLD: L'*D*L (or Cholesky) factorization of M.      if sparse: (nM,)
                                                        if dense:  (nv, nv)
     qLDiagInv: 1/diag(D)                               if sparse: (nv,)
                                                        if dense:  (0,)
-    contact: list of all detected contacts                        (ncon,)
+    contact: all detected contacts                                (ncon,)
+    efc_type: constraint type                                     (nefc,)
     efc_J: constraint Jacobian                                    (nefc, nv)
     efc_frictionloss: frictionloss (friction)                     (nefc,)
     efc_D: constraint mass                                        (nefc,)
@@ -676,6 +732,7 @@ class Data(PyTreeNode):
     cvel: com-based velocity [3D rot; 3D tran]                    (nbody, 6)
     cdof_dot: time-derivative of cdof                             (nv, 6)
     qfrc_bias: C(qpos,qvel)                                       (nv,)
+    qfrc_gravcomp: passive gravity compensation force             (nv,)
     qfrc_passive: passive force                                   (nv,)
     efc_aref: reference pseudo-acceleration                       (nefc,)
     qfrc_actuator: actuator force                                 (nv,)
@@ -685,7 +742,14 @@ class Data(PyTreeNode):
     qfrc_inverse: net external force; should equal:               (nv,)
       qfrc_applied + J'*xfrc_applied + qfrc_actuator
     efc_force: constraint force in constraint space               (nefc,)
+    userdata: user data, not touched by engine                    (nuserdata,)
   """
+  # constant sizes:
+  ne: int
+  nf: int
+  nl: int
+  nefc: int
+  ncon: int
   # solver statistics:
   solver_niter: jax.Array
   # global properties:
@@ -703,6 +767,8 @@ class Data(PyTreeNode):
   # dynamics:
   qacc: jax.Array
   act_dot: jax.Array
+  # user data:
+  userdata: jax.Array
   # position dependent:
   xpos: jax.Array
   xquat: jax.Array
@@ -727,6 +793,7 @@ class Data(PyTreeNode):
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
   contact: Contact
+  efc_type: np.ndarray
   efc_J: jax.Array  # pylint:disable=invalid-name
   efc_frictionloss: jax.Array
   efc_D: jax.Array  # pylint:disable=invalid-name
@@ -736,6 +803,7 @@ class Data(PyTreeNode):
   cdof_dot: jax.Array
   qfrc_bias: jax.Array
   qfrc_passive: jax.Array
+  qfrc_gravcomp: jax.Array
   efc_aref: jax.Array
   # position, velcoity, control & acceleration dependent:
   qfrc_actuator: jax.Array

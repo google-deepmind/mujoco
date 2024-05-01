@@ -736,7 +736,7 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
         <geom size=".5" euler="0 0 20"/>
       </frame>
 
-      <body>
+      <body name="body">
         <frame pos="0 1 0" name="f2" childclass="dframe">
           <geom pos="0 1 0"/>
           <body pos="1 0 0">
@@ -752,7 +752,10 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
   EXPECT_THAT(model, NotNull()) << error.data();
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f1\""));
-  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f2\" childclass=\"dframe\""));
+  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f2\" childclass=\"dframe\">"));
+  EXPECT_THAT(saved_xml, HasSubstr("geom pos=\"0 2 0\""));
+  EXPECT_THAT(saved_xml, HasSubstr("body pos=\"1 1 0\""));
+  EXPECT_THAT(saved_xml, HasSubstr("geom pos=\"0 0 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("<frame>")));
   mj_deleteModel(model);
 }
@@ -932,6 +935,65 @@ TEST_F(XMLWriterTest, WritesHfield) {
   }
   mj_deleteModel(mtemp);
 
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesLight) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="r1">
+        <light bulbradius="1"/>
+      </default>
+    </default>
+    <worldbody>
+      <light/>
+      <light class="r1"/>
+      <light class="r1" bulbradius="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  // save and read, compare data
+  mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
+  EXPECT_EQ(mtemp->nlight, 3);
+  EXPECT_FLOAT_EQ(mtemp->light_bulbradius[0], 0.02);
+  EXPECT_FLOAT_EQ(mtemp->light_bulbradius[1], 1);
+  EXPECT_FLOAT_EQ(mtemp->light_bulbradius[2], 2);
+
+  mj_deleteModel(mtemp);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesMaterial) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="mat">
+        <material metallic="2" roughness="3"/>
+      </default>
+    </default>
+    <asset>
+      <material name="0" class="mat"/>
+      <material name="1" class="mat" metallic="4" roughness="5"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // save and read, compare data
+  mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
+  EXPECT_EQ(mtemp->nmat, 2);
+  EXPECT_EQ(mtemp->mat_metallic[0], 2);
+  EXPECT_EQ(mtemp->mat_metallic[1], 4);
+  EXPECT_EQ(mtemp->mat_roughness[0], 3);
+  EXPECT_EQ(mtemp->mat_roughness[1], 5);
+
+  mj_deleteModel(mtemp);
   mj_deleteModel(model);
 }
 
@@ -1248,8 +1310,39 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " <<
             p.path().string() << '\n';
 
-        // delete original structures
+        // delete data
         mj_deleteData(d);
+
+        // allocate buffer, save m into it
+        size_t sz = mj_sizeModel(m);
+        void* buffer = mju_malloc(sz);
+        mj_saveModel(m, nullptr, buffer, sz);
+
+        // make new VFS add buffer to it
+        mjVFS* vfs = (mjVFS*)mju_malloc(sizeof(mjVFS));
+        mj_defaultVFS(vfs);
+        int failed = mj_addBufferVFS(vfs, "model.mjb", buffer, sz);
+        EXPECT_EQ(failed, 0) << "Failed to add buffer to VFS";
+
+        // load model from VFS
+        mtemp = mj_loadModel("model.mjb", vfs);
+        ASSERT_THAT(mtemp, NotNull());
+
+        // compare with 0 tolerance
+        std::string field = "";
+        mjtNum result = CompareModel(m, mtemp, field);
+        EXPECT_EQ(result, 0)
+            << "Loaded and saved binary models are different!\n"
+            << "Affected file " << p.path().string() << '\n'
+            << "Different field: " << field << '\n';
+
+        // clean up
+        mj_deleteModel(mtemp);
+        mj_deleteVFS(vfs);
+        mju_free(vfs);
+        mju_free(buffer);
+
+        // delete model
         mj_deleteModel(m);
       }
     }

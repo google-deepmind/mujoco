@@ -534,11 +534,15 @@ mjModel* mj_makeModel(
   m->nuser_actuator = nuser_actuator;
   m->nuser_sensor = nuser_sensor;
   m->nnames = nnames;
-  m->nnames_map = mjLOAD_MULTIPLE
-                  * (nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh
-                     + nskin + nhfield + ntex + nmat + npair + nexclude + neq
-                     + ntendon  + nu + nsensor + nnumeric + ntext + ntuple
-                     + nkey + nplugin);
+  long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
+                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nu + nsensor +
+                    nnumeric + ntext + ntuple + nkey + nplugin;
+  if (nnames_map >= INT_MAX / mjLOAD_MULTIPLE) {
+    mju_free(m);
+    mju_warning("Invalid model: size of nnames_map is larger than INT_MAX");
+    return 0;
+  }
+  m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
   m->npaths = npaths;
 
 #define X(name)                                    \
@@ -1520,14 +1524,20 @@ void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment) {
 
 
 // allocate mjtNums on the stack
-mjtNum* mj_stackAllocNum(mjData* d, int size) {
+mjtNum* mj_stackAllocNum(mjData* d, size_t size) {
+  if (mjUNLIKELY(size >= SIZE_MAX / sizeof(mjtNum))) {
+    mjERROR("requested size is too large.");
+  }
   return (mjtNum*) stackalloc(d, size * sizeof(mjtNum), _Alignof(mjtNum));
 }
 
 
 
 // allocate ints on the stack
-int* mj_stackAllocInt(mjData* d, int size) {
+int* mj_stackAllocInt(mjData* d, size_t size) {
+  if (mjUNLIKELY(size >= SIZE_MAX / sizeof(int))) {
+    mjERROR("requested size is too large.");
+  }
   return (int*) stackalloc(d, size * sizeof(int), _Alignof(int));
 }
 

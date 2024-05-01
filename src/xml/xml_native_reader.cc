@@ -74,6 +74,16 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjsPlugin* p) {
     mjs_setPluginAttributes(p, &config_attribs);
   }
 }
+
+static void UpdateString(std::string& psuffix, int count, int i) {
+  int ndigits = std::to_string(count).length();
+  std::string i_string = std::to_string(i);
+  std::string prefix = "";
+  while (ndigits-- > i_string.length()) {
+    prefix += '0';
+  }
+  psuffix += prefix + i_string;
+}
 }  // namespace
 
 
@@ -136,8 +146,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"default", "R", "1", "class"},
     {"<"},
         {"mesh", "?", "1", "scale"},
-        {"material", "?", "8", "texture", "emission", "specular", "shininess",
-            "reflectance", "rgba", "texrepeat", "texuniform"},
+        {"material", "?", "10", "texture", "emission", "specular", "shininess",
+            "reflectance", "metallic", "roughness", "rgba", "texrepeat", "texuniform"},
         {"joint", "?", "22", "type", "group", "pos", "axis", "springdamper",
             "limited", "actuatorfrclimited", "solreflimit", "solimplimit",
             "solreffriction", "solimpfriction", "stiffness", "range", "actuatorfrcrange",
@@ -153,7 +163,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "?", "16", "fovy", "ipd", "resolution", "pos", "quat", "axisangle", "xyaxes",
             "zaxis", "euler", "mode", "focal", "focalpixel", "principal", "principalpixel",
             "sensorsize", "user"},
-        {"light", "?", "12", "pos", "dir", "directional", "castshadow", "active",
+        {"light", "?", "13", "pos", "dir", "bulbradius", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
          "gap", "margin"},
@@ -232,8 +242,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip"},
-        {"material", "*", "10", "name", "class", "texture",  "texrepeat", "texuniform",
-            "emission", "specular", "shininess", "reflectance", "rgba"},
+        {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
+            "emission", "specular", "shininess", "reflectance", "metallic", "roughness", "rgba"},
     {">"},
 
     {"body", "R", "11", "name", "childclass", "pos", "quat", "mocap",
@@ -263,9 +273,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "*", "19", "name", "class", "fovy", "ipd", "resolution", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "target", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "*", "15", "name", "class", "directional", "castshadow", "active",
-            "pos", "dir", "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular",
-            "mode", "target"},
+        {"light", "*", "16", "name", "class", "directional", "castshadow", "active",
+            "pos", "dir", "bulbradius", "attenuation", "cutoff", "exponent", "ambient", "diffuse",
+            "specular", "mode", "target"},
         {"plugin", "*", "2", "plugin", "instance"},
         {"<"},
           {"config", "*", "2", "key", "value"},
@@ -870,11 +880,6 @@ void mjXReader::Parse(XMLElement* root) {
     Asset(section);
   }
 
-  for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
-       section = NextSiblingElement(section, "worldbody")) {
-    Body(section, mjs_findBody(model, "world"), nullptr);
-  }
-
   for (XMLElement* section = FirstChildElement(root, "contact"); section;
        section = NextSiblingElement(section, "contact")) {
     Contact(section);
@@ -908,6 +913,11 @@ void mjXReader::Parse(XMLElement* root) {
   for (XMLElement* section = FirstChildElement(root, "keyframe"); section;
        section = NextSiblingElement(section, "keyframe")) {
     Keyframe(section);
+  }
+
+  for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
+       section = NextSiblingElement(section, "worldbody")) {
+    Body(section, mjs_findBody(model, "world"), nullptr);
   }
 }
 
@@ -1186,7 +1196,7 @@ void mjXReader::Size(XMLElement* section, mjSpec* mod) {
     }();
 
     if (memory.has_value()) {
-      if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
+      if (*memory / sizeof(mjtNum) > std::numeric_limits<std::size_t>::max()) {
         throw mjXError(section, "%s", err_msg);
       }
       mod->memory = *memory;
@@ -1344,7 +1354,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* pflex) {
   }
 
   // write error info
-  mjs_setString(pflex->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pflex->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1414,7 +1424,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh) {
   }
 
   // write error info
-  mjs_setString(pmesh->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pmesh->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1502,7 +1512,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin) {
   mjs_setFloat(pskin->bindquat, bindquat.data(), bindquat.size());
 
   // write error info
-  mjs_setString(pskin->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pskin->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1530,10 +1540,12 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* pmat) {
   ReadAttr(elem, "specular", 1, &pmat->specular, text);
   ReadAttr(elem, "shininess", 1, &pmat->shininess, text);
   ReadAttr(elem, "reflectance", 1, &pmat->reflectance, text);
+  ReadAttr(elem, "metallic", 1, &pmat->metallic, text);
+  ReadAttr(elem, "roughness", 1, &pmat->roughness, text);
   ReadAttr(elem, "rgba", 4, pmat->rgba, text);
 
   // write error info
-  mjs_setString(pmat->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pmat->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1583,7 +1595,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjsJoint* pjoint) {
   }
 
   // write error info
-  mjs_setString(pjoint->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pjoint->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1658,7 +1670,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjsGeom* pgeom) {
   }
 
   // write error info
-  mjs_setString(pgeom->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pgeom->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1695,7 +1707,7 @@ void mjXReader::OneSite(XMLElement* elem, mjsSite* site) {
   }
 
   // write error info
-  mjs_setString(site->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(site->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1749,7 +1761,7 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* pcam) {
   mjs_setDouble(pcam->userdata, userdata.data(), userdata.size());
 
   // write error info
-  mjs_setString(pcam->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pcam->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1783,6 +1795,7 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* plight) {
   }
   ReadAttr(elem, "pos", 3, plight->pos, text);
   ReadAttr(elem, "dir", 3, plight->dir, text);
+  ReadAttr(elem, "bulbradius", 1, &plight->bulbradius, text);
   ReadAttr(elem, "attenuation", 3, plight->attenuation, text);
   ReadAttr(elem, "cutoff", 1, &plight->cutoff, text);
   ReadAttr(elem, "exponent", 1, &plight->exponent, text);
@@ -1791,7 +1804,7 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* plight) {
   ReadAttr(elem, "specular", 3, plight->specular, text);
 
   // write error info
-  mjs_setString(plight->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(plight->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1826,7 +1839,7 @@ void mjXReader::OnePair(XMLElement* elem, mjsPair* ppair) {
   ReadAttr(elem, "friction", 5, ppair->friction, text, false, false);
 
   // write error info
-  mjs_setString(ppair->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(ppair->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1904,7 +1917,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* pequality) {
   ReadAttr(elem, "solimp", mjNIMP, pequality->solimp, text, false, false);
 
   // write error info
-  mjs_setString(pequality->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pequality->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1948,7 +1961,7 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* pten) {
   }
 
   // write error info
-  mjs_setString(pten->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pten->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -2238,7 +2251,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
   }
 
   // write info
-  mjs_setString(pact->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pact->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -2759,7 +2772,7 @@ void mjXReader::Extension(XMLElement* section) {
           }
           string name;
           mjsPlugin* p = mjs_addPlugin(model);
-          mjs_setString(p->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+          mjs_setString(p->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
           ReadAttrTxt(child, "name", name, /* required = */ true);
           mjs_setString(p->name, name.c_str());
           if (!p->name) {
@@ -2800,7 +2813,7 @@ void mjXReader::Custom(XMLElement* section) {
       mjsNumeric* pnum = mjs_addNumeric(model);
 
       // write error info
-      mjs_setString(pnum->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(pnum->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
@@ -2831,7 +2844,7 @@ void mjXReader::Custom(XMLElement* section) {
       mjsText* pte = mjs_addText(model);
 
       // write error info
-      mjs_setString(pte->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(pte->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
@@ -2851,7 +2864,7 @@ void mjXReader::Custom(XMLElement* section) {
       mjsTuple* ptu = mjs_addTuple(model);
 
       // write error info
-      mjs_setString(ptu->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(ptu->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
@@ -3058,7 +3071,7 @@ void mjXReader::Asset(XMLElement* section) {
       mjsTexture* ptex = mjs_addTexture(model);
 
       // write error info
-      mjs_setString(ptex->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(ptex->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       if (MapValue(elem, "type", &n, texture_map, texture_sz)) {
@@ -3147,7 +3160,7 @@ void mjXReader::Asset(XMLElement* section) {
       mjsHField* phf = mjs_addHField(model);
 
       // write error info
-      mjs_setString(phf->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(phf->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       string name, content_type;
@@ -3350,7 +3363,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
 
       // create frame
       mjsFrame* pframe = mjs_addFrame(pbody, frame);
-      mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(pframe->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
       mjs_setDefault(pframe->element, childdef ? childdef : def);
 
       // read attributes
@@ -3368,6 +3381,72 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       Body(elem, pbody, pframe);
     }
 
+    // replicate sub-element
+    else if (name=="replicate") {
+      int count;
+      double offset[3] = {0, 0, 0};
+      double euler[3] = {0, 0, 0};
+      std::string separator = "";
+      ReadAttr(elem, "count", 1, &count, text, true);
+      ReadAttr(elem, "offset", 3, offset, text);
+      ReadAttr(elem, "euler", 3, euler, text);
+      ReadAttrTxt(elem, "sep", separator);
+
+      // store rotation difference
+      mjsOrientation alt;
+      mjs_defaultOrientation(&alt);
+      alt.type = mjORIENTATION_EULER;
+      mjuu_copyvec(alt.euler, euler, 3);
+      double rotation[4] = {1, 0, 0, 0};
+      mjs_resolveOrientation(rotation, model->degree, model->euler, &alt);
+
+      // read childdef
+      mjsDefault* childdef = 0;
+      if (ReadAttrTxt(elem, "childclass", text)) {
+        childdef = mjs_findDefault(model, text.c_str());
+        mjs_findDefault(model, text.c_str());
+        if (!childdef) {
+          throw mjXError(elem, "unknown default childclass");
+        }
+      }
+
+      // create subtree
+      mjsBody* subtree = mjs_addBody(pbody, childdef);
+      double pos[3] = {0, 0, 0};
+      double quat[4] = {1, 0, 0, 0};
+
+      for (int i = 0; i < count; i++) {
+        // create parent frame
+        mjsFrame* pframe = mjs_addFrame(subtree, frame);
+        mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+        mjs_setDefault(pframe->element, childdef ? childdef : def);
+
+        // accumulate rotation
+        mjuu_setvec(pframe->pos, pos[0], pos[1], pos[2]);
+        mjuu_frameaccum(pos, quat, offset, rotation);
+
+        // overwrite orientation to increase precision
+        alt.euler[0] = i*euler[0];
+        alt.euler[1] = i*euler[1];
+        alt.euler[2] = i*euler[2];
+        mjs_resolveOrientation(quat, model->degree, model->euler, &alt);
+        mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
+
+        // process suffix
+        std::string suffix = separator;
+        UpdateString(suffix, count, i);
+
+        // process subtree
+        Body(elem, subtree, pframe);
+
+        // attach to parent
+        mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str());
+      }
+
+      // delete subtree
+      mjs_detachBody(model, subtree);
+    }
+
     // body sub-element
     else if (name=="body") {
       // read childdef
@@ -3383,7 +3462,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       // create child body
       mjsBody* pchild = mjs_addBody(pbody, childdef);
       mjs_setString(pchild->info,
-                    std::string("line = " + std::to_string(elem->GetLineNum())).c_str());
+                    std::string("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       std::string name, childclass;
@@ -3457,7 +3536,7 @@ void mjXReader::Contact(XMLElement* section) {
       string exname, exbody1, exbody2;
 
       // write error info
-      mjs_setString(pexclude->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(pexclude->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read name and body names
       if (ReadAttrTxt(elem, "name", exname)) {
@@ -3593,7 +3672,7 @@ void mjXReader::Tendon(XMLElement* section) {
         throw mjXError(sub, "unknown wrap type");  // SHOULD NOT OCCUR
       }
 
-      mjs_setString(pwrap->info, ("line = " + std::to_string(sub->GetLineNum())).c_str());
+      mjs_setString(pwrap->info, ("line " + std::to_string(sub->GetLineNum())).c_str());
 
       // advance to next sub-element
       sub = NextSiblingElement(sub);
@@ -3932,7 +4011,7 @@ void mjXReader::Sensor(XMLElement* section) {
     }
 
     // write info
-    mjs_setString(psen->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
+    mjs_setString(psen->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
     // advance to next element
     elem = NextSiblingElement(elem);

@@ -42,13 +42,14 @@ class PassiveTest(absltest.TestCase):
     m = test_util.load_test_file('pendula.xml')
     d = mujoco.MjData(m)
     # give the system a little kick to ensure we have non-identity rotations
-    d.ctrl = np.array([0.1, -0.1, 0.2, 0.3, -0.4])
+    d.ctrl = np.array([0.1, -0.1, 0.2, 0.3, -0.4, 0.5, -0.6, 0.1])
     mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
 
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_passive')
+    _assert_attr_eq(d, dx, 'qfrc_gravcomp')
 
     # test with fluid forces
     m.opt.density = 0.01
@@ -56,18 +57,21 @@ class PassiveTest(absltest.TestCase):
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_passive')
+    _assert_attr_eq(d, dx, 'qfrc_gravcomp')
 
     m.opt.viscosity = 0.02
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_passive')
+    _assert_attr_eq(d, dx, 'qfrc_gravcomp')
 
     m.opt.wind = np.array([0.03, 0.04, 0.05])
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_passive')
+    _assert_attr_eq(d, dx, 'qfrc_gravcomp')
 
     # test disable passive
     mx = mx.tree_replace({'opt.disableflags': mjx.DisableBit.PASSIVE})

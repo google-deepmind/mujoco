@@ -271,7 +271,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
     //  lquat = rotation from specified to default (joint/body) inertial frame
     double lquat[4] = {1, 0, 0, 0};
     double tmpquat[4] = {1, 0, 0, 0};
-    const char* altres = mjs_setFullInertia(pbody, lquat, pbody->inertia);
+    const char* altres = mjs_fullInertia(lquat, pbody->inertia, pbody->fullinertia);
 
     // inertia are sometimes 0 in URDF files: ignore error in altres, fix later
     (void) altres;
@@ -633,8 +633,9 @@ void mjXURDF::Origin(XMLElement* origin_elem, double* pos, double* quat) {
 
     // orientation
     mjsOrientation alt;
-    mjs_defaultOrientation(alt);
+    mjs_defaultOrientation(&alt);
     if (ReadAttr(temp, "rpy", 3, alt.euler, text)) {
+      alt.type = mjORIENTATION_EULER;
       mjs_resolveOrientation(quat, 0, "XYZ", &alt);
     }
   }

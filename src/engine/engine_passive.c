@@ -175,7 +175,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
 // body-level gravity compensation, return 1 if any, 0 otherwise
 static int mj_gravcomp(const mjModel* m, mjData* d) {
-  if (mjDISABLED(mjDSBL_GRAVITY) || mju_norm3(m->opt.gravity) == 0) {
+  if (!m->ngravcomp || mjDISABLED(mjDSBL_GRAVITY) || mju_norm3(m->opt.gravity) == 0) {
     return 0;
   }
 

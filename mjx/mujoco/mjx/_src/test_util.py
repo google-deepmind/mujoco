@@ -17,7 +17,7 @@
 import os
 import sys
 import time
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 from xml.etree import ElementTree as ET
 
 from etils import epath
@@ -152,6 +152,7 @@ def _make_joint(joint_type: str, name: str) -> Dict[str, str]:
     joint_attr['damping'] = '{:.2f}'.format(np.random.uniform() * 20)
     joint_attr['stiffness'] = '{:.2f}'.format(np.random.uniform() * 20)
 
+  joint_attr['actuatorgravcomp'] = np.random.choice(['true', 'false'])
   return joint_attr
 
 
@@ -201,9 +202,9 @@ def _make_geom(
 
 def _make_actuator(
     actuator_type: str,
-    joint: str | None = None,
-    site: str | None = None,
-    refsite: str | None = None,
+    joint: Optional[str] = None,
+    site: Optional[str] = None,
+    refsite: Optional[str] = None,
 ) -> Dict[str, str]:
   """Returns attributes for an actuator."""
   if joint:
@@ -334,7 +335,16 @@ def create_mjcf(
     z_pos = np.random.uniform(low=-1, high=1) * 0.01  # small jitter
     pos = f'{body_pos[0]:.3f} {body_pos[1]:.3f} {body_pos[2] + z_pos:.3f}'
     n_bodies = len(list(mjcf.iter('body')))
-    child = ET.SubElement(body, 'body', {'pos': pos, 'name': f'body{n_bodies}'})
+    gravcomp = np.random.uniform() * p(50)
+    child = ET.SubElement(
+        body,
+        'body',
+        {
+            'pos': pos,
+            'name': f'body{n_bodies}',
+            'gravcomp': f'{gravcomp:.3f}',
+        },
+    )
     ET.SubElement(child, 'site', {'name': f'site{n_bodies}'})
 
     n_joints = len(list(mjcf.iter('joint')))

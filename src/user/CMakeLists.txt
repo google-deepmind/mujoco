@@ -21,7 +21,7 @@ set(MUJOCO_USER_SRCS
     user_composite.h
     user_flexcomp.cc
     user_flexcomp.h
-    user_init.cc
+    user_init.c
     user_mesh.cc
     user_model.cc
     user_model.h

@@ -66,25 +66,32 @@ directly from the top-level ``mjx`` module.
 Structs
 -------
 
-Before running MJX functions on an accelerator device, structs must be copied onto the device via the ``mjx.device_put``
-function.  Placing an :ref:`mjModel` on device yields an ``mjx.Model``.  Placing an :ref:`mjData` on device yields
+Before running MJX functions on an accelerator device, structs must be copied onto the device via the ``mjx.put_model`` and ``mjx.put_data``
+functions.  Placing an :ref:`mjModel` on device yields an ``mjx.Model``.  Placing an :ref:`mjData` on device yields
 an ``mjx.Data``:
 
 .. code-block:: python
 
    model = mujoco.MjModel.from_xml_string("...")
    data = mujoco.MjData(model)
-   mjx_model = mjx.device_put(model)
-   mjx_data = mjx.device_put(data)
+   mjx_model = mjx.put_model(model)
+   mjx_data = mjx.put_data(data)
 
-These MJX variants mirror their MuJoCo counterparts but have three key differences:
+These MJX variants mirror their MuJoCo counterparts but have a few key differences:
 
-#. Fields in ``mjx.Model`` and ``mjx.Data`` are JAX arrays copied onto device, instead of numpy arrays.
+#. ``mjx.Model`` and ``mjx.Data`` contain JAX arrays that are copied onto device.
 #. Some fields are missing from ``mjx.Model`` and ``mjx.Data`` for features that are
    :ref:`unsupported <mjxFeatureParity>` in MJX.
-#. Arrays in ``mjx.Model`` and ``mjx.Data`` support adding batch dimensions. Batch dimensions are a natural way to
+#. JAX arrays in ``mjx.Model`` and ``mjx.Data`` support adding batch dimensions. Batch dimensions are a natural way to
    express domain randomization (in the case of ``mjx.Model``) or high-throughput simulation for reinforcement learning
    (in the case of ``mjx.Data``).
+#. Numpy arrays in ``mjx.Model`` and ``mjx.Data`` are structural fields that control the output of JIT compilation.
+   Modifying these arrays will force JAX to recompile MJX functions. As an example,
+   ``jnt_limited`` is a numpy array passed by reference from :ref:`mjModel`, which determines if joint limit
+   constraints should be applied.  If ``jnt_limited`` is modified, JAX will
+   re-compile MJX functions.
+   On the other hand, ``jnt_range`` is a JAX array that can be modified at runtime, and will only apply to joints with limits
+   as specified by the ``jnt_limited`` field.
 
 
 Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An ``mjx.Data`` may be created by calling
@@ -191,7 +198,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``
    * - :ref:`Equality <mjtEq>`
      - ``CONNECT``, ``WELD``, ``JOINT``
    * - :ref:`Integrator <mjtIntegrator>`
@@ -199,7 +206,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Cone <mjtCone>`
      - ``PYRAMIDAL``
    * - :ref:`Condim <coContact>`
-     - 3
+     - 1, 3, 4, 6
    * - :ref:`Solver <mjtSolver>`
      - ``CG``, ``NEWTON``
    * - Fluid Model
@@ -217,10 +224,8 @@ The following features are **in development** and coming soon:
      - Feature
    * - :ref:`Geom <mjtGeom>`
      - ``SDF``, ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
-   * - :ref:`Condim <coContact>`
-     - 1, 4, 6
    * - :ref:`Constraint <mjtConstraint>`
-     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+     - :ref:`Frictionloss <coFriction>`, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - Dynamics

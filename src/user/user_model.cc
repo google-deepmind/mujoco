@@ -83,7 +83,7 @@ static void copyvec(T1* dest, T2* src, int n) {
 
 // constructor
 mjCModel::mjCModel() {
-  mjs_defaultSpec(spec);
+  mjs_defaultSpec(&spec);
   elemtype = mjOBJ_UNKNOWN;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
@@ -190,95 +190,188 @@ void mjCModel::CopyList(std::vector<T*>& dest,
                         std::map<mjCDef*, int>& def_map,
                         const std::vector<mjCDef*>& defaults) {
   // loop over the elements from the other model
-  for (T* element : source) {
+  int nsource = (int)source.size();
+  for (int i = 0; i < nsource; i++) {
+    T* candidate = new T(*source[i]);
     try {
       // try to find the referenced object in this model
-      element->NameSpace(element->model);
-      element->CopyFromSpec();
-      element->ResolveReferences(this);
+      candidate->NameSpace(source[i]->model);
+      candidate->CopyFromSpec();
+      candidate->ResolveReferences(this);
     } catch (mjCError err) {
       // if not present, skip the element
+      delete candidate;
       continue;
     }
     // copy the element from the other model to this model
-    dest.push_back(new T(*element));
+    dest.push_back(candidate);
     dest.back()->model = this;
-    dest.back()->def = defaults[def_map[element->def]];
+    dest.back()->def = defaults[def_map[candidate->def]];
+    dest.back()->id = -1;
+  }
+  if (!dest.empty()) {
+    processlist(ids, dest, dest[0]->elemtype);
   }
 }
 
 
 
-mjCModel& mjCModel::operator+=(const mjCModel& other) {
-  if (this != &other) {
-    // create global lists
-    MakeLists(bodies[0]);
-    CreateObjectLists();
-    ProcessLists();
+template <class T>
+static void resetlist(std::vector<T*>& list) {
+  for (auto element : list) {
+    element->id = -1;
+  }
+  list.clear();
+}
 
-    // copy all elements not in the tree
-    std::map<mjCDef*, int> def_map;
-    for (int i = 0; i < other.defaults.size(); i++) {
+
+
+mjCModel& mjCModel::operator+=(const mjCModel& other) {
+  // create global lists
+  MakeLists(bodies[0]);
+  CreateObjectLists();
+  ProcessLists(/*checkrepeat=*/false);
+
+  // copy all elements not in the tree
+  std::map<mjCDef*, int> def_map;
+  int ndefaults = (int)other.defaults.size();
+  for (int i = 0; i < ndefaults; i++) {
+    if (this != &other) {
       defaults.push_back(new mjCDef(*other.defaults[i]));
-      def_map[other.defaults[i]] = i;
     }
-    CopyList(flexes, other.flexes, def_map, defaults);
+    def_map[other.defaults[i]] = i;
+  }
+  if (this != &other) {
+    // do not copy assets for self-attach
     CopyList(meshes, other.meshes, def_map, defaults);
     CopyList(skins, other.skins, def_map, defaults);
     CopyList(hfields, other.hfields, def_map, defaults);
     CopyList(textures, other.textures, def_map, defaults);
     CopyList(materials, other.materials, def_map, defaults);
-    CopyList(pairs, other.pairs, def_map, defaults);
-    CopyList(excludes, other.excludes, def_map, defaults);
-    CopyList(tendons, other.tendons, def_map, defaults);
-    CopyList(equalities, other.equalities, def_map, defaults);
-    CopyList(actuators, other.actuators, def_map, defaults);
-    CopyList(sensors, other.sensors, def_map, defaults);
-    CopyList(numerics, other.numerics, def_map, defaults);
-    CopyList(texts, other.texts, def_map, defaults);
-    CopyList(tuples, other.tuples, def_map, defaults);
     CopyList(keys, other.keys, def_map, defaults);
+  }
+  CopyList(flexes, other.flexes, def_map, defaults);
+  CopyList(pairs, other.pairs, def_map, defaults);
+  CopyList(excludes, other.excludes, def_map, defaults);
+  CopyList(tendons, other.tendons, def_map, defaults);
+  CopyList(equalities, other.equalities, def_map, defaults);
+  CopyList(actuators, other.actuators, def_map, defaults);
+  CopyList(sensors, other.sensors, def_map, defaults);
+  CopyList(numerics, other.numerics, def_map, defaults);
+  CopyList(texts, other.texts, def_map, defaults);
+  CopyList(tuples, other.tuples, def_map, defaults);
 
-    // plugins are global
-    plugins = other.plugins;
-    active_plugins = other.active_plugins;
+  // plugins are global
+  plugins = other.plugins;
+  active_plugins = other.active_plugins;
 
-    // update defaults for the copied objects
-    for (int i = 1; i < other.bodies.size(); i++) {
-      bodies[i]->def = defaults[def_map[other.bodies[i]->def]];
-    }
-    for (int i = 0; i < other.joints.size(); i++) {
-      joints[i]->def = defaults[def_map[other.joints[i]->def]];
-    }
-    for (int i = 0; i < other.geoms.size(); i++) {
-      geoms[i]->def = defaults[def_map[other.geoms[i]->def]];
-    }
-    for (int i = 0; i < other.sites.size(); i++) {
-      sites[i]->def = defaults[def_map[other.sites[i]->def]];
-    }
-    for (int i = 0; i < other.cameras.size(); i++) {
-      cameras[i]->def = defaults[def_map[other.cameras[i]->def]];
-    }
-    for (int i = 0; i < other.lights.size(); i++) {
-      lights[i]->def = defaults[def_map[other.lights[i]->def]];
-    }
+  // update defaults for the copied objects
+  for (int i = 1; i < other.bodies.size(); i++) {
+    bodies[i]->def = defaults[def_map[other.bodies[i]->def]];
+  }
+  for (int i = 0; i < other.joints.size(); i++) {
+    joints[i]->def = defaults[def_map[other.joints[i]->def]];
+  }
+  for (int i = 0; i < other.geoms.size(); i++) {
+    geoms[i]->def = defaults[def_map[other.geoms[i]->def]];
+  }
+  for (int i = 0; i < other.sites.size(); i++) {
+    sites[i]->def = defaults[def_map[other.sites[i]->def]];
+  }
+  for (int i = 0; i < other.cameras.size(); i++) {
+    cameras[i]->def = defaults[def_map[other.cameras[i]->def]];
+  }
+  for (int i = 0; i < other.lights.size(); i++) {
+    lights[i]->def = defaults[def_map[other.lights[i]->def]];
+  }
 
-    // cast children to mjCBase
+  // restore to the same state as other
+  if (!compiled) {
+    mjCBody* world = bodies[0];
+    resetlist(bodies);
+    resetlist(joints);
+    resetlist(geoms);
+    resetlist(sites);
+    resetlist(cameras);
+    resetlist(lights);
+    resetlist(frames);
+    world->id = 0;
+    bodies.push_back(world);
+  }
+
+  PointToLocal();
+  return *this;
+}
 
 
-    // restore to the same state as other
-    if (!compiled) {
-      mjCBody* world = bodies[0];
-      bodies.clear();
-      frames.clear();
-      joints.clear();
-      geoms.clear();
-      sites.clear();
-      cameras.clear();
-      lights.clear();
-      bodies.push_back(world);
+
+template <class T>
+void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
+  int nlist = (int)list.size();
+  int removed = 0;
+  for (int i = 0; i < nlist; i++) {
+    T* element = list[i];
+    element->id -= removed;
+    try {
+      // check if the element contains an error
+      element->NameSpace(&other);
+      element->CopyFromSpec();
+      element->ResolveReferences(&other);
+    } catch (mjCError err) {
+      continue;
+    }
+    try {
+      // check if the element references something that was removed
+      element->NameSpace(this);
+      element->ResolveReferences(this);
+    } catch (mjCError err) {
+      delete element;
+      list.erase(list.begin() + i);
+      nlist--;
+      i--;
+      removed++;
     }
   }
+}
+
+
+
+mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
+  mjCModel oldmodel(*this);
+  oldmodel.MakeLists(oldmodel.bodies[0]);
+  oldmodel.CreateObjectLists();
+  oldmodel.ProcessLists(/*checkrepeat=*/false);
+
+  // remove body from tree
+  *bodies[0] -= subtree;
+
+  // create global lists
+  MakeLists(bodies[0]);
+  CreateObjectLists();
+  ProcessLists(/*checkrepeat=*/false);
+
+  // check if we have to remove anything else
+  RemoveFromList(pairs, oldmodel);
+  RemoveFromList(excludes, oldmodel);
+  RemoveFromList(tendons, oldmodel);
+  RemoveFromList(equalities, oldmodel);
+  RemoveFromList(actuators, oldmodel);
+  RemoveFromList(sensors, oldmodel);
+
+  // restore to the same state as before call
+  if (!compiled) {
+    mjCBody* world = bodies[0];
+    resetlist(bodies);
+    resetlist(joints);
+    resetlist(geoms);
+    resetlist(sites);
+    resetlist(cameras);
+    resetlist(lights);
+    resetlist(frames);
+    world->id = 0;
+    bodies.push_back(world);
+  }
+
   PointToLocal();
   return *this;
 }
@@ -717,6 +810,9 @@ static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyM
   auto id = ids.find(name);
   if (id == ids.end()) {
     return nullptr;
+  }
+  if (id->second > (int)list.size() - 1) {
+    throw mjCError(0, "object not found");
   }
   return list[id->second];
 }
@@ -1981,6 +2077,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_active[lid] = (mjtByte)pl->active;
       copyvec(m->light_pos+3*lid, pl->pos, 3);
       copyvec(m->light_dir+3*lid, pl->dir, 3);
+      m->light_bulbradius[lid] = pl->bulbradius;
       copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
@@ -2014,6 +2111,13 @@ void mjCModel::CopyTree(mjModel* m) {
       m->body_treeid[i] = -1;
     }
   }
+
+  // count bodies with gravity compensation, compute ngravcomp
+  int ngravcomp = 0;
+  for (int i=0; i<nbody; i++) {
+    ngravcomp += (m->body_gravcomp[i] > 0);
+  }
+  m->ngravcomp = ngravcomp;
 
   // compute nM and dof_Madr
   nM = 0;
@@ -2119,6 +2223,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhnum[i] = pme->tree().nbvh;
     m->mesh_bvhadr[i] = pme->tree().nbvh ? bvh_adr : -1;
+    copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
     copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
     copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 
@@ -2267,10 +2372,14 @@ void mjCModel::CopyObjects(mjModel* m) {
       m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
       m->flex_edge[2*(edge_adr+k)+1] = pfl->edge[k].second;
 
-      // check if vertex body weldids are the same
-      int b1 = pfl->vertbodyid[pfl->edge[k].first];
-      int b2 = pfl->vertbodyid[pfl->edge[k].second];
-      m->flexedge_rigid[edge_adr+k] = (bodies[b1]->weldid == bodies[b2]->weldid);
+      if (pfl->rigid) {
+        m->flexedge_rigid[edge_adr+k] = 1;
+      } else {
+        // check if vertex body weldids are the same
+        int b1 = pfl->vertbodyid[pfl->edge[k].first];
+        int b2 = pfl->vertbodyid[pfl->edge[k].second];
+        m->flexedge_rigid[edge_adr+k] = (bodies[b1]->weldid == bodies[b2]->weldid);
+      }
     }
 
     // advance counters
@@ -2396,6 +2505,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mat_specular[i] = pmat->specular;
     m->mat_shininess[i] = pmat->shininess;
     m->mat_reflectance[i] = pmat->reflectance;
+    m->mat_metallic[i] = pmat->metallic;
+    m->mat_roughness[i] = pmat->roughness;
     copyvec(m->mat_rgba+4*i, pmat->rgba, 4);
   }
 
@@ -2761,7 +2872,7 @@ void mjCModel::FuseStatic(void) {
 
         // compute principal axes of inertia
         mjuu_copyvec(par->fullinertia, toti, 6);
-        const char* err1 = par->FullInertia(par->iquat, par->inertia);
+        const char* err1 = FullInertia(par->iquat, par->inertia, par->fullinertia);
         if (err1) {
           throw mjCError(NULL, "error '%s' in fusing static body inertias", err1);
         }
@@ -2855,6 +2966,15 @@ void mjCModel::FuseStatic(void) {
     sites.clear();
     FuseReindex(bodies[0]);
 
+    // recompute parent contype, conaffinity, and margin
+    par->contype = par->conaffinity = 0;
+    par->margin = 0;
+    for (const auto& geom : geoms) {
+      par->contype |= geom->contype;
+      par->conaffinity |= geom->conaffinity;
+      par->margin = mju_max(par->margin, geom->margin);
+    }
+
     //------------- delete body (without deleting children)
 
     // delete allocation
@@ -2935,15 +3055,16 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
 
 
 // set object ids, check for repeated names
-void mjCModel::ProcessLists() {
+void mjCModel::ProcessLists(bool checkrepeat) {
   for (int i = 0; i < mjNOBJECT; i++) {
     if (i != mjOBJ_XBODY && object_lists[i]) {
-      processlist(ids, *object_lists[i], (mjtObj) i);
+      ids[i].clear();
+      processlist(ids, *object_lists[i], (mjtObj) i, checkrepeat);
     }
   }
 
   // check repeated names in meta elements
-  processlist(ids, frames, mjOBJ_FRAME);
+  processlist(ids, frames, mjOBJ_FRAME, checkrepeat);
 }
 
 
@@ -3096,7 +3217,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // mark meshes that need convex hull
   for (int i=0; i<geoms.size(); i++) {
-    if (geoms[i]->mesh && geoms[i]->spec.type==mjGEOM_MESH &&
+    if (geoms[i]->mesh &&
+        (geoms[i]->spec.type==mjGEOM_MESH || geoms[i]->spec.type==mjGEOM_SDF) &&
         (geoms[i]->spec.contype || geoms[i]->spec.conaffinity)) {
       geoms[i]->mesh->set_needhull(true);
     }
@@ -3112,7 +3234,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // compile objects in kinematic tree
   for (int i=0; i<bodies.size(); i++) {
-    bodies[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights
+    bodies[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights, frames
   }
 
   // compile all other objects except for keyframes

@@ -152,11 +152,7 @@ class RayTest(absltest.TestCase):
     mx, dx = mjx.put_model(m), mjx.put_data(m, d)
 
     # look at the tetrahedron
-    pnt, vec = jp.array([2.0, 2.0, 2.0]), -jp.array([
-        1.0,
-        1.0,
-        1.0,
-    ])
+    pnt, vec = jp.array([2.0, 2.0, 2.0]), -jp.array([1.0, 1.0, 1.0])
     vec /= jp.linalg.norm(vec)
     dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
     _assert_eq(geomid, 4, 'geom_id')
@@ -166,12 +162,14 @@ class RayTest(absltest.TestCase):
     _assert_eq(geomid, 4, 'geom_id')
     _assert_eq(dist, mj_dist, 'dist-tetrahedron')
 
+    # look away from the dodecahedron
+    pnt, vec = jp.array([4.0, 2.0, 2.0]), jp.array([2.0, 1.0, 1.0])
+    vec /= jp.linalg.norm(vec)
+    _, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, -1, 'geom_id')
+
     # look at the dodecahedron
-    pnt, vec = jp.array([4.0, 2.0, 2.0]), -jp.array([
-        2.0,
-        1.0,
-        1.0,
-    ])
+    pnt, vec = jp.array([4.0, 2.0, 2.0]), -jp.array([2.0, 1.0, 1.0])
     vec /= jp.linalg.norm(vec)
     dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
     _assert_eq(geomid, 5, 'geom_id')

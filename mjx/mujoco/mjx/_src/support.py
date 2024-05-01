@@ -25,6 +25,7 @@ from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import JacobianType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
+import numpy as np
 
 
 def is_sparse(m: Union[mujoco.MjModel, Model]) -> bool:
@@ -149,19 +150,6 @@ def jac(
   return jacp, jacr
 
 
-def jac_dif_pair(
-    m: Model,
-    d: Data,
-    pos: jax.Array,
-    body_1: jax.Array,
-    body_2: jax.Array,
-) -> jax.Array:
-  """Compute Jacobian difference for two body points."""
-  jacp2, _ = jac(m, d, pos, body_2)
-  jacp1, _ = jac(m, d, pos, body_1)
-  return jacp2 - jacp1
-
-
 def apply_ft(
     m: Model,
     d: Data,
@@ -200,11 +188,92 @@ def local_to_global(
   return pos, mat
 
 
-def get_custom_numeric(m: Union[Model, mujoco.MjModel], name: str) -> float:
-  """Returns a custom numeric given an MjModel or mjx.Model."""
-  for i in range(m.nnumeric):
-    name_ = m.names[m.name_numericadr[i] :].decode('utf-8').split('\x00', 1)[0]
-    if name_ == name:
-      return m.numeric_data[m.numeric_adr[i]]
+def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
+  """Gets the number of objects for the given object type."""
+  return {
+      mujoco.mjtObj.mjOBJ_BODY: m.nbody,
+      mujoco.mjtObj.mjOBJ_JOINT: m.njnt,
+      mujoco.mjtObj.mjOBJ_GEOM: m.ngeom,
+      mujoco.mjtObj.mjOBJ_SITE: m.nsite,
+      mujoco.mjtObj.mjOBJ_CAMERA: m.ncam,
+      mujoco.mjtObj.mjOBJ_MESH: m.nmesh,
+      mujoco.mjtObj.mjOBJ_PAIR: m.npair,
+      mujoco.mjtObj.mjOBJ_EQUALITY: m.neq,
+      mujoco.mjtObj.mjOBJ_ACTUATOR: m.nu,
+      mujoco.mjtObj.mjOBJ_SENSOR: m.nsensor,
+      mujoco.mjtObj.mjOBJ_NUMERIC: m.nnumeric,
+      mujoco.mjtObj.mjOBJ_TUPLE: m.ntuple,
+      mujoco.mjtObj.mjOBJ_KEY: m.nkey,
+  }.get(obj, 0)
 
-  return -1
+
+def _getadr(
+    m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj
+) -> np.ndarray:
+  """Gets the name addresses for the given object type."""
+  return {
+      mujoco.mjtObj.mjOBJ_BODY: m.name_bodyadr,
+      mujoco.mjtObj.mjOBJ_JOINT: m.name_jntadr,
+      mujoco.mjtObj.mjOBJ_GEOM: m.name_geomadr,
+      mujoco.mjtObj.mjOBJ_SITE: m.name_siteadr,
+      mujoco.mjtObj.mjOBJ_CAMERA: m.name_camadr,
+      mujoco.mjtObj.mjOBJ_MESH: m.name_meshadr,
+      mujoco.mjtObj.mjOBJ_PAIR: m.name_pairadr,
+      mujoco.mjtObj.mjOBJ_EQUALITY: m.name_eqadr,
+      mujoco.mjtObj.mjOBJ_ACTUATOR: m.name_actuatoradr,
+      mujoco.mjtObj.mjOBJ_SENSOR: m.name_sensoradr,
+      mujoco.mjtObj.mjOBJ_NUMERIC: m.name_numericadr,
+      mujoco.mjtObj.mjOBJ_TUPLE: m.name_tupleadr,
+      mujoco.mjtObj.mjOBJ_KEY: m.name_keyadr,
+  }[obj]
+
+
+def id2name(
+    m: Union[Model, mujoco.MjModel], typ: mujoco._enums.mjtObj, i: int
+) -> Optional[str]:
+  """Gets the name of an object with the specified mjtObj type and id.
+
+  See mujoco.id2name for more info.
+
+  Args:
+    m: mujoco.MjModel or mjx.Model
+    typ: mujoco.mjtObj type
+    i: the id
+
+  Returns:
+    the name string, or None if not found
+  """
+  num = _getnum(m, typ)
+  if i < 0 or i >= num:
+    return None
+
+  adr = _getadr(m, typ)
+  name = m.names[adr[i] :].decode('utf-8').split('\x00', 1)[0]
+  return name or None
+
+
+def name2id(
+    m: Union[Model, mujoco.MjModel], typ: mujoco._enums.mjtObj, name: str
+) -> int:
+  """Gets the id of an object with the specified mjtObj type and name.
+
+  See mujoco.mj_name2id for more info.
+
+  Args:
+    m: mujoco.MjModel or mjx.Model
+    typ: mujoco.mjtObj type
+    name: the name of the object
+
+  Returns:
+   the id, or -1 if not found
+  """
+  num = _getnum(m, typ)
+  adr = _getadr(m, typ)
+
+  # TODO: consider using MjModel.names_map instead
+  names_map = {
+      m.names[adr[i] :].decode('utf-8').split('\x00', 1)[0]: i
+      for i in range(num)
+  }
+
+  return names_map.get(name, -1)

@@ -158,11 +158,13 @@ class mjCModel : public mjCModel_, private mjSpec {
  public:
   mjCModel();
   mjCModel(const mjCModel& other);
-  mjCModel& operator=(const mjCModel& other);
-  mjCModel& operator+=(const mjCModel& other);
   ~mjCModel();
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
+
+  mjCModel& operator=(const mjCModel& other);  // copy other into this, if they are not the same
+  mjCModel& operator+=(const mjCModel& other);  // add other into this, even if they are the same
+  mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
 
   mjSpec spec;
 
@@ -195,6 +197,9 @@ class mjCModel : public mjCModel_, private mjSpec {
                                    const std::vector<T*>& source,
                                    std::map<mjCDef*, int>& def_map,
                                    const std::vector<mjCDef*>& defaults);
+
+  // delete from list the elements that are compatible with other but not this model
+  template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -302,7 +307,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CreateObjectLists();
 
   // populate objects ids
-  void ProcessLists();
+  void ProcessLists(bool checkrepeat = true);
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

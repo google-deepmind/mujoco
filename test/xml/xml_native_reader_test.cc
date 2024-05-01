@@ -27,6 +27,8 @@
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
+#include "src/user/user_api.h"
+#include "src/xml/xml.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -488,20 +490,17 @@ TEST_F(XMLReaderTest, InvalidDefaultClassName) {
 
 // ------------------------ test including -------------------------------------
 
-// credit: https://www.mjt.me.uk/posts/smallest-png/
-static constexpr unsigned char kTinyPng[] =
-    { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00,
-      0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
-      0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03, 0x00,
-      0x00, 0x00, 0x66, 0xBC, 0x3A, 0x25, 0x00, 0x00, 0x00,
-      0x03, 0x50, 0x4C, 0x54, 0x45, 0xB5, 0xD0, 0xD0, 0x63,
-      0x04, 0x16, 0xEA, 0x00, 0x00, 0x00, 0x1F, 0x49, 0x44,
-      0x41, 0x54, 0x68, 0x81, 0xED, 0xC1, 0x01, 0x0D, 0x00,
-      0x00, 0x00, 0xC2, 0xA0, 0xF7, 0x4F, 0x6D, 0x0E, 0x37,
-      0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0xBE, 0x0D, 0x21, 0x00, 0x00, 0x01, 0x9A, 0x60, 0xE1,
-      0xD5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
-      0xAE, 0x42, 0x60, 0x82 };
+// tiny RGB 2 x 3 PNG file
+static constexpr unsigned char kTinyPng[] = {
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
+  0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
+  0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
+  0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
+  0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
+  0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
+  0x82
+};
 
 TEST_F(XMLReaderTest, IncludeTest) {
   static constexpr char xml[] = R"(
@@ -886,6 +885,171 @@ TEST_F(XMLReaderTest, DuplicateFrameName) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'frame1'"));
+}
+
+
+// ---------------------- test replicate parsing -------------------------------
+TEST_F(XMLReaderTest, ParseReplicate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
+      <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
+    </asset>
+
+    <worldbody>
+      <replicate count="2" offset="1 0 0">
+        <replicate count="2" offset="0 1 0" sep="_">
+          <geom name="geom" size="1" pos="0 0 1" material="material"/>
+          <site name="site" pos="1 0 0"/>
+        </replicate>
+      </replicate>
+
+      <replicate count="101" euler="0 0 1.8">
+        <geom name="g" size="1" pos="0 -1 0"/>
+      </replicate>
+    </worldbody>
+
+    <sensor>
+      <framepos name="sensor" objtype="site" objname="site"/>
+    </sensor>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_THAT(m->ngeom, 105);
+  EXPECT_THAT(m->nsensor, 4);
+
+  // check that the separator is used correctly
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
+      char geom_name[mjMAXUINAME] = "";
+      util::strcat_arr(geom_name, m->names + m->name_geomadr[2*i+j]);
+      EXPECT_THAT(m->geom_pos[6*i+3*j+0], i);
+      EXPECT_THAT(m->geom_pos[6*i+3*j+1], j);
+      EXPECT_THAT(m->geom_pos[6*i+3*j+2], 1);
+      EXPECT_THAT(std::string(geom_name),
+                  "geom_" + std::to_string(j) + std::to_string(i));
+    }
+  }
+
+  // check that 3 digits are used if count > 99
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 10; ++j) {
+      for (int k = 0; k < 10; ++k) {
+        int ngeom = 100*i+10*j+k;
+        if (ngeom > 99) break;
+        char geom_name[mjMAXUINAME] = "";
+        util::strcat_arr(geom_name, m->names + m->name_geomadr[4+ngeom]);
+        EXPECT_THAT(
+            std::string(geom_name),
+            "g" + std::to_string(i) + std::to_string(j) + std::to_string(k));
+      }
+    }
+  }
+
+  // check that the final pose is correct
+  int n = 104;
+  EXPECT_NEAR(m->geom_pos[3*n+0], 0, 1e-8);
+  EXPECT_NEAR(m->geom_pos[3*n+1], 1, 1e-8);
+  EXPECT_EQ(m->geom_pos[3*n+2], 0);
+  EXPECT_NEAR(m->geom_quat[4*n+0], 0, 1e-8);
+  EXPECT_EQ(m->geom_quat[4*n+1], 0);
+  EXPECT_EQ(m->geom_quat[4*n+2], 0);
+  EXPECT_EQ(m->geom_quat[4*n+3], 1);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(XMLReaderTest, ParseReplicatePartialReference) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 1"/>
+      <site name="world"/>
+
+      <replicate count="2" offset="1 0 0">
+        <body name="replicated">
+          <freejoint/>
+          <site name="replicated"/>
+          <geom name="replicated" size="1"/>
+        </body>
+      </replicate>
+    </worldbody>
+
+    <contact>
+      <pair geom1="floor" geom2="replicated" condim="1"/>
+      <exclude body1="world" body2="replicated" />
+    </contact>
+
+    <tendon>
+      <spatial>
+        <site site="world"/>
+        <site site="replicated"/>
+      </spatial>
+    </tendon>
+
+    <sensor>
+      <framepos name="sensor" objtype="site" objname="replicated" reftype="site" refname="world"/>
+    </sensor>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+
+  EXPECT_THAT(m->nbody, 3);
+  EXPECT_THAT(m->ngeom, 3);
+  EXPECT_THAT(m->npair, 2);
+  EXPECT_THAT(m->nexclude, 2);
+  EXPECT_THAT(m->ntendon, 2);
+  EXPECT_THAT(m->nsensor, 2);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="body">
+        <geom type="capsule"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <replicate count="2" euler="0 0 16.36" sep="-">
+        <body name="torso" pos="-5 0 1.282" childclass="body">
+          <body name="head" pos="0 0 .19">
+            <geom name="head" type="sphere" size=".09"/>
+          </body>
+        </body>
+      </replicate>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = ParseSpecFromString(xml, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+
+  mjsBody* torso = mjs_findBody(spec, "torso-0");
+  EXPECT_THAT(torso, NotNull());
+
+  mjsDefault* def = mjs_getDefault(torso->element);
+  EXPECT_THAT(def, NotNull());
+  EXPECT_THAT(def->geom->type, mjGEOM_CAPSULE);
+
+  mjsBody* head = mjs_findBody(spec, "head-0");
+  EXPECT_THAT(head, NotNull());
+
+  def = mjs_getDefault(head->element);
+  EXPECT_THAT(def, NotNull());
+  EXPECT_THAT(def->geom->type, mjGEOM_CAPSULE);
+
+  mjs_deleteSpec(spec);
 }
 
 // ----------------------- test camera parsing ---------------------------------
@@ -1289,7 +1453,7 @@ TEST_F(ActuatorParseTest, DamperRequiresControlRange) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid control range"));
-  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, DamperPositiveControlRange) {
@@ -1505,7 +1669,7 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange for actuator"));
-  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
@@ -1866,6 +2030,30 @@ TEST_F(XMLReaderTest, ExtentNegativeNotAllowed) {
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("extent must be strictly positive"));
   EXPECT_THAT(error.data(), HasSubstr("line 3"));
+}
+
+TEST_F(XMLReaderTest, LightRadius) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="r1">
+        <light bulbradius="1"/>
+      </default>
+    </default>
+    <worldbody>
+      <light/>
+      <light class="r1"/>
+      <light class="r1" bulbradius="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_FLOAT_EQ(model->light_bulbradius[0], 0.02);
+  EXPECT_FLOAT_EQ(model->light_bulbradius[1], 1);
+  EXPECT_FLOAT_EQ(model->light_bulbradius[2], 2);
+  mj_deleteModel(model);
 }
 
 }  // namespace

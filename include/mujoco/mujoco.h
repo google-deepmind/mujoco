@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 314
+#define mjVERSION_HEADER 315
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -203,10 +203,10 @@ MJAPI void mj_freeStack(mjData* d);
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
-MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);
+MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 
 // Allocate array of ints on mjData stack. Call mju_error on stack overflow.
-MJAPI int* mj_stackAllocInt(mjData* d, int size);
+MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
 // Free memory allocation in mjData.
 MJAPI void mj_deleteData(mjData* d);
@@ -1033,7 +1033,6 @@ MJAPI void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_forc
                                 const mjtNum newpos[3], const mjtNum oldpos[3],
                                 const mjtNum rotnew2old[9]);
 
-
 //---------------------------------- Quaternions ---------------------------------------------------
 
 // Rotate vector by quaternion.
@@ -1072,6 +1071,9 @@ MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 // Construct quaternion performing rotation from z-axis to given vector.
 MJAPI void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
 
+// Convert sequence of Euler angles (radians) to quaternion.
+// seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations.
+MJAPI void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq);
 
 //---------------------------------- Poses ---------------------------------------------------------
 

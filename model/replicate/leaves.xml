@@ -1,0 +1,50 @@
+<mujoco model="Leaves">
+
+  <statistic extent="1.5"/>
+
+  <visual>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <map shadowscale="0.5" zfar="40"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="64" height="64"/>
+    <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <material name="matplane" reflectance="0.3" texture="texplane" texrepeat="1 1" texuniform="true"/>
+  </asset>
+
+  <size memory="1G"/>
+
+  <option solver="CG" tolerance="1e-6" timestep=".003" density="1.225" viscosity="1.8e-5" integrator="implicitfast"/>
+
+  <visual>
+    <global realtime="0.2"/>
+  </visual>
+
+  <default>
+    <default class="leaf">
+      <geom type="ellipsoid" size=".025 .01 0.001" mass="1e-4" fluidshape="ellipsoid" rgba="0 .4 0 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <camera name="Cinematic" pos="0 -1.6 4.5" xyaxes="1 0 0 0 0.6 0.8" mode="trackcom"/>
+
+    <light diffuse="1 1 1" attenuation=".4 .2 0" pos="-1 -1 6" mode="trackcom" dir="1 1 -3"/>
+    <light diffuse="1 1 1" attenuation=".4 .2 0" pos="-.98 -1.02 6" mode="trackcom" dir="1 1 -3"/>
+    <geom name="ground" type="plane" size="5 5 .01" pos="0 0 0" quat="1 0 0 0" material="matplane" condim="1"/>
+    <replicate count="10" offset="0 0 0.07" euler="0 0 30">
+      <replicate count="6" euler="-3 0 0">
+        <frame pos="-.3 -.3 3">
+          <replicate count="5" offset=".05 0 0" euler="50 0 0">
+            <body euler="50 50 0">
+              <freejoint/>
+              <geom class="leaf" pos=".025 0 0" euler="10 0 0"/>
+              <geom class="leaf" pos="-.025 0 0" euler="-14 0 0" mass="1.2e-4"/>
+            </body>
+          </replicate>
+        </frame>
+    </replicate>
+   </replicate>
+  </worldbody>
+</mujoco>

@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
+#include <cstdlib>
 #include <functional>
 #include <map>
 #include <string>
@@ -27,6 +28,7 @@
 #include <mujoco/mjplugin.h>
 #include "user/user_api.h"
 #include "user/user_cache.h"
+#include "user/user_util.h"
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -39,9 +41,9 @@ class mjCSite;
 class mjCCamera;
 class mjCLight;
 class mjCHField;
-class mjCFlex;                        // defined in user_mesh
-class mjCMesh;                        // defined in user_mesh
-class mjCSkin;                        // defined in user_mesh
+class mjCFlex;         // defined in user_mesh.h
+class mjCMesh;         // defined in user_mesh.h
+class mjCSkin;         // defined in user_mesh.h
 class mjCTexture;
 class mjCMaterial;
 class mjCPair;
@@ -55,16 +57,15 @@ class mjCNumeric;
 class mjCText;
 class mjCTuple;
 class mjCDef;
-class mjCModel;                     // defined in user_model
-class mjXWriter;                    // defined in xml_native
-class mjXURDF;                      // defined in xml_urdf
+class mjCModel;        // defined in user_model.h
+class mjXWriter;       // defined in xml_native.h
+class mjXURDF;         // defined in xml_urdf.h
 
 
-//------------------------- helper classes and constants -------------------------------------------
+//------------------------- helper constants, classes and functions --------------------------------
 
 // number of positive size parameters for each geom type
 const int mjGEOMINFO[mjNGEOMTYPES] = {3, 0, 1, 2, 3, 2, 3, 0};
-
 
 // error information
 class [[nodiscard]] mjCError {
@@ -79,14 +80,14 @@ class [[nodiscard]] mjCError {
   bool warning;                   // is this a warning instead of error
 };
 
-
 // alternative specifications of frame orientation
 const char* ResolveOrientation(double* quat,             // set frame quat
                                bool degree,              // angle format: degree/radian
                                const char* sequence,     // euler sequence format: "xyz"
                                const mjsOrientation& orient);
 
-
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* FullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
 //------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
 
@@ -150,7 +151,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
     int axis = 0;
 
     bool operator()(const BVElement& e1, const BVElement& e2) const {
-      if (e1.lpos[axis] != e2.lpos[axis]) {
+      if (std::abs(e1.lpos[axis] - e2.lpos[axis]) > mjEPS) {
         return e1.lpos[axis] < e2.lpos[axis];
       }
       // comparing pointers gives a stable sort, because they both come from the same array
@@ -198,7 +199,7 @@ class mjCBase : public mjCBase_ {
   virtual void ResolveReferences(const mjCModel* m) {}
 
   // Appends prefix and suffix to reference
-  virtual void NameSpace(const mjCModel* m) {}
+  virtual void NameSpace(const mjCModel* m);
 
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
@@ -263,6 +264,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   friend class mjXURDF;
 
  public:
+  mjCBody(mjCModel*);  // constructor
+  ~mjCBody();          // destructor
+
   // API for adding objects to body
   mjCBody*    AddBody(mjCDef* = 0);
   mjCFrame*   AddFrame(mjCFrame* = 0);
@@ -273,8 +277,10 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCCamera*  AddCamera(mjCDef* = 0);
   mjCLight*   AddLight(mjCDef* = 0);
 
-  // API for adding existing objects to body
-  mjCBody& operator+=(mjCBody& other);
+  // API for adding/removing objects to body
+  mjCBody& operator+=(const mjCBody& other);
+  mjCBody& operator+=(const mjCFrame& other);
+  mjCBody& operator-=(const mjCBody& subtree);
 
   // API for accessing objects
   int NumObjects(mjtObj type);
@@ -286,10 +292,6 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // set explicitinertial to true
   void MakeInertialExplicit();
-
-  // compute quat and diag inertia from fullinertia
-  // return nullptr on success, error string on failure
-  const char* FullInertia(double quat[4], double inertia[3]);
 
   // variables set by user
   mjsBody spec;
@@ -303,10 +305,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
  private:
-  mjCBody(mjCModel*);                               // constructor
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment
-  ~mjCBody();                                       // destructor
 
   void Compile(void);             // compiler
   void GeomFrame(void);           // get inertial info from geoms
@@ -322,6 +322,12 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void CopyFromSpec();                 // copy spec into attributes
   void PointToLocal(void);
+  void NameSpace_(const mjCModel* m, bool propagate = true);
+
+  // copy src list of elements into dst; set body, model and frame
+  template <typename T>
+  void CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
+                std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe = nullptr);
 };
 
 
@@ -355,7 +361,8 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   void SetParent(mjCBody* _body);
 
   mjCFrame& operator+=(const mjCBody& other);
-  mjCFrame& operator+=(const mjCFrame& other);
+
+  bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
 
  private:
   mjCFrame(mjCModel* = 0, mjCFrame* = 0);      // constructor
@@ -490,6 +497,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void ComputeAABB(void);             // compute axis-aligned bounding box
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 
   // inherited
   using mjCBase::classname;
@@ -584,6 +592,7 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   void Compile(void);                     // compiler
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 };
 
 
@@ -622,6 +631,7 @@ class mjCLight : public mjCLight_, private mjsLight {
   void Compile(void);                     // compiler
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 };
 
 
@@ -813,12 +823,12 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
-  double* GetPosPtr(mjtGeomInertia type);              // get position
-  double* GetQuatPtr(mjtGeomInertia type);             // get orientation
+  double* GetPosPtr(mjtGeomInertia type);           // get position
+  double* GetQuatPtr(mjtGeomInertia type);          // get orientation
   double* GetOffsetPosPtr();                        // get position offset for geom
   double* GetOffsetQuatPtr();                       // get orientation offset for geom
-  double* GetInertiaBoxPtr(mjtGeomInertia type);       // get inertia box
-  double& GetVolumeRef(mjtGeomInertia type);           // get volume
+  double* GetInertiaBoxPtr(mjtGeomInertia type);    // get inertia box
+  double& GetVolumeRef(mjtGeomInertia type);        // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
@@ -850,7 +860,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void ApplyTransformations();                // apply user transformations
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void RemoveRepeated(void);                  // remove repeated vertices
-  void CheckMesh(mjtGeomInertia type);           // check if the mesh is valid
+  void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
 
   // mesh data to be copied into mjModel
   float* vert_;                       // vertex data (3*nvert), relative to (pos, quat)
@@ -1072,6 +1082,7 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
 
   void CopyFromSpec();
   void PointToLocal();
+  void NameSpace(const mjCModel* m);
 
   std::string get_texture() { return texture_; }
   void del_texture() { texture_.clear(); }

@@ -116,7 +116,7 @@ class SupportTest(parameterized.TestCase):
 
     np.testing.assert_almost_equal(qfrc, qfrc_expected, 6)
 
-  def test_custom_numeric(self):
+  def test_custom(self):
     xml = """
     <mujoco model="right_shadow_hand">
         <custom>
@@ -126,9 +126,36 @@ class SupportTest(parameterized.TestCase):
     </mujoco>
     """
     m = mujoco.MjModel.from_xml_string(xml)
-    self.assertEqual(support.get_custom_numeric(m, 'something'), -1)
-    self.assertEqual(support.get_custom_numeric(m, 'max_contact_points'), 15)
-    self.assertEqual(support.get_custom_numeric(m, 'max_geom_pairs'), 42)
+
+    def _get_numeric(m, name):
+      id_ = support.name2id(m, mujoco.mjtObj.mjOBJ_NUMERIC, name)
+      return int(m.numeric_data[id_]) if id_ >= 0 else -1
+
+    self.assertEqual(_get_numeric(m, 'something'), -1)
+    self.assertEqual(_get_numeric(m, 'max_contact_points'), 15)
+    self.assertEqual(_get_numeric(m, 'max_geom_pairs'), 42)
+
+    mx = mjx.put_model(m)
+    self.assertEqual(_get_numeric(mx, 'something'), -1)
+    self.assertEqual(_get_numeric(mx, 'max_contact_points'), 15)
+    self.assertEqual(_get_numeric(mx, 'max_geom_pairs'), 42)
+
+  def test_names_and_ids(self):
+    m = test_util.load_test_file('pendula.xml')
+    mx = mjx.put_model(m)
+
+    nums = {
+        mujoco.mjtObj.mjOBJ_JOINT: m.njnt,
+        mujoco.mjtObj.mjOBJ_GEOM: m.ngeom,
+        mujoco.mjtObj.mjOBJ_BODY: m.nbody,
+    }
+
+    for obj in nums:
+      names = [mujoco.mj_id2name(m, obj.value, i) for i in range(nums[obj])]
+      for i, n in enumerate(names):
+        self.assertEqual(support.id2name(mx, obj, i), n)
+        i = i if n is not None else -1
+        self.assertEqual(support.name2id(mx, obj, n), i)
 
 
 if __name__ == '__main__':

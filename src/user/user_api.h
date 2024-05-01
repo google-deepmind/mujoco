@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_API_H_
 #define MUJOCO_SRC_USER_USER_API_H_
 
+#include <math.h>
 #include <stddef.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -25,6 +26,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define mjNAN NAN                  // used to mark undefined fields
 
 
 //---------------------------------- handles to internal objects -----------------------------------
@@ -40,40 +43,49 @@ typedef struct _mjDoubleVec* mjDoubleVec;
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
 
-typedef enum _mjtGeomInertia {    // type of inertia inference
-  mjINERTIA_VOLUME,               // mass distributed in the volume
-  mjINERTIA_SHELL,                // mass distributed on the surface
+typedef enum _mjtGeomInertia {     // type of inertia inference
+  mjINERTIA_VOLUME,                // mass distributed in the volume
+  mjINERTIA_SHELL,                 // mass distributed on the surface
 } mjtGeomInertia;
 
 
-typedef enum _mjtBuiltin {        // type of built-in procedural texture
-  mjBUILTIN_NONE = 0,             // no built-in texture
-  mjBUILTIN_GRADIENT,             // gradient: rgb1->rgb2
-  mjBUILTIN_CHECKER,              // checker pattern: rgb1, rgb2
-  mjBUILTIN_FLAT                  // 2d: rgb1; cube: rgb1-up, rgb2-side, rgb3-down
+typedef enum _mjtBuiltin {         // type of built-in procedural texture
+  mjBUILTIN_NONE = 0,              // no built-in texture
+  mjBUILTIN_GRADIENT,              // gradient: rgb1->rgb2
+  mjBUILTIN_CHECKER,               // checker pattern: rgb1, rgb2
+  mjBUILTIN_FLAT                   // 2d: rgb1; cube: rgb1-up, rgb2-side, rgb3-down
 } mjtBuiltin;
 
 
-typedef enum _mjtMark {           // mark type for procedural textures
-  mjMARK_NONE = 0,                // no mark
-  mjMARK_EDGE,                    // edges
-  mjMARK_CROSS,                   // cross
-  mjMARK_RANDOM                   // random dots
+typedef enum _mjtMark {            // mark type for procedural textures
+  mjMARK_NONE = 0,                 // no mark
+  mjMARK_EDGE,                     // edges
+  mjMARK_CROSS,                    // cross
+  mjMARK_RANDOM                    // random dots
 } mjtMark;
 
 
-typedef enum _mjtLimited {        // type of limit specification
-  mjLIMITED_FALSE = 0,            // not limited
-  mjLIMITED_TRUE,                 // limited
-  mjLIMITED_AUTO,                 // limited inferred from presence of range
+typedef enum _mjtLimited {         // type of limit specification
+  mjLIMITED_FALSE = 0,             // not limited
+  mjLIMITED_TRUE,                  // limited
+  mjLIMITED_AUTO,                  // limited inferred from presence of range
 } mjtLimited;
 
 
-typedef enum _mjtInertiaFromGeom {
-  mjINERTIAFROMGEOM_FALSE = 0,    // do not use; inertial element required
-  mjINERTIAFROMGEOM_TRUE,         // always use; overwrite inertial element
-  mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
+typedef enum _mjtInertiaFromGeom { // whether to infer body inertias from child geoms
+  mjINERTIAFROMGEOM_FALSE = 0,     // do not use; inertial element required
+  mjINERTIAFROMGEOM_TRUE,          // always use; overwrite inertial element
+  mjINERTIAFROMGEOM_AUTO           // use only if inertial element is missing
 } mjtInertiaFromGeom;
+
+
+typedef enum _mjtOrientation {     // type of orientation specifier
+  mjORIENTATION_QUAT = 0,          // quaternion
+  mjORIENTATION_AXISANGLE,         // axis and angle
+  mjORIENTATION_XYAXES,            // x and y axes
+  mjORIENTATION_ZAXIS,             // z axis (minimal rotation)
+  mjORIENTATION_EULER,             // Euler angles
+} mjtOrientation;
 
 
 //---------------------------------- attribute structs (mjs) ---------------------------------------
@@ -84,8 +96,8 @@ typedef struct _mjElement {        // element type, do not modify
 
 
 typedef struct _mjSpec {           // model specification
-  mjElement* element;              // object type
-  mjStatistic stat;                // statistics override (if defined)
+  mjElement* element;              // element type
+  mjString modelname;              // model name
 
   // compiler settings
   mjtByte autolimits;              // infer "limited" attribute based on range
@@ -109,46 +121,47 @@ typedef struct _mjSpec {           // model specification
   mjLROpt LRopt;                   // options for lengthrange computation
 
   // engine data
-  mjString modelname;             // model name
-  mjOption option;                // options
-  mjVisual visual;                // visual options
-  size_t memory;                  // size of arena+stack memory in bytes
-  int nemax;                      // max number of equality constraints
-  int njmax;                      // max number of constraints (Jacobian rows)
-  int nconmax;                    // max number of detected contacts (mjContact array size)
-  size_t nstack;                  // (deprecated) number of fields in mjData stack
-  int nuserdata;                  // number extra fields in mjData
-  int nuser_body;                 // number of mjtNums in body_user
-  int nuser_jnt;                  // number of mjtNums in jnt_user
-  int nuser_geom;                 // number of mjtNums in geom_user
-  int nuser_site;                 // number of mjtNums in site_user
-  int nuser_cam;                  // number of mjtNums in cam_user
-  int nuser_tendon;               // number of mjtNums in tendon_user
-  int nuser_actuator;             // number of mjtNums in actuator_user
-  int nuser_sensor;               // number of mjtNums in sensor_user
+  mjOption option;                 // physics options
+  mjVisual visual;                 // visual options
+  mjStatistic stat;                // statistics override (if defined)
 
   // sizes
-  int nkey;                       // number of keyframes
+  size_t memory;                   // number of bytes in arena+stack memory
+  int nemax;                       // max number of equality constraints
+  int nuserdata;                   // number of mjtNums in userdata
+  int nuser_body;                  // number of mjtNums in body_user
+  int nuser_jnt;                   // number of mjtNums in jnt_user
+  int nuser_geom;                  // number of mjtNums in geom_user
+  int nuser_site;                  // number of mjtNums in site_user
+  int nuser_cam;                   // number of mjtNums in cam_user
+  int nuser_tendon;                // number of mjtNums in tendon_user
+  int nuser_actuator;              // number of mjtNums in actuator_user
+  int nuser_sensor;                // number of mjtNums in sensor_user
+  int nkey;                        // number of keyframes
+  int njmax;                       // (deprecated) max number of constraints
+  int nconmax;                     // (deprecated) max number of detected contacts
+  size_t nstack;                   // (deprecated) number of mjtNums in mjData stack
 
   // global data
-  mjString comment;               // comment at top of XML
-  mjString modelfiledir;          // path to model file
+  mjString comment;                // comment at top of XML
+  mjString modelfiledir;           // path to model file
 
   // other
-  bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
+  mjtByte hasImplicitPluginElem;   // already encountered an implicit plugin sensor/actuator
 } mjSpec;
 
 
 typedef struct _mjsOrientation {   // alternative orientation specifiers
-  double axisangle[4];             // rotation axis and angle
+  mjtOrientation type;             // active orientation specifier
+  double axisangle[4];             // axis and angle
   double xyaxes[6];                // x and y axes
-  double zaxis[3];                 // z axis (use minimal rotation)
-  double euler[3];                 // euler angles
+  double zaxis[3];                 // z axis (minimal rotation)
+  double euler[3];                 // Euler angles
 } mjsOrientation;
 
 
 typedef struct _mjsPlugin {        // plugin specification
-  mjElement* instance;             // object type
+  mjElement* instance;             // element type
   mjString name;                   // name
   mjString instance_name;          // instance name
   int plugin_slot;                 // global registered slot number of the plugin
@@ -158,7 +171,7 @@ typedef struct _mjsPlugin {        // plugin specification
 
 
 typedef struct _mjsBody {          // body specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString childclass;             // childclass name
 
@@ -186,7 +199,7 @@ typedef struct _mjsBody {          // body specification
 
 
 typedef struct _mjsFrame {         // frame specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString childclass;             // childclass name
   double pos[3];                   // position
@@ -197,7 +210,7 @@ typedef struct _mjsFrame {         // frame specification
 
 
 typedef struct _mjsJoint {         // joint specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjtJoint type;                   // joint type
@@ -238,7 +251,7 @@ typedef struct _mjsJoint {         // joint specification
 
 
 typedef struct _mjsGeom {          // geom specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // classname
   mjtGeom type;                    // geom type
@@ -287,7 +300,7 @@ typedef struct _mjsGeom {          // geom specification
 
 
 typedef struct _mjsSite {          // site specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -311,7 +324,7 @@ typedef struct _mjsSite {          // site specification
 
 
 typedef struct _mjsCamera {        // camera specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -340,7 +353,7 @@ typedef struct _mjsCamera {        // camera specification
 
 
 typedef struct _mjsLight {         // light specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -354,6 +367,7 @@ typedef struct _mjsLight {         // light specification
   mjtByte active;                  // is light active
   mjtByte directional;             // is light directional or spot
   mjtByte castshadow;              // does light cast shadows
+  double bulbradius;               // bulb radius, for soft shadows
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
   float exponent;                  // OpenGL exponent
@@ -367,7 +381,7 @@ typedef struct _mjsLight {         // light specification
 
 
 typedef struct _mjsFlex {
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -408,7 +422,7 @@ typedef struct _mjsFlex {
 
 
 typedef struct _mjsMesh {          // mesh specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjString content_type;           // content type of file
@@ -429,7 +443,7 @@ typedef struct _mjsMesh {          // mesh specification
 
 
 typedef struct _mjsHField {        // height field specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString content_type;           // content type of file
   mjString file;                   // file: (nrow, ncol, [elevation data])
@@ -443,7 +457,7 @@ typedef struct _mjsHField {        // height field specification
 
 
 typedef struct _mjsSkin {          // skin specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjString file;                   // skin file
@@ -470,7 +484,7 @@ typedef struct _mjsSkin {          // skin specification
 
 
 typedef struct _mjsTexture {       // texture specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjtTexture type;                 // texture type
@@ -504,7 +518,7 @@ typedef struct _mjsTexture {       // texture specification
 
 
 typedef struct _mjsMaterial {      // material specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjString texture;                // name of texture (empty: none)
@@ -514,13 +528,15 @@ typedef struct _mjsMaterial {      // material specification
   float specular;                  // specular
   float shininess;                 // shininess
   float reflectance;               // reflectance
+  float metallic;                  // metallic
+  float roughness;                 // roughness
   float rgba[4];                   // rgba
   mjString info;                   // message appended to compiler errors
 } mjsMaterial;
 
 
 typedef struct _mjsPair {
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjString geomname1;              // name of geom 1
@@ -539,7 +555,7 @@ typedef struct _mjsPair {
 
 
 typedef struct _mjsExclude {
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString bodyname1;              // name of geom 1
   mjString bodyname2;              // name of geom 2
@@ -548,7 +564,7 @@ typedef struct _mjsExclude {
 
 
 typedef struct _mjsEquality {      // equality specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
   mjtEq type;                      // constraint type
@@ -563,7 +579,7 @@ typedef struct _mjsEquality {      // equality specification
 
 
 typedef struct _mjsTendon {        // tendon specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -595,13 +611,13 @@ typedef struct _mjsTendon {        // tendon specification
 
 
 typedef struct _mjsWrap {          // wrapping object specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString info;                   // message appended to errors
 } mjsWrap;
 
 
 typedef struct _mjsActuator {      // actuator specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -645,7 +661,7 @@ typedef struct _mjsActuator {      // actuator specification
 
 
 typedef struct _mjsSensor {        // sensor specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString classname;              // class name
 
@@ -673,7 +689,7 @@ typedef struct _mjsSensor {        // sensor specification
 
 
 typedef struct _mjsNumeric {       // custom numeric field specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjDoubleVec data;                // initialization data
   int size;                        // array size, can be bigger than data size
@@ -682,7 +698,7 @@ typedef struct _mjsNumeric {       // custom numeric field specification
 
 
 typedef struct _mjsText {          // custom text specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjString data;                   // text string
   mjString info;                   // message appended to compiler errors
@@ -690,7 +706,7 @@ typedef struct _mjsText {          // custom text specification
 
 
 typedef struct _mjsTuple {         // tuple specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   mjIntVec objtype;                // object types
   mjStringVec objname;             // object names
@@ -700,7 +716,7 @@ typedef struct _mjsTuple {         // tuple specification
 
 
 typedef struct _mjsKey {           // keyframe specification
-  mjElement* element;              // object type
+  mjElement* element;              // element type
   mjString name;                   // name
   double time;                     // time
   mjDoubleVec qpos;                // qpos
@@ -714,8 +730,8 @@ typedef struct _mjsKey {           // keyframe specification
 
 
 typedef struct _mjsDefault {       // default specification
-  mjString name;                   // name
-  mjElement* element;              // object type
+  mjElement* element;              // element type
+  mjString name;                   // class name
   mjsJoint* joint;                 // joint defaults
   mjsGeom* geom;                   // geom defaults
   mjsSite* site;                   // site defaults
@@ -731,34 +747,47 @@ typedef struct _mjsDefault {       // default specification
 } mjsDefault;
 
 
-//---------------------------------- API functions -------------------------------------------------
+//---------------------------------- Top-level spec manipulation -----------------------------------
 
-// Create model.
-MJAPI mjSpec* mjs_createSpec();
+// Create spec.
+MJAPI mjSpec* mjs_createSpec(void);
 
-// Copy model.
-MJAPI mjSpec* mjs_copySpec(const mjSpec* s);
-
-// Copy back model.
-MJAPI void mjs_copyBack(mjSpec* s, const mjModel* m);
-
-// Compile model.
+// Compile spec to model.
 MJAPI mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs);
 
-// Attach child body to a frame of the parent, return 0 if success
+// Copy spec.
+MJAPI mjSpec* mjs_copySpec(const mjSpec* s);
+
+// Get compiler error message from spec.
+MJAPI const char* mjs_getError(mjSpec* s);
+
+// Return 1 if compiler error is a warning.
+MJAPI int mjs_isWarning(mjSpec* s);
+
+// Copy model fields back into spec.
+MJAPI void mjs_copyBack(mjSpec* s, const mjModel* m);
+
+// Delete spec.
+MJAPI void mjs_deleteSpec(mjSpec* s);
+
+
+//---------------------------------- Attachment ----------------------------------------------------
+
+// Attach child body to a parent frame, return 0 on success.
 MJAPI int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                          const char* prefix, const char* suffix);
 
-// Get error message from model.
-MJAPI const char* mjs_getError(mjSpec* s);
+// Attach child frame to a parent body, return 0 on success.
+MJAPI int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
+                          const char* prefix, const char* suffix);
 
-// Return 1 if model has warnings.
-MJAPI int mjs_isWarning(mjSpec* s);
+// Detach body from mjSpec, remove all references and delete the body, return 0 on success.
+MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
 
-// Delete model.
-MJAPI void mjs_deleteSpec(mjSpec* s);
 
-// Add child body to body, return child spec.
+//---------------------------------- Add tree elements ---------------------------------------------
+
+// Add child body to body, return child.
 MJAPI mjsBody* mjs_addBody(mjsBody* body, mjsDefault* def);
 
 // Add site to body, return site spec.
@@ -782,34 +811,31 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Add flex to model.
+// Delete body. TODO: make this a general mjs_deleteElement function
+MJAPI void mjs_deleteBody(mjsBody* b);
+
+
+//---------------------------------- Add non-tree elements -----------------------------------------
+
+// Add actuator.
+MJAPI mjsActuator* mjs_addActuator(mjSpec* s, mjsDefault* def);
+
+// Add sensor.
+MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
+
+// Add flex.
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
 
-// Add mesh to model.
-MJAPI mjsMesh* mjs_addMesh(mjSpec* s, mjsDefault* def);
-
-// Add height field to model.
-MJAPI mjsHField* mjs_addHField(mjSpec* s);
-
-// Add skin to model.
-MJAPI mjsSkin* mjs_addSkin(mjSpec* s);
-
-// Add texture to model.
-MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
-
-// Add material to model.
-MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
-
-// Add pair to model.
+// Add contact pair.
 MJAPI mjsPair* mjs_addPair(mjSpec* s, mjsDefault* def);
 
-// Add excluded body pair to model.
+// Add excluded body pair.
 MJAPI mjsExclude* mjs_addExclude(mjSpec* s);
 
-// Add equality to model.
+// Add equality.
 MJAPI mjsEquality* mjs_addEquality(mjSpec* s, mjsDefault* def);
 
-// Add tendon to model.
+// Add tendon.
 MJAPI mjsTendon* mjs_addTendon(mjSpec* s, mjsDefault* def);
 
 // Wrap site using tendon.
@@ -824,41 +850,47 @@ MJAPI mjsWrap* mjs_wrapJoint(mjsTendon* tendon, const char* name, double coef);
 // Wrap pulley using tendon.
 MJAPI mjsWrap* mjs_wrapPulley(mjsTendon* tendon, double divisor);
 
-// Add actuator to model.
-MJAPI mjsActuator* mjs_addActuator(mjSpec* s, mjsDefault* def);
-
-// Add sensor to model.
-MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
-
-// Add numeric to model.
+// Add numeric.
 MJAPI mjsNumeric* mjs_addNumeric(mjSpec* s);
 
-// Add text to model.
+// Add text.
 MJAPI mjsText* mjs_addText(mjSpec* s);
 
-// Add tuple to model.
+// Add tuple.
 MJAPI mjsTuple* mjs_addTuple(mjSpec* s);
 
-// Add keyframe to model.
+// Add keyframe.
 MJAPI mjsKey* mjs_addKey(mjSpec* s);
 
-// Add plugin to model.
+// Add plugin.
 MJAPI mjsPlugin* mjs_addPlugin(mjSpec* s);
 
-// Add default to model.
+// Add default.
 MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id);
 
-// Get model spec from body.
+
+//---------------------------------- Add assets ----------------------------------------------------
+
+// Add mesh.
+MJAPI mjsMesh* mjs_addMesh(mjSpec* s, mjsDefault* def);
+
+// Add height field.
+MJAPI mjsHField* mjs_addHField(mjSpec* s);
+
+// Add skin.
+MJAPI mjsSkin* mjs_addSkin(mjSpec* s);
+
+// Add texture.
+MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
+
+// Add material.
+MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
+
+
+//---------------------------------- Find/get utilities --------------------------------------------
+
+// Get spec from body.
 MJAPI mjSpec* mjs_getSpec(mjsBody* body);
-
-// Get default corresponding to an mjElement.
-MJAPI mjsDefault* mjs_getDefault(mjElement* element);
-
-// Find default in model by class name.
-MJAPI mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
-
-// Get global default from model.
-MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
 
 // Find body in model by name.
 MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);
@@ -872,8 +904,20 @@ MJAPI mjsMesh* mjs_findMesh(mjSpec* s, const char* name);
 // Find frame by name.
 MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
 
+// Get default corresponding to an element.
+MJAPI mjsDefault* mjs_getDefault(mjElement* element);
+
+// Find default in model by class name.
+MJAPI mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
+
+// Get global default from model.
+MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
+
 // Get element id.
 MJAPI int mjs_getId(mjElement* element);
+
+
+//---------------------------------- Attribute setters ---------------------------------------------
 
 // Copy text to string.
 MJAPI void mjs_setString(mjString dest, const char* text);
@@ -902,110 +946,117 @@ MJAPI void mjs_appendFloatVec(mjFloatVecVec dest, const float* array, int size);
 // Copy double array to vector.
 MJAPI void mjs_setDouble(mjDoubleVec dest, const double* array, int size);
 
+// Set plugin attributes.
+MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
+
+
+//---------------------------------- Attribute getters ---------------------------------------------
+
 // Get string contents.
 MJAPI const char* mjs_getString(mjString source);
 
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(mjDoubleVec source, int* size);
 
-// Set plugin attributes.
-MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
+
+//---------------------------------- Other utilities -----------------------------------------------
 
 // Set active plugins.
 MJAPI void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 
-// Set default.
+// Set element's default.
 MJAPI void mjs_setDefault(mjElement* element, mjsDefault* def);
 
-// Set frame.
+// Set element's enlcosing frame.
 MJAPI void mjs_setFrame(mjElement* dest, mjsFrame* frame);
 
-// Resolve alternative orientations to quat.
+// Resolve alternative orientations to quat, return error if any.
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
 
-// Compute quat and inertia from body->fullinertia.
-MJAPI const char* mjs_setFullInertia(mjsBody* body, double quat[4], double inertia[3]);
+// Compute quat and diag inertia from full inertia matrix, return error if any.
+MJAPI const char* mjs_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
 
-//---------------------------------- Initialization functions --------------------------------------
+//---------------------------------- Initialization  -----------------------------------------------
 
-// Default model attributes.
-MJAPI void mjs_defaultSpec(mjSpec& model);
+// Default spec attributes.
+MJAPI void mjs_defaultSpec(mjSpec* spec);
 
 // Default orientation attributes.
-MJAPI void mjs_defaultOrientation(mjsOrientation& orient);
+MJAPI void mjs_defaultOrientation(mjsOrientation* orient);
 
 // Default body attributes.
-MJAPI void mjs_defaultBody(mjsBody& body);
+MJAPI void mjs_defaultBody(mjsBody* body);
 
 // Default frame attributes.
-MJAPI void mjs_defaultFrame(mjsFrame& frame);
+MJAPI void mjs_defaultFrame(mjsFrame* frame);
 
 // Default joint attributes.
-MJAPI void mjs_defaultJoint(mjsJoint& joint);
+MJAPI void mjs_defaultJoint(mjsJoint* joint);
 
 // Default geom attributes.
-MJAPI void mjs_defaultGeom(mjsGeom& geom);
+MJAPI void mjs_defaultGeom(mjsGeom* geom);
 
 // Default site attributes.
-MJAPI void mjs_defaultSite(mjsSite& site);
+MJAPI void mjs_defaultSite(mjsSite* site);
 
 // Default camera attributes.
-MJAPI void mjs_defaultCamera(mjsCamera& camera);
+MJAPI void mjs_defaultCamera(mjsCamera* camera);
 
 // Default light attributes.
-MJAPI void mjs_defaultLight(mjsLight& light);
+MJAPI void mjs_defaultLight(mjsLight* light);
 
 // Default flex attributes.
-MJAPI void mjs_defaultFlex(mjsFlex& flex);
+MJAPI void mjs_defaultFlex(mjsFlex* flex);
 
 // Default mesh attributes.
-MJAPI void mjs_defaultMesh(mjsMesh& mesh);
+MJAPI void mjs_defaultMesh(mjsMesh* mesh);
 
 // Default height field attributes.
-MJAPI void mjs_defaultHField(mjsHField& hfield);
+MJAPI void mjs_defaultHField(mjsHField* hfield);
 
 // Default skin attributes.
-MJAPI void mjs_defaultSkin(mjsSkin& skin);
+MJAPI void mjs_defaultSkin(mjsSkin* skin);
 
 // Default texture attributes.
-MJAPI void mjs_defaultTexture(mjsTexture& texture);
+MJAPI void mjs_defaultTexture(mjsTexture* texture);
 
 // Default material attributes.
-MJAPI void mjs_defaultMaterial(mjsMaterial& material);
+MJAPI void mjs_defaultMaterial(mjsMaterial* material);
 
 // Default pair attributes.
-MJAPI void mjs_defaultPair(mjsPair& pair);
+MJAPI void mjs_defaultPair(mjsPair* pair);
 
 // Default equality attributes.
-MJAPI void mjs_defaultEquality(mjsEquality& equality);
+MJAPI void mjs_defaultEquality(mjsEquality* equality);
 
 // Default tendon attributes.
-MJAPI void mjs_defaultTendon(mjsTendon& tendon);
+MJAPI void mjs_defaultTendon(mjsTendon* tendon);
 
 // Default actuator attributes.
-MJAPI void mjs_defaultActuator(mjsActuator& actuator);
+MJAPI void mjs_defaultActuator(mjsActuator* actuator);
 
 // Default sensor attributes.
-MJAPI void mjs_defaultSensor(mjsSensor& sensor);
+MJAPI void mjs_defaultSensor(mjsSensor* sensor);
 
 // Default numeric attributes.
-MJAPI void mjs_defaultNumeric(mjsNumeric& numeric);
+MJAPI void mjs_defaultNumeric(mjsNumeric* numeric);
 
 // Default text attributes.
-MJAPI void mjs_defaultText(mjsText& text);
+MJAPI void mjs_defaultText(mjsText* text);
 
 // Default tuple attributes.
-MJAPI void mjs_defaultTuple(mjsTuple& tuple);
+MJAPI void mjs_defaultTuple(mjsTuple* tuple);
 
 // Default keyframe attributes.
-MJAPI void mjs_defaultKey(mjsKey& key);
+MJAPI void mjs_defaultKey(mjsKey* key);
 
 // Default plugin attributes.
-MJAPI void mjs_defaultPlugin(mjsPlugin& plugin);
+MJAPI void mjs_defaultPlugin(mjsPlugin* plugin);
 
-//------------------------- Cache functions ------------------------------------
+
+//---------------------------------- Compiler cache ------------------------------------------------
 
 typedef struct _mjCache* mjCache;
 
@@ -1013,7 +1064,7 @@ typedef struct _mjCache* mjCache;
 MJAPI void mj_setCacheSize(mjCache cache, size_t size);
 
 // Get internal global cache context.
-MJAPI mjCache mj_globalCache();
+MJAPI mjCache mj_globalCache(void);
 
 #ifdef __cplusplus
 }

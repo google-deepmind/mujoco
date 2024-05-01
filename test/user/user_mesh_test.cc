@@ -58,6 +58,11 @@ static const char* const kDuplicateOBJPath =
 static const char* const kMalformedFaceOBJPath =
     "user/testdata/malformed_face.xml";
 
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
+
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -860,6 +865,27 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
   EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
   EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, MeshScale) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <mesh name="pyramid_scaled" vertex="0 0 0  1 0 0  0 1 0  0 0 1" scale="0.9 1 -1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" name="geom1" mesh="pyramid"/>
+      <geom type="mesh" name="geom2" mesh="pyramid_scaled"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  EXPECT_THAT(AsVector(model->mesh_scale + 0, 3), ElementsAre(1, 1, 1));
+  EXPECT_THAT(AsVector(model->mesh_scale + 3, 3), ElementsAre(0.9, 1, -1));
   mj_deleteModel(model);
 }
 

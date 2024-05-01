@@ -1303,6 +1303,23 @@ Euler integrator, semi-implicit in velocity.
     mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
     self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
 
+  def test_mju_euler_to_quat(self):
+    quat = np.zeros(4)
+    euler = np.array([0, np.pi/2, 0])
+    seq = 'xyz'
+    mujoco.mju_euler2Quat(quat, euler, seq)
+    expected_quat = np.array([np.sqrt(0.5), 0, np.sqrt(0.5), 0.])
+    np.testing.assert_almost_equal(quat, expected_quat)
+
+    error = 'mju_euler2Quat: seq must contain exactly 3 characters'
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xy')
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xyzy')
+    error = 'mju_euler2Quat: seq[2] is \'p\', should be one of x, y, z, X, Y, Z'
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xYp')
+
   @parameterized.product(flg_html=(False, True), flg_pad=(False, True))
   def test_mj_printSchema(self, flg_html, flg_pad):  # pylint: disable=invalid-name
     # Make sure that mj_printSchema doesn't raise an exception

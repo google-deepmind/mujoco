@@ -922,6 +922,7 @@ struct mjModel_ {
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
   int ntree;                      // number of kinematic trees under world body
+  int ngravcomp;                  // number of bodies with nonzero gravcomp
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
@@ -1079,6 +1080,7 @@ struct mjModel_ {
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
   mjtByte*  light_directional;    // directional light                        (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
+  float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   mjtByte*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
@@ -1165,6 +1167,7 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  mjtNum*   mesh_scale;           // scaling applied to asset vertices        (nmesh x 3)
   mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
   mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
@@ -1194,20 +1197,20 @@ struct mjModel_ {
   int*      skin_pathadr;         // address of asset path for skin; -1: none (nskin x 1)
 
   // height fields
-  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                    (nhfield x 4)
-  int*      hfield_nrow;          // number of rows in grid                     (nhfield x 1)
-  int*      hfield_ncol;          // number of columns in grid                  (nhfield x 1)
-  int*      hfield_adr;           // address in hfield_data                     (nhfield x 1)
-  float*    hfield_data;          // elevation data                             (nhfielddata x 1)
-  int*      hfield_pathadr;       // address of asset path for hfield; -1: none (nhfield x 1)
+  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
+  int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
+  int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
+  int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
+  float*    hfield_data;          // elevation data                           (nhfielddata x 1)
+  int*      hfield_pathadr;       // address of hfield asset path; -1: none   (nhfield x 1)
 
   // textures
-  int*      tex_type;             // texture type (mjtTexture)                  (ntex x 1)
-  int*      tex_height;           // number of rows in texture image            (ntex x 1)
-  int*      tex_width;            // number of columns in texture image         (ntex x 1)
-  int*      tex_adr;              // address in rgb                             (ntex x 1)
-  mjtByte*  tex_rgb;              // rgb (alpha = 1)                            (ntexdata x 1)
-  int*      tex_pathadr;         // address of asset path for texture; -1: none (ntex x 1)
+  int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
+  int*      tex_height;           // number of rows in texture image          (ntex x 1)
+  int*      tex_width;            // number of columns in texture image       (ntex x 1)
+  int*      tex_adr;              // address in rgb                           (ntex x 1)
+  mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
+  int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
   int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
@@ -1217,6 +1220,8 @@ struct mjModel_ {
   float*    mat_specular;         // specular (x white)                       (nmat x 1)
   float*    mat_shininess;        // shininess coef                           (nmat x 1)
   float*    mat_reflectance;      // reflectance (0: disable)                 (nmat x 1)
+  float*    mat_metallic;         // metallic coef                            (nmat x 1)
+  float*    mat_roughness;        // roughness coef                           (nmat x 1)
   float*    mat_rgba;             // rgba                                     (nmat x 4)
 
   // predefined geom pairs for collision detection; has precedence over exclude
@@ -2020,6 +2025,7 @@ struct mjvLight_ {                // OpenGL light
   mjtByte  headlight;             // headlight
   mjtByte  directional;           // directional light
   mjtByte  castshadow;            // does light cast shadows
+  float    bulbradius;            // bulb radius for soft shadows
 };
 typedef struct mjvLight_ mjvLight;
 struct mjvOption_ {                  // abstract visualization options
@@ -2234,6 +2240,7 @@ struct mjvSceneState_ {
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;
+    float* light_bulbradius;
     mjtByte* light_active;
     float* light_attenuation;
     float* light_cutoff;
@@ -2301,6 +2308,8 @@ struct mjvSceneState_ {
     float* mat_specular;
     float* mat_shininess;
     float* mat_reflectance;
+    float* mat_metallic;
+    float* mat_roughness;
     float* mat_rgba;
 
     int* eq_type;
@@ -2445,8 +2454,8 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 void mj_markStack(mjData* d);
 void mj_freeStack(mjData* d);
 void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
-mjtNum* mj_stackAllocNum(mjData* d, int size);
-int* mj_stackAllocInt(mjData* d, int size);
+mjtNum* mj_stackAllocNum(mjData* d, size_t size);
+int* mj_stackAllocInt(mjData* d, size_t size);
 void mj_deleteData(mjData* d);
 void mj_resetCallbacks(void);
 void mj_setConst(mjModel* m, mjData* d);
@@ -2742,6 +2751,7 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
 void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]);
 void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
+void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq);
 void mju_mulPose(mjtNum posres[3], mjtNum quatres[4],
                  const mjtNum pos1[3], const mjtNum quat1[4],
                  const mjtNum pos2[3], const mjtNum quat2[4]);

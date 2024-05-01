@@ -17,7 +17,6 @@
 import jax
 from jax import numpy as jp
 import mujoco
-from mujoco.mjx._src import constraint
 from mujoco.mjx._src import math
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
@@ -81,7 +80,7 @@ class _Context(PyTreeNode):
         prev_cost=0.0,
         solver_niter=0,
     )
-    ctx = _update_constraint(m, d, ctx)
+    ctx = _update_constraint(d, ctx)
     if grad:
       ctx = _update_gradient(m, d, ctx)
       ctx = ctx.replace(search=-ctx.Mgrad)  # start with preconditioned gradient
@@ -107,7 +106,7 @@ class _LSPoint(PyTreeNode):
   @classmethod
   def create(
       cls,
-      m: Model,
+      d: Data,
       ctx: _Context,
       alpha: jax.Array,
       jv: jax.Array,
@@ -118,8 +117,7 @@ class _LSPoint(PyTreeNode):
     # roughly corresponds to CGEval in mujoco/src/engine/engine_solver.c
 
     # TODO(robotics-team): change this to support friction constraints
-    ne, nf, *_ = constraint.count_constraints(m)
-    active = ((ctx.Jaref + alpha * jv) < 0).at[:ne + nf].set(True)
+    active = ((ctx.Jaref + alpha * jv) < 0).at[:d.ne + d.nf].set(True)
     quad = jax.vmap(jp.multiply)(quad, active)  # only active
     quad_total = quad_gauss + jp.sum(quad, axis=0)
 
@@ -161,13 +159,12 @@ def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
   return jax.lax.scan(_fun, init, None, length=max_iter)[0][0]
 
 
-def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
+def _update_constraint(d: Data, ctx: _Context) -> _Context:
   """Updates constraint force and resulting cost given latst solver iteration.
 
   Corresponds to CGupdateConstraint in mujoco/src/engine/engine_solver.c
 
   Args:
-    m: model defining constraints
     d: data which contains latest qacc and smooth terms
     ctx: current solver context
 
@@ -177,8 +174,7 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   # TODO(robotics-team): add friction constraints
 
   # only count active constraints
-  ne, nf, *_ = constraint.count_constraints(m)
-  active = (ctx.Jaref < 0).at[:ne + nf].set(True)
+  active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
 
   efc_force = d.efc_D * -ctx.Jaref * active
   qfrc_constraint = d.efc_J.T @ efc_force
@@ -217,8 +213,7 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
   if m.opt.solver == SolverType.CG:
     mgrad = smooth.solve_m(m, d, grad)
   elif m.opt.solver == SolverType.NEWTON:
-    ne, nf, *_ = constraint.count_constraints(m)
-    active = (ctx.Jaref < 0).at[: ne + nf].set(True)
+    active = (ctx.Jaref < 0).at[: d.ne + d.nf].set(True)
     h = (d.efc_J.T * d.efc_D * active) @ d.efc_J
     h = support.full_m(m, d) + h
     h_ = jax.scipy.linalg.cho_factor(h)
@@ -262,7 +257,7 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
   quad = jp.stack((0.5 * ctx.Jaref * ctx.Jaref, jv * ctx.Jaref, 0.5 * jv * jv))
   quad = (quad * d.efc_D).T
 
-  point_fn = lambda a: _LSPoint.create(m, ctx, a, jv, quad, quad_gauss)
+  point_fn = lambda a: _LSPoint.create(d, ctx, a, jv, quad, quad_gauss)
 
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations
@@ -283,14 +278,14 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
     # 1) they are not correctly at a bracket boundary (e.g. lo.deriv_0 > 0), OR
     # 2) if moving to next or mid narrows the bracket
     swap_lo_next = (lo.deriv_0 > 0) | (lo.deriv_0 < lo_next.deriv_0)
-    lo = jax.tree_map(lambda x, y: jp.where(swap_lo_next, y, x), lo, lo_next)
+    lo = jax.tree_util.tree_map(lambda x, y: jp.where(swap_lo_next, y, x), lo, lo_next)
     swap_lo_mid = (mid.deriv_0 < 0) & (lo.deriv_0 < mid.deriv_0)
-    lo = jax.tree_map(lambda x, y: jp.where(swap_lo_mid, y, x), lo, mid)
+    lo = jax.tree_util.tree_map(lambda x, y: jp.where(swap_lo_mid, y, x), lo, mid)
 
     swap_hi_next = (hi.deriv_0 < 0) | (hi.deriv_0 > hi_next.deriv_0)
-    hi = jax.tree_map(lambda x, y: jp.where(swap_hi_next, y, x), hi, hi_next)
+    hi = jax.tree_util.tree_map(lambda x, y: jp.where(swap_hi_next, y, x), hi, hi_next)
     swap_hi_mid = (mid.deriv_0 > 0) & (hi.deriv_0 > mid.deriv_0)
-    hi = jax.tree_map(lambda x, y: jp.where(swap_hi_mid, y, x), hi, mid)
+    hi = jax.tree_util.tree_map(lambda x, y: jp.where(swap_hi_mid, y, x), hi, mid)
 
     swap = swap_lo_next | swap_lo_mid | swap_hi_next | swap_hi_mid
 
@@ -302,8 +297,8 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
   p0 = point_fn(jp.array(0.0))
   lo = point_fn(p0.alpha - p0.deriv_0 / p0.deriv_1)
   lesser_fn = lambda x, y: jp.where(lo.deriv_0 < p0.deriv_0, x, y)
-  hi = jax.tree_map(lesser_fn, p0, lo)
-  lo = jax.tree_map(lesser_fn, lo, p0)
+  hi = jax.tree_util.tree_map(lesser_fn, p0, lo)
+  lo = jax.tree_util.tree_map(lesser_fn, lo, p0)
   ls_ctx = _LSContext(lo=lo, hi=hi, swap=jp.array(True), ls_iter=0)
   ls_ctx = _while_loop_scan(cond, body, ls_ctx, m.opt.ls_iterations)
 
@@ -336,7 +331,7 @@ def solve(m: Model, d: Data) -> Data:
   def body(ctx: _Context) -> _Context:
     ctx = _linesearch(m, d, ctx)
     prev_grad, prev_Mgrad = ctx.grad, ctx.Mgrad  # pylint: disable=invalid-name
-    ctx = _update_constraint(m, d, ctx)
+    ctx = _update_constraint(d, ctx)
     ctx = _update_gradient(m, d, ctx)
 
     # polak-ribiere:

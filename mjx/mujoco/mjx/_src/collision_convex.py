@@ -20,10 +20,51 @@ from typing import Tuple
 import jax
 from jax import numpy as jp
 from mujoco.mjx._src import math
+from mujoco.mjx._src import mesh
 # pylint: disable=g-importing-member
-from mujoco.mjx._src.collision_base import Contact
-from mujoco.mjx._src.collision_base import GeomInfo
+from mujoco.mjx._src.collision_types import Collision
+from mujoco.mjx._src.collision_types import ConvexInfo
+from mujoco.mjx._src.collision_types import FunctionKey
+from mujoco.mjx._src.collision_types import GeomInfo
+from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import GeomType
+from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
+
+
+def collider(ncon: int):
+  """Wraps collision functions for use by collision_driver."""
+
+  def wrapper(func):
+    def collide(
+        m: Model, d: Data, key: FunctionKey, geom: jax.Array
+    ) -> Collision:
+      g1, g2 = geom.T
+      infos = [
+          GeomInfo(d.geom_xpos[g1], d.geom_xmat[g1], m.geom_size[g1]),
+          GeomInfo(d.geom_xpos[g2], d.geom_xmat[g2], m.geom_size[g2]),
+      ]
+      in_axes = [0, 0]
+      for i in [0, 1]:
+        if key.types[i] == GeomType.BOX:
+          infos[i] = mesh.box(infos[i])
+          in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
+              pos=0, mat=0, face=0, vert=0
+          )
+        elif key.types[i] == GeomType.MESH:
+          infos[i] = mesh.convex(m, key.data_ids[i], infos[i])
+          in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
+              pos=0, mat=0
+          )
+      dist, pos, frame = jax.vmap(func, in_axes=in_axes)(*infos)
+      if ncon > 1:
+        return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
+      return dist, pos, frame
+
+    collide.ncon = ncon
+    return collide
+
+  return wrapper
 
 
 def _closest_segment_point_plane(
@@ -178,7 +219,8 @@ def _manifold_points(
   return jp.array([a_idx, b_idx, c_idx, d_idx])
 
 
-def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
+@collider(ncon=4)
+def plane_convex(plane: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contacts between a plane and a convex object."""
   vert = convex.vert
 
@@ -186,7 +228,7 @@ def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
   plane_pos = convex.mat.T @ (plane.pos - convex.pos)
   n = convex.mat.T @ plane.mat[:, 2]
   support = (plane_pos - vert) @ n
-  idx = _manifold_points(vert, support > 0, n)
+  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-4), n)
   pos = vert[idx]
 
   # convert to world frame
@@ -200,10 +242,11 @@ def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
   return dist, pos, frame
 
 
-def sphere_convex(sphere: GeomInfo, convex: GeomInfo) -> Contact:
+@collider(ncon=1)
+def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contact between a sphere and a convex object."""
   faces = convex.face
-  normals = convex.facenorm
+  normals = convex.face_normal
 
   # Put sphere in convex frame.
   sphere_pos = convex.mat.T @ (sphere.pos - convex.pos)
@@ -262,16 +305,15 @@ def sphere_convex(sphere: GeomInfo, convex: GeomInfo) -> Contact:
   n = convex.mat @ n
   pos = convex.mat @ pos + convex.pos
 
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
+@collider(ncon=2)
+def capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contacts between a capsule and a convex object."""
   # Get convex transformed normals, faces, and vertices.
   faces = convex.face
-  normals = convex.facenorm
+  normals = convex.face_normal
 
   # Put capsule in convex frame.
   cap_pos = convex.mat.T @ (cap.pos - convex.pos)
@@ -347,7 +389,7 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
       degenerate_edge_dir,
       edge_closest_pt,
       cap_closest_pt,
-  ) = jax.tree_map(lambda x, i=e_idx: jp.take(x, i, axis=0), res)
+  ) = jax.tree_util.tree_map(lambda x, i=e_idx: jp.take(x, i, axis=0), res)
 
   edge_face_normals = edge_face_normal[e_idx]
   edge_voronoi_front = ((edge_face_normals @ edge_axis) < 0).all()
@@ -869,10 +911,9 @@ def _sat_gaussmap(
   return dist, pos, normal
 
 
-def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
+@collider(ncon=4)
+def convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
   """Calculates contacts between two convex objects."""
-  if c1.face is None or c2.face is None or c1.vert is None or c2.vert is None:
-    raise AssertionError('Mesh info missing.')
   # pad face vertices so that we can broadcast between geom1 and geom2
   # face has shape (n_face, n_vert, 3)
   nvert1, nvert2 = c1.face.shape[1], c2.face.shape[1]
@@ -895,14 +936,14 @@ def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
   to_local_mat = c2.mat.T @ c1.mat
 
   faces1 = to_local_pos + faces1 @ to_local_mat.T
-  normals1 = c1.facenorm @ to_local_mat.T
-  normals2 = c2.facenorm
+  normals1 = c1.face_normal @ to_local_mat.T
+  normals2 = c2.face_normal
 
   vertices1 = to_local_pos + c1.vert @ to_local_mat.T
   vertices2 = c2.vert
 
-  unique_edges1 = jp.take(vertices1, c1.edge, axis=0)
-  unique_edges2 = jp.take(vertices2, c2.edge, axis=0)
+  unique_edges1 = jp.take(vertices1, c1.edge_dir, axis=0)
+  unique_edges2 = jp.take(vertices2, c2.edge_dir, axis=0)
 
   edges1 = jp.take(vertices1, c1.edge, axis=0)
   edges2 = jp.take(vertices2, c2.edge, axis=0)
@@ -944,13 +985,6 @@ def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
   pos = c2.pos + pos @ c2.mat.T
   normal = normal @ c2.mat.T
   normal = -normal if swapped else normal
-
   frame = jax.vmap(math.make_frame)(normal)
+
   return dist, pos, frame
-
-
-# store ncon as function attributes
-plane_convex.ncon = 4
-sphere_convex.ncon = 1
-capsule_convex.ncon = 2
-convex_convex.ncon = 4
