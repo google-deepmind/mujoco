@@ -20,7 +20,6 @@
 #include <string_view>
 
 
-extern const double mjNAN;                      // used to mark undefined fields
 const double mjEPS = 1E-14;                     // minimum value in various calculations
 const double mjMINMASS = 1E-6;                  // minimum mass allowed
 

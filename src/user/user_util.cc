@@ -33,10 +33,6 @@ using std::string;
 using std::numeric_limits;
 
 
-// set value of NAN here; needs <limits>
-const double mjNAN = numeric_limits<double>::quiet_NaN();
-
-
 // check if numeric variable is defined
 bool mjuu_defined(const double num) {
   return !isnan(num);

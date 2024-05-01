@@ -66,7 +66,7 @@ mjCComposite::mjCComposite(void) {
   mj_defaultSolRefImp(solrefsmooth, solimpsmooth);
 
   // plugin variables
-  mjs_defaultPlugin(plugin);
+  mjs_defaultPlugin(&plugin);
   plugin_name = "";
   plugin_instance_name = "";
   plugin.name = (mjString)&plugin_name;

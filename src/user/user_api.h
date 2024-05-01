@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_API_H_
 #define MUJOCO_SRC_USER_USER_API_H_
 
+#include <math.h>
 #include <stddef.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -25,6 +26,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define mjNAN NAN                  // used to mark undefined fields
 
 
 //---------------------------------- handles to internal objects -----------------------------------
@@ -144,7 +147,7 @@ typedef struct _mjSpec {           // model specification
   mjString modelfiledir;           // path to model file
 
   // other
-  bool hasImplicitPluginElem;      // already encountered an implicit plugin sensor/actuator
+  mjtByte hasImplicitPluginElem;   // already encountered an implicit plugin sensor/actuator
 } mjSpec;
 
 
@@ -747,7 +750,7 @@ typedef struct _mjsDefault {       // default specification
 //---------------------------------- Top-level spec manipulation -----------------------------------
 
 // Create spec.
-MJAPI mjSpec* mjs_createSpec();
+MJAPI mjSpec* mjs_createSpec(void);
 
 // Compile spec to model.
 MJAPI mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs);
@@ -977,80 +980,80 @@ MJAPI const char* mjs_fullInertia(double quat[4], double inertia[3], const doubl
 
 //---------------------------------- Initialization  -----------------------------------------------
 
-// Default model attributes.
-MJAPI void mjs_defaultSpec(mjSpec& model);
+// Default spec attributes.
+MJAPI void mjs_defaultSpec(mjSpec* spec);
 
 // Default orientation attributes.
-MJAPI void mjs_defaultOrientation(mjsOrientation& orient);
+MJAPI void mjs_defaultOrientation(mjsOrientation* orient);
 
 // Default body attributes.
-MJAPI void mjs_defaultBody(mjsBody& body);
+MJAPI void mjs_defaultBody(mjsBody* body);
 
 // Default frame attributes.
-MJAPI void mjs_defaultFrame(mjsFrame& frame);
+MJAPI void mjs_defaultFrame(mjsFrame* frame);
 
 // Default joint attributes.
-MJAPI void mjs_defaultJoint(mjsJoint& joint);
+MJAPI void mjs_defaultJoint(mjsJoint* joint);
 
 // Default geom attributes.
-MJAPI void mjs_defaultGeom(mjsGeom& geom);
+MJAPI void mjs_defaultGeom(mjsGeom* geom);
 
 // Default site attributes.
-MJAPI void mjs_defaultSite(mjsSite& site);
+MJAPI void mjs_defaultSite(mjsSite* site);
 
 // Default camera attributes.
-MJAPI void mjs_defaultCamera(mjsCamera& camera);
+MJAPI void mjs_defaultCamera(mjsCamera* camera);
 
 // Default light attributes.
-MJAPI void mjs_defaultLight(mjsLight& light);
+MJAPI void mjs_defaultLight(mjsLight* light);
 
 // Default flex attributes.
-MJAPI void mjs_defaultFlex(mjsFlex& flex);
+MJAPI void mjs_defaultFlex(mjsFlex* flex);
 
 // Default mesh attributes.
-MJAPI void mjs_defaultMesh(mjsMesh& mesh);
+MJAPI void mjs_defaultMesh(mjsMesh* mesh);
 
 // Default height field attributes.
-MJAPI void mjs_defaultHField(mjsHField& hfield);
+MJAPI void mjs_defaultHField(mjsHField* hfield);
 
 // Default skin attributes.
-MJAPI void mjs_defaultSkin(mjsSkin& skin);
+MJAPI void mjs_defaultSkin(mjsSkin* skin);
 
 // Default texture attributes.
-MJAPI void mjs_defaultTexture(mjsTexture& texture);
+MJAPI void mjs_defaultTexture(mjsTexture* texture);
 
 // Default material attributes.
-MJAPI void mjs_defaultMaterial(mjsMaterial& material);
+MJAPI void mjs_defaultMaterial(mjsMaterial* material);
 
 // Default pair attributes.
-MJAPI void mjs_defaultPair(mjsPair& pair);
+MJAPI void mjs_defaultPair(mjsPair* pair);
 
 // Default equality attributes.
-MJAPI void mjs_defaultEquality(mjsEquality& equality);
+MJAPI void mjs_defaultEquality(mjsEquality* equality);
 
 // Default tendon attributes.
-MJAPI void mjs_defaultTendon(mjsTendon& tendon);
+MJAPI void mjs_defaultTendon(mjsTendon* tendon);
 
 // Default actuator attributes.
-MJAPI void mjs_defaultActuator(mjsActuator& actuator);
+MJAPI void mjs_defaultActuator(mjsActuator* actuator);
 
 // Default sensor attributes.
-MJAPI void mjs_defaultSensor(mjsSensor& sensor);
+MJAPI void mjs_defaultSensor(mjsSensor* sensor);
 
 // Default numeric attributes.
-MJAPI void mjs_defaultNumeric(mjsNumeric& numeric);
+MJAPI void mjs_defaultNumeric(mjsNumeric* numeric);
 
 // Default text attributes.
-MJAPI void mjs_defaultText(mjsText& text);
+MJAPI void mjs_defaultText(mjsText* text);
 
 // Default tuple attributes.
-MJAPI void mjs_defaultTuple(mjsTuple& tuple);
+MJAPI void mjs_defaultTuple(mjsTuple* tuple);
 
 // Default keyframe attributes.
-MJAPI void mjs_defaultKey(mjsKey& key);
+MJAPI void mjs_defaultKey(mjsKey* key);
 
 // Default plugin attributes.
-MJAPI void mjs_defaultPlugin(mjsPlugin& plugin);
+MJAPI void mjs_defaultPlugin(mjsPlugin* plugin);
 
 
 //---------------------------------- Compiler cache ------------------------------------------------
@@ -1061,7 +1064,7 @@ typedef struct _mjCache* mjCache;
 MJAPI void mj_setCacheSize(mjCache cache, size_t size);
 
 // Get internal global cache context.
-MJAPI mjCache mj_globalCache();
+MJAPI mjCache mj_globalCache(void);
 
 #ifdef __cplusplus
 }

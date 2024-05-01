@@ -87,8 +87,8 @@ mjCFlexcomp::mjCFlexcomp(void) {
   rigid = false;
   centered = false;
 
-  mjs_defaultPlugin(plugin);
-  mjs_defaultOrientation(alt);
+  mjs_defaultPlugin(&plugin);
+  mjs_defaultOrientation(&alt);
   plugin_name = "";
   plugin_instance_name = "";
   plugin.name = (mjString)&plugin_name;

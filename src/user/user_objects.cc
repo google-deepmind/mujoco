@@ -474,18 +474,18 @@ mjCDef::mjCDef(void) {
   name.clear();
   parentid = -1;
   childid.clear();
-  mjs_defaultJoint(joint.spec);
-  mjs_defaultGeom(geom.spec);
-  mjs_defaultSite(site.spec);
-  mjs_defaultCamera(camera.spec);
-  mjs_defaultLight(light.spec);
-  mjs_defaultFlex(flex.spec);
-  mjs_defaultMesh(mesh.spec);
-  mjs_defaultMaterial(material.spec);
-  mjs_defaultPair(pair.spec);
-  mjs_defaultEquality(equality.spec);
-  mjs_defaultTendon(tendon.spec);
-  mjs_defaultActuator(actuator.spec);
+  mjs_defaultJoint(&joint.spec);
+  mjs_defaultGeom(&geom.spec);
+  mjs_defaultSite(&site.spec);
+  mjs_defaultCamera(&camera.spec);
+  mjs_defaultLight(&light.spec);
+  mjs_defaultFlex(&flex.spec);
+  mjs_defaultMesh(&mesh.spec);
+  mjs_defaultMaterial(&material.spec);
+  mjs_defaultPair(&pair.spec);
+  mjs_defaultEquality(&equality.spec);
+  mjs_defaultTendon(&tendon.spec);
+  mjs_defaultActuator(&actuator.spec);
 
   // make sure all the pointers are local
   PointToLocal();
@@ -675,7 +675,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   // set model pointer
   model = _model;
 
-  mjs_defaultBody(spec);
+  mjs_defaultBody(&spec);
   elemtype = mjOBJ_BODY;
   parentid = -1;
   weldid = -1;
@@ -1451,7 +1451,7 @@ void mjCBody::Compile(void) {
 
 // initialize frame
 mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
-  mjs_defaultFrame(spec);
+  mjs_defaultFrame(&spec);
   elemtype = mjOBJ_FRAME;
   compiled = false;
   model = _model;
@@ -1568,7 +1568,7 @@ void mjCFrame::Compile() {
 
 // initialize default joint
 mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultJoint(spec);
+  mjs_defaultJoint(&spec);
   elemtype = mjOBJ_JOINT;
 
   // clear internal variables
@@ -1758,7 +1758,7 @@ int mjCJoint::Compile(void) {
 
 // initialize default geom
 mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultGeom(spec);
+  mjs_defaultGeom(&spec);
   elemtype = mjOBJ_GEOM;
 
   mass_ = 0;
@@ -2405,7 +2405,7 @@ void mjCGeom::Compile(void) {
 
 // initialize default site
 mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultSite(spec);
+  mjs_defaultSite(&spec);
   elemtype = mjOBJ_SITE;
 
   // clear internal variables
@@ -2558,7 +2558,7 @@ void mjCSite::Compile(void) {
 
 // initialize defaults
 mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultCamera(spec);
+  mjs_defaultCamera(&spec);
   elemtype = mjOBJ_CAMERA;
 
   // clear private variables
@@ -2712,7 +2712,7 @@ void mjCCamera::Compile(void) {
 
 // initialize defaults
 mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultLight(spec);
+  mjs_defaultLight(&spec);
   elemtype = mjOBJ_LIGHT;
 
   // clear private variables
@@ -2815,7 +2815,7 @@ void mjCLight::Compile(void) {
 
 // constructor
 mjCHField::mjCHField(mjCModel* _model) {
-  mjs_defaultHField(spec);
+  mjs_defaultHField(&spec);
   elemtype = mjOBJ_HFIELD;
 
   // set model pointer
@@ -3066,7 +3066,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCTexture::mjCTexture(mjCModel* _model) {
-  mjs_defaultTexture(spec);
+  mjs_defaultTexture(&spec);
   elemtype = mjOBJ_TEXTURE;
 
   // set model pointer
@@ -3797,7 +3797,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
 // initialize defaults
 mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultMaterial(spec);
+  mjs_defaultMaterial(&spec);
   elemtype = mjOBJ_MATERIAL;
 
   // clear internal
@@ -3880,7 +3880,7 @@ void mjCMaterial::Compile(void) {
 
 // constructor
 mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultPair(spec);
+  mjs_defaultPair(&spec);
   elemtype = mjOBJ_PAIR;
 
   // set defaults
@@ -4245,7 +4245,7 @@ void mjCBodyPair::Compile(void) {
 
 // initialize default constraint
 mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultEquality(spec);
+  mjs_defaultEquality(&spec);
   elemtype = mjOBJ_EQUALITY;
 
   // clear internal variables
@@ -4406,7 +4406,7 @@ void mjCEquality::Compile(void) {
 
 // constructor
 mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultTendon(spec);
+  mjs_defaultTendon(&spec);
   elemtype = mjOBJ_TENDON;
 
   // clear internal variables
@@ -4883,7 +4883,7 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
 
 // initialize defaults
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultActuator(spec);
+  mjs_defaultActuator(&spec);
   elemtype = mjOBJ_ACTUATOR;
 
   // clear private variables
@@ -5226,7 +5226,7 @@ void mjCActuator::Compile(void) {
 
 // initialize defaults
 mjCSensor::mjCSensor(mjCModel* _model) {
-  mjs_defaultSensor(spec);
+  mjs_defaultSensor(&spec);
   elemtype = mjOBJ_SENSOR;
 
   // set model
@@ -5708,7 +5708,7 @@ void mjCSensor::Compile(void) {
 
 // constructor
 mjCNumeric::mjCNumeric(mjCModel* _model) {
-  mjs_defaultNumeric(spec);
+  mjs_defaultNumeric(&spec);
   elemtype = mjOBJ_NUMERIC;
 
   // set model pointer
@@ -5797,7 +5797,7 @@ void mjCNumeric::Compile(void) {
 
 // constructor
 mjCText::mjCText(mjCModel* _model) {
-  mjs_defaultText(spec);
+  mjs_defaultText(&spec);
   elemtype = mjOBJ_TEXT;
 
   // set model pointer
@@ -5874,7 +5874,7 @@ void mjCText::Compile(void) {
 
 // constructor
 mjCTuple::mjCTuple(mjCModel* _model) {
-  mjs_defaultTuple(spec);
+  mjs_defaultTuple(&spec);
   elemtype = mjOBJ_TUPLE;
 
   // set model pointer
@@ -6007,7 +6007,7 @@ void mjCTuple::Compile(void) {
 
 // constructor
 mjCKey::mjCKey(mjCModel* _model) {
-  mjs_defaultKey(spec);
+  mjs_defaultKey(&spec);
   elemtype = mjOBJ_KEY;
 
   // set model pointer
@@ -6191,7 +6191,7 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   instance_name.clear();
 
   // public interface
-  mjs_defaultPlugin(spec);
+  mjs_defaultPlugin(&spec);
   elemtype = mjOBJ_PLUGIN;
   spec.name = (mjString)&name;
   spec.instance_name = (mjString)&instance_name;

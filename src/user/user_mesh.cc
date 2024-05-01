@@ -131,7 +131,7 @@ static void ReadFromBuffer(T* dst, const char* src) {
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
-  mjs_defaultMesh(spec);
+  mjs_defaultMesh(&spec);
   elemtype = mjOBJ_MESH;
 
   // clear internal variables
@@ -2059,7 +2059,7 @@ void mjCMesh::MakeCenter(void) {
 
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
-  mjs_defaultSkin(spec);
+  mjs_defaultSkin(&spec);
   elemtype = mjOBJ_SKIN;
 
   // set model pointer
@@ -2484,7 +2484,7 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
-  mjs_defaultFlex(spec);
+  mjs_defaultFlex(&spec);
   elemtype = mjOBJ_FLEX;
 
   // set model

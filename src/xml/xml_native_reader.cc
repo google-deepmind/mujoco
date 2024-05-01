@@ -3394,7 +3394,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
 
       // store rotation difference
       mjsOrientation alt;
-      mjs_defaultOrientation(alt);
+      mjs_defaultOrientation(&alt);
       alt.type = mjORIENTATION_EULER;
       mjuu_copyvec(alt.euler, euler, 3);
       double rotation[4] = {1, 0, 0, 0};
