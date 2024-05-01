@@ -3452,9 +3452,10 @@ saving the XML:
 .. _body-flexcomp-file:
 
 :at:`file`: :at-val:`string, optional`
-   The name of the file from which a **mesh** or a **gmsh** is loaded. For mesh, the file extentsion is used to
-   determine the file format. Supported formats are the same as in :ref:`mesh assets<asset-mesh>`. For gmsh, the file is
-   expected to be in GMSH format 4.1 or 2.2, ascii or binary, see :ref:`here<gmsh-file-docs>`.
+   The name of the file from which a **surface** (triangular) or **volumetric** (tetrahedral) mesh is loaded. For
+   surface meshes, the file extension is used to determine the file format. Supported formats are the same as in
+   :ref:`mesh assets<asset-mesh>` and also including GMSH. Volumetric meshes are supported only in GMSH format.
+   See :ref:`here<gmsh-file-docs>` for more information on GMSH files.
 
 .. _body-flexcomp-rigid:
 

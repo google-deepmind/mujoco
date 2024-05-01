@@ -62,7 +62,7 @@ static void ReadStrFromBuffer(char* dest, const char* src, int maxlen) {
   std::strncpy(dest, src, maxlen);
 }
 
-bool IsValidElementHeader22(const std::string& line) {
+bool IsValidElementOrNodeHeader22(const std::string& line) {
   // making sure characters are numbers
   for (char c : line) {
     if (!std::isdigit(c)) {
@@ -1296,10 +1296,21 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
 // load GMSH format 2.2
 void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
                              int nodebegin, int elemend, int elembegin) {
+  // number of nodes
+  size_t numNodes = 0;
+
   // ascii nodes
   if (binary == 0) {
     // convert node char buffer to stringstream
     stringstream ss(std::string(buffer + nodebegin, nodeend - nodebegin));
+    std::string line;
+
+    // checking header template
+    std::getline(ss, line);
+    if (!IsValidElementOrNodeHeader22(line)) {
+      throw mjCError(NULL, "Invalid node header");
+    }
+    ss.seekg(-(line.size()+1), std::ios::cur);
 
     // read header
     size_t maxNodeTag = 0;
@@ -1307,7 +1318,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     if (!ss.good()) {
       throw mjCError(NULL, "Error reading Nodes header");
     }
-    size_t numNodes = maxNodeTag;
+    numNodes = maxNodeTag;
 
     if (numNodes < 0 || numNodes >= INT_MAX / 3) {
       throw mjCError(NULL, "Invalid number of nodes.");
@@ -1349,7 +1360,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     ReadStrFromBuffer(maxNodeTagChar, buffer + nodebegin, std::min(10, nodeend - nodebegin));
     size_t measuredHeaderSize = strnlen(maxNodeTagChar, 10) - 1;
     size_t maxNodeTag = std::stoi(maxNodeTagChar);
-    size_t numNodes = maxNodeTag;
+    numNodes = maxNodeTag;
 
     // check number of nodes is a positive number
     if (numNodes < 0) {
@@ -1396,7 +1407,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
 
     // checking header template
     std::getline(ss, line);
-    if (!IsValidElementHeader22(line)) {
+    if (!IsValidElementOrNodeHeader22(line)) {
       throw mjCError(NULL, "Invalid elements header");
     }
     ss.seekg(-(line.size()+1), std::ios::cur);
@@ -1404,7 +1415,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     size_t maxElementTag = 0;
     ss >> maxElementTag;
     if (!ss.good()) {
-      throw mjCError(NULL, "GetMaxElementTag::Error reading Elements header");
+      throw mjCError(NULL, "Error reading Elements header");
     }
     size_t numElements = maxElementTag;
 
@@ -1419,18 +1430,30 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     }
 
     // reading first element's type
-    int tag = 0, type = 0, numTags = 0;
-    ss >> tag >> type >> numTags;
+    int tag = 0, elementType = 0, numTags = 0;
+    ss >> tag >> elementType >> numTags;
     if (!ss.good()) {
       throw mjCError(NULL, "Error reading Elements");
     }
-    int numNodeTags = type;
+
+    size_t entityDim = 0;
+    int numNodeTags = 0;
+    // surface
+    if (elementType == 2) {
+      entityDim = 2;
+      numNodeTags = 3;
+    }
+    // tetrahedral
+    else if (elementType == 4) {
+      entityDim = 3;
+      numNodeTags = 4;
+    }
+
     if (numNodeTags < 1 || numNodeTags >4) {
       throw mjCError(NULL, "Invalid number of node tags");
     }
 
     // setting entityDim
-    size_t entityDim = numNodeTags - 1;
     def.spec.flex->dim = entityDim;
 
     // read elements, discard all tags
@@ -1438,7 +1461,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     for (size_t i=0; i<numElements; i++) {
       int nodeTag = 0, physicalEntityTag = 0, elmentModelEntityTag = 0;
       if (i != 0) {
-        ss >> tag >> type >> numTags;
+        ss >> tag >> elementType >> numTags;
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
         }
@@ -1454,7 +1477,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
         }
-        if (nodeTag > numElements || nodeTag < 1) {
+        if (nodeTag > numNodes || nodeTag < 1) {
           throw mjCError(NULL, "Invalid node tag");
         }
         element.push_back((int)(nodeTag-1));
@@ -1464,7 +1487,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
   // binary elements
   else {
     // header size for gmshApp
-    constexpr int elementHeaderSizeGmshApp = 6;
+    constexpr int elementHeaderSizeGmshApp = 4;
     // header size for Ftetwild
     constexpr int elementHeaderSizeFtetwild = 17;
     // check header size
@@ -1480,7 +1503,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     int numElements = maxElementTag;
     int tag, numTags;
     int nodeTag;
-    int numNodeTags;
+    int elementType;
 
     // check number of elements is a positive number
     if (numElements < 0) {
@@ -1491,14 +1514,28 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     int componentSize = sizeof(int);
     // element buffer
     const char* elementsBuffer = buffer + elembegin + measuredHeaderSize;
-    ReadFromBuffer(&numNodeTags, elementsBuffer);
+    ReadFromBuffer(&elementType, elementsBuffer);
     ReadFromBuffer(&numTags, elementsBuffer + componentSize*2);
     ReadFromBuffer(&tag, elementsBuffer + componentSize*3);
+
+    // tetrahedral has 4 node tags and surface has 3
+    int numNodeTags = 0;
+    size_t entityDim = 0;
+    // surface
+    if (elementType == 2) {
+      entityDim = 2;
+      numNodeTags = 3;
+    }
+    // tetrahedral
+    else if (elementType == 4) {
+      entityDim = 3;
+      numNodeTags = 4;
+    }
 
     if (numNodeTags < 1 || numNodeTags >4) {
       throw mjCError(NULL, "Invalid number of node tags");
     }
-    size_t entityDim = numNodeTags - 1;
+
     def.spec.flex->dim = entityDim;
 
     // element data(Ftetwild): tag and 4 nodeTag
@@ -1534,7 +1571,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       // read first element
       for (int k =0; k<numNodeTags; k++) {
         ReadFromBuffer(&nodeTag, elementsBuffer + componentSize*(6+k));
-        if (nodeTag > numElements || nodeTag < 1) {
+        if (nodeTag > numNodes || nodeTag < 1) {
           throw mjCError(NULL, "Invalid node tag");
         }
         element.push_back(nodeTag-1);
@@ -1564,7 +1601,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       for (int k = 0; k < numNodeTags; k++) {
         const char* nodeTagBuffer = elementsBuffer + componentSize*(4+k);
         ReadFromBuffer(&nodeTag, nodeTagBuffer);
-        if (nodeTag > numElements || nodeTag < 1) {
+        if (nodeTag > numNodes || nodeTag < 1) {
           throw mjCError(NULL, "Invalid node tag");
         }
         element.push_back(nodeTag-1);

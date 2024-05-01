@@ -24,39 +24,40 @@ General
      field.
 4. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
    to ``size_t``.
+5. Added support for gmsh format version 2.2 surface meshes in :ref:`flexcomp<body-flexcomp-file>`.
 
 MJX
 ^^^
 .. admonition:: Breaking API changes
    :class: attention
 
-   5. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
+   6. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
       functionality.
 
       **Migration:** Use ``mjx.get_data_into`` instead of ``mjx.device_get_into``, and ``mjx.put_data`` instead of
       ``mjx.device_put``.
 
-6. Added cylinder plane collisions.
-7. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
-8. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
-9. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
-10. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
-11. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
+7. Added cylinder plane collisions.
+8. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
+9. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
+10. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
+11. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
+12. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
     geoms.
-12. Fixed a bug where capsules might be ignored in broadphase colliision checking.
-13. Added cylinder collisions using SDFs.
-14. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
-15. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
-16. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
-17. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
+13. Fixed a bug where capsules might be ignored in broadphase colliision checking.
+14. Added cylinder collisions using SDFs.
+15. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
+16. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
+17. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
+18. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
 
 Bug fixes
 ^^^^^^^^^
-18. Defaults of lights were not being saved, now fixed.
-19. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-20. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+19. Defaults of lights were not being saved, now fixed.
+20. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+21. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-21. Fixed bug that prevented memory allocations larger than 2.15 GB.
+22. Fixed bug that prevented memory allocations larger than 2.15 GB.
 
 
 Version 3.1.4 (April 10th, 2024)
