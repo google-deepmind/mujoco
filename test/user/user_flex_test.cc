@@ -231,6 +231,18 @@ TEST_F(UserFlexTest, CreateBVHSuccess) {
   mj_deleteData(d);
 }
 
+TEST_F(UserFlexTest, RigidFlex) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/rigid_flex.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
 TEST_F(UserFlexTest, LoadMSHBinaryGMSH_41_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/shark_41_binary_gmshApp.xml");

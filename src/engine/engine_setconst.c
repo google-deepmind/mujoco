@@ -15,6 +15,7 @@
 #include "engine/engine_setconst.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -92,12 +93,21 @@ static void set0(mjModel* m, mjData* d) {
   // compute dof_M0 for CRB algorithm
   mj_setM0(m, d);
 
+  // save flex_rigid, temporarily make all flexes non-rigid
+  mjtByte* rigid = mju_malloc(m->nflex);
+  memcpy(rigid, m->flex_rigid, m->nflex);
+  memset(m->flex_rigid, 0, m->nflex);
+
   // run remaining computations
   mj_crb(m, d);
   mj_factorM(m, d);
   mj_flex(m, d);
   mj_tendon(m, d);
   mj_transmission(m, d);
+
+  // restore flex rigidity
+  memcpy(m->flex_rigid, rigid, m->nflex);
+  mju_free(rigid);
 
   // restore camera and light mode
   for (int i=0; i < m->ncam; i++) {

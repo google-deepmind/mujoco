@@ -408,6 +408,9 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   mjs_setString(pf->name, name.c_str());
   mjs_setInt(pf->elem, element.data(), element.size());
   mjs_setFloat(pf->texcoord, texcoord.data(), texcoord.size());
+  if (!centered) {
+    mjs_setDouble(pf->vert, point.data(), point.size());
+  }
 
   // rigid: set parent name, nothing else to do
   if (rigid) {

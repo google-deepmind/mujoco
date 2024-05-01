@@ -2372,10 +2372,14 @@ void mjCModel::CopyObjects(mjModel* m) {
       m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
       m->flex_edge[2*(edge_adr+k)+1] = pfl->edge[k].second;
 
-      // check if vertex body weldids are the same
-      int b1 = pfl->vertbodyid[pfl->edge[k].first];
-      int b2 = pfl->vertbodyid[pfl->edge[k].second];
-      m->flexedge_rigid[edge_adr+k] = (bodies[b1]->weldid == bodies[b2]->weldid);
+      if (pfl->rigid) {
+        m->flexedge_rigid[edge_adr+k] = 1;
+      } else {
+        // check if vertex body weldids are the same
+        int b1 = pfl->vertbodyid[pfl->edge[k].first];
+        int b2 = pfl->vertbodyid[pfl->edge[k].second];
+        m->flexedge_rigid[edge_adr+k] = (bodies[b1]->weldid == bodies[b2]->weldid);
+      }
     }
 
     // advance counters
