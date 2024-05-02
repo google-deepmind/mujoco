@@ -1,20 +1,63 @@
+import argparse
+from tqdm import tqdm
+from pathlib import Path
 
 import mujoco
 from mujoco.usd import exporter
 
-if __name__ == "__main__":
+def generate_usd_trajectory(args):
 
   # load a model to mujoco
-  m = mujoco.MjModel.from_xml_path("/Users/abhishek/Documents/research/mujoco/test/engine/testdata/catenary.xml")
+  model_path = args.model_path
+  m = mujoco.MjModel.from_xml_path(model_path)
   d = mujoco.MjData(m)
 
   # create an instance of the USDExporter
-  exp = exporter.USDExporter(model=m)
+  exp = exporter.USDExporter(model=m,
+                             output_directory_name=Path(args.model_path).stem,
+                             output_directory_root=args.output_directory_root,
+                             camera_names=args.camera_names)
 
-  for i in range(100):
+  # step through the model for length steps
+  for i in tqdm(range(args.length)):
     mujoco.mj_step(m, d)
     exp.update_scene(d)
 
-  exp.save_scene(filetype="usd")
+  exp.save_scene(filetype=args.export_extension)
+
+
+if __name__ == "__main__":
+
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument('--model_path', 
+                      type=str,
+                      required=True,
+                      help='path to mjcf xml model')
+
+  parser.add_argument('--length',
+                      type=int,
+                      default=100,
+                      help='length of trajectory to render')
+
+  parser.add_argument('--output_directory_root', 
+                      type=str,
+                      default="../usd_trajectories/",
+                      help='location where to create usd files')
+
+  parser.add_argument('--camera_names', 
+                      type=str,
+                      nargs='+',
+                      help='cameras to include in usd')
+
+  parser.add_argument('--export_extension', 
+                      type=str,
+                      default="usd",
+                      help='extension of exported file (can be usd, usda, or usdc)')
+
+  args = parser.parse_args()
+  generate_usd_trajectory(args)
+
+  
 
 

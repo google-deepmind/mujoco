@@ -128,7 +128,7 @@ class USDExporter:
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
     self.stage.SetStartTimeCode(0)
     # add as user input
-    self.stage.SetTimeCodesPerSecond(24.0)
+    self.stage.SetTimeCodesPerSecond(60.0)
 
     default_prim = UsdGeom.Xform.Define(
         self.stage, Sdf.Path("/World")
@@ -232,9 +232,7 @@ class USDExporter:
 
   def _load_geom(self, geom: mujoco.MjvGeom):
 
-    geom_name = mujoco.mj_id2name(self.model, geom.objtype, geom.objid)
-    if not geom_name:
-      geom_name = f"unnamed_geom{geom.objid}"
+    geom_name = self._get_geom_name(geom.objtype, geom.objid)
 
     assert geom_name not in self.geom_name2usd
 
@@ -271,12 +269,17 @@ class USDExporter:
 
     geom_names = set(self.geom_name2usd.keys())
 
-    # iterate through all geoms in the scene and makes update
     for i in range(self.scene.ngeom):
       geom = self.scene.geoms[i]
       geom_name = mujoco.mj_id2name(self.model, geom.objtype, geom.objid)
       if not geom_name:
-        geom_name = f"unnamed_geom{geom.objid}"
+        geom_name = "None"
+      geom_name += f"_{geom.objid}"
+
+    # iterate through all geoms in the scene and makes update
+    for i in range(self.scene.ngeom):
+      geom = self.scene.geoms[i]
+      geom_name = self._get_geom_name(geom.objtype, geom.objid)
 
       if geom_name not in self.geom_name2usd:
         self._load_geom(geom)
@@ -394,9 +397,17 @@ class USDExporter:
     new_camera.update(cam_pos=np.array(pos), cam_mat=r.as_matrix(), frame=0)
 
   def save_scene(self, filetype: str = "usd"):
+    assert filetype in ["usd", "usda", "usdc"]
     self.stage.SetEndTimeCode(self.frame_count)
     self.stage.Export(
         f"{self.output_directory_root}/{self.output_directory_name}/frames/frame_{self.frame_count}_.{filetype}"
     )
     if self.verbose:
-      print(termcolor.colored(f"Writing frame_{self.frame_count}", "green"))
+      print(termcolor.colored(f"Completed writing frame_{self.frame_count}.{filetype}", "green"))
+
+  def _get_geom_name(self, objtype, objid):
+    geom_name = mujoco.mj_id2name(self.model, objtype, objid)
+    if not geom_name:
+      geom_name = "None"
+    geom_name += f"_{objid}"
+    return geom_name
