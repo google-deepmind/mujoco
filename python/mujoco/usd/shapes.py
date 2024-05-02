@@ -148,16 +148,6 @@ def mesh_generator(
         if "translate" in config["transform"]:
           prim_mesh.translate(config["transform"]["translate"])
 
-        # for transform, val in config["transform"].items():
-        #   if transform == "translate":
-        #     prim_mesh.translate(val)
-        #   elif transform == "scale":
-        #     prim_mesh.vertices = o3d.utility.Vector3dVector(
-        #       np.asarray(prim_mesh.vertices) * np.array(val))
-        #   elif transform == "rotate":
-        #     R = mesh.get_rotation_matrix_from_xyz(val)
-        #     prim_mesh.rotate(R, center=(0, 0, 0))
-
       if not mesh:
         mesh = prim_mesh
       else:
