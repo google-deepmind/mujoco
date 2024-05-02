@@ -935,29 +935,22 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   // LoadOBJ uses userXXX, extra processing needed
   if (isobj) {
     // check sizes
-    if (mesh.get_uservert().empty() || mesh.get_userface().empty()) {
+    if (mesh.vert_.empty() || mesh.face_.empty()) {
       return comperr(error, "Vertex and face data required", error_sz);
     }
-    if (mesh.get_uservert().size()%3) {
+    if (mesh.vert_.size()%3) {
       return comperr(error, "Vertex data must be multiple of 3", error_sz);
     }
-    if (mesh.get_userface().size()%3) {
+    if (mesh.face_.size()%3) {
       return comperr(error, "Face data must be multiple of 3", error_sz);
     }
-
-    // copy vectors and clear
-    mesh.nvert_ = mesh.uservert_.size()/3;
-    mesh.nface_ = mesh.userface_.size()/3;
-    mesh.vert_ = VecToArray(mesh.uservert_, true);
-    mesh.face_ = VecToArray(mesh.userface_, true);
 
     // remove repeated vertices (not called in LoadOBJ)
     mesh.RemoveRepeated();
   }
 
   // copy faces
-  element = vector<int> (mesh.nface()*3);
-  memcpy(element.data(), mesh.face_, mesh.nface_*3*sizeof(int));
+  element = mesh.face_;
 
   // copy vertices, convert from float to mjtNum
   point = vector<mjtNum> (mesh.nvert()*3);

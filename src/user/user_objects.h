@@ -722,24 +722,25 @@ class mjCMesh_ : public mjCBase {
 
   std::string content_type_;                     // content type of file
   std::string file_;                             // mesh file
-  std::vector<float> uservert_;                  // user vertex data
-  std::vector<float> usernormal_;                // user normal data
-  std::vector<float> usertexcoord_;              // user texcoord data
-  std::vector<int> userface_;                    // user vertex indices
-  std::vector<int> userfacenormal_;              // user normal indices
+  std::vector<float> vert_;                      // vertex data
+  std::vector<float> normal_;                    // normal data
+  std::vector<float> texcoord_;                  // texcoord data
+  std::vector<int> face_;                        // vertex indices
+  std::vector<int> facenormal_;                  // normal indices
+  std::vector<int> facetexcoord_;                // texcoord indices
 
   std::string spec_content_type_;
   std::string spec_file_;
-  std::vector<float> spec_uservert_;
-  std::vector<float> spec_usernormal_;
-  std::vector<float> spec_usertexcoord_;
-  std::vector<int> spec_userface_;
-  std::vector<int> spec_userfacenormal_;
+  std::vector<float> spec_vert_;
+  std::vector<float> spec_normal_;
+  std::vector<float> spec_texcoord_;
+  std::vector<int> spec_face_;
+  std::vector<int> spec_facenormal_;
+  std::vector<int> spec_facetexcoord_;
 
   // used by the compiler
   bool visual_;                                  // true: the mesh is only visual
-  std::vector<int> userfacetexcoord_;            // user texcoord indices
-  std::vector< std::pair<int, int> > useredge_;  // user half-edge data
+  std::vector< std::pair<int, int> > halfedge_;  // half-edge data
 
   // mesh properties that indicate a well-formed mesh
   std::pair<int, int> invalidorientation_;    // indices of invalid edge; -1 if none
@@ -763,10 +764,6 @@ class mjCMesh_ : public mjCBase {
   double surface_;                    // surface of the mesh
 
   // size of mesh data to be copied into mjModel
-  int nvert_;                         // number of vertices
-  int nnormal_;                       // number of normals
-  int ntexcoord_;                     // number of texcoords
-  int nface_;                         // number of faces
   int szgraph_;                       // size of graph data in ints
   bool needhull_;                     // needs convex hull for collisions
 
@@ -802,19 +799,19 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void set_needhull(bool needhull);
 
   // public getters for user data
-  const std::vector<float>& get_uservert() const { return uservert_; }
-  const std::vector<float>& get_usernormal() const { return usernormal_; }
-  const std::vector<float>& get_usertexcoord() const { return usertexcoord_; }
-  const std::vector<int>& get_userface() const { return userface_; }
+  const std::vector<float>& get_uservert() const { return spec_vert_; }
+  const std::vector<float>& get_usernormal() const { return spec_normal_; }
+  const std::vector<float>& get_usertexcoord() const { return spec_texcoord_; }
+  const std::vector<int>& get_userface() const { return spec_face_; }
 
   // mesh properties computed by Compile
   const double* aamm() const { return aamm_; }
 
   // number of vertices, normals, texture coordinates, and faces
-  int nvert() const { return nvert_; }
-  int nnormal() const { return nnormal_; }
-  int ntexcoord() const { return ntexcoord_; }
-  int nface() const { return nface_; }
+  int nvert() const { return vert_.size()/3; }
+  int nnormal() const { return normal_.size()/3; }
+  int ntexcoord() const { return texcoord_.size()/2; }
+  int nface() const { return face_.size()/3; }
 
   // return size of graph data in ints
   int szgraph() const { return szgraph_; }
@@ -863,13 +860,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
 
   // mesh data to be copied into mjModel
-  float* vert_;                       // vertex data (3*nvert), relative to (pos, quat)
-  float* normal_;                     // vertex normal data (3*nnormal)
   double* center_;                    // face circumcenter data (3*nface)
-  float* texcoord_;                   // vertex texcoord data (2*ntexcoord or NULL)
-  int* face_;                         // face vertex indices (3*nface)
-  int* facenormal_;                   // face normal indices (3*nface)
-  int* facetexcoord_;                 // face texcoord indices (3*nface)
   int* graph_;                        // convex graph data
 
   // compute the volume and center-of-mass of the mesh given the face center
