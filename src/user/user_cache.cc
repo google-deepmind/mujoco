@@ -187,16 +187,23 @@ const std::string* mjCCache::HasAsset(const std::string& id) {
 // is updated only if the timestamps disagree
 bool mjCCache::Insert(const mjCAsset& asset) {
   std::lock_guard<std::mutex> lock(mutex_);
+
+  // check if asset is too large to fit in the cache
+  std::size_t nbytes = asset.BytesCount();
   const std::string& id = asset.Id();
+  if ((size_ + nbytes > max_size_) && lookup_.find(id) == lookup_.end()) {
+    return false;
+  }
+
   if (asset.References().size() != 1) {
     return false;
   }
   const std::string& filename = *(asset.References().begin());
   auto [it, inserted] = lookup_.insert({id, asset});
+  mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    mjCAsset* asset_ptr = &(it->second);
-    if (size_ - asset_ptr->BytesCount() + asset.BytesCount() > max_size_) {
+    if (size_ - asset_ptr->BytesCount() + nbytes > max_size_) {
       return false;
     }
     models_[filename].insert(asset_ptr);  // add it for the model
@@ -205,19 +212,16 @@ bool mjCCache::Insert(const mjCAsset& asset) {
       return true;
     }
     asset_ptr->SetTimestamp(asset.Timestamp());
-    size_ = size_ - asset_ptr->BytesCount() + asset.BytesCount();
-    asset_ptr->ReplaceBlocks(asset.Blocks(), asset.BytesCount());
+    size_ = size_ - asset_ptr->BytesCount() + nbytes;
+    asset_ptr->ReplaceBlocks(asset.Blocks(), nbytes);
     return true;
-  } else if (size_ + asset.BytesCount() > max_size_) {
-    return false;
   }
 
   // new asset
-  mjCAsset* asset_ptr = &(it->second);
   asset_ptr->SetInsertNum(insert_num_++);
   entries_.insert(asset_ptr);
   models_[filename].insert(asset_ptr);
-  size_ += asset.BytesCount();
+  size_ += nbytes;
   return true;
 }
 
@@ -225,16 +229,22 @@ bool mjCCache::Insert(const mjCAsset& asset) {
 
 bool mjCCache::Insert(mjCAsset&& asset) {
   std::lock_guard<std::mutex> lock(mutex_);
+
+  // check if asset is too large to fit in the cache
+  std::size_t nbytes = asset.BytesCount();
   const std::string& id = asset.Id();
+  if ((size_ + nbytes > max_size_) && lookup_.find(id) == lookup_.end()) {
+    return false;
+  }
+
   if (asset.References().size() != 1) {
     return false;
   }
   const std::string& filename = *(asset.References().begin());
-  std::size_t nbytes = asset.BytesCount();
   auto [it, inserted] = lookup_.try_emplace(id, std::move(asset));
+  mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    mjCAsset* asset_ptr = &(it->second);
     if (size_ - asset_ptr->BytesCount() + nbytes > max_size_) {
       return false;
     }
@@ -248,12 +258,9 @@ bool mjCCache::Insert(mjCAsset&& asset) {
     size_ = size_ - asset_ptr->BytesCount() + nbytes;
     asset_ptr->ReplaceBlocks(std::move(asset.blocks_), asset.nbytes_);
     return true;
-  } else if (size_ + nbytes > max_size_) {
-    return false;
   }
 
   // new asset
-  mjCAsset* asset_ptr = &(it->second);
   asset_ptr->SetInsertNum(insert_num_++);
   entries_.insert(asset_ptr);
   models_[filename].insert(asset_ptr);
