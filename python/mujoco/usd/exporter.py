@@ -16,8 +16,10 @@ import os
 
 import mujoco
 
-import mujoco.usd.shapes as shapes_module
-import mujoco.usd.component as component_module
+# import mujoco.usd.shapes as shapes_module
+# import mujoco.usd.component as component_module
+import shapes as shapes_module
+import component as component_module
 
 import numpy as np
 import scipy
@@ -102,7 +104,8 @@ class USDExporter:
     self.frame_count = 0  # maintains how many times we have saved the scene
     self.updates = 0
 
-    self.geom_name2usd = {}
+    self.geom_names = set()
+    self.geom_refs = {}
 
     # initializing rendering requirements
     self.renderer = mujoco.Renderer(model, height, width, max_geom)
@@ -215,7 +218,7 @@ class USDExporter:
       )
       img_path = os.path.join(
           relative_path, texture_file_name
-      )  # relative path, TODO: switch back to this
+      )
 
       self.texture_files.append(img_path)
 
@@ -232,9 +235,9 @@ class USDExporter:
 
   def _load_geom(self, geom: mujoco.MjvGeom):
 
-    geom_name = self._get_geom_name(geom.objtype, geom.objid)
+    geom_name = self._get_geom_name(geom)
 
-    assert geom_name not in self.geom_name2usd
+    assert geom_name not in self.geom_names
 
     texture_file = self.texture_files[geom.texid] if geom.texid != -1 else None
 
@@ -263,42 +266,30 @@ class USDExporter:
           texture_file=texture_file,
       )
 
-    self.geom_name2usd[geom_name] = usd_geom
+    self.geom_names.add(geom_name)
+    self.geom_refs[geom_name] = usd_geom
 
   def _update_geoms(self):
-
-    geom_names = set(self.geom_name2usd.keys())
-
-    for i in range(self.scene.ngeom):
-      geom = self.scene.geoms[i]
-      geom_name = mujoco.mj_id2name(self.model, geom.objtype, geom.objid)
-      if not geom_name:
-        geom_name = "None"
-      geom_name += f"_{geom.objid}"
 
     # iterate through all geoms in the scene and makes update
     for i in range(self.scene.ngeom):
       geom = self.scene.geoms[i]
-      geom_name = self._get_geom_name(geom.objtype, geom.objid)
+      geom_name = self._get_geom_name(geom)
 
-      if geom_name not in self.geom_name2usd:
-        self._load_geom(geom)
-        if self.geom_name2usd[geom_name]:
-          self.geom_name2usd[geom_name].update_visibility(False, 0)
+      if "tendon" in geom_name:
+        # we handle tendon geoms separately to avoid naming conflicts
+        pass
+      else:
+        if geom_name not in self.geom_names:
+          # load a new object into USD
+          self._load_geom(geom)
 
-      if self.geom_name2usd[geom_name]:
-        self.geom_name2usd[geom_name].update(
+        self.geom_refs[geom_name].update(
             pos=geom.pos,
             mat=geom.mat,
             visible=geom.rgba[3] > 0,
             frame=self.updates,
         )
-      if geom_name in geom_names:
-        geom_names.remove(geom_name)
-
-    for geom_name in geom_names:
-      if self.geom_name2usd[geom_name]:
-        self.geom_name2usd[geom_name].update_visibility(False, self.updates)
 
   def _load_lights(self):
     # initializes an usd light object for every light in the scene
@@ -399,15 +390,35 @@ class USDExporter:
   def save_scene(self, filetype: str = "usd"):
     assert filetype in ["usd", "usda", "usdc"]
     self.stage.SetEndTimeCode(self.frame_count)
+
+    # post-processing for visibility of geoms in scene
+    for _, geom_ref in self.geom_refs.items():
+      geom_ref.update_visibility(False, geom_ref.last_visible_frame+1)
+
     self.stage.Export(
         f"{self.output_directory_root}/{self.output_directory_name}/frames/frame_{self.frame_count}_.{filetype}"
     )
     if self.verbose:
       print(termcolor.colored(f"Completed writing frame_{self.frame_count}.{filetype}", "green"))
 
-  def _get_geom_name(self, objtype, objid):
-    geom_name = mujoco.mj_id2name(self.model, objtype, objid)
+  def _get_geom_name(self, geom):
+    # adding id as part of name for USD file
+    geom_name = mujoco.mj_id2name(self.model, geom.objtype, geom.objid)
     if not geom_name:
       geom_name = "None"
-    geom_name += f"_{objid}"
+    geom_name += f"_id{geom.objid}"
+
+    # adding additional naming information to differentiate between geoms and tendons
+    if geom.objtype == mujoco.mjtObj.mjOBJ_GEOM:
+      geom_name += "_geom"
+    elif geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
+      geom_name += "_tendon"
+
     return geom_name
+
+  # for debugging purposes, prints all geoms in scene including those part of tendons
+  def _print_scene_geom_info(self):
+    for i in range(self.scene.ngeom):
+      geom = self.scene.geoms[i]
+      geom_name = self._get_geom_name(geom)
+      print(i, geom_name)

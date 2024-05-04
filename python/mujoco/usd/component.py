@@ -16,8 +16,10 @@ from typing import List, Optional, Tuple
 
 import mujoco
 
-import mujoco.usd.utils as utils_component
-import mujoco.usd.shapes as shapes_component
+# import mujoco.usd.utils as utils_component
+# import mujoco.usd.shapes as shapes_component
+import utils as utils_component
+import shapes as shapes_component
 
 import numpy as np
 
@@ -79,6 +81,8 @@ class USDMesh:
 
     # defining ops required by update function
     self.transform_op = self.usd_xform.AddTransformOp()
+
+    self.last_visible_frame = -2 # not an arbitary value, forces difference greater than 1 for visibility on 0th frame
 
   def get_facetexcoord_ranges(self, nmesh, arr):
     facetexcoords_ranges = [0]
@@ -224,13 +228,18 @@ class USDMesh:
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
-    self.update_visibility(visible, frame)
+    
+    if visible and frame - self.last_visible_frame > 1:
+      # non consecutive visible frames
+      self.update_visibility(False, max(0, self.last_visible_frame))
+      self.update_visibility(True, frame)
+
+    if visible:
+      self.last_visible_frame = frame
 
   def update_visibility(self, visible: bool, frame: int):
-    if visible:
-      self.usd_prim.GetAttribute("visibility").Set("inherited", frame)
-    else:
-      self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
+    visibility_setting = "inherited" if visible else "invisible"
+    self.usd_prim.GetAttribute("visibility").Set(visibility_setting, frame)
 
 
 class USDPrimitiveMesh:
@@ -290,6 +299,8 @@ class USDPrimitiveMesh:
     # defining ops required by update function
     self.transform_op = self.usd_xform.AddTransformOp()
 
+    self.last_visible_frame = -2
+
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
 
@@ -298,14 +309,17 @@ class USDPrimitiveMesh:
     assert self.prim_mesh
 
     x_scale, y_scale = self.geom.texrepeat
-
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
 
     x_multiplier, y_multiplier = 1, 1
     if self.geom.texuniform:
-      x_multiplier, y_multiplier = self.geom.size[:2]
-
+      # x_multiplier, y_multiplier = self.geom.size[:2]
+      if "box" in self.mesh_config:
+        x_multiplier, y_multiplier = self.mesh_config["box"]["width"], self.mesh_config["box"]["height"]
+      elif "sphere" in self.mesh_config:
+        x_multiplier, y_multiplier = self.mesh_config["sphere"]["radius"], self.mesh_config["sphere"]["radius"]
+      
     mesh_texcoord[:, 0] *= x_scale * x_multiplier
     mesh_texcoord[:, 1] *= y_scale * y_multiplier
 
@@ -408,13 +422,18 @@ class USDPrimitiveMesh:
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
-    self.update_visibility(visible, frame)
+
+    if visible and frame - self.last_visible_frame > 1:
+      # non consecutive visible frames
+      self.update_visibility(False, max(0, self.last_visible_frame))
+      self.update_visibility(True, frame)
+
+    if visible:
+      self.last_visible_frame = frame
 
   def update_visibility(self, visible: bool, frame: int):
-    if visible:
-      self.usd_prim.GetAttribute("visibility").Set("inherited", frame)
-    else:
-      self.usd_prim.GetAttribute("visibility").Set("invisible", frame)
+    visibility_setting = "inherited" if visible else "invisible"
+    self.usd_prim.GetAttribute("visibility").Set(visibility_setting, frame)
 
 class USDSphereLight:
 
