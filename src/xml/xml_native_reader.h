@@ -42,9 +42,9 @@ class mjXReader : public mjXBase {
   void SetTextureDir(std::string texturedir);
 
   // XML sections embedded in all formats
-  static void Compiler(tinyxml2::XMLElement* section, mjSpec* mod);  // compiler section
+  static void Compiler(tinyxml2::XMLElement* section, mjSpec* spec);   // compiler section
   static void Option(tinyxml2::XMLElement* section, mjOption* opt);    // option section
-  static void Size(tinyxml2::XMLElement* section, mjSpec* mod);      // size section
+  static void Size(tinyxml2::XMLElement* section, mjSpec* spec);       // size section
 
  private:
   // XML section specific to MJCF

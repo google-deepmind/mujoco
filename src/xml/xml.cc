@@ -100,17 +100,17 @@ class LocaleOverride {
 }  // namespace
 
 // Main writer function - calls mjXWrite
-std::string mjWriteXML(mjSpec* model, char* error, int error_sz) {
+std::string mjWriteXML(mjSpec* spec, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check for empty model
-  if (!model) {
+  if (!spec) {
     mjCopyError(error, "Cannot write empty model", error_sz);
     return "";
   }
 
   mjXWriter writer;
-  writer.SetModel(model);
+  writer.SetModel(spec);
   return writer.Write(error, error_sz);
 }
 
@@ -286,7 +286,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // clear
-  mjSpec* model = nullptr;
+  mjSpec* spec = nullptr;
   if (error) {
     error[0] = '\0';
   }
@@ -345,14 +345,14 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  model = mjs_createSpec();
+  spec = mjs_createSpec();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
   if (dir != nullptr) {
-    mjs_setString(model->modelfiledir, std::string(dir, ndir).c_str());
+    mjs_setString(spec->modelfiledir, std::string(dir, ndir).c_str());
   } else {
-    mjs_setString(model->modelfiledir, "");
+    mjs_setString(spec->modelfiledir, "");
   }
 
   // close resource
@@ -364,11 +364,11 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
       // find include elements, replace them with subtree from xml file
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
-      parser.SetModelFileDir(mjs_getString(model->modelfiledir));
-      mjIncludeXML(parser, root, mjs_getString(model->modelfiledir), vfs, included);
+      parser.SetModelFileDir(mjs_getString(spec->modelfiledir));
+      mjIncludeXML(parser, root, mjs_getString(spec->modelfiledir), vfs, included);
 
       // parse MuJoCo model
-      parser.SetModel(model);
+      parser.SetModel(spec);
       parser.Parse(root);
     }
 
@@ -378,11 +378,11 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
 
       // set reasonable default for parsing a URDF
       // this is separate from the Parser to allow multiple URDFs to be loaded.
-      model->strippath = true;
-      model->fusestatic = true;
-      model->discardvisual = true;
+      spec->strippath = true;
+      spec->fusestatic = true;
+      spec->discardvisual = true;
 
-      parser.SetModel(model);
+      parser.SetModel(spec);
       parser.Parse(root);
     }
 
@@ -394,11 +394,11 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    mjs_deleteSpec(model);
+    mjs_deleteSpec(spec);
     return nullptr;
   }
 
-  return model;
+  return spec;
 }
 
 

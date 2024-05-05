@@ -769,9 +769,9 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(mjSpec* modelspec) {
-  if (modelspec) {
-    model = (mjCModel*)modelspec->element;
+void mjXWriter::SetModel(mjSpec* spec) {
+  if (spec) {
+    model = (mjCModel*)spec->element;
   }
 }
 
