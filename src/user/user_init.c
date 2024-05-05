@@ -105,7 +105,6 @@ void mjs_defaultJoint(mjsJoint* joint) {
   joint->actfrclimited = mjLIMITED_AUTO;
   mj_defaultSolRefImp(joint->solref_limit, joint->solimp_limit);
   mj_defaultSolRefImp(joint->solref_friction, joint->solimp_friction);
-  joint->urdfeffort = -1;
 }
 
 

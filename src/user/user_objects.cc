@@ -2411,8 +2411,7 @@ void mjCGeom::Compile(void) {
   if (type==mjGEOM_HFIELD) {
     size[0] = hfield->size[0];
     size[1] = hfield->size[1];
-    size[2] = 0.5*(0.5*hfield->size[2] +
-                   hfield->size[3]);
+    size[2] = 0.25 * hfield->size[2] + 0.5 * hfield->size[3];
   } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     const double* aamm = mesh->aamm();
     size[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
@@ -5021,7 +5020,6 @@ void mjCActuator::CopyFromSpec() {
 
 
 void mjCActuator::ResolveReferences(const mjCModel* m) {
-  mjCJoint* pjnt;
   switch (trntype) {
   case mjTRN_JOINT:
   case mjTRN_JOINTINPARENT:
@@ -5030,14 +5028,6 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
     if (!ptarget) {
       throw mjCError(this,
                      "unknown transmission target '%s' for actuator id = %d", target_.c_str(), id);
-    }
-    pjnt = (mjCJoint*) ptarget;
-
-    // apply urdfeffort
-    if (pjnt->spec.urdfeffort>0) {
-      forcerange[0] = -pjnt->spec.urdfeffort;
-      forcerange[1] = pjnt->spec.urdfeffort;
-      forcelimited = mjLIMITED_TRUE;
     }
     break;
 
