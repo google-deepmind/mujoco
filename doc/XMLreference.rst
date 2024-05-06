@@ -1088,6 +1088,8 @@ specified with OBJ files and MSH files, as well as explicitly in the XML with th
 STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
 to convert to one of the other supported formats.
 
+.. _legacy-msh-docs:
+
 MSH file format
    The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
    (nnormal), vertex texture coordinates (ntexcoord), and vertex indices making up the faces (nface), followed by the

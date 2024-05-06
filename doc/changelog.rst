@@ -193,7 +193,7 @@ MJX
 
 Python bindings
 ^^^^^^^^^^^^^^^
-12. Improved the implementation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
     - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
