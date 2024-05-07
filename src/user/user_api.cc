@@ -29,6 +29,9 @@
 #include "user/user_cache.h"
 #include "xml/xml_util.h"
 
+// global cache size in bytes (default 500MB)
+static constexpr std::size_t kGlobalCacheSize = 500 * (1 << 20);
+
 
 // prepend prefix
 template <typename T>
@@ -698,5 +701,12 @@ void mj_setCacheSize(mjCache cache, std::size_t size) {
 
 
 mjCache mj_globalCache() {
-  return NULL;  // currently disabled
+  // mjCCache is not trivially destructible and so the global cache needs to
+  // allocated on the heap
+  if constexpr (kGlobalCacheSize) {
+    static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
+    return (mjCache) cache;
+  } else {
+    return NULL;
+  }
 }
