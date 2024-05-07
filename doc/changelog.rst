@@ -52,14 +52,16 @@ MJX
 17. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
 18. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
 19. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
+20. Added a new `differentiable physics tutorial <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/training_apg.ipynb>`__ that demonstrates training locomotion policies with analytical gradients
+    automatically derived from the MJX physics step.  Contribution by :github:user:`Andrew-Luo1`.
 
 Bug fixes
 ^^^^^^^^^
-20. Defaults of lights were not being saved, now fixed.
-21. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-22. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+21. Defaults of lights were not being saved, now fixed.
+22. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+23. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-23. Fixed bug that prevented memory allocations larger than 2.15 GB.
+24. Fixed bug that prevented memory allocations larger than 2.15 GB.
 
 
 Version 3.1.4 (April 10th, 2024)
