@@ -703,7 +703,7 @@ void mj_setCacheSize(mjCache cache, std::size_t size) {
 mjCache mj_globalCache() {
   // mjCCache is not trivially destructible and so the global cache needs to
   // allocated on the heap
-  if constexpr (kGlobalCacheSize) {
+  if constexpr (kGlobalCacheSize != 0) {
     static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
     return (mjCache) cache;
   } else {
