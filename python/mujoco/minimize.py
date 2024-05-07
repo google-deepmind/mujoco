@@ -18,7 +18,7 @@ import abc
 import dataclasses
 import enum
 import time
-from typing import Callable, List, Optional, TextIO, Tuple, Union
+from typing import Callable, List, Optional, Sequence, TextIO, Tuple, Union
 
 import mujoco
 import numpy as np
@@ -138,7 +138,7 @@ class Quadratic(Norm):
 def least_squares(
     x0: np.ndarray,
     residual: Callable[[np.ndarray], np.ndarray],
-    bounds: Optional[List[np.ndarray]] = None,
+    bounds: Optional[Sequence[np.ndarray]] = None,
     jacobian: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
     norm: Norm = Quadratic(),
     eps: float = 1e-6,
@@ -221,7 +221,7 @@ def least_squares(
     return mu, n_reduc
 
   # Make local copy of bounds to avoid reshaping user input.
-  bounds = None if bounds is None else bounds.copy()
+  bounds = None if bounds is None else list(bounds)
   if bounds is not None:
     # Checks bounds.
     if len(bounds) != 2:
