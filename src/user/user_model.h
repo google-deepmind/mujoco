@@ -192,14 +192,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
 
-  // copy vector of elements to this model
-  template <class T> void CopyList(std::vector<T*>& dest,
-                                   const std::vector<T*>& source,
-                                   std::map<mjCDef*, int>& def_map,
-                                   const std::vector<mjCDef*>& defaults);
-
-  // delete from list the elements that are compatible with other but not this model
-  template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -214,43 +206,58 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // API for access to other variables
   bool IsCompiled() const;                                       // is model already compiled
-  const mjCError& GetError(void) const;                          // get reference of error object
-  mjCBody* GetWorld() const;                                     // pointer to world body
-  mjCDef* FindDef(std::string name) const;                       // find default class name
-  mjCDef* AddDef(std::string name, int parentid);                // add default class to array
+  const mjCError& GetError() const;                              // get reference of error object
+  mjCBody* GetWorld();                                           // pointer to world body
+  mjCDef* FindDefault(std::string name);                         // find defaults class name
+  mjCDef* AddDefault(std::string name, int parentid);            // add defaults class to array
   mjCBase* FindObject(mjtObj type, std::string name) const;      // find object given type and name
-  mjCBody* FindBody(mjCBody* body, std::string name) const;      // find body given name
+  mjCBody* FindBody(mjCBody* body, std::string name);            // find body given name
   mjCFrame* FindFrame(mjCBody* body, std::string name) const;    // find frame given name
   bool IsNullPose(const mjtNum* pos, const mjtNum* quat) const;  // detect null pose
+  void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
+    active_plugins_ = std::move(active_plugins);
+  }
 
   // accessors
-  std::string get_meshdir(void) const { return meshdir_; }
-  std::string get_texturedir(void) const { return texturedir_; }
+  std::string get_meshdir() const { return meshdir_; }
+  std::string get_texturedir() const { return texturedir_; }
+
+  const std::vector<mjCDef*>& Defaults() const { return defaults_; }
+
+  const std::vector<std::pair<const mjpPlugin*, int>>& ActivePlugins() const {
+    return active_plugins_;
+  };
+
+  const std::vector<mjCFlex*>& Flexes() const { return flexes_; }
+  const std::vector<mjCMesh*>& Meshes() const {return meshes_; }
+  const std::vector<mjCSkin*>& Skins() const { return skins_; }
+  const std::vector<mjCHField*>& HFields() const { return hfields_; }
+  const std::vector<mjCTexture*>& Textures() const { return textures_; }
+  const std::vector<mjCMaterial*>& Materials() const { return materials_; }
+  const std::vector<mjCPair*>& Pairs() const { return pairs_; }
+  const std::vector<mjCBodyPair*>& Excludes() const { return excludes_; }
+  const std::vector<mjCEquality*>& Equalities() const { return equalities_; }
+  const std::vector<mjCTendon*>& Tendons() const { return tendons_; }
+  const std::vector<mjCActuator*>& Actuators() const { return actuators_; }
+  const std::vector<mjCSensor*>& Sensors() const { return sensors_; }
+  const std::vector<mjCNumeric*>& Numerics() const { return numerics_; }
+  const std::vector<mjCText*>& Texts() const { return texts_; }
+  const std::vector<mjCTuple*>& Tuples() const { return tuples_; }
+  const std::vector<mjCKey*>& Keys() const { return keys_; }
+  const std::vector<mjCPlugin*>& Plugins() const { return plugins_; }
+  const std::vector<mjCBody*>& Bodies() const { return bodies_; }
+  const std::vector<mjCGeom*>& Geoms() const { return geoms_; }
 
   // resolve plugin instance, create a new one if needed
   void ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
                      const std::string& plugin_instance_name,
                      mjCPlugin** plugin_instance);
 
-  // settings for each defaults class
-  std::vector<mjCDef*> defaults;
-
-  // list of active plugins
-  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
-
- private:
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
   mjModel* _Compile(const mjVFS* vfs);
 
   // clear objects allocated by Compile
-  void Clear(void);
-
-  // add object of any type
-  template <class T> T* AddObject(std::vector<T*>& list, std::string type);
-
-  // add object of any type, with def parameter
-  template <class T> T* AddObjectDef(std::vector<T*>& list, std::string type,
-                                     mjCDef* def);
+  void Clear();
 
   // if asset name is missing, set to filename
   template<class T> void SetDefaultNames(std::vector<T*>& assets);
@@ -258,6 +265,13 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete material from object
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
+
+ private:
+  // settings for each defaults class
+  std::vector<mjCDef*> defaults_;
+
+  // list of active plugins
+  std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;
 
   // compile phases
   void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
@@ -273,35 +287,51 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
 
   // objects created here
-  std::vector<mjCFlex*>     flexes;      // list of flexes
-  std::vector<mjCMesh*>     meshes;      // list of meshes
-  std::vector<mjCSkin*>     skins;       // list of skins
-  std::vector<mjCHField*>   hfields;     // list of height fields
-  std::vector<mjCTexture*>  textures;    // list of textures
-  std::vector<mjCMaterial*> materials;   // list of materials
-  std::vector<mjCPair*>     pairs;       // list of geom pairs to include
-  std::vector<mjCBodyPair*> excludes;    // list of body pairs to exclude
-  std::vector<mjCEquality*> equalities;  // list of equality constraints
-  std::vector<mjCTendon*>   tendons;     // list of tendons
-  std::vector<mjCActuator*> actuators;   // list of actuators
-  std::vector<mjCSensor*>   sensors;     // list of sensors
-  std::vector<mjCNumeric*>  numerics;    // list of numeric fields
-  std::vector<mjCText*>     texts;       // list of text fields
-  std::vector<mjCTuple*>    tuples;      // list of tuple fields
-  std::vector<mjCKey*>      keys;        // list of keyframe fields
-  std::vector<mjCPlugin*>   plugins;     // list of plugin instances
+  std::vector<mjCFlex*>     flexes_;      // list of flexes
+  std::vector<mjCMesh*>     meshes_;      // list of meshes
+  std::vector<mjCSkin*>     skins_;       // list of skins
+  std::vector<mjCHField*>   hfields_;     // list of height fields
+  std::vector<mjCTexture*>  textures_;    // list of textures
+  std::vector<mjCMaterial*> materials_;   // list of materials
+  std::vector<mjCPair*>     pairs_;       // list of geom pairs to include
+  std::vector<mjCBodyPair*> excludes_;    // list of body pairs to exclude
+  std::vector<mjCEquality*> equalities_;  // list of equality constraints
+  std::vector<mjCTendon*>   tendons_;     // list of tendons
+  std::vector<mjCActuator*> actuators_;   // list of actuators
+  std::vector<mjCSensor*>   sensors_;     // list of sensors
+  std::vector<mjCNumeric*>  numerics_;    // list of numeric fields
+  std::vector<mjCText*>     texts_;       // list of text fields
+  std::vector<mjCTuple*>    tuples_;      // list of tuple fields
+  std::vector<mjCKey*>      keys_;        // list of keyframe fields
+  std::vector<mjCPlugin*>   plugins_;     // list of plugin instances
 
   // pointers to objects created inside kinematic tree
-  std::vector<mjCBody*>   bodies;   // list of bodies
-  std::vector<mjCJoint*>  joints;   // list of joints allowing motion relative to parent
-  std::vector<mjCGeom*>   geoms;    // list of geoms attached to this body
-  std::vector<mjCSite*>   sites;    // list of sites attached to this body
-  std::vector<mjCCamera*> cameras;  // list of cameras
-  std::vector<mjCLight*>  lights;   // list of lights
-  std::vector<mjCFrame*>  frames;   // list of frames
+  std::vector<mjCBody*>   bodies_;   // list of bodies
+  std::vector<mjCJoint*>  joints_;   // list of joints allowing motion relative to parent
+  std::vector<mjCGeom*>   geoms_;    // list of geoms attached to this body
+  std::vector<mjCSite*>   sites_;    // list of sites attached to this body
+  std::vector<mjCCamera*> cameras_;  // list of cameras
+  std::vector<mjCLight*>  lights_;   // list of lights
+  std::vector<mjCFrame*>  frames_;   // list of frames
 
   // array of pointers to each object list (enumerated by type)
-  std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists;
+  std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists_;
+
+  // add object of any type
+  template <class T> T* AddObject(std::vector<T*>& list, std::string type);
+
+  // add object of any type, with defaults parameter
+  template <class T> T* AddObjectDefault(std::vector<T*>& list, std::string type,
+                                         mjCDef* def);
+
+  // copy vector of elements to this model
+  template <class T> void CopyList(std::vector<T*>& dest,
+                                   const std::vector<T*>& sources,
+                                   std::map<mjCDef*, int>& def_map,
+                                   const std::vector<mjCDef*>& defaults);
+
+  // delete from list the elements that are compatible with other but not this model
+  template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
   // create mjCBase lists from children lists
   void CreateObjectLists();

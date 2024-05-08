@@ -151,7 +151,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // in case this body is not compiled
   CopyFromSpec();
@@ -2560,12 +2560,12 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   for (int i=0; i < nvert; i++) {
     // get body id, set vertxpos = body.xpos0
     int b = rigid ? vertbodyid[0] : vertbodyid[i];
-    mju_copy3(vertxpos.data()+3*i, model->bodies[b]->xpos0);
+    mju_copy3(vertxpos.data()+3*i, model->Bodies()[b]->xpos0);
 
     // add vertex offset within body if not centered
     if (!centered) {
       mjtNum offset[3];
-      mju_rotVecQuat(offset, vert_.data()+3*i, model->bodies[b]->xquat0);
+      mju_rotVecQuat(offset, vert_.data()+3*i, model->Bodies()[b]->xquat0);
       mju_addTo3(vertxpos.data()+3*i, offset);
     }
   }
@@ -2631,9 +2631,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   mjXUtil::Vector2String(useredge, edgeidx);
 
   for (const auto& vbodyid : vertbodyid) {
-    if (model->bodies[vbodyid]->plugin.instance) {
+    if (model->Bodies()[vbodyid]->plugin.instance) {
       mjCPlugin* plugin_instance =
-          static_cast<mjCPlugin*>(model->bodies[vbodyid]->plugin.instance);
+          static_cast<mjCPlugin*>(model->Bodies()[vbodyid]->plugin.instance);
       plugin_instance->config_attribs["face"] = userface;
       plugin_instance->config_attribs["edge"] = useredge;
     }

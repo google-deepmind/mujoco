@@ -429,8 +429,8 @@ mjsPlugin* mjs_addPlugin(mjSpec* s) {
 // add default to model
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  *id = (int)modelC->defaults.size();
-  mjCDef* def = modelC->AddDef(classname, parentid);
+  *id = (int)modelC->Defaults().size();
+  mjCDef* def = modelC->AddDefault(classname, parentid);
   if (def) {
     return &def->spec;
   } else {
@@ -457,7 +457,7 @@ mjsDefault* mjs_getDefault(mjElement* element) {
 // Find default with given name in model.
 mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* cdef = modelC->FindDef(classname);
+  mjCDef* cdef = modelC->FindDefault(classname);
   if (!cdef) {
     return nullptr;
   }
@@ -469,7 +469,7 @@ mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
 // get default[0] from model
 mjsDefault* mjs_getSpecDefault(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = modelC->defaults[0];
+  mjCDef* def = modelC->Defaults()[0];
   if (!def) {
     return nullptr;
   }
@@ -677,7 +677,7 @@ void mjs_setActivePlugins(mjSpec* s, void* activeplugins) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   std::vector<std::pair<const mjpPlugin*, int>>* active_plugins =
       reinterpret_cast<std::vector<std::pair<const mjpPlugin*, int>>*>(activeplugins);
-  modelC->active_plugins = std::move(*active_plugins);
+  modelC->SetActivePlugins(std::move(*active_plugins));
 }
 
 
