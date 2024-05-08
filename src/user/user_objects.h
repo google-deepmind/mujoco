@@ -293,6 +293,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   // set explicitinertial to true
   void MakeInertialExplicit();
 
+  // compute the bounding volume hierarchy of the body.
+  void ComputeBVH();
+
   // variables set by user
   mjsBody spec;
 

@@ -2,6 +2,15 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+
+1. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
+   often the case for URDF imports.
+
 Version 3.1.5 (May 7, 2024)
 ---------------------------
 

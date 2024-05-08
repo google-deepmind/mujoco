@@ -2969,11 +2969,17 @@ void mjCModel::FuseStatic(void) {
     // recompute parent contype, conaffinity, and margin
     par->contype = par->conaffinity = 0;
     par->margin = 0;
-    for (const auto& geom : geoms) {
+    for (const auto& geom : par->geoms) {
       par->contype |= geom->contype;
       par->conaffinity |= geom->conaffinity;
       par->margin = mju_max(par->margin, geom->margin);
     }
+
+    // recompute BVH
+    int nbvhfuse = body->tree.nbvh + par->tree.nbvh;
+    par->ComputeBVH();
+    nbvhstatic += par->tree.nbvh - nbvhfuse;
+    nbvh += par->tree.nbvh - nbvhfuse;
 
     //------------- delete body (without deleting children)
 

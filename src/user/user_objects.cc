@@ -399,6 +399,7 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 
 void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
   nbvh = 0;
+  bvh.clear();
   child.clear();
   nodeid.clear();
   level.clear();
@@ -1333,6 +1334,23 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
+
+// compute bounding volume hierarchy
+void mjCBody::ComputeBVH() {
+  if (geoms.empty()) {
+    return;
+  }
+
+  tree.Set(ipos, iquat);
+  tree.AllocateBoundingVolumes(geoms.size());
+  for (int i=0; i<geoms.size(); i++) {
+    geoms[i]->SetBoundingVolume(tree.GetBoundingVolume(i));
+  }
+  tree.CreateBVH();
+}
+
+
+
 // compiler
 void mjCBody::Compile(void) {
   CopyFromSpec();
@@ -1447,14 +1465,7 @@ void mjCBody::Compile(void) {
   }
 
   // compute bounding volume hierarchy
-  if (!geoms.empty()) {
-    tree.Set(ipos, iquat);
-    tree.AllocateBoundingVolumes(geoms.size());
-    for (int i=0; i<geoms.size(); i++) {
-      geoms[i]->SetBoundingVolume(tree.GetBoundingVolume(i));
-    }
-    tree.CreateBVH();
-  }
+  ComputeBVH();
 
   // compile all joints, count dofs
   dofnum = 0;
