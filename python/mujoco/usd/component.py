@@ -296,8 +296,9 @@ class USDPrimitiveMesh:
     # setting attributes for the shape
     self._attach_material()
 
-    # defining ops required by update function
+    # defining ops required by update functions
     self.transform_op = self.usd_xform.AddTransformOp()
+    self.scale_op = self.usd_xform.AddScaleOp()
 
     self.last_visible_frame = -2
 
@@ -314,7 +315,6 @@ class USDPrimitiveMesh:
 
     x_multiplier, y_multiplier = 1, 1
     if self.geom.texuniform:
-      # x_multiplier, y_multiplier = self.geom.size[:2]
       if "box" in self.mesh_config:
         x_multiplier, y_multiplier = self.mesh_config["box"]["width"], self.mesh_config["box"]["height"]
       elif "sphere" in self.mesh_config:
@@ -435,6 +435,33 @@ class USDPrimitiveMesh:
     visibility_setting = "inherited" if visible else "invisible"
     self.usd_prim.GetAttribute("visibility").Set(visibility_setting, frame)
 
+  def update_scale(self, scale: np.ndarray, frame: int):
+    self.scale_op.Set(Gf.Vec3f(scale.tolist()), frame)
+
+class USDTendon(USDPrimitiveMesh):
+
+  def __init__(
+    self,
+    mesh_config: List[dict],
+    stage: Usd.Stage,
+    geom: mujoco.MjvGeom,
+    obj_name: str,
+    rgba: np.ndarray = np.array([1, 1, 1, 1]),
+    texture_file: Optional[str] = None,
+  ):
+    super().__init__(
+      mesh_config=mesh_config,
+      stage=stage,
+      geom=geom,
+      obj_name=obj_name,
+      rgba=rgba,
+      texture_file=texture_file
+    )
+
+  def update(self, pos: np.ndarray, mat: np.ndarray, scale: np.ndarray, visible: bool, frame: int):
+    super().update(pos, mat, visible, frame)
+    super().update_scale(scale, frame)
+
 class USDSphereLight:
 
   def __init__(
@@ -456,9 +483,7 @@ class USDSphereLight:
     # defining ops required by update function
     self.translate_op = self.usd_xform.AddTranslateOp()
 
-  def update(
-      self, pos: np.ndarray, intensity: int, color: np.ndarray, frame: int
-  ):
+  def update(self, pos: np.ndarray, intensity: int, color: np.ndarray, frame: int):
     self.translate_op.Set(Gf.Vec3d(pos.tolist()), frame)
 
     if not np.any(pos):

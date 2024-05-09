@@ -233,7 +233,7 @@ class USDExporter:
           )
       )
 
-  def _load_geom(self, geom: mujoco.MjvGeom):
+  def _load_geom(self, geom: mujoco.MjvGeom, tendon: Optional[bool]=False):
 
     geom_name = self._get_geom_name(geom)
 
@@ -252,19 +252,35 @@ class USDExporter:
           texture_file=texture_file,
       )
     else:
-      mesh_config = shapes_module.mesh_config_generator(
-          name=geom_name,
-          geom_type=geom.type,
-          size=geom.size   
-      )
-      usd_geom = component_module.USDPrimitiveMesh(
-          mesh_config=mesh_config,
-          stage=self.stage,
-          geom=geom,
-          obj_name=geom_name,
-          rgba=geom.rgba,
-          texture_file=texture_file,
-      )
+      if geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
+        # scale of a tendon is equivalent to its size, assume a unit length geom size
+        mesh_config = shapes_module.mesh_config_generator(
+            name=geom_name,
+            geom_type=geom.type,
+            size=np.array([1.0, 1.0, 1.0])
+        )
+        usd_geom = component_module.USDTendon(
+            mesh_config=mesh_config,
+            stage=self.stage,
+            geom=geom,
+            obj_name=geom_name,
+            rgba=geom.rgba,
+            texture_file=texture_file,
+        )
+      else:
+        mesh_config = shapes_module.mesh_config_generator(
+            name=geom_name,
+            geom_type=geom.type,
+            size=geom.size   
+        )
+        usd_geom = component_module.USDPrimitiveMesh(
+            mesh_config=mesh_config,
+            stage=self.stage,
+            geom=geom,
+            obj_name=geom_name,
+            rgba=geom.rgba,
+            texture_file=texture_file,
+        )
 
     self.geom_names.add(geom_name)
     self.geom_refs[geom_name] = usd_geom
@@ -276,14 +292,22 @@ class USDExporter:
       geom = self.scene.geoms[i]
       geom_name = self._get_geom_name(geom)
 
-      if "tendon" in geom_name:
-        # we handle tendon geoms separately to avoid naming conflicts
-        pass
-      else:
-        if geom_name not in self.geom_names:
-          # load a new object into USD
-          self._load_geom(geom)
+      if geom_name not in self.geom_names:
+        # load a new object into USD
+        self._load_geom(geom)
 
+      # TODO: make all objects scale values equivalent to their size, set original object mehs to have unit dimensions
+      if geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
+        tendon_scale = geom.size
+        tendon_scale[2] /= 2
+        self.geom_refs[geom_name].update(
+            pos=geom.pos,
+            mat=geom.mat,
+            scale=tendon_scale,
+            visible=geom.rgba[3] > 0,
+            frame=self.updates,
+        )
+      else:
         self.geom_refs[geom_name].update(
             pos=geom.pos,
             mat=geom.mat,
@@ -412,7 +436,7 @@ class USDExporter:
     if geom.objtype == mujoco.mjtObj.mjOBJ_GEOM:
       geom_name += "_geom"
     elif geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
-      geom_name += "_tendon"
+      geom_name += f"_tendon_segid{geom.segid}"
 
     return geom_name
 
