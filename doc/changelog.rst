@@ -9,7 +9,9 @@ Bug fixes
 ^^^^^^^^^
 
 1. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
-   often the case for URDF imports.
+   often the case for URDF imports. Fixes :github:issue:`1069`, :github:issue:`1577`.
+2. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
+   them. Fixes :github:issue:`1539`.
 
 Version 3.1.5 (May 7, 2024)
 ---------------------------
@@ -70,7 +72,7 @@ Bug fixes
 22. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
 23. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-24. Fixed bug that prevented memory allocations larger than 2.15 GB.
+24. Fixed bug that prevented memory allocations larger than 2.15 GB. Fixes :github:issue:`1606`.
 
 
 Version 3.1.4 (April 10th, 2024)
