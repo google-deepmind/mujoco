@@ -31,7 +31,7 @@ Loading models
 
 As explained in :ref:`Model instances <Instance>` in the Overview chapter, MuJoCo models can be loaded from plain-text
 XML files in the MJCF or URDF formats, and then compiled into a low-level mjModel. Alternatively a previously saved
-mjModel can be loaded directly from a binary MJB file - whose format is not documented but is essentially a copy of the
+mjModel can be loaded directly from a binary MJB file -- whose format is not documented but is essentially a copy of the
 mjModel memory buffer. MJCF and URDF files are loaded with :ref:`mj_loadXML` while MJB files are loaded with
 :ref:`mj_loadModel`.
 
@@ -45,8 +45,8 @@ XML file has a unique top-level element. This element must be :el:`mujoco` for M
 Compiling models
 ~~~~~~~~~~~~~~~~
 
-Once a high-level mjCModel is created - by loading an MJCF file or a URDF file, or programmatically when such
-functionality becomes available - it is compiled into mjModel. Even though loading and compilation are presently
+Once a high-level mjCModel is created---by loading an MJCF file or a URDF file, or programmatically when such
+functionality becomes available---it is compiled into mjModel. Even though loading and compilation are presently
 combined in one step, compilation is independent of loading, meaning that the compiler works in the same way
 regardless of how mjCModel was created. Both the parser and the compiler perform extensive error checking, and abort
 when the first error is encountered. The resulting error messages contain the row and column number in the XML file,
@@ -56,7 +56,7 @@ simulation step of the compiled model is performed and any runtime errors are in
 (temporarily) setting :ref:`mju_user_error` to point to a function that throws C++
 exceptions; the user can implement similar error-interception functionality at runtime if desired.
 
-The entire process of parsing and compilation is very fast - less than a second if the model does not contain large
+The entire process of parsing and compilation is very fast -- less than a second if the model does not contain large
 meshes or actuator lengthranges that need to be computed via simulation. This makes it possible to design models
 interactively, by re-loading often and visualizing the changes. Note that the :ref:`simulate.cc <saSimulate>` code
 sample has a keyboard shortcut for re-loading the current model (Ctrl+L).
@@ -166,7 +166,7 @@ which overrides the default settings. The cylinder specifies defaults class "mai
 "sub", even though the latter was specified in the childclass attribute of the body containing the geom.
 
 Now we describe the general rules. MuJoCo supports unlimited number of defaults classes, created by possibly nested
-:ref:`default <default>` elements in the XML. Each class has a unique name - which is a required
+:ref:`default <default>` elements in the XML. Each class has a unique name -- which is a required
 attribute except for the top-level class whose name is "main" if left undefined. Each class also has a complete
 collection of dummy model elements, with their attributes set as follows. When a defaults class is defined within
 another defaults class, the child automatically inherits all attribute values from the parent. It can then override
@@ -248,7 +248,7 @@ specified by the user, the frame is not rotated.
 :at:`zaxis`: :at-val:`real(3), optional`
    The Z axis of the frame. The compiler finds the minimal rotation that maps the vector :math:`(0, 0, 1)` into the
    vector specified here. This determines the X and Y axes of the frame implicitly. This is useful for geoms with
-   rotational symmetry around the Z axis, as well as lights - which are oriented along the Z axis of their frame.
+   rotational symmetry around the Z axis, as well as lights -- which are oriented along the Z axis of their frame.
 
 .. _CSolver:
 
@@ -448,33 +448,36 @@ there is nothing to do, but what if their parameters are different? In that case
 :at:`solmix` and :at:`priority` to decide how to combine them. The combination rules for each contact parameter
 are as follows:
 
-condim
+**condim**
    If one of the two geoms has higher priority, its condim is used. If both geoms have the same priority, the maximum of
    the two condims is used. In this way a frictionless geom and a frictional geom form a frictional contact, unless the
    frictionless geom has higher priority. The latter is desirable in particle systems for example, where we may not want
    the particles to stick to any objects.
-friction
+**friction**
    Recall that contacts can have up to 5 friction coefficients: two tangential, one torsional, two rolling. Each contact
    in mjData.contact actually has all 5 of them, even if condim is less than 6 and not all coefficients are used. In
    contrast, geoms have only 3 friction coefficients: tangential (same for both axes), torsional, rolling (same for both
    axes). Each of these 3D vectors of friction coefficients is expanded into a 5D vector of friction coefficients by
-   replicating the tangetial and rolling components. The contact friction coefficients are then computed according to
-   the following rule: if one of the two geoms has higher priority, its friction coefficients are used. Otherwise the
-   element-wise maximum of each friction coefficient over the two geoms is used. The rationale is similar to taking the
-   maximum over condim: we want the more frictional geom to win.
+   replicating the tangetial and rolling components. See the :ref:`Contact<coContact>` section in the Computation
+   chapter for an intuitive description of the semantics of tangential, torsional and rolling coefficients.
+
+   The contact friction coefficients are then computed according to the following rule: if one of the two geoms has
+   higher priority, its friction coefficients are used. Otherwise the **element-wise maximum** of each friction
+   coefficient over the two geoms is used.
+
    The reason for having 5 coefficients per contact and only 3 per geom is as follows. For a contact pair, we want to
    allow the most flexible model our solver can handle. As mentioned earlier, anisotropic friction can be exploited to
    model effects such as skating. This however requires knowing how the two axes of the contact tangent plane are
    oriented. For a predefined contact pair we know the two geom types in advance, and the corresponding collision
-   function always generates contact frames oriented in the same way - which we do not describe here but it can be seen
+   function always generates contact frames oriented in the same way -- which we do not describe here but it can be seen
    in the visualizer. For individual geoms however, we do not know which other geoms they might collide with and what
    their geom types might be, so there is no way to know how the contact tangent plane will be oriented when specifying
    an individual geom. This is why MuJoCo does not allow anisotropic friction in the individual geom specifications, but
    only in the explicit contact pair specifications.
-margin, gap
+**margin**, **gap**
    The maximum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
    margin and gap are distance properties and a one-sided specification makes little sense.
-solref, solimp
+**solref**, **solimp**
    If one of the two geoms has higher priority, its solref and solimp parameters are used. If both geoms have the same
    priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e., weight1 =
    solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging
@@ -493,7 +496,7 @@ facilitate this process, we provide a mechanism to override some of the solver p
 the actual model. Once the override is disabled, the simulation reverts to the parameters specified in the model. This
 mechanism can also be used to implement continuation methods in the context of numerical optimization (such as optimal
 control or state estimation). This is done by allowing contacts to act from a distance in the early phases of
-optimization - so as to help the optimizer find a gradient and get close to a good solution - and reducing this effect
+optimization---so as to help the optimizer find a gradient and get close to a good solution---and reducing this effect
 later to make the final solution physically realistic.
 
 The relevant settings here are the :at:`override` attribute of :ref:`flag <option-flag>` which
@@ -556,12 +559,12 @@ general guidelines and observations:
    threshold is better defined in terms of number of active constraints, which is model and behavior dependent.
 -  The choice between pyramidal and elliptic friction cones is a modeling choice rather than an algorithmic choice,
    i.e., it leads to a different optimization problem solved with the same algorithms. Elliptic cones correspond more
-   closely to physical reality. However pyramidal cones can improve the performance of the algorithms - but not
+   closely to physical reality. However pyramidal cones can improve the performance of the algorithms -- but not
    necessarily. While the default is pyramidal, we recommend trying the elliptic cones. When contact slip is a problem,
    the best way to suppress it is to use elliptic cones, large impratio, and the Newton algorithm with very small
    tolerance. If that is not sufficient, enable the Noslip solver.
 -  The Newton algorithm is the best choice for most models. It has quadratic convergence near the global minimum and
-   gets there in surprisingly few iterations - usually around 5, and rarely more than 20. It should be used with
+   gets there in surprisingly few iterations -- usually around 5, and rarely more than 20. It should be used with
    aggressive tolerance values, say 1e-10, because it is capable of achieving high accuracy without added delay (due to
    quadratic convergence at the end). The only situation where we have seen it slow down are large models with elliptic
    cones and many slipping contacts. In that regime the Hessian factorization needs a lot of updates. It may also slow
@@ -1314,7 +1317,7 @@ probe away (which is possible because the probe is a mocap body which can move i
 we can see the indentation made by the probe, and the resulting deformation in the rest of the body. By changing the
 solref and solimp attributes of the equality constraints that hold the soft object together, one can adjust the behavior
 of the system making it softer or harder, damped or springy, etc. Note that box, cylinder and ellipsoid objects do not
-involve long kinematic chains, and can be simulated at large timesteps - similar to particle and grid, and unlike rope
+involve long kinematic chains, and can be simulated at large timesteps -- similar to particle and grid, and unlike rope
 and cloth.
 
 .. _CDeformable:
@@ -1403,7 +1406,7 @@ self-collisions; see XML reference.
 In case of 3D flexes made of tetrahedra, it may be useful to examine how the flex is "triangulated" internally. We have
 a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
 has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
-collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
+collision surface to be accurate, but on the inside we just need soft material properties -- which require less spatial
 resolution. In order to convert a surface mesh to a tetrahedral mesh, we recommend open tools like the
 `fTetWild library <https://github.com/wildmeshing/fTetWild>`__.
 
@@ -1436,7 +1439,7 @@ The flexibility of repeated MCJF sections comes at a price: global settings that
 the :at:`angle` attribute of :ref:`compiler <compiler>` for example, can be defined multiple times.
 MuJoCo allows this, and uses the last definition encountered in the composite model, after all include elements have
 been processed. So if model A is defined in degrees and model B is defined in radians, and A is included in B after
-the :el:`compiler` element in B, the entire composite model will be treated as if it was defined in degrees - leading
+the :el:`compiler` element in B, the entire composite model will be treated as if it was defined in degrees -- leading
 to undesirable consequences in this case. The user has to make sure that models included in each other are compatible
 in this sense; local vs. global coordinates is another compatibility requirement.
 
@@ -1469,7 +1472,7 @@ unless there is a specific reason to define it. There can be several such reason
    is useful for custom computations involving a model element that is identified by its name in the XML (as opposed to
    relying on a fixed index which can change when the model is edited).
 -  The model file could in principle become more readable by naming certain elements. Keep in mind however that XML
-   itself has a commenting mechanism, and that mechanism is more suitable for achieving readability - especially since
+   itself has a commenting mechanism, and that mechanism is more suitable for achieving readability -- especially since
    most text editors provide syntax highlighting which detects XML comments.
 
 .. _CURDF:
@@ -1620,8 +1623,8 @@ is not always obvious, so it may be useful to have it spelled out.
 Performance tuning
 ~~~~~~~~~~~~~~~~~~
 
-Here is a list of steps one can take in order to maximize simulation throughput. All of the recommendations below
-involve some tweaking. It is recommended that these be carried out in interactive fashion while looking at the
+Below is a list of steps one can take in order to maximize simulation throughput. All of the recommendations
+involve parameter tweaking. It is recommended that these be carried out in interactive fashion while looking at the
 :ref:`simulate<saSimulate>` utility's built-in profiler. A detailed and sometimes more useful profile is also reported
 by the :ref:`testspeed<saTestspeed>` utility. When embarking on the more elaborate steps below, target the most
 expensive pipeline component reported by the profiler. Note that some of these are subtly different for MJX, see
@@ -1662,6 +1665,61 @@ dedicated section :ref:`therein<MjxPerformance>`.
      collisions are those involving SDF geometries.
    - If replacing collision meshes with primitives is not feasible, decimate the meshes as much as possible. Open source
      tools like trimesh, Blender, MeshLab and CoACD are very useful in this regard.
+
+.. _CSlippage:
+
+Preventing slip
+~~~~~~~~~~~~~~~
+
+Below is a list of steps one can take in order to diagnose and solve contact slippage, which is especially problematic
+in manipulation tasks. In order to diagnose slippage, it is recommended to use the :ref:`simulate<saSimulate>` utility's
+built in visualization options to inspect contacts and contact forces. It is often helpful to tweak the visual size of
+contacts and forces (using the global :ref:`meansize<statistic-meansize>` or the specific
+:ref:`contactwidth<visual-scale-contactwidth>`, :ref:`contactheight<visual-scale-contactheight>` and
+:ref:`forcewidth<visual-scale-forcewidth>` attributes) and the :ref:`force scaling<visual-map-force>` attribute, to
+better visualize and understand the contact configuration and resulting forces.
+
+**Slip-preventing contact forces are outside the friction cone**
+  This implies that the physics cannot prevent slip, even in principle. This occurs when:
+
+  a. *The normal force is too small.* Ensure that the maximum force that can be applied by the gripper mutiplied by
+     the sliding friction coefficient is significantly greater than the weight of the object.
+  b. *The sliding friction coefficient is too low.* Increase the sliding :ref:`friction<body-geom-friction>`
+     coefficient.
+  c. *Torsional friction is insufficient to apply the required torques.* Increase :ref:`condim<body-geom-condim>` to
+     4 or 6 and choose appropriate friction coefficients.
+     **condim 4** enables torsional friction, preventing rotation around the normal.
+     **condim 6** also enables rolling friction, preventing rotation around the tangential directions.
+     See the :ref:`Contact<coContact>` section for details and the specifc semantics of these coefficients.
+
+**The geometry does not support the required forces or torques**
+  This is a common real-world problem, solved by improved design of grippers and handles.
+
+  a. Improve the geometry of the contacting geoms in order to add more contact points, possibly with non-flat
+     geometry (e.g., bumps), so slippage is prevented by the normal force and not only frictional components.
+  b. If contacts are between flat surfaces, try enabling the :ref:`multiccd<option-flag-multiccd>` flag, which allows
+     the detector to find more contacts than the single contact returned by the convex-convex collider.
+
+**High-frequency vibration**
+  High-frequency, low-amplitude vibrations are also a real-world problem in many industrial settings, but unlike in
+  simulation, in the real world they are audible. Such vibration is often caused by controllers with very
+  high gains and sometimes by stick-slip feedback from contacts or joints, resonating with the eigen-modes of the
+  mechanism. The easist way to diagnose such vibration is to visualize contact forces in
+  :ref:`simulate<saSimulate>`. The solution is usually to reduce the :ref:`timestep<option-timestep>` and/or add
+  some :ref:`armature<body-joint-armature>` to the relevant joints. Another reason for vibration is feedback from
+  explicit damping. Use the implicit or implicitfast integrators, as documented in the
+  :ref:`Numerical Integration<geIntegration>` section.
+
+**Slow slippage**
+  Unlike the above problems which lead to fast slippage, slow, gradual slippage is a property of MuJoCo's contact
+  model by design, since without it the inverse dynamics are not defined. This is discussed in detail in the
+  :ref:`softness and slip<Soft>` clarification. This type of slippage can be addressed in two ways.
+
+  a. Increase the :ref:`impration<option-impratio>` parameter. This will reduce (but not entirely prevent) slow
+     slippage. Note that high impratio values work well only with :ref:`elliptic cones<option-cone>`.
+  b. Enable the noslip solver by increasing :ref:`noslip_iterations<option-noslip_iterations>` to a positive integer.
+     A small number (1, 2 or 3) is usually sufficient. The noslip post-processing solver will entirely prevent slip,
+     at the cost of making inverse dynamics ill-defined and additional computational cost.
 
 .. _CBacklash:
 
@@ -1710,7 +1768,7 @@ destabilize the system because of integration errors. This was already discussed
 
 The standard approach to reducing integration errors is to reduce the timestep or use the Runge-Kutta integrator, both
 of which are effective but slow down the simulation. An alternative approach is to put all damping in the joints and
-use the Euler integrator. In that case damping forces are integrated implicitly - meaning that the inertia matrix is
+use the Euler integrator. In that case damping forces are integrated implicitly -- meaning that the inertia matrix is
 adjusted and re-factorized internally as part of the velocity update, in a way transparent to the user. Implicit
 integration is much more stable than explicit integration, allowing substantially larger time steps. Note that the
 Runge-Kutta integrator is explicit, and so is Euler except for the way it treats damping forces. Ideally we would have

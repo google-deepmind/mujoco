@@ -251,6 +251,7 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
         <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
         <body>
           <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
         </body>
       </body>
     </worldbody>
@@ -272,6 +273,9 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   EXPECT_EQ(m_no_fuse->body_conaffinity[2], 1);
   EXPECT_EQ(m_fuse->body_contype[1], 1);
   EXPECT_EQ(m_fuse->body_conaffinity[1], 1);
+
+  EXPECT_EQ(m_no_fuse->body_bvhnum[2], 3);
+  EXPECT_EQ(m_fuse->body_bvhnum[1], 3);
 
   mjData* d_fuse = mj_makeData(m_fuse);
   mjData* d_no_fuse = mj_makeData(m_no_fuse);

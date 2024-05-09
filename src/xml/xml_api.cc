@@ -37,7 +37,7 @@
 class GlobalModel {
  public:
   // deletes current model and takes ownership of model
-  void Set(mjSpec* model = nullptr);
+  void Set(mjSpec* spec = nullptr);
 
   // writes XML to string
   std::optional<std::string> ToXML(const mjModel* m, char* error,
@@ -46,30 +46,30 @@ class GlobalModel {
  private:
   // using raw pointers as GlobalModel needs to be trivially destructible
   std::mutex* mutex_ = new std::mutex();
-  mjSpec* model_ = nullptr;
+  mjSpec* spec_ = nullptr;
 };
 
 std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
                                               int error_sz) {
   std::lock_guard<std::mutex> lock(*mutex_);
-  if (!model_) {
+  if (!spec_) {
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  mjs_copyBack(model_, m);
-  std::string result = mjWriteXML(model_, error, error_sz);
+  mjs_copyBack(spec_, m);
+  std::string result = mjWriteXML(spec_, error, error_sz);
   if (result.empty()) {
     return std::nullopt;
   }
   return result;
 }
 
-void GlobalModel::Set(mjSpec* model) {
+void GlobalModel::Set(mjSpec* spec) {
   std::lock_guard<std::mutex> lock(*mutex_);
-  if (model_ != nullptr) {
-    mjs_deleteSpec(model_);
+  if (spec_ != nullptr) {
+    mjs_deleteSpec(spec_);
   }
-  model_ = model;
+  spec_ = spec;
 }
 
 
@@ -91,29 +91,29 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
                     char* error, int error_sz) {
 
   // parse new model
-  std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> model(
+  std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> spec(
       mjParseXML(filename, vfs, error, error_sz),
-      [](mjSpec* m) { mjs_deleteSpec(m); });
-  if (!model) {
+      [](mjSpec* s) { mjs_deleteSpec(s); });
+  if (!spec) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = mjs_compile(model.get(), vfs);
+  mjModel* m = mjs_compile(spec.get(), vfs);
   if (!m) {
-    mjCopyError(error, mjs_getError(model.get()), error_sz);
+    mjCopyError(error, mjs_getError(spec.get()), error_sz);
     return nullptr;
   }
 
   // handle compile warning
-  if (mjs_isWarning(model.get())) {
-    mjCopyError(error, mjs_getError(model.get()), error_sz);
+  if (mjs_isWarning(spec.get())) {
+    mjCopyError(error, mjs_getError(spec.get()), error_sz);
   } else if (error) {
     error[0] = '\0';
   }
 
   // clear old and assign new
-  GetGlobalModel().Set(model.release());
+  GetGlobalModel().Set(spec.release());
   return m;
 }
 

@@ -5,6 +5,17 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+Bug fixes
+^^^^^^^^^
+
+1. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
+   often the case for URDF imports. Fixes :github:issue:`1069`, :github:issue:`1577`.
+2. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
+   them. Fixes :github:issue:`1539`.
+
+Version 3.1.5 (May 7, 2024)
+---------------------------
+
 General
 ^^^^^^^
 
@@ -14,50 +25,54 @@ General
 
 1. Added the :ref:`replicate<replicate>` to MJCF, a :ref:`meta-element<meta-element>` which permits to repeat a subtree
    with incremental translational and rotational offsets.
-2. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
+2. Enabled an internal cache in the MuJoCo compiler resulting in recompilation speedup. Currently, processed
+   textures, hfields, and OBJ meshes are cached. Support for Unity environments is not yet available.
+3. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
    :ref:`scale<asset-mesh-scale>` attribute.
-3. Added visual properties which are ignored by the native renderer, but can be used by external renderers:
+4. Added visual properties which are ignored by the native renderer, but can be used by external renderers:
 
    - :ref:`light/bulbradius<body-light-bulbradius>` attribute and corresponding ``mjModel.light_bulbradius`` field.
    - :ref:`material/metallic<asset-material-metallic>` attribute and corresponding ``mjModel.material_metallic`` field.
    - :ref:`material/roughness<asset-material-roughness>` attribute and corresponding ``mjModel.material_roughness``
      field.
-4. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
+5. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
    to ``size_t``.
-5. Added support for gmsh format version 2.2 surface meshes in :ref:`flexcomp<body-flexcomp-file>`.
+6. Added support for gmsh format version 2.2 surface meshes in :ref:`flexcomp<body-flexcomp-file>`.
 
 MJX
 ^^^
 .. admonition:: Breaking API changes
    :class: attention
 
-   6. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
+   7. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
       functionality.
 
       **Migration:** Use ``mjx.get_data_into`` instead of ``mjx.device_get_into``, and ``mjx.put_data`` instead of
       ``mjx.device_put``.
 
-7. Added cylinder plane collisions.
-8. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
-9. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
-10. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
-11. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
-12. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
+8. Added cylinder plane collisions.
+9. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
+10. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
+11. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
+12. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
+13. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
     geoms.
-13. Fixed a bug where capsules might be ignored in broadphase colliision checking.
-14. Added cylinder collisions using SDFs.
-15. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
-16. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
-17. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
-18. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
+14. Fixed a bug where capsules might be ignored in broadphase colliision checking.
+15. Added cylinder collisions using SDFs.
+16. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
+17. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
+18. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
+19. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
+20. Added a new `differentiable physics tutorial <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/training_apg.ipynb>`__ that demonstrates training locomotion policies with analytical gradients
+    automatically derived from the MJX physics step.  Contribution by :github:user:`Andrew-Luo1`.
 
 Bug fixes
 ^^^^^^^^^
-19. Defaults of lights were not being saved, now fixed.
-20. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
-21. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+21. Defaults of lights were not being saved, now fixed.
+22. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+23. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-22. Fixed bug that prevented memory allocations larger than 2.15 GB.
+24. Fixed bug that prevented memory allocations larger than 2.15 GB. Fixes :github:issue:`1606`.
 
 
 Version 3.1.4 (April 10th, 2024)
@@ -193,7 +208,7 @@ MJX
 
 Python bindings
 ^^^^^^^^^^^^^^^
-12. Improved the implementation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
     - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.

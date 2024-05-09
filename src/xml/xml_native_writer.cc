@@ -769,9 +769,9 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(mjSpec* modelspec) {
-  if (modelspec) {
-    model = (mjCModel*)modelspec->element;
+void mjXWriter::SetModel(mjSpec* spec) {
+  if (spec) {
+    model = (mjCModel*)spec->element;
   }
 }
 
@@ -806,7 +806,7 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   Visual(root);
   Statistic(root);
   writingdefaults = true;
-  Default(root, model->defaults[0]);
+  Default(root, model->Defaults()[0]);
   writingdefaults = false;
   Extension(root);
   Custom(root);
@@ -1136,7 +1136,7 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   // pointer to parent defaults
   mjCDef* par;
   if (def->parentid>=0) {
-    par = model->defaults[def->parentid];
+    par = model->Defaults()[def->parentid];
   } else {
     par = new mjCDef;
   }
@@ -1209,7 +1209,7 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
 
   // add children recursively
   for (int i=0; i<(int)def->childid.size(); i++) {
-    Default(section, model->defaults[def->childid[i]]);
+    Default(section, model->Defaults()[def->childid[i]]);
   }
 
   // delete parent defaults if allocated here
@@ -1223,7 +1223,7 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
 // extension section
 void mjXWriter::Extension(XMLElement* root) {
   // skip section if there is no required plugin
-  if (model->active_plugins.empty()) {
+  if (model->ActivePlugins().empty()) {
     return;
   }
 
@@ -1236,7 +1236,7 @@ void mjXWriter::Extension(XMLElement* root) {
   // write all plugins
   const mjpPlugin* last_plugin = nullptr;
   XMLElement* plugin_elem = nullptr;
-  for (int i = 0; i < model->plugins.size(); ++i) {
+  for (int i = 0; i < model->Plugins().size(); ++i) {
     mjCPlugin* pp = static_cast<mjCPlugin*>(model->GetObject(mjOBJ_PLUGIN, i));
 
     if (pp->name.empty()) {
@@ -1273,7 +1273,7 @@ void mjXWriter::Extension(XMLElement* root) {
   }
 
   // write <plugin> elements for plugins without explicit instances
-  for (const auto& [plugin, slot] : model->active_plugins) {
+  for (const auto& [plugin, slot] : model->ActivePlugins()) {
     if (seen_plugins.find(plugin) == seen_plugins.end()) {
       plugin_elem = InsertEnd(section, "plugin");
       WriteAttrTxt(plugin_elem, "plugin", plugin->name);
@@ -1755,7 +1755,7 @@ void mjXWriter::Sensor(XMLElement* root) {
   // write all sensors
   for (int i=0; i<num; i++) {
     XMLElement* elem = 0;
-    mjCSensor* psen = model->sensors[i];
+    mjCSensor* psen = model->Sensors()[i];
     std::string instance_name = "";
     std::string plugin_name = "";
 
@@ -1994,7 +1994,7 @@ void mjXWriter::Keyframe(XMLElement* root) {
     XMLElement* elem = InsertEnd(section, "key");
     bool change = false;
 
-    mjCKey* pk = model->keys[i];
+    mjCKey* pk = model->Keys()[i];
 
     // check name and write
     if (!pk->name.empty()) {
@@ -2038,8 +2038,8 @@ void mjXWriter::Keyframe(XMLElement* root) {
     // check mpos and write
     if (model->nmocap) {
       for (int j=0; j<model->nbody; j++) {
-        if (model->bodies[j]->mocap) {
-          mjCBody* pb = model->bodies[j];
+        if (model->Bodies()[j]->mocap) {
+          mjCBody* pb = model->Bodies()[j];
           int id = pb->mocapid;
           if (pb->pos[0] != pk->mpos_[3*id] ||
               pb->pos[1] != pk->mpos_[3*id+1] ||
@@ -2055,8 +2055,8 @@ void mjXWriter::Keyframe(XMLElement* root) {
     // check mquat and write
     if (model->nmocap) {
       for (int j=0; j<model->nbody; j++) {
-        if (model->bodies[j]->mocap) {
-          mjCBody* pb = model->bodies[j];
+        if (model->Bodies()[j]->mocap) {
+          mjCBody* pb = model->Bodies()[j];
           int id = pb->mocapid;
           if (pb->quat[0] != pk->mquat_[4*id] ||
               pb->quat[1] != pk->mquat_[4*id+1] ||

@@ -38,7 +38,7 @@ SdfVisualizer::SdfVisualizer() {
 }
 
 void SdfVisualizer::AddPoint(const mjtNum point[3]) {
-  if (!npoints_.empty()) {
+  if (!npoints_.empty() && npoints_.back() < points_.size()/3) {
     points_[3*npoints_.back()+0] = point[0];
     points_[3*npoints_.back()+1] = point[1];
     points_[3*npoints_.back()+2] = point[2];

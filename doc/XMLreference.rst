@@ -301,8 +301,8 @@ adjust it properly through the XML.
    setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
    attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
    of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
-   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
-   the overall effect of this attribute is qualitatively similar.
+   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; it
+   is not recommended to use high impratio values with pyramidal cones.
 
 .. _option-gravity:
 
@@ -1087,6 +1087,8 @@ mapping mechanism. When provided, these explicit coordinates have priority. Note
 specified with OBJ files and MSH files, as well as explicitly in the XML with the :at:`texcoord` attribute, but not via
 STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
 to convert to one of the other supported formats.
+
+.. _legacy-msh-docs:
 
 MSH file format
    The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
@@ -2274,7 +2276,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    along both axes of the tangent plane. The second number is the torsional friction, acting around the contact normal.
    The third number is the rolling friction, acting around both axes of the tangent plane. The friction parameters for
    the contact pair are combined depending on the solmix and priority attributes, as explained in :ref:`Contact
-   parameters <CContact>`.
+   parameters <CContact>`. See the general :ref:`Contact<coContact>` section for descriptions of the semantics of this
+   attribute.
 
 .. _body-geom-mass:
 

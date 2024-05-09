@@ -561,7 +561,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
 
       // create tendon
       mjsTendon* ten = mjs_addTendon(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-      mjs_setDefault(ten->element, &model->defaults[0]->spec);
+      mjs_setDefault(ten->element, &model->Defaults()[0]->spec);
       mjs_setString(ten->name, txt0);
       ten->group = 4;
       mjs_wrapSite(ten, txt1);
@@ -569,7 +569,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
 
       // add equality constraint
       mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-      mjs_setDefault(eq->element, &model->defaults[0]->spec);
+      mjs_setDefault(eq->element, &model->Defaults()[0]->spec);
       eq->type = mjEQ_TENDON;
       mjs_setString(eq->name1, mjs_getString(ten->name));
     }
@@ -675,7 +675,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjsBody* body, char* error, int err
 
         // create tendon
         mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
-        ten->def = model->defaults[0];
+        ten->def = model->Defaults()[0];
         mju::sprintf_arr(txt, "%sT%d_%d_%d", prefix.c_str(), i, ix, iy);
         ten->name = txt;
         ten->WrapSite(txt1);
@@ -683,7 +683,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjsBody* body, char* error, int err
 
         // add equality constraint
         mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-        mjs_setDefault(eq->element, &model->defaults[0]->spec);
+        mjs_setDefault(eq->element, &model->Defaults()[0]->spec);
         eq->type = mjEQ_TENDON;
         mjs_setString(eq->name1, ten->name.c_str());
       }
@@ -1045,7 +1045,7 @@ mjsBody* mjCComposite::AddRopeBody(mjCModel* model, mjsBody* body, int ix, int i
 
     // add constraint
     mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TWIST].spec);
-    mjs_setDefault(eq->element, &model->defaults[0]->spec);
+    mjs_setDefault(eq->element, &model->Defaults()[0]->spec);
     eq->type = mjEQ_JOINT;
     mjs_setString(eq->name1, mjs_getString(jnt->name));
   }
@@ -1063,7 +1063,7 @@ mjsBody* mjCComposite::AddRopeBody(mjCModel* model, mjsBody* body, int ix, int i
 
     // add constraint
     mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_STRETCH].spec);
-    mjs_setDefault(eq->element,  &model->defaults[0]->spec);
+    mjs_setDefault(eq->element,  &model->Defaults()[0]->spec);
     eq->type = mjEQ_JOINT;
     mjs_setString(eq->name1, mjs_getString(jnt->name));
   }
@@ -1131,7 +1131,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjsBody* body, char* error, int erro
 
   // fixed tendon for all joints
   mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
-  ten->def = model->defaults[0];
+  ten->def = model->Defaults()[0];
   mju::sprintf_arr(txt, "%sT", prefix.c_str());
   ten->name = txt;
 
@@ -1184,7 +1184,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjsBody* body, char* error, int erro
 
           // add fix constraint
           mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_JOINT].spec);
-          mjs_setDefault(eq->element,  &model->defaults[0]->spec);
+          mjs_setDefault(eq->element,  &model->Defaults()[0]->spec);
           eq->type = mjEQ_JOINT;
           mjs_setString(eq->name1, mjs_getString(jnt->name));
 
@@ -1218,7 +1218,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjsBody* body, char* error, int erro
 
   // finalize fixed tendon
   mjsEquality* eqt = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-  mjs_setDefault(eqt->element, &model->defaults[0]->spec);
+  mjs_setDefault(eqt->element, &model->Defaults()[0]->spec);
   eqt->type = mjEQ_TENDON;
   mjs_setString(eqt->name1, ten->name.c_str());
 
@@ -1244,7 +1244,7 @@ void mjCComposite::MakeShear(mjCModel* model) {
 
       // create tendon
       mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_SHEAR);
-      ten->def = model->defaults[0];
+      ten->def = model->Defaults()[0];
       ten->WrapSite(txt1);
       ten->WrapSite(txt2);
 
@@ -1254,7 +1254,7 @@ void mjCComposite::MakeShear(mjCModel* model) {
 
       // equality constraint
       mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_SHEAR].spec);
-      mjs_setDefault(eq->element, &model->defaults[0]->spec);
+      mjs_setDefault(eq->element, &model->Defaults()[0]->spec);
       eq->type = mjEQ_TENDON;
       mjs_setString(eq->name1, txt);
     }

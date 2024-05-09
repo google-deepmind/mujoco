@@ -24,7 +24,7 @@
 // Top level API
 
 // Main writer function
-std::string mjWriteXML(mjSpec* model, char* error, int error_sz);
+std::string mjWriteXML(mjSpec* spec, char* error, int error_sz);
 
 // Main parser function
 MJAPI mjSpec* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);

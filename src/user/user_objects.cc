@@ -399,6 +399,7 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 
 void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
   nbvh = 0;
+  bvh.clear();
   child.clear();
   nodeid.clear();
   level.clear();
@@ -1333,6 +1334,23 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
+
+// compute bounding volume hierarchy
+void mjCBody::ComputeBVH() {
+  if (geoms.empty()) {
+    return;
+  }
+
+  tree.Set(ipos, iquat);
+  tree.AllocateBoundingVolumes(geoms.size());
+  for (int i=0; i<geoms.size(); i++) {
+    geoms[i]->SetBoundingVolume(tree.GetBoundingVolume(i));
+  }
+  tree.CreateBVH();
+}
+
+
+
 // compiler
 void mjCBody::Compile(void) {
   CopyFromSpec();
@@ -1447,14 +1465,7 @@ void mjCBody::Compile(void) {
   }
 
   // compute bounding volume hierarchy
-  if (!geoms.empty()) {
-    tree.Set(ipos, iquat);
-    tree.AllocateBoundingVolumes(geoms.size());
-    for (int i=0; i<geoms.size(); i++) {
-      geoms[i]->SetBoundingVolume(tree.GetBoundingVolume(i));
-    }
-    tree.CreateBVH();
-  }
+  ComputeBVH();
 
   // compile all joints, count dofs
   dofnum = 0;
@@ -1486,7 +1497,7 @@ void mjCBody::Compile(void) {
 
   // compute body global pose (no joint transformations in qpos0)
   if (id>0) {
-    mjCBody* par = model->bodies[parentid];
+    mjCBody* par = model->Bodies()[parentid];
     mju_rotVecQuat(xpos0, pos, par->xquat0);
     mju_addTo3(xpos0, par->xpos0);
     mju_mulQuat(xquat0, par->xquat0, quat);
@@ -1668,7 +1679,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -1872,7 +1883,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -1958,7 +1969,7 @@ double mjCGeom::GetVolume(void) {
 
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    if (mesh->id<0 || !((std::size_t) mesh->id <= model->meshes.size())) {
+    if (mesh->id<0 || !((std::size_t) mesh->id <= model->Meshes().size())) {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
@@ -2011,7 +2022,7 @@ void mjCGeom::SetInertia(void) {
 
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    if (mesh->id<0 || !((std::size_t) mesh->id <= model->meshes.size())) {
+    if (mesh->id<0 || !((std::size_t) mesh->id <= model->Meshes().size())) {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
@@ -2411,8 +2422,7 @@ void mjCGeom::Compile(void) {
   if (type==mjGEOM_HFIELD) {
     size[0] = hfield->size[0];
     size[1] = hfield->size[1];
-    size[2] = 0.5*(0.5*hfield->size[2] +
-                   hfield->size[3]);
+    size[2] = 0.25 * hfield->size[2] + 0.5 * hfield->size[3];
   } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     const double* aamm = mesh->aamm();
     size[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
@@ -2513,7 +2523,7 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 }
 
 
@@ -2659,7 +2669,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -2813,7 +2823,7 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   PointToLocal();
   CopyFromSpec();
@@ -3850,7 +3860,7 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -3938,7 +3948,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -4299,7 +4309,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -4434,7 +4444,7 @@ void mjCEquality::Compile(void) {
   ResolveReferences(model);
 
   // make sure flex is not rigid
-  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
+  if (type==mjEQ_FLEX && model->Flexes()[obj1id]->rigid) {
     throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
   }
 }
@@ -4461,7 +4471,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // point to local
   PointToLocal();
@@ -4753,7 +4763,7 @@ void mjCTendon::Compile(void) {
         }
 
         // mark geoms as non visual
-        model->geoms[path[i]->obj->id]->SetNotVisual();
+        model->Geoms()[path[i]->obj->id]->SetNotVisual();
         break;
 
       case mjWRAP_JOINT:
@@ -4940,7 +4950,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
 
   // in case this actuator is not compiled
   CopyFromSpec();
@@ -5021,7 +5031,6 @@ void mjCActuator::CopyFromSpec() {
 
 
 void mjCActuator::ResolveReferences(const mjCModel* m) {
-  mjCJoint* pjnt;
   switch (trntype) {
   case mjTRN_JOINT:
   case mjTRN_JOINTINPARENT:
@@ -5030,14 +5039,6 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
     if (!ptarget) {
       throw mjCError(this,
                      "unknown transmission target '%s' for actuator id = %d", target_.c_str(), id);
-    }
-    pjnt = (mjCJoint*) ptarget;
-
-    // apply urdfeffort
-    if (pjnt->spec.urdfeffort>0) {
-      forcerange[0] = -pjnt->spec.urdfeffort;
-      forcerange[1] = pjnt->spec.urdfeffort;
-      forcelimited = mjLIMITED_TRUE;
     }
     break;
 
