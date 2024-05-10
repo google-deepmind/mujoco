@@ -157,6 +157,65 @@ class SupportTest(parameterized.TestCase):
         i = i if n is not None else -1
         self.assertEqual(support.name2id(mx, obj, n), i)
 
+  _CONTACTS = """
+    <mujoco>
+      <worldbody>
+        <body pos="0 0 0.55" euler="1 0 0">
+          <joint axis="1 0 0" type="free"/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule" condim="6"/>
+        </body>
+        <body pos="0 0 0.5" euler="0 1 0">
+          <joint axis="1 0 0" type="free"/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule" condim="3"/>
+        </body>
+        <body pos="0 0 0.445" euler="0 90 0">
+          <joint axis="1 0 0" type="free"/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule" condim="1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_contact_force(self):
+    m = mujoco.MjModel.from_xml_string(self._CONTACTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d)
+    assert (
+        np.unique(d.contact.geom).shape[0] == 3
+    ), 'This test assumes all capsule are in contact.'
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    mujoco.mj_step(m, d)
+    dx = mjx.step(mx, dx)
+
+    # map MJX contacts to MJ ones
+    def _find(g):
+      val = (g == dx.contact.geom).sum(axis=1)
+      return np.where(val == 2)[0][0]
+
+    contact_id_map = {i: _find(d.contact.geom[i]) for i in range(d.ncon)}
+
+    for i in range(d.ncon):
+      result = np.zeros(6, dtype=float)
+      mujoco.mj_contactForce(m, d, i, result)
+
+      j = contact_id_map[i]
+      force = jax.jit(support.contact_force, static_argnums=(2,))(mx, dx, j)
+      np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
+
+      # test world conversion
+      force = jax.jit(
+          support.contact_force,
+          static_argnums=(
+              2,
+              3,
+          ),
+      )(mx, dx, j, True)
+      # back to contact frame
+      force = force.at[:3].set(dx.contact.frame[j] @ force[:3])
+      force = force.at[3:].set(dx.contact.frame[j] @ force[3:])
+      np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
+
 
 if __name__ == '__main__':
   absltest.main()
