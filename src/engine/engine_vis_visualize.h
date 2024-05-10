@@ -48,19 +48,19 @@ MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                         const mjvPerturb* pert, int catmask, mjvScene* scn);
 
 // make list of lights only
-MJAPI void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
+MJAPI void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn);
 
 // update camera only
-MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
+MJAPI void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn);
 
 // update visible flexes only
 MJAPI void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt);
 
 // update skins only
-MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
+MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
 
 // update visible skins only
-MJAPI void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt);
+MJAPI void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, const mjvOption* opt);
 
 #define mjNCATENARY 31
 

@@ -2063,7 +2063,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
 
 // make list of lights only
-void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn) {
+void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
   mjvLight* thislight;
 
   // clear counter
@@ -2130,7 +2130,7 @@ void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn) {
 
 
 // update camera only
-void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn) {
+void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn) {
   mjtNum ca, sa, ce, se, move[3], *mat;
   mjtNum headpos[3], forward[3], up[3], right[3], ipd;
 
@@ -2560,7 +2560,7 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
 
 
 // update all skins, here for backward API compatibility
-void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
+void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn) {
   mjvOption opt;
   mjv_defaultOption(&opt);
   mjv_updateActiveSkin(m, d, scn, &opt);
@@ -2570,7 +2570,7 @@ void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
 
 
 // update visible skins only
-void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt) {
+void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, const mjvOption* opt) {
   // process skins
   for (int i=0; i < m->nskin; i++) {
     // get info

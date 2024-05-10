@@ -688,13 +688,13 @@ MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                         const mjvPerturb* pert, int catmask, mjvScene* scn);
 
 // Make list of lights.
-MJAPI void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
+MJAPI void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn);
 
 // Update camera.
-MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
+MJAPI void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn);
 
 // Update skins.
-MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
+MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
 
 
 //---------------------------------- OpenGL rendering ----------------------------------------------

@@ -2639,9 +2639,9 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
                           mjvSceneState* scnstate);
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn);
-void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
-void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
-void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
+void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn);
+void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn);
+void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
 void mjr_defaultContext(mjrContext* con);
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 void mjr_changeFont(int fontscale, mjrContext* con);
