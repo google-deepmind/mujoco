@@ -70,7 +70,7 @@ static void checksize(double* size, mjtGeom type, mjCBase* object, const char* n
   else {
     for (int i=0; i<mjGEOMINFO[type]; i++) {
       if (size[i]<=0) {
-        throw mjCError(object, "size %d must be positive in geom", "", i);
+        throw mjCError(object, "size %d must be positive in geom", nullptr, i);
       }
     }
   }

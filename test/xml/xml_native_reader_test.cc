@@ -395,6 +395,24 @@ TEST_F(XMLReaderTest, InvalidNumber) {
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
+TEST_F(XMLReaderTest, InvalidNumberOfAttributes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 .3">
+        <freejoint/>
+        <geom name="ellipsoid" type="ellipsoid" size=".1 .1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("size 2 must be positive"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
+}
+
 TEST_F(XMLReaderTest, AllowsSpaces) {
   static constexpr char xml[] = R"(
   <mujoco>
