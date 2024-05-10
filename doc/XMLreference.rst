@@ -6723,6 +6723,186 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
 
+.. _collision-sensors:
+
+collision sensors
+^^^^^^^^^^^^^^^^^
+
+The following 3 sensor types, :ref:`sensor/distance<sensor-distance>`, :ref:`sensor/normal<sensor-normal>` and
+:ref:`sensor/fromto<sensor-fromto>`, respectively measure the distance, normal direction and line segment of the
+smallest signed distance between the surfaces of two geoms using the narrow-phase geom-geom colliders. The collision
+computation is always performed, independently of the standard collision :ref:`selection and filtering<coSelection>`
+pipeline. These 3 sensors share some common properties:
+
+.. _collision-sensors-cutoff:
+
+:at:`cutoff`
+   For most sensors, the :at:`cutoff` attribute simply defines a clipping operation on sensor values. For collision
+   sensors, it defines the maximum distance at which collisions will be detected, corresponding to the ``dismax``
+   argument of :ref:`mj_geomDistance`. For example, at the default value of 0, only negative distances (corresponding
+   to geom-geom penetration) will be reported by :ref:`sensor/distance<sensor-distance>`.
+   In order to determine collision properties of non-penetrating geom pairs, a positive :at:`cutoff` is required.
+
+   .. admonition:: Positive cutoff values
+      :class: note
+
+      .. TODO: b/339596989 - Improve mjc_Convex.
+
+      For some colliders, a positive :at:`cutoff` will result in an accurate measurement. However, for collision
+      pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
+      This is considered a bug to be fixed in a future release.
+      In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
+      `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+
+:at:`geom1`, :at:`geom2`, :at:`body1`, :at:`body2`
+   For all 3 collision sensor types, the two colliding geoms can be specified explicitly using the :at:`geom1` and
+   :at:`geom2` attributes or implicitly, using :at:`body1`, :at:`body2`. In the latter case the sensor will iterate over
+   all geoms of the specified body or bodies (mixed specification like :at:`geom1`, :at:`body2` are allowed), and
+   select the collision with the smallest signed distance.
+
+sequential sensors
+   When multiple collision sensors are defined sequentially and have identical attributes (:at:`geom1`, :at:`body1`,
+   :at:`geom2`, :at:`body2`, :at:`cutoff`), for example when both distance and normal are queried for the same geom
+   pair, the collision functions will be called once for the whole sensor block, avoiding repeated computation.
+
+.. _sensor-distance:
+
+:el-prefix:`sensor/` |-| **distance** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a sensor that returns the smallest signed distance between the surfaces of two geoms.
+See :ref:`collision-sensors` for more details about sensors of this type.
+
+.. _sensor-distance-cutoff:
+
+:at:`cutoff`
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor catagories.
+   If no collision is detected, the distance sensor returns the :at:`cutoff` value, so in this case
+   :at:`cutoff` acts as a maximum clipping value, in addition to the special semantics.
+
+.. _sensor-distance-geom1:
+
+:at:`geom1`: :at-val:`string, optional`
+   Name of the first geom. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-distance-geom2:
+
+:at:`geom2`: :at-val:`string, optional`
+   Name of the second geom. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-distance-body1:
+
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-distance-body2:
+
+:at:`body2`: :at-val:`string, optional`
+   Name of the second body. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-distance-name:
+
+.. _sensor-distance-noise:
+
+.. _sensor-distance-user:
+
+:at:`name`, :at:`noise`, :at:`user`
+   See :ref:`CSensor`.
+
+
+.. _sensor-normal:
+
+:el-prefix:`sensor/` |-| **normal** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a sensor that returns the normal direction of the smallest signed distance between the surfaces of
+two geoms. It is guaranteed to point from the surface of geom1 to the surface of geom2, though note that in the case of
+penetration, this direction is generally in the opposite direction to that of the centroids.
+See :ref:`collision-sensors` for more details about sensors of this type.
+
+.. _sensor-normal-cutoff:
+
+:at:`cutoff`
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor catagories.
+   If no collision is detected, the :ref:`normal<sensor-normal>` sensor returns (0, 0, 0), otherwise it returns a
+   normalized direction vector. For this sensor, :at:`cutoff` does not lead to any clamping.
+
+.. _sensor-normal-geom1:
+
+:at:`geom1`: :at-val:`string, optional`
+   Name of the first geom. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-normal-geom2:
+
+:at:`geom2`: :at-val:`string, optional`
+   Name of the second geom. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-normal-body1:
+
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-normal-body2:
+
+:at:`body2`: :at-val:`string, optional`
+   Name of the second body. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-normal-name:
+
+.. _sensor-normal-noise:
+
+.. _sensor-normal-user:
+
+:at:`name`, :at:`noise`, :at:`user`
+   See :ref:`CSensor`.
+
+
+.. _sensor-fromto:
+
+:el-prefix:`sensor/` |-| **fromto** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a sensor that returns the segment defining the smallest signed distance between the surfaces of two
+geoms. The segment is defined by 6 numbers (x1, y1, z1, x2, y2, z2) corresponding to two points in the world frame.
+(x1, y1, z1) is on the surface of geom1, (x2, y2, z2) is on the surface of geom2. When this sensor is present and the
+:ref:`mjVIS_RANGEFINDER<mjtVisFlag>` visualization flag is set, segments will be visualized as rangefinder rays.
+See :ref:`collision-sensors` for more details about sensors of this type.
+
+.. _sensor-fromto-cutoff:
+
+:at:`cutoff`
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor catagories.
+   If no collision is detected, the :ref:`fromto<sensor-fromto>` sensor returns 6 zeros.
+   For this sensor, :at:`cutoff` does not lead to any clamping.
+
+.. _sensor-fromto-geom1:
+
+:at:`geom1`: :at-val:`string, optional`
+   Name of the first geom. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-fromto-geom2:
+
+:at:`geom2`: :at-val:`string, optional`
+   Name of the second geom. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-fromto-body1:
+
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-fromto-body2:
+
+:at:`body2`: :at-val:`string, optional`
+   Name of the second body. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-fromto-name:
+
+.. _sensor-fromto-noise:
+
+.. _sensor-fromto-user:
+
+:at:`name`, :at:`noise`, :at:`user`
+   See :ref:`CSensor`.
 
 .. _sensor-clock:
 

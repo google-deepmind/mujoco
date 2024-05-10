@@ -1137,14 +1137,13 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
 
 
-//---------------------------- main entry point ---------------------------------------------------
+//---------------------------- main entry point ----------------------------------------------------
 
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-              int geomid[1]) {
+              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude, int geomid[1]) {
   mjtNum dist, newdist;
 
   // check vector length
@@ -1154,7 +1153,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
 
   // clear result
   dist = -1;
-  *geomid = -1;
+  if (geomid) *geomid = -1;
 
   // loop over geoms not eliminated by mask and bodyexclude
   for (int i=0; i < m->ngeom; i++) {
@@ -1177,7 +1176,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
       // update if closer intersection found
       if (newdist >= 0 && (newdist < dist || dist < 0)) {
         dist = newdist;
-        *geomid = i;
+        if (geomid) *geomid = i;
       }
     }
   }

@@ -472,6 +472,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"subtreecom", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreelinvel", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreeangmom", "*", "5", "name", "body", "cutoff", "noise", "user"},
+        {"distance", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
+        {"normal", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
+        {"fromto", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"clock", "*", "4", "name", "cutoff", "noise", "user"},
         {"user", "*", "9", "name", "objtype", "objname", "datatype", "needstage",
             "dim", "cutoff", "noise", "user"},
@@ -3947,6 +3950,29 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_SUBTREEANGMOM;
       psen->objtype = mjOBJ_BODY;
       ReadAttrTxt(elem, "body", objname, true);
+    }
+
+    // sensors for geometric distance; attached to geoms or bodies
+    else if (type=="distance" || type=="normal" || type=="fromto") {
+      bool has_body1 = ReadAttrTxt(elem, "body1", objname);
+      bool has_geom1 = ReadAttrTxt(elem, "geom1", objname);
+      if (has_body1 == has_geom1) {
+        throw mjXError(elem, "exactly one of (geom1, body1) must be specified");
+      }
+      psen->objtype = has_body1 ? mjOBJ_BODY : mjOBJ_GEOM;
+      bool has_body2 = ReadAttrTxt(elem, "body2", refname);
+      bool has_geom2 = ReadAttrTxt(elem, "geom2", refname);
+      if (has_body2 == has_geom2) {
+        throw mjXError(elem, "exactly one of (geom2, body2) must be specified");
+      }
+      psen->reftype = has_body2 ? mjOBJ_BODY : mjOBJ_GEOM;
+      if (type=="distance") {
+        psen->type = mjSENS_GEOMDIST;
+      } else if (type=="normal") {
+        psen->type = mjSENS_GEOMNORMAL;
+      } else {
+        psen->type = mjSENS_GEOMFROMTO;
+      }
     }
 
     // global sensors

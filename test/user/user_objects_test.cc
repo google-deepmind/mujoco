@@ -542,7 +542,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadRefName) {
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(error.data(),
-              HasSubstr("unrecognized name 'wrong_name' of reference frame"));
+              HasSubstr("unrecognized name 'wrong_name' of object"));
   EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 
@@ -601,7 +601,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadObjRefName) {
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(
       error.data(),
-      HasSubstr("unrecognized name 'alessio' of reference frame object"));
+      HasSubstr("unrecognized name 'alessio' of object"));
   EXPECT_THAT(error.data(), HasSubstr("name 'tom'"));
   EXPECT_THAT(error.data(), HasSubstr("line 7"));
 }

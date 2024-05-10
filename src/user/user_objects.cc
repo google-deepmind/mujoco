@@ -5388,7 +5388,6 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
       ((mjCGeom*)obj)->SetNotVisual();
     }
 
-    // get sensorized object id
   } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN && type != mjSENS_USER) {
     throw mjCError(this, "invalid type in sensor");
   }
@@ -5402,7 +5401,7 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
 
     // find name
     if (!ref) {
-      throw mjCError(this, "unrecognized name '%s' of reference frame object", refname_.c_str());
+      throw mjCError(this, "unrecognized name '%s' of object", refname_.c_str());
     }
 
     // must be attached to object with spatial frame
@@ -5460,7 +5459,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_CAMPROJECTION:
     // must be attached to site
     if (objtype!=mjOBJ_SITE) {
-      throw mjCError(this, "sensor must be attached to site: sensor");
+      throw mjCError(this, "sensor must be attached to site");
     }
 
     // set dim and datatype
@@ -5498,7 +5497,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_JOINTACTFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
-      throw mjCError(this, "sensor must be attached to joint: sensor");
+      throw mjCError(this, "sensor must be attached to joint");
     }
 
     // make sure joint is slide or hinge
@@ -5522,7 +5521,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_TENDONVEL:
     // must be attached to tendon
     if (objtype!=mjOBJ_TENDON) {
-      throw mjCError(this, "sensor must be attached to tendon: sensor");
+      throw mjCError(this, "sensor must be attached to tendon");
     }
 
     // set
@@ -5540,7 +5539,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_ACTUATORFRC:
     // must be attached to actuator
     if (objtype!=mjOBJ_ACTUATOR) {
-      throw mjCError(this, "sensor must be attached to actuator: sensor");
+      throw mjCError(this, "sensor must be attached to actuator");
     }
 
     // set
@@ -5559,7 +5558,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_BALLANGVEL:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
-      throw mjCError(this, "sensor must be attached to joint: sensor");
+      throw mjCError(this, "sensor must be attached to joint");
     }
 
     // make sure joint is ball
@@ -5584,7 +5583,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_JOINTLIMITFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
-      throw mjCError(this, "sensor must be attached to joint: sensor");
+      throw mjCError(this, "sensor must be attached to joint");
     }
 
     // make sure joint has limit
@@ -5609,7 +5608,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_TENDONLIMITFRC:
     // must be attached to tendon
     if (objtype!=mjOBJ_TENDON) {
-      throw mjCError(this, "sensor must be attached to tendon: sensor");
+      throw mjCError(this, "sensor must be attached to tendon");
     }
 
     // make sure tendon has limit
@@ -5675,7 +5674,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_SUBTREEANGMOM:
     // must be attached to body
     if (objtype!=mjOBJ_BODY) {
-      throw mjCError(this, "sensor must be attached to body: sensor");
+      throw mjCError(this, "sensor must be attached to body");
     }
 
     // set
@@ -5685,6 +5684,34 @@ void mjCSensor::Compile(void) {
       needstage = mjSTAGE_POS;
     } else {
       needstage = mjSTAGE_VEL;
+    }
+    break;
+
+  case mjSENS_GEOMDIST:
+  case mjSENS_GEOMNORMAL:
+  case mjSENS_GEOMFROMTO:
+    // must be attached to body or geom
+    if ((objtype!=mjOBJ_BODY && objtype!=mjOBJ_GEOM) ||
+        (reftype!=mjOBJ_BODY && reftype!=mjOBJ_GEOM)) {
+      throw mjCError(this, "sensor must be attached to body or geom");
+    }
+
+    // objects must be different
+    if (objtype == reftype && obj == ref) {
+      throw mjCError(this, "1st body/geom must be different from 2nd body/geom");
+    }
+
+    // set
+    needstage = mjSTAGE_POS;
+    if (type==mjSENS_GEOMDIST) {
+      dim = 1;
+      datatype = mjDATATYPE_POSITIVE;
+    } else if (type==mjSENS_GEOMNORMAL) {
+      dim = 3;
+      datatype = mjDATATYPE_AXIS;
+    } else {
+      dim = 6;
+      datatype = mjDATATYPE_REAL;
     }
     break;
 
@@ -5705,7 +5732,7 @@ void mjCSensor::Compile(void) {
       throw mjCError(this,
                      "datatype AXIS requires dim=3 in sensor");
     }
-    if (datatype==mjDATATYPE_QUATERNION && dim!=4) {
+    if (datatype==mjDATATYPE_QUATERNION && dim != 4) {
       throw mjCError(this, "datatype QUATERNION requires dim=4 in sensor");
     }
     break;
@@ -5737,7 +5764,8 @@ void mjCSensor::Compile(void) {
   }
 
   // check cutoff for incompatible data types
-  if (cutoff>0 && (datatype==mjDATATYPE_AXIS || datatype==mjDATATYPE_QUATERNION)) {
+  if (cutoff > 0 && (datatype == mjDATATYPE_QUATERNION ||
+                     (datatype == mjDATATYPE_AXIS && type != mjSENS_GEOMNORMAL))) {
     throw mjCError(this, "cutoff applied to axis or quaternion datatype in sensor");
   }
 }

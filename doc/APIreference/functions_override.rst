@@ -33,8 +33,8 @@ The model and all files referenced in it can be loaded from disk or from a VFS w
 
 These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
 everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
-(in mjData.{ctrl, qfrc_applied, xfrc_applied}), or a control callback :ref:`mjcb_control` must be installed which will be
-called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
+(in mjData.{ctrl, qfrc_applied, xfrc_applied}), or a control callback :ref:`mjcb_control` must be installed which will
+be called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
 :ref:`mj_step2` which break down the simulation pipeline into computations that are executed before and after the
 controls are needed; in this way one can set controls that depend on the results from :ref:`mj_step1`. Keep in mind
 though that the RK4 solver does not work with mj_step1/2.
@@ -48,8 +48,8 @@ be set before calling this function. Given the state (qpos, qvel, act), mj_forwa
 while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
 numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
 which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
-with the function :ref:`mj_compareFwdInv`, which can be thought of as another solver accuracy check (as well as a general
-sanity check).
+with the function :ref:`mj_compareFwdInv`, which can be thought of as another solver accuracy check (as well as a
+general sanity check).
 
 The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
 changed (usually in the context of finite differencing). Then there is no point repeating the computations that only
@@ -179,6 +179,23 @@ This function computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, prov
 generalized velocities to subtree angular momentum. More precisely if :math:`h` is the subtree angular momentum of
 body index ``body`` in ``mjData.subtree_angmom`` (reported by the :ref:`subtreeangmom<sensor-subtreeangmom>` sensor)
 and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = H \dot q`.
+
+.. _mj_geomDistance:
+
+Returns the smallest signed distance between two geoms and optionally the segment from ``geom1`` to ``geom2``.
+Returned distances are bounded from above by ``distmax``. |br| If no collision of distance smaller than ``distmax`` is
+found, the function will return ``distmax`` and ``fromto``, if given, will be set to (0, 0, 0, 0, 0, 0).
+
+.. admonition:: Positive ``distmax`` values
+   :class: note
+
+   .. TODO: b/339596989 - Improve mjc_Convex.
+
+   For some colliders, a large, positive ``distmax`` will result in an accurate measurement. However, for collision
+   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
+   This is considered a bug to be fixed in a future release.
+   In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
+   `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
 
 .. _mj_mulM:
 

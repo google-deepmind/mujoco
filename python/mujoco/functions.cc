@@ -531,6 +531,18 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_objectVelocity>(pymodule);
   Def<traits::mj_objectAcceleration>(pymodule);
   Def<traits::mj_contactForce>(pymodule);
+  Def<traits::mj_geomDistance>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d,
+         int geom1, int geom2, mjtNum distmax,
+         std::optional<Eigen::Ref<EigenArrayXX>> fromto) {
+        if (fromto.has_value() && fromto->size() != 6) {
+          throw py::type_error("fromto should be of size 6");
+        }
+        return InterceptMjErrors(::mj_geomDistance)(
+            m, d, geom1, geom2, distmax,
+            fromto.has_value() ? fromto->data() : nullptr);
+      });
   Def<traits::mj_differentiatePos>(
       pymodule,
       [](const raw::MjModel* m, Eigen::Ref<EigenVectorX> qvel,

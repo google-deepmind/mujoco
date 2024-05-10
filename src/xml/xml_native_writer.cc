@@ -1875,46 +1875,82 @@ void mjXWriter::Sensor(XMLElement* root) {
       elem = InsertEnd(section, "framepos");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMEQUAT:
       elem = InsertEnd(section, "framequat");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMEXAXIS:
       elem = InsertEnd(section, "framexaxis");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMEYAXIS:
       elem = InsertEnd(section, "frameyaxis");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMEZAXIS:
       elem = InsertEnd(section, "framezaxis");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMELINVEL:
       elem = InsertEnd(section, "framelinvel");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMEANGVEL:
       elem = InsertEnd(section, "frameangvel");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMELINACC:
       elem = InsertEnd(section, "framelinacc");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
     case mjSENS_FRAMEANGACC:
       elem = InsertEnd(section, "frameangacc");
       WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->get_objname());
+      if (psen->reftype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+        WriteAttrTxt(elem, "refname", psen->get_refname());
+      }
       break;
 
     // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
@@ -1929,6 +1965,21 @@ void mjXWriter::Sensor(XMLElement* root) {
     case mjSENS_SUBTREEANGMOM:
       elem = InsertEnd(section, "subtreeangmom");
       WriteAttrTxt(elem, "body", psen->get_objname());
+      break;
+    case mjSENS_GEOMDIST:
+      elem = InsertEnd(section, "distance");
+      WriteAttrTxt(elem, psen->objtype == mjOBJ_BODY ? "body1" : "geom1", psen->get_objname());
+      WriteAttrTxt(elem, psen->reftype == mjOBJ_BODY ? "body2" : "geom2", psen->get_refname());
+      break;
+    case mjSENS_GEOMNORMAL:
+      elem = InsertEnd(section, "normal");
+      WriteAttrTxt(elem, psen->objtype == mjOBJ_BODY ? "body1" : "geom1", psen->get_objname());
+      WriteAttrTxt(elem, psen->reftype == mjOBJ_BODY ? "body2" : "geom2", psen->get_refname());
+      break;
+    case mjSENS_GEOMFROMTO:
+      elem = InsertEnd(section, "fromto");
+      WriteAttrTxt(elem, psen->objtype == mjOBJ_BODY ? "body1" : "geom1", psen->get_objname());
+      WriteAttrTxt(elem, psen->reftype == mjOBJ_BODY ? "body2" : "geom2", psen->get_refname());
       break;
 
     // global sensors
@@ -1968,12 +2019,6 @@ void mjXWriter::Sensor(XMLElement* root) {
       WriteAttr(elem, "noise", 1, &psen->noise, &zero);
     }
     WriteVector(elem, "user", psen->get_userdata());
-
-    // add reference if present
-    if (psen->reftype != mjOBJ_UNKNOWN && psen->type != mjSENS_CAMPROJECTION) {
-      WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
-      WriteAttrTxt(elem, "refname", psen->get_refname());
-    }
   }
 
   // remove section if empty

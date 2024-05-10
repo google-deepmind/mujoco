@@ -358,9 +358,12 @@ public enum mjtSensor : int{
   mjSENS_SUBTREECOM = 34,
   mjSENS_SUBTREELINVEL = 35,
   mjSENS_SUBTREEANGMOM = 36,
-  mjSENS_CLOCK = 37,
-  mjSENS_PLUGIN = 38,
-  mjSENS_USER = 39,
+  mjSENS_GEOMDIST = 37,
+  mjSENS_GEOMNORMAL = 38,
+  mjSENS_GEOMFROMTO = 39,
+  mjSENS_CLOCK = 40,
+  mjSENS_PLUGIN = 41,
+  mjSENS_USER = 42,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -6667,6 +6670,9 @@ public static unsafe extern void mj_objectVelocity(mjModel_* m, mjData_* d, int 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_objectAcceleration(mjModel_* m, mjData_* d, int objtype, int objid, double* res, int flg_local);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mj_geomDistance(mjModel_* m, mjData_* d, int geom1, int geom2, double distmax, double* fromto);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_contactForce(mjModel_* m, mjData_* d, int id, double* result);

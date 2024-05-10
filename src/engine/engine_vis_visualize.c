@@ -1974,6 +1974,20 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mjv_connector(thisgeom, mjGEOM_LINE, 3, from, to);
         f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
         FINISH
+      } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
+        // sensor data
+        mjtNum* fromto = d->sensordata + m->sensor_adr[i];
+
+        // null output: nothing to render
+        if (mju_isZero(fromto, 6)) {
+          continue;
+        }
+
+        // make ray
+        START
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, fromto, fromto+3);
+        f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+        FINISH
       }
     }
   }

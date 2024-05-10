@@ -1773,6 +1773,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_TENDONLIMITPOS:
   case mjSENS_TENDONLIMITVEL:
   case mjSENS_TENDONLIMITFRC:
+  case mjSENS_GEOMDIST:
   case mjSENS_CLOCK:
     return 1;
 
@@ -1797,7 +1798,11 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_SUBTREECOM:
   case mjSENS_SUBTREELINVEL:
   case mjSENS_SUBTREEANGMOM:
+  case mjSENS_GEOMNORMAL:
     return 3;
+
+  case mjSENS_GEOMFROMTO:
+    return 6;
 
   case mjSENS_BALLQUAT:
   case mjSENS_FRAMEQUAT:

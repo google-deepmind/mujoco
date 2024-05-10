@@ -20,6 +20,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -1702,6 +1703,48 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 
 //-------------------------- miscellaneous ---------------------------------------------------------
+
+// returns the smallest distance between two geoms
+mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, mjtNum distmax,
+                       mjtNum fromto[6]) {
+  mjContact con[mjMAXCONPAIR];
+  mjtNum dist = distmax;
+  if (fromto) mju_zero(fromto, 6);
+
+  // flip geom order if required
+  int flip = m->geom_type[geom1] > m->geom_type[geom2];
+  int g1 = flip ? geom2 : geom1;
+  int g2 = flip ? geom1 : geom2;
+  int type1 = m->geom_type[g1];
+  int type2 = m->geom_type[g2];
+
+  // call collision function if it exists
+  if (!mjCOLLISIONFUNC[type1][type2]) {
+    return dist;
+  }
+  int num = mjCOLLISIONFUNC[type1][type2](m, d, con, g1, g2, distmax);
+
+  // find smallest distance
+  int smallest = -1;
+  for (int i=0; i < num; i++) {
+    mjtNum dist_i = con[i].dist;
+    if (dist_i < dist) {
+      dist = dist_i;
+      smallest = i;
+    }
+  }
+
+  // write fromto if given and a collision has been found
+  if (fromto && smallest >= 0) {
+    mjtNum sign = flip ? -1 : 1;
+    mju_addScl3(fromto+0, con[smallest].pos, con[smallest].frame, -0.5*sign*dist);
+    mju_addScl3(fromto+3, con[smallest].pos, con[smallest].frame, 0.5*sign*dist);
+  }
+
+  return dist;
+}
+
+
 
 // extract 6D force:torque for one contact, in contact frame
 void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {

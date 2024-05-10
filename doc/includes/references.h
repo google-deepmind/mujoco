@@ -643,6 +643,11 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_SUBTREELINVEL,           // 3D linear velocity of subtree
   mjSENS_SUBTREEANGMOM,           // 3D angular momentum of subtree
 
+  // sensors for geometric distance; attached to geoms or bodies
+  mjSENS_GEOMDIST,                // signed distance between two geoms
+  mjSENS_GEOMNORMAL,              // normal direction between two geoms
+  mjSENS_GEOMFROMTO,              // segment between two geoms
+
   // global sensors
   mjSENS_CLOCK,                   // simulation time
 
@@ -2542,6 +2547,8 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
                        int objtype, int objid, mjtNum res[6], int flg_local);
 void mj_objectAcceleration(const mjModel* m, const mjData* d,
                            int objtype, int objid, mjtNum res[6], int flg_local);
+mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2,
+                       mjtNum distmax, mjtNum fromto[6]);
 void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                          const mjtNum* qpos1, const mjtNum* qpos2);
