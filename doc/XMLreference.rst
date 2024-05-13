@@ -214,6 +214,10 @@ and namespaced appropriately. Detailed examples of models using replicate can be
             </replicate>
           </replicate>
         </worldbody>
+
+        <sensor>
+          <accelerometer name="Bob" site="Alice"/>
+        </sensor>
       </mujoco>
 
    Results in this model:
@@ -227,6 +231,13 @@ and namespaced appropriately. Detailed examples of models using replicate can be
           <geom name="Alice-01" size="0.1" pos="0 1 0" quat="1 1 0 0"/>
           <geom name="Alice-11" size="0.1" pos="1 1 0" quat="0.5 0.5 0.5 0.5"/>
         </worldbody>
+
+        <sensor>
+          <accelerometer name="Bob-00" site="Alice-00"/>
+          <accelerometer name="Bob-10" site="Alice-10"/>
+          <accelerometer name="Bob-01" site="Alice-01"/>
+          <accelerometer name="Bob-11" site="Alice-11"/>
+        </sensor>
       </mujoco>
 
 .. _include:
