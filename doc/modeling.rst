@@ -1489,7 +1489,9 @@ sub-elements :ref:`compiler <compiler>`, :ref:`option <option>`,
 are modified so as to accomodate the URDF modeling convention. The :ref:`compiler <compiler>` extension
 in particular has proven very useful, and indeed several of its attributes were introduced because a number of
 existing URDF models have non-physical dynamics parameters which MuJoCo's built-in compiler will reject if left
-unmodified. This extension is also needed to specify mesh directories.
+unmodified. This extension is also needed to specify mesh directories. Also note that the compiler attributes
+:ref:`strippath<compiler-strippath>`, :ref:`angle<compiler-angle>`, :ref:`fusestatic<compiler-fusestatic>` and
+:ref:`discardvisual<compiler-discardvisual>` have different default values for URDF and MJCF.
 
 Note that the while MJCF models are checked against a custom XML schema by the parser, URDF models are not. Even the
 MuJoCo-specific elements embedded in the URDF file are not checked. As a result, mis-typed attribute names are
