@@ -6787,7 +6787,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-distance-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor catagories.
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the distance sensor returns the :at:`cutoff` value, so in this case
    :at:`cutoff` acts as a maximum clipping value, in addition to the special semantics.
 
@@ -6834,7 +6834,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-normal-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor catagories.
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the :ref:`normal<sensor-normal>` sensor returns (0, 0, 0), otherwise it returns a
    normalized direction vector. For this sensor, :at:`cutoff` does not lead to any clamping.
 
@@ -6882,7 +6882,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-fromto-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor catagories.
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the :ref:`fromto<sensor-fromto>` sensor returns 6 zeros.
    For this sensor, :at:`cutoff` does not lead to any clamping.
 
