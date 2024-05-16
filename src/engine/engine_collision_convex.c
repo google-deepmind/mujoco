@@ -29,6 +29,8 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
+// the LibCCD penetration function we use (ccdMPRPenetration or ccdGJKPenetration)
+#define _mjCCDPENETRATION ccdMPRPenetration
 
 // ccd center function
 void mjccd_center(const void *obj, ccd_vec3_t *center) {
@@ -273,7 +275,7 @@ static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
                             mjContact* con, mjtNum margin) {
   ccd_vec3_t dir, pos;
   ccd_real_t depth;
-  if (ccdMPRPenetration(obj1, obj2, ccd, &depth, &dir, &pos) == 0) {
+  if (_mjCCDPENETRATION(obj1, obj2, ccd, &depth, &dir, &pos) == 0) {
     // contact is found but normal is undefined
     if (ccdVec3Eq(&dir, ccd_vec3_origin)) {
       return 0;
@@ -343,6 +345,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   mjtCCD obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}};
 
   // init ccd structure
+  CCD_INIT(&ccd);
   ccd.first_dir = ccdFirstDirDefault;
   ccd.center1 = mjccd_center;
   ccd.center2 = mjccd_center;
@@ -747,6 +750,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   //------------------------------------- collision testing
 
   // init ccd structure
+  CCD_INIT(&ccd);
   ccd.first_dir = prism_firstdir;
   ccd.center1 = prism_center;
   ccd.center2 = mjccd_center;
@@ -787,7 +791,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
           }
 
           // run MPR, save contact
-          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0 &&
+          if (_mjCCDPENETRATION(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0 &&
               !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
             // fill in contact data, transform to global coordinates
             con[cnt].dist = -depth;
@@ -1092,6 +1096,7 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
   mjtCCD obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}};
 
   // init ccd structure
+  CCD_INIT(&ccd);
   ccd.first_dir = ccdFirstDirDefault;
   ccd.center1 = mjccd_center;
   ccd.center2 = mjccd_center;
@@ -1197,6 +1202,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   //------------------------------------- collision testing
 
   // init ccd structure
+  CCD_INIT(&ccd);
   ccd.first_dir = prism_firstdir;
   ccd.center1 = prism_center;
   ccd.center2 = mjccd_center;
@@ -1234,7 +1240,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
           }
 
           // run MPR, save contact
-          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0) {
+          if (_mjCCDPENETRATION(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0) {
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
               con[cnt].dist = -depth;
@@ -1266,3 +1272,5 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
   return cnt;
 }
+
+#undef _mjCCDPENETRATION
