@@ -400,7 +400,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   mjsFlex* pf = &flex->spec;
   int id = flex->id;
 
-  *flex = def.flex;
+  *flex = def.Flex();
   flex->PointToLocal();
 
   flex->model = model;
@@ -521,7 +521,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   // create edge equality constraint
   if (equality) {
     mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
-    mjs_setDefault(pe->element, &model->Defaults()[0]->spec);
+    mjs_setDefault(pe->element, &model->Defaults(0)->spec);
     pe->type = mjEQ_FLEX;
     pe->active = true;
     mjs_setString(pe->name1, name.c_str());
@@ -544,7 +544,7 @@ int mjCFlexcomp::GridID(int ix, int iy, int iz) {
 
 // make grid
 bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
-  int dim = def.flex.spec.dim;
+  int dim = def.Flex().spec.dim;
   bool hastex = texcoord.empty();
 
   // 1D

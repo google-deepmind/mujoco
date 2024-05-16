@@ -413,8 +413,8 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   void CopyFromSpec(void);
 
   // used by mjXWriter and mjCModel
-  const std::vector<double>& get_userdata() { return userdata_; }
-  const double* get_range() { return range; }
+  const std::vector<double>& get_userdata() const { return userdata_; }
+  const double* get_range() const { return range; }
 
   bool is_limited() const;
   bool is_actfrclimited() const;
@@ -475,7 +475,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
 
   using mjCBase::name;
   mjsGeom spec;                       // variables set by user
-  double GetVolume(void);             // compute geom volume
+  double GetVolume() const;           // compute geom volume
   void SetInertia(void);              // compute and set geom inertia
   bool IsVisual(void) const { return visual_; }
   void SetNotVisual(void) { visual_ = false; }
@@ -489,10 +489,10 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void SetBoundingVolume(mjCBoundingVolume* bv) const;
 
   // used by mjXWriter and mjCModel
-  const std::vector<double>& get_userdata() { return userdata_; }
-  const std::string& get_hfieldname() { return spec_hfieldname_; }
-  const std::string& get_meshname() { return spec_meshname_; }
-  const std::string& get_material() { return spec_material_; }
+  const std::vector<double>& get_userdata() const { return userdata_; }
+  const std::string& get_hfieldname() const { return spec_hfieldname_; }
+  const std::string& get_meshname() const { return spec_meshname_; }
+  const std::string& get_material() const { return spec_material_; }
   void del_material() { spec_material_.clear(); }
 
  private:
@@ -546,8 +546,8 @@ class mjCSite : public mjCSite_, private mjsSite {
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
-  const std::vector<double>& get_userdata() { return userdata_; }
-  const std::string& get_material() { return material_; }
+  const std::vector<double>& get_userdata() const { return userdata_; }
+  const std::string& get_material() const { return material_; }
   void del_material() { material_.clear(); }
 
  private:
@@ -589,8 +589,8 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
-  const std::string& get_targetbody() { return targetbody_; }
-  const std::vector<double>& get_userdata() { return userdata_; }
+  const std::string& get_targetbody() const { return targetbody_; }
+  const std::vector<double>& get_userdata() const { return userdata_; }
 
  private:
   void Compile(void);                     // compiler
@@ -629,7 +629,7 @@ class mjCLight : public mjCLight_, private mjsLight {
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
-  const std::string& get_targetbody() { return targetbody_; }
+  const std::string& get_targetbody() const { return targetbody_; }
 
  private:
   void Compile(void);                     // compiler
@@ -697,12 +697,12 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   void NameSpace(const mjCModel* m);
 
   // used by mjXWriter and mjCModel
-  const std::string& get_material() { return material_; }
-  const std::vector<std::string>& get_vertbody() { return vertbody_; }
-  const std::vector<double>& get_vert() { return vert_; }
-  const std::vector<double>& get_elemaabb() { return elemaabb_; }
-  const std::vector<int>& get_elem() { return elem_; }
-  const std::vector<float>& get_texcoord() { return texcoord_; }
+  const std::string& get_material() const { return material_; }
+  const std::vector<std::string>& get_vertbody() const { return vertbody_; }
+  const std::vector<double>& get_vert() const { return vert_; }
+  const std::vector<double>& get_elemaabb() const { return elemaabb_; }
+  const std::vector<int>& get_elem() const { return elem_; }
+  const std::vector<float>& get_texcoord() const { return texcoord_; }
 
   bool HasTexcoord() const;               // texcoord not null
   void DelTexcoord();                     // delete texcoord
@@ -921,16 +921,16 @@ class mjCSkin: public mjCSkin_, private mjsSkin {
   using mjCBase::classname;
   using mjCBase::info;
 
-  std::string get_file() const { return file_; }
-  std::string& get_material() { return material_; }
-  std::vector<float>& get_vert() { return vert_; }
-  std::vector<float>& get_texcoord() { return texcoord_; }
-  std::vector<int>& get_face() { return face_; }
-  std::vector<std::string>& get_bodyname() { return bodyname_; }
-  std::vector<float>& get_bindpos() { return bindpos_; }
-  std::vector<float>& get_bindquat() { return bindquat_; }
-  std::vector<std::vector<int>>& get_vertid() { return vertid_; }
-  std::vector<std::vector<float>>& get_vertweight() { return vertweight_; }
+  const std::string& get_file() const { return file_; }
+  const std::string& get_material() const { return material_; }
+  const std::vector<float>& get_vert() const { return vert_; }
+  const std::vector<float>& get_texcoord() const { return texcoord_; }
+  const std::vector<int>& get_face() const { return face_; }
+  const std::vector<std::string>& get_bodyname() const { return bodyname_; }
+  const std::vector<float>& get_bindpos() const { return bindpos_; }
+  const std::vector<float>& get_bindquat() const { return bindquat_; }
+  const std::vector<std::vector<int>>& get_vertid() const { return vertid_; }
+  const std::vector<std::vector<float>>& get_vertweight() const { return vertweight_; }
   void del_material() { material_.clear(); }
 
   void CopyFromSpec();
@@ -1082,7 +1082,7 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
   void PointToLocal();
   void NameSpace(const mjCModel* m);
 
-  std::string get_texture() { return texture_; }
+  const std::string& get_texture() const { return texture_; }
   void del_texture() { texture_.clear(); }
 
  private:
@@ -1124,8 +1124,8 @@ class mjCPair : public mjCPair_, private mjsPair {
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
 
-  std::string get_geomname1() { return geomname1_; }
-  std::string get_geomname2() { return geomname2_; }
+  const std::string& get_geomname1() const { return geomname1_; }
+  const std::string& get_geomname2() const { return geomname2_; }
 
   int GetSignature(void) {
     return signature;
@@ -1258,7 +1258,7 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   using mjCBase::info;
 
   void set_material(std::string _material) { material_ = _material; }
-  std::string& get_material() { return material_; }
+  const std::string& get_material() const { return material_; }
   void del_material() { material_.clear(); }
 
   // API for adding wrapping objects
@@ -1268,12 +1268,12 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   void WrapPulley(double divisor, std::string_view info = "");                    // pulley
 
   // API for access to wrapping objects
-  int NumWraps(void);                         // number of wraps
-  mjCWrap* GetWrap(int);                      // pointer to wrap
+  int NumWraps() const;                       // number of wraps
+  const mjCWrap* GetWrap(int i) const;        // pointer to wrap
   std::vector<mjCWrap*> path;                 // wrapping objects
 
   // used by mjXWriter and mjCModel
-  const std::vector<double>& get_userdata() { return userdata_; }
+  const std::vector<double>& get_userdata() const { return userdata_; }
   const double* get_range() { return range; }
 
   void CopyFromSpec();
@@ -1391,10 +1391,10 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
-  const std::vector<double>& get_userdata() { return userdata_; }
-  const std::string& get_target() { return spec_target_; }
-  const std::string& get_slidersite() { return spec_slidersite_; }
-  const std::string& get_refsite() { return spec_refsite_; }
+  const std::vector<double>& get_userdata() const { return userdata_; }
+  const std::string& get_target() const { return spec_target_; }
+  const std::string& get_slidersite() const { return spec_slidersite_; }
+  const std::string& get_refsite() const { return spec_refsite_; }
 
   bool is_ctrllimited() const;
   bool is_forcelimited() const;
@@ -1615,12 +1615,28 @@ class mjCDef : public mjElement {
   friend class mjXWriter;
 
  public:
-  mjCDef(void);                            // constructor
-  mjCDef(const mjCDef& other);             // copy constructor
-  void Compile(const mjCModel* model);     // compiler
-  mjCDef& operator=(const mjCDef& other);  // copy assignment
+  mjCDef();
+  mjCDef(const mjCDef& other);
+  mjCDef& operator=(const mjCDef& other);
+
   void PointToLocal(void);
   void CopyFromSpec(void);
+
+  void Compile(const mjCModel* model);
+
+  // accessors
+  mjCJoint& Joint() { return joint_; }
+  mjCGeom& Geom() { return geom_; }
+  mjCSite& Site() { return site_; }
+  mjCCamera& Camera() { return camera_; }
+  mjCLight& Light() { return light_; }
+  mjCFlex& Flex() { return flex_; }
+  mjCMesh& Mesh() { return mesh_; }
+  mjCMaterial& Material() { return material_; }
+  mjCPair& Pair() { return pair_; }
+  mjCEquality& Equality() { return equality_; }
+  mjCTendon& Tendon() { return tendon_; }
+  mjCActuator& Actuator() { return actuator_; }
 
   // identifiers
   std::string name;               // class name
@@ -1629,19 +1645,19 @@ class mjCDef : public mjElement {
 
   mjsDefault spec;
 
-  // default objects (TODO: they should become private)
-  mjCJoint    joint;
-  mjCGeom     geom;
-  mjCSite     site;
-  mjCCamera   camera;
-  mjCLight    light;
-  mjCFlex     flex;
-  mjCMesh     mesh;
-  mjCMaterial material;
-  mjCPair     pair;
-  mjCEquality equality;
-  mjCTendon   tendon;
-  mjCActuator actuator;
+ private:
+  mjCJoint joint_;
+  mjCGeom geom_;
+  mjCSite site_;
+  mjCCamera camera_;
+  mjCLight light_;
+  mjCFlex flex_;
+  mjCMesh mesh_;
+  mjCMaterial material_;
+  mjCPair pair_;
+  mjCEquality equality_;
+  mjCTendon tendon_;
+  mjCActuator actuator_;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_OBJECTS_H_

@@ -146,12 +146,12 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   // reset to default if given
   if (_def) {
-    *this = _def->mesh;
+    *this = _def->Mesh();
   }
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults()[0] : 0));
+  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
 
   // in case this body is not compiled
   CopyFromSpec();
@@ -1426,7 +1426,7 @@ void mjCMesh::Process() {
       // apply formula, accumulate
       GetVolumeRef(type) += vol;
       for (int j=0; j<6; j++) {
-        P[j] += def->geom.density*vol /
+        P[j] += def->Geom().density*vol /
                   (type==mjINERTIA_SHELL ? 12 : 20) * (
                   2*(D[k[j][0]] * D[k[j][1]] +
                     E[k[j][0]] * E[k[j][1]] +
@@ -1467,7 +1467,7 @@ void mjCMesh::Process() {
     }
 
     // compute sizes of equivalent inertia box
-    double mass = GetVolumeRef(type) * def->geom.density;
+    double mass = GetVolumeRef(type) * def->Geom().density;
     double* boxsz = GetInertiaBoxPtr(type);
     boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/mass)/2;
     boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;

@@ -222,7 +222,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::string get_meshdir() const { return meshdir_; }
   std::string get_texturedir() const { return texturedir_; }
 
-  const std::vector<mjCDef*>& Defaults() const { return defaults_; }
+  mjCDef* Defaults(int i) const { return defaults_[i]; }
+  int NumDefaults() const { return defaults_.size(); }
 
   const std::vector<std::pair<const mjpPlugin*, int>>& ActivePlugins() const {
     return active_plugins_;

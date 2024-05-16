@@ -59,20 +59,20 @@ class mjXWriter : public mjXBase {
   void Keyframe(tinyxml2::XMLElement* root);                              // keyframe section
 
   // single element writers, used in defaults and main body
-  void OneFlex(tinyxml2::XMLElement* elem,      mjCFlex* pflex);
-  void OneMesh(tinyxml2::XMLElement* elem,      mjCMesh* pmesh,         mjCDef* def);
-  void OneSkin(tinyxml2::XMLElement* elem,      mjCSkin* pskin);
-  void OneMaterial(tinyxml2::XMLElement* elem,  mjCMaterial* pmaterial, mjCDef* def);
-  void OneJoint(tinyxml2::XMLElement* elem,     mjCJoint* pjoint,       mjCDef* def);
-  void OneGeom(tinyxml2::XMLElement* elem,      mjCGeom* pgeom,         mjCDef* def);
-  void OneSite(tinyxml2::XMLElement* elem,      mjCSite* psite,         mjCDef* def);
-  void OneCamera(tinyxml2::XMLElement* elem,    mjCCamera* pcamera,     mjCDef* def);
-  void OneLight(tinyxml2::XMLElement* elem,     mjCLight* plight,       mjCDef* def);
-  void OnePair(tinyxml2::XMLElement* elem,      mjCPair* ppair,         mjCDef* def);
-  void OneEquality(tinyxml2::XMLElement* elem,  mjCEquality* pequality, mjCDef* def);
-  void OneTendon(tinyxml2::XMLElement* elem,    mjCTendon* ptendon,     mjCDef* def);
-  void OneActuator(tinyxml2::XMLElement* elem,  mjCActuator* pactuator, mjCDef* def);
-  void OnePlugin(tinyxml2::XMLElement* elem,    mjsPlugin* plugin);
+  void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);
+  void OneMesh(tinyxml2::XMLElement* elem, const mjCMesh* pmesh,         mjCDef* def);
+  void OneSkin(tinyxml2::XMLElement* elem, const mjCSkin* pskin);
+  void OneMaterial(tinyxml2::XMLElement* elem, const mjCMaterial* pmaterial, mjCDef* def);
+  void OneJoint(tinyxml2::XMLElement* elem, const mjCJoint* pjoint,       mjCDef* def);
+  void OneGeom(tinyxml2::XMLElement* elem, const mjCGeom* pgeom,         mjCDef* def);
+  void OneSite(tinyxml2::XMLElement* elem, const mjCSite* psite,         mjCDef* def);
+  void OneCamera(tinyxml2::XMLElement* elem, const mjCCamera* pcamera,     mjCDef* def);
+  void OneLight(tinyxml2::XMLElement* elem, const mjCLight* plight,       mjCDef* def);
+  void OnePair(tinyxml2::XMLElement* elem, const mjCPair* ppair,         mjCDef* def);
+  void OneEquality(tinyxml2::XMLElement* elem, const mjCEquality* pequality, mjCDef* def);
+  void OneTendon(tinyxml2::XMLElement* elem, const mjCTendon* ptendon,     mjCDef* def);
+  void OneActuator(tinyxml2::XMLElement* elem, const mjCActuator* pactuator, mjCDef* def);
+  void OnePlugin(tinyxml2::XMLElement* elem, const mjsPlugin* plugin);
   tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem, mjCFrame* frame);
 
   bool writingdefaults;                       // true during defaults write

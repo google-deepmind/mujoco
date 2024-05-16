@@ -429,7 +429,7 @@ mjsPlugin* mjs_addPlugin(mjSpec* s) {
 // add default to model
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  *id = (int)modelC->Defaults().size();
+  *id = (int)modelC->NumDefaults();
   mjCDef* def = modelC->AddDefault(classname, parentid);
   if (def) {
     return &def->spec;
@@ -469,7 +469,7 @@ mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
 // get default[0] from model
 mjsDefault* mjs_getSpecDefault(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = modelC->Defaults()[0];
+  mjCDef* def = modelC->Defaults(0);
   if (!def) {
     return nullptr;
   }
