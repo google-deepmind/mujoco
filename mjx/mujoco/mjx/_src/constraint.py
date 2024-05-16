@@ -73,8 +73,8 @@ def _kbi(
   k = 1 / (dmax * dmax * timeconst * timeconst * dampratio * dampratio)
   b = 2 / (dmax * timeconst)
   # TODO(robotics-simulation): check various solparam settings in model gen test
-  k = jp.where(dampratio <= 0, -dampratio / (dmax * dmax), k)
-  b = jp.where(timeconst <= 0, -timeconst / dmax, b)
+  k = jp.where(dampratio <= 0, -solref[0] / (dmax * dmax), k)
+  b = jp.where(timeconst <= 0, -solref[1] / dmax, b)
 
   imp_x = jp.abs(pos) / width
   imp_a = (1.0 / jp.power(mid, power - 1)) * jp.power(imp_x, power)
