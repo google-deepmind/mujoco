@@ -177,9 +177,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
-        {"position", "?", "11", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
-            "forcerange", "gear", "cranklength", "user", "group",
-            "kp", "kv"},
+        {"position", "?", "12", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
+            "forcerange", "gear", "cranklength", "user", "group", "kp", "kv", "timeconst"},
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
@@ -390,11 +389,11 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "21", "name", "class", "group",
+        {"position", "*", "22", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp", "kv"},
+            "kp", "kv", "timeconst"},
         {"velocity", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -2092,6 +2091,12 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
       if (pact->biasprm[2] < 0)
         throw mjXError(elem, "kv cannot be negative");
       pact->biasprm[2] *= -1;
+    }
+
+    if (ReadAttr(elem, "timeconst", 1, pact->dynprm, text)) {
+      if (pact->dynprm[0] < 0)
+        throw mjXError(elem, "timeconst cannot be negative");
+      pact->dyntype = pact->dynprm[0] ? mjDYN_FILTEREXACT : mjDYN_NONE;
     }
 
     ReadAttr(elem, "inheritrange", 1, &pact->inheritrange, text);

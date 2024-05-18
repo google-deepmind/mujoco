@@ -5125,7 +5125,7 @@ void mjCActuator::Compile(void) {
       gainprm[0] == -biasprm[1] && inheritrange > 0) {
     // semantic of actuator is the same as transmission, inheritrange is applicable
     double* range;
-    if (dyntype == mjDYN_NONE) {
+    if (dyntype == mjDYN_NONE || dyntype == mjDYN_FILTEREXACT) {
       // position actuator
       range = ctrlrange;
     } else if (dyntype == mjDYN_INTEGRATOR) {

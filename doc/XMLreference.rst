@@ -4972,15 +4972,16 @@ This element does not have custom attributes. It only has common attributes, whi
 :el-prefix:`actuator/` |-| **position** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a position servo. The underlying :el:`general` attributes are set as follows:
+This element creates a position servo with an optional first-order filter. The underlying :el:`general` attributes are
+set as follows:
 
-========= ======= ========= =========
-Attribute Setting Attribute Setting
-========= ======= ========= =========
-dyntype   none    dynprm    1 0 0
-gaintype  fixed   gainprm   kp 0 0
-biastype  affine  biasprm   0 -kp -kv
-========= ======= ========= =========
+========= =================== ========= =============
+Attribute Setting             Attribute Setting
+========= =================== ========= =============
+dyntype   none or filterexact dynprm    timeconst 0 0
+gaintype  fixed               gainprm   kp 0 0
+biastype  affine              biasprm   0 -kp -kv
+========= =================== ========= =============
 
 
 This element has one custom attribute in addition to the common attributes:
@@ -5039,6 +5040,13 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kv`: :at-val:`real, "0"`
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-position-timeconst:
+
+:at:`timeconst`: :at-val:`real, "0"`
+   Time-constant of the first-order filter.  If larger than zero, the actuator uses the :at:`filterexact`
+   :ref:`dynamics type<actuator-general-dyntype>`, if zero (the default) no filter is used.
+
 
 .. _actuator-position-inheritrange:
 
@@ -8084,6 +8092,8 @@ tendon, slidersite, cranksite.
 .. _default-position-kp:
 
 .. _default-position-kv:
+
+.. _default-position-timeconst:
 
 :el-prefix:`default/` |-| **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

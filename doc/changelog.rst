@@ -11,13 +11,15 @@ General
 1. Added :ref:`mj_geomDistance` for computing the shortest signed distance between two geoms and optionally a segment
    connecting them. Relatedly, added the 3 sensors: :ref:`distance<sensor-distance>`, :ref:`normal<sensor-normal>`,
    :ref:`fromto<sensor-fromto>`. See the function and sensor documentation for details. Fixes :github:issue:`51`.
+2. Added :ref:`timeconst<actuator-position-timeconst>` attribute to the :ref:`position actuator<actuator-position>`.
+   When set to a positive value, the actuator is made stateful with :at:`filterexact` dynamics.
 
 Bug fixes
 ^^^^^^^^^
 
-2. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
+3. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
    often the case for URDF imports. Fixes :github:issue:`1069`, :github:issue:`1577`.
-3. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
+4. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
    them. Fixes :github:issue:`1539`.
 
 Version 3.1.5 (May 7, 2024)

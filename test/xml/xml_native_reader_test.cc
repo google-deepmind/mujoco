@@ -1407,6 +1407,98 @@ TEST_F(ActuatorTest, ReadsByte) {
 
 using ActuatorParseTest = MujocoTest;
 
+TEST_F(ActuatorParseTest, PositionTimeconst) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" timeconst="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  ASSERT_NEAR(model->actuator_dynprm[0], 2.0, 1e-6);
+  EXPECT_THAT(model->actuator_dyntype[0], Eq(mjDYN_FILTEREXACT));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, PositionTimeconstInheritrange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" range="-1 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" inheritrange="1" timeconst="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, PositionTimeconstDefault) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <position timeconst="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  ASSERT_NEAR(model->actuator_dynprm[0], 1.0, 1e-6);
+  EXPECT_THAT(model->actuator_dyntype[0], Eq(mjDYN_FILTEREXACT));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, PositionTimeconstDefaultOverride) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <position timeconst="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" timeconst="0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_FALSE(model->actuator_dynprm[0]);
+  EXPECT_THAT(model->actuator_dyntype[0], Eq(mjDYN_NONE));
+  mj_deleteModel(model);
+}
+
 TEST_F(ActuatorParseTest, ReadsDamper) {
   static constexpr char xml[] = R"(
   <mujoco>
