@@ -75,7 +75,7 @@ an ``mjx.Data``:
    model = mujoco.MjModel.from_xml_string("...")
    data = mujoco.MjData(model)
    mjx_model = mjx.put_model(model)
-   mjx_data = mjx.put_data(data)
+   mjx_data = mjx.put_data(model, data)
 
 These MJX variants mirror their MuJoCo counterparts but have a few key differences:
 
