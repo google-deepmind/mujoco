@@ -34,6 +34,8 @@ Humanoids
 
    * - Model
      - Preview
+   * - `Unitree G1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_g1>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/unitree_g1/g1.png
    * - `Unitree H1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_h1>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/unitree_h1/h1.png
    * - `Robotis OP3 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/robotis_op3>`_
