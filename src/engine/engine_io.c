@@ -27,13 +27,11 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_vfs.h"
 #include "thread/thread_pool.h"
 
 #ifdef ADDRESS_SANITIZER
@@ -714,36 +712,17 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 }
 
 
-
-// load model from binary MJB resource
-mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
+// load binary MJB model
+mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
   int header[NHEADER] = {0};
   int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
   int ints[256];
   size_t sizes[8];
   int ptrbuf = 0;
   mjModel *m = 0;
-  mjResource* r = NULL;
-
-  // first try vfs, otherwise try a provider or OS filesystem
-  if (!(r = mju_openVfsResource(filename, vfs))) {
-    char error[1024];
-    if (!(r = mju_openResource(filename, error, 1024))) {
-       mju_warning("%s", error);
-      return NULL;
-    }
-  }
-
-  const void* buffer = NULL;
-  int buffer_sz = mju_readResource(r, &buffer);
-  if (buffer_sz <= 0) {
-    mju_closeResource(r);
-    return NULL;
-  }
 
   if (buffer_sz < NHEADER*sizeof(int)) {
     mju_warning("Model file has an incomplete header");
-    mju_closeResource(r);
     return NULL;
   }
 
@@ -755,27 +734,22 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
       switch (i) {
       case 0:
         mju_warning("Model missing header ID");
-        mju_closeResource(r);
         return NULL;
 
       case 1:
         mju_warning("Model and executable have different floating point precision");
-        mju_closeResource(r);
         return NULL;
 
       case 2:
         mju_warning("Model and executable have different number of ints in mjModel");
-        mju_closeResource(r);
         return NULL;
 
       case 3:
         mju_warning("Model and executable have different number of size_t members in mjModel");
-        mju_closeResource(r);
         return NULL;
 
       default:
         mju_warning("Model and executable have different number of pointers in mjModel");
-        mju_closeResource(r);
         return NULL;
       }
     }
@@ -783,7 +757,6 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
   // read mjModel structure: info only
   if (ptrbuf + sizeof(int)*getnint() + sizeof(size_t)*getnsize() > buffer_sz) {
-    mju_closeResource(r);
     mju_warning("Truncated model file - ran out of data while reading sizes");
     return NULL;
   }
@@ -802,7 +775,6 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
                    ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
                    ints[63]);
   if (!m || m->nbuffer != sizes[getnsize()-1]) {
-    mju_closeResource(r);
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
     return NULL;
@@ -820,7 +792,6 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
   // read options and buffer
   if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) > buffer_sz) {
-    mju_closeResource(r);
     mju_warning("Truncated model file - ran out of data while reading structs");
     return NULL;
   }
@@ -831,7 +802,6 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
     MJMODEL_POINTERS_PREAMBLE(m)
     #define X(type, name, nr, nc)                                           \
       if (ptrbuf + sizeof(type) * (m->nr) * (nc) > buffer_sz) {             \
-        mju_closeResource(r);                                               \
         mju_warning(                                                        \
             "Truncated model file - ran out of data while reading " #name); \
         mj_deleteModel(m);                                                  \
@@ -845,7 +815,6 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
   // make sure buffer is the correct size
   if (ptrbuf != buffer_sz) {
-    mju_closeResource(r);
     mju_warning("Model file is too large");
     mj_deleteModel(m);
     return NULL;
@@ -853,16 +822,13 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
   const char* validationError = mj_validateReferences(m);
   if (validationError) {
-    mju_closeResource(r);
     mju_warning("%s", validationError);
     mj_deleteModel(m);
     return NULL;
   }
 
-  mju_closeResource(r);
   return m;
 }
-
 
 
 // de-allocate mjModel

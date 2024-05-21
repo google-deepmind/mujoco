@@ -26,6 +26,9 @@
 #include <type_traits>
 
 #include <mujoco/mjmodel.h>
+#include "engine/engine_io.h"
+#include "engine/engine_resource.h"
+#include "engine/engine_vfs.h"
 #include "user/user_api.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
@@ -178,3 +181,31 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
   // return string length
   return str.str().size();
 }
+
+
+
+// load model from binary MJB resource
+mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
+  mjResource* resource = nullptr;
+
+  // first try vfs, otherwise try a provider or OS filesystem
+  if (!(resource = mju_openVfsResource(filename, vfs))) {
+    char error[1024];
+    if (!(resource = mju_openResource(filename, error, 1024))) {
+       mju_warning("%s", error);
+      return nullptr;
+    }
+  }
+
+  const void* buffer = NULL;
+  int buffer_sz = mju_readResource(resource, &buffer);
+  if (buffer_sz < 1) {
+    mju_closeResource(resource);
+    return nullptr;
+  }
+
+  mjModel* m = mj_loadModelBuffer(buffer, buffer_sz);
+  mju_closeResource(resource);
+  return m;
+}
+

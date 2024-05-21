@@ -71,9 +71,8 @@ MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 // save model to binary file
 MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
 
-// load model from binary MJB file
-//  if vfs is not NULL, look up file in vfs before reading from disk
-MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
+// load binary MJB
+mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 
 // de-allocate model
 MJAPI void mj_deleteModel(mjModel* m);
