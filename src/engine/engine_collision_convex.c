@@ -269,6 +269,16 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
 
 
+// initialize CCD structure
+static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
+  CCD_INIT(ccd);
+  ccd->mpr_tolerance = m->opt.mpr_tolerance;
+  ccd->epa_tolerance = m->opt.mpr_tolerance;  // use MPR tolerance for EPA
+  ccd->max_iterations = m->opt.mpr_iterations;
+}
+
+
+
 // find single convex-convex collision, using libccd
 static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
                             const mjModel* m, const mjData* d,
@@ -345,16 +355,12 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   mjtCCD obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}};
 
   // init ccd structure
-  CCD_INIT(&ccd);
+  mjc_initCCD(&ccd, m);
   ccd.first_dir = ccdFirstDirDefault;
   ccd.center1 = mjccd_center;
   ccd.center2 = mjccd_center;
   ccd.support1 = mjccd_support;
   ccd.support2 = mjccd_support;
-
-  // set ccd parameters
-  ccd.max_iterations = m->opt.mpr_iterations;
-  ccd.mpr_tolerance = m->opt.mpr_tolerance;
 
   // find initial contact
   int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, margin);
@@ -750,16 +756,12 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   //------------------------------------- collision testing
 
   // init ccd structure
-  CCD_INIT(&ccd);
+  mjc_initCCD(&ccd, m);
   ccd.first_dir = prism_firstdir;
   ccd.center1 = prism_center;
   ccd.center2 = mjccd_center;
   ccd.support1 = prism_support;
   ccd.support2 = mjccd_support;
-
-  // set ccd parameters
-  ccd.max_iterations = m->opt.mpr_iterations;
-  ccd.mpr_tolerance = m->opt.mpr_tolerance;
 
   // geom margin needed for actual collision test
   obj.margin = margin;
@@ -1096,16 +1098,12 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
   mjtCCD obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}};
 
   // init ccd structure
-  CCD_INIT(&ccd);
+  mjc_initCCD(&ccd, m);
   ccd.first_dir = ccdFirstDirDefault;
   ccd.center1 = mjccd_center;
   ccd.center2 = mjccd_center;
   ccd.support1 = mjccd_support;
   ccd.support2 = mjccd_support;
-
-  // set ccd parameters
-  ccd.max_iterations = m->opt.mpr_iterations;
-  ccd.mpr_tolerance = m->opt.mpr_tolerance;
 
   // find contacts
   int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, margin);
