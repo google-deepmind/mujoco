@@ -100,7 +100,7 @@ Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An
 .. code-block:: python
 
    model = mujoco.MjModel.from_xml_string("...")
-   mjx_model = mjx.device_put(model)
+   mjx_model = mjx.put_model(model)
    mjx_data = mjx.make_data(model)
 
 Using ``mjx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
@@ -151,7 +151,7 @@ Minimal example
    """
 
    model = mujoco.MjModel.from_xml_string(XML)
-   mjx_model = mjx.device_put(model)
+   mjx_model = mjx.put_model(model)
 
    @jax.vmap
    def batched_step(vel):
