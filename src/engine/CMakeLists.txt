@@ -76,8 +76,6 @@ set(MUJOCO_ENGINE_SRCS
     engine_util_sparse_avx.h
     engine_util_spatial.c
     engine_util_spatial.h
-    engine_vfs.c
-    engine_vfs.h
     engine_vis_init.c
     engine_vis_init.h
     engine_vis_interact.c

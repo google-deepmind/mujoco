@@ -45,11 +45,11 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
-#include "engine/engine_vfs.h"
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
+#include "user/user_vfs.h"
 
 namespace {
 namespace mju = ::mujoco::util;

@@ -96,9 +96,6 @@ target_link_libraries(engine_util_solve_test fixture gmock)
 mujoco_test(engine_util_spatial_test)
 target_link_libraries(engine_util_spatial_test fixture gmock)
 
-mujoco_test(engine_vfs_test)
-target_link_libraries(engine_vfs_test fixture gmock)
-
 mujoco_test(
   engine_vis_state_test
   PROPERTIES

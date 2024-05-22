@@ -11,9 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// IWYU pragma: private, include "third_party/mujoco/include/mujoco.h"
+// IWYU pragma: friend "third_party/mujoco/src/.*"
 
-#ifndef MUJOCO_SRC_ENGINE_ENGINE_VFS_H_
-#define MUJOCO_SRC_ENGINE_ENGINE_VFS_H_
+#ifndef MUJOCO_SRC_USER_USER_VFS_H_
+#define MUJOCO_SRC_USER_USER_VFS_H_
 
 #include <stddef.h>
 
@@ -53,4 +55,4 @@ MJAPI mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs);
 }
 #endif
 
-#endif  // MUJOCO_SRC_ENGINE_ENGINE_VFS_H_
+#endif  // MUJOCO_SRC_USER_USER_VFS_H_
