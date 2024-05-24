@@ -110,7 +110,7 @@ struct mjContact_ {                // result of collision detection functions
 
   // internal storage used by solver
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
-  mjtNum  H[36];                   // cone Hessian, set by mj_updateConstraint
+  mjtNum  H[36];                   // cone Hessian, set by mj_constraintUpdate
 
   // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
