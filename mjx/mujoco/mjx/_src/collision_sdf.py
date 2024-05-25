@@ -122,8 +122,16 @@ def cylinder_jvp(primals, tangents):
   return primal_out, tangent_out
 
 
-def _to_local(f: SDFFn, pos: jax.Array, mat: jax.Array)-> SDFFn:
-  return lambda p: f(mat.T @ (p - pos))
+def _from_to(
+    f: SDFFn,
+    from_pos: jax.Array,
+    from_mat: jax.Array,
+    to_pos: jax.Array,
+    to_mat: jax.Array,
+) -> SDFFn:
+  relmat = math.matmul_unroll(to_mat.T, from_mat)
+  relpos = to_mat.T @ (from_pos - to_pos)
+  return lambda p: f(relmat @ p + relpos)
 
 
 def _intersect(d1: SDFFn, d2: SDFFn) -> SDFFn:
@@ -175,13 +183,16 @@ def _optim(
 ) -> Collision:
   """Optimizes the clearance function."""
   d1 = functools.partial(d1, size=info1.size)
-  d1 = _to_local(d1, info1.pos, info1.mat)
+  # evaluate d1 in d2 frame
+  d1 = _from_to(d1, info2.pos, info2.mat, info1.pos, info1.mat)
   d2 = functools.partial(d2, size=info2.size)
-  d2 = _to_local(d2, info2.pos, info2.mat)
+  x0 = info2.mat.T @ (x0 - info2.pos)
   fn = _clearance(d1, d2)
   _, pos = _gradient_descent(fn, x0, 10)
   dist = d1(pos) + d2(pos)
   n = jax.grad(d1)(pos) - jax.grad(d2)(pos)
+  pos = info2.mat @ pos + info2.pos  # d2 to global frame
+  n = info2.mat @ n
   return dist, pos, math.make_frame(n)
 
 
@@ -240,4 +251,3 @@ def cylinder_cylinder(c1: GeomInfo, c2: GeomInfo) -> Collision:
   ])
   optim_ = functools.partial(_optim, _cylinder, _cylinder, c1, c2)
   return jax.vmap(optim_)(x0)
-
