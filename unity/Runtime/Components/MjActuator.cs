@@ -167,7 +167,7 @@ public class MjActuator : MjComponent {
     [AbsoluteValue]
     public float Kvp;
 
-      public void PositionToMjcf(XmlElement mjcf) {
+    public void PositionToMjcf(XmlElement mjcf) {
       mjcf.SetAttribute("kp", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kp)}"));
       mjcf.SetAttribute("kv", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kvp)}"));
     }
