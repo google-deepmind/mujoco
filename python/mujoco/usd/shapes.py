@@ -6,7 +6,6 @@ import open3d as o3d
 
 def create_hemisphere(
     radius: float,
-    resolution: int = 20,
     theta_steps: int = 50,
     phi_steps: int = 50
 ):
@@ -101,7 +100,8 @@ def mesh_config_generator(
 
 
 def mesh_generator(
-    mesh_config: dict
+    mesh_config: dict,
+    resolution: int = 100,
 ):
 
     assert "name" in mesh_config
@@ -128,12 +128,14 @@ def mesh_generator(
       elif "sphere" in shape:
         prim_mesh = o3d.geometry.TriangleMesh.create_sphere(
             radius=mesh_config[shape]["radius"],
+            resolution=resolution,
             create_uv_map=True
         )
       elif "cylinder" in shape:
         prim_mesh = o3d.geometry.TriangleMesh.create_cylinder(
             radius=mesh_config[shape]["radius"],
             height=mesh_config[shape]["height"],
+            resolution=resolution,
             create_uv_map=True,
         )
 

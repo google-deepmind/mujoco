@@ -296,7 +296,6 @@ class USDExporter:
         # load a new object into USD
         self._load_geom(geom)
 
-      # TODO: make all objects scale values equivalent to their size, set original object mehs to have unit dimensions
       if geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
         tendon_scale = geom.size
         tendon_scale[2] /= 2
