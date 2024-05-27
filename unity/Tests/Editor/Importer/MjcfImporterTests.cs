@@ -274,7 +274,7 @@ public class MjcfImporterTests {
   public void ReadingOptionFlags() {
     var mjcfString = @"<mujoco>
       <option>
-        <flag gravity='disable' contact='disable' sensornoise='enable'/>
+        <flag gravity='disable' contact='disable'/>
       </option>
       <worldbody/>
     </mujoco>";
@@ -283,7 +283,6 @@ public class MjcfImporterTests {
     var settings = _sceneRoot.GetComponentInChildren<MjGlobalSettings>();
     Assert.That(settings.GlobalOptions.Flag.Gravity, Is.EqualTo(EnableDisableFlag.disable));
     Assert.That(settings.GlobalOptions.Flag.Contact, Is.EqualTo(EnableDisableFlag.disable));
-    Assert.That(settings.GlobalOptions.Flag.SensorNoise, Is.EqualTo(EnableDisableFlag.enable));
   }
 
   [Test]

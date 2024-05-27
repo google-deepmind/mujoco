@@ -335,8 +335,8 @@ public class MjGlobalSettings : MonoBehaviour {
         } else if (instances.Length == 1) {
           _instance = instances[0];
         }
-      }
-      return _instance;
+     }
+     return _instance;
     }
   }
 

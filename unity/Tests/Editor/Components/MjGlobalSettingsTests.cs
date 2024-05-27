@@ -101,7 +101,6 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"override="));
     Assert.That(_doc.OuterXml, Does.Contain(@"energy="));
     Assert.That(_doc.OuterXml, Does.Contain(@"fwdinv="));
-    Assert.That(_doc.OuterXml, Does.Contain(@"sensornoise="));
   }
 }
 
