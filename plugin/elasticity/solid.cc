@@ -123,6 +123,9 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
       if (m->flex_vertbodyid[m->flex_vertadr[i]+j] == i0) {
         f0 = i;
         nv = m->flex_vertnum[f0];
+        if (m->flex_dim[i] != 3) {  // SHOULD NOT OCCUR
+          mju_error("mujoco.elasticity.solid requires a 3D mesh");
+        }
       }
     }
   }
