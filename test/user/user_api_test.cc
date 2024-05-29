@@ -650,7 +650,7 @@ TEST_F(MujocoTest, AttachFrame) {
   mj_deleteModel(m_expected);
 }
 
-TEST_F(MujocoTest, DetachBody) {
+void TestDetachBody(bool compile) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
   std::string field = "";
@@ -679,6 +679,9 @@ TEST_F(MujocoTest, DetachBody) {
   mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
   EXPECT_THAT(child, NotNull()) << er.data();
 
+  // compile model (for testing double compilation)
+  mjModel* m_child = compile ? mjs_compile(child, 0) : nullptr;
+
   // get subtree
   mjsBody* body = mjs_findBody(child, "body");
   EXPECT_THAT(body, NotNull());
@@ -701,6 +704,12 @@ TEST_F(MujocoTest, DetachBody) {
   mjs_deleteSpec(child);
   mj_deleteModel(m_detached);
   mj_deleteModel(m_expected);
+  if (m_child) mj_deleteModel(m_child);
+}
+
+TEST_F(MujocoTest, DetachBody) {
+  TestDetachBody(/*compile=*/false);
+  TestDetachBody(/*compile=*/true);
 }
 
 }  // namespace

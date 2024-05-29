@@ -132,6 +132,7 @@ mjCModel::mjCModel() {
 
 
 mjCModel::mjCModel(const mjCModel& other) {
+  CreateObjectLists();
   *this = other;
 }
 
@@ -206,8 +207,19 @@ static void resetlist(std::vector<T*>& list) {
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
-  MakeLists(bodies_[0]);
-  CreateObjectLists();
+  mjCBody *world = bodies_[0];
+  if (compiled) {
+    resetlist(bodies_);
+    resetlist(joints_);
+    resetlist(geoms_);
+    resetlist(sites_);
+    resetlist(cameras_);
+    resetlist(lights_);
+    resetlist(frames_);
+    world->id = 0;
+    bodies_.push_back(world);
+  }
+  MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
 
   // copy all elements not in the tree
@@ -264,9 +276,8 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     lights_[i]->def= defaults_[def_map[other.lights_[i]->def]];
   }
 
-  // restore to the same state as other
+  // restore to the original state
   if (!compiled) {
-    mjCBody *world = bodies_[0];
     resetlist(bodies_);
     resetlist(joints_);
     resetlist(geoms_);
@@ -317,16 +328,30 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 
 mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   mjCModel oldmodel(*this);
-  oldmodel.MakeLists(oldmodel.bodies_[0]);
-  oldmodel.CreateObjectLists();
-  oldmodel.ProcessLists(/*checkrepeat=*/false);
+
+  // create global lists in the old model if not compiled
+  if (!oldmodel.IsCompiled()) {
+    oldmodel.MakeLists(oldmodel.bodies_[0]);
+    oldmodel.ProcessLists(/*checkrepeat=*/false);
+  }
 
   // remove body from tree
-  *bodies_[0] -= subtree;
+  mjCBody* world = bodies_[0];
+  *world -= subtree;
 
   // create global lists
-  MakeLists(bodies_[0]);
-  CreateObjectLists();
+  if (compiled) {
+    resetlist(bodies_);
+    resetlist(joints_);
+    resetlist(geoms_);
+    resetlist(sites_);
+    resetlist(cameras_);
+    resetlist(lights_);
+    resetlist(frames_);
+    world->id = 0;
+    bodies_.push_back(world);
+  }
+  MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
 
   // check if we have to remove anything else
@@ -337,9 +362,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
 
-  // restore to the same state as before call
+  // restore to the original state
   if (!compiled) {
-    mjCBody* world = bodies_[0];
     resetlist(bodies_);
     resetlist(joints_);
     resetlist(geoms_);
@@ -527,6 +551,7 @@ void mjCModel::Clear() {
   sites_.clear();
   cameras_.clear();
   lights_.clear();
+  frames_.clear();
 
   // internal variables
   hasImplicitPluginElem = false;
