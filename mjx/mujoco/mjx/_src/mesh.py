@@ -16,14 +16,18 @@
 
 import collections
 import itertools
-from typing import Tuple
+from typing import Tuple, Union
 import warnings
 
 import jax
 from jax import numpy as jp
+import mujoco
+from mujoco.mjx._src import math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.collision_types import ConvexInfo
 from mujoco.mjx._src.collision_types import GeomInfo
+from mujoco.mjx._src.collision_types import HFieldInfo
+from mujoco.mjx._src.types import ConvexMesh
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
 import numpy as np
@@ -141,7 +145,9 @@ def _convex_hull_2d(points: np.ndarray, normal: np.ndarray) -> np.ndarray:
   return hull_point_idx
 
 
-def _merge_coplanar(m: Model, tm: trimesh.Trimesh, meshid: int) -> np.ndarray:
+def _merge_coplanar(
+    m: Union[mujoco.MjModel, Model], tm: trimesh.Trimesh, meshid: int
+) -> np.ndarray:
   """Merges coplanar facets."""
   if not tm.facets:
     return tm.faces.copy()  # no facets
@@ -221,6 +227,7 @@ def box(info: GeomInfo) -> ConvexInfo:
   c = ConvexInfo(
       info.pos,
       info.mat,
+      info.size,
       vert,
       face,
       face_normal,
@@ -236,22 +243,21 @@ def box(info: GeomInfo) -> ConvexInfo:
   return c
 
 
-def convex(m: Model, mesh_id: int, info: GeomInfo) -> ConvexInfo:
+def convex(m: Union[mujoco.MjModel, Model], data_id: int) -> ConvexMesh:
   """Processes a mesh for use in convex collision algorithms.
 
   Args:
     m: an MJX model
-    mesh_id: the mesh id to process
-    info: pos, mat, size of this geom
+    data_id: the mesh id to process
 
   Returns:
-    a convex mesh info
+    a convex mesh
   """
-  vert_beg = m.mesh_vertadr[mesh_id]
-  vert_end = m.mesh_vertadr[mesh_id + 1] if mesh_id < m.nmesh - 1 else None
+  vert_beg = m.mesh_vertadr[data_id]
+  vert_end = m.mesh_vertadr[data_id + 1] if data_id < m.nmesh - 1 else None
   vert = m.mesh_vert[vert_beg:vert_end]
 
-  graphadr = m.mesh_graphadr[mesh_id]
+  graphadr = m.mesh_graphadr[data_id]
   graph = m.mesh_graph[graphadr:]
   graph_idx = 0
 
@@ -273,21 +279,98 @@ def convex(m: Model, mesh_id: int, info: GeomInfo) -> ConvexInfo:
 
   tm_convex = trimesh.Trimesh(vertices=vert, faces=face)
   vert = np.array(tm_convex.vertices)
-  face = _merge_coplanar(m, tm_convex, mesh_id)
+  face = _merge_coplanar(m, tm_convex, data_id)
   face_normal = _get_face_norm(vert, face)
   edge, edge_face_normal = _get_edge_normals(face, face_normal)
-  edge_dir = _get_unique_edge_dir(vert, face)
   face = vert[face]  # materialize full nface x nvert matrix
 
-  c = ConvexInfo(
-      info.pos,
-      info.mat,
+  c = ConvexMesh(
       vert,
       face,
       face_normal,
       edge,
       edge_face_normal,
-      edge_dir,
   )
 
   return jax.tree_util.tree_map(jp.array, c)
+
+
+def hfield_prism(vert: jax.Array) -> ConvexInfo:
+  """Builds a hfield prism."""
+  # The first 3 vertices define the bottom triangle, and the next 3 vertices
+  # define the top triangle. The remaining triangles define the side of the
+  # prism.
+  face = np.array([
+      [0, 1, 2, 0],  # bottom
+      [3, 4, 5, 3],  # top
+      [0, 3, 5, 1],
+      [0, 2, 4, 3],
+      [2, 1, 5, 4],
+  ])
+  edges = np.array([
+      # bottom
+      [0, 1],
+      [1, 2],
+      [0, 2],
+      # top
+      [3, 4],
+      [3, 5],
+      [4, 5],
+      # sides
+      [0, 3],
+      [1, 5],
+      [2, 4],
+  ])
+  edge_face_norm = np.array([
+      # bottom
+      [0, 2],
+      [0, 4],
+      [0, 3],
+      # top
+      [1, 3],
+      [1, 2],
+      [1, 4],
+      # sides
+      [2, 3],
+      [2, 4],
+      [3, 4],
+  ])
+
+  def get_face_norm(face):
+    # use ccw winding order convention, and avoid using the last vertex
+    edge0 = face[2, :] - face[1, :]
+    edge1 = face[0, :] - face[1, :]
+    return math.normalize(jp.cross(edge0, edge1))
+
+  centroid = jp.mean(vert, axis=0)
+  vert = vert - centroid
+  face = vert[face]
+  face_norm = jax.vmap(get_face_norm)(face)
+
+  c = ConvexInfo(
+      centroid,
+      jp.eye(3, dtype=float),
+      jp.ones(3),
+      vert,
+      face,
+      face_norm,
+      edges,
+      face_norm[edge_face_norm],
+      None,
+  )
+
+  return jax.tree_util.tree_map(jp.array, c)
+
+
+def hfield(m: Union[mujoco.MjModel, Model], data_id: int) -> HFieldInfo:
+  adr = m.hfield_adr[data_id]
+  nrow, ncol = m.hfield_nrow[data_id], m.hfield_ncol[data_id]
+  h = HFieldInfo(
+      jp.zeros(3, dtype=float),
+      jp.eye(3, dtype=float),
+      m.hfield_size[data_id],
+      nrow,
+      ncol,
+      m.hfield_data[adr : adr + nrow * ncol].reshape((ncol, nrow), order='F'),
+  )
+  return h

@@ -15,7 +15,7 @@
 """Base types used in MJX."""
 
 import enum
-
+from typing import Tuple
 import jax
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
@@ -110,6 +110,24 @@ class GeomType(enum.IntEnum):
   BOX = mujoco.mjtGeom.mjGEOM_BOX
   MESH = mujoco.mjtGeom.mjGEOM_MESH
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
+
+
+class ConvexMesh(PyTreeNode):
+  """Geom properties for convex meshes.
+
+  Attributes:
+    vert: vertices of the convex mesh
+    face: faces of the convex mesh
+    face_normal: normal vectors for the faces
+    edge: edge indexes for all edges in the convex mesh
+    edge_face_normal: indexes for face normals adjacent to edges in `edge`
+  """
+
+  vert: jax.Array
+  face: jax.Array
+  face_normal: jax.Array
+  edge: jax.Array
+  edge_face_normal: jax.Array
 
 
 class ConeType(enum.IntEnum):
@@ -322,6 +340,7 @@ class Model(PyTreeNode):
     nmesh: number of meshes
     nmeshvert: number of vertices in all meshes
     nmeshface: number of triangular faces in all meshes
+    nhfield: number of heightfields
     nmat: number of materials
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
@@ -396,6 +415,7 @@ class Model(PyTreeNode):
     geom_solimp: constraint solver impedance: contact         (ngeom, mjNIMP)
     geom_size: geom-specific size parameters                  (ngeom, 3)
     geom_rbound: radius of bounding sphere                    (ngeom,)
+    geom_rbound_hfield: static rbound for hfield grid bounds  (ngeom,)
     geom_pos: local position offset rel. to body              (ngeom, 3)
     geom_quat: local orientation offset rel. to body          (ngeom, 4)
     geom_friction: friction for (slide, spin, roll)           (ngeom, 3)
@@ -419,6 +439,12 @@ class Model(PyTreeNode):
     mesh_vert: vertex positions for all meshes                (nmeshvert, 3)
     mesh_face: vertex face data                               (nmeshface, 3)
     mesh_graph: convex graph data                             (nmeshgraph,)
+    mesh_convex: pre-compiled convex mesh info for MJX        (nmesh,)
+    hfield_size: (x, y, z_top, z_bottom)                      (nhfield,)
+    hfield_nrow: number of rows in grid                       (nhfield,)
+    hfield_ncol: number of columns in grid                    (nhfield,)
+    hfield_adr: address in hfield_data                        (nhfield,)
+    hfield_data: elevation data                               (nhfielddata,)
     mat_rgba: rgba                                            (nmat, 4)
     pair_dim: contact dimensionality                          (npair,)
     pair_geom1: id of geom1                                   (npair,)
@@ -488,6 +514,7 @@ class Model(PyTreeNode):
   nmesh: int
   nmeshvert: int
   nmeshface: int
+  nhfield: int
   nmat: int
   npair: int
   nexclude: int
@@ -561,6 +588,7 @@ class Model(PyTreeNode):
   geom_solimp: jax.Array
   geom_size: jax.Array
   geom_rbound: jax.Array
+  geom_rbound_hfield: np.ndarray
   geom_pos: jax.Array
   geom_quat: jax.Array
   geom_friction: jax.Array
@@ -584,6 +612,12 @@ class Model(PyTreeNode):
   mesh_vert: np.ndarray
   mesh_face: np.ndarray
   mesh_graph: np.ndarray
+  mesh_convex: Tuple[ConvexMesh, ...]
+  hfield_size: np.ndarray
+  hfield_nrow: np.ndarray
+  hfield_ncol: np.ndarray
+  hfield_adr: np.ndarray
+  hfield_data: jax.Array
   mat_rgba: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
@@ -632,6 +666,7 @@ class Model(PyTreeNode):
   name_siteadr: np.ndarray
   name_camadr: np.ndarray
   name_meshadr: np.ndarray
+  name_hfieldadr: np.ndarray
   name_pairadr: np.ndarray
   name_eqadr: np.ndarray
   name_actuatoradr: np.ndarray

@@ -721,6 +721,95 @@ class ConvexTest(absltest.TestCase):
     self.assertTrue((c.dist > 0).all())
 
 
+class HFieldTest(absltest.TestCase):
+  _HFIELD = """
+    <mujoco>
+      <asset>
+        <hfield name="J" size="0.9 1.1 .2 .1" nrow="8" ncol="10" elevation="
+                0 0 0 0 0 0 1 1 0 0
+                0 0 0 0 0 0 1 1 0 0
+                0 0 0 0 1 1 1 1 0 0
+                0 0 1 1 0 0 1 1 0 0
+                0 0 1 1 1 1 1 1 0 0
+                0 0 1 1 1 1 1 0 0 0
+                0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0"/>
+      </asset>
+      <worldbody>
+        <light pos="0 0 0.32"/>
+        <geom type="hfield" hfield="J"/>
+        <body pos="0 0 1">
+          <freejoint/>
+          <geom size="0.1" contype="0"/>
+        </body>
+        <body pos="0 0 0.2">
+          <freejoint/>
+          <geom type="capsule" size="0.01 0.1" contype="0"/>
+        </body>
+        <body pos="0 0 0.55">
+          <freejoint/>
+          <geom type="box" size="0.05 0.05 0.025" contype="0"/>
+        </body>
+      </worldbody>
+      <keyframe>
+        <key name="qpos1" qpos='-0.0127496 0.156995 0.118336 0.336325 -0.810241 0.442853 -0.185139 -0.19614 -0.000912274 0.112334 -0.455846 0.852431 -0.0871208 0.24078 0.124334 0.23346 0.100627 0.293376 -0.27087 0.855587 0.32944'/>
+        <key name="qpos2" qpos='0.0815885 -3.18397 -9.4802 0.57036 0.695092 -0.403995 -0.168298 -0.0156545 0.157173 -0.00734406 0.606091 -0.185052 0.759332 -0.147728 0.100088 -0.234066 0.224884 0.999906 0.000384 -9.62645e-05 -0.013677'/>
+      </keyframe>
+    </mujoco>
+  """
+
+  def test_sphere_hfield(self):
+    m = mujoco.MjModel.from_xml_string(self._HFIELD)
+    mx = mjx.put_model(m)
+
+    d = mujoco.MjData(m)
+    d.qpos[:] = m.keyframe('qpos1').qpos
+    dx = mjx.put_data(m, d)
+
+    collision_jit_fn = jax.jit(mjx.collision)
+    kinematics_jit_fn = jax.jit(mjx.kinematics)
+    dx = kinematics_jit_fn(mx, dx)
+    dx = collision_jit_fn(mx, dx)
+
+    # check that all geoms are colliding with the hfield
+    for geom_id in [1, 2, 3]:
+      mask = (dx.contact.geom == np.array([0, geom_id])).all(axis=1)
+      c = jax.tree_util.tree_map(lambda x, m=mask: x[m], dx.contact)
+      self.assertTrue((c.dist < 0).any())
+      self.assertTrue((c.dist > -1e-3).any())
+      # all contact normals are roughly pointing in the right direction
+      self.assertTrue((c.frame[:, 0].dot(np.array([0, 0, 1])) > 0.7).all())
+
+  def test_hfield_outside(self):
+    """Tests that objects outside of the hfield do not collide."""
+    positions = ['2.0 0', '-2.0 0', '0 -2.0', '0 2.0']
+    for p in positions:
+      xml = self._HFIELD.replace('<body pos="0 0', f'<body pos="{p}')
+      _, dx = _collide(xml)
+      self.assertTrue((dx.contact.dist >= 0).all())
+
+  def test_hfield_deep(self):
+    """Tests that objects with deep penetration do not get stuck."""
+    m = mujoco.MjModel.from_xml_string(self._HFIELD)
+    mx = mjx.put_model(m)
+
+    d = mujoco.MjData(m)
+    d.qpos[:] = m.keyframe('qpos2').qpos
+    dx = mjx.put_data(m, d)
+
+    collision_jit_fn = jax.jit(mjx.collision)
+    kinematics_jit_fn = jax.jit(mjx.kinematics)
+    dx = kinematics_jit_fn(mx, dx)
+    dx = collision_jit_fn(mx, dx)
+
+    # check that all geoms are colliding with the hfield
+    for geom_id in [1, 2, 3]:
+      mask = (dx.contact.geom == np.array([0, geom_id])).all(axis=1)
+      c = jax.tree_util.tree_map(lambda x, m=mask: x[m], dx.contact)
+      # all contact normals are in the top half-face of the hfield
+      self.assertTrue((c.frame[:, 0].dot(np.array([0, 0, 1])) > 0.7).all())
+
+
 class BodyPairFilterTest(absltest.TestCase):
   """Tests that certain body pairs get filtered."""
 

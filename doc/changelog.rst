@@ -14,12 +14,21 @@ General
 2. Added :ref:`timeconst<actuator-position-timeconst>` attribute to the :ref:`position actuator<actuator-position>`.
    When set to a positive value, the actuator is made stateful with :at:`filterexact` dynamics.
 
+MJX
+^^^
+
+3. Add height-field collision support. Fixes :github:issue:`1491`.
+4. Add a pre-compiled field ``mesh_convex`` to ``mjx.Model`` so that mesh properties can be vmapped over.
+   Fixes :github:issue:`1655`.
+5. Fix a bug in convex mesh collisions, where erroneous edge contacts were being created even though face
+   separating axes were found. Fixes :github:issue:`1695`.
+
 Bug fixes
 ^^^^^^^^^
 
-3. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
+6. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
    often the case for URDF imports. Fixes :github:issue:`1069`, :github:issue:`1577`.
-4. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
+7. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
    them. Fixes :github:issue:`1539`.
 
 Version 3.1.5 (May 7, 2024)

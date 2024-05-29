@@ -22,6 +22,7 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import constraint
+from mujoco.mjx._src import mesh
 from mujoco.mjx._src import support
 from mujoco.mjx._src import types
 import numpy as np
@@ -68,14 +69,16 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if m.ntendon:
     raise NotImplementedError('tendons are not supported')
 
+  mesh_geomid = set()
   for g1, g2, ip in collision_driver.geom_pairs(m):
     t1, t2 = m.geom_type[[g1, g2]]
     # check collision function exists for type pair
     if not collision_driver.has_collision_fn(t1, t2):
       t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
       raise NotImplementedError(f'({t1}, {t2}) collisions not implemented.')
-    # margin/gap not supported for geoms
-    if mujoco.mjtGeom.mjGEOM_MESH in (t1, t2):
+    # margin/gap not supported for meshes and height fields
+    no_margin = {mujoco.mjtGeom.mjGEOM_MESH, mujoco.mjtGeom.mjGEOM_HFIELD}
+    if no_margin.intersection({t1, t2}):
       if ip != -1:
         margin = m.pair_margin[ip]
       else:
@@ -83,6 +86,9 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
       if margin.any():
         t1, t2 = mujoco.mjtGeom(t1), mujoco.mjtGeom(t2)
         raise NotImplementedError(f'({t1}, {t2}) margin/gap not implemented.')
+    for t, g in [(t1, g1), (t2, g2)]:
+      if t == mujoco.mjtGeom.mjGEOM_MESH:
+        mesh_geomid.add(g)
 
   for enum_field, enum_type, mj_type in (
       (m.actuator_biastype, types.BiasType, mujoco.mjtBias),
@@ -100,12 +106,24 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   if not np.allclose(m.dof_frictionloss, 0):
     raise NotImplementedError('dof_frictionloss is not implemented.')
 
-  fields = {f.name: getattr(m, f.name) for f in types.Model.fields()}
+  mjx_only = {'mesh_convex', 'geom_rbound_hfield'}
+  mj_field_names = {f.name for f in types.Model.fields()} - mjx_only
+  fields = {f: getattr(m, f) for f in mj_field_names}
+  fields['geom_rbound_hfield'] = fields['geom_rbound']
   fields['geom_rgba'] = fields['geom_rgba'].reshape((-1, 4))
   fields['mat_rgba'] = fields['mat_rgba'].reshape((-1, 4))
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _make_option(m.opt)
   fields['stat'] = _make_statistic(m.stat)
+
+  # Pre-compile meshes for MJX collisions.
+  fields['mesh_convex'] = [None] * m.nmesh
+  for i in mesh_geomid:
+    dataid = m.geom_dataid[i]
+    if fields['mesh_convex'][dataid] is None:
+      fields['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
+  fields['mesh_convex'] = tuple(fields['mesh_convex'])
+
   model = types.Model(**{k: copy.copy(v) for k, v in fields.items()})
 
   return jax.device_put(model, device=device)

@@ -45,8 +45,12 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
+from mujoco.mjx._src.collision_convex import box_box
 from mujoco.mjx._src.collision_convex import capsule_convex
 from mujoco.mjx._src.collision_convex import convex_convex
+from mujoco.mjx._src.collision_convex import hfield_capsule
+from mujoco.mjx._src.collision_convex import hfield_convex
+from mujoco.mjx._src.collision_convex import hfield_sphere
 from mujoco.mjx._src.collision_convex import plane_convex
 from mujoco.mjx._src.collision_convex import sphere_convex
 from mujoco.mjx._src.collision_primitive import capsule_capsule
@@ -78,6 +82,10 @@ _COLLISION_FUNC = {
     (GeomType.PLANE, GeomType.ELLIPSOID): plane_ellipsoid,
     (GeomType.PLANE, GeomType.CYLINDER): plane_cylinder,
     (GeomType.PLANE, GeomType.MESH): plane_convex,
+    (GeomType.HFIELD, GeomType.SPHERE): hfield_sphere,
+    (GeomType.HFIELD, GeomType.CAPSULE): hfield_capsule,
+    (GeomType.HFIELD, GeomType.BOX): hfield_convex,
+    (GeomType.HFIELD, GeomType.MESH): hfield_convex,
     (GeomType.SPHERE, GeomType.SPHERE): sphere_sphere,
     (GeomType.SPHERE, GeomType.CAPSULE): sphere_capsule,
     (GeomType.SPHERE, GeomType.BOX): sphere_convex,
@@ -90,7 +98,7 @@ _COLLISION_FUNC = {
     (GeomType.ELLIPSOID, GeomType.ELLIPSOID): ellipsoid_ellipsoid,
     (GeomType.ELLIPSOID, GeomType.CYLINDER): ellipsoid_cylinder,
     (GeomType.CYLINDER, GeomType.CYLINDER): cylinder_cylinder,
-    (GeomType.BOX, GeomType.BOX): convex_convex,
+    (GeomType.BOX, GeomType.BOX): box_box,
     (GeomType.BOX, GeomType.MESH): convex_convex,
     (GeomType.MESH, GeomType.MESH): convex_convex,
 }
@@ -210,6 +218,21 @@ def _geom_groups(
       condim = max(m.geom_condim[g1], m.geom_condim[g2])
 
     key = FunctionKey(types, data_ids, condim)
+
+    if types[0] == mujoco.mjtGeom.mjGEOM_HFIELD:
+      # add static grid bounds to the grouping key for hfield collisions
+      geom_rbound_hfield = (
+          m.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound
+      )
+      nrow, ncol = m.hfield_nrow[data_ids[0]], m.hfield_ncol[data_ids[0]]
+      xsize, ysize = m.hfield_size[data_ids[0]][:2]
+      xtick, ytick = (2 * xsize) / (ncol - 1), (2 * ysize) / (nrow - 1)
+      xbound = int(np.ceil(2 * geom_rbound_hfield[g2] / xtick)) + 1
+      xbound = min(xbound, ncol)
+      ybound = int(np.ceil(2 * geom_rbound_hfield[g2] / ytick)) + 1
+      ybound = min(ybound, nrow)
+      key = FunctionKey(types, data_ids, condim, (xbound, ybound))
+
     groups.setdefault(key, []).append((g1, g2, ip))
 
   return groups
