@@ -150,10 +150,10 @@ continuous time, and then integrate over a time period specified by ``mjModel.op
 the acceleration ``mjData.qacc`` at time ``mjData.time``, given the :ref:`state and control <siStateControl>` at time
 ``mjData.time``. The numerical integrator then advances the state and time to ``mjData.time + mjModel.opt.timestep``.
 Now, the control is required to be a function of the state at time ``mjData.time``. However a general feedback
-controller can be a very complex function, depending on various features of the state - in particular all the features
+controller can be a very complex function, depending on various features of the state -- in particular all the features
 computed by MuJoCo as intermediate results of the simulation. These may include contacts, Jacobians, passive forces.
-None of these quantities are available before ``mj_step`` is called (or rather, they are available but outdated by one
-time step). In contrast, when ``mj_step`` calls our control callback, it does so as late in the computation as possible
+None of these quantities are available before ``mj_step`` is called (or rather, they are available but *outdated by one
+time step*). In contrast, when ``mj_step`` calls our control callback, it does so as late in the computation as possible
 - namely after all the intermediate results dependent on the state but not on the control have been computed.
 
 The same effect can be achieved without using a control callback. This is done by breaking ``mj_step`` in two parts:
@@ -253,7 +253,7 @@ notion of state of a dynamical system. Dynamical systems are usually described i
 where ``t`` is the time, ``x`` is the state vector, ``u`` is the control vector, and ``f`` is the function that
 computes the time-derivative of the state. This is a continuous-time formulation, and indeed the physics model
 simulated by MuJoCo is defined in continuous time. Even though the numerical integrator operates in discrete time, the
-main part of the computation - namely the function :ref:`mj_forward` - corresponds to the
+main part of the computation---namely the function :ref:`mj_forward`---corresponds to the
 continuous-time dynamics function ``f(t,x,u)`` above. Here we explain this correspondence.
 
 The state vector in MuJoCo is:
@@ -426,7 +426,7 @@ the first and second sections (position and velocity dependent) have already bee
 When can we use the above machinery and skip some of the computations? In a regular simulation this is not possible.
 However, MuJoCo is designed not only for simulation but also for more advanced applications such as model-based
 optimization, machine learning etc. In such settings one often needs to sample the dynamics at a cloud of nearby
-states, or approximate derivatives via finite differences - which is another form of sampling. If the samples are
+states, or approximate derivatives via finite differences -- which is another form of sampling. If the samples are
 arranged on a grid, where only the position or only the velocity or only the control is different from the center
 point, then the above mechanism can improve performance by about a factor of 2.
 
@@ -591,7 +591,7 @@ The only way to guarantee that all changes are saved is to save the model as a b
 changes need to be made programmatically, as in system identification for example, and this can only be done with the
 compiled model. So in summary, we have reasonable but not perfect mechanisms for saving model changes. The reason for
 this lack of perfection is that we are working with a compiled model, so this is like changing a binary executable and
-asking a "decompiler" to make corresponding changes to the C code - it is just not possible in general.
+asking a "decompiler" to make corresponding changes to the C code -- it is just not possible in general.
 
 .. _siLayout:
 
@@ -642,7 +642,7 @@ spread out the data so that we do not have to perform many memory moves when ins
 layout "uncompressed". It is still a valid layout, but instead of A_rowadr[r] = A_rowadr[r-1] + A_rownnz[r] which is
 the standard convention, we set A_rowadr[r] = r*n. MuJoCo uses sparse matrices internally
 
-To represent 3D orientations and rotations, MuJoCo uses unit quaternions - namely 4D unit vectors arranged as q = (w,
+To represent 3D orientations and rotations, MuJoCo uses unit quaternions -- namely 4D unit vectors arranged as q = (w,
 x, y, z). Here (x, y, z) is the rotation axis unit vector scaled by sin(a/2), where a is the rotation angle in
 radians, and w = cos(a/2). Thus the quaternion corresponding to a null rotation is (1, 0, 0, 0). This is the default
 setting of all quaternions in MJCF.
@@ -841,7 +841,7 @@ Jacobians
 The derivative of any vector function with respect to its vector argument is called Jacobian. When this term is used
 in multi-joint kinematics and dynamics, it refers to the derivative of some spatial quantity as a function of the
 system configuration. In that case the Jacobian is also a linear map that operates on vectors in the (co)tangent space
-to the configuration manifold - such as velocities, momenta, accelerations, forces. One caveat here is that the system
+to the configuration manifold -- such as velocities, momenta, accelerations, forces. One caveat here is that the system
 configuration encoded in ``mjData.qpos`` has dimensionality ``mjModel.nq``, while the tangent space has dimensionality
 ``mjModel.nv``, and the latter is smaller when quaternion joints are present. So the size of the Jacobian matrix is
 N-by-``mjModel.nv`` where N is the dimensionality of the spatial quantity being differentiated.
@@ -861,7 +861,7 @@ Jacobians, which tell us how a spatial frame anchored at the given point will tr
 change to the kinematic configuration. More precisely, the Jacobian maps joint velocities to end-effector velocities,
 while the transpose of the Jacobian maps end-effector forces to joint forces. There are also several other
 ``mj_jacXXX`` functions; these are convenience functions that call the main ``mj_jac`` function with different points
-of interest - such as a body center of mass, geom center etc.
+of interest -- such as a body center of mass, geom center etc.
 
 The ability to compute end-effector Jacobians exactly and efficiently is a key advantage of working in joint
 coordinates. Such Jacobians are the foundation of many control schemes that map end-effector errors to actuator

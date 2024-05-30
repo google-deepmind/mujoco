@@ -57,18 +57,18 @@ Main simulation
 
 These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
 everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
-(in mjData.{ctrl, qfrc_applied, xfrc_applied}), or a control callback :ref:`mjcb_control` must be installed which will
-be called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
+(in ``mjData.{ctrl, qfrc_applied, xfrc_applied}``), or a control callback :ref:`mjcb_control` must be installed which
+will be called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
 :ref:`mj_step2` which break down the simulation pipeline into computations that are executed before and after the
 controls are needed; in this way one can set controls that depend on the results from :ref:`mj_step1`. Keep in mind
-though that the RK4 solver does not work with mj_step1/2.
+though that the RK4 solver does not work with mj_step1/2. See :ref:`Pipeline` for a more detailed description.
 
 mj_forward performs the same computations as :ref:`mj_step` but without the integration. It is useful after loading or
 resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
 sampling or finite-difference approximations.
 
-mj_inverse runs the inverse dynamics, and writes its output in ``mjData.qfrc_inverse``. Note that ``mjData.qacc`` must
-be set before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration,
+:ref:`mj_inverse` runs the inverse dynamics, and writes its output in ``mjData.qfrc_inverse``. Note that ``mjData.qacc``
+must be set before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration,
 while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
 numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
 which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
@@ -77,7 +77,7 @@ general sanity check).
 
 The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
 changed (usually in the context of finite differencing). Then there is no point repeating the computations that only
-depend on qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
+depend on qpos. Calling the dynamics with skipstage = :ref:`mjSTAGE_POS<mjtStage>` will achieve these savings.
 
 .. _mj_step:
 
@@ -249,8 +249,8 @@ degrees-of-freedom and a given point. Given a body specified by its integer id (
 frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
 (``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
 3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
-respect to the degrees-of-freedom. The ability to compute end-effector Jacobians efficiently and analytically is one of
-the advantages of working in minimal coordinates.
+respect to the degrees-of-freedom. The :ref:`pipeline stages<piStages>` required for Jacobian computations to be
+consistenst with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos`.
 
 .. _mj_jacBody:
 

@@ -1575,11 +1575,23 @@ Top level
   pipeline does not support the Runge Kutta integrator.
 - :ref:`mj_fwdPosition` invokes stages **2-11**, the position-dependent part of the pipeline.
 
+.. _piStages:
+
 Stages
 ^^^^^^
+Below we describe the pipeline stages and API functions corresponding to each stage. All functions write their outputs
+into attributes of :ref:`mjData`. It is informative to compare the list below with the :ref:`mjData` struct definition,
+wherein comments above blocks of attributes specify the function that computes them. Note that each stage depends on
+the values computed in some or all of the previous stages.
+
 1. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
    is detected, the state is automatically reset and the corresponding warning is raised:
    :ref:`mj_checkPos`, :ref:`mj_checkVel`
+
+Position
+''''''''
+The stages below compute quantities that depend on the generalized positions ``mjData.qpos``.
+
 2. Compute the forward kinematics. This yields the global positions and orientations of all bodies, geoms, sites,
    cameras and lights. It also normalizes all quaternions: :ref:`mj_kinematics`, :ref:`mj_camLight`
 3. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
@@ -1596,6 +1608,12 @@ Stages
 11. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
 12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
     :ref:`mj_energyPos`
+
+Velocity
+''''''''
+The stages below compute quantities that depend on the generalized velocity ``mjData.qvel``. Due to the sequential
+dependence structure of the pipeline, the actual dependence is on both ``qpos`` and ``qvel``.
+
 13. Compute the tendon, flex edge and actuator velocities: :ref:`mj_fwdVelocity`
 14. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at
     the subtree centers of mass: :ref:`mj_comVel`
@@ -1604,6 +1622,12 @@ Stages
     (if required by sensors, call :ref:`mj_subtreeVel`): :ref:`mj_sensorVel`
 17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
 18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
+
+Force/acceleration
+''''''''''''''''''
+The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
+of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
+
 19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
 20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
     :ref:`mj_fwdAcceleration`
@@ -1620,12 +1644,53 @@ Stages
     repeats the above sequence three more times, except for the optional computations which are performed only once:
     one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 
+.. _piConsistency:
+
+Consistency in ``mjData``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+The MuJoCo computation pipeline is entirely imperative, nothing happens automatically. This leads to behavior which
+can seem unexpected to users more familiar with other paradigms. Here are two examples of intended behaviors which can
+sometimes be surprising:
+
+- After setting :ref:`the state<geState>`, state-derived quantities do not automatically correspond to the new state.
+  The required stage or stages must be manually invoked. For example after setting the generalized positions
+  ``mjData.qpos``, Cartesian positions and orientations will not be consistent with ``qpos`` without first calling
+  :ref:`mj_kinematics`.
+- After an :ref:`mj_step`, which terminates immediately after updating the state, quantities in ``mjData`` correspond
+  to the *previous* state (or more precisely, the *transition* between the previous and current state).
+  In particular, all position-dependent sensor values and position-dependent computations like kinematic
+  :ref:`Jacobians<mj_jac>`, will be with respect to the *previous positions*.
+
+
+
+.. _piReproducibility:
+
+Reproducibility
+~~~~~~~~~~~~~~~
+
+MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a :ref:`state<geState>` in a trajectory is
+saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
+important caveats:
+
+- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
+  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
+  is required.
+- Any numerical difference between states, no matter how small, will become significant upon integration, especially for
+  systems with contact. Contact events have high `Lyapunov exponents
+  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
+  `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
+- Exact reproducibility is only guaranteed within a **single version**, on the **same architecture**. Small numerical
+  differences are quite common between versioned releases, for example due to code optimizations. This means that when
+  saving an initial state and an open-loop control sequence, the resulting rolled-out trajectory will be identical
+  within the same version, but will likely be different between MuJoCo versions or different operating systems.
+
 .. _piInverse:
 
 Inverse dynamics
 ~~~~~~~~~~~~~~~~
 
-The top-level function :ref:`mj_inverse` invokes the following sequence of computations.
+The top-level function :ref:`mj_inverse` invokes the following sequence of computations. The notes above regarding
+:ref:`consistency<piConsistency>` and :ref:`reproducibility<piReproducibility>` apply here as well.
 
 #. Compute the forward kinematics.
 #. Compute the body inertias and joint axes.
@@ -1651,27 +1716,6 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 #. Compute the vector ``mjData.qfrc_inverse`` by combining all results. This is the main output of inverse dynamics. It
    equals the sum of external and actuation forces.
 
-
-.. _piReproducibility:
-
-Reproducibility
-~~~~~~~~~~~~~~~
-
-MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a :ref:`state<geState>` in a trajectory is
-saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
-important caveats:
-
-- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
-  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
-  is required.
-- Any numerical difference between states, no matter how small, will become significant upon integration, especially for
-  systems with contact. Contact events have high `Lyapunov exponents
-  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
-  `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
-- Exact reproducibility is only guaranteed within a **single version**, on the **same architecture**. Small numerical
-  differences are quite common between versioned releases, for example due to code optimizations. This means that when
-  saving an initial state and an open-loop control sequence, the resulting rolled-out trajectory will be identical
-  within the same version, but will likely be different between MuJoCo versions or different operating systems.
 
 .. _derivatives:
 
