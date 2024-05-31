@@ -76,6 +76,8 @@ Quadrupeds
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/google_barkour_v0/barkour_v0.png
    * - `Google Barkour vB <https://github.com/google-deepmind/mujoco_menagerie/tree/main/google_barkour_vb>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/google_barkour_vb/barkour_vb.png
+   * - Boston Dynamics Spot <https://github.com/google-deepmind/mujoco_menagerie/tree/main/boston_dynamics_spot>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/boston_dynamics_spot/spot.png
 
 Grippers & Hands
 ^^^^^^^^^^^^^^^^
