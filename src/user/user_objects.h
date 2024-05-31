@@ -208,10 +208,11 @@ class mjCBase : public mjCBase_ {
   mjCFrame* frame;                // pointer to frame transformation
   mjCModel* model;                // pointer to model that created object
 
+  virtual ~mjCBase() = default;   // destructor
+
  protected:
   mjCBase();                                 // constructor
   mjCBase(const mjCBase& other);             // copy constructor
-  virtual ~mjCBase() = default;              // destructor
 };
 
 

@@ -118,7 +118,7 @@ int mjs_detachBody(mjSpec* s, mjsBody* b) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   mjCBody* body = static_cast<mjCBody*>(b->element);
   *model -= *body;
-  mjs_deleteBody(b);
+  mjs_delete(b->element);
   return 0;
 }
 
@@ -140,10 +140,10 @@ void mjs_deleteSpec(mjSpec* s) {
 
 
 
-// delete body
-void mjs_deleteBody(mjsBody* b) {
-  mjCBody* body = static_cast<mjCBody*>(b->element);
-  delete body;
+// delete object, it will call the appropriate destructor since ~mjCBase is virtual
+void mjs_delete(mjElement* element) {
+  mjCBase* object = static_cast<mjCBase*>(element);
+  delete object;
 }
 
 
