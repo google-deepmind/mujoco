@@ -308,6 +308,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
 
+  // get next child of given type
+  mjElement* NextChild(mjElement* child, mjtObj type = mjOBJ_UNKNOWN);
+
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment

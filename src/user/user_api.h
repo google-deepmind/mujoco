@@ -916,6 +916,15 @@ MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
 MJAPI int mjs_getId(mjElement* element);
 
 
+//---------------------------------- Tree traversal ------------------------------------------------
+
+// Return body's first child of given type.
+MJAPI mjElement* mjs_firstChild(mjsBody* body, mjtObj type);
+
+// Return body's next child of the same type; return NULL if child is last.
+MJAPI mjElement* mjs_nextChild(mjsBody* body, mjElement* child);
+
+
 //---------------------------------- Attribute setters ---------------------------------------------
 
 // Copy text to string.

@@ -1255,6 +1255,53 @@ mjCBase* mjCBody::FindObject(mjtObj type, string _name, bool recursive) {
 
 
 
+template <class T>
+static mjElement* GetNext(std::vector<T*>& list, mjElement* child) {
+  for (unsigned int i = 0; i < list.size()-1; i++) {
+    if (list[i]->spec.element == child) {
+      return list[i+1]->spec.element;
+    }
+  }
+  return nullptr;
+}
+
+
+
+// get next child of given type
+mjElement* mjCBody::NextChild(mjElement* child, mjtObj type) {
+  if (type == mjOBJ_UNKNOWN) {
+    if (!child) {
+      throw mjCError(this, "child type must be specified if no child element is given");
+    } else {
+      type = child->elemtype;
+    }
+  } else if (child && child->elemtype != type) {
+    throw mjCError(this, "child element is not of requested type");
+  }
+
+  switch (type) {
+    case mjOBJ_BODY:
+    case mjOBJ_XBODY:
+      return child ? GetNext(bodies, child) : bodies[0];
+    case mjOBJ_JOINT:
+      return child ? GetNext(joints, child) : joints[0];
+    case mjOBJ_GEOM:
+      return child ? GetNext(geoms, child) : geoms[0];
+    case mjOBJ_SITE:
+      return child ? GetNext(sites, child) : sites[0];
+    case mjOBJ_CAMERA:
+      return child ? GetNext(cameras, child) : cameras[0];
+    case mjOBJ_LIGHT:
+      return child ? GetNext(lights, child) : lights[0];
+    case mjOBJ_FRAME:
+      return child ? GetNext(frames, child) : frames[0];
+    default:
+      return nullptr;
+  }
+}
+
+
+
 // compute geom inertial frame: ipos, iquat, mass, inertia
 void mjCBody::GeomFrame(void) {
   int sz;

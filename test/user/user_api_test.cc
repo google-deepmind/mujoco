@@ -36,9 +36,9 @@ using ::testing::HasSubstr;
 using ::testing::NotNull;
 
 
-// ----------------------------- test set/get  ---------------------------------
+// -------------------------- test model manipulation  -------------------------
 
-TEST_F(MujocoTest, ReadWriteData) {
+TEST_F(MujocoTest, GetSetData) {
   mjSpec* spec = mjs_createSpec();
   mjsBody* world = mjs_findBody(spec, "world");
   mjsBody* body = mjs_addBody(world, 0);
@@ -59,6 +59,41 @@ TEST_F(MujocoTest, ReadWriteData) {
   for (int i = 0; i < nsize; ++i) {
     EXPECT_EQ(vec[i], i);
   }
+
+  mjs_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, TreeTraversal) {
+  mjSpec* spec = mjs_createSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* body = mjs_addBody(world, 0);
+
+  mjsSite* site1 = mjs_addSite(body, 0);
+  mjsGeom* geom1 = mjs_addGeom(body, 0);
+  mjsGeom* geom2 = mjs_addGeom(body, 0);
+  mjsSite* site2 = mjs_addSite(body, 0);
+  mjsSite* site3 = mjs_addSite(body, 0);
+  mjsGeom* geom3 = mjs_addGeom(body, 0);
+
+  mjElement* t_el1 = mjs_firstChild(body, mjOBJ_TENDON);
+  mjElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE);
+  mjElement* s_el2 = mjs_nextChild(body, s_el1);
+  mjElement* s_el3 = mjs_nextChild(body, s_el2);
+  mjElement* s_el4 = mjs_nextChild(body, s_el3);
+  mjElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM);
+  mjElement* g_el2 = mjs_nextChild(body, g_el1);
+  mjElement* g_el3 = mjs_nextChild(body, g_el2);
+  mjElement* g_el4 = mjs_nextChild(body, g_el3);
+
+  EXPECT_EQ(t_el1, nullptr);
+  EXPECT_EQ(s_el1, site1->element);
+  EXPECT_EQ(s_el2, site2->element);
+  EXPECT_EQ(s_el3, site3->element);
+  EXPECT_EQ(g_el1, geom1->element);
+  EXPECT_EQ(g_el2, geom2->element);
+  EXPECT_EQ(g_el3, geom3->element);
+  EXPECT_EQ(g_el4, nullptr);
+  EXPECT_EQ(s_el4, nullptr);
 
   mjs_deleteSpec(spec);
 }

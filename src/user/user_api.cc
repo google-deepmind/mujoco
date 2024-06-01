@@ -554,6 +554,22 @@ void mjs_setDefault(mjElement* element, mjsDefault* defspec) {
 
 
 
+// return first child of selected type
+mjElement* mjs_firstChild(mjsBody* body, mjtObj type) {
+  mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+  return bodyC->NextChild(NULL, type);
+}
+
+
+
+// return body's next child; return NULL if child is last
+mjElement* mjs_nextChild(mjsBody* body, mjElement* child) {
+  mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+  return bodyC->NextChild(child);
+}
+
+
+
 // set string
 void mjs_setString(mjString dest, const char* text) {
   std::string* str = reinterpret_cast<std::string*>(dest);
