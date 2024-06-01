@@ -3303,16 +3303,17 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // create low-level model
-  m = mj_makeModel(nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
-                   ncam, nlight, nflex, nflexvert, nflexedge, nflexelem,
-                   nflexelemdata, nflexshelldata, nflexevpair, nflextexcoord,
-                   nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
-                   nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
-                   nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-                   neq, ntendon, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
-                   ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
-                   nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
-                   nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
+  mj_makeModel(&m,
+               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
+               ncam, nlight, nflex, nflexvert, nflexedge, nflexelem,
+               nflexelemdata, nflexshelldata, nflexevpair, nflextexcoord,
+               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
+               nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
+               nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
+               neq, ntendon, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
+               ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
+               nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
+               nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
   if (!m) {
     throw mjCError(0, "could not create mjModel");
   }
@@ -3464,7 +3465,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // create data
   int disableflags = m->opt.disableflags;
   m->opt.disableflags |= mjDSBL_CONTACT;
-  d = mj_makeRawData(m);
+  mj_makeRawData(&d, m);
   if (!d) {
     mj_deleteModel(m);
     throw mjCError(0, "could not create mjData");

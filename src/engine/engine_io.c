@@ -447,22 +447,40 @@ static int safeAddToBufferSize(intptr_t* offset, size_t* nbuffer,
 
 
 
+// free model memory without destroying the struct
+static void freeModelBuffers(mjModel* m) {
+  mju_free(m->buffer);
+}
+
+
+
 // allocate and initialize mjModel structure
-mjModel* mj_makeModel(
-  int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic, int njnt,
-  int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert, int nflexedge,
-  int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair, int nflextexcoord,
-  int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,  int nmeshgraph,
-  int nskin, int nskinvert, int nskintexvert, int nskinface, int nskinbone, int nskinbonevert,
-  int nhfield, int nhfielddata, int ntex, int ntexdata, int nmat, int npair, int nexclude, int neq,
-  int ntendon, int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext, int ntextdata,
-  int ntuple, int ntupledata, int nkey, int nmocap, int nplugin, int npluginattr, int nuser_body,
-  int nuser_jnt, int nuser_geom, int nuser_site, int nuser_cam, int nuser_tendon,
-  int nuser_actuator, int nuser_sensor, int nnames, int npaths) {
+void mj_makeModel(mjModel** dest,
+    int nq, int nv, int nu, int na, int nbody, int nbvh,
+    int nbvhstatic, int nbvhdynamic, int njnt, int ngeom, int nsite, int ncam,
+    int nlight, int nflex, int nflexvert, int nflexedge, int nflexelem,
+    int nflexelemdata, int nflexshelldata, int nflexevpair, int nflextexcoord,
+    int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
+    int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
+    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex,
+    int ntexdata, int nmat, int npair, int nexclude, int neq, int ntendon,
+    int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext,
+    int ntextdata, int ntuple, int ntupledata, int nkey, int nmocap,
+    int nplugin, int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
+    int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
+    int nuser_sensor, int nnames, int npaths) {
   intptr_t offset = 0;
+  int allocate = *dest ? 0 : 1;
+  mjModel* m = NULL;
 
   // allocate mjModel
-  mjModel* m = (mjModel*)mju_malloc(sizeof(mjModel));
+  if (!allocate) {
+    m = *dest;
+    freeModelBuffers(m);
+  } else {
+    m = (mjModel*)mju_malloc(sizeof(mjModel));
+  }
+
   if (!m) {
     mjERROR("could not allocate mjModel");
   }
@@ -536,43 +554,43 @@ mjModel* mj_makeModel(
                     nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nu + nsensor +
                     nnumeric + ntext + ntuple + nkey + nplugin;
   if (nnames_map >= INT_MAX / mjLOAD_MULTIPLE) {
-    mju_free(m);
+    if (allocate) mju_free(m);
     mju_warning("Invalid model: size of nnames_map is larger than INT_MAX");
-    return 0;
+    return;
   }
   m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
   m->npaths = npaths;
 
 #define X(name)                                    \
   if ((m->name) < 0) {                             \
-    mju_free(m);                                   \
+    if (allocate) mju_free(m);                     \
     mju_warning("Invalid model: negative " #name); \
-    return 0;                                      \
+    return;                                        \
   }
   MJMODEL_INTS;
 #undef X
 
   // nbody should always be positive
   if (m->nbody == 0) {
-    mju_free(m);
+    if (allocate) mju_free(m);
     mju_warning("Invalid model: nbody == 0");
-    return 0;
+    return;
   }
 
   // nmocap is going to get multiplied by 4, and shouldn't overflow
   if (m->nmocap >= MAX_ARRAY_SIZE) {
-    mju_free(m);
+    if (allocate) mju_free(m);
     mju_warning("Invalid model: nmocap too large");
-    return 0;
+    return;
   }
 
   // compute buffer size
   m->nbuffer = 0;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &m->nbuffer, sizeof(type), m->nr, nc)) { \
-    mju_free(m);                                                             \
+    if (allocate) mju_free(m);                                               \
     mju_warning("Invalid model: " #name " too large.");                      \
-    return 0;                                                                \
+    return;                                                                  \
   }
 
   MJMODEL_POINTERS
@@ -581,7 +599,7 @@ mjModel* mj_makeModel(
   // allocate buffer
   m->buffer = mju_malloc(m->nbuffer);
   if (!m->buffer) {
-    mju_free(m);
+    if (allocate) mju_free(m);
     mjERROR("could not allocate mjModel buffer");
   }
 
@@ -598,10 +616,11 @@ mjModel* mj_makeModel(
   mj_defaultVisual(&m->vis);
   mj_defaultStatistic(&m->stat);
 
-  return m;
+  // copy pointer if allocated here
+  if (allocate) {
+    *dest = m;
+  }
 }
-
-
 
 // copy mjModel, if dest==NULL create new model
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
@@ -609,7 +628,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
 
   // allocate new model if needed
   if (!dest) {
-    dest = mj_makeModel(
+    mj_makeModel(&dest,
       src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
       src->nbvhstatic, src->nbvhdynamic, src->njnt, src->ngeom, src->nsite,
       src->ncam, src->nlight, src->nflex, src->nflexvert, src->nflexedge,
@@ -764,16 +783,17 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
   bufread(sizes, sizeof(size_t)*getnsize(), buffer_sz, buffer, &ptrbuf);
 
   // allocate new mjModel, check sizes
-  m = mj_makeModel(ints[0],  ints[1],  ints[2],  ints[3],  ints[4],  ints[5],  ints[6],
-                   ints[7],  ints[8],  ints[9],  ints[10], ints[11], ints[12], ints[13],
-                   ints[14], ints[15], ints[16], ints[17], ints[18], ints[19], ints[20],
-                   ints[21], ints[22], ints[23], ints[24], ints[25], ints[26], ints[27],
-                   ints[28], ints[29], ints[30], ints[31], ints[32], ints[33], ints[34],
-                   ints[35], ints[36], ints[37], ints[38], ints[39], ints[40], ints[41],
-                   ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
-                   ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
-                   ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-                   ints[63]);
+  mj_makeModel(&m,
+               ints[0],  ints[1],  ints[2],  ints[3],  ints[4],  ints[5],  ints[6],
+               ints[7],  ints[8],  ints[9],  ints[10], ints[11], ints[12], ints[13],
+               ints[14], ints[15], ints[16], ints[17], ints[18], ints[19], ints[20],
+               ints[21], ints[22], ints[23], ints[24], ints[25], ints[26], ints[27],
+               ints[28], ints[29], ints[30], ints[31], ints[32], ints[33], ints[34],
+               ints[35], ints[36], ints[37], ints[38], ints[39], ints[40], ints[41],
+               ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
+               ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
+               ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
+               ints[63]);
   if (!m || m->nbuffer != sizes[getnsize()-1]) {
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
@@ -834,7 +854,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
 // de-allocate mjModel
 void mj_deleteModel(mjModel* m) {
   if (m) {
-    mju_free(m->buffer);
+    freeModelBuffers(m);
     mju_free(m);
   }
 }
@@ -1089,12 +1109,40 @@ static void _initPlugin(const mjModel* m, mjData* d) {
 
 
 
+// free mjData memory without destroying the struct
+static void freeDataBuffers(mjData* d) {
+#ifdef ADDRESS_SANITIZER
+    // raise an error if there's a dangling stack frame
+    mj_freeStack(d);
+#endif
+
+    // destroy plugin instances
+    for (int i = 0; i < d->nplugin; ++i) {
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(d->plugin[i]);
+      if (plugin->destroy) {
+        plugin->destroy(d, i);
+      }
+    }
+    mju_free(d->buffer);
+    mju_free(d->arena);
+}
+
+
+
 // allocate and initialize raw mjData structure
-mjData* mj_makeRawData(const mjModel* m) {
+void mj_makeRawData(mjData** dest, const mjModel* m) {
   intptr_t offset = 0;
+  int allocate = *dest ? 0 : 1;
+  mjData* d = NULL;
 
   // allocate mjData
-  mjData* d = (mjData*) mju_malloc(sizeof(mjData));
+  if (!allocate) {
+    d = *dest;
+    freeDataBuffers(d);
+  } else {
+    d = (mjData*) mju_malloc(sizeof(mjData));
+  }
+
   if (!d) {
     mjERROR("could not allocate mjData");
   }
@@ -1107,9 +1155,9 @@ mjData* mj_makeRawData(const mjModel* m) {
   d->buffer = d->arena = NULL;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &d->nbuffer, sizeof(type), m->nr, nc)) { \
-    mju_free(d);                                                             \
+    if (allocate) mju_free(d);                                               \
     mju_warning("Invalid data: " #name " too large.");                       \
-    return 0;                                                                \
+    return;                                                                  \
   }
 
   MJDATA_POINTERS
@@ -1121,7 +1169,7 @@ mjData* mj_makeRawData(const mjModel* m) {
   // allocate buffer
   d->buffer = mju_malloc(d->nbuffer);
   if (!d->buffer) {
-    mju_free(d);
+    if (allocate) mju_free(d);
     mjERROR("could not allocate mjData buffer");
   }
 
@@ -1129,7 +1177,7 @@ mjData* mj_makeRawData(const mjModel* m) {
   d->arena = mju_malloc(d->narena);
   if (!d->arena) {
     mju_free(d->buffer);
-    mju_free(d);
+    if (allocate) mju_free(d);
     mjERROR("could not allocate mjData arena");
   }
 
@@ -1142,14 +1190,18 @@ mjData* mj_makeRawData(const mjModel* m) {
   // clear nplugin (overwritten by _initPlugin)
   d->nplugin = 0;
 
-  return d;
+  // copy pointer if allocated here
+  if (allocate) {
+    *dest = d;
+  }
 }
 
 
 
 // allocate and initialize mjData structure
 mjData* mj_makeData(const mjModel* m) {
-  mjData* d = mj_makeRawData(m);
+  mjData* d = NULL;
+  mj_makeRawData(&d, m);
   if (d) {
     _initPlugin(m, d);
     mj_resetData(m, d);
@@ -1166,7 +1218,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
   // allocate new data if needed
   if (!dest) {
-    dest = mj_makeRawData(m);
+    mj_makeRawData(&dest, m);
     _initPlugin(m, dest);
   }
 
@@ -1697,20 +1749,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
 // de-allocate mjData
 void mj_deleteData(mjData* d) {
   if (d) {
-#ifdef ADDRESS_SANITIZER
-    // raise an error if there's a dangling stack frame
-    mj_freeStack(d);
-#endif
-
-    // destroy plugin instances
-    for (int i = 0; i < d->nplugin; ++i) {
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(d->plugin[i]);
-      if (plugin->destroy) {
-        plugin->destroy(d, i);
-      }
-    }
-    mju_free(d->buffer);
-    mju_free(d->arena);
+    freeDataBuffers(d);
     mju_free(d);
   }
 }
