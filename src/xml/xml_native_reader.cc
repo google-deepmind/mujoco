@@ -1884,13 +1884,13 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* pequality) {
     case mjEQ_JOINT:
       ReadAttrTxt(elem, "joint1", name1, true);
       ReadAttrTxt(elem, "joint2", name2);
-      ReadAttr(elem, "polycoef", 5, pequality->data, text);
+      ReadAttr(elem, "polycoef", 5, pequality->data, text, false, false);
       break;
 
     case mjEQ_TENDON:
       ReadAttrTxt(elem, "tendon1", name1, true);
       ReadAttrTxt(elem, "tendon2", name2);
-      ReadAttr(elem, "polycoef", 5, pequality->data, text);
+      ReadAttr(elem, "polycoef", 5, pequality->data, text, false, false);
       break;
 
     case mjEQ_FLEX:

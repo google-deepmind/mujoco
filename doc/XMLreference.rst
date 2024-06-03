@@ -4275,11 +4275,15 @@ joint types (slide and hinge) can be used.
 .. _equality-joint-polycoef:
 
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
-   Coefficients a0 ... a4 of the quartic polynomial. If the two joint values are y and x, and their reference positions
-   (corresponding to the joint values in the initial model configuration) are y0 and x0, the constraint is:
-   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
-   Omitting the second joint is equivalent to setting x = x0, in which case the constraint is y = y0 + a0.
+   Coefficients :math:`a_0 \ldots a_4` of the quartic polynomial. If the joint values of :at:`joint1` and :at:`joint2`
+   are respectively :math:`y` and :math:`x`, and their reference positions (corresponding to the joint values in the
+   initial model configuration) are :math:`y_0` and :math:`x_0`, the constraint is:
 
+   .. math::
+      y-y_0 = a_0 + a_1(x-x_0) + a_2(x-x_0)^2 + a_3(x-x_0)^3 + a_4(x-x_0)^4
+
+   Omitting :at:`joint2` is equivalent to setting :math:`x = x_0`, in which case the constraint is
+   :math:`y = y_0 + a_0`.
 
 .. _equality-tendon:
 
@@ -4315,7 +4319,7 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 .. _equality-tendon-polycoef:
 
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
-   Same as in the equality/ :ref:`joint <equality-joint>` element above, but applied to tendon lengths instead of joint
+   Same as in the :ref:`equality/joint <equality-joint>` element above, but applied to tendon lengths instead of joint
    positions.
 
 
