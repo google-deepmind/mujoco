@@ -3,8 +3,7 @@ from tqdm import tqdm
 from pathlib import Path
 
 import mujoco
-# from mujoco.usd import exporter
-import exporter as exporter
+from mujoco.usd import exporter
 
 def generate_usd_trajectory(args):
 

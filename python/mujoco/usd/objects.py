@@ -19,10 +19,8 @@ import pprint
 
 import mujoco
 
-# import mujoco.usd.utils as utils_component
-# import mujoco.usd.shapes as shapes_component
-import utils as utils_component
-import shapes as shapes_component
+import mujoco.usd.utils as utils_component
+import mujoco.usd.shapes as shapes_component
 
 import numpy as np
 
