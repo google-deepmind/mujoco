@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+from abs import ABC
 from typing import List, Optional, Tuple
 
 import mujoco
@@ -33,7 +34,6 @@ from pxr import UsdGeom
 from pxr import UsdLux
 from pxr import UsdShade
 from pxr import Vt
-
 
 class USDMesh:
 
@@ -265,15 +265,13 @@ class USDPrimitiveMesh:
     self.prim_mesh = None
     self.transform_op = Gf.Matrix4d(1.)
 
-    _, self.prim_mesh = shapes_component.mesh_generator(mesh_config)
+    self.prim_mesh = self.generate_primitive_mesh()
 
     xform_path = f"/World/{self.obj_name}_Xform"
     mesh_path = f"{xform_path}/{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
     self.usd_prim = stage.GetPrimAtPath(mesh_path)
-
-    self.prim_mesh.translate(-self.prim_mesh.get_center())
 
     mesh_vert, mesh_face, mesh_facenum = self._get_mesh_geometry()
     self.usd_mesh.GetPointsAttr().Set(mesh_vert)
@@ -301,6 +299,11 @@ class USDPrimitiveMesh:
     self.scale_op = self.usd_xform.AddScaleOp()
 
     self.last_visible_frame = -2
+
+  def generate_primitive_mesh(self):
+    _, prim_mesh = shapes_component.mesh_generator(self.mesh_config)
+    prim_mesh.translate(-prim_mesh.get_center())
+    return prim_mesh
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -417,7 +420,7 @@ class USDPrimitiveMesh:
     self.usd_mesh.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
-  def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
+  def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int, ):
     transformation_mat = utils_component.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
@@ -438,29 +441,12 @@ class USDPrimitiveMesh:
   def update_scale(self, scale: np.ndarray, frame: int):
     self.scale_op.Set(Gf.Vec3f(scale.tolist()), frame)
 
-class USDTendon(USDPrimitiveMesh):
-
+class USDTendon:
+  
   def __init__(
-    self,
-    mesh_config: List[dict],
-    stage: Usd.Stage,
-    geom: mujoco.MjvGeom,
-    obj_name: str,
-    rgba: np.ndarray = np.array([1, 1, 1, 1]),
-    texture_file: Optional[str] = None,
+      self
   ):
-    super().__init__(
-      mesh_config=mesh_config,
-      stage=stage,
-      geom=geom,
-      obj_name=obj_name,
-      rgba=rgba,
-      texture_file=texture_file
-    )
-
-  def update(self, pos: np.ndarray, mat: np.ndarray, scale: np.ndarray, visible: bool, frame: int):
-    super().update(pos, mat, visible, frame)
-    super().update_scale(scale, frame)
+    pass
 
 class USDSphereLight:
 

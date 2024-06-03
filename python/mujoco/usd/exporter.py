@@ -17,9 +17,11 @@ import os
 import mujoco
 
 # import mujoco.usd.shapes as shapes_module
-# import mujoco.usd.component as component_module
+# import mujoco.usd.component as object_module
 import shapes as shapes_module
-import component as component_module
+import objects as object_module
+import lights as light_module
+import camera as camera_module
 
 import numpy as np
 import scipy
@@ -181,7 +183,6 @@ class USDExporter:
     # update the mujoco renderer
     self.renderer.update_scene(data, scene_option=scene_option)
 
-    # TODO: update scene options
     if self.updates == 0:
       self._initialize_usd_stage()
 
@@ -195,7 +196,6 @@ class USDExporter:
     self.updates += 1
 
   def _load_textures(self):
-    # TODO: remove code once added internally to mujoco
     data_adr = 0
     self.texture_files = []
     for texture_id in tqdm.tqdm(range(self.model.ntex)):
@@ -241,8 +241,9 @@ class USDExporter:
 
     texture_file = self.texture_files[geom.texid] if geom.texid != -1 else None
 
+    # handling meshes in our scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
-      usd_geom = component_module.USDMesh(
+      usd_geom = object_module.USDMesh(
           stage=self.stage,
           model=self.model,
           geom=geom,
@@ -252,14 +253,15 @@ class USDExporter:
           texture_file=texture_file,
       )
     else:
+      # handling tendons in our scene
       if geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
-        # scale of a tendon is equivalent to its size, assume a unit length geom size
         mesh_config = shapes_module.mesh_config_generator(
             name=geom_name,
             geom_type=geom.type,
-            size=np.array([1.0, 1.0, 1.0])
+            size=np.array([1.0, 1.0, 1.0]),
+            decouple=True
         )
-        usd_geom = component_module.USDTendon(
+        usd_geom = object_module.USDTendon(
             mesh_config=mesh_config,
             stage=self.stage,
             geom=geom,
@@ -267,13 +269,14 @@ class USDExporter:
             rgba=geom.rgba,
             texture_file=texture_file,
         )
+      # handling primitives in our scene
       else:
         mesh_config = shapes_module.mesh_config_generator(
             name=geom_name,
             geom_type=geom.type,
             size=geom.size   
         )
-        usd_geom = component_module.USDPrimitiveMesh(
+        usd_geom = object_module.USDPrimitiveMesh(
             mesh_config=mesh_config,
             stage=self.stage,
             geom=geom,
@@ -298,7 +301,6 @@ class USDExporter:
 
       if geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
         tendon_scale = geom.size
-        tendon_scale[2] /= 2
         self.geom_refs[geom_name].update(
             pos=geom.pos,
             mat=geom.mat,
@@ -321,7 +323,7 @@ class USDExporter:
       light = self.scene.lights[i]
       if not np.allclose(light.pos, [0, 0, 0]):
         self.usd_lights.append
-        (component_module.USDSphereLight(stage=self.stage, obj_name=str(i)))
+        (light_module.USDSphereLight(stage=self.stage, obj_name=str(i)))
       else:
         self.usd_lights.append(None)
 
@@ -347,7 +349,7 @@ class USDExporter:
     if self.camera_names is not None:
       for name in self.camera_names:
         self.usd_cameras.append(
-            component_module.USDCamera(stage=self.stage, obj_name=name))
+            camera_module.USDCamera(stage=self.stage, obj_name=name))
 
   def _update_cameras(
       self,
@@ -388,11 +390,11 @@ class USDExporter:
   ):
 
     if light_type == "sphere":
-      new_light = component_module.USDSphereLight(stage=self.stage, obj_name=str(objid), radius=radius)
+      new_light = light_module.USDSphereLight(stage=self.stage, obj_name=str(objid), radius=radius)
 
       new_light.update(pos=np.array(pos), intensity=intensity, color=color, frame=0)
     elif light_type == "dome":
-      new_light = component_module.USDDomeLight(
+      new_light = light_module.USDDomeLight(
           stage=self.stage, obj_name=str(objid))
 
       new_light.update(intensity=intensity, color=color, frame=0)
@@ -403,7 +405,7 @@ class USDExporter:
       rotation_xyz: List[float],
       obj_name: Optional[str] = "camera_1",
   ):
-    new_camera = component_module.USDCamera(
+    new_camera = camera_module.USDCamera(
         stage=self.stage, obj_name=str(objid))
 
     r = scipy.spatial.transform.Rotation.from_euler(
