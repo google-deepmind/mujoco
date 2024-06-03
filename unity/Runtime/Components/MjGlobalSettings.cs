@@ -73,7 +73,6 @@ public struct MjcfOptionFlag {
   public EnableDisableFlag Override;
   public EnableDisableFlag Energy;
   public EnableDisableFlag FwdInv;
-  public EnableDisableFlag SensorNoise;
   public EnableDisableFlag MultiCCD;
   public static MjcfOptionFlag Default = new MjcfOptionFlag() {
     Constraint = EnableDisableFlag.enable,
@@ -91,7 +90,6 @@ public struct MjcfOptionFlag {
     Override = EnableDisableFlag.disable,
     Energy = EnableDisableFlag.disable,
     FwdInv = EnableDisableFlag.disable,
-    SensorNoise = EnableDisableFlag.disable,
     MultiCCD = EnableDisableFlag.disable
   };
 
@@ -114,7 +112,6 @@ public struct MjcfOptionFlag {
     Override = mjcf.GetEnumAttribute<EnableDisableFlag>("override", localDefault.Override);
     Energy = mjcf.GetEnumAttribute<EnableDisableFlag>("energy", localDefault.Energy);
     FwdInv = mjcf.GetEnumAttribute<EnableDisableFlag>("fwdinv", localDefault.FwdInv);
-    SensorNoise = mjcf.GetEnumAttribute<EnableDisableFlag>("sensornoise", localDefault.SensorNoise);
     MultiCCD = mjcf.GetEnumAttribute<EnableDisableFlag>("multiccd", localDefault.MultiCCD);
   }
 
@@ -134,7 +131,6 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("override", Override.ToString());
     mjcf.SetAttribute("energy", Energy.ToString());
     mjcf.SetAttribute("fwdinv", FwdInv.ToString());
-    mjcf.SetAttribute("sensornoise", SensorNoise.ToString());
     mjcf.SetAttribute("multiccd", MultiCCD.ToString());
   }
 }
@@ -339,8 +335,8 @@ public class MjGlobalSettings : MonoBehaviour {
         } else if (instances.Length == 1) {
           _instance = instances[0];
         }
-      }
-      return _instance;
+     }
+     return _instance;
     }
   }
 
