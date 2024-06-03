@@ -2,7 +2,7 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+Version 3.1.6 (Jun 3, 2024)
 -----------------------------------
 
 General
