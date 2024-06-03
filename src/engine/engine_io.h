@@ -51,19 +51,20 @@ void mj_defaultStatistic(mjStatistic* stat);
 //------------------------------- mjModel ----------------------------------------------------------
 
 // allocate mjModel
-mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic,
-                      int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert,
-                      int nflexedge, int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair,
-                      int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
-                      int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
-                      int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
-                      int ntex, int ntexdata, int nmat, int npair, int nexclude,
-                      int neq, int ntendon, int nwrap, int nsensor,
-                      int nnumeric, int nnumericdata, int ntext, int ntextdata,
-                      int ntuple, int ntupledata, int nkey, int nmocap, int nplugin,
-                      int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
-                      int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
-                      int nuser_sensor, int nnames, int npaths);
+void mj_makeModel(mjModel** dest,
+    int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic,
+    int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert,
+    int nflexedge, int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair,
+    int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
+    int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
+    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
+    int ntex, int ntexdata, int nmat, int npair, int nexclude,
+    int neq, int ntendon, int nwrap, int nsensor,
+    int nnumeric, int nnumericdata, int ntext, int ntextdata,
+    int ntuple, int ntupledata, int nkey, int nmocap, int nplugin,
+    int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
+    int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
+    int nuser_sensor, int nnames, int npaths);
 
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
@@ -71,9 +72,8 @@ MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 // save model to binary file
 MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
 
-// load model from binary MJB file
-//  if vfs is not NULL, look up file in vfs before reading from disk
-MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
+// load binary MJB
+mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 
 // de-allocate model
 MJAPI void mj_deleteModel(mjModel* m);
@@ -92,7 +92,7 @@ MJAPI const char* mj_validateReferences(const mjModel* m);
 MJAPI mjData* mj_makeData(const mjModel* m);
 
 // allocate mjData corresponding to given model, used internally
-MJAPI mjData* mj_makeRawData(const mjModel* m);
+MJAPI void mj_makeRawData(mjData** dest, const mjModel* m);
 
 // Copy mjData.
 // m is only required to contain the size fields from MJMODEL_INTS.

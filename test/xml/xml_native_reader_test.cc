@@ -34,8 +34,13 @@
 namespace mujoco {
 namespace {
 
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
+
 using ::std::string;
 using ::testing::AllOf;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::FloatEq;
 using ::testing::HasSubstr;
@@ -393,6 +398,24 @@ TEST_F(XMLReaderTest, InvalidNumber) {
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("problem reading attribute"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
+}
+
+TEST_F(XMLReaderTest, InvalidNumberOfAttributes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 .3">
+        <freejoint/>
+        <geom name="ellipsoid" type="ellipsoid" size=".1 .1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("size 2 must be positive"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
 TEST_F(XMLReaderTest, AllowsSpaces) {
@@ -816,8 +839,43 @@ TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
 
   mj_deleteModel(model);
 }
-// ------------------------ test frame parsing ---------------------------------
 
+TEST_F(XMLReaderTest, ParsePolycoef) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="0"/>
+        <geom size="1"/>
+      </body>
+      <body>
+        <joint name="1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <joint joint1="0" joint2="1"/>
+      <joint joint1="0" joint2="1" polycoef="2"/>
+      <joint joint1="0" joint2="1" polycoef="3 4"/>
+      <joint joint1="0" joint2="1" polycoef="5 6 7 8 9"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(AsVector(m->eq_data + 0*mjNEQDATA, 5),
+              ElementsAre(0, 1, 0, 0, 0));
+  EXPECT_THAT(AsVector(m->eq_data + 1*mjNEQDATA, 5),
+              ElementsAre(2, 1, 0, 0, 0));
+  EXPECT_THAT(AsVector(m->eq_data + 2*mjNEQDATA, 5),
+              ElementsAre(3, 4, 0, 0, 0));
+  EXPECT_THAT(AsVector(m->eq_data + 3*mjNEQDATA, 5),
+              ElementsAre(5, 6, 7, 8, 9));
+  mj_deleteModel(m);
+}
+
+// ------------------------ test frame parsing ---------------------------------
 TEST_F(XMLReaderTest, ParseFrame) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1388,6 +1446,98 @@ TEST_F(ActuatorTest, ReadsByte) {
 // ---------------- test actuator parsing --------------------------------------
 
 using ActuatorParseTest = MujocoTest;
+
+TEST_F(ActuatorParseTest, PositionTimeconst) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" timeconst="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  ASSERT_NEAR(model->actuator_dynprm[0], 2.0, 1e-6);
+  EXPECT_THAT(model->actuator_dyntype[0], Eq(mjDYN_FILTEREXACT));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, PositionTimeconstInheritrange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" range="-1 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" inheritrange="1" timeconst="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, PositionTimeconstDefault) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <position timeconst="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  ASSERT_NEAR(model->actuator_dynprm[0], 1.0, 1e-6);
+  EXPECT_THAT(model->actuator_dyntype[0], Eq(mjDYN_FILTEREXACT));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, PositionTimeconstDefaultOverride) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <position timeconst="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" timeconst="0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_FALSE(model->actuator_dynprm[0]);
+  EXPECT_THAT(model->actuator_dyntype[0], Eq(mjDYN_NONE));
+  mj_deleteModel(model);
+}
 
 TEST_F(ActuatorParseTest, ReadsDamper) {
   static constexpr char xml[] = R"(

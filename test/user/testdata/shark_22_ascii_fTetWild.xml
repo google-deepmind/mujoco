@@ -19,7 +19,8 @@
     <geom name="floor" size="1 1 .05" type="plane" material="grid" condim="3"/>
     <light directional="false" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1"/>
     <flexcomp name="shark" type="gmsh" dim="3" rgba=".8 .2 .2 1" radius="0.001" pos="0 0 .3" mass="10" scale="1 1 1" file="shark_22_ascii_fTetWild.msh">
-    <edge equality="true"/>
+      <edge equality="true"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
 </mujoco>

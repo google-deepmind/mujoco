@@ -15,31 +15,10 @@
 """Collision base types."""
 
 import dataclasses
-from typing import Tuple
+from typing import Optional, Tuple
 import jax
-# pylint: disable=g-importing-member
-from mujoco.mjx._src.dataclasses import PyTreeNode
-# pylint: enable=g-importing-member
-
-
-class GeomInfo(PyTreeNode):
-  """Geom propertes of primitive and SDF shapes."""
-  pos: jax.Array
-  mat: jax.Array
-  size: jax.Array
-
-
-class ConvexInfo(PyTreeNode):
-  """Geom propertes of convex meshes."""
-  pos: jax.Array
-  mat: jax.Array
-  vert: jax.Array
-  face: jax.Array
-  face_normal: jax.Array
-  edge: jax.Array
-  edge_face_normal: jax.Array
-  edge_dir: jax.Array
-
+from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
+import numpy as np
 
 # Collision returned by collision functions:
 #  - distance          distance between nearest points; neg: penetration
@@ -48,18 +27,53 @@ class ConvexInfo(PyTreeNode):
 Collision = Tuple[jax.Array, jax.Array, jax.Array]
 
 
+class GeomInfo(PyTreeNode):
+  """Geom properties for primitive shapes."""
+
+  pos: jax.Array
+  mat: jax.Array
+  size: jax.Array
+
+
+class ConvexInfo(PyTreeNode):
+  """Geom properties for convex meshes."""
+
+  pos: jax.Array
+  mat: jax.Array
+  size: jax.Array
+  vert: jax.Array
+  face: jax.Array
+  face_normal: jax.Array
+  edge: jax.Array
+  edge_face_normal: jax.Array
+  edge_dir: Optional[jax.Array] = None
+
+
+class HFieldInfo(PyTreeNode):
+  """Geom properties for height fields."""
+
+  pos: jax.Array
+  mat: jax.Array
+  size: np.ndarray
+  nrow: int
+  ncol: int
+  data: jax.Array
+
+
 @dataclasses.dataclass(frozen=True)
 class FunctionKey:
   """Specifies how geom pairs group into collision_driver's function table.
 
   Attributes:
     types: geom type pair, which determines the collision function
-    data_ids: geom data id pair: mesh id for mesh geoms, otherwise -1.
-              Meshes have distinct face/vertex counts, so must occupy distinct
-              entries in the collision function table.
+    data_ids: geom data id pair: mesh id for mesh geoms, otherwise -1. Meshes
+      have distinct face/vertex counts, so must occupy distinct entries in the
+      collision function table.
     condim: grouping by condim of the colliision ensures that the size of the
-            resulting constraint jacobian is determined at compile time.
+      resulting constraint jacobian is determined at compile time.
+    subgrid_size: the size determines the hfield subgrid to collide with
   """
   types: Tuple[int, int]
   data_ids: Tuple[int, int]
   condim: int
+  subgrid_size: Tuple[int, int] = (-1, -1)

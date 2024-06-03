@@ -197,6 +197,7 @@ def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
       mujoco.mjtObj.mjOBJ_SITE: m.nsite,
       mujoco.mjtObj.mjOBJ_CAMERA: m.ncam,
       mujoco.mjtObj.mjOBJ_MESH: m.nmesh,
+      mujoco.mjtObj.mjOBJ_HFIELD: m.nhfield,
       mujoco.mjtObj.mjOBJ_PAIR: m.npair,
       mujoco.mjtObj.mjOBJ_EQUALITY: m.neq,
       mujoco.mjtObj.mjOBJ_ACTUATOR: m.nu,
@@ -218,6 +219,7 @@ def _getadr(
       mujoco.mjtObj.mjOBJ_SITE: m.name_siteadr,
       mujoco.mjtObj.mjOBJ_CAMERA: m.name_camadr,
       mujoco.mjtObj.mjOBJ_MESH: m.name_meshadr,
+      mujoco.mjtObj.mjOBJ_HFIELD: m.name_hfieldadr,
       mujoco.mjtObj.mjOBJ_PAIR: m.name_pairadr,
       mujoco.mjtObj.mjOBJ_EQUALITY: m.name_eqadr,
       mujoco.mjtObj.mjOBJ_ACTUATOR: m.name_actuatoradr,
@@ -277,3 +279,43 @@ def name2id(
   }
 
   return names_map.get(name, -1)
+
+
+def _decode_pyramid(
+    pyramid: jax.Array, mu: jax.Array, condim: int
+) -> jax.Array:
+  """Converts pyramid representation to contact force."""
+  force = jp.zeros(6, dtype=float)
+  if condim == 1:
+    return force.at[0].set(pyramid[0])
+
+  # force_normal = sum(pyramid0_i + pyramid1_i)
+  force = force.at[0].set(pyramid[0 : 2 * (condim - 1)].sum())
+
+  # force_tangent_i = (pyramid0_i - pyramid1_i) * mu_i
+  i = np.arange(0, condim)
+  force = force.at[i + 1].set((pyramid[2 * i] - pyramid[2 * i + 1]) * mu[i])
+
+  return force
+
+
+def contact_force(
+    m: Model, d: Data, contact_id: int, to_world_frame: bool = False
+) -> jax.Array:
+  """Extract 6D force:torque for one contact, in contact frame by default."""
+  efc_address = d.contact.efc_address[contact_id]
+  condim = d.contact.dim[contact_id]
+  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+    force = _decode_pyramid(
+        d.efc_force[efc_address:], d.contact.friction[contact_id], condim
+    )
+  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
+    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  else:
+    raise ValueError(f'Unknown cone type: {m.opt.cone}')
+
+  if to_world_frame:
+    force = force.reshape((-1, 3)) @ d.contact.frame[contact_id]
+    force = force.reshape(-1)
+
+  return force * (efc_address >= 0)

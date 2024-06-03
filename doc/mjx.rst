@@ -75,7 +75,7 @@ an ``mjx.Data``:
    model = mujoco.MjModel.from_xml_string("...")
    data = mujoco.MjData(model)
    mjx_model = mjx.put_model(model)
-   mjx_data = mjx.put_data(data)
+   mjx_data = mjx.put_data(model, data)
 
 These MJX variants mirror their MuJoCo counterparts but have a few key differences:
 
@@ -100,7 +100,7 @@ Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An
 .. code-block:: python
 
    model = mujoco.MjModel.from_xml_string("...")
-   mjx_model = mjx.device_put(model)
+   mjx_model = mjx.put_model(model)
    mjx_data = mjx.make_data(model)
 
 Using ``mjx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
@@ -151,7 +151,7 @@ Minimal example
    """
 
    model = mujoco.MjModel.from_xml_string(XML)
-   mjx_model = mjx.device_put(model)
+   mjx_model = mjx.put_model(model)
 
    @jax.vmap
    def batched_step(vel):
@@ -196,7 +196,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Actuator Bias <mjtBias>`
      - ``NONE``, ``AFFINE``
    * - :ref:`Geom <mjtGeom>`
-     - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
+     - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and ``CYLINDER`` are implemented but only collide with other primitives.
    * - :ref:`Constraint <mjtConstraint>`
      - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``
    * - :ref:`Equality <mjtEq>`
@@ -223,7 +223,7 @@ The following features are **in development** and coming soon:
    * - Category
      - Feature
    * - :ref:`Geom <mjtGeom>`
-     - ``SDF``, ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
+     - ``SDF``. Collisions between (``SPHERE``, ``BOX``, ``MESH``, ``HFIELD``) and ``CYLINDER``. Collisions between (``BOX``, ``MESH``, ``HFIELD``) and ``ELLIPSOID``.
    * - :ref:`Constraint <mjtConstraint>`
      - :ref:`Frictionloss <coFriction>`, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`

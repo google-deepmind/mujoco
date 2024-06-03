@@ -481,6 +481,16 @@ bool mjXUtil::ReadAttrValues(XMLElement* elem, const char* attr,
   // read numbers
   for (int i = 0; (max < 0 || i < max) && !strm.eof(); ++i) {
     strm >> token;
+
+    // some C++ libraries do not allow .x instead of 0.x
+    if (!token.empty()) {
+      if (token[0] == std::string(".")[0]) {
+        token = "0" + token;
+      } else if (token[0] == std::string("-")[0] && token[1] == std::string(".")[0]) {
+        token.insert(1, "0");
+      }
+    }
+
     std::istringstream token_strm(token);
     token_strm >> item;
     if (token_strm.fail() || !token_strm.eof()) {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "engine/engine_vfs.h"
+#include "user/user_vfs.h"
 
 #include <stddef.h>
 #include <stdint.h>

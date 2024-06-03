@@ -21,7 +21,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_resource.h"
-#include "src/engine/engine_vfs.h"
+#include "src/user/user_vfs.h"
 #include "test/fixture.h"
 
 namespace mujoco {

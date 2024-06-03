@@ -2743,6 +2743,45 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.',  # pylint: disable=line-too-long
      )),
+    ('mj_geomDistance',
+     FunctionDecl(
+         name='mj_geomDistance',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='geom1',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='geom2',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='distmax',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='fromto',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(6,),
+                 ),
+             ),
+         ),
+         doc='Returns smallest signed distance between two geoms and optionally segment from geom1 to geom2.',  # pylint: disable=line-too-long
+     )),
     ('mj_contactForce',
      FunctionDecl(
          name='mj_contactForce',
@@ -4439,7 +4478,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -4465,7 +4504,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -4497,7 +4536,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(

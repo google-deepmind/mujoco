@@ -177,19 +177,16 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
-        {"position", "?", "11", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
-            "forcerange", "gear", "cranklength", "user", "group",
-            "kp", "kv"},
+        {"position", "?", "13", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
+            "forcerange", "gear", "cranklength", "user", "group", "kp", "kv", "dampratio", "timeconst"},
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group",
-            "kv"},
-        {"intvelocity", "?", "12", "ctrllimited", "forcelimited",
+            "gear", "cranklength", "user", "group", "kv"},
+        {"intvelocity", "?", "13", "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "inheritrange",
             "gear", "cranklength", "user", "group",
-            "kp", "kv"},
+            "kp", "kv", "dampratio"},
         {"damper", "?", "8", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group",
-            "kv"},
+            "gear", "cranklength", "user", "group", "kv"},
         {"cylinder", "?", "12", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "timeconst", "area", "diameter", "bias"},
@@ -390,22 +387,22 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "21", "name", "class", "group",
+        {"position", "*", "23", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp", "kv"},
+            "kp", "kv", "dampratio", "timeconst"},
         {"velocity", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "22", "name", "class", "group",
+        {"intvelocity", "*", "23", "name", "class", "group",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "inheritrange", "lengthrange",
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp", "kv"},
+            "kp", "kv", "dampratio"},
         {"damper", "*", "18", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -472,6 +469,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"subtreecom", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreelinvel", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreeangmom", "*", "5", "name", "body", "cutoff", "noise", "user"},
+        {"distance", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
+        {"normal", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
+        {"fromto", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"clock", "*", "4", "name", "cutoff", "noise", "user"},
         {"user", "*", "9", "name", "objtype", "objname", "datatype", "needstage",
             "dim", "cutoff", "noise", "user"},
@@ -924,25 +924,25 @@ void mjXReader::Parse(XMLElement* root) {
 
 
 // compiler section parser
-void mjXReader::Compiler(XMLElement* section, mjSpec* mod) {
+void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
   string text;
   int n;
 
   // top-level attributes
   if (MapValue(section, "autolimits", &n, bool_map, 2)) {
-    mod->autolimits = (n==1);
+    spec->autolimits = (n==1);
   }
-  ReadAttr(section, "boundmass", 1, &mod->boundmass, text);
-  ReadAttr(section, "boundinertia", 1, &mod->boundinertia, text);
-  ReadAttr(section, "settotalmass", 1, &mod->settotalmass, text);
+  ReadAttr(section, "boundmass", 1, &spec->boundmass, text);
+  ReadAttr(section, "boundinertia", 1, &spec->boundinertia, text);
+  ReadAttr(section, "settotalmass", 1, &spec->settotalmass, text);
   if (MapValue(section, "balanceinertia", &n, bool_map, 2)) {
-    mod->balanceinertia = (n==1);
+    spec->balanceinertia = (n==1);
   }
   if (MapValue(section, "strippath", &n, bool_map, 2)) {
-    mod->strippath = (n==1);
+    spec->strippath = (n==1);
   }
   if (MapValue(section, "fitaabb", &n, bool_map, 2)) {
-    mod->fitaabb = (n==1);
+    spec->fitaabb = (n==1);
   }
   if (MapValue(section, "coordinate", &n, coordinate_map, 2)) {
     if (n==1) {
@@ -951,48 +951,48 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* mod) {
     }
   }
   if (MapValue(section, "angle", &n, angle_map, 2)) {
-    mod->degree = (n==1);
+    spec->degree = (n==1);
   }
   if (ReadAttrTxt(section, "eulerseq", text)) {
     if (text.size()!=3) {
       throw mjXError(section, "euler format must have length 3");
     }
-    memcpy(mod->euler, text.c_str(), 3);
+    memcpy(spec->euler, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
-    mjs_setString(mod->meshdir, text.c_str());
-    mjs_setString(mod->texturedir, text.c_str());
+    mjs_setString(spec->meshdir, text.c_str());
+    mjs_setString(spec->texturedir, text.c_str());
   }
   // meshdir and texturedir take precedence over assetdir
   std::string meshdir, texturedir;
   if (ReadAttrTxt(section, "meshdir", meshdir)) {
-    mjs_setString(mod->meshdir, meshdir.c_str());
+    mjs_setString(spec->meshdir, meshdir.c_str());
   };
   if (ReadAttrTxt(section, "texturedir", texturedir)) {
-    mjs_setString(mod->texturedir, texturedir.c_str());
+    mjs_setString(spec->texturedir, texturedir.c_str());
   }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
-    mod->discardvisual = (n==1);
+    spec->discardvisual = (n==1);
   }
   if (MapValue(section, "convexhull", &n, bool_map, 2)) {
-    mod->convexhull = (n==1);
+    spec->convexhull = (n==1);
   }
   if (MapValue(section, "usethread", &n, bool_map, 2)) {
-    mod->usethread = (n==1);
+    spec->usethread = (n==1);
   }
   if (MapValue(section, "fusestatic", &n, bool_map, 2)) {
-    mod->fusestatic = (n==1);
+    spec->fusestatic = (n==1);
   }
-  MapValue(section, "inertiafromgeom", &mod->inertiafromgeom, TFAuto_map, 3);
-  ReadAttr(section, "inertiagrouprange", 2, mod->inertiagrouprange, text);
+  MapValue(section, "inertiafromgeom", &spec->inertiafromgeom, TFAuto_map, 3);
+  ReadAttr(section, "inertiagrouprange", 2, spec->inertiagrouprange, text);
   if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
-    mod->exactmeshinertia = (n==1);
+    spec->exactmeshinertia = (n==1);
   }
 
   // lengthrange subelement
   XMLElement* elem = FindSubElem(section, "lengthrange");
   if (elem) {
-    mjLROpt* opt = &(mod->LRopt);
+    mjLROpt* opt = &(spec->LRopt);
 
     // flags
     MapValue(elem, "mode", &opt->mode, lrmode_map, lrmode_sz);
@@ -1110,7 +1110,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
 
 // size section parser
-void mjXReader::Size(XMLElement* section, mjSpec* mod) {
+void mjXReader::Size(XMLElement* section, mjSpec* spec) {
   // read memory bytes
   {
     constexpr char err_msg[] =
@@ -1199,69 +1199,69 @@ void mjXReader::Size(XMLElement* section, mjSpec* mod) {
       if (*memory / sizeof(mjtNum) > std::numeric_limits<std::size_t>::max()) {
         throw mjXError(section, "%s", err_msg);
       }
-      mod->memory = *memory;
+      spec->memory = *memory;
     }
   }
 
   // read sizes
-  ReadAttrInt(section, "nuserdata", &mod->nuserdata);
-  ReadAttrInt(section, "nkey", &mod->nkey);
+  ReadAttrInt(section, "nuserdata", &spec->nuserdata);
+  ReadAttrInt(section, "nkey", &spec->nkey);
 
-  ReadAttrInt(section, "nconmax", &mod->nconmax);
-  if (mod->nconmax < -1) throw mjXError(section, "nconmax must be >= -1");
+  ReadAttrInt(section, "nconmax", &spec->nconmax);
+  if (spec->nconmax < -1) throw mjXError(section, "nconmax must be >= -1");
 
   {
     int nstack = -1;
     const bool has_nstack = ReadAttrInt(section, "nstack", &nstack);
     if (has_nstack) {
-      if (mod->nstack < -1) {
+      if (spec->nstack < -1) {
         throw mjXError(section, "nstack must be >= -1");
       }
-      if (mod->memory != -1 && nstack != -1) {
+      if (spec->memory != -1 && nstack != -1) {
         throw mjXError(section,
                        "either 'memory' and 'nstack' attribute can be specified, not both");
       }
-      mod->nstack = nstack;
+      spec->nstack = nstack;
     }
   }
   {
     int njmax = -1;
     const bool has_njmax = ReadAttrInt(section, "njmax", &njmax);
     if (has_njmax) {
-      if (mod->njmax < -1) {
+      if (spec->njmax < -1) {
         throw mjXError(section, "njmax must be >= -1");
       }
-      if (mod->memory != -1 && njmax != -1) {
+      if (spec->memory != -1 && njmax != -1) {
         throw mjXError(section,
                        "either 'memory' and 'njmax' attribute can be specified, not both");
       }
-      mod->njmax = njmax;
+      spec->njmax = njmax;
     }
   }
 
-  ReadAttrInt(section, "nuser_body", &mod->nuser_body);
-  if (mod->nuser_body < -1) throw mjXError(section, "nuser_body must be >= -1");
+  ReadAttrInt(section, "nuser_body", &spec->nuser_body);
+  if (spec->nuser_body < -1) throw mjXError(section, "nuser_body must be >= -1");
 
-  ReadAttrInt(section, "nuser_jnt", &mod->nuser_jnt);
-  if (mod->nuser_jnt < -1) throw mjXError(section, "nuser_jnt must be >= -1");
+  ReadAttrInt(section, "nuser_jnt", &spec->nuser_jnt);
+  if (spec->nuser_jnt < -1) throw mjXError(section, "nuser_jnt must be >= -1");
 
-  ReadAttrInt(section, "nuser_geom", &mod->nuser_geom);
-  if (mod->nuser_geom < -1) throw mjXError(section, "nuser_geom must be >= -1");
+  ReadAttrInt(section, "nuser_geom", &spec->nuser_geom);
+  if (spec->nuser_geom < -1) throw mjXError(section, "nuser_geom must be >= -1");
 
-  ReadAttrInt(section, "nuser_site", &mod->nuser_site);
-  if (mod->nuser_site < -1) throw mjXError(section, "nuser_site must be >= -1");
+  ReadAttrInt(section, "nuser_site", &spec->nuser_site);
+  if (spec->nuser_site < -1) throw mjXError(section, "nuser_site must be >= -1");
 
-  ReadAttrInt(section, "nuser_cam", &mod->nuser_cam);
-  if (mod->nuser_cam < -1) throw mjXError(section, "nuser_cam must be >= -1");
+  ReadAttrInt(section, "nuser_cam", &spec->nuser_cam);
+  if (spec->nuser_cam < -1) throw mjXError(section, "nuser_cam must be >= -1");
 
-  ReadAttrInt(section, "nuser_tendon", &mod->nuser_tendon);
-  if (mod->nuser_tendon < -1) throw mjXError(section, "nuser_tendon must be >= -1");
+  ReadAttrInt(section, "nuser_tendon", &spec->nuser_tendon);
+  if (spec->nuser_tendon < -1) throw mjXError(section, "nuser_tendon must be >= -1");
 
-  ReadAttrInt(section, "nuser_actuator", &mod->nuser_actuator);
-  if (mod->nuser_actuator < -1) throw mjXError(section, "nuser_actuator must be >= -1");
+  ReadAttrInt(section, "nuser_actuator", &spec->nuser_actuator);
+  if (spec->nuser_actuator < -1) throw mjXError(section, "nuser_actuator must be >= -1");
 
-  ReadAttrInt(section, "nuser_sensor", &mod->nuser_sensor);
-  if (mod->nuser_sensor < -1) throw mjXError(section, "nuser_sensor must be >= -1");
+  ReadAttrInt(section, "nuser_sensor", &spec->nuser_sensor);
+  if (spec->nuser_sensor < -1) throw mjXError(section, "nuser_sensor must be >= -1");
 }
 
 
@@ -1882,13 +1882,13 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* pequality) {
     case mjEQ_JOINT:
       ReadAttrTxt(elem, "joint1", name1, true);
       ReadAttrTxt(elem, "joint2", name2);
-      ReadAttr(elem, "polycoef", 5, pequality->data, text);
+      ReadAttr(elem, "polycoef", 5, pequality->data, text, false, false);
       break;
 
     case mjEQ_TENDON:
       ReadAttrTxt(elem, "tendon1", name1, true);
       ReadAttrTxt(elem, "tendon2", name2);
-      ReadAttr(elem, "polycoef", 5, pequality->data, text);
+      ReadAttr(elem, "polycoef", 5, pequality->data, text, false, false);
       break;
 
     case mjEQ_FLEX:
@@ -2085,12 +2085,33 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
     ReadAttr(elem, "kp", 1, pact->gainprm, text);
     pact->biasprm[1] = -pact->gainprm[0];
 
-    if (ReadAttr(elem, "kv", 1, pact->biasprm + 2, text)) {
-      if (pact->biasprm[2] < 0)
-        throw mjXError(elem, "kv cannot be negative");
-      pact->biasprm[2] *= -1;
+    // read kv
+    double kv = -1;  // -1: undefined
+    if (ReadAttr(elem, "kv", 1, &kv, text)) {
+      if (kv < 0) throw mjXError(elem, "kv cannot be negative");
     }
 
+    // read dampratio
+    double dampratio = -1;  // -1: undefined
+    if (ReadAttr(elem, "dampratio", 1, &dampratio, text)) {
+      if (dampratio < 0) throw mjXError(elem, "dampratio cannot be negative");
+    }
+
+    // set biasprm[2]; negative: regular damping, positive: dampratio
+    if (dampratio > 0 && kv > 0) {
+      throw mjXError(elem, "kv and dampratio cannot both be defined");
+    }
+    if (kv > 0) pact->biasprm[2] = -kv;
+    if (dampratio > 0) pact->biasprm[2] = dampratio;
+
+    // read timeconst, set dyntype
+    if (ReadAttr(elem, "timeconst", 1, pact->dynprm, text)) {
+      if (pact->dynprm[0] < 0)
+        throw mjXError(elem, "timeconst cannot be negative");
+      pact->dyntype = pact->dynprm[0] ? mjDYN_FILTEREXACT : mjDYN_NONE;
+    }
+
+    // handle inheritrange
     ReadAttr(elem, "inheritrange", 1, &pact->inheritrange, text);
     if (pact->inheritrange > 0) {
       if (type == "position") {
@@ -3947,6 +3968,29 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_SUBTREEANGMOM;
       psen->objtype = mjOBJ_BODY;
       ReadAttrTxt(elem, "body", objname, true);
+    }
+
+    // sensors for geometric distance; attached to geoms or bodies
+    else if (type=="distance" || type=="normal" || type=="fromto") {
+      bool has_body1 = ReadAttrTxt(elem, "body1", objname);
+      bool has_geom1 = ReadAttrTxt(elem, "geom1", objname);
+      if (has_body1 == has_geom1) {
+        throw mjXError(elem, "exactly one of (geom1, body1) must be specified");
+      }
+      psen->objtype = has_body1 ? mjOBJ_BODY : mjOBJ_GEOM;
+      bool has_body2 = ReadAttrTxt(elem, "body2", refname);
+      bool has_geom2 = ReadAttrTxt(elem, "geom2", refname);
+      if (has_body2 == has_geom2) {
+        throw mjXError(elem, "exactly one of (geom2, body2) must be specified");
+      }
+      psen->reftype = has_body2 ? mjOBJ_BODY : mjOBJ_GEOM;
+      if (type=="distance") {
+        psen->type = mjSENS_GEOMDIST;
+      } else if (type=="normal") {
+        psen->type = mjSENS_GEOMNORMAL;
+      } else {
+        psen->type = mjSENS_GEOMFROMTO;
+      }
     }
 
     // global sensors

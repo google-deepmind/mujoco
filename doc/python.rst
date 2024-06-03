@@ -1,8 +1,8 @@
-===============
-Python Bindings
-===============
+======
+Python
+======
 
-Starting with version 2.1.2, MuJoCo comes with native Python bindings that are developed in C++ using
+MuJoCo comes with native Python bindings that are developed in C++ using
 `pybind11 <https://pybind11.readthedocs.io/>`__. The Python API is consistent with the underlying C API. This leads to
 some non-Pythonic code structure (e.g. order of function arguments), but it has the benefit that the
 :doc:`API documentation<APIreference/index>` is applicable to both languages.
@@ -12,23 +12,22 @@ low-level bindings that are meant to give as close to a direct access to the MuJ
 order to provide an API and semantics that developers would expect in a typical Python library, the bindings
 deliberately diverge from the raw MuJoCo API in a number of places, which are documented throughout this page.
 
-Google DeepMind’s `dm_control <https://github.com/google-deepmind/dm_control>`__ reinforcement learning library (which
-prior to version 1.0.0 implemented its own MuJoCo bindings based on ``ctypes``) has been updated to depend on the
-``mujoco`` package and continues to be supported by Google DeepMind. Changes in dm_control should be largely transparent
-to users of previous versions, however code that depended directly on its low-level API may need to be updated. Consult
-the `migration guide <https://github.com/google-deepmind/dm_control/blob/main/migration_guide_1.0.md>`__ for detail.
+Google DeepMind’s `dm_control <https://github.com/google-deepmind/dm_control>`__ reinforcement learning library depends
+on the ``mujoco`` package and continues to be supported by Google DeepMind. For code that depends on dm_control versions
+prior to 1.0.0, consult the
+`migration guide <https://github.com/google-deepmind/dm_control/blob/main/migration_guide_1.0.md>`__.
 
-For mujoco-py users, we include :ref:`notes <PyMjpy_migration>` below to aid migration.
+For mujoco-py users, we include :ref:`migration notes <PyMjpy_migration>` below.
 
 .. _PyNotebook:
 
 Tutorial notebook
 =================
 
-A MuJoCo tutorial using the Python bindings is available here: |colab|
+A MuJoCo tutorial using the Python bindings is available here: |mjcolab|
 
-.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
-           :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
+.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+             :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
 
 .. _PyInstallation:
 
@@ -55,8 +54,8 @@ use cases are supported:
 
 .. _PyViewerApp:
 
-Standalone application
-----------------------
+Standalone app
+--------------
 
 - ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
 - ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
@@ -466,90 +465,6 @@ Alternatively, if a callback is implemented in a native dynamic library, users c
 it to ``mujoco.set_mjcb_foo``. The bindings will then retrieve the underlying function pointer and assign it directly to
 the raw callback pointer, and the GIL will **not** be acquired each time the callback is entered.
 
-.. _PySample:
-
-Open-loop rollouts
-==================
-
-We include a code sample showing how to add additional C/C++ functionality, exposed as a Python module via pybind11. The
-sample, implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
-and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__,
-implements a common use case where tight loops implemented outside of Python are beneficial: rolling out a trajectory
-(i.e., calling ``mj_step()`` in a loop), given an intial state and sequence of controls, and returning subsequent states
-and sensor values. The basic usage form is
-
-.. code-block:: python
-
-   state, sensordata = rollout.rollout(model, data, initial_state, control)
-
-``initial_state`` is a ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
-``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
-:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are
-by default the ``mjModel.nu`` standard actuators, but any combination of :ref:`user input<geInput>` arrays can be
-specified by passing an optional ``control_spec`` bitflag.
-
-If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
-Therefore, non-increasing time values can be used to detect diverged rollouts.
-
-The ``rollout`` function is designed to be completely stateless, so all inputs of the stepping pipeline are set and any
-values already present in the given ``MjData`` instance will have no effect on the output.
-
-Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
-the ``test_threading`` function in
-`rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`__ for an example
-of threaded operation (and more generally for usage examples).
-
-.. _PyMjpy_migration:
-
-Migration from mujoco-py
-========================
-
-In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
-class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
-instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
-bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
-library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
-
-While a complete survey of mujoco-py is beyond the scope of this document, we offer below implementation notes for a
-non-exhaustive list of specific mujoco-py features:
-
-``mujoco_py.load_model_from_xml(bstring)``
-   This factory function constructs a stateful ``MjSim`` instance. When using ``mujoco``, the user should call the
-   factory function ``mujoco.MjModel.from_xml_*`` as described :ref:`above <PyStructs>`. The user is then responsible
-   for holding the resulting ``MjModel`` struct instance and explicitly generating the corresponding ``MjData`` by
-   calling ``mujoco.MjData(model)``.
-
-``sim.reset()``, ``sim.forward()``, ``sim.step()``
-   Here as above, ``mujoco`` users needs to call the underlying library functions, passing instances of ``MjModel`` and
-   ``MjData``: :ref:`mujoco.mj_resetData(model, data) <mj_resetData>`, :ref:`mujoco.mj_forward(model, data)
-   <mj_forward>`, and :ref:`mujoco.mj_step(model, data) <mj_step>`.
-
-``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
-   The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming
-   section <Simulation>`. mujoco-py implements methods for getting and setting some of the relevant fields (and
-   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). ``mujoco`` do not offer such
-   abstraction, and the user is expected to get/set the values of the relevant fields explicitly.
-
-``sim.model.get_joint_qvel_addr(joint_name)``
-   This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The
-   list starts from ``model.jnt_qposadr[joint_index]``, and its length depends on the joint type. ``mujoco`` doesn't
-   offer this functionality, but this list can be easily constructed using ``model.jnt_qposadr[joint_index]`` and
-   ``xrange``.
-
-``sim.model.*_name2id(name)``
-   mujoco-py creates dicts in ``MjSim`` that allow for efficient lookup of indices for objects of different types:
-   ``site_name2id``, ``body_name2id`` etc. These functions replace the function :ref:`mujoco.mj_name2id(model,
-   type_enum, name) <mj_name2id>`. ``mujoco`` offers a different approach for using entity names – :ref:`named access
-   <PyNamed>`, as well as access to the native :ref:`mj_name2id`.
-
-``sim.save(fstream, format_name)``
-   This is the one context in which the MuJoCo library (and therefore also ``mujoco``) is stateful: it holds a copy in
-   memory of the last XML that was compiled, which is used in :ref:`mujoco.mj_saveLastXML(fname) <mj_saveLastXML>`. Note
-   that mujoco-py’s implementation has a convenient extra feature, whereby the pose (as determined by ``sim.data``’s
-   state) is transformed to a keyframe that’s added to the model before saving.  This extra feature is not currently
-   available in ``mujoco``.
-
-
 .. _PyBuild:
 
 Building from source
@@ -609,7 +524,9 @@ Building from source
    .. code-block:: shell
 
       cd dist
-      MUJOCO_PATH=/PATH/TO/MUJOCO MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN pip install mujoco-x.y.z.tar.gz
+      MUJOCO_PATH=/PATH/TO/MUJOCO
+      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN
+      pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run
@@ -619,3 +536,131 @@ successfully installed, ``cd`` outside of the ``mujoco`` directory and run
    As a reference, a working build configuration can be found in MuJoCo's
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
    GitHub.
+
+
+.. _PyModule:
+
+Modules
+=======
+
+The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco.minimize``
+
+.. _PyRollout:
+
+rollout
+-------
+
+``mujoco.rollout`` shows how to add additional C/C++ functionality, exposed as a Python module via pybind11. It is
+implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
+and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module
+performs a common functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory
+(i.e., calling :ref:`mj_step` in a loop), given an intial state and sequence of controls, and returning subsequent
+states and sensor values. The basic usage form is
+
+.. code-block:: python
+
+   state, sensordata = rollout.rollout(model, data, initial_state, control)
+
+``initial_state`` is an ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
+``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
+:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are
+by default the ``mjModel.nu`` standard actuators, but any combination of :ref:`user input<geInput>` arrays can be
+specified by passing an optional ``control_spec`` bitflag.
+
+If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
+Therefore, non-increasing time values can be used to detect diverged rollouts.
+
+The ``rollout`` function is designed to be completely stateless, so all inputs of the stepping pipeline are set and any
+values already present in the given ``MjData`` instance will have no effect on the output.
+
+Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
+the ``test_threading`` function in
+`rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`__ for an example
+of threaded operation (and more generally for usage examples).
+
+.. _PyMinimize:
+
+minimize
+--------
+
+This module contains optimization-related utilities.
+
+The ``minimize.least_squares()`` function implements a nonlinear Least Squares optimizer solving sequential
+Quadratic Programs with :ref:`mju_boxQP`. It is documented in the associated notebook: |lscolab|
+
+.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+             :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
+
+
+
+
+.. _PyUtility:
+
+Utilities
+=========
+
+The `python/mujoco <https://github.com/google-deepmind/mujoco/tree/main/python/mujoco>`__ directory also contains
+utility scripts.
+
+
+.. _PyMsh2obj:
+
+msh2obj.py
+----------
+
+The `msh2obj.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/msh2obj.py>`__ script converts the
+:ref:`legacy .msh format<legacy-msh-docs>` for surface meshes (different from the possibly-volumetric
+:ref:`gmsh format<gmsh-file-docs>` also using .msh), to OBJ files. The legacy format is depricated and will be removed
+in a future release. Please convert all legacy files to OBJ.
+
+
+
+.. _PyMjpy_migration:
+
+mujoco-py migration
+===================
+
+In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
+class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
+instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
+bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
+library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
+
+While a complete survey of mujoco-py is beyond the scope of this document, we offer below implementation notes for a
+non-exhaustive list of specific mujoco-py features:
+
+``mujoco_py.load_model_from_xml(bstring)``
+   This factory function constructs a stateful ``MjSim`` instance. When using ``mujoco``, the user should call the
+   factory function ``mujoco.MjModel.from_xml_*`` as described :ref:`above <PyStructs>`. The user is then responsible
+   for holding the resulting ``MjModel`` struct instance and explicitly generating the corresponding ``MjData`` by
+   calling ``mujoco.MjData(model)``.
+
+``sim.reset()``, ``sim.forward()``, ``sim.step()``
+   Here as above, ``mujoco`` users needs to call the underlying library functions, passing instances of ``MjModel`` and
+   ``MjData``: :ref:`mujoco.mj_resetData(model, data) <mj_resetData>`, :ref:`mujoco.mj_forward(model, data)
+   <mj_forward>`, and :ref:`mujoco.mj_step(model, data) <mj_step>`.
+
+``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
+   The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming
+   section <Simulation>`. mujoco-py implements methods for getting and setting some of the relevant fields (and
+   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). ``mujoco`` do not offer such
+   abstraction, and the user is expected to get/set the values of the relevant fields explicitly.
+
+``sim.model.get_joint_qvel_addr(joint_name)``
+   This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The
+   list starts from ``model.jnt_qposadr[joint_index]``, and its length depends on the joint type. ``mujoco`` doesn't
+   offer this functionality, but this list can be easily constructed using ``model.jnt_qposadr[joint_index]`` and
+   ``xrange``.
+
+``sim.model.*_name2id(name)``
+   mujoco-py creates dicts in ``MjSim`` that allow for efficient lookup of indices for objects of different types:
+   ``site_name2id``, ``body_name2id`` etc. These functions replace the function :ref:`mujoco.mj_name2id(model,
+   type_enum, name) <mj_name2id>`. ``mujoco`` offers a different approach for using entity names – :ref:`named access
+   <PyNamed>`, as well as access to the native :ref:`mj_name2id`.
+
+``sim.save(fstream, format_name)``
+   This is the one context in which the MuJoCo library (and therefore also ``mujoco``) is stateful: it holds a copy in
+   memory of the last XML that was compiled, which is used in :ref:`mujoco.mj_saveLastXML(fname) <mj_saveLastXML>`. Note
+   that mujoco-py’s implementation has a convenient extra feature, whereby the pose (as determined by ``sim.data``’s
+   state) is transformed to a keyframe that’s added to the model before saving.  This extra feature is not currently
+   available in ``mujoco``.

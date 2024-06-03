@@ -244,7 +244,6 @@ typedef struct _mjsJoint {         // joint specification
   // other
   int group;                       // group
   mjtByte actgravcomp;             // is gravcomp force applied via actuators
-  double urdfeffort;               // effort (urdf)
   mjDoubleVec userdata;            // user data
   mjString info;                   // message appended to compiler errors
 } mjsJoint;
@@ -811,8 +810,8 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Delete body. TODO: make this a general mjs_deleteElement function
-MJAPI void mjs_deleteBody(mjsBody* b);
+// Delete object corresponding to the given element.
+MJAPI void mjs_delete(mjElement* element);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------
@@ -915,6 +914,15 @@ MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
 
 // Get element id.
 MJAPI int mjs_getId(mjElement* element);
+
+
+//---------------------------------- Tree traversal ------------------------------------------------
+
+// Return body's first child of given type.
+MJAPI mjElement* mjs_firstChild(mjsBody* body, mjtObj type);
+
+// Return body's next child of the same type; return NULL if child is last.
+MJAPI mjElement* mjs_nextChild(mjsBody* body, mjElement* child);
 
 
 //---------------------------------- Attribute setters ---------------------------------------------

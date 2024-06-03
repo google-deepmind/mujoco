@@ -214,6 +214,10 @@ and namespaced appropriately. Detailed examples of models using replicate can be
             </replicate>
           </replicate>
         </worldbody>
+
+        <sensor>
+          <accelerometer name="Bob" site="Alice"/>
+        </sensor>
       </mujoco>
 
    Results in this model:
@@ -227,6 +231,13 @@ and namespaced appropriately. Detailed examples of models using replicate can be
           <geom name="Alice-01" size="0.1" pos="0 1 0" quat="1 1 0 0"/>
           <geom name="Alice-11" size="0.1" pos="1 1 0" quat="0.5 0.5 0.5 0.5"/>
         </worldbody>
+
+        <sensor>
+          <accelerometer name="Bob-00" site="Alice-00"/>
+          <accelerometer name="Bob-10" site="Alice-10"/>
+          <accelerometer name="Bob-01" site="Alice-01"/>
+          <accelerometer name="Bob-11" site="Alice-11"/>
+        </sensor>
       </mujoco>
 
 .. _include:
@@ -301,8 +312,8 @@ adjust it properly through the XML.
    setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
    attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
    of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
-   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
-   the overall effect of this attribute is qualitatively similar.
+   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; it
+   is not recommended to use high impratio values with pyramidal cones.
 
 .. _option-gravity:
 
@@ -1087,6 +1098,8 @@ mapping mechanism. When provided, these explicit coordinates have priority. Note
 specified with OBJ files and MSH files, as well as explicitly in the XML with the :at:`texcoord` attribute, but not via
 STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
 to convert to one of the other supported formats.
+
+.. _legacy-msh-docs:
 
 MSH file format
    The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
@@ -2274,7 +2287,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    along both axes of the tangent plane. The second number is the torsional friction, acting around the contact normal.
    The third number is the rolling friction, acting around both axes of the tangent plane. The friction parameters for
    the contact pair are combined depending on the solmix and priority attributes, as explained in :ref:`Contact
-   parameters <CContact>`.
+   parameters <CContact>`. See the general :ref:`Contact<coContact>` section for descriptions of the semantics of this
+   attribute.
 
 .. _body-geom-mass:
 
@@ -4261,11 +4275,15 @@ joint types (slide and hinge) can be used.
 .. _equality-joint-polycoef:
 
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
-   Coefficients a0 ... a4 of the quartic polynomial. If the two joint values are y and x, and their reference positions
-   (corresponding to the joint values in the initial model configuration) are y0 and x0, the constraint is:
-   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
-   Omitting the second joint is equivalent to setting x = x0, in which case the constraint is y = y0 + a0.
+   Coefficients :math:`a_0 \ldots a_4` of the quartic polynomial. If the joint values of :at:`joint1` and :at:`joint2`
+   are respectively :math:`y` and :math:`x`, and their reference positions (corresponding to the joint values in the
+   initial model configuration) are :math:`y_0` and :math:`x_0`, the constraint is:
 
+   .. math::
+      y-y_0 = a_0 + a_1(x-x_0) + a_2(x-x_0)^2 + a_3(x-x_0)^3 + a_4(x-x_0)^4
+
+   Omitting :at:`joint2` is equivalent to setting :math:`x = x_0`, in which case the constraint is
+   :math:`y = y_0 + a_0`.
 
 .. _equality-tendon:
 
@@ -4301,7 +4319,7 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 .. _equality-tendon-polycoef:
 
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
-   Same as in the equality/ :ref:`joint <equality-joint>` element above, but applied to tendon lengths instead of joint
+   Same as in the :ref:`equality/joint <equality-joint>` element above, but applied to tendon lengths instead of joint
    positions.
 
 
@@ -4958,15 +4976,16 @@ This element does not have custom attributes. It only has common attributes, whi
 :el-prefix:`actuator/` |-| **position** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a position servo. The underlying :el:`general` attributes are set as follows:
+This element creates a position servo with an optional first-order filter. The underlying :el:`general` attributes are
+set as follows:
 
-========= ======= ========= =========
-Attribute Setting Attribute Setting
-========= ======= ========= =========
-dyntype   none    dynprm    1 0 0
-gaintype  fixed   gainprm   kp 0 0
-biastype  affine  biasprm   0 -kp -kv
-========= ======= ========= =========
+========= =================== ========= =============
+Attribute Setting             Attribute Setting
+========= =================== ========= =============
+dyntype   none or filterexact dynprm    timeconst 0 0
+gaintype  fixed               gainprm   kp 0 0
+biastype  affine              biasprm   0 -kp -kv
+========= =================== ========= =============
 
 
 This element has one custom attribute in addition to the common attributes:
@@ -5025,6 +5044,29 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kv`: :at-val:`real, "0"`
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-position-dampratio:
+
+:at:`dampratio`: :at-val:`real, "0"`
+   Damping applied by the actuator, using damping ratio units.
+   This attribute is exclusive with :at:`kv` and has similar meaning, but instead of units of force/velocity, the units
+   are :math:`2 \sqrt{k_p \cdot m}`, corresponding to a harmonic oscillator's
+   `damping ratio <https://en.wikipedia.org/wiki/Damping#Damping_ratio_definition>`__.
+   A value of 1 corresponds to a *critically damped* oscillator, which often produces desirable behavior.
+   Values smaller or larger than 1 correspond to underdamped and overdamped oscillations, respectively.
+   The mass :math:`m` is computed at the reference configuration ``mjModel.qpos0``, taking into account joint
+   :ref:`armature <body-joint-armature>`.
+   However, passive :ref:`damping <body-joint-damping>` or :ref:`frictionloss <body-joint-frictionloss>` in the affected
+   joints are not taken into account; if they are non-negligible, :at:`dampratio` values smaller than 1 might be
+   required to achieve desirable motion.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-position-timeconst:
+
+:at:`timeconst`: :at-val:`real, "0"`
+   Time-constant of optional first-order filter.  If larger than zero, the actuator uses the :at:`filterexact`
+   :ref:`dynamics type<actuator-general-dyntype>`, if zero (the default) no filter is used.
+
 
 .. _actuator-position-inheritrange:
 
@@ -5187,6 +5229,11 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kv`: :at-val:`real, "0"`
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-intvelocity-dampratio:
+
+:at:`dampratio`: :at-val:`real, "0"`
+   See :ref:`position/dampratio<actuator-position-dampratio>`.
 
 .. _actuator-intvelocity-inheritrange:
 
@@ -6720,6 +6767,186 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
 
+.. _collision-sensors:
+
+collision sensors
+^^^^^^^^^^^^^^^^^
+
+The following 3 sensor types, :ref:`sensor/distance<sensor-distance>`, :ref:`sensor/normal<sensor-normal>` and
+:ref:`sensor/fromto<sensor-fromto>`, respectively measure the distance, normal direction and line segment of the
+smallest signed distance between the surfaces of two geoms using the narrow-phase geom-geom colliders. The collision
+computation is always performed, independently of the standard collision :ref:`selection and filtering<coSelection>`
+pipeline. These 3 sensors share some common properties:
+
+.. _collision-sensors-cutoff:
+
+:at:`cutoff`
+   For most sensors, the :at:`cutoff` attribute simply defines a clipping operation on sensor values. For collision
+   sensors, it defines the maximum distance at which collisions will be detected, corresponding to the ``dismax``
+   argument of :ref:`mj_geomDistance`. For example, at the default value of 0, only negative distances (corresponding
+   to geom-geom penetration) will be reported by :ref:`sensor/distance<sensor-distance>`.
+   In order to determine collision properties of non-penetrating geom pairs, a positive :at:`cutoff` is required.
+
+   .. admonition:: Positive cutoff values
+      :class: note
+
+      .. TODO: b/339596989 - Improve mjc_Convex.
+
+      For some colliders, a positive :at:`cutoff` will result in an accurate measurement. However, for collision
+      pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
+      This is considered a bug to be fixed in a future release.
+      In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
+      `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+
+:at:`geom1`, :at:`geom2`, :at:`body1`, :at:`body2`
+   For all 3 collision sensor types, the two colliding geoms can be specified explicitly using the :at:`geom1` and
+   :at:`geom2` attributes or implicitly, using :at:`body1`, :at:`body2`. In the latter case the sensor will iterate over
+   all geoms of the specified body or bodies (mixed specification like :at:`geom1`, :at:`body2` are allowed), and
+   select the collision with the smallest signed distance.
+
+sequential sensors
+   When multiple collision sensors are defined sequentially and have identical attributes (:at:`geom1`, :at:`body1`,
+   :at:`geom2`, :at:`body2`, :at:`cutoff`), for example when both distance and normal are queried for the same geom
+   pair, the collision functions will be called once for the whole sensor block, avoiding repeated computation.
+
+.. _sensor-distance:
+
+:el-prefix:`sensor/` |-| **distance** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a sensor that returns the smallest signed distance between the surfaces of two geoms.
+See :ref:`collision-sensors` for more details about sensors of this type.
+
+.. _sensor-distance-cutoff:
+
+:at:`cutoff`
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   If no collision is detected, the distance sensor returns the :at:`cutoff` value, so in this case
+   :at:`cutoff` acts as a maximum clipping value, in addition to the special semantics.
+
+.. _sensor-distance-geom1:
+
+:at:`geom1`: :at-val:`string, optional`
+   Name of the first geom. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-distance-geom2:
+
+:at:`geom2`: :at-val:`string, optional`
+   Name of the second geom. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-distance-body1:
+
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-distance-body2:
+
+:at:`body2`: :at-val:`string, optional`
+   Name of the second body. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-distance-name:
+
+.. _sensor-distance-noise:
+
+.. _sensor-distance-user:
+
+:at:`name`, :at:`noise`, :at:`user`
+   See :ref:`CSensor`.
+
+
+.. _sensor-normal:
+
+:el-prefix:`sensor/` |-| **normal** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a sensor that returns the normal direction of the smallest signed distance between the surfaces of
+two geoms. It is guaranteed to point from the surface of geom1 to the surface of geom2, though note that in the case of
+penetration, this direction is generally in the opposite direction to that of the centroids.
+See :ref:`collision-sensors` for more details about sensors of this type.
+
+.. _sensor-normal-cutoff:
+
+:at:`cutoff`
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   If no collision is detected, the :ref:`normal<sensor-normal>` sensor returns (0, 0, 0), otherwise it returns a
+   normalized direction vector. For this sensor, :at:`cutoff` does not lead to any clamping.
+
+.. _sensor-normal-geom1:
+
+:at:`geom1`: :at-val:`string, optional`
+   Name of the first geom. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-normal-geom2:
+
+:at:`geom2`: :at-val:`string, optional`
+   Name of the second geom. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-normal-body1:
+
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-normal-body2:
+
+:at:`body2`: :at-val:`string, optional`
+   Name of the second body. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-normal-name:
+
+.. _sensor-normal-noise:
+
+.. _sensor-normal-user:
+
+:at:`name`, :at:`noise`, :at:`user`
+   See :ref:`CSensor`.
+
+
+.. _sensor-fromto:
+
+:el-prefix:`sensor/` |-| **fromto** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a sensor that returns the segment defining the smallest signed distance between the surfaces of two
+geoms. The segment is defined by 6 numbers (x1, y1, z1, x2, y2, z2) corresponding to two points in the world frame.
+(x1, y1, z1) is on the surface of geom1, (x2, y2, z2) is on the surface of geom2. When this sensor is present and the
+:ref:`mjVIS_RANGEFINDER<mjtVisFlag>` visualization flag is set, segments will be visualized as rangefinder rays.
+See :ref:`collision-sensors` for more details about sensors of this type.
+
+.. _sensor-fromto-cutoff:
+
+:at:`cutoff`
+   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   If no collision is detected, the :ref:`fromto<sensor-fromto>` sensor returns 6 zeros.
+   For this sensor, :at:`cutoff` does not lead to any clamping.
+
+.. _sensor-fromto-geom1:
+
+:at:`geom1`: :at-val:`string, optional`
+   Name of the first geom. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-fromto-geom2:
+
+:at:`geom2`: :at-val:`string, optional`
+   Name of the second geom. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-fromto-body1:
+
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body. Exactly one of (:at:`geom1`, :at:`body1`) must be specified.
+
+.. _sensor-fromto-body2:
+
+:at:`body2`: :at-val:`string, optional`
+   Name of the second body. Exactly one of (:at:`geom2`, :at:`body2`) must be specified.
+
+.. _sensor-fromto-name:
+
+.. _sensor-fromto-noise:
+
+.. _sensor-fromto-user:
+
+:at:`name`, :at:`noise`, :at:`user`
+   See :ref:`CSensor`.
 
 .. _sensor-clock:
 
@@ -7891,6 +8118,10 @@ tendon, slidersite, cranksite.
 
 .. _default-position-kv:
 
+.. _default-position-dampratio:
+
+.. _default-position-timeconst:
+
 :el-prefix:`default/` |-| **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -7950,6 +8181,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-intvelocity-kp:
 
 .. _default-intvelocity-kv:
+
+.. _default-intvelocity-dampratio:
 
 :el-prefix:`default/` |-| **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

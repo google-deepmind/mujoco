@@ -29,6 +29,9 @@
 #include "user/user_cache.h"
 #include "xml/xml_util.h"
 
+// global cache size in bytes (default 500MB)
+static constexpr std::size_t kGlobalCacheSize = 500 * (1 << 20);
+
 
 // prepend prefix
 template <typename T>
@@ -115,7 +118,7 @@ int mjs_detachBody(mjSpec* s, mjsBody* b) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   mjCBody* body = static_cast<mjCBody*>(b->element);
   *model -= *body;
-  mjs_deleteBody(b);
+  mjs_delete(b->element);
   return 0;
 }
 
@@ -137,10 +140,10 @@ void mjs_deleteSpec(mjSpec* s) {
 
 
 
-// delete body
-void mjs_deleteBody(mjsBody* b) {
-  mjCBody* body = static_cast<mjCBody*>(b->element);
-  delete body;
+// delete object, it will call the appropriate destructor since ~mjCBase is virtual
+void mjs_delete(mjElement* element) {
+  mjCBase* object = static_cast<mjCBase*>(element);
+  delete object;
 }
 
 
@@ -426,8 +429,8 @@ mjsPlugin* mjs_addPlugin(mjSpec* s) {
 // add default to model
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  *id = (int)modelC->defaults.size();
-  mjCDef* def = modelC->AddDef(classname, parentid);
+  *id = (int)modelC->NumDefaults();
+  mjCDef* def = modelC->AddDefault(classname, parentid);
   if (def) {
     return &def->spec;
   } else {
@@ -454,7 +457,7 @@ mjsDefault* mjs_getDefault(mjElement* element) {
 // Find default with given name in model.
 mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* cdef = modelC->FindDef(classname);
+  mjCDef* cdef = modelC->FindDefault(classname);
   if (!cdef) {
     return nullptr;
   }
@@ -466,7 +469,7 @@ mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
 // get default[0] from model
 mjsDefault* mjs_getSpecDefault(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef* def = modelC->defaults[0];
+  mjCDef* def = modelC->Defaults(0);
   if (!def) {
     return nullptr;
   }
@@ -547,6 +550,22 @@ int mjs_getId(mjElement* element) {
 void mjs_setDefault(mjElement* element, mjsDefault* defspec) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
   baseC->def = static_cast<mjCDef*>(defspec->element);
+}
+
+
+
+// return first child of selected type
+mjElement* mjs_firstChild(mjsBody* body, mjtObj type) {
+  mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+  return bodyC->NextChild(NULL, type);
+}
+
+
+
+// return body's next child; return NULL if child is last
+mjElement* mjs_nextChild(mjsBody* body, mjElement* child) {
+  mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+  return bodyC->NextChild(child);
 }
 
 
@@ -674,7 +693,7 @@ void mjs_setActivePlugins(mjSpec* s, void* activeplugins) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   std::vector<std::pair<const mjpPlugin*, int>>* active_plugins =
       reinterpret_cast<std::vector<std::pair<const mjpPlugin*, int>>*>(activeplugins);
-  modelC->active_plugins = std::move(*active_plugins);
+  modelC->SetActivePlugins(std::move(*active_plugins));
 }
 
 
@@ -698,5 +717,12 @@ void mj_setCacheSize(mjCache cache, std::size_t size) {
 
 
 mjCache mj_globalCache() {
-  return NULL;  // currently disabled
+  // mjCCache is not trivially destructible and so the global cache needs to
+  // allocated on the heap
+  if constexpr (kGlobalCacheSize != 0) {
+    static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
+    return (mjCache) cache;
+  } else {
+    return NULL;
+  }
 }

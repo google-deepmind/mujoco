@@ -1,8 +1,4 @@
 <mujoco model="convex_convex">
-  <custom>
-    <numeric data="0.2" name="baumgarte_erp"/>
-    <numeric data="0.5" name="elasticity"/>
-  </custom>
   <default>
     <geom friction="0.5 0.0 0.0"/>
   </default>

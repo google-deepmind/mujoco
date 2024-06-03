@@ -42,9 +42,9 @@ class mjXReader : public mjXBase {
   void SetTextureDir(std::string texturedir);
 
   // XML sections embedded in all formats
-  static void Compiler(tinyxml2::XMLElement* section, mjSpec* mod);  // compiler section
+  static void Compiler(tinyxml2::XMLElement* section, mjSpec* spec);   // compiler section
   static void Option(tinyxml2::XMLElement* section, mjOption* opt);    // option section
-  static void Size(tinyxml2::XMLElement* section, mjSpec* mod);      // size section
+  static void Size(tinyxml2::XMLElement* section, mjSpec* spec);       // size section
 
  private:
   // XML section specific to MJCF
@@ -99,7 +99,7 @@ class mjXReader : public mjXBase {
 };
 
 // MJCF schema
-#define nMJCF 227
+#define nMJCF 230
 extern const char* MJCF[nMJCF][mjXATTRNUM];
 
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_

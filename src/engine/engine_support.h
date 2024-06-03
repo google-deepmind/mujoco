@@ -189,6 +189,10 @@ MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 //-------------------------- miscellaneous ---------------------------------------------------------
 
+// returns the smallest distance between two geoms
+MJAPI mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2,
+                             mjtNum distmax, mjtNum fromto[6]);
+
 // extract 6D force:torque for one contact, in contact frame
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 

@@ -4011,7 +4011,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                      extents=(36,),
                  ),
-                 doc='cone Hessian, set by mj_updateConstraint',
+                 doc='cone Hessian, set by mj_constraintUpdate',
              ),
              StructFieldDecl(
                  name='dim',

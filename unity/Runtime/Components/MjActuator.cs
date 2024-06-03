@@ -164,11 +164,16 @@ public class MjActuator : MjComponent {
     [AbsoluteValue]
     public float Kp = 1.0f;
 
+    [AbsoluteValue]
+    public float Kvp;
+
     public void PositionToMjcf(XmlElement mjcf) {
       mjcf.SetAttribute("kp", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kp)}"));
+      mjcf.SetAttribute("kv", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kvp)}"));
     }
     public void PositionFromMjcf(XmlElement mjcf) {
       Kp = mjcf.GetFloatAttribute("kp", defaultValue: 1.0f);
+      Kvp = mjcf.GetFloatAttribute("kv", defaultValue: 0f);
     }
 
     //// Velocity actuator parameters.

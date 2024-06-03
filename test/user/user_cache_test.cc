@@ -232,6 +232,43 @@ TEST(CacheTest, LimitTest2) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), NotNull());
 }
 
+// stress test with large asset
+TEST(CacheTest, LimitTest3) {
+  mjCCache cache(12);
+  std::vector<int> v1 = {1, 2, 3};
+  std::vector<int> v2 = {1, 2, 3, 4, 5};
+  mjCAsset asset1("file.xml", "foo.obj", "now");
+  mjCAsset asset2("file.xml", "bar.obj", "now");
+  asset1.AddVector("v", v1);
+  asset2.AddVector("v", v2);
+
+  cache.Insert(std::move(asset1));
+  cache.Insert(std::move(asset2));
+
+  // foo should still be in cache
+  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
+
+  // bar could not be inserted because it's too large
+  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+}
+
+TEST(CacheTest, LimitTest4) {
+  mjCCache cache(12);
+  std::vector<int> v = {1, 2, 3};
+  mjCAsset asset1("file.xml", "foo.obj", "now");
+  mjCAsset asset2("file.xml", "bar.obj", "now");
+  asset1.AddVector("v", v);
+  asset2.AddVector("v", v);
+
+  cache.Insert(std::move(asset1));
+  cache.Insert(std::move(asset2));
+
+  EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
+
+  // cache is full, so bar can't be inserted
+  EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
+}
+
 TEST(CacheTest, ResetAllTest) {
   mjCCache cache(kMaxSize);
   mjCAsset asset1("file1.xml", "foo.obj", "now");

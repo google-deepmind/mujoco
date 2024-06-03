@@ -34,7 +34,8 @@ std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
 }
 
 using ::testing::DoubleNear;
-using ::testing::ContainsRegex;
+using ::testing::Eq;
+using ::testing::ContainsRegex;  // NOLINT
 using ::testing::MatchesRegex;
 using ::testing::Pointwise;
 using ::testing::ElementsAreArray;
@@ -643,6 +644,80 @@ TEST_F(SupportTest, MulMIsland) {
 
   mju_free(Mvec);
   mju_free(vec);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+static constexpr char GeomDistanceTestingModel[] = R"(
+<mujoco>
+  <asset>
+    <mesh name="box" scale=".1 .1 .1" vertex="0 0 0  1 0 0  0 1 0  1 1 0
+                                              0 0 1  1 0 1  0 1 1  1 1 1"/>
+  </asset>
+
+  <worldbody>
+    <geom type="plane" size="1 1 1"/>
+    <geom pos="0 0 1" size="0.2"/>
+    <geom pos="1 0 1" size="0.3"/>
+    <geom type="mesh" mesh="box"/>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(SupportTest, GeomDistance) {
+  mjModel* model = LoadModelFromString(GeomDistanceTestingModel);
+  mjData* data = mj_makeData(model);
+  mj_kinematics(model, data);
+
+  // plane-sphere, distmax too small
+  mjtNum distmax = 0.5;
+  EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, nullptr), 0.5);
+  mjtNum fromto[6];
+  EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, fromto), 0.5);
+  EXPECT_THAT(fromto, Pointwise(Eq(), std::vector<mjtNum>{0, 0, 0, 0, 0, 0}));
+
+  // plane-sphere
+  distmax = 1.0;
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 0, 1, 1.0, fromto), 0.8);
+  mjtNum eps = 1e-12;
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
+
+  // sphere-plane
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 0, 1.0, fromto), 0.8);
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
+
+  // sphere-sphere
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 2, 1.0, fromto), 0.5);
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+
+  // sphere-sphere, flipped order
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 2, 1, 1.0, fromto), 0.5);
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
+
+  // TODO: b/339596989 - Improve the bounds below (mjc_Convex).
+
+  // mesh-sphere (close distmax)
+  distmax = 0.701;
+  eps = 1e-5;
+  EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
+              DoubleNear(0.7, eps));
+  eps = 1e-3;
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+
+  // mesh-sphere (far distmax)
+  distmax = 1.0;
+  eps = 1e-3;
+  EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
+              DoubleNear(0.7, eps));
+  eps = 2e-2;
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+
   mj_deleteData(data);
   mj_deleteModel(model);
 }

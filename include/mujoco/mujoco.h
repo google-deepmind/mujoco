@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 315
+#define mjVERSION_HEADER 316
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -464,6 +464,10 @@ MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
                                  int objtype, int objid, mjtNum res[6], int flg_local);
 
+// Returns smallest signed distance between two geoms and optionally segment from geom1 to geom2.
+MJAPI mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2,
+                             mjtNum distmax, mjtNum fromto[6]);
+
 // Extract 6D force:torque given contact id, in the contact frame.
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 
@@ -684,13 +688,13 @@ MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                         const mjvPerturb* pert, int catmask, mjvScene* scn);
 
 // Make list of lights.
-MJAPI void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
+MJAPI void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn);
 
 // Update camera.
-MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
+MJAPI void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn);
 
 // Update skins.
-MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
+MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
 
 
 //---------------------------------- OpenGL rendering ----------------------------------------------

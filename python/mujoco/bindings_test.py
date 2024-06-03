@@ -1194,6 +1194,14 @@ Euler integrator, semi-implicit in velocity.
     mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
                          None, None, None, None, None, None, None)
 
+  def test_geom_distance(self):
+    mujoco.mj_forward(self.model, self.data)
+    fromto = np.empty(6, np.float64)
+    dist = mujoco.mj_geomDistance(self.model, self.data, 0, 2, 200, fromto)
+    self.assertEqual(dist, 41.9)
+    np.testing.assert_array_equal(fromto,
+                                  np.array((42., 0., 0., 42., 0., 41.9)))
+
   def test_inverse_fd(self):
     eps = 1e-6
     flg_centered = 0
