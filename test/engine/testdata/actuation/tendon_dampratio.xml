@@ -1,0 +1,84 @@
+<mujoco>
+  <visual>
+    <global elevation="-20"/>
+  </visual>
+
+  <default>
+    <joint axis="0 1 0" armature="0.01"/>
+    <geom type="capsule" size="0.02"/>
+  </default>
+
+  <option integrator="implicitfast">
+    <flag gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 0 2"/>
+
+    <body>
+      <joint name="a0"/>
+      <geom fromto="0 0 0 .1 0 0"/>
+      <body pos=".1 0 0">
+        <joint name="b0"/>
+        <geom fromto="0 0 0 .1 0 0"/>
+        <body pos=".1 0 0">
+          <joint name="c0"/>
+          <geom fromto="0 0 0 .1 0 0"/>
+          <body pos=".1 0 0">
+            <joint name="d0"/>
+            <geom fromto="0 0 0 .1 0 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <body pos="0 -0.05 0">
+      <joint name="a1"/>
+      <geom fromto="0 0 0 .1 0 0"/>
+      <body pos=".1 0 0">
+        <joint name="b1"/>
+        <geom fromto="0 0 0 .1 0 0"/>
+        <body pos=".1 0 0">
+          <joint name="c1"/>
+          <geom fromto="0 0 0 .1 0 0"/>
+          <body pos=".1 0 0">
+            <joint name="d1"/>
+            <geom fromto="0 0 0 .1 0 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <joint joint1="a0" joint2="b0" polycoef="0 .5"/>
+    <joint joint1="b0" joint2="c0" polycoef="0 .5"/>
+    <joint joint1="c0" joint2="d0" polycoef="0 .5"/>
+
+    <joint joint1="a1" joint2="b1" polycoef="0 .5"/>
+    <joint joint1="b1" joint2="c1" polycoef="0 .5"/>
+    <joint joint1="c1" joint2="d1" polycoef="0 .5"/>
+  </equality>
+
+  <tendon>
+    <fixed name="finger0">
+      <joint joint="a0" coef="1"/>
+      <joint joint="b0" coef=".5"/>
+      <joint joint="c0" coef=".25"/>
+      <joint joint="d0" coef=".125"/>
+    </fixed>
+
+    <fixed name="finger1">
+      <joint joint="a1" coef="4"/>
+      <joint joint="b1" coef="2"/>
+      <joint joint="c1" coef="1"/>
+      <joint joint="d1" coef="0.5"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <position name="finger0" tendon="finger0" dampratio="1" kp="128" ctrlrange="-1 1"/>
+    <!-- transmission increased by 4: reduce kp by 16 -->
+    <position name="finger1" tendon="finger1" dampratio="1" kp="8"   ctrlrange="-4 4"/>
+  </actuator>
+</mujoco>

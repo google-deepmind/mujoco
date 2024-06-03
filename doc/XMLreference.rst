@@ -5045,10 +5045,26 @@ This element has one custom attribute in addition to the common attributes:
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
+.. _actuator-position-dampratio:
+
+:at:`dampratio`: :at-val:`real, "0"`
+   Damping applied by the actuator, using damping ratio units.
+   This attribute is exclusive with :at:`kv` and has similar meaning, but instead of units of force/velocity, the units
+   are :math:`2 \sqrt{k_p \cdot m}`, corresponding to a harmonic oscillator's
+   `damping ratio <https://en.wikipedia.org/wiki/Damping#Damping_ratio_definition>`__.
+   A value of 1 corresponds to a *critically damped* oscillator, which often produces desirable behavior.
+   Values smaller or larger than 1 correspond to underdamped and overdamped oscillations, respectively.
+   The mass :math:`m` is computed at the reference configuration ``mjModel.qpos0``, taking into account joint
+   :ref:`armature <body-joint-armature>`.
+   However, passive :ref:`damping <body-joint-damping>` or :ref:`frictionloss <body-joint-frictionloss>` in the affected
+   joints are not taken into account; if they are non-negligible, :at:`dampratio` values smaller than 1 might be
+   required to achieve desirable motion.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
 .. _actuator-position-timeconst:
 
 :at:`timeconst`: :at-val:`real, "0"`
-   Time-constant of the first-order filter.  If larger than zero, the actuator uses the :at:`filterexact`
+   Time-constant of optional first-order filter.  If larger than zero, the actuator uses the :at:`filterexact`
    :ref:`dynamics type<actuator-general-dyntype>`, if zero (the default) no filter is used.
 
 
@@ -5213,6 +5229,11 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kv`: :at-val:`real, "0"`
    Damping applied by the actuator.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+
+.. _actuator-intvelocity-dampratio:
+
+:at:`dampratio`: :at-val:`real, "0"`
+   See :ref:`position/dampratio<actuator-position-dampratio>`.
 
 .. _actuator-intvelocity-inheritrange:
 
@@ -8097,6 +8118,8 @@ tendon, slidersite, cranksite.
 
 .. _default-position-kv:
 
+.. _default-position-dampratio:
+
 .. _default-position-timeconst:
 
 :el-prefix:`default/` |-| **position** (?)
@@ -8158,6 +8181,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-intvelocity-kp:
 
 .. _default-intvelocity-kv:
+
+.. _default-intvelocity-dampratio:
 
 :el-prefix:`default/` |-| **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

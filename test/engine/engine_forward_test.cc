@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 #include <string>
 
@@ -834,6 +835,83 @@ TEST_F(ActuatorTest, ActuatorGravcomp) {
   EXPECT_EQ(data->qfrc_passive[0], 1);
   EXPECT_EQ(data->sensordata[0], 1.5);
   EXPECT_EQ(data->sensordata[1], 1.5);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Check that dampratio works as expected
+TEST_F(ActuatorTest, DampRatio) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="slide1" axis="1 0 0" type="slide"/>
+        <geom size=".05"/>
+      </body>
+
+      <body pos="0 0 -.15">
+        <joint name="slide2" axis="1 0 0" type="slide"/>
+        <geom size=".05"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position name="slightly underdamped" joint="slide1" kp="10" dampratio="0.99"/>
+      <position name="slightly overdamped"  joint="slide2" kp="10" dampratio="1.01"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  data->qpos[0] = data->qpos[1] = -0.1;
+
+  mjtNum under_damped = data->qpos[0];
+  mjtNum over_damped = data->qpos[1];
+  while (data->time < 10) {
+    mj_step(model, data);
+    under_damped = mju_max(under_damped, data->qpos[0]);
+    over_damped = mju_max(over_damped, data->qpos[1]);
+  }
+
+  // expect slightly underdamped to slightly overshoot
+  EXPECT_GT(under_damped, 0);
+  EXPECT_LT(under_damped, 1e-6);
+
+  // expect slightly overdamped to slightly undershoot
+  EXPECT_LT(over_damped, 0);
+  EXPECT_GT(over_damped, -1e-6);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
+// Check dampratio for actuators with nontrivial transmission
+TEST_F(ActuatorTest, DampRatioTendon) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/actuation/tendon_dampratio.xml");
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1;
+  data->ctrl[1] = 4;
+
+  while (data->time < 1) {
+    mj_step(model, data);
+  }
+
+  // expect first and second fingers to move together
+  double tol  = 1e-10;
+  EXPECT_THAT(AsVector(data->qpos, 4),
+              Pointwise(DoubleNear(tol), AsVector(data->qpos + 4, 4)));
+  EXPECT_THAT(AsVector(data->qvel, 4),
+              Pointwise(DoubleNear(tol), AsVector(data->qvel + 4, 4)));
 
   mj_deleteData(data);
   mj_deleteModel(model);
