@@ -554,14 +554,9 @@ TEST_F(XMLReaderTest, IncludeTest) {
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
 
-  mj_makeEmptyFileVFS(vfs.get(), "model1.xml", sizeof(xml1));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml1, sizeof(xml1));
-
-  mj_makeEmptyFileVFS(vfs.get(), "model2.xml", sizeof(xml2));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml2, sizeof(xml2));
-
-  mj_makeEmptyFileVFS(vfs.get(), "model3.xml", sizeof(xml3));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml3, sizeof(xml3));
+  mj_addBufferVFS(vfs.get(), "model1.xml", xml1, sizeof(xml1));
+  mj_addBufferVFS(vfs.get(), "model2.xml", xml2, sizeof(xml2));
+  mj_addBufferVFS(vfs.get(), "model3.xml", xml3, sizeof(xml3));
 
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(),
@@ -606,8 +601,7 @@ TEST_F(XMLReaderTest, IncludeSameFileTest) {
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
 
-  mj_makeEmptyFileVFS(vfs.get(), "model1.xml", sizeof(xml1));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml1, sizeof(xml1));
+  mj_addBufferVFS(vfs.get(), "model1.xml", xml1, sizeof(xml1));
 
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size(),
