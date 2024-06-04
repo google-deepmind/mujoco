@@ -47,17 +47,16 @@ public sealed class MjVfs : IDisposable {
 
   // Adds a new file to the virtual filesystem.
   public unsafe void AddFile(string filename, string contents) {
-    var result = mj_makeEmptyFileVFS(_unmanagedVfs.ToPointer(), filename, contents.Length);
-    if (result != 0) {
-      throw new Exception(
-          "VFS error (" + result + ") encountered while creating an empty file");
-    }
-    var fileIndex = mj_findFileVFS(_unmanagedVfs.ToPointer(), filename);
-    if (fileIndex < 0) {
-      throw new IndexOutOfRangeException("VFS didn't properly create the empty file.");
-    }
     var contents_bytes = Encoding.UTF8.GetBytes(contents);
-    Marshal.Copy(contents_bytes, 0, Data.filedata[fileIndex], contents_bytes.Length);
+    fixed (byte* bytes = contents_bytes)
+    {
+      IntPtr ptr = (IntPtr) bytes;
+      var result = mj_addBufferVFS(_unmanagedVfs.ToPointer(), filename, ptr.ToPointer(),
+                                   contents_bytes.Length);
+      if (result != 0) {
+        throw new Exception("VFS error (" + result + ") encountered while creating an empty file");
+      }
+    }
   }
 
   // Searches the VFS for the specified file and returns its index.
