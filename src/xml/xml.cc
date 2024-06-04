@@ -100,7 +100,7 @@ class LocaleOverride {
 }  // namespace
 
 // Main writer function - calls mjXWrite
-std::string mjWriteXML(mjSpec* spec, char* error, int error_sz) {
+std::string mjWriteXML(const mjSpec* spec, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -424,9 +424,9 @@ static void RegisterResourceProvider() {
 
 
 mjSpec* ParseSpecFromString(std::string_view xml, char* error,
-                            int error_size, mjVFS* vfs) {
+                            int error_size) {
   RegisterResourceProvider();
   std::string xml2 = {xml.begin(), xml.end()};
   std::string str = "LoadModelFromString:" +  xml2;
-  return mjParseXML(str.c_str(), vfs, error, error_size);
+  return mjParseXML(str.c_str(), nullptr, error, error_size);
 }

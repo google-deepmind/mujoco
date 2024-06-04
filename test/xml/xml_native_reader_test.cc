@@ -28,7 +28,7 @@
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
 #include "src/user/user_api.h"
-#include "src/xml/xml.h"
+#include "src/xml/xml_api.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -1084,7 +1084,7 @@ TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjSpec* spec = ParseSpecFromString(xml, error.data(), error.size());
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, NotNull()) << error.data();
 
   mjsBody* torso = mjs_findBody(spec, "torso-0");

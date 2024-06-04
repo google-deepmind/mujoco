@@ -209,3 +209,53 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   return m;
 }
 
+
+
+// parse spec from file
+mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
+  return mjParseXML(filename, vfs, error, error_sz);
+}
+
+
+
+// parse spec from string
+mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz) {
+  return ParseSpecFromString(xml, error, error_sz);
+}
+
+
+
+// save spec to XML file, return 1 on success, 0 otherwise
+int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
+  std::string result = mjWriteXML(s, error, error_sz);
+  if (result.empty()) {
+    return 0;
+  }
+
+  std::ofstream file;
+  file.open(filename);
+  file << result;
+  file.close();
+  return 1;
+}
+
+
+
+// save spec to string, return 1 on success, 0 otherwise
+int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
+  std::string result = mjWriteXML(s, error, error_sz);
+  if (result.size() >= xml_sz) {
+    std::string error_msg = "Output string too short, should be at least " +
+                            std::to_string(result.size()+1);
+    mjCopyError(error, error_msg.c_str(), error_sz);
+    return 0;
+  }
+  if (result.empty()) {
+    return 0;
+  }
+
+  result.copy(xml, xml_sz);
+  xml[result.size()] = 0;
+  return 1;
+}
+

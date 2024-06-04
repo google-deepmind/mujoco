@@ -769,7 +769,7 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(mjSpec* spec) {
+void mjXWriter::SetModel(const mjSpec* spec) {
   if (spec) {
     model = (mjCModel*)spec->element;
   }

@@ -25,7 +25,7 @@
 #include <absl/strings/match.h>
 #include <mujoco/mujoco.h>
 #include "src/user/user_api.h"
-#include "src/xml/xml.h"
+#include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"
 
@@ -125,7 +125,7 @@ TEST_F(PluginTest, RecompileCompare) {
 
         // load spec
         std::array<char, 1000> err;
-        mjSpec* s = mjParseXML(xml.c_str(), nullptr, err.data(), err.size());
+        mjSpec* s = mj_parseXML(xml.c_str(), 0, err.data(), err.size());
 
         ASSERT_THAT(s, NotNull())
             << "Failed to load " << xml << ": " << err.data();
@@ -417,7 +417,7 @@ TEST_F(MujocoTest, AttachSame) {
   </mujoco>)";
 
   // create parent
-  mjSpec* parent = ParseSpecFromString(xml_child, er.data(), er.size());
+  mjSpec* parent = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
 
   // get frame
@@ -530,7 +530,7 @@ TEST_F(MujocoTest, AttachDifferent) {
   </mujoco>)";
 
   // model with one free sphere and a frame
-  mjSpec* parent = ParseSpecFromString(xml_parent, er.data(), er.size());
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
 
   // get frame
@@ -538,7 +538,7 @@ TEST_F(MujocoTest, AttachDifferent) {
   EXPECT_THAT(frame, NotNull());
 
   // model with one cylinder and a hinge
-  mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(child, NotNull()) << er.data();
 
   // get subtree
@@ -642,7 +642,7 @@ TEST_F(MujocoTest, AttachFrame) {
   </mujoco>)";
 
   // model with one free sphere and a frame
-  mjSpec* parent = ParseSpecFromString(xml_parent, er.data(), er.size());
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
 
   // get frame
@@ -650,7 +650,7 @@ TEST_F(MujocoTest, AttachFrame) {
   EXPECT_THAT(body, NotNull());
 
   // model with one cylinder and a hinge
-  mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(child, NotNull()) << er.data();
 
   // get subtree
@@ -711,7 +711,7 @@ void TestDetachBody(bool compile) {
   </mujoco>)";
 
   // model with one cylinder and a hinge
-  mjSpec* child = ParseSpecFromString(xml_child, er.data(), er.size());
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(child, NotNull()) << er.data();
 
   // compile model (for testing double compilation)
