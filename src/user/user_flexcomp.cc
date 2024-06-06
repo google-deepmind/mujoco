@@ -91,8 +91,8 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjs_defaultOrientation(&alt);
   plugin_name = "";
   plugin_instance_name = "";
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  plugin.name = (mjString*)&plugin_name;
+  plugin.instance_name = (mjString*)&plugin_instance_name;
 }
 
 

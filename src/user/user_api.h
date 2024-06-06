@@ -25,21 +25,36 @@
 
 // this is a C-API
 #ifdef __cplusplus
+#include <string>
+#include <vector>
+
 extern "C" {
 #endif
 
 #define mjNAN NAN                  // used to mark undefined fields
 
 
-//---------------------------------- handles to internal objects -----------------------------------
+//---------------------------------- C/C++ handles to strings and arrays ---------------------------
 
-typedef struct mjString_* mjString;
-typedef struct mjStringVec_* mjStringVec;
-typedef struct mjIntVec_* mjIntVec;
-typedef struct mjIntVecVec_* mjIntVecVec;
-typedef struct mjFloatVec_* mjFloatVec;
-typedef struct mjFloatVecVec_* mjFloatVecVec;
-typedef struct mjDoubleVec_* mjDoubleVec;
+#ifdef __cplusplus
+  // C++, defined to be compatible with corresponding std types
+  using mjString = std::string;
+  using mjStringVec = std::vector<std::string>;
+  using mjIntVec = std::vector<int>;
+  using mjIntVecVec = std::vector<std::vector<int>>;
+  using mjFloatVec = std::vector<float>;
+  using mjFloatVecVec = std::vector<std::vector<float>>;
+  using mjDoubleVec = std::vector<double>;
+#else
+  // C, opaque pointers
+  typedef struct mjString_ mjString;
+  typedef struct mjStringVec_ mjStringVec;
+  typedef struct mjIntVec_ mjIntVec;
+  typedef struct mjIntVecVec_ mjIntVecVec;
+  typedef struct mjFloatVec_ mjFloatVec;
+  typedef struct mjFloatVecVec_ mjFloatVecVec;
+  typedef struct mjDoubleVec_ mjDoubleVec;
+#endif
 
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
@@ -98,7 +113,7 @@ typedef struct mjElement_ {        // element type, do not modify
 
 typedef struct mjSpec_ {           // model specification
   mjElement* element;              // element type
-  mjString modelname;              // model name
+  mjString* modelname;             // model name
 
   // compiler settings
   mjtByte autolimits;              // infer "limited" attribute based on range
@@ -110,8 +125,8 @@ typedef struct mjSpec_ {           // model specification
   mjtByte fitaabb;                 // meshfit to aabb instead of inertia box
   mjtByte degree;                  // angles in radians or degrees
   char euler[3];                   // sequence for euler rotations
-  mjString meshdir;                // mesh and hfield directory
-  mjString texturedir;             // texture directory
+  mjString* meshdir;               // mesh and hfield directory
+  mjString* texturedir;            // texture directory
   mjtByte discardvisual;           // discard visual geoms in parser
   mjtByte convexhull;              // compute mesh convex hulls
   mjtByte usethread;               // use multiple threads to speed up compiler
@@ -144,8 +159,8 @@ typedef struct mjSpec_ {           // model specification
   size_t nstack;                   // (deprecated) number of mjtNums in mjData stack
 
   // global data
-  mjString comment;                // comment at top of XML
-  mjString modelfiledir;           // path to model file
+  mjString* comment;               // comment at top of XML
+  mjString* modelfiledir;          // path to model file
 
   // other
   mjtByte hasImplicitPluginElem;   // already encountered an implicit plugin sensor/actuator
@@ -163,18 +178,18 @@ typedef struct mjsOrientation_ {   // alternative orientation specifiers
 
 typedef struct mjsPlugin_ {        // plugin specification
   mjElement* instance;             // element type
-  mjString name;                   // name
-  mjString instance_name;          // instance name
+  mjString* name;                  // name
+  mjString* instance_name;         // instance name
   int plugin_slot;                 // global registered slot number of the plugin
   mjtByte active;                  // is the plugin active
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsPlugin;
 
 
 typedef struct mjsBody_ {          // body specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString childclass;             // childclass name
+  mjString* name;                  // name
+  mjString* childclass;            // childclass name
 
   // body frame
   double pos[3];                   // frame position
@@ -192,28 +207,28 @@ typedef struct mjsBody_ {          // body specification
   // other
   mjtByte mocap;                   // is this a mocap body
   double gravcomp;                 // gravity compensation
-  mjDoubleVec userdata;            // user data
+  mjDoubleVec* userdata;           // user data
   mjtByte explicitinertial;        // whether to save the body with explicit inertial clause
   mjsPlugin plugin;                // passive force plugin
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsBody;
 
 
 typedef struct mjsFrame_ {         // frame specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString childclass;             // childclass name
+  mjString* name;                  // name
+  mjString* childclass;            // childclass name
   double pos[3];                   // position
   double quat[4];                  // orientation
   mjsOrientation alt;              // alternative orientation
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsFrame;
 
 
 typedef struct mjsJoint_ {         // joint specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
   mjtJoint type;                   // joint type
 
   // kinematics
@@ -245,15 +260,15 @@ typedef struct mjsJoint_ {         // joint specification
   // other
   int group;                       // group
   mjtByte actgravcomp;             // is gravcomp force applied via actuators
-  mjDoubleVec userdata;            // user data
-  mjString info;                   // message appended to compiler errors
+  mjDoubleVec* userdata;           // user data
+  mjString* info;                  // message appended to compiler errors
 } mjsJoint;
 
 
 typedef struct mjsGeom_ {          // geom specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // classname
+  mjString* name;                  // name
+  mjString* classname;             // classname
   mjtGeom type;                    // geom type
 
   // frame, size
@@ -285,24 +300,24 @@ typedef struct mjsGeom_ {          // geom specification
   mjtNum fluid_coefs[5];           // ellipsoid-fluid interaction coefs
 
   // visual
-  mjString material;               // name of material
+  mjString* material;              // name of material
   float rgba[4];                   // rgba when material is omitted
   int group;                       // group
 
   // other
-  mjString hfieldname;             // heightfield attached to geom
-  mjString meshname;               // mesh attached to geom
+  mjString* hfieldname;            // heightfield attached to geom
+  mjString* meshname;              // mesh attached to geom
   double fitscale;                 // scale mesh uniformly
-  mjDoubleVec userdata;            // user data
+  mjDoubleVec* userdata;           // user data
   mjsPlugin plugin;                // sdf plugin
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsGeom;
 
 
 typedef struct mjsSite_ {          // site specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // frame, size
   double pos[3];                   // position
@@ -313,27 +328,27 @@ typedef struct mjsSite_ {          // site specification
 
   // visual
   mjtGeom type;                    // geom type
-  mjString material;               // name of material
+  mjString* material;              // name of material
   int group;                       // group
   float rgba[4];                   // rgba when material is omitted
 
   // other
-  mjDoubleVec userdata;            // user data
-  mjString info;                   // message appended to compiler errors
+  mjDoubleVec* userdata;           // user data
+  mjString* info;                  // message appended to compiler errors
 } mjsSite;
 
 
 typedef struct mjsCamera_ {        // camera specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // extrinsics
   double pos[3];                   // position
   double quat[4];                  // orientation
   mjsOrientation alt;              // alternative orientation
   mjtCamLight mode;                // tracking mode
-  mjString targetbody;             // target body for tracking/targeting
+  mjString* targetbody;            // target body for tracking/targeting
 
   // intrinsics
   double fovy;                     // y-field of view
@@ -347,21 +362,21 @@ typedef struct mjsCamera_ {        // camera specification
   float principal_pixel[2];        // principal point (pixel)
 
   // other
-  mjDoubleVec userdata;            // user data
-  mjString info;                   // message appended to compiler errors
+  mjDoubleVec* userdata;           // user data
+  mjString* info;                  // message appended to compiler errors
 } mjsCamera;
 
 
 typedef struct mjsLight_ {         // light specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // frame
   double pos[3];                   // position
   double dir[3];                   // direction
   mjtCamLight mode;                // tracking mode
-  mjString targetbody;             // target body for targeting
+  mjString* targetbody;            // target body for targeting
 
   // intrinsics
   mjtByte active;                  // is light active
@@ -376,14 +391,14 @@ typedef struct mjsLight_ {         // light specification
   float specular[3];               // specular color
 
   // other
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errorsx
 } mjsLight;
 
 
 typedef struct mjsFlex_ {
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // contact properties
   int contype;                     // contact type
@@ -408,85 +423,85 @@ typedef struct mjsFlex_ {
   double edgestiffness;            // edge stiffness
   double edgedamping;              // edge damping
   float rgba[4];                   // rgba when material is omitted
-  mjString material;               // name of material used for rendering
+  mjString* material;              // name of material used for rendering
 
   // mesh properties
-  mjStringVec vertbody;            // vertex body names
-  mjDoubleVec vert;                // vertex positions
-  mjIntVec elem;                   // element vertex ids
-  mjFloatVec texcoord;             // vertex texture coordinates
+  mjStringVec* vertbody;           // vertex body names
+  mjDoubleVec* vert;               // vertex positions
+  mjIntVec* elem;                  // element vertex ids
+  mjFloatVec* texcoord;            // vertex texture coordinates
 
   // other
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsFlex;
 
 
 typedef struct mjsMesh_ {          // mesh specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
-  mjString content_type;           // content type of file
-  mjString file;                   // mesh file
+  mjString* name;                  // name
+  mjString* classname;             // class name
+  mjString* content_type;          // content type of file
+  mjString* file;                  // mesh file
   double refpos[3];                // reference position
   double refquat[4];               // reference orientation
   double scale[3];                 // rescale mesh
   mjtByte smoothnormal;            // do not exclude large-angle faces from normals
-  mjFloatVec uservert;             // user vertex data
-  mjFloatVec usernormal;           // user normal data
-  mjFloatVec usertexcoord;         // user texcoord data
-  mjIntVec userface;               // user vertex indices
-  mjIntVec userfacenormal;         // user normal indices
-  mjIntVec userfacetexcoord;       // user texcoord indices
+  mjFloatVec* uservert;            // user vertex data
+  mjFloatVec* usernormal;          // user normal data
+  mjFloatVec* usertexcoord;        // user texcoord data
+  mjIntVec* userface;              // user vertex indices
+  mjIntVec* userfacenormal;        // user normal indices
+  mjIntVec* userfacetexcoord;      // user texcoord indices
   mjsPlugin plugin;                // sdf plugin
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsMesh;
 
 
 typedef struct mjsHField_ {        // height field specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString content_type;           // content type of file
-  mjString file;                   // file: (nrow, ncol, [elevation data])
+  mjString* name;                  // name
+  mjString* content_type;          // content type of file
+  mjString* file;                  // file: (nrow, ncol, [elevation data])
   double size[4];                  // hfield size (ignore referencing geom size)
   int nrow;                        // number of rows
   int ncol;                        // number of columns
-  mjFloatVec userdata;             // user-provided elevation data
-  mjString info;                   // message appended to compiler errors
+  mjFloatVec* userdata;            // user-provided elevation data
+  mjString* info;                  // message appended to compiler errors
 } mjsHField;
 
 
 
 typedef struct mjsSkin_ {          // skin specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
-  mjString file;                   // skin file
-  mjString material;               // name of material used for rendering
+  mjString* name;                  // name
+  mjString* classname;             // class name
+  mjString* file;                  // skin file
+  mjString* material;              // name of material used for rendering
   float rgba[4];                   // rgba when material is omitted
   float inflate;                   // inflate in normal direction
   int group;                       // group for visualization
 
   // mesh
-  mjFloatVec vert;                 // vertex positions
-  mjFloatVec texcoord;             // texture coordinates
-  mjIntVec face;                   // faces
+  mjFloatVec* vert;                // vertex positions
+  mjFloatVec* texcoord;            // texture coordinates
+  mjIntVec* face;                  // faces
 
   // skin
-  mjStringVec bodyname;            // body names
-  mjFloatVec bindpos;              // bind pos
-  mjFloatVec bindquat;             // bind quat
-  mjIntVecVec vertid;              // vertex ids
-  mjFloatVecVec vertweight;        // vertex weights
+  mjStringVec* bodyname;           // body names
+  mjFloatVec* bindpos;             // bind pos
+  mjFloatVec* bindquat;            // bind quat
+  mjIntVecVec* vertid;             // vertex ids
+  mjFloatVecVec* vertweight;       // vertex weights
 
   // other
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsSkin;
 
 
 typedef struct mjsTexture_ {       // texture specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
   mjtTexture type;                 // texture type
 
   // method 1: builtin
@@ -500,28 +515,28 @@ typedef struct mjsTexture_ {       // texture specification
   int width;                       // width in pixels
 
   // method 2: single file
-  mjString content_type;           // content type of file
-  mjString file;                   // png file to load; use for all sides of cube
+  mjString* content_type;          // content type of file
+  mjString* file;                  // png file to load; use for all sides of cube
   int gridsize[2];                 // size of grid for composite file; (1,1)-repeat
   char gridlayout[13];             // row-major: L,R,F,B,U,D for faces; . for unused
 
   // method 3: separate files
-  mjStringVec cubefiles;           // different file for each side of the cube
+  mjStringVec* cubefiles;          // different file for each side of the cube
 
   // flip options
   mjtByte hflip;                   // horizontal flip
   mjtByte vflip;                   // vertical flip
 
   // other
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsTexture;
 
 
 typedef struct mjsMaterial_ {      // material specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
-  mjString texture;                // name of texture (empty: none)
+  mjString* name;                  // name
+  mjString* classname;             // class name
+  mjString* texture;               // name of texture (empty: none)
   mjtByte texuniform;              // make texture cube uniform
   float texrepeat[2];              // texture repetition for 2D mapping
   float emission;                  // emission
@@ -531,16 +546,16 @@ typedef struct mjsMaterial_ {      // material specification
   float metallic;                  // metallic
   float roughness;                 // roughness
   float rgba[4];                   // rgba
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsMaterial;
 
 
 typedef struct mjsPair_ {
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
-  mjString geomname1;              // name of geom 1
-  mjString geomname2;              // name of geom 2
+  mjString* name;                  // name
+  mjString* classname;             // class name
+  mjString* geomname1;             // name of geom 1
+  mjString* geomname2;             // name of geom 2
 
   // optional parameters: computed from geoms if not set by user
   int condim;                      // contact dimensionality
@@ -550,38 +565,38 @@ typedef struct mjsPair_ {
   double margin;                   // margin for contact detection
   double gap;                      // include in solver if dist<margin-gap
   double friction[5];              // full contact friction
-  mjString info;                   // message appended to errors
+  mjString* info;                  // message appended to errors
 } mjsPair;
 
 
 typedef struct mjsExclude_ {
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString bodyname1;              // name of geom 1
-  mjString bodyname2;              // name of geom 2
-  mjString info;                   // message appended to errors
+  mjString* name;                  // name
+  mjString* bodyname1;             // name of geom 1
+  mjString* bodyname2;             // name of geom 2
+  mjString* info;                  // message appended to errors
 } mjsExclude;
 
 
 typedef struct mjsEquality_ {      // equality specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
   mjtEq type;                      // constraint type
   double data[mjNEQDATA];          // type-dependent data
   mjtByte active;                  // is equality initially active
-  mjString name1;                  // name of object 1
-  mjString name2;                  // name of object 2
+  mjString* name1;                 // name of object 1
+  mjString* name2;                 // name of object 2
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
-  mjString info;                   // message appended to errors
+  mjString* info;                  // message appended to errors
 } mjsEquality;
 
 
 typedef struct mjsTendon_ {        // tendon specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // stiffness, damping, friction
   double stiffness;                // stiffness coefficient
@@ -599,27 +614,27 @@ typedef struct mjsTendon_ {        // tendon specification
   mjtNum solimp_limit[mjNIMP];     // solver impedance: tendon limits
 
   // visual
-  mjString material;               // name of material for rendering
+  mjString* material;              // name of material for rendering
   double width;                    // width for rendering
   float rgba[4];                   // rgba when material is omitted
   int group;                       // group
 
   // other
-  mjDoubleVec userdata;            // user data
-  mjString info;                   // message appended to errors
+  mjDoubleVec* userdata;           // user data
+  mjString* info;                  // message appended to errors
 } mjsTendon;
 
 
 typedef struct mjsWrap_ {          // wrapping object specification
   mjElement* element;              // element type
-  mjString info;                   // message appended to errors
+  mjString* info;                  // message appended to errors
 } mjsWrap;
 
 
 typedef struct mjsActuator_ {      // actuator specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // gain, bias
   mjtGain gaintype;                // gain type
@@ -637,9 +652,9 @@ typedef struct mjsActuator_ {      // actuator specification
   // transmission
   mjtTrn trntype;                  // transmission type
   double gear[6];                  // length and transmitted force scaling
-  mjString target;                 // name of transmission target
-  mjString refsite;                // reference site, for site transmission
-  mjString slidersite;             // site defining cylinder, for slider-crank
+  mjString* target;                // name of transmission target
+  mjString* refsite;               // reference site, for site transmission
+  mjString* slidersite;            // site defining cylinder, for slider-crank
   double cranklength;              // crank length, for slider-crank
   double lengthrange[2];           // transmission length range
   double inheritrange;             // automatic range setting for position and intvelocity
@@ -654,23 +669,23 @@ typedef struct mjsActuator_ {      // actuator specification
 
   // other
   int group;                       // group
-  mjDoubleVec userdata;            // user data
+  mjDoubleVec* userdata;           // user data
   mjsPlugin plugin;                // actuator plugin
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsActuator;
 
 
 typedef struct mjsSensor_ {        // sensor specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString classname;              // class name
+  mjString* name;                  // name
+  mjString* classname;             // class name
 
   // sensor defintion
   mjtSensor type;                  // type of sensor
   mjtObj objtype;                  // type of sensorized object
-  mjString objname;                // name of sensorized object
+  mjString* objname;               // name of sensorized object
   mjtObj reftype;                  // type of referenced object
-  mjString refname;                // name of referenced object
+  mjString* refname;               // name of referenced object
 
   // user-defined sensors
   mjtDataType datatype;            // data type for sensor measurement
@@ -682,56 +697,56 @@ typedef struct mjsSensor_ {        // sensor specification
   double noise;                    // noise stdev
 
   // other
-  mjDoubleVec userdata;            // user data
+  mjDoubleVec* userdata;           // user data
   mjsPlugin plugin;                // sensor plugin
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsSensor;
 
 
 typedef struct mjsNumeric_ {       // custom numeric field specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjDoubleVec data;                // initialization data
+  mjString* name;                  // name
+  mjDoubleVec* data;               // initialization data
   int size;                        // array size, can be bigger than data size
-  mjString info;                   // message appended to compiler errors
+  mjString* info;                  // message appended to compiler errors
 } mjsNumeric;
 
 
 typedef struct mjsText_ {          // custom text specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjString data;                   // text string
-  mjString info;                   // message appended to compiler errors
+  mjString* name;                  // name
+  mjString* data;                  // text string
+  mjString* info;                  // message appended to compiler errors
 } mjsText;
 
 
 typedef struct mjsTuple_ {         // tuple specification
   mjElement* element;              // element type
-  mjString name;                   // name
-  mjIntVec objtype;                // object types
-  mjStringVec objname;             // object names
-  mjDoubleVec objprm;              // object parameters
-  mjString info;                   // message appended to compiler errors
+  mjString* name;                  // name
+  mjIntVec* objtype;               // object types
+  mjStringVec* objname;            // object names
+  mjDoubleVec* objprm;             // object parameters
+  mjString* info;                  // message appended to compiler errors
 } mjsTuple;
 
 
 typedef struct mjsKey_ {           // keyframe specification
   mjElement* element;              // element type
-  mjString name;                   // name
+  mjString* name;                  // name
   double time;                     // time
-  mjDoubleVec qpos;                // qpos
-  mjDoubleVec qvel;                // qvel
-  mjDoubleVec act;                 // act
-  mjDoubleVec mpos;                // mocap pos
-  mjDoubleVec mquat;               // mocap quat
-  mjDoubleVec ctrl;                // ctrl
-  mjString info;                   // message appended to compiler errors
+  mjDoubleVec* qpos;               // qpos
+  mjDoubleVec* qvel;               // qvel
+  mjDoubleVec* act;                // act
+  mjDoubleVec* mpos;               // mocap pos
+  mjDoubleVec* mquat;              // mocap quat
+  mjDoubleVec* ctrl;               // ctrl
+  mjString* info;                  // message appended to compiler errors
 } mjsKey;
 
 
 typedef struct mjsDefault_ {       // default specification
   mjElement* element;              // element type
-  mjString name;                   // class name
+  mjString* name;                  // class name
   mjsJoint* joint;                 // joint defaults
   mjsGeom* geom;                   // geom defaults
   mjsSite* site;                   // site defaults
@@ -932,31 +947,31 @@ MJAPI mjElement* mjs_nextChild(mjsBody* body, mjElement* child);
 //---------------------------------- Attribute setters ---------------------------------------------
 
 // Copy text to string.
-MJAPI void mjs_setString(mjString dest, const char* text);
+MJAPI void mjs_setString(mjString* dest, const char* text);
 
 // Split text to entries and copy to string vector.
-MJAPI void mjs_setStringVec(mjStringVec dest, const char* text);
+MJAPI void mjs_setStringVec(mjStringVec* dest, const char* text);
 
 // Set entry in string vector.
-MJAPI mjtByte mjs_setInStringVec(mjStringVec dest, int i, const char* text);
+MJAPI mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 
 // Append text entry to string vector.
-MJAPI void mjs_appendString(mjStringVec dest, const char* text);
+MJAPI void mjs_appendString(mjStringVec* dest, const char* text);
 
 // Copy int array to vector.
-MJAPI void mjs_setInt(mjIntVec dest, const int* array, int size);
+MJAPI void mjs_setInt(mjIntVec* dest, const int* array, int size);
 
 // Append int array to vector of arrays.
-MJAPI void mjs_appendIntVec(mjIntVecVec dest, const int* array, int size);
+MJAPI void mjs_appendIntVec(mjIntVecVec* dest, const int* array, int size);
 
 // Copy float array to vector.
-MJAPI void mjs_setFloat(mjFloatVec dest, const float* array, int size);
+MJAPI void mjs_setFloat(mjFloatVec* dest, const float* array, int size);
 
 // Append float array to vector of arrays.
-MJAPI void mjs_appendFloatVec(mjFloatVecVec dest, const float* array, int size);
+MJAPI void mjs_appendFloatVec(mjFloatVecVec* dest, const float* array, int size);
 
 // Copy double array to vector.
-MJAPI void mjs_setDouble(mjDoubleVec dest, const double* array, int size);
+MJAPI void mjs_setDouble(mjDoubleVec* dest, const double* array, int size);
 
 // Set plugin attributes.
 MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
@@ -965,10 +980,10 @@ MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 //---------------------------------- Attribute getters ---------------------------------------------
 
 // Get string contents.
-MJAPI const char* mjs_getString(mjString source);
+MJAPI const char* mjs_getString(const mjString* source);
 
 // Get double array contents and optionally its size.
-MJAPI const double* mjs_getDouble(mjDoubleVec source, int* size);
+MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
 
 //---------------------------------- Other utilities -----------------------------------------------
@@ -1079,7 +1094,7 @@ MJAPI void mj_setCacheSize(mjCache cache, size_t size);
 MJAPI mjCache mj_globalCache(void);
 
 #ifdef __cplusplus
-}
+}  // extern "C"
 #endif
 
 #endif  // MUJOCO_SRC_USER_USER_API_H_

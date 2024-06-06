@@ -417,11 +417,11 @@ void mjCModel::CreateObjectLists() {
 
 void mjCModel::PointToLocal() {
   spec.element = static_cast<mjElement*>(this);
-  spec.comment = (mjString)&spec_comment_;
-  spec.modelfiledir = (mjString)&spec_modelfiledir_;
-  spec.modelname = (mjString)&spec_modelname_;
-  spec.meshdir = (mjString)&spec_meshdir_;
-  spec.texturedir = (mjString)&spec_texturedir_;
+  spec.comment = &spec_comment_;
+  spec.modelfiledir = &spec_modelfiledir_;
+  spec.modelname = &spec_modelname_;
+  spec.meshdir = &spec_meshdir_;
+  spec.texturedir = &spec_texturedir_;
 }
 
 
@@ -433,11 +433,11 @@ void mjCModel::CopyFromSpec() {
   modelname_ = spec_modelname_;
   meshdir_ = spec_meshdir_;
   texturedir_ = spec_texturedir_;
-  comment = (mjString)&comment_;
-  modelfiledir = (mjString)&modelfiledir_;
-  modelname = (mjString)&modelname_;
-  meshdir = (mjString)&meshdir_;
-  texturedir = (mjString)&texturedir_;
+  comment = &comment_;
+  modelfiledir = &modelfiledir_;
+  modelname = &modelname_;
+  meshdir = &meshdir_;
+  texturedir = &texturedir_;
 }
 
 

@@ -581,66 +581,61 @@ mjElement* mjs_nextChild(mjsBody* body, mjElement* child) {
 
 
 // set string
-void mjs_setString(mjString dest, const char* text) {
-  std::string* str = reinterpret_cast<std::string*>(dest);
+void mjs_setString(mjString* dest, const char* text) {
+  std::string* str = static_cast<std::string*>(dest);
   *str = std::string(text);
 }
 
 
 
 // Set specific entry in destination string vector.
-mjtByte mjs_setInStringVec(mjStringVec dest, int i, const char* text) {
-  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
-  if (v->size() <= i) {
+mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
+  if (dest->size() <= i) {
     mju_error("Requested index in mjs_setInStringVec is out of bounds");
     return 0;
   }
-  v->at(i) = std::string(text);
+  dest->at(i) = std::string(text);
   return 1;
 }
 
 
 
 // split text and copy into string array
-void mjs_setStringVec(mjStringVec dest, const char* text) {
-  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
+void mjs_setStringVec(mjStringVec* dest, const char* text) {
+  std::vector<std::string>* v = static_cast<std::vector<std::string>*>(dest);
   *v = mjXUtil::String2Vector<std::string>(text);
 }
 
 
 
 // add text entry to destination string vector
-void mjs_appendString(mjStringVec dest, const char* text) {
-  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
-  v->push_back(std::string(text));
+void mjs_appendString(mjStringVec* dest, const char* text) {
+  dest->push_back(std::string(text));
 }
 
 
 // copy int array to vector
-void mjs_setInt(mjIntVec dest, const int* array, int size) {
-  std::vector<int>* v = reinterpret_cast<std::vector<int>*>(dest);
-  v->assign(size, 0.0);
+void mjs_setInt(mjIntVec* dest, const int* array, int size) {
+  dest->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
-    (*v)[i] = array[i];
+    (*dest)[i] = array[i];
   }
 }
 
 
 
 // append int array to vector of arrays
-void mjs_appendIntVec(mjIntVecVec dest, const int* array, int size) {
-  std::vector<std::vector<int>>* v = reinterpret_cast<std::vector<std::vector<int>>*>(dest);
-  v->push_back(std::vector<int>(array, array + size));
+void mjs_appendIntVec(mjIntVecVec* dest, const int* array, int size) {
+  dest->push_back(std::vector<int>(array, array + size));
 }
 
 
 
 // copy float array to vector
-void mjs_setFloat(mjFloatVec dest, const float* array, int size) {
-  std::vector<float>* v = reinterpret_cast<std::vector<float>*>(dest);
-  v->assign(size, 0.0);
+void mjs_setFloat(mjFloatVec* dest, const float* array, int size) {
+  dest->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
-    (*v)[i] = array[i];
+    (*dest)[i] = array[i];
   }
 }
 
@@ -648,42 +643,35 @@ void mjs_setFloat(mjFloatVec dest, const float* array, int size) {
 
 
 // append float array to vector of arrays
-void mjs_appendFloatVec(mjFloatVecVec dest, const float* array, int size) {
-  std::vector<std::vector<float>>* v = reinterpret_cast<std::vector<std::vector<float>>*>(dest);
-  v->push_back(std::vector<float>(array, array + size));
+void mjs_appendFloatVec(mjFloatVecVec* dest, const float* array, int size) {
+  dest->push_back(std::vector<float>(array, array + size));
 }
 
 
 
 // copy double array to vector
-void mjs_setDouble(mjDoubleVec dest, const double* array, int size) {
-  std::vector<double>* v = reinterpret_cast<std::vector<double>*>(dest);
-  v->assign(size, 0.0);
+void mjs_setDouble(mjDoubleVec* dest, const double* array, int size) {
+  dest->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
-    (*v)[i] = array[i];
+    (*dest)[i] = array[i];
   }
 }
 
 
 
 // get string
-const char* mjs_getString(const mjString source) {
-  std::string* str = reinterpret_cast<std::string*>(source);
-  if (!str) {
-    return nullptr;
-  }
-  return str->c_str();
+const char* mjs_getString(const mjString* source) {
+  return source->c_str();
 }
 
 
 
 // get double array
-const double* mjs_getDouble(const mjDoubleVec source, int* size) {
-  std::vector<double>* v = reinterpret_cast<std::vector<double>*>(source);
+const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
   if (size) {
-    *size = v->size();
+    *size = source->size();
   }
-  return v->data();
+  return source->data();
 }
 
 

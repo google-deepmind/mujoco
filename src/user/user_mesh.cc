@@ -196,18 +196,18 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 
 void mjCMesh::PointToLocal() {
   spec.element = static_cast<mjElement*>(this);
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
-  spec.file = (mjString)&spec_file_;
-  spec.content_type = (mjString)&spec_content_type_;
-  spec.uservert = (mjFloatVec)&spec_vert_;
-  spec.usernormal = (mjFloatVec)&spec_normal_;
-  spec.userface = (mjIntVec)&spec_face_;
-  spec.usertexcoord = (mjFloatVec)&spec_texcoord_;
-  spec.userfacetexcoord = (mjIntVec)&spec_facetexcoord_;
-  spec.plugin.name = (mjString)&plugin_name;
-  spec.plugin.instance_name = (mjString)&plugin_instance_name;
-  spec.info = (mjString)&info;
+  spec.name = &name;
+  spec.classname = &classname;
+  spec.file = &spec_file_;
+  spec.content_type = &spec_content_type_;
+  spec.uservert = &spec_vert_;
+  spec.usernormal = &spec_normal_;
+  spec.userface = &spec_face_;
+  spec.usertexcoord = &spec_texcoord_;
+  spec.userfacetexcoord = &spec_facetexcoord_;
+  spec.plugin.name = &plugin_name;
+  spec.plugin.instance_name = &plugin_instance_name;
+  spec.info = &info;
 }
 
 
@@ -221,13 +221,13 @@ void mjCMesh::CopyFromSpec() {
   face_ = spec_face_;
   texcoord_ = spec_texcoord_;
   facetexcoord_ = spec_facetexcoord_;
-  file = (mjString)&file_;
-  content_type = (mjString)&content_type_;
-  uservert = (mjFloatVec)&vert_;
-  usernormal = (mjFloatVec)&normal_;
-  userface = (mjIntVec)&face_;
-  usertexcoord = (mjFloatVec)&texcoord_;
-  userfacetexcoord = (mjIntVec)&facetexcoord_;
+  file = &file_;
+  content_type = &content_type_;
+  uservert = &vert_;
+  usernormal = &normal_;
+  userface = &face_;
+  usertexcoord = &texcoord_;
+  userfacetexcoord = &facetexcoord_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -1979,19 +1979,19 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
 
 void mjCSkin::PointToLocal() {
   spec.element = static_cast<mjElement*>(this);
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
-  spec.file = (mjString)&spec_file_;
-  spec.material = (mjString)&spec_material_;
-  spec.vert = (mjFloatVec)&spec_vert_;
-  spec.texcoord = (mjFloatVec)&spec_texcoord_;
-  spec.face = (mjIntVec)&spec_face_;
-  spec.bodyname = (mjStringVec)&spec_bodyname_;
-  spec.bindpos = (mjFloatVec)&spec_bindpos_;
-  spec.bindquat = (mjFloatVec)&spec_bindquat_;
-  spec.vertid = (mjIntVecVec)&spec_vertid_;
-  spec.vertweight = (mjFloatVecVec)&spec_vertweight_;
-  spec.info = (mjString)&info;
+  spec.name = &name;
+  spec.classname = &classname;
+  spec.file = &spec_file_;
+  spec.material = &spec_material_;
+  spec.vert = &spec_vert_;
+  spec.texcoord = &spec_texcoord_;
+  spec.face = &spec_face_;
+  spec.bodyname = &spec_bodyname_;
+  spec.bindpos = &spec_bindpos_;
+  spec.bindquat = &spec_bindquat_;
+  spec.vertid = &spec_vertid_;
+  spec.vertweight = &spec_vertweight_;
+  spec.info = &info;
 }
 
 
@@ -2016,16 +2016,16 @@ void mjCSkin::CopyFromSpec() {
   bindquat_ = spec_bindquat_;
   vertid_ = spec_vertid_;
   vertweight_ = spec_vertweight_;
-  file = (mjString)&spec_file_;
-  material = (mjString)&spec_material_;
-  vert = (mjFloatVec)&spec_vert_;
-  texcoord = (mjFloatVec)&spec_texcoord_;
-  face = (mjIntVec)&spec_face_;
-  bodyname = (mjStringVec)&spec_bodyname_;
-  bindpos = (mjFloatVec)&spec_bindpos_;
-  bindquat = (mjFloatVec)&spec_bindquat_;
-  vertid = (mjIntVecVec)&spec_vertid_;
-  vertweight = (mjFloatVecVec)&spec_vertweight_;
+  file = &spec_file_;
+  material = &spec_material_;
+  vert = &spec_vert_;
+  texcoord = &spec_texcoord_;
+  face = &spec_face_;
+  bodyname = &spec_bodyname_;
+  bindpos = &spec_bindpos_;
+  bindquat = &spec_bindquat_;
+  vertid = &spec_vertid_;
+  vertweight = &spec_vertweight_;
 }
 
 
@@ -2391,14 +2391,14 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 
 void mjCFlex::PointToLocal() {
   spec.element = static_cast<mjElement*>(this);
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
-  spec.material = (mjString)&spec_material_;
-  spec.vertbody = (mjStringVec)&spec_vertbody_;
-  spec.vert = (mjDoubleVec)&spec_vert_;
-  spec.texcoord = (mjFloatVec)&spec_texcoord_;
-  spec.elem = (mjIntVec)&spec_elem_;
-  spec.info = (mjString)&info;
+  spec.name = &name;
+  spec.classname = &classname;
+  spec.material = &spec_material_;
+  spec.vertbody = &spec_vertbody_;
+  spec.vert = &spec_vert_;
+  spec.texcoord = &spec_texcoord_;
+  spec.elem = &spec_elem_;
+  spec.info = &info;
 }
 
 
@@ -2413,17 +2413,17 @@ void mjCFlex::NameSpace(const mjCModel* m) {
 
 void mjCFlex::CopyFromSpec() {
   *static_cast<mjsFlex*>(this) = spec;
-  spec.info = (mjString)&info;
+  spec.info = &info;
   material_ = spec_material_;
   vertbody_ = spec_vertbody_;
   vert_ = spec_vert_;
   texcoord_ = spec_texcoord_;
   elem_ = spec_elem_;
-  material = (mjString)&material_;
-  vertbody = (mjStringVec)&vertbody_;
-  vert = (mjDoubleVec)&vert_;
-  texcoord = (mjFloatVec)&texcoord_;
-  elem = (mjIntVec)&elem_;
+  material = &material_;
+  vertbody = &vertbody_;
+  vert = &vert_;
+  texcoord = &texcoord_;
+  elem = &elem_;
 
   // clear precompiled asset. TODO: use asset cache
   nedge = 0;
