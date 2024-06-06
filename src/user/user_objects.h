@@ -423,10 +423,14 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   bool is_limited() const;
   bool is_actfrclimited() const;
 
-
  private:
   int Compile(void);               // compiler; return dofnum
   void PointToLocal(void);
+
+  int qposadr_;                    // address of dof in data->qpos
+  int dofadr_;                     // address of dof in data->qvel
+  mjtNum qpos[7];                  // qpos at the previous step
+  mjtNum qvel[6];                  // qvel at the previous step
 };
 
 
@@ -1412,6 +1416,10 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void NameSpace(const mjCModel* m);
 
   mjCBase* ptarget;  // transmission target
+
+  int actadr_;              // address of dof in data->act
+  int actnum_;              // number of dofs in data->act
+  std::vector<mjtNum> act;  // act at the previous step
 };
 
 

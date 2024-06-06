@@ -83,6 +83,16 @@ mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs) {
 
 
 
+// recompile spec into existing model and data while preserving the state
+void mjs_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  modelC->SaveState(d);
+  modelC->Compile(vfs, &m);
+  modelC->RestoreState(m, &d);
+}
+
+
+
 // attach body to a frame of the parent
 int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                    const char* prefix, const char* suffix) {

@@ -1733,6 +1733,10 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // in case this joint is not compiled
   CopyFromSpec();
+
+  // no previous state when a joint is created
+  qpos[0] = mjNAN;
+  qvel[0] = mjNAN;
 }
 
 
@@ -5003,6 +5007,9 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
 
   // point to local
   PointToLocal();
+
+  // no previous state when an actuator is created
+  act.push_back(mjNAN);
 }
 
 

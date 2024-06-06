@@ -747,5 +747,124 @@ TEST_F(MujocoTest, DetachBody) {
   TestDetachBody(/*compile=*/true);
 }
 
+TEST_F(MujocoTest, PreserveState) {
+  std::array<char, 1000> er;
+  std::string field = "";
+
+  static constexpr char xml_full[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="detachable" pos="1 0 0">
+        <joint type="hinge" axis="0 0 1" name="hinge"/>
+        <geom type="sphere" size=".1"/>
+      </body>
+      <body name="persistent">
+        <joint type="slide" axis="0 0 1" name="slide"/>
+        <geom type="sphere" size=".2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="hinge" joint="hinge" timeconst=".01"/>
+      <position name="slide" joint="slide" timeconst=".01"/>
+    </actuator>
+  </mujoco>)";
+
+  static constexpr char xml_expected[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="persistent">
+        <joint type="slide" axis="0 0 1" name="slide"/>
+        <geom type="sphere" size=".2"/>
+      </body>
+      <body name="newbody" pos="2 0 0">
+        <joint type="slide" axis="0 0 1"/>
+        <geom type="sphere" size=".3"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="slide" joint="slide" timeconst=".01"/>
+    </actuator>
+  </mujoco>)";
+
+  // load spec
+  mjSpec* spec = mj_parseXMLString(xml_full, 0, er.data(), er.size());
+  EXPECT_THAT(spec, NotNull()) << er.data();
+
+  // compile models
+  mjModel* model = mjs_compile(spec, 0);
+  EXPECT_THAT(model, NotNull());
+  mjModel* m_expected = LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull());
+
+  // create data
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, NotNull());
+  mjData* d_expected = mj_makeData(m_expected);
+  EXPECT_THAT(d_expected, NotNull());
+
+  // set ctrl
+  data->ctrl[0] = 1;
+  data->ctrl[1] = 2;
+  d_expected->ctrl[0] = 2;
+
+  // step models
+  mj_step(model, data);
+  mj_step(m_expected, d_expected);
+
+  // detach subtree
+  mjsBody* body = mjs_findBody(spec, "detachable");
+  EXPECT_THAT(body, NotNull());
+  EXPECT_THAT(mjs_detachBody(spec, body), 0);
+
+  // add body
+  mjsBody* newbody = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  EXPECT_THAT(newbody, NotNull());
+
+  // add geom and joint
+  mjsGeom* geom = mjs_addGeom(newbody, 0);
+  mjsJoint* joint = mjs_addJoint(newbody, 0);
+
+  // set properties
+  newbody->pos[0] = 2;
+  geom->size[0] = .3;
+  joint->type = mjJNT_SLIDE;
+  joint->axis[0] = 0;
+  joint->axis[1] = 0;
+  joint->axis[2] = 1;
+  joint->ref = d_expected->qpos[m_expected->nq-1];
+
+  // compile new model
+  mjs_recompile(spec, 0, model, data);
+  EXPECT_THAT(model, NotNull());
+
+  // compare qpos
+  EXPECT_EQ(model->nq, m_expected->nq);
+  for (int i = 0; i < model->nq; ++i) {
+    EXPECT_EQ(data->qpos[i], d_expected->qpos[i]) << i;
+  }
+
+  // compare qvel
+  EXPECT_EQ(model->nv, m_expected->nv);
+  for (int i = 0; i < model->nv-1; ++i) {
+    EXPECT_EQ(data->qvel[i], d_expected->qvel[i]) << i;
+  }
+
+  // second body was added after stepping so qvel should be zero
+  EXPECT_EQ(data->qvel[model->nv-1], 0);
+
+  // compare act
+  EXPECT_EQ(model->na, m_expected->na);
+  for (int i = 0; i < model->na; ++i) {
+    EXPECT_EQ(data->act[i], d_expected->act[i]) << i;
+  }
+
+  // destroy everything
+  mj_deleteData(data);
+  mj_deleteData(d_expected);
+  mjs_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteModel(m_expected);
+}
+
 }  // namespace
 }  // namespace mujoco

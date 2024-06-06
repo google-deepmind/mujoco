@@ -17,6 +17,7 @@
 
 #include <math.h>
 #include <stddef.h>
+#include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
@@ -753,6 +754,9 @@ MJAPI mjSpec* mjs_createSpec(void);
 
 // Compile spec to model.
 MJAPI mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs);
+
+// Recompile spec to model preserving the current state.
+MJAPI void mjs_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
 // Copy spec.
 MJAPI mjSpec* mjs_copySpec(const mjSpec* s);
