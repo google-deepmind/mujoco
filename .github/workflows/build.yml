@@ -154,6 +154,16 @@ jobs:
     - name: Build MuJoCo
       working-directory: build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Copy in the correct VC runtime DLLs (workaround for actions/runner-images#10004)
+      if: ${{ runner.os == 'Windows' }}
+      working-directory: build
+      shell: powershell
+      run: |
+        Copy-Item (Join-Path `
+          ((Get-ChildItem -Directory `
+              -Path "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\14.*" |
+            Sort -Descending | Select-Object -First 1).FullName
+          ) 'x64\Microsoft.VC143.CRT\*.dll') "bin\Release"
     - name: Test MuJoCo
       working-directory: build
       run: ctest -C Release --output-on-failure .
