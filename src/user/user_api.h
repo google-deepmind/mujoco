@@ -446,6 +446,7 @@ typedef struct mjsMesh_ {          // mesh specification
   double refquat[4];               // reference orientation
   double scale[3];                 // rescale mesh
   mjtByte smoothnormal;            // do not exclude large-angle faces from normals
+  int maxhullvert;                 // maximum vertex count for the convex hull
   mjFloatVec* uservert;            // user vertex data
   mjFloatVec* usernormal;          // user normal data
   mjFloatVec* usertexcoord;        // user texcoord data

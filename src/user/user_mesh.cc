@@ -50,8 +50,8 @@
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjtnum.h>
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
@@ -135,6 +135,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   center_ = NULL;
   graph_ = NULL;
   needhull_ = false;
+  maxhullvert_ = -1;
   invalidorientation_.first = -1;
   invalidorientation_.second = -1;
   validarea_ = true;
@@ -223,6 +224,7 @@ void mjCMesh::CopyFromSpec() {
   facetexcoord_ = spec_facetexcoord_;
   file = &file_;
   content_type = &content_type_;
+  maxhullvert_ = spec.maxhullvert;
   uservert = &vert_;
   usernormal = &normal_;
   userface = &face_;
@@ -1548,12 +1550,17 @@ double& mjCMesh::GetVolumeRef(mjtGeomInertia type) {
 
 
 // make graph describing convex hull
-void mjCMesh::MakeGraph(void) {
+void mjCMesh::MakeGraph() {
   int adr, ok, curlong, totlong, exitcode;
   double* data;
   facetT* facet, **facetp;
   vertexT* vertex, *vertex1, **vertex1p;
-  char qhopt[10] = "qhull Qt";
+
+  std::string qhopt = "qhull Qt";
+  if (maxhullvert_ > -1) {
+    // qhull "TA" actually means "number of vertices added after the initial simplex"
+    qhopt += " TA" + std::to_string(maxhullvert_ - 4);
+  }
 
   // graph not needed for small meshes
   if (nvert() < 4) {
@@ -1585,7 +1592,7 @@ void mjCMesh::MakeGraph(void) {
   qh->NOerrexit = false;
   if (!exitcode) {
     // actual init
-    qh_initflags(qh, qhopt);
+    qh_initflags(qh, const_cast<char*>(qhopt.c_str()));
     qh_init_B(qh, data, nvert(), 3, False);
 
     // construct convex hull
@@ -1741,8 +1748,6 @@ void mjCMesh::MakeGraph(void) {
     throw mjCError(this, "qhull error");
   }
 }
-
-
 
 // copy graph into face data
 void mjCMesh::CopyGraph(void) {

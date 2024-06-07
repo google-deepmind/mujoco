@@ -145,7 +145,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"default", "R", "1", "class"},
     {"<"},
-        {"mesh", "?", "1", "scale"},
+        {"mesh", "?", "2", "scale", "maxhullvert"},
         {"material", "?", "10", "texture", "emission", "specular", "shininess",
             "reflectance", "metallic", "roughness", "rgba", "texrepeat", "texuniform"},
         {"joint", "?", "22", "type", "group", "pos", "axis", "springdamper",
@@ -221,8 +221,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"mesh", "*", "12", "name", "class", "content_type", "file", "vertex", "normal",
-            "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal"},
+        {"mesh", "*", "13", "name", "class", "content_type", "file", "vertex", "normal",
+            "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal",
+            "maxhullvert"},
         {"<"},
           {"plugin", "*", "2", "plugin", "instance"},
           {"<"},
@@ -1389,6 +1390,11 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh) {
 
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
     pmesh->smoothnormal = (n==1);
+  }
+
+  if (ReadAttrInt(elem, "maxhullvert", &n)) {
+    if (n != 0 && n < 4) throw mjXError(elem, "maxhullvert must be larger than 3");
+    pmesh->maxhullvert = n;
   }
 
   // read user vertex data

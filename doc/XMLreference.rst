@@ -1233,6 +1233,13 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
    cube edges) are not smoothed.
 
+.. _asset-mesh-maxhullvert:
+
+:at:`maxhullvert`: :at-val:`int, "-1"`
+   Maximum number of vertices in a mesh's convex hull. Currently this is implemented by asking qhull
+   `to teminate <http://www.qhull.org/html/qh-optt.htm#TAn>`__ after :at:`maxhullvert` vertices. The default
+   value of -1 means "unlimited". Positive values must be larger than 3.
+
 .. _asset-mesh-vertex:
 
 :at:`vertex`: :at-val:`real(3*nvert), optional`
@@ -7665,6 +7672,8 @@ if omitted.
 .. _default-mesh:
 
 .. _default-mesh-scale:
+
+.. _default-mesh-maxhullvert:
 
 :el-prefix:`default/` |-| **mesh** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

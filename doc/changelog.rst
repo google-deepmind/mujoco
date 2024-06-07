@@ -2,6 +2,15 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+1. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+
+
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
 

@@ -778,6 +778,7 @@ class mjCMesh_ : public mjCBase {
   // size of mesh data to be copied into mjModel
   int szgraph_;                       // size of graph data in ints
   bool needhull_;                     // needs convex hull for collisions
+  int maxhullvert_;                   // max vertex count of convex hull
 
   mjCBoundingVolumeHierarchy tree_;   // bounding volume hierarchy
   std::vector<double> face_aabb_;     // bounding boxes of all faces

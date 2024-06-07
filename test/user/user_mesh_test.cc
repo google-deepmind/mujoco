@@ -41,6 +41,10 @@ static const char* const kCubePath =
     "user/testdata/cube.xml";
 static const char* const kTorusPath =
     "user/testdata/torus.xml";
+static const char* const kTorusMaxhullVertPath =
+    "user/testdata/torus_maxhullvert.xml";
+static const char* const kTorusDefaultMaxhullVertPath =
+    "user/testdata/torus_maxhullvert_default.xml";
 static const char* const kTorusShellPath =
     "user/testdata/torus_shell.xml";
 static const char* const kConvexInertiaPath =
@@ -402,6 +406,25 @@ TEST_F(MjCMeshTest, TinyMeshLoads) {
   )";
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
+  mj_deleteModel(model);
+}
+
+// ------------- test max hull vert -------------------------------------------
+TEST_F(MjCMeshTest, MaxHullVert) {
+  const std::string xml_path = GetTestDataFilePath(kTorusMaxhullVertPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_GT(model->ngeom, 0);
+  ASSERT_EQ(model->mesh_graph[0], 4);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, MaxHullVertDefault) {
+  const std::string xml_path = GetTestDataFilePath(kTorusDefaultMaxhullVertPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_GT(model->ngeom, 0);
+  ASSERT_EQ(model->mesh_graph[0], 64);
   mj_deleteModel(model);
 }
 
