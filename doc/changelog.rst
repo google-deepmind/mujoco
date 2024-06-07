@@ -10,6 +10,13 @@ General
 
 1. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 
+MJX
+~~~
+
+2. Added support for :ref:`elliptic friction cones<option-cone>`.
+3. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+4. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------

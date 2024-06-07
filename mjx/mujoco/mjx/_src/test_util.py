@@ -26,6 +26,7 @@ import mujoco
 # pylint: disable=g-importing-member
 from mujoco.mjx._src import forward
 from mujoco.mjx._src import io
+from mujoco.mjx._src.types import Data
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -102,6 +103,28 @@ def benchmark(
   steps = nstep * batch_size
 
   return jit_time, run_time, steps
+
+
+def efc_order(m: mujoco.MjModel, d: mujoco.MjData, dx: Data) -> np.ndarray:
+  """Returns a sort order such that dx.efc_*[order][:d.nefc] == d.efc_*."""
+  # reorder efc rows to skip inactive constraints and match contact order
+  efl = dx.ne + dx.nf + dx.nl
+  order = np.arange(efl)
+  order[(dx.efc_J[:efl] == 0).all(axis=1)] = 2**16  # move empty rows to end
+  for i in range(dx.ncon):
+    num_rows = dx.contact.dim[i]
+    if dx.contact.dim[i] > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+      num_rows = (dx.contact.dim[i] - 1) * 2
+    if dx.contact.dist[i] > 0:  # move empty contacts to end
+      order = np.append(order, np.repeat(2 ** 16, num_rows))
+      continue
+    contact_match = (d.contact.geom == dx.contact.geom[i]).all(axis=-1)
+    contact_match &= (d.contact.pos == dx.contact.pos[i]).all(axis=-1)
+    assert contact_match.any(), f'contact {i} not found'
+    contact_id = np.nonzero(contact_match)[0][0]
+    order = np.append(order, np.repeat(efl + contact_id, num_rows))
+
+  return np.argsort(order, kind='stable')
 
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']

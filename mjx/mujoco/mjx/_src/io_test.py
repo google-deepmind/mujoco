@@ -140,14 +140,6 @@ class ModelIOTest(parameterized.TestCase):
           )
       )
 
-  def test_cone_not_implemented(self):
-    with self.assertRaises(NotImplementedError):
-      mjx.put_model(
-          mujoco.MjModel.from_xml_string(
-              '<mujoco><option cone="elliptic"/><worldbody/></mujoco>'
-          )
-      )
-
   def test_pgs_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(
@@ -299,7 +291,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(dx.contact.dist.shape, (4,))
     self.assertEqual(d.ncon, 1)  # however only 1 contact in this step
     np.testing.assert_allclose(dx.contact.dist[0], d.contact.dist[0])
-    self.assertTrue(np.isinf(dx.contact.dist[1:]).all())
+    self.assertTrue((dx.contact.dist[1:] > 0).all())
     self.assertEqual(dx.contact.frame.shape, (4, 3, 3))
     np.testing.assert_allclose(
         dx.contact.frame[0].reshape(9), d.contact.frame[0]

@@ -239,7 +239,8 @@ def plane_convex(plane: GeomInfo, convex: ConvexInfo) -> Collision:
   plane_pos = convex.mat.T @ (plane.pos - convex.pos)
   n = convex.mat.T @ plane.mat[:, 2]
   support = (plane_pos - vert) @ n
-  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-4), n)
+  # search for manifold points within a 1mm skin depth
+  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-3), n)
   pos = vert[idx]
 
   # convert to world frame
@@ -970,6 +971,7 @@ def _box_box(b1: ConvexInfo, b2: ConvexInfo) -> Collision:
   # Go back to world frame.
   pos = b2.pos + pos @ b2.mat.T
   n = normal @ b2.mat.T
+  dist = jp.where(jp.isinf(dist), jp.finfo(float).max, dist)
 
   return dist, pos, n
 
@@ -1029,6 +1031,7 @@ def _convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
   pos = c2.pos + pos @ c2.mat.T
   n = normal @ c2.mat.T
   n = -n if swapped else n
+  dist = jp.where(jp.isinf(dist), jp.finfo(float).max, dist)
 
   return dist, pos, n
 
