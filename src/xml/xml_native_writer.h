@@ -18,7 +18,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 #include "xml/xml_base.h"
 #include "tinyxml2.h"

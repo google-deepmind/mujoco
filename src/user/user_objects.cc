@@ -45,6 +45,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
+#include <mujoco/mjspec.h>
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
@@ -640,7 +641,7 @@ void mjCDef::PointToLocal() {
   equality_.PointToLocal();
   tendon_.PointToLocal();
   actuator_.PointToLocal();
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.joint = &joint_.spec;
   spec.geom = &geom_.spec;
@@ -949,7 +950,7 @@ mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
 
 
 void mjCBody::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.childclass = &classname;
   spec.userdata = &spec_userdata_;
@@ -1256,7 +1257,7 @@ mjCBase* mjCBody::FindObject(mjtObj type, string _name, bool recursive) {
 
 
 template <class T>
-static mjElement* GetNext(std::vector<T*>& list, mjElement* child) {
+static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
   for (unsigned int i = 0; i < list.size()-1; i++) {
     if (list[i]->spec.element == child) {
       return list[i+1]->spec.element;
@@ -1268,7 +1269,7 @@ static mjElement* GetNext(std::vector<T*>& list, mjElement* child) {
 
 
 // get next child of given type
-mjElement* mjCBody::NextChild(mjElement* child, mjtObj type) {
+mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type) {
   if (type == mjOBJ_UNKNOWN) {
     if (!child) {
       throw mjCError(this, "child type must be specified if no child element is given");
@@ -1669,7 +1670,7 @@ void mjCFrame::SetParent(mjCBody* _body) {
 
 
 void mjCFrame::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.childclass = &classname;
   spec.info = &info;
@@ -1765,7 +1766,7 @@ bool mjCJoint::is_actfrclimited() const { return islimited(actfrclimited, actfrc
 
 
 void mjCJoint::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.userdata = &spec_userdata_;
@@ -1965,7 +1966,7 @@ mjCGeom& mjCGeom::operator=(const mjCGeom& other) {
 
 // to be called after any default copy constructor
 void mjCGeom::PointToLocal(void) {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.info = &info;
   spec.classname = &classname;
@@ -2598,7 +2599,7 @@ mjCSite& mjCSite::operator=(const mjCSite& other) {
 
 
 void mjCSite::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.info = &info;
   spec.classname = &classname;
@@ -2750,7 +2751,7 @@ mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
 
 
 void mjCCamera::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.userdata = &spec_userdata_;
@@ -2901,7 +2902,7 @@ mjCLight& mjCLight::operator=(const mjCLight& other) {
 
 
 void mjCLight::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.targetbody = &spec_targetbody_;
@@ -3001,7 +3002,7 @@ mjCHField& mjCHField::operator=(const mjCHField& other) {
 
 
 void mjCHField::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.file = &spec_file_;
   spec.content_type = &spec_content_type_;
@@ -3230,7 +3231,7 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
 
 
 void mjCTexture::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.file = &spec_file_;
@@ -3941,7 +3942,7 @@ mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
 
 
 void mjCMaterial::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.texture = &spec_texture_;
@@ -4031,7 +4032,7 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
 
 
 void mjCPair::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.geomname1 = &spec_geomname1_;
@@ -4256,7 +4257,7 @@ mjCBodyPair& mjCBodyPair::operator=(const mjCBodyPair& other) {
 
 
 void mjCBodyPair::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.bodyname1 = &spec_bodyname1_;
   spec.bodyname2 = &spec_bodyname2_;
@@ -4390,7 +4391,7 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 
 
 void mjCEquality::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.name1 = &spec_name1_;
@@ -4559,7 +4560,7 @@ bool mjCTendon::is_limited() const { return islimited(limited, range); }
 
 
 void mjCTendon::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.material = &spec_material_;
@@ -4891,7 +4892,7 @@ mjCWrap& mjCWrap::operator=(const mjCWrap& other) {
 
 
 void mjCWrap::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.info = &info;
 }
 
@@ -5040,7 +5041,7 @@ bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange)
 
 
 void mjCActuator::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.userdata = &spec_userdata_;
@@ -5363,7 +5364,7 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
 
 
 void mjCSensor::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.userdata = &spec_userdata_;
@@ -5866,7 +5867,7 @@ mjCNumeric& mjCNumeric::operator=(const mjCNumeric& other) {
 
 
 void mjCNumeric::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.data = &spec_data_;
   spec.info = &info;
@@ -5955,7 +5956,7 @@ mjCText& mjCText::operator=(const mjCText& other) {
 
 
 void mjCText::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.data = &spec_data_;
   spec.info = &info;
@@ -6035,7 +6036,7 @@ mjCTuple& mjCTuple::operator=(const mjCTuple& other) {
 
 
 void mjCTuple::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.objtype = (mjIntVec*)&spec_objtype_;
   spec.objname = &spec_objname_;
@@ -6170,7 +6171,7 @@ mjCKey& mjCKey::operator=(const mjCKey& other) {
 
 
 void mjCKey::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.qpos = &spec_qpos_;
   spec.qvel = &spec_qvel_;

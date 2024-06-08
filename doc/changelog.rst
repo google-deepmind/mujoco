@@ -7,16 +7,21 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+1. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
+   Still missing:
 
-1. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+   - Detailed documentation.
+   - Python bindings.
+
+2. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+
 
 MJX
 ~~~
 
-2. Added support for :ref:`elliptic friction cones<option-cone>`.
-3. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-4. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
-
+3. Added support for :ref:`elliptic friction cones<option-cone>`.
+4. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+5. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
@@ -731,13 +736,13 @@ General
    Previously, the smooth part consisted of two stitched quadratics, once continuously differentiable.
    It is now a single quintic, twice continuously differentiable:
 
-  .. math::
-     s(x) =
-     \begin{cases}
-        0,                    &       & x \le 0  \\
-        6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
-        1,                    & 1 \le & x \qquad
-     \end{cases}
+   .. math::
+      s(x) =
+      \begin{cases}
+         0,                    &       & x \le 0  \\
+         6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+         1,                    & 1 \le & x \qquad
+      \end{cases}
 
 17. Added optional :ref:`tausmooth<actuator-muscle-tausmooth>` attribute to muscle actuators. When positive, the
     time-constant :math:`\tau` of muscle activation/deactivation uses :ref:`mju_sigmoid` to transition smoothly

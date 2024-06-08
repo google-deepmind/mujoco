@@ -52,7 +52,7 @@ static T& operator+(T& base, std::string_view suffix) {
 
 
 // create model
-mjSpec* mjs_createSpec() {
+mjSpec* mj_makeSpec() {
   mjCModel* modelC = new mjCModel;
   return &modelC->spec;
 }
@@ -60,7 +60,7 @@ mjSpec* mjs_createSpec() {
 
 
 // copy model
-mjSpec* mjs_copySpec(const mjSpec* s) {
+mjSpec* mj_copySpec(const mjSpec* s) {
   mjCModel* modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
   return &modelC->spec;
 }
@@ -68,7 +68,7 @@ mjSpec* mjs_copySpec(const mjSpec* s) {
 
 
 // copy back model
-void mjs_copyBack(mjSpec* s, const mjModel* m) {
+void mj_copyBack(mjSpec* s, const mjModel* m) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   modelC->CopyBack(m);
 }
@@ -76,7 +76,7 @@ void mjs_copyBack(mjSpec* s, const mjModel* m) {
 
 
 // compile model
-mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs) {
+mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->Compile(vfs);
 }
@@ -84,7 +84,7 @@ mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs) {
 
 
 // recompile spec into existing model and data while preserving the state
-void mjs_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
+void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   modelC->SaveState(d);
   modelC->Compile(vfs, &m);
@@ -143,7 +143,7 @@ int mjs_isWarning(mjSpec* s) {
 
 
 // delete model
-void mjs_deleteSpec(mjSpec* s) {
+void mj_deleteSpec(mjSpec* s) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   delete model;
 }
@@ -151,7 +151,7 @@ void mjs_deleteSpec(mjSpec* s) {
 
 
 // delete object, it will call the appropriate destructor since ~mjCBase is virtual
-void mjs_delete(mjElement* element) {
+void mjs_delete(mjsElement* element) {
   mjCBase* object = static_cast<mjCBase*>(element);
   delete object;
 }
@@ -430,7 +430,7 @@ mjsKey* mjs_addKey(mjSpec* s) {
 mjsPlugin* mjs_addPlugin(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCPlugin* plugin = modelC->AddPlugin();
-  plugin->spec.instance = static_cast<mjElement*>(plugin);
+  plugin->spec.instance = static_cast<mjsElement*>(plugin);
   return &plugin->spec;
 }
 
@@ -458,7 +458,7 @@ mjSpec* mjs_getSpec(mjsBody* body) {
 
 
 // get default
-mjsDefault* mjs_getDefault(mjElement* element) {
+mjsDefault* mjs_getDefault(mjsElement* element) {
   return &(static_cast<mjCBase*>(element)->def->spec);
 }
 
@@ -530,7 +530,7 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 
 // set frame
-void mjs_setFrame(mjElement* dest, mjsFrame* frame) {
+void mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
   if (!frame) {
     return;
   }
@@ -550,14 +550,14 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 
 
 // get id
-int mjs_getId(mjElement* element) {
+int mjs_getId(mjsElement* element) {
   return static_cast<mjCBase*>(element)->id;
 }
 
 
 
 // set default
-void mjs_setDefault(mjElement* element, mjsDefault* defspec) {
+void mjs_setDefault(mjsElement* element, mjsDefault* defspec) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
   baseC->def = static_cast<mjCDef*>(defspec->element);
 }
@@ -565,7 +565,7 @@ void mjs_setDefault(mjElement* element, mjsDefault* defspec) {
 
 
 // return first child of selected type
-mjElement* mjs_firstChild(mjsBody* body, mjtObj type) {
+mjsElement* mjs_firstChild(mjsBody* body, mjtObj type) {
   mjCBody* bodyC = static_cast<mjCBody*>(body->element);
   return bodyC->NextChild(NULL, type);
 }
@@ -573,7 +573,7 @@ mjElement* mjs_firstChild(mjsBody* body, mjtObj type) {
 
 
 // return body's next child; return NULL if child is last
-mjElement* mjs_nextChild(mjsBody* body, mjElement* child) {
+mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child) {
   mjCBody* bodyC = static_cast<mjCBody*>(body->element);
   return bodyC->NextChild(child);
 }

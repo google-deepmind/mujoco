@@ -27,13 +27,13 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
-class mjCModel_ : public mjElement {
+class mjCModel_ : public mjsElement {
  public:
   // attach namespaces
   std::string prefix;

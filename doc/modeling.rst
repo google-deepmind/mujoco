@@ -36,19 +36,19 @@ mjModel memory buffer. MJCF and URDF files are loaded with :ref:`mj_loadXML` whi
 :ref:`mj_loadModel`.
 
 When an XML file is loaded, it is first parsed into a document object model (DOM) using the TinyXML parser internally.
-This DOM is then processed and converted into a high-level mjCModel object. The conversion depends on the model format
-- which is inferred from the top-level element in the XML file, and not from the file extension. Recall that a valid
-XML file has a unique top-level element. This element must be :el:`mujoco` for MJCF, and :el:`robot` for URDF.
+This DOM is then processed and converted into a high-level :ref:`mjSpec` object. The conversion depends on the model
+format -- which is inferred from the top-level element in the XML file, and not from the file extension. Recall that a
+valid XML file has a unique top-level element. This element must be :el:`mujoco` for MJCF, and :el:`robot` for URDF.
 
 .. _Compile:
 
 Compiling models
 ~~~~~~~~~~~~~~~~
 
-Once a high-level mjCModel is created---by loading an MJCF file or a URDF file, or programmatically when such
-functionality becomes available---it is compiled into mjModel. Even though loading and compilation are presently
-combined in one step, compilation is independent of loading, meaning that the compiler works in the same way
-regardless of how mjCModel was created. Both the parser and the compiler perform extensive error checking, and abort
+Once a high-level :ref:`mjSpec` is created---by loading an MJCF file or a URDF file, or
+:doc:`programmatically<programming/modeledit>`---it is compiled into :ref:`mjModel`.
+Compilation is independent of loading, meaning that the compiler works in the same way regardless of how :ref:`mjSpec`
+was created. Both the parser and the compiler perform extensive error checking, and abort
 when the first error is encountered. The resulting error messages contain the row and column number in the XML file,
 and are self-explanatory so we do not document them here. The parser uses a custom schema to make sure that the file
 structure, elements and attributes are valid. The compiler then applies many additional semantic checks. Finally, one
@@ -72,9 +72,9 @@ binary MJB file with :ref:`mj_saveModel`. The MJB is a stand-alone file and does
 refer to any other files. It also loads faster. So we recommend saving commonly used models as MJB and loading them
 when needed for simulation.
 
-It is also possible to save a compiled mjCModel as MJCF with :ref:`mj_saveLastXML`. If any real-valued fields in the
-corresponding mjModel were modified after compilation (which is unusual but can happen in system identification
-applications for example), the modifications are automatically copied back into mjCModel before saving. Note that
+It is also possible to save a compiled :ref:`mjSpec` as MJCF with :ref:`mj_saveLastXML`. If any real-valued fields in
+the corresponding mjModel were modified after compilation (which is unusual but can happen in system identification
+applications for example), the modifications are automatically copied back into :ref:`mjSpec` before saving. Note that
 structural changes cannot be made in the compiled model. The XML writer attempts to generate the smallest MJCF file
 which is guaranteed to compile into the same model, modulo negligible numeric differences caused by the plain text
 representation of real values. The resulting file may not have the same structure as the original because MJCF has many
@@ -82,6 +82,14 @@ user convenience features, allowing the same model to be specified in different 
 subset of MJCF where all coordinates are local and all body positions, orientations and inertial properties are
 explicitly specified. In the Computation chapter we showed an `example <_static/example.xml>`__ MJCF file and the
 corresponding `saved example <_static/example_saved.xml>`__.
+
+.. _EditModel:
+
+Editing models
+~~~~~~~~~~~~~~
+
+As of MuJoCo 3.2, it is possible to create and modify models using the :ref:`mjSpec` struct and related API.
+For further documentation, please see the :doc:`Model Editing<programming/modeledit>` chapter.
 
 .. _Mechanisms:
 

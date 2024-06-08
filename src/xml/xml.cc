@@ -35,7 +35,7 @@
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 #include "xml/xml_native_reader.h"
@@ -345,7 +345,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   }
 
   // create model, set filedir
-  spec = mjs_createSpec();
+  spec = mj_makeSpec();
   const char* dir;
   int ndir = 0;
   mju_getResourceDir(resource, &dir, &ndir);
@@ -394,7 +394,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   // catch known errors
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
-    mjs_deleteSpec(spec);
+    mj_deleteSpec(spec);
     return nullptr;
   }
 

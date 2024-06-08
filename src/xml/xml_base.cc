@@ -21,9 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "user/user_api.h"
-#include "user/user_model.h"
-#include "user/user_objects.h"
+#include <mujoco/mjspec.h>
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
 

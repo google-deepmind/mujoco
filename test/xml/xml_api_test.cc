@@ -24,7 +24,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "src/xml/xml_api.h"
 #include "test/fixture.h"
 
@@ -119,15 +119,15 @@ TEST_F(MujocoTest, SaveXmlShortString) {
 
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, NotNull()) << "Failed to parse spec: " << error.data();
-  mjModel* model = mjs_compile(spec, 0);
+  mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
 
   std::array<char, 10> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(),
-                               error.data(), error.size()), 0);
+                               error.data(), error.size()), 272);
   EXPECT_STREQ(error.data(), "Output string too short, should be at least 273");
 
-  mjs_deleteSpec(spec);
+  mj_deleteSpec(spec);
   mj_deleteModel(model);
 }
 
@@ -136,16 +136,16 @@ TEST_F(MujocoTest, SaveXml) {
 
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, NotNull()) << "Failed to parse spec: " << error.data();
-  mjModel* model = mjs_compile(spec, 0);
+  mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
 
   std::array<char, 273> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
-                               error.size()), 1) << error.data();
+                               error.size()), 0) << error.data();
 
   mjSpec* saved_spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(saved_spec, NotNull()) << "Invalid saved spec: " << error.data();
-  mjModel* saved_model = mjs_compile(saved_spec, 0);
+  mjModel* saved_model = mj_compile(saved_spec, 0);
   EXPECT_THAT(saved_model, NotNull()) << "Invalid model: " << error.data();
 
   mjtNum tol = 0;
@@ -154,8 +154,8 @@ TEST_F(MujocoTest, SaveXml) {
             << "Expected and attached models are different!\n"
             << "Different field: " << field << '\n';
 
-  mjs_deleteSpec(spec);
-  mjs_deleteSpec(saved_spec);
+  mj_deleteSpec(spec);
+  mj_deleteSpec(saved_spec);
   mj_deleteModel(model);
   mj_deleteModel(saved_model);
 }

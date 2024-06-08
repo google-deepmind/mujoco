@@ -24,7 +24,7 @@
 #include <gtest/gtest.h>
 #include <absl/strings/match.h>
 #include <mujoco/mujoco.h>
-#include "src/user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"
@@ -39,7 +39,7 @@ using ::testing::NotNull;
 // -------------------------- test model manipulation  -------------------------
 
 TEST_F(MujocoTest, GetSetData) {
-  mjSpec* spec = mjs_createSpec();
+  mjSpec* spec = mj_makeSpec();
   mjsBody* world = mjs_findBody(spec, "world");
   mjsBody* body = mjs_addBody(world, 0);
   mjsSite* site = mjs_addSite(body, 0);
@@ -60,11 +60,11 @@ TEST_F(MujocoTest, GetSetData) {
     EXPECT_EQ(vec[i], i);
   }
 
-  mjs_deleteSpec(spec);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MujocoTest, TreeTraversal) {
-  mjSpec* spec = mjs_createSpec();
+  mjSpec* spec = mj_makeSpec();
   mjsBody* world = mjs_findBody(spec, "world");
   mjsBody* body = mjs_addBody(world, 0);
 
@@ -75,15 +75,15 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsSite* site3 = mjs_addSite(body, 0);
   mjsGeom* geom3 = mjs_addGeom(body, 0);
 
-  mjElement* t_el1 = mjs_firstChild(body, mjOBJ_TENDON);
-  mjElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE);
-  mjElement* s_el2 = mjs_nextChild(body, s_el1);
-  mjElement* s_el3 = mjs_nextChild(body, s_el2);
-  mjElement* s_el4 = mjs_nextChild(body, s_el3);
-  mjElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM);
-  mjElement* g_el2 = mjs_nextChild(body, g_el1);
-  mjElement* g_el3 = mjs_nextChild(body, g_el2);
-  mjElement* g_el4 = mjs_nextChild(body, g_el3);
+  mjsElement* t_el1 = mjs_firstChild(body, mjOBJ_TENDON);
+  mjsElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE);
+  mjsElement* s_el2 = mjs_nextChild(body, s_el1);
+  mjsElement* s_el3 = mjs_nextChild(body, s_el2);
+  mjsElement* s_el4 = mjs_nextChild(body, s_el3);
+  mjsElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM);
+  mjsElement* g_el2 = mjs_nextChild(body, g_el1);
+  mjsElement* g_el3 = mjs_nextChild(body, g_el2);
+  mjsElement* g_el4 = mjs_nextChild(body, g_el3);
 
   EXPECT_EQ(t_el1, nullptr);
   EXPECT_EQ(s_el1, site1->element);
@@ -95,7 +95,7 @@ TEST_F(MujocoTest, TreeTraversal) {
   EXPECT_EQ(g_el4, nullptr);
   EXPECT_EQ(s_el4, nullptr);
 
-  mjs_deleteSpec(spec);
+  mj_deleteSpec(spec);
 }
 
 // ------------------- test recompilation multiple files -----------------------
@@ -131,16 +131,16 @@ TEST_F(PluginTest, RecompileCompare) {
             << "Failed to load " << xml << ": " << err.data();
 
         // copy spec
-        mjSpec* s_copy = mjs_copySpec(s);
+        mjSpec* s_copy = mj_copySpec(s);
 
         // compile twice and compare
-        mjModel* m_old = mjs_compile(s, nullptr);
+        mjModel* m_old = mj_compile(s, nullptr);
 
         ASSERT_THAT(m_old, NotNull())
             << "Failed to compile " << xml << ": " << mjs_getError(s);
 
-        mjModel* m_new = mjs_compile(s, nullptr);
-        mjModel* m_copy = mjs_compile(s_copy, nullptr);
+        mjModel* m_new = mj_compile(s, nullptr);
+        mjModel* m_copy = mj_compile(s_copy, nullptr);
 
         ASSERT_THAT(m_new, NotNull())
             << "Failed to recompile " << xml << ": " << mjs_getError(s);
@@ -158,8 +158,8 @@ TEST_F(PluginTest, RecompileCompare) {
             << "Different field: " << field << '\n';
 
         // copy to a new spec, compile and compare
-        mjSpec* s_copy2 = mjs_copySpec(s);
-        mjModel* m_copy2 = mjs_compile(s_copy2, nullptr);
+        mjSpec* s_copy2 = mj_copySpec(s);
+        mjModel* m_copy2 = mj_compile(s_copy2, nullptr);
 
         ASSERT_THAT(m_copy2, NotNull())
             << "Failed to compile " << xml << ": " << mjs_getError(s_copy2);
@@ -170,9 +170,9 @@ TEST_F(PluginTest, RecompileCompare) {
             << "Different field: " << field << '\n';
 
         // delete models
-        mjs_deleteSpec(s);
-        mjs_deleteSpec(s_copy);
-        mjs_deleteSpec(s_copy2);
+        mj_deleteSpec(s);
+        mj_deleteSpec(s_copy);
+        mj_deleteSpec(s_copy2);
         mj_deleteModel(m_old);
         mj_deleteModel(m_new);
         mj_deleteModel(m_copy);
@@ -433,7 +433,7 @@ TEST_F(MujocoTest, AttachSame) {
       mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
 
   // compile new model
-  mjModel* m_attached = mjs_compile(parent, 0);
+  mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
 
   // check full name stored in mjModel
@@ -450,7 +450,7 @@ TEST_F(MujocoTest, AttachSame) {
             << "Different field: " << field << '\n';;
 
   // destroy everything
-  mjs_deleteSpec(parent);
+  mj_deleteSpec(parent);
   mj_deleteModel(m_attached);
   mj_deleteModel(m_expected);
 }
@@ -550,7 +550,7 @@ TEST_F(MujocoTest, AttachDifferent) {
       mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
 
   // compile new model
-  mjModel* m_attached = mjs_compile(parent, 0);
+  mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
 
   // check full name stored in mjModel
@@ -567,8 +567,8 @@ TEST_F(MujocoTest, AttachDifferent) {
             << "Different field: " << field << '\n';;
 
   // destroy everything
-  mjs_deleteSpec(parent);
-  mjs_deleteSpec(child);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
   mj_deleteModel(m_attached);
   mj_deleteModel(m_expected);
 }
@@ -662,7 +662,7 @@ TEST_F(MujocoTest, AttachFrame) {
       mjs_attachFrame(body, frame, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
 
   // compile new model
-  mjModel* m_attached = mjs_compile(parent, 0);
+  mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
 
   // check full name stored in mjModel
@@ -679,8 +679,8 @@ TEST_F(MujocoTest, AttachFrame) {
             << "Different field: " << field << '\n';;
 
   // destroy everything
-  mjs_deleteSpec(parent);
-  mjs_deleteSpec(child);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
   mj_deleteModel(m_attached);
   mj_deleteModel(m_expected);
 }
@@ -715,7 +715,7 @@ void TestDetachBody(bool compile) {
   EXPECT_THAT(child, NotNull()) << er.data();
 
   // compile model (for testing double compilation)
-  mjModel* m_child = compile ? mjs_compile(child, 0) : nullptr;
+  mjModel* m_child = compile ? mj_compile(child, 0) : nullptr;
 
   // get subtree
   mjsBody* body = mjs_findBody(child, "body");
@@ -725,7 +725,7 @@ void TestDetachBody(bool compile) {
   EXPECT_THAT(mjs_detachBody(child, body), 0);
 
   // compile new model
-  mjModel* m_detached = mjs_compile(child, 0);
+  mjModel* m_detached = mj_compile(child, 0);
   EXPECT_THAT(m_detached, NotNull());
 
   // compare with expected XML
@@ -736,7 +736,7 @@ void TestDetachBody(bool compile) {
             << "Different field: " << field << '\n';
 
   // destroy everything
-  mjs_deleteSpec(child);
+  mj_deleteSpec(child);
   mj_deleteModel(m_detached);
   mj_deleteModel(m_expected);
   if (m_child) mj_deleteModel(m_child);
@@ -791,7 +791,7 @@ TEST_F(MujocoTest, PreserveState) {
   EXPECT_THAT(spec, NotNull()) << er.data();
 
   // compile models
-  mjModel* model = mjs_compile(spec, 0);
+  mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull());
   mjModel* m_expected = LoadModelFromString(xml_expected, er.data(), er.size());
   EXPECT_THAT(m_expected, NotNull());
@@ -834,7 +834,7 @@ TEST_F(MujocoTest, PreserveState) {
   joint->ref = d_expected->qpos[m_expected->nq-1];
 
   // compile new model
-  mjs_recompile(spec, 0, model, data);
+  mj_recompile(spec, 0, model, data);
   EXPECT_THAT(model, NotNull());
 
   // compare qpos
@@ -861,7 +861,7 @@ TEST_F(MujocoTest, PreserveState) {
   // destroy everything
   mj_deleteData(data);
   mj_deleteData(d_expected);
-  mjs_deleteSpec(spec);
+  mj_deleteSpec(spec);
   mj_deleteModel(model);
   mj_deleteModel(m_expected);
 }

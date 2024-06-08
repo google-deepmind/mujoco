@@ -19,7 +19,7 @@
 #include <string>
 
 #include "tinyxml2.h"
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "xml/xml_util.h"
 
 

@@ -57,6 +57,7 @@ public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const int mjMAXTHREAD = 128;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
@@ -426,6 +427,39 @@ public enum mjtFont : int{
   mjFONT_NORMAL = 0,
   mjFONT_SHADOW = 1,
   mjFONT_BIG = 2,
+}
+public enum mjtGeomInertia : int{
+  mjINERTIA_VOLUME = 1,
+  mjINERTIA_SHELL = 2,
+}
+public enum mjtBuiltin : int{
+  mjBUILTIN_NONE = 0,
+  mjBUILTIN_GRADIENT = 1,
+  mjBUILTIN_CHECKER = 2,
+  mjBUILTIN_FLAT = 3,
+}
+public enum mjtMark : int{
+  mjMARK_NONE = 0,
+  mjMARK_EDGE = 1,
+  mjMARK_CROSS = 2,
+  mjMARK_RANDOM = 3,
+}
+public enum mjtLimited : int{
+  mjLIMITED_FALSE = 0,
+  mjLIMITED_TRUE = 1,
+  mjLIMITED_AUTO = 2,
+}
+public enum mjtInertiaFromGeom : int{
+  mjINERTIAFROMGEOM_FALSE = 0,
+  mjINERTIAFROMGEOM_TRUE = 1,
+  mjINERTIAFROMGEOM_AUTO = 2,
+}
+public enum mjtOrientation : int{
+  mjORIENTATION_QUAT = 0,
+  mjORIENTATION_AXISANGLE = 1,
+  mjORIENTATION_XYAXES = 2,
+  mjORIENTATION_ZAXIS = 3,
+  mjORIENTATION_EULER = 4,
 }
 public enum mjtTaskStatus : int{
   mjTASK_NEW = 0,
@@ -6359,9 +6393,6 @@ public static unsafe extern int mj_saveLastXML([MarshalAs(UnmanagedType.LPStr)]s
 public static unsafe extern void mj_freeLastXML();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_printSchema([MarshalAs(UnmanagedType.LPStr)]string filename, StringBuilder buffer, int buffer_sz, int flg_html, int flg_pad);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_step(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -6468,6 +6499,9 @@ public static unsafe extern void mju_printMat(double* mat, int nr, int nc);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_printMatSparse(double* mat, int nr, int* rownnz, int* rowadr, int* colind);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_printSchema([MarshalAs(UnmanagedType.LPStr)]string filename, StringBuilder buffer, int buffer_sz, int flg_html, int flg_pad);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_fwdPosition(mjModel_* m, mjData_* d);

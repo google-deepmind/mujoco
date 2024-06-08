@@ -28,7 +28,7 @@
 #include <mujoco/mjmodel.h>
 #include "engine/engine_io.h"
 #include "engine/engine_resource.h"
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_vfs.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
@@ -59,7 +59,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  mjs_copyBack(spec_, m);
+  mj_copyBack(spec_, m);
   std::string result = mjWriteXML(spec_, error, error_sz);
   if (result.empty()) {
     return std::nullopt;
@@ -70,7 +70,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
 void GlobalModel::Set(mjSpec* spec) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (spec_ != nullptr) {
-    mjs_deleteSpec(spec_);
+    mj_deleteSpec(spec_);
   }
   spec_ = spec;
 }
@@ -96,13 +96,13 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   // parse new model
   std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> spec(
       mjParseXML(filename, vfs, error, error_sz),
-      [](mjSpec* s) { mjs_deleteSpec(s); });
+      [](mjSpec* s) { mj_deleteSpec(s); });
   if (!spec) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = mjs_compile(spec.get(), vfs);
+  mjModel* m = mj_compile(spec.get(), vfs);
   if (!m) {
     mjCopyError(error, mjs_getError(spec.get()), error_sz);
     return nullptr;
@@ -248,7 +248,7 @@ int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int er
     std::string error_msg = "Output string too short, should be at least " +
                             std::to_string(result.size()+1);
     mjCopyError(error, error_msg.c_str(), error_sz);
-    return 0;
+    return result.size();
   }
   if (result.empty()) {
     return 0;
@@ -256,6 +256,6 @@ int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int er
 
   result.copy(xml, xml_sz);
   xml[result.size()] = 0;
-  return 1;
+  return 0;
 }
 

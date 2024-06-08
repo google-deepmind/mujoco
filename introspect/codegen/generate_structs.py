@@ -123,7 +123,7 @@ class MjStructVisitor:
     """Makes a Decl object from a Clang AST RecordDecl node."""
     name = f"{node['tagUsed']} {node['name']}" if 'name' in node else ''
     fields = []
-    for child in node['inner']:
+    for child in node.get('inner', ()):
       child_kind = child.get('kind')
       if child_kind == 'FieldDecl':
         fields.append(self._make_field(child))

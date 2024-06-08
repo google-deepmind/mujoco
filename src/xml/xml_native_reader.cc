@@ -36,7 +36,7 @@
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
 #include "user/user_util.h"

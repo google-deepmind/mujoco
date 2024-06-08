@@ -19,7 +19,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 
 // Top level API
 

@@ -28,6 +28,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
@@ -416,7 +417,7 @@ void mjCModel::CreateObjectLists() {
 
 
 void mjCModel::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.comment = &spec_comment_;
   spec.modelfiledir = &spec_modelfiledir_;
   spec.modelname = &spec_modelname_;

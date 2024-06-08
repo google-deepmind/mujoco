@@ -22,6 +22,42 @@ Parse XML file in MJCF or URDF format, compile it, return low-level model.
 If vfs is not NULL, look up files in vfs before reading from disk.
 If error is not NULL, it must have size error_sz.
 
+.. _mj_parseXML:
+
+mj_parseXML
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_parseXML
+
+Parse spec from XML file.
+
+.. _mj_parseXMLString:
+
+mj_parseXMLString
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_parseXMLString
+
+Parse spec from XML string.
+
+.. _mj_compile:
+
+mj_compile
+~~~~~~~~~~
+
+.. mujoco-include:: mj_compile
+
+Compile spec to model.
+
+.. _mj_recompile:
+
+mj_recompile
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_recompile
+
+Recompile spec to model, preserving the state.
+
 .. _mj_saveLastXML:
 
 mj_saveLastXML
@@ -41,14 +77,32 @@ mj_freeLastXML
 
 Free last XML model if loaded. Called internally at each load.
 
-.. _mj_printSchema:
+.. _mj_copyBack:
 
-mj_printSchema
-~~~~~~~~~~~~~~
+mj_copyBack
+~~~~~~~~~~~
 
-.. mujoco-include:: mj_printSchema
+.. mujoco-include:: mj_copyBack
 
-Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
+Copy (possibly modified) model fields back into spec.
+
+.. _mj_saveXMLString:
+
+mj_saveXMLString
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_saveXMLString
+
+Save spec to XML string, return 1 on success, 0 otherwise.
+
+.. _mj_saveXML:
+
+mj_saveXML
+~~~~~~~~~~
+
+.. mujoco-include:: mj_saveXML
+
+Save spec to XML file, return 1 on success, 0 otherwise.
 
 .. _Mainsimulation:
 
@@ -954,8 +1008,8 @@ If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - are
 
 .. _Raycollisions:
 
-Ray collisions
-^^^^^^^^^^^^^^
+Ray casting
+^^^^^^^^^^^
 
 Ray collisions, also known as ray casting, find the distance ``x`` of a ray's intersection with a geom, where a ray is
 a line emanating from the 3D point ``p`` in the direction ``v`` i.e., ``(p + x*v, x >= 0)``. All functions in this
@@ -1104,6 +1158,15 @@ mju_printMatSparse
 .. mujoco-include:: mju_printMatSparse
 
 Print sparse matrix to screen.
+
+.. _mj_printSchema:
+
+mj_printSchema
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printSchema
+
+Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
 
 .. _Virtualfilesystem:
 
@@ -1407,6 +1470,33 @@ mj_setLengthRange
 .. mujoco-include:: mj_setLengthRange
 
 Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.
+
+.. _mj_makeSpec:
+
+mj_makeSpec
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_makeSpec
+
+Create empty spec.
+
+.. _mj_copySpec:
+
+mj_copySpec
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_copySpec
+
+Copy spec.
+
+.. _mj_deleteSpec:
+
+mj_deleteSpec
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_deleteSpec
+
+Free memory allocation in mjSpec.
 
 .. _Interaction:
 
@@ -2106,7 +2196,7 @@ mjui_render
 
 This function is called in the screen refresh loop. It copies the offscreen OpenGL buffer to the window framebuffer. If
 there are multiple UIs in the application, it should be called once for each UI. Thus ``mjui_render`` is called all the
-time, while :ref:`mjui_update` is called only when changes in the UI take place.
+time, while :ref:`mjui_update` is called only when changes in the UI take place. dsffsdg
 
 .. _Errorandmemory:
 
@@ -2211,6 +2301,24 @@ mju_writeLog
 .. mujoco-include:: mju_writeLog
 
 Write [datetime, type: message] to MUJOCO_LOG.TXT.
+
+.. _mjs_getError:
+
+mjs_getError
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getError
+
+Get compiler error message from spec.
+
+.. _mjs_isWarning:
+
+mjs_isWarning
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_isWarning
+
+Return 1 if compiler error is a warning.
 
 .. _Standardmath:
 
@@ -3359,7 +3467,7 @@ Finite-differenced discrete-time transition matrices.
 
 Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
-values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`.
+values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
 These matrices and their dimensions are:
 
@@ -3452,6 +3560,9 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
+
+
+These functions provide high level manipulation for :ref:`mjSpec` structs, which represent an uncompiled :ref:`mjModel`.
 
 .. _Plugins-api:
 
@@ -3558,8 +3669,8 @@ If invalid slot number, return NULL.
 
 .. _Thread:
 
-Thread
-^^^^^^
+Threads
+^^^^^^^
 .. _mju_threadPoolCreate:
 
 mju_threadPoolCreate
@@ -3613,4 +3724,823 @@ mju_taskJoin
 .. mujoco-include:: mju_taskJoin
 
 Wait for a task to complete.
+
+.. _Attachment:
+
+Attachment
+^^^^^^^^^^
+.. _mjs_attachBody:
+
+mjs_attachBody
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_attachBody
+
+Attach child body to a parent frame, return 0 on success.
+
+.. _mjs_attachFrame:
+
+mjs_attachFrame
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_attachFrame
+
+Attach child frame to a parent body, return 0 on success.
+
+.. _mjs_detachBody:
+
+mjs_detachBody
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_detachBody
+
+Detach body from mjSpec, remove all references and delete the body, return 0 on success.
+
+.. _AddTreeElements:
+
+Tree elements
+^^^^^^^^^^^^^
+.. _mjs_addBody:
+
+mjs_addBody
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addBody
+
+Add child body to body, return child.
+
+.. _mjs_addSite:
+
+mjs_addSite
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addSite
+
+Add site to body, return site spec.
+
+.. _mjs_addJoint:
+
+mjs_addJoint
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addJoint
+
+Add joint to body.
+
+.. _mjs_addFreeJoint:
+
+mjs_addFreeJoint
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addFreeJoint
+
+Add freejoint to body.
+
+.. _mjs_addGeom:
+
+mjs_addGeom
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addGeom
+
+Add geom to body.
+
+.. _mjs_addCamera:
+
+mjs_addCamera
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addCamera
+
+Add camera to body.
+
+.. _mjs_addLight:
+
+mjs_addLight
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addLight
+
+Add light to body.
+
+.. _mjs_addFrame:
+
+mjs_addFrame
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addFrame
+
+Add frame to body.
+
+.. _mjs_delete:
+
+mjs_delete
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_delete
+
+Delete object corresponding to the given element.
+
+.. _AddNonTreeElements:
+
+Non-tree elements
+^^^^^^^^^^^^^^^^^
+.. _mjs_addActuator:
+
+mjs_addActuator
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addActuator
+
+Add actuator.
+
+.. _mjs_addSensor:
+
+mjs_addSensor
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addSensor
+
+Add sensor.
+
+.. _mjs_addFlex:
+
+mjs_addFlex
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addFlex
+
+Add flex.
+
+.. _mjs_addPair:
+
+mjs_addPair
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addPair
+
+Add contact pair.
+
+.. _mjs_addExclude:
+
+mjs_addExclude
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addExclude
+
+Add excluded body pair.
+
+.. _mjs_addEquality:
+
+mjs_addEquality
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addEquality
+
+Add equality.
+
+.. _mjs_addTendon:
+
+mjs_addTendon
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addTendon
+
+Add tendon.
+
+.. _mjs_wrapSite:
+
+mjs_wrapSite
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_wrapSite
+
+Wrap site using tendon.
+
+.. _mjs_wrapGeom:
+
+mjs_wrapGeom
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_wrapGeom
+
+Wrap geom using tendon.
+
+.. _mjs_wrapJoint:
+
+mjs_wrapJoint
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_wrapJoint
+
+Wrap joint using tendon.
+
+.. _mjs_wrapPulley:
+
+mjs_wrapPulley
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_wrapPulley
+
+Wrap pulley using tendon.
+
+.. _mjs_addNumeric:
+
+mjs_addNumeric
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addNumeric
+
+Add numeric.
+
+.. _mjs_addText:
+
+mjs_addText
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addText
+
+Add text.
+
+.. _mjs_addTuple:
+
+mjs_addTuple
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addTuple
+
+Add tuple.
+
+.. _mjs_addKey:
+
+mjs_addKey
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_addKey
+
+Add keyframe.
+
+.. _mjs_addPlugin:
+
+mjs_addPlugin
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addPlugin
+
+Add plugin.
+
+.. _mjs_addDefault:
+
+mjs_addDefault
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addDefault
+
+Add default.
+
+.. _AddAssets:
+
+Assets
+^^^^^^
+.. _mjs_addMesh:
+
+mjs_addMesh
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addMesh
+
+Add mesh.
+
+.. _mjs_addHField:
+
+mjs_addHField
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addHField
+
+Add height field.
+
+.. _mjs_addSkin:
+
+mjs_addSkin
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addSkin
+
+Add skin.
+
+.. _mjs_addTexture:
+
+mjs_addTexture
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addTexture
+
+Add texture.
+
+.. _mjs_addMaterial:
+
+mjs_addMaterial
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_addMaterial
+
+Add material.
+
+.. _FindAndGetUtilities:
+
+Find and get utilities
+^^^^^^^^^^^^^^^^^^^^^^
+.. _mjs_getSpec:
+
+mjs_getSpec
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getSpec
+
+Get spec from body.
+
+.. _mjs_findBody:
+
+mjs_findBody
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findBody
+
+Find body in model by name.
+
+.. _mjs_findChild:
+
+mjs_findChild
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findChild
+
+Find child body by name.
+
+.. _mjs_findMesh:
+
+mjs_findMesh
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findMesh
+
+Find mesh by name.
+
+.. _mjs_findFrame:
+
+mjs_findFrame
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findFrame
+
+Find frame by name.
+
+.. _mjs_getDefault:
+
+mjs_getDefault
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getDefault
+
+Get default corresponding to an element.
+
+.. _mjs_findDefault:
+
+mjs_findDefault
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findDefault
+
+Find default in model by class name.
+
+.. _mjs_getSpecDefault:
+
+mjs_getSpecDefault
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getSpecDefault
+
+Get global default from model.
+
+.. _mjs_getId:
+
+mjs_getId
+~~~~~~~~~
+
+.. mujoco-include:: mjs_getId
+
+Get element id.
+
+.. _mjs_firstChild:
+
+mjs_firstChild
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_firstChild
+
+Return body's first child of given type.
+
+.. _mjs_nextChild:
+
+mjs_nextChild
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_nextChild
+
+Return body's next child of the same type; return NULL if child is last.
+
+.. _AttributeSetters:
+
+Attribute setters
+^^^^^^^^^^^^^^^^^
+.. _mjs_setString:
+
+mjs_setString
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setString
+
+Copy text to string.
+
+.. _mjs_setStringVec:
+
+mjs_setStringVec
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setStringVec
+
+Split text to entries and copy to string vector.
+
+.. _mjs_setInStringVec:
+
+mjs_setInStringVec
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setInStringVec
+
+Set entry in string vector.
+
+.. _mjs_appendString:
+
+mjs_appendString
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_appendString
+
+Append text entry to string vector.
+
+.. _mjs_setInt:
+
+mjs_setInt
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_setInt
+
+Copy int array to vector.
+
+.. _mjs_appendIntVec:
+
+mjs_appendIntVec
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_appendIntVec
+
+Append int array to vector of arrays.
+
+.. _mjs_setFloat:
+
+mjs_setFloat
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setFloat
+
+Copy float array to vector.
+
+.. _mjs_appendFloatVec:
+
+mjs_appendFloatVec
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_appendFloatVec
+
+Append float array to vector of arrays.
+
+.. _mjs_setDouble:
+
+mjs_setDouble
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setDouble
+
+Copy double array to vector.
+
+.. _mjs_setPluginAttributes:
+
+mjs_setPluginAttributes
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setPluginAttributes
+
+Set plugin attributes.
+
+.. _AttributeGetters:
+
+Attribute getters
+^^^^^^^^^^^^^^^^^
+.. _mjs_getString:
+
+mjs_getString
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getString
+
+Get string contents.
+
+.. _mjs_getDouble:
+
+mjs_getDouble
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getDouble
+
+Get double array contents and optionally its size.
+
+.. _SpecUtilities:
+
+Spec utilities
+^^^^^^^^^^^^^^
+.. _mjs_setActivePlugins:
+
+mjs_setActivePlugins
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setActivePlugins
+
+Set active plugins.
+
+.. _mjs_setDefault:
+
+mjs_setDefault
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setDefault
+
+Set element's default.
+
+.. _mjs_setFrame:
+
+mjs_setFrame
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setFrame
+
+Set element's enlcosing frame.
+
+.. _mjs_resolveOrientation:
+
+mjs_resolveOrientation
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_resolveOrientation
+
+Resolve alternative orientations to quat, return error if any.
+
+.. _mjs_fullInertia:
+
+mjs_fullInertia
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_fullInertia
+
+Compute quat and diag inertia from full inertia matrix, return error if any.
+
+.. _ElementInitialization:
+
+Element initialization
+^^^^^^^^^^^^^^^^^^^^^^
+.. _mjs_defaultSpec:
+
+mjs_defaultSpec
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultSpec
+
+Default spec attributes.
+
+.. _mjs_defaultOrientation:
+
+mjs_defaultOrientation
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultOrientation
+
+Default orientation attributes.
+
+.. _mjs_defaultBody:
+
+mjs_defaultBody
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultBody
+
+Default body attributes.
+
+.. _mjs_defaultFrame:
+
+mjs_defaultFrame
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultFrame
+
+Default frame attributes.
+
+.. _mjs_defaultJoint:
+
+mjs_defaultJoint
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultJoint
+
+Default joint attributes.
+
+.. _mjs_defaultGeom:
+
+mjs_defaultGeom
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultGeom
+
+Default geom attributes.
+
+.. _mjs_defaultSite:
+
+mjs_defaultSite
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultSite
+
+Default site attributes.
+
+.. _mjs_defaultCamera:
+
+mjs_defaultCamera
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultCamera
+
+Default camera attributes.
+
+.. _mjs_defaultLight:
+
+mjs_defaultLight
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultLight
+
+Default light attributes.
+
+.. _mjs_defaultFlex:
+
+mjs_defaultFlex
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultFlex
+
+Default flex attributes.
+
+.. _mjs_defaultMesh:
+
+mjs_defaultMesh
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultMesh
+
+Default mesh attributes.
+
+.. _mjs_defaultHField:
+
+mjs_defaultHField
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultHField
+
+Default height field attributes.
+
+.. _mjs_defaultSkin:
+
+mjs_defaultSkin
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultSkin
+
+Default skin attributes.
+
+.. _mjs_defaultTexture:
+
+mjs_defaultTexture
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultTexture
+
+Default texture attributes.
+
+.. _mjs_defaultMaterial:
+
+mjs_defaultMaterial
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultMaterial
+
+Default material attributes.
+
+.. _mjs_defaultPair:
+
+mjs_defaultPair
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultPair
+
+Default pair attributes.
+
+.. _mjs_defaultEquality:
+
+mjs_defaultEquality
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultEquality
+
+Default equality attributes.
+
+.. _mjs_defaultTendon:
+
+mjs_defaultTendon
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultTendon
+
+Default tendon attributes.
+
+.. _mjs_defaultActuator:
+
+mjs_defaultActuator
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultActuator
+
+Default actuator attributes.
+
+.. _mjs_defaultSensor:
+
+mjs_defaultSensor
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultSensor
+
+Default sensor attributes.
+
+.. _mjs_defaultNumeric:
+
+mjs_defaultNumeric
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultNumeric
+
+Default numeric attributes.
+
+.. _mjs_defaultText:
+
+mjs_defaultText
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultText
+
+Default text attributes.
+
+.. _mjs_defaultTuple:
+
+mjs_defaultTuple
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultTuple
+
+Default tuple attributes.
+
+.. _mjs_defaultKey:
+
+mjs_defaultKey
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultKey
+
+Default keyframe attributes.
+
+.. _mjs_defaultPlugin:
+
+mjs_defaultPlugin
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_defaultPlugin
+
+Default plugin attributes.
 

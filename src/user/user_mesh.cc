@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjspec.h>
 #include "user/user_api.h"
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
@@ -196,7 +197,7 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 
 
 void mjCMesh::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.file = &spec_file_;
@@ -1983,7 +1984,7 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
 
 
 void mjCSkin::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.file = &spec_file_;
@@ -2395,7 +2396,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 
 
 void mjCFlex::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
+  spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.classname = &classname;
   spec.material = &spec_material_;

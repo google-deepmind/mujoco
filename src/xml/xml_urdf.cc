@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include "user/user_api.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"

@@ -15,6 +15,7 @@
 #include <string.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjspec.h>
 #include "engine/engine_io.h"
 #include "user/user_api.h"
 

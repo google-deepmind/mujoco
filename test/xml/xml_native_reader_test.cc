@@ -24,10 +24,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
-#include "src/user/user_api.h"
 #include "src/xml/xml_api.h"
 #include "test/fixture.h"
 
@@ -1101,7 +1101,7 @@ TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
   EXPECT_THAT(def, NotNull());
   EXPECT_THAT(def->geom->type, mjGEOM_CAPSULE);
 
-  mjs_deleteSpec(spec);
+  mj_deleteSpec(spec);
 }
 
 // ----------------------- test camera parsing ---------------------------------

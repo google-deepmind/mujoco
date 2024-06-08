@@ -26,7 +26,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_cache.h"
 #include "user/user_util.h"
 
@@ -168,7 +168,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
 
-class mjCBase_ : public mjElement {
+class mjCBase_ : public mjsElement {
  public:
   int id;                 // object id
   std::string name;       // object name
@@ -309,7 +309,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
   // get next child of given type
-  mjElement* NextChild(mjElement* child, mjtObj type = mjOBJ_UNKNOWN);
+  mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -1624,7 +1624,7 @@ class mjCKey : public mjCKey_, private mjsKey {
 //------------------------- class mjCDef -----------------------------------------------------------
 // Describes one set of defaults
 
-class mjCDef : public mjElement {
+class mjCDef : public mjsElement {
   friend class mjXWriter;
 
  public:
