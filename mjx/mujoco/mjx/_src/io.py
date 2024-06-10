@@ -174,7 +174,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       nefc=nefc,
       ncon=ncon,
       solver_niter=jp.array(0, dtype=int),
-      time=jp.array(0.0),
+      time=jp.array(0.0, dtype=float),
       qpos=jp.array(m.qpos0),
       qvel=zero_nv,
       act=zero_na,
