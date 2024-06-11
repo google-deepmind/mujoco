@@ -123,8 +123,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"visual", "*", "0"},
     {"<"},
-        {"global", "?", "11", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow",
-            "offwidth", "offheight", "realtime", "ellipsoidinertia", "bvactive"},
+        {"global", "?", "12", "orthographic", "fovy", "ipd", "azimuth", "elevation", "linewidth",
+            "glow", "offwidth", "offheight", "realtime", "ellipsoidinertia", "bvactive"},
         {"quality", "?", "5", "shadowsize", "offsamples", "numslices", "numstacks",
             "numquads"},
         {"headlight", "?", "4", "ambient", "diffuse", "specular", "active"},
@@ -160,9 +160,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "13", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "16", "fovy", "ipd", "resolution", "pos", "quat", "axisangle", "xyaxes",
-            "zaxis", "euler", "mode", "focal", "focalpixel", "principal", "principalpixel",
-            "sensorsize", "user"},
+        {"camera", "?", "17", "orthographic", "fovy", "ipd", "resolution", "pos", "quat",
+            "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
+            "principal", "principalpixel", "sensorsize", "user"},
         {"light", "?", "13", "pos", "dir", "bulbradius", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
@@ -268,9 +268,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {">"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "19", "name", "class", "fovy", "ipd", "resolution", "pos", "quat",
-            "axisangle", "xyaxes", "zaxis", "euler", "mode", "target", "focal", "focalpixel",
-            "principal", "principalpixel", "sensorsize", "user"},
+        {"camera", "*", "20", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
+            "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
+            "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "16", "name", "class", "directional", "castshadow", "active",
             "pos", "dir", "bulbradius", "attenuation", "cutoff", "exponent", "ambient", "diffuse",
             "specular", "mode", "target"},
@@ -1742,6 +1742,10 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* pcam) {
   ReadAlternative(elem, pcam->alt);
   ReadAttr(elem, "ipd", 1, &pcam->ipd, text);
 
+  if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
+    pcam->orthographic = (n==1);
+  }
+
   bool has_principal = ReadAttr(elem, "principalpixel", 2, pcam->principal_pixel, text) ||
                        ReadAttr(elem, "principal", 2, pcam->principal_length, text);
   bool has_focal = ReadAttr(elem, "focalpixel", 2, pcam->focal_pixel, text) ||
@@ -2948,6 +2952,7 @@ void mjXReader::Visual(XMLElement* section) {
   string text, name;
   XMLElement* elem;
   mjVisual* vis = &model->visual;
+  int n;
 
   // iterate over child elements
   elem = FirstChildElement(section);
@@ -2957,6 +2962,9 @@ void mjXReader::Visual(XMLElement* section) {
 
     // global sub-element
     if (name=="global") {
+      if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
+        vis->global.orthographic = (n==1);
+      }
       ReadAttr(elem,    "fovy",      1, &vis->global.fovy,      text);
       ReadAttr(elem,    "ipd",       1, &vis->global.ipd,       text);
       ReadAttr(elem,    "azimuth",   1, &vis->global.azimuth,   text);
@@ -2970,13 +2978,11 @@ void mjXReader::Visual(XMLElement* section) {
           throw mjXError(elem, "realtime must be greater than 0");
         }
       }
-      int ellipsoidinertia;
-      if (MapValue(elem, "ellipsoidinertia", &ellipsoidinertia, bool_map, 2)) {
-        vis->global.ellipsoidinertia = (ellipsoidinertia==1);
+      if (MapValue(elem, "ellipsoidinertia", &n, bool_map, 2)) {
+        vis->global.ellipsoidinertia = (n==1);
       }
-      int bvactive;
-      if (MapValue(elem, "bvactive", &bvactive, bool_map, 2)) {
-        vis->global.bvactive = (bvactive==1);
+      if (MapValue(elem, "bvactive", &n, bool_map, 2)) {
+        vis->global.bvactive = (n==1);
       }
     }
 

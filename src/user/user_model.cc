@@ -2040,6 +2040,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->cam_targetbodyid[cid] = pc->targetbodyid;
       copyvec(m->cam_pos+3*cid, pc->pos, 3);
       copyvec(m->cam_quat+4*cid, pc->quat, 4);
+      m->cam_orthographic[cid] = pc->orthographic;
       m->cam_fovy[cid] = (mjtNum)pc->fovy;
       m->cam_ipd[cid] = (mjtNum)pc->ipd;
       copyvec(m->cam_resolution+2*cid, pc->resolution, 2);

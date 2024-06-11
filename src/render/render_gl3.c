@@ -694,7 +694,7 @@ static void initLights(mjvScene* scn) {
 
 // set projection and modelview
 static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrContext* con,
-                    float* camProject, float* camView) {
+                    float camProject[16], float camView[16]) {
   mjvGLCamera cam;
 
   // copy specified camera for stereo, average for mono (view = -1)
@@ -709,24 +709,34 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
                     : 0.5f * (float)viewport.width / (float)viewport.height *
                              (cam.frustum_top - cam.frustum_bottom);
 
-  // set projection
+  // prepare projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   if (mjGLAD_GL_ARB_clip_control) {
     // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
     glTranslatef(0.0f, 0.0f, 0.5f);
     glScalef(1.0f, 1.0f, -0.5f);
-  }
-  else {
+  } else {
     // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
     glScalef(1.0f, 1.0f, -1.0f);
   }
-  glFrustum(cam.frustum_center - halfwidth,
+
+  // set projection, orthographic or perspective
+  if (cam.orthographic) {
+    glOrtho(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
             cam.frustum_top,
             cam.frustum_near,
             cam.frustum_far);
+  } else {
+    glFrustum(cam.frustum_center - halfwidth,
+              cam.frustum_center + halfwidth,
+              cam.frustum_bottom,
+              cam.frustum_top,
+              cam.frustum_near,
+              cam.frustum_far);
+  }
 
   // save projection matrix if requested
   if (camProject) {

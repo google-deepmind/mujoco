@@ -2615,11 +2615,20 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
 
+.. _body-camera-orthographic:
+
+:at:`orthographic`: :at-val:`[false, true], "false"`
+   Whether the camera uses a perspective projection (the default) or an orthographic projection. Setting this attribute
+   changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+
 .. _body-camera-fovy:
 
 :at:`fovy`: :at-val:`real, "45"`
-   Vertical field of view of the camera, expressed in degrees regardless of the global angle setting. The horizontal
-   field of view is computed automatically given the window size and the vertical field of view.
+   Vertical field-of-view of the camera. If the camera uses a perspective projection, the field-of-view is expressed in
+   degrees, regardless of the global :ref:`compiler/angle <compiler-angle>` setting. If the camera uses an orthographic
+   projection, the field-of-view is expressed in units of length; note that in this case the default of 45 is too large
+   for most scenes and should likely be reduced. In either case, the horizontal field of view is computed automatically
+   given the window size and the vertical field of view.
 
 .. _body-camera-resolution:
 
@@ -7157,14 +7166,22 @@ coordinated visual settings corresponding to a "theme", and then include this fi
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
 is effectively a miscellaneous subsection.
 
+.. _visual-global-orthographic:
+
+:at:`orthographic`: :at-val:`[false, true], "false"`
+   Whether the free camera uses a perspective projection (the default) or an orthographic projection. Setting this
+   attribute changes the semantic of the :ref:`global/fovy<visual-global-fovy>` attribute, see below.
+
 .. _visual-global-fovy:
 
 :at:`fovy`: :at-val:`real, "45"`
    This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
-   the visualizer even if no cameras are explicitly defined in the model. It is always expressed in degrees, regardless
-   of the setting of the angle attribute of :ref:`compiler <compiler>`, and is also represented in the low level model
-   in degrees. This is because we pass it to OpenGL which uses degrees. The same convention applies to the fovy
-   attribute of the :ref:`camera <body-camera>` element below.
+   the visualizer even if no cameras are explicitly defined in the model. If the camera uses a perspective projection,
+   the field-of-view is expressed in degrees, regardless of the global :ref:`compiler/angle <compiler-angle>` setting.
+   If the camera uses an orthographic projection, the field-of-view is expressed in units of length; note that in this
+   case the default of 45 is too large for most scenes and should likely be reduced. In either case, the horizontal
+   field of view is computed automatically given the window size and the vertical field of view. The same convention
+   applies to the :ref:`camera/fovy <body-camera-fovy>` attribute.
 
 .. _visual-global-ipd:
 
@@ -7869,6 +7886,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
+.. _default-camera-orthographic:
 
 .. _default-camera-fovy:
 

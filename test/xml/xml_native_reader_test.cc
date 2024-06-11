@@ -1249,6 +1249,36 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   EXPECT_THAT(
       error.data(),
       HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));
+}
+
+TEST_F(XMLReaderTest, Orthographic) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <global orthographic="true" fovy="5"/>
+      <map znear="0.01"/>
+    </visual>
+
+    <default>
+      <camera orthographic="true"/>
+    </default>
+
+    <worldbody>
+      <camera name="fovy=1" pos=".5 .5 2" orthographic="true" fovy="1"/>
+      <camera name="fovy=2" pos="0 0 2" fovy="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+
+  EXPECT_EQ(model->vis.global.orthographic, 1);
+  EXPECT_EQ(model->cam_orthographic[0], 1);
+  EXPECT_EQ(model->cam_orthographic[1], 1);
+  EXPECT_EQ(model->cam_fovy[0], 1);
+  EXPECT_EQ(model->cam_fovy[1], 2);
+
   mj_deleteModel(model);
 }
 

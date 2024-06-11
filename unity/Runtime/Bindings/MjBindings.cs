@@ -5013,6 +5013,7 @@ public unsafe struct mjOption_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct global {
+  public int orthographic;
   public float fovy;
   public float ipd;
   public float azimuth;
@@ -5321,11 +5322,12 @@ public unsafe struct mjModel_ {
   public double* cam_poscom0;
   public double* cam_pos0;
   public double* cam_mat0;
-  public int* cam_resolution;
+  public int* cam_orthographic;
   public double* cam_fovy;
-  public float* cam_intrinsic;
-  public float* cam_sensorsize;
   public double* cam_ipd;
+  public int* cam_resolution;
+  public float* cam_sensorsize;
+  public float* cam_intrinsic;
   public double* cam_user;
   public int* light_mode;
   public int* light_bodyid;
@@ -5858,6 +5860,7 @@ public unsafe struct mjvCamera_ {
   public double distance;
   public double azimuth;
   public double elevation;
+  public int orthographic;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5871,6 +5874,7 @@ public unsafe struct mjvGLCamera_ {
   public float frustum_top;
   public float frustum_near;
   public float frustum_far;
+  public int orthographic;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6184,10 +6188,12 @@ public unsafe struct model {
   public int* site_group;
   public double* site_size;
   public float* site_rgba;
+  public int* cam_orthographic;
   public double* cam_fovy;
   public double* cam_ipd;
-  public float* cam_intrinsic;
+  public int* cam_resolution;
   public float* cam_sensorsize;
+  public float* cam_intrinsic;
   public byte* light_directional;
   public byte* light_castshadow;
   public float* light_bulbradius;

@@ -13,15 +13,21 @@ General
    - Detailed documentation.
    - Python bindings.
 
-2. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+.. youtube:: ZXBTEIDWHhs
+   :align: right
+   :width: 240px
+
+2. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
+   :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
+   attributes, respectively.
+3. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 
 
 MJX
 ~~~
-
-3. Added support for :ref:`elliptic friction cones<option-cone>`.
-4. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-5. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+4. Added support for :ref:`elliptic friction cones<option-cone>`.
+5. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+6. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------

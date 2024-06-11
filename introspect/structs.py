@@ -311,9 +311,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=AnonymousStructDecl(
                      fields=(
                          StructFieldDecl(
+                             name='orthographic',
+                             type=ValueType(name='int'),
+                             doc='is the free camera orthographic (0: no, 1: yes)',  # pylint: disable=line-too-long
+                         ),
+                         StructFieldDecl(
                              name='fovy',
                              type=ValueType(name='float'),
-                             doc='y-field of view for free camera (degrees)',
+                             doc='y field-of-view of free camera (orthographic ? length : degree)',  # pylint: disable=line-too-long
                          ),
                          StructFieldDecl(
                              name='ipd',
@@ -2024,32 +2029,18 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='global orientation in qpos0              (ncam x 9)',
              ),
              StructFieldDecl(
-                 name='cam_resolution',
+                 name='cam_orthographic',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='[width, height] in pixels                (ncam x 2)',
+                 doc='orthographic camera; 0: no, 1: yes       (ncam x 1)',
              ),
              StructFieldDecl(
                  name='cam_fovy',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='y-field of view (deg)                    (ncam x 1)',
-             ),
-             StructFieldDecl(
-                 name='cam_intrinsic',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='[focal length; principal point]          (ncam x 4)',
-             ),
-             StructFieldDecl(
-                 name='cam_sensorsize',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='sensor size                              (ncam x 2)',
+                 doc='y field-of-view (ortho ? len : deg)      (ncam x 1)',
              ),
              StructFieldDecl(
                  name='cam_ipd',
@@ -2057,6 +2048,27 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='inter-pupilary distance                  (ncam x 1)',
+             ),
+             StructFieldDecl(
+                 name='cam_resolution',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='resolution: pixels [width, height]       (ncam x 2)',
+             ),
+             StructFieldDecl(
+                 name='cam_sensorsize',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='sensor size: length [width, height]      (ncam x 2)',
+             ),
+             StructFieldDecl(
+                 name='cam_intrinsic',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='[focal length; principal point]          (ncam x 4)',
              ),
              StructFieldDecl(
                  name='cam_user',
@@ -5367,6 +5379,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='mjtNum'),
                  doc='camera elevation (deg)',
              ),
+             StructFieldDecl(
+                 name='orthographic',
+                 type=ValueType(name='int'),
+                 doc='0: perspective; 1: orthographic',
+             ),
          ),
      )),
     ('mjvGLCamera',
@@ -5427,6 +5444,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='frustum_far',
                  type=ValueType(name='float'),
                  doc='far',
+             ),
+             StructFieldDecl(
+                 name='orthographic',
+                 type=ValueType(name='int'),
+                 doc='0: perspective; 1: orthographic',
              ),
          ),
      )),
@@ -6702,6 +6724,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='cam_orthographic',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='cam_fovy',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
@@ -6716,14 +6745,21 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
-                             name='cam_intrinsic',
+                             name='cam_resolution',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='cam_sensorsize',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
                              ),
                              doc='',
                          ),
                          StructFieldDecl(
-                             name='cam_sensorsize',
+                             name='cam_intrinsic',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
                              ),
@@ -9215,6 +9251,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjString'),
                  ),
                  doc='target body for tracking/targeting',
+             ),
+             StructFieldDecl(
+                 name='orthographic',
+                 type=ValueType(name='int'),
+                 doc='is camera orthographic',
              ),
              StructFieldDecl(
                  name='fovy',

@@ -182,6 +182,7 @@ static void setf4(float* rgba, float r, float g, float b, float a) {
 // set visual options to default values
 void mj_defaultVisual(mjVisual* vis) {
   // global
+  vis->global.orthographic        = 0;
   vis->global.fovy                = 45;
   vis->global.ipd                 = 0.068;
   vis->global.azimuth             = 90;
@@ -257,7 +258,7 @@ void mj_defaultVisual(mjVisual* vis) {
   setf4(vis->rgba.actuatornegative, .2, .6, .9, 1.);
   setf4(vis->rgba.actuatorpositive, .9, .4, .2, 1.);
   setf4(vis->rgba.com,              .9, .9, .9, 1.);
-  setf4(vis->rgba.camera,           .6, .9, .6, .3);
+  setf4(vis->rgba.camera,           .6, .9, .6, 1);
   setf4(vis->rgba.light,            .6, .6, .9, 1.);
   setf4(vis->rgba.selectpoint,      .9, .9, .1, 1.);
   setf4(vis->rgba.connect,          .2, .2, .8, 1.);

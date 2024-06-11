@@ -751,7 +751,8 @@ struct mjOption_ {                // physics options
 typedef struct mjOption_ mjOption;
 struct mjVisual_ {                // visualization options
   struct {                        // global parameters
-    float fovy;                   // y-field of view for free camera (degrees)
+    int orthographic;             // is the free camera orthographic (0: no, 1: yes)
+    float fovy;                   // y field-of-view of free camera (orthographic ? length : degree)
     float ipd;                    // inter-pupilary distance for free camera
     float azimuth;                // initial azimuth of free camera (degrees)
     float elevation;              // initial elevation of free camera (degrees)
@@ -1072,11 +1073,12 @@ struct mjModel_ {
   mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
   mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
   mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
-  int*      cam_resolution;       // [width, height] in pixels                (ncam x 2)
-  mjtNum*   cam_fovy;             // y-field of view (deg)                    (ncam x 1)
-  float*    cam_intrinsic;        // [focal length; principal point]          (ncam x 4)
-  float*    cam_sensorsize;       // sensor size                              (ncam x 2)
+  int*      cam_orthographic;     // orthographic camera; 0: no, 1: yes       (ncam x 1)
+  mjtNum*   cam_fovy;             // y field-of-view (ortho ? len : deg)      (ncam x 1)
   mjtNum*   cam_ipd;              // inter-pupilary distance                  (ncam x 1)
+  int*      cam_resolution;       // resolution: pixels [width, height]       (ncam x 2)
+  float*    cam_sensorsize;       // sensor size: length [width, height]      (ncam x 2)
+  float*    cam_intrinsic;        // [focal length; principal point]          (ncam x 4)
   mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
 
   // lights
@@ -1858,6 +1860,7 @@ typedef struct mjsCamera_ {        // camera specification
   mjString* targetbody;            // target body for tracking/targeting
 
   // intrinsics
+  int orthographic;                // is camera orthographic
   double fovy;                     // y-field of view
   double ipd;                      // inter-pupilary distance
   float intrinsic[4];              // camera intrinsics (length)
@@ -2602,6 +2605,9 @@ struct mjvCamera_ {               // abstract camera
   mjtNum   distance;              // distance to lookat point or tracked body
   mjtNum   azimuth;               // camera azimuth (deg)
   mjtNum   elevation;             // camera elevation (deg)
+
+  // orthographic / perspective
+  int      orthographic;          // 0: perspective; 1: orthographic
 };
 typedef struct mjvCamera_ mjvCamera;
 struct mjvGLCamera_ {             // OpenGL camera
@@ -2617,6 +2623,9 @@ struct mjvGLCamera_ {             // OpenGL camera
   float    frustum_top;           // top
   float    frustum_near;          // near
   float    frustum_far;           // far
+
+  // orthographic / perspective
+  int      orthographic;          // 0: perspective; 1: orthographic
 };
 typedef struct mjvGLCamera_ mjvGLCamera;
 struct mjvGeom_ {                 // abstract geom
@@ -2869,10 +2878,12 @@ struct mjvSceneState_ {
     mjtNum* site_size;
     float* site_rgba;
 
+    int* cam_orthographic;
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
-    float* cam_intrinsic;
+    int* cam_resolution;
     float* cam_sensorsize;
+    float* cam_intrinsic;
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;

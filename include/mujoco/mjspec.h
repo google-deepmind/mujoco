@@ -345,6 +345,7 @@ typedef struct mjsCamera_ {        // camera specification
   mjString* targetbody;            // target body for tracking/targeting
 
   // intrinsics
+  int orthographic;                // is camera orthographic
   double fovy;                     // y-field of view
   double ipd;                      // inter-pupilary distance
   float intrinsic[4];              // camera intrinsics (length)
