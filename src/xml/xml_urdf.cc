@@ -32,14 +32,15 @@
 using tinyxml2::XMLElement;
 
 // URDF joint type
-static const int urJoint_sz = 6;
+static const int urJoint_sz = 7;
 static const mjMap urJoint_map[urJoint_sz] = {
   {"revolute",    0},
   {"continuous",  1},
   {"prismatic",   2},
   {"fixed",       3},
   {"floating",    4},
-  {"planar",      5}
+  {"planar",      5},
+  {"spherical",   6}  // Bullet physics supports ball joints (non-standard URDF)
 };
 
 
@@ -474,6 +475,14 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     pjoint2->type = mjJNT_HINGE;
     mjuu_setvec(pjoint2->pos, 0, 0, 0);
     mjuu_copyvec(pjoint2->axis, axis, 3);
+    break;
+
+  case 6:  // ball joint
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, jntname.c_str());
+    pjoint->type = mjJNT_BALL;
+    mjuu_setvec(pjoint->pos, 0, 0, 0);
+    mjuu_copyvec(pjoint->axis, axis, 3);
   }
 
   // dynamics element

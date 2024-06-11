@@ -21,13 +21,13 @@ General
    :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
 3. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
-
+4. Add support for ``ball`` joints in the URDF parser.
 
 MJX
 ~~~
-4. Added support for :ref:`elliptic friction cones<option-cone>`.
-5. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-6. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+5. Added support for :ref:`elliptic friction cones<option-cone>`.
+6. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+7. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
