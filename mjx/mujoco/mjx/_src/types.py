@@ -841,7 +841,7 @@ class Data(PyTreeNode):
   qfrc_passive: jax.Array
   qfrc_gravcomp: jax.Array
   efc_aref: jax.Array
-  # position, velcoity, control & acceleration dependent:
+  # position, velocity, control & acceleration dependent:
   qfrc_actuator: jax.Array
   qfrc_smooth: jax.Array
   qacc_smooth: jax.Array
