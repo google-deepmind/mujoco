@@ -56,9 +56,6 @@ const int kErrorLength = 1024;          // load error string length
 mjModel* m = nullptr;
 mjData* d = nullptr;
 
-// control noise variables
-mjtNum* ctrlnoise = nullptr;
-
 using Seconds = std::chrono::duration<double>;
 
 
@@ -278,10 +275,6 @@ void PhysicsLoop(mj::Simulate& sim) {
         d = dnew;
         mj_forward(m, d);
 
-        // allocate ctrlnoise
-        free(ctrlnoise);
-        ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
-        mju_zero(ctrlnoise, m->nu);
       } else {
         sim.LoadMessageClear();
       }
@@ -306,10 +299,6 @@ void PhysicsLoop(mj::Simulate& sim) {
         d = dnew;
         mj_forward(m, d);
 
-        // allocate ctrlnoise
-        free(ctrlnoise);
-        ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
-        mju_zero(ctrlnoise, m->nu);
       } else {
         sim.LoadMessageClear();
       }
@@ -341,17 +330,30 @@ void PhysicsLoop(mj::Simulate& sim) {
           double elapsedSim = d->time - syncSim;
 
           // inject noise
-          if (sim.ctrl_noise_std) {
+          if (sim.ctrl_noise_std > 0) {
             // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
-            mjtNum rate = mju_exp(-m->opt.timestep / mju_max(sim.ctrl_noise_rate, mjMINVAL));
+            mjtNum rate = mju_exp(-m->opt.timestep / sim.ctrl_noise_rate);
             mjtNum scale = sim.ctrl_noise_std * mju_sqrt(1-rate*rate);
 
             for (int i=0; i<m->nu; i++) {
-              // update noise
-              ctrlnoise[i] = rate * ctrlnoise[i] + scale * mju_standardNormal(nullptr);
+              mjtNum bottom = 0, top = 0, midpoint = 0, halfrange = 1;
+              if (m->actuator_ctrllimited[i]) {
+                bottom = m->actuator_ctrlrange[2*i];
+                top = m->actuator_ctrlrange[2*i+1];
+                midpoint =  0.5 * (top + bottom);  // target of exponential decay
+                halfrange = 0.5 * (top - bottom);  // scales noise
+              }
 
-              // apply noise
-              d->ctrl[i] = ctrlnoise[i];
+              // exponential convergence to midpoint at ctrl_noise_rate
+              d->ctrl[i] = rate * d->ctrl[i] + (1-rate) * midpoint;
+
+              // add noise
+              d->ctrl[i] += scale * halfrange * mju_standardNormal(nullptr);
+
+              // clip to range
+              if (m->actuator_ctrllimited[i]) {
+                d->ctrl[i] = mju_clip(d->ctrl[i], bottom, top);
+              }
             }
           }
 
@@ -442,10 +444,6 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
 
       mj_forward(m, d);
 
-      // allocate ctrlnoise
-      free(ctrlnoise);
-      ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
-      mju_zero(ctrlnoise, m->nu);
     } else {
       sim->LoadMessageClear();
     }
@@ -454,7 +452,6 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
   PhysicsLoop(*sim);
 
   // delete everything we allocated
-  free(ctrlnoise);
   mj_deleteData(d);
   mj_deleteModel(m);
 }
