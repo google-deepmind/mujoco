@@ -533,6 +533,18 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _Miscellaneous:
 
+.. _mju_sigmoid:
+
+Twice continuously differentiable sigmoid function using a quintic polynomial:
+
+.. math::
+   s(x) =
+   \begin{cases}
+      0,                    &       & x \le 0  \\
+      6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+      1,                    & 1 \le & x \qquad
+   \end{cases}
+
 .. _Derivatives-api:
 
 The functions below provide useful derivatives of various functions, both analytic and

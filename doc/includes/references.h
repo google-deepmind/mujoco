@@ -3171,6 +3171,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 int mj_stateSize(const mjModel* m, unsigned int spec);
 void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);
 int mj_isSparse(const mjModel* m);

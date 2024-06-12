@@ -235,6 +235,15 @@ mj_setState
 Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
 ``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
 
+.. _mj_setKeyframe:
+
+mj_setKeyframe
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_setKeyframe
+
+Copy current state to the k-th model keyframe.
+
 .. _mj_addContact:
 
 mj_addContact
@@ -1866,7 +1875,15 @@ mju_sigmoid
 
 .. mujoco-include:: mju_sigmoid
 
-Sigmoid function over 0<=x<=1 using quintic polynomial.
+Twice continuously differentiable sigmoid function using a quintic polynomial:
+
+.. math::
+   s(x) =
+   \begin{cases}
+      0,                    &       & x \le 0  \\
+      6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+      1,                    & 1 \le & x \qquad
+   \end{cases}
 
 .. _Interaction:
 

@@ -418,6 +418,9 @@ MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigne
 // Set state.
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
 
+// Copy current state to the k-th model keyframe.
+MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
+
 // Add contact to d->contact list; return 0 if success; 1 if buffer full.
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 

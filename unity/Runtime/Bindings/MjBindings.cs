@@ -6642,6 +6642,9 @@ public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* st
 public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, uint spec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_setKeyframe(mjModel_* m, mjData_* d, int k);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_addContact(mjModel_* m, mjData_* d, mjContact_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

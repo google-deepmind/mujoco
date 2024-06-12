@@ -1978,14 +1978,7 @@ void Simulate::Sync() {
   }
 
   if (pending_.save_key) {
-    int i = this->key;
-    m_->key_time[i] = d_->time;
-    mju_copy(m_->key_qpos + i*m_->nq, d_->qpos, m_->nq);
-    mju_copy(m_->key_qvel + i*m_->nv, d_->qvel, m_->nv);
-    mju_copy(m_->key_act + i*m_->na, d_->act, m_->na);
-    mju_copy(m_->key_mpos + i*3*m_->nmocap, d_->mocap_pos, 3*m_->nmocap);
-    mju_copy(m_->key_mquat + i*4*m_->nmocap, d_->mocap_quat, 4*m_->nmocap);
-    mju_copy(m_->key_ctrl + i*m_->nu, d_->ctrl, m_->nu);
+    mj_setKeyframe(m_, d_, this->key);
     pending_.save_key = false;
   }
 

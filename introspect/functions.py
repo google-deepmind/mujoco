@@ -2244,6 +2244,30 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Set state.',
      )),
+    ('mj_setKeyframe',
+     FunctionDecl(
+         name='mj_setKeyframe',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='k',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy current state to the k-th model keyframe.',
+     )),
     ('mj_addContact',
      FunctionDecl(
          name='mj_addContact',

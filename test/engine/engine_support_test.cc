@@ -722,5 +722,50 @@ TEST_F(SupportTest, GeomDistance) {
   mj_deleteModel(model);
 }
 
+static constexpr char kSetKeyframeTestingModel[] = R"(
+<mujoco>
+  <size nkey="2"/>
+
+  <worldbody>
+    <body>
+      <joint name="joint" axis="0 1 0"/>
+      <geom size=".1" pos="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity joint="joint" actrange="-1 1" kp="100" dampratio="1"/>
+  </actuator>
+</mujoco>
+)";
+
+TEST_F(SupportTest, SetKeyframe) {
+  mjModel* model = LoadModelFromString(kSetKeyframeTestingModel);
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1;
+  while (data->time < 1) {
+    mj_step(model, data);
+  }
+
+  mj_setKeyframe(model, data, 1);
+  EXPECT_EQ(data->time, model->key_time[1]);
+  EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 1]);
+  EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 1]);
+  EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 1]);
+  EXPECT_EQ(data->act[0], model->key_act[model->na * 1]);
+
+  mj_step(model, data);
+  mj_setKeyframe(model, data, 0);
+  EXPECT_EQ(data->time, model->key_time[0]);
+  EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 0]);
+  EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 0]);
+  EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 0]);
+  EXPECT_EQ(data->act[0], model->key_act[model->na * 0]);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

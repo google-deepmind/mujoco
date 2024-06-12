@@ -232,6 +232,28 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
 
 
 
+// copy current state to the k-th model keyframe
+void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
+  // check keyframe index
+  if (k >= m->nkey) {
+    mjERROR("index must be smaller than %d (keyframes allocated in model)", m->nkey);
+  }
+  if (k < 0) {
+    mjERROR("keyframe index cannot be negative");
+  }
+
+  // copy state to model keyframe
+  m->key_time[k] = d->time;
+  mju_copy(m->key_qpos + k*m->nq, d->qpos, m->nq);
+  mju_copy(m->key_qvel + k*m->nv, d->qvel, m->nv);
+  mju_copy(m->key_act + k*m->na, d->act, m->na);
+  mju_copy(m->key_mpos + k*3*m->nmocap, d->mocap_pos, 3*m->nmocap);
+  mju_copy(m->key_mquat + k*4*m->nmocap, d->mocap_quat, 4*m->nmocap);
+  mju_copy(m->key_ctrl + k*m->nu, d->ctrl, m->nu);
+}
+
+
+
 //-------------------------- sparse chains ---------------------------------------------------------
 
 // merge dof chains for two bodies
