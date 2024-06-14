@@ -1457,7 +1457,7 @@ still be specified here but this functionality is now deprecated and will be rem
    This attribute determines how the texture is represented and mapped to objects. It also determines which of the
    remaining attributes are relevant. The keywords have the following meaning:
 
-   The **cube** type is the most common. It has the effect of shrink-wrapping a texture cube over an object. Apart from
+   The **cube** type has the effect of shrink-wrapping a texture cube over an object. Apart from
    the adjustment provided by the texuniform attribute of :ref:`material <asset-material>`, the process is automatic.
    Internally the GPU constructs a ray from the center of the object to each pixel (or rather fragment), finds the
    intersection of this ray with the cube surface (the cube and the object have the same center), and uses the
@@ -1480,15 +1480,13 @@ still be specified here but this functionality is now deprecated and will be rem
    a texture is referenced from a material applied to a regular object, the effect is equivalent to a cube map. Note
    however that the images suitable for skyboxes are rarely suitable for texturing objects.
 
-   The **2d** type may be the most familiar to users, however it is only suitable for planes and height fields. This is
-   because the texture coordinate generator is trying to map a 2D image to 3D space, and as a result there are entire
-   curves on the object surface that correspond to the same texture pixel. For a box geom for example, the two faces
-   whose normals are aligned with the Z axis of the local frame appear normal, while the other four faces appear
-   stretched. For planes this is not an issue because the plane is always normal to the local Z axis. For height fields
-   the sides enclosing the terrain map appear stretched, but in that case the effect is actually desirable. 2d textures
-   can be rectangular, unlike the sides of cube textures which must be square. The scaling can be controlled with the
-   texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a singlefile or created
-   procedurally.
+   The **2d** type maps a 2D image to a 3D object using :ref:`texture coordinates<asset-mesh-texcoord>` (a.k.a UV
+   coordinates). However, UV coordinates are only available for meshes. For primitive geoms, the texture is mapped to
+   the object surface using the local XY coordinates of the geom, effectively projecting the texture along the Z axis.
+   This sort of mapping is only suitable for planes and height fields, since their top surfaces always face the Z axis.
+   2d textures can be rectangular, unlike the sides of cube textures which must be square. The scaling can be controlled
+   with the texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a single file or
+   created procedurally.
 
 .. _asset-texture-content_type:
 
