@@ -329,34 +329,6 @@ void PhysicsLoop(mj::Simulate& sim) {
           const auto elapsedCPU = startCPU - syncCPU;
           double elapsedSim = d->time - syncSim;
 
-          // inject noise
-          if (sim.ctrl_noise_std > 0) {
-            // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
-            mjtNum rate = mju_exp(-m->opt.timestep / sim.ctrl_noise_rate);
-            mjtNum scale = sim.ctrl_noise_std * mju_sqrt(1-rate*rate);
-
-            for (int i=0; i<m->nu; i++) {
-              mjtNum bottom = 0, top = 0, midpoint = 0, halfrange = 1;
-              if (m->actuator_ctrllimited[i]) {
-                bottom = m->actuator_ctrlrange[2*i];
-                top = m->actuator_ctrlrange[2*i+1];
-                midpoint =  0.5 * (top + bottom);  // target of exponential decay
-                halfrange = 0.5 * (top - bottom);  // scales noise
-              }
-
-              // exponential convergence to midpoint at ctrl_noise_rate
-              d->ctrl[i] = rate * d->ctrl[i] + (1-rate) * midpoint;
-
-              // add noise
-              d->ctrl[i] += scale * halfrange * mju_standardNormal(nullptr);
-
-              // clip to range
-              if (m->actuator_ctrllimited[i]) {
-                d->ctrl[i] = mju_clip(d->ctrl[i], bottom, top);
-              }
-            }
-          }
-
           // requested slow-down factor
           double slowdown = 100 / sim.percentRealTime[sim.real_time_index];
 
@@ -393,6 +365,9 @@ void PhysicsLoop(mj::Simulate& sim) {
                     std::chrono::duration<double>(elapsedCPU).count() / elapsedSim;
                 measured = true;
               }
+
+              // inject noise
+              sim.InjectNoise();
 
               // call mj_step
               mj_step(m, d);

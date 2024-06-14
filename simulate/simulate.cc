@@ -2741,6 +2741,39 @@ void Simulate::AddToHistory() {
   mj_getState(m_, d_, state, mjSTATE_INTEGRATION);
 }
 
+// inject Brownian noise
+void Simulate::InjectNoise() {
+  // no noise, return
+  if (ctrl_noise_std <= 0) {
+    return;
+  }
+
+  // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
+  mjtNum rate = mju_exp(-m_->opt.timestep / ctrl_noise_rate);
+  mjtNum scale = ctrl_noise_std * mju_sqrt(1-rate*rate);
+
+  for (int i=0; i<m_->nu; i++) {
+    mjtNum bottom = 0, top = 0, midpoint = 0, halfrange = 1;
+    if (m_->actuator_ctrllimited[i]) {
+      bottom = m_->actuator_ctrlrange[2*i];
+      top = m_->actuator_ctrlrange[2*i+1];
+      midpoint =  0.5 * (top + bottom);  // target of exponential decay
+      halfrange = 0.5 * (top - bottom);  // scales noise
+    }
+
+    // exponential convergence to midpoint at ctrl_noise_rate
+    d_->ctrl[i] = rate * d_->ctrl[i] + (1-rate) * midpoint;
+
+    // add noise
+    d_->ctrl[i] += scale * halfrange * mju_standardNormal(nullptr);
+
+    // clip to range if limited
+    if (m_->actuator_ctrllimited[i]) {
+      d_->ctrl[i] = mju_clip(d_->ctrl[i], bottom, top);
+    }
+  }
+}
+
 void Simulate::UpdateHField(int hfieldid) {
   MutexLock lock(this->mtx);
   if (!m_ || hfieldid < 0 || hfieldid >= m_->nhfield) {
