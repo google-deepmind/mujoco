@@ -16,6 +16,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Xml;
 using UnityEngine;
@@ -372,12 +373,11 @@ public static class MjEngineTool {
   public static void LoadPlugins() {
     if(!Directory.Exists("Packages/org.mujoco/Runtime/Plugins/")) return;
 
-    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/")) {
-      MujocoLib.mj_loadPluginLibrary(pluginPath);
+    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/").Where(f => f.EndsWith(".dll") || f.EndsWith(".so"))) {
+      Debug.Log($"Loading plugin {pluginPath}");
+      MujocoLib.mj_loadPluginLibrary(Path.GetFullPath(pluginPath));
     }
-
   }
-
 }
 
 public static class MjSceneImportSettings {

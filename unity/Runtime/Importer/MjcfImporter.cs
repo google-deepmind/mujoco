@@ -142,6 +142,16 @@ public class MjcfImporter {
       settingsComponent.ParseGlobalMjcfSections(mujocoNode);
     }
 
+    // This section introduces parameters for user plugins.
+    var extensionNode = mujocoNode.SelectSingleNode("extension") as XmlElement;
+    if (extensionNode != null) {
+      var extensionParentObject = CreateGameObjectInParent("extension", rootObject);
+      foreach (var child in extensionNode.OfType<XmlElement>()) {
+        _modifiers.ApplyModifiersToElement(child);
+        CreateGameObjectWithUniqueName(extensionParentObject, child, typeof(MjPlugin));
+      }
+    }
+
     // This makes references to assets.
     var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
     ParseBodyChildren(rootObject, worldBodyNode);
@@ -285,10 +295,9 @@ public class MjcfImporter {
         break;
       }
       case "plugin": {
-        Debug.Log($"Plugin elements are only partially supported.");
+        CreateGameObjectWithUniqueName<MjPlugin>(parentObject, child);
         break;
       }
-
       default: {
         Debug.Log($"The importer does not yet support tags <{child.Name}>.");
         break;
