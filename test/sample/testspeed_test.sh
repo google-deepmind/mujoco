@@ -31,7 +31,8 @@ test_model() {
     if [[ "$model" == */composite/particle.xml ||
           "$model" == */replicate/bunnies.xml ||
           "$model" == */replicate/leaves.xml ||
-          "$model" == */replicate/particle.xml
+          "$model" == */replicate/particle.xml ||
+          "$model" == */engine/testdata/collision_convex/perf/*
     ]]; then
       # these tests can take several minutes under ASAN
       return 0
