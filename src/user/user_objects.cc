@@ -3207,7 +3207,7 @@ mjCTexture::mjCTexture(mjCModel* _model) {
   // point to local
   PointToLocal();
 
-  // in case this camera is not compiled
+  // in case this texture is not compiled
   CopyFromSpec();
 }
 
@@ -3910,14 +3910,12 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
     *this = _def->Material();
   }
 
-  // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
 
-  // point to local
   PointToLocal();
 
-  // in case this camera is not compiled
+  // in case this material is not compiled
   CopyFromSpec();
 }
 

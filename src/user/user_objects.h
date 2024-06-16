@@ -1067,7 +1067,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
 class mjCMaterial_ : public mjCBase {
  protected:
-  int texid;                      // id of material
+  int texid;                      // id of material's texture
   std::string texture_;
   std::string spec_texture_;
 };
