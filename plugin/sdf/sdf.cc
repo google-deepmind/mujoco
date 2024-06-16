@@ -104,8 +104,8 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
         if (k == 0) {
           float rgba[4] = {static_cast<float>(j > 0), 0,
                            static_cast<float>(j == 0), 1};
-          mjtNum size[] = {.2*m->stat.meansize};
-          mjv_initGeom(thisgeom, mjGEOM_SPHERE, size, from, geom_xmat, rgba);
+          mjtNum size = 0.2 * m->stat.meansize;
+          mjv_initGeom(thisgeom, mjGEOM_SPHERE, &size, from, geom_xmat, rgba);
         } else {
           mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL);
           thisgeom->objtype = mjOBJ_UNKNOWN;

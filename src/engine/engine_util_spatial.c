@@ -522,7 +522,7 @@ void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq) {
   }
 
   // init
-  double tmp[4] = {1, 0, 0, 0};
+  mjtNum tmp[4] = {1, 0, 0, 0};
 
   // loop over euler angles, accumulate rotations
   for (int i=0; i<3; i++) {

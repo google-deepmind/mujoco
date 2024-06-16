@@ -432,15 +432,17 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
         return;
       } else {
         // size
-        mjtNum size[3] = {dist*0.5*(x_edges[i+1]-x_edges[i]),
-                          dist*0.5*(y_edges[j+1]-y_edges[j]),
-                          dist*kRelativeThickness};
+        mjtNum size[3];
+        size[0] = dist*0.5*(x_edges[i+1]-x_edges[i]);
+        size[1] = dist*0.5*(y_edges[j+1]-y_edges[j]);
+        size[2] = dist*kRelativeThickness;
 
         // position
         mjtNum pos[3];
-        mjtNum aer[3] = {0.5*(x_edges[i+1]+x_edges[i]),
-                         0.5*(y_edges[j+1]+y_edges[j]),
-                         dist*(1-kRelativeThickness)};
+        mjtNum aer[3];
+        aer[0] = 0.5*(x_edges[i+1]+x_edges[i]);
+        aer[1] = 0.5*(y_edges[j+1]+y_edges[j]);
+        aer[2] = dist*(1-kRelativeThickness);
         SphericalToCartesian(aer, pos);
         mju_mulMatVec3(pos, site_mat, pos);
         mju_addTo3(pos, site_pos);
@@ -525,7 +527,7 @@ void TouchGrid::RegisterPlugin() {
   };
 
   // Reset callback.
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto* TouchGrid = reinterpret_cast<class TouchGrid*>(plugin_data);
     TouchGrid->Reset(m, instance);
