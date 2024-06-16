@@ -471,8 +471,8 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
 
   // apply rotation if provided
   if (rotnew2old) {
-    mju_rotVecMatT(res, tran, rotnew2old);
-    mju_rotVecMatT(res+3, tran+3, rotnew2old);
+    mju_mulMatTVec3(res, rotnew2old, tran);
+    mju_mulMatTVec3(res+3, rotnew2old, tran+3);
   }
 
   // otherwise copy

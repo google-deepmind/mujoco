@@ -550,7 +550,7 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 
   // compute selection point in world coordinates
   mjtNum selpos[3];
-  mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+  mju_mulMatVec3(selpos, d->xmat+9*sel, pert->localpos);
   mju_addTo3(selpos, d->xpos+3*sel);
 
   // compute average spatial inertia at selection point
@@ -667,7 +667,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
   if (((pert->active | pert->active2) & mjPERT_TRANSLATE)) {
     // compute selection point in world coordinates
     mjtNum selpos[3];
-    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+    mju_mulMatVec3(selpos, d->xmat+9*sel, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*sel);
 
     // displacement of selection point from reference point

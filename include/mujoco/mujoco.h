@@ -970,10 +970,16 @@ MJAPI mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
 // Return Cartesian distance between 3D vectors pos1 and pos2.
 MJAPI mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
 
-// Multiply vector by 3D rotation matrix: res = mat * vec.
+// Multiply 3-by-3 matrix by vector: res = mat * vec.
+MJAPI void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
+
+// Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.
+MJAPI void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
+
+// Deprecated, use mju_mulMatVec3(res, mat, vec).
 MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 
-// Multiply vector by transposed 3D rotation matrix: res = mat' * vec.
+// Deprecated, use mju_mulMatTVec3(res, mat, vec).
 MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 
 // Compute cross-product: res = cross(a, b).

@@ -7053,6 +7053,12 @@ public static unsafe extern double mju_dot3(double* vec1, double* vec2);
 public static unsafe extern double mju_dist3(double* pos1, double* pos2);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_mulMatVec3(double* res, double* mat, double* vec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_mulMatTVec3(double* res, double* mat, double* vec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_rotVecMat(double* res, double* vec, double* mat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

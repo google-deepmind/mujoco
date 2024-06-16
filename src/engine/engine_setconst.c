@@ -291,7 +291,7 @@ static void set0(mjModel* m, mjData* d) {
 
       // data[3-5] = anchor position in body2 local frame
       mju_subFrom3(pos, d->xpos+3*id2);
-      mju_rotVecMatT(m->eq_data+mjNEQDATA*i+3, pos, d->xmat+9*id2);
+      mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
     }
 
     // weld constraint
@@ -311,7 +311,7 @@ static void set0(mjModel* m, mjData* d) {
 
       // data[3-5] = anchor position in body1 local frame
       mju_subFrom3(pos, d->xpos+3*id1);
-      mju_rotVecMatT(m->eq_data+mjNEQDATA*i+3, pos, d->xmat+9*id1);
+      mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id1, pos);
 
       // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
       mju_negQuat(quat, d->xquat+4*id1);

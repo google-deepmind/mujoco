@@ -3102,6 +3102,24 @@ mju_dist3
 
 Return Cartesian distance between 3D vectors pos1 and pos2.
 
+.. _mju_mulMatVec3:
+
+mju_mulMatVec3
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_mulMatVec3
+
+Multiply 3-by-3 matrix by vector: res = mat * vec.
+
+.. _mju_mulMatTVec3:
+
+mju_mulMatTVec3
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_mulMatTVec3
+
+Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.
+
 .. _mju_rotVecMat:
 
 mju_rotVecMat
@@ -3109,7 +3127,7 @@ mju_rotVecMat
 
 .. mujoco-include:: mju_rotVecMat
 
-Multiply vector by 3D rotation matrix: res = mat * vec.
+Deprecated, use mju_mulMatVec3(res, mat, vec).
 
 .. _mju_rotVecMatT:
 
@@ -3118,7 +3136,7 @@ mju_rotVecMatT
 
 .. mujoco-include:: mju_rotVecMatT
 
-Multiply vector by transposed 3D rotation matrix: res = mat' * vec.
+Deprecated, use mju_mulMatTVec3(res, mat, vec).
 
 .. _mju_cross:
 

@@ -3363,6 +3363,8 @@ mjtNum mju_normalize3(mjtNum vec[3]);
 mjtNum mju_norm3(const mjtNum vec[3]);
 mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
 mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
+void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
+void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]);

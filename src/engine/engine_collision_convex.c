@@ -115,7 +115,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   mjtNum res[3];                          // result in geom local frame
 
   // rotate dir to geom local frame
-  mju_rotVecMatT(dir, _dir->v, d->geom_xmat+9*g);
+  mju_mulMatTVec3(dir, d->geom_xmat+9*g, _dir->v);
 
   // compute result according to geom type
   switch ((mjtGeom) m->geom_type[g]) {
@@ -261,7 +261,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   }
 
   // rotate result to global frame
-  mju_rotVecMat(vec->v, res, d->geom_xmat+9*g);
+  mju_mulMatVec3(vec->v, d->geom_xmat+9*g, res);
 
   // add geom position
   mju_addTo3(vec->v, d->geom_xpos+3*g);
@@ -338,7 +338,7 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
   mju_sub3(rel, origin, xpos);
 
   // displacement of origin due to rotation: vec = rot*rel - rel
-  mju_rotVecMat(vec, rel, rot);
+  mju_mulMatVec3(vec, rot, rel);
   mju_subFrom3(vec, rel);
 
   // correct xpos by subtracting displacement: xpos = xpos - vec
@@ -446,7 +446,7 @@ static int addplanemesh(mjContact* con, const float vertex[3],
                         const mjtNum first[3], mjtNum rbound) {
   // compute point in global coordinates
   mjtNum pnt[3], v[3] = {vertex[0], vertex[1], vertex[2]};
-  mju_rotVecMat(pnt, v, mat2);
+  mju_mulMatVec3(pnt, mat2, v);
   mju_addTo3(pnt, pos2);
 
   // skip if too close to first contact
@@ -517,7 +517,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
 
   // express dir in geom local frame
   mjtNum locdir[3];
-  mju_rotVecMatT(locdir, dir.v, d->geom_xmat+9*g);
+  mju_mulMatTVec3(locdir, d->geom_xmat+9*g, dir.v);
 
   // inclusion threshold along locdir, relative to geom2 center
   mju_sub3(dif, pos2, pos1);
@@ -797,8 +797,8 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
               !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
             // fill in contact data, transform to global coordinates
             con[cnt].dist = -depth;
-            mju_rotVecMat(con[cnt].frame, dirccd.v, mat1);
-            mju_rotVecMat(con[cnt].pos, vecccd.v, mat1);
+            mju_mulMatVec3(con[cnt].frame, mat1, dirccd.v);
+            mju_mulMatVec3(con[cnt].pos, mat1, vecccd.v);
             mju_addTo3(con[cnt].pos, pos1);
             mju_zero3(con[cnt].frame+3);
 
@@ -979,8 +979,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
       // map contact point and normal to local frame
       mjtNum dif[3], pos[3], nrm[3];
       mju_sub3(dif, con->pos, d->geom_xpos+3*gid[i]);
-      mju_rotVecMatT(pos, dif, mat);
-      mju_rotVecMatT(nrm, normal[i], mat);
+      mju_mulMatTVec3(pos, mat, dif);
+      mju_mulMatTVec3(nrm, mat, normal[i]);
 
       // process according to type
       switch (type[i]) {
@@ -1059,7 +1059,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
       // normalize and map normal to global frame
       if (processed[i]) {
         mju_normalize3(nrm);
-        mju_rotVecMat(normal[i], nrm, mat);
+        mju_mulMatVec3(normal[i], mat, nrm);
       }
     }
   }
@@ -1242,8 +1242,8 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
               con[cnt].dist = -depth;
-              mju_rotVecMat(con[cnt].frame, dirccd.v, hmat);
-              mju_rotVecMat(con[cnt].pos, vecccd.v, hmat);
+              mju_mulMatVec3(con[cnt].frame, hmat, dirccd.v);
+              mju_mulMatVec3(con[cnt].pos, hmat, vecccd.v);
               mju_addTo3(con[cnt].pos, hpos);
               mju_zero3(con[cnt].frame+3);
 

@@ -1271,7 +1271,7 @@ void mjCMesh::ApplyTransformations() {
     // process vertices
     for (int i=0; i < nvert(); i++) {
       mjtNum p1[3], p0[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-      mju_rotVecMatT(p1, p0, mat);
+      mju_mulMatTVec3(p1, mat, p0);
       vert_[3*i] = (float) p1[0];
       vert_[3*i+1] = (float) p1[1];
       vert_[3*i+2] = (float) p1[2];
@@ -1280,7 +1280,7 @@ void mjCMesh::ApplyTransformations() {
     // process normals
     for (int i=0; i < nnormal(); i++) {
       mjtNum n1[3], n0[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
-      mju_rotVecMatT(n1, n0, mat);
+      mju_mulMatTVec3(n1, mat, n0);
       normal_[3*i] = (float) n1[0];
       normal_[3*i+1] = (float) n1[1];
       normal_[3*i+2] = (float) n1[2];

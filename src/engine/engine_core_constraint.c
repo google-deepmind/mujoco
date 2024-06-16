@@ -511,7 +511,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       case mjEQ_CONNECT:              // connect bodies with ball joint
         // find global points
         for (int j=0; j < 2; j++) {
-          mju_rotVecMat(pos[j], data + 3*j, d->xmat + 9*id[j]);
+          mju_mulMatVec3(pos[j], d->xmat + 9*id[j], data + 3*j);
           mju_addTo3(pos[j], d->xpos + 3*id[j]);
         }
 
@@ -532,7 +532,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         // find global points
         for (int j=0; j < 2; j++) {
           mjtNum* anchor = data + 3*(1-j);
-          mju_rotVecMat(pos[j], anchor, d->xmat + 9*id[j]);
+          mju_mulMatVec3(pos[j], d->xmat + 9*id[j], anchor);
           mju_addTo3(pos[j], d->xpos + 3*id[j]);
         }
 

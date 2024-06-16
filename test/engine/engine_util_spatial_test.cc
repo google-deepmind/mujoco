@@ -115,7 +115,7 @@ void RotVecQuatWithMatrix(mjtNum res[3], const mjtNum vec[3],
   } else {
     mjtNum mat[9];
     mju_quat2Mat(mat, quat);
-    mju_rotVecMat(res, vec, mat);
+    mju_mulMatVec3(res, mat, vec);
   }
 }
 

@@ -6130,6 +6130,64 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return Cartesian distance between 3D vectors pos1 and pos2.',
      )),
+    ('mju_mulMatVec3',
+     FunctionDecl(
+         name='mju_mulMatVec3',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(9,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+         ),
+         doc='Multiply 3-by-3 matrix by vector: res = mat * vec.',
+     )),
+    ('mju_mulMatTVec3',
+     FunctionDecl(
+         name='mju_mulMatTVec3',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(9,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+         ),
+         doc="Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.",
+     )),
     ('mju_rotVecMat',
      FunctionDecl(
          name='mju_rotVecMat',
@@ -6157,7 +6215,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Multiply vector by 3D rotation matrix: res = mat * vec.',
+         doc='Deprecated, use mju_mulMatVec3(res, mat, vec).',
      )),
     ('mju_rotVecMatT',
      FunctionDecl(
@@ -6186,7 +6244,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Multiply vector by transposed 3D rotation matrix: res = mat' * vec.",  # pylint: disable=line-too-long
+         doc='Deprecated, use mju_mulMatTVec3(res, mat, vec).',
      )),
     ('mju_cross',
      FunctionDecl(

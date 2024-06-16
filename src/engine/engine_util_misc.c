@@ -858,7 +858,7 @@ int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[
 
   // vector from pos to point, projected to box frame
   mjtNum vec[3] = {point[0]-pos[0], point[1]-pos[1], point[2]-pos[2]};
-  mju_rotVecMatT(vec, vec, mat);
+  mju_mulMatTVec3(vec, mat, vec);
 
   // big: inflated box
   mjtNum big[3] = {size[0], size[1], size[2]};

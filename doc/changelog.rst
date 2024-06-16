@@ -23,12 +23,14 @@ General
 3. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 4. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
 5. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
+6. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+   :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
 
 MJX
 ~~~
-6. Added support for :ref:`elliptic friction cones<option-cone>`.
-7. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-8. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+7. Added support for :ref:`elliptic friction cones<option-cone>`.
+8. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+9. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------

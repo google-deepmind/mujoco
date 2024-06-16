@@ -668,7 +668,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // offset xpos with aabb center (not always at frame origin)
       const mjtNum *center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
       mjtNum pos[3];
-      mju_rotVecMat(pos, center, xmat);
+      mju_mulMatVec3(pos, xmat, center);
       mju_addTo3(pos, xpos);
 
       // set box color
@@ -755,7 +755,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // offset xpos with aabb center (not always at geom origin)
         const mjtNum *center = m->bvh_aabb + 6*i;
         mjtNum pos[3];
-        mju_rotVecMat(pos, center, xmat);
+        mju_mulMatVec3(pos, xmat, center);
         mju_addTo3(pos, xpos);
 
         START
@@ -830,7 +830,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       START
 
       // compute selection point in world coordinates
-      mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
+      mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
       mju_addTo3(selpos, d->xpos+3*pert->select);
 
       // construct geom
@@ -873,7 +873,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (m->body_bvhnum[i]) {
         mjtNum* aabb = m->bvh_aabb+6*m->body_bvhadr[i];
         mju_copy3(sz, aabb+3);
-        mju_rotVecMat(pos, aabb, d->ximat+9*i);
+        mju_mulMatVec3(pos, d->ximat+9*i, aabb);
       }
 
       // otherwise box of size meansize
@@ -946,7 +946,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     int i=0;
 
     // compute selection point in world coordinates
-    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
+    mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*pert->select);
 
     START
@@ -2030,9 +2030,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (d->eq_active[i] && (m->eq_type[i] == mjEQ_CONNECT || m->eq_type[i] == mjEQ_WELD)) {
         // compute endpoints in global coordinates
         int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
-        mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_WELD), d->xmat+9*j);
+        mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_WELD));
         mju_addTo3(vec, d->xpos+3*j);
-        mju_rotVecMat(end, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_CONNECT), d->xmat+9*k);
+        mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_CONNECT));
         mju_addTo3(end, d->xpos+3*k);
 
         // construct geom
@@ -2636,7 +2636,7 @@ void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, cons
 
         // compute translation
         mjtNum translate[3];
-        mju_rotVecMat(translate, bindpos, rotate);
+        mju_mulMatVec3(translate, rotate, bindpos);
         mju_sub3(translate, d->xpos+3*bodyid, translate);
 
         // process all bone vertices
@@ -2656,7 +2656,7 @@ void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, cons
 
           // transform
           mjtNum pos1[3];
-          mju_rotVecMat(pos1, pos, rotate);
+          mju_mulMatVec3(pos1, rotate, pos);
           mju_addTo3(pos1, translate);
 
           // accumulate position

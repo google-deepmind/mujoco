@@ -1882,7 +1882,7 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   if (xpos && pos) {
     // compute
     if (sameframe == 0) {
-      mju_rotVecMat(xpos, pos, d->xmat+9*body);
+      mju_mulMatVec3(xpos, d->xmat+9*body, pos);
       mju_addTo3(xpos, d->xpos+3*body);
     }
 
