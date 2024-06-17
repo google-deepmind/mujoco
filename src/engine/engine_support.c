@@ -39,8 +39,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 316
-#define mjVERSIONSTRING "3.1.6"
+ #define mjVERSION 317
+#define mjVERSIONSTRING "3.1.7"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -228,6 +228,28 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
       }
     }
   }
+}
+
+
+
+// copy current state to the k-th model keyframe
+void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
+  // check keyframe index
+  if (k >= m->nkey) {
+    mjERROR("index must be smaller than %d (keyframes allocated in model)", m->nkey);
+  }
+  if (k < 0) {
+    mjERROR("keyframe index cannot be negative");
+  }
+
+  // copy state to model keyframe
+  m->key_time[k] = d->time;
+  mju_copy(m->key_qpos + k*m->nq, d->qpos, m->nq);
+  mju_copy(m->key_qvel + k*m->nv, d->qvel, m->nv);
+  mju_copy(m->key_act + k*m->na, d->act, m->na);
+  mju_copy(m->key_mpos + k*3*m->nmocap, d->mocap_pos, 3*m->nmocap);
+  mju_copy(m->key_mquat + k*4*m->nmocap, d->mocap_quat, 4*m->nmocap);
+  mju_copy(m->key_ctrl + k*m->nu, d->ctrl, m->nu);
 }
 
 
@@ -1860,7 +1882,7 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   if (xpos && pos) {
     // compute
     if (sameframe == 0) {
-      mju_rotVecMat(xpos, pos, d->xmat+9*body);
+      mju_mulMatVec3(xpos, d->xmat+9*body, pos);
       mju_addTo3(xpos, d->xpos+3*body);
     }
 

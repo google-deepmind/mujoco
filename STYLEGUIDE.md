@@ -116,7 +116,7 @@ before the `else`:
     else {
       mjtNum mat[9];
       mju_quat2Mat(mat, quat);
-      mju_rotVecMat(res, vec, mat);
+      mju_mulMatVec3(res, mat, vec);
     }
   }
   ```

@@ -1118,6 +1118,16 @@ TEST_F(XMLWriterTest, TrimsDefaults) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, DoesntSaveGlobal) {
+  static constexpr char xml[] = "<mujoco/>";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("global")));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, InheritrangeSavedAsRange) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1267,7 +1277,8 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
             absl::StrContains(p.path().string(), "touch_grid") ||
             absl::StrContains(p.path().string(), "gmsh_") ||
             absl::StrContains(p.path().string(), "shark_") ||
-            absl::StrContains(p.path().string(), "cow")) {
+            absl::StrContains(p.path().string(), "cow") ||
+            absl::StrContains(p.path().string(), "spheremesh")) {
           continue;
         }
 

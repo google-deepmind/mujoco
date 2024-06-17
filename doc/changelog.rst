@@ -7,6 +7,36 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+1. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
+   Still missing:
+
+   - Detailed documentation.
+   - Python bindings.
+
+.. youtube:: ZXBTEIDWHhs
+   :align: right
+   :width: 240px
+
+2. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
+   :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
+   attributes, respectively.
+3. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+4. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
+5. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
+6. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+   :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
+
+MJX
+~~~
+7. Added support for :ref:`elliptic friction cones<option-cone>`.
+8. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+9. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+
+Version 3.1.6 (Jun 3, 2024)
+---------------------------
+
+General
+^^^^^^^
 
 1. Added :ref:`mj_geomDistance` for computing the shortest signed distance between two geoms and optionally a segment
    connecting them. Relatedly, added the 3 sensors: :ref:`distance<sensor-distance>`, :ref:`normal<sensor-normal>`,
@@ -715,13 +745,13 @@ General
    Previously, the smooth part consisted of two stitched quadratics, once continuously differentiable.
    It is now a single quintic, twice continuously differentiable:
 
-  .. math::
-     s(x) =
-     \begin{cases}
-        0,                    &       & x \le 0  \\
-        6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
-        1,                    & 1 \le & x \qquad
-     \end{cases}
+   .. math::
+      s(x) =
+      \begin{cases}
+         0,                    &       & x \le 0  \\
+         6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+         1,                    & 1 \le & x \qquad
+      \end{cases}
 
 17. Added optional :ref:`tausmooth<actuator-muscle-tausmooth>` attribute to muscle actuators. When positive, the
     time-constant :math:`\tau` of muscle activation/deactivation uses :ref:`mju_sigmoid` to transition smoothly

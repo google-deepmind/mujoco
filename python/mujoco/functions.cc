@@ -302,6 +302,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), spec);
       });
+  Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
   Def<traits::mj_isSparse>(pymodule);
@@ -697,6 +698,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_norm3>(pymodule);
   Def<traits::mju_dot3>(pymodule);
   Def<traits::mju_dist3>(pymodule);
+  Def<traits::mju_mulMatVec3>(pymodule);
+  Def<traits::mju_mulMatTVec3>(pymodule);
   Def<traits::mju_rotVecMat>(pymodule);
   Def<traits::mju_rotVecMatT>(pymodule);
   Def<traits::mju_cross>(pymodule);

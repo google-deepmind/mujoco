@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_composite.h"
 
 #include <algorithm>
@@ -69,8 +69,8 @@ mjCComposite::mjCComposite(void) {
   mjs_defaultPlugin(&plugin);
   plugin_name = "";
   plugin_instance_name = "";
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  plugin.name = (mjString*)&plugin_name;
+  plugin.instance_name = (mjString*)&plugin_instance_name;
 
   // cable
   curve[0] = curve[1] = curve[2] = mjCOMPSHAPE_ZERO;

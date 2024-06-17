@@ -471,8 +471,8 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
 
   // apply rotation if provided
   if (rotnew2old) {
-    mju_rotVecMatT(res, tran, rotnew2old);
-    mju_rotVecMatT(res+3, tran+3, rotnew2old);
+    mju_mulMatTVec3(res, rotnew2old, tran);
+    mju_mulMatTVec3(res+3, rotnew2old, tran+3);
   }
 
   // otherwise copy
@@ -522,7 +522,7 @@ void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq) {
   }
 
   // init
-  double tmp[4] = {1, 0, 0, 0};
+  mjtNum tmp[4] = {1, 0, 0, 0};
 
   // loop over euler angles, accumulate rotations
   for (int i=0; i<3; i++) {

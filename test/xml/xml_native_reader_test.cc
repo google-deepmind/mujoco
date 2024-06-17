@@ -24,11 +24,11 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
-#include "src/user/user_api.h"
-#include "src/xml/xml.h"
+#include "src/xml/xml_api.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -554,14 +554,9 @@ TEST_F(XMLReaderTest, IncludeTest) {
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
 
-  mj_makeEmptyFileVFS(vfs.get(), "model1.xml", sizeof(xml1));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml1, sizeof(xml1));
-
-  mj_makeEmptyFileVFS(vfs.get(), "model2.xml", sizeof(xml2));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml2, sizeof(xml2));
-
-  mj_makeEmptyFileVFS(vfs.get(), "model3.xml", sizeof(xml3));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml3, sizeof(xml3));
+  mj_addBufferVFS(vfs.get(), "model1.xml", xml1, sizeof(xml1));
+  mj_addBufferVFS(vfs.get(), "model2.xml", xml2, sizeof(xml2));
+  mj_addBufferVFS(vfs.get(), "model3.xml", xml3, sizeof(xml3));
 
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(),
@@ -606,8 +601,7 @@ TEST_F(XMLReaderTest, IncludeSameFileTest) {
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
 
-  mj_makeEmptyFileVFS(vfs.get(), "model1.xml", sizeof(xml1));
-  std::memcpy(vfs->filedata[vfs->nfile - 1], xml1, sizeof(xml1));
+  mj_addBufferVFS(vfs.get(), "model1.xml", xml1, sizeof(xml1));
 
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size(),
@@ -1090,7 +1084,7 @@ TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjSpec* spec = ParseSpecFromString(xml, error.data(), error.size());
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, NotNull()) << error.data();
 
   mjsBody* torso = mjs_findBody(spec, "torso-0");
@@ -1107,7 +1101,7 @@ TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
   EXPECT_THAT(def, NotNull());
   EXPECT_THAT(def->geom->type, mjGEOM_CAPSULE);
 
-  mjs_deleteSpec(spec);
+  mj_deleteSpec(spec);
 }
 
 // ----------------------- test camera parsing ---------------------------------
@@ -1255,6 +1249,36 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   EXPECT_THAT(
       error.data(),
       HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));
+}
+
+TEST_F(XMLReaderTest, Orthographic) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <global orthographic="true" fovy="5"/>
+      <map znear="0.01"/>
+    </visual>
+
+    <default>
+      <camera orthographic="true"/>
+    </default>
+
+    <worldbody>
+      <camera name="fovy=1" pos=".5 .5 2" orthographic="true" fovy="1"/>
+      <camera name="fovy=2" pos="0 0 2" fovy="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+
+  EXPECT_EQ(model->vis.global.orthographic, 1);
+  EXPECT_EQ(model->cam_orthographic[0], 1);
+  EXPECT_EQ(model->cam_orthographic[1], 1);
+  EXPECT_EQ(model->cam_fovy[0], 1);
+  EXPECT_EQ(model->cam_fovy[1], 2);
+
   mj_deleteModel(model);
 }
 

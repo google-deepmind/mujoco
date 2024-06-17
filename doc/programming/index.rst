@@ -18,7 +18,7 @@ Engine
    The simulator (or physics engine) is written in C. It is responsible for all runtime computations.
 Parser
    The XML parser is written in C++. It can parse MJCF models and URDF models, converting them into an internal mjCModel
-   C++ object which is not directly exposed to the user.
+   C++ object which is exposed to the user via mjSpec.
 Compiler
    The compiler is written in C++. It takes an mjCModel C++ object constructed by the parser, and converts it into an
    mjModel C structure used at runtime.
@@ -108,10 +108,10 @@ Building from source
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
- #. Clone the ``mujoco`` repository from GitHub.
- #. Create a new build directory somewhere, and ``cd`` into it.
- #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
- #. Run ``cmake --build .`` to build.
+#. Clone the ``mujoco`` repository from GitHub.
+#. Create a new build directory somewhere, and ``cd`` into it.
+#. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
+#. Run ``cmake --build .`` to build.
 
 MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
 `FetchContent <https://cmake.org/cmake/help/latest/module/FetchContent.html>`_ module.
@@ -123,8 +123,8 @@ section of the documentation.
 Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
 target directory.
 
- 5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
- #. After building, install with ``cmake --install .``
+5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
+#. After building, install with ``cmake --install .``
 
 When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
 installed (see `here <https://github.com/google-deepmind/mujoco/issues/862>`__ for more details).
@@ -160,6 +160,8 @@ links below, to make this documentation self-contained.
    Defines the primitive types and structures needed by the UI framework.
 `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
+`mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
+   Defines enums and structs used for :doc:`procedural model editing <modeledit>`.
 `mjmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
    Defines C macros that are useful in user code.
 `mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
@@ -226,6 +228,8 @@ to which the symbol belongs. First we list the prefixes corresponding to type de
    Data structure related to OpenGL rendering, for example :ref:`mjrContext`.
 ``mjui``
    Data structure related to UI framework, for example :ref:`mjuiSection`.
+``mjs``
+   Data structure related :doc:`procedural model editing <modeledit>`, for example :ref:`mjsJoint`.
 
 Next we list the prefixes corresponding to function definitions. Note that function prefixes always end with underscore.
 
@@ -247,6 +251,8 @@ Next we list the prefixes corresponding to function definitions. Note that funct
    custom callbacks by setting these global pointers to user-defined functions.
 ``mjd_``
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
+``mjs_``
+   Functions for :doc:`procedural model editing <modeledit>`, for example :ref:`mjs_addJoint`.
 
 .. _inOpenGL:
 
@@ -276,5 +282,6 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
     simulation
     visualization
     ui
+    modeledit
     samples
     extension

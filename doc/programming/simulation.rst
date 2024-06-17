@@ -585,8 +585,8 @@ corresponding to precomputed quantities when the model is in the reference confi
 
 Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The function
 :ref:`mj_saveLastXML` does that in a limited sense: it copies all real-valued parameters from mjModel back to the
-internal mjCModel, and then saves it as XML. This does not cover all possible changes that the user could have made.
-The only way to guarantee that all changes are saved is to save the model as a binary MJB file with the function
+internal :ref:`mjSpec`, and then saves it as XML. This does not cover all possible changes that the user could have
+made. The only way to guarantee that all changes are saved is to save the model as a binary MJB file with the function
 :ref:`mj_saveModel`, or even better, make the changes directly in the XML. Unfortunately there are situations where
 changes need to be made programmatically, as in system identification for example, and this can only be done with the
 compiled model. So in summary, we have reasonable but not perfect mechanisms for saving model changes. The reason for

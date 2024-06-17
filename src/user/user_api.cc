@@ -52,7 +52,7 @@ static T& operator+(T& base, std::string_view suffix) {
 
 
 // create model
-mjSpec* mjs_createSpec() {
+mjSpec* mj_makeSpec() {
   mjCModel* modelC = new mjCModel;
   return &modelC->spec;
 }
@@ -60,7 +60,7 @@ mjSpec* mjs_createSpec() {
 
 
 // copy model
-mjSpec* mjs_copySpec(const mjSpec* s) {
+mjSpec* mj_copySpec(const mjSpec* s) {
   mjCModel* modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
   return &modelC->spec;
 }
@@ -68,7 +68,7 @@ mjSpec* mjs_copySpec(const mjSpec* s) {
 
 
 // copy back model
-void mjs_copyBack(mjSpec* s, const mjModel* m) {
+void mj_copyBack(mjSpec* s, const mjModel* m) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   modelC->CopyBack(m);
 }
@@ -76,9 +76,19 @@ void mjs_copyBack(mjSpec* s, const mjModel* m) {
 
 
 // compile model
-mjModel* mjs_compile(mjSpec* s, const mjVFS* vfs) {
+mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->Compile(vfs);
+}
+
+
+
+// recompile spec into existing model and data while preserving the state
+void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  modelC->SaveState(d);
+  modelC->Compile(vfs, &m);
+  modelC->RestoreState(m, &d);
 }
 
 
@@ -133,7 +143,7 @@ int mjs_isWarning(mjSpec* s) {
 
 
 // delete model
-void mjs_deleteSpec(mjSpec* s) {
+void mj_deleteSpec(mjSpec* s) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   delete model;
 }
@@ -141,7 +151,7 @@ void mjs_deleteSpec(mjSpec* s) {
 
 
 // delete object, it will call the appropriate destructor since ~mjCBase is virtual
-void mjs_delete(mjElement* element) {
+void mjs_delete(mjsElement* element) {
   mjCBase* object = static_cast<mjCBase*>(element);
   delete object;
 }
@@ -420,7 +430,7 @@ mjsKey* mjs_addKey(mjSpec* s) {
 mjsPlugin* mjs_addPlugin(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCPlugin* plugin = modelC->AddPlugin();
-  plugin->spec.instance = static_cast<mjElement*>(plugin);
+  plugin->spec.instance = static_cast<mjsElement*>(plugin);
   return &plugin->spec;
 }
 
@@ -448,7 +458,7 @@ mjSpec* mjs_getSpec(mjsBody* body) {
 
 
 // get default
-mjsDefault* mjs_getDefault(mjElement* element) {
+mjsDefault* mjs_getDefault(mjsElement* element) {
   return &(static_cast<mjCBase*>(element)->def->spec);
 }
 
@@ -520,7 +530,7 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 
 // set frame
-void mjs_setFrame(mjElement* dest, mjsFrame* frame) {
+void mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
   if (!frame) {
     return;
   }
@@ -540,14 +550,14 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 
 
 // get id
-int mjs_getId(mjElement* element) {
+int mjs_getId(mjsElement* element) {
   return static_cast<mjCBase*>(element)->id;
 }
 
 
 
 // set default
-void mjs_setDefault(mjElement* element, mjsDefault* defspec) {
+void mjs_setDefault(mjsElement* element, mjsDefault* defspec) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
   baseC->def = static_cast<mjCDef*>(defspec->element);
 }
@@ -555,7 +565,7 @@ void mjs_setDefault(mjElement* element, mjsDefault* defspec) {
 
 
 // return first child of selected type
-mjElement* mjs_firstChild(mjsBody* body, mjtObj type) {
+mjsElement* mjs_firstChild(mjsBody* body, mjtObj type) {
   mjCBody* bodyC = static_cast<mjCBody*>(body->element);
   return bodyC->NextChild(NULL, type);
 }
@@ -563,7 +573,7 @@ mjElement* mjs_firstChild(mjsBody* body, mjtObj type) {
 
 
 // return body's next child; return NULL if child is last
-mjElement* mjs_nextChild(mjsBody* body, mjElement* child) {
+mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child) {
   mjCBody* bodyC = static_cast<mjCBody*>(body->element);
   return bodyC->NextChild(child);
 }
@@ -571,66 +581,61 @@ mjElement* mjs_nextChild(mjsBody* body, mjElement* child) {
 
 
 // set string
-void mjs_setString(mjString dest, const char* text) {
-  std::string* str = reinterpret_cast<std::string*>(dest);
+void mjs_setString(mjString* dest, const char* text) {
+  std::string* str = static_cast<std::string*>(dest);
   *str = std::string(text);
 }
 
 
 
 // Set specific entry in destination string vector.
-mjtByte mjs_setInStringVec(mjStringVec dest, int i, const char* text) {
-  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
-  if (v->size() <= i) {
+mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
+  if (dest->size() <= i) {
     mju_error("Requested index in mjs_setInStringVec is out of bounds");
     return 0;
   }
-  v->at(i) = std::string(text);
+  dest->at(i) = std::string(text);
   return 1;
 }
 
 
 
 // split text and copy into string array
-void mjs_setStringVec(mjStringVec dest, const char* text) {
-  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
+void mjs_setStringVec(mjStringVec* dest, const char* text) {
+  std::vector<std::string>* v = static_cast<std::vector<std::string>*>(dest);
   *v = mjXUtil::String2Vector<std::string>(text);
 }
 
 
 
 // add text entry to destination string vector
-void mjs_appendString(mjStringVec dest, const char* text) {
-  std::vector<std::string>* v = reinterpret_cast<std::vector<std::string>*>(dest);
-  v->push_back(std::string(text));
+void mjs_appendString(mjStringVec* dest, const char* text) {
+  dest->push_back(std::string(text));
 }
 
 
 // copy int array to vector
-void mjs_setInt(mjIntVec dest, const int* array, int size) {
-  std::vector<int>* v = reinterpret_cast<std::vector<int>*>(dest);
-  v->assign(size, 0.0);
+void mjs_setInt(mjIntVec* dest, const int* array, int size) {
+  dest->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
-    (*v)[i] = array[i];
+    (*dest)[i] = array[i];
   }
 }
 
 
 
 // append int array to vector of arrays
-void mjs_appendIntVec(mjIntVecVec dest, const int* array, int size) {
-  std::vector<std::vector<int>>* v = reinterpret_cast<std::vector<std::vector<int>>*>(dest);
-  v->push_back(std::vector<int>(array, array + size));
+void mjs_appendIntVec(mjIntVecVec* dest, const int* array, int size) {
+  dest->push_back(std::vector<int>(array, array + size));
 }
 
 
 
 // copy float array to vector
-void mjs_setFloat(mjFloatVec dest, const float* array, int size) {
-  std::vector<float>* v = reinterpret_cast<std::vector<float>*>(dest);
-  v->assign(size, 0.0);
+void mjs_setFloat(mjFloatVec* dest, const float* array, int size) {
+  dest->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
-    (*v)[i] = array[i];
+    (*dest)[i] = array[i];
   }
 }
 
@@ -638,42 +643,35 @@ void mjs_setFloat(mjFloatVec dest, const float* array, int size) {
 
 
 // append float array to vector of arrays
-void mjs_appendFloatVec(mjFloatVecVec dest, const float* array, int size) {
-  std::vector<std::vector<float>>* v = reinterpret_cast<std::vector<std::vector<float>>*>(dest);
-  v->push_back(std::vector<float>(array, array + size));
+void mjs_appendFloatVec(mjFloatVecVec* dest, const float* array, int size) {
+  dest->push_back(std::vector<float>(array, array + size));
 }
 
 
 
 // copy double array to vector
-void mjs_setDouble(mjDoubleVec dest, const double* array, int size) {
-  std::vector<double>* v = reinterpret_cast<std::vector<double>*>(dest);
-  v->assign(size, 0.0);
+void mjs_setDouble(mjDoubleVec* dest, const double* array, int size) {
+  dest->assign(size, 0.0);
   for (int i = 0; i < size; ++i) {
-    (*v)[i] = array[i];
+    (*dest)[i] = array[i];
   }
 }
 
 
 
 // get string
-const char* mjs_getString(const mjString source) {
-  std::string* str = reinterpret_cast<std::string*>(source);
-  if (!str) {
-    return nullptr;
-  }
-  return str->c_str();
+const char* mjs_getString(const mjString* source) {
+  return source->c_str();
 }
 
 
 
 // get double array
-const double* mjs_getDouble(const mjDoubleVec source, int* size) {
-  std::vector<double>* v = reinterpret_cast<std::vector<double>*>(source);
+const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
   if (size) {
-    *size = v->size();
+    *size = source->size();
   }
-  return v->data();
+  return source->data();
 }
 
 

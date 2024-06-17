@@ -19,7 +19,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "xml/xml_base.h"
 #include "tinyxml2.h"
 

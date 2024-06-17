@@ -48,7 +48,7 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
   mjtNum dist, closest;
 
   mju_sub3(tmp, pos1, pos2);
-  mju_rotVecMatT(center, tmp, mat2);
+  mju_mulMatTVec3(center, mat2, tmp);
 
   mju_copy(clamped, center, 3);
   mju_clampVec(clamped, size2, 3);
@@ -76,16 +76,16 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
 
     mju_copy3(pos, center);
     mju_addToScl3(pos, nearest, (size1[0] - closest) / 2);
-    mju_rotVecMat(con[0].frame, nearest, mat2);
+    mju_mulMatVec3(con[0].frame, mat2, nearest);
   } else {
     mju_addToScl3(deepest, tmp, size1[0]);
     mju_zero3(pos);
     mju_addToScl3(pos, clamped, 0.5);
     mju_addToScl3(pos, deepest, 0.5);
-    mju_rotVecMat(con[0].frame, tmp, mat2);
+    mju_mulMatVec3(con[0].frame, mat2, tmp);
   }
 
-  mju_rotVecMat(tmp, pos, mat2);
+  mju_mulMatVec3(tmp, mat2, pos);
   mju_add3(con[0].pos, tmp, pos2);
   con[0].dist = dist - size1[0];
   mju_zero3(con[0].frame + 3);
@@ -153,13 +153,13 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
   secondpos = -4;  // initialize to no 2nd contact (valid values are between -1 and 1)
 
   mju_sub3(tmp1, pos1, pos2);       // bring capsule to box-local frame (center's box is at (0,0,0))
-  mju_rotVecMatT(pos, tmp1, mat2);  // and axis parralel to world
+  mju_mulMatTVec3(pos, mat2, tmp1);  // and axis parralel to world
 
   tmp1[0] = mat1[2];  // capsule's axis
   tmp1[1] = mat1[5];
   tmp1[2] = mat1[8];
 
-  mju_rotVecMatT(axis, tmp1, mat2);      // do the same for the capsule axis
+  mju_mulMatTVec3(axis, mat2, tmp1);      // do the same for the capsule axis
   mju_scl3(halfaxis, axis, halflength);  // scale to get actual capsule half-axis
 
   axisdir = 0;
@@ -576,7 +576,7 @@ skip:
   // create sphere in original orientation at first contact point
   mju_copy3(tmp1, pos);
   mju_addToScl3(tmp1, halfaxis, bestsegmentpos);
-  mju_rotVecMat(tmp2, tmp1, mat2);
+  mju_mulMatVec3(tmp2, mat2, tmp1);
   mju_addTo3(tmp2, pos2);
 
   // collide with
@@ -586,7 +586,7 @@ skip:
   if (secondpos > -3) {  // secondpos was modified
     mju_copy3(tmp1, pos);
     mju_addToScl3(tmp1, halfaxis, secondpos + bestsegmentpos);  // note the summation
-    mju_rotVecMat(tmp2, tmp1, mat2);
+    mju_mulMatVec3(tmp2, mat2, tmp1);
     mju_addTo3(tmp2, pos2);
     n += mjraw_SphereBox(con + n, margin, tmp2, mat1, size1, pos2, mat2, size2);
   }
@@ -633,10 +633,10 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   margin2 = margin * margin;
 
   mju_sub3(tmp1, pos2, pos1);
-  mju_rotVecMatT(pos21, tmp1, mat1);
+  mju_mulMatTVec3(pos21, mat1, tmp1);
 
   mju_sub3(tmp1, pos1, pos2);
-  mju_rotVecMatT(pos12, tmp1, mat2);
+  mju_mulMatTVec3(pos12, mat2, tmp1);
 
   mju_mulMatTMat3(rot, mat1, mat2);
   mju_transpose(rott, rot, 3, 3);
@@ -646,8 +646,8 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   for (i = 0; i < 9; i++)
     rottabs[i] = fabs(rott[i]);
 
-  mju_rotVecMat(plen2, size2, rotabs);
-  mju_rotVecMatT(plen1, size1, rotabs);
+  mju_mulMatVec3(plen2, rotabs, size2);
+  mju_mulMatTVec3(plen1, rotabs, size1);
 
   for (i = 0, penetration = margin; i < 3; i++)
     penetration += size1[i] * 3 + size2[i] * 3;
@@ -974,7 +974,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
     con[i].dist = points[i][2];
     points[i][2] += hz;
 
-    mju_rotVecMat(tmp2, points[i], r);
+    mju_mulMatVec3(tmp2, r, points[i]);
     mju_add3(con[i].pos, tmp2, p);
 
     if (i)
@@ -1084,7 +1084,7 @@ edgeedge:
   // mju_mulMatMat(r,rotmore,rot,3,3,3);
   rotmatx(r, rot);
 
-  mju_rotVecMatT(tmp1, size1, rotmore);
+  mju_mulMatTVec3(tmp1, rotmore, size1);
   for (i = 0; i < 3; i++)
     s[i] = mju_abs(tmp1[i]);
 
@@ -1321,7 +1321,7 @@ edgeedge:
 
   mju_mulMatMatT3(r, mat1, rotmore);
 
-  mju_rotVecMat(tmp1, rnorm, r);
+  mju_mulMatVec3(tmp1, r, rnorm);
 
   mju_scl3(con[0].frame, tmp1, in ? -1 : 1);
   mju_zero3(con[0].frame + 3);
@@ -1331,7 +1331,7 @@ edgeedge:
     con[i].dist = depth[i];
     points[i][2] += hz;
 
-    mju_rotVecMat(tmp2, points[i], r);
+    mju_mulMatVec3(tmp2, r, points[i]);
 
     mju_add3(con[i].pos, tmp2, pos1);
 

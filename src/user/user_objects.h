@@ -26,7 +26,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_cache.h"
 #include "user/user_util.h"
 
@@ -168,7 +168,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
 
-class mjCBase_ : public mjElement {
+class mjCBase_ : public mjsElement {
  public:
   int id;                 // object id
   std::string name;       // object name
@@ -309,7 +309,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
   // get next child of given type
-  mjElement* NextChild(mjElement* child, mjtObj type = mjOBJ_UNKNOWN);
+  mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -423,10 +423,14 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   bool is_limited() const;
   bool is_actfrclimited() const;
 
-
  private:
   int Compile(void);               // compiler; return dofnum
   void PointToLocal(void);
+
+  int qposadr_;                    // address of dof in data->qpos
+  int dofadr_;                     // address of dof in data->qvel
+  mjtNum qpos[7];                  // qpos at the previous step
+  mjtNum qvel[6];                  // qvel at the previous step
 };
 
 
@@ -774,6 +778,7 @@ class mjCMesh_ : public mjCBase {
   // size of mesh data to be copied into mjModel
   int szgraph_;                       // size of graph data in ints
   bool needhull_;                     // needs convex hull for collisions
+  int maxhullvert_;                   // max vertex count of convex hull
 
   mjCBoundingVolumeHierarchy tree_;   // bounding volume hierarchy
   std::vector<double> face_aabb_;     // bounding boxes of all faces
@@ -1062,7 +1067,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
 class mjCMaterial_ : public mjCBase {
  protected:
-  int texid;                      // id of material
+  int texid;                      // id of material's texture
   std::string texture_;
   std::string spec_texture_;
 };
@@ -1412,6 +1417,10 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void NameSpace(const mjCModel* m);
 
   mjCBase* ptarget;  // transmission target
+
+  int actadr_;              // address of dof in data->act
+  int actnum_;              // number of dofs in data->act
+  std::vector<mjtNum> act;  // act at the previous step
 };
 
 
@@ -1615,7 +1624,7 @@ class mjCKey : public mjCKey_, private mjsKey {
 //------------------------- class mjCDef -----------------------------------------------------------
 // Describes one set of defaults
 
-class mjCDef : public mjElement {
+class mjCDef : public mjsElement {
   friend class mjXWriter;
 
  public:

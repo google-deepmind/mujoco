@@ -120,6 +120,8 @@ Arms
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/ufactory_lite6/lite6.png
    * - `ViperX 300 6DOF <https://github.com/google-deepmind/mujoco_menagerie/tree/main/trossen_vx300s>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/trossen_vx300s/vx300s.png
+   * - `WidowX 250 6DOF <https://github.com/google-deepmind/mujoco_menagerie/tree/main/trossen_wx250s>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/trossen_wx250s/wx250s.png
    * - `ALOHA 2 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/aloha>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/aloha/aloha.png
    * - `Unitree Z1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_z1>`_

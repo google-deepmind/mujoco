@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjspec.h>
 #include "user/user_api.h"
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
@@ -50,8 +51,8 @@
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjtnum.h>
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
@@ -135,6 +136,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   center_ = NULL;
   graph_ = NULL;
   needhull_ = false;
+  maxhullvert_ = -1;
   invalidorientation_.first = -1;
   invalidorientation_.second = -1;
   validarea_ = true;
@@ -195,19 +197,19 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 
 
 void mjCMesh::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
-  spec.file = (mjString)&spec_file_;
-  spec.content_type = (mjString)&spec_content_type_;
-  spec.uservert = (mjFloatVec)&spec_vert_;
-  spec.usernormal = (mjFloatVec)&spec_normal_;
-  spec.userface = (mjIntVec)&spec_face_;
-  spec.usertexcoord = (mjFloatVec)&spec_texcoord_;
-  spec.userfacetexcoord = (mjIntVec)&spec_facetexcoord_;
-  spec.plugin.name = (mjString)&plugin_name;
-  spec.plugin.instance_name = (mjString)&plugin_instance_name;
-  spec.info = (mjString)&info;
+  spec.element = static_cast<mjsElement*>(this);
+  spec.name = &name;
+  spec.classname = &classname;
+  spec.file = &spec_file_;
+  spec.content_type = &spec_content_type_;
+  spec.uservert = &spec_vert_;
+  spec.usernormal = &spec_normal_;
+  spec.userface = &spec_face_;
+  spec.usertexcoord = &spec_texcoord_;
+  spec.userfacetexcoord = &spec_facetexcoord_;
+  spec.plugin.name = &plugin_name;
+  spec.plugin.instance_name = &plugin_instance_name;
+  spec.info = &info;
 }
 
 
@@ -221,13 +223,14 @@ void mjCMesh::CopyFromSpec() {
   face_ = spec_face_;
   texcoord_ = spec_texcoord_;
   facetexcoord_ = spec_facetexcoord_;
-  file = (mjString)&file_;
-  content_type = (mjString)&content_type_;
-  uservert = (mjFloatVec)&vert_;
-  usernormal = (mjFloatVec)&normal_;
-  userface = (mjIntVec)&face_;
-  usertexcoord = (mjFloatVec)&texcoord_;
-  userfacetexcoord = (mjIntVec)&facetexcoord_;
+  file = &file_;
+  content_type = &content_type_;
+  maxhullvert_ = spec.maxhullvert;
+  uservert = &vert_;
+  usernormal = &normal_;
+  userface = &face_;
+  usertexcoord = &texcoord_;
+  userfacetexcoord = &facetexcoord_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -1268,7 +1271,7 @@ void mjCMesh::ApplyTransformations() {
     // process vertices
     for (int i=0; i < nvert(); i++) {
       mjtNum p1[3], p0[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-      mju_rotVecMatT(p1, p0, mat);
+      mju_mulMatTVec3(p1, mat, p0);
       vert_[3*i] = (float) p1[0];
       vert_[3*i+1] = (float) p1[1];
       vert_[3*i+2] = (float) p1[2];
@@ -1277,7 +1280,7 @@ void mjCMesh::ApplyTransformations() {
     // process normals
     for (int i=0; i < nnormal(); i++) {
       mjtNum n1[3], n0[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
-      mju_rotVecMatT(n1, n0, mat);
+      mju_mulMatTVec3(n1, mat, n0);
       normal_[3*i] = (float) n1[0];
       normal_[3*i+1] = (float) n1[1];
       normal_[3*i+2] = (float) n1[2];
@@ -1548,12 +1551,17 @@ double& mjCMesh::GetVolumeRef(mjtGeomInertia type) {
 
 
 // make graph describing convex hull
-void mjCMesh::MakeGraph(void) {
+void mjCMesh::MakeGraph() {
   int adr, ok, curlong, totlong, exitcode;
   double* data;
   facetT* facet, **facetp;
   vertexT* vertex, *vertex1, **vertex1p;
-  char qhopt[10] = "qhull Qt";
+
+  std::string qhopt = "qhull Qt";
+  if (maxhullvert_ > -1) {
+    // qhull "TA" actually means "number of vertices added after the initial simplex"
+    qhopt += " TA" + std::to_string(maxhullvert_ - 4);
+  }
 
   // graph not needed for small meshes
   if (nvert() < 4) {
@@ -1585,7 +1593,7 @@ void mjCMesh::MakeGraph(void) {
   qh->NOerrexit = false;
   if (!exitcode) {
     // actual init
-    qh_initflags(qh, qhopt);
+    qh_initflags(qh, const_cast<char*>(qhopt.c_str()));
     qh_init_B(qh, data, nvert(), 3, False);
 
     // construct convex hull
@@ -1741,8 +1749,6 @@ void mjCMesh::MakeGraph(void) {
     throw mjCError(this, "qhull error");
   }
 }
-
-
 
 // copy graph into face data
 void mjCMesh::CopyGraph(void) {
@@ -1978,20 +1984,20 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
 
 
 void mjCSkin::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
-  spec.file = (mjString)&spec_file_;
-  spec.material = (mjString)&spec_material_;
-  spec.vert = (mjFloatVec)&spec_vert_;
-  spec.texcoord = (mjFloatVec)&spec_texcoord_;
-  spec.face = (mjIntVec)&spec_face_;
-  spec.bodyname = (mjStringVec)&spec_bodyname_;
-  spec.bindpos = (mjFloatVec)&spec_bindpos_;
-  spec.bindquat = (mjFloatVec)&spec_bindquat_;
-  spec.vertid = (mjIntVecVec)&spec_vertid_;
-  spec.vertweight = (mjFloatVecVec)&spec_vertweight_;
-  spec.info = (mjString)&info;
+  spec.element = static_cast<mjsElement*>(this);
+  spec.name = &name;
+  spec.classname = &classname;
+  spec.file = &spec_file_;
+  spec.material = &spec_material_;
+  spec.vert = &spec_vert_;
+  spec.texcoord = &spec_texcoord_;
+  spec.face = &spec_face_;
+  spec.bodyname = &spec_bodyname_;
+  spec.bindpos = &spec_bindpos_;
+  spec.bindquat = &spec_bindquat_;
+  spec.vertid = &spec_vertid_;
+  spec.vertweight = &spec_vertweight_;
+  spec.info = &info;
 }
 
 
@@ -2016,16 +2022,16 @@ void mjCSkin::CopyFromSpec() {
   bindquat_ = spec_bindquat_;
   vertid_ = spec_vertid_;
   vertweight_ = spec_vertweight_;
-  file = (mjString)&spec_file_;
-  material = (mjString)&spec_material_;
-  vert = (mjFloatVec)&spec_vert_;
-  texcoord = (mjFloatVec)&spec_texcoord_;
-  face = (mjIntVec)&spec_face_;
-  bodyname = (mjStringVec)&spec_bodyname_;
-  bindpos = (mjFloatVec)&spec_bindpos_;
-  bindquat = (mjFloatVec)&spec_bindquat_;
-  vertid = (mjIntVecVec)&spec_vertid_;
-  vertweight = (mjFloatVecVec)&spec_vertweight_;
+  file = &spec_file_;
+  material = &spec_material_;
+  vert = &spec_vert_;
+  texcoord = &spec_texcoord_;
+  face = &spec_face_;
+  bodyname = &spec_bodyname_;
+  bindpos = &spec_bindpos_;
+  bindquat = &spec_bindquat_;
+  vertid = &spec_vertid_;
+  vertweight = &spec_vertweight_;
 }
 
 
@@ -2390,15 +2396,15 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 
 
 void mjCFlex::PointToLocal() {
-  spec.element = static_cast<mjElement*>(this);
-  spec.name = (mjString)&name;
-  spec.classname = (mjString)&classname;
-  spec.material = (mjString)&spec_material_;
-  spec.vertbody = (mjStringVec)&spec_vertbody_;
-  spec.vert = (mjDoubleVec)&spec_vert_;
-  spec.texcoord = (mjFloatVec)&spec_texcoord_;
-  spec.elem = (mjIntVec)&spec_elem_;
-  spec.info = (mjString)&info;
+  spec.element = static_cast<mjsElement*>(this);
+  spec.name = &name;
+  spec.classname = &classname;
+  spec.material = &spec_material_;
+  spec.vertbody = &spec_vertbody_;
+  spec.vert = &spec_vert_;
+  spec.texcoord = &spec_texcoord_;
+  spec.elem = &spec_elem_;
+  spec.info = &info;
 }
 
 
@@ -2413,17 +2419,17 @@ void mjCFlex::NameSpace(const mjCModel* m) {
 
 void mjCFlex::CopyFromSpec() {
   *static_cast<mjsFlex*>(this) = spec;
-  spec.info = (mjString)&info;
+  spec.info = &info;
   material_ = spec_material_;
   vertbody_ = spec_vertbody_;
   vert_ = spec_vert_;
   texcoord_ = spec_texcoord_;
   elem_ = spec_elem_;
-  material = (mjString)&material_;
-  vertbody = (mjStringVec)&vertbody_;
-  vert = (mjDoubleVec)&vert_;
-  texcoord = (mjFloatVec)&texcoord_;
-  elem = (mjIntVec)&elem_;
+  material = &material_;
+  vertbody = &vertbody_;
+  vert = &vert_;
+  texcoord = &texcoord_;
+  elem = &elem_;
 
   // clear precompiled asset. TODO: use asset cache
   nedge = 0;

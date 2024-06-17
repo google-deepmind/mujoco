@@ -320,7 +320,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
   if (Dvel) mju_copy(Dvel, Dvel_, 9);
-  if (Dscale) mju_rotVecMat(Dscale, vel, Dvel_);
+  if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
 }
 
 

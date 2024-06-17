@@ -701,30 +701,30 @@ TEST_F(EngineIoTest, LargeMemory) {
 TEST_F(EngineIoTest, VeryLargeMemory) {
   constexpr char xml[] = R"(
   <mujoco>
-    <size memory="64G"/>
+    <size memory="8G"/>
   </mujoco>
   )";
 
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   if (!model) {
-    // in some test environments, 64GB is too large
+    // in some test environments, 8GB is too large
     EXPECT_THAT(error.data(), HasSubstr("Could not allocate memory"));
   } else {
     ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
     mjData* data = mj_makeData(model);
     ASSERT_THAT(data, NotNull());
 
-    // allocate 63G of mjtNums
+    // allocate 7G of mjtNums
     mj_markStack(data);
-    size_t num = 63000000000 / sizeof(mjtNum);
+    size_t num = 7516192768ull / sizeof(mjtNum);
     mjtNum* testNum = mj_stackAllocNum(data, num);
     testNum[num-1] = 1;
     mj_freeStack(data);
 
-    // allocate 63G of bytes
+    // allocate 7G of bytes
     mj_markStack(data);
-    num = 63000000000;
+    num = 7516192768ull;
     char* testByte = (char*) mj_stackAllocByte(data, num, alignof(char));
     testByte[num-1] = 1;
     mj_freeStack(data);

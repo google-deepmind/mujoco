@@ -22,11 +22,12 @@
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjspec.h>
+#include <mujoco/mujoco.h>
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -473,9 +474,7 @@ void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* pcam, mjCDef* def) 
   WriteAttr(elem, "ipd", 1, &pcam->ipd, &def->Camera().ipd);
   WriteAttrKey(elem, "mode", camlight_map, camlight_sz, pcam->mode, def->Camera().mode);
   WriteAttr(elem, "resolution", 2, pcam->resolution, def->Camera().resolution);
-
-  // resolution if positive
-  WriteAttr(elem, "resolution", 2, pcam->resolution, def->Camera().resolution);
+  WriteAttrKey(elem, "orthographic", bool_map, 2, pcam->orthographic, def->Camera().orthographic);
 
   // camera intrinsics if specified
   if (pcam->sensor_size[0]>0 && pcam->sensor_size[1]>0) {
@@ -769,7 +768,7 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(mjSpec* spec) {
+void mjXWriter::SetModel(const mjSpec* spec) {
   if (spec) {
     model = (mjCModel*)spec->element;
   }
@@ -1011,15 +1010,16 @@ void mjXWriter::Visual(XMLElement* root) {
 
   // global
   elem = InsertEnd(section, "global");
-  WriteAttr(elem,    "fovy",      1,   &vis->global.fovy,       &visdef.global.fovy);
-  WriteAttr(elem,    "ipd",       1,   &vis->global.ipd,        &visdef.global.ipd);
-  WriteAttr(elem,    "azimuth",   1,   &vis->global.azimuth,    &visdef.global.azimuth);
-  WriteAttr(elem,    "elevation", 1,   &vis->global.elevation,  &visdef.global.elevation);
-  WriteAttr(elem,    "linewidth", 1,   &vis->global.linewidth,  &visdef.global.linewidth);
-  WriteAttr(elem,    "glow",      1,   &vis->global.glow,       &visdef.global.glow);
-  WriteAttr(elem,    "realtime",  1,   &vis->global.realtime,   &visdef.global.realtime);
-  WriteAttrInt(elem, "offwidth",       vis->global.offwidth,    visdef.global.offwidth);
-  WriteAttrInt(elem, "offheight",      vis->global.offheight,   visdef.global.offheight);
+  WriteAttrKey(elem, "orthographic", bool_map, 2, vis->global.orthographic, visdef.global.orthographic);
+  WriteAttr(elem,    "fovy",      1,   &vis->global.fovy,        &visdef.global.fovy);
+  WriteAttr(elem,    "ipd",       1,   &vis->global.ipd,         &visdef.global.ipd);
+  WriteAttr(elem,    "azimuth",   1,   &vis->global.azimuth,     &visdef.global.azimuth);
+  WriteAttr(elem,    "elevation", 1,   &vis->global.elevation,   &visdef.global.elevation);
+  WriteAttr(elem,    "linewidth", 1,   &vis->global.linewidth,   &visdef.global.linewidth);
+  WriteAttr(elem,    "glow",      1,   &vis->global.glow,        &visdef.global.glow);
+  WriteAttr(elem,    "realtime",  1,   &vis->global.realtime,    &visdef.global.realtime);
+  WriteAttrInt(elem, "offwidth",       vis->global.offwidth,     visdef.global.offwidth);
+  WriteAttrInt(elem, "offheight",      vis->global.offheight,    visdef.global.offheight);
   WriteAttrKey(elem, "ellipsoidinertia", bool_map, 2, vis->global.ellipsoidinertia, visdef.global.ellipsoidinertia);
   WriteAttrKey(elem, "bvactive", bool_map, 2, vis->global.bvactive, visdef.global.bvactive);
   if (!elem->FirstAttribute()) {

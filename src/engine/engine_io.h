@@ -110,6 +110,9 @@ MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 // mjData arena allocate
 MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 
+// init plugins
+MJAPI void mj_initPlugin(const mjModel* m, mjData* d);
+
 #ifndef ADDRESS_SANITIZER
 
 // mjData mark stack frame

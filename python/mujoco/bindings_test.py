@@ -27,6 +27,7 @@ import numpy as np
 TEST_XML = r"""
 <mujoco model="test">
   <compiler coordinate="local" angle="radian" eulerseq="xyz"/>
+  <size nkey="2"/>
   <option timestep="0.002" gravity="0 0 -9.81"/>
   <visual>
     <global fovy="50" />
@@ -744,6 +745,37 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     # Expect next states to be equal.
     np.testing.assert_array_equal(state1a, state1b)
+
+  def test_mj_setKeyframe(self):  # pylint: disable=invalid-name
+    mujoco.mj_step(self.model, self.data)
+
+    # Test for invalid state spec
+    invalid_key = 2
+    expected_message = (
+        f'mj_setKeyframe: index must be smaller than {invalid_key} (keyframes'
+        ' allocated in model)'
+    )
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_message):
+      mujoco.mj_setKeyframe(self.model, self.data, invalid_key)
+
+    valid_key = 1
+    time = self.data.time
+    qpos = self.data.qpos.copy()
+    qvel = self.data.qvel.copy()
+    act = self.data.act.copy()
+    mujoco.mj_setKeyframe(self.model, self.data, valid_key)
+
+    # Step, assert that time has changed.
+    mujoco.mj_step(self.model, self.data)
+    self.assertNotEqual(time, self.data.time)
+
+    # Reset to keyframe, assert that time, qpos, qvel, act are the same.
+    mujoco.mj_resetDataKeyframe(self.model, self.data, valid_key)
+    self.assertEqual(time, self.data.time)
+    np.testing.assert_array_equal(qpos, self.data.qpos)
+    np.testing.assert_array_equal(qvel, self.data.qvel)
+    np.testing.assert_array_equal(act, self.data.act)
+
 
   def test_mj_angmomMat(self):  # pylint: disable=invalid-name
     self.data.qvel = np.ones(self.model.nv, np.float64)

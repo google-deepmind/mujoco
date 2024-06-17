@@ -86,6 +86,9 @@ class Simulate {
   // add state to history buffer
   void AddToHistory();
 
+  // inject control noise
+  void InjectNoise();
+
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
@@ -293,8 +296,8 @@ class Simulate {
     {mjITEM_SLIDERINT, "Key",           3, &this->key,           "0 0"},
     {mjITEM_BUTTON,    "Load key",      3},
     {mjITEM_BUTTON,    "Save key",      3},
-    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 2"},
-    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 2"},
+    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 1"},
+    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 4"},
     {mjITEM_SEPARATOR, "History",       1},
     {mjITEM_SLIDERINT, "",              5, &this->scrub_index,     "0 0"},
     {mjITEM_END}

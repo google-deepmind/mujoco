@@ -363,9 +363,7 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
   // load VFS on the heap
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
-  mj_makeEmptyFileVFS(vfs.get(), filename, 105);
-  int i = mj_findFileVFS(vfs.get(), filename);
-  memcpy(vfs->filedata[i], tiny, tiny_sz);
+  mj_addBufferVFS(vfs.get(), filename, tiny, tiny_sz);
 
   // loading the file should be successful
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());

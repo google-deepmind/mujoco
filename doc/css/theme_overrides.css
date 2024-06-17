@@ -266,6 +266,14 @@ dt .at {
   margin-bottom: 0.3em;
 }
 
+/* Adjust margins around code blocks */
+.highlight pre {
+  margin-top: -0.3em;
+  margin-bottom: -0.3em;
+  margin-left: -0.5em;
+  margin-right: -0.5em;
+}
+
 details summary {
   font-weight: 600;
 }

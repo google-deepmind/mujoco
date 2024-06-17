@@ -1122,7 +1122,7 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
   // compute point in local coordinates of the box
   mju_sub3(point, pnt, xpos);
-  mju_rotVecMatT(point, point, xmat);
+  mju_mulMatTVec3(point, xmat, point);
   mju_subFrom3(point, aabb);
 
   // check intersections
@@ -1238,7 +1238,7 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
         vert[2] = (v&4 ? aabb[2]+aabb[5] : aabb[2]-aabb[5]);
 
         // rotate to the world frame
-        mju_rotVecMat(box, vert, xmat);
+        mju_mulMatVec3(box, xmat, vert);
         mju_addTo3(box, xpos);
 
         // spherical coordinates

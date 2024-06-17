@@ -56,9 +56,6 @@ const int kErrorLength = 1024;          // load error string length
 mjModel* m = nullptr;
 mjData* d = nullptr;
 
-// control noise variables
-mjtNum* ctrlnoise = nullptr;
-
 using Seconds = std::chrono::duration<double>;
 
 
@@ -278,10 +275,6 @@ void PhysicsLoop(mj::Simulate& sim) {
         d = dnew;
         mj_forward(m, d);
 
-        // allocate ctrlnoise
-        free(ctrlnoise);
-        ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
-        mju_zero(ctrlnoise, m->nu);
       } else {
         sim.LoadMessageClear();
       }
@@ -306,10 +299,6 @@ void PhysicsLoop(mj::Simulate& sim) {
         d = dnew;
         mj_forward(m, d);
 
-        // allocate ctrlnoise
-        free(ctrlnoise);
-        ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
-        mju_zero(ctrlnoise, m->nu);
       } else {
         sim.LoadMessageClear();
       }
@@ -339,21 +328,6 @@ void PhysicsLoop(mj::Simulate& sim) {
           // elapsed CPU and simulation time since last sync
           const auto elapsedCPU = startCPU - syncCPU;
           double elapsedSim = d->time - syncSim;
-
-          // inject noise
-          if (sim.ctrl_noise_std) {
-            // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
-            mjtNum rate = mju_exp(-m->opt.timestep / mju_max(sim.ctrl_noise_rate, mjMINVAL));
-            mjtNum scale = sim.ctrl_noise_std * mju_sqrt(1-rate*rate);
-
-            for (int i=0; i<m->nu; i++) {
-              // update noise
-              ctrlnoise[i] = rate * ctrlnoise[i] + scale * mju_standardNormal(nullptr);
-
-              // apply noise
-              d->ctrl[i] = ctrlnoise[i];
-            }
-          }
 
           // requested slow-down factor
           double slowdown = 100 / sim.percentRealTime[sim.real_time_index];
@@ -391,6 +365,9 @@ void PhysicsLoop(mj::Simulate& sim) {
                     std::chrono::duration<double>(elapsedCPU).count() / elapsedSim;
                 measured = true;
               }
+
+              // inject noise
+              sim.InjectNoise();
 
               // call mj_step
               mj_step(m, d);
@@ -442,10 +419,6 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
 
       mj_forward(m, d);
 
-      // allocate ctrlnoise
-      free(ctrlnoise);
-      ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
-      mju_zero(ctrlnoise, m->nu);
     } else {
       sim->LoadMessageClear();
     }
@@ -454,7 +427,6 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
   PhysicsLoop(*sim);
 
   // delete everything we allocated
-  free(ctrlnoise);
   mj_deleteData(d);
   mj_deleteModel(m);
 }

@@ -198,13 +198,13 @@ The following features are **fully supported** in MJX:
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and ``CYLINDER`` are implemented but only collide with other primitives.
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``, ``CONTACT_ELLIPTIC``
    * - :ref:`Equality <mjtEq>`
      - ``CONNECT``, ``WELD``, ``JOINT``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``EULER``, ``RK4``
    * - :ref:`Cone <mjtCone>`
-     - ``PYRAMIDAL``
+     - ``PYRAMIDAL``, ``ELLIPTIC``
    * - :ref:`Condim <coContact>`
      - 1, 3, 4, 6
    * - :ref:`Solver <mjtSolver>`
@@ -225,7 +225,7 @@ The following features are **in development** and coming soon:
    * - :ref:`Geom <mjtGeom>`
      - ``SDF``. Collisions between (``SPHERE``, ``BOX``, ``MESH``, ``HFIELD``) and ``CYLINDER``. Collisions between (``BOX``, ``MESH``, ``HFIELD``) and ``ELLIPSOID``.
    * - :ref:`Constraint <mjtConstraint>`
-     - :ref:`Frictionloss <coFriction>`, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+     - :ref:`Frictionloss <coFriction>`, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - Dynamics
@@ -240,8 +240,6 @@ The following features are **in development** and coming soon:
      - ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
      - ``NONE``, ``JOINT``, ``PULLEY``, ``SITE``, ``SPHERE``, ``CYLINDER``
-   * - :ref:`Cone <mjtCone>`
-     - ``ELLIPTIC``
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`

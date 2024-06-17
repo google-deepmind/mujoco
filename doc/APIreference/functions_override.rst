@@ -312,7 +312,7 @@ depending on which UI item was modified and what the state of that item is after
 
 This function is called in the screen refresh loop. It copies the offscreen OpenGL buffer to the window framebuffer. If
 there are multiple UIs in the application, it should be called once for each UI. Thus ``mjui_render`` is called all the
-time, while :ref:`mjui_update` is called only when changes in the UI take place.
+time, while :ref:`mjui_update` is called only when changes in the UI take place. dsffsdg
 
 
 
@@ -533,6 +533,18 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _Miscellaneous:
 
+.. _mju_sigmoid:
+
+Twice continuously differentiable sigmoid function using a quintic polynomial:
+
+.. math::
+   s(x) =
+   \begin{cases}
+      0,                    &       & x \le 0  \\
+      6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+      1,                    & 1 \le & x \qquad
+   \end{cases}
+
 .. _Derivatives-api:
 
 The functions below provide useful derivatives of various functions, both analytic and
@@ -545,7 +557,7 @@ Finite-differenced discrete-time transition matrices.
 
 Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
-values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`.
+values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
 These matrices and their dimensions are:
 
@@ -623,3 +635,8 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
+
+.. _SpecManip:
+
+These functions provide high level manipulation for :ref:`mjSpec` structs, which represent an uncompiled :ref:`mjModel`.
+

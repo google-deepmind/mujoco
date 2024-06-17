@@ -135,9 +135,10 @@ class ConeType(enum.IntEnum):
 
   Attributes:
     PYRAMIDAL: pyramidal
+    ELLIPTIC: elliptic
   """
   PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL
-  # unsupported: ELLIPTIC
+  ELLIPTIC = mujoco.mjtCone.mjCONE_ELLIPTIC
 
 
 class JacobianType(enum.IntEnum):
@@ -245,7 +246,7 @@ class ConstraintType(enum.IntEnum):
   # unsupported: LIMIT_TENDON
   CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
   CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
-  # unsupported: CONTACT_ELLIPTIC
+  CONTACT_ELLIPTIC = mujoco.mjtConstraint.mjCNSTR_CONTACT_ELLIPTIC
 
 
 class CamLightType(enum.IntEnum):
@@ -703,7 +704,7 @@ class Contact(PyTreeNode):
   solref: jax.Array
   solreffriction: jax.Array
   solimp: jax.Array
-  # unsupported: mu, H
+  # unsupported: mu, H (calculated locally in solver.py)
   dim: np.ndarray
   geom1: jax.Array
   geom2: jax.Array
@@ -840,7 +841,7 @@ class Data(PyTreeNode):
   qfrc_passive: jax.Array
   qfrc_gravcomp: jax.Array
   efc_aref: jax.Array
-  # position, velcoity, control & acceleration dependent:
+  # position, velocity, control & acceleration dependent:
   qfrc_actuator: jax.Array
   qfrc_smooth: jax.Array
   qacc_smooth: jax.Array

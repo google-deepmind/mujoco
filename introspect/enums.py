@@ -686,6 +686,69 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFONT_BIG', 2),
          ]),
      )),
+    ('mjtGeomInertia',
+     EnumDecl(
+         name='mjtGeomInertia',
+         declname='enum mjtGeomInertia_',
+         values=dict([
+             ('mjINERTIA_VOLUME', 0),
+             ('mjINERTIA_SHELL', 1),
+         ]),
+     )),
+    ('mjtBuiltin',
+     EnumDecl(
+         name='mjtBuiltin',
+         declname='enum mjtBuiltin_',
+         values=dict([
+             ('mjBUILTIN_NONE', 0),
+             ('mjBUILTIN_GRADIENT', 1),
+             ('mjBUILTIN_CHECKER', 2),
+             ('mjBUILTIN_FLAT', 3),
+         ]),
+     )),
+    ('mjtMark',
+     EnumDecl(
+         name='mjtMark',
+         declname='enum mjtMark_',
+         values=dict([
+             ('mjMARK_NONE', 0),
+             ('mjMARK_EDGE', 1),
+             ('mjMARK_CROSS', 2),
+             ('mjMARK_RANDOM', 3),
+         ]),
+     )),
+    ('mjtLimited',
+     EnumDecl(
+         name='mjtLimited',
+         declname='enum mjtLimited_',
+         values=dict([
+             ('mjLIMITED_FALSE', 0),
+             ('mjLIMITED_TRUE', 1),
+             ('mjLIMITED_AUTO', 2),
+         ]),
+     )),
+    ('mjtInertiaFromGeom',
+     EnumDecl(
+         name='mjtInertiaFromGeom',
+         declname='enum mjtInertiaFromGeom_',
+         values=dict([
+             ('mjINERTIAFROMGEOM_FALSE', 0),
+             ('mjINERTIAFROMGEOM_TRUE', 1),
+             ('mjINERTIAFROMGEOM_AUTO', 2),
+         ]),
+     )),
+    ('mjtOrientation',
+     EnumDecl(
+         name='mjtOrientation',
+         declname='enum mjtOrientation_',
+         values=dict([
+             ('mjORIENTATION_QUAT', 0),
+             ('mjORIENTATION_AXISANGLE', 1),
+             ('mjORIENTATION_XYAXES', 2),
+             ('mjORIENTATION_ZAXIS', 3),
+             ('mjORIENTATION_EULER', 4),
+         ]),
+     )),
     ('mjtButton',
      EnumDecl(
          name='mjtButton',

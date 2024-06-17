@@ -19,7 +19,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
 

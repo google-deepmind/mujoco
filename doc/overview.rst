@@ -141,32 +141,30 @@ There are several entities called "model" in MuJoCo. The user defines the model 
 The software can then create multiple instances of the same model in different media (file or memory) and on different
 levels of description (high or low). All combinations are possible as shown in the following table:
 
-+------------+----------------------+----------------------+
-|            | High level           | Low level            |
-+============+======================+======================+
-| **File**   | MJCF/URDF (XML)      | MJB (binary)         |
-+------------+----------------------+----------------------+
-| **Memory** | mjCModel (C++ class) | mjModel (C struct)   |
-+------------+----------------------+----------------------+
++------------+---------------------------+----------------------------+
+|            | High level                | Low level                  |
++============+===========================+============================+
+| **File**   | MJCF/URDF (XML)           | MJB (binary)               |
++------------+---------------------------+----------------------------+
+| **Memory** | :ref:`mjSpec` (C struct)  | :ref:`mjModel` (C struct)  |
++------------+---------------------------+----------------------------+
 
-All runtime computations are performed with ``mjModel`` which is too complex to create manually. This is why we have two
-levels of modeling. The high level exists for user convenience: its sole purpose is to be compiled into a low level
-model on which computations can be performed. The resulting ``mjModel`` can be loaded and saved into a binary file
+All runtime computations are performed with :ref:`mjModel` which is too complex to create manually. This is why we have
+two levels of modeling. The high level exists for user convenience: its sole purpose is to be compiled into a low level
+model on which computations can be performed. The resulting :ref:`mjModel` can be loaded and saved into a binary file
 (MJB), however those are version-specific and cannot be decompiled, thus models should always be maintained as XML
 files.
 
-The (internal) C++ class ``mjCModel`` is roughly in one-to-one correspondence with the MJCF file format. The XML parser
-interprets the MJCF or URDF file and creates the corresponding ``mjCModel``. In principle the user can create
-``mjCModel`` programmatically and then save it to MJCF or compile it. However this functionality is not yet exposed
-because a C++ API cannot be exported from a compiler-independent library. There is a plan to develop a C wrapper around
-it, but for the time being the parser and compiler are always invoked together, and models can only be created in XML.
+The :ref:`mjSpec` C struct is in one-to-one correspondence with the MJCF file format. The XML loader interprets the MJCF
+or URDF file, creates the corresponding :ref:`mjSpec` and compiles it to :ref:`mjModel`. The user can create
+:ref:`mjSpec` programmatically and then save it to MJCF or compile it. Procedural model creation and editing is
+described in the :doc:`Model Editing <programming/modeledit>` chapter.
 
-The following diagram shows the different paths to obtaining an ``mjModel`` (again, the second bullet point is not yet
-available):
+The following diagram shows the different paths to obtaining an :ref:`mjModel`:
 
--  (text editor) → MJCF/URDF file → (MuJoCo parser → mjCModel → MuJoCo compiler) → mjModel
--  (user code) → mjCModel → (MuJoCo compiler) → mjModel
--  MJB file → (MuJoCo loader) → mjModel
+-  (text editor) → MJCF/URDF file → (MuJoCo parser → mjSpec → compiler) → mjModel
+-  (user code) → mjSpec → (MuJoCo compiler) → mjModel
+-  MJB file → (model loader) → mjModel
 
 .. _Examples:
 

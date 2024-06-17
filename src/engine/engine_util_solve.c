@@ -707,7 +707,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 //--------------------------- eigen decomposition --------------------------------------------------
 
 // eigenvalue decomposition of symmetric 3x3 matrix
-static const mjtNum eigEPS = 1E-12;
+static const mjtNum eigEPS = mjMINVAL * 1000;
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
   mjtNum D[9], tmp[9];
   mjtNum tau, t, c;
@@ -730,11 +730,11 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     eigval[2] = D[8];
 
     // find max off-diagonal element, set indices
-    if (fabs(D[1]) > fabs(D[2]) && fabs(D[1]) > fabs(D[5])) {
+    if (mju_abs(D[1]) > mju_abs(D[2]) && mju_abs(D[1]) > mju_abs(D[5])) {
       rk = 0;     // row
       ck = 1;     // column
       rotk = 2;   // rotation axis
-    } else if (fabs(D[2]) > fabs(D[5])) {
+    } else if (mju_abs(D[2]) > mju_abs(D[5])) {
       rk = 0;
       ck = 2;
       rotk = 1;
@@ -745,7 +745,7 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     }
 
     // terminate if max off-diagonal element too small
-    if (fabs(D[3*rk+ck]) < eigEPS) {
+    if (mju_abs(D[3*rk+ck]) < eigEPS) {
       break;
     }
 
@@ -789,7 +789,7 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
       eigval[j1+1] = t;
 
       // rotate quaternion
-      tmp[0] = 0.707106781186548;     // mju_cos(pi/4) = mju_sin(pi/4)
+      tmp[0] = 0.707106781186548;  // = cos(pi/4) = sin(pi/4)
       tmp[1] = tmp[2] = tmp[3] = 0;
       tmp[(j1+2)%3+1] = tmp[0];
       mju_mulQuat(quat, quat, tmp);

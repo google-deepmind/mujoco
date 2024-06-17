@@ -103,10 +103,16 @@ MJAPI mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
 // Cartesian distance between 3D vectors
 MJAPI mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
 
-// multiply vector by 3D rotation matrix
+// multiply 3-by-3 matrix by vector
+MJAPI void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
+
+// multiply transposed 3-by-3 matrix by vector
+MJAPI void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
+
+// multiply vector by 3D rotation matrix (deprecated)
 MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 
-// multiply vector by transposed 3D rotation matrix
+// multiply vector by transposed 3D rotation matrix (deprecated)
 MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 
 // multiply 3x3 matrices

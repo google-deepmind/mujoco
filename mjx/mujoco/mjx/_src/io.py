@@ -15,7 +15,7 @@
 """Functions to initialize, load, or save data."""
 
 import copy
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import jax
 from jax import numpy as jp
@@ -133,7 +133,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   """Allocate and initialize Data."""
   dim = collision_driver.make_condim(m)
   efc_type = constraint.make_efc_type(m, dim)
-  efc_address = constraint.make_efc_address(efc_type, dim)
+  efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
   ncon, nefc = dim.size, ne + nf + nl + nc
 
@@ -174,7 +174,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       nefc=nefc,
       ncon=ncon,
       solver_niter=jp.array(0, dtype=int),
-      time=jp.array(0.0),
+      time=jp.array(0.0, dtype=float),
       qpos=jp.array(m.qpos0),
       qvel=zero_nv,
       act=zero_na,
@@ -330,7 +330,7 @@ def _make_contact(
     c: mujoco._structs._MjContactList,
     dim: np.ndarray,
     efc_address: np.ndarray,
-) -> types.Contact:
+) -> Tuple[types.Contact, np.ndarray]:
   """Converts mujoco.structs._MjContactList into mjx.Contact."""
   fields = {f.name: getattr(c, f.name) for f in types.Contact.fields()}
   fields['frame'] = fields['frame'].reshape((-1, 3, 3))
@@ -351,21 +351,21 @@ def _make_contact(
     zero = jax.tree_util.tree_map(
         lambda x: np.zeros((1,) + x.shape[1:], dtype=x.dtype), fields
     )
-    zero['dist'][:] = np.finfo(float).max
+    zero['dist'][:] = 1e10
     fields = jax.tree_util.tree_map(lambda *x: np.concatenate(x), fields, zero)
     fields = jax.tree_util.tree_map(lambda x: x[contact_map], fields)
 
   fields['dim'] = dim
   fields['efc_address'] = efc_address
 
-  return types.Contact(**fields)
+  return types.Contact(**fields), contact_map
 
 
 def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
   dim = collision_driver.make_condim(m)
   efc_type = constraint.make_efc_type(m, dim)
-  efc_address = constraint.make_efc_address(efc_type, dim)
+  efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
   ncon, nefc = dim.size, ne + nf + nl + nc
 
@@ -388,6 +388,8 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
   # MJX does not support islanding, so only transfer the first solver_niter
   fields['solver_niter'] = fields['solver_niter'][0]
 
+  contact, contact_map = _make_contact(d.contact, dim, efc_address)
+
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.
   # efc_J is also optionally column-sparse (typically for large nv).  MJX is
   # neither: it contains zeros for inactive constraints, and efc_J is always
@@ -403,13 +405,25 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
   else:
     fields['efc_J'] = fields['efc_J'].reshape((-1 if m.nv else 0, m.nv))
 
+  # move efc rows to their correct offsets
   for fname in ('efc_J', 'efc_frictionloss', 'efc_D', 'efc_aref', 'efc_force'):
     value = np.zeros((nefc, m.nv)) if fname == 'efc_J' else np.zeros(nefc)
-    for i in range(4):
-      value_beg = sum([ne, nf, nl][:i])
-      d_beg = sum([d.ne, d.nf, d.nl][:i])
-      size = [d.ne, d.nf, d.nl, d.nefc - d.nl - d.nf - d.ne][i]
+    for i in range(3):
+      value_beg = sum([ne, nf][:i])
+      d_beg = sum([d.ne, d.nf][:i])
+      size = [d.ne, d.nf, d.nl][i]
       value[value_beg : value_beg + size] = fields[fname][d_beg : d_beg + size]
+
+    # for nc, we may reorder contacts so they match MJX order: group by dim
+    for id_to, id_from in enumerate(contact_map):
+      if id_from == -1:
+        continue
+      num_rows = dim[id_to]
+      if num_rows > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+        num_rows = (num_rows - 1) * 2
+      efc_i, efc_o = d.contact.efc_address[id_from], efc_address[id_to]
+      value[efc_o:efc_o + num_rows] = fields[fname][efc_i:efc_i + num_rows]
+
     fields[fname] = value
 
   # convert qM and qLD if jacobian is dense
@@ -424,7 +438,7 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
       fields['qLD'] = np.zeros((m.nv, m.nv))
     fields['qLDiagInv'] = np.zeros(0)
 
-  fields['contact'] = _make_contact(d.contact, dim, efc_address)
+  fields['contact'] = contact
   fields.update(ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type)
 
   # copy because device_put is async:

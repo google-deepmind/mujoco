@@ -887,14 +887,15 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m, int oldstate)
     {mjITEM_EDITFLOAT, "Ambient",         2, &(vis->headlight.ambient),    "3"},
     {mjITEM_EDITFLOAT, "Diffuse",         2, &(vis->headlight.diffuse),    "3"},
     {mjITEM_EDITFLOAT, "Specular",        2, &(vis->headlight.specular),   "3"},
-    {mjITEM_SEPARATOR, "Initial Free Camera",  1},
+    {mjITEM_SEPARATOR, "Free Camera",  1},
+    {mjITEM_RADIO,     "Orthographic",    2, &(vis->global.orthographic),  "No\nYes"},
+    {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
     {mjITEM_EDITNUM,   "Center",          2, &(stat->center),              "3"},
     {mjITEM_EDITFLOAT, "Azimuth",         2, &(vis->global.azimuth),       "1"},
     {mjITEM_EDITFLOAT, "Elevation",       2, &(vis->global.elevation),     "1"},
     {mjITEM_BUTTON,    "Align",           2, nullptr,                      "CA"},
     {mjITEM_SEPARATOR, "Global",  1},
     {mjITEM_EDITNUM,   "Extent",          2, &(stat->extent),              "1"},
-    {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
     {mjITEM_RADIO,     "Inertia",         5, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
     {mjITEM_RADIO,     "BVH active",      5, &(vis->global.bvactive), "False\nTrue"},
     {mjITEM_SEPARATOR, "Map",  1},
@@ -1977,14 +1978,7 @@ void Simulate::Sync() {
   }
 
   if (pending_.save_key) {
-    int i = this->key;
-    m_->key_time[i] = d_->time;
-    mju_copy(m_->key_qpos + i*m_->nq, d_->qpos, m_->nq);
-    mju_copy(m_->key_qvel + i*m_->nv, d_->qvel, m_->nv);
-    mju_copy(m_->key_act + i*m_->na, d_->act, m_->na);
-    mju_copy(m_->key_mpos + i*3*m_->nmocap, d_->mocap_pos, 3*m_->nmocap);
-    mju_copy(m_->key_mquat + i*4*m_->nmocap, d_->mocap_quat, 4*m_->nmocap);
-    mju_copy(m_->key_ctrl + i*m_->nu, d_->ctrl, m_->nu);
+    mj_setKeyframe(m_, d_, this->key);
     pending_.save_key = false;
   }
 
@@ -2745,6 +2739,39 @@ void Simulate::AddToHistory() {
   // add state at cursor
   mjtNum* state = &history_[state_size_ * history_cursor_];
   mj_getState(m_, d_, state, mjSTATE_INTEGRATION);
+}
+
+// inject Brownian noise
+void Simulate::InjectNoise() {
+  // no noise, return
+  if (ctrl_noise_std <= 0) {
+    return;
+  }
+
+  // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
+  mjtNum rate = mju_exp(-m_->opt.timestep / ctrl_noise_rate);
+  mjtNum scale = ctrl_noise_std * mju_sqrt(1-rate*rate);
+
+  for (int i=0; i<m_->nu; i++) {
+    mjtNum bottom = 0, top = 0, midpoint = 0, halfrange = 1;
+    if (m_->actuator_ctrllimited[i]) {
+      bottom = m_->actuator_ctrlrange[2*i];
+      top = m_->actuator_ctrlrange[2*i+1];
+      midpoint =  0.5 * (top + bottom);  // target of exponential decay
+      halfrange = 0.5 * (top - bottom);  // scales noise
+    }
+
+    // exponential convergence to midpoint at ctrl_noise_rate
+    d_->ctrl[i] = rate * d_->ctrl[i] + (1-rate) * midpoint;
+
+    // add noise
+    d_->ctrl[i] += scale * halfrange * mju_standardNormal(nullptr);
+
+    // clip to range if limited
+    if (m_->actuator_ctrllimited[i]) {
+      d_->ctrl[i] = mju_clip(d_->ctrl[i], bottom, top);
+    }
+  }
 }
 
 void Simulate::UpdateHField(int hfieldid) {

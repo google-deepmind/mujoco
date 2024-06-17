@@ -34,7 +34,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 #include "user/user_flexcomp.h"
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -91,8 +91,8 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjs_defaultOrientation(&alt);
   plugin_name = "";
   plugin_instance_name = "";
-  plugin.name = (mjString)&plugin_name;
-  plugin.instance_name = (mjString)&plugin_instance_name;
+  plugin.name = (mjString*)&plugin_name;
+  plugin.instance_name = (mjString*)&plugin_instance_name;
 }
 
 
@@ -443,7 +443,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       if (plugin.active) {
         mjsPlugin* pplugin = &body->plugin;
         pplugin->active = true;
-        pplugin->instance = static_cast<mjElement*>(plugin.instance);
+        pplugin->instance = static_cast<mjsElement*>(plugin.instance);
         mjs_setString(pplugin->name, mjs_getString(plugin.name));
         mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }
@@ -507,7 +507,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       if (plugin.active) {
         mjsPlugin* pplugin = &pb->plugin;
         pplugin->active = true;
-        pplugin->instance = static_cast<mjElement*>(plugin.instance);
+        pplugin->instance = static_cast<mjsElement*>(plugin.instance);
         mjs_setString(pplugin->name, mjs_getString(plugin.name));
         mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }

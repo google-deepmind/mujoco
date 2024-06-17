@@ -13,6 +13,7 @@ Global variable and constant definitions can be classified as:
 - The :ref:`collision table<glCollision>` containing narrow-phase collision functions.
 - :ref:`String constants<glString>`.
 - :ref:`Numeric constants<glNumeric>`.
+- :ref:`Macros<Macros>`.
 - :ref:`X Macros<tyXMacro>`.
 
 .. _glError:
@@ -522,10 +523,85 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - Maximum number of UI rectangles.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 316
+     - 317
      - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
        version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
        number with the same meaning but for the compiled library.
+
+
+.. _Macros:
+
+Macros
+^^^^^^
+
+.. _mjDISABLED:
+
+mjDISABLED
+~~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjDISABLED(x) (m->opt.disableflags & (x))
+
+Check if a given standard feature has been disabled via the physics options, assuming mjModel\* m is defined. x is of
+type :ref:`mjtDisableBit`.
+
+
+.. _mjENABLED:
+
+mjENABLED
+~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjENABLED(x) (m->opt.enableflags & (x))
+
+Check if a given optional feature has been enabled via the physics options, assuming mjModel\* m is defined. x is of
+type :ref:`mjtEnableBit`.
+
+
+.. _mjMAX:
+
+mjMAX
+~~~~~
+
+.. code-block:: C
+
+   #define mjMAX(a,b) (((a) > (b)) ? (a) : (b))
+
+Return maximum value. To avoid repeated evaluation with mjtNum types, use the function :ref:`mju_max`.
+
+
+.. _mjMIN:
+
+mjMIN
+~~~~~
+
+.. code-block:: C
+
+   #define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
+
+Return minimum value. To avoid repeated evaluation with mjtNum types, use the function :ref:`mju_min`.
+
+
+.. _mjPLUGIN_LIB_INIT:
+
+mjPLUGIN_LIB_INIT
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjPLUGIN_LIB_INIT                                                                 \
+     static void _mjplugin_dllmain(void);                                                    \
+     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
+       if (reason == 1) {                                                                    \
+         _mjplugin_dllmain();                                                                \
+       }                                                                                     \
+       return 1;                                                                             \
+     }                                                                                       \
+     static void _mjplugin_dllmain(void)
+
+Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.
 
 
 .. _tyXMacro:

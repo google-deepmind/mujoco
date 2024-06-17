@@ -256,7 +256,7 @@ void Pid::RegisterPlugin() {
     delete reinterpret_cast<Pid*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto* pid = reinterpret_cast<Pid*>(plugin_data);
     pid->Reset(plugin_state);

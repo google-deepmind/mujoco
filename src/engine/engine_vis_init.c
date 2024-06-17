@@ -359,15 +359,16 @@ void mjv_defaultCamera(mjvCamera* cam) {
 void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam) {
   memset(cam, 0, sizeof(mjvCamera));
 
-  cam->type        = mjCAMERA_FREE;
-  cam->fixedcamid  = -1;
-  cam->trackbodyid = -1;
-  cam->lookat[0]   = m->stat.center[0];
-  cam->lookat[1]   = m->stat.center[1];
-  cam->lookat[2]   = m->stat.center[2];
-  cam->distance    = 1.5 * m->stat.extent;
-  cam->azimuth     = m->vis.global.azimuth;
-  cam->elevation   = m->vis.global.elevation;
+  cam->type         = mjCAMERA_FREE;
+  cam->fixedcamid   = -1;
+  cam->trackbodyid  = -1;
+  cam->lookat[0]    = m->stat.center[0];
+  cam->lookat[1]    = m->stat.center[1];
+  cam->lookat[2]    = m->stat.center[2];
+  cam->distance     = 1.5 * m->stat.extent;
+  cam->azimuth      = m->vis.global.azimuth;
+  cam->elevation    = m->vis.global.elevation;
+  cam->orthographic = m->vis.global.orthographic;
 }
 
 

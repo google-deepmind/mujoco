@@ -192,6 +192,9 @@ struct mjvCamera_ {               // abstract camera
   mjtNum   distance;              // distance to lookat point or tracked body
   mjtNum   azimuth;               // camera azimuth (deg)
   mjtNum   elevation;             // camera elevation (deg)
+
+  // orthographic / perspective
+  int      orthographic;          // 0: perspective; 1: orthographic
 };
 typedef struct mjvCamera_ mjvCamera;
 
@@ -211,6 +214,9 @@ struct mjvGLCamera_ {             // OpenGL camera
   float    frustum_top;           // top
   float    frustum_near;          // near
   float    frustum_far;           // far
+
+  // orthographic / perspective
+  int      orthographic;          // 0: perspective; 1: orthographic
 };
 typedef struct mjvGLCamera_ mjvGLCamera;
 
@@ -487,10 +493,12 @@ struct mjvSceneState_ {
     mjtNum* site_size;
     float* site_rgba;
 
+    int* cam_orthographic;
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
-    float* cam_intrinsic;
+    int* cam_resolution;
     float* cam_sensorsize;
+    float* cam_intrinsic;
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;

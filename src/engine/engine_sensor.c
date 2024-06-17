@@ -328,12 +328,12 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
           get_xpos_xmat(d, reftype, refid, i, &xpos_ref, &xmat_ref);
           if (type == mjSENS_FRAMEPOS) {
             mju_sub3(rvec, xpos, xpos_ref);
-            mju_rotVecMatT(d->sensordata+adr, rvec, xmat_ref);
+            mju_mulMatTVec3(d->sensordata+adr, xmat_ref, rvec);
           } else {
             // offset = (0 or 1 or 2) for (x or y or z)-axis sensors, respectively
             int offset = type - mjSENS_FRAMEXAXIS;
             mjtNum axis[3] = {xmat[offset], xmat[offset+3], xmat[offset+6]};
-            mju_rotVecMatT(d->sensordata+adr, axis, xmat_ref);
+            mju_mulMatTVec3(d->sensordata+adr, xmat_ref, axis);
           }
         }
         break;
@@ -616,8 +616,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
           mju_addTo3(rel_vel+3, cross);
 
           // project into reference frame
-          mju_rotVecMatT(xvel, rel_vel, xmat_ref);
-          mju_rotVecMatT(xvel+3, rel_vel+3, xmat_ref);
+          mju_mulMatTVec3(xvel, xmat_ref, rel_vel);
+          mju_mulMatTVec3(xvel+3, xmat_ref, rel_vel+3);
         }
 
         // copy linear or angular component

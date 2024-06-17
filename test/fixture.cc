@@ -18,7 +18,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -31,7 +31,9 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <absl/base/attributes.h>
 #include <absl/base/const_init.h>
+#include <absl/base/thread_annotations.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
@@ -72,11 +74,11 @@ MujocoErrorTestGuard::~MujocoErrorTestGuard() {
   }
 }
 
-const std::string GetTestDataFilePath(std::string_view path) {
+const std::string GetTestDataFilePath(std::string_view path) {  // NOLINT
   return std::string(path);
 }
 
-const std::string GetModelPath(std::string_view path) {
+const std::string GetModelPath(std::string_view path) {  // NOLINT
   return absl::StrCat("../model/", path);
 }
 
@@ -214,7 +216,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
 
   // compare arrays
 #define X(type, name, nr, nc)                                    \
-  for (int r = 0; r < m1->nr; r++)                               \
+  for (int r = 0; r < m1->nr; r++) {                             \
     for (int c = 0; c < nc; c++) {                               \
       dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]); \
       if (dif > maxdif) {                                        \
@@ -223,7 +225,8 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
         field += " row: " + std::to_string(r);                   \
         field += " col: " + std::to_string(c);                   \
       }                                                          \
-    }  // NOLINT
+    }                                                            \
+  }  // NOLINT
   MJMODEL_POINTERS
 #undef X
 

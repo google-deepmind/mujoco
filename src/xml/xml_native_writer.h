@@ -18,7 +18,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 #include "xml/xml_base.h"
 #include "tinyxml2.h"
@@ -27,7 +27,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(mjSpec* spec);
+  void SetModel(const mjSpec* spec);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);

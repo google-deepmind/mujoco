@@ -1233,6 +1233,13 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
    cube edges) are not smoothed.
 
+.. _asset-mesh-maxhullvert:
+
+:at:`maxhullvert`: :at-val:`int, "-1"`
+   Maximum number of vertices in a mesh's convex hull. Currently this is implemented by asking qhull
+   `to teminate <http://www.qhull.org/html/qh-optt.htm#TAn>`__ after :at:`maxhullvert` vertices. The default
+   value of -1 means "unlimited". Positive values must be larger than 3.
+
 .. _asset-mesh-vertex:
 
 :at:`vertex`: :at-val:`real(3*nvert), optional`
@@ -1450,7 +1457,7 @@ still be specified here but this functionality is now deprecated and will be rem
    This attribute determines how the texture is represented and mapped to objects. It also determines which of the
    remaining attributes are relevant. The keywords have the following meaning:
 
-   The **cube** type is the most common. It has the effect of shrink-wrapping a texture cube over an object. Apart from
+   The **cube** type has the effect of shrink-wrapping a texture cube over an object. Apart from
    the adjustment provided by the texuniform attribute of :ref:`material <asset-material>`, the process is automatic.
    Internally the GPU constructs a ray from the center of the object to each pixel (or rather fragment), finds the
    intersection of this ray with the cube surface (the cube and the object have the same center), and uses the
@@ -1473,15 +1480,13 @@ still be specified here but this functionality is now deprecated and will be rem
    a texture is referenced from a material applied to a regular object, the effect is equivalent to a cube map. Note
    however that the images suitable for skyboxes are rarely suitable for texturing objects.
 
-   The **2d** type may be the most familiar to users, however it is only suitable for planes and height fields. This is
-   because the texture coordinate generator is trying to map a 2D image to 3D space, and as a result there are entire
-   curves on the object surface that correspond to the same texture pixel. For a box geom for example, the two faces
-   whose normals are aligned with the Z axis of the local frame appear normal, while the other four faces appear
-   stretched. For planes this is not an issue because the plane is always normal to the local Z axis. For height fields
-   the sides enclosing the terrain map appear stretched, but in that case the effect is actually desirable. 2d textures
-   can be rectangular, unlike the sides of cube textures which must be square. The scaling can be controlled with the
-   texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a singlefile or created
-   procedurally.
+   The **2d** type maps a 2D image to a 3D object using :ref:`texture coordinates<asset-mesh-texcoord>` (a.k.a UV
+   coordinates). However, UV coordinates are only available for meshes. For primitive geoms, the texture is mapped to
+   the object surface using the local XY coordinates of the geom, effectively projecting the texture along the Z axis.
+   This sort of mapping is only suitable for planes and height fields, since their top surfaces always face the Z axis.
+   2d textures can be rectangular, unlike the sides of cube textures which must be square. The scaling can be controlled
+   with the texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a single file or
+   created procedurally.
 
 .. _asset-texture-content_type:
 
@@ -2608,11 +2613,20 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
 
+.. _body-camera-orthographic:
+
+:at:`orthographic`: :at-val:`[false, true], "false"`
+   Whether the camera uses a perspective projection (the default) or an orthographic projection. Setting this attribute
+   changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+
 .. _body-camera-fovy:
 
 :at:`fovy`: :at-val:`real, "45"`
-   Vertical field of view of the camera, expressed in degrees regardless of the global angle setting. The horizontal
-   field of view is computed automatically given the window size and the vertical field of view.
+   Vertical field-of-view of the camera. If the camera uses a perspective projection, the field-of-view is expressed in
+   degrees, regardless of the global :ref:`compiler/angle <compiler-angle>` setting. If the camera uses an orthographic
+   projection, the field-of-view is expressed in units of length; note that in this case the default of 45 is too large
+   for most scenes and should likely be reduced. In either case, the horizontal field of view is computed automatically
+   given the window size and the vertical field of view.
 
 .. _body-camera-resolution:
 
@@ -7150,14 +7164,22 @@ coordinated visual settings corresponding to a "theme", and then include this fi
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
 is effectively a miscellaneous subsection.
 
+.. _visual-global-orthographic:
+
+:at:`orthographic`: :at-val:`[false, true], "false"`
+   Whether the free camera uses a perspective projection (the default) or an orthographic projection. Setting this
+   attribute changes the semantic of the :ref:`global/fovy<visual-global-fovy>` attribute, see below.
+
 .. _visual-global-fovy:
 
 :at:`fovy`: :at-val:`real, "45"`
    This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
-   the visualizer even if no cameras are explicitly defined in the model. It is always expressed in degrees, regardless
-   of the setting of the angle attribute of :ref:`compiler <compiler>`, and is also represented in the low level model
-   in degrees. This is because we pass it to OpenGL which uses degrees. The same convention applies to the fovy
-   attribute of the :ref:`camera <body-camera>` element below.
+   the visualizer even if no cameras are explicitly defined in the model. If the camera uses a perspective projection,
+   the field-of-view is expressed in degrees, regardless of the global :ref:`compiler/angle <compiler-angle>` setting.
+   If the camera uses an orthographic projection, the field-of-view is expressed in units of length; note that in this
+   case the default of 45 is too large for most scenes and should likely be reduced. In either case, the horizontal
+   field of view is computed automatically given the window size and the vertical field of view. The same convention
+   applies to the :ref:`camera/fovy <body-camera-fovy>` attribute.
 
 .. _visual-global-ipd:
 
@@ -7666,6 +7688,8 @@ if omitted.
 
 .. _default-mesh-scale:
 
+.. _default-mesh-maxhullvert:
+
 :el-prefix:`default/` |-| **mesh** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -7860,6 +7884,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
+.. _default-camera-orthographic:
 
 .. _default-camera-fovy:
 

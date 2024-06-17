@@ -1390,6 +1390,7 @@ PYBIND11_MODULE(_structs, m) {
       });
   DefineStructFunctions(mjVisualGlobal);
 #define X(var) mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var)
+  X(orthographic);
   X(fovy);
   X(ipd);
   X(azimuth);
@@ -2123,6 +2124,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(distance);
   X(azimuth);
   X(elevation);
+  X(orthographic);
 #undef X
 
 #define X(var) DefinePyArray(mjvCamera, #var, &MjvCameraWrapper::var)
@@ -2153,6 +2155,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(frustum_top);
   X(frustum_near);
   X(frustum_far);
+  X(orthographic);
 #undef X
 
 #define X(var) DefinePyArray(mjvGLCamera, #var, &MjvGLCameraWrapper::var)

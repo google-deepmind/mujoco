@@ -27,13 +27,13 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
-#include "user/user_api.h"
+#include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
-class mjCModel_ : public mjElement {
+class mjCModel_ : public mjsElement {
  public:
   // attach namespaces
   std::string prefix;
@@ -168,7 +168,7 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   mjSpec spec;
 
-  mjModel* Compile(const mjVFS* vfs = nullptr);  // construct mjModel
+  mjModel* Compile(const mjVFS* vfs = nullptr, mjModel** m = nullptr);  // construct mjModel
   bool CopyBack(const mjModel*);                 // DECOMPILER: copy numeric back
   void FuseStatic();                             // fuse static bodies with parent
   void FuseReindex(mjCBody* body);               // reindex elements during fuse
@@ -254,9 +254,6 @@ class mjCModel : public mjCModel_, private mjSpec {
                      const std::string& plugin_instance_name,
                      mjCPlugin** plugin_instance);
 
-  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
-  mjModel* _Compile(const mjVFS* vfs);
-
   // clear objects allocated by Compile
   void Clear();
 
@@ -267,6 +264,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
 
+  // save/restore the current state
+  void SaveState(const mjData* d);
+  void RestoreState(const mjModel* m, mjData** dest);
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
@@ -275,6 +276,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;
 
   // compile phases
+  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
   void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
