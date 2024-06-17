@@ -3,7 +3,9 @@ from tqdm import tqdm
 from pathlib import Path
 
 import mujoco
-from mujoco.usd import exporter
+
+# from mujoco.usd import exporter
+import exporter
 
 def generate_usd_trajectory(args):
 
@@ -18,11 +20,13 @@ def generate_usd_trajectory(args):
                              output_directory_root=args.output_directory_root,
                              camera_names=args.camera_names)
 
-  # step through the model for length steps
-  for i in tqdm(range(args.length)):
-    for i in range(args.steps_per_frame):
-      mujoco.mj_step(m, d)
-    exp.update_scene(d)
+  cam = mujoco.MjvCamera()
+    
+  # step through the simulation for the given duration of time
+  while d.time < args.duration:
+    mujoco.mj_step(m, d)
+    if exp.frame_count < d.time * args.framerate:
+      exp.update_scene(data=d, camera=cam)
 
   exp.save_scene(filetype=args.export_extension)
 
@@ -35,10 +39,15 @@ if __name__ == "__main__":
                       required=True,
                       help='path to mjcf xml model')
 
-  parser.add_argument('--length',
+  parser.add_argument('--duration',
                       type=int,
-                      default=100,
-                      help='length of trajectory to render')
+                      default=5,
+                      help='duration in seconds for the generated video')
+
+  parser.add_argument('--framerate',
+                      type=int,
+                      default=60,
+                      help='frame rate of the generated video')
 
   parser.add_argument('--output_directory_root', 
                       type=str,
@@ -54,11 +63,6 @@ if __name__ == "__main__":
                       type=str,
                       default="usd",
                       help='extension of exported file (can be usd, usda, or usdc)')
-
-  parser.add_argument('--steps_per_frame',
-                      type=int,
-                      default=1,
-                      help='number of frames to skip for each rendering step')
 
   args = parser.parse_args()
   generate_usd_trajectory(args)

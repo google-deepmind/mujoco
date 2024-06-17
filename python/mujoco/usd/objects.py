@@ -19,8 +19,11 @@ import pprint
 
 import mujoco
 
-import mujoco.usd.utils as utils_component
-import mujoco.usd.shapes as shapes_component
+# import mujoco.usd.utils as utils_component
+# import mujoco.usd.shapes as shapes_component
+
+import utils as utils_component
+import shapes as shapes_component
 
 import numpy as np
 
@@ -312,6 +315,7 @@ class USDPrimitiveMesh(USDObject):
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
+
     super().__init__(stage,
                      geom,
                      obj_name,
