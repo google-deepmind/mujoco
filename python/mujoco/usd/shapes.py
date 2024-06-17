@@ -159,8 +159,13 @@ def mesh_generator(
 
       if "transform" in config:
         if "rotate" in config["transform"]:
-          tmp = o3d.geometry.TriangleMesh.create_coordinate_frame() # TODO: add rotation matrix code gen to utils.py
-          R = tmp.get_rotation_matrix_from_xyz(config["transform"]["rotate"])
+          R = np.zeros(9)
+          quat = np.zeros(4)
+          euler = config["transform"]["rotate"]
+          seq = 'xyz'
+          mujoco.mju_euler2Quat(quat, euler, seq)
+          mujoco.mju_quat2Mat(R, quat)
+          R = R.reshape((3,3))
           prim_mesh.rotate(R, center=(0, 0, 0))
         if "scale" in config["transform"]:
           prim_mesh.vertices = o3d.utility.Vector3dVector(
