@@ -1156,6 +1156,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjsBody* body, char* error, int erro
           BoxProject(b->pos);
 
           // reorient body
+          b->alt.type = mjORIENTATION_ZAXIS;
           mjuu_copyvec(b->alt.zaxis, b->pos, 3);
           mjuu_normvec(b->alt.zaxis, 3);
 
