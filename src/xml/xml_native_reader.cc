@@ -2560,7 +2560,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody) {
     fcomp.rigid = (n==1);
   }
   if (ReadAttrTxt(elem, "point", text)){
-    fcomp.point = String2Vector<mjtNum>(text);
+    fcomp.point = String2Vector<double>(text);
   }
   if (ReadAttrTxt(elem, "element", text)){
     fcomp.element = String2Vector<int>(text);

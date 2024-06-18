@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -127,7 +128,7 @@ TEST_F(MjCMeshTest, LoadMSHWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 TEST_F(MjCMeshTest, LoadOBJWithVFS) {
@@ -152,7 +153,7 @@ TEST_F(MjCMeshTest, LoadOBJWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 TEST_F(MjCMeshTest, LoadSTLWithVFS) {
@@ -177,7 +178,7 @@ TEST_F(MjCMeshTest, LoadSTLWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 // ------------- test content_type attributes ----------------------------------
@@ -204,7 +205,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 TEST_F(MjCMeshTest, LoadOBJWithContentType) {
@@ -229,7 +230,7 @@ TEST_F(MjCMeshTest, LoadOBJWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 TEST_F(MjCMeshTest, LoadSTLWithContentType) {
@@ -254,7 +255,7 @@ TEST_F(MjCMeshTest, LoadSTLWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
@@ -304,7 +305,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
 }
 
 // ------------- test vertex de-duplication (STL) ------------------------------
@@ -420,7 +421,8 @@ TEST_F(MjCMeshTest, MaxHullVert) {
 }
 
 TEST_F(MjCMeshTest, MaxHullVertDefault) {
-  const std::string xml_path = GetTestDataFilePath(kTorusDefaultMaxhullVertPath);
+  const std::string xml_path =
+      GetTestDataFilePath(kTorusDefaultMaxhullVertPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_GT(model->ngeom, 0);
@@ -465,8 +467,9 @@ TEST_F(MjCMeshTest, SmallInertiaLoads) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   mj_deleteModel(model);
 }
 

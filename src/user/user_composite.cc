@@ -31,7 +31,6 @@
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_io.h"
-#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_model.h"
@@ -428,12 +427,12 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
   }
 
   // compute volume
-  std::vector<mjtNum> volume(uservert.size()/3);
-  mjtNum t = 1;
+  std::vector<double> volume(uservert.size()/3);
+  double thickness = 1;
   if (dim == 2 && plugin.active) {
     try {
       mjCPlugin* pplugin = static_cast<mjCPlugin*>(plugin.instance);
-      t = std::stod(pplugin->config_attribs["thickness"], nullptr);
+      thickness = std::stod(pplugin->config_attribs["thickness"], nullptr);
     } catch (const std::invalid_argument& e) {
       return comperr(error, "Invalid thickness attribute", error_sz);
     }
@@ -441,9 +440,9 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
   if (!userface.empty()) {
     face = mjXUtil::String2Vector<int>(userface);
     for (int j=0; j<face.size()/3; j++) {
-      mjtNum area[3];
-      mjtNum edge1[3];
-      mjtNum edge2[3];
+      double area[3];
+      double edge1[3];
+      double edge2[3];
 
       for (int i=0; i<3; i++) {
         edge1[i] = uservert[3*face[3*j+1]+i] - uservert[3*face[3*j]+i];
@@ -452,12 +451,12 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
 
       mjuu_crossvec(area, edge1, edge2);
       for (int i=0; i<3; i++) {
-        volume[face[3*j+i]] += sqrt(mjuu_dot3(area, area)) / 2 * t;
+        volume[face[3*j+i]] += sqrt(mjuu_dot3(area, area)) / 2 * thickness;
       }
     }
   } else {
     for (int i=0; i<uservert.size()/3; i++) {
-      volume[i] = 6 * spacing * spacing / 2 * t;
+      volume[i] = 6 * spacing * spacing / 2 * thickness;
     }
   }
 
@@ -754,7 +753,7 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
   }
 
   // create frame
-  mjtNum normal[3], prev_quat[4];
+  double normal[3], prev_quat[4];
   mjuu_setvec(normal, 0, 1, 0);
   mjuu_setvec(prev_quat, 1, 0, 0, 0);
 
@@ -780,10 +779,11 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
 
 
 
-mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]) {
+mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
+                                    double normal[3], double prev_quat[4]) {
   char txt_geom[100], txt_site[100], txt_slide[100];
   char this_body[100], next_body[100], this_joint[100];
-  mjtNum dquat[4], this_quat[4];
+  double dquat[4], this_quat[4];
 
   // set flags
   int lastidx = count[0]-2;
@@ -792,7 +792,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtN
   bool secondlast = ix==lastidx-1;
 
   // compute edge and tangent vectors
-  mjtNum edge[3], tprev[3], tnext[3], length_prev = 0;
+  double edge[3], tprev[3], tnext[3], length_prev = 0;
   mjuu_setvec(edge, uservert[3*(ix+1)+0]-uservert[3*ix+0],
                     uservert[3*(ix+1)+1]-uservert[3*ix+1],
                     uservert[3*(ix+1)+2]-uservert[3*ix+2]);
@@ -810,7 +810,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtN
   }
 
   // update moving frame
-  mjtNum length = mju_updateFrame(this_quat, normal, edge, tprev, tnext, first);
+  double length = mjuu_updateFrame(this_quat, normal, edge, tprev, tnext, first);
 
   // create body, joint, and geom names
   if (first) {
@@ -845,7 +845,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtN
     mjuu_copyvec(body->quat, this_quat, 4);
   } else {
     mjuu_setvec(body->pos, length_prev, 0, 0);
-    mjtNum negquat[4] = {prev_quat[0], -prev_quat[1], -prev_quat[2], -prev_quat[3]};
+    double negquat[4] = {prev_quat[0], -prev_quat[1], -prev_quat[2], -prev_quat[3]};
     mjuu_mulquat(dquat, negquat, this_quat);
     mjuu_copyvec(body->quat, dquat, 4);
   }
@@ -1091,7 +1091,7 @@ void mjCComposite::BoxProject(double* pos) {
 
   // cylinder
   else if (type==mjCOMPTYPE_CYLINDER) {
-    double L0 = mju_max(mju_abs(pos[0]), mju_abs(pos[1]));
+    double L0 = std::max(std::abs(pos[0]), std::abs(pos[1]));
     mjuu_normvec(pos, 2);
     pos[0] *= size[0]*L0;
     pos[1] *= size[1]*L0;

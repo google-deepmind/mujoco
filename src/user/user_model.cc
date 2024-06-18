@@ -15,6 +15,7 @@
 #include "user/user_model.h"
 
 #include <algorithm>
+#include <cmath>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
@@ -38,7 +39,6 @@
 #include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
 #include "engine/engine_support.h"
-#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_api.h"
@@ -67,15 +67,6 @@ using std::vector;
     return get_nprocs();
   }
 #endif
-
-
-// copy real-valued vector
-template <class T1, class T2>
-static void copyvec(T1* dest, T2* src, int n) {
-  for (int i=0; i<n; i++) {
-    dest[i] = (T1)src[i];
-  }
-}
 
 
 
@@ -1434,11 +1425,11 @@ void mjCModel::AutoSpringDamper(mjModel* m) {
     for (int i=0; i<ndim; i++) {
       inertia += m->dof_invweight0[adr+i];
     }
-    inertia = ((mjtNum)ndim) / mju_max(mjMINVAL, inertia);
+    inertia = ((mjtNum)ndim) / std::max(mjMINVAL, inertia);
 
     // compute stiffness and damping (same as solref computation)
-    mjtNum stiffness = inertia / mju_max(mjMINVAL, timeconst*timeconst*dampratio*dampratio);
-    mjtNum damping = 2 * inertia / mju_max(mjMINVAL, timeconst);
+    mjtNum stiffness = inertia / std::max(mjMINVAL, timeconst*timeconst*dampratio*dampratio);
+    mjtNum damping = 2 * inertia / std::max(mjMINVAL, timeconst);
 
     // assign
     m->jnt_stiffness[n] = stiffness;
@@ -1771,14 +1762,14 @@ void mjCModel::CopyTree(mjModel* m) {
     m->body_dofadr[i] = (pb->dofnum ? dofadr : -1);
     m->body_geomnum[i] = (int)pb->geoms.size();
     m->body_geomadr[i] = (!pb->geoms.empty() ? pb->geoms[0]->id : -1);
-    copyvec(m->body_pos+3*i, pb->pos, 3);
-    copyvec(m->body_quat+4*i, pb->quat, 4);
-    copyvec(m->body_ipos+3*i, pb->ipos, 3);
-    copyvec(m->body_iquat+4*i, pb->iquat, 4);
+    mjuu_copyvec(m->body_pos+3*i, pb->pos, 3);
+    mjuu_copyvec(m->body_quat+4*i, pb->quat, 4);
+    mjuu_copyvec(m->body_ipos+3*i, pb->ipos, 3);
+    mjuu_copyvec(m->body_iquat+4*i, pb->iquat, 4);
     m->body_mass[i] = (mjtNum)pb->mass;
-    copyvec(m->body_inertia+3*i, pb->inertia, 3);
+    mjuu_copyvec(m->body_inertia+3*i, pb->inertia, 3);
     m->body_gravcomp[i] = pb->gravcomp;
-    copyvec(m->body_user+nuser_body*i, pb->get_userdata().data(), nuser_body);
+    mjuu_copyvec(m->body_user+nuser_body*i, pb->get_userdata().data(), nuser_body);
 
     m->body_contype[i] = pb->contype;
     m->body_conaffinity[i] = pb->conaffinity;
@@ -1854,23 +1845,23 @@ void mjCModel::CopyTree(mjModel* m) {
       m->jnt_qposadr[jid] = qposadr;
       m->jnt_dofadr[jid] = dofadr;
       m->jnt_bodyid[jid] = pj->body->id;
-      copyvec(m->jnt_pos+3*jid, pj->pos, 3);
-      copyvec(m->jnt_axis+3*jid, pj->axis, 3);
+      mjuu_copyvec(m->jnt_pos+3*jid, pj->pos, 3);
+      mjuu_copyvec(m->jnt_axis+3*jid, pj->axis, 3);
       m->jnt_stiffness[jid] = (mjtNum)pj->stiffness;
-      copyvec(m->jnt_range+2*jid, pj->range, 2);
-      copyvec(m->jnt_actfrcrange+2*jid, pj->actfrcrange, 2);
-      copyvec(m->jnt_solref+mjNREF*jid, pj->solref_limit, mjNREF);
-      copyvec(m->jnt_solimp+mjNIMP*jid, pj->solimp_limit, mjNIMP);
+      mjuu_copyvec(m->jnt_range+2*jid, pj->range, 2);
+      mjuu_copyvec(m->jnt_actfrcrange+2*jid, pj->actfrcrange, 2);
+      mjuu_copyvec(m->jnt_solref+mjNREF*jid, pj->solref_limit, mjNREF);
+      mjuu_copyvec(m->jnt_solimp+mjNIMP*jid, pj->solimp_limit, mjNIMP);
       m->jnt_margin[jid] = (mjtNum)pj->margin;
-      copyvec(m->jnt_user+nuser_jnt*jid, pj->get_userdata().data(), nuser_jnt);
+      mjuu_copyvec(m->jnt_user+nuser_jnt*jid, pj->get_userdata().data(), nuser_jnt);
 
       // not simple if: rotation already found, or pos not zero, or mis-aligned axis
       if (rotfound ||
           !IsNullPose(m->jnt_pos+3*jid, NULL) ||
           ((pj->type==mjJNT_HINGE || pj->type==mjJNT_SLIDE) &&
-           ((mju_abs(pj->axis[0])>mjEPS) +
-            (mju_abs(pj->axis[1])>mjEPS) +
-            (mju_abs(pj->axis[2])>mjEPS)) > 1)) {
+           ((std::abs(pj->axis[0])>mjEPS) +
+            (std::abs(pj->axis[1])>mjEPS) +
+            (std::abs(pj->axis[2])>mjEPS)) > 1)) {
         m->body_simple[i] = 0;
       }
 
@@ -1882,9 +1873,9 @@ void mjCModel::CopyTree(mjModel* m) {
       // set qpos0 and qpos_spring, check type
       switch (pj->type) {
       case mjJNT_FREE:
-        copyvec(m->qpos0+qposadr, pb->pos, 3);
-        copyvec(m->qpos0+qposadr+3, pb->quat, 4);
-        mju_copy(m->qpos_spring+qposadr, m->qpos0+qposadr, 7);
+        mjuu_copyvec(m->qpos0+qposadr, pb->pos, 3);
+        mjuu_copyvec(m->qpos0+qposadr+3, pb->quat, 4);
+        mjuu_copyvec(m->qpos_spring+qposadr, m->qpos0+qposadr, 7);
         break;
 
       case mjJNT_BALL:
@@ -1892,7 +1883,7 @@ void mjCModel::CopyTree(mjModel* m) {
         m->qpos0[qposadr+1] = 0;
         m->qpos0[qposadr+2] = 0;
         m->qpos0[qposadr+3] = 0;
-        mju_copy4(m->qpos_spring+qposadr, m->qpos0+qposadr);
+        mjuu_copyvec(m->qpos_spring+qposadr, m->qpos0+qposadr, 4);
         break;
 
       case mjJNT_SLIDE:
@@ -1910,8 +1901,8 @@ void mjCModel::CopyTree(mjModel* m) {
         // set attributes
         m->dof_bodyid[dofadr] = pb->id;
         m->dof_jntid[dofadr] = jid;
-        copyvec(m->dof_solref+mjNREF*dofadr, pj->solref_friction, mjNREF);
-        copyvec(m->dof_solimp+mjNIMP*dofadr, pj->solimp_friction, mjNIMP);
+        mjuu_copyvec(m->dof_solref+mjNREF*dofadr, pj->solref_friction, mjNREF);
+        mjuu_copyvec(m->dof_solimp+mjNIMP*dofadr, pj->solimp_friction, mjNIMP);
         m->dof_frictionloss[dofadr] = (mjtNum)pj->frictionloss;
         m->dof_armature[dofadr] = (mjtNum)pj->armature;
         m->dof_damping[dofadr] = (mjtNum)pj->damping;
@@ -1962,19 +1953,19 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_matid[gid] = pg->matid;
       m->geom_group[gid] = pg->group;
       m->geom_priority[gid] = pg->priority;
-      copyvec(m->geom_size+3*gid, pg->size, 3);
-      copyvec(m->geom_aabb+6*gid, pg->aabb, 6);
-      copyvec(m->geom_pos+3*gid, pg->pos, 3);
-      copyvec(m->geom_quat+4*gid, pg->quat, 4);
-      copyvec(m->geom_friction+3*gid, pg->friction, 3);
+      mjuu_copyvec(m->geom_size+3*gid, pg->size, 3);
+      mjuu_copyvec(m->geom_aabb+6*gid, pg->aabb, 6);
+      mjuu_copyvec(m->geom_pos+3*gid, pg->pos, 3);
+      mjuu_copyvec(m->geom_quat+4*gid, pg->quat, 4);
+      mjuu_copyvec(m->geom_friction+3*gid, pg->friction, 3);
       m->geom_solmix[gid] = (mjtNum)pg->solmix;
-      copyvec(m->geom_solref+mjNREF*gid, pg->solref, mjNREF);
-      copyvec(m->geom_solimp+mjNIMP*gid, pg->solimp, mjNIMP);
+      mjuu_copyvec(m->geom_solref+mjNREF*gid, pg->solref, mjNREF);
+      mjuu_copyvec(m->geom_solimp+mjNIMP*gid, pg->solimp, mjNIMP);
       m->geom_margin[gid] = (mjtNum)pg->margin;
       m->geom_gap[gid] = (mjtNum)pg->gap;
-      copyvec(m->geom_fluid+mjNFLUID*gid, pg->fluid, mjNFLUID);
-      copyvec(m->geom_user+nuser_geom*gid, pg->get_userdata().data(), nuser_geom);
-      copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
+      mjuu_copyvec(m->geom_fluid+mjNFLUID*gid, pg->fluid, mjNFLUID);
+      mjuu_copyvec(m->geom_user+nuser_geom*gid, pg->get_userdata().data(), nuser_geom);
+      mjuu_copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
 
       // determine sameframe
       if (IsNullPose(m->geom_pos+3*gid, m->geom_quat+4*gid)) {
@@ -2006,11 +1997,11 @@ void mjCModel::CopyTree(mjModel* m) {
       m->site_bodyid[sid] = ps->body->id;
       m->site_matid[sid] = ps->matid;
       m->site_group[sid] = ps->group;
-      copyvec(m->site_size+3*sid, ps->size, 3);
-      copyvec(m->site_pos+3*sid, ps->pos, 3);
-      copyvec(m->site_quat+4*sid, ps->quat, 4);
-      copyvec(m->site_user+nuser_site*sid, ps->userdata_.data(), nuser_site);
-      copyvec(m->site_rgba+4*sid, ps->rgba, 4);
+      mjuu_copyvec(m->site_size+3*sid, ps->size, 3);
+      mjuu_copyvec(m->site_pos+3*sid, ps->pos, 3);
+      mjuu_copyvec(m->site_quat+4*sid, ps->quat, 4);
+      mjuu_copyvec(m->site_user+nuser_site*sid, ps->userdata_.data(), nuser_site);
+      mjuu_copyvec(m->site_rgba+4*sid, ps->rgba, 4);
 
       // determine sameframe
       if (IsNullPose(m->site_pos+3*sid, m->site_quat+4*sid)) {
@@ -2038,15 +2029,15 @@ void mjCModel::CopyTree(mjModel* m) {
       m->cam_bodyid[cid] = pc->body->id;
       m->cam_mode[cid] = pc->mode;
       m->cam_targetbodyid[cid] = pc->targetbodyid;
-      copyvec(m->cam_pos+3*cid, pc->pos, 3);
-      copyvec(m->cam_quat+4*cid, pc->quat, 4);
+      mjuu_copyvec(m->cam_pos+3*cid, pc->pos, 3);
+      mjuu_copyvec(m->cam_quat+4*cid, pc->quat, 4);
       m->cam_orthographic[cid] = pc->orthographic;
       m->cam_fovy[cid] = (mjtNum)pc->fovy;
       m->cam_ipd[cid] = (mjtNum)pc->ipd;
-      copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
-      copyvec(m->cam_sensorsize+2*cid, pc->sensor_size, 2);
-      copyvec(m->cam_intrinsic+4*cid, pc->intrinsic, 4);
-      copyvec(m->cam_user+nuser_cam*cid, pc->get_userdata().data(), nuser_cam);
+      mjuu_copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
+      mjuu_copyvec(m->cam_sensorsize+2*cid, pc->sensor_size, 2);
+      mjuu_copyvec(m->cam_intrinsic+4*cid, pc->intrinsic, 4);
+      mjuu_copyvec(m->cam_user+nuser_cam*cid, pc->get_userdata().data(), nuser_cam);
     }
 
     // loop over lights for this body
@@ -2062,15 +2053,15 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_directional[lid] = (mjtByte)pl->directional;
       m->light_castshadow[lid] = (mjtByte)pl->castshadow;
       m->light_active[lid] = (mjtByte)pl->active;
-      copyvec(m->light_pos+3*lid, pl->pos, 3);
-      copyvec(m->light_dir+3*lid, pl->dir, 3);
+      mjuu_copyvec(m->light_pos+3*lid, pl->pos, 3);
+      mjuu_copyvec(m->light_dir+3*lid, pl->dir, 3);
       m->light_bulbradius[lid] = pl->bulbradius;
-      copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
+      mjuu_copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
-      copyvec(m->light_ambient+3*lid, pl->ambient, 3);
-      copyvec(m->light_diffuse+3*lid, pl->diffuse, 3);
-      copyvec(m->light_specular+3*lid, pl->specular, 3);
+      mjuu_copyvec(m->light_ambient+3*lid, pl->ambient, 3);
+      mjuu_copyvec(m->light_diffuse+3*lid, pl->diffuse, 3);
+      mjuu_copyvec(m->light_specular+3*lid, pl->specular, 3);
     }
   }
 
@@ -2210,9 +2201,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhnum[i] = pme->tree().nbvh;
     m->mesh_bvhadr[i] = pme->tree().nbvh ? bvh_adr : -1;
-    copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
-    copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
-    copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
+    mjuu_copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
+    mjuu_copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
+    mjuu_copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 
     // copy vertices, normals, faces, texcoords, aux data
     pme->CopyVert(m->mesh_vert + 3*vert_adr);
@@ -2268,13 +2259,13 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_group[i] = pfl->group;
     m->flex_priority[i] = pfl->priority;
     m->flex_solmix[i] = (mjtNum)pfl->solmix;
-    copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
-    copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
+    mjuu_copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
+    mjuu_copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
     m->flex_radius[i] = (mjtNum)pfl->radius;
-    copyvec(m->flex_friction + 3 * i, pfl->friction, 3);
+    mjuu_copyvec(m->flex_friction + 3 * i, pfl->friction, 3);
     m->flex_margin[i] = (mjtNum)pfl->margin;
     m->flex_gap[i] = (mjtNum)pfl->gap;
-    copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
+    mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
     // set fields: mesh-like
     m->flex_dim[i] = pfl->dim;
@@ -2338,7 +2329,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // copy or set vert
     if (pfl->centered) {
-      mju_zero(m->flex_vert + 3*vert_adr, 3*pfl->nvert);
+      mjuu_zerovec(m->flex_vert + 3*vert_adr, 3*pfl->nvert);
     }
     else {
       memcpy(m->flex_vert + 3*vert_adr, pfl->vert_.data(), 3*pfl->nvert*sizeof(mjtNum));
@@ -2393,7 +2384,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set fields
     m->skin_matid[i] = psk->matid;
     m->skin_group[i] = psk->group;
-    copyvec(m->skin_rgba+4*i, psk->rgba, 4);
+    mjuu_copyvec(m->skin_rgba+4*i, psk->rgba, 4);
     m->skin_inflate[i] = psk->inflate;
     m->skin_vertadr[i] = vert_adr;
     m->skin_vertnum[i] = psk->get_vert().size()/3;
@@ -2448,7 +2439,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjCHField* phf = hfields_[i];
 
     // set fields
-    copyvec(m->hfield_size+4*i, phf->size, 4);
+    mjuu_copyvec(m->hfield_size+4*i, phf->size, 4);
     m->hfield_nrow[i] = phf->nrow;
     m->hfield_ncol[i] = phf->ncol;
     m->hfield_adr[i] = data_adr;
@@ -2487,14 +2478,14 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set fields
     m->mat_texid[i] = pmat->texid;
     m->mat_texuniform[i] = pmat->texuniform;
-    copyvec(m->mat_texrepeat+2*i, pmat->texrepeat, 2);
+    mjuu_copyvec(m->mat_texrepeat+2*i, pmat->texrepeat, 2);
     m->mat_emission[i] = pmat->emission;
     m->mat_specular[i] = pmat->specular;
     m->mat_shininess[i] = pmat->shininess;
     m->mat_reflectance[i] = pmat->reflectance;
     m->mat_metallic[i] = pmat->metallic;
     m->mat_roughness[i] = pmat->roughness;
-    copyvec(m->mat_rgba+4*i, pmat->rgba, 4);
+    mjuu_copyvec(m->mat_rgba+4*i, pmat->rgba, 4);
   }
 
   // geom pairs to include
@@ -2503,12 +2494,12 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->pair_geom1[i] = pairs_[i]->geom1->id;
     m->pair_geom2[i] = pairs_[i]->geom2->id;
     m->pair_signature[i] = pairs_[i]->signature;
-    copyvec(m->pair_solref+mjNREF*i, pairs_[i]->solref, mjNREF);
-    copyvec(m->pair_solreffriction+mjNREF*i, pairs_[i]->solreffriction, mjNREF);
-    copyvec(m->pair_solimp+mjNIMP*i, pairs_[i]->solimp, mjNIMP);
+    mjuu_copyvec(m->pair_solref+mjNREF*i, pairs_[i]->solref, mjNREF);
+    mjuu_copyvec(m->pair_solreffriction+mjNREF*i, pairs_[i]->solreffriction, mjNREF);
+    mjuu_copyvec(m->pair_solimp+mjNIMP*i, pairs_[i]->solimp, mjNIMP);
     m->pair_margin[i] = (mjtNum)pairs_[i]->margin;
     m->pair_gap[i] = (mjtNum)pairs_[i]->gap;
-    copyvec(m->pair_friction+5*i, pairs_[i]->friction, 5);
+    mjuu_copyvec(m->pair_friction+5*i, pairs_[i]->friction, 5);
   }
 
   // body pairs to exclude
@@ -2526,9 +2517,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->eq_obj1id[i] = peq->obj1id;
     m->eq_obj2id[i] = peq->obj2id;
     m->eq_active0[i] = peq->active;
-    copyvec(m->eq_solref+mjNREF*i, peq->solref, mjNREF);
-    copyvec(m->eq_solimp+mjNIMP*i, peq->solimp, mjNIMP);
-    copyvec(m->eq_data+mjNEQDATA*i, peq->data, mjNEQDATA);
+    mjuu_copyvec(m->eq_solref+mjNREF*i, peq->solref, mjNREF);
+    mjuu_copyvec(m->eq_solimp+mjNIMP*i, peq->solimp, mjNIMP);
+    mjuu_copyvec(m->eq_data+mjNEQDATA*i, peq->data, mjNEQDATA);
   }
 
   // tendons and wraps
@@ -2544,10 +2535,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_group[i] = pte->group;
     m->tendon_limited[i] = (mjtByte)pte->is_limited();
     m->tendon_width[i] = (mjtNum)pte->width;
-    copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
-    copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
-    copyvec(m->tendon_solref_fri+mjNREF*i, pte->solref_friction, mjNREF);
-    copyvec(m->tendon_solimp_fri+mjNIMP*i, pte->solimp_friction, mjNIMP);
+    mjuu_copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
+    mjuu_copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
+    mjuu_copyvec(m->tendon_solref_fri+mjNREF*i, pte->solref_friction, mjNREF);
+    mjuu_copyvec(m->tendon_solimp_fri+mjNIMP*i, pte->solimp_friction, mjNIMP);
     m->tendon_range[2*i] = (mjtNum)pte->range[0];
     m->tendon_range[2*i+1] = (mjtNum)pte->range[1];
     m->tendon_margin[i] = (mjtNum)pte->margin;
@@ -2556,8 +2547,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_frictionloss[i] = (mjtNum)pte->frictionloss;
     m->tendon_lengthspring[2*i] = (mjtNum)pte->springlength[0];
     m->tendon_lengthspring[2*i+1] = (mjtNum)pte->springlength[1];
-    copyvec(m->tendon_user+nuser_tendon*i, pte->get_userdata().data(), nuser_tendon);
-    copyvec(m->tendon_rgba+4*i, pte->rgba, 4);
+    mjuu_copyvec(m->tendon_user+nuser_tendon*i, pte->get_userdata().data(), nuser_tendon);
+    mjuu_copyvec(m->tendon_rgba+4*i, pte->rgba, 4);
 
     // set wraps
     for (int j=0; j<(int)pte->path.size(); j++) {
@@ -2597,15 +2588,15 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_actlimited[i] = (mjtByte)pac->is_actlimited();
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
-    copyvec(m->actuator_gear + 6*i, pac->gear, 6);
-    copyvec(m->actuator_dynprm + mjNDYN*i, pac->dynprm, mjNDYN);
-    copyvec(m->actuator_gainprm + mjNGAIN*i, pac->gainprm, mjNGAIN);
-    copyvec(m->actuator_biasprm + mjNBIAS*i, pac->biasprm, mjNBIAS);
-    copyvec(m->actuator_ctrlrange + 2*i, pac->ctrlrange, 2);
-    copyvec(m->actuator_forcerange + 2*i, pac->forcerange, 2);
-    copyvec(m->actuator_actrange + 2*i, pac->actrange, 2);
-    copyvec(m->actuator_lengthrange + 2*i, pac->lengthrange, 2);
-    copyvec(m->actuator_user+nuser_actuator*i, pac->get_userdata().data(), nuser_actuator);
+    mjuu_copyvec(m->actuator_gear + 6*i, pac->gear, 6);
+    mjuu_copyvec(m->actuator_dynprm + mjNDYN*i, pac->dynprm, mjNDYN);
+    mjuu_copyvec(m->actuator_gainprm + mjNGAIN*i, pac->gainprm, mjNGAIN);
+    mjuu_copyvec(m->actuator_biasprm + mjNBIAS*i, pac->biasprm, mjNBIAS);
+    mjuu_copyvec(m->actuator_ctrlrange + 2*i, pac->ctrlrange, 2);
+    mjuu_copyvec(m->actuator_forcerange + 2*i, pac->forcerange, 2);
+    mjuu_copyvec(m->actuator_actrange + 2*i, pac->actrange, 2);
+    mjuu_copyvec(m->actuator_lengthrange + 2*i, pac->lengthrange, 2);
+    mjuu_copyvec(m->actuator_user+nuser_actuator*i, pac->get_userdata().data(), nuser_actuator);
   }
 
   // sensors
@@ -2625,7 +2616,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->sensor_dim[i] = psen->dim;
     m->sensor_cutoff[i] = (mjtNum)psen->cutoff;
     m->sensor_noise[i] = (mjtNum)psen->noise;
-    copyvec(m->sensor_user+nuser_sensor*i, psen->get_userdata().data(), nuser_sensor);
+    mjuu_copyvec(m->sensor_user+nuser_sensor*i, psen->get_userdata().data(), nuser_sensor);
 
     // calculate address and advance
     m->sensor_adr[i] = adr;
@@ -2690,34 +2681,34 @@ void mjCModel::CopyObjects(mjModel* m) {
   for (int i=0; i<nkey; i++) {
     // copy data
     m->key_time[i] = (mjtNum)keys_[i]->time;
-    copyvec(m->key_qpos+i*nq, keys_[i]->qpos_.data(), nq);
-    copyvec(m->key_qvel+i*nv, keys_[i]->qvel_.data(), nv);
+    mjuu_copyvec(m->key_qpos+i*nq, keys_[i]->qpos_.data(), nq);
+    mjuu_copyvec(m->key_qvel+i*nv, keys_[i]->qvel_.data(), nv);
     if (na) {
-      copyvec(m->key_act+i*na, keys_[i]->act_.data(), na);
+      mjuu_copyvec(m->key_act+i*na, keys_[i]->act_.data(), na);
     }
     if (nmocap) {
-      copyvec(m->key_mpos + i*3*nmocap, keys_[i]->mpos_.data(), 3*nmocap);
-      copyvec(m->key_mquat + i*4*nmocap, keys_[i]->mquat_.data(), 4*nmocap);
+      mjuu_copyvec(m->key_mpos + i*3*nmocap, keys_[i]->mpos_.data(), 3*nmocap);
+      mjuu_copyvec(m->key_mquat + i*4*nmocap, keys_[i]->mquat_.data(), 4*nmocap);
     }
 
     // normalize quaternions in m->key_qpos
     for (int j=0; j<m->njnt; j++) {
       if (m->jnt_type[j]==mjJNT_BALL || m->jnt_type[j]==mjJNT_FREE) {
-        mju_normalize4(m->key_qpos+i*nq+m->jnt_qposadr[j]+3*(m->jnt_type[j]==mjJNT_FREE));
+        mjuu_normvec(m->key_qpos+i*nq+m->jnt_qposadr[j]+3*(m->jnt_type[j]==mjJNT_FREE), 4);
       }
     }
 
     // normalize quaternions in m->key_mquat
     for (int j=0; j<nmocap; j++) {
-      mju_normalize4(m->key_mquat+i*4*nmocap+4*j);
+      mjuu_normvec(m->key_mquat+i*4*nmocap+4*j, 4);
     }
 
-    copyvec(m->key_ctrl+i*nu, keys_[i]->ctrl_.data(), nu);
+    mjuu_copyvec(m->key_ctrl+i*nu, keys_[i]->ctrl_.data(), nu);
   }
 
   // save qpos0 in user model (to recognize changed key_qpos in write)
   qpos0.resize(nq);
-  mju_copy(qpos0.data(), m->qpos0, nq);
+  mjuu_copyvec(qpos0.data(), m->qpos0, nq);
 }
 
 
@@ -2727,17 +2718,17 @@ void mjCModel::SaveState(const mjData* d) {
   for (auto joint : joints_) {
     switch (joint->type) {
       case mjJNT_FREE:
-        mju_copy(joint->qpos, d->qpos + joint->qposadr_, 7);
-        mju_copy(joint->qvel, d->qvel + joint->dofadr_, 6);
+        mjuu_copyvec(joint->qpos, d->qpos + joint->qposadr_, 7);
+        mjuu_copyvec(joint->qvel, d->qvel + joint->dofadr_, 6);
         break;
       case mjJNT_BALL:
-        mju_copy(joint->qpos, d->qpos + joint->qposadr_, 4);
-        mju_copy(joint->qvel, d->qvel + joint->dofadr_, 3);
+        mjuu_copyvec(joint->qpos, d->qpos + joint->qposadr_, 4);
+        mjuu_copyvec(joint->qvel, d->qvel + joint->dofadr_, 3);
         break;
       case mjJNT_HINGE:
       case mjJNT_SLIDE:
-        mju_copy(joint->qpos, d->qpos + joint->qposadr_, 1);
-        mju_copy(joint->qvel, d->qvel + joint->dofadr_, 1);
+        mjuu_copyvec(joint->qpos, d->qpos + joint->qposadr_, 1);
+        mjuu_copyvec(joint->qvel, d->qvel + joint->dofadr_, 1);
         break;
     }
   }
@@ -2745,7 +2736,7 @@ void mjCModel::SaveState(const mjData* d) {
   for (auto actuator : actuators_) {
     if (actuator->actadr_ != -1) {
       actuator->act.assign(actuator->actnum_, 0);
-      mju_copy(actuator->act.data(), d->act + actuator->actadr_, actuator->actnum_);
+      mjuu_copyvec(actuator->act.data(), d->act + actuator->actadr_, actuator->actnum_);
     }
   }
 }
@@ -2767,24 +2758,24 @@ void mjCModel::RestoreState(const mjModel* m, mjData** dest) {
     }
     switch (joint->type) {
       case mjJNT_FREE:
-        mju_copy(d->qpos + joint->qposadr_, joint->qpos, 7);
-        mju_copy(d->qvel + joint->dofadr_, joint->qvel, 6);
+        mjuu_copyvec(d->qpos + joint->qposadr_, joint->qpos, 7);
+        mjuu_copyvec(d->qvel + joint->dofadr_, joint->qvel, 6);
         break;
       case mjJNT_BALL:
-        mju_copy(d->qpos + joint->qposadr_, joint->qpos, 4);
-        mju_copy(d->qvel + joint->dofadr_, joint->qvel, 3);
+        mjuu_copyvec(d->qpos + joint->qposadr_, joint->qpos, 4);
+        mjuu_copyvec(d->qvel + joint->dofadr_, joint->qvel, 3);
         break;
       case mjJNT_HINGE:
       case mjJNT_SLIDE:
-        mju_copy(d->qpos + joint->qposadr_, joint->qpos, 1);
-        mju_copy(d->qvel + joint->dofadr_, joint->qvel, 1);
+        mjuu_copyvec(d->qpos + joint->qposadr_, joint->qpos, 1);
+        mjuu_copyvec(d->qvel + joint->dofadr_, joint->qvel, 1);
         break;
     }
   }
 
   for (auto actuator : actuators_) {
     if (mjuu_defined(actuator->act[0])) {
-      mju_copy(d->act + actuator->actadr_, actuator->act.data(), actuator->actnum_);
+      mjuu_copyvec(d->act + actuator->actadr_, actuator->act.data(), actuator->actnum_);
     }
   }
 }
@@ -3566,14 +3557,14 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   meaninertia_auto = m->stat.meaninertia;
   meanmass_auto = m->stat.meanmass;
   meansize_auto = m->stat.meansize;
-  copyvec(center_auto, m->stat.center, 3);
+  mjuu_copyvec(center_auto, m->stat.center, 3);
 
   // override model statistics if defined by user
   if (mjuu_defined(stat.extent)) m->stat.extent = (mjtNum)stat.extent;
   if (mjuu_defined(stat.meaninertia)) m->stat.meaninertia = (mjtNum)stat.meaninertia;
   if (mjuu_defined(stat.meanmass)) m->stat.meanmass = (mjtNum)stat.meanmass;
   if (mjuu_defined(stat.meansize)) m->stat.meansize = (mjtNum)stat.meansize;
-  if (mjuu_defined(stat.center[0])) copyvec(m->stat.center, stat.center, 3);
+  if (mjuu_defined(stat.center[0])) mjuu_copyvec(m->stat.center, stat.center, 3);
 
   // assert that model has valid references
   const char* validationerr = mj_validateReferences(m);
@@ -3652,15 +3643,15 @@ bool mjCModel::CopyBack(const mjModel* m) {
   if (m->stat.center[0] != center_auto[0] ||
       m->stat.center[1] != center_auto[1] ||
       m->stat.center[2] != center_auto[2]) {
-    mju_copy3(stat.center, m->stat.center);
+    mjuu_copyvec(stat.center, m->stat.center, 3);
   }
 
   // qpos0, qpos_spring
   for (int i=0; i<njnt; i++) {
     switch (joints_[i]->type) {
     case mjJNT_FREE:
-      copyvec(bodies_[m->jnt_bodyid[i]]->pos, m->qpos0+m->jnt_qposadr[i], 3);
-      copyvec(bodies_[m->jnt_bodyid[i]]->quat, m->qpos0+m->jnt_qposadr[i]+3, 4);
+      mjuu_copyvec(bodies_[m->jnt_bodyid[i]]->pos, m->qpos0+m->jnt_qposadr[i], 3);
+      mjuu_copyvec(bodies_[m->jnt_bodyid[i]]->quat, m->qpos0+m->jnt_qposadr[i]+3, 4);
       break;
 
     case mjJNT_SLIDE:
@@ -3674,22 +3665,22 @@ bool mjCModel::CopyBack(const mjModel* m) {
       break;
     }
   }
-  mju_copy(qpos0.data(), m->qpos0, m->nq);
+  mjuu_copyvec(qpos0.data(), m->qpos0, m->nq);
 
   // body
   mjCBody* pb;
   for (int i=0; i<nbody; i++) {
     pb = bodies_[i];
 
-    copyvec(pb->pos, m->body_pos+3*i, 3);
-    copyvec(pb->quat, m->body_quat+4*i, 4);
-    copyvec(pb->ipos, m->body_ipos+3*i, 3);
-    copyvec(pb->iquat, m->body_iquat+4*i, 4);
+    mjuu_copyvec(pb->pos, m->body_pos+3*i, 3);
+    mjuu_copyvec(pb->quat, m->body_quat+4*i, 4);
+    mjuu_copyvec(pb->ipos, m->body_ipos+3*i, 3);
+    mjuu_copyvec(pb->iquat, m->body_iquat+4*i, 4);
     pb->mass = (double)m->body_mass[i];
-    copyvec(pb->inertia, m->body_inertia+3*i, 3);
+    mjuu_copyvec(pb->inertia, m->body_inertia+3*i, 3);
 
     if (nuser_body) {
-      copyvec(pb->userdata_.data(), m->body_user + nuser_body*i, nuser_body);
+      mjuu_copyvec(pb->userdata_.data(), m->body_user + nuser_body*i, nuser_body);
     }
   }
 
@@ -3699,22 +3690,22 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pj = joints_[i];
 
     // joint data
-    copyvec(pj->pos, m->jnt_pos+3*i, 3);
-    copyvec(pj->axis, m->jnt_axis+3*i, 3);
+    mjuu_copyvec(pj->pos, m->jnt_pos+3*i, 3);
+    mjuu_copyvec(pj->axis, m->jnt_axis+3*i, 3);
     pj->stiffness = (double)m->jnt_stiffness[i];
-    copyvec(pj->range, m->jnt_range+2*i, 2);
-    copyvec(pj->solref_limit, m->jnt_solref+mjNREF*i, mjNREF);
-    copyvec(pj->solimp_limit, m->jnt_solimp+mjNIMP*i, mjNIMP);
+    mjuu_copyvec(pj->range, m->jnt_range+2*i, 2);
+    mjuu_copyvec(pj->solref_limit, m->jnt_solref+mjNREF*i, mjNREF);
+    mjuu_copyvec(pj->solimp_limit, m->jnt_solimp+mjNIMP*i, mjNIMP);
     pj->margin = (double)m->jnt_margin[i];
 
     if (nuser_jnt) {
-      copyvec(pj->userdata_.data(), m->jnt_user + nuser_jnt*i, nuser_jnt);
+      mjuu_copyvec(pj->userdata_.data(), m->jnt_user + nuser_jnt*i, nuser_jnt);
     }
 
     // dof data
     int j = m->jnt_dofadr[i];
-    copyvec(pj->solref_friction, m->dof_solref+mjNREF*j, mjNREF);
-    copyvec(pj->solimp_friction, m->dof_solimp+mjNIMP*j, mjNIMP);
+    mjuu_copyvec(pj->solref_friction, m->dof_solref+mjNREF*j, mjNREF);
+    mjuu_copyvec(pj->solimp_friction, m->dof_solimp+mjNIMP*j, mjNIMP);
     pj->armature = (double)m->dof_armature[j];
     pj->damping = (double)m->dof_damping[j];
     pj->frictionloss = (double)m->dof_frictionloss[j];
@@ -3725,19 +3716,19 @@ bool mjCModel::CopyBack(const mjModel* m) {
   for (int i=0; i<ngeom; i++) {
     pg = geoms_[i];
 
-    copyvec(pg->size, m->geom_size+3*i, 3);
-    copyvec(pg->pos, m->geom_pos+3*i, 3);
-    copyvec(pg->quat, m->geom_quat+4*i, 4);
-    copyvec(pg->friction, m->geom_friction+3*i, 3);
-    copyvec(pg->solref, m->geom_solref+mjNREF*i, mjNREF);
-    copyvec(pg->solimp, m->geom_solimp+mjNIMP*i, mjNIMP);
-    copyvec(pg->rgba, m->geom_rgba+4*i, 4);
+    mjuu_copyvec(pg->size, m->geom_size+3*i, 3);
+    mjuu_copyvec(pg->pos, m->geom_pos+3*i, 3);
+    mjuu_copyvec(pg->quat, m->geom_quat+4*i, 4);
+    mjuu_copyvec(pg->friction, m->geom_friction+3*i, 3);
+    mjuu_copyvec(pg->solref, m->geom_solref+mjNREF*i, mjNREF);
+    mjuu_copyvec(pg->solimp, m->geom_solimp+mjNIMP*i, mjNIMP);
+    mjuu_copyvec(pg->rgba, m->geom_rgba+4*i, 4);
     pg->solmix = (double)m->geom_solmix[i];
     pg->margin = (double)m->geom_margin[i];
     pg->gap = (double)m->geom_gap[i];
 
     if (nuser_geom) {
-      copyvec(pg->userdata_.data(), m->geom_user + nuser_geom*i, nuser_geom);
+      mjuu_copyvec(pg->userdata_.data(), m->geom_user + nuser_geom*i, nuser_geom);
     }
   }
 
@@ -3745,8 +3736,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
   mjCMesh* pm;
   for (int i=0; i<nmesh; i++) {
     pm = meshes_[i];
-    copyvec(pm->GetOffsetPosPtr(), m->mesh_pos+3*i, 3);
-    copyvec(pm->GetOffsetQuatPtr(), m->mesh_quat+4*i, 4);
+    mjuu_copyvec(pm->GetOffsetPosPtr(), m->mesh_pos+3*i, 3);
+    mjuu_copyvec(pm->GetOffsetQuatPtr(), m->mesh_quat+4*i, 4);
   }
 
   // heightfield
@@ -3762,84 +3753,84 @@ bool mjCModel::CopyBack(const mjModel* m) {
       // copy back in reverse row order
       for (int j=0; j<nrow; j++) {
         int flip = nrow-1-j;
-        copyvec(userdata + flip*ncol, modeldata+j*ncol, ncol);
+        mjuu_copyvec(userdata + flip*ncol, modeldata+j*ncol, ncol);
       }
     }
   }
 
   // sites
   for (int i=0; i<nsite; i++) {
-    copyvec(sites_[i]->size, m->site_size + 3 * i, 3);
-    copyvec(sites_[i]->pos, m->site_pos+3*i, 3);
-    copyvec(sites_[i]->quat, m->site_quat+4*i, 4);
-    copyvec(sites_[i]->rgba, m->site_rgba+4*i, 4);
+    mjuu_copyvec(sites_[i]->size, m->site_size + 3 * i, 3);
+    mjuu_copyvec(sites_[i]->pos, m->site_pos+3*i, 3);
+    mjuu_copyvec(sites_[i]->quat, m->site_quat+4*i, 4);
+    mjuu_copyvec(sites_[i]->rgba, m->site_rgba+4*i, 4);
 
     if (nuser_site) {
-      copyvec(sites_[i]->userdata_.data(), m->site_user + nuser_site*i, nuser_site);
+      mjuu_copyvec(sites_[i]->userdata_.data(), m->site_user + nuser_site*i, nuser_site);
     }
   }
 
   // cameras
   for (int i=0; i<ncam; i++) {
-    copyvec(cameras_[i]->pos, m->cam_pos+3*i, 3);
-    copyvec(cameras_[i]->quat, m->cam_quat+4*i, 4);
+    mjuu_copyvec(cameras_[i]->pos, m->cam_pos+3*i, 3);
+    mjuu_copyvec(cameras_[i]->quat, m->cam_quat+4*i, 4);
     cameras_[i]->fovy = (double)m->cam_fovy[i];
     cameras_[i]->ipd = (double)m->cam_ipd[i];
-    copyvec(cameras_[i]->resolution, m->cam_resolution+2*i, 2);
-    copyvec(cameras_[i]->intrinsic, m->cam_intrinsic+4*i, 4);
+    mjuu_copyvec(cameras_[i]->resolution, m->cam_resolution+2*i, 2);
+    mjuu_copyvec(cameras_[i]->intrinsic, m->cam_intrinsic+4*i, 4);
 
     if (nuser_cam) {
-      copyvec(cameras_[i]->userdata_.data(), m->cam_user + nuser_cam*i, nuser_cam);
+      mjuu_copyvec(cameras_[i]->userdata_.data(), m->cam_user + nuser_cam*i, nuser_cam);
     }
   }
 
   // lights
   for (int i=0; i<nlight; i++) {
-    copyvec(lights_[i]->pos, m->light_pos+3*i, 3);
-    copyvec(lights_[i]->dir, m->light_dir+3*i, 3);
-    copyvec(lights_[i]->attenuation, m->light_attenuation+3*i, 3);
+    mjuu_copyvec(lights_[i]->pos, m->light_pos+3*i, 3);
+    mjuu_copyvec(lights_[i]->dir, m->light_dir+3*i, 3);
+    mjuu_copyvec(lights_[i]->attenuation, m->light_attenuation+3*i, 3);
     lights_[i]->cutoff = m->light_cutoff[i];
     lights_[i]->exponent = m->light_exponent[i];
-    copyvec(lights_[i]->ambient, m->light_ambient+3*i, 3);
-    copyvec(lights_[i]->diffuse, m->light_diffuse+3*i, 3);
-    copyvec(lights_[i]->specular, m->light_specular+3*i, 3);
+    mjuu_copyvec(lights_[i]->ambient, m->light_ambient+3*i, 3);
+    mjuu_copyvec(lights_[i]->diffuse, m->light_diffuse+3*i, 3);
+    mjuu_copyvec(lights_[i]->specular, m->light_specular+3*i, 3);
   }
 
   // materials
   for (int i=0; i<nmat; i++) {
-    copyvec(materials_[i]->texrepeat, m->mat_texrepeat+2*i, 2);
+    mjuu_copyvec(materials_[i]->texrepeat, m->mat_texrepeat+2*i, 2);
     materials_[i]->emission = m->mat_emission[i];
     materials_[i]->specular = m->mat_specular[i];
     materials_[i]->shininess = m->mat_shininess[i];
     materials_[i]->reflectance = m->mat_reflectance[i];
-    copyvec(materials_[i]->rgba, m->mat_rgba+4*i, 4);
+    mjuu_copyvec(materials_[i]->rgba, m->mat_rgba+4*i, 4);
   }
 
   // pairs
   for (int i=0; i<npair; i++) {
-    copyvec(pairs_[i]->solref, m->pair_solref+mjNREF*i, mjNREF);
-    copyvec(pairs_[i]->solreffriction, m->pair_solreffriction+mjNREF*i, mjNREF);
-    copyvec(pairs_[i]->solimp, m->pair_solimp+mjNIMP*i, mjNIMP);
+    mjuu_copyvec(pairs_[i]->solref, m->pair_solref+mjNREF*i, mjNREF);
+    mjuu_copyvec(pairs_[i]->solreffriction, m->pair_solreffriction+mjNREF*i, mjNREF);
+    mjuu_copyvec(pairs_[i]->solimp, m->pair_solimp+mjNIMP*i, mjNIMP);
     pairs_[i]->margin = (double)m->pair_margin[i];
     pairs_[i]->gap = (double)m->pair_gap[i];
-    copyvec(pairs_[i]->friction, m->pair_friction+5*i, 5);
+    mjuu_copyvec(pairs_[i]->friction, m->pair_friction+5*i, 5);
   }
 
   // equality constraints
   for (int i=0; i<neq; i++) {
-    copyvec(equalities_[i]->data, m->eq_data+mjNEQDATA*i, mjNEQDATA);
-    copyvec(equalities_[i]->solref, m->eq_solref+mjNREF*i, mjNREF);
-    copyvec(equalities_[i]->solimp, m->eq_solimp+mjNIMP*i, mjNIMP);
+    mjuu_copyvec(equalities_[i]->data, m->eq_data+mjNEQDATA*i, mjNEQDATA);
+    mjuu_copyvec(equalities_[i]->solref, m->eq_solref+mjNREF*i, mjNREF);
+    mjuu_copyvec(equalities_[i]->solimp, m->eq_solimp+mjNIMP*i, mjNIMP);
   }
 
   // tendons
   for (int i=0; i<ntendon; i++) {
-    copyvec(tendons_[i]->range, m->tendon_range+2*i, 2);
-    copyvec(tendons_[i]->solref_limit, m->tendon_solref_lim+mjNREF*i, mjNREF);
-    copyvec(tendons_[i]->solimp_limit, m->tendon_solimp_lim+mjNIMP*i, mjNIMP);
-    copyvec(tendons_[i]->solref_friction, m->tendon_solref_fri+mjNREF*i, mjNREF);
-    copyvec(tendons_[i]->solimp_friction, m->tendon_solimp_fri+mjNIMP*i, mjNIMP);
-    copyvec(tendons_[i]->rgba, m->tendon_rgba+4*i, 4);
+    mjuu_copyvec(tendons_[i]->range, m->tendon_range+2*i, 2);
+    mjuu_copyvec(tendons_[i]->solref_limit, m->tendon_solref_lim+mjNREF*i, mjNREF);
+    mjuu_copyvec(tendons_[i]->solimp_limit, m->tendon_solimp_lim+mjNIMP*i, mjNIMP);
+    mjuu_copyvec(tendons_[i]->solref_friction, m->tendon_solref_fri+mjNREF*i, mjNREF);
+    mjuu_copyvec(tendons_[i]->solimp_friction, m->tendon_solimp_fri+mjNIMP*i, mjNIMP);
+    mjuu_copyvec(tendons_[i]->rgba, m->tendon_rgba+4*i, 4);
     tendons_[i]->width = (double)m->tendon_width[i];
     tendons_[i]->margin = (double)m->tendon_margin[i];
     tendons_[i]->stiffness = (double)m->tendon_stiffness[i];
@@ -3847,7 +3838,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     tendons_[i]->frictionloss = (double)m->tendon_frictionloss[i];
 
     if (nuser_tendon) {
-      copyvec(tendons_[i]->userdata_.data(), m->tendon_user + nuser_tendon*i, nuser_tendon);
+      mjuu_copyvec(tendons_[i]->userdata_.data(), m->tendon_user + nuser_tendon*i, nuser_tendon);
     }
   }
 
@@ -3856,18 +3847,18 @@ bool mjCModel::CopyBack(const mjModel* m) {
   for (int i=0; i<nu; i++) {
     pa = actuators_[i];
 
-    copyvec(pa->dynprm, m->actuator_dynprm+i*mjNDYN, mjNDYN);
-    copyvec(pa->gainprm, m->actuator_gainprm+i*mjNGAIN, mjNGAIN);
-    copyvec(pa->biasprm, m->actuator_biasprm+i*mjNBIAS, mjNBIAS);
-    copyvec(pa->ctrlrange, m->actuator_ctrlrange+2*i, 2);
-    copyvec(pa->forcerange, m->actuator_forcerange+2*i, 2);
-    copyvec(pa->actrange, m->actuator_actrange+2*i, 2);
-    copyvec(pa->lengthrange, m->actuator_lengthrange+2*i, 2);
-    copyvec(pa->gear, m->actuator_gear+6*i, 6);
+    mjuu_copyvec(pa->dynprm, m->actuator_dynprm+i*mjNDYN, mjNDYN);
+    mjuu_copyvec(pa->gainprm, m->actuator_gainprm+i*mjNGAIN, mjNGAIN);
+    mjuu_copyvec(pa->biasprm, m->actuator_biasprm+i*mjNBIAS, mjNBIAS);
+    mjuu_copyvec(pa->ctrlrange, m->actuator_ctrlrange+2*i, 2);
+    mjuu_copyvec(pa->forcerange, m->actuator_forcerange+2*i, 2);
+    mjuu_copyvec(pa->actrange, m->actuator_actrange+2*i, 2);
+    mjuu_copyvec(pa->lengthrange, m->actuator_lengthrange+2*i, 2);
+    mjuu_copyvec(pa->gear, m->actuator_gear+6*i, 6);
     pa->cranklength = (double)m->actuator_cranklength[i];
 
     if (nuser_actuator) {
-      copyvec(pa->userdata_.data(), m->actuator_user + nuser_actuator*i, nuser_actuator);
+      mjuu_copyvec(pa->userdata_.data(), m->actuator_user + nuser_actuator*i, nuser_actuator);
     }
   }
 
@@ -3877,7 +3868,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     sensors_[i]->noise = (double)m->sensor_noise[i];
 
     if (nuser_sensor) {
-      copyvec(sensors_[i]->userdata_.data(), m->sensor_user + nuser_sensor*i, nuser_sensor);
+      mjuu_copyvec(sensors_[i]->userdata_.data(), m->sensor_user + nuser_sensor*i, nuser_sensor);
     }
   }
 
@@ -3900,17 +3891,17 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjCKey* pk = keys_[i];
 
     pk->time = (double)m->key_time[i];
-    copyvec(pk->qpos_.data(), m->key_qpos + i*nq, nq);
-    copyvec(pk->qvel_.data(), m->key_qvel + i*nv, nv);
+    mjuu_copyvec(pk->qpos_.data(), m->key_qpos + i*nq, nq);
+    mjuu_copyvec(pk->qvel_.data(), m->key_qvel + i*nv, nv);
     if (na) {
-      copyvec(pk->act_.data(), m->key_act + i*na, na);
+      mjuu_copyvec(pk->act_.data(), m->key_act + i*na, na);
     }
     if (nmocap) {
-      copyvec(pk->mpos_.data(), m->key_mpos + i*3*nmocap, 3*nmocap);
-      copyvec(pk->mquat_.data(), m->key_mquat + i*4*nmocap, 4*nmocap);
+      mjuu_copyvec(pk->mpos_.data(), m->key_mpos + i*3*nmocap, 3*nmocap);
+      mjuu_copyvec(pk->mquat_.data(), m->key_mquat + i*4*nmocap, 4*nmocap);
     }
     if (nu) {
-      copyvec(pk->ctrl_.data(), m->key_ctrl + i*nu, nu);
+      mjuu_copyvec(pk->ctrl_.data(), m->key_ctrl + i*nu, nu);
     }
   }
 

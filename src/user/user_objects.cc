@@ -37,14 +37,7 @@
 #include <mujoco/mjtnum.h>
 #include "cc/array_safety.h"
 #include "engine/engine_resource.h"
-#include "engine/engine_io.h"
 #include "engine/engine_passive.h"
-#include "engine/engine_plugin.h"
-#include "engine/engine_util_blas.h"
-#include "engine/engine_util_errmem.h"
-#include "engine/engine_util_misc.h"
-#include "engine/engine_util_solve.h"
-#include "engine/engine_util_spatial.h"
 #include <mujoco/mjspec.h>
 #include "user/user_api.h"
 #include "user/user_cache.h"
@@ -104,14 +97,14 @@ const char* FullInertia(double quat[4], double inertia[3], const double fulliner
     return nullptr;
   }
 
-  mjtNum eigval[3], eigvec[9], quattmp[4];
-  mjtNum full[9] = {
+  double eigval[3], eigvec[9], quattmp[4];
+  double full[9] = {
     fullinertia[0], fullinertia[3], fullinertia[4],
     fullinertia[3], fullinertia[1], fullinertia[5],
     fullinertia[4], fullinertia[5], fullinertia[2]
   };
 
-  mju_eig3(eigval, eigvec, quattmp, full);
+  mjuu_eig3(eigval, eigvec, quattmp, full);
 
   // check mimimal eigenvalue
   if (eigval[2]<mjEPS) {
@@ -270,10 +263,10 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
 // used for geom, site, body and camera frames
 const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
                                const mjsOrientation& orient) {
-  mjtNum axisangle[4];
-  mjtNum xyaxes[6];
-  mjtNum zaxis[3];
-  mjtNum euler[3];
+  double axisangle[4];
+  double xyaxes[6];
+  double zaxis[3];
+  double euler[3];
 
   mjuu_copyvec(axisangle, orient.axisangle, 4);
   mjuu_copyvec(xyaxes, orient.xyaxes, 6);
@@ -391,7 +384,7 @@ mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
 
 
 // assign position and orientation
-void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_element[4]) {
+void mjCBoundingVolumeHierarchy::Set(double ipos_element[3], double iquat_element[4]) {
   mjuu_copyvec(ipos_, ipos_element, 3);
   mjuu_copyvec(iquat_, iquat_element, 4);
 }
@@ -425,15 +418,15 @@ void mjCBoundingVolumeHierarchy::CreateBVH() {
   // visual-only elements.
   std::vector<BVElement> elements;
   elements.reserve(bvleaf_.size());
-  mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+  double qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
   for (int i = 0; i < bvleaf_.size(); i++) {
     if (bvleaf_[i].conaffinity || bvleaf_[i].contype) {
       BVElement element;
       element.e = &bvleaf_[i];
-      mjtNum vert[3] = {element.e->pos[0] - ipos_[0],
+      double vert[3] = {element.e->pos[0] - ipos_[0],
                         element.e->pos[1] - ipos_[1],
                         element.e->pos[2] - ipos_[2]};
-      mju_rotVecQuat(element.lpos, vert, qinv);
+      mjuu_rotVecQuat(element.lpos, vert, qinv);
       elements.push_back(std::move(element));
     }
   }
@@ -448,15 +441,15 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   if (nelements == 0) {
     return -1;
   }
-  mjtNum AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+  double AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
   // inverse transformation
-  mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+  double qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
 
   // accumulate AAMM over elements
   for (auto element = elements_begin; element != elements_end; ++element) {
     // transform element aabb to aamm format
-    mjtNum aamm[6] = {element->e->aabb[0] - element->e->aabb[3],
+    double aamm[6] = {element->e->aabb[0] - element->e->aabb[3],
                       element->e->aabb[1] - element->e->aabb[4],
                       element->e->aabb[2] - element->e->aabb[5],
                       element->e->aabb[0] + element->e->aabb[3],
@@ -465,32 +458,32 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
     // update node AAMM
     for (int v=0; v<8; v++) {
-      mjtNum vert[3], box[3];
+      double vert[3], box[3];
       vert[0] = (v&1 ? aamm[3] : aamm[0]);
       vert[1] = (v&2 ? aamm[4] : aamm[1]);
       vert[2] = (v&4 ? aamm[5] : aamm[2]);
 
       // rotate to the body inertial frame if specified
       if (element->e->quat) {
-        mju_rotVecQuat(box, vert, element->e->quat);
+        mjuu_rotVecQuat(box, vert, element->e->quat);
         box[0] += element->e->pos[0] - ipos_[0];
         box[1] += element->e->pos[1] - ipos_[1];
         box[2] += element->e->pos[2] - ipos_[2];
-        mju_rotVecQuat(vert, box, qinv);
+        mjuu_rotVecQuat(vert, box, qinv);
       }
 
-      AAMM[0] = mjMIN(AAMM[0], vert[0]);
-      AAMM[1] = mjMIN(AAMM[1], vert[1]);
-      AAMM[2] = mjMIN(AAMM[2], vert[2]);
-      AAMM[3] = mjMAX(AAMM[3], vert[0]);
-      AAMM[4] = mjMAX(AAMM[4], vert[1]);
-      AAMM[5] = mjMAX(AAMM[5], vert[2]);
+      AAMM[0] = std::min(AAMM[0], vert[0]);
+      AAMM[1] = std::min(AAMM[1], vert[1]);
+      AAMM[2] = std::min(AAMM[2], vert[2]);
+      AAMM[3] = std::max(AAMM[3], vert[0]);
+      AAMM[4] = std::max(AAMM[4], vert[1]);
+      AAMM[5] = std::max(AAMM[5], vert[2]);
     }
   }
 
   // inflate flat AABBs
   for (int i=0; i<3; i++) {
-    if (mju_abs(AAMM[i]-AAMM[i+3])<mjEPS) {
+    if (std::abs(AAMM[i]-AAMM[i+3])<mjEPS) {
       AAMM[i+0] -= mjEPS;
       AAMM[i+3] += mjEPS;
     }
@@ -522,7 +515,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
   // find longest axis, by a margin of at least mjEPS, default to 0
   int axis = 0;
-  mjtNum edges[3] = { AAMM[3]-AAMM[0], AAMM[4]-AAMM[1], AAMM[5]-AAMM[2] };
+  double edges[3] = { AAMM[3]-AAMM[0], AAMM[4]-AAMM[1], AAMM[5]-AAMM[2] };
   if (edges[1] >= edges[0] + mjEPS) axis = 1;
   if (edges[2] >= edges[axis] + mjEPS) axis = 2;
 
@@ -1340,7 +1333,7 @@ void mjCBody::GeomFrame(void) {
     }
 
     // check for small mass
-    if (mass<mjMINVAL) {
+    if (mass<mjEPS) {
       throw mjCError(this, "body mass is too small, cannot compute center of mass");
     }
 
@@ -1476,10 +1469,10 @@ void mjCBody::Compile(void) {
   // check and correct mass and inertia
   if (id>0) {
     // fix minimum
-    mass = mju_max(mass, model->boundmass);
-    inertia[0] = mju_max(inertia[0], model->boundinertia);
-    inertia[1] = mju_max(inertia[1], model->boundinertia);
-    inertia[2] = mju_max(inertia[2], model->boundinertia);
+    mass = std::max(mass, model->boundmass);
+    inertia[0] = std::max(inertia[0], model->boundinertia);
+    inertia[1] = std::max(inertia[1], model->boundinertia);
+    inertia[2] = std::max(inertia[2], model->boundinertia);
 
     // check for negative values
     if (mass<0 || inertia[0]<0 || inertia[1]<0 ||inertia[2]<0) {
@@ -1509,7 +1502,7 @@ void mjCBody::Compile(void) {
   for (int i=0; i<geoms.size(); i++) {
     contype |= geoms[i]->contype;
     conaffinity |= geoms[i]->conaffinity;
-    margin = mju_max(margin, geoms[i]->margin);
+    margin = std::max(margin, geoms[i]->margin);
   }
 
   // compute bounding volume hierarchy
@@ -1546,9 +1539,9 @@ void mjCBody::Compile(void) {
   // compute body global pose (no joint transformations in qpos0)
   if (id>0) {
     mjCBody* par = model->Bodies()[parentid];
-    mju_rotVecQuat(xpos0, pos, par->xquat0);
-    mju_addTo3(xpos0, par->xpos0);
-    mju_mulQuat(xquat0, par->xquat0, quat);
+    mjuu_rotVecQuat(xpos0, pos, par->xquat0);
+    mjuu_addtovec(xpos0, par->xpos0, 3);
+    mjuu_mulquat(xquat0, par->xquat0, quat);
   }
 
   // compile all sites
@@ -1680,8 +1673,8 @@ void mjCFrame::PointToLocal() {
 
 void mjCFrame::CopyFromSpec() {
   *static_cast<mjsFrame*>(this) = spec;
-  mju_copy3(pos, spec.pos);
-  mju_copy4(quat, spec.quat);
+  mjuu_copyvec(pos, spec.pos, 3);
+  mjuu_copyvec(quat, spec.quat, 4);
 }
 
 
@@ -2147,7 +2140,7 @@ double mjCGeom::GetRBound(void) {
   case mjGEOM_HFIELD:
     hsize = hfield->size;
     return sqrt(hsize[0]*hsize[0] + hsize[1]*hsize[1] +
-                mjMAX(hsize[2]*hsize[2], hsize[3]*hsize[3]));
+                std::max(hsize[2]*hsize[2], hsize[3]*hsize[3]));
 
   case mjGEOM_SPHERE:
     return size[0];
@@ -2159,7 +2152,7 @@ double mjCGeom::GetRBound(void) {
     return sqrt(size[0]*size[0]+size[1]*size[1]);
 
   case mjGEOM_ELLIPSOID:
-    return mju_max(mju_max(size[0], size[1]), size[2]);
+    return std::max(std::max(size[0], size[1]), size[2]);
 
   case mjGEOM_BOX:
     return sqrt(size[0]*size[0]+size[1]*size[1]+size[2]*size[2]);
@@ -2167,9 +2160,9 @@ double mjCGeom::GetRBound(void) {
   case mjGEOM_MESH:
   case mjGEOM_SDF:
     aamm = mesh->aamm();
-    haabb[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
-    haabb[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
-    haabb[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
+    haabb[0] = std::max(std::abs(aamm[0]), std::abs(aamm[3]));
+    haabb[1] = std::max(std::abs(aamm[1]), std::abs(aamm[4]));
+    haabb[2] = std::max(std::abs(aamm[2]), std::abs(aamm[5]));
     return sqrt(haabb[0]*haabb[0] + haabb[1]*haabb[1] + haabb[2]*haabb[2]);
 
   default:
@@ -2270,18 +2263,21 @@ void mjCGeom::SetFluidCoefs(void) {
   // coefficients of virtual moment of inertia. Note: if (kz-ky) in numerator
   // is negative, also the denom is negative. Abs both and clip to MINVAL
   const auto pow2 = [](const double val) { return val * val; };
-  const double Ixfac = pow2(dy*dy - dz*dz) * std::fabs(kz - ky) / std::max(
-    mjMINVAL, std::fabs(2*(dy*dy - dz*dz) + (dy*dy + dz*dz)*(ky - kz)));
-  const double Iyfac = pow2(dz*dz - dx*dx) * std::fabs(kx - kz) / std::max(
-    mjMINVAL, std::fabs(2*(dz*dz - dx*dx) + (dz*dz + dx*dx)*(kz - kx)));
-  const double Izfac = pow2(dx*dx - dy*dy) * std::fabs(ky - kx) / std::max(
-    mjMINVAL, std::fabs(2*(dx*dx - dy*dy) + (dx*dx + dy*dy)*(kx - ky)));
+  const double Ixfac = pow2(dy*dy - dz*dz) * std::abs(kz - ky) / std::max(
+    mjEPS, std::abs(2*(dy*dy - dz*dz) + (dy*dy + dz*dz)*(ky - kz)));
+  const double Iyfac = pow2(dz*dz - dx*dx) * std::abs(kx - kz) / std::max(
+    mjEPS, std::abs(2*(dz*dz - dx*dx) + (dz*dz + dx*dx)*(kz - kx)));
+  const double Izfac = pow2(dx*dx - dy*dy) * std::abs(ky - kx) / std::max(
+    mjEPS, std::abs(2*(dx*dx - dy*dy) + (dx*dx + dy*dy)*(kx - ky)));
 
-  const mjtNum virtual_mass[3] = {
-      volume * kx / std::max(mjMINVAL, 2-kx),
-      volume * ky / std::max(mjMINVAL, 2-ky),
-      volume * kz / std::max(mjMINVAL, 2-kz)};
-  const mjtNum virtual_inertia[3] = {volume*Ixfac/5, volume*Iyfac/5, volume*Izfac/5};
+  mjtNum virtual_mass[3];
+  virtual_mass[0] = volume * kx / std::max(mjEPS, 2-kx);
+  virtual_mass[1] = volume * ky / std::max(mjEPS, 2-ky);
+  virtual_mass[2] = volume * kz / std::max(mjEPS, 2-kz);
+  mjtNum virtual_inertia[3];
+  virtual_inertia[0] = volume*Ixfac/5;
+  virtual_inertia[1] = volume*Iyfac/5;
+  virtual_inertia[2] = volume*Izfac/5;
 
   writeFluidGeomInteraction(fluid, &fluid_ellipsoid, &fluid_coefs[0],
                             &fluid_coefs[1], &fluid_coefs[2],
@@ -2477,9 +2473,9 @@ void mjCGeom::Compile(void) {
     size[2] = 0.25 * hfield->size[2] + 0.5 * hfield->size[3];
   } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     const double* aamm = mesh->aamm();
-    size[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
-    size[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
-    size[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
+    size[0] = std::max(std::abs(aamm[0]), std::abs(aamm[3]));
+    size[1] = std::max(std::abs(aamm[1]), std::abs(aamm[4]));
+    size[2] = std::max(std::abs(aamm[2]), std::abs(aamm[5]));
   }
 
   for (double s : size) {
@@ -2497,7 +2493,7 @@ void mjCGeom::Compile(void) {
       if (mass==0) {
         mass_ = 0;
         density = 0;
-      } else if (GetVolume()>mjMINVAL) {
+      } else if (GetVolume()>mjEPS) {
         mass_ = mass;
         density = mass / GetVolume();
         SetInertia();
@@ -2847,7 +2843,7 @@ void mjCCamera::Compile(void) {
     intrinsic[3] = principal_pixel[1] / pixel_density[1] + principal_length[1];
 
     // fovy with principal point at (0, 0)
-    fovy = mju_atan2((float)sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;
+    fovy = std::atan2(sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;
   } else {
     intrinsic[0] = model->visual.map.znear;
     intrinsic[1] = model->visual.map.znear;
@@ -2942,7 +2938,7 @@ void mjCLight::Compile(void) {
   }
 
   // normalize direction, make sure it is not zero
-  if (mjuu_normvec(dir, 3)<mjMINVAL) {
+  if (mjuu_normvec(dir, 3)<mjEPS) {
     throw mjCError(this, "zero direction in light");
   }
 
@@ -3168,15 +3164,15 @@ void mjCHField::Compile(const mjVFS* vfs) {
   // set elevation data to [0-1] range
   float emin = 1E+10, emax = -1E+10;
   for (int i = 0; i<nrow*ncol; i++) {
-    emin = mjMIN(emin, data[i]);
-    emax = mjMAX(emax, data[i]);
+    emin = std::min(emin, data[i]);
+    emax = std::max(emax, data[i]);
   }
   if (emin>emax) {
     throw mjCError(this, "invalid data range in hfield '%s'", file_.c_str());
   }
   for (int i=0; i<nrow*ncol; i++) {
     data[i] -= emin;
-    if (emax-emin>mjMINVAL) {
+    if (emax-emin>mjEPS) {
       data[i] /= (emax - emin);
     }
   }
@@ -4122,12 +4118,12 @@ void mjCPair::Compile(void) {
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) {
-    margin = mjMAX(geom1->margin, geom2->margin);
+    margin = std::max(geom1->margin, geom2->margin);
   }
 
   // set undefined gap: max
   if (!mjuu_defined(gap)) {
-    gap = mjMAX(geom1->gap, geom2->gap);
+    gap = std::max(geom1->gap, geom2->gap);
   }
 
   // set undefined condim, friction, solref, solimp: different priority
@@ -4165,23 +4161,23 @@ void mjCPair::Compile(void) {
   else {
     // condim: max
     if (condim<0) {
-      condim = mjMAX(geom1->condim, geom2->condim);
+      condim = std::max(geom1->condim, geom2->condim);
     }
 
     // friction: max
     if (!mjuu_defined(friction[0])) {
-      friction[0] = friction[1] = mju_max(geom1->friction[0], geom2->friction[0]);
-      friction[2] =               mju_max(geom1->friction[1], geom2->friction[1]);
-      friction[3] = friction[4] = mju_max(geom1->friction[2], geom2->friction[2]);
+      friction[0] = friction[1] = std::max(geom1->friction[0], geom2->friction[0]);
+      friction[2] =               std::max(geom1->friction[1], geom2->friction[1]);
+      friction[3] = friction[4] = std::max(geom1->friction[2], geom2->friction[2]);
     }
 
     // solver mix factor
     double mix;
-    if (geom1->solmix>=mjMINVAL && geom2->solmix>=mjMINVAL) {
+    if (geom1->solmix>=mjEPS && geom2->solmix>=mjEPS) {
       mix = geom1->solmix / (geom1->solmix + geom2->solmix);
-    } else if (geom1->solmix<mjMINVAL && geom2->solmix<mjMINVAL) {
+    } else if (geom1->solmix<mjEPS && geom2->solmix<mjEPS) {
       mix = 0.5;
-    } else if (geom1->solmix<mjMINVAL) {
+    } else if (geom1->solmix<mjEPS) {
       mix = 0.0;
     } else {
       mix = 1.0;
@@ -4199,7 +4195,7 @@ void mjCPair::Compile(void) {
       // direct: min
       else {
         for (int i=0; i<mjNREF; i++) {
-          solref[i] = mju_min(geom1->solref[i], geom2->solref[i]);
+          solref[i] = std::min(geom1->solref[i], geom2->solref[i]);
         }
       }
     }

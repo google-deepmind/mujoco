@@ -98,9 +98,9 @@ class mjCBoundingVolume {
 
   int contype;                  // contact type
   int conaffinity;              // contact affinity
-  const mjtNum* aabb;           // axis-aligned bounding box (center, size)
-  const mjtNum* pos;            // position (set by user or Compile1)
-  const mjtNum* quat;           // orientation (set by user or Compile1)
+  const double* aabb;           // axis-aligned bounding box (center, size)
+  const double* pos;            // position (set by user or Compile1)
+  const double* quat;           // orientation (set by user or Compile1)
 
   const int* GetId() const { if (id_) return id_; else return &idval_; }
   void SetId(const int* id) { id_ = id; }
@@ -134,7 +134,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
   // make bounding volume hierarchy
   void CreateBVH(void);
-  void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
+  void Set(double ipos_element[3], double iquat_element[4]);
   void AllocateBoundingVolumes(int nleaf);
   void RemoveInactiveVolumes(int nmax);
   mjCBoundingVolume* GetBoundingVolume(int id);
@@ -144,7 +144,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   struct BVElement {
     const mjCBoundingVolume* e;
     // position of the element in the BVH axes
-    mjtNum lpos[3];
+    double lpos[3];
   };
 
   struct BVElementCompare {
@@ -231,8 +231,8 @@ class mjCBody_ : public mjCBase {
   int contype;                    // OR over geom contypes
   int conaffinity;                // OR over geom conaffinities
   double margin;                  // MAX over geom margins
-  mjtNum xpos0[3];                // global position in qpos0
-  mjtNum xquat0[4];               // global orientation in qpos0
+  double xpos0[3];                // global position in qpos0
+  double xquat0[4];               // global orientation in qpos0
 
   // used internally by compiler
   int lastdof;                    // id of last dof
@@ -664,20 +664,20 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> shell;                 // shell fragment vertex ids (dim per fragment)
   std::vector<int> elemlayer;             // element layer (distance from border)
   std::vector<int> evpair;                // element-vertex pairs
-  std::vector<mjtNum> vertxpos;           // global vertex positions
+  std::vector<double> vertxpos;           // global vertex positions
   mjCBoundingVolumeHierarchy tree;        // bounding volume hierarchy
-  std::vector<mjtNum> elemaabb_;          // element bounding volume
+  std::vector<double> elemaabb_;          // element bounding volume
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
-  std::vector<mjtNum> vert_;              // vertex positions
+  std::vector<double> vert_;              // vertex positions
   std::vector<int> elem_;                 // element vertex ids
   std::vector<float> texcoord_;           // vertex texture coordinates
   std::string material_;                  // name of material used for rendering
 
   std::string spec_material_;
   std::vector<std::string> spec_vertbody_;
-  std::vector<mjtNum> spec_vert_;
+  std::vector<double> spec_vert_;
   std::vector<int> spec_elem_;
   std::vector<float> spec_texcoord_;
 };
