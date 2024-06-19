@@ -86,8 +86,6 @@ const char* ResolveOrientation(double* quat,             // set frame quat
                                const char* sequence,     // euler sequence format: "xyz"
                                const mjsOrientation& orient);
 
-// compute frame quat and diagonal inertia from full inertia matrix, return error if any
-const char* FullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
 //------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
 

@@ -696,13 +696,6 @@ void mjs_setActivePlugins(mjSpec* s, void* activeplugins) {
 
 
 
-// compute full inertia
-const char* mjs_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
-  return FullInertia(quat, inertia, fullinertia);
-}
-
-
-
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 
 void mj_setCacheSize(mjCache cache, std::size_t size) {

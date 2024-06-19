@@ -751,6 +751,39 @@ string mjuu_strippath(string filename) {
 }
 
 
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* mjuu_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
+  if (!mjuu_defined(fullinertia[0])) {
+    return nullptr;
+  }
+
+  double eigval[3], eigvec[9], quattmp[4];
+  double full[9] = {
+    fullinertia[0], fullinertia[3], fullinertia[4],
+    fullinertia[3], fullinertia[1], fullinertia[5],
+    fullinertia[4], fullinertia[5], fullinertia[2]
+  };
+
+  mjuu_eig3(eigval, eigvec, quattmp, full);
+
+  // check mimimal eigenvalue
+  if (eigval[2]<mjEPS) {
+    return "inertia must have positive eigenvalues";
+  }
+
+  // copy
+  if (quat) {
+    mjuu_copyvec(quat, quattmp, 4);
+  }
+
+  if (inertia) {
+    mjuu_copyvec(inertia, eigval, 3);
+  }
+
+  return nullptr;
+}
+
+
 // strip extension
 string mjuu_stripext(string filename) {
   // find last dot

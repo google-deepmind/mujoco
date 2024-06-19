@@ -1612,9 +1612,6 @@ MJAPI void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
 
-// Compute quat and diag inertia from full inertia matrix, return error if any.
-MJAPI const char* mjs_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
-
 
 //---------------------------------- Element initialization  ---------------------------------------
 

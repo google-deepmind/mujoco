@@ -2921,7 +2921,7 @@ void mjCModel::FuseStatic(void) {
 
         // compute principal axes of inertia
         mjuu_copyvec(par->fullinertia, toti, 6);
-        const char* err1 = FullInertia(par->iquat, par->inertia, par->fullinertia);
+        const char* err1 = mjuu_fullInertia(par->iquat, par->inertia, par->fullinertia);
         if (err1) {
           throw mjCError(NULL, "error '%s' in fusing static body inertias", err1);
         }

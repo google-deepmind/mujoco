@@ -10216,37 +10216,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Resolve alternative orientations to quat, return error if any.',
      )),
-    ('mjs_fullInertia',
-     FunctionDecl(
-         name='mjs_fullInertia',
-         return_type=PointerType(
-             inner_type=ValueType(name='char', is_const=True),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='quat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='double'),
-                     extents=(4,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='inertia',
-                 type=ArrayType(
-                     inner_type=ValueType(name='double'),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='fullinertia',
-                 type=ArrayType(
-                     inner_type=ValueType(name='double', is_const=True),
-                     extents=(6,),
-                 ),
-             ),
-         ),
-         doc='Compute quat and diag inertia from full inertia matrix, return error if any.',  # pylint: disable=line-too-long
-     )),
     ('mjs_defaultSpec',
      FunctionDecl(
          name='mjs_defaultSpec',

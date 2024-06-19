@@ -4341,15 +4341,6 @@ mjs_resolveOrientation
 
 Resolve alternative orientations to quat, return error if any.
 
-.. _mjs_fullInertia:
-
-mjs_fullInertia
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_fullInertia
-
-Compute quat and diag inertia from full inertia matrix, return error if any.
-
 .. _ElementInitialization:
 
 Element initialization

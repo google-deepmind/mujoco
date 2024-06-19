@@ -152,6 +152,9 @@ int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double m
 // transform vector by pose
 void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4], const double vec[3]);
 
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* mjuu_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
+
 // strip path from filename
 std::string mjuu_strippath(std::string filename);
 
