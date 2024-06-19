@@ -41,7 +41,7 @@ release can be found in the [changelog] in the latest branch.
 There are two easy ways to get started with MuJoCo:
 
 1. **Run `simulate` on your machine.**
-[This video](https://www.youtube.com/watch?v=0ORsj_E17B0) shows a screen capture
+[This video](https://www.youtube.com/watch?v=P83tKA1iz2Y) shows a screen capture
 of `simulate`, MuJoCo's native interactive viewer. Follow the steps described in
 the [Getting Started] section of the documentation to get `simulate` running on
 your machine.

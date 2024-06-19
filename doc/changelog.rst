@@ -32,6 +32,18 @@ MJX
 8. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
 9. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
+
+.. youtube:: P83tKA1iz2Y
+   :align: right
+   :width: 360px
+
+Simulate
+^^^^^^^^
+10. Added improved tutorial video.
+11. Improved the Brownian noise generator.
+
+|br| |br| |br| |br|
+
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
 
