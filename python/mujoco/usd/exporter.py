@@ -21,11 +21,13 @@ from mujoco import _structs, _enums, _functions
 # import mujoco.usd.objects as object_module
 # import mujoco.usd.lights as light_module
 # import mujoco.usd.camera as camera_module
+# import mujoco.usd.utils as utils_module
 
 import shapes as shapes_module
 import objects as object_module
 import lights as light_module
 import camera as camera_module
+import utils as utils_module
 
 import numpy as np
 import scipy
@@ -225,39 +227,45 @@ class USDExporter:
     self.updates += 1
 
   def _load_textures(self) -> None:
-    data_adr = 0
-    self.texture_files = []
-    for texture_id in tqdm.tqdm(range(self.model.ntex)):
-      texture_height = self.model.tex_height[texture_id]
-      texture_width = self.model.tex_width[texture_id]
+    data_adrs = [0]
+    for texid in range(self.model.ntex):
+      texture_height = self.model.tex_height[texid]
+      texture_width = self.model.tex_width[texid]
       pixels = 3 * texture_height * texture_width
-      img = im.fromarray(
-          self.model.tex_rgb[data_adr : data_adr + pixels].reshape(
-              texture_height, texture_width, 3
-          )
-      )
-      img = ImageOps.flip(img)
-      texture_file_name = f"texture_{texture_id}.png"
-      img.save(os.path.join(self.assets_directory, texture_file_name))
+      data_adrs.append(data_adrs[texid] + pixels)
 
-      relative_path = os.path.relpath(
+    data_adr = 0
+    self.texture_files = {}
+    for matid in tqdm.tqdm(self.model.geom_matid):
+      texid = self.model.mat_texid[matid] if matid > -1 else -1
+      if texid > -1:
+        rgba = self.model.mat_rgba[matid]
+
+        texture_height = self.model.tex_height[texid]
+        texture_width = self.model.tex_width[texid]
+        pixels = 3 * texture_height * texture_width
+
+        image_name = utils_module.get_texture_name(texid, rgba)
+        rgba_pixels = self.model.tex_rgb[data_adrs[texid] : data_adrs[texid + 1]].reshape(
+          texture_height, texture_width, 3
+        )
+        rgba_pixels = rgba_pixels * rgba[:3]
+        rgba_pixels = rgba_pixels.astype(np.uint8)
+        img = im.fromarray(
+          rgba_pixels
+        )
+        img = ImageOps.flip(img)
+        img.save(os.path.join(self.assets_directory, image_name))
+
+        relative_path = os.path.relpath(
           self.assets_directory, self.frames_directory
-      )
-      img_path = os.path.join(
-          relative_path, texture_file_name
-      )
+        )
+        img_path = os.path.join(
+          relative_path, image_name
+        )
 
-      self.texture_files.append(img_path)
-      data_adr += pixels
-
-    if self.verbose:
-      print(
-          termcolor.colored(
-              f"Completed writing {self.model.ntex} textures to"
-              f" {self.assets_directory}",
-              "green",
-          )
-      )
+        self.texture_files[image_name] = img_path
+        data_adr += pixels
 
   def _load_geom(
       self, 
@@ -267,7 +275,7 @@ class USDExporter:
     geom_name = self._get_geom_name(geom)
     assert geom_name not in self.geom_names
 
-    texture_file = self.texture_files[geom.texid] if geom.texid != -1 else None
+    texture_file = self.texture_files[utils_module.get_texture_name(geom.texid, geom.rgba)] if geom.texid != -1 else None
 
     # handling meshes in our scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:

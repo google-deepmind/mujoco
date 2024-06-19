@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 
-import utils as utils_component
+import utils as utils_module
 
 import numpy as np
 
@@ -32,7 +32,7 @@ class USDCamera:
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
 
-    transformation_mat = utils_component.create_transform_matrix(
+    transformation_mat = utils_module.create_transform_matrix(
         rotation_matrix=cam_mat, translation_vector=cam_pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)

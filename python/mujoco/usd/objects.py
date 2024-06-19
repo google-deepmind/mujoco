@@ -19,11 +19,11 @@ import pprint
 
 import mujoco
 
-# import mujoco.usd.utils as utils_component
-# import mujoco.usd.shapes as shapes_component
+# import mujoco.usd.utils as utils_module
+# import mujoco.usd.shapes as shapes_module
 
-import utils as utils_component
-import shapes as shapes_component
+import utils as utils_module
+import shapes as shapes_module
 
 import numpy as np
 
@@ -181,7 +181,7 @@ class USDObject(ABC):
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int, scale: Optional[np.ndarray] = None):
     """Updates the position and orientation of an object in the scene for a given frame"""
-    transformation_mat = utils_component.create_transform_matrix(
+    transformation_mat = utils_module.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -353,7 +353,7 @@ class USDPrimitiveMesh(USDObject):
       self.attach_solid_material(self.usd_mesh)
 
   def generate_primitive_mesh(self):
-    _, prim_mesh = shapes_component.mesh_generator(self.mesh_config)
+    _, prim_mesh = shapes_module.mesh_generator(self.mesh_config)
     prim_mesh.translate(-prim_mesh.get_center())
     return prim_mesh
 
@@ -445,7 +445,7 @@ class USDTendon(USDObject):
   def generate_primitive_mesh(self):
     mesh_parts = {}
     for part_config in self.mesh_config:
-      mesh_name, prim_mesh = shapes_component.mesh_generator(part_config)
+      mesh_name, prim_mesh = shapes_module.mesh_generator(part_config)
       prim_mesh.translate(-prim_mesh.get_center())
       mesh_parts[mesh_name] = prim_mesh
     return mesh_parts
@@ -495,5 +495,3 @@ class USDTendon(USDObject):
         hemisphere_scale = scale.tolist()
         hemisphere_scale[2] = hemisphere_scale[0]
         self.usd_refs[name]["scale_op"].Set(Gf.Vec3f(hemisphere_scale), frame)
-    
-    
