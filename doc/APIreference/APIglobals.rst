@@ -534,6 +534,14 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
 Macros
 ^^^^^^
 
+
+.. _mjUSESINGLE:
+
+mjUSESINGLE
+~~~~~~~~~~~
+
+Compile-time flag, see :ref:`mjtNum`.
+
 .. _mjDISABLED:
 
 mjDISABLED

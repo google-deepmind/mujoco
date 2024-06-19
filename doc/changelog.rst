@@ -25,12 +25,18 @@ General
 5. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
 6. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
    :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
+7. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
+   `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
+   with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
+   point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
+
+   Relatedly, fixed various type errors that prevented building with single-precision.
 
 MJX
 ~~~
-7. Added support for :ref:`elliptic friction cones<option-cone>`.
-8. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-9. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+8. Added support for :ref:`elliptic friction cones<option-cone>`.
+9. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+10. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 
 .. youtube:: P83tKA1iz2Y
@@ -39,8 +45,8 @@ MJX
 
 Simulate
 ^^^^^^^^
-10. Added improved tutorial video.
-11. Improved the Brownian noise generator.
+11. Added improved tutorial video.
+12. Improved the Brownian noise generator.
 
 |br| |br| |br| |br|
 

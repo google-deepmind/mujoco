@@ -893,7 +893,7 @@ MJAPI int mjs_isWarning(mjSpec* s);
 
 //---------------------------------- Standard math -------------------------------------------------
 
-#ifdef mjUSEDOUBLE
+#if !defined(mjUSESINGLE)
   #define mju_sqrt    sqrt
   #define mju_exp     exp
   #define mju_sin     sin

@@ -35,9 +35,9 @@
 #endif
 
 #ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && defined(mjUSEDOUBLE)
+  #if defined(__AVX__) && !defined(mjUSESINGLE)
     #define mjUSEAVX
-  #endif  // defined(__AVX__) && defined(mjUSEDOUBLE)
+  #endif  // defined(__AVX__) && !defined(mjUSESINGLE)
 #endif  // mjUSEPLATFORMSIMD
 
 

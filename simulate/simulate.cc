@@ -1165,7 +1165,9 @@ void CopyPose(mj::Simulate* sim, const mjModel* m, const mjData* d) {
 
 // millisecond timer, for MuJoCo built-in profiler
 mjtNum Timer() {
-  return Milliseconds(mj::Simulate::Clock::now().time_since_epoch()).count();
+  static auto start = mj::Simulate::Clock::now();
+  auto elapsed = Milliseconds(mj::Simulate::Clock::now() - start);
+  return elapsed.count();
 }
 
 // clear all times
