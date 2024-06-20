@@ -177,6 +177,17 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
   return ctrl;
 }
 
+template <typename T>
+auto Compare(T val1, T val2);
+
+auto Compare(char val1, char val2) {
+  return val1 != val2;
+}
+
+auto Compare(unsigned char val1, unsigned char val2) {
+  return val1 != val2;
+}
+
 // The maximum spacing between a normalised floating point number x and an
 // adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
 // for losses during non-idempotent operations such as vector normalizations.
@@ -185,13 +196,13 @@ auto Compare(T val1, T val2) {
   using ReturnType =
       std::conditional_t<std::is_same_v<T, float>, float, double>;
   ReturnType error;
-  if (mju_abs(val1) <= 1 || mju_abs(val2) <= 1) {
+  if (std::abs(val1) <= 1 || std::abs(val2) <= 1) {
       // Absolute precision for small numbers
-      error = mju_abs(val1-val2);
+      error = std::abs(val1-val2);
   } else {
     // Relative precision for larger numbers
-    ReturnType magnitude = mju_abs(val1) + mju_abs(val2);
-    error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
+    ReturnType magnitude = std::abs(val1) + std::abs(val2);
+    error = std::abs(val1/magnitude - val2/magnitude) / magnitude;
   }
   ReturnType safety_factor = 200;
   return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()

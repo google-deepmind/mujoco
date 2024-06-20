@@ -873,8 +873,8 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
 
   // Apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
   // quat. It should match the originally specified values.
-  double recovered_pos[3];
-  double recovered_quat[4];
+  mjtNum recovered_pos[3];
+  mjtNum recovered_quat[4];
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[0], &model->geom_quat[0],
               inverse_mesh_pos, inverse_mesh_quat);
