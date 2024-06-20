@@ -70,6 +70,7 @@ TEST_F(VfsTest, HFieldPngWithVFS) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(VfsTest, HFieldCustomWithVFS) {
@@ -97,6 +98,7 @@ TEST_F(VfsTest, HFieldCustomWithVFS) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(VfsTest, TexturePngWithVFS) {
@@ -125,6 +127,7 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(VfsTest, TextureCustomWithVFS) {
@@ -153,6 +156,7 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 // ------------------------ test content_type attribute ------------------------
@@ -185,6 +189,7 @@ TEST_F(ContentTypeTest, HFieldPngWithContentType) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
@@ -213,6 +218,7 @@ TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
@@ -240,6 +246,7 @@ TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TexturePngWithContentType) {
@@ -268,6 +275,7 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TextureCustomWithContentType) {
@@ -297,6 +305,7 @@ TEST_F(ContentTypeTest, TextureCustomWithContentType) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
               HasSubstr("resource not found via provider or OS filesystem"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TextureWithContentTypeError) {
@@ -325,6 +334,7 @@ TEST_F(ContentTypeTest, TextureWithContentTypeError) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TextureLoadPng) {
@@ -370,7 +380,7 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
   EXPECT_THAT(model, NotNull());
 
   mj_deleteModel(model);
-  mj_deleteFileVFS(vfs.get(), filename);
+  mj_deleteVFS(vfs.get());
 }
 
 // ------------------------ test keyframes -------------------------------------
