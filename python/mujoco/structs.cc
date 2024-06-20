@@ -1907,9 +1907,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjData.def("__copy__", [](const MjDataWrapper& other) {
     return MjDataWrapper(other);
   });
-  mjData.def("__deepcopy__", [](const MjDataWrapper& other, py::dict) {
-    MjModelWrapper* model_copy = new MjModelWrapper(other.model());
-    return MjDataWrapper(other, model_copy);
+  mjData.def("__deepcopy__", [](const MjDataWrapper& other, py::dict memo) {
+    // Use copy.deepcopy(model) to make a model that Python is aware of.
+    py::object new_model_py =
+        py::cast(other.model()).attr("__deepcopy__")(memo);
+    return MjDataWrapper(other, new_model_py.cast<MjModelWrapper*>());
   });
   mjData.def(py::pickle(
       [](const MjDataWrapper& d) {  // __getstate__

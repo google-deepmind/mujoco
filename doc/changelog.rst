@@ -50,6 +50,10 @@ Simulate
 
 |br| |br| |br| |br|
 
+Python bindings
+^^^^^^^^^^^^^^^
+13. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
 
