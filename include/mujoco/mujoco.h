@@ -74,7 +74,7 @@ MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
 
 //---------------------------------- Virtual file system -------------------------------------------
 
-// Initialize VFS to empty (no deallocation).
+// Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
 MJAPI void mj_defaultVFS(mjVFS* vfs);
 
 // Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
@@ -83,17 +83,11 @@ MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename)
 // Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 
-// Return file index in VFS, or -1 if not found in VFS.
-MJAPI int mj_findFileVFS(const mjVFS* vfs, const char* filename);
-
 // Delete file from VFS, return 0: success, -1: not found in VFS.
 MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 
-// Delete all files from VFS.
+// Delete all files from VFS and deallocates VFS internal memory.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
-
-// deprecated: use mj_copyBufferVFS.
-MJAPI int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
 
 
 //---------------------------------- Parse and compile ---------------------------------------------

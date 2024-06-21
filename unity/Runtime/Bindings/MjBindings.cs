@@ -6377,16 +6377,10 @@ public static unsafe extern int mj_addFileVFS(void* vfs, [MarshalAs(UnmanagedTyp
 public static unsafe extern int mj_addBufferVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string name, void* buffer, int nbuffer);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_findFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_deleteFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteVFS(void* vfs);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_makeEmptyFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename, int filesize);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjModel_* mj_loadXML([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs, StringBuilder error, int error_sz);

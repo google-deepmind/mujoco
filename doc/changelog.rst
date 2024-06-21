@@ -7,7 +7,17 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
+.. admonition:: Breaking API changes
+   :class: attention
+
+   1. Removed deprecated ``mj_makeEmptyFileVFS`` and ``mj_findFileVFS`` functions.
+
+      **Migration:** Use ``mj_addBufferVFS`` to copy a buffer into a VFS file directly.
+
+   2. Calls to ``mj_defaultVFS`` may allocate memory inside VFS, and the corresponding
+      ``mj_deleteVFS`` must be called to deallocate any internal allocated memory.
+
+3. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
    Still missing:
 
    - Detailed documentation.
@@ -17,15 +27,15 @@ General
    :align: right
    :width: 240px
 
-2. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
+4. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
    :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
-3. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
-4. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
-5. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
-6. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+5. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+6. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
+7. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
+8. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
    :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
-7. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
+9. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
    point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
@@ -34,9 +44,9 @@ General
 
 MJX
 ~~~
-8. Added support for :ref:`elliptic friction cones<option-cone>`.
-9. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-10. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+10. Added support for :ref:`elliptic friction cones<option-cone>`.
+11. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+12. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 
 .. youtube:: P83tKA1iz2Y
@@ -45,14 +55,14 @@ MJX
 
 Simulate
 ^^^^^^^^
-11. Added improved tutorial video.
-12. Improved the Brownian noise generator.
+13. Added improved tutorial video.
+14. Improved the Brownian noise generator.
 
 |br| |br| |br| |br|
 
 Python bindings
 ^^^^^^^^^^^^^^^
-13. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+15. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------

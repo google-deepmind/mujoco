@@ -1203,7 +1203,7 @@ mj_defaultVFS
 
 .. mujoco-include:: mj_defaultVFS
 
-Initialize VFS to empty (no deallocation).
+Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
 
 .. _mj_addFileVFS:
 
@@ -1224,15 +1224,6 @@ mj_addBufferVFS
 
 Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 
-.. _mj_findFileVFS:
-
-mj_findFileVFS
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_findFileVFS
-
-Return file index in VFS, or -1 if not found in VFS.
-
 .. _mj_deleteFileVFS:
 
 mj_deleteFileVFS
@@ -1249,16 +1240,7 @@ mj_deleteVFS
 
 .. mujoco-include:: mj_deleteVFS
 
-Delete all files from VFS.
-
-.. _mj_makeEmptyFileVFS:
-
-mj_makeEmptyFileVFS
-~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_makeEmptyFileVFS
-
-deprecated: use mj_copyBufferVFS.
+Delete all files from VFS and deallocates VFS internal memory.
 
 .. _Initialization:
 

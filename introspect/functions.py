@@ -38,7 +38,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Initialize VFS to empty (no deallocation).',
+         doc='Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.',  # pylint: disable=line-too-long
      )),
     ('mj_addFileVFS',
      FunctionDecl(
@@ -96,26 +96,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
-    ('mj_findFileVFS',
-     FunctionDecl(
-         name='mj_findFileVFS',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='vfs',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjVFS', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='filename',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Return file index in VFS, or -1 if not found in VFS.',
-     )),
     ('mj_deleteFileVFS',
      FunctionDecl(
          name='mj_deleteFileVFS',
@@ -148,31 +128,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Delete all files from VFS.',
-     )),
-    ('mj_makeEmptyFileVFS',
-     FunctionDecl(
-         name='mj_makeEmptyFileVFS',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='vfs',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjVFS'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='filename',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='filesize',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='deprecated: use mj_copyBufferVFS.',
+         doc='Delete all files from VFS and deallocates VFS internal memory.',
      )),
     ('mj_loadXML',
      FunctionDecl(

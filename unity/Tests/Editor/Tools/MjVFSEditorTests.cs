@@ -42,12 +42,5 @@ namespace Mujoco {
       _vfs.AddFile(filename, contents);
       Assert.That(_vfs.FilesCount, Is.EqualTo(1));
     }
-
-    [Test]
-    public unsafe void LocatingFileUsingMujocoLib() {
-      var filename = "filename";
-      _vfs.AddFile(filename, "contents");
-      Assert.That(_vfs.FindFile(filename), Is.EqualTo(0));
-    }
   }
 }
