@@ -309,7 +309,7 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     p_o_2D[0] = p_o[1];
     p_o_2D[1] = p_o[2];
   } else if (index == 1) {
-    s1_2D[0] = s1[9];
+    s1_2D[0] = s1[0];
     s1_2D[1] = s1[2];
 
     s2_2D[0] = s2[0];
