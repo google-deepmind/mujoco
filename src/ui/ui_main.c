@@ -1164,6 +1164,7 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       // copy data
       mjSTRNCPY(se->name, def[n].name);
       se->state = def[n].state;
+      se->checkbox = def[n].otherint;
       parseshortcut(def[n].other, &(se->modifier), &(se->shortcut));
     }
 
@@ -1203,6 +1204,7 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       mjSTRNCPY(it->name, def[n].name);
       it->sectionid = ui->nsect - 1;
       it->itemid = se->nitem - 1;
+      it->userid = def[n].otherint;
 
       // data pointer check
       if (it->type > mjITEM_BUTTON && it->pdata == 0) {
@@ -1343,10 +1345,38 @@ void mjui_addToSection(mjUI* ui, int sect, const mjuiDef* def) {
 
 
 
-// Compute UI sizes.
-void mjui_resize(mjUI* ui, const mjrContext* con) {
+// set item skip flags within section, but not in pass 0
+static void setitemskip(mjuiSection* s, int pass) {
+  int skip = 0;
+
+  // process section items
+  for (int i = 0; i < s->nitem; ++i) {
+    mjuiItem* it = s->item + i;
+
+    // pass 0: nothing is skipped
+    if (pass == 0) {
+      it->skip = 0;
+      continue;
+    }
+
+    // item is a separator: update skip state for subsequent items
+    if (it->type == mjITEM_SEPARATOR) {
+      skip = (it->state == mjSEPCLOSED);
+    }
+
+    // item is not a separator: set skip state
+    else {
+      it->skip = skip;
+    }
+  }
+}
+
+
+
+// Compute UI sizes: internal fuction, may be called twice per resize
+static void tryresize(mjUI* ui, const mjrContext* con) {
   // scale theme sizes
-  int w_master =   SCL(ui->spacing.total,   con);
+  int w_master =   SCL(ui->spacing.total,    con);
   int w_scroll =   SCL(ui->spacing.scroll,   con);
   int g_section =  SCL(ui->spacing.section,  con);
   int g_itemside = SCL(ui->spacing.itemside, con);
@@ -1361,183 +1391,279 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
   // column width
   int colwidth = (w_master - w_scroll - 2*g_section - 2*g_itemside - g_itemmid)/2;
 
-  // init UI sizes
-  int height = 0;
-  int maxheight = 0;
+  // pass 0 includes skipped items, pass 1 does not
+  int Height, MaxHeight;
+  for (int pass = 0; pass < 2; ++pass) {
+    // init UI heights
+    int height = 0;
+    int maxheight = 0;
 
-  // process sections
-  int skip;
-  for (int n=0; n < ui->nsect; n++) {
-    // vertical padding before section
+    // process sections
+    for (int n = 0; n < ui->nsect; n++) {
+      // vertical padding before section
+      height += g_section;
+      maxheight += g_section;
+
+      // get section pointer
+      mjuiSection* s = ui->sect + n;
+
+      // set item skip flags for section, depending on pass
+      setitemskip(s, pass);
+
+      // title rectangle
+      s->rtitle.left = g_section;
+      s->rtitle.width = w_master - w_scroll - 2 * g_section;    
+      if (s->state == mjSECT_FIXED) {  // fixed section: no title
+        s->rtitle.bottom = height;
+        s->rtitle.height = 0;
+      }
+      else {                             // regular section with title
+        s->rtitle.bottom = height + textheight;
+        s->rtitle.height = textheight;
+      }
+
+      // count title height
+      height += s->rtitle.height;
+      maxheight += s->rtitle.height;
+
+      // init content rectangle
+      s->rcontent.left = s->rtitle.left;
+      s->rcontent.width = s->rtitle.width;
+      s->rcontent.height = 0;
+      s->rcontent.bottom = 0;
+
+      // process items within section
+      for (int i = 0; i < s->nitem; i++) {
+        // get item pointer, clear rectangle
+        mjuiItem* it = s->item + i;
+        memset(&it->rect, 0, sizeof(mjrRect));
+
+        // item is skipped: nothing to do
+        if (it->skip) {
+          continue;
+        }
+
+        // vertical padding before item
+        s->rcontent.height += it->type == mjITEM_SEPARATOR ? g_section : g_itemver;
+
+        // packed pair of items
+        if (i < s->nitem - 1 && s->item[i + 1].type == it->type &&
+          (it->type == mjITEM_BUTTON ||
+            it->type == mjITEM_CHECKINT ||
+            it->type == mjITEM_CHECKBYTE)) {
+          // get next item pointer
+          mjuiItem* it1 = s->item + (i + 1);
+
+          // this item rectangle
+          it->rect.left = s->rcontent.left + g_itemside;
+          it->rect.width = colwidth;
+          it->rect.height = textheight;
+
+          // next item rectangle (set bottom here)
+          it1->rect.left = s->rcontent.left + g_itemside + colwidth + g_itemmid;
+          it1->rect.width = colwidth;
+          it1->rect.height = textheight;
+          it1->rect.bottom = height + s->rcontent.height + it->rect.height;
+
+          // advance
+          i++;
+        }
+
+        // single-line item
+        else {
+          // common left border (except for labeled controls at the end)
+          it->rect.left = s->rcontent.left + g_itemside;
+
+          // static
+          if (it->type == mjITEM_STATIC) {
+            it->rect.width = s->rcontent.width - 2 * g_itemside;
+            it->rect.height = (con->charHeight + g_textver) * it->multi.nelem;
+          }
+
+          // single column
+          else if (it->type == mjITEM_BUTTON ||
+            it->type == mjITEM_CHECKINT ||
+            it->type == mjITEM_CHECKBYTE) {
+            it->rect.width = colwidth;
+            it->rect.height = textheight;
+          }
+
+          // radio
+          else if (it->type == mjITEM_RADIO) {
+            int ncol = ui->radiocol ? ui->radiocol : 2;
+            int nrow = (it->multi.nelem - 1) / ncol + 1;
+            it->rect.width = s->rcontent.width - 2 * g_itemside;
+            it->rect.height = textheight * nrow;
+          }
+
+          // separator, select, slider, edit, radioline
+          else {
+            it->rect.width = s->rcontent.width - 2 * g_itemside;
+            it->rect.height = textheight;
+          }
+
+          // add room for label
+          if (it->name[0] &&
+            (it->type >= mjITEM_RADIO ||
+              it->type >= mjITEM_RADIOLINE ||
+              it->type == mjITEM_STATIC)) {
+            it->rect.left = s->rcontent.left + g_itemside + g_label;
+            it->rect.width = s->rcontent.width - (2 * g_itemside + g_label);
+          }
+        }
+
+        // set bottom, count height
+        it->rect.bottom = height + s->rcontent.height + it->rect.height;
+        s->rcontent.height += it->rect.height;
+      }
+
+      // vertical padding after last item, compute bottom
+      s->rcontent.height += g_itemver;
+      s->rcontent.bottom = height + s->rcontent.height;
+
+      // count content height
+      if (s->state != mjSECT_CLOSED) {
+        height += s->rcontent.height;
+      }
+      maxheight += s->rcontent.height;
+    }
+
+    // vertical padding after last section
     height += g_section;
     maxheight += g_section;
 
-    // get section pointer
-    mjuiSection* s = ui->sect + n;
-
-    // title rectangle
-    s->rtitle.left = g_section;
-    s->rtitle.width = w_master - w_scroll - 2*g_section;
-    if (s->state < 2) {
-      s->rtitle.bottom = height + textheight;
-      s->rtitle.height = textheight;
-    } else {
-      s->rtitle.bottom = height;
-      s->rtitle.height = 0;
+    // save data: maxheight from pass 0, height from pass 1
+    if (pass == 0) {
+      MaxHeight = maxheight;
     }
-
-    // count title height
-    height += s->rtitle.height;
-    maxheight += s->rtitle.height;
-
-    // init content rectangle
-    s->rcontent.left = s->rtitle.left;
-    s->rcontent.width = s->rtitle.width;
-    s->rcontent.height = 0;
-
-    // process items within section
-    for (int i=0; i < s->nitem; i++) {
-      // get item pointer
-      mjuiItem* it = s->item + i;
-
-      // save section rcontent
-      mjrRect oldcontent = s->rcontent;
-
-      // determine skip (collapsed separator before item)
-      skip = 0;
-      if (i > 0 && it->type != mjITEM_SEPARATOR) {
-        for (int k=i-1; k >= 0; k--) {
-          if (s->item[k].type == mjITEM_SEPARATOR) {
-            // collapsed state: skip items below it
-            if (s->item[k].state == mjSEPCLOSED) {
-              skip = 1;
-            }
-
-            break;
-          }
-        }
-      }
-
-      // vertical padding before item
-      s->rcontent.height += it->type == mjITEM_SEPARATOR ? g_section : g_itemver;
-
-      // packed pair of items
-      if (i < s->nitem-1 && s->item[i+1].type == it->type &&
-          (it->type == mjITEM_BUTTON ||
-           it->type == mjITEM_CHECKINT ||
-           it->type == mjITEM_CHECKBYTE)) {
-        // get next item pointer
-        mjuiItem* it1 = s->item + (i+1);
-
-        // this item rectangle
-        it->rect.left = s->rcontent.left + g_itemside;
-        it->rect.width = colwidth;
-        it->rect.height = textheight;
-
-        // next item rectangle (set bottom here)
-        it1->rect.left = s->rcontent.left + g_itemside + colwidth + g_itemmid;
-        it1->rect.width = colwidth;
-        it1->rect.height = textheight;
-        it1->rect.bottom = height + s->rcontent.height + it->rect.height;
-
-        // skip second item in pair
-        if (skip) {
-          it1->rect.width = 0;
-          it1->rect.height = 0;
-        }
-
-        // advance
-        i++;
-      }
-
-      // single-line item
-      else {
-        // common left border (except for labeled controls at the end)
-        it->rect.left = s->rcontent.left + g_itemside;
-
-        // static
-        if (it->type == mjITEM_STATIC) {
-          it->rect.width = s->rcontent.width - 2*g_itemside;
-          it->rect.height = (con->charHeight+g_textver)*it->multi.nelem;
-        }
-
-        // single column
-        else if (it->type == mjITEM_BUTTON ||
-                 it->type == mjITEM_CHECKINT ||
-                 it->type == mjITEM_CHECKBYTE) {
-          it->rect.width = colwidth;
-          it->rect.height = textheight;
-        }
-
-        // radio
-        else if (it->type == mjITEM_RADIO) {
-          int ncol = ui->radiocol ? ui->radiocol : 2;
-          int nrow = (it->multi.nelem-1)/ncol + 1;
-          it->rect.width = s->rcontent.width - 2*g_itemside;
-          it->rect.height = textheight*nrow;
-        }
-
-        // separator, select, slider, edit, radioline
-        else {
-          it->rect.width = s->rcontent.width - 2*g_itemside;
-          it->rect.height = textheight;
-        }
-
-        // add room for label
-        if (it->name[0] &&
-            (it->type >= mjITEM_RADIO ||
-             it->type >= mjITEM_RADIOLINE ||
-             it->type == mjITEM_STATIC)) {
-          it->rect.left = s->rcontent.left + g_itemside + g_label;
-          it->rect.width = s->rcontent.width - (2*g_itemside + g_label);
-        }
-      }
-
-      // set bottom, count height
-      it->rect.bottom = height + s->rcontent.height + it->rect.height;
-      s->rcontent.height += it->rect.height;
-
-      // skip item
-      if (skip) {
-        maxheight += s->rcontent.height - oldcontent.height;
-        s->rcontent = oldcontent;
-        it->rect.width = 0;
-        it->rect.height = 0;
-      }
+    else {
+      Height = height;
     }
-
-    // vertical padding after last item, compute bottom
-    s->rcontent.height += g_itemver;
-    s->rcontent.bottom = height + s->rcontent.height;
-
-    // count content height
-    if (s->state) {
-      height += s->rcontent.height;
-    }
-    maxheight += s->rcontent.height;
   }
-
-  // vertical padding after last section
-  height += g_section;
-  maxheight += g_section;
 
   // invert bottom for all sections and items
   for (int n=0; n < ui->nsect; n++) {
     // section
     mjuiSection* s = ui->sect + n;
-    s->rtitle.bottom = height - s->rtitle.bottom;
-    s->rcontent.bottom = height - s->rcontent.bottom;
+    s->rtitle.bottom = Height - s->rtitle.bottom;
+    s->rcontent.bottom = Height - s->rcontent.bottom;
 
     // items
     for (int i=0; i < s->nitem; i++) {
-      s->item[i].rect.bottom = height - s->item[i].rect.bottom;
+      s->item[i].rect.bottom = Height - s->item[i].rect.bottom;
     }
   }
 
   // assign UI sizes
   ui->width = w_master;
-  ui->height = height;
-  ui->maxheight = maxheight;
+  ui->height = Height;  
+  ui->maxheight = MaxHeight;
+}
+
+
+
+// insertion sort of groups of ints: increasing order of leading int
+static void insertionsortgroup(int* list, int num, int stride) {
+  // allocate buffer of 10 ints, cannot handle more
+  if (stride > 10) {
+    mju_error("insertionsortgroup cannot handle stride greater than 10");
+  }
+  int x[10];
+
+  for (int i = 1; i < num; i++) {
+    memcpy(x, list + i * stride, sizeof(int) * stride);
+
+    int j = i - 1;
+    while (j >= 0 && list[j * stride] > x[0]) {
+      memcpy(list + (j + 1) * stride, list + j * stride, sizeof(int) * stride);
+      j--;
+    }
+
+    memcpy(list + (j + 1) * stride, x, sizeof(int) * stride);
+  }
+}
+
+
+
+// Compute UI sizes.
+void mjui_resize(mjUI* ui, const mjrContext* con) {
+  // get maximum buffer size allowed by OpenGL driver
+  int maxBufferSize = 0;
+  glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxBufferSize);
+
+  // USED FOR TESTING OF SMALL BUFFER SIZES
+  // maxBufferSize = 3000;
+
+  // resize with current section states, clamp maxheight
+  tryresize(ui, con);
+  ui->maxheight = mjMIN(ui->maxheight, maxBufferSize);
+
+  // if height is too large, close some sections
+  if (ui->height > ui->maxheight) {
+    // init new height with section gaps
+    int hnew = (ui->nsect + 1) * SCL(ui->spacing.section, con);
+
+    // add titles of regular sections and contents of fixed sections
+    for (int n = 0; n < ui->nsect; ++n) {
+      if (ui->sect[n].state == mjSECT_FIXED) {
+        hnew += ui->sect[n].rcontent.height;
+      }
+      else {
+        hnew += ui->sect[n].rtitle.height;
+      }
+    }
+
+    // if fixed height is too big, nothing we can do
+    if (hnew > ui->maxheight) {
+      mju_error("fixed section height already too big, closing sections cannot help");
+    }
+
+    // sort open sections by lastclick
+    int nopen = 0;
+    int sortbuf[2 * mjMAXUISECT] = { 0 };
+    for (int n = 0; n < ui->nsect; ++n) {
+      if (ui->sect[n].state == mjSECT_OPEN) {
+        sortbuf[2 * nopen] = ui->sect[n].lastclick;
+        sortbuf[2 * nopen + 1] = n;
+        ++nopen;
+      }
+    }
+    insertionsortgroup(sortbuf, nopen, 2);
+
+    // nothing is open; SHOULD NOT OCCUR
+    if (nopen == 0) {
+      mju_error("internal error: expected some sections to be open");
+    }
+
+    // keep most recent sections: as many as can fit in maxheight
+    for (int i = nopen - 1; i >= 0; --i) {
+      // section fits: add height
+      if (hnew + ui->sect[sortbuf[2 * i + 1]].rcontent.height <= ui->maxheight) {
+        hnew += ui->sect[sortbuf[2 * i + 1]].rcontent.height;
+      }
+
+      // section does not fit: mark for closing
+      else {
+        sortbuf[2 * i] = -1;
+      }
+    }
+
+    // close sections that were marked
+    for (int i = 0; i < nopen; ++i) {
+      if (sortbuf[2 * i] == -1) {
+        ui->sect[sortbuf[2 * i + 1]].state = mjSECT_CLOSED;
+      }
+    }   
+
+    // resize with new section states, clamp maxheight again
+    tryresize(ui, con);
+    ui->maxheight = mjMIN(ui->maxheight, maxBufferSize);
+
+    // make sure tryresize did what we expected; SHOULD NOT OCCUR
+    if (ui->height != hnew) {
+      mju_error("internal error: tryresize produced unexpeced ui height");
+    }
+  }
 }
 
 
@@ -1684,32 +1810,67 @@ void mjui_update(int section, int item, const mjUI* ui,
 
     // redraw section title and pane
     if (section < 0 || item < 0) {
-      // title shown
-      if (s->state < 2) {
-        // interpolated rectangle
-        r = s->rtitle;
-        glBegin(GL_QUADS);
-        glColor3fv(ui->color.sectpane);
-        glVertex2i(r.left, r.bottom);
-        glVertex2i(r.left+r.width, r.bottom);
-        glColor3fv(ui->color.secttitle);
-        glVertex2i(r.left+r.width, r.bottom+r.height);
-        glVertex2i(r.left, r.bottom+r.height);
-        glEnd();
+      r = s->rtitle;
 
-        // symbol and text
-        drawsymbol(s->rtitle, s->state, 0, ui, con);
-        drawtext(s->name, s->rtitle.left+g_texthor, s->rtitle.bottom+g_textver,
-                 2*maxwidth, ui->color.sectfont, con);
+      // title shown
+      if (s->state != mjSECT_FIXED) {
+        // section without checkbox
+        if (s->checkbox == 0) {
+          // interpolated rectangle
+          glBegin(GL_QUADS);
+          glColor3fv(ui->color.sectpane);
+          glVertex2i(r.left, r.bottom);
+          glVertex2i(r.left + r.width, r.bottom);
+          glColor3fv(ui->color.secttitle);
+          glVertex2i(r.left + r.width, r.bottom + r.height);
+          glVertex2i(r.left, r.bottom + r.height);
+          glEnd();
+
+          // symbol and text
+          drawsymbol(r, s->state, 0, ui, con);
+          drawtext(s->name, r.left + g_texthor,
+            r.bottom + g_textver, 2 * maxwidth,
+            ui->color.sectfont, con);
+        }
+      
+        // section with checkbox
+        else {
+          // solid rectangle
+          const float rgb[3] = {
+            0.7f * ui->color.secttitle[0] + 0.3f * ui->color.sectpane[0],
+            0.7f * ui->color.secttitle[1] + 0.3f * ui->color.sectpane[1],
+            0.7f * ui->color.secttitle[2] + 0.3f * ui->color.sectpane[2]
+          };
+          glBegin(GL_QUADS);
+          glColor3fv(rgb);
+          glVertex2i(r.left, r.bottom);
+          glVertex2i(r.left + r.width, r.bottom);
+          glVertex2i(r.left + r.width, r.bottom + r.height);
+          glVertex2i(r.left, r.bottom + r.height);
+          glEnd();
+
+          // symbol and text with offset
+          drawsymbol(r, s->state, 0, ui, con);
+          drawtext(s->name, r.left + r.height,
+            r.bottom + g_textver, 2 * maxwidth - r.height,
+            ui->color.sectfont, con);
+
+          // checkmark if specified
+          if (s->checkbox == 2) {
+            int cgap = r.height / 4;
+            mjrRect cr = { r.left + cgap, r.bottom + cgap, r.height - 2 * cgap, r.height - 2 * cgap };
+            drawrectangle(cr, ui->color.sectsymbol, NULL, con);
+          }
+        }
 
         // shortcut
         if (ui->mousehelp && s->shortcut) {
-          shortcuthelp(s->rtitle, s->modifier, s->shortcut, ui, con);
+          shortcuthelp(r, s->modifier, s->shortcut, ui, con);
         }
       }
 
       // content pane, active only
-      if (s->state) {
+      if (s->state != mjSECT_CLOSED) {
         drawrectangle(s->rcontent, ui->color.sectpane, NULL, con);
       }
     }
@@ -2114,6 +2275,11 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   mjuiItem* it;
   ui->editchanged = NULL;
 
+  // count mouse clicks over UI
+  if (state->type == mjEVENT_PRESS) {
+    ++ui->mouseclicks;
+  }
+
   // non-left mouse events: handle shortcut help
   if ((state->type == mjEVENT_PRESS || state->type == mjEVENT_MOVE ||
        state->type == mjEVENT_RELEASE) && state->button != mjBUTTON_LEFT) {
@@ -2137,6 +2303,11 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   findmouse(ui, state, con, &sect_cur, &item_cur);
   if (sect_cur > 0 && item_cur >= 0) {
     it_cur = ui->sect[sect_cur-1].item + item_cur;
+  }
+
+  // update section lastclick
+  if (sect_cur > 0 && state->type == mjEVENT_PRESS) {
+    ui->sect[sect_cur - 1].lastclick = ui->mouseclicks;
   }
 
   // get recorded mouse section and item
@@ -2242,19 +2413,24 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
     // section title
     else if (sect_cur > 0 && item_cur < 0) {
-      // double-click: make all sections like this
+      int* curstate = &ui->sect[sect_cur - 1].state;
+
+      // double-click: make all sections like this (exclude fixed)
       if (state->doubleclick) {
         for (int i=0; i < ui->nsect; i++) {
-          if (ui->sect[i].state < 2 && ui->sect[sect_cur-1].state < 2) {
-            ui->sect[i].state = ui->sect[sect_cur-1].state;
+          if (ui->sect[i].state != mjSECT_FIXED && *curstate != mjSECT_FIXED) {
+            ui->sect[i].state = *curstate;
           }
         }
       }
 
-      // single click: toggle section state
+      // single click: toggle section state (exclude fixed)
       else {
-        if (ui->sect[sect_cur-1].state < 2) {
-          ui->sect[sect_cur-1].state = 1 - ui->sect[sect_cur-1].state;
+        if (*curstate == mjSECT_OPEN) {
+          *curstate = mjSECT_CLOSED;
+        }
+        else if (*curstate == mjSECT_CLOSED) {
+          *curstate = mjSECT_OPEN;
         }
       }
 

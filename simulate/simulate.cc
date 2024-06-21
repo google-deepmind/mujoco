@@ -117,13 +117,13 @@ enum {
 
 // file section of UI
 const mjuiDef defFile[] = {
-  {mjITEM_SECTION,   "File",          1, nullptr,                    "AF"},
-  {mjITEM_BUTTON,    "Save xml",      2, nullptr,                    ""},
-  {mjITEM_BUTTON,    "Save mjb",      2, nullptr,                    ""},
-  {mjITEM_BUTTON,    "Print model",   2, nullptr,                    "CM"},
-  {mjITEM_BUTTON,    "Print data",    2, nullptr,                    "CD"},
-  {mjITEM_BUTTON,    "Quit",          1, nullptr,                    "CQ"},
-  {mjITEM_BUTTON,    "Screenshot",    2, nullptr,                    "CP"},
+  {mjITEM_SECTION,   "File",          1, nullptr, "AF"},
+  {mjITEM_BUTTON,    "Save xml",      2, nullptr, ""},
+  {mjITEM_BUTTON,    "Save mjb",      2, nullptr, ""},
+  {mjITEM_BUTTON,    "Print model",   2, nullptr, "CM"},
+  {mjITEM_BUTTON,    "Print data",    2, nullptr, "CD"},
+  {mjITEM_BUTTON,    "Quit",          1, nullptr, "CQ"},
+  {mjITEM_BUTTON,    "Screenshot",    2, nullptr, "CP"},
   {mjITEM_END}
 };
 
@@ -682,7 +682,7 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_SELECT,    "Cone",          2, &(opt->cone),              "Pyramidal\nElliptic"},
     {mjITEM_SELECT,    "Jacobian",      2, &(opt->jacobian),          "Dense\nSparse\nAuto"},
     {mjITEM_SELECT,    "Solver",        2, &(opt->solver),            "PGS\nCG\nNewton"},
-    {mjITEM_SEPARATOR, "Algorithmic Parameters", 1},
+    {mjITEM_SEPARATOR, "Algorithmic Parameters", mjSEPCLOSED + 1},
     {mjITEM_EDITNUM,   "Timestep",      2, &(opt->timestep),          "1 0 1"},
     {mjITEM_EDITINT,   "Iterations",    2, &(opt->iterations),        "1 0 1000"},
     {mjITEM_EDITNUM,   "Tolerance",     2, &(opt->tolerance),         "1 0 1"},
@@ -695,22 +695,22 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
     {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
-    {mjITEM_SEPARATOR, "Physical Parameters", 1},
+    {mjITEM_SEPARATOR, "Physical Parameters", mjSEPCLOSED + 1},
     {mjITEM_EDITNUM,   "Gravity",       2, opt->gravity,              "3"},
     {mjITEM_EDITNUM,   "Wind",          2, opt->wind,                 "3"},
     {mjITEM_EDITNUM,   "Magnetic",      2, opt->magnetic,             "3"},
     {mjITEM_EDITNUM,   "Density",       2, &(opt->density),           "1"},
     {mjITEM_EDITNUM,   "Viscosity",     2, &(opt->viscosity),         "1"},
     {mjITEM_EDITNUM,   "Imp Ratio",     2, &(opt->impratio),          "1"},
-    {mjITEM_SEPARATOR, "Disable Flags", 1},
+    {mjITEM_SEPARATOR, "Disable Flags", mjSEPCLOSED + 1},
     {mjITEM_END}
   };
   mjuiDef defEnableFlags[] = {
-    {mjITEM_SEPARATOR, "Enable Flags", 1},
+    {mjITEM_SEPARATOR, "Enable Flags", mjSEPCLOSED + 1},
     {mjITEM_END}
   };
   mjuiDef defOverride[] = {
-    {mjITEM_SEPARATOR, "Contact Override", 1},
+    {mjITEM_SEPARATOR, "Contact Override", mjSEPCLOSED + 1},
     {mjITEM_EDITNUM,   "Margin",        2, &(opt->o_margin),          "1"},
     {mjITEM_EDITNUM,   "Sol Imp",       2, &(opt->o_solimp),          "5"},
     {mjITEM_EDITNUM,   "Sol Ref",       2, &(opt->o_solref),          "2"},
@@ -718,7 +718,7 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_END}
   };
   mjuiDef defDisableActuator[] = {
-    {mjITEM_SEPARATOR, "Actuator Group Enable", 1},
+    {mjITEM_SEPARATOR, "Actuator Group Enable", mjSEPCLOSED + 1},
     {mjITEM_CHECKBYTE,  "Act Group 0",  2, sim->enableactuator+0,     ""},
     {mjITEM_CHECKBYTE,  "Act Group 1",  2, sim->enableactuator+1,     ""},
     {mjITEM_CHECKBYTE,  "Act Group 2",  2, sim->enableactuator+2,     ""},
@@ -887,7 +887,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m, int oldstate)
     {mjITEM_EDITFLOAT, "Ambient",         2, &(vis->headlight.ambient),    "3"},
     {mjITEM_EDITFLOAT, "Diffuse",         2, &(vis->headlight.diffuse),    "3"},
     {mjITEM_EDITFLOAT, "Specular",        2, &(vis->headlight.specular),   "3"},
-    {mjITEM_SEPARATOR, "Free Camera",  1},
+    {mjITEM_SEPARATOR, "Free Camera", 1},
     {mjITEM_RADIO,     "Orthographic",    2, &(vis->global.orthographic),  "No\nYes"},
     {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
     {mjITEM_EDITNUM,   "Center",          2, &(stat->center),              "3"},
@@ -1322,9 +1322,22 @@ void UiLayout(mjuiState* state) {
   rect[3].height = rect[0].height;
 }
 
+// modify UI
 void UiModify(mjUI* ui, mjuiState* state, mjrContext* con) {
   mjui_resize(ui, con);
-  mjr_addAux(ui->auxid, ui->width, ui->maxheight, ui->spacing.samples, con);
+
+  // remake aux buffer only if missing or different
+  int id = ui->auxid;
+  if (con->auxFBO[id] == 0 || 
+      con->auxFBO_r[id] == 0 ||
+      con->auxColor[id] == 0 || 
+      con->auxColor_r[id] == 0 ||
+      con->auxWidth[id] != ui->width ||
+      con->auxHeight[id] != ui->maxheight ||
+      con->auxSamples[id] != ui->spacing.samples) {
+    mjr_addAux(id, ui->width, ui->maxheight, ui->spacing.samples, con);
+  }
+
   UiLayout(state);
   mjui_update(-1, -1, ui, state, con);
 }
