@@ -208,7 +208,7 @@ struct mjData_ {
 
   // buffers
   void*   buffer;            // main buffer; all pointers point in it                (nbuffer bytes)
-  void*   arena;             // arena+stack buffer                     (nstack*sizeof(mjtNum) bytes)
+  void*   arena;             // arena+stack buffer                     (narena*sizeof(mjtNum) bytes)
 
   //-------------------- main inputs and outputs of the computation
 
