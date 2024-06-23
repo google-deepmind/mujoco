@@ -26,137 +26,159 @@
 
 // theme spacing 0 : tight
 static const mjuiThemeSpacing themeSpacing0 = {
-  270,   // int total;
-  15,    // int scroll;
-  120,   // int label;
-  8,     // int section;
-  4,     // int itemside;
-  4,     // int itemmid;
-  4,     // int itemver;
-  8,     // int texthor;
-  4,     // int textver;
-  30,    // int linescroll;
-  4      // int samples;
+  270,   // total
+  15,    // scroll
+  120,   // label
+  8,     // section
+  6,     // cornersect
+  6,     // cornersep
+  4,     // itemside
+  4,     // itemmid
+  4,     // itemver
+  8,     // texthor
+  4,     // textver
+  30,    // linescroll
+  4      // samples
 };
 
 
 // theme spacing 1 : wide
 static const mjuiThemeSpacing themeSpacing1 = {
-  310,   // int total;
-  15,    // int scroll;
-  120,   // int label;
-  10,    // int section;
-  7,     // int itemside;
-  7,     // int itemmid;
-  7,     // int itemver;
-  10,    // int texthor;
-  5,     // int textver;
-  30,    // int linescroll;
-  4      // int samples;
+  310,   // total
+  15,    // scroll
+  120,   // label
+  10,    // section
+  10,    // cornersect
+  10,    // cornersep
+  7,     // itemside
+  7,     // itemmid
+  7,     // itemver
+  10,    // texthor
+  5,     // textver
+  30,    // linescroll
+  4      // samples
 };
 
 
 // theme color 0 : default
 static const mjuiThemeColor themeColor0 = {
-  {0.25, 0.25, 0.25},   // float master[3];
-  {0.12, 0.12, 0.12},   // float thumb[3];
-  {0.6,  0.2,  0.2},    // float secttitle[3];
-  {1.0,  1.0,  1.0},    // float sectfont[3];
-  {0.7,  0.7,  0.7},    // float sectsymbol[3];
-  {0.1,  0.1,  0.1},    // float sectpane[3];
-  {0.0,  0.0,  1.0},    // float shortcut[3];
-  {1.0,  1.0,  1.0},    // float fontactive[3];
-  {0.5,  0.5,  0.5},    // float fontinactive[3];
-  {0.3,  0.3,  0.3},    // float decorinactive[3];
-  {0.4,  0.4,  0.4},    // float decorinactive2[3];
-  {0.6,  0.4,  0.4},    // float button[3];
-  {0.4,  0.4,  0.7},    // float check[3];
-  {0.4,  0.6,  0.4},    // float radio[3];
-  {0.4,  0.6,  0.6},    // float select[3];
-  {0.2,  0.3,  0.3},    // float select2[3];
-  {0.3,  0.2,  0.3},    // float slider[3];
-  {0.6,  0.4,  0.6},    // float slider2[3];
-  {0.6,  0.6,  0.4},    // float edit[3];
-  {0.7,  0.0,  0.0},    // float edit2[3];
-  {0.9,  0.9,  0.9}     // float cursor[3];
+  {0.25, 0.25, 0.25},   // master
+  {0.12, 0.12, 0.12},   // thumb
+  {0.6,  0.2,  0.2},    // secttitle
+//  {0.6,  0.2,  0.2},    // secttitle2
+  {0.1,  0.1,  0.1},    // secttitle2
+  {0.45, 0.17, 0.17},   // secttitlecheck
+  {0.25, 0.25, 0.25},   // separator
+//  {0.25, 0.25, 0.25},   // separator2
+  {0.1,  0.1,  0.1},    // separator2
+  {1.0,  1.0,  1.0},    // sectfont
+  {0.7,  0.7,  0.7},    // sectsymbol
+  {0.1,  0.1,  0.1},    // sectpane
+  {0.0,  0.0,  1.0},    // shortcut
+  {1.0,  1.0,  1.0},    // fontactive
+  {0.5,  0.5,  0.5},    // fontinactive
+  {0.3,  0.3,  0.3},    // decorinactive
+  {0.4,  0.4,  0.4},    // decorinactive2
+  {0.6,  0.4,  0.4},    // button
+  {0.4,  0.4,  0.7},    // check
+  {0.4,  0.6,  0.4},    // radio
+  {0.4,  0.6,  0.6},    // select
+  {0.2,  0.3,  0.3},    // select2
+  {0.3,  0.2,  0.3},    // slider
+  {0.6,  0.4,  0.6},    // slider2
+  {0.6,  0.6,  0.4},    // edit
+  {0.7,  0.0,  0.0},    // edit2
+  {0.9,  0.9,  0.9}     // cursor
 };
 
 
 // theme color 1 : orange
 static const mjuiThemeColor themeColor1 = {
-  {0.2,  0.2,  0.2},       // float master[3];
-  {0.12, 0.12, 0.12},      // float thumb[3];
-  {0.3,  0.3,  0.3},       // float secttitle[3];
-  {0.8,  0.8,  0.8},       // float sectfont[3];
-  {0.7,  0.7,  0.7},       // float sectsymbol[3];
-  {0.15, 0.15, 0.15},      // float sectpane[3];
-  {0.0,  0.0,  1.0},       // float shortcut[3];
-  {0.9,  0.9,  0.9},       // float fontactive[3];
-  {0.5,  0.5,  0.5},       // float fontinactive[3];
-  {0.2,  0.2,  0.2},       // float decorinactive[3];
-  {0.25, 0.25, 0.25},      // float decorinactive2[3];
-  {0.6,  0.4,  0.2},       // float button[3];
-  {0.6,  0.4,  0.2},       // float check[3];
-  {0.6,  0.4,  0.2},       // float radio[3];
-  {0.6,  0.4,  0.2},       // float select[3];
-  {0.3,  0.2,  0.1},       // float select2[3];
-  {0.2,  0.2,  0.2},       // float slider[3];
-  {0.6,  0.4,  0.2},       // float slider2[3];
-  {0.6,  0.4,  0.2},       // float edit[3];
-  {0.7,  0.0,  0.0},       // float edit2[3];
-  {0.9,  0.9,  0.9}        // float cursor[3];
+  {0.2,  0.2,  0.2},    // master
+  {0.12, 0.12, 0.12},   // thumb
+  {0.3,  0.3,  0.3},    // secttitle
+  {0.15, 0.15, 0.15},   // secttitle2
+  {0.25, 0.25, 0.25},   // secttitlecheck
+  {0.2,  0.2,  0.2},    // separator
+  {0.15, 0.15, 0.15},   // separator2
+  {0.8,  0.8,  0.8},    // sectfont
+  {0.7,  0.7,  0.7},    // sectsymbol
+  {0.15, 0.15, 0.15},   // sectpane
+  {0.0,  0.0,  1.0},    // shortcut
+  {0.9,  0.9,  0.9},    // fontactive
+  {0.5,  0.5,  0.5},    // fontinactive
+  {0.2,  0.2,  0.2},    // decorinactive
+  {0.25, 0.25, 0.25},   // decorinactive2
+  {0.6,  0.4,  0.2},    // button
+  {0.6,  0.4,  0.2},    // check
+  {0.6,  0.4,  0.2},    // radio
+  {0.6,  0.4,  0.2},    // select
+  {0.3,  0.2,  0.1},    // select2
+  {0.2,  0.2,  0.2},    // slider
+  {0.6,  0.4,  0.2},    // slider2
+  {0.6,  0.4,  0.2},    // edit
+  {0.7,  0.0,  0.0},    // edit2
+  {0.9,  0.9,  0.9}     // cursor
 };
 
 
 // theme color 2 : white
 static const mjuiThemeColor themeColor2 = {
-  {0.9,  0.9,  0.9},       // float master[3];
-  {0.7,  0.7,  0.7},       // float thumb[3];
-  {0.8,  0.8,  0.8},       // float secttitle[3];
-  {0.0,  0.0,  0.8},       // float sectfont[3];
-  {0.0,  0.0,  0.8},       // float sectsymbol[3];
-  {1.0,  1.0,  1.0},       // float sectpane[3];
-  {0.0,  1.0,  1.0},       // float shortcut[3];
-  {0.0,  0.0,  0.0},       // float fontactive[3];
-  {0.7,  0.7,  0.7},       // float fontinactive[3];
-  {0.95, 0.95, 0.95},      // float decorinactive[3];
-  {0.9,  0.9,  0.9},       // float decorinactive2[3];
-  {0.8,  0.8,  0.8},       // float button[3];
-  {0.8,  0.8,  0.8},       // float check[3];
-  {0.8,  0.8,  0.8},       // float radio[3];
-  {0.8,  0.8,  0.8},       // float select[3];
-  {0.9,  0.9,  0.9},       // float select2[3];
-  {0.95, 0.95, 0.95},      // float slider[3];
-  {0.8,  0.8,  0.8},       // float slider2[3];
-  {0.8,  0.8,  0.8},       // float edit[3];
-  {1.0,  0.3,  0.3},       // float edit2[3];
-  {0.2,  0.2,  0.2}        // float cursor[3];
+  {0.9,  0.9,  0.9},    // master
+  {0.7,  0.7,  0.7},    // thumb
+  {0.8,  0.8,  0.8},    // secttitle
+  {1.0,  1.0,  1.0},    // secttitle2
+  {0.95, 0.95, 0.95},   // secttitlecheck
+  {0.9,  0.9,  0.9},    // separator
+  {1.0,  1.0,  1.0},    // separator2
+  {0.0,  0.0,  0.8},    // sectfont
+  {0.0,  0.0,  0.8},    // sectsymbol
+  {1.0,  1.0,  1.0},    // sectpane
+  {0.0,  1.0,  1.0},    // shortcut
+  {0.0,  0.0,  0.0},    // fontactive
+  {0.7,  0.7,  0.7},    // fontinactive
+  {0.95, 0.95, 0.95},   // decorinactive
+  {0.9,  0.9,  0.9},    // decorinactive2
+  {0.8,  0.8,  0.8},    // button
+  {0.8,  0.8,  0.8},    // check
+  {0.8,  0.8,  0.8},    // radio
+  {0.8,  0.8,  0.8},    // select
+  {0.9,  0.9,  0.9},    // select2
+  {0.95, 0.95, 0.95},   // slider
+  {0.8,  0.8,  0.8},    // slider2
+  {0.8,  0.8,  0.8},    // edit
+  {1.0,  0.3,  0.3},    // edit2
+  {0.2,  0.2,  0.2}     // cursor
 };
 
 
 // theme color 3 : black
 static const mjuiThemeColor themeColor3 = {
-  {0.15, 0.15, 0.15},      // float master[3];
-  {0.3,  0.3,  0.3},       // float thumb[3];
-  {0.25, 0.25, 0.25},      // float secttitle[3];
-  {1.0,  0.3,  0.3},       // float sectfont[3];
-  {1.0,  0.3,  0.3},       // float sectsymbol[3];
-  {0.0,  0.0,  0.0},       // float sectpane[3];
-  {0.0,  0.0,  1.0},       // float shortcut[3];
-  {1.0,  1.0,  1.0},       // float fontactive[3];
-  {0.4,  0.4,  0.4},       // float fontinactive[3];
-  {0.1,  0.1,  0.1},       // float decorinactive[3];
-  {0.15, 0.15, 0.15},      // float decorinactive2[3];
-  {0.3,  0.3,  0.3},       // float button[3];
-  {0.3,  0.3,  0.3},       // float check[3];
-  {0.3,  0.3,  0.3},       // float radio[3];
-  {0.3,  0.3,  0.3},       // float select[3];
-  {0.15, 0.15, 0.15},      // float select2[3];
-  {0.15, 0.15, 0.15},      // float slider[3];
-  {0.3,  0.3,  0.3},       // float slider2[3];
-  {0.3,  0.3,  0.3},       // float edit[3];
-  {0.8,  0.2,  0.2},       // float edit2[3];
-  {0.8,  0.8,  0.8}        // float cursor[3];
+  {0.15, 0.15, 0.15},   // master
+  {0.3,  0.3,  0.3},    // thumb
+  {0.25, 0.25, 0.25},   // secttitle
+  {0.0,  0.0,  0.0},    // secttitle2
+  {0.2,  0.2,  0.2},    // secttitlecheck
+  {0.15, 0.15, 0.15},   // separator
+  {0.0,  0.0,  0.0},    // separator2
+  {1.0,  0.3,  0.3},    // sectfont
+  {1.0,  0.3,  0.3},    // sectsymbol
+  {0.0,  0.0,  0.0},    // sectpane
+  {0.0,  0.0,  1.0},    // shortcut
+  {1.0,  1.0,  1.0},    // fontactive
+  {0.4,  0.4,  0.4},    // fontinactive
+  {0.1,  0.1,  0.1},    // decorinactive
+  {0.15, 0.15, 0.15},   // decorinactive2
+  {0.3,  0.3,  0.3},    // button
+  {0.3,  0.3,  0.3},    // check
+  {0.3,  0.3,  0.3},    // radio
+  {0.3,  0.3,  0.3},    // select
+  {0.15, 0.15, 0.15},   // select2
+  {0.15, 0.15, 0.15},   // slider
+  {0.3,  0.3,  0.3},    // slider2
+  {0.3,  0.3,  0.3},    // edit
+  {0.8,  0.2,  0.2},    // edit2
+  {0.8,  0.8,  0.8}     // cursor
 };
 
 
@@ -172,7 +194,7 @@ static int SCL(int sz, const mjrContext* con) {
 
 
 // init OpenGL
-static void initOpenGL(const mjUI* ui, const mjrContext* con) {
+static void initOpenGL(const mjrRect* r, const mjrContext* con) {
   // set OpenGL options
   glDisable(GL_NORMALIZE);
   glDisable(GL_DEPTH_TEST);
@@ -186,12 +208,12 @@ static void initOpenGL(const mjUI* ui, const mjrContext* con) {
   // standard 2D projection, in framebuffer units
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  glOrtho(0, ui->width, 0, ui->height, -1, 1);
+  glOrtho(0, r->width, 0, r->height, -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
   // set viewport
-  glViewport(0, 0, ui->width, ui->height);
+  glViewport(r->left, r->bottom, r->width, r->height);
 }
 
 
@@ -277,10 +299,75 @@ static void drawrectangle(mjrRect rect, const float* rgb, const float* rgbback,
 
 
 
+// round corners of rectangle
+static void roundcorner(mjrRect rect, int flg_skipbottom, int flg_separator,
+                        const mjUI* ui, const mjrContext* con) {
+  // get rounding, return if disabled
+  int radcorner = flg_separator ? ui->spacing.cornersep : ui->spacing.cornersect;
+  if (radcorner == 0) {
+    return;
+  }
+
+  // divisions and radius
+  const int ndivide = 10;
+  double radius = radcorner * 0.01 * con->fontScale;
+
+  // loop over corners
+  for (int ic = (flg_skipbottom ? 2 : 0); ic < 4; ++ic) {
+    double corner[2];
+    double angle;
+
+    // set corner and angle
+    switch (ic) {
+    case 0:   // bottom-left
+      corner[0] = rect.left;
+      corner[1] = rect.bottom;
+      angle = 0;
+      break;
+
+    case 1:   // bottom-right
+      corner[0] = rect.left + rect.width;
+      corner[1] = rect.bottom;
+      angle = 0.5 * mjPI;
+      break;
+
+    case 2:   // top-right
+      corner[0] = rect.left + rect.width;
+      corner[1] = rect.bottom + rect.height;
+      angle = mjPI;
+      break;
+
+    default:  // top-left
+      corner[0] = rect.left;
+      corner[1] = rect.bottom + rect.height;
+      angle = 1.5 * mjPI;
+    }
+
+    // compute circle center: opposite to corner
+    double center[2];
+    center[0] = corner[0] + mju_sqrt(2.0) * radius * cos(angle + 0.25 * mjPI);
+    center[1] = corner[1] + mju_sqrt(2.0) * radius * sin(angle + 0.25 * mjPI);
+
+    // fill with erase color, start trinagle_fan from corner
+    glColor3fv(flg_separator ? ui->color.sectpane : ui->color.master);
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2d(corner[0], corner[1]);
+
+    // compute vertices of quarter-circle
+    for (int i = 0; i <= ndivide; i++) {
+      double a = angle + mjPI + 0.5 * mjPI * (double)i / (double)ndivide;
+      glVertex2d(center[0] + radius * cos(a), center[1] + radius * sin(a));
+    }
+    glEnd();
+  }
+}
+
+
+
 // draw oval
 static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
                      const mjrContext* con) {
-  const int ndivide = 20;
+  const int ndivide = 15;
 
   // require horizontal
   if (rect.height > rect.width) {
@@ -374,16 +461,16 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
     double y = d - u - 0.5*margin;
     if (flg_sep) {
       glColor3f(
-        (ui->color.master[0] + ui->color.sectpane[0]) * 0.5,
-        (ui->color.master[1] + ui->color.sectpane[1]) * 0.5,
-        (ui->color.master[2] + ui->color.sectpane[2]) * 0.5
-        );
+        (ui->color.separator[0] + ui->color.separator2[0]) * 0.5,
+        (ui->color.separator[1] + ui->color.separator2[1]) * 0.5,
+        (ui->color.separator[2] + ui->color.separator2[2]) * 0.5
+      );
     } else {
       glColor3f(
-        (ui->color.secttitle[0] + ui->color.sectpane[0]) * 0.5,
-        (ui->color.secttitle[1] + ui->color.sectpane[1]) * 0.5,
-        (ui->color.secttitle[2] + ui->color.sectpane[2]) * 0.5
-        );
+        (ui->color.secttitle[0] + ui->color.secttitle2[0]) * 0.5,
+        (ui->color.secttitle[1] + ui->color.secttitle2[1]) * 0.5,
+        (ui->color.secttitle[2] + ui->color.secttitle2[2]) * 0.5
+      );
     }
     glBegin(GL_TRIANGLES);
     glVertex2d(cx-margin, cy-y);
@@ -1222,9 +1309,9 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       int oldstate = it->state;
       memset(it, 0, sizeof(mjuiItem));
 
-      // set or restore state for collapsable separator, copy state for others
+      // set or restore state for collapsible separator, copy state for others
       if (def[n].type == mjITEM_SEPARATOR && def[n].state == mjPRESERVE) {
-        // mjSEPCLOSED makes separator collapsable
+        // mjSEPCLOSED makes separator collapsible
         it->state = (oldstate < mjSEPCLOSED ? mjSEPCLOSED : oldstate);
       }
       else {
@@ -1812,7 +1899,8 @@ void mjui_update(int section, int item, const mjUI* ui,
 
   // start rendering
   mjr_setAux(ui->auxid, con);
-  initOpenGL(ui, con);
+  mjrRect rgl = { 0, 0, ui->width, ui->height };
+  initOpenGL(&rgl, con);
 
   // all sections: clear background
   if (section < 0) {
@@ -1851,7 +1939,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         if (s->checkbox == 0) {
           // interpolated rectangle
           glBegin(GL_QUADS);
-          glColor3fv(ui->color.sectpane);
+          glColor3fv(ui->color.secttitle2);
           glVertex2i(r.left, r.bottom);
           glVertex2i(r.left + r.width, r.bottom);
           glColor3fv(ui->color.secttitle);
@@ -1868,14 +1956,8 @@ void mjui_update(int section, int item, const mjUI* ui,
       
         // section with checkbox
         else {
-          // solid rectangle
-          const float rgb[3] = {
-            0.7f * ui->color.secttitle[0] + 0.3f * ui->color.sectpane[0],
-            0.7f * ui->color.secttitle[1] + 0.3f * ui->color.sectpane[1],
-            0.7f * ui->color.secttitle[2] + 0.3f * ui->color.sectpane[2]
-          };
           glBegin(GL_QUADS);
-          glColor3fv(rgb);
+          glColor3fv(ui->color.secttitlecheck);
           glVertex2i(r.left, r.bottom);
           glVertex2i(r.left + r.width, r.bottom);
           glVertex2i(r.left + r.width, r.bottom + r.height);
@@ -1892,7 +1974,8 @@ void mjui_update(int section, int item, const mjUI* ui,
           if (s->checkbox > 1) {
             int cgap = r.height / 4;
             mjrRect cr = { r.left + cgap, r.bottom + cgap, r.height - 2 * cgap, r.height - 2 * cgap };
-            drawrectangle(cr, ui->color.sectsymbol, s->checkbox == 2 ? rgb : NULL, con);
+            drawrectangle(cr, ui->color.sectsymbol, 
+              s->checkbox == 2 ? ui->color.secttitlecheck : NULL, con);
           }
         }
 
@@ -1906,6 +1989,17 @@ void mjui_update(int section, int item, const mjUI* ui,
       if (s->state != mjSECT_CLOSED) {
         drawrectangle(s->rcontent, ui->color.sectpane, NULL, con);
       }
+
+      // round corners
+      mjrRect rround = s->rtitle;
+      if (s->state == mjSECT_FIXED) {
+        rround = s->rcontent;
+      }
+      else if (s->state == mjSECT_OPEN) {
+        rround.bottom = s->rcontent.bottom;
+        rround.height = s->rtitle.height + s->rcontent.height;
+      }
+      roundcorner(rround, 0, 0, ui, con);
     }
 
     // closed: skip items
@@ -1948,10 +2042,10 @@ void mjui_update(int section, int item, const mjUI* ui,
         // background
         r = it->rect;
         glBegin(GL_QUADS);
-        glColor3fv(ui->color.sectpane);
+        glColor3fv(ui->color.separator2);
         glVertex2i(r.left, r.bottom);
         glVertex2i(r.left+r.width, r.bottom);
-        glColor3fv(ui->color.master);
+        glColor3fv(ui->color.separator);
         glVertex2i(r.left+r.width, r.bottom+r.height);
         glVertex2i(r.left, r.bottom+r.height);
         glEnd();
@@ -1962,13 +2056,14 @@ void mjui_update(int section, int item, const mjUI* ui,
                  it->rect.bottom+g_textver,
                  it->rect.width-2*g_texthor, ui->color.sectfont, con);
 
-        // symbol
+        // symbol and round corners for collapsible
         if (it->state == mjSEPCLOSED+1) {
           drawsymbol(it->rect, 1, 1, ui, con);
+          roundcorner(it->rect, 1, 1, ui, con);
         } else if (it->state == mjSEPCLOSED) {
           drawsymbol(it->rect, 0, 1, ui, con);
+          roundcorner(it->rect, 0, 1, ui, con);
         }
-
         break;
 
       case mjITEM_STATIC:
@@ -2139,7 +2234,7 @@ void mjui_update(int section, int item, const mjUI* ui,
                    it->rect.width-2*g_texthor, rgbfont, con);
         }
 
-        // draw tracking at the end
+        // draw tracking in mjui_render()
         break;
 
       case mjITEM_SLIDERINT:
@@ -2252,46 +2347,6 @@ void mjui_update(int section, int item, const mjUI* ui,
 
       default:
         mju_error("mjui_update: internal error: unexpected item type");
-      }
-    }
-  }
-
-  // select tracking
-  if (ui->mousesect > 0 && ui->mouseitem >= 0) {
-    // get item pointer
-    const mjuiItem* it = ui->sect[ui->mousesect-1].item + ui->mouseitem;
-
-    // proceed if select type
-    if (it->type == mjITEM_SELECT) {
-      // margin
-      r = it->rect;
-      r.left -= g_itemside;
-      r.width += 2*g_itemside;
-      r.height = it->multi.nelem * cellheight + g_itemside;
-      r.bottom -= r.height;
-      drawrectangle(r, ui->color.sectpane, NULL, con);
-
-      // box
-      r = it->rect;
-      r.height = it->multi.nelem * cellheight;
-      r.bottom -= r.height;
-      drawrectangle(r, ui->color.select2, NULL, con);
-
-      // hightlight row under mouse
-      int k = findselect(it, ui, state, con);
-      if (k >= 0) {
-        mjrRect r1 = r;
-        r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
-        r1.height = cellheight;
-        drawrectangle(r1, ui->color.select, NULL, con);
-      }
-
-      // values
-      for (int k=0; k < it->multi.nelem; k++) {
-        drawtext(it->multi.name[k],
-                 r.left+g_texthor,
-                 r.bottom+g_textver+(it->multi.nelem-1-k)*cellheight,
-                 r.width-2*g_texthor, ui->color.fontactive, con);
       }
     }
   }
@@ -2835,5 +2890,62 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
     // draw
     mjr_rectangle(thumb, ui->color.thumb[0], ui->color.thumb[1],
                   ui->color.thumb[2], 1);
+  }
+
+  // draw select tracking on top if needed
+  if (ui->mousesect > 0 && ui->mouseitem >= 0) {
+    // get item pointer
+    const mjuiItem* it = ui->sect[ui->mousesect-1].item + ui->mouseitem;
+
+    // get sizes
+    int g_texthor = SCL(ui->spacing.texthor, con);
+    int g_textver = SCL(ui->spacing.textver, con);
+    int g_itemside = SCL(ui->spacing.itemside, con);
+    int cellheight = con->charHeight + 2 * g_textver;
+    int offset = mjMAX(0, rect.height - ui->height + ui->scroll) -
+                 mjMAX(0, ui->height - ui->scroll - rect.height);
+
+    // proceed if select type
+    if (it->type == mjITEM_SELECT) {
+      // margin
+      mjrRect r = it->rect;
+      r.left -= g_itemside;
+      r.width += 2*g_itemside;
+      r.height = it->multi.nelem * cellheight + g_itemside;
+      r.bottom -= r.height;
+      r.bottom += offset;
+      r.left += rect.left;
+      mjr_rectangle(r, ui->color.sectpane[0],
+        ui->color.sectpane[1], ui->color.sectpane[2], 1);
+
+      // box
+      r = it->rect;
+      r.height = it->multi.nelem * cellheight;
+      r.bottom -= r.height;
+      r.bottom += offset;
+      r.left += rect.left;
+      mjr_rectangle(r, ui->color.select2[0],
+        ui->color.select2[1], ui->color.select2[2], 1);
+
+      // hightlight row under mouse
+      int k = findselect(it, ui, state, con);
+      if (k >= 0) {
+        mjrRect r1 = r;
+        r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
+        r1.height = cellheight;
+        mjr_rectangle(r1, ui->color.select[0], 
+          ui->color.select[1], ui->color.select[2], 1);
+      }
+
+
+      // values
+      initOpenGL(&rect, con);
+      for (int k=0; k < it->multi.nelem; k++) {
+        drawtext(it->multi.name[k],
+                 r.left+g_texthor - rect.left,
+                 r.bottom+g_textver+(it->multi.nelem-1-k)*cellheight,
+                 r.width-2*g_texthor, ui->color.fontactive, con);
+      }
+    }
   }
 }

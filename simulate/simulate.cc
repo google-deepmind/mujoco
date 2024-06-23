@@ -677,7 +677,7 @@ void UpdateWatch(mj::Simulate* sim, const mjModel* m, const mjData* d) {
 void MakePhysicsSection(mj::Simulate* sim) {
   mjOption* opt = sim->is_passive_ ? &sim->scnstate_.model.opt : &sim->m_->opt;
   mjuiDef defPhysics[] = {
-    {mjITEM_SECTION,   "Physics",       mjPRESERVE, nullptr,           "AP"},
+    {mjITEM_SECTION,   "Physics",       mjPRESERVE, nullptr,          "AP"},
     {mjITEM_SELECT,    "Integrator",    2, &(opt->integrator),        "Euler\nRK4\nimplicit\nimplicitfast"},
     {mjITEM_SELECT,    "Cone",          2, &(opt->cone),              "Pyramidal\nElliptic"},
     {mjITEM_SELECT,    "Jacobian",      2, &(opt->jacobian),          "Dense\nSparse\nAuto"},

@@ -171,6 +171,8 @@ struct mjuiThemeSpacing_ {        // UI visualization theme spacing
   int scroll;                     // scrollbar width
   int label;                      // label width
   int section;                    // section gap
+  int cornersect;                 // corner radius for section
+  int cornersep;                  // corner radius for separator
   int itemside;                   // item side gap
   int itemmid;                    // item middle gap
   int itemver;                    // item vertical gap
@@ -188,6 +190,10 @@ struct mjuiThemeColor_ {          // UI visualization theme color
   float master[3];                // master background
   float thumb[3];                 // scrollbar thumb
   float secttitle[3];             // section title
+  float secttitle2[3];            // section title: bottom gradient
+  float secttitlecheck[3];        // section title: flat color with checkbox
+  float separator[3];             // separator title
+  float separator2[3];            // separator title: bottom gradient
   float sectfont[3];              // section font
   float sectsymbol[3];            // section symbol
   float sectpane[3];              // section pane
