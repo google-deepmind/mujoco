@@ -636,6 +636,7 @@ static int insideoval(int x, int y, mjrRect r) {
 // find mouse location in UI; y already inverted
 // sect: -1: thumb, -2: slider down, -3: slider up, positive: 1+section
 // item: -1: section title or scroll, non-negative: item number
+//   item = -2 in checkbox on section title
 static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* con,
                       int* sect, int* item) {
   // clear
@@ -689,6 +690,16 @@ static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* co
     if (s->state < 2 && inside(x, y, s->rtitle)) {
       *sect = n+1;
       *item = -1;
+
+      // in checkbox
+      if (s->checkbox > 0) {
+        mjrRect rcheck = s->rtitle;
+        rcheck.width = mjMIN(rcheck.height, rcheck.width);
+        if (inside(x, y, rcheck)) {
+          *item = -2;
+        }
+      }
+
       return;
     }
 
@@ -1152,18 +1163,31 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       if (strlen(def[n].name) >= mjMAXUINAME-1) {
         mju_error("mjui_add: section name too long");
       }
-      if (def[n].state < 0 || def[n].state > 2) {
+      if (def[n].state != mjSECT_CLOSED && def[n].state != mjSECT_OPEN &&
+          def[n].state != mjSECT_FIXED && def[n].state != mjPRESERVE) {
         mju_error("mjui_add: invalid section state");
       }
 
-      // add section, clear
+      // add section, save state
       ui->nsect++;
       mjuiSection* se = ui->sect + (ui->nsect-1);
-      memset(se, 0, sizeof(mjuiSection));
+      int oldstate = se->state;
 
-      // copy data
+      // clear, but preserve item states
+      int itemstate[mjMAXUIITEM];
+      for (int i = 0; i < mjMAXUIITEM; ++i) {
+        itemstate[i] = se->item[i].state;
+      }
+      memset(se, 0, sizeof(mjuiSection));
+      for (int i = 0; i < mjMAXUIITEM; ++i) {
+        se->item[i].state = itemstate[i];
+      }
+
+      // set or restore section state
+      se->state = (def[n].state == mjPRESERVE ? oldstate : def[n].state);
+
+      // copy remaining data
       mjSTRNCPY(se->name, def[n].name);
-      se->state = def[n].state;
       se->checkbox = def[n].otherint;
       parseshortcut(def[n].other, &(se->modifier), &(se->shortcut));
     }
@@ -1192,14 +1216,23 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
         mju_error("mjui_add: invalid item state");
       }
 
-      // add item, clear
+      // add item, save state, clear
       se->nitem++;
       mjuiItem* it = se->item + (se->nitem-1);
+      int oldstate = it->state;
       memset(it, 0, sizeof(mjuiItem));
+
+      // set or restore state for collapsable separator, copy state for others
+      if (def[n].type == mjITEM_SEPARATOR && def[n].state == mjPRESERVE) {
+        // mjSEPCLOSED makes separator collapsable
+        it->state = (oldstate < mjSEPCLOSED ? mjSEPCLOSED : oldstate);
+      }
+      else {
+        it->state = def[n].state;
+      }
 
       // copy common data
       it->type = def[n].type;
-      it->state = def[n].state;
       it->pdata = def[n].pdata;
       mjSTRNCPY(it->name, def[n].name);
       it->sectionid = ui->nsect - 1;
@@ -1855,11 +1888,11 @@ void mjui_update(int section, int item, const mjUI* ui,
             r.bottom + g_textver, 2 * maxwidth - r.height,
             ui->color.sectfont, con);
 
-          // checkmark if specified
-          if (s->checkbox == 2) {
+          // draw checkmark as specified
+          if (s->checkbox > 1) {
             int cgap = r.height / 4;
             mjrRect cr = { r.left + cgap, r.bottom + cgap, r.height - 2 * cgap, r.height - 2 * cgap };
-            drawrectangle(cr, ui->color.sectsymbol, NULL, con);
+            drawrectangle(cr, ui->color.sectsymbol, s->checkbox == 2 ? rgb : NULL, con);
           }
         }
 
@@ -2413,24 +2446,33 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
     // section title
     else if (sect_cur > 0 && item_cur < 0) {
-      int* curstate = &ui->sect[sect_cur - 1].state;
+      mjuiSection* se = ui->sect + sect_cur - 1;
+
+      // handle section checkbox
+      if (item_cur == -2 && se->checkbox > 0) {
+        ui->mousesectcheck = sect_cur;
+        return NULL; // leave it to user, because sections may interact
+      }
+      else {
+        ui->mousesectcheck = 0;
+      }
 
       // double-click: make all sections like this (exclude fixed)
       if (state->doubleclick) {
         for (int i=0; i < ui->nsect; i++) {
-          if (ui->sect[i].state != mjSECT_FIXED && *curstate != mjSECT_FIXED) {
-            ui->sect[i].state = *curstate;
+          if (ui->sect[i].state != mjSECT_FIXED && se->state != mjSECT_FIXED) {
+            ui->sect[i].state = se->state;
           }
         }
       }
 
       // single click: toggle section state (exclude fixed)
       else {
-        if (*curstate == mjSECT_OPEN) {
-          *curstate = mjSECT_CLOSED;
+        if (se->state == mjSECT_OPEN) {
+          se->state = mjSECT_CLOSED;
         }
-        else if (*curstate == mjSECT_CLOSED) {
-          *curstate = mjSECT_OPEN;
+        else if (se->state == mjSECT_CLOSED) {
+          se->state = mjSECT_OPEN;
         }
       }
 

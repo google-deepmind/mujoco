@@ -26,6 +26,7 @@
 #define mjMAXUIRECT     25      // maximum number of rectangles
 
 #define mjSEPCLOSED     1000    // closed state of adjustable separator
+#define mjPRESERVE      2000    // preserve section or separator state
 
 
 // key codes matching GLFW (user must remap for other frameworks)
@@ -268,7 +269,7 @@ struct mjuiSection_ {             // UI section
   int state;                      // section state (mjtSection)
   int modifier;                   // 0: none, 1: control, 2: shift; 4: alt
   int shortcut;                   // shortcut key; 0: undefined
-  int checkbox;                   // section checkbox: 0: none, 1: unchecked, 2: checked
+  int checkbox;                   // 0: none, 1: hidden, 2: unchecked, 2: checked
   int nitem;                      // number of items in use
   mjuiItem item[mjMAXUIITEM];     // preallocated array of items
 
@@ -303,6 +304,7 @@ struct mjUI_ {                    // entire UI
   int mouseitem;                  // item within section
   int mousehelp;                  // help button down: print shortcuts
   int mouseclicks;                // number of mouse clicks over UI
+  int mousesectcheck;             // 0: none, otherwise 1+section
 
   // keyboard focus and edit
   int editsect;                   // 0: none, otherwise 1+section
