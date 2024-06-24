@@ -419,8 +419,9 @@ static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
 
 
 
-// draw section open/closed symbol: section
-static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
+// draw open/closed symbol in title
+//  type: 0- section, 1- section with checkbox, 2- separator
+static void drawsymbol(mjrRect rect, int flg_open, int type,
                        const mjUI* ui, const mjrContext* con) {
   // size and center
   int texthor =  SCL(ui->spacing.texthor, con);
@@ -429,7 +430,7 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
   int d = mju_round(con->charHeight*0.33);
 
   // separator size
-  if (flg_sep) {
+  if (type == 2) {
     d = mju_round(con->charHeight*0.28);
   }
 
@@ -445,7 +446,7 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
 
   // closed
   else {
-    // solid
+    // solid outside
     glColor3fv(ui->color.sectsymbol);
     glBegin(GL_TRIANGLES);
     glVertex2i(cx, cy-d);
@@ -453,23 +454,36 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
     glVertex2i(cx-2*d, cy);
     glEnd();
 
-    // empty
-    double margin = con->fontScale * 0.015;
-    double u = 0.5*sqrt(5.0)*margin;
-    double y = d - u - 0.5*margin;
-    if (flg_sep) {
-      glColor3f(
-        (ui->color.separator[0] + ui->color.separator2[0]) * 0.5,
-        (ui->color.separator[1] + ui->color.separator2[1]) * 0.5,
-        (ui->color.separator[2] + ui->color.separator2[2]) * 0.5
-      );
-    } else {
+    // set color for inside
+    switch (type) {
+    case 0:   // section
       glColor3f(
         (ui->color.secttitle[0] + ui->color.secttitle2[0]) * 0.5,
         (ui->color.secttitle[1] + ui->color.secttitle2[1]) * 0.5,
         (ui->color.secttitle[2] + ui->color.secttitle2[2]) * 0.5
       );
+      break;
+
+    case 1:   // section with checkbox
+      glColor3f(
+        (ui->color.secttitlecheck[0] + ui->color.secttitlecheck2[0]) * 0.5,
+        (ui->color.secttitlecheck[1] + ui->color.secttitlecheck2[1]) * 0.5,
+        (ui->color.secttitlecheck[2] + ui->color.secttitlecheck2[2]) * 0.5
+      );
+      break;
+
+    case 2:   // separator
+      glColor3f(
+        (ui->color.separator[0] + ui->color.separator2[0]) * 0.5,
+        (ui->color.separator[1] + ui->color.separator2[1]) * 0.5,
+        (ui->color.separator[2] + ui->color.separator2[2]) * 0.5
+      );
     }
+
+    // draw inside
+    double margin = con->fontScale * 0.015;
+    double u = 0.5 * sqrt(5.0) * margin;
+    double y = d - u - 0.5 * margin;
     glBegin(GL_TRIANGLES);
     glVertex2d(cx-margin, cy-y);
     glVertex2d(cx-margin, cy+y);
@@ -1964,7 +1978,7 @@ void mjui_update(int section, int item, const mjUI* ui,
           glEnd();
 
           // symbol and text with offset
-          drawsymbol(r, s->state, 0, ui, con);
+          drawsymbol(r, s->state, 1, ui, con);
           drawtext(s->name, r.left + r.height,
             r.bottom + g_textver, 2 * maxwidth - r.height,
             ui->color.sectfont, con);
@@ -1973,8 +1987,13 @@ void mjui_update(int section, int item, const mjUI* ui,
           if (s->checkbox > 1) {
             int cgap = r.height / 4;
             mjrRect cr = { r.left + cgap, r.bottom + cgap, r.height - 2 * cgap, r.height - 2 * cgap };
+            float rgb[3] = {
+              0.5f * (ui->color.secttitlecheck[0] + ui->color.secttitlecheck2[0]),
+              0.5f * (ui->color.secttitlecheck[1] + ui->color.secttitlecheck2[1]),
+              0.5f * (ui->color.secttitlecheck[2] + ui->color.secttitlecheck2[2])
+            };
             drawrectangle(cr, ui->color.sectsymbol, 
-              s->checkbox == 2 ? ui->color.secttitlecheck : NULL, con);
+              s->checkbox == 2 ? rgb : NULL, con);
           }
         }
 
@@ -2056,12 +2075,10 @@ void mjui_update(int section, int item, const mjUI* ui,
                  it->rect.width-2*g_texthor, ui->color.sectfont, con);
 
         // symbol and round corners for collapsible
-        if (it->state == mjSEPCLOSED+1) {
-          drawsymbol(it->rect, 1, 1, ui, con);
-          roundcorner(it->rect, 1, 1, ui, con);
-        } else if (it->state == mjSEPCLOSED) {
-          drawsymbol(it->rect, 0, 1, ui, con);
-          roundcorner(it->rect, 0, 1, ui, con);
+        if (it->state >= mjSEPCLOSED) {
+          int flg_open = (it->state == mjSEPCLOSED + 1);
+          drawsymbol(it->rect, flg_open, 2, ui, con);
+          roundcorner(it->rect, flg_open, 1, ui, con);
         }
         break;
 
