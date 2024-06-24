@@ -190,13 +190,14 @@ struct mjuiThemeColor_ {          // UI visualization theme color
   float master[3];                // master background
   float thumb[3];                 // scrollbar thumb
   float secttitle[3];             // section title
-  float secttitle2[3];            // section title: bottom gradient
-  float secttitlecheck[3];        // section title: flat color with checkbox
-  float separator[3];             // separator title
-  float separator2[3];            // separator title: bottom gradient
+  float secttitle2[3];            // section title: bottom color
+  float secttitlecheck[3];        // section title with checkbox
+  float secttitlecheck2[3];       // section title with checkbox: bottom color
   float sectfont[3];              // section font
   float sectsymbol[3];            // section symbol
   float sectpane[3];              // section pane
+  float separator[3];             // separator title
+  float separator2[3];            // separator title: bottom color
   float shortcut[3];              // shortcut background
   float fontactive[3];            // font active
   float fontinactive[3];          // font inactive

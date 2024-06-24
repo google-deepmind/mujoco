@@ -65,15 +65,14 @@ static const mjuiThemeColor themeColor0 = {
   {0.25, 0.25, 0.25},   // master
   {0.12, 0.12, 0.12},   // thumb
   {0.6,  0.2,  0.2},    // secttitle
-//  {0.6,  0.2,  0.2},    // secttitle2
   {0.1,  0.1,  0.1},    // secttitle2
   {0.45, 0.17, 0.17},   // secttitlecheck
-  {0.25, 0.25, 0.25},   // separator
-//  {0.25, 0.25, 0.25},   // separator2
-  {0.1,  0.1,  0.1},    // separator2
+  {0.45, 0.17, 0.17},   // secttitlecheck2
   {1.0,  1.0,  1.0},    // sectfont
   {0.7,  0.7,  0.7},    // sectsymbol
   {0.1,  0.1,  0.1},    // sectpane
+  {0.25, 0.25, 0.25},   // separator
+  {0.1,  0.1,  0.1},    // separator2
   {0.0,  0.0,  1.0},    // shortcut
   {1.0,  1.0,  1.0},    // fontactive
   {0.5,  0.5,  0.5},    // fontinactive
@@ -99,11 +98,12 @@ static const mjuiThemeColor themeColor1 = {
   {0.3,  0.3,  0.3},    // secttitle
   {0.15, 0.15, 0.15},   // secttitle2
   {0.25, 0.25, 0.25},   // secttitlecheck
-  {0.2,  0.2,  0.2},    // separator
-  {0.15, 0.15, 0.15},   // separator2
+  {0.25, 0.25, 0.25},   // secttitlecheck2
   {0.8,  0.8,  0.8},    // sectfont
   {0.7,  0.7,  0.7},    // sectsymbol
   {0.15, 0.15, 0.15},   // sectpane
+  {0.2,  0.2,  0.2},    // separator
+  {0.15, 0.15, 0.15},   // separator2
   {0.0,  0.0,  1.0},    // shortcut
   {0.9,  0.9,  0.9},    // fontactive
   {0.5,  0.5,  0.5},    // fontinactive
@@ -129,11 +129,12 @@ static const mjuiThemeColor themeColor2 = {
   {0.8,  0.8,  0.8},    // secttitle
   {1.0,  1.0,  1.0},    // secttitle2
   {0.95, 0.95, 0.95},   // secttitlecheck
-  {0.9,  0.9,  0.9},    // separator
-  {1.0,  1.0,  1.0},    // separator2
+  {0.95, 0.95, 0.95},   // secttitlecheck2
   {0.0,  0.0,  0.8},    // sectfont
   {0.0,  0.0,  0.8},    // sectsymbol
   {1.0,  1.0,  1.0},    // sectpane
+  {0.9,  0.9,  0.9},    // separator
+  {1.0,  1.0,  1.0},    // separator2
   {0.0,  1.0,  1.0},    // shortcut
   {0.0,  0.0,  0.0},    // fontactive
   {0.7,  0.7,  0.7},    // fontinactive
@@ -159,11 +160,12 @@ static const mjuiThemeColor themeColor3 = {
   {0.25, 0.25, 0.25},   // secttitle
   {0.0,  0.0,  0.0},    // secttitle2
   {0.2,  0.2,  0.2},    // secttitlecheck
-  {0.15, 0.15, 0.15},   // separator
-  {0.0,  0.0,  0.0},    // separator2
+  {0.2,  0.2,  0.2},    // secttitlecheck2
   {1.0,  0.3,  0.3},    // sectfont
   {1.0,  0.3,  0.3},    // sectsymbol
   {0.0,  0.0,  0.0},    // sectpane
+  {0.15, 0.15, 0.15},   // separator
+  {0.0,  0.0,  0.0},    // separator2
   {0.0,  0.0,  1.0},    // shortcut
   {1.0,  1.0,  1.0},    // fontactive
   {0.4,  0.4,  0.4},    // fontinactive
@@ -180,7 +182,6 @@ static const mjuiThemeColor themeColor3 = {
   {0.8,  0.2,  0.2},    // edit2
   {0.8,  0.8,  0.8}     // cursor
 };
-
 
 
 
@@ -302,46 +303,43 @@ static void drawrectangle(mjrRect rect, const float* rgb, const float* rgbback,
 // round corners of rectangle
 static void roundcorner(mjrRect rect, int flg_skipbottom, int flg_separator,
                         const mjUI* ui, const mjrContext* con) {
-  // get rounding, return if disabled
-  int radcorner = flg_separator ? ui->spacing.cornersep : ui->spacing.cornersect;
-  if (radcorner == 0) {
+  // get rounding from theme, exit if disabled
+  int cornerspec = flg_separator ? ui->spacing.cornersep : ui->spacing.cornersect;
+  if (cornerspec == 0) {
     return;
   }
 
-  // divisions and radius
-  const int ndivide = 10;
-  double radius = radcorner * 0.01 * con->fontScale;
+  // quarter-circle divisions and radius
+  int ndivide = 10;
+  double radius = cornerspec * 0.01 * con->fontScale;
 
-  // loop over corners
+  // draw fans in the four corners, optionally skip bottom corners
   for (int ic = (flg_skipbottom ? 2 : 0); ic < 4; ++ic) {
+    // set corner
     double corner[2];
-    double angle;
-
-    // set corner and angle
     switch (ic) {
     case 0:   // bottom-left
       corner[0] = rect.left;
       corner[1] = rect.bottom;
-      angle = 0;
       break;
 
     case 1:   // bottom-right
       corner[0] = rect.left + rect.width;
       corner[1] = rect.bottom;
-      angle = 0.5 * mjPI;
       break;
 
     case 2:   // top-right
       corner[0] = rect.left + rect.width;
       corner[1] = rect.bottom + rect.height;
-      angle = mjPI;
       break;
 
     default:  // top-left
       corner[0] = rect.left;
       corner[1] = rect.bottom + rect.height;
-      angle = 1.5 * mjPI;
     }
+
+    // orient fan to point inside
+    double angle = ic * 0.5 * mjPI;
 
     // compute circle center: opposite to corner
     double center[2];
@@ -1957,9 +1955,10 @@ void mjui_update(int section, int item, const mjUI* ui,
         // section with checkbox
         else {
           glBegin(GL_QUADS);
-          glColor3fv(ui->color.secttitlecheck);
+          glColor3fv(ui->color.secttitlecheck2);
           glVertex2i(r.left, r.bottom);
           glVertex2i(r.left + r.width, r.bottom);
+          glColor3fv(ui->color.secttitlecheck);
           glVertex2i(r.left + r.width, r.bottom + r.height);
           glVertex2i(r.left, r.bottom + r.height);
           glEnd();
@@ -2880,7 +2879,7 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
   mjr_blitAux(ui->auxid, raux, rect.left,
               rect.bottom + mjMAX(0, rect.height - ui->height + ui->scroll), con);
 
-  // draw scrollbar on top if needed
+  // draw scrollbar over blit if needed
   if (ui->height > rect.height) {
     // construct rectangles
     mjrRect bar;
@@ -2892,21 +2891,24 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
                   ui->color.thumb[2], 1);
   }
 
-  // draw select tracking on top if needed
+  // draw selection box tracking over blit if needed
   if (ui->mousesect > 0 && ui->mouseitem >= 0) {
     // get item pointer
     const mjuiItem* it = ui->sect[ui->mousesect-1].item + ui->mouseitem;
 
-    // get sizes
-    int g_texthor = SCL(ui->spacing.texthor, con);
-    int g_textver = SCL(ui->spacing.textver, con);
-    int g_itemside = SCL(ui->spacing.itemside, con);
-    int cellheight = con->charHeight + 2 * g_textver;
-    int offset = mjMAX(0, rect.height - ui->height + ui->scroll) -
-                 mjMAX(0, ui->height - ui->scroll - rect.height);
-
     // proceed if select type
     if (it->type == mjITEM_SELECT) {
+      // get relevant sizes
+      int g_texthor = SCL(ui->spacing.texthor, con);
+      int g_textver = SCL(ui->spacing.textver, con);
+      int g_itemside = SCL(ui->spacing.itemside, con);
+      int cellheight = con->charHeight + 2 * g_textver;
+      int offset = mjMAX(0, rect.height - ui->height + ui->scroll) -
+                   mjMAX(0, ui->height - ui->scroll - rect.height);
+
+      // draw in entire ui rectangle
+      initOpenGL(&rect, con);
+
       // margin
       mjrRect r = it->rect;
       r.left -= g_itemside;
@@ -2915,8 +2917,7 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
       r.bottom -= r.height;
       r.bottom += offset;
       r.left += rect.left;
-      mjr_rectangle(r, ui->color.sectpane[0],
-        ui->color.sectpane[1], ui->color.sectpane[2], 1);
+      drawrectangle(r, ui->color.sectpane, NULL, con);
 
       // box
       r = it->rect;
@@ -2924,8 +2925,7 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
       r.bottom -= r.height;
       r.bottom += offset;
       r.left += rect.left;
-      mjr_rectangle(r, ui->color.select2[0],
-        ui->color.select2[1], ui->color.select2[2], 1);
+      drawrectangle(r, ui->color.select2, NULL, con);
 
       // hightlight row under mouse
       int k = findselect(it, ui, state, con);
@@ -2933,13 +2933,10 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
         mjrRect r1 = r;
         r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
         r1.height = cellheight;
-        mjr_rectangle(r1, ui->color.select[0], 
-          ui->color.select[1], ui->color.select[2], 1);
+        drawrectangle(r1, ui->color.select, NULL, con);
       }
 
-
-      // values
-      initOpenGL(&rect, con);
+      // text values
       for (int k=0; k < it->multi.nelem; k++) {
         drawtext(it->multi.name[k],
                  r.left+g_texthor - rect.left,
