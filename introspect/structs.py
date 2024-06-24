@@ -11351,6 +11351,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='section gap',
              ),
              StructFieldDecl(
+                 name='cornersect',
+                 type=ValueType(name='int'),
+                 doc='corner radius for section',
+             ),
+             StructFieldDecl(
+                 name='cornersep',
+                 type=ValueType(name='int'),
+                 doc='corner radius for separator',
+             ),
+             StructFieldDecl(
                  name='itemside',
                  type=ValueType(name='int'),
                  doc='item side gap',
@@ -11417,6 +11427,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='section title',
              ),
              StructFieldDecl(
+                 name='secttitle2',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='section title: bottom color',
+             ),
+             StructFieldDecl(
+                 name='secttitlecheck',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='section title with checkbox',
+             ),
+             StructFieldDecl(
+                 name='secttitlecheck2',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='section title with checkbox: bottom color',
+             ),
+             StructFieldDecl(
                  name='sectfont',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),
@@ -11439,6 +11473,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(3,),
                  ),
                  doc='section pane',
+             ),
+             StructFieldDecl(
+                 name='separator',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='separator title',
+             ),
+             StructFieldDecl(
+                 name='separator2',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='separator title: bottom color',
              ),
              StructFieldDecl(
                  name='shortcut',
@@ -11602,6 +11652,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='int'),
                  doc='id of item within section',
              ),
+             StructFieldDecl(
+                 name='userid',
+                 type=ValueType(name='int'),
+                 doc='user-supplied id (for event handling)',
+             ),
              AnonymousUnionDecl(
                  fields=(
                      StructFieldDecl(
@@ -11631,6 +11686,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='mjrRect'),
                  doc='rectangle occupied by item',
              ),
+             StructFieldDecl(
+                 name='skip',
+                 type=ValueType(name='int'),
+                 doc='item skipped due to closed separator',
+             ),
          ),
      )),
     ('mjuiSection',
@@ -11649,7 +11709,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='state',
                  type=ValueType(name='int'),
-                 doc='0: closed, 1: open',
+                 doc='section state (mjtSection)',
              ),
              StructFieldDecl(
                  name='modifier',
@@ -11660,6 +11720,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='shortcut',
                  type=ValueType(name='int'),
                  doc='shortcut key; 0: undefined',
+             ),
+             StructFieldDecl(
+                 name='checkbox',
+                 type=ValueType(name='int'),
+                 doc='0: none, 1: hidden, 2: unchecked, 2: checked',
              ),
              StructFieldDecl(
                  name='nitem',
@@ -11683,6 +11748,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='rcontent',
                  type=ValueType(name='mjrRect'),
                  doc='rectangle occupied by content',
+             ),
+             StructFieldDecl(
+                 name='lastclick',
+                 type=ValueType(name='int'),
+                 doc='last mouse click over this section',
              ),
          ),
      )),
@@ -11762,6 +11832,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='mousehelp',
                  type=ValueType(name='int'),
                  doc='help button down: print shortcuts',
+             ),
+             StructFieldDecl(
+                 name='mouseclicks',
+                 type=ValueType(name='int'),
+                 doc='number of mouse clicks over UI',
+             ),
+             StructFieldDecl(
+                 name='mousesectcheck',
+                 type=ValueType(name='int'),
+                 doc='0: none, otherwise 1+section',
              ),
              StructFieldDecl(
                  name='editsect',
@@ -11850,6 +11930,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(300,),
                  ),
                  doc='string with type-specific properties',
+             ),
+             StructFieldDecl(
+                 name='otherint',
+                 type=ValueType(name='int'),
+                 doc='int with type-specific properties',
              ),
          ),
      )),

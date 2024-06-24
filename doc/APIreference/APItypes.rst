@@ -582,6 +582,18 @@ Item types used in the UI framework.
 
 .. mujoco-include:: mjtItem
 
+
+.. _mjtSection:
+
+mjtSection
+~~~~~~~~~~
+
+State of a UI section.
+
+.. mujoco-include:: mjtSection
+
+
+
 .. _tySpecEnums:
 
 Spec

@@ -71,6 +71,7 @@ public const int mjMAXUIMULTI = 35;
 public const int mjMAXUIEDIT = 7;
 public const int mjMAXUIRECT = 25;
 public const int mjSEPCLOSED = 1000;
+public const int mjPRESERVE = 2000;
 public const int mjKEY_ESCAPE = 256;
 public const int mjKEY_ENTER = 257;
 public const int mjKEY_TAB = 258;
@@ -481,6 +482,11 @@ public enum mjtEvent : int{
   mjEVENT_RESIZE = 6,
   mjEVENT_REDRAW = 7,
   mjEVENT_FILESDROP = 8,
+}
+public enum mjtSection : int{
+  mjSECT_CLOSED = 0,
+  mjSECT_OPEN = 1,
+  mjSECT_FIXED = 2,
 }
 public enum mjtCatBit : int{
   mjCAT_STATIC = 1,
@@ -5722,6 +5728,8 @@ public unsafe struct mjuiThemeSpacing_ {
   public int scroll;
   public int label;
   public int section;
+  public int cornersect;
+  public int cornersep;
   public int itemside;
   public int itemmid;
   public int itemver;
@@ -5736,9 +5744,14 @@ public unsafe struct mjuiThemeColor_ {
   public fixed float master[3];
   public fixed float thumb[3];
   public fixed float secttitle[3];
+  public fixed float secttitle2[3];
+  public fixed float secttitlecheck[3];
+  public fixed float secttitlecheck2[3];
   public fixed float sectfont[3];
   public fixed float sectsymbol[3];
   public fixed float sectpane[3];
+  public fixed float separator[3];
+  public fixed float separator2[3];
   public fixed float shortcut[3];
   public fixed float fontactive[3];
   public fixed float fontinactive[3];
@@ -5786,9 +5799,11 @@ public unsafe struct mjuiSection_ {
   public int state;
   public int modifier;
   public int shortcut;
+  public int checkbox;
   public int nitem;
   public mjrRect_ rtitle;
   public mjrRect_ rcontent;
+  public int lastclick;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5807,6 +5822,8 @@ public unsafe struct mjUI_ {
   public int mousesect;
   public int mouseitem;
   public int mousehelp;
+  public int mouseclicks;
+  public int mousesectcheck;
   public int editsect;
   public int edititem;
   public int editcursor;
@@ -5833,6 +5850,7 @@ public unsafe struct mjuiDef_ {
   public int state;
   public void* pdata;
   public fixed sbyte other[300];
+  public int otherint;
 }
 
 [StructLayout(LayoutKind.Sequential)]
