@@ -2923,9 +2923,6 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
       int offset = mjMAX(0, rect.height - ui->height + ui->scroll) -
                    mjMAX(0, ui->height - ui->scroll - rect.height);
 
-      // draw in entire ui rectangle
-      initOpenGL(&rect, con);
-
       // margin
       mjrRect r = it->rect;
       r.left -= g_itemside;
@@ -2934,7 +2931,8 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
       r.bottom -= r.height;
       r.bottom += offset;
       r.left += rect.left;
-      drawrectangle(r, ui->color.sectpane, NULL, con);
+      mjr_rectangle(r, ui->color.sectpane[0],
+        ui->color.sectpane[1], ui->color.sectpane[2], 1);
 
       // box
       r = it->rect;
@@ -2942,7 +2940,8 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
       r.bottom -= r.height;
       r.bottom += offset;
       r.left += rect.left;
-      drawrectangle(r, ui->color.select2, NULL, con);
+      mjr_rectangle(r, ui->color.select2[0], 
+        ui->color.select2[1], ui->color.select2[2], 1);
 
       // hightlight row under mouse
       int k = findselect(it, ui, state, con);
@@ -2950,10 +2949,12 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
         mjrRect r1 = r;
         r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
         r1.height = cellheight;
-        drawrectangle(r1, ui->color.select, NULL, con);
+        mjr_rectangle(r1, ui->color.select[0],
+          ui->color.select[1], ui->color.select[2], 1);
       }
 
       // text values
+      initOpenGL(&rect, con);
       for (int k=0; k < it->multi.nelem; k++) {
         drawtext(it->multi.name[k],
                  r.left+g_texthor - rect.left,
