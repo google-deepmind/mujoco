@@ -4329,14 +4329,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='void'),
                  ),
-                 doc='main buffer; all pointers point in it                (nbuffer bytes)',  # pylint: disable=line-too-long
+                 doc='main buffer; all pointers point in it            (nbuffer bytes)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='arena',
                  type=PointerType(
                      inner_type=ValueType(name='void'),
                  ),
-                 doc='arena+stack buffer                     (nstack*sizeof(mjtNum) bytes)',  # pylint: disable=line-too-long
+                 doc='arena+stack buffer                               (narena bytes)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='qpos',
