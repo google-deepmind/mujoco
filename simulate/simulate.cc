@@ -752,6 +752,20 @@ void MakePhysicsSection(mj::Simulate* sim) {
 
   // add actuator group enable/disable
   mjui_add(&sim->ui0, defDisableActuator);
+
+  // make some subsections closed by default
+  for (int i=0; i < sim->ui0.sect[SECT_PHYSICS].nitem; i++) {
+    mjuiItem* it = sim->ui0.sect[SECT_PHYSICS].item + i;
+
+    // close less useful subsections
+    if (it->type == mjITEM_SEPARATOR) {
+      if (mju::strcmp_arr(it->name, "Actuator Group Enable") &&
+          mju::strcmp_arr(it->name, "Contact Override")  &&
+          mju::strcmp_arr(it->name, "Physical Parameters")) {
+        it->state = mjSEPCLOSED+1;
+      }
+    }
+  }
 }
 
 
@@ -759,50 +773,18 @@ void MakePhysicsSection(mj::Simulate* sim) {
 // make rendering section of UI
 void MakeRenderingSection(mj::Simulate* sim, const mjModel* m) {
   mjuiDef defRendering[] = {
-    {
-      mjITEM_SECTION,
-      "Rendering",
-      mjPRESERVE,
-      nullptr,
-      "AR"
-    },
-    {
-      mjITEM_SELECT,
-      "Camera",
-      2,
-      &(sim->camera),
-      "Free\nTracking"
-    },
-    {
-      mjITEM_SELECT,
-      "Label",
-      2,
-      &(sim->opt.label),
+    {mjITEM_SECTION, "Rendering", mjPRESERVE, nullptr, "AR"},
+    {mjITEM_SELECT, "Camera", 2, &(sim->camera), "Free\nTracking"},
+    {mjITEM_SELECT, "Label", 2, &(sim->opt.label),
       "None\nBody\nJoint\nGeom\nSite\nCamera\nLight\nTendon\n"
       "Actuator\nConstraint\nFlex\nSkin\nSelection\nSel Pnt\nContact\nForce\nIsland"
     },
-    {
-      mjITEM_SELECT,
-      "Frame",
-      2,
-      &(sim->opt.frame),
+    {mjITEM_SELECT, "Frame", 2, &(sim->opt.frame),
       "None\nBody\nGeom\nSite\nCamera\nLight\nContact\nWorld"
     },
-    {
-      mjITEM_BUTTON,
-      "Copy camera",
-      2,
-      nullptr,
-      ""
-    },
-    {
-      mjITEM_SEPARATOR,
-      "Model Elements",
-      1
-    },
-    {
-      mjITEM_END
-    }
+    {mjITEM_BUTTON, "Copy camera", 2, nullptr, ""},
+    {mjITEM_SEPARATOR, "Model Elements", 1},
+    {mjITEM_END}
   };
   mjuiDef defOpenGL[] = {
     {mjITEM_SEPARATOR, "OpenGL Effects", 1},
@@ -911,8 +893,8 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
     {mjITEM_EDITFLOAT, "Haze",            2, &(vis->map.haze),             "1"},
     {mjITEM_EDITFLOAT, "Shadow clip",     2, &(vis->map.shadowclip),       "1"},
     {mjITEM_EDITFLOAT, "Shadow scale",    2, &(vis->map.shadowscale),      "1"},
-    {mjITEM_SEPARATOR, "Scale",  1},
-    {mjITEM_EDITNUM,   "All [meansize]",  2, &(stat->meansize),            "1"},
+    {mjITEM_SEPARATOR, "Scale", mjPRESERVE},
+    {mjITEM_EDITNUM,   "All (meansize)",  2, &(stat->meansize),            "1"},
     {mjITEM_EDITFLOAT, "Force width",     2, &(vis->scale.forcewidth),     "1"},
     {mjITEM_EDITFLOAT, "Contact width",   2, &(vis->scale.contactwidth),   "1"},
     {mjITEM_EDITFLOAT, "Contact height",  2, &(vis->scale.contactheight),  "1"},
@@ -929,17 +911,43 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
     {mjITEM_EDITFLOAT, "Frame width",     2, &(vis->scale.framewidth),     "1"},
     {mjITEM_EDITFLOAT, "Constraint",      2, &(vis->scale.constraint),     "1"},
     {mjITEM_EDITFLOAT, "Slider-crank",    2, &(vis->scale.slidercrank),    "1"},
+    {mjITEM_SEPARATOR, "RGBA", mjPRESERVE},
+    {mjITEM_EDITFLOAT, "fog",             2, &(vis->rgba.fog),              "4"},
+    {mjITEM_EDITFLOAT, "haze",            2, &(vis->rgba.haze),             "4"},
+    {mjITEM_EDITFLOAT, "force",           2, &(vis->rgba.force),            "4"},
+    {mjITEM_EDITFLOAT, "inertia",         2, &(vis->rgba.inertia),          "4"},
+    {mjITEM_EDITFLOAT, "joint",           2, &(vis->rgba.joint),            "4"},
+    {mjITEM_EDITFLOAT, "actuator",        2, &(vis->rgba.actuator),         "4"},
+    {mjITEM_EDITFLOAT, "actnegative",     2, &(vis->rgba.actuatornegative), "4"},
+    {mjITEM_EDITFLOAT, "actpositive",     2, &(vis->rgba.actuatorpositive), "4"},
+    {mjITEM_EDITFLOAT, "com",             2, &(vis->rgba.com),              "4"},
+    {mjITEM_EDITFLOAT, "camera",          2, &(vis->rgba.camera),           "4"},
+    {mjITEM_EDITFLOAT, "light",           2, &(vis->rgba.light),            "4"},
+    {mjITEM_EDITFLOAT, "selectpoint",     2, &(vis->rgba.selectpoint),      "4"},
+    {mjITEM_EDITFLOAT, "connect",         2, &(vis->rgba.connect),          "4"},
+    {mjITEM_EDITFLOAT, "contactpoint",    2, &(vis->rgba.contactpoint),     "4"},
+    {mjITEM_EDITFLOAT, "contactforce",    2, &(vis->rgba.contactforce),     "4"},
+    {mjITEM_EDITFLOAT, "contactfriction", 2, &(vis->rgba.contactfriction),  "4"},
+    {mjITEM_EDITFLOAT, "contacttorque",   2, &(vis->rgba.contacttorque),    "4"},
+    {mjITEM_EDITFLOAT, "contactgap",      2, &(vis->rgba.contactgap),       "4"},
+    {mjITEM_EDITFLOAT, "rangefinder",     2, &(vis->rgba.rangefinder),      "4"},
+    {mjITEM_EDITFLOAT, "constraint",      2, &(vis->rgba.constraint),       "4"},
+    {mjITEM_EDITFLOAT, "slidercrank",     2, &(vis->rgba.slidercrank),      "4"},
+    {mjITEM_EDITFLOAT, "crankbroken",     2, &(vis->rgba.crankbroken),      "4"},
+    {mjITEM_EDITFLOAT, "frustum",         2, &(vis->rgba.frustum),          "4"},
+    {mjITEM_EDITFLOAT, "bv",              2, &(vis->rgba.bv),               "4"},
+    {mjITEM_EDITFLOAT, "bvactive",        2, &(vis->rgba.bvactive),         "4"},
     {mjITEM_END}
   };
 
-  // add rendering standard
+  // add visualization section
   mjui_add(&sim->ui0, defVisualization);
 }
 
 // make group section of UI
 void MakeGroupSection(mj::Simulate* sim) {
   mjuiDef defGroup[] = {
-    {mjITEM_SECTION,    "Group enable",     mjPRESERVE, nullptr,          "AG"},
+    {mjITEM_SECTION,    "Group enable",     mjPRESERVE, nullptr,            "AG"},
     {mjITEM_SEPARATOR,  "Geom groups",  1},
     {mjITEM_CHECKBYTE,  "Geom 0",           2, sim->opt.geomgroup,          " 0"},
     {mjITEM_CHECKBYTE,  "Geom 1",           2, sim->opt.geomgroup+1,        " 1"},
