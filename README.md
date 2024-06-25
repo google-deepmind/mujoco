@@ -12,6 +12,7 @@
   <a href="https://github.com/google-deepmind/mujoco/blob/main/LICENSE" alt="License">
     <img src="https://img.shields.io/github/license/google-deepmind/mujoco">
   </a>
+  <a href = "https://piptrends.com/package/mujoco" alt = "mujoco Downloads Last Month"><img alt="mujoco Downloads Last Month by pip Trends" src="https://assets.piptrends.com/get-last-month-downloads-badge/mujoco.svg"></a>
 </p>
 
 **MuJoCo** stands for **Mu**lti-**Jo**int dynamics with **Co**ntact. It is a
