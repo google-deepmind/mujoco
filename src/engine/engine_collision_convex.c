@@ -34,13 +34,13 @@
 
 // ccd center function
 void mjccd_center(const void *obj, ccd_vec3_t *center) {
-  mjc_center(center->v, (const mjtCCObj*) obj);
+  mjc_center(center->v, (const mjCCDObj*) obj);
 }
 
 
 
 // center function for convex collision algorithms
-void mjc_center(mjtNum res[3], const mjtCCObj *obj) {
+void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
   int g = obj->geom;
   int f = obj->flex;
   int e = obj->elem;
@@ -66,13 +66,13 @@ void mjc_center(mjtNum res[3], const mjtCCObj *obj) {
 
 // ccd support function
 void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
-  mjc_support(vec->v, (mjtCCObj*) obj, _dir->v);
+  mjc_support(vec->v, (mjCCDObj*) obj, _dir->v);
 }
 
 
 
 // support function for convex collision algorithms
-void mjc_support(mjtNum res[3], mjtCCObj* obj, const mjtNum dir[3]) {
+void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjModel* m = obj->model;
   const mjData* d = obj->data;
   int g = obj->geom;
@@ -289,7 +289,7 @@ static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
 
 
 // find single convex-convex collision, using libccd
-static int mjc_MPRIteration(mjtCCObj* obj1, mjtCCObj* obj2, const ccd_t* ccd,
+static int mjc_MPRIteration(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
                             const mjModel* m, const mjData* d,
                             mjContact* con, mjtNum margin) {
   ccd_vec3_t dir, pos;
@@ -360,8 +360,8 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_t ccd;
-  mjtCCObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}};
-  mjtCCObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}};
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -489,7 +489,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjGETINFO
   mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   ccd_vec3_t dir, vec;
-  mjtCCObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
+  mjCCDObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
 
   // get support point in -normal direction
   ccdVec3Set(&dir, -mat1[2], -mat1[5], -mat1[8]);
@@ -670,7 +670,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjtCCObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
+  mjCCDObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
   ccd_t ccd;
 
   // point size1 to hfield size instead of geom1 size
@@ -1103,8 +1103,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
                    int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
   ccd_t ccd;
-  mjtCCObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}};
-  mjtCCObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}};
+  mjCCDObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -1151,7 +1151,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjtCCObj obj = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}};
+  mjCCDObj obj = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
   ccd_t ccd;
 
   //------------------------------------- AABB computation, box-box test

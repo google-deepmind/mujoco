@@ -23,15 +23,16 @@
 extern "C" {
 #endif
 
-// internal struct with settings for GJK
-struct _mjGjkConfig {
-  mjtNum max_iterations;
+// internal configuration for convex collision detection
+struct _mjCCDConfig {
+  int max_iterations;
   mjtNum tolerance;
 };
-typedef struct _mjGjkConfig mjGjkConfig;
+typedef struct _mjCCDConfig mjCCDConfig;
 
-// Returns the distance between the two objects given an initial guess x0.
-MJAPI mjtNum mj_gjk(const mjGjkConfig* config, mjtCCObj* obj1, mjtCCObj* obj2, const mjtNum x0[3]);
+// Returns the distance between the two objects. The witness points are
+// recoverable from x_0 in obj1 and obj2.
+MJAPI mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2);
 
 #ifdef __cplusplus
 }

@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <mujoco/mjtnum.h>
+#include <mujoco/mjmodel.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_collision_convex.h"
@@ -37,34 +38,38 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]);
 static void S1D(mjtNum lambda[2], const mjtNum simplex[6]);
 
 // helper function to compute the support point in the Minkowski difference
-static void support(mjtNum res[3], mjtCCObj* obj1, mjtCCObj* obj2, const mjtNum dir[3]);
+static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                    const mjtNum dir[3]);
 
 // linear algebra utility functions
 static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]);
 static void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n);
 
+// returns the distance between the two objects. The witness points are
+// recoverable from x_0 in obj1 and obj2.
+mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2) {
+  mjtNum simplex[12];  // our current simplex with max 4 vertices due to only 3 dimensions
+  int n = 0;           // number of vertices in the simplex
+  mjtNum x_k[3];       // the kth approximation point with initial value x_0
 
-
-// returns the distance between the two given objects given an initial guess x0
-mjtNum mj_gjk(const mjGjkConfig* config, mjtCCObj* obj1, mjtCCObj* obj2, const mjtNum x0[3]) {
-  // our current simplex with max 4 vertices due to only 3 dimensions
-  mjtNum simplex[12];
-  int n = 0;  // number of vertices in the simplex
-
-  // the kth approximation point with initial value x_0
-  mjtNum x_k[3];
-  mju_copy3(x_k, x0);
+  // segregated simplices and points for the two objects to recover witness points
+  mjtNum simplex1[12], simplex2[12];
+  mjtNum* x1_k = obj1->x0;
+  mjtNum* x2_k = obj2->x0;
+  mju_sub3(x_k, x1_k, x2_k);
 
   int N = config->max_iterations;
   for (size_t k = 0; k < N; k++) {
-    mjtNum s_k[3];     // the kth support point
-    mjtNum lambda[4];  // barycentric coordinates for x_k
+    mjtNum s1[3], s2[3];  // the support points in obj1 and obj2
+    mjtNum s_k[3];        // the kth support point of Minkowski difference
+    mjtNum lambda[4];     // barycentric coordinates for x_k
 
     // compute the kth support point in the direction of -(x_k)
     mjtNum x_k_neg[3];
     mju_scl3(x_k_neg, x_k, -1);
     mju_normalize3(x_k_neg);
-    support(s_k, obj1, obj2, x_k_neg);
+    support(s1, s2, obj1, obj2, x_k_neg);
+    mju_sub3(s_k, s1, s2);
 
     // the stopping criteria relies on the Frank-Wolfe duality gap given by
     //  f(x_k) - f(x_min) <= < grad f(x_k), (x_k - s_k) >
@@ -74,36 +79,57 @@ mjtNum mj_gjk(const mjGjkConfig* config, mjtCCObj* obj1, mjtCCObj* obj2, const m
       return mju_norm3(x_k);
     }
 
+    // TODO(kylebayes): signedVolume has been written to assume the first vertex is the latest
+    // support to be added. Once the logic has been updated, then this hack should be removed.
+    for (int i = n; i > 0; i--) {
+      // shift the simplex vertices to the right
+      mju_copy3(simplex  + 3*i, simplex  + 3*(i-1));
+      mju_copy3(simplex1 + 3*i, simplex1 + 3*(i-1));
+      mju_copy3(simplex2 + 3*i, simplex2 + 3*(i-1));
+    }
+
     // copy new support point into the simplex
-    mju_copy3(simplex + 3*n++, s_k);
+    mju_copy3(simplex, s_k);
+
+    // copy new support point into the individual simplexes
+    mju_copy3(simplex1, s1);
+    mju_copy3(simplex2, s2);
 
     // run the distance subalgorithm to compute the barycentric coordinates
     // of the closest point to the origin in the simplex
-    signedVolume(lambda, simplex, n);
+    signedVolume(lambda, simplex, ++n);
     lincomb(x_k, lambda, simplex, 4);
+
+    // compute the approximate witness points
+    lincomb(x1_k, lambda, simplex1, 4);
+    lincomb(x2_k, lambda, simplex2, 4);
 
     // for lambda[i] == 0, remove the ith vertex from the simplex
     n = 0;
     for (int i = 0; i < 4; i++) {
       if (lambda[i] == 0) continue;
+      // recover simplex for the two objects
+      mju_copy3(simplex1 + 3*n, simplex1 + 3*i);
+      mju_copy3(simplex2 + 3*n, simplex2 + 3*i);
+
+      // simplex in Minkowski difference
       mju_copy3(simplex + 3*n++, simplex + 3*i);
     }
   }
-
   return mju_norm3(x_k);
 }
 
 
 
 // helper function to compute the support point in the Minkowski difference
-static void support(mjtNum res[3], mjtCCObj* obj1, mjtCCObj* obj2, const mjtNum dir[3]) {
-  mjtNum s1[3], s2[3], dir_neg[3];
+static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                    const mjtNum dir[3]) {
+  mjtNum dir_neg[3];
   mju_scl3(dir_neg, dir, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
   mjc_support(s1, obj1, dir);
   mjc_support(s2, obj2, dir_neg);
-  mju_sub3(res, s1, s2);
 }
 
 
@@ -198,20 +224,7 @@ static void S3D(mjtNum lambda[4], const mjtNum simplex[12]) {
   }
 
   // find the smallest distance, and use the corresponding barycentric coordinates
-  mjtNum dist;
-
-  if (!comp1) {
-    mjtNum lambda_2d[3], verts[9], x[3];
-    mju_copy3(verts, s2);
-    mju_copy3(verts + 3, s3);
-    mju_copy3(verts + 6, s4);
-    S2D(lambda_2d, verts);
-    lincomb(x, lambda_2d, verts, 3);
-    dist = mju_norm3(x);
-    lambda[1] = lambda_2d[0];
-    lambda[2] = lambda_2d[1];
-    lambda[3] = lambda_2d[2];
-  }
+  mjtNum dist = mjMAXVAL;
 
   if (!comp2) {
     mjtNum lambda_2d[3], verts[9], x[3];
@@ -221,12 +234,11 @@ static void S3D(mjtNum lambda[4], const mjtNum simplex[12]) {
     S2D(lambda_2d, verts);
     lincomb(x, lambda_2d, verts, 3);
     mjtNum d = mju_norm3(x);
-    if (d < dist) {
-      lambda[0] = lambda_2d[0];
-      lambda[2] = lambda_2d[1];
-      lambda[3] = lambda_2d[2];
-      dist = d;
-    }
+    lambda[0] = lambda_2d[0];
+    lambda[1] = 0;
+    lambda[2] = lambda_2d[1];
+    lambda[3] = lambda_2d[2];
+    dist = d;
   }
 
   if (!comp3) {
@@ -240,6 +252,7 @@ static void S3D(mjtNum lambda[4], const mjtNum simplex[12]) {
     if (d < dist) {
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
+      lambda[2] = 0;
       lambda[3] = lambda_2d[2];
       dist = d;
     }
@@ -257,6 +270,24 @@ static void S3D(mjtNum lambda[4], const mjtNum simplex[12]) {
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
       lambda[2] = lambda_2d[2];
+      lambda[3] = 0;
+      dist = d;
+    }
+  }
+
+  if (!comp1) {
+    mjtNum lambda_2d[3], verts[9], x[3];
+    mju_copy3(verts, s2);
+    mju_copy3(verts + 3, s3);
+    mju_copy3(verts + 6, s4);
+    S2D(lambda_2d, verts);
+    lincomb(x, lambda_2d, verts, 3);
+    mjtNum d = mju_norm3(x);
+    if (d < dist) {
+      lambda[0] = 0;
+      lambda[1] = lambda_2d[0];
+      lambda[2] = lambda_2d[1];
+      lambda[3] = lambda_2d[2];
       dist = d;
     }
   }
@@ -273,30 +304,29 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
   // compute normal
   mjtNum diff1[3], diff2[3], n[3];
   mju_sub3(diff1, s2, s1);
-  mju_sub3(diff2, s3, s2);
+  mju_sub3(diff2, s3, s1);
   mju_cross(n, diff1, diff2);
 
   // project origin
   mjtNum p_o[3];
   mju_scl3(p_o, n, mju_dot3(n, s1) / mju_dot3(n, n));
 
-  int index;
   mjtNum mu_max = 0;
-  int k = 1, l = 2;
 
-  for (int i = 0; i < 3; i++) {
-    mjtNum mu = s2[k]*s3[l] + s1[k]*s2[l] + s3[k]*s1[l] - s2[k]*s1[l] - s3[k]*s2[l] - s1[k]*s3[l];
-    if (mju_abs(mu) >= mju_abs(mu_max)) {
-      mu_max = mu;
-      index = i;
-    }
-    k = l; l = i;
-  }
+  //  Below are the minors M_i4 of the matrix M given by
+  //  [[ s1_x, s2_x, s3_x, s4_x ],
+  //   [ s1_y, s2_y, s3_y, s4_y ],
+  //   [ s1_z, s2_z, s3_z, s4_z ],
+  //   [ 1,    1,    1,    1    ]]
+  mjtNum M_14 = s2[1]*s3[2] - s2[2]*s3[1] - s1[1]*s3[2] + s1[2]*s3[1] + s1[1]*s2[2] - s1[2]*s2[1];
+  mjtNum M_24 = s2[0]*s3[2] - s2[2]*s3[0] - s1[0]*s3[2] + s1[2]*s3[0] + s1[0]*s2[2] - s1[2]*s2[0];
+  mjtNum M_34 = s2[0]*s3[1] - s2[1]*s3[0] - s1[0]*s3[1] + s1[1]*s3[0] + s1[0]*s2[1] - s1[1]*s2[0];
 
-  // exclude index component
+  // exclude one of the axes with the largest projection of the simplex using the computed minors
   mjtNum s1_2D[2], s2_2D[2], s3_2D[2], p_o_2D[2];
-
-  if (index == 0) {
+  mjtNum mu1 = mju_abs(M_14), mu2 = mju_abs(M_24), mu3 = mju_abs(M_34);
+  if (mu1 >= mu2 && mu1 >= mu3) {
+    mu_max = mu1;
     s1_2D[0] = s1[1];
     s1_2D[1] = s1[2];
 
@@ -308,7 +338,8 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
 
     p_o_2D[0] = p_o[1];
     p_o_2D[1] = p_o[2];
-  } else if (index == 1) {
+  } else if (mu2 >= mu3) {
+    mu_max = mu2;
     s1_2D[0] = s1[0];
     s1_2D[1] = s1[2];
 
@@ -321,6 +352,7 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     p_o_2D[0] = p_o[0];
     p_o_2D[1] = p_o[2];
   } else {
+    mu_max = mu3;
     s1_2D[0] = s1[0];
     s1_2D[1] = s1[1];
 
@@ -357,35 +389,23 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
   }
 
   // find the smallest distance, and use the corresponding barycentric coordinates
-  mjtNum dist;
-
-  if (!comp1) {
-    mjtNum lambda_1d[4], verts[6], x[3];
-    mju_copy3(verts, s2);
-    mju_copy3(verts + 3, s3);
-    S1D(lambda_1d, verts);
-    lincomb(x, lambda_1d, verts, 2);
-    dist = mju_norm3(x);
-    lambda[1] = lambda_1d[0];
-    lambda[2] = lambda_1d[1];
-  }
+  mjtNum dist = mjMAXVAL;
 
   if (!comp2) {
-    mjtNum lambda_1d[4], verts[6], x[3];
+    mjtNum lambda_1d[2], verts[6], x[3];
     mju_copy3(verts, s1);
     mju_copy3(verts + 3, s3);
     S1D(lambda_1d, verts);
     lincomb(x, lambda_1d, verts, 2);
     mjtNum d = mju_norm3(x);
-    if (d < dist) {
-      lambda[0] = lambda_1d[0];
-      lambda[2] = lambda_1d[1];
-      dist = d;
-    }
+    lambda[0] = lambda_1d[0];
+    lambda[1] = 0;
+    lambda[2] = lambda_1d[1];
+    dist = d;
   }
 
   if (!comp3) {
-    mjtNum lambda_1d[4], verts[6], x[3];
+    mjtNum lambda_1d[2], verts[6], x[3];
     mju_copy3(verts, s1);
     mju_copy3(verts + 3, s2);
     S1D(lambda_1d, verts);
@@ -394,6 +414,22 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     if (d < dist) {
       lambda[0] = lambda_1d[0];
       lambda[1] = lambda_1d[1];
+      lambda[2] = 0;
+      dist = d;
+    }
+  }
+
+  if (!comp1) {
+    mjtNum lambda_1d[2], verts[6], x[3];
+    mju_copy3(verts, s2);
+    mju_copy3(verts + 3, s3);
+    S1D(lambda_1d, verts);
+    lincomb(x, lambda_1d, verts, 2);
+    mjtNum d = mju_norm3(x);
+    if (d < dist) {
+      lambda[1] = lambda_1d[0];
+      lambda[2] = lambda_1d[1];
+      lambda[0] = 0;
       dist = d;
     }
   }
@@ -435,5 +471,6 @@ static void S1D(mjtNum lambda[2], const mjtNum simplex[6]) {
     lambda[1] = C2 / mu_max;
   } else {
     lambda[0] = 1;
+    lambda[1] = 0;
   }
 }

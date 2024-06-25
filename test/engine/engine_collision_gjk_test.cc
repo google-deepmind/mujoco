@@ -29,18 +29,27 @@ namespace mujoco {
 namespace {
 
 using ::testing::NotNull;
+using ::testing::ElementsAre;
 
-mjtNum run_gjk(mjModel* m, mjData* d, int g1, int g2, mjtNum* x_0) {
-  mjGjkConfig config = {100, 1e-6};
-  mjtCCObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
-  mjtCCObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
-  return mj_gjk(&config, &obj1, &obj2, x_0);
+constexpr mjtNum kTolerance = 1e-6;
+constexpr int kMaxIterations = 1000;
+
+static mjtNum run_gjk(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
+               mjtNum x2[3]) {
+  mjCCDConfig config = {kMaxIterations, kTolerance};
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjc_center(obj1.x0, &obj1);
+  mjc_center(obj2.x0, &obj2);
+  mjtNum dist = mj_gjk(&config, &obj1, &obj2);
+  if (x1 != nullptr) mju_copy3(x1, obj1.x0);
+  if (x2 != nullptr) mju_copy3(x2, obj2.x0);
+  return dist;
 }
 
 using MjGjkTest = MujocoTest;
 
 TEST_F(MjGjkTest, SphereSphereIntersect) {
-  mjtNum x_0[3] = {-2, 0, 0};
   static constexpr char xml[] = R"(
   <mujoco>
   <option>
@@ -61,7 +70,7 @@ TEST_F(MjGjkTest, SphereSphereIntersect) {
 
   int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
-  mjtNum dist = run_gjk(model, data, geom1, geom2, x_0);
+  mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
 
   EXPECT_EQ(dist, 0);
   mj_deleteData(data);
@@ -69,7 +78,6 @@ TEST_F(MjGjkTest, SphereSphereIntersect) {
 }
 
 TEST_F(MjGjkTest, SphereSphere) {
-  mjtNum x_0[3] = {-2, 0, 0};
   static constexpr char xml[] = R"(
   <mujoco>
   <option>
@@ -96,15 +104,17 @@ TEST_F(MjGjkTest, SphereSphere) {
 
   int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
-  mjtNum dist = run_gjk(model, data, geom1, geom2, x_0);
+  mjtNum x1[3], x2[3];
+  mjtNum dist = run_gjk(model, data, geom1, geom2, x1, x2);
 
   EXPECT_EQ(dist, 1);
+  EXPECT_THAT(x1, ElementsAre(-.5, 0, 0));
+  EXPECT_THAT(x2, ElementsAre(.5, 0, 0));
   mj_deleteData(data);
   mj_deleteModel(model);
 }
 
 TEST_F(MjGjkTest, BoxBox) {
-  mjtNum x_0[3] = {-3, .5, 0};
   static constexpr char xml[] = R"(
   <mujoco>
   <option>
@@ -125,9 +135,65 @@ TEST_F(MjGjkTest, BoxBox) {
 
   int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
-  mjtNum dist = run_gjk(model, data, geom1, geom2, x_0);
+  mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
 
   EXPECT_EQ(dist, 1);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjGjkTest, EllipsoidEllipsoid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option>
+    <flag gravity="disable"/>
+  </option>
+  <worldbody>
+    <geom name="geom1" type="ellipsoid" pos="1.5 0 -.5" size=".15 .30 .20"/>
+    <geom name="geom2" type="ellipsoid" pos="1.5 .5 .5" size=".10 .10 .15"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
+
+  EXPECT_NEAR(dist, 0.7542, .0001);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjGjkTest, CapsuleCapsule) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option>
+    <flag gravity="disable"/>
+  </option>
+  <worldbody>
+    <geom name="geom1" type="capsule" pos="-.3 .2 -.4" size=".15 .30"/>
+    <geom name="geom2" type="capsule" pos=".3 .2 .4" size=".10 .10"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
+
+  EXPECT_NEAR(dist, 0.4765, .0001);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
