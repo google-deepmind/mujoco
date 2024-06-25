@@ -37,7 +37,14 @@ namespace Mujoco {
     public MjJointSettings Settings = MjJointSettings.Default;
 
     // World space rotation axis.
-    public Vector3 RotationAxis => transform.rotation * Vector3.right;
+    public unsafe Vector3 RotationAxis {
+      get {
+        if (MjScene.InstanceExists) {
+          return MjEngineTool.UnityVector3(MjScene.Instance.Data->xaxis + 3 * MujocoId);
+        }
+        return transform.rotation * Vector3.right;
+      }
+    }
 
     protected override unsafe void OnBindToRuntime(MujocoLib.mjModel_* model, MujocoLib.mjData_* data) {
       base.OnBindToRuntime(model, data);
