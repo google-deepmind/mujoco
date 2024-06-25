@@ -3542,7 +3542,7 @@ mjsText* mjs_addText(mjSpec* s);
 mjsTuple* mjs_addTuple(mjSpec* s);
 mjsKey* mjs_addKey(mjSpec* s);
 mjsPlugin* mjs_addPlugin(mjSpec* s);
-mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id);
+mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 mjsMesh* mjs_addMesh(mjSpec* s, mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);

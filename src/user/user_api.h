@@ -156,7 +156,7 @@ MJAPI mjsKey* mjs_addKey(mjSpec* s);
 MJAPI mjsPlugin* mjs_addPlugin(mjSpec* s);
 
 // Add default.
-MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id);
+MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 
 
 //---------------------------------- Add assets ----------------------------------------------------

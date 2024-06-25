@@ -741,7 +741,9 @@ mjCDef* mjCModel::FindDefault(string name) {
 
 
 // add default class to array
-mjCDef* mjCModel::AddDefault(string name, int parentid) {
+mjCDef* mjCModel::AddDefault(string name, mjCDef* parent) {
+  int parentid = parent ? parent->id : 0;
+
   // check for repeated name
   int thisid = (int)defaults_.size();
   for (int i=0; i<thisid; i++) {
@@ -753,6 +755,7 @@ mjCDef* mjCModel::AddDefault(string name, int parentid) {
   // create new object
   mjCDef* def = new mjCDef;
   defaults_.push_back(def);
+  def->id = thisid;
 
   // initialize contents
   if (parentid>=0 && parentid<thisid) {

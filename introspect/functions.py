@@ -9499,13 +9499,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='parentid',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='id',
+                 name='parent',
                  type=PointerType(
-                     inner_type=ValueType(name='int'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),

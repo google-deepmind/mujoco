@@ -517,6 +517,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 // constructor
 mjCDef::mjCDef() {
   name.clear();
+  id = 0;
   parentid = -1;
   childid.clear();
   mjs_defaultJoint(&joint_.spec);

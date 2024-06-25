@@ -29,6 +29,7 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
@@ -862,7 +863,7 @@ void mjXReader::Parse(XMLElement* root) {
   readingdefaults = true;
   for (XMLElement* section = FirstChildElement(root, "default"); section;
        section = NextSiblingElement(section, "default")) {
-    Default(section, -1);
+    Default(section, nullptr);
   }
   readingdefaults = false;
 
@@ -2667,27 +2668,24 @@ void mjXReader::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
 //------------------ MJCF-specific sections --------------------------------------------------------
 
 // default section parser
-void mjXReader::Default(XMLElement* section, int parentid) {
+void mjXReader::Default(XMLElement* section, const mjsDefault* def) {
   XMLElement* elem;
   string text, name;
-  mjsDefault* def;
-  int thisid;
 
   // create new default, except at top level (already added in mjCModel constructor)
   text.clear();
   ReadAttrTxt(section, "class", text);
   if (text.empty()) {
-    if (parentid >= 0) {
+    if (def) {
       throw mjXError(section, "empty class name");
     }
   }
-  if (parentid >= 0) {
-    def = mjs_addDefault(model, text.c_str(), parentid, &thisid);
+  if (def) {
+    def = mjs_addDefault(model, text.c_str(), def);
     if (!def) {
       throw mjXError(section, "repeated default class name");
     }
   } else {
-    thisid = 0;
     def = mjs_getSpecDefault(model);
     if (!text.empty() && text != "main") {
       throw mjXError(section, "top-level default class 'main' cannot be renamed");
@@ -2755,7 +2753,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
 
     // read default
     if (name=="default") {
-      Default(elem, thisid);
+      Default(elem, def);
     }
 
     // advance
