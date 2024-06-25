@@ -97,6 +97,7 @@ mjCModel::mjCModel() {
 
   //------------------------ master default set
   defaults_.push_back(new mjCDef);
+  defaults_.back()->name = "main";
 
   // world body
   mjCBody* world = new mjCBody(this);

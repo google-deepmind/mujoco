@@ -2673,17 +2673,15 @@ void mjXReader::Default(XMLElement* section, int parentid) {
   mjsDefault* def;
   int thisid;
 
-  // create new default, except at top level (already added in mjCModel ctor)
+  // create new default, except at top level (already added in mjCModel constructor)
   text.clear();
   ReadAttrTxt(section, "class", text);
   if (text.empty()) {
-    if (parentid>=0) {
+    if (parentid >= 0) {
       throw mjXError(section, "empty class name");
-    } else {
-      text = "main";
     }
   }
-  if (parentid>=0) {
+  if (parentid >= 0) {
     def = mjs_addDefault(model, text.c_str(), parentid, &thisid);
     if (!def) {
       throw mjXError(section, "repeated default class name");
@@ -2691,7 +2689,9 @@ void mjXReader::Default(XMLElement* section, int parentid) {
   } else {
     thisid = 0;
     def = mjs_getSpecDefault(model);
-    mjs_setString(def->name, text.c_str());
+    if (!text.empty() && text != "main") {
+      throw mjXError(section, "top-level default class 'main' cannot be renamed");
+    }
   }
 
   // iterate over elements other than nested defaults
@@ -3496,6 +3496,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       mjsBody* pchild = mjs_addBody(pbody, childdef);
       mjs_setString(pchild->info,
                     std::string("line " + std::to_string(elem->GetLineNum())).c_str());
+
+      // set default from class or childclass
+      mjs_setDefault(pchild->element, childdef ? childdef : def);
 
       // read attributes
       std::string name, childclass;

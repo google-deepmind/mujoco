@@ -464,6 +464,39 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   }
 }
 
+TEST_F(XMLReaderTest, ClassOverridesChildclass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="size2">
+        <geom size="2"/>
+      </default>
+      <default class="size3">
+        <geom size="3"/>
+      </default>
+    </default>
+    <worldbody>
+      <frame childclass="size2">
+        <geom/>
+        <geom class="size3"/>
+        <body childclass="size2">
+          <geom/>
+          <geom class="size3"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->geom_size[3*0], 2);
+  EXPECT_EQ(model->geom_size[3*1], 3);
+  EXPECT_EQ(model->geom_size[3*2], 2);
+  EXPECT_EQ(model->geom_size[3*3], 3);
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLReaderTest, RepeatedDefaultName) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -509,6 +542,45 @@ TEST_F(XMLReaderTest, InvalidDefaultClassName) {
   EXPECT_THAT(error.data(),
               AllOf(HasSubstr("unknown default class name 'invalid'"),
                     HasSubstr("Element 'geom'"), HasSubstr("line 10")));
+}
+
+TEST_F(XMLReaderTest, InvalidTopDefaultClassName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default class="sphere">
+      <geom type="sphere" size="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom class="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              HasSubstr("top-level default class 'main' cannot be renamed"));
+}
+
+TEST_F(XMLReaderTest, ValidTopDefaultClassName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default class="main">
+      <geom type="sphere" size="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom class="main"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  mj_deleteModel(model);
 }
 
 // ------------------------ test including -------------------------------------

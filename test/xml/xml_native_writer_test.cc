@@ -727,8 +727,10 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
 TEST_F(XMLWriterTest, WritesFrameDefaults) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <default class="dframe">
-      <geom size=".1"/>
+    <default>
+      <default class="dframe">
+        <geom size=".1"/>
+      </default>
     </default>
 
     <worldbody>
