@@ -14,6 +14,7 @@
 
 #include "xml/xml_native_writer.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdio>
 #include <string>
@@ -72,11 +73,11 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   std::string str = string(stream.CStr());
 
   // top level sections
-  auto sections = {"<actuator",  "<asset",     "<compiler",   "<contact",
-                   "<custom",    "<default>",  "<deformable", "<equality",
-                   "<extension", "<keyframe",  "<option",     "<sensor",
-                   "<size",      "<statistic", "<tendon",     "<visual",
-                   "<worldbody"};
+  std::array<std::string, 17> sections = {
+      "<actuator", "<asset",      "<compiler", "<contact",   "<custom",
+      "<default>", "<deformable", "<equality", "<extension", "<keyframe",
+      "<option",   "<sensor",     "<size",     "<statistic", "<tendon",
+      "<visual",   "<worldbody"};
 
   // position of newline before first section
   size_t first_pos = std::string::npos;
