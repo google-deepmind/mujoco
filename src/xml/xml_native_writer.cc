@@ -69,7 +69,45 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
     mjCopyError(error, doc.ErrorStr(), error_sz);
     return "";
   }
-  return string(stream.CStr());
+  std::string str = string(stream.CStr());
+
+  // top level sections
+  auto sections = {"<actuator",  "<asset",     "<compiler",   "<contact",
+                   "<custom",    "<default>",  "<deformable", "<equality",
+                   "<extension", "<keyframe",  "<option",     "<sensor",
+                   "<size",      "<statistic", "<tendon",     "<visual",
+                   "<worldbody"};
+
+  // position of newline before first section
+  size_t first_pos = std::string::npos;
+
+  // insert newlines before section headers
+  for (const std::string& section : sections) {
+    size_t pos = 0;
+    while ((pos = str.find(section, pos)) != std::string::npos) {
+      // find newline before this section
+      size_t line_pos = str.rfind('\n', pos);
+
+      // save position of first section
+      if (line_pos < first_pos) first_pos = line_pos;
+
+      // insert another newline
+      if (line_pos != std::string::npos) {
+        str.insert(line_pos + 1, "\n");
+        pos++;  // account for inserted newline
+      }
+
+      // advance
+      pos += section.length();
+    }
+  }
+
+  // remove added newline before the first section
+  if (first_pos != std::string::npos) {
+    str.erase(first_pos, 1);
+  }
+
+  return str;
 }
 
 
@@ -1143,7 +1181,9 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
 
   // create section, write class name
   section = InsertEnd(root, "default");
-  WriteAttrTxt(section, "class", def->name);
+  if (def->name != "main") {
+    WriteAttrTxt(section, "class", def->name);
+  }
 
   // mesh
   elem = InsertEnd(section, "mesh");
