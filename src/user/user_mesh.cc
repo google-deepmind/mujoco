@@ -195,7 +195,6 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 void mjCMesh::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.file = &spec_file_;
   spec.content_type = &spec_content_type_;
   spec.uservert = &spec_vert_;
@@ -1982,7 +1981,6 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
 void mjCSkin::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.file = &spec_file_;
   spec.material = &spec_material_;
   spec.vert = &spec_vert_;
@@ -2394,7 +2392,6 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 void mjCFlex::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.material = &spec_material_;
   spec.vertbody = &spec_vertbody_;
   spec.vert = &spec_vert_;

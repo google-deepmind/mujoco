@@ -300,7 +300,6 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // inherited
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -362,7 +361,6 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
 
   mjsFrame spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -409,7 +407,6 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
   mjsJoint spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -510,7 +507,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void NameSpace(const mjCModel* m);
 
   // inherited
-  using mjCBase::classname;
   using mjCBase::info;
 };
 
@@ -548,7 +544,6 @@ class mjCSite : public mjCSite_, private mjsSite {
 
   // use strings from mjCBase rather than mjStrings from mjsSite
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -591,7 +586,6 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
 
   mjsCamera spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -631,7 +625,6 @@ class mjCLight : public mjCLight_, private mjsLight {
 
   mjsLight spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -694,7 +687,6 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   mjsFlex spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -794,7 +786,6 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
   mjsMesh spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -925,7 +916,6 @@ class mjCSkin: public mjCSkin_, private mjsSkin {
 
   mjsSkin spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   const std::string& get_file() const { return file_; }
@@ -1027,7 +1017,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   mjsTexture spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -1082,7 +1071,6 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
 
   mjsMaterial spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec();
@@ -1123,7 +1111,6 @@ class mjCPair : public mjCPair_, private mjsPair {
 
   mjsPair spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec();
@@ -1220,7 +1207,6 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
 
   mjsEquality spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec();
@@ -1261,7 +1247,6 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
 
   mjsTendon spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void set_material(std::string _material) { material_ = _material; }
@@ -1394,7 +1379,6 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
   mjsActuator spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -1453,7 +1437,6 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
 
   mjsSensor spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel

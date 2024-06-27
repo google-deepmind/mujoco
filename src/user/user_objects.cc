@@ -1686,6 +1686,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // point to local
   PointToLocal();
@@ -1726,7 +1727,6 @@ bool mjCJoint::is_actfrclimited() const { return islimited(actfrclimited, actfrc
 void mjCJoint::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
 }
@@ -1894,6 +1894,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // point to local
   PointToLocal();
@@ -1927,7 +1928,6 @@ void mjCGeom::PointToLocal(void) {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.info = &info;
-  spec.classname = &classname;
   spec.userdata = &spec_userdata_;
   spec.material = &spec_material_;
   spec.meshname = &spec_meshname_;
@@ -2537,6 +2537,7 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 }
 
 
@@ -2563,7 +2564,6 @@ void mjCSite::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.info = &info;
-  spec.classname = &classname;
   spec.material = &spec_material_;
   spec.userdata = &spec_userdata_;
 }
@@ -2683,6 +2683,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // point to local
   PointToLocal();
@@ -2714,7 +2715,6 @@ mjCCamera& mjCCamera::operator=(const mjCCamera& other) {
 void mjCCamera::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.userdata = &spec_userdata_;
   spec.targetbody = &spec_targetbody_;
   spec.info = &info;
@@ -2837,6 +2837,7 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   PointToLocal();
   CopyFromSpec();
@@ -2865,7 +2866,6 @@ mjCLight& mjCLight::operator=(const mjCLight& other) {
 void mjCLight::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.targetbody = &spec_targetbody_;
   spec.info = &info;
 }
@@ -3194,7 +3194,6 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
 void mjCTexture::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.file = &spec_file_;
   spec.content_type = &spec_content_type_;
   spec.cubefiles = &spec_cubefiles_;
@@ -3873,6 +3872,7 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
 
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   PointToLocal();
 
@@ -3903,7 +3903,6 @@ mjCMaterial& mjCMaterial::operator=(const mjCMaterial& other) {
 void mjCMaterial::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.texture = &spec_texture_;
   spec.info = &info;
 }
@@ -3960,6 +3959,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // point to local
   PointToLocal();
@@ -3993,7 +3993,6 @@ mjCPair& mjCPair::operator=(const mjCPair& other) {
 void mjCPair::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.geomname1 = &spec_geomname1_;
   spec.geomname2 = &spec_geomname2_;
   spec.info = &info;
@@ -4321,6 +4320,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // point to local
   PointToLocal();
@@ -4352,7 +4352,6 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 void mjCEquality::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.name1 = &spec_name1_;
   spec.name2 = &spec_name2_;
   spec.info = &info;
@@ -4483,6 +4482,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // point to local
   PointToLocal();
@@ -4521,7 +4521,6 @@ bool mjCTendon::is_limited() const { return islimited(limited, range); }
 void mjCTendon::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.material = &spec_material_;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
@@ -4961,6 +4960,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  classname = def ? def->name : "";
 
   // in case this actuator is not compiled
   CopyFromSpec();
@@ -5002,7 +5002,6 @@ bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange)
 void mjCActuator::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.userdata = &spec_userdata_;
   spec.target = &spec_target_;
   spec.refsite = &spec_refsite_;
@@ -5325,7 +5324,6 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
 void mjCSensor::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.userdata = &spec_userdata_;
   spec.objname = &spec_objname_;
   spec.refname = &spec_refname_;
