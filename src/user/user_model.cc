@@ -36,6 +36,7 @@
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
+#include "engine/engine_name.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
 #include "engine/engine_support.h"

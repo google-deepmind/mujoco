@@ -23,6 +23,7 @@
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_io.h"
+#include "engine/engine_name.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
