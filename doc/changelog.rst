@@ -12,12 +12,17 @@ General
 
    1. Removed deprecated ``mj_makeEmptyFileVFS`` and ``mj_findFileVFS`` functions.
 
-      **Migration:** Use ``mj_addBufferVFS`` to copy a buffer into a VFS file directly.
+      **Migration:** Use:ref:`mj_addBufferVFS` to copy a buffer into a VFS file directly.
 
-   2. Calls to ``mj_defaultVFS`` may allocate memory inside VFS, and the corresponding
-      ``mj_deleteVFS`` must be called to deallocate any internal allocated memory.
+   2. Calls to:ref:`mj_defaultVFS` may allocate memory inside VFS, and the corresponding
+      :ref:`mj_deleteVFS` must be called to deallocate any internal allocated memory.
 
-3. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
+   3. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+      :ref:`mju_mulMatTVec3`. These function names and argument order are more consistent with the rest of the API.
+      The older functions have been removed from the Python bindings and will be removed from the C API in the next
+      release.
+
+4. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
    Still missing:
 
    - Detailed documentation.
@@ -27,14 +32,12 @@ General
    :align: right
    :width: 240px
 
-4. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
+5. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
    :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
-5. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
-6. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
-7. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
-8. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
-   :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
+6. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+7. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
+8. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
 9. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
@@ -231,10 +234,10 @@ General
    :at:`ctrlrange` or :at:`actrange` (respectively), according to the range of the transmission
    target (joint or tendon). See :ref:`position/inheritrange<actuator-position-inheritrange>` for
    details.
-2. Deprecated :ref:`mj_makeEmptyFileVFS` in favor of :ref:`mj_addBufferVFS`. :ref:`mjVFS` now computes checksums of
+2. Deprecated ``mj_makeEmptyFileVFS`` in favor of :ref:`mj_addBufferVFS`. :ref:`mjVFS` now computes checksums of
    its internal file buffers. :ref:`mj_addBufferVFS` allocates an empty buffer with a given name in an mjVFS and
    copies the data buffer into it, combining and replacing the deprecated two-step process of calling
-   :ref:`mj_makeEmptyFileVFS` followed by a direct copy into the given mjVFS internal file buffer.
+   ``mj_makeEmptyFileVFS`` followed by a direct copy into the given mjVFS internal file buffer.
 3. Added :ref:`mj_angmomMat` which computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, providing the linear
    mapping from generalized velocities to subtree angular momentum :math:`h = H \dot q`. Contribution by
    :github:user:`v-r-a`.

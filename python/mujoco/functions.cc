@@ -17,7 +17,6 @@
 #include <array>
 #include <cstdint>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <optional>
 
@@ -29,6 +28,7 @@
 #include "functions.h"
 #include "private.h"
 #include "raw.h"
+#include "structs.h"
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -108,9 +108,10 @@ PYBIND11_MODULE(_functions, pymodule) {
   // Skipped: mj_copyModel (have MjModel.__copy__, memory managed by MjModel)
   pymodule.def(
       "mj_saveModel",
-      [](const MjModelWrapper& m, const std::optional<std::string>& filename = std::nullopt,
-         std::optional<
-             Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>> buffer = std::nullopt) {
+      [](const MjModelWrapper& m,
+         const std::optional<std::string>& filename = std::nullopt,
+         std::optional<Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>>
+             buffer = std::nullopt) {
         void* buffer_ptr = nullptr;
         int buffer_sz = 0;
         if (buffer.has_value()) {
@@ -122,8 +123,7 @@ PYBIND11_MODULE(_functions, pymodule) {
             buffer_ptr, buffer_sz);
       },
       py::arg("m"), py::arg_v("filename", std::nullopt),
-      py::arg_v("buffer", std::nullopt),
-      py::doc(traits::mj_saveModel::doc),
+      py::arg_v("buffer", std::nullopt), py::doc(traits::mj_saveModel::doc),
       py::call_guard<py::gil_scoped_release>());
   // Skipped: mj_loadModel (have MjModel.from_binary_path)
   // Skipped: mj_deleteModel (have MjModel.__del__)
@@ -700,8 +700,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_dist3>(pymodule);
   Def<traits::mju_mulMatVec3>(pymodule);
   Def<traits::mju_mulMatTVec3>(pymodule);
-  Def<traits::mju_rotVecMat>(pymodule);
-  Def<traits::mju_rotVecMatT>(pymodule);
+  // skipped: mju_rotVecMat
+  // skipped: mju_rotVecMatT
   Def<traits::mju_cross>(pymodule);
   Def<traits::mju_zero4>(pymodule);
   Def<traits::mju_unit4>(pymodule);
