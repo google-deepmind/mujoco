@@ -818,7 +818,10 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
       // BALL joint
       else if (m->jnt_type[i] == mjJNT_BALL) {
         // convert joint quaternion to axis-angle
-        mju_quat2Vel(angleAxis, d->qpos+m->jnt_qposadr[i], 1);
+        int adr = m->jnt_qposadr[i];
+        mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
+        mju_normalize4(quat);
+        mju_quat2Vel(angleAxis, quat, 1);
 
         // get rotation angle, normalize
         value = mju_normalize3(angleAxis);
@@ -1767,7 +1770,10 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
     }
     else if (m->jnt_type[i] == mjJNT_BALL) {
       mjtNum angleAxis[3];
-      mju_quat2Vel(angleAxis, d->qpos+m->jnt_qposadr[i], 1);
+      int adr = m->jnt_qposadr[i];
+      mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
+      mju_normalize4(quat);
+      mju_quat2Vel(angleAxis, quat, 1);
       value = mju_normalize3(angleAxis);
       dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
       if (dist < margin) {
