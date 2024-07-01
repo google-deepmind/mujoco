@@ -581,6 +581,55 @@ mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child) {
 
 
 
+// return body given mjsElement
+mjsBody* mjs_asBody(mjsElement* element) {
+  return element->elemtype == mjOBJ_BODY ? &(static_cast<mjCBody*>(element)->spec) : nullptr;
+}
+
+
+
+// return geom given mjsElement
+mjsGeom* mjs_asGeom(mjsElement* element) {
+  return element->elemtype == mjOBJ_GEOM ? &(static_cast<mjCGeom*>(element)->spec) : nullptr;
+}
+
+
+
+// return joint given mjsElement
+mjsJoint* mjs_asJoint(mjsElement* element) {
+  return element->elemtype == mjOBJ_JOINT ? &(static_cast<mjCJoint*>(element)->spec) : nullptr;
+}
+
+
+
+// Return site given mjsElement
+mjsSite* mjs_asSite(mjsElement* element) {
+  return element->elemtype == mjOBJ_SITE ? &(static_cast<mjCSite*>(element)->spec) : nullptr;
+}
+
+
+
+// return camera given mjsElement
+mjsCamera* mjs_asCamera(mjsElement* element) {
+  return element->elemtype == mjOBJ_CAMERA ? &(static_cast<mjCCamera*>(element)->spec) : nullptr;
+}
+
+
+
+// return light given mjsElement
+mjsLight* mjs_asLight(mjsElement* element) {
+  return element->elemtype == mjOBJ_LIGHT ? &(static_cast<mjCLight*>(element)->spec) : nullptr;
+}
+
+
+
+// return frame given mjsElement
+mjsFrame* mjs_asFrame(mjsElement* element) {
+  return element->elemtype == mjOBJ_FRAME ? &(static_cast<mjCFrame*>(element)->spec) : nullptr;
+}
+
+
+
 // set string
 void mjs_setString(mjString* dest, const char* text) {
   std::string* str = static_cast<std::string*>(dest);

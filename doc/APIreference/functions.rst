@@ -4167,6 +4167,69 @@ mjs_nextChild
 
 Return body's next child of the same type; return NULL if child is last.
 
+.. _mjs_asBody:
+
+mjs_asBody
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asBody
+
+Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
+
+.. _mjs_asGeom:
+
+mjs_asGeom
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asGeom
+
+Safely cast an element as mjsGeom, or return NULL if the element is not an mjsGeom.
+
+.. _mjs_asJoint:
+
+mjs_asJoint
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asJoint
+
+Safely cast an element as mjsJoint, or return NULL if the element is not an mjsJoint.
+
+.. _mjs_asSite:
+
+mjs_asSite
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSite
+
+Safely cast an element as mjsSite, or return NULL if the element is not an mjsSite.
+
+.. _mjs_asCamera:
+
+mjs_asCamera
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asCamera
+
+Safely cast an element as mjsCamera, or return NULL if the element is not an mjsCamera.
+
+.. _mjs_asLight:
+
+mjs_asLight
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asLight
+
+Safely cast an element as mjsLight, or return NULL if the element is not an mjsLight.
+
+.. _mjs_asFrame:
+
+mjs_asFrame
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asFrame
+
+Safely cast an element as mjsFrame, or return NULL if the element is not an mjsFrame.
+
 .. _AttributeSetters:
 
 Attribute setters

@@ -215,6 +215,27 @@ MJAPI mjsElement* mjs_firstChild(mjsBody* body, mjtObj type);
 // Return body's next child of the same type; return NULL if child is last.
 MJAPI mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child);
 
+// Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
+MJAPI mjsBody* mjs_asBody(mjsElement* element);
+
+// Safely cast an element as mjsGeom, or return NULL if the element is not an mjsGeom.
+MJAPI mjsGeom* mjs_asGeom(mjsElement* element);
+
+// Safely cast an element as mjsJoint, or return NULL if the element is not an mjsJoint.
+MJAPI mjsJoint* mjs_asJoint(mjsElement* element);
+
+// Safely cast an element as mjsSite, or return NULL if the element is not an mjsSite.
+MJAPI mjsSite* mjs_asSite(mjsElement* element);
+
+// Safely cast an element as mjsCamera, or return NULL if the element is not an mjsCamera.
+MJAPI mjsCamera* mjs_asCamera(mjsElement* element);
+
+// Safely cast an element as mjsLight, or return NULL if the element is not an mjsLight.
+MJAPI mjsLight* mjs_asLight(mjsElement* element);
+
+// Safely cast an element as mjsFrame, or return NULL if the element is not an mjsFrame.
+MJAPI mjsFrame* mjs_asFrame(mjsElement* element);
+
 
 //---------------------------------- Attribute setters ---------------------------------------------
 

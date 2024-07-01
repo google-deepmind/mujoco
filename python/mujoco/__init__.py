@@ -43,6 +43,7 @@ from mujoco._enums import *
 from mujoco._errors import *
 from mujoco._functions import *
 from mujoco._render import *
+from mujoco._specs import *
 from mujoco._structs import *
 from mujoco.gl_context import *
 from mujoco.renderer import Renderer

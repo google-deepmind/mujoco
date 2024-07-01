@@ -9813,6 +9813,118 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Return body's next child of the same type; return NULL if child is last.",  # pylint: disable=line-too-long
      )),
+    ('mjs_asBody',
+     FunctionDecl(
+         name='mjs_asBody',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsBody'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_asGeom',
+     FunctionDecl(
+         name='mjs_asGeom',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsGeom'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsGeom, or return NULL if the element is not an mjsGeom.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_asJoint',
+     FunctionDecl(
+         name='mjs_asJoint',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsJoint'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsJoint, or return NULL if the element is not an mjsJoint.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_asSite',
+     FunctionDecl(
+         name='mjs_asSite',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsSite'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsSite, or return NULL if the element is not an mjsSite.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_asCamera',
+     FunctionDecl(
+         name='mjs_asCamera',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsCamera'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsCamera, or return NULL if the element is not an mjsCamera.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_asLight',
+     FunctionDecl(
+         name='mjs_asLight',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsLight'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsLight, or return NULL if the element is not an mjsLight.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_asFrame',
+     FunctionDecl(
+         name='mjs_asFrame',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsFrame, or return NULL if the element is not an mjsFrame.',  # pylint: disable=line-too-long
+     )),
     ('mjs_setString',
      FunctionDecl(
          name='mjs_setString',

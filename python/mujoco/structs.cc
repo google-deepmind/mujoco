@@ -28,6 +28,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -428,6 +429,27 @@ MjModelWrapper MjModelWrapper::LoadXML(
     }
   }
   return MjModelWrapper(model);
+}
+
+MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec) {
+  auto m = mj_compile(spec, nullptr);
+  if (!m || mjs_isWarning(spec)) {
+    throw py::value_error(mjs_getError(spec));
+  }
+  return MjModelWrapper(m);
+}
+
+py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
+                        const MjDataWrapper& old_d) {
+  raw::MjModel* m = static_cast<raw::MjModel*>(mju_malloc(sizeof(mjModel)));
+  m->buffer = nullptr;
+  raw::MjData* d = mj_copyData(nullptr, old_m.get(), old_d.get());
+  mj_recompile(spec, nullptr, m, d);
+
+  py::object m_pyobj = py::cast((MjModelWrapper(m)));
+  py::object d_pyobj =
+      py::cast((MjDataWrapper(py::cast<MjModelWrapper*>(m_pyobj), d)));
+  return py::make_tuple(m_pyobj, d_pyobj);
 }
 
 namespace {
@@ -1558,6 +1580,11 @@ PYBIND11_MODULE(_structs, m) {
       py::doc(
 R"(Loads an MjModel from an XML string and an optional assets dictionary.)"));
   mjModel.def_static(
+      "_from_spec_ptr", [](uintptr_t addr) {
+        return MjModelWrapper::CompileSpec(
+            reinterpret_cast<raw::MjSpec*>(addr));
+      });
+  mjModel.def_static(
       "from_xml_path", &MjModelWrapper::LoadXMLFile,
       py::arg("filename"), py::arg_v("assets", py::none()),
       py::doc(
@@ -2406,5 +2433,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       },
       py::arg("cam1"), py::arg("cam2"),
       py::doc(python_traits::mjv_averageCamera::doc));
+
+  m.def(
+      "_recompile_spec_addr",
+      [](uintptr_t spec_addr, const MjModelWrapper& m, const MjDataWrapper& d) {
+        return RecompileSpec(reinterpret_cast<raw::MjSpec*>(spec_addr), m, d);
+      }
+  );
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace mujoco::python::_impl

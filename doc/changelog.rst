@@ -26,7 +26,6 @@ General
    Still missing:
 
    - Detailed documentation.
-   - Python bindings.
 
 .. youtube:: ZXBTEIDWHhs
    :align: right

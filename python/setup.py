@@ -347,6 +347,7 @@ setuptools.setup(
         CMakeExtension('mujoco._render'),
         CMakeExtension('mujoco._rollout'),
         CMakeExtension('mujoco._simulate'),
+        CMakeExtension('mujoco._specs'),
         CMakeExtension('mujoco._structs'),
     ],
     scripts=[
