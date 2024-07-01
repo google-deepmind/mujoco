@@ -709,10 +709,48 @@ TEST_F(ForwardTest, NormalizeQuats) {
   mj_deleteData(data_n);
   mj_deleteData(data_u);
   mj_deleteModel(model);
+}
 
-#ifdef STOP_MSAN
-  #define MEMORY_SANITIZER
-#endif
+// test that normalized and denormalized quats give the same result
+TEST_F(ForwardTest, MocapQuats) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="mocap" mocap="true" quat="1 1 1 1">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framequat objtype="body" objname="mocap"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // expect mocap_quat to be normalized (by the compiler)
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(data->mocap_quat[i], 0.5);
+    EXPECT_EQ(data->xquat[4+i], 0.5);
+  }
+
+  // write denormalized quats to mocap_quat, call forward again
+  for (int i = 0; i < 4; i++) {
+    data->mocap_quat[i] = 1;
+  }
+  mj_forward(model, data);
+
+  // expect mocap_quat to remain denormalized, but xquat to be normalized
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(data->mocap_quat[i], 1);
+    EXPECT_EQ(data->xquat[4+i], 0.5);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 // user defined 2nd-order activation dynamics: frequency-controlled oscillator

@@ -44,11 +44,6 @@ void mj_kinematics(const mjModel* m, mjData* d) {
   d->xmat[0] = d->xmat[4] = d->xmat[8] = 1;
   d->ximat[0] = d->ximat[4] = d->ximat[8] = 1;
 
-  // normalize mocap quaternions
-  for (int i=0; i < m->nmocap; i++) {
-    mju_normalize4(d->mocap_quat+4*i);
-  }
-
   // compute global cartesian positions and orientations of all bodies
   for (int i=1; i < m->nbody; i++) {
     mjtNum xpos[3], xquat[4];
@@ -75,10 +70,12 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       int pid = m->body_parentid[i];
 
       // get body pos and quat: from model or mocap
-      mjtNum *bodypos, *bodyquat;
+      mjtNum *bodypos, *bodyquat, quat[4];
       if (m->body_mocapid[i] >= 0) {
         bodypos = d->mocap_pos + 3*m->body_mocapid[i];
-        bodyquat = d->mocap_quat + 4*m->body_mocapid[i];
+        mju_copy4(quat, d->mocap_quat + 4*m->body_mocapid[i]);
+        mju_normalize4(quat);
+        bodyquat = quat;
       } else {
         bodypos = m->body_pos+3*i;
         bodyquat = m->body_quat+4*i;
