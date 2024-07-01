@@ -815,6 +815,26 @@ TEST_F(MjCHFieldTest, PngMap) {
   mj_deleteModel(model);
 }
 
+// ------------- test textures -------------------------------------------------
+
+using MjCTextureTest = MujocoTest;
+
+TEST_F(MjCTextureTest, TexturesLoad) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="body" type="cube" builtin="flat" mark="cross" width="8"
+       rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  mj_deleteModel(m);
+}
+
 // ------------- test quaternion normalization----------------------------------
 
 using QuatNorm = MujocoTest;

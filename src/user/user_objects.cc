@@ -19,11 +19,11 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
 #include <optional>
+#include <random>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -3227,9 +3227,15 @@ mjCTexture::~mjCTexture() {
 // insert random dots
 static void randomdot(unsigned char* rgb, const double* markrgb,
                       int width, int height, double probability) {
+  // make distribution using fixed seed
+  std::mt19937_64 rng;
+  rng.seed(42);
+  std::uniform_real_distribution<double> dist(0, 1);
+
+  // sample
   for (int r=0; r<height; r++) {
     for (int c=0; c<width; c++) {
-      if (rand()<probability*RAND_MAX) {
+      if (dist(rng)<probability) {
         for (int j=0; j<3; j++) {
           rgb[3*(r*width+c)+j] = (mjtByte)(255*markrgb[j]);
         }
@@ -3779,14 +3785,18 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
   // builtin
   if (builtin != mjBUILTIN_NONE) {
-    // check size
-    if (width<1 || height<1) {
-      throw mjCError(this, "Invalid width or height of builtin texture");
+    // check width
+    if (width<1) {
+      throw mjCError(this, "Invalid width of builtin texture");
     }
 
     // adjust height of cube texture
     if (type != mjTEXTURE_2D) {
       height = 6*width;
+    } else {
+      if (height<1) {
+        throw mjCError(this, "Invalid height of builtin texture");
+      }
     }
 
     // allocate data
