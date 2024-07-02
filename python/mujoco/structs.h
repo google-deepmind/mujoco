@@ -734,7 +734,7 @@ class MjWrapper<raw::MjvGeom> : public WrapperBase<raw::MjvGeom> {
     py_array_or_tuple_t<                                        \
         std::remove_all_extents_t<decltype(raw::MjvGeom::var)>> \
         var
-  X(texrepeat);
+  X(matid);
   X(size);
   X(pos);
   X(mat);

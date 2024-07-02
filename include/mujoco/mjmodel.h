@@ -44,7 +44,7 @@
 #define mjNIMP          5         // number of solver impedance parameters
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
-
+#define mjNTEXMAT       6         // number of textures per material
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
 

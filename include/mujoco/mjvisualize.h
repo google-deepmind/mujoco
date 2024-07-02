@@ -230,21 +230,22 @@ struct mjvGeom_ {                 // abstract geom
   int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
-  int      texid;                 // texture id; -1: no texture
-  int      texuniform;            // uniform cube mapping
+  int      matid;                 // material id; -1: no textured material
   int      texcoord;              // mesh or flex geom has texture coordinates
   int      segid;                 // segmentation id; -1: not shown
 
-  // OpenGL info
-  float    texrepeat[2];          // texture repetition for 2D mapping
+  // spatial transform
   float    size[3];               // size parameters
   float    pos[3];                // Cartesian position
   float    mat[9];                // Cartesian orientation
+
+  // material properties
   float    rgba[4];               // color and transparency
   float    emission;              // emission coef
   float    specular;              // specular coef
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
+
   char     label[100];            // text label
 
   // transparency rendering (set internally)

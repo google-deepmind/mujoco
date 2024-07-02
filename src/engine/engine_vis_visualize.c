@@ -302,19 +302,11 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
                         const mjtByte* flags) {
   // set material properties if given
   if (matid >= 0) {
-    f2f(geom->texrepeat, m->mat_texrepeat + 2*matid, 2);
     f2f(geom->rgba, m->mat_rgba + 4*matid, 4);
-    geom->texuniform = m->mat_texuniform[matid];
     geom->emission = m->mat_emission[matid];
     geom->specular = m->mat_specular[matid];
     geom->shininess = m->mat_shininess[matid];
     geom->reflectance = m->mat_reflectance[matid];
-  }
-
-  // otherwise clear texrepeat
-  else {
-    geom->texrepeat[0] = 0;
-    geom->texrepeat[1] = 0;
   }
 
   // use rgba if different from default, or no material given
@@ -324,7 +316,7 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
 
   // set texture
   if (flags[mjVIS_TEXTURE] && matid >= 0) {
-    geom->texid = m->mat_texid[matid];
+    geom->matid = matid;
   }
 
   // scale alpha for dynamic geoms only
@@ -458,11 +450,8 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
 
   // set defaults that cannot be assigned via this function
   geom->dataid       = -1;
-  geom->texid        = -1;
-  geom->texuniform   = 0;
+  geom->matid        = -1;
   geom->texcoord     = 0;
-  geom->texrepeat[0] = 1;
-  geom->texrepeat[1] = 1;
   geom->emission     = 0;
   geom->specular     = 0.5;
   geom->shininess    = 0.5;
@@ -571,7 +560,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           thisgeom->texcoord = 1;
         }
         else {
-          thisgeom->texid = -1;
+          thisgeom->matid = -1;
         }
 
         // glow flex if selected

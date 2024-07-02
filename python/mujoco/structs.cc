@@ -1078,7 +1078,6 @@ MjvGLCameraWrapper::MjWrapper(const MjvGLCameraWrapper& other)
 #define X(var) var(InitPyArray(ptr_->var, owner_))
 MjvGeomWrapper::MjWrapper()
     : WrapperBase(new raw::MjvGeom{}),
-      X(texrepeat),
       X(size),
       X(pos),
       mat([this]() {
@@ -1091,7 +1090,6 @@ MjvGeomWrapper::MjWrapper()
 
 MjvGeomWrapper::MjWrapper(raw::MjvGeom* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
-      X(texrepeat),
       X(size),
       X(pos),
       mat([this]() {
@@ -2214,8 +2212,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(objtype);
   X(objid);
   X(category);
-  X(texid);
-  X(texuniform);
+  X(matid);
   X(texcoord);
   X(segid);
   X(emission);
@@ -2228,7 +2225,6 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #undef X
 
 #define X(var) DefinePyArray(mjvGeom, #var, &MjvGeomWrapper::var)
-  X(texrepeat);
   X(size);
   X(pos);
   X(mat);

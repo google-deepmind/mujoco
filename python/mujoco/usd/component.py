@@ -258,17 +258,10 @@ class USDPrimitiveMesh:
 
     assert self.prim_mesh
 
-    x_scale, y_scale = self.geom.texrepeat
-
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
 
-    x_multiplier, y_multiplier = 1, 1
-    if self.geom.texuniform:
-      x_multiplier, y_multiplier = self.geom.size[:2]
-
-    mesh_texcoord[:, 0] *= x_scale * x_multiplier
-    mesh_texcoord[:, 1] *= y_scale * y_multiplier
+    # TODO(etom): bring back support for rescaling the texture coordinates.
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 

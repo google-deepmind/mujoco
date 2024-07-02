@@ -5483,14 +5483,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='visual category',
              ),
              StructFieldDecl(
-                 name='texid',
+                 name='matid',
                  type=ValueType(name='int'),
-                 doc='texture id; -1: no texture',
-             ),
-             StructFieldDecl(
-                 name='texuniform',
-                 type=ValueType(name='int'),
-                 doc='uniform cube mapping',
+                 doc='material id; -1: no textured material',
              ),
              StructFieldDecl(
                  name='texcoord',
@@ -5501,14 +5496,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='segid',
                  type=ValueType(name='int'),
                  doc='segmentation id; -1: not shown',
-             ),
-             StructFieldDecl(
-                 name='texrepeat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2,),
-                 ),
-                 doc='texture repetition for 2D mapping',
              ),
              StructFieldDecl(
                  name='size',
@@ -7957,7 +7944,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='offDepthStencil_r',
                  type=ValueType(name='unsigned int'),
-                 doc='offscreen depth and stencil buffer for resolving multisamples',  # pylint: disable=line-too-long
+                 doc='offscreen depth and stencil buffer for multisamples',
              ),
              StructFieldDecl(
                  name='shadowFBO',
@@ -8002,6 +7989,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='auxiliary color buffer for resolving',
              ),
              StructFieldDecl(
+                 name='mat_texid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(600,),
+                 ),
+                 doc='material texture ids (-1: no texture)',
+             ),
+             StructFieldDecl(
+                 name='mat_texuniform',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(100,),
+                 ),
+                 doc='texture repetition for 2d mapping',
+             ),
+             StructFieldDecl(
+                 name='mat_texrepeat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(200,),
+                 ),
+                 doc='texture repetition for 2d mapping',
+             ),
+             StructFieldDecl(
                  name='ntexture',
                  type=ValueType(name='int'),
                  doc='number of allocated textures',
@@ -8035,12 +8046,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='baseHField',
                  type=ValueType(name='unsigned int'),
-                 doc='all hfields from model',
+                 doc='all height fields from model',
              ),
              StructFieldDecl(
                  name='baseBuiltin',
                  type=ValueType(name='unsigned int'),
-                 doc='all buildin geoms, with quality from model',
+                 doc='all builtin geoms, with quality from model',
              ),
              StructFieldDecl(
                  name='baseFontNormal',
