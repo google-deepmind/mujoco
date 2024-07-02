@@ -482,6 +482,8 @@ Building from source
    from GitHub. On macOS, the download corresponds to a DMG file from which you
    can drag ``MuJoCo.app`` into your ``/Applications`` folder.
 
+3. Or :ref:`build the library from source<inBuild>`. When configuring the build, use ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<absolute_path_to_my_install_dir>`` to set up an installation directory, and after the build, use ``cmake --install .`` to populate it. Additionally, make a ``<my_install_dir>/plugins`` directory and copy ``libactuator.so, libelasticity.so, libsdf.so, libsensor.so`` from ``<build_dir>/lib`` into it. In the later steps, ``<my_install_dir>`` and ``<my_install_dir>/plugins`` will be ``MUJOCO_PATH`` and ``MUJOCO_PLUGIN_PATH`` respectively.
+
 3. Clone the entire ``mujoco`` repository from GitHub and ``cd`` into the python
    directory:
 
@@ -512,7 +514,7 @@ Building from source
    ``mujoco-x.y.z.tar.gz`` file (where ``x.y.z`` is the version number).
 
 6. Use the generated source distribution to build and install the bindings.
-   You'll need to specify the path to the MuJoCo library you downloaded earlier
+   You'll need to specify the path to the MuJoCo library you downloaded or built earlier
    in the ``MUJOCO_PATH`` environment variable.
 
    .. note::
