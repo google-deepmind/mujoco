@@ -233,7 +233,7 @@ class USDExporter:
     assert geom_name not in self.geom_name2usd
 
     texture_file = (
-        self.texture_files[self.model.mat_texid[geom.matid]]
+        self.texture_files[self.model.mat_texid[mujoco.mjNTEXMAT*geom.matid]]
         if geom.matid != -1
         else None
     )

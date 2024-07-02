@@ -168,7 +168,7 @@
   X( float,   light_, specular,      nlight,  3 )
 
 #define MJMODEL_MATERIAL                   \
-  X( int,     mat_, texid,       nmat, 1 ) \
+  X( int,     mat_, texid,       nmat, mjNTEXMAT ) \
   X( mjtByte, mat_, texuniform,  nmat, 1 ) \
   X( float,   mat_, texrepeat,   nmat, 2 ) \
   X( float,   mat_, emission,    nmat, 1 ) \

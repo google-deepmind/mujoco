@@ -394,7 +394,7 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
 
   // line data
   int     linepnt[mjMAXLINE];     // number of points in line; (0) disable
-  float   linedata[mjMAXLINE][2*mjMAXLINEPNT]; // line data (x,y)
+  float   linedata[mjMAXLINE][2*mjMAXLINEPNT];  // line data (x,y)
 
   // output from renderer
   int     xaxispixel[2];          // range of x-axis in pixels

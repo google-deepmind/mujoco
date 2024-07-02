@@ -935,7 +935,7 @@ struct mjModel_ {
   int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
-  int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
+  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXMAT)
   mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)
