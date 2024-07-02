@@ -3181,9 +3181,6 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   errInfo = mjCError();
   warningtext[0] = 0;
 
-  // init random number generator, to make textures reproducible
-  srand(123);
-
   try {
     if (setjmp(error_jmp_buf) != 0) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
