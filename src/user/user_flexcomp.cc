@@ -900,7 +900,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  std::string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.modelfiledir),
                                            mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
@@ -999,7 +999,7 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  std::string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.modelfiledir),
                                            mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 

@@ -906,6 +906,47 @@ TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLReaderTest, IncludeAbsoluteMeshDirTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <include file="assets.xml"/>
+  </mujoco>
+  )";
+  static constexpr char assets[] = R"(
+  <mujoco>
+    <compiler meshdir="mjMock.IncludeAbsoluteMeshDirTest:/assets"/>
+    <asset>
+    <mesh file="cube.obj"/>
+  </asset>
+  </mujoco>
+  )";
+
+  static constexpr char cube[] = R"(
+  v -0.500000 -0.500000  0.500000
+  v  0.500000 -0.500000  0.500000
+  v -0.500000  0.500000  0.500000
+  v  0.500000  0.500000  0.500000
+  v -0.500000  0.500000 -0.500000
+  v  0.500000  0.500000 -0.500000
+  v -0.500000 -0.500000 -0.500000
+  v  0.500000 -0.500000 -0.500000)";
+
+  MockFilesystem fs("IncludeAbsoluteMeshDirTest");
+  fs.AddFile("/assets/cube.obj", (const unsigned char*) cube, sizeof(cube));
+  fs.AddFile("assets.xml", (const unsigned char*) assets,
+   sizeof(assets));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  std::array<char, 1024> error;
+  // loading the file should be successful
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+                              error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLReaderTest, ParsePolycoef) {
   static constexpr char xml[] = R"(
   <mujoco>

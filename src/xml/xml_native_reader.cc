@@ -4120,56 +4120,36 @@ mjsDefault* mjXReader::GetClass(XMLElement* section) {
   return def;
 }
 
-
-
-
-// return true if c is a directory path separator (i.e. '/' or '\' on windows)
-static bool IsSeperator(char c) {
-  return c == '/' || c == '\\';
-}
-
 void mjXReader::SetModelFileDir(std::string modelfiledir) {
   modelfiledir_ = modelfiledir;
-  if (!modelfiledir_.empty() && !IsSeperator(modelfiledir_.back())) {
-    modelfiledir_.append("/");
-  }
 }
 
 void mjXReader::SetAssetDir(std::string assetdir) {
   assetdir_ = assetdir;
-  if (!assetdir_.empty() && !IsSeperator(assetdir_.back())) {
-    assetdir_.append("/");
-  }
 }
 
 void mjXReader::SetMeshDir(std::string meshdir) {
   meshdir_ = meshdir;
-  if (!meshdir_.empty() && !IsSeperator(meshdir_.back())) {
-    meshdir_.append("/");
-  }
 }
 
 void mjXReader::SetTextureDir(std::string texturedir) {
   texturedir_ = texturedir;
-  if (!texturedir_.empty() && !IsSeperator(texturedir_.back())) {
-    texturedir_.append("/");
-  }
 }
 
 std::string mjXReader::AssetDir() const {
-  return modelfiledir_ + assetdir_;
+  return mjuu_combinePaths(modelfiledir_, assetdir_);
 }
 
 std::string mjXReader::MeshDir() const {
   if (meshdir_.empty()) {
     return AssetDir();
   }
-  return modelfiledir_ + meshdir_;
+  return mjuu_combinePaths(modelfiledir_, meshdir_);
 }
 
 std::string mjXReader::TextureDir() const {
   if (texturedir_.empty()) {
     return AssetDir();
   }
-  return modelfiledir_ + texturedir_;
+  return mjuu_combinePaths(modelfiledir_, texturedir_);
 }

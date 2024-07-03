@@ -167,8 +167,10 @@ std::string mjuu_getext(std::string_view filename);
 // check if path is absolute
 bool mjuu_isabspath(std::string path);
 
-// assemble full filename
-std::string mjuu_makefullname(std::string filedir, std::string meshdir, std::string filename);
+// assemble file paths
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2);
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2,
+                              const std::string& path3);
 
 // return type from content_type format {type}/{subtype}[;{parameter}={value}]
 std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text);

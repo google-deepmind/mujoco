@@ -3105,7 +3105,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir_, model->meshdir_, file_);
+    string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -3723,7 +3723,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // make filename
-      string filename = mjuu_makefullname(model->modelfiledir_, model->texturedir_, cubefiles_[i]);
+      string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, cubefiles_[i]);
 
       // load PNG or custom
       unsigned int w, h;
@@ -3821,7 +3821,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // make filename
-    string filename = mjuu_makefullname(model->modelfiledir_, model->texturedir_, file_);
+    string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, file_);
 
     // dispatch
     if (type==mjTEXTURE_2D) {

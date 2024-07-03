@@ -837,21 +837,28 @@ bool mjuu_isabspath(string path) {
 
 
 
-// assemble full filename
-string mjuu_makefullname(string filedir, string meshdir, string filename) {
-  // filename has absolute path: filename
-  if (mjuu_isabspath(filename)) {
-    return filename;
+// assemble two file paths
+std::string mjuu_combinePaths(const string& path1, const string& path2) {
+  // path2 has absolute path
+  if (mjuu_isabspath(path2)) {
+    return path2;
   }
 
-  // meshdir has absolute path: meshdir + filename
-  if (mjuu_isabspath(meshdir)) {
-    return meshdir + filename;
+  std::size_t n = path1.size();
+  if (n > 0 && path1[n - 1] != '\\' && path1[n - 1] != '/') {
+    return path1 + "/" + path2;
   }
-
-  // default
-  return filedir + meshdir + filename;
+  return path1 + path2;
 }
+
+
+
+// assemble three file paths
+std::string mjuu_combinePaths(const string& path1, const string& path2,
+                              const string& path3) {
+  return mjuu_combinePaths(path1, mjuu_combinePaths(path2, path3));
+}
+
 
 
 // return true if the text is in a valid content type format:
