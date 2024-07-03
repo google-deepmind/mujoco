@@ -1,4 +1,18 @@
-from typing import List, Optional, Tuple
+# Copyright 2024 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+from typing import Optional
 
 import numpy as np
 
@@ -8,7 +22,7 @@ from pxr import UsdGeom
 from pxr import UsdLux
 
 class USDSphereLight:
-
+  """Class that handles the sphere lights in the USD scene"""
   def __init__(
       self, stage: Usd.Stage, obj_name: str, radius: Optional[float] = 0.3
   ):
@@ -28,7 +42,14 @@ class USDSphereLight:
     # defining ops required by update function
     self.translate_op = self.usd_xform.AddTranslateOp()
 
-  def update(self, pos: np.ndarray, intensity: int, color: np.ndarray, frame: int):
+  def update(
+    self,
+    pos: np.ndarray,
+    intensity: int,
+    color: np.ndarray,
+    frame: int
+  ):
+    """Updates the attributes of a sphere light."""
     self.translate_op.Set(Gf.Vec3d(pos.tolist()), frame)
 
     if not np.any(pos):
@@ -39,7 +60,7 @@ class USDSphereLight:
 
 
 class USDDomeLight:
-
+  """Class that handles the dome lights in the USD scene"""
   def __init__(self, stage: Usd.Stage, obj_name: str):
     self.stage = stage
 
@@ -52,8 +73,8 @@ class USDDomeLight:
     # we assume in mujoco that all lights are point lights
     self.usd_light.GetNormalizeAttr().Set(True)
 
-  def update(self, intensity: int, color: np.ndarray, frame: int):
+  def update(self, intensity: int, color: np.ndarray):
+    """Updates the attributes of a dome light."""
     self.usd_light.GetIntensityAttr().Set(intensity)
     self.usd_light.GetExposureAttr().Set(0.0)
     self.usd_light.GetColorAttr().Set(Gf.Vec3d(color.tolist()))
-

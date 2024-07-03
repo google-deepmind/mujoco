@@ -13,6 +13,19 @@
 # limitations under the License.
 # ==============================================================================
 import os
+from typing import List, Optional
+
+import numpy as np
+import scipy
+import termcolor
+import tqdm
+
+from PIL import Image as im
+from PIL import ImageOps
+
+from pxr import Sdf
+from pxr import Usd
+from pxr import UsdGeom
 
 import mujoco
 
@@ -21,24 +34,9 @@ import mujoco.usd.objects as object_module
 import mujoco.usd.lights as light_module
 import mujoco.usd.camera as camera_module
 
-import numpy as np
-import scipy
-import termcolor
-import tqdm
-
-from typing import List, Optional, Tuple, Union
-from PIL import Image as im
-from PIL import ImageOps
-
-# TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
-# pytype: disable=module-attr
-from pxr import Sdf
-from pxr import Usd
-from pxr import UsdGeom
-
 
 class USDExporter:
-
+  """MuJoCo to USD exporter for porting scenes to external renderers."""
   def __init__(
       self,
       model: mujoco.MjModel,
@@ -58,7 +56,7 @@ class USDExporter:
         model: an MjModel instance.
         height: image height in pixels.
         width: image width in pixels.
-        max_geom: Optional integer specifying the maximum number of geoms that
+        max_geom: optional integer specifying the maximum number of geoms that
           can be rendered in the same scene. If None this will be chosen
           automatically based on the estimated maximum number of renderable
           geoms in the model.
@@ -107,6 +105,10 @@ class USDExporter:
     self.geom_names = set()
     self.geom_refs = {}
 
+    # initializing list of lights and cameras
+    self.usd_lights = []
+    self.usd_cameras = []
+
     # initializing rendering requirements
     self.renderer = mujoco.Renderer(model, height, width, max_geom)
     self._initialize_usd_stage()
@@ -120,13 +122,16 @@ class USDExporter:
 
   @property
   def usd(self):
+    """Returns the USD file as a string."""
     return self.stage.GetRootLayer().ExportToString()
 
   @property
   def scene(self):
+    """Returns the scene."""
     return self.renderer.scene
 
   def _initialize_usd_stage(self):
+    """Initializes a USD stage to represent the mujoco scene."""
     self.stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
     self.stage.SetStartTimeCode(0)
@@ -139,6 +144,7 @@ class USDExporter:
     self.stage.SetDefaultPrim(default_prim)
 
   def _initialize_output_directories(self):
+    """Initializes output directories to store frames and assets"""
     self.output_directory_path = os.path.join(
         self.output_directory_root, self.output_directory_name
     )
@@ -167,7 +173,7 @@ class USDExporter:
       data: mujoco.MjData,
       scene_option: Optional[mujoco.MjvOption] = None,
   ):
-    """Updates the scene with latest sim data
+    """Updates the scene with latest sim data.
 
     Args:
         data: structure storing current simulation state
@@ -231,7 +237,7 @@ class USDExporter:
           )
       )
 
-  def _load_geom(self, geom: mujoco.MjvGeom, tendon: Optional[bool]=False):
+  def _load_geom(self, geom: mujoco.MjvGeom):
 
     geom_name = self._get_geom_name(geom)
 
@@ -272,7 +278,7 @@ class USDExporter:
         mesh_config = shapes_module.mesh_config_generator(
             name=geom_name,
             geom_type=geom.type,
-            size=geom.size   
+            size=geom.size
         )
         usd_geom = object_module.USDPrimitiveMesh(
             mesh_config=mesh_config,
@@ -316,12 +322,12 @@ class USDExporter:
 
   def _load_lights(self):
     # initializes an usd light object for every light in the scene
-    self.usd_lights = []
     for i in range(self.scene.nlight):
       light = self.scene.lights[i]
       if not np.allclose(light.pos, [0, 0, 0]):
-        self.usd_lights.append
-        (light_module.USDSphereLight(stage=self.stage, obj_name=str(i)))
+        self.usd_lights.append(
+          light_module.USDSphereLight(stage=self.stage, obj_name=str(i))
+        )
       else:
         self.usd_lights.append(None)
 
@@ -343,7 +349,6 @@ class USDExporter:
       )
 
   def _load_cameras(self):
-    self.usd_cameras = []
     if self.camera_names is not None:
       for name in self.camera_names:
         self.usd_cameras.append(
@@ -355,7 +360,6 @@ class USDExporter:
       scene_option: Optional[mujoco.MjvOption] = None,
   ):
     for i in range(len(self.usd_cameras)):
-
       camera = self.usd_cameras[i]
       camera_name = self.camera_names[i]
 
@@ -370,12 +374,16 @@ class USDExporter:
       up = avg_camera.up
       right = np.cross(forward, up)
 
-      R = np.eye(3)
-      R[:, 0] = right
-      R[:, 1] = up
-      R[:, 2] = -forward
+      rotation = np.eye(3)
+      rotation[:, 0] = right
+      rotation[:, 1] = up
+      rotation[:, 2] = -forward
 
-      camera.update(cam_pos=avg_camera.pos, cam_mat=R, frame=self.updates)
+      camera.update(
+        cam_pos=avg_camera.pos,
+        cam_mat=rotation,
+        frame=self.updates
+      )
 
   def add_light(
       self,
@@ -386,16 +394,33 @@ class USDExporter:
       obj_name: Optional[str] = "light_1",
       light_type: Optional[str] = "sphere",
   ):
-
+    """Adds a user defined, fixed light.
+    
+    Args:
+        pos: position of the light in 3D space.
+        intensity: intensity of the light.
+        radius: radius of the light to be used by renderer.
+        color: color of the light.
+        obj_name: name associated with the light.
+        light_type: type of light (sphere or dome).
+    """
     if light_type == "sphere":
-      new_light = light_module.USDSphereLight(stage=self.stage, obj_name=str(objid), radius=radius)
+      new_light = light_module.USDSphereLight(
+        stage=self.stage,
+        obj_name=obj_name,
+        radius=radius)
 
-      new_light.update(pos=np.array(pos), intensity=intensity, color=color, frame=0)
+      new_light.update(
+        pos=np.array(pos),
+        intensity=intensity,
+        color=color,
+        frame=0)
     elif light_type == "dome":
       new_light = light_module.USDDomeLight(
-          stage=self.stage, obj_name=str(objid))
-
-      new_light.update(intensity=intensity, color=color, frame=0)
+        stage=self.stage,
+        obj_name=obj_name
+      )
+      new_light.update(intensity=intensity, color=color)
 
   def add_camera(
       self,
@@ -403,14 +428,22 @@ class USDExporter:
       rotation_xyz: List[float],
       obj_name: Optional[str] = "camera_1",
   ):
+    """Adds a user defined, fixed camera.
+    
+    Args:
+        pos: position of the camera in 3D space.
+        rotation_xyz: euler rotation of the camera.
+        obj_name: name associated with the camera.
+    """
     new_camera = camera_module.USDCamera(
-        stage=self.stage, obj_name=str(objid))
+        stage=self.stage, obj_name=obj_name)
 
     r = scipy.spatial.transform.Rotation.from_euler(
         "xyz", rotation_xyz, degrees=True)
     new_camera.update(cam_pos=np.array(pos), cam_mat=r.as_matrix(), frame=0)
 
   def save_scene(self, filetype: str = "usd"):
+    """Saves the scene to a USD file."""
     assert filetype in ["usd", "usda", "usdc"]
     self.stage.SetEndTimeCode(self.frame_count)
 
@@ -419,10 +452,14 @@ class USDExporter:
       geom_ref.update_visibility(False, geom_ref.last_visible_frame+1)
 
     self.stage.Export(
-        f"{self.output_directory_root}/{self.output_directory_name}/frames/frame_{self.frame_count}_.{filetype}"
+        f"{self.output_directory_root}/{self.output_directory_name}/" + \
+        f"frames/frame_{self.frame_count}.{filetype}"
     )
     if self.verbose:
-      print(termcolor.colored(f"Completed writing frame_{self.frame_count}.{filetype}", "green"))
+      print(termcolor.colored(
+        f"Completed writing frame_{self.frame_count}.{filetype}",
+        "green"
+      ))
 
   def _get_geom_name(self, geom):
     # adding id as part of name for USD file
@@ -431,7 +468,8 @@ class USDExporter:
       geom_name = "None"
     geom_name += f"_id{geom.objid}"
 
-    # adding additional naming information to differentiate between geoms and tendons
+    # adding additional naming information to differentiate
+    # between geoms and tendons
     if geom.objtype == mujoco.mjtObj.mjOBJ_GEOM:
       geom_name += "_geom"
     elif geom.objtype == mujoco.mjtObj.mjOBJ_TENDON:
@@ -439,7 +477,8 @@ class USDExporter:
 
     return geom_name
 
-  # for debugging purposes, prints all geoms in scene including those part of tendons
+  # for debugging purposes, prints all geoms in scene
+  # including those part of tendons
   def _print_scene_geom_info(self):
     for i in range(self.scene.ngeom):
       geom = self.scene.geoms[i]

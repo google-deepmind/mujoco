@@ -1,12 +1,26 @@
+# Copyright 2024 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
 import argparse
-from tqdm import tqdm
 from pathlib import Path
+from tqdm import tqdm
 
 import mujoco
 from mujoco.usd import exporter
 
 def generate_usd_trajectory(args):
-
+  """Generates a USD file from a mujoco trajectory."""
   # load a model to mujoco
   model_path = args.model_path
   m = mujoco.MjModel.from_xml_path(model_path)
@@ -19,8 +33,8 @@ def generate_usd_trajectory(args):
                              camera_names=args.camera_names)
 
   # step through the model for length steps
-  for i in tqdm(range(args.length)):
-    for i in range(args.steps_per_frame):
+  for _ in tqdm(range(args.length)):
+    for _ in range(args.steps_per_frame):
       mujoco.mj_step(m, d)
     exp.update_scene(d)
 
@@ -30,7 +44,7 @@ if __name__ == "__main__":
 
   parser = argparse.ArgumentParser()
 
-  parser.add_argument('--model_path', 
+  parser.add_argument('--model_path',
                       type=str,
                       required=True,
                       help='path to mjcf xml model')
@@ -40,20 +54,20 @@ if __name__ == "__main__":
                       default=100,
                       help='length of trajectory to render')
 
-  parser.add_argument('--output_directory_root', 
+  parser.add_argument('--output_directory_root',
                       type=str,
                       default="../usd_trajectories/",
                       help='location where to create usd files')
 
-  parser.add_argument('--camera_names', 
+  parser.add_argument('--camera_names',
                       type=str,
                       nargs='+',
                       help='cameras to include in usd')
 
-  parser.add_argument('--export_extension', 
+  parser.add_argument('--export_extension',
                       type=str,
                       default="usd",
-                      help='extension of exported file (can be usd, usda, or usdc)')
+                      help='extension of exported file (usd, usda, or usdc)')
 
   parser.add_argument('--steps_per_frame',
                       type=int,
@@ -62,7 +76,3 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
   generate_usd_trajectory(args)
-
-  
-
-
