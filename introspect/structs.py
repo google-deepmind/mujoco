@@ -4183,7 +4183,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='pstack',
                  type=ValueType(name='size_t'),
-                 doc='first available mjtNum address in stack',
+                 doc='first available byte in stack',
              ),
              StructFieldDecl(
                  name='pbase',
@@ -4224,22 +4224,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='maximum number of scalar constraints',
              ),
              StructFieldDecl(
-                 name='warning',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjWarningStat'),
-                     extents=(8,),
-                 ),
-                 doc='warning statistics',
-             ),
-             StructFieldDecl(
-                 name='timer',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjTimerStat'),
-                     extents=(15,),
-                 ),
-                 doc='timer statistics',
-             ),
-             StructFieldDecl(
                  name='solver',
                  type=ArrayType(
                      inner_type=ValueType(name='mjSolverStat'),
@@ -4266,7 +4250,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                      extents=(20,),
                  ),
-                 doc='number of non-zeros in Hessian or efc_AR, per island',
+                 doc='number of nonzeros in Hessian or efc_AR, per island',
              ),
              StructFieldDecl(
                  name='solver_fwdinv',
@@ -4275,6 +4259,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='forward-inverse comparison: qfrc, efc',
+             ),
+             StructFieldDecl(
+                 name='warning',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjWarningStat'),
+                     extents=(8,),
+                 ),
+                 doc='warning statistics',
+             ),
+             StructFieldDecl(
+                 name='timer',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjTimerStat'),
+                     extents=(15,),
+                 ),
+                 doc='timer statistics',
              ),
              StructFieldDecl(
                  name='ne',
@@ -4756,7 +4756,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='volume has been added to collisions              (nbvh x 1)',  # pylint: disable=line-too-long
+                 doc='was bounding volume checked for collision        (nbvh x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='flexedge_velocity',
@@ -4987,7 +4987,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjContact'),
                  ),
-                 doc='list of all detected contacts                    (ncon x 1)',  # pylint: disable=line-too-long
+                 doc='array of all detected contacts                   (ncon x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_type',
@@ -5239,26 +5239,26 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='linear cost term: J*qacc_smooth - aref            (nefc x 1)',  # pylint: disable=line-too-long
+                 doc='linear cost term: J*qacc_smooth - aref           (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_force',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint force in constraint space              (nefc x 1)',  # pylint: disable=line-too-long
+                 doc='constraint force in constraint space             (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_state',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='constraint state (mjtConstraintState)             (nefc x 1)',  # pylint: disable=line-too-long
+                 doc='constraint state (mjtConstraintState)            (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='threadpool',
                  type=ValueType(name='uintptr_t'),
-                 doc='ThreadPool for multithreaded operations',
+                 doc='thread pool pointer',
              ),
          ),
      )),
