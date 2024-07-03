@@ -34,9 +34,9 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
 
     # Check that euler sequence order is set correctly.
-    self.assertEqual(spec.euler[0], ord('x'))
-    spec.euler = ['z', 'y', 'x']
-    self.assertEqual(spec.euler[0], ord('z'))
+    self.assertEqual(spec.eulerseq[0], ord('x'))
+    spec.eulerseq = ['z', 'y', 'x']
+    self.assertEqual(spec.eulerseq[0], ord('z'))
 
     # Add a body, check that it has default orientation.
     body = spec.worldbody.add_body()

@@ -8266,7 +8266,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='angles in radians or degrees',
              ),
              StructFieldDecl(
-                 name='euler',
+                 name='eulerseq',
                  type=ArrayType(
                      inner_type=ValueType(name='char'),
                      extents=(3,),

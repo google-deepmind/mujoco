@@ -36,9 +36,9 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->autolimits = 1;
   spec->settotalmass = -1;
   spec->degree = 1;
-  spec->euler[0] = 'x';
-  spec->euler[1] = 'y';
-  spec->euler[2] = 'z';
+  spec->eulerseq[0] = 'x';
+  spec->eulerseq[1] = 'y';
+  spec->eulerseq[2] = 'z';
   spec->convexhull = 1;
   spec->usethread = 1;
   spec->inertiafromgeom = mjINERTIAFROMGEOM_AUTO;

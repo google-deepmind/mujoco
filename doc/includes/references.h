@@ -1654,7 +1654,7 @@ typedef struct mjSpec_ {           // model specification
   mjtByte strippath;               // automatically strip paths from mesh files
   mjtByte fitaabb;                 // meshfit to aabb instead of inertia box
   mjtByte degree;                  // angles in radians or degrees
-  char euler[3];                   // sequence for euler rotations
+  char eulerseq[3];                // sequence for euler rotations
   mjString* meshdir;               // mesh and hfield directory
   mjString* texturedir;            // texture directory
   mjtByte discardvisual;           // discard visual geoms in parser

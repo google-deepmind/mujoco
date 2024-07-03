@@ -1388,7 +1388,7 @@ void mjCBody::Compile(void) {
   }
 
   // check and process orientation alternatives for body
-  const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
+  const char* err = ResolveOrientation(quat, model->degree, model->eulerseq, alt);
   if (err) {
     throw mjCError(this, "error '%s' in frame alternative", err);
   }
@@ -1650,7 +1650,7 @@ void mjCFrame::Compile() {
   }
 
   CopyFromSpec();
-  const char* err = ResolveOrientation(quat, model->spec.degree, model->spec.euler, alt);
+  const char* err = ResolveOrientation(quat, model->spec.degree, model->spec.eulerseq, alt);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
   }
@@ -2394,7 +2394,7 @@ void mjCGeom::Compile(void) {
 
   // not 'fromto': try alternative
   else {
-    const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
+    const char* err = ResolveOrientation(quat, model->degree, model->eulerseq, alt);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
@@ -2643,7 +2643,7 @@ void mjCSite::Compile(void) {
 
   // alternative orientation
   else {
-    const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
+    const char* err = ResolveOrientation(quat, model->degree, model->eulerseq, alt);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
@@ -2754,7 +2754,7 @@ void mjCCamera::Compile(void) {
   userdata_.resize(model->nuser_cam);
 
   // process orientation specifications
-  const char* err = ResolveOrientation(quat, model->degree, model->euler, alt);
+  const char* err = ResolveOrientation(quat, model->degree, model->eulerseq, alt);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }

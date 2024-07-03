@@ -959,7 +959,7 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
     if (text.size()!=3) {
       throw mjXError(section, "euler format must have length 3");
     }
-    memcpy(spec->euler, text.c_str(), 3);
+    memcpy(spec->eulerseq, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
     mjs_setString(spec->meshdir, text.c_str());
@@ -3393,7 +3393,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       alt.type = mjORIENTATION_EULER;
       mjuu_copyvec(alt.euler, euler, 3);
       double rotation[4] = {1, 0, 0, 0};
-      mjs_resolveOrientation(rotation, model->degree, model->euler, &alt);
+      mjs_resolveOrientation(rotation, model->degree, model->eulerseq, &alt);
 
       // read childdef
       mjsDefault* childdef = 0;
@@ -3424,7 +3424,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
         alt.euler[0] = i*euler[0];
         alt.euler[1] = i*euler[1];
         alt.euler[2] = i*euler[2];
-        mjs_resolveOrientation(quat, model->degree, model->euler, &alt);
+        mjs_resolveOrientation(quat, model->degree, model->eulerseq, &alt);
         mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
 
         // process suffix

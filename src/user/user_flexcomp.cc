@@ -27,6 +27,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
@@ -145,7 +146,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // compute orientation
-  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.euler, &alt);
+  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.eulerseq, &alt);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
