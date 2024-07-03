@@ -20,26 +20,26 @@
 #include <string_view>
 
 
-const double mjEPS = 1E-14;                     // minimum value in various calculations
-const double mjMINMASS = 1E-6;                  // minimum mass allowed
+const double mjEPS = 1E-14;     // minimum value in various calculations
+const double mjMINMASS = 1E-6;  // minimum mass allowed
 
 // check if numeric variable is defined:  !_isnan(num)
-bool mjuu_defined(const double num);
+bool mjuu_defined(double num);
 
 // compute linear address of M[g1][g2] where M is triangular n-by-n
 // return -1 if inputs are invalid
-int mjuu_matadr(int g1, int g2, const int n);
+int mjuu_matadr(int g1, int g2, int n);
 
 // set 4D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z, const double w);
-void mjuu_setvec(float* dest, const double x, const double y, const double z, const double w);
+void mjuu_setvec(double* dest, double x, double y, double z, double w);
+void mjuu_setvec(float* dest, double x, double y, double z, double w);
 
 // set 3D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z);
-void mjuu_setvec(float* dest, const double x, const double y, const double z);
+void mjuu_setvec(double* dest, double x, double y, double z);
+void mjuu_setvec(float* dest, double x, double y, double z);
 
 // set 2D vector
-void mjuu_setvec(double* dest, const double x, const double y);
+void mjuu_setvec(double* dest, double x, double y);
 
 // copy real-valued vector
 template <class T1, class T2>
@@ -50,18 +50,18 @@ void mjuu_copyvec(T1* dest, const T2* src, int n) {
 }
 
 // add to double array
-void mjuu_addtovec(double* dest, const double* src, const int n);
+void mjuu_addtovec(double* dest, const double* src, int n);
 
 // zero array
-void mjuu_zerovec(double* dest, const int n);
+void mjuu_zerovec(double* dest, int n);
 
 // zero float array
-void mjuu_zerovec(float* dest, const int n);
+void mjuu_zerovec(float* dest, int n);
 
 // dot-product in 3D
 double mjuu_dot3(const double* a, const double* b);
 
-// distance beween 3D points
+// distance between 3D points
 double mjuu_dist3(const double* a, const double* b);
 
 // L1 norm between vectors
@@ -69,8 +69,8 @@ double mjuu_L1(const double* a, const double* b, int n);
 
 // normalize vector to unit length, return previous length
 //  if norm(vec)<mjEPS, return 0 and do not change vector
-double mjuu_normvec(double* vec, const int n);
-float mjuu_normvec(float* vec, const int n);
+double mjuu_normvec(double* vec, int n);
+float mjuu_normvec(float* vec, int n);
 
 // convert quaternion to rotation matrix
 void mjuu_quat2mat(double* res, const double* quat);
@@ -134,7 +134,7 @@ void mjuu_frameaccuminv(double pos[3], double quat[4],
 void mjuu_globalinertia(double* global, const double* local, const double* quat);
 
 // compute off-center correction to inertia matrix
-void mjuu_offcenter(double* res, const double mass, const double* vec);
+void mjuu_offcenter(double* res, double mass, const double* vec);
 
 // compute viscosity coefficients from mass and inertia
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl=1);

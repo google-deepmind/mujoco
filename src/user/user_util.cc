@@ -17,28 +17,21 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
-#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
 
-#include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
 
-using std::isnan;
-using std::string;
-using std::numeric_limits;
-
-
 // check if numeric variable is defined
-bool mjuu_defined(const double num) {
-  return !isnan(num);
+bool mjuu_defined(double num) {
+  return !std::isnan(num);
 }
 
 
 // compute address of M[g1][g2] where M is triangular n-by-n
-int mjuu_matadr(int g1, int g2, const int n) {
+int mjuu_matadr(int g1, int g2, int n) {
   if (g1<0 || g2<0 || g1>=n || g2>=n) {
     return -1;
   }
@@ -54,13 +47,13 @@ int mjuu_matadr(int g1, int g2, const int n) {
 
 
 // set 4D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z, const double w) {
+void mjuu_setvec(double* dest, double x, double y, double z, double w) {
   dest[0] = x;
   dest[1] = y;
   dest[2] = z;
   dest[3] = w;
 }
-void mjuu_setvec(float* dest, const double x, const double y, const double z, const double w) {
+void mjuu_setvec(float* dest, double x, double y, double z, double w) {
   dest[0] = (float)x;
   dest[1] = (float)y;
   dest[2] = (float)z;
@@ -69,12 +62,12 @@ void mjuu_setvec(float* dest, const double x, const double y, const double z, co
 
 
 // set 3D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z) {
+void mjuu_setvec(double* dest, double x, double y, double z) {
   dest[0] = x;
   dest[1] = y;
   dest[2] = z;
 }
-void mjuu_setvec(float* dest, const double x, const double y, const double z) {
+void mjuu_setvec(float* dest, double x, double y, double z) {
   dest[0] = (float)x;
   dest[1] = (float)y;
   dest[2] = (float)z;
@@ -82,28 +75,28 @@ void mjuu_setvec(float* dest, const double x, const double y, const double z) {
 
 
 // set 2D vector
-void mjuu_setvec(double* dest, const double x, const double y) {
+void mjuu_setvec(double* dest, double x, double y) {
   dest[0] = x;
   dest[1] = y;
 }
 
 
 // add to double array
-void mjuu_addtovec(double* dest, const double* src, const int n) {
+void mjuu_addtovec(double* dest, const double* src, int n) {
   for (int i=0; i<n; i++) {
     dest[i] += src[i];
   }
 }
 
 // zero double array
-void mjuu_zerovec(double* dest, const int n) {
+void mjuu_zerovec(double* dest, int n) {
   for (int i=0; i<n; i++) {
     dest[i] = 0;
   }
 }
 
 // zero float array
-void mjuu_zerovec(float* dest, const int n) {
+void mjuu_zerovec(float* dest, int n) {
   for (int i=0; i<n; i++) {
     dest[i] = 0;
   }
@@ -115,7 +108,7 @@ double mjuu_dot3(const double* a, const double* b) {
 }
 
 
-// distance beween 3D points
+// distance between 3D points
 double mjuu_dist3(const double* a, const double* b) {
   return sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]));
 }
@@ -735,12 +728,12 @@ void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4],
 }
 
 // strip directory from filename
-string mjuu_strippath(string filename) {
+std::string mjuu_strippath(std::string filename) {
   // find last pathsymbol
   size_t start = filename.find_last_of("/\\");
 
   // no path found: return original
-  if (start==string::npos) {
+  if (start==std::string::npos) {
     return filename;
   }
 
@@ -785,12 +778,12 @@ const char* mjuu_fullInertia(double quat[4], double inertia[3], const double ful
 
 
 // strip extension
-string mjuu_stripext(string filename) {
+std::string mjuu_stripext(std::string filename) {
   // find last dot
   size_t end = filename.find_last_of('.');
 
   // no path found: return original
-  if (end==string::npos) {
+  if (end == std::string::npos) {
     return filename;
   }
 
@@ -798,18 +791,18 @@ string mjuu_stripext(string filename) {
   return filename.substr(0, end);
 }
 
-string mjuu_getext(std::string_view filename) {
+std::string mjuu_getext(std::string_view filename) {
   size_t dot = filename.find_last_of('.');
 
-  if (dot==string::npos) {
+  if (dot == std::string::npos) {
     return "";
   }
-  return string(filename.substr(dot, filename.size() - dot));
+  return std::string(filename.substr(dot, filename.size() - dot));
 }
 
 
 // is directory path absolute
-bool mjuu_isabspath(string path) {
+bool mjuu_isabspath(std::string path) {
   // empty: not absolute
   if (path.empty()) {
     return false;
@@ -828,7 +821,8 @@ bool mjuu_isabspath(string path) {
   }
 
   // find ":/" or ":\"
-  if (path.find(":/")!=string::npos || path.find(":\\")!=string::npos) {
+  if (path.find(":/") != std::string::npos ||
+      path.find(":\\") != std::string::npos) {
     return true;
   }
 
@@ -838,7 +832,7 @@ bool mjuu_isabspath(string path) {
 
 
 // assemble two file paths
-std::string mjuu_combinePaths(const string& path1, const string& path2) {
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2) {
   // path2 has absolute path
   if (mjuu_isabspath(path2)) {
     return path2;
@@ -854,8 +848,8 @@ std::string mjuu_combinePaths(const string& path1, const string& path2) {
 
 
 // assemble three file paths
-std::string mjuu_combinePaths(const string& path1, const string& path2,
-                              const string& path3) {
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2,
+                              const std::string& path3) {
   return mjuu_combinePaths(path1, mjuu_combinePaths(path2, path3));
 }
 
