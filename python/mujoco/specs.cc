@@ -145,6 +145,12 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjSpec.def(
+      "find_keyframe",
+      [](MjSpec& self, std::string& name) -> raw::MjsKey* {
+        return mjs_findKeyframe(self.ptr, name.c_str());
+      },
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
       "find_default",
       [](MjSpec& self, std::string& classname) -> raw::MjsDefault* {
         return mjs_findDefault(self.ptr, classname.c_str());

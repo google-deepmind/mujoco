@@ -4113,6 +4113,15 @@ mjs_findFrame
 
 Find frame by name.
 
+.. _mjs_findKeyframe:
+
+mjs_findKeyframe
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findKeyframe
+
+Find keyframe by name.
+
 .. _mjs_getDefault:
 
 mjs_getDefault

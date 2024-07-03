@@ -1530,6 +1530,9 @@ MJAPI mjsMesh* mjs_findMesh(mjSpec* s, const char* name);
 // Find frame by name.
 MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
 
+// Find keyframe by name.
+MJAPI mjsKey* mjs_findKeyframe(mjSpec* s, const char* name);
+
 // Get default corresponding to an element.
 MJAPI mjsDefault* mjs_getDefault(mjsElement* element);
 

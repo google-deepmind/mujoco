@@ -530,6 +530,15 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 
 
+// find keyframe by name
+mjsKey* mjs_findKeyframe(mjSpec* s, const char* name) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  mjCKey* key = (mjCKey*)model->FindObject(mjOBJ_KEY, std::string(name));
+  return key ? &(static_cast<mjCKey*>(key)->spec) : nullptr;
+}
+
+
+
 // set frame
 void mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
   if (!frame) {

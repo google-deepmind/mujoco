@@ -3544,6 +3544,7 @@ mjsBody* mjs_findBody(mjSpec* s, const char* name);
 mjsBody* mjs_findChild(mjsBody* body, const char* name);
 mjsMesh* mjs_findMesh(mjSpec* s, const char* name);
 mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
+mjsKey* mjs_findKeyframe(mjSpec* s, const char* name);
 mjsDefault* mjs_getDefault(mjsElement* element);
 mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
 mjsDefault* mjs_getSpecDefault(mjSpec* s);

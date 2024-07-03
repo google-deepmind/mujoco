@@ -9703,6 +9703,28 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Find frame by name.',
      )),
+    ('mjs_findKeyframe',
+     FunctionDecl(
+         name='mjs_findKeyframe',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsKey'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Find keyframe by name.',
+     )),
     ('mjs_getDefault',
      FunctionDecl(
          name='mjs_getDefault',
