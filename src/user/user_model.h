@@ -203,6 +203,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
+  mjsElement* NextObject(mjsElement* object, mjtObj type = mjOBJ_UNKNOWN);  // next object of specified type
 
   // API for access to other variables
   bool IsCompiled() const;                                         // is model already compiled

@@ -217,6 +217,19 @@ class SpecsTest(absltest.TestCase):
         </mujoco>
     """))
 
+  def test_element_list(self):
+    spec = mujoco.MjSpec()
+    sensor1 = spec.add_sensor()
+    sensor2 = spec.add_sensor()
+    sensor3 = spec.add_sensor()
+    sensor1.name = 'sensor1'
+    sensor2.name = 'sensor2'
+    sensor3.name = 'sensor3'
+    self.assertLen(spec.sensors, 3)
+    self.assertEqual(spec.sensors[0].name, 'sensor1')
+    self.assertEqual(spec.sensors[1].name, 'sensor2')
+    self.assertEqual(spec.sensors[2].name, 'sensor3')
+
 
 if __name__ == '__main__':
   absltest.main()

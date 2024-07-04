@@ -706,6 +706,70 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
 
 
 
+template <class T>
+static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
+  // TODO: use id for direct indexing instead of a loop
+  for (unsigned int i = 0; i < list.size()-1; i++) {
+    if (list[i]->spec.element == child) {
+      return list[i+1]->spec.element;
+    }
+  }
+  return nullptr;
+}
+
+
+
+// next object of specified type
+mjsElement* mjCModel::NextObject(mjsElement* object, mjtObj type) {
+  if (type == mjOBJ_UNKNOWN) {
+    if (!object) {
+      throw mjCError(NULL, "type must be specified if no element is given");
+    } else {
+      type = object->elemtype;
+    }
+  } else if (object && object->elemtype != type) {
+    throw mjCError(NULL, "element is not of requested type");
+  }
+
+  switch (type) {
+    case mjOBJ_ACTUATOR:
+      return object ? GetNext(actuators_, object) : actuators_[0];
+    case mjOBJ_SENSOR:
+      return object ? GetNext(sensors_, object) : sensors_[0];
+    case mjOBJ_FLEX:
+      return object ? GetNext(flexes_, object) : flexes_[0];
+    case mjOBJ_PAIR:
+      return object ? GetNext(pairs_, object) : pairs_[0];
+    case mjOBJ_EXCLUDE:
+      return object ? GetNext(excludes_, object) : excludes_[0];
+    case mjOBJ_EQUALITY:
+      return object ? GetNext(equalities_, object) : equalities_[0];
+    case mjOBJ_TENDON:
+      return object ? GetNext(tendons_, object) : tendons_[0];
+    case mjOBJ_NUMERIC:
+      return object ? GetNext(numerics_, object) : numerics_[0];
+    case mjOBJ_TEXT:
+      return object ? GetNext(texts_, object) : texts_[0];
+    case mjOBJ_TUPLE:
+      return object ? GetNext(tuples_, object) : tuples_[0];
+    case mjOBJ_KEY:
+      return object ? GetNext(keys_, object) : keys_[0];
+    case mjOBJ_MESH:
+      return object ? GetNext(meshes_, object) : meshes_[0];
+    case mjOBJ_HFIELD:
+      return object ? GetNext(hfields_, object) : hfields_[0];
+    case mjOBJ_SKIN:
+      return object ? GetNext(skins_, object) : skins_[0];
+    case mjOBJ_TEXTURE:
+      return object ? GetNext(textures_, object) : textures_[0];
+    case mjOBJ_MATERIAL:
+      return object ? GetNext(materials_, object) : materials_[0];
+    default:
+      return nullptr;
+  }
+}
+
+
 //------------------------ API FOR ACCESS TO PRIVATE VARIABLES -------------------------------------
 
 // compiled flag

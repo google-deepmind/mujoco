@@ -590,6 +590,22 @@ mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child) {
 
 
 
+// return spec's first element of selected type
+mjsElement* mjs_firstElement(mjSpec* s, mjtObj type) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  return modelC->NextObject(NULL, type);
+}
+
+
+
+// return spec's next element; return NULL if element is last
+mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  return modelC->NextObject(element);
+}
+
+
+
 // return body given mjsElement
 mjsBody* mjs_asBody(mjsElement* element) {
   return element->elemtype == mjOBJ_BODY ? &(static_cast<mjCBody*>(element)->spec) : nullptr;
@@ -635,6 +651,118 @@ mjsLight* mjs_asLight(mjsElement* element) {
 // return frame given mjsElement
 mjsFrame* mjs_asFrame(mjsElement* element) {
   return element->elemtype == mjOBJ_FRAME ? &(static_cast<mjCFrame*>(element)->spec) : nullptr;
+}
+
+
+
+// return actuator given mjsElement
+mjsActuator* mjs_asActuator(mjsElement* element) {
+  return element->elemtype == mjOBJ_ACTUATOR ? &(static_cast<mjCActuator*>(element)->spec) : nullptr;
+}
+
+
+
+// return sensor given mjsElement
+mjsSensor* mjs_asSensor(mjsElement* element) {
+  return element->elemtype == mjOBJ_SENSOR ? &(static_cast<mjCSensor*>(element)->spec) : nullptr;
+}
+
+
+
+// return flex given mjsElement
+mjsFlex* mjs_asFlex(mjsElement* element) {
+  return element->elemtype == mjOBJ_FLEX ? &(static_cast<mjCFlex*>(element)->spec) : nullptr;
+}
+
+
+
+// return pair given mjsElement
+mjsPair* mjs_asPair(mjsElement* element) {
+  return element->elemtype == mjOBJ_PAIR ? &(static_cast<mjCPair*>(element)->spec) : nullptr;
+}
+
+
+
+// return equality given mjsElement
+mjsEquality* mjs_asEquality(mjsElement* element) {
+  return element->elemtype == mjOBJ_EQUALITY ? &(static_cast<mjCEquality*>(element)->spec) : nullptr;
+}
+
+
+
+// return exclude given mjsElement
+mjsExclude* mjs_asExclude(mjsElement* element) {
+  return element->elemtype == mjOBJ_EXCLUDE ? &(static_cast<mjCBodyPair*>(element)->spec) : nullptr;
+}
+
+
+
+// return tendon given mjsElement
+mjsTendon* mjs_asTendon(mjsElement* element) {
+  return element->elemtype == mjOBJ_TENDON ? &(static_cast<mjCTendon*>(element)->spec) : nullptr;
+}
+
+
+
+// return numeric given mjsElement
+mjsNumeric* mjs_asNumeric(mjsElement* element) {
+  return element->elemtype == mjOBJ_NUMERIC ? &(static_cast<mjCNumeric*>(element)->spec) : nullptr;
+}
+
+
+
+// return text given mjsElement
+mjsText* mjs_asText(mjsElement* element) {
+  return element->elemtype == mjOBJ_TEXT ? &(static_cast<mjCText*>(element)->spec) : nullptr;
+}
+
+
+
+// return tuple given mjsElement
+mjsTuple* mjs_asTuple(mjsElement* element) {
+  return element->elemtype == mjOBJ_TUPLE ? &(static_cast<mjCTuple*>(element)->spec) : nullptr;
+}
+
+
+
+// return key given mjsElement
+mjsKey* mjs_asKey(mjsElement* element) {
+  return element->elemtype == mjOBJ_KEY ? &(static_cast<mjCKey*>(element)->spec) : nullptr;
+}
+
+
+
+// return mesh given mjsElement
+mjsMesh* mjs_asMesh(mjsElement* element) {
+  return element->elemtype == mjOBJ_MESH ? &(static_cast<mjCMesh*>(element)->spec) : nullptr;
+}
+
+
+
+// return hfield given mjsElement
+mjsHField* mjs_asHField(mjsElement* element) {
+  return element->elemtype == mjOBJ_HFIELD ? &(static_cast<mjCHField*>(element)->spec) : nullptr;
+}
+
+
+
+// return skin given mjsElement
+mjsSkin* mjs_asSkin(mjsElement* element) {
+  return element->elemtype == mjOBJ_SKIN ? &(static_cast<mjCSkin*>(element)->spec) : nullptr;
+}
+
+
+
+// return texture given mjsElement
+mjsTexture* mjs_asTexture(mjsElement* element) {
+  return element->elemtype == mjOBJ_TEXTURE ? &(static_cast<mjCTexture*>(element)->spec) : nullptr;
+}
+
+
+
+// return material given mjsElement
+mjsMaterial* mjs_asMaterial(mjsElement* element) {
+  return element->elemtype == mjOBJ_MATERIAL ? &(static_cast<mjCMaterial*>(element)->spec) : nullptr;
 }
 
 
