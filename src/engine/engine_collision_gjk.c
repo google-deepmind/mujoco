@@ -39,7 +39,7 @@ static void S1D(mjtNum lambda[2], const mjtNum simplex[6]);
 
 // helper function to compute the support point in the Minkowski difference
 static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
-                    const mjtNum dir[3]);
+                    const mjtNum x_k[3]);
 
 // linear algebra utility functions
 static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]);
@@ -64,11 +64,8 @@ mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2) {
     mjtNum s_k[3];        // the kth support point of Minkowski difference
     mjtNum lambda[4];     // barycentric coordinates for x_k
 
-    // compute the kth support point in the direction of -(x_k)
-    mjtNum x_k_neg[3];
-    mju_scl3(x_k_neg, x_k, -1);
-    mju_normalize3(x_k_neg);
-    support(s1, s2, obj1, obj2, x_k_neg);
+    // compute the kth support point
+    support(s1, s2, obj1, obj2, x_k);
     mju_sub3(s_k, s1, s2);
 
     // the stopping criteria relies on the Frank-Wolfe duality gap given by
@@ -121,11 +118,13 @@ mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2) {
 
 
 
-// helper function to compute the support point in the Minkowski difference
+// computes the support points in obj1 and obj2 for the kth approximation point
 static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
-                    const mjtNum dir[3]) {
-  mjtNum dir_neg[3];
-  mju_scl3(dir_neg, dir, -1);
+                    const mjtNum x_k[3]) {
+  mjtNum dir[3], dir_neg[3];
+  mju_copy3(dir_neg, x_k);
+  mju_normalize3(dir_neg);  // mjc_support assumes a normalized direction
+  mju_scl3(dir, dir_neg, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
   mjc_support(s1, obj1, dir);
