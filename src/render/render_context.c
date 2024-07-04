@@ -1294,6 +1294,43 @@ static void makeFont(mjrContext* con, int fontscale) {
   }
 }
 
+// make materials, just for those that have textures
+static void makeMaterial(const mjModel* m, mjrContext* con) {
+  memset(con->mat_texid, -1, sizeof(con->mat_texid));
+  memset(con->mat_texuniform, 0, sizeof(con->mat_texuniform));
+  memset(con->mat_texrepeat, 0, sizeof(con->mat_texrepeat));
+  if (!m->nmat || !m->ntex) {
+    return;
+  }
+
+  if (m->nmat >= mjMAXMATERIAL-1) {
+    mju_error("Maximum number of materials is %d", mjMAXMATERIAL);
+  }
+  for (int i=0; i < m->nmat; i++) {
+    if (m->mat_texid[i*mjNTEXMAT] >= 0) {
+      for (int j=0; j < mjNTEXMAT; j++) {
+        con->mat_texid[i*mjNTEXMAT + j] = m->mat_texid[i*mjNTEXMAT + j];
+      }
+      con->mat_texuniform[i] = m->mat_texuniform[i];
+      con->mat_texrepeat[2*i] = m->mat_texrepeat[2*i];
+      con->mat_texrepeat[2*i+1] = m->mat_texrepeat[2*i+1];
+    }
+  }
+  // find skybox texture
+  for (int i=0; i < m->ntex; i++) {
+    if (m->tex_type[i] == mjTEXTURE_SKYBOX) {
+      if (m->nmat >= mjMAXMATERIAL-2) {
+        mju_error("With skybox, maximum number of materials is %d", mjMAXMATERIAL);
+      }
+      con->mat_texid[mjNTEXMAT * (mjMAXMATERIAL-1)] = i;
+      for (int j=1; j < mjNTEXMAT; j++) {
+        con->mat_texid[mjNTEXMAT * (mjMAXMATERIAL-1) + j] = -1;
+      }
+
+      break;
+    }
+  }
+}
 
 
 // make textures
@@ -1585,6 +1622,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   // make everything
   makeOff(con);
   makeShadow(m, con);
+  makeMaterial(m, con);
   makeTexture(m, con);
   makePlane(m, con);
   makeMesh(m, con);

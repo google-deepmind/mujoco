@@ -57,11 +57,7 @@
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_resource.h"
-#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
-#include "engine/engine_util_misc.h"
-#include "engine/engine_util_solve.h"
-#include "engine/engine_util_spatial.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
@@ -77,7 +73,7 @@ using std::string;
 using std::vector;
 
 // compute triangle area, surface normal, center
-static mjtNum _triangle(mjtNum* normal, mjtNum* center,
+static double _triangle(double* normal, double* center,
                         const float* v1, const float* v2, const float* v3) {
   // center
   if (center) {
@@ -89,10 +85,10 @@ static mjtNum _triangle(mjtNum* normal, mjtNum* center,
   // normal = (v2-v1) cross (v3-v1)
   double b[3] = { v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2] };
   double c[3] = { v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2] };
-  mju_cross(normal, b, c);
+  mjuu_crossvec(normal, b, c);
 
   // get length
-  double len = mju_norm3(normal);
+  double len = sqrt(mjuu_dot3(normal, normal));
 
   // ignore small faces
   if (len<mjMINVAL) {
@@ -199,7 +195,6 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 void mjCMesh::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.file = &spec_file_;
   spec.content_type = &spec_content_type_;
   spec.uservert = &spec_vert_;
@@ -296,7 +291,7 @@ void mjCMesh::LoadSDF() {
   pplugin->sdf_aabb(aabb, attributes.data());
   mjtNum total = aabb[3] + aabb[4] + aabb[5];
 
-  const mjtNum n = 300;
+  const double n = 300;
   int nx, ny, nz;
   nx = floor(n / total * aabb[3]) + 1;
   ny = floor(n / total * aabb[4]) + 1;
@@ -373,7 +368,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir_, model->meshdir_, file_);
+    string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -456,7 +451,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       int v0 = face_[3*i+0];
       int v1 = face_[3*i+1];
       int v2 = face_[3*i+2];
-      mjtNum normal[3];
+      double normal[3];
       float* vtx = vert_.data();
       if (_triangle(normal, nullptr, vtx+3*v0, vtx+3*v1, vtx+3*v2)>sqrt(mjMINVAL)) {
         halfedge_.push_back(std::pair(v0, v1));
@@ -552,7 +547,7 @@ void mjCMesh::SetBoundingVolume(int faceid) {
   node->contype = 1;
   node->pos = center_ + 3*faceid;
   node->quat = NULL;
-  mjtNum face_aamm[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
+  double face_aamm[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
   for (int j=0; j<3; j++) {
     int vertid = face_[3*faceid+j];
     face_aamm[0] = mjMIN(face_aamm[0], vert_[3*vertid+0]);
@@ -1263,15 +1258,15 @@ void mjCMesh::ApplyTransformations() {
   // rotate
   if (refquat[0]!=1 || refquat[1]!=0 || refquat[2]!=0 || refquat[3]!=0) {
     // prepare rotation
-    mjtNum quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
-    mjtNum mat[9];
-    mju_normalize4(quat);
-    mju_quat2Mat(mat, quat);
+    double quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
+    double mat[9];
+    mjuu_normvec(quat, 4);
+    mjuu_quat2mat(mat, quat);
 
     // process vertices
     for (int i=0; i < nvert(); i++) {
-      mjtNum p1[3], p0[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-      mju_mulMatTVec3(p1, mat, p0);
+      double p1[3], p0[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
+      mjuu_mulvecmatT(p1, p0, mat);
       vert_[3*i] = (float) p1[0];
       vert_[3*i+1] = (float) p1[1];
       vert_[3*i+2] = (float) p1[2];
@@ -1279,8 +1274,8 @@ void mjCMesh::ApplyTransformations() {
 
     // process normals
     for (int i=0; i < nnormal(); i++) {
-      mjtNum n1[3], n0[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
-      mju_mulMatTVec3(n1, mat, n0);
+      double n1[3], n0[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
+      mjuu_mulvecmatT(n1, n0, mat);
       normal_[3*i] = (float) n1[0];
       normal_[3*i+1] = (float) n1[1];
       normal_[3*i+2] = (float) n1[2];
@@ -1449,13 +1444,13 @@ void mjCMesh::Process() {
     inert[5] = -P[5];
 
     // get quaternion and diagonal inertia
-    mjtNum eigval[3], eigvec[9], quattmp[4];
-    mjtNum full[9] = {
+    double eigval[3], eigvec[9], quattmp[4];
+    double full[9] = {
       inert[0], inert[3], inert[4],
       inert[3], inert[1], inert[5],
       inert[4], inert[5], inert[2]
     };
-    mju_eig3(eigval, eigvec, quattmp, full);
+    mjuu_eig3(eigval, eigvec, quattmp, full);
 
     // check eigval - SHOULD NOT OCCUR
     if (eigval[2]<=0) {
@@ -1479,12 +1474,12 @@ void mjCMesh::Process() {
     // if volume was valid, copy volume quat to shell and stop,
     // otherwise use shell quat for coordinate transformations
     if (type==mjINERTIA_SHELL && validvolume_>0) {
-      mju_copy4(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME));
+      mjuu_copyvec(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME), 4);
       continue;
     }
 
     // rotate vertices and normals into axis-aligned frame
-    mju_copy4(GetQuatPtr(type), quattmp);
+    mjuu_copyvec(GetQuatPtr(type), quattmp, 4);
     double neg[4] = {quattmp[0], -quattmp[1], -quattmp[2], -quattmp[3]};
     double mat[9];
     mjuu_quat2mat(mat, neg);
@@ -1798,16 +1793,16 @@ void mjCMesh::MakeNormal(void) {
     }
 
     // get triangle edges
-    mjtNum vec01[3], vec02[3];
+    double vec01[3], vec02[3];
     for (int j=0; j<3; j++) {
       vec01[j] = vert_[3*vertid[1]+j] - vert_[3*vertid[0]+j];
       vec02[j] = vert_[3*vertid[2]+j] - vert_[3*vertid[0]+j];
     }
 
     // compute face normal
-    mjtNum nrm[3];
-    mju_cross(nrm, vec01, vec02);
-    mjtNum area = mju_normalize3(nrm);
+    double nrm[3];
+    mjuu_crossvec(nrm, vec01, vec02);
+    double area = mjuu_normvec(nrm, 3);
 
     // add normal to each vertex with weight = area
     for (int j=0; j<3; j++) {
@@ -1833,25 +1828,25 @@ void mjCMesh::MakeNormal(void) {
       }
 
       // get triangle edges
-      mjtNum vec01[3], vec02[3];
+      double vec01[3], vec02[3];
       for (int j=0; j<3; j++) {
         vec01[j] = vert_[3*vertid[1]+j] - vert_[3*vertid[0]+j];
         vec02[j] = vert_[3*vertid[2]+j] - vert_[3*vertid[0]+j];
       }
 
       // compute face normal
-      mjtNum nrm[3];
-      mju_cross(nrm, vec01, vec02);
-      mjtNum area = mju_normalize3(nrm);
+      double nrm[3];
+      mjuu_crossvec(nrm, vec01, vec02);
+      double area = mjuu_normvec(nrm, 3);
 
       // compare to vertex normal, subtract contribution if dot product too small
       for (int j=0; j<3; j++) {
         // normalized vertex normal
-        mjtNum vnrm[3] = {normal_[3*vertid[j]], normal_[3*vertid[j]+1], normal_[3*vertid[j]+2]};
-        mju_normalize3(vnrm);
+        double vnrm[3] = {normal_[3*vertid[j]], normal_[3*vertid[j]+1], normal_[3*vertid[j]+2]};
+        mjuu_normvec(vnrm, 3);
 
         // dot too small: remove
-        if (mju_dot3(nrm, vnrm)<0.8) {
+        if (mjuu_dot3(nrm, vnrm)<0.8) {
           for (int k=0; k<3; k++) {
             nremove[3*vertid[j]+k] += nrm[k]*area;
           }
@@ -1901,28 +1896,28 @@ void mjCMesh::MakeCenter(void) {
     int* vertid = face_.data() + 3*i;
 
     // get triangle edges
-    mjtNum a[3], b[3];
+    double a[3], b[3];
     for (int j=0; j<3; j++) {
       a[j] = vert_[3*vertid[0]+j] - vert_[3*vertid[2]+j];
       b[j] = vert_[3*vertid[1]+j] - vert_[3*vertid[2]+j];
     }
 
     // compute face normal
-    mjtNum nrm[3];
-    mju_cross(nrm, a, b);
+    double nrm[3];
+    mjuu_crossvec(nrm, a, b);
 
     // compute circumradius
-    mjtNum norm_a_2 = mju_dot3(a, a);
-    mjtNum norm_b_2 = mju_dot3(b, b);
-    mjtNum area = mju_norm3(nrm);
+    double norm_a_2 = mjuu_dot3(a, a);
+    double norm_b_2 = mjuu_dot3(b, b);
+    double area = mjuu_normvec(nrm, 3);
 
     // compute circumcenter
-    mjtNum res[3], vec[3] = {
+    double res[3], vec[3] = {
       norm_a_2 * b[0] - norm_b_2 * a[0],
       norm_a_2 * b[1] - norm_b_2 * a[1],
       norm_a_2 * b[2] - norm_b_2 * a[2]
     };
-    mju_cross(res, vec, nrm);
+    mjuu_crossvec(res, vec, nrm);
     center_[3*i+0] = res[0]/(2*area*area) + vert_[3*vertid[2]+0];
     center_[3*i+1] = res[1]/(2*area*area) + vert_[3*vertid[2]+1];
     center_[3*i+2] = res[2]/(2*area*area) + vert_[3*vertid[2]+2];
@@ -1986,7 +1981,6 @@ mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
 void mjCSkin::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.file = &spec_file_;
   spec.material = &spec_material_;
   spec.vert = &spec_vert_;
@@ -2097,7 +2091,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
       throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    string filename = mjuu_makefullname(model->modelfiledir_, model->meshdir_, file_);
+    string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -2200,13 +2194,13 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // normalize bindquat
   for (int i=0; i < nbone; i++) {
-    mjtNum quat[4] = {
-      (mjtNum)bindquat_[4*i],
-      (mjtNum)bindquat_[4*i+1],
-      (mjtNum)bindquat_[4*i+2],
-      (mjtNum)bindquat_[4*i+3]
+    double quat[4] = {
+      (double)bindquat_[4*i],
+      (double)bindquat_[4*i+1],
+      (double)bindquat_[4*i+2],
+      (double)bindquat_[4*i+3]
     };
-    mju_normalize4(quat);
+    mjuu_normvec(quat, 4);
 
     bindquat_[4*i]   = (float) quat[0];
     bindquat_[4*i+1] = (float) quat[1];
@@ -2398,7 +2392,6 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 void mjCFlex::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
-  spec.classname = &classname;
   spec.material = &spec_material_;
   spec.vertbody = &spec_vertbody_;
   spec.vert = &spec_vert_;
@@ -2562,17 +2555,17 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // compute global vertex positions
-  vertxpos = vector<mjtNum> (3*nvert);
+  vertxpos = vector<double> (3*nvert);
   for (int i=0; i < nvert; i++) {
     // get body id, set vertxpos = body.xpos0
     int b = rigid ? vertbodyid[0] : vertbodyid[i];
-    mju_copy3(vertxpos.data()+3*i, model->Bodies()[b]->xpos0);
+    mjuu_copyvec(vertxpos.data()+3*i, model->Bodies()[b]->xpos0, 3);
 
     // add vertex offset within body if not centered
     if (!centered) {
-      mjtNum offset[3];
-      mju_rotVecQuat(offset, vert_.data()+3*i, model->Bodies()[b]->xquat0);
-      mju_addTo3(vertxpos.data()+3*i, offset);
+      double offset[3];
+      mjuu_rotVecQuat(offset, vert_.data()+3*i, model->Bodies()[b]->xquat0);
+      mjuu_addtovec(vertxpos.data()+3*i, offset, 3);
     }
   }
 
@@ -2581,18 +2574,18 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (dim==3) {
     for (int e=0; e<nelem; e++) {
       const int* edata = elem_.data() + e*(dim+1);
-      mjtNum* v0 = vertxpos.data() + 3*edata[0];
-      mjtNum* v1 = vertxpos.data() + 3*edata[1];
-      mjtNum* v2 = vertxpos.data() + 3*edata[2];
-      mjtNum* v3 = vertxpos.data() + 3*edata[3];
-      mjtNum v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
-      mjtNum v02[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
-      mjtNum v03[3] = {v3[0]-v0[0], v3[1]-v0[1], v3[2]-v0[2]};
+      double* v0 = vertxpos.data() + 3*edata[0];
+      double* v1 = vertxpos.data() + 3*edata[1];
+      double* v2 = vertxpos.data() + 3*edata[2];
+      double* v3 = vertxpos.data() + 3*edata[3];
+      double v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+      double v02[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
+      double v03[3] = {v3[0]-v0[0], v3[1]-v0[1], v3[2]-v0[2]};
 
       // detect wrong orientation
-      mjtNum nrm[3];
-      mju_cross(nrm, v01, v02);
-      if (mju_dot3(nrm, v03)>0) {
+      double nrm[3];
+      mjuu_crossvec(nrm, v01, v02);
+      if (mjuu_dot3(nrm, v03)>0) {
         // flip orientation
         int tmp = elem_[e*(dim+1)+1];
         elem_[e*(dim+1)+1] = elem_[e*(dim+1)+2];
@@ -2672,9 +2665,9 @@ void mjCFlex::CreateBVH(void) {
     }
 
     // compute min and max along each global axis
-    mjtNum xmin[3], xmax[3];
-    mju_copy3(xmin, vertxpos.data() + 3*edata[0]);
-    mju_copy3(xmax, vertxpos.data() + 3*edata[0]);
+    double xmin[3], xmax[3];
+    mjuu_copyvec(xmin, vertxpos.data() + 3*edata[0], 3);
+    mjuu_copyvec(xmax, vertxpos.data() + 3*edata[0], 3);
     for (int i=1; i <= dim; i++) {
       for (int j=0; j<3; j++) {
         xmin[j] = mjMIN(xmin[j], vertxpos[3*edata[i]+j]);

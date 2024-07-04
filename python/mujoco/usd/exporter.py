@@ -247,7 +247,11 @@ class USDExporter:
 
     assert geom_name not in self.geom_names
 
-    texture_file = self.texture_files[geom.texid] if geom.texid != -1 else None
+    texture_file = (
+        self.texture_files[self.model.mat_texid[mujoco.mjNTEXMAT*geom.matid]]
+        if geom.matid != -1
+        else None
+    )
 
     # handling meshes in our scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:

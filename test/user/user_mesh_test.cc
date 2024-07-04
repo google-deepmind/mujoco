@@ -16,6 +16,8 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -127,7 +129,8 @@ TEST_F(MjCMeshTest, LoadMSHWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MjCMeshTest, LoadOBJWithVFS) {
@@ -152,7 +155,8 @@ TEST_F(MjCMeshTest, LoadOBJWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MjCMeshTest, LoadSTLWithVFS) {
@@ -177,7 +181,8 @@ TEST_F(MjCMeshTest, LoadSTLWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 // ------------- test content_type attributes ----------------------------------
@@ -204,7 +209,8 @@ TEST_F(MjCMeshTest, LoadMSHWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MjCMeshTest, LoadOBJWithContentType) {
@@ -229,7 +235,8 @@ TEST_F(MjCMeshTest, LoadOBJWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MjCMeshTest, LoadSTLWithContentType) {
@@ -254,7 +261,8 @@ TEST_F(MjCMeshTest, LoadSTLWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
@@ -280,6 +288,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'model/unknown'"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
@@ -304,12 +313,13 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
-// ------------- test vertex de-duplication (STL) ------------------------------
+// ------------- test vertex deduplication (STL) ------------------------------
 
-TEST_F(MjCMeshTest, DeDuplicateSTLVertices) {
+TEST_F(MjCMeshTest, DeduplicateSTLVertices) {
   const std::string xml_path = GetTestDataFilePath(kDuplicateVerticesPath);
   char error[1024];
   size_t error_sz = 1024;
@@ -420,7 +430,8 @@ TEST_F(MjCMeshTest, MaxHullVert) {
 }
 
 TEST_F(MjCMeshTest, MaxHullVertDefault) {
-  const std::string xml_path = GetTestDataFilePath(kTorusDefaultMaxhullVertPath);
+  const std::string xml_path =
+      GetTestDataFilePath(kTorusDefaultMaxhullVertPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_GT(model->ngeom, 0);
@@ -465,8 +476,9 @@ TEST_F(MjCMeshTest, SmallInertiaLoads) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   mj_deleteModel(model);
 }
 
@@ -792,15 +804,16 @@ TEST_F(MjCMeshTest, ExactConcaveInertia) {
   mjtNum d_cube = .5 - model->body_ipos[5];
   mjtNum d_hole = .55 - model->body_ipos[5];
   mjtNum I1 = I_cube - m_hole*(.8*.8 + .8*.8)/12;
-  mjtNum I2 = I_cube - m_hole*(.8*.8 + .9*.9)/12 + m_cube*d_cube*d_cube - m_hole*d_hole*d_hole;
-  EXPECT_LE(fabs(model->body_mass[1] - m_concave_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_mass[2] - m_concave_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_mass[3] - m_concave_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_mass[4] - m_concave_cube), max_abs_err);
+  mjtNum I2 = I_cube - m_hole*(.8*.8 + .9*.9)/12
+            + m_cube*d_cube*d_cube - m_hole*d_hole*d_hole;
+  EXPECT_LE(mju_abs(model->body_mass[1] - m_concave_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[2] - m_concave_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[3] - m_concave_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[4] - m_concave_cube), max_abs_err);
   for (int i = 3; i < 15; i += 3) {
-    EXPECT_LE(fabs(model->body_inertia[i] - I1), max_abs_err);
-    EXPECT_LE(fabs(model->body_inertia[i+1] - I2), max_abs_err);
-    EXPECT_LE(fabs(model->body_inertia[i+2] - I2), max_abs_err);
+    EXPECT_LE(mju_abs(model->body_inertia[i] - I1), max_abs_err);
+    EXPECT_LE(mju_abs(model->body_inertia[i+1] - I2), max_abs_err);
+    EXPECT_LE(mju_abs(model->body_inertia[i+2] - I2), max_abs_err);
   }
   mj_deleteModel(model);
 }
@@ -812,10 +825,10 @@ TEST_F(MjCMeshTest, ExactConvexInertia) {
   // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
   mjtNum m_solid_cube = 1.;
   mjtNum I_solid_cube = 1./6. * m_solid_cube;
-  EXPECT_LE(fabs(model->body_mass[1] - m_solid_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_mass[2] - m_solid_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[1] - m_solid_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[2] - m_solid_cube), max_abs_err);
   for (int i = 3; i < 9; i++) {
-    EXPECT_LE(fabs(model->body_inertia[i] - I_solid_cube), max_abs_err);
+    EXPECT_LE(mju_abs(model->body_inertia[i] - I_solid_cube), max_abs_err);
   }
   mj_deleteModel(model);
 }
@@ -827,10 +840,10 @@ TEST_F(MjCMeshTest, ExactShellInertia) {
   // see https://en.wikipedia.org/wiki/List_of_moments_of_inertia
   mjtNum m_hollow_cube = 6.;
   mjtNum I_hollow_cube = 5./18. * m_hollow_cube;
-  EXPECT_LE(fabs(model->body_mass[1] - m_hollow_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_inertia[3] - I_hollow_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_inertia[4] - I_hollow_cube), max_abs_err);
-  EXPECT_LE(fabs(model->body_inertia[5] - I_hollow_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[1] - m_hollow_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_inertia[3] - I_hollow_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_inertia[4] - I_hollow_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_inertia[5] - I_hollow_cube), max_abs_err);
   mj_deleteModel(model);
 }
 
@@ -860,8 +873,8 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
 
   // Apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
   // quat. It should match the originally specified values.
-  double recovered_pos[3];
-  double recovered_quat[4];
+  mjtNum recovered_pos[3];
+  mjtNum recovered_quat[4];
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[0], &model->geom_quat[0],
               inverse_mesh_pos, inverse_mesh_quat);

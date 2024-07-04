@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -26,13 +27,11 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
-#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
-#include "engine/engine_util_misc.h"
-#include "engine/engine_util_spatial.h"
 #include "user/user_flexcomp.h"
 #include <mujoco/mjspec.h>
 #include "user/user_model.h"
@@ -147,7 +146,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // compute orientation
-  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.euler, &alt);
+  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.eulerseq, &alt);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
@@ -250,12 +249,9 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // apply pose transform to points
-  mjtNum posn[3], quatn[4];
-  mju_d2n(posn, pos, 3);
-  mju_d2n(quatn, quat, 4);
   for (int i=0; i < npnt; i++) {
-    mjtNum newp[3], oldp[3] = {point[3*i], point[3*i+1], point[3*i+2]};
-    mju_trnVecPose(newp, posn, quatn, oldp);
+    double newp[3], oldp[3] = {point[3*i], point[3*i+1], point[3*i+2]};
+    mjuu_trnVecPose(newp, pos, quat, oldp);
     point[3*i] = newp[0];
     point[3*i+1] = newp[1];
     point[3*i+2] = newp[2];
@@ -570,7 +566,7 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
         int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
 
         // add point
-        mjtNum pos[2] = {spacing[0]*(ix - 0.5*(count[0]-1)),
+        double pos[2] = {spacing[0]*(ix - 0.5*(count[0]-1)),
                          spacing[1]*(iy - 0.5*(count[1]-1))};
         point.push_back(pos[0]);
         point.push_back(pos[1]);
@@ -578,8 +574,8 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 
         // add texture coordinates, if not specified explicitly
         if (!hastex) {
-          texcoord.push_back(ix/(mjtNum)mjMAX(count[0]-1, 1));
-          texcoord.push_back(iy/(mjtNum)mjMAX(count[1]-1, 1));
+          texcoord.push_back(ix/(double)std::max(count[0]-1, 1));
+          texcoord.push_back(iy/(double)std::max(count[1]-1, 1));
         }
 
         // flip triangles if radial projection is requested
@@ -713,7 +709,7 @@ void mjCFlexcomp::BoxProject(double* pos, int ix, int iy, int iz) {
 
   // cylinder
   else if (type==mjFCOMPTYPE_CYLINDER) {
-    double L0 = mjMAX(mju_abs(pos[0]), mju_abs(pos[1]));
+    double L0 = std::max(std::abs(pos[0]), std::abs(pos[1]));
     mjuu_normvec(pos, 2);
     pos[0] *= size[0]*L0;
     pos[1] *= size[1]*L0;
@@ -749,8 +745,8 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
     };
 
     for (int i=0; i < point.size()/3; i++) {
-      mjtNum* pos = point.data() + i*3;
-      double L0 = mjMAX(mju_abs(pos[0]), mju_abs(pos[1]));
+      double* pos = point.data() + i*3;
+      double L0 = std::max(std::abs(pos[0]), std::abs(pos[1]));
       mjuu_normvec(pos, 2);
       pos[0] *= size[0]*L0;
       pos[1] *= size[1]*L0;
@@ -904,7 +900,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  std::string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.modelfiledir),
                                            mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
@@ -952,10 +948,10 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   // copy faces
   element = mesh.face_;
 
-  // copy vertices, convert from float to mjtNum
-  point = vector<mjtNum> (mesh.nvert()*3);
+  // copy vertices, convert from float to double
+  point = vector<double> (mesh.nvert()*3);
   for (int i=0; i < mesh.nvert()*3; i++) {
-    point[i] = (mjtNum) mesh.vert_[i];
+    point[i] = (double) mesh.vert_[i];
   }
 
   return true;
@@ -1003,7 +999,7 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  std::string filename = mjuu_makefullname(mjs_getString(model->spec.modelfiledir),
+  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.modelfiledir),
                                            mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 

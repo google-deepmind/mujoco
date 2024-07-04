@@ -27,10 +27,15 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/mjxmacro.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_callback.h"
 #include "src/engine/engine_io.h"
 #include "test/fixture.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 namespace mujoco {
 namespace {
@@ -602,6 +607,147 @@ TEST_F(ForwardTest, eq_active) {
 
   // expect that the body has snapped back
   EXPECT_LT(mju_abs(data->qpos[0]), 0.001);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// test that normalized and denormalized quats give the same result
+TEST_F(ForwardTest, NormalizeQuats) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicit">
+      <flag warmstart="disable" energy="enable"/>
+    </option>
+    <worldbody>
+      <body name="free">
+        <freejoint/>
+        <geom size="1" pos=".1 .2 .3"/>
+      </body>
+      <body pos="3 0 0">
+        <joint name="ball" type="ball" stiffness="100" range="0 10"/>
+        <geom size="1" pos=".1 .2 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <ballquat joint="ball"/>
+      <framequat objtype="body" objname="free"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data_u = mj_makeData(model);
+
+  // we'll compare all the memory, so unpoison it first
+  #ifdef MEMORY_SANITIZER
+    __msan_unpoison(data_u->buffer, data_u->nbuffer);
+    __msan_unpoison(data_u->arena, data_u->narena);
+  #endif
+
+  // set quats to denormalized values, non-zero velocities
+  for (int i = 3; i < model->nq; i++) data_u->qpos[i] = i;
+  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1*i;
+
+  // copy data and normalize quats
+  mjData* data_n = mj_copyData(nullptr, model, data_u);
+  mj_normalizeQuat(model, data_n->qpos);
+
+  // call forward, expect quats to be untouched
+  mj_forward(model, data_u);
+  for (int i = 3; i < model->nq; i++) {
+    EXPECT_EQ(data_u->qpos[i], (mjtNum)i);
+  }
+
+  // expect that the ball joint limit is active
+  EXPECT_EQ(data_u->nl, 1);
+
+  // step both models
+  mj_step(model, data_u);
+  mj_step(model, data_n);
+
+  // expect everything to match
+  MJDATA_POINTERS_PREAMBLE(model)
+  #define X(type, name, nr, nc)                                 \
+    for (int i = 0; i < model->nr; i++)                         \
+      for (int j = 0; j < nc; j++)                              \
+        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+  MJDATA_POINTERS;
+  #undef X
+
+  // repeat the above with RK4 integrator
+  model->opt.integrator = mjINT_RK4;
+
+  // reset data, unpoison
+  mj_resetData(model, data_u);
+  #ifdef MEMORY_SANITIZER
+    __msan_unpoison(data_u->buffer, data_u->nbuffer);
+    __msan_unpoison(data_u->arena, data_u->narena);
+  #endif
+
+  // set quats to un-normalized values, non-zero velocities
+  for (int i = 3; i < model->nq; i++) data_u->qpos[i] = i;
+  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1*i;
+
+  // copy data and normalize quats
+  mj_copyData(data_n, model, data_u);
+  mj_normalizeQuat(model, data_n->qpos);
+
+  // step both models
+  mj_step(model, data_u);
+  mj_step(model, data_n);
+
+  // expect everything to match
+  #define X(type, name, nr, nc)                                 \
+    for (int i = 0; i < model->nr; i++)                         \
+      for (int j = 0; j < nc; j++)                              \
+        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+  MJDATA_POINTERS;
+  #undef X
+
+  mj_deleteData(data_n);
+  mj_deleteData(data_u);
+  mj_deleteModel(model);
+}
+
+// test that normalized and denormalized quats give the same result
+TEST_F(ForwardTest, MocapQuats) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="mocap" mocap="true" quat="1 1 1 1">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framequat objtype="body" objname="mocap"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // expect mocap_quat to be normalized (by the compiler)
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(data->mocap_quat[i], 0.5);
+    EXPECT_EQ(data->xquat[4+i], 0.5);
+  }
+
+  // write denormalized quats to mocap_quat, call forward again
+  for (int i = 0; i < 4; i++) {
+    data->mocap_quat[i] = 1;
+  }
+  mj_forward(model, data);
+
+  // expect mocap_quat to remain denormalized, but xquat to be normalized
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(data->mocap_quat[i], 1);
+    EXPECT_EQ(data->xquat[4+i], 0.5);
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);

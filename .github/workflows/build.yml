@@ -148,6 +148,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
         ${{ matrix.cmake_args }}
@@ -192,6 +193,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
     - name: Build samples
@@ -204,6 +206,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
     - name: Build simulate

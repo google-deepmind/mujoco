@@ -437,10 +437,11 @@ mjsPlugin* mjs_addPlugin(mjSpec* s) {
 
 
 // add default to model
-mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id) {
+mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  *id = (int)modelC->NumDefaults();
-  mjCDef* def = modelC->AddDefault(classname, parentid);
+  mjCDef* parentC = parent ? static_cast<mjCDef*>(parent->element) :
+                             static_cast<mjCModel*>(s->element)->Defaults(0);
+  mjCDef* def = modelC->AddDefault(classname, parentC);
   if (def) {
     return &def->spec;
   } else {
@@ -529,6 +530,15 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 
 
+// find keyframe by name
+mjsKey* mjs_findKeyframe(mjSpec* s, const char* name) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  mjCKey* key = (mjCKey*)model->FindObject(mjOBJ_KEY, std::string(name));
+  return key ? &(static_cast<mjCKey*>(key)->spec) : nullptr;
+}
+
+
+
 // set frame
 void mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
   if (!frame) {
@@ -576,6 +586,183 @@ mjsElement* mjs_firstChild(mjsBody* body, mjtObj type) {
 mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child) {
   mjCBody* bodyC = static_cast<mjCBody*>(body->element);
   return bodyC->NextChild(child);
+}
+
+
+
+// return spec's first element of selected type
+mjsElement* mjs_firstElement(mjSpec* s, mjtObj type) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  return modelC->NextObject(NULL, type);
+}
+
+
+
+// return spec's next element; return NULL if element is last
+mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  return modelC->NextObject(element);
+}
+
+
+
+// return body given mjsElement
+mjsBody* mjs_asBody(mjsElement* element) {
+  return element->elemtype == mjOBJ_BODY ? &(static_cast<mjCBody*>(element)->spec) : nullptr;
+}
+
+
+
+// return geom given mjsElement
+mjsGeom* mjs_asGeom(mjsElement* element) {
+  return element->elemtype == mjOBJ_GEOM ? &(static_cast<mjCGeom*>(element)->spec) : nullptr;
+}
+
+
+
+// return joint given mjsElement
+mjsJoint* mjs_asJoint(mjsElement* element) {
+  return element->elemtype == mjOBJ_JOINT ? &(static_cast<mjCJoint*>(element)->spec) : nullptr;
+}
+
+
+
+// Return site given mjsElement
+mjsSite* mjs_asSite(mjsElement* element) {
+  return element->elemtype == mjOBJ_SITE ? &(static_cast<mjCSite*>(element)->spec) : nullptr;
+}
+
+
+
+// return camera given mjsElement
+mjsCamera* mjs_asCamera(mjsElement* element) {
+  return element->elemtype == mjOBJ_CAMERA ? &(static_cast<mjCCamera*>(element)->spec) : nullptr;
+}
+
+
+
+// return light given mjsElement
+mjsLight* mjs_asLight(mjsElement* element) {
+  return element->elemtype == mjOBJ_LIGHT ? &(static_cast<mjCLight*>(element)->spec) : nullptr;
+}
+
+
+
+// return frame given mjsElement
+mjsFrame* mjs_asFrame(mjsElement* element) {
+  return element->elemtype == mjOBJ_FRAME ? &(static_cast<mjCFrame*>(element)->spec) : nullptr;
+}
+
+
+
+// return actuator given mjsElement
+mjsActuator* mjs_asActuator(mjsElement* element) {
+  return element->elemtype == mjOBJ_ACTUATOR ? &(static_cast<mjCActuator*>(element)->spec) : nullptr;
+}
+
+
+
+// return sensor given mjsElement
+mjsSensor* mjs_asSensor(mjsElement* element) {
+  return element->elemtype == mjOBJ_SENSOR ? &(static_cast<mjCSensor*>(element)->spec) : nullptr;
+}
+
+
+
+// return flex given mjsElement
+mjsFlex* mjs_asFlex(mjsElement* element) {
+  return element->elemtype == mjOBJ_FLEX ? &(static_cast<mjCFlex*>(element)->spec) : nullptr;
+}
+
+
+
+// return pair given mjsElement
+mjsPair* mjs_asPair(mjsElement* element) {
+  return element->elemtype == mjOBJ_PAIR ? &(static_cast<mjCPair*>(element)->spec) : nullptr;
+}
+
+
+
+// return equality given mjsElement
+mjsEquality* mjs_asEquality(mjsElement* element) {
+  return element->elemtype == mjOBJ_EQUALITY ? &(static_cast<mjCEquality*>(element)->spec) : nullptr;
+}
+
+
+
+// return exclude given mjsElement
+mjsExclude* mjs_asExclude(mjsElement* element) {
+  return element->elemtype == mjOBJ_EXCLUDE ? &(static_cast<mjCBodyPair*>(element)->spec) : nullptr;
+}
+
+
+
+// return tendon given mjsElement
+mjsTendon* mjs_asTendon(mjsElement* element) {
+  return element->elemtype == mjOBJ_TENDON ? &(static_cast<mjCTendon*>(element)->spec) : nullptr;
+}
+
+
+
+// return numeric given mjsElement
+mjsNumeric* mjs_asNumeric(mjsElement* element) {
+  return element->elemtype == mjOBJ_NUMERIC ? &(static_cast<mjCNumeric*>(element)->spec) : nullptr;
+}
+
+
+
+// return text given mjsElement
+mjsText* mjs_asText(mjsElement* element) {
+  return element->elemtype == mjOBJ_TEXT ? &(static_cast<mjCText*>(element)->spec) : nullptr;
+}
+
+
+
+// return tuple given mjsElement
+mjsTuple* mjs_asTuple(mjsElement* element) {
+  return element->elemtype == mjOBJ_TUPLE ? &(static_cast<mjCTuple*>(element)->spec) : nullptr;
+}
+
+
+
+// return key given mjsElement
+mjsKey* mjs_asKey(mjsElement* element) {
+  return element->elemtype == mjOBJ_KEY ? &(static_cast<mjCKey*>(element)->spec) : nullptr;
+}
+
+
+
+// return mesh given mjsElement
+mjsMesh* mjs_asMesh(mjsElement* element) {
+  return element->elemtype == mjOBJ_MESH ? &(static_cast<mjCMesh*>(element)->spec) : nullptr;
+}
+
+
+
+// return hfield given mjsElement
+mjsHField* mjs_asHField(mjsElement* element) {
+  return element->elemtype == mjOBJ_HFIELD ? &(static_cast<mjCHField*>(element)->spec) : nullptr;
+}
+
+
+
+// return skin given mjsElement
+mjsSkin* mjs_asSkin(mjsElement* element) {
+  return element->elemtype == mjOBJ_SKIN ? &(static_cast<mjCSkin*>(element)->spec) : nullptr;
+}
+
+
+
+// return texture given mjsElement
+mjsTexture* mjs_asTexture(mjsElement* element) {
+  return element->elemtype == mjOBJ_TEXTURE ? &(static_cast<mjCTexture*>(element)->spec) : nullptr;
+}
+
+
+
+// return material given mjsElement
+mjsMaterial* mjs_asMaterial(mjsElement* element) {
+  return element->elemtype == mjOBJ_MATERIAL ? &(static_cast<mjCMaterial*>(element)->spec) : nullptr;
 }
 
 
@@ -692,13 +879,6 @@ void mjs_setActivePlugins(mjSpec* s, void* activeplugins) {
   std::vector<std::pair<const mjpPlugin*, int>>* active_plugins =
       reinterpret_cast<std::vector<std::pair<const mjpPlugin*, int>>*>(activeplugins);
   modelC->SetActivePlugins(std::move(*active_plugins));
-}
-
-
-
-// compute full inertia
-const char* mjs_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
-  return FullInertia(quat, inertia, fullinertia);
 }
 
 

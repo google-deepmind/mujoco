@@ -21,6 +21,9 @@ target_link_libraries(engine_collision_convex_test fixture gmock)
 mujoco_test(engine_collision_driver_test)
 target_link_libraries(engine_collision_driver_test fixture gmock)
 
+mujoco_test(engine_collision_gjk_test)
+target_link_libraries(engine_collision_gjk_test fixture gmock ccd)
+
 mujoco_test(engine_core_constraint_test)
 target_link_libraries(engine_core_constraint_test fixture gmock)
 

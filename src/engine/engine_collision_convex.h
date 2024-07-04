@@ -23,8 +23,10 @@
 
 #include <ccd/vec3.h>
 
+#include <mujoco/mjexport.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #define mjGETINFO_HFIELD \
     const mjtNum* pos1  = d->geom_xpos + 3*g1; \
@@ -38,8 +40,8 @@
 extern "C" {
 #endif
 
-// ccd general object type
-struct _mjtCCD {
+// internal object type for convex collision detection
+struct _mjCCDObj {
   const mjModel* model;
   const mjData* data;
   int geom;
@@ -49,13 +51,18 @@ struct _mjtCCD {
   int vert;
   mjtNum margin;
   mjtNum rotate[4];
+  mjtNum x0[3];  // initial guess of the witness point
 };
-typedef struct _mjtCCD mjtCCD;
+typedef struct _mjCCDObj mjCCDObj;
 
+// support function for convex collision algorithms
+MJAPI void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
+// center function for convex collision algorithms
+MJAPI void mjc_center(mjtNum res[3], const mjCCDObj *obj);
 
 // ccd support function
 void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
-
 
 // pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,

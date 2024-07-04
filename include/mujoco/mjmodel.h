@@ -29,8 +29,6 @@
 #define mjMAXIMP        0.9999    // maximum constraint impedance
 #define mjMAXCONPAIR    50        // maximum number of contacts per geom pair
 #define mjMAXTREEDEPTH  50        // maximum bounding volume hierarchy depth
-#define mjMAXVFS        2000      // maximum number of files in virtual file system
-#define mjMAXVFSNAME    1000      // maximum filename size in virtual file system
 
 
 //---------------------------------- sizes ---------------------------------------------------------
@@ -44,7 +42,7 @@
 #define mjNIMP          5         // number of solver impedance parameters
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
-
+#define mjNTEXMAT       6         // number of textures per material
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
 
@@ -399,11 +397,7 @@ typedef struct mjLROpt_ mjLROpt;
 //---------------------------------- mjVFS ---------------------------------------------------------
 
 struct mjVFS_ {                               // virtual file system for loading from memory
-  int      nfile;                             // number of files present
-  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t   filesize[mjMAXVFS];                // file size in bytes
-  void*    filedata[mjMAXVFS];                // buffer with file data
-  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
+  void* impl_;                                // internal pointer to VFS memory
 };
 typedef struct mjVFS_ mjVFS;
 
@@ -935,7 +929,7 @@ struct mjModel_ {
   int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
-  int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
+  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXMAT)
   mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)

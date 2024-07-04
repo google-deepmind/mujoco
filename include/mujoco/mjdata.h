@@ -167,29 +167,29 @@ struct mjData_ {
   int     nplugin;           // number of plugin instances
 
   // stack pointer
-  size_t  pstack;            // first available mjtNum address in stack
+  size_t  pstack;            // first available byte in stack
   size_t  pbase;             // value of pstack when mj_markStack was last called
 
   // arena pointer
   size_t  parena;            // first available byte in arena
 
-  // memory utilization stats
-  size_t  maxuse_stack;                      // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREAD];   // maximum stack allocation per thread in bytes
-  size_t  maxuse_arena;                      // maximum arena allocation in bytes
-  int     maxuse_con;                        // maximum number of contacts
-  int     maxuse_efc;                        // maximum number of scalar constraints
-
-  // diagnostics
-  mjWarningStat warning[mjNWARNING];  // warning statistics
-  mjTimerStat   timer[mjNTIMER];      // timer statistics
+  // memory utilization statistics
+  size_t  maxuse_stack;                       // maximum stack allocation in bytes
+  size_t  maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
+  size_t  maxuse_arena;                       // maximum arena allocation in bytes
+  int     maxuse_con;                         // maximum number of contacts
+  int     maxuse_efc;                         // maximum number of scalar constraints
 
   // solver statistics
   mjSolverStat  solver[mjNISLAND*mjNSOLVER];  // solver statistics per island, per iteration
-  int     solver_nisland;           // number of islands processed by solver
-  int     solver_niter[mjNISLAND];  // number of solver iterations, per island
-  int     solver_nnz[mjNISLAND];    // number of non-zeros in Hessian or efc_AR, per island
-  mjtNum  solver_fwdinv[2];         // forward-inverse comparison: qfrc, efc
+  int           solver_nisland;               // number of islands processed by solver
+  int           solver_niter[mjNISLAND];      // number of solver iterations, per island
+  int           solver_nnz[mjNISLAND];        // number of nonzeros in Hessian or efc_AR, per island
+  mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
+
+  // diagnostics
+  mjWarningStat warning[mjNWARNING];          // warning statistics
+  mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes
   int     ne;                // number of equality constraints
@@ -207,8 +207,8 @@ struct mjData_ {
   //-------------------- end of info header
 
   // buffers
-  void*   buffer;            // main buffer; all pointers point in it                (nbuffer bytes)
-  void*   arena;             // arena+stack buffer                     (nstack*sizeof(mjtNum) bytes)
+  void*   buffer;            // main buffer; all pointers point in it            (nbuffer bytes)
+  void*   arena;             // arena+stack buffer                               (narena bytes)
 
   //-------------------- main inputs and outputs of the computation
 
@@ -302,7 +302,7 @@ struct mjData_ {
 
   // computed by mj_collisionTree
   mjtNum*  bvh_aabb_dyn;     // global bounding box (center, size)               (nbvhdynamic x 6)
-  mjtByte* bvh_active;       // volume has been added to collisions              (nbvh x 1)
+  mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   //-------------------- POSITION, VELOCITY dependent
 
@@ -372,7 +372,7 @@ struct mjData_ {
   //-------------------- arena-allocated: POSITION dependent
 
   // computed by mj_collision
-  mjContact* contact;        // list of all detected contacts                    (ncon x 1)
+  mjContact* contact;        // array of all detected contacts                   (ncon x 1)
 
   // computed by mj_makeConstraint
   int*    efc_type;          // constraint type (mjtConstraint)                  (nefc x 1)
@@ -422,11 +422,11 @@ struct mjData_ {
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
   // computed by mj_fwdConstraint/mj_inverse
-  mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref            (nefc x 1)
-  mjtNum* efc_force;        // constraint force in constraint space              (nefc x 1)
-  int*    efc_state;        // constraint state (mjtConstraintState)             (nefc x 1)
+  mjtNum* efc_b;             // linear cost term: J*qacc_smooth - aref           (nefc x 1)
+  mjtNum* efc_force;         // constraint force in constraint space             (nefc x 1)
+  int*    efc_state;         // constraint state (mjtConstraintState)            (nefc x 1)
 
-  // ThreadPool for multithreaded operations
+  // thread pool pointer
   uintptr_t threadpool;
 };
 typedef struct mjData_ mjData;

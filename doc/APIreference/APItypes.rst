@@ -54,24 +54,28 @@ The two types below are defined in `mjtnum.h <https://github.com/google-deepmind
 mjtNum
 ^^^^^^
 
-This is the floating-point type used throughout the simulator. If the symbol ``mjUSEDOUBLE`` is defined in
-``mjmodel.h``, this type is defined as ``double``, otherwise it is defined as ``float``. Currently only the
-double-precision version of MuJoCo is distributed, although the entire code base works with single-precision as well.
-We may release the single-precision version in the future for efficiency reasons, but the double-precision version
-will always be available. Thus it is safe to write user code assuming double precision. However, our preference is to
-write code that works with either single or double precision. To this end we provide math utility functions that are
-always defined with the correct floating-point type.
+This is the floating-point type used throughout the simulator. When using the default build configuration, ``mjtNum`` is
+defined as ``double``. If the symbol ``mjUSESINGLE`` is defined, ``mjtNum`` is defined as ``float``.
 
-Note that changing ``mjUSEDOUBLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
+Currently only the double-precision version of MuJoCo is distributed, although the entire code base works with
+single-precision as well. We may release the single-precision version in the future, but the
+double-precision version will always be available. Thus it is safe to write user code assuming double precision.
+However, our preference is to write code that works with either single or double precision. To this end we provide math
+utility functions that are always defined with the correct floating-point type.
+
+Note that changing ``mjUSESINGLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
 result in numerous link errors. In general, the header files distributed with precompiled MuJoCo should never be
 changed by the user.
 
 .. code-block:: C
 
-   #ifdef mjUSEDOUBLE
-       typedef double mjtNum;
+   // floating point data type and minval
+   #ifndef mjUSESINGLE
+     typedef double mjtNum;
+     #define mjMINVAL    1E-15       // minimum value in any denominator
    #else
-       typedef float mjtNum;
+     typedef float mjtNum;
+     #define mjMINVAL    1E-15f
    #endif
 
 
@@ -577,6 +581,18 @@ mjtItem
 Item types used in the UI framework.
 
 .. mujoco-include:: mjtItem
+
+
+.. _mjtSection:
+
+mjtSection
+~~~~~~~~~~
+
+State of a UI section.
+
+.. mujoco-include:: mjtSection
+
+
 
 .. _tySpecEnums:
 

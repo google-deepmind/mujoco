@@ -14,7 +14,6 @@
 
 #include <array>
 #include <cstdio>
-#include <memory>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -28,9 +27,16 @@ namespace mujoco {
 namespace {
 
 using ::testing::NotNull;
-using EngineVfsTest = MujocoTest;
+using UserVfsTest = MujocoTest;
 
-TEST_F(EngineVfsTest, AddFile) {
+static bool HasFile(const mjVFS* vfs, const std::string& filename) {
+  mjResource* resource = mju_openVfsResource(filename.c_str(), vfs);
+  bool result = resource != nullptr;
+  mju_closeResource(resource);
+  return result;
+}
+
+TEST_F(UserVfsTest, AddFile) {
   constexpr char path[] = "engine/testdata/actuation/";
   const std::string dir = GetTestDataFilePath(path);
   std::string file1 = "activation.xml";
@@ -49,54 +55,159 @@ TEST_F(EngineVfsTest, AddFile) {
   ASSERT_THAT(fp3, NotNull()) << "Input file3 missing.";
   std::fclose(fp3);
 
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  EXPECT_FALSE(HasFile(&vfs, file1));
+  EXPECT_THAT(mj_addFileVFS(&vfs, dir.c_str(), file1.c_str()), 0);
+  EXPECT_TRUE(HasFile(&vfs, file1));
 
-  EXPECT_THAT(vfs->nfile, 0);
-  EXPECT_THAT(mj_addFileVFS(vfs.get(), dir.c_str(), file1.c_str()), 0);
-  EXPECT_THAT(vfs->nfile, 1);
-  EXPECT_THAT(vfs->filename[0], file1);
+  EXPECT_THAT(mj_addFileVFS(&vfs, dir.c_str(), file2.c_str()), 0);
+  EXPECT_TRUE(HasFile(&vfs, file1));
+  EXPECT_TRUE(HasFile(&vfs, file2));
 
-  EXPECT_THAT(mj_addFileVFS(vfs.get(), dir.c_str(), file2.c_str()), 0);
-  EXPECT_THAT(vfs->nfile, 2);
-  EXPECT_THAT(vfs->filename[0], file1);
-  EXPECT_THAT(vfs->filename[1], file2);
+  EXPECT_THAT(mj_addFileVFS(&vfs, dir.c_str(), file3.c_str()), 0);
+  EXPECT_TRUE(HasFile(&vfs, file1.c_str()));
+  EXPECT_TRUE(HasFile(&vfs, file2.c_str()));
+  EXPECT_TRUE(HasFile(&vfs, file3.c_str()));
 
-  EXPECT_THAT(mj_addFileVFS(vfs.get(), dir.c_str(), file3.c_str()), 0);
-  EXPECT_THAT(vfs->nfile, 3);
-  EXPECT_THAT(vfs->filename[0], file1);
-  EXPECT_THAT(vfs->filename[1], file2);
-  EXPECT_THAT(vfs->filename[2], file3);
+  mj_deleteFileVFS(&vfs, file1.c_str());
+  EXPECT_FALSE(HasFile(&vfs, file1.c_str()));
+  EXPECT_TRUE(HasFile(&vfs, file2.c_str()));
+  EXPECT_TRUE(HasFile(&vfs, file3.c_str()));
 
-  mj_deleteFileVFS(vfs.get(), file1.c_str());
-  EXPECT_THAT(vfs->nfile, 2);
-  EXPECT_THAT(vfs->filename[0], file2);
-  EXPECT_THAT(vfs->filename[1], file3);
 
-  mj_deleteFileVFS(vfs.get(), file3.c_str());
-  EXPECT_THAT(vfs->nfile, 1);
-  EXPECT_THAT(vfs->filename[0], file2);
+  mj_deleteFileVFS(&vfs, file3.c_str());
+  EXPECT_FALSE(HasFile(&vfs, file1.c_str()));
+  EXPECT_TRUE(HasFile(&vfs, file2.c_str()));
+  EXPECT_FALSE(HasFile(&vfs, file3.c_str()));
 
-  mj_deleteFileVFS(vfs.get(), file2.c_str());
-  EXPECT_THAT(vfs->nfile, 0);
+  mj_deleteFileVFS(&vfs, file2.c_str());
+  EXPECT_FALSE(HasFile(&vfs, file1.c_str()));
+  EXPECT_FALSE(HasFile(&vfs, file2.c_str()));
+  EXPECT_FALSE(HasFile(&vfs, file3.c_str()));
 
-  mj_deleteVFS(vfs.get());
+  mj_deleteVFS(&vfs);
 }
 
-TEST_F(EngineVfsTest, AddBuffer) {
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
+TEST_F(UserVfsTest, AddFileStripPath) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  constexpr char path[] = "engine/testdata/actuation/";
+  const std::string dir = GetTestDataFilePath(path);
+  std::string file1 = "activation.xml";
+  mj_addFileVFS(&vfs, dir.c_str(), file1.c_str());
+
+  EXPECT_TRUE(HasFile(&vfs, file1));
+  EXPECT_TRUE(HasFile(&vfs, dir + file1));
+  EXPECT_TRUE(HasFile(&vfs, "some/dir/" + file1));
+  EXPECT_TRUE(HasFile(&vfs, "some/dir\\" + file1));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, AddFileRepeat) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  constexpr char path[] = "engine/testdata/actuation/";
+  const std::string dir = GetTestDataFilePath(path);
+  std::string file1 = "activation.xml";
+  mj_addFileVFS(&vfs, dir.c_str(), file1.c_str());
+
+  EXPECT_TRUE(HasFile(&vfs, file1));
+  EXPECT_THAT(mj_addFileVFS(&vfs, "dir/", file1.c_str()), 2);
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, DeleteFile) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  constexpr char path[] = "engine/testdata/actuation/";
+  const std::string dir = GetTestDataFilePath(path);
+  std::string file1 = "activation.xml";
+  mj_addFileVFS(&vfs, dir.c_str(), file1.c_str());
+
+  EXPECT_TRUE(HasFile(&vfs, file1));
+  EXPECT_THAT(mj_deleteFileVFS(&vfs, file1.c_str()), 0);
+  EXPECT_FALSE(HasFile(&vfs, file1));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, DeleteFileStripPath) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  constexpr char path[] = "engine/testdata/actuation/";
+  const std::string dir = GetTestDataFilePath(path);
+  std::string file = "activation.xml";
+  std::string fileUpper = "Activation.xml";
+  mj_addFileVFS(&vfs, dir.c_str(), file.c_str());
+
+  EXPECT_TRUE(HasFile(&vfs, file));
+  EXPECT_THAT(mj_deleteFileVFS(&vfs, ("dir\\" + fileUpper).c_str()), 0);
+  EXPECT_FALSE(HasFile(&vfs, file));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, DeleteFileRepeat) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  constexpr char path[] = "engine/testdata/actuation/";
+  const std::string dir = GetTestDataFilePath(path);
+  std::string file = "activation.xml";
+  mj_addFileVFS(&vfs, dir.c_str(), file.c_str());
+
+  EXPECT_TRUE(HasFile(&vfs, file));
+  EXPECT_THAT(mj_deleteFileVFS(&vfs, file.c_str()), 0);
+  EXPECT_FALSE(HasFile(&vfs, file));
+  EXPECT_THAT(mj_deleteFileVFS(&vfs, file.c_str()), -1);
+
+  mj_deleteVFS(&vfs);
+}
+
+
+TEST_F(UserVfsTest, AddBuffer) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
   std::string buffer = "<mujoco/>";
-  mj_addBufferVFS(vfs.get(), "model", static_cast<const void*>(buffer.c_str()),
+  mj_addBufferVFS(&vfs, "model", static_cast<const void*>(buffer.c_str()),
                   buffer.size());
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML("model", vfs.get(), error.data(), error.size());
+  mjModel* model = mj_loadXML("model", &vfs, error.data(), error.size());
   EXPECT_THAT(model, NotNull());
   mj_deleteModel(model);
-  mj_deleteVFS(vfs.get());
+  mj_deleteVFS(&vfs);
 }
 
-TEST_F(EngineVfsTest, Timestamps) {
+TEST_F(UserVfsTest, AddBufferRepeat) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+    std::string buffer = "<mujoco/>";
+    const void* ptr = static_cast<const void*>(buffer.c_str());
+  mj_addBufferVFS(&vfs, "model", ptr, buffer.size());
+  int result = mj_addBufferVFS(&vfs, "model", ptr, buffer.size());
+  EXPECT_EQ(result, 2);
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, BufferStripPath) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+    std::string buffer = "<mujoco/>";
+    const void* ptr = static_cast<const void*>(buffer.c_str());
+  mj_addBufferVFS(&vfs, "dir/model", ptr, buffer.size());
+  EXPECT_TRUE(HasFile(&vfs, "MODEL"));
+  EXPECT_TRUE(HasFile(&vfs, "dir\\model"));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, Timestamps) {
   static constexpr char cube[] = R"(
   v -0.500000 -0.500000  0.500000
   v  0.500000 -0.500000  0.500000
@@ -107,11 +218,11 @@ TEST_F(EngineVfsTest, Timestamps) {
   v -0.500000 -0.500000 -0.500000
   v  0.500000 -0.500000 -0.500000)";
 
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "cube.obj", cube, sizeof(cube));
 
-  mjResource* resource = mju_openVfsResource("cube.obj", vfs.get());
+  mjResource* resource = mju_openVfsResource("cube.obj", &vfs);
 
   // same timestamps
   EXPECT_EQ(mju_isModifiedResource(resource, resource->timestamp), 0);
@@ -120,7 +231,7 @@ TEST_F(EngineVfsTest, Timestamps) {
   EXPECT_EQ(mju_isModifiedResource(resource, "QQ=="), 1);
 
   mju_closeResource(resource);
-  mj_deleteVFS(vfs.get());
+  mj_deleteVFS(&vfs);
 }
 
 }  // namespace

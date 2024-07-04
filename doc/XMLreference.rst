@@ -1564,17 +1564,21 @@ still be specified here but this functionality is now deprecated and will be rem
    This and the remaining attributes control the generation of procedural textures. If the value of this attribute is
    different from "none", the texture is treated as procedural and any file names are ignored. The keywords have the
    following meaning:
-   The **gradient** type generates a color gradient from rgb1 to rgb2. The interpolation in color space is done through
-   a sigmoid function. For cube and skybox textures the gradient is along the +Y axis, i.e., from top to bottom for
-   skybox rendering.
 
-   The **checker** type generates a 2-by-2 checker pattern with alternating colors given by rgb1 to rgb2. This is
-   suitable for rendering ground planes and also for marking objects with rotational symmetries. Note that 2d textures
-   can be scaled so as to repeat the pattern as many times as necessary. For cube and skybox textures, the checker
-   pattern is painted on each side of the cube.
+   **gradient**
+      Generates a color gradient from rgb1 to rgb2. The interpolation in color space is done through
+      a sigmoid function. For cube and skybox textures the gradient is along the +Y axis, i.e., from top to bottom for
+      skybox rendering.
 
-   The **flat** type fills the entire texture with rgb1, except for the bottom face of cube and skybox textures which is
-   filled with rgb2.
+   **checker**
+      Generates a 2-by-2 checker pattern with alternating colors given by rgb1 and rgb2. This is suitable for rendering
+      ground planes and also for marking objects with rotational symmetries. Note that 2d textures can be scaled so as
+      to repeat the pattern as many times as necessary. For cube and skybox textures, the checker pattern is painted on
+      each side of the cube.
+
+   **flat**
+      Fills the entire texture with rgb1, except for the bottom face of cube and skybox textures which is
+      filled with rgb2.
 
 .. _asset-texture-rgb1:
 
@@ -1604,21 +1608,23 @@ still be specified here but this functionality is now deprecated and will be rem
 
 :at:`random`: :at-val:`real, "0.01"`
    When the mark attribute is set to "random", this attribute determines the probability of turning on each pixel. Note
-   that larger textures have more pixels, and the probability here is applied independently to each pixel - thus the
+   that larger textures have more pixels, and the probability here is applied independently to each pixel -- thus the
    texture size and probability need to be adjusted jointly. Together with a gradient skybox texture, this can create
-   the appearance of a night sky with stars.
+   the appearance of a night sky with stars. The random number generator is initialized with a fixed seed.
 
 .. _asset-texture-width:
 
 :at:`width`: :at-val:`int, "0"`
-   The width of the procedural texture, i.e., the number of columns in the image. For cube and skybox procedural
-   textures the width and height must be equal. Larger values usually result in higher quality images, although in some
-   cases (e.g. checker patterns) small values are sufficient.
+   The width of a procedural texture, i.e., the number of columns in the image. Larger values usually result in higher
+   quality images, although in some cases (e.g. checker patterns) small values are sufficient. For textures loaded from
+   files, this attribute is ignored.
 
 .. _asset-texture-height:
 
 :at:`height`: :at-val:`int, "0"`
-   The height of the procedural texture, i.e., the number of rows in the image.
+   The height of the procedural texture, i.e., the number of rows in the image. For cube and skybox textures, this
+   attribute is ignored and the height is set to 6 times the width. For textures loaded from files, this attribute is
+   ignored.
 
 .. _asset-texture-hflip:
 

@@ -69,7 +69,8 @@ TEST_F(VfsTest, HFieldPngWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(VfsTest, HFieldCustomWithVFS) {
@@ -96,7 +97,8 @@ TEST_F(VfsTest, HFieldCustomWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(VfsTest, TexturePngWithVFS) {
@@ -124,7 +126,8 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(VfsTest, TextureCustomWithVFS) {
@@ -152,7 +155,8 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 // ------------------------ test content_type attribute ------------------------
@@ -184,7 +188,8 @@ TEST_F(ContentTypeTest, HFieldPngWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
@@ -212,7 +217,8 @@ TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
@@ -240,6 +246,7 @@ TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TexturePngWithContentType) {
@@ -267,7 +274,8 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TextureCustomWithContentType) {
@@ -296,7 +304,8 @@ TEST_F(ContentTypeTest, TextureCustomWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TextureWithContentTypeError) {
@@ -325,6 +334,7 @@ TEST_F(ContentTypeTest, TextureWithContentTypeError) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(ContentTypeTest, TextureLoadPng) {
@@ -370,7 +380,7 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
   EXPECT_THAT(model, NotNull());
 
   mj_deleteModel(model);
-  mj_deleteFileVFS(vfs.get(), filename);
+  mj_deleteVFS(vfs.get());
 }
 
 // ------------------------ test keyframes -------------------------------------
@@ -803,6 +813,26 @@ TEST_F(MjCHFieldTest, PngMap) {
   EXPECT_EQ(max_hfield, 1) << "hfield should be normalised to [0, 1]";
 
   mj_deleteModel(model);
+}
+
+// ------------- test textures -------------------------------------------------
+
+using MjCTextureTest = MujocoTest;
+
+TEST_F(MjCTextureTest, TexturesLoad) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="body" type="cube" builtin="flat" mark="cross" width="8"
+       rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  mj_deleteModel(m);
 }
 
 // ------------- test quaternion normalization----------------------------------

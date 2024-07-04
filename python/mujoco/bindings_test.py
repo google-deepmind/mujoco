@@ -409,19 +409,6 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     np.testing.assert_array_equal(self.model.geom_size[1], [0.5, 0.5, 0.5])
     np.testing.assert_array_equal(model_copy.geom_size[1], [0.1, 0.1, 0.1])
 
-  def test_assets_array_filename_too_long(self):
-    # Longest allowed filename (excluding null byte)
-    limit = mujoco.mjMAXVFSNAME - 1
-    contents = b'<mujoco/>'
-    valid_filename = 'a' * limit
-    mujoco.MjModel.from_xml_path(valid_filename, {valid_filename: contents})
-    invalid_filename = 'a' * (limit + 1)
-    expected_message = (
-        f'Filename length 1000 exceeds 999 character limit: {invalid_filename}')
-    with self.assertRaisesWithLiteralMatch(ValueError, expected_message):
-      mujoco.MjModel.from_xml_path(invalid_filename,
-                                   {invalid_filename: contents})
-
   def test_mjdata_can_copy(self):
     self.data.qpos = [0, 0, 0.1*np.sqrt(2) - 0.001,
                       np.cos(np.pi/8), np.sin(np.pi/8), 0, 0, 0,
@@ -855,9 +842,6 @@ Return the current version of MuJoCo as a null-terminated string.
 
 Euler integrator, semi-implicit in velocity.
 """)
-
-  def test_int_constant(self):
-    self.assertEqual(mujoco.mjMAXVFSNAME, 1000)
 
   def test_float_constant(self):
     self.assertEqual(mujoco.mjMAXVAL, 1e10)

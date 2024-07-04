@@ -207,15 +207,11 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
   }
   mj_forward(model, data);
 
-  // note that in the loop above the quat is unnormalized, but that's ok,
-  // quaternions are automatically normalized in place:
-  EXPECT_NEAR(mju_norm(data->qpos+3, 4), 1.0, tol);
-
   // get values from relative sensors after moving the object
   std::vector actual_values(data->sensordata+nsensordata/2,
                             data->sensordata+nsensordata);
 
-  // object and reference have moved together, we expect values to not unchange
+  // object and reference have moved together, we expect values to not change
   EXPECT_THAT(actual_values, Pointwise(DoubleNear(tol), expected_values));
 
   mj_deleteData(data);

@@ -86,8 +86,6 @@ const char* ResolveOrientation(double* quat,             // set frame quat
                                const char* sequence,     // euler sequence format: "xyz"
                                const mjsOrientation& orient);
 
-// compute frame quat and diagonal inertia from full inertia matrix, return error if any
-const char* FullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
 //------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
 
@@ -98,9 +96,9 @@ class mjCBoundingVolume {
 
   int contype;                  // contact type
   int conaffinity;              // contact affinity
-  const mjtNum* aabb;           // axis-aligned bounding box (center, size)
-  const mjtNum* pos;            // position (set by user or Compile1)
-  const mjtNum* quat;           // orientation (set by user or Compile1)
+  const double* aabb;           // axis-aligned bounding box (center, size)
+  const double* pos;            // position (set by user or Compile1)
+  const double* quat;           // orientation (set by user or Compile1)
 
   const int* GetId() const { if (id_) return id_; else return &idval_; }
   void SetId(const int* id) { id_ = id; }
@@ -134,7 +132,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
   // make bounding volume hierarchy
   void CreateBVH(void);
-  void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
+  void Set(double ipos_element[3], double iquat_element[4]);
   void AllocateBoundingVolumes(int nleaf);
   void RemoveInactiveVolumes(int nmax);
   mjCBoundingVolume* GetBoundingVolume(int id);
@@ -144,7 +142,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   struct BVElement {
     const mjCBoundingVolume* e;
     // position of the element in the BVH axes
-    mjtNum lpos[3];
+    double lpos[3];
   };
 
   struct BVElementCompare {
@@ -231,8 +229,8 @@ class mjCBody_ : public mjCBase {
   int contype;                    // OR over geom contypes
   int conaffinity;                // OR over geom conaffinities
   double margin;                  // MAX over geom margins
-  mjtNum xpos0[3];                // global position in qpos0
-  mjtNum xquat0[4];               // global orientation in qpos0
+  double xpos0[3];                // global position in qpos0
+  double xquat0[4];               // global orientation in qpos0
 
   // used internally by compiler
   int lastdof;                    // id of last dof
@@ -302,7 +300,6 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // inherited
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -364,7 +361,6 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
 
   mjsFrame spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -411,7 +407,6 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
   mjsJoint spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -512,7 +507,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void NameSpace(const mjCModel* m);
 
   // inherited
-  using mjCBase::classname;
   using mjCBase::info;
 };
 
@@ -550,7 +544,6 @@ class mjCSite : public mjCSite_, private mjsSite {
 
   // use strings from mjCBase rather than mjStrings from mjsSite
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -593,7 +586,6 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
 
   mjsCamera spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -633,7 +625,6 @@ class mjCLight : public mjCLight_, private mjsLight {
 
   mjsLight spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -664,20 +655,20 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> shell;                 // shell fragment vertex ids (dim per fragment)
   std::vector<int> elemlayer;             // element layer (distance from border)
   std::vector<int> evpair;                // element-vertex pairs
-  std::vector<mjtNum> vertxpos;           // global vertex positions
+  std::vector<double> vertxpos;           // global vertex positions
   mjCBoundingVolumeHierarchy tree;        // bounding volume hierarchy
-  std::vector<mjtNum> elemaabb_;          // element bounding volume
+  std::vector<double> elemaabb_;          // element bounding volume
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
-  std::vector<mjtNum> vert_;              // vertex positions
+  std::vector<double> vert_;              // vertex positions
   std::vector<int> elem_;                 // element vertex ids
   std::vector<float> texcoord_;           // vertex texture coordinates
   std::string material_;                  // name of material used for rendering
 
   std::string spec_material_;
   std::vector<std::string> spec_vertbody_;
-  std::vector<mjtNum> spec_vert_;
+  std::vector<double> spec_vert_;
   std::vector<int> spec_elem_;
   std::vector<float> spec_texcoord_;
 };
@@ -696,7 +687,6 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   mjsFlex spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -796,7 +786,6 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
   mjsMesh spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -927,7 +916,6 @@ class mjCSkin: public mjCSkin_, private mjsSkin {
 
   mjsSkin spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   const std::string& get_file() const { return file_; }
@@ -1029,7 +1017,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   mjsTexture spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec(void);
@@ -1084,7 +1071,6 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
 
   mjsMaterial spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec();
@@ -1125,7 +1111,6 @@ class mjCPair : public mjCPair_, private mjsPair {
 
   mjsPair spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec();
@@ -1222,7 +1207,6 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
 
   mjsEquality spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void CopyFromSpec();
@@ -1263,7 +1247,6 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
 
   mjsTendon spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   void set_material(std::string _material) { material_ = _material; }
@@ -1396,7 +1379,6 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
   mjsActuator spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -1455,7 +1437,6 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
 
   mjsSensor spec;
   using mjCBase::name;
-  using mjCBase::classname;
   using mjCBase::info;
 
   // used by mjXWriter and mjCModel
@@ -1653,6 +1634,7 @@ class mjCDef : public mjsElement {
 
   // identifiers
   std::string name;               // class name
+  int id;                         // id of this default
   int parentid;                   // id of parent class
   std::vector<int> childid;       // ids of child classes
 

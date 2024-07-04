@@ -61,6 +61,10 @@ enum {
 // enable/disable texture mapping
 static void settexture(int type, int state, const mjrContext* con, const mjvGeom* geom) {
   float plane[4], scl[2];
+  int texid = -1;
+  if (geom) {
+    texid = (geom->matid == -1) ? -1 : con->mat_texid[mjNTEXMAT * geom->matid];
+  }
 
   // shadow
   if (type == mjtexSHADOW) {
@@ -92,7 +96,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
     if (state) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_2D);
-      glBindTexture(GL_TEXTURE_2D, con->texture[geom->texid]);
+      glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
     }
 
     // disable
@@ -103,18 +107,18 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   }
 
   // 2D
-  else if (type == mjtexREGULAR && con->textureType[geom->texid] == mjTEXTURE_2D) {
+  else if (type == mjtexREGULAR && con->textureType[texid] == mjTEXTURE_2D) {
     // enable
     if (state) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_2D);
       glEnable(GL_TEXTURE_GEN_S);
       glEnable(GL_TEXTURE_GEN_T);
-      glBindTexture(GL_TEXTURE_2D, con->texture[geom->texid]);
+      glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
 
       // determine scaling, adjust for pre-scaled geoms
-      scl[0] = geom->texrepeat[0];
-      scl[1] = geom->texrepeat[1];
+      scl[0] = con->mat_texrepeat[geom->matid*2];
+      scl[1] = con->mat_texrepeat[geom->matid*2+1];
       if (geom->dataid >= 0) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] / mju_max(mjMINVAL, geom->size[0]);
@@ -126,7 +130,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       }
 
       // uniform: repeat relative to spatial units rather than object
-      if (geom->texuniform) {
+      if (con->mat_texuniform[geom->matid]) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] * geom->size[0];
         }
@@ -161,15 +165,15 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       glEnable(GL_TEXTURE_GEN_S);
       glEnable(GL_TEXTURE_GEN_T);
       glEnable(GL_TEXTURE_GEN_R);
-      glBindTexture(GL_TEXTURE_CUBE_MAP, con->texture[geom->texid]);
+      glBindTexture(GL_TEXTURE_CUBE_MAP, con->texture[texid]);
 
       // set mapping : cube
       if (type == mjtexREGULAR) {
-        mjr_setf4(plane, geom->texuniform ? geom->size[0] : 1, 0, 0, 0);
+        mjr_setf4(plane, con->mat_texuniform[geom->matid] ? geom->size[0] : 1, 0, 0, 0);
         glTexGenfv(GL_S, GL_OBJECT_PLANE, plane);
-        mjr_setf4(plane, 0, geom->texuniform ? geom->size[1] : 1, 0, 0);
+        mjr_setf4(plane, 0, con->mat_texuniform[geom->matid] ? geom->size[1] : 1, 0, 0);
         glTexGenfv(GL_T, GL_OBJECT_PLANE, plane);
-        mjr_setf4(plane, 0, 0, geom->texuniform ? geom->size[2] : 1, 0);
+        mjr_setf4(plane, 0, 0, con->mat_texuniform[geom->matid] ? geom->size[2] : 1, 0);
         glTexGenfv(GL_R, GL_OBJECT_PLANE, plane);
       }
 
@@ -232,7 +236,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   behind = isBehind(headpos, geom->pos, geom->mat);
 
   // enable texture in normal and shadowmap mode
-  if (geom->texid >= 0 && con->ntexture > 0 &&
+  if (geom->matid >= 0 &&
       (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 1, con, geom);
   }
@@ -515,14 +519,14 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       glEnableClientState(GL_NORMAL_ARRAY);
       glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*scn->flexfaceadr[geom->objid]);
       glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*scn->flexfaceadr[geom->objid]);
-      if (geom->texcoord && geom->texid>=0) {
+      if (geom->texcoord && geom->matid>=0) {
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*scn->flexfaceadr[geom->objid]);
       }
       glDrawArrays(GL_TRIANGLES, 0, 3*scn->flexfaceused[geom->objid]);
       glDisableClientState(GL_VERTEX_ARRAY);
       glDisableClientState(GL_NORMAL_ARRAY);
-      if (geom->texcoord && geom->texid>=0) {
+      if (geom->texcoord && geom->matid>=0) {
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
       }
     }
@@ -568,7 +572,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   glPopMatrix();
 
   // disable texture if enabled
-  if (geom->texid >= 0 && con->ntexture > 0 &&
+  if (geom->matid >= 0 &&
       (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 0, con, geom);
   }
@@ -1268,7 +1272,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
         if (con->textureType[i] == mjTEXTURE_SKYBOX) {
           // save first skybox texture id in tempgeom
           memset(&tempgeom, 0, sizeof(mjvGeom));
-          tempgeom.texid = i;
+          tempgeom.matid = mjMAXMATERIAL - 1;
 
           // modify settings
           glDisable(GL_LIGHTING);

@@ -800,4 +800,14 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjNITEM', 14),
          ]),
      )),
+    ('mjtSection',
+     EnumDecl(
+         name='mjtSection',
+         declname='enum mjtSection_',
+         values=dict([
+             ('mjSECT_CLOSED', 0),
+             ('mjSECT_OPEN', 1),
+             ('mjSECT_FIXED', 2),
+         ]),
+     )),
 ])

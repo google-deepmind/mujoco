@@ -281,6 +281,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
       case mjSENS_BALLQUAT:                               // ballquat
         mju_copy4(d->sensordata+adr, d->qpos+m->jnt_qposadr[objid]);
+        mju_normalize4(d->sensordata+adr);
         break;
 
       case mjSENS_JOINTLIMITPOS:                          // jointlimitpos
@@ -899,7 +900,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 // position-dependent energy (potential)
 void mj_energyPos(const mjModel* m, mjData* d) {
   int padr;
-  mjtNum dif[3], stiffness;
+  mjtNum dif[3], quat[4], stiffness;
 
   // disabled: clear and return
   if (!mjENABLED(mjENBL_ENERGY)) {
@@ -923,7 +924,9 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
       switch ((mjtJoint) m->jnt_type[i]) {
       case mjJNT_FREE:
-        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
+        mju_sub3(dif, quat, m->qpos_spring+padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
 
         // continue with rotations
@@ -932,6 +935,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
       case mjJNT_BALL:
         // covert quatertion difference into angular "velocity"
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
         mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
         break;
