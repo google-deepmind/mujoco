@@ -10,11 +10,12 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
-   1. Removed deprecated ``mj_makeEmptyFileVFS`` and ``mj_findFileVFS`` functions.
+   1. Removed deprecated ``mj_makeEmptyFileVFS`` and ``mj_findFileVFS`` functions. The constants ``mjMAXVFS`` and
+      ``mjMAXVFSNAME`` are also removed as they are no longer needed.
 
       **Migration:** Use :ref:`mj_addBufferVFS` to copy a buffer into a VFS file directly.
 
-   2. Calls to:ref:`mj_defaultVFS` may allocate memory inside VFS, and the corresponding
+   2. Calls to :ref:`mj_defaultVFS` may allocate memory inside VFS, and the corresponding
       :ref:`mj_deleteVFS` must be called to deallocate any internal allocated memory.
 
    3. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
@@ -22,7 +23,9 @@ General
       The older functions have been removed from the Python bindings and will be removed from the C API in the next
       release.
 
-4. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
+4. The :ref:`VFS<Virtualfilesystem>` implementation has been rewritten in C++ and is now considerably more efficient in
+   speed and memory footprint.
+5. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
    Still missing:
 
    - Detailed documentation.
@@ -31,27 +34,27 @@ General
    :align: right
    :width: 240px
 
-5. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
+6. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
    :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
-6. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
-7. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
-8. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
-9. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
-   `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
-   with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
-   point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
+7. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+8. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
+9. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
+10. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
+    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
+    with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
+    point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
 
-   Relatedly, fixed various type errors that prevented building with single-precision.
-10. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
+    Relatedly, fixed various type errors that prevented building with single-precision.
+11. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
     :ref:`mj_kinematics`. Instead they are normalized when they are used. After the first step, quaternions in
     ``mjData->qpos`` will be normalized.
 
 MJX
 ~~~
-10. Added support for :ref:`elliptic friction cones<option-cone>`.
-11. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-12. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+12. Added support for :ref:`elliptic friction cones<option-cone>`.
+13. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+14. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 
 .. youtube:: P83tKA1iz2Y
@@ -60,14 +63,14 @@ MJX
 
 Simulate
 ^^^^^^^^
-13. Added improved tutorial video.
-14. Improved the Brownian noise generator.
+15. Added improved tutorial video.
+16. Improved the Brownian noise generator.
 
 |br| |br| |br| |br|
 
 Python bindings
 ^^^^^^^^^^^^^^^
-15. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+17. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------

@@ -414,12 +414,6 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 50
      - The maximum depth of each body and mesh bounding volume hierarchy. If this large limit is exceeded, a warning
        is raised and ray casting may not be possible. For a balanced hierarchy, this implies 1E15 bounding volumes.
-   * - ``mjMAXVFS``
-     - 200
-     - The maximal number of characters in the name of each file in the virtual file system.
-   * - ``mjMAXVFSNAME``
-     - 100
-     - The maximal number of characters in the name of each file in the virtual file system.
    * - ``mjNEQDATA``
      - 11
      - The maximal number of real-valued parameters used to define each equality constraint. Determines the size of

@@ -91,43 +91,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          declname='struct mjVFS_',
          fields=(
              StructFieldDecl(
-                 name='nfile',
-                 type=ValueType(name='int'),
-                 doc='number of files present',
-             ),
-             StructFieldDecl(
-                 name='filename',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(2000, 1000),
+                 name='impl_',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
                  ),
-                 doc='file name without path',
-             ),
-             StructFieldDecl(
-                 name='filesize',
-                 type=ArrayType(
-                     inner_type=ValueType(name='size_t'),
-                     extents=(2000,),
-                 ),
-                 doc='file size in bytes',
-             ),
-             StructFieldDecl(
-                 name='filedata',
-                 type=ArrayType(
-                     inner_type=PointerType(
-                         inner_type=ValueType(name='void'),
-                     ),
-                     extents=(2000,),
-                 ),
-                 doc='buffer with file data',
-             ),
-             StructFieldDecl(
-                 name='filestamp',
-                 type=ArrayType(
-                     inner_type=ValueType(name='uint64_t'),
-                     extents=(2000,),
-                 ),
-                 doc='checksum of the file data',
+                 doc='internal pointer to VFS memory',
              ),
          ),
      )),

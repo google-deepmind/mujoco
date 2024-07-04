@@ -40,7 +40,7 @@ namespace Mujoco {
       var filename = "filename";
       var contents = "contents";
       _vfs.AddFile(filename, contents);
-      Assert.That(_vfs.FilesCount, Is.EqualTo(1));
+      Assert.That(() => { _vfs.AddFile(filename, contents); }, Throws.Exception);  // duplicate file
     }
   }
 }

@@ -29,7 +29,7 @@ set(MUJOCO_USER_SRCS
     user_objects.h
     user_util.cc
     user_util.h
-    user_vfs.c
+    user_vfs.cc
     user_vfs.h
 )
 

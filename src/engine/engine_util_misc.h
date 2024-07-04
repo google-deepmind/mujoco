@@ -164,10 +164,6 @@ MJAPI mjtNum mju_Halton(int index, int base);
 // call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 
-// assemble full filename from directory and filename, return 0 on success
-MJAPI int mju_makefullname(char* full, size_t nfull,
-                           const char* dir, const char* file);
-
 // sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 

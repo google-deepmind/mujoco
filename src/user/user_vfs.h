@@ -30,13 +30,13 @@ extern "C" {
 // Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS
 MJAPI void mj_defaultVFS(mjVFS* vfs);
 
-// add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on disk
+// add file to VFS, return 0: success, 2: repeated name, -1: not found on disk
 MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
 // deprecated: use mj_addBufferVFS
 MJAPI int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
 
-// add file from buffer into VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load
+// add file from buffer into VFS, return 0: success, 2: repeated name, -1: failed to load
 MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* filename, const void* buffer, int nbuffer);
 
 // return file index in VFS, or -1 if not found in VFS

@@ -29,8 +29,6 @@
 #define mjMAXIMP        0.9999    // maximum constraint impedance
 #define mjMAXCONPAIR    50        // maximum number of contacts per geom pair
 #define mjMAXTREEDEPTH  50        // maximum bounding volume hierarchy depth
-#define mjMAXVFS        2000      // maximum number of files in virtual file system
-#define mjMAXVFSNAME    1000      // maximum filename size in virtual file system
 
 
 //---------------------------------- sizes ---------------------------------------------------------
@@ -399,11 +397,7 @@ typedef struct mjLROpt_ mjLROpt;
 //---------------------------------- mjVFS ---------------------------------------------------------
 
 struct mjVFS_ {                               // virtual file system for loading from memory
-  int      nfile;                             // number of files present
-  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t   filesize[mjMAXVFS];                // file size in bytes
-  void*    filedata[mjMAXVFS];                // buffer with file data
-  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
+  void* impl_;                                // internal pointer to VFS memory
 };
 typedef struct mjVFS_ mjVFS;
 

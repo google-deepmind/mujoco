@@ -40,11 +40,6 @@ public sealed class MjVfs : IDisposable {
     }
   }
 
-  // Number of files added to the filesystem.
-  public int FilesCount {
-    get { return Data.nfile; }
-  }
-
   // Adds a new file to the virtual filesystem.
   public unsafe void AddFile(string filename, string contents) {
     var contents_bytes = Encoding.UTF8.GetBytes(contents);

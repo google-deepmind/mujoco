@@ -699,11 +699,7 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
 };
 typedef struct mjLROpt_ mjLROpt;
 struct mjVFS_ {                               // virtual file system for loading from memory
-  int      nfile;                             // number of files present
-  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t   filesize[mjMAXVFS];                // file size in bytes
-  void*    filedata[mjMAXVFS];                // buffer with file data
-  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
+  void* impl_;                                // internal pointer to VFS memory
 };
 typedef struct mjVFS_ mjVFS;
 struct mjOption_ {                // physics options

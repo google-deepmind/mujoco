@@ -41,8 +41,6 @@ public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXTREEDEPTH = 50;
-public const int mjMAXVFS = 2000;
-public const int mjMAXVFSNAME = 1000;
 public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
@@ -4978,11 +4976,7 @@ public unsafe struct mjLROpt_ {
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct _mjVFS
 {
-  public int nfile;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000 * 1000)] public char[] filename;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UIntPtr[] filesize;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public IntPtr[] filedata;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UInt64[] filestamp;
+  public void* impl_;
 }
 
 [StructLayout(LayoutKind.Sequential)]

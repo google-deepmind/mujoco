@@ -317,24 +317,22 @@ static raw::MjModel* LoadModelFileImpl(
     const std::string& filename,
     const std::vector<VfsAsset>& assets,
     LoadFunc&& loadfunc) {
-  std::unique_ptr<mjVFS, void(*)(mjVFS*)> vfs(nullptr, [](mjVFS*){});
+  mjVFS vfs;
+  mjVFS* vfs_ptr = nullptr;
   if (!assets.empty()) {
-    // mjVFS should be allocated on the heap, because it's ~2MB
-    vfs = decltype(vfs)(new mjVFS, [](mjVFS* vfs) {
-      mj_deleteVFS(vfs);
-      delete vfs;
-    });
-    mj_defaultVFS(vfs.get());
+    mj_defaultVFS(&vfs);
+    vfs_ptr = &vfs;
     for (const auto& asset : assets) {
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          vfs.get(), asset.name, asset.content, asset.content_size);
+          vfs_ptr, asset.name, asset.content, asset.content_size);
       if (vfs_error) {
         throw py::value_error("assets dict is too big");
       }
     }
   }
 
-  raw::MjModel* model = loadfunc(filename.c_str(), vfs.get());
+  raw::MjModel* model = loadfunc(filename.c_str(), vfs_ptr);
+  mj_deleteVFS(vfs_ptr);
   if (model && !model->buffer) {
     mj_deleteModel(model);
     model = nullptr;
@@ -351,12 +349,6 @@ ConvertAssetsDict(
   std::vector<VfsAsset> out;
   if (assets.has_value()) {
     for (const auto& [name, content] : *assets) {
-      if (name.length() >= mjMAXVFSNAME) {
-        std::ostringstream error;
-        error << "Filename length " << name.length() << " exceeds "
-              << mjMAXVFSNAME - 1 << " character limit: " << name;
-        throw py::value_error(error.str());
-      }
       out.emplace_back(name.c_str(), PYBIND11_BYTES_AS_STRING(content.ptr()),
                        py::len(content));
     }
