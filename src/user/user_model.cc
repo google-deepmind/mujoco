@@ -1072,6 +1072,14 @@ void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   elements.clear();
 }
 
+template <>
+void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
+  for (mjCKey* element : elements) {
+    delete element;
+  }
+  elements.clear();
+}
+
 // set nuser fields
 void mjCModel::SetNuser() {
   if (nuser_body == -1) {

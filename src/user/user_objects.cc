@@ -860,6 +860,9 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // attach referencing elements
   *model += *other.model;
 
+  // (b/350784262) delete keyframes
+  model->DeleteAll<mjCKey>(model->keys_);
+
   // clear namespace and return body
   other.model->prefix.clear();
   other.model->suffix.clear();
@@ -1597,6 +1600,9 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // attach referencing elements
   *model += *other.model;
+
+  // (b/350784262) delete keyframes
+  model->DeleteAll<mjCKey>(model->keys_);
 
   // clear suffixes and return
   other.model->suffix.clear();
