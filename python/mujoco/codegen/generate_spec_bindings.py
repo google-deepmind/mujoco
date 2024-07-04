@@ -22,11 +22,16 @@ from introspect import ast_nodes
 from introspect import structs
 
 
-def _scalar_binding_code(
+SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
+
+
+def _value_binding_code(
     field: ast_nodes.ValueType, classname: str = '', varname: str = ''
 ) -> str:
-  """Creates a string that defines Python bindings for a scalar type."""
-  fulltype = field.name + '&'  # default return type is by reference
+  """Creates a string that defines Python bindings for a value type."""
+  fulltype = field.name
+  if field.name not in SCALAR_TYPES:
+    fulltype += '&'
   fullvarname = varname
   rawclassname = classname.replace('mjs', 'raw::Mjs')
   if classname == 'mjSpec':  # raw mjSpec has a wrapper
@@ -36,15 +41,21 @@ def _scalar_binding_code(
     fulltype = field.name.replace('mjs', 'raw::Mjs')
     if field.name != 'mjsPlugin' and field.name != 'mjsOrientation':
       fulltype = fulltype + '*'  # plugin and orientation are pointers
-  return f"""\
-  {classname}.def_property(
-      "{varname}",
-      []({rawclassname}& self) -> {fulltype} {{
+
+  def_property_args = (
+      f'"{varname}"',
+      f"""[]({rawclassname}& self) -> {fulltype} {{
         return self.{fullvarname};
-    }},
-      []({rawclassname}& self, {fulltype} {varname}) {{
-        (self.{fullvarname}) = {varname};
-    }}, py::return_value_policy::reference_internal);"""
+      }}""",
+      f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+        self.{fullvarname} = {varname};
+      }}""",
+  )
+
+  if field.name not in SCALAR_TYPES:
+    def_property_args += ('py::return_value_policy::reference_internal',)
+
+  return f'{classname}.def_property({",".join(def_property_args)});'
 
 
 def _array_binding_code(
@@ -76,7 +87,7 @@ def _array_binding_code(
     []({rawclassname}& self, py::object rhs) {{
       int i = 0;
       for (auto val : rhs) {{
-        self.{fullvarname}[i++] = (py::cast<char>(val));
+        self.{fullvarname}[i++] = py::cast<char>(val);
       }}
     }}, py::return_value_policy::reference_internal);"""
   # all other array types
@@ -103,8 +114,8 @@ def _ptr_binding_code(
     fullvarname = 'ptr->' + varname
   if vartype == 'mjsElement':  # this is ignored by the caller
     return 'mjsElement'
-  if vartype.startswith('mjs'):  # for structs, use the scalar case
-    return _scalar_binding_code(field.inner_type, classname, varname)
+  if vartype.startswith('mjs'):  # for structs, use the value case
+    return _value_binding_code(field.inner_type, classname, varname)
   elif vartype == 'mjString':  # C++ string -> Python string
     return f"""\
   {classname}.def_property(
@@ -114,8 +125,8 @@ def _ptr_binding_code(
       }},
       []({rawclassname}& self, std::string_view {varname}) {{
         *(self.{fullvarname}) = {varname};
-    }}, py::return_value_policy::reference_internal);"""
-  elif (  # C++ vectors of scalars -> Python array
+    }});"""
+  elif (  # C++ vectors of values -> Python array
       vartype == 'mjDoubleVec'
       or vartype == 'mjFloatVec'
       or vartype == 'mjIntVec'
@@ -183,7 +194,7 @@ def _ptr_binding_code(
 
 def _binding_code(field: ast_nodes.StructFieldDecl, key: str) -> str:
   if isinstance(field.type, ast_nodes.ValueType):
-    return _scalar_binding_code(field.type, key, field.name)
+    return _value_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.PointerType):
     return _ptr_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.ArrayType):
