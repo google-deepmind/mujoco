@@ -29,10 +29,14 @@ from pxr import UsdGeom
 
 import mujoco
 
-import mujoco.usd.shapes as shapes_module
-import mujoco.usd.objects as object_module
-import mujoco.usd.lights as light_module
-import mujoco.usd.camera as camera_module
+# import mujoco.usd.shapes as shapes_module
+# import mujoco.usd.objects as object_module
+# import mujoco.usd.lights as light_module
+# import mujoco.usd.camera as camera_module
+import shapes as shapes_module
+import objects as object_module
+import lights as light_module
+import camera as camera_module
 
 
 class USDExporter:
@@ -293,7 +297,6 @@ class USDExporter:
     self.geom_refs[geom_name] = usd_geom
 
   def _update_geoms(self):
-
     # iterate through all geoms in the scene and makes update
     for i in range(self.scene.ngeom):
       geom = self.scene.geoms[i]

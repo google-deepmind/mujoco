@@ -27,8 +27,11 @@ from pxr import Vt
 
 import mujoco
 
-import mujoco.usd.utils as utils_component
-import mujoco.usd.shapes as shapes_component
+# import mujoco.usd.utils as utils_component
+# import mujoco.usd.shapes as shapes_component
+import utils as utils_component
+import shapes as shapes_component
+
 
 class USDObject(ABC):
   """ Abstract interface for all USD objects including meshes and primitives.

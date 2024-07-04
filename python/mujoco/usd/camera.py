@@ -18,7 +18,8 @@ from pxr import Gf
 from pxr import Usd
 from pxr import UsdGeom
 
-import mujoco.usd.utils as utils_component
+# import mujoco.usd.utils as utils_component
+import utils as utils_component
 
 class USDCamera:
   """Class that handles the cameras in the USD scene"""
