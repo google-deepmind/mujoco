@@ -129,7 +129,7 @@ TEST_F(MjCMeshTest, LoadMSHWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -155,7 +155,7 @@ TEST_F(MjCMeshTest, LoadOBJWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -181,7 +181,7 @@ TEST_F(MjCMeshTest, LoadSTLWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -209,7 +209,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -235,7 +235,7 @@ TEST_F(MjCMeshTest, LoadOBJWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -261,7 +261,7 @@ TEST_F(MjCMeshTest, LoadSTLWithContentType) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -313,7 +313,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
   // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 

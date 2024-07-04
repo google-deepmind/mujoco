@@ -69,7 +69,7 @@ TEST_F(VfsTest, HFieldPngWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -97,7 +97,7 @@ TEST_F(VfsTest, HFieldCustomWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -126,7 +126,7 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -155,7 +155,7 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -188,7 +188,7 @@ TEST_F(ContentTypeTest, HFieldPngWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -217,7 +217,7 @@ TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -274,7 +274,7 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -304,7 +304,7 @@ TEST_F(ContentTypeTest, TextureCustomWithContentType) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error,
-              HasSubstr("resource not found via provider or OS filesystem"));
+              HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
