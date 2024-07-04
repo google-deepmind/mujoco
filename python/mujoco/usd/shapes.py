@@ -151,7 +151,7 @@ def mesh_generator(
     prim_mesh, mesh = None, None
 
     for shape, config in mesh_config.items():
-      
+
       if "name" in shape:
         continue
 

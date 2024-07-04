@@ -14,7 +14,6 @@
 # ==============================================================================
 import numpy as np
 
-
 def create_transform_matrix(rotation_matrix, translation_vector):
   # Ensure rotation_matrix and translation_vector are NumPy arrays
   rotation_matrix = np.array(rotation_matrix)

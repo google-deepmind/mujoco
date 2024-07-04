@@ -29,15 +29,10 @@ from pxr import UsdGeom
 
 import mujoco
 
-# import mujoco.usd.shapes as shapes_module
-# import mujoco.usd.objects as object_module
-# import mujoco.usd.lights as light_module
-# import mujoco.usd.camera as camera_module
-import shapes as shapes_module
-import objects as object_module
-import lights as light_module
-import camera as camera_module
-
+import mujoco.usd.shapes as shapes_module
+import mujoco.usd.objects as object_module
+import mujoco.usd.lights as light_module
+import mujoco.usd.camera as camera_module
 
 class USDExporter:
   """MuJoCo to USD exporter for porting scenes to external renderers."""
@@ -248,7 +243,7 @@ class USDExporter:
     assert geom_name not in self.geom_names
 
     texture_file = (
-        self.texture_files[self.model.mat_texid[mujoco.mjNTEXMAT*geom.matid]]
+        self.texture_files[self.model.mat_texid[geom.matid][0]]
         if geom.matid != -1
         else None
     )
