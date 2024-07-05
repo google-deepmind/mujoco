@@ -62,8 +62,10 @@ class SpecsTest(absltest.TestCase):
     # Add a site to the body with user data and read it back.
     site = body.add_site()
     site.name = 'sitename'
+    site.type = mujoco.mjtGeom.mjGEOM_BOX
     site.userdata = [1, 2, 3, 4, 5, 6]
     self.assertEqual(site.name, 'sitename')
+    self.assertEqual(site.type, mujoco.mjtGeom.mjGEOM_BOX)
     np.testing.assert_array_equal(site.userdata, [1, 2, 3, 4, 5, 6])
 
     # Check that the site and body have no id before compilation.
@@ -90,7 +92,7 @@ class SpecsTest(absltest.TestCase):
 
           <worldbody>
             <body name="baz" pos="1 2 3" quat="0 1 0 0">
-              <site name="sitename" pos="0 0 0" user="1 2 3 4 5 6"/>
+              <site name="sitename" pos="0 0 0" type="box" user="1 2 3 4 5 6"/>
             </body>
           </worldbody>
         </mujoco>
@@ -231,7 +233,6 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.sensors[0].name, 'sensor1')
     self.assertEqual(spec.sensors[1].name, 'sensor2')
     self.assertEqual(spec.sensors[2].name, 'sensor3')
-
 
 if __name__ == '__main__':
   absltest.main()
