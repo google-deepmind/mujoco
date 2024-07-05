@@ -27,8 +27,8 @@
 
 #include <mujoco/mjmodel.h>
 #include "engine/engine_io.h"
-#include "engine/engine_resource.h"
 #include <mujoco/mjspec.h>
+#include "user/user_resource.h"
 #include "user/user_vfs.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"

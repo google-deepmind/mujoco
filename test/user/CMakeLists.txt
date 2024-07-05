@@ -40,5 +40,8 @@ target_link_libraries(
 mujoco_test(user_composite_test)
 target_link_libraries(user_composite_test fixture gmock)
 
+mujoco_test(user_resource_test)
+target_link_libraries(user_resource_test fixture gmock)
+
 mujoco_test(user_vfs_test)
 target_link_libraries(user_vfs_test fixture gmock)

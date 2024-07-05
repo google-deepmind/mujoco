@@ -24,9 +24,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 
 namespace {

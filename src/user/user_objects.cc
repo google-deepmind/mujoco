@@ -36,12 +36,12 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
 #include "cc/array_safety.h"
-#include "engine/engine_resource.h"
 #include "engine/engine_passive.h"
 #include <mujoco/mjspec.h>
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 

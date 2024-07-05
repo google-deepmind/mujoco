@@ -56,11 +56,11 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
-#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 #include "xml/xml_util.h"
 #include <tiny_obj_loader.h>

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "engine/engine_resource.h"
+#include "user/user_resource.h"
 
 #include <errno.h>
 #include <limits.h>

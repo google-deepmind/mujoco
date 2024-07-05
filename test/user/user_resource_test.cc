@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for engine/engine_resource.c
+// Tests for user/user_resource.c
 
 #include <array>
 #include <cstdint>
@@ -26,8 +26,8 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"
-#include "src/engine/engine_resource.h"
 #include "src/engine/engine_util_misc.h"
+#include "src/user/user_resource.h"
 #include "test/fixture.h"
 
 namespace mujoco {

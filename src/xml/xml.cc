@@ -34,8 +34,8 @@
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_resource.h"
 #include <mujoco/mjspec.h>
+#include "user/user_resource.h"
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 #include "xml/xml_native_reader.h"

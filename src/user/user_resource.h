@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// IWYU pragma: private, include "third_party/mujoco/include/mujoco.h"
+// IWYU pragma: friend "third_party/mujoco/src/.*"
 
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_

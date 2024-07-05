@@ -57,8 +57,6 @@ set(MUJOCO_ENGINE_SRCS
     engine_print.h
     engine_ray.c
     engine_ray.h
-    engine_resource.c
-    engine_resource.h
     engine_sensor.c
     engine_sensor.h
     engine_setconst.c
