@@ -28,6 +28,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -316,24 +317,22 @@ static raw::MjModel* LoadModelFileImpl(
     const std::string& filename,
     const std::vector<VfsAsset>& assets,
     LoadFunc&& loadfunc) {
-  std::unique_ptr<mjVFS, void(*)(mjVFS*)> vfs(nullptr, [](mjVFS*){});
+  mjVFS vfs;
+  mjVFS* vfs_ptr = nullptr;
   if (!assets.empty()) {
-    // mjVFS should be allocated on the heap, because it's ~2MB
-    vfs = decltype(vfs)(new mjVFS, [](mjVFS* vfs) {
-      mj_deleteVFS(vfs);
-      delete vfs;
-    });
-    mj_defaultVFS(vfs.get());
+    mj_defaultVFS(&vfs);
+    vfs_ptr = &vfs;
     for (const auto& asset : assets) {
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          vfs.get(), asset.name, asset.content, asset.content_size);
+          vfs_ptr, asset.name, asset.content, asset.content_size);
       if (vfs_error) {
         throw py::value_error("assets dict is too big");
       }
     }
   }
 
-  raw::MjModel* model = loadfunc(filename.c_str(), vfs.get());
+  raw::MjModel* model = loadfunc(filename.c_str(), vfs_ptr);
+  mj_deleteVFS(vfs_ptr);
   if (model && !model->buffer) {
     mj_deleteModel(model);
     model = nullptr;
@@ -350,12 +349,6 @@ ConvertAssetsDict(
   std::vector<VfsAsset> out;
   if (assets.has_value()) {
     for (const auto& [name, content] : *assets) {
-      if (name.length() >= mjMAXVFSNAME) {
-        std::ostringstream error;
-        error << "Filename length " << name.length() << " exceeds "
-              << mjMAXVFSNAME - 1 << " character limit: " << name;
-        throw py::value_error(error.str());
-      }
       out.emplace_back(name.c_str(), PYBIND11_BYTES_AS_STRING(content.ptr()),
                        py::len(content));
     }
@@ -428,6 +421,27 @@ MjModelWrapper MjModelWrapper::LoadXML(
     }
   }
   return MjModelWrapper(model);
+}
+
+MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec) {
+  auto m = mj_compile(spec, nullptr);
+  if (!m || mjs_isWarning(spec)) {
+    throw py::value_error(mjs_getError(spec));
+  }
+  return MjModelWrapper(m);
+}
+
+py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
+                        const MjDataWrapper& old_d) {
+  raw::MjModel* m = static_cast<raw::MjModel*>(mju_malloc(sizeof(mjModel)));
+  m->buffer = nullptr;
+  raw::MjData* d = mj_copyData(nullptr, old_m.get(), old_d.get());
+  mj_recompile(spec, nullptr, m, d);
+
+  py::object m_pyobj = py::cast((MjModelWrapper(m)));
+  py::object d_pyobj =
+      py::cast((MjDataWrapper(py::cast<MjModelWrapper*>(m_pyobj), d)));
+  return py::make_tuple(m_pyobj, d_pyobj);
 }
 
 namespace {
@@ -1056,7 +1070,6 @@ MjvGLCameraWrapper::MjWrapper(const MjvGLCameraWrapper& other)
 #define X(var) var(InitPyArray(ptr_->var, owner_))
 MjvGeomWrapper::MjWrapper()
     : WrapperBase(new raw::MjvGeom{}),
-      X(texrepeat),
       X(size),
       X(pos),
       mat([this]() {
@@ -1069,7 +1082,6 @@ MjvGeomWrapper::MjWrapper()
 
 MjvGeomWrapper::MjWrapper(raw::MjvGeom* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
-      X(texrepeat),
       X(size),
       X(pos),
       mat([this]() {
@@ -1558,6 +1570,11 @@ PYBIND11_MODULE(_structs, m) {
       py::doc(
 R"(Loads an MjModel from an XML string and an optional assets dictionary.)"));
   mjModel.def_static(
+      "_from_spec_ptr", [](uintptr_t addr) {
+        return MjModelWrapper::CompileSpec(
+            reinterpret_cast<raw::MjSpec*>(addr));
+      });
+  mjModel.def_static(
       "from_xml_path", &MjModelWrapper::LoadXMLFile,
       py::arg("filename"), py::arg_v("assets", py::none()),
       py::doc(
@@ -1907,9 +1924,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjData.def("__copy__", [](const MjDataWrapper& other) {
     return MjDataWrapper(other);
   });
-  mjData.def("__deepcopy__", [](const MjDataWrapper& other, py::dict) {
-    MjModelWrapper* model_copy = new MjModelWrapper(other.model());
-    return MjDataWrapper(other, model_copy);
+  mjData.def("__deepcopy__", [](const MjDataWrapper& other, py::dict memo) {
+    // Use copy.deepcopy(model) to make a model that Python is aware of.
+    py::object new_model_py =
+        py::cast(other.model()).attr("__deepcopy__")(memo);
+    return MjDataWrapper(other, new_model_py.cast<MjModelWrapper*>());
   });
   mjData.def(py::pickle(
       [](const MjDataWrapper& d) {  // __getstate__
@@ -2185,8 +2204,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(objtype);
   X(objid);
   X(category);
-  X(texid);
-  X(texuniform);
+  X(matid);
   X(texcoord);
   X(segid);
   X(emission);
@@ -2199,7 +2217,6 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #undef X
 
 #define X(var) DefinePyArray(mjvGeom, #var, &MjvGeomWrapper::var)
-  X(texrepeat);
   X(size);
   X(pos);
   X(mat);
@@ -2404,5 +2421,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       },
       py::arg("cam1"), py::arg("cam2"),
       py::doc(python_traits::mjv_averageCamera::doc));
+
+  m.def(
+      "_recompile_spec_addr",
+      [](uintptr_t spec_addr, const MjModelWrapper& m, const MjDataWrapper& d) {
+        return RecompileSpec(reinterpret_cast<raw::MjSpec*>(spec_addr), m, d);
+      }
+  );
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace mujoco::python::_impl

@@ -44,14 +44,6 @@ void mj_kinematics(const mjModel* m, mjData* d) {
   d->xmat[0] = d->xmat[4] = d->xmat[8] = 1;
   d->ximat[0] = d->ximat[4] = d->ximat[8] = 1;
 
-  // normalize all quaternions in qpos
-  mj_normalizeQuat(m, d->qpos);
-
-  // normalize mocap quaternions
-  for (int i=0; i < m->nmocap; i++) {
-    mju_normalize4(d->mocap_quat+4*i);
-  }
-
   // compute global cartesian positions and orientations of all bodies
   for (int i=1; i < m->nbody; i++) {
     mjtNum xpos[3], xquat[4];
@@ -66,6 +58,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       // copy pos and quat from qpos
       mju_copy3(xpos, d->qpos+qadr);
       mju_copy4(xquat, d->qpos+qadr+3);
+      mju_normalize4(xquat);
 
       // assign xanchor and xaxis
       mju_copy3(d->xanchor+3*jntadr, xpos);
@@ -77,10 +70,12 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       int pid = m->body_parentid[i];
 
       // get body pos and quat: from model or mocap
-      mjtNum *bodypos, *bodyquat;
+      mjtNum *bodypos, *bodyquat, quat[4];
       if (m->body_mocapid[i] >= 0) {
         bodypos = d->mocap_pos + 3*m->body_mocapid[i];
-        bodyquat = d->mocap_quat + 4*m->body_mocapid[i];
+        mju_copy4(quat, d->mocap_quat + 4*m->body_mocapid[i]);
+        mju_normalize4(quat);
+        bodyquat = quat;
       } else {
         bodypos = m->body_pos+3*i;
         bodyquat = m->body_quat+4*i;
@@ -125,6 +120,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
             mjtNum qloc[4];
             if (jtype == mjJNT_BALL) {
               mju_copy4(qloc, d->qpos+qadr);
+              mju_normalize4(qloc);
             } else {
               mju_axisAngle2Quat(qloc, m->jnt_axis+3*jid, d->qpos[qadr] - m->qpos0[qadr]);
             }
@@ -890,13 +886,15 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int j = m->jnt_qposadr[id];
 
         // axis: expmap representation of quaternion
-        mju_quat2Vel(axis, d->qpos+j, 1);
+        mju_copy4(quat, d->qpos+j);
+        mju_normalize4(quat);
+        mju_quat2Vel(axis, quat, 1);
 
         // gearAxis: rotate to parent frame if necessary
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear);
         } else {
-          mju_negQuat(quat, d->qpos+j);
+          mju_negQuat(quat, quat);
           mju_rotVecQuat(gearAxis, gear, quat);
         }
 
@@ -923,12 +921,15 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
         // axis: expmap representation of quaternion
         mju_quat2Vel(axis, d->qpos+j+3, 1);
+        mju_copy4(quat, d->qpos+j+3);
+        mju_normalize4(quat);
+        mju_quat2Vel(axis, quat, 1);
 
         // gearAxis: rotate to world frame if necessary
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear+3);
         } else {
-          mju_negQuat(quat, d->qpos+j+3);
+          mju_negQuat(quat, quat);
           mju_rotVecQuat(gearAxis, gear+3, quat);
         }
 

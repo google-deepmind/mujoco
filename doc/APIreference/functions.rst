@@ -1203,7 +1203,7 @@ mj_defaultVFS
 
 .. mujoco-include:: mj_defaultVFS
 
-Initialize VFS to empty (no deallocation).
+Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
 
 .. _mj_addFileVFS:
 
@@ -1224,15 +1224,6 @@ mj_addBufferVFS
 
 Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 
-.. _mj_findFileVFS:
-
-mj_findFileVFS
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_findFileVFS
-
-Return file index in VFS, or -1 if not found in VFS.
-
 .. _mj_deleteFileVFS:
 
 mj_deleteFileVFS
@@ -1249,16 +1240,7 @@ mj_deleteVFS
 
 .. mujoco-include:: mj_deleteVFS
 
-Delete all files from VFS.
-
-.. _mj_makeEmptyFileVFS:
-
-mj_makeEmptyFileVFS
-~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_makeEmptyFileVFS
-
-deprecated: use mj_copyBufferVFS.
+Delete all files from VFS and deallocates VFS internal memory.
 
 .. _Initialization:
 
@@ -4131,6 +4113,15 @@ mjs_findFrame
 
 Find frame by name.
 
+.. _mjs_findKeyframe:
+
+mjs_findKeyframe
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findKeyframe
+
+Find keyframe by name.
+
 .. _mjs_getDefault:
 
 mjs_getDefault
@@ -4184,6 +4175,231 @@ mjs_nextChild
 .. mujoco-include:: mjs_nextChild
 
 Return body's next child of the same type; return NULL if child is last.
+
+.. _mjs_firstElement:
+
+mjs_firstElement
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_firstElement
+
+Return spec's first element of selected type.
+
+.. _mjs_nextElement:
+
+mjs_nextElement
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_nextElement
+
+Return spec's next element; return NULL if element is last.
+
+.. _mjs_asBody:
+
+mjs_asBody
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asBody
+
+Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
+
+.. _mjs_asGeom:
+
+mjs_asGeom
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asGeom
+
+Safely cast an element as mjsGeom, or return NULL if the element is not an mjsGeom.
+
+.. _mjs_asJoint:
+
+mjs_asJoint
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asJoint
+
+Safely cast an element as mjsJoint, or return NULL if the element is not an mjsJoint.
+
+.. _mjs_asSite:
+
+mjs_asSite
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSite
+
+Safely cast an element as mjsSite, or return NULL if the element is not an mjsSite.
+
+.. _mjs_asCamera:
+
+mjs_asCamera
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asCamera
+
+Safely cast an element as mjsCamera, or return NULL if the element is not an mjsCamera.
+
+.. _mjs_asLight:
+
+mjs_asLight
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asLight
+
+Safely cast an element as mjsLight, or return NULL if the element is not an mjsLight.
+
+.. _mjs_asFrame:
+
+mjs_asFrame
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asFrame
+
+Safely cast an element as mjsFrame, or return NULL if the element is not an mjsFrame.
+
+.. _mjs_asActuator:
+
+mjs_asActuator
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asActuator
+
+Safely cast an element as mjsActuator, or return NULL if the element is not an mjsActuator.
+
+.. _mjs_asSensor:
+
+mjs_asSensor
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSensor
+
+Safely cast an element as mjsSensor, or return NULL if the element is not an mjsSensor.
+
+.. _mjs_asFlex:
+
+mjs_asFlex
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asFlex
+
+Safely cast an element as mjsFlex, or return NULL if the element is not an mjsFlex.
+
+.. _mjs_asPair:
+
+mjs_asPair
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asPair
+
+Safely cast an element as mjsPair, or return NULL if the element is not an mjsPair.
+
+.. _mjs_asEquality:
+
+mjs_asEquality
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asEquality
+
+Safely cast an element as mjsEquality, or return NULL if the element is not an mjsEquality.
+
+.. _mjs_asExclude:
+
+mjs_asExclude
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asExclude
+
+Safely cast an element as mjsExclude, or return NULL if the element is not an mjsExclude.
+
+.. _mjs_asTendon:
+
+mjs_asTendon
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asTendon
+
+Safely cast an element as mjsTendon, or return NULL if the element is not an mjsTendon.
+
+.. _mjs_asNumeric:
+
+mjs_asNumeric
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asNumeric
+
+Safely cast an element as mjsNumeric, or return NULL if the element is not an mjsNumeric.
+
+.. _mjs_asText:
+
+mjs_asText
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asText
+
+Safely cast an element as mjsText, or return NULL if the element is not an mjsText.
+
+.. _mjs_asTuple:
+
+mjs_asTuple
+~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asTuple
+
+Safely cast an element as mjsTuple, or return NULL if the element is not an mjsTuple.
+
+.. _mjs_asKey:
+
+mjs_asKey
+~~~~~~~~~
+
+.. mujoco-include:: mjs_asKey
+
+Safely cast an element as mjsKey, or return NULL if the element is not an mjsKey.
+
+.. _mjs_asMesh:
+
+mjs_asMesh
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asMesh
+
+Safely cast an element as mjsMesh, or return NULL if the element is not an mjsMesh.
+
+.. _mjs_asHField:
+
+mjs_asHField
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asHField
+
+Safely cast an element as mjsHField, or return NULL if the element is not an mjsHField.
+
+.. _mjs_asSkin:
+
+mjs_asSkin
+~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSkin
+
+Safely cast an element as mjsSkin, or return NULL if the element is not an mjsSkin.
+
+.. _mjs_asTexture:
+
+mjs_asTexture
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asTexture
+
+Safely cast an element as mjsTexture, or return NULL if the element is not an mjsTexture.
+
+.. _mjs_asMaterial:
+
+mjs_asMaterial
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asMaterial
+
+Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.
 
 .. _AttributeSetters:
 
@@ -4340,15 +4556,6 @@ mjs_resolveOrientation
 .. mujoco-include:: mjs_resolveOrientation
 
 Resolve alternative orientations to quat, return error if any.
-
-.. _mjs_fullInertia:
-
-mjs_fullInertia
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_fullInertia
-
-Compute quat and diag inertia from full inertia matrix, return error if any.
 
 .. _ElementInitialization:
 

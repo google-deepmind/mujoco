@@ -26,7 +26,7 @@ extern "C" {
 
 //------------------------------ standard library functions ----------------------------------------
 
-#ifdef mjUSEDOUBLE
+#if !defined(mjUSESINGLE)
   #define mju_sqrt    sqrt
   #define mju_exp     exp
   #define mju_sin     sin
@@ -59,7 +59,7 @@ extern "C" {
   #define mju_log10   log10f
   #define mju_floor   floorf
   #define mju_ceil    ceilf
-#endif
+#endif  // !defined(mjUSESINGLE)
 
 
 //------------------------------ 3D vector and matrix-vector operations ----------------------------

@@ -94,6 +94,20 @@ class Handle:
   def user_scn(self):
     return self._user_scn
 
+  @property
+  def m(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.m
+    return None
+
+  @property
+  def d(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.d
+    return None
+
   def close(self):
     sim = self._sim()
     if sim is not None:

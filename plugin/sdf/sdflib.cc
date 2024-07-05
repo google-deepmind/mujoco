@@ -180,7 +180,7 @@ void SdfLib::RegisterPlugin() {
     delete reinterpret_cast<SdfLib*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto sdf = reinterpret_cast<SdfLib*>(plugin_data);
     sdf->Reset();

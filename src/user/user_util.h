@@ -20,40 +20,48 @@
 #include <string_view>
 
 
-const double mjEPS = 1E-14;                     // minimum value in various calculations
-const double mjMINMASS = 1E-6;                  // minimum mass allowed
+const double mjEPS = 1E-14;     // minimum value in various calculations
+const double mjMINMASS = 1E-6;  // minimum mass allowed
 
 // check if numeric variable is defined:  !_isnan(num)
-bool mjuu_defined(const double num);
+bool mjuu_defined(double num);
 
 // compute linear address of M[g1][g2] where M is triangular n-by-n
 // return -1 if inputs are invalid
-int mjuu_matadr(int g1, int g2, const int n);
+int mjuu_matadr(int g1, int g2, int n);
 
 // set 4D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z, const double w);
-void mjuu_setvec(float* dest, const double x, const double y, const double z, const double w);
+void mjuu_setvec(double* dest, double x, double y, double z, double w);
+void mjuu_setvec(float* dest, double x, double y, double z, double w);
 
 // set 3D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z);
-void mjuu_setvec(float* dest, const double x, const double y, const double z);
+void mjuu_setvec(double* dest, double x, double y, double z);
+void mjuu_setvec(float* dest, double x, double y, double z);
 
 // set 2D vector
-void mjuu_setvec(double* dest, const double x, const double y);
+void mjuu_setvec(double* dest, double x, double y);
 
-// copy double array
-void mjuu_copyvec(double* dest, const double* src, const int n);
+// copy real-valued vector
+template <class T1, class T2>
+void mjuu_copyvec(T1* dest, const T2* src, int n) {
+  for (int i=0; i<n; i++) {
+    dest[i] = (T1)src[i];
+  }
+}
 
-// copy float array
-void mjuu_copyvec(float* dest, const float* src, const int n);
+// add to double array
+void mjuu_addtovec(double* dest, const double* src, int n);
 
 // zero array
-void mjuu_zerovec(double* dest, const int n);
+void mjuu_zerovec(double* dest, int n);
+
+// zero float array
+void mjuu_zerovec(float* dest, int n);
 
 // dot-product in 3D
 double mjuu_dot3(const double* a, const double* b);
 
-// distance beween 3D points
+// distance between 3D points
 double mjuu_dist3(const double* a, const double* b);
 
 // L1 norm between vectors
@@ -61,7 +69,8 @@ double mjuu_L1(const double* a, const double* b, int n);
 
 // normalize vector to unit length, return previous length
 //  if norm(vec)<mjEPS, return 0 and do not change vector
-double mjuu_normvec(double* vec, const int n);
+double mjuu_normvec(double* vec, int n);
+float mjuu_normvec(float* vec, int n);
 
 // convert quaternion to rotation matrix
 void mjuu_quat2mat(double* res, const double* quat);
@@ -69,8 +78,11 @@ void mjuu_quat2mat(double* res, const double* quat);
 // multiply two unit quaternions
 void mjuu_mulquat(double* res, const double* qa, const double* qb);
 
-// multiply vector by matrix, 3-by-3
+// multiply matrix by vector, 3-by-3
 void mjuu_mulvecmat(double* res, const double* vec, const double* mat);
+
+// multiply transposed matrix by vector, 3-by-3
+void mjuu_mulvecmatT(double* res, const double* vec, const double* mat);
 
 // compute res = R * M * R'
 void mjuu_mulRMRT(double* res, const double* R, const double* M);
@@ -122,23 +134,26 @@ void mjuu_frameaccuminv(double pos[3], double quat[4],
 void mjuu_globalinertia(double* global, const double* local, const double* quat);
 
 // compute off-center correction to inertia matrix
-void mjuu_offcenter(double* res, const double mass, const double* vec);
+void mjuu_offcenter(double* res, double mass, const double* vec);
 
 // compute viscosity coefficients from mass and inertia
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl=1);
 
+// rotate vector by quaternion
+void mjuu_rotVecQuat(double res[3], const double vec[3], const double quat[4]);
+
 // update moving frame along a discrete curve or initialize it, returns edge length
-//   inputs:
-//     normal    - normal vector computed by a previous call to the function
-//     edge      - edge vector (non-unit tangent vector)
-//     tprv      - unit tangent vector of previous body
-//     tnxt      - unit tangent vector of next body
-//     first     - 1 if the frame requires initialization
-//   outputs:
-//     quat      - frame orientation
-//     normal    - unit normal vector
-double mju_updateFrame(double quat[4], double normal[3], const double edge[3],
+double mjuu_updateFrame(double quat[4], double normal[3], const double edge[3],
                        const double tprv[3], const double tnxt[3], int first);
+
+// eigenvalue decomposition of symmetric 3x3 matrix
+int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]);
+
+// transform vector by pose
+void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4], const double vec[3]);
+
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* mjuu_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
 // strip path from filename
 std::string mjuu_strippath(std::string filename);
@@ -152,8 +167,10 @@ std::string mjuu_getext(std::string_view filename);
 // check if path is absolute
 bool mjuu_isabspath(std::string path);
 
-// assemble full filename
-std::string mjuu_makefullname(std::string filedir, std::string meshdir, std::string filename);
+// assemble file paths
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2);
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2,
+                              const std::string& path3);
 
 // return type from content_type format {type}/{subtype}[;{parameter}={value}]
 std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text);

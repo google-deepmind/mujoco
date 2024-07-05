@@ -17,30 +17,21 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
-#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
 
-#include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_util_misc.h"
-#include "engine/engine_util_spatial.h"
-
-using std::isnan;
-using std::string;
-using std::numeric_limits;
-
 
 // check if numeric variable is defined
-bool mjuu_defined(const double num) {
-  return !isnan(num);
+bool mjuu_defined(double num) {
+  return !std::isnan(num);
 }
 
 
 // compute address of M[g1][g2] where M is triangular n-by-n
-int mjuu_matadr(int g1, int g2, const int n) {
+int mjuu_matadr(int g1, int g2, int n) {
   if (g1<0 || g2<0 || g1>=n || g2>=n) {
     return -1;
   }
@@ -56,13 +47,13 @@ int mjuu_matadr(int g1, int g2, const int n) {
 
 
 // set 4D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z, const double w) {
+void mjuu_setvec(double* dest, double x, double y, double z, double w) {
   dest[0] = x;
   dest[1] = y;
   dest[2] = z;
   dest[3] = w;
 }
-void mjuu_setvec(float* dest, const double x, const double y, const double z, const double w) {
+void mjuu_setvec(float* dest, double x, double y, double z, double w) {
   dest[0] = (float)x;
   dest[1] = (float)y;
   dest[2] = (float)z;
@@ -71,12 +62,12 @@ void mjuu_setvec(float* dest, const double x, const double y, const double z, co
 
 
 // set 3D vector
-void mjuu_setvec(double* dest, const double x, const double y, const double z) {
+void mjuu_setvec(double* dest, double x, double y, double z) {
   dest[0] = x;
   dest[1] = y;
   dest[2] = z;
 }
-void mjuu_setvec(float* dest, const double x, const double y, const double z) {
+void mjuu_setvec(float* dest, double x, double y, double z) {
   dest[0] = (float)x;
   dest[1] = (float)y;
   dest[2] = (float)z;
@@ -84,35 +75,32 @@ void mjuu_setvec(float* dest, const double x, const double y, const double z) {
 
 
 // set 2D vector
-void mjuu_setvec(double* dest, const double x, const double y) {
+void mjuu_setvec(double* dest, double x, double y) {
   dest[0] = x;
   dest[1] = y;
 }
 
 
-// copy double array
-void mjuu_copyvec(double* dest, const double* src, const int n) {
+// add to double array
+void mjuu_addtovec(double* dest, const double* src, int n) {
   for (int i=0; i<n; i++) {
-    dest[i] = src[i];
+    dest[i] += src[i];
   }
 }
-
-
-// copy float array
-void mjuu_copyvec(float* dest, const float* src, const int n) {
-  for (int i=0; i<n; i++) {
-    dest[i] = src[i];
-  }
-}
-
 
 // zero double array
-void mjuu_zerovec(double* dest, const int n) {
+void mjuu_zerovec(double* dest, int n) {
   for (int i=0; i<n; i++) {
     dest[i] = 0;
   }
 }
 
+// zero float array
+void mjuu_zerovec(float* dest, int n) {
+  for (int i=0; i<n; i++) {
+    dest[i] = 0;
+  }
+}
 
 // dot-product in 3D
 double mjuu_dot3(const double* a, const double* b) {
@@ -120,7 +108,7 @@ double mjuu_dot3(const double* a, const double* b) {
 }
 
 
-// distance beween 3D points
+// distance between 3D points
 double mjuu_dist3(const double* a, const double* b) {
   return sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]));
 }
@@ -130,7 +118,7 @@ double mjuu_dist3(const double* a, const double* b) {
 double mjuu_L1(const double* a, const double* b, int n) {
   double res = 0;
   for (int i=0; i<n; i++) {
-    res += fabs(a[i]-b[i]);
+    res += std::abs(a[i]-b[i]);
   }
 
   return res;
@@ -149,8 +137,36 @@ double mjuu_normvec(double* vec, const int n) {
   }
 
   nrm = sqrt(nrm);
+
+  // don't normalize if nrm is within mjEPS of 1
+  if (std::abs(nrm - 1) > mjEPS) {
+    for (int i=0; i<n; i++) {
+      vec[i] /= nrm;
+    }
+  }
+
+  return nrm;
+}
+
+
+// normalize float vector to unit length, return previous length
+float mjuu_normvec(float* vec, const int n) {
+  float nrm = 0;
+
   for (int i=0; i<n; i++) {
-    vec[i] /= nrm;
+    nrm += vec[i]*vec[i];
+  }
+  if (nrm < mjEPS) {
+    return 0;
+  }
+
+  nrm = sqrt(nrm);
+
+  // don't normalize if nrm is within mjEPS of 1
+  if (std::abs(nrm - 1) > mjEPS) {
+    for (int i=0; i<n; i++) {
+      vec[i] /= nrm;
+    }
   }
 
   return nrm;
@@ -159,33 +175,59 @@ double mjuu_normvec(double* vec, const int n) {
 
 // convert quaternion to rotation matrix
 void mjuu_quat2mat(double* res, const double* quat) {
+  // identity quat: identity mat
+  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
+    res[0] = 1;
+    res[1] = 0;
+    res[2] = 0;
+    res[3] = 0;
+    res[4] = 1;
+    res[5] = 0;
+    res[6] = 0;
+    res[7] = 0;
+    res[8] = 1;
+    return;
+  }
+
+  // regular processing
   double q00 = quat[0]*quat[0];
+  double q01 = quat[0]*quat[1];
+  double q02 = quat[0]*quat[2];
+  double q03 = quat[0]*quat[3];
   double q11 = quat[1]*quat[1];
+  double q12 = quat[1]*quat[2];
+  double q13 = quat[1]*quat[3];
   double q22 = quat[2]*quat[2];
+  double q23 = quat[2]*quat[3];
   double q33 = quat[3]*quat[3];
+
   res[0] = q00 + q11 - q22 - q33;
   res[4] = q00 - q11 + q22 - q33;
   res[8] = q00 - q11 - q22 + q33;
-  res[1] = 2*(quat[1]*quat[2] - quat[0]*quat[3]);
-  res[2] = 2*(quat[1]*quat[3] + quat[0]*quat[2]);
-  res[3] = 2*(quat[1]*quat[2] + quat[0]*quat[3]);
-  res[5] = 2*(quat[2]*quat[3] - quat[0]*quat[1]);
-  res[6] = 2*(quat[1]*quat[3] - quat[0]*quat[2]);
-  res[7] = 2*(quat[2]*quat[3] + quat[0]*quat[1]);
+
+  res[1] = 2*(q12 - q03);
+  res[2] = 2*(q13 + q02);
+  res[3] = 2*(q12 + q03);
+  res[5] = 2*(q23 - q01);
+  res[6] = 2*(q13 - q02);
+  res[7] = 2*(q23 + q01);
+
 }
 
 
 // multiply two unit quaternions
 void mjuu_mulquat(double* res, const double* qa, const double* qb) {
-  res[0] = qa[0]*qb[0] - qa[1]*qb[1] - qa[2]*qb[2] - qa[3]*qb[3];
-  res[1] = qa[0]*qb[1] + qa[1]*qb[0] + qa[2]*qb[3] - qa[3]*qb[2];
-  res[2] = qa[0]*qb[2] - qa[1]*qb[3] + qa[2]*qb[0] + qa[3]*qb[1];
-  res[3] = qa[0]*qb[3] + qa[1]*qb[2] - qa[2]*qb[1] + qa[3]*qb[0];
-  mjuu_normvec(res, 4);
+  double tmp[4];
+  tmp[0] = qa[0]*qb[0] - qa[1]*qb[1] - qa[2]*qb[2] - qa[3]*qb[3];
+  tmp[1] = qa[0]*qb[1] + qa[1]*qb[0] + qa[2]*qb[3] - qa[3]*qb[2];
+  tmp[2] = qa[0]*qb[2] - qa[1]*qb[3] + qa[2]*qb[0] + qa[3]*qb[1];
+  tmp[3] = qa[0]*qb[3] + qa[1]*qb[2] - qa[2]*qb[1] + qa[3]*qb[0];
+  mjuu_normvec(tmp, 4);
+  mjuu_copyvec(res, tmp, 4);
 }
 
 
-// multiply vector by 3-by-3 matrix
+// multiply matrix by vector, 3-by-3
 void mjuu_mulvecmat(double* res, const double* vec, const double* mat) {
   double tmp[3] = {
     mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2],
@@ -197,6 +239,18 @@ void mjuu_mulvecmat(double* res, const double* vec, const double* mat) {
   res[2] = tmp[2];
 }
 
+
+// multiply transposed matrix by vector, 3-by-3
+void mjuu_mulvecmatT(double* res, const double* vec, const double* mat) {
+  double tmp[3] = {
+    mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2],
+    mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2],
+    mat[2]*vec[0] + mat[5]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
+}
 
 // compute res = R * M * R'
 void mjuu_mulRMRT(double* res, const double* R, const double* M) {
@@ -228,33 +282,28 @@ void mjuu_mulRMRT(double* res, const double* R, const double* M) {
 
 // multiply two matrices, all 3-by-3
 void mjuu_mulmat(double* res, const double* A, const double* B) {
-  res[0] = A[0]*B[0] + A[1]*B[3] + A[2]*B[6];
-  res[1] = A[0]*B[1] + A[1]*B[4] + A[2]*B[7];
-  res[2] = A[0]*B[2] + A[1]*B[5] + A[2]*B[8];
+  double tmp[9];
+  tmp[0] = A[0]*B[0] + A[1]*B[3] + A[2]*B[6];
+  tmp[1] = A[0]*B[1] + A[1]*B[4] + A[2]*B[7];
+  tmp[2] = A[0]*B[2] + A[1]*B[5] + A[2]*B[8];
 
-  res[3] = A[3]*B[0] + A[4]*B[3] + A[5]*B[6];
-  res[4] = A[3]*B[1] + A[4]*B[4] + A[5]*B[7];
-  res[5] = A[3]*B[2] + A[4]*B[5] + A[5]*B[8];
+  tmp[3] = A[3]*B[0] + A[4]*B[3] + A[5]*B[6];
+  tmp[4] = A[3]*B[1] + A[4]*B[4] + A[5]*B[7];
+  tmp[5] = A[3]*B[2] + A[4]*B[5] + A[5]*B[8];
 
-  res[6] = A[6]*B[0] + A[7]*B[3] + A[8]*B[6];
-  res[7] = A[6]*B[1] + A[7]*B[4] + A[8]*B[7];
-  res[8] = A[6]*B[2] + A[7]*B[5] + A[8]*B[8];
+  tmp[6] = A[6]*B[0] + A[7]*B[3] + A[8]*B[6];
+  tmp[7] = A[6]*B[1] + A[7]*B[4] + A[8]*B[7];
+  tmp[8] = A[6]*B[2] + A[7]*B[5] + A[8]*B[8];
+  mjuu_copyvec(res, tmp, 9);
 }
 
 
 // transpose 3-by-3 matrix
 void mjuu_transposemat(double* res, const double* mat) {
-  res[0] = mat[0];
-  res[3] = mat[1];
-  res[6] = mat[2];
-
-  res[1] = mat[3];
-  res[4] = mat[4];
-  res[7] = mat[5];
-
-  res[2] = mat[6];
-  res[5] = mat[7];
-  res[8] = mat[8];
+  double tmp[9] = {mat[0], mat[3], mat[6],
+                   mat[1], mat[4], mat[7],
+                   mat[2], mat[5], mat[8]};
+  mjuu_copyvec(res, tmp, 9);
 }
 
 
@@ -454,27 +503,72 @@ void mjuu_offcenter(double* res, const double mass, const double* vec) {
 // compute viscosity coefficients from mass and inertia
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl) {
   // compute equivalent box
-  double equivbox[3];
-  equivbox[0] = sqrt(mju_max(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
-  equivbox[1] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
-  equivbox[2] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
+  double ebox[3];
+  ebox[0] = sqrt(mjMAX(mjEPS, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
+  ebox[1] = sqrt(mjMAX(mjEPS, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
+  ebox[2] = sqrt(mjMAX(mjEPS, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
 
   // apply formula for box (or rather cross) viscosity
 
   //  torque components
-  visccoef[0] = scl * 4.0 / 3.0 * equivbox[0] *
-                (equivbox[1]*equivbox[1]*equivbox[1] + equivbox[2]*equivbox[2]*equivbox[2]);
-  visccoef[1] = scl * 4.0 / 3.0 * equivbox[1] *
-                (equivbox[0]*equivbox[0]*equivbox[0] + equivbox[2]*equivbox[2]*equivbox[2]);
-  visccoef[2] = scl * 4.0 / 3.0 * equivbox[2] *
-                (equivbox[0]*equivbox[0]*equivbox[0] + equivbox[1]*equivbox[1]*equivbox[1]);
+  visccoef[0] = scl * 4.0 / 3.0 * ebox[0] * (ebox[1]*ebox[1]*ebox[1] + ebox[2]*ebox[2]*ebox[2]);
+  visccoef[1] = scl * 4.0 / 3.0 * ebox[1] * (ebox[0]*ebox[0]*ebox[0] + ebox[2]*ebox[2]*ebox[2]);
+  visccoef[2] = scl * 4.0 / 3.0 * ebox[2] * (ebox[0]*ebox[0]*ebox[0] + ebox[1]*ebox[1]*ebox[1]);
 
   //  force components
-  visccoef[3] = scl * 4*equivbox[1]*equivbox[2];
-  visccoef[4] = scl * 4*equivbox[0]*equivbox[2];
-  visccoef[5] = scl * 4*equivbox[0]*equivbox[1];
+  visccoef[3] = scl * 4*ebox[1]*ebox[2];
+  visccoef[4] = scl * 4*ebox[0]*ebox[2];
+  visccoef[5] = scl * 4*ebox[0]*ebox[1];
 }
 
+
+// convert axisAngle to quaternion
+static void mjuu_axisAngle2Quat(double res[4], const double axis[3], double angle) {
+  // zero angle: identity quat
+  if (angle == 0) {
+    res[0] = 1;
+    res[1] = 0;
+    res[2] = 0;
+    res[3] = 0;
+  }
+
+  // regular processing
+  else {
+    double s = sin(angle*0.5);
+    res[0] = cos(angle*0.5);
+    res[1] = axis[0]*s;
+    res[2] = axis[1]*s;
+    res[3] = axis[2]*s;
+  }
+}
+
+// rotate vector by quaternion
+void mjuu_rotVecQuat(double res[3], const double vec[3], const double quat[4]) {
+  // zero vec: zero res
+  if (vec[0] == 0 && vec[1] == 0 && vec[2] == 0) {
+    res[0] = res[1] = res[2] = 0;
+  }
+
+  // null quat: copy vec
+  else if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
+    mjuu_copyvec(res, vec, 3);
+  }
+
+  // regular processing
+  else {
+    // tmp = q_w * v + cross(q_xyz, v)
+    double tmp[3] = {
+      quat[0]*vec[0] + quat[2]*vec[2] - quat[3]*vec[1],
+      quat[0]*vec[1] + quat[3]*vec[0] - quat[1]*vec[2],
+      quat[0]*vec[2] + quat[1]*vec[1] - quat[2]*vec[0]
+    };
+
+    // res = v + 2 * cross(q_xyz, t)
+    res[0] = vec[0] + 2 * (quat[2]*tmp[2] - quat[3]*tmp[1]);
+    res[1] = vec[1] + 2 * (quat[3]*tmp[0] - quat[1]*tmp[2]);
+    res[2] = vec[2] + 2 * (quat[1]*tmp[1] - quat[2]*tmp[0]);
+  }
+}
 
 // update moving frame along a curve or initialize it, returns edge length
 //   inputs:
@@ -486,9 +580,9 @@ void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double 
 //   outputs:
 //     quat      - frame orientation
 //     normal    - unit normal vector
-mjtNum mju_updateFrame(mjtNum quat[4], mjtNum normal[3], const mjtNum edge[3],
-                       const mjtNum tprv[3], const mjtNum tnxt[3], int first) {
-  mjtNum tangent[3], binormal[3];
+double mjuu_updateFrame(double quat[4], double normal[3], const double edge[3],
+                       const double tprv[3], const double tnxt[3], int first) {
+  double tangent[3], binormal[3];
 
   // normalize tangent
   mjuu_copyvec(tangent, edge, 3);
@@ -504,13 +598,13 @@ mjtNum mju_updateFrame(mjtNum quat[4], mjtNum normal[3], const mjtNum edge[3],
     mjuu_crossvec(normal, binormal, tangent);
     mjuu_normvec(normal, 3);
   } else {
-    mjtNum darboux[4];
+    double darboux[4];
 
     // rotate edge normal about the vertex binormal
     mjuu_crossvec(binormal, tprv, tangent);
-    mjtNum angle = atan2(mjuu_normvec(binormal, 3), mjuu_dot3(tprv, tangent));
-    mju_axisAngle2Quat(darboux, binormal, angle);
-    mju_rotVecQuat(normal, normal, darboux);
+    double angle = atan2(mjuu_normvec(binormal, 3), mjuu_dot3(tprv, tangent));
+    mjuu_axisAngle2Quat(darboux, binormal, angle);
+    mjuu_rotVecQuat(normal, normal, darboux);
     mjuu_normvec(normal, 3);
 
     // compute edge binormal given tangent and normal
@@ -525,13 +619,121 @@ mjtNum mju_updateFrame(mjtNum quat[4], mjtNum normal[3], const mjtNum edge[3],
 }
 
 
+// eigenvalue decomposition of symmetric 3x3 matrix
+static const double kEigEPS = 1E-12;
+int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]) {
+  double D[9], tmp[9], tmp2[9];
+  double tau, t, c;
+  int iter, rk, ck, rotk;
+
+  // initialize with unit quaternion
+  quat[0] = 1;
+  quat[1] = quat[2] = quat[3] = 0;
+
+  // Jacobi iteration
+  for (iter=0; iter < 500; iter++) {
+    // make quaternion matrix eigvec, compute D = eigvec'*mat*eigvec
+    mjuu_quat2mat(eigvec, quat);
+    mjuu_transposemat(tmp2, eigvec);
+    mjuu_mulmat(tmp, tmp2, mat);
+    mjuu_mulmat(D, tmp, eigvec);
+
+    // assign eigenvalues
+    eigval[0] = D[0];
+    eigval[1] = D[4];
+    eigval[2] = D[8];
+
+    // find max off-diagonal element, set indices
+    if (std::abs(D[1]) > std::abs(D[2]) && std::abs(D[1]) > std::abs(D[5])) {
+      rk = 0;     // row
+      ck = 1;     // column
+      rotk = 2;   // rotation axis
+    } else if (std::abs(D[2]) > std::abs(D[5])) {
+      rk = 0;
+      ck = 2;
+      rotk = 1;
+    } else {
+      rk = 1;
+      ck = 2;
+      rotk = 0;
+    }
+
+    // terminate if max off-diagonal element too small
+    if (std::abs(D[3*rk+ck]) < kEigEPS) {
+      break;
+    }
+
+    // 2x2 symmetric Schur decomposition
+    tau = (D[4*ck]-D[4*rk])/(2*D[3*rk+ck]);
+    if (tau >= 0) {
+      t = 1.0/(tau + sqrt(1 + tau*tau));
+    } else {
+      t = -1.0/(-tau + sqrt(1 + tau*tau));
+    }
+    c = 1.0/sqrt(1 + t*t);
+
+    // terminate if cosine too close to 1
+    if (c > 1.0-kEigEPS) {
+      break;
+    }
+
+    // express rotation as quaternion
+    tmp[1] = tmp[2] = tmp[3] = 0;
+    tmp[rotk+1] = (tau >= 0 ? -sqrt(0.5-0.5*c) : sqrt(0.5-0.5*c));
+    if (rotk == 1) {
+      tmp[rotk+1] = -tmp[rotk+1];
+    }
+    tmp[0] = sqrt(1.0 - tmp[rotk+1]*tmp[rotk+1]);
+    mjuu_normvec(tmp, 4);
+
+    // accumulate quaternion rotation
+    mjuu_mulquat(quat, quat, tmp);
+    mjuu_normvec(quat, 4);
+  }
+
+  // sort eigenvalues in decreasing order (bubblesort: 0, 1, 0)
+  for (int j=0; j < 3; j++) {
+    int j1 = j%2;       // lead index
+
+    // only swap if the eigenvalues are different
+    if (eigval[j1]+kEigEPS < eigval[j1+1]) {
+      // swap eigenvalues
+      t = eigval[j1];
+      eigval[j1] = eigval[j1+1];
+      eigval[j1+1] = t;
+
+      // rotate quaternion
+      tmp[0] = 0.707106781186548;     // cos(pi/4) = sin(pi/4)
+      tmp[1] = tmp[2] = tmp[3] = 0;
+      tmp[(j1+2)%3+1] = tmp[0];
+      mjuu_mulquat(quat, quat, tmp);
+      mjuu_normvec(quat, 4);
+    }
+  }
+
+  // recompute eigvec
+  mjuu_quat2mat(eigvec, quat);
+
+  return iter;
+}
+
+// transform vector by pose
+void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4],
+                     const double vec[3]) {
+  // res = quat*vec + pos
+  mjuu_rotVecQuat(res, vec, quat);
+  res[0] += pos[0];
+  res[1] += pos[1];
+  res[2] += pos[2];
+}
+
 // strip directory from filename
-string mjuu_strippath(string filename) {
+std::string mjuu_strippath(std::string filename) {
   // find last pathsymbol
   size_t start = filename.find_last_of("/\\");
 
   // no path found: return original
-  if (start==string::npos) {
+  if (start==std::string::npos) {
     return filename;
   }
 
@@ -542,13 +744,46 @@ string mjuu_strippath(string filename) {
 }
 
 
+// compute frame quat and diagonal inertia from full inertia matrix, return error if any
+const char* mjuu_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
+  if (!mjuu_defined(fullinertia[0])) {
+    return nullptr;
+  }
+
+  double eigval[3], eigvec[9], quattmp[4];
+  double full[9] = {
+    fullinertia[0], fullinertia[3], fullinertia[4],
+    fullinertia[3], fullinertia[1], fullinertia[5],
+    fullinertia[4], fullinertia[5], fullinertia[2]
+  };
+
+  mjuu_eig3(eigval, eigvec, quattmp, full);
+
+  // check mimimal eigenvalue
+  if (eigval[2]<mjEPS) {
+    return "inertia must have positive eigenvalues";
+  }
+
+  // copy
+  if (quat) {
+    mjuu_copyvec(quat, quattmp, 4);
+  }
+
+  if (inertia) {
+    mjuu_copyvec(inertia, eigval, 3);
+  }
+
+  return nullptr;
+}
+
+
 // strip extension
-string mjuu_stripext(string filename) {
+std::string mjuu_stripext(std::string filename) {
   // find last dot
   size_t end = filename.find_last_of('.');
 
   // no path found: return original
-  if (end==string::npos) {
+  if (end == std::string::npos) {
     return filename;
   }
 
@@ -556,18 +791,18 @@ string mjuu_stripext(string filename) {
   return filename.substr(0, end);
 }
 
-string mjuu_getext(std::string_view filename) {
+std::string mjuu_getext(std::string_view filename) {
   size_t dot = filename.find_last_of('.');
 
-  if (dot==string::npos) {
+  if (dot == std::string::npos) {
     return "";
   }
-  return string(filename.substr(dot, filename.size() - dot));
+  return std::string(filename.substr(dot, filename.size() - dot));
 }
 
 
 // is directory path absolute
-bool mjuu_isabspath(string path) {
+bool mjuu_isabspath(std::string path) {
   // empty: not absolute
   if (path.empty()) {
     return false;
@@ -586,7 +821,8 @@ bool mjuu_isabspath(string path) {
   }
 
   // find ":/" or ":\"
-  if (path.find(":/")!=string::npos || path.find(":\\")!=string::npos) {
+  if (path.find(":/") != std::string::npos ||
+      path.find(":\\") != std::string::npos) {
     return true;
   }
 
@@ -595,21 +831,28 @@ bool mjuu_isabspath(string path) {
 
 
 
-// assemble full filename
-string mjuu_makefullname(string filedir, string meshdir, string filename) {
-  // filename has absolute path: filename
-  if (mjuu_isabspath(filename)) {
-    return filename;
+// assemble two file paths
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2) {
+  // path2 has absolute path
+  if (mjuu_isabspath(path2)) {
+    return path2;
   }
 
-  // meshdir has absolute path: meshdir + filename
-  if (mjuu_isabspath(meshdir)) {
-    return meshdir + filename;
+  std::size_t n = path1.size();
+  if (n > 0 && path1[n - 1] != '\\' && path1[n - 1] != '/') {
+    return path1 + "/" + path2;
   }
-
-  // default
-  return filedir + meshdir + filename;
+  return path1 + path2;
 }
+
+
+
+// assemble three file paths
+std::string mjuu_combinePaths(const std::string& path1, const std::string& path2,
+                              const std::string& path3) {
+  return mjuu_combinePaths(path1, mjuu_combinePaths(path2, path3));
+}
+
 
 
 // return true if the text is in a valid content type format:

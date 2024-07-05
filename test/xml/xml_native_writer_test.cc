@@ -727,8 +727,10 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
 TEST_F(XMLWriterTest, WritesFrameDefaults) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <default class="dframe">
-      <geom size=".1"/>
+    <default>
+      <default class="dframe">
+        <geom size=".1"/>
+      </default>
     </default>
 
     <worldbody>
@@ -1302,9 +1304,13 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
           ASSERT_THAT(error.data(), HasSubstr("file"))
               << error.data() << " from " << xml.c_str();
         } else {
-          // for a particularly difficult example, relax the tolerance
-          mjtNum tol =
-              absl::StrContains(p.path().string(), "belt.xml") ? 1e-13 : 0;
+          mjtNum tol = 0;
+
+          // for particularly sensitive models, relax the tolerance
+          if (absl::StrContains(p.path().string(), "belt.xml") ||
+              absl::StrContains(p.path().string(), "cable.xml")) {
+            tol = 1e-13;
+          }
 
           // compare and delete
           std::string field = "";

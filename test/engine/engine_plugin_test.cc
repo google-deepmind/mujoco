@@ -240,7 +240,7 @@ int RegisterSensorPlugin() {
     TestSensor::DestroyCount()++;
   };
 
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto sensor = reinterpret_cast<TestSensor*>(plugin_data);
     sensor->Reset();
@@ -283,7 +283,7 @@ int RegisterActuatorPlugin() {
     TestActuator::DestroyCount()++;
   };
 
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto actuator = reinterpret_cast<TestActuator*>(plugin_data);
     actuator->Reset();
@@ -338,7 +338,7 @@ int RegisterPassivePlugin() {
     d->plugin_data[instance] = 0;
   };
 
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto passive = reinterpret_cast<TestPassive*>(plugin_data);
     passive->Reset();

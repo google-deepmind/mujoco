@@ -84,7 +84,7 @@ data plots. The model file can be specified as a command-line argument, or loade
 functionality. This code sample uses the native UI to render various controls, and provides an
 illustration of how the new UI framework is intended to be used. Below is a screen-capture of ``simulate`` in action:
 
-..  youtube:: 0ORsj_E17B0
+..  youtube:: P83tKA1iz2Y
     :width: 95%
     :align: center
 
@@ -94,7 +94,7 @@ selected object by holding Ctrl and dragging the mouse. Dragging the mouse alone
 are keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
 very useful while editing the model in an XML editor.
 
-The code is quite long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
+The code is long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
 The ``main()`` function initializes both MuJoCo and GLFW, opens a window, and install GLFW callbacks for mouse and
 keyboard handling. Note that there is no render callback; GLFW puts the user in charge, instead of running a rendering
 loop behind the scenes. The main loop handles UI events and rendering. The simulation is handled in a background

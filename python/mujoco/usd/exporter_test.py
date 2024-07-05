@@ -59,7 +59,7 @@ class ExporterTest(absltest.TestCase):
     exporter.save_scene("export.usda")
 
     with open(os.path.join(
-        output_dir, "mujoco_usdpkg/frames", "frame_1_.export.usda"), "r") as f:
+        output_dir, "mujoco_usdpkg/frames", "frame_1.export.usda"), "r") as f:
       golden_path = os.path.join(
           epath.resource_path("mujoco"), "testdata", "usd_golden.usda")
       with open(golden_path, "r") as golden_file:

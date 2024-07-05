@@ -57,8 +57,6 @@ PYBIND11_MODULE(_constants, pymodule) {
   X(mjMINIMP);
   X(mjMAXIMP);
   X(mjMAXCONPAIR);
-  X(mjMAXVFS);
-  X(mjMAXVFSNAME);
   X(mjNEQDATA);
   X(mjNDYN);
   X(mjNGAIN);

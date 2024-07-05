@@ -124,8 +124,8 @@ TEST_F(MujocoTest, SaveXmlShortString) {
 
   std::array<char, 10> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(),
-                               error.data(), error.size()), 272);
-  EXPECT_STREQ(error.data(), "Output string too short, should be at least 273");
+                               error.data(), error.size()), 273);
+  EXPECT_STREQ(error.data(), "Output string too short, should be at least 274");
 
   mj_deleteSpec(spec);
   mj_deleteModel(model);
@@ -139,7 +139,7 @@ TEST_F(MujocoTest, SaveXml) {
   mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
 
-  std::array<char, 273> out;
+  std::array<char, 274> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
                                error.size()), 0) << error.data();
 

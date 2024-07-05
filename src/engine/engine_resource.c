@@ -14,6 +14,7 @@
 
 #include "engine/engine_resource.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -41,7 +42,6 @@ static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize);
 
 // file buffer used internally for the OS filesystem
 typedef struct {
-  FILE* fp;         // file handle
   int is_read;      // set to nonzero if buffer was read into
   uint8_t* buffer;  // raw bytes from file
   size_t nbuffer;   // size of buffer in bytes
@@ -100,20 +100,16 @@ mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
   spec->is_read = 0;
   spec->buffer = NULL;
   spec->nbuffer = 0;
-  spec->fp = fopen(name, "rb");
-  if (!spec->fp) {
-    if (error) {
-      snprintf(error, error_sz,
-               "resource not found via provider or OS filesystem: '%s'", name);
-    }
-    mju_closeResource(resource);
-    return NULL;
-  }
   struct stat file_stat;
+  errno = 0;
   if (stat(name, &file_stat) == 0) {
     memcpy(&spec->mtime, &file_stat.st_mtime, sizeof(time_t));
   } else {
-    memset(&spec->mtime, 0, sizeof(time_t));
+    if (error) {
+      snprintf(error, error_sz, "Error opening file '%s': %s", name, strerror(errno));
+    }
+    mju_closeResource(resource);
+    return NULL;
   }
   mju_encodeBase64(resource->timestamp, (uint8_t*) &spec->mtime, sizeof(time_t));
   return resource;
@@ -157,17 +153,12 @@ int mju_readResource(mjResource* resource, const void** buffer) {
     return resource->provider->read(resource, buffer);
   }
 
-
   // if provider is NULL, then OS filesystem is used
   file_spec* spec = (file_spec*) resource->data;
-  if (!spec->fp && !spec->is_read) {
-     mjERROR("internal error FILE pointer undefined");  // should not occur
-  }
 
   // only read once from file
   if (!spec->is_read) {
-    spec->buffer = _fileToMemory(spec->fp, resource->name, &(spec->nbuffer));
-    spec->fp = NULL;  // closed by _fileToMemory
+    spec->buffer = mju_fileToMemory(resource->name, &(spec->nbuffer));
     spec->is_read = 1;
   }
   *buffer = spec->buffer;

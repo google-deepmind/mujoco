@@ -1,0 +1,8 @@
+[FORMAT]
+max-line-length=80
+
+[MESSAGES CONTROL]
+disable=bad-indentation,no-member,too-few-public-methods,too-many-arguments,too-many-instance-attributes,consider-using-enumerate,too-many-locals,undefined-loop-variable
+
+[REPORTS]
+output-format=colorized

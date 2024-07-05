@@ -1,14 +1,12 @@
 import argparse
-from tqdm import tqdm
 from pathlib import Path
 
 import mujoco
 
-# from mujoco.usd import exporter
-import exporter
+from mujoco.usd import exporter
 
 def generate_usd_trajectory(args):
-
+  """Generates a USD file given the user arguments"""
   # load a model to mujoco
   model_path = args.model_path
   m = mujoco.MjModel.from_xml_path(model_path)
@@ -34,7 +32,7 @@ if __name__ == "__main__":
 
   parser = argparse.ArgumentParser()
 
-  parser.add_argument('--model_path', 
+  parser.add_argument('--model_path',
                       type=str,
                       required=True,
                       help='path to mjcf xml model')
@@ -49,24 +47,20 @@ if __name__ == "__main__":
                       default=60,
                       help='frame rate of the generated video')
 
-  parser.add_argument('--output_directory_root', 
+  parser.add_argument('--output_directory_root',
                       type=str,
                       default="../usd_trajectories/",
                       help='location where to create usd files')
 
-  parser.add_argument('--camera_names', 
+  parser.add_argument('--camera_names',
                       type=str,
                       nargs='+',
                       help='cameras to include in usd')
 
-  parser.add_argument('--export_extension', 
+  parser.add_argument('--export_extension',
                       type=str,
                       default="usd",
-                      help='extension of exported file (can be usd, usda, or usdc)')
+                      help='extension of exported file (usd, usda, usdc)')
 
   args = parser.parse_args()
   generate_usd_trajectory(args)
-
-  
-
-

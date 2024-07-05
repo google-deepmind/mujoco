@@ -265,7 +265,7 @@ class Simulate {
   // Constant arrays needed for the option section of UI and the UI interface
   // TODO setting the size here is not ideal
   const mjuiDef def_option[13] = {
-    {mjITEM_SECTION,  "Option",        1, nullptr,           "AO"},
+    {mjITEM_SECTION,  "Option",        mjPRESERVE, nullptr,  "AO"},
     {mjITEM_CHECKINT, "Help",          2, &this->help,       " #290"},
     {mjITEM_CHECKINT, "Info",          2, &this->info,       " #291"},
     {mjITEM_CHECKINT, "Profiler",      2, &this->profiler,   " #292"},
@@ -287,7 +287,7 @@ class Simulate {
 
   // simulation section of UI
   const mjuiDef def_simulation[14] = {
-    {mjITEM_SECTION,   "Simulation",    1, nullptr,              "AS"},
+    {mjITEM_SECTION,   "Simulation",    mjPRESERVE, nullptr,     "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
@@ -306,7 +306,7 @@ class Simulate {
 
   // watch section of UI
   const mjuiDef def_watch[5] = {
-    {mjITEM_SECTION,   "Watch",         0, nullptr,              "AW"},
+    {mjITEM_SECTION,   "Watch",         mjPRESERVE, nullptr,     "AW"},
     {mjITEM_EDITTXT,   "Field",         2, this->field,          "qpos"},
     {mjITEM_EDITINT,   "Index",         2, &this->index,         "1"},
     {mjITEM_STATIC,    "Value",         2, nullptr,              " "},

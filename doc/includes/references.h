@@ -139,29 +139,29 @@ struct mjData_ {
   int     nplugin;           // number of plugin instances
 
   // stack pointer
-  size_t  pstack;            // first available mjtNum address in stack
+  size_t  pstack;            // first available byte in stack
   size_t  pbase;             // value of pstack when mj_markStack was last called
 
   // arena pointer
   size_t  parena;            // first available byte in arena
 
-  // memory utilization stats
-  size_t  maxuse_stack;                      // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREAD];   // maximum stack allocation per thread in bytes
-  size_t  maxuse_arena;                      // maximum arena allocation in bytes
-  int     maxuse_con;                        // maximum number of contacts
-  int     maxuse_efc;                        // maximum number of scalar constraints
-
-  // diagnostics
-  mjWarningStat warning[mjNWARNING];  // warning statistics
-  mjTimerStat   timer[mjNTIMER];      // timer statistics
+  // memory utilization statistics
+  size_t  maxuse_stack;                       // maximum stack allocation in bytes
+  size_t  maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
+  size_t  maxuse_arena;                       // maximum arena allocation in bytes
+  int     maxuse_con;                         // maximum number of contacts
+  int     maxuse_efc;                         // maximum number of scalar constraints
 
   // solver statistics
   mjSolverStat  solver[mjNISLAND*mjNSOLVER];  // solver statistics per island, per iteration
-  int     solver_nisland;           // number of islands processed by solver
-  int     solver_niter[mjNISLAND];  // number of solver iterations, per island
-  int     solver_nnz[mjNISLAND];    // number of non-zeros in Hessian or efc_AR, per island
-  mjtNum  solver_fwdinv[2];         // forward-inverse comparison: qfrc, efc
+  int           solver_nisland;               // number of islands processed by solver
+  int           solver_niter[mjNISLAND];      // number of solver iterations, per island
+  int           solver_nnz[mjNISLAND];        // number of nonzeros in Hessian or efc_AR, per island
+  mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
+
+  // diagnostics
+  mjWarningStat warning[mjNWARNING];          // warning statistics
+  mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes
   int     ne;                // number of equality constraints
@@ -179,8 +179,8 @@ struct mjData_ {
   //-------------------- end of info header
 
   // buffers
-  void*   buffer;            // main buffer; all pointers point in it                (nbuffer bytes)
-  void*   arena;             // arena+stack buffer                     (nstack*sizeof(mjtNum) bytes)
+  void*   buffer;            // main buffer; all pointers point in it            (nbuffer bytes)
+  void*   arena;             // arena+stack buffer                               (narena bytes)
 
   //-------------------- main inputs and outputs of the computation
 
@@ -274,7 +274,7 @@ struct mjData_ {
 
   // computed by mj_collisionTree
   mjtNum*  bvh_aabb_dyn;     // global bounding box (center, size)               (nbvhdynamic x 6)
-  mjtByte* bvh_active;       // volume has been added to collisions              (nbvh x 1)
+  mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   //-------------------- POSITION, VELOCITY dependent
 
@@ -344,7 +344,7 @@ struct mjData_ {
   //-------------------- arena-allocated: POSITION dependent
 
   // computed by mj_collision
-  mjContact* contact;        // list of all detected contacts                    (ncon x 1)
+  mjContact* contact;        // array of all detected contacts                   (ncon x 1)
 
   // computed by mj_makeConstraint
   int*    efc_type;          // constraint type (mjtConstraint)                  (nefc x 1)
@@ -394,11 +394,11 @@ struct mjData_ {
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
   // computed by mj_fwdConstraint/mj_inverse
-  mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref            (nefc x 1)
-  mjtNum* efc_force;        // constraint force in constraint space              (nefc x 1)
-  int*    efc_state;        // constraint state (mjtConstraintState)             (nefc x 1)
+  mjtNum* efc_b;             // linear cost term: J*qacc_smooth - aref           (nefc x 1)
+  mjtNum* efc_force;         // constraint force in constraint space             (nefc x 1)
+  int*    efc_state;         // constraint state (mjtConstraintState)            (nefc x 1)
 
-  // ThreadPool for multithreaded operations
+  // thread pool pointer
   uintptr_t threadpool;
 };
 typedef struct mjData_ mjData;
@@ -699,11 +699,7 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
 };
 typedef struct mjLROpt_ mjLROpt;
 struct mjVFS_ {                               // virtual file system for loading from memory
-  int      nfile;                             // number of files present
-  char     filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  size_t   filesize[mjMAXVFS];                // file size in bytes
-  void*    filedata[mjMAXVFS];                // buffer with file data
-  uint64_t filestamp[mjMAXVFS];               // checksum of the file data
+  void* impl_;                                // internal pointer to VFS memory
 };
 typedef struct mjVFS_ mjVFS;
 struct mjOption_ {                // physics options
@@ -1220,7 +1216,7 @@ struct mjModel_ {
   int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
-  int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
+  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXMAT)
   mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)
@@ -1512,92 +1508,97 @@ struct mjrRect_ {                 // OpenGL rectangle
   int height;                     // height (usually buffer height)
 };
 typedef struct mjrRect_ mjrRect;
-struct mjrContext_ {              // custom OpenGL context
+struct mjrContext_ {                // custom OpenGL context
   // parameters copied from mjVisual
-  float lineWidth;                // line width for wireframe rendering
-  float shadowClip;               // clipping radius for directional lights
-  float shadowScale;              // fraction of light cutoff for spot lights
-  float fogStart;                 // fog start = stat.extent * vis.map.fogstart
-  float fogEnd;                   // fog end = stat.extent * vis.map.fogend
-  float fogRGBA[4];               // fog rgba
-  int shadowSize;                 // size of shadow map texture
-  int offWidth;                   // width of offscreen buffer
-  int offHeight;                  // height of offscreen buffer
-  int offSamples;                 // number of offscreen buffer multisamples
+  float lineWidth;                  // line width for wireframe rendering
+  float shadowClip;                 // clipping radius for directional lights
+  float shadowScale;                // fraction of light cutoff for spot lights
+  float fogStart;                   // fog start = stat.extent * vis.map.fogstart
+  float fogEnd;                     // fog end = stat.extent * vis.map.fogend
+  float fogRGBA[4];                 // fog rgba
+  int shadowSize;                   // size of shadow map texture
+  int offWidth;                     // width of offscreen buffer
+  int offHeight;                    // height of offscreen buffer
+  int offSamples;                   // number of offscreen buffer multisamples
 
   // parameters specified at creation
-  int fontScale;                  // font scale
-  int auxWidth[mjNAUX];           // auxiliary buffer width
-  int auxHeight[mjNAUX];          // auxiliary buffer height
-  int auxSamples[mjNAUX];         // auxiliary buffer multisamples
+  int fontScale;                    // font scale
+  int auxWidth[mjNAUX];             // auxiliary buffer width
+  int auxHeight[mjNAUX];            // auxiliary buffer height
+  int auxSamples[mjNAUX];           // auxiliary buffer multisamples
 
   // offscreen rendering objects
-  unsigned int offFBO;            // offscreen framebuffer object
-  unsigned int offFBO_r;          // offscreen framebuffer for resolving multisamples
-  unsigned int offColor;          // offscreen color buffer
-  unsigned int offColor_r;        // offscreen color buffer for resolving multisamples
-  unsigned int offDepthStencil;   // offscreen depth and stencil buffer
-  unsigned int offDepthStencil_r; // offscreen depth and stencil buffer for resolving multisamples
+  unsigned int offFBO;              // offscreen framebuffer object
+  unsigned int offFBO_r;            // offscreen framebuffer for resolving multisamples
+  unsigned int offColor;            // offscreen color buffer
+  unsigned int offColor_r;          // offscreen color buffer for resolving multisamples
+  unsigned int offDepthStencil;     // offscreen depth and stencil buffer
+  unsigned int offDepthStencil_r;   // offscreen depth and stencil buffer for multisamples
 
   // shadow rendering objects
-  unsigned int shadowFBO;         // shadow map framebuffer object
-  unsigned int shadowTex;         // shadow map texture
+  unsigned int shadowFBO;           // shadow map framebuffer object
+  unsigned int shadowTex;           // shadow map texture
 
   // auxiliary buffers
-  unsigned int auxFBO[mjNAUX];    // auxiliary framebuffer object
-  unsigned int auxFBO_r[mjNAUX];  // auxiliary framebuffer object for resolving
-  unsigned int auxColor[mjNAUX];  // auxiliary color buffer
-  unsigned int auxColor_r[mjNAUX];// auxiliary color buffer for resolving
+  unsigned int auxFBO[mjNAUX];      // auxiliary framebuffer object
+  unsigned int auxFBO_r[mjNAUX];    // auxiliary framebuffer object for resolving
+  unsigned int auxColor[mjNAUX];    // auxiliary color buffer
+  unsigned int auxColor_r[mjNAUX];  // auxiliary color buffer for resolving
+
+  // materials with textures
+  int mat_texid[mjMAXMATERIAL*mjNTEXMAT];  // material texture ids (-1: no texture)
+  int mat_texuniform[mjMAXMATERIAL];       // texture repetition for 2d mapping
+  int mat_texrepeat[mjMAXMATERIAL*2];      // texture repetition for 2d mapping
 
   // texture objects and info
-  int ntexture;                   // number of allocated textures
-  int textureType[100];           // type of texture (mjtTexture) (ntexture)
-  unsigned int texture[100];      // texture names
+  int ntexture;                        // number of allocated textures
+  int textureType[mjMAXTEXTURE];       // type of texture (mjtTexture) (ntexture)
+  unsigned int texture[mjMAXTEXTURE];  // texture names
 
   // displaylist starting positions
-  unsigned int basePlane;         // all planes from model
-  unsigned int baseMesh;          // all meshes from model
-  unsigned int baseHField;        // all hfields from model
-  unsigned int baseBuiltin;       // all buildin geoms, with quality from model
-  unsigned int baseFontNormal;    // normal font
-  unsigned int baseFontShadow;    // shadow font
-  unsigned int baseFontBig;       // big font
+  unsigned int basePlane;           // all planes from model
+  unsigned int baseMesh;            // all meshes from model
+  unsigned int baseHField;          // all height fields from model
+  unsigned int baseBuiltin;         // all builtin geoms, with quality from model
+  unsigned int baseFontNormal;      // normal font
+  unsigned int baseFontShadow;      // shadow font
+  unsigned int baseFontBig;         // big font
 
   // displaylist ranges
-  int rangePlane;                 // all planes from model
-  int rangeMesh;                  // all meshes from model
-  int rangeHField;                // all hfields from model
-  int rangeBuiltin;               // all builtin geoms, with quality from model
-  int rangeFont;                  // all characters in font
+  int rangePlane;                   // all planes from model
+  int rangeMesh;                    // all meshes from model
+  int rangeHField;                  // all hfields from model
+  int rangeBuiltin;                 // all builtin geoms, with quality from model
+  int rangeFont;                    // all characters in font
 
   // skin VBOs
-  int nskin;                      // number of skins
-  unsigned int* skinvertVBO;      // skin vertex position VBOs (nskin)
-  unsigned int* skinnormalVBO;    // skin vertex normal VBOs (nskin)
-  unsigned int* skintexcoordVBO;  // skin vertex texture coordinate VBOs (nskin)
-  unsigned int* skinfaceVBO;      // skin face index VBOs (nskin)
+  int nskin;                        // number of skins
+  unsigned int* skinvertVBO;        // skin vertex position VBOs (nskin)
+  unsigned int* skinnormalVBO;      // skin vertex normal VBOs (nskin)
+  unsigned int* skintexcoordVBO;    // skin vertex texture coordinate VBOs (nskin)
+  unsigned int* skinfaceVBO;        // skin face index VBOs (nskin)
 
   // character info
-  int charWidth[127];             // character widths: normal and shadow
-  int charWidthBig[127];          // chacarter widths: big
-  int charHeight;                 // character heights: normal and shadow
-  int charHeightBig;              // character heights: big
+  int charWidth[127];               // character widths: normal and shadow
+  int charWidthBig[127];            // chacarter widths: big
+  int charHeight;                   // character heights: normal and shadow
+  int charHeightBig;                // character heights: big
 
   // capabilities
-  int glInitialized;              // is OpenGL initialized
-  int windowAvailable;            // is default/window framebuffer available
-  int windowSamples;              // number of samples for default/window framebuffer
-  int windowStereo;               // is stereo available for default/window framebuffer
-  int windowDoublebuffer;         // is default/window framebuffer double buffered
+  int glInitialized;                // is OpenGL initialized
+  int windowAvailable;              // is default/window framebuffer available
+  int windowSamples;                // number of samples for default/window framebuffer
+  int windowStereo;                 // is stereo available for default/window framebuffer
+  int windowDoublebuffer;           // is default/window framebuffer double buffered
 
   // framebuffer
-  int     currentBuffer;          // currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN
+  int     currentBuffer;            // currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN
 
   // pixel output format
-  int     readPixelFormat;        // default color pixel format for mjr_readPixels
+  int     readPixelFormat;          // default color pixel format for mjr_readPixels
 
   // depth output format
-  int     readDepthMap;           // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
+  int     readDepthMap;             // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
 };
 typedef struct mjrContext_ mjrContext;
 typedef enum mjtGeomInertia_ {     // type of inertia inference
@@ -1649,7 +1650,7 @@ typedef struct mjSpec_ {           // model specification
   mjtByte strippath;               // automatically strip paths from mesh files
   mjtByte fitaabb;                 // meshfit to aabb instead of inertia box
   mjtByte degree;                  // angles in radians or degrees
-  char euler[3];                   // sequence for euler rotations
+  char eulerseq[3];                // sequence for euler rotations
   mjString* meshdir;               // mesh and hfield directory
   mjString* texturedir;            // texture directory
   mjtByte discardvisual;           // discard visual geoms in parser
@@ -1743,7 +1744,6 @@ typedef struct mjsFrame_ {         // frame specification
 typedef struct mjsJoint_ {         // joint specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjtJoint type;                   // joint type
 
   // kinematics
@@ -1781,7 +1781,6 @@ typedef struct mjsJoint_ {         // joint specification
 typedef struct mjsGeom_ {          // geom specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // classname
   mjtGeom type;                    // geom type
 
   // frame, size
@@ -1828,7 +1827,6 @@ typedef struct mjsGeom_ {          // geom specification
 typedef struct mjsSite_ {          // site specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // frame, size
   double pos[3];                   // position
@@ -1850,7 +1848,6 @@ typedef struct mjsSite_ {          // site specification
 typedef struct mjsCamera_ {        // camera specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // extrinsics
   double pos[3];                   // position
@@ -1878,7 +1875,6 @@ typedef struct mjsCamera_ {        // camera specification
 typedef struct mjsLight_ {         // light specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // frame
   double pos[3];                   // position
@@ -1904,7 +1900,6 @@ typedef struct mjsLight_ {         // light specification
 typedef struct mjsFlex_ {          // flex specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // contact properties
   int contype;                     // contact type
@@ -1943,7 +1938,6 @@ typedef struct mjsFlex_ {          // flex specification
 typedef struct mjsMesh_ {          // mesh specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjString* content_type;          // content type of file
   mjString* file;                  // mesh file
   double refpos[3];                // reference position
@@ -1974,7 +1968,6 @@ typedef struct mjsHField_ {        // height field specification
 typedef struct mjsSkin_ {          // skin specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjString* file;                  // skin file
   mjString* material;              // name of material used for rendering
   float rgba[4];                   // rgba when material is omitted
@@ -1999,7 +1992,6 @@ typedef struct mjsSkin_ {          // skin specification
 typedef struct mjsTexture_ {       // texture specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjtTexture type;                 // texture type
 
   // method 1: builtin
@@ -2031,7 +2023,6 @@ typedef struct mjsTexture_ {       // texture specification
 typedef struct mjsMaterial_ {      // material specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjString* texture;               // name of texture (empty: none)
   mjtByte texuniform;              // make texture cube uniform
   float texrepeat[2];              // texture repetition for 2D mapping
@@ -2047,7 +2038,6 @@ typedef struct mjsMaterial_ {      // material specification
 typedef struct mjsPair_ {          // pair specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjString* geomname1;             // name of geom 1
   mjString* geomname2;             // name of geom 2
 
@@ -2071,7 +2061,6 @@ typedef struct mjsExclude_ {       // exclude specification
 typedef struct mjsEquality_ {      // equality specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
   mjtEq type;                      // constraint type
   double data[mjNEQDATA];          // type-dependent data
   mjtByte active;                  // is equality initially active
@@ -2084,7 +2073,6 @@ typedef struct mjsEquality_ {      // equality specification
 typedef struct mjsTendon_ {        // tendon specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // stiffness, damping, friction
   double stiffness;                // stiffness coefficient
@@ -2118,7 +2106,6 @@ typedef struct mjsWrap_ {          // wrapping object specification
 typedef struct mjsActuator_ {      // actuator specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // gain, bias
   mjtGain gaintype;                // gain type
@@ -2160,7 +2147,6 @@ typedef struct mjsActuator_ {      // actuator specification
 typedef struct mjsSensor_ {        // sensor specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* classname;             // class name
 
   // sensor definition
   mjtSensor type;                  // type of sensor
@@ -2286,6 +2272,11 @@ typedef enum mjtItem_ {           // UI item type
 
   mjNITEM                         // number of item types
 } mjtItem;
+typedef enum mjtSection_ {        // UI section state
+  mjSECT_CLOSED = 0,              // closed state (regular section)
+  mjSECT_OPEN,                    // open state (regular section)
+  mjSECT_FIXED                    // fixed section: always open, no title
+} mjtSection;
 struct mjuiState_ {               // mouse and keyboard state
   // constants set by user
   int nrect;                      // number of rectangles used
@@ -2333,6 +2324,8 @@ struct mjuiThemeSpacing_ {        // UI visualization theme spacing
   int scroll;                     // scrollbar width
   int label;                      // label width
   int section;                    // section gap
+  int cornersect;                 // corner radius for section
+  int cornersep;                  // corner radius for separator
   int itemside;                   // item side gap
   int itemmid;                    // item middle gap
   int itemver;                    // item vertical gap
@@ -2346,9 +2339,14 @@ struct mjuiThemeColor_ {          // UI visualization theme color
   float master[3];                // master background
   float thumb[3];                 // scrollbar thumb
   float secttitle[3];             // section title
+  float secttitle2[3];            // section title: bottom color
+  float secttitlecheck[3];        // section title with checkbox
+  float secttitlecheck2[3];       // section title with checkbox: bottom color
   float sectfont[3];              // section font
   float sectsymbol[3];            // section symbol
   float sectpane[3];              // section pane
+  float separator[3];             // separator title
+  float separator2[3];            // separator title: bottom color
   float shortcut[3];              // shortcut background
   float fontactive[3];            // font active
   float fontinactive[3];          // font inactive
@@ -2398,6 +2396,7 @@ struct mjuiItem_ {                // UI item
   void *pdata;                    // data pointer (type-specific)
   int sectionid;                  // id of section containing item
   int itemid;                     // id of item within section
+  int userid;                     // user-supplied id (for event handling)
 
   // type-specific properties
   union {
@@ -2409,20 +2408,23 @@ struct mjuiItem_ {                // UI item
 
   // internal
   mjrRect rect;                   // rectangle occupied by item
+  int skip;                       // item skipped due to closed separator
 };
 typedef struct mjuiItem_ mjuiItem;
 struct mjuiSection_ {             // UI section
   // properties
   char name[mjMAXUINAME];         // name
-  int state;                      // 0: closed, 1: open
+  int state;                      // section state (mjtSection)
   int modifier;                   // 0: none, 1: control, 2: shift; 4: alt
   int shortcut;                   // shortcut key; 0: undefined
+  int checkbox;                   // 0: none, 1: hidden, 2: unchecked, 2: checked
   int nitem;                      // number of items in use
   mjuiItem item[mjMAXUIITEM];     // preallocated array of items
 
   // internal
   mjrRect rtitle;                 // rectangle occupied by title
   mjrRect rcontent;               // rectangle occupied by content
+  int lastclick;                  // last mouse click over this section
 };
 typedef struct mjuiSection_ mjuiSection;
 struct mjUI_ {                    // entire UI
@@ -2441,10 +2443,12 @@ struct mjUI_ {                    // entire UI
   int maxheight;                  // height when all sections open
   int scroll;                     // scroll from top of UI
 
-  // mouse focus
+  // mouse focus and count
   int mousesect;                  // 0: none, -1: scroll, otherwise 1+section
   int mouseitem;                  // item within section
   int mousehelp;                  // help button down: print shortcuts
+  int mouseclicks;                // number of mouse clicks over UI
+  int mousesectcheck;             // 0: none, otherwise 1+section
 
   // keyboard focus and edit
   int editsect;                   // 0: none, otherwise 1+section
@@ -2465,6 +2469,7 @@ struct mjuiDef_ {                 // table passed to mjui_add()
   int state;                      // state
   void* pdata;                    // pointer to data
   char other[mjMAXUITEXT];        // string with type-specific properties
+  int otherint;                   // int with type-specific properties
 };
 typedef struct mjuiDef_ mjuiDef;
 typedef enum mjtCatBit_ {         // bitflags for mjvGeom category
@@ -2635,21 +2640,22 @@ struct mjvGeom_ {                 // abstract geom
   int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
-  int      texid;                 // texture id; -1: no texture
-  int      texuniform;            // uniform cube mapping
+  int      matid;                 // material id; -1: no textured material
   int      texcoord;              // mesh or flex geom has texture coordinates
   int      segid;                 // segmentation id; -1: not shown
 
-  // OpenGL info
-  float    texrepeat[2];          // texture repetition for 2D mapping
+  // spatial transform
   float    size[3];               // size parameters
   float    pos[3];                // Cartesian position
   float    mat[9];                // Cartesian orientation
+
+  // material properties
   float    rgba[4];               // color and transparency
   float    emission;              // emission coef
   float    specular;              // specular coef
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
+
   char     label[100];            // text label
 
   // transparency rendering (set internally)
@@ -2782,7 +2788,7 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
 
   // line data
   int     linepnt[mjMAXLINE];     // number of points in line; (0) disable
-  float   linedata[mjMAXLINE][2*mjMAXLINEPNT]; // line data (x,y)
+  float   linedata[mjMAXLINE][2*mjMAXLINEPNT];  // line data (x,y)
 
   // output from renderer
   int     xaxispixel[2];          // range of x-axis in pixels
@@ -3068,10 +3074,8 @@ typedef struct mjvSceneState_ mjvSceneState;
 void mj_defaultVFS(mjVFS* vfs);
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
-int mj_findFileVFS(const mjVFS* vfs, const char* filename);
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 void mj_deleteVFS(mjVFS* vfs);
-int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
 mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
@@ -3525,7 +3529,7 @@ mjsText* mjs_addText(mjSpec* s);
 mjsTuple* mjs_addTuple(mjSpec* s);
 mjsKey* mjs_addKey(mjSpec* s);
 mjsPlugin* mjs_addPlugin(mjSpec* s);
-mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, int parentid, int* id);
+mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 mjsMesh* mjs_addMesh(mjSpec* s, mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);
@@ -3536,12 +3540,38 @@ mjsBody* mjs_findBody(mjSpec* s, const char* name);
 mjsBody* mjs_findChild(mjsBody* body, const char* name);
 mjsMesh* mjs_findMesh(mjSpec* s, const char* name);
 mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
+mjsKey* mjs_findKeyframe(mjSpec* s, const char* name);
 mjsDefault* mjs_getDefault(mjsElement* element);
 mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
 mjsDefault* mjs_getSpecDefault(mjSpec* s);
 int mjs_getId(mjsElement* element);
 mjsElement* mjs_firstChild(mjsBody* body, mjtObj type);
 mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child);
+mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
+mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
+mjsBody* mjs_asBody(mjsElement* element);
+mjsGeom* mjs_asGeom(mjsElement* element);
+mjsJoint* mjs_asJoint(mjsElement* element);
+mjsSite* mjs_asSite(mjsElement* element);
+mjsCamera* mjs_asCamera(mjsElement* element);
+mjsLight* mjs_asLight(mjsElement* element);
+mjsFrame* mjs_asFrame(mjsElement* element);
+mjsActuator* mjs_asActuator(mjsElement* element);
+mjsSensor* mjs_asSensor(mjsElement* element);
+mjsFlex* mjs_asFlex(mjsElement* element);
+mjsPair* mjs_asPair(mjsElement* element);
+mjsEquality* mjs_asEquality(mjsElement* element);
+mjsExclude* mjs_asExclude(mjsElement* element);
+mjsTendon* mjs_asTendon(mjsElement* element);
+mjsNumeric* mjs_asNumeric(mjsElement* element);
+mjsText* mjs_asText(mjsElement* element);
+mjsTuple* mjs_asTuple(mjsElement* element);
+mjsKey* mjs_asKey(mjsElement* element);
+mjsMesh* mjs_asMesh(mjsElement* element);
+mjsHField* mjs_asHField(mjsElement* element);
+mjsSkin* mjs_asSkin(mjsElement* element);
+mjsTexture* mjs_asTexture(mjsElement* element);
+mjsMaterial* mjs_asMaterial(mjsElement* element);
 void mjs_setString(mjString* dest, const char* text);
 void mjs_setStringVec(mjStringVec* dest, const char* text);
 mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
@@ -3559,7 +3589,6 @@ void mjs_setDefault(mjsElement* element, mjsDefault* def);
 void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                    const mjsOrientation* orientation);
-const char* mjs_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 void mjs_defaultSpec(mjSpec* spec);
 void mjs_defaultOrientation(mjsOrientation* orient);
 void mjs_defaultBody(mjsBody* body);

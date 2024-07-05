@@ -546,13 +546,13 @@ TEST_F(AddMTest, DenseSameAsSparse) {
   }
 
   // dense zero matrix
-  std::vector<mjtNum> dst_sparse = std::vector(nv * nv, 0.0);
+  std::vector<mjtNum> dst_sparse(nv * nv, 0.0);
 
   // sparse zero matrix
-  std::vector<mjtNum> dst_dense = std::vector(nv * nv, 0.0);
-  std::vector<int> rownnz = std::vector(nv, nv);
-  std::vector<int> rowadr = std::vector(nv, 0);
-  std::vector<int> colind = std::vector(nv * nv, 0);
+  std::vector<mjtNum> dst_dense(nv * nv, 0.0);
+  std::vector<int> rownnz(nv, nv);
+  std::vector<int> rowadr(nv, 0);
+  std::vector<int> colind(nv * nv, 0);
 
   // set sparse structure
   for (int i = 0; i < nv; i++) {

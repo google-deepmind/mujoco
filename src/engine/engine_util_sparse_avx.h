@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPARSE_AVX_H_
 
 #ifdef mjUSEPLATFORMSIMD
-#if defined(__AVX__) && defined(mjUSEDOUBLE)
+#if defined(__AVX__) && !defined(mjUSESINGLE)
 
 #define mjUSEAVX
 
@@ -315,7 +315,7 @@ int mju_compare_avx(const int* vec1, const int* vec2, int n) {
   return !memcmp(vec1+i, vec2+i, (n-i)*sizeof(int));
 }
 
-#endif  // defined(__AVX__) && defined(mjUSEDOUBLE)
+#endif  // defined(__AVX__) && !defined(mjUSESINGLE)
 
 #endif  // mjUSEPLATFORMSIMD
 

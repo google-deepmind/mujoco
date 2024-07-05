@@ -223,11 +223,23 @@ TEST_F(DerivativeTest, StepSkip) {
                                          mjINT_IMPLICITFAST}) {
     model->opt.integrator = integrator;
 
-    // reset, take 20 steps, save initial state
+    // reset, take 20 steps
     mj_resetData(model, data);
     for (int i=0; i < 20; i++) {
       mj_step(model, data);
     }
+
+    // denormalize the quat, just to see that it doesn't make a difference
+    for (int j=0; j < model->njnt; j++) {
+      if (model->jnt_type[j] == mjJNT_BALL) {
+        int adr = model->jnt_qposadr[j];
+        for (int k=0; k < 4; k++) {
+          data->qpos[adr + k] *= 8;
+        }
+      }
+    }
+
+    // save state
     std::vector<mjtNum> qpos = AsVector(data->qpos, nq);
     std::vector<mjtNum> qvel = AsVector(data->qvel, nv);
 
@@ -278,7 +290,6 @@ TEST_F(DerivativeTest, StepSkip) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
-
 
 // Analytic transition matrices for linear dynamical system xn = A*x + B*u
 //   given modified mass matrix H (`data->qH`) and

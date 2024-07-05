@@ -19,7 +19,7 @@
 #include <mujoco/mjtnum.h>
 
 #ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && defined(mjUSEDOUBLE)
+  #if defined(__AVX__) && !defined(mjUSESINGLE)
     #define mjUSEAVX
     #include "immintrin.h"
   #endif
@@ -609,7 +609,7 @@ void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
   int i = 0;
 
-#if defined(__AVX__) && defined(mjUSEAVX)  && defined(mjUSEDOUBLE)
+#if defined(__AVX__) && defined(mjUSEAVX)  && !defined(mjUSESINGLE)
   int n_4 = n - 4;
 
   // vector part

@@ -405,6 +405,29 @@ target_link_libraries(
           structs_header
 )
 
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/specs.cc.inc)
+  add_custom_command(
+    OUTPUT specs.cc.inc
+    COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_spec_bindings.py > specs.cc.inc
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_spec_bindings.py
+  )
+endif()
+
+mujoco_pybind11_module(
+  _specs
+  specs.cc
+  specs.cc.inc
+)
+target_link_libraries(
+  _specs
+  PRIVATE mujoco
+          Eigen3::Eigen
+          errors_header
+          raw
+          structs_header
+)
+
 mujoco_pybind11_module(_simulate simulate.cc)
 target_link_libraries(
   _simulate
@@ -424,6 +447,7 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_render>"
     "$<TARGET_FILE:_rollout>"
     "$<TARGET_FILE:_simulate>"
+    "$<TARGET_FILE:_specs>"
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
@@ -459,6 +483,7 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _render
     _rollout
     _simulate
+    _specs
     _structs
     mujoco
   )

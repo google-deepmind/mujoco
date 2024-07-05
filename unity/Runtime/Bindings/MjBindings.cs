@@ -41,8 +41,6 @@ public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXTREEDEPTH = 50;
-public const int mjMAXVFS = 2000;
-public const int mjMAXVFSNAME = 1000;
 public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
@@ -52,16 +50,17 @@ public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
+public const int mjNTEXMAT = 6;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
-public const int mjMAXTEXTURE = 1000;
+public const int mjMAXTEXTURE = 100;
+public const int mjMAXMATERIAL = 100;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const int mjMAXTHREAD = 128;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
-public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
@@ -72,6 +71,7 @@ public const int mjMAXUIMULTI = 35;
 public const int mjMAXUIEDIT = 7;
 public const int mjMAXUIRECT = 25;
 public const int mjSEPCLOSED = 1000;
+public const int mjPRESERVE = 2000;
 public const int mjKEY_ESCAPE = 256;
 public const int mjKEY_ENTER = 257;
 public const int mjKEY_TAB = 258;
@@ -483,6 +483,11 @@ public enum mjtEvent : int{
   mjEVENT_REDRAW = 7,
   mjEVENT_FILESDROP = 8,
 }
+public enum mjtSection : int{
+  mjSECT_CLOSED = 0,
+  mjSECT_OPEN = 1,
+  mjSECT_FIXED = 2,
+}
 public enum mjtCatBit : int{
   mjCAT_STATIC = 1,
   mjCAT_DYNAMIC = 2,
@@ -782,29 +787,6 @@ public unsafe struct mjData_ {
   public UIntPtr maxuse_arena;
   public int maxuse_con;
   public int maxuse_efc;
-  public mjWarningStat_ warning0;
-  public mjWarningStat_ warning1;
-  public mjWarningStat_ warning2;
-  public mjWarningStat_ warning3;
-  public mjWarningStat_ warning4;
-  public mjWarningStat_ warning5;
-  public mjWarningStat_ warning6;
-  public mjWarningStat_ warning7;
-  public mjTimerStat_ timer0;
-  public mjTimerStat_ timer1;
-  public mjTimerStat_ timer2;
-  public mjTimerStat_ timer3;
-  public mjTimerStat_ timer4;
-  public mjTimerStat_ timer5;
-  public mjTimerStat_ timer6;
-  public mjTimerStat_ timer7;
-  public mjTimerStat_ timer8;
-  public mjTimerStat_ timer9;
-  public mjTimerStat_ timer10;
-  public mjTimerStat_ timer11;
-  public mjTimerStat_ timer12;
-  public mjTimerStat_ timer13;
-  public mjTimerStat_ timer14;
   public mjSolverStat_ solver0;
   public mjSolverStat_ solver1;
   public mjSolverStat_ solver2;
@@ -4809,6 +4791,29 @@ public unsafe struct mjData_ {
   public fixed int solver_niter[20];
   public fixed int solver_nnz[20];
   public fixed double solver_fwdinv[2];
+  public mjWarningStat_ warning0;
+  public mjWarningStat_ warning1;
+  public mjWarningStat_ warning2;
+  public mjWarningStat_ warning3;
+  public mjWarningStat_ warning4;
+  public mjWarningStat_ warning5;
+  public mjWarningStat_ warning6;
+  public mjWarningStat_ warning7;
+  public mjTimerStat_ timer0;
+  public mjTimerStat_ timer1;
+  public mjTimerStat_ timer2;
+  public mjTimerStat_ timer3;
+  public mjTimerStat_ timer4;
+  public mjTimerStat_ timer5;
+  public mjTimerStat_ timer6;
+  public mjTimerStat_ timer7;
+  public mjTimerStat_ timer8;
+  public mjTimerStat_ timer9;
+  public mjTimerStat_ timer10;
+  public mjTimerStat_ timer11;
+  public mjTimerStat_ timer12;
+  public mjTimerStat_ timer13;
+  public mjTimerStat_ timer14;
   public int ne;
   public int nf;
   public int nl;
@@ -4971,11 +4976,7 @@ public unsafe struct mjLROpt_ {
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct _mjVFS
 {
-  public int nfile;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000 * 1000)] public char[] filename;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UIntPtr[] filesize;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public IntPtr[] filedata;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UInt64[] filestamp;
+  public void* impl_;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5629,6 +5630,9 @@ public unsafe struct mjrContext_ {
   public fixed uint auxFBO_r[10];
   public fixed uint auxColor[10];
   public fixed uint auxColor_r[10];
+  public fixed int mat_texid[600];
+  public fixed int mat_texuniform[100];
+  public fixed int mat_texrepeat[200];
   public int ntexture;
   public fixed int textureType[100];
   public fixed uint texture[100];
@@ -5723,6 +5727,8 @@ public unsafe struct mjuiThemeSpacing_ {
   public int scroll;
   public int label;
   public int section;
+  public int cornersect;
+  public int cornersep;
   public int itemside;
   public int itemmid;
   public int itemver;
@@ -5737,9 +5743,14 @@ public unsafe struct mjuiThemeColor_ {
   public fixed float master[3];
   public fixed float thumb[3];
   public fixed float secttitle[3];
+  public fixed float secttitle2[3];
+  public fixed float secttitlecheck[3];
+  public fixed float secttitlecheck2[3];
   public fixed float sectfont[3];
   public fixed float sectsymbol[3];
   public fixed float sectpane[3];
+  public fixed float separator[3];
+  public fixed float separator2[3];
   public fixed float shortcut[3];
   public fixed float fontactive[3];
   public fixed float fontinactive[3];
@@ -5787,9 +5798,11 @@ public unsafe struct mjuiSection_ {
   public int state;
   public int modifier;
   public int shortcut;
+  public int checkbox;
   public int nitem;
   public mjrRect_ rtitle;
   public mjrRect_ rcontent;
+  public int lastclick;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5808,6 +5821,8 @@ public unsafe struct mjUI_ {
   public int mousesect;
   public int mouseitem;
   public int mousehelp;
+  public int mouseclicks;
+  public int mousesectcheck;
   public int editsect;
   public int edititem;
   public int editcursor;
@@ -5834,6 +5849,7 @@ public unsafe struct mjuiDef_ {
   public int state;
   public void* pdata;
   public fixed sbyte other[300];
+  public int otherint;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5884,11 +5900,9 @@ public unsafe struct mjvGeom_ {
   public int objtype;
   public int objid;
   public int category;
-  public int texid;
-  public int texuniform;
+  public int matid;
   public int texcoord;
   public int segid;
-  public fixed float texrepeat[2];
   public fixed float size[3];
   public fixed float pos[3];
   public fixed float mat[9];
@@ -6378,16 +6392,10 @@ public static unsafe extern int mj_addFileVFS(void* vfs, [MarshalAs(UnmanagedTyp
 public static unsafe extern int mj_addBufferVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string name, void* buffer, int nbuffer);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_findFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_deleteFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteVFS(void* vfs);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_makeEmptyFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename, int filesize);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjModel_* mj_loadXML([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs, StringBuilder error, int error_sz);

@@ -14,8 +14,16 @@
 # ==============================================================================
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Optional, Tuple
-import pprint
+from typing import Optional
+
+import numpy as np
+
+from pxr import Gf
+from pxr import Sdf
+from pxr import Usd
+from pxr import UsdGeom
+from pxr import UsdShade
+from pxr import Vt
 
 import mujoco
 
@@ -25,29 +33,18 @@ import mujoco
 import utils as utils_module
 import shapes as shapes_module
 
-import numpy as np
-
-# TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
-# pytype: disable=module-attr
-from open3d import open3d as o3d
-from pxr import Gf
-from pxr import Sdf
-from pxr import Usd
-from pxr import UsdGeom
-from pxr import UsdLux
-from pxr import UsdShade
-from pxr import Vt
-
 class USDObject(ABC):
-  """ Abstract interface for all USD objects including meshes and primitives
+  """ Abstract interface for all USD objects including meshes and primitives.
 
   Subclasses must implement:
 
-  * `_get_uv_geometry(self)`: gets the nessecary UV information to wrap a texture 
-     around an object in USD. Each subclass implements their own method to getting
-     UV information as different objects are contructed in different ways.
+  * `_get_uv_geometry(self)`: gets the nessecary UV information to
+     wrap a texture around an object in USD. Each subclass implements
+     their own method to getting UV information as different objects
+     are contructed in different ways.
 
-  * `_get_mesh_geometry(self)`: gets the mesh geometry of an object in the scene.
+  * `_get_mesh_geometry(self)`: gets the mesh geometry of an object
+     in the scene.
   """
 
   def __init__(
@@ -71,16 +68,16 @@ class USDObject(ABC):
     self.transform_op = self.usd_xform.AddTransformOp()
     self.scale_op = self.usd_xform.AddScaleOp()
 
-    self.last_visible_frame = -2 # not an arbitary value, forces difference greater than 1 for visibility on 0th frame
+    self.last_visible_frame = -2
 
   @abstractmethod
   def _get_uv_geometry(self):
-    """Gets UV information for an object in the scene"""
+    """Gets UV information for an object in the scene."""
     raise NotImplementedError
-  
+
   @abstractmethod
   def _get_mesh_geometry(self):
-    """Gets structure of an object in the scene"""
+    """Gets structure of an object in the scene."""
     raise NotImplementedError
 
   def attach_image_material(self, usd_mesh):
@@ -179,13 +176,22 @@ class USDObject(ABC):
   def _set_refinement_properties(self, usd_prim, scheme="none"):
     usd_prim.GetAttribute("subdivisionScheme").Set(scheme)
 
-  def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int, scale: Optional[np.ndarray] = None):
-    """Updates the position and orientation of an object in the scene for a given frame"""
-    transformation_mat = utils_module.create_transform_matrix(
+  def update(
+    self,
+    pos: np.ndarray,
+    mat: np.ndarray,
+    visible: bool,
+    frame: int,
+    scale: Optional[np.ndarray] = None
+  ):
+    """Updates the position and orientation of an object
+       in the scene for a given frame.
+    """
+    transformation_mat = utils_component.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
-    
+
     if visible and frame - self.last_visible_frame > 1:
       # non consecutive visible frames
       self.update_visibility(False, max(0, self.last_visible_frame))
@@ -207,7 +213,7 @@ class USDObject(ABC):
     self.scale_op.Set(Gf.Vec3f(scale.tolist()), frame)
 
 class USDMesh(USDObject):
-
+  """Class that handles predefined meshes in the USD scene."""
   def __init__(
       self,
       stage: Usd.Stage,
@@ -252,7 +258,7 @@ class USDMesh(USDObject):
     else:
       self.attach_solid_material(self.usd_mesh)
 
-  def get_facetexcoord_ranges(self, nmesh, arr):
+  def _get_facetexcoord_ranges(self, nmesh, arr):
     facetexcoords_ranges = [0]
     running_sum = 0
     for i in range(nmesh):
@@ -271,7 +277,7 @@ class USDMesh(USDObject):
         mesh_texcoord_adr_from:mesh_texcoord_adr_to
     ]
 
-    mesh_facetexcoord_ranges = self.get_facetexcoord_ranges(
+    mesh_facetexcoord_ranges = self._get_facetexcoord_ranges(
         self.model.nmesh, self.model.mesh_facenum
     )
 
@@ -305,7 +311,7 @@ class USDMesh(USDObject):
     return mesh_vert, mesh_face, mesh_facenum
 
 class USDPrimitiveMesh(USDObject):
-
+  """Class to handle primitive shapes in the USD scene."""
   def __init__(
       self,
       mesh_config: dict,
@@ -337,13 +343,13 @@ class USDPrimitiveMesh(USDObject):
     self.usd_mesh.GetFaceVertexIndicesAttr().Set(mesh_face)
 
     # setting mesh uv properties
-    mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
+    mesh_texcoord, _ = self._get_uv_geometry()
     self.texcoords = UsdGeom.PrimvarsAPI(self.usd_mesh).CreatePrimvar(
         "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
     )
 
     self.texcoords.Set(mesh_texcoord)
-    self.texcoords.SetIndices(Vt.IntArray([i for i in range(mesh_facenum * 3)]))
+    self.texcoords.SetIndices(Vt.IntArray(list(range(mesh_facenum * 3))))
 
     self._set_refinement_properties(self.usd_prim)
 
@@ -353,27 +359,17 @@ class USDPrimitiveMesh(USDObject):
       self.attach_solid_material(self.usd_mesh)
 
   def generate_primitive_mesh(self):
-    _, prim_mesh = shapes_module.mesh_generator(self.mesh_config)
+    """Generates the mesh for the primitive USD object."""
+    _, prim_mesh = shapes_component.mesh_generator(self.mesh_config)
     prim_mesh.translate(-prim_mesh.get_center())
     return prim_mesh
 
   def _get_uv_geometry(self):
-
     assert self.prim_mesh
 
-    x_scale, y_scale = self.geom.texrepeat
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
-
-    x_multiplier, y_multiplier = 1, 1
-    if self.geom.texuniform:
-      if "box" in self.mesh_config:
-        x_multiplier, y_multiplier = self.mesh_config["box"]["width"], self.mesh_config["box"]["height"]
-      elif "sphere" in self.mesh_config:
-        x_multiplier, y_multiplier = self.mesh_config["sphere"]["radius"], self.mesh_config["sphere"]["radius"]
-      
-    mesh_texcoord[:, 0] *= x_scale * x_multiplier
-    mesh_texcoord[:, 1] *= y_scale * y_multiplier
+    # TODO(etom): bring back support for rescaling the texture coordinates.
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 
@@ -387,7 +383,7 @@ class USDPrimitiveMesh(USDObject):
     return mesh_vert, mesh_face, len(mesh_face)
 
 class USDTendon(USDObject):
-  
+  """Class to handle tendons in the USD scene."""
   def __init__(
       self,
       mesh_config: dict,
@@ -407,53 +403,70 @@ class USDTendon(USDObject):
     self.tendon_parts = self.generate_primitive_mesh()
     self.usd_refs = defaultdict(dict)
 
-    for name, mesh in self.tendon_parts.items():
+    for name, _ in self.tendon_parts.items():
       part_xform_path = f"{self.xform_path}/Mesh_Xform_{name}"
       mesh_path = f"{part_xform_path}/Mesh_{obj_name}"
-      self.usd_refs[name]["usd_xform"] = UsdGeom.Xform.Define(stage, part_xform_path)
-      self.usd_refs[name]["usd_mesh"] = UsdGeom.Mesh.Define(stage, mesh_path)
+      usd_xform = UsdGeom.Xform.Define(
+        stage,
+        part_xform_path
+      )
+      self.usd_refs[name]["usd_xform"] = usd_xform
+      self.usd_refs[name]["usd_mesh"] = UsdGeom.Mesh.Define(
+        stage,
+        mesh_path
+      )
       self.usd_refs[name]["usd_prim"] = stage.GetPrimAtPath(mesh_path)
       # adding ops for each of the part xforms
-      self.usd_refs[name]["translate_op"] = self.usd_refs[name]["usd_xform"].AddTranslateOp()
-      self.usd_refs[name]["scale_op"] = self.usd_refs[name]["usd_xform"].AddScaleOp()
+      self.usd_refs[name]["translate_op"] = usd_xform.AddTranslateOp()
+      self.usd_refs[name]["scale_op"] = usd_xform.AddScaleOp()
 
     # setting mesh geometry properties for each of the parts in the tendon
     part_geometries = self._get_mesh_geometry()
     for name, part_geometry in part_geometries.items():
-      self.usd_refs[name]["usd_mesh"].GetPointsAttr().Set(part_geometry["mesh_vert"])
+      self.usd_refs[name]["usd_mesh"].GetPointsAttr().Set(
+        part_geometry["mesh_vert"]
+      )
       self.usd_refs[name]["usd_mesh"].GetFaceVertexCountsAttr().Set(
         [3 for _ in range(part_geometry["mesh_facenum"])]
       )
-      self.usd_refs[name]["usd_mesh"].GetFaceVertexIndicesAttr().Set(part_geometry["mesh_face"])
+      self.usd_refs[name]["usd_mesh"].GetFaceVertexIndicesAttr().Set(
+        part_geometry["mesh_face"]
+      )
 
     # setting uv properties for each of the parts in the tendon
     part_uv_geometries = self._get_uv_geometry()
     for name, part_uv_geometry in part_uv_geometries.items():
-      self.texcoords = UsdGeom.PrimvarsAPI(self.usd_refs[name]["usd_mesh"]).CreatePrimvar(
-          "UVMap", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
+      self.texcoords = UsdGeom.PrimvarsAPI(
+        self.usd_refs[name]["usd_mesh"]
+      ).CreatePrimvar(
+          "UVMap",
+          Sdf.ValueTypeNames.TexCoord2fArray,
+          UsdGeom.Tokens.faceVarying
       )
       self.texcoords.Set(part_uv_geometry["mesh_texcoord"])
-      self.texcoords.SetIndices(Vt.IntArray([i for i in range(part_geometry["mesh_facenum"] * 3)]))
-    
-    for name in self.usd_refs.keys(): 
-      self._set_refinement_properties(self.usd_refs[name]["usd_prim"])
+      self.texcoords.SetIndices(
+        Vt.IntArray(list(range(part_geometry['mesh_facenum'] * 3)))
+      )
+
+    for _, ref in self.usd_refs.items():
+      self._set_refinement_properties(ref["usd_prim"])
       if self.texture_file:
-        self.attach_image_material(self.usd_refs[name]["usd_mesh"])
+        self.attach_image_material(ref["usd_mesh"])
       else:
-        self.attach_solid_material(self.usd_refs[name]["usd_mesh"])
-    
+        self.attach_solid_material(ref["usd_mesh"])
+
   def generate_primitive_mesh(self):
+    """Generates the tendon mesh using primitives."""
     mesh_parts = {}
     for part_config in self.mesh_config:
       mesh_name, prim_mesh = shapes_module.mesh_generator(part_config)
       prim_mesh.translate(-prim_mesh.get_center())
       mesh_parts[mesh_name] = prim_mesh
     return mesh_parts
-  
+
   def _get_uv_geometry(self):
     part_uv_geometries = defaultdict(dict)
     for name, mesh in self.tendon_parts.items():
-      x_scale, y_scale = self.geom.texrepeat
       mesh_texcoord = np.array(mesh.triangle_uvs)
       mesh_facetexcoord = np.asarray(mesh.triangles)
       part_uv_geometries[name] = {
@@ -475,8 +488,14 @@ class USDTendon(USDObject):
       }
     return part_geometries
 
-  def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int, scale: Optional[np.ndarray] = None):
-    """Updates the position and orientation of an object in the scene for a given frame"""
+  def update(
+    self,
+    pos: np.ndarray,
+    mat: np.ndarray,
+    visible: bool,
+    frame: int,
+    scale: Optional[np.ndarray] = None):
+    """Updates the position and orientation of an object in the scene."""
     super().update(pos, mat, visible, frame, scale)
     for name in self.tendon_parts.keys():
       if "left" in name:
@@ -487,7 +506,7 @@ class USDTendon(USDObject):
         self.usd_refs[name]["translate_op"].Set(Gf.Vec3f(translate), frame)
 
   def update_scale(self, scale: np.ndarray, frame: int):
-    """Updates the scale of the tendon"""
+    """Updates the scale of the tendon."""
     for name in self.tendon_parts.keys():
       if "cylinder" in name:
         self.usd_refs[name]["scale_op"].Set(Gf.Vec3f(scale.tolist()), frame)

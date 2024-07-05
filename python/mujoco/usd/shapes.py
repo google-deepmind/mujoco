@@ -1,15 +1,28 @@
-import copy
-import mujoco
-import pprint
+# Copyright 2024 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
 import numpy as np
 import open3d as o3d
+
+import mujoco
 
 def create_hemisphere(
     radius: float,
     theta_steps: int = 50,
     phi_steps: int = 50
 ):
-
+    """Creates a hemisphere mesh from a point cloud."""
     points = []
     for i in range(phi_steps + 1):
         phi = np.pi / 2 * i / phi_steps
@@ -28,6 +41,7 @@ def create_hemisphere(
     return mesh
 
 def decouple_config(config: dict):
+  """Breaks a shape config into is subcomponent shapes."""
   decoupled_config = []
   for key, value in config.items():
     if key == "name":
@@ -46,7 +60,7 @@ def mesh_config_generator(
     size: np.ndarray,
     decouple: bool = False
 ):
-
+    """Creates a config for a particular mesh."""
     if geom_type == mujoco.mjtGeom.mjGEOM_PLANE:
       config = {
         "name": name,
@@ -65,7 +79,11 @@ def mesh_config_generator(
         }
       }
     elif geom_type == mujoco.mjtGeom.mjGEOM_CAPSULE:
-      cylinder = mesh_config_generator(name, mujoco.mjtGeom.mjGEOM_CYLINDER, size)
+      cylinder = mesh_config_generator(
+        name,
+        mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size
+      )
       config = {
         "name": name,
         "cylinder": cylinder["cylinder"],
@@ -84,7 +102,11 @@ def mesh_config_generator(
         },
       }
     elif geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
-      sphere = mesh_config_generator(name, mujoco.mjtGeom.mjGEOM_SPHERE, [1.0])
+      sphere = mesh_config_generator(
+        name,
+        mujoco.mjtGeom.mjGEOM_SPHERE,
+        [1.0]
+      )
       sphere["sphere"]["transform"] = {
         "scale": tuple(size)
       }
@@ -110,7 +132,9 @@ def mesh_config_generator(
         }
       }
     else:
-      raise NotImplemented(f"{geom_type} primitive geom type not implemented with USD integration")
+      raise NotImplementedError(
+        f"{geom_type} primitive geom type not implemented with USD integration"
+      )
 
     if decouple:
       config = decouple_config(config)
@@ -121,10 +145,10 @@ def mesh_generator(
     mesh_config: dict,
     resolution: int = 100,
 ):
-
+    """Generates a mesh given a config consisting of shapes."""
     assert "name" in mesh_config
 
-    mesh = None
+    prim_mesh, mesh = None, None
 
     for shape, config in mesh_config.items():
 
@@ -139,7 +163,7 @@ def mesh_generator(
             create_uv_map=True,
             map_texture_to_each_face=True,
         )
-      elif "hemisphere" in shape: 
+      elif "hemisphere" in shape:
         prim_mesh = create_hemisphere(
           radius=mesh_config[shape]["radius"]
         )
@@ -159,17 +183,19 @@ def mesh_generator(
 
       if "transform" in config:
         if "rotate" in config["transform"]:
-          R = np.zeros(9)
+          rotation = np.zeros(9)
           quat = np.zeros(4)
           euler = config["transform"]["rotate"]
           seq = 'xyz'
           mujoco.mju_euler2Quat(quat, euler, seq)
-          mujoco.mju_quat2Mat(R, quat)
-          R = R.reshape((3,3))
-          prim_mesh.rotate(R, center=(0, 0, 0))
+          mujoco.mju_quat2Mat(rotation, quat)
+          rotation = rotation.reshape((3,3))
+          prim_mesh.rotate(rotation, center=(0, 0, 0))
         if "scale" in config["transform"]:
           prim_mesh.vertices = o3d.utility.Vector3dVector(
-          np.asarray(prim_mesh.vertices) * np.array(config["transform"]["scale"]))
+            np.asarray(prim_mesh.vertices) * \
+            np.array(config["transform"]["scale"])
+          )
         if "translate" in config["transform"]:
           prim_mesh.translate(config["transform"]["translate"])
 
@@ -179,10 +205,3 @@ def mesh_generator(
         mesh += prim_mesh
 
     return mesh_config["name"], mesh
-      
-
-
-
-
-    
-

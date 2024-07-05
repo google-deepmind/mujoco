@@ -64,9 +64,11 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
     case mjJNT_BALL:
       {
-        mjtNum dif[3];
         // convert quatertion difference into angular "velocity"
-        mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
+        mjtNum dif[3], quat[4];
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
+        mju_subQuat(dif, quat, m->qpos_spring + padr);
 
         // apply torque
         d->qfrc_spring[dadr+0] = -stiffness*dif[0];
