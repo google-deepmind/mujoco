@@ -517,7 +517,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   // create edge equality constraint
   if (equality) {
     mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
-    mjs_setDefault(pe->element, &model->Defaults(0)->spec);
+    mjs_setDefault(pe->element, &model->Default()->spec);
     pe->type = mjEQ_FLEX;
     pe->active = true;
     mjs_setString(pe->name1, name.c_str());

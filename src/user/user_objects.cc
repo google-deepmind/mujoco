@@ -518,8 +518,8 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 mjCDef::mjCDef() {
   name.clear();
   id = 0;
-  parentid = -1;
-  childid.clear();
+  parent = nullptr;
+  child.clear();
   mjs_defaultJoint(&joint_.spec);
   mjs_defaultGeom(&geom_.spec);
   mjs_defaultSite(&site_.spec);
@@ -565,8 +565,8 @@ void mjCDef::Compile(const mjCModel* model) {
 mjCDef& mjCDef::operator=(const mjCDef& other) {
   if (this != &other) {
     name = other.name;
-    parentid = other.parentid;
-    childid = other.childid;
+    parent = other.parent;
+    child = other.child;
     joint_ = other.joint_;
     geom_ = other.geom_;
     site_ = other.site_;
@@ -1691,7 +1691,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // point to local
@@ -1899,7 +1899,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // point to local
@@ -2542,7 +2542,7 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 }
 
@@ -2688,7 +2688,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // point to local
@@ -2842,7 +2842,7 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   PointToLocal();
@@ -3887,7 +3887,7 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
   }
 
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   PointToLocal();
@@ -3974,7 +3974,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // point to local
@@ -4335,7 +4335,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // point to local
@@ -4497,7 +4497,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // point to local
@@ -4975,7 +4975,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
   classname = def ? def->name : "";
 
   // in case this actuator is not compiled

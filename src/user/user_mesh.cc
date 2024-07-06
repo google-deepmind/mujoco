@@ -149,7 +149,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Defaults(0) : 0));
+  def = (_def ? _def : (_model ? _model->Default() : 0));
 
   // in case this body is not compiled
   CopyFromSpec();

@@ -1635,8 +1635,8 @@ class mjCDef : public mjsElement {
   // identifiers
   std::string name;               // class name
   int id;                         // id of this default
-  int parentid;                   // id of parent class
-  std::vector<int> childid;       // ids of child classes
+  mjCDef* parent;                 // id of parent class
+  std::vector<mjCDef*> child;     // child classes
 
   mjsDefault spec;
 

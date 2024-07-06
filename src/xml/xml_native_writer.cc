@@ -862,7 +862,7 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   Visual(root);
   Statistic(root);
   writingdefaults = true;
-  Default(root, model->Defaults(0));
+  Default(root, model->Default());
   writingdefaults = false;
   Extension(root);
   Custom(root);
@@ -1192,8 +1192,8 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
 
   // pointer to parent defaults
   mjCDef* par;
-  if (def->parentid>=0) {
-    par = model->Defaults(def->parentid);
+  if (def->parent) {
+    par = def->parent;
   } else {
     par = new mjCDef;
   }
@@ -1260,19 +1260,19 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   if (!elem->FirstAttribute()) section->DeleteChild(elem);
 
   // if top-level class has no members or children, delete it and return
-  if (def->parentid<0 && section->NoChildren() && def->childid.empty()) {
+  if (!def->parent && section->NoChildren() && def->child.empty()) {
     root->DeleteChild(section);
     delete par;
     return;
   }
 
   // add children recursively
-  for (int i=0; i<(int)def->childid.size(); i++) {
-    Default(section, model->Defaults(def->childid[i]));
+  for (int i=0; i<(int)def->child.size(); i++) {
+    Default(section, def->child[i]);
   }
 
   // delete parent defaults if allocated here
-  if (def->parentid<0) {
+  if (!def->parent) {
     delete par;
   }
 }
