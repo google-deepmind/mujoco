@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 import os
-from typing import List, Optional
+from typing import List, Union, Optional
 
 import numpy as np
 import scipy
@@ -30,17 +30,13 @@ from pxr import UsdGeom
 import mujoco
 from mujoco import _structs, _enums, _functions
 
-# import mujoco.usd.shapes as shapes_module
-# import mujoco.usd.objects as object_module
-# import mujoco.usd.lights as light_module
-# import mujoco.usd.camera as camera_module
-# import mujoco.usd.utils as utils_module
+import mujoco.usd.shapes as shapes_module
+import mujoco.usd.objects as object_module
+import mujoco.usd.lights as light_module
+import mujoco.usd.camera as camera_module
+import mujoco.usd.utils as utils_module
 
-import shapes as shapes_module
-import objects as object_module
-import lights as light_module
-import camera as camera_module
-import utils as utils_module
+PRIMARY_CAMERA_NAME = "primary_camera"
 
 class USDExporter:
   """MuJoCo to USD exporter for porting scenes to external renderers."""
@@ -231,8 +227,12 @@ class USDExporter:
 
     data_adr = 0
     self.texture_files = {}
-    for matid in tqdm.tqdm(self.model.geom_matid):
-      texid = self.model.mat_texid[matid] if matid > -1 else -1
+
+    mat_range = range(self.model.nmat)
+    if self.verbose:
+      mat_range = tqdm.tqdm(mat_range)
+    for matid in mat_range:
+      texid = self.model.mat_texid[matid][0] if matid > -1 else -1
       if texid > -1:
         rgba = self.model.mat_rgba[matid]
 
@@ -270,8 +270,11 @@ class USDExporter:
     geom_name = self._get_geom_name(geom)
     assert geom_name not in self.geom_names
 
-    # TODO: change this to match matid
-    texture_file = self.texture_files[utils_module.get_texture_name(geom.texid, geom.rgba)] if geom.texid != -1 else None
+    texid = self.model.mat_texid[geom.matid][0] if geom.matid != -1 else -1
+    rgba = self.model.mat_rgba[geom.matid] if geom.matid != -1 else -1
+
+    # TODO: geom.rgba is different from material rgba
+    texture_file = self.texture_files[utils_module.get_texture_name(texid, rgba)] if texid != -1 else None
 
     # handling meshes in our scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
@@ -480,7 +483,6 @@ class USDExporter:
       filetype: type of USD file to save the scene as (options include 
         "usd", "usda", and "usdc")
     """
-    assert filetype in ["usd", "usda", "usdc"]
     self.stage.SetEndTimeCode(self.frame_count)
 
     # post-processing for visibility of geoms in scene

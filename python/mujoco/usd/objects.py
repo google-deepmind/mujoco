@@ -27,11 +27,8 @@ from pxr import Vt
 
 import mujoco
 
-# import mujoco.usd.utils as utils_module
-# import mujoco.usd.shapes as shapes_module
-
-import utils as utils_module
-import shapes as shapes_module
+import mujoco.usd.utils as utils_module
+import mujoco.usd.shapes as shapes_module
 
 class USDObject(ABC):
   """ Abstract interface for all USD objects including meshes and primitives.
@@ -187,7 +184,7 @@ class USDObject(ABC):
     """Updates the position and orientation of an object
        in the scene for a given frame.
     """
-    transformation_mat = utils_component.create_transform_matrix(
+    transformation_mat = utils_module.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -360,7 +357,7 @@ class USDPrimitiveMesh(USDObject):
 
   def generate_primitive_mesh(self):
     """Generates the mesh for the primitive USD object."""
-    _, prim_mesh = shapes_component.mesh_generator(self.mesh_config)
+    _, prim_mesh = shapes_module.mesh_generator(self.mesh_config)
     prim_mesh.translate(-prim_mesh.get_center())
     return prim_mesh
 

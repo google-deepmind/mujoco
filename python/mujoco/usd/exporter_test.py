@@ -39,27 +39,30 @@ class ExporterTest(absltest.TestCase):
     if not execute_test:
       return
 
-    output_dir = os.getenv('TEST_UNDECLARED_OUTPUTS_DIR')
+    output_dir = "usd_tests"
+    test_name = "usd_export"
+
     xml = """
-<mujoco>
-  <worldbody>
-    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
-    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
-  </worldbody>
-</mujoco>
-"""
+      <mujoco>
+        <worldbody>
+          <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+          <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+        </worldbody>
+      </mujoco>
+      """
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
     exporter = exporter_module.USDExporter(
         model,
-        output_directory_name="mujoco_usdpkg",
+        output_directory_name=test_name,
         output_directory_root=output_dir,
+        verbose=False
     )
     exporter.update_scene(data)
     exporter.save_scene("export.usda")
 
     with open(os.path.join(
-        output_dir, "mujoco_usdpkg/frames", "frame_1.export.usda"), "r") as f:
+        output_dir, f"{test_name}/frames", "frame_1.export.usda"), "r") as f:
       golden_path = os.path.join(
           epath.resource_path("mujoco"), "testdata", "usd_golden.usda")
       with open(golden_path, "r") as golden_file:

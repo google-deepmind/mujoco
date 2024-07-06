@@ -20,11 +20,11 @@ from pxr import Gf
 from pxr import Usd
 from pxr import UsdGeom
 
-import mujoco.usd.utils as utils_component
+import mujoco.usd.utils as utils_module
 
 class USDCamera:
   """Class that handles the cameras in the USD scene"""
-  def __init__(self, stage: Usd.Stage, obj_name: str):
+  def __init__(self, stage: Usd.Stage, camera_name: str):
     self.stage = stage
 
     xform_path = f"/World/Camera_Xform_{camera_name}"
@@ -45,7 +45,7 @@ class USDCamera:
 
   def update(self, cam_pos: np.ndarray, cam_mat: np.ndarray, frame: int):
     """Updates the position and orientation of the camera in the scene"""
-    transformation_mat = utils_component.create_transform_matrix(
+    transformation_mat = utils_module.create_transform_matrix(
         rotation_matrix=cam_mat, translation_vector=cam_pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
