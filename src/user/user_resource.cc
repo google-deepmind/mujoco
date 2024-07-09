@@ -15,14 +15,16 @@
 #include "user/user_resource.h"
 
 #include <errno.h>
-#include <limits.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <time.h>
+
+#include <climits>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <vector>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
   #include <unistd.h>
@@ -37,81 +39,79 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
-// internal helper for mju_fileToMemory (closes fp automatically)
-static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize);
+namespace {
 
 // file buffer used internally for the OS filesystem
-typedef struct {
-  int is_read;      // set to nonzero if buffer was read into
-  uint8_t* buffer;  // raw bytes from file
-  size_t nbuffer;   // size of buffer in bytes
-  time_t mtime;     // last modified time
-} file_spec;
+struct FileSpec {
+  bool is_read;                 // set to nonzero if buffer was read into
+  std::vector<uint8_t> buffer;  // raw bytes from file
+  time_t mtime;                 // last modified time
+};
+
+}  // namespace
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
+mjResource* mju_openResource(const char* name, char* error, size_t nerror) {
   // no error so far
   if (error) {
     error[0] = '\0';
   }
 
   mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
-  const mjpResourceProvider* provider = NULL;
-  if (resource == NULL) {
+  if (resource == nullptr) {
     mjERROR("could not allocate memory");
-    return NULL;
+    return nullptr;
   }
 
   // clear out resource
   memset(resource, 0, sizeof(mjResource));
 
   // copy name
-  resource->name = mju_malloc(sizeof(char) * (strlen(name) + 1));
-  if (resource->name == NULL) {
+  resource->name = (char*) mju_malloc(sizeof(char) * (strlen(name) + 1));
+  if (resource->name == nullptr) {
     mju_closeResource(resource);
     mjERROR("could not allocate memory");
-    return NULL;
+    return nullptr;
   }
   memcpy(resource->name, name, sizeof(char) * (strlen(name) + 1));
 
   // find provider based off prefix of name
-  provider = mjp_getResourceProvider(name);
-  if (provider != NULL) {
+  const mjpResourceProvider* provider = mjp_getResourceProvider(name);
+  if (provider != nullptr) {
     resource->provider = provider;
     if (provider->open(resource)) {
       return resource;
     }
 
     if (error) {
-      snprintf(error, error_sz, "could not open '%s'"
+      snprintf(error, nerror, "could not open '%s'"
                "using a resource provider matching prefix '%s'",
                name, provider->prefix);
     }
 
     mju_closeResource(resource);
-    return NULL;
+    return nullptr;
   }
 
   // lastly fallback to OS filesystem
-  resource->provider = NULL;
-  resource->data = mju_malloc(sizeof(file_spec));
-  file_spec* spec = (file_spec*) resource->data;
-  spec->is_read = 0;
-  spec->buffer = NULL;
-  spec->nbuffer = 0;
+  resource->provider = nullptr;
+  resource->data = new FileSpec;
+  FileSpec* spec = (FileSpec*) resource->data;
+  spec->is_read = false;
   struct stat file_stat;
-  errno = 0;
   if (stat(name, &file_stat) == 0) {
     memcpy(&spec->mtime, &file_stat.st_mtime, sizeof(time_t));
   } else {
     if (error) {
-      snprintf(error, error_sz, "Error opening file '%s': %s", name, strerror(errno));
+      snprintf(error, nerror, "Error opening file '%s': %s", name,
+               strerror(errno));
     }
     mju_closeResource(resource);
-    return NULL;
+    return nullptr;
   }
-  mju_encodeBase64(resource->timestamp, (uint8_t*) &spec->mtime, sizeof(time_t));
+  mju_encodeBase64(resource->timestamp, (uint8_t*) &spec->mtime,
+                   sizeof(time_t));
   return resource;
 }
 
@@ -119,7 +119,7 @@ mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
 
 // close the given resource; no-op if resource is NULL
 void mju_closeResource(mjResource* resource) {
-  if (resource == NULL) {
+  if (resource == nullptr) {
     return;
   }
 
@@ -128,10 +128,9 @@ void mju_closeResource(mjResource* resource) {
     resource->provider->close(resource);
   } else {
     // clear OS filesystem if present
-    file_spec* spec = (file_spec*) resource->data;
+    FileSpec* spec = (FileSpec*) resource->data;
     if (spec) {
-      if (spec->buffer) mju_free(spec->buffer);
-      mju_free(spec);
+      delete spec;
     }
   }
 
@@ -142,27 +141,23 @@ void mju_closeResource(mjResource* resource) {
 
 
 
-// set buffer to bytes read from the resource and return number of bytes in buffer;
-// return negative value if error
+// set buffer to bytes read from the resource and return number of bytes in
+// buffer; return negative value if error
 int mju_readResource(mjResource* resource, const void** buffer) {
-  if (resource == NULL) {
-    return 0;
-  }
-
   if (resource->provider) {
     return resource->provider->read(resource, buffer);
   }
 
   // if provider is NULL, then OS filesystem is used
-  file_spec* spec = (file_spec*) resource->data;
+  FileSpec* spec = (FileSpec*) resource->data;
 
   // only read once from file
   if (!spec->is_read) {
-    spec->buffer = mju_fileToMemory(resource->name, &(spec->nbuffer));
-    spec->is_read = 1;
+    spec->buffer = mju_fileToMemory(resource->name);
+    spec->is_read = true;
   }
-  *buffer = spec->buffer;
-  return spec->nbuffer;
+  *buffer = spec->buffer.data();
+  return spec->buffer.size();
 }
 
 
@@ -208,7 +203,7 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
 
   time_t time1, time2;
   mju_decodeBase64((uint8_t*) &time1, timestamp);
-  time2 = ((file_spec*) resource->data)->mtime;
+  time2 = ((FileSpec*) resource->data)->mtime;
   double diff = difftime(time2, time1);
   if (diff < 0) return -1;
   if (diff > 0) return  1;
@@ -236,25 +231,17 @@ int mju_dirnamelen(const char* path) {
 
 
 // read file into memory buffer (allocated here with mju_malloc)
-void* mju_fileToMemory(const char* filename, size_t* filesize) {
+std::vector<uint8_t> mju_fileToMemory(const char* filename) {
   FILE* fp = fopen(filename, "rb");
   if (!fp) {
-    return NULL;
+    return {};
   }
-
-  return _fileToMemory(fp, filename, filesize);
-}
-
-// internal helper for mju_fileToMemory (closes fp automatically)
-static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize) {
-  // open file
-  *filesize = 0;
 
   // find size
   if (fseek(fp, 0, SEEK_END) != 0) {
     fclose(fp);
     mju_warning("Failed to calculate size for '%s'", filename);
-    return NULL;
+    return {};
   }
 
   // ensure file size fits in int
@@ -262,38 +249,33 @@ static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize) {
   if (long_filesize > INT_MAX) {
     fclose(fp);
     mju_warning("File size over 2GB is not supported. File: '%s'", filename);
-    return NULL;
+    return {};
   } else if (long_filesize < 0) {
     fclose(fp);
     mju_warning("Failed to calculate size for '%s'", filename);
-    return NULL;
+    return {};
   }
-  *filesize = long_filesize;
+
+  std::vector<uint8_t> buffer(long_filesize);
 
   // go back to start of file
   if (fseek(fp, 0, SEEK_SET) != 0) {
     fclose(fp);
     mju_warning("Read error while reading '%s'", filename);
-    return NULL;
+    return {};
   }
 
   // allocate and read
-  void* buffer = mju_malloc(*filesize);
-  if (!buffer) {
-    mjERROR("could not allocate memory");
-  }
-  size_t bytes_read = fread(buffer, 1, *filesize, fp);
+  std::size_t bytes_read = fread(buffer.data(), 1, buffer.size(), fp);
 
   // check that read data matches file size
-  if (bytes_read != *filesize) {  // SHOULD NOT OCCUR
+  if (bytes_read != buffer.size()) {  // SHOULD NOT OCCUR
     if (ferror(fp)) {
       fclose(fp);
-      mju_free(buffer);
-      *filesize = 0;
       mju_warning("Read error while reading '%s'", filename);
-      return NULL;
+      return {};
     } else if (feof(fp)) {
-      *filesize = bytes_read;
+      buffer.resize(bytes_read);
     }
   }
 

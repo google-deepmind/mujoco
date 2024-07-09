@@ -17,7 +17,9 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_
 
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mujoco.h>
@@ -28,7 +30,7 @@ extern "C" {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-MJAPI mjResource* mju_openResource(const char* name, char* error, size_t error_sz);
+MJAPI mjResource* mju_openResource(const char* name, char* error, std::size_t nerror);
 
 // close the given resource; no-op if resource is NULL
 MJAPI void mju_closeResource(mjResource* resource);
@@ -46,13 +48,13 @@ MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir)
 MJAPI int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
 
 // get the length of the dirname portion of a given path
-int mju_dirnamelen(const char* path);
-
-// read file into memory buffer (allocated here with mju_malloc)
-void* mju_fileToMemory(const char* filename, size_t* filesize);
+MJAPI int mju_dirnamelen(const char* path);
 
 #ifdef __cplusplus
 }
 #endif
+
+// read file into memory buffer (allocated here with mju_malloc)
+std::vector<uint8_t> mju_fileToMemory(const char* filename);
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_

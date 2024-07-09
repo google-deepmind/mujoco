@@ -19,10 +19,10 @@
 #include <cstddef>
 #include <cstring>
 #include <cstdint>
-#include <functional>
-#include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -34,7 +34,7 @@ namespace {
 // internal struct for VFS files
 struct VFSFile {
   std::string filename;
-  std::unique_ptr<void, std::function<void(void*)>> filedata;
+  std::vector<uint8_t> filedata;
   std::size_t filesize;
   uint64_t filestamp;
 };
@@ -46,9 +46,9 @@ class VFS {
   bool HasFile(const std::string& filename) const;
 
   // returns inserted mjuuVFSFile if the file was added successfully. This class
-  // assumes ownership of the buffer and will free it when the VFS is deleted.
-  VFSFile* AddFile(const std::string& filename, void* buffer,
-                   std::size_t nbuffer, uint64_t filestamp);
+  // assumes ownership of the buffer.
+  VFSFile* AddFile(const std::string& filename, std::vector<uint8_t>&& buffer,
+                   uint64_t filestamp);
 
   // returns the internal file struct for the given filename
   const VFSFile* GetFile(const std::string& filename) const;
@@ -76,13 +76,12 @@ std::string StripPath(const char* name) {
 }
 
 // copies data into a buffer and produces a hash of the data
-uint64_t vfs_memcpy(void* dest, const void* src, size_t n) {
+uint64_t vfs_memcpy(std::vector<uint8_t>& dest, const void* src, size_t n) {
   uint64_t hash = 0xcbf29ce484222325;  // magic number
   uint64_t prime = 0x100000001b3;      // magic prime
   const uint8_t* bytes = (uint8_t*) src;
-  uint8_t* buffer = (uint8_t*) dest;
   for (size_t i = 0; i < n; i++) {
-    buffer[i] = bytes[i];
+    dest.push_back(bytes[i]);
 
     // do FNV-1 hash
     hash |= bytes[i];
@@ -92,11 +91,12 @@ uint64_t vfs_memcpy(void* dest, const void* src, size_t n) {
 }
 
 // VFS hash function implemented using the FNV-1 hash
-uint64_t vfs_hash(const void* buffer, size_t n) {
+uint64_t vfs_hash(const std::vector<uint8_t>& buffer) {
   uint64_t hash = 0xcbf29ce484222325;  // magic number
   uint64_t prime = 0x100000001b3;      // magic prime
-  const uint8_t* bytes = (uint8_t*) buffer;
-  for (size_t i = 0; i < n; i++) {
+  const uint8_t* bytes = (uint8_t*) buffer.data();
+  std::size_t n = buffer.size();
+  for (std::size_t i = 0; i < n; i++) {
     hash |= bytes[i];
     hash *= prime;
   }
@@ -107,16 +107,14 @@ bool VFS::HasFile(const std::string& filename) const {
   return files_.find(filename) != files_.end();
 }
 
-VFSFile* VFS::AddFile(const std::string& filename, void* buffer,
-                      std::size_t nbuffer, uint64_t filestamp) {
+VFSFile* VFS::AddFile(const std::string& filename, std::vector<uint8_t>&& buffer,
+                      uint64_t filestamp) {
   auto [it, inserted] = files_.insert({filename, VFSFile()});
   if (!inserted) {
     return nullptr;  // repeated name
   }
   it->second.filename = filename;
-  it->second.filedata = std::unique_ptr<void, void(*)(void*)>(
-      buffer, [](void* b) { mju_free(b); });  // corresponding to mju_malloc
-  it->second.filesize = nbuffer;
+  it->second.filedata = buffer;
   it->second.filestamp = filestamp;
   return &(it->second);
 }
@@ -173,8 +171,8 @@ int Read(mjResource* resource, const void** buffer) {
     return -1;
   }
 
-  *buffer = file->filedata.get();
-  return file->filesize;
+  *buffer = file->filedata.data();
+  return file->filedata.size();
 }
 
 // close callback for the VFS resource provider
@@ -234,14 +232,12 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   }
 
   // allocate and read
-  size_t nbuffer = 0;
-  void* buffer = mju_fileToMemory(fullname.c_str(), &nbuffer);
-  if (buffer == nullptr) {
+  std::vector<uint8_t> buffer = mju_fileToMemory(fullname.c_str());
+  if (buffer.empty()) {
     return -1;
   }
 
-  if (!cvfs->AddFile(newname, buffer, nbuffer, vfs_hash(buffer, nbuffer))) {
-    mju_free(buffer);
+  if (!cvfs->AddFile(newname, std::move(buffer), vfs_hash(buffer))) {
     return 2;  // AddFile failed, SHOULD NOT OCCUR
   }
   return 0;
@@ -250,19 +246,14 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
 // add file from buffer into VFS
 int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
                     int nbuffer) {
+  std::vector<uint8_t> inbuffer;
   VFS* cvfs = GetVFSImpl(vfs);
-
-  // allocate and clear
-  void* inbuffer = mju_malloc(nbuffer);
-  if (buffer == nullptr) {
-    mjERROR("could not allocate memory");
-  }
   VFSFile* file;
-  if (!(file = cvfs->AddFile(StripPath(name), inbuffer, nbuffer, 0))) {
-    mju_free(inbuffer);
+  if (!(file = cvfs->AddFile(StripPath(name), std::move(inbuffer), 0))) {
     return 2;  // AddFile failed, repeated name
   }
-  file->filestamp = vfs_memcpy(inbuffer, buffer, nbuffer);
+  file->filedata.reserve(nbuffer);
+  file->filestamp = vfs_memcpy(file->filedata, buffer, nbuffer);
   return 0;
 }
 

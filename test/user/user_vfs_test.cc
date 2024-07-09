@@ -180,7 +180,7 @@ TEST_F(UserVfsTest, AddBuffer) {
                   buffer.size());
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML("model", &vfs, error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   mj_deleteModel(model);
   mj_deleteVFS(&vfs);
 }
