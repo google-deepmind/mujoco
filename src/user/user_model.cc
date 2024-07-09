@@ -3257,7 +3257,14 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   try {
     if (setjmp(error_jmp_buf) != 0) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
-      throw mjCError(0, "engine error: %s", errortext);
+      std::string error_msg = errortext;
+      // also include the last warning that was issued. this is useful for
+      // warnings that came out of plugin implementations.
+      if (warningtext[0]) {
+        error_msg += "\n";
+        error_msg += warningtext;
+      }
+      throw mjCError(0, "engine error: %s", error_msg.c_str());
     }
     TryCompile(*const_cast<mjModel**>(&model), *const_cast<mjData**>(&data), vfs);
   } catch (mjCError err) {

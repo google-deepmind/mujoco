@@ -648,8 +648,8 @@ TEST_F(PidTest, InvalidClamp) {
   mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
   EXPECT_THAT(m, IsNull());
 
-  // TODO: b/303654852 - ensure that the compilation error includes "imax"
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
+  EXPECT_THAT(std::string_view(error), HasSubstr("imax"));
 }
 
 TEST_F(PidTest, InvalidSlew) {
@@ -679,8 +679,8 @@ TEST_F(PidTest, InvalidSlew) {
   mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
   ASSERT_THAT(m, IsNull());
 
-  // TODO: b/303654852 - ensure that the compilation error includes "slewmax"
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
+  EXPECT_THAT(std::string_view(error), HasSubstr("slewmax"));
 }
 }  // namespace
 }  // namespace mujoco

@@ -103,7 +103,7 @@ std::unique_ptr<Pid> Pid::Create(const mjModel* m, int instance) {
   }
 
   if (config.slew_max.value_or(0.0) < 0) {
-    mju_warning("maxslew must be non-negative");
+    mju_warning("slewmax must be non-negative");
     return nullptr;
   }
 
