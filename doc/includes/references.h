@@ -1445,9 +1445,6 @@ struct mjpPlugin_ {
 
   // methods specific to actuators (optional)
 
-  // dimension of the actuator state for the plugin (excluding state from actuator's dyntype)
-  int (*actuator_actdim)(const mjModel*m, int instance, int actuator_id);
-
   // updates the actuator plugin's entries in act_dot
   // called after native act_dot is computed and before the compute callback
   void (*actuator_act_dot)(const mjModel* m, mjData* d, int instance);
@@ -2117,7 +2114,6 @@ typedef struct mjsActuator_ {      // actuator specification
   mjtDyn dyntype;                  // dynamics type
   double dynprm[mjNDYN];           // dynamics parameters
   int actdim;                      // number of activation variables
-  int plugin_actdim;               // actuator state size for plugins
   mjtByte actearly;                // apply next activations to qfrc
 
   // transmission

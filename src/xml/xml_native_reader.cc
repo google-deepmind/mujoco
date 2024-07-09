@@ -423,10 +423,11 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "9", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
-        {"plugin", "*", "24", "name", "class",  "plugin", "instance", "group",
+        {"plugin", "*", "25", "name", "class",  "plugin", "instance", "group",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "joint", "jointinparent",
-            "site", "dyntype", "dynprm", "tendon", "cranksite", "slidersite", "user", "actearly"},
+            "site", "actdim", "dyntype", "dynprm", "tendon", "cranksite", "slidersite", "user",
+            "actearly"},
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
@@ -2234,6 +2235,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
       pact->actearly = (n==1);
     }
     ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
+    ReadAttrInt(elem, "actdim", &pact->actdim);
   }
 
   else {          // SHOULD NOT OCCUR

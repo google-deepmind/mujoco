@@ -5208,14 +5208,16 @@ void mjCActuator::Compile(void) {
   }
 
   // check and set actdim
-  if (actdim > 1 && dyntype != mjDYN_USER) {
-    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator");
-  }
-  if (actdim == 1 && dyntype == mjDYN_NONE) {
-    throw mjCError(this, "invalid actdim 1 in stateless actuator");
-  }
-  if (actdim == 0 && dyntype != mjDYN_NONE) {
-    throw mjCError(this, "invalid actdim 0 in stateful actuator");
+  if (!plugin.active) {
+    if (actdim > 1 && dyntype != mjDYN_USER) {
+      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator");
+    }
+    if (actdim == 1 && dyntype == mjDYN_NONE) {
+      throw mjCError(this, "invalid actdim 1 in stateless actuator");
+    }
+    if (actdim == 0 && dyntype != mjDYN_NONE) {
+      throw mjCError(this, "invalid actdim 0 in stateful actuator");
+    }
   }
 
   // set actdim

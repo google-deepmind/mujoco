@@ -1343,7 +1343,7 @@ void mjCModel::SetSizes() {
   // nu, na
   for (int i=0; i<actuators_.size(); i++) {
     nu++;
-    na += actuators_[i]->actdim + actuators_[i]->plugin_actdim;
+    na += actuators_[i]->actdim;
   }
 
   // nbvh, nbvhstatic, nbvhdynamic
@@ -2639,7 +2639,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_biastype[i] = pac->biastype;
     m->actuator_trnid[2*i] = pac->trnid[0];
     m->actuator_trnid[2*i+1] = pac->trnid[1];
-    m->actuator_actnum[i] = pac->actdim + pac->plugin_actdim;
+    m->actuator_actnum[i] = pac->actdim;
     m->actuator_actadr[i] = m->actuator_actnum[i] ? adr : -1;
     pac->actadr_ = m->actuator_actadr[i];
     pac->actnum_ = m->actuator_actnum[i];
@@ -3533,13 +3533,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
           sensors_[sensor_id]->needstage =
               static_cast<mjtStage>(plugin->needstage);
           this->nsensordata += nsensordata;
-        }
-      }
-      if ((plugin->capabilityflags & mjPLUGIN_ACTUATOR) && plugin->actuator_actdim) {
-        for (int actuator_id : plugin_to_actuators[i]) {
-          int plugin_actdim = plugin->actuator_actdim(m, i, actuator_id);
-          actuators_[actuator_id]->plugin_actdim = plugin_actdim;
-          this->na += plugin_actdim;
         }
       }
     }

@@ -112,9 +112,6 @@ struct mjpPlugin_ {
 
   // methods specific to actuators (optional)
 
-  // dimension of the actuator state for the plugin (excluding state from actuator's dyntype)
-  int (*actuator_actdim)(const mjModel*m, int instance, int actuator_id);
-
   // updates the actuator plugin's entries in act_dot
   // called after native act_dot is computed and before the compute callback
   void (*actuator_act_dot)(const mjModel* m, mjData* d, int instance);

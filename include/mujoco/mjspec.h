@@ -628,7 +628,6 @@ typedef struct mjsActuator_ {      // actuator specification
   mjtDyn dyntype;                  // dynamics type
   double dynprm[mjNDYN];           // dynamics parameters
   int actdim;                      // number of activation variables
-  int plugin_actdim;               // actuator state size for plugins
   mjtByte actearly;                // apply next activations to qfrc
 
   // transmission

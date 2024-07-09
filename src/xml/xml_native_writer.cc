@@ -757,6 +757,13 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* pact, mjCDef* d
   WriteAttr(elem, "cranklength", 1, &pact->cranklength, &def->Actuator().cranklength);
   WriteAttrKey(elem, "actearly", bool_map, 2, pact->actearly,
                def->Actuator().actearly);
+  // special handling of actdim which has default value of -1
+  if (writingdefaults) {
+    WriteAttrInt(elem, "actdim", pact->actdim, def->Actuator().actdim);
+  } else {
+    int default_actdim = pact->dyntype == mjDYN_NONE ? 0 : 1;
+    WriteAttrInt(elem, "actdim", pact->actdim, default_actdim);
+  }
   WriteAttrKey(elem, "dyntype", dyn_map, dyn_sz, pact->dyntype, def->Actuator().dyntype);
   WriteAttr(elem, "dynprm", mjNDYN, pact->dynprm, def->Actuator().dynprm);
 
@@ -767,13 +774,6 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* pact, mjCDef* d
 
   // non-plugins: write actuator parameters
   else {
-    // special handling of actdim which has default value of -1
-    if (writingdefaults) {
-      WriteAttrInt(elem, "actdim", pact->actdim, def->Actuator().actdim);
-    } else {
-      int default_actdim = pact->dyntype == mjDYN_NONE ? 0 : 1;
-      WriteAttrInt(elem, "actdim", pact->actdim, default_actdim);
-    }
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, pact->gaintype, def->Actuator().gaintype);
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, pact->biastype, def->Actuator().biastype);
     WriteAttr(elem, "gainprm", mjNGAIN, pact->gainprm, def->Actuator().gainprm, true);

@@ -10529,11 +10529,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of activation variables',
              ),
              StructFieldDecl(
-                 name='plugin_actdim',
-                 type=ValueType(name='int'),
-                 doc='actuator state size for plugins',
-             ),
-             StructFieldDecl(
                  name='actearly',
                  type=ValueType(name='mjtByte'),
                  doc='apply next activations to qfrc',
