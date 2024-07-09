@@ -945,7 +945,7 @@ mjvSceneState
 This structure contains the portions of :ref:`mjModel` and :ref:`mjData` that are required for
 various ``mjv_*`` functions.
 
-.. mujoco-include:: mjvScene
+.. mujoco-include:: mjvSceneState
 
 
 .. _mjvFigure:
