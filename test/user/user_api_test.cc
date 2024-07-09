@@ -559,6 +559,11 @@ TEST_F(MujocoTest, AttachDifferent) {
   // check body 2 is attached to body 1
   EXPECT_THAT(m_attached->body_parentid[2], 1);
 
+  // check that the correct defaults are present
+  EXPECT_THAT(mjs_findDefault(parent, "main"), NotNull());
+  EXPECT_THAT(mjs_findDefault(parent, "geom_size"), NotNull());
+  EXPECT_THAT(mjs_findDefault(parent, "attached-cylinder-1"), NotNull());
+
   // compare with expected XML
   mjModel* m_expected = LoadModelFromString(xml_result, er.data(), er.size());
   EXPECT_THAT(m_expected, NotNull()) << er.data();

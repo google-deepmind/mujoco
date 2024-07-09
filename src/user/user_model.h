@@ -165,6 +165,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator=(const mjCModel& other);  // copy other into this, if they are not the same
   mjCModel& operator+=(const mjCModel& other);  // add other into this, even if they are the same
   mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
+  mjCModel_& operator+=(mjCDef& subtree);  // add default tree to this model
 
   mjSpec spec;
 
@@ -333,9 +334,7 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // copy vector of elements to this model
   template <class T> void CopyList(std::vector<T*>& dest,
-                                   const std::vector<T*>& sources,
-                                   std::map<mjCDef*, int>& def_map,
-                                   const std::vector<mjCDef*>& defaults);
+                                   const std::vector<T*>& sources);
 
   // delete from list the elements that are compatible with other but not this model
   template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);

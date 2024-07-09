@@ -1611,9 +1611,12 @@ class mjCDef : public mjsElement {
   mjCDef();
   mjCDef(const mjCDef& other);
   mjCDef& operator=(const mjCDef& other);
+  mjCDef& operator+=(const mjCDef& other);
 
+  void CopyWithoutChildren(const mjCDef& other);
   void PointToLocal(void);
   void CopyFromSpec(void);
+  void NameSpace(const mjCModel* m);
 
   void Compile(const mjCModel* model);
 

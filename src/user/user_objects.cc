@@ -564,24 +564,54 @@ void mjCDef::Compile(const mjCModel* model) {
 // assignment operator
 mjCDef& mjCDef::operator=(const mjCDef& other) {
   if (this != &other) {
-    name = other.name;
-    parent = other.parent;
-    child = other.child;
-    joint_ = other.joint_;
-    geom_ = other.geom_;
-    site_ = other.site_;
-    camera_ = other.camera_;
-    light_ = other.light_;
-    flex_ = other.flex_;
-    mesh_ = other.mesh_;
-    material_ = other.material_;
-    pair_ = other.pair_;
-    equality_ = other.equality_;
-    tendon_ = other.tendon_;
-    actuator_ = other.actuator_;
+    CopyWithoutChildren(other);
+
+    // copy the rest of the default tree
+    *this += other;
   }
-  PointToLocal();
   return *this;
+}
+
+
+
+mjCDef& mjCDef::operator+=(const mjCDef& other) {
+  for (unsigned int i=0; i<other.child.size(); i++) {
+    child.push_back(new mjCDef(*other.child[i]));  // triggers recursive call
+    child.back()->parent = this;
+  }
+  return *this;
+}
+
+
+
+void mjCDef::NameSpace(const mjCModel* m) {
+  if (!name.empty()) {
+    name = m->prefix + name + m->suffix;
+  }
+  for (auto c : child) {
+    c->NameSpace(m);
+  }
+}
+
+
+
+void mjCDef::CopyWithoutChildren(const mjCDef& other) {
+  name = other.name;
+  parent = nullptr;
+  child.clear();
+  joint_ = other.joint_;
+  geom_ = other.geom_;
+  site_ = other.site_;
+  camera_ = other.camera_;
+  light_ = other.light_;
+  flex_ = other.flex_;
+  mesh_ = other.mesh_;
+  material_ = other.material_;
+  pair_ = other.pair_;
+  equality_ = other.equality_;
+  tendon_ = other.tendon_;
+  actuator_ = other.actuator_;
+  PointToLocal();
 }
 
 
@@ -816,6 +846,13 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   mjCBody* subtree = other.body;
   other.model->prefix = other.prefix;
   other.model->suffix = other.suffix;
+
+  // attach defaults
+  if (other.model != model) {
+    mjCDef* subdef = new mjCDef(*other.model->Default());
+    subdef->NameSpace(other.model);
+    *model += *subdef;
+  }
 
   // copy input frame
   frames.push_back(new mjCFrame(other));
@@ -1590,6 +1627,13 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   other.model->suffix = subtree->suffix;
   subtree->SetFrame(this);
   subtree->NameSpace(other.model);
+
+  // attach defaults
+  if (other.model != model) {
+    mjCDef* subdef = new mjCDef(*other.model->Default());
+    subdef->NameSpace(other.model);
+    *model += *subdef;
+  }
 
   // add to body children
   body->bodies.push_back(subtree);

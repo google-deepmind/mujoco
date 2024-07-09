@@ -147,7 +147,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // add everything else
     *this += other;
 
-    // update the default map
+    // create new default tree
+    mjCDef* subtree = new mjCDef(*other.defaults_[0]);
+    *this += *subtree;
     def_map["main"] = Default();
 
     // copy name maps
@@ -163,9 +165,7 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
 // copy vector of elements from another model to this model
 template <class T>
 void mjCModel::CopyList(std::vector<T*>& dest,
-                        const std::vector<T*>& source,
-                        std::map<mjCDef*, int>& def_map,
-                        const std::vector<mjCDef*>& defaults) {
+                        const std::vector<T*>& source) {
   // loop over the elements from the other model
   int nsource = (int)source.size();
   for (int i = 0; i < nsource; i++) {
@@ -220,34 +220,26 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   ProcessLists(/*checkrepeat=*/false);
 
   // copy all elements not in the tree
-  std::map<mjCDef*, int> def_map;
-  int ndefaults = (int)other.defaults_.size();
-  for (int i = 0; i < ndefaults; i++) {
-    if (this != &other) {
-      defaults_.push_back(new mjCDef(*other.defaults_[i]));
-    }
-    def_map[other.defaults_[i]] = i;
-  }
-
   if (this != &other) {
     // do not copy assets for self-attach
-    CopyList(meshes_, other.meshes_, def_map, defaults_);
-    CopyList(skins_, other.skins_, def_map, defaults_);
-    CopyList(hfields_, other.hfields_, def_map, defaults_);
-    CopyList(textures_, other.textures_, def_map, defaults_);
-    CopyList(materials_, other.materials_, def_map, defaults_);
-    CopyList(keys_, other.keys_, def_map, defaults_);
+    // TODO: asset should be copied only when referenced
+    CopyList(meshes_, other.meshes_);
+    CopyList(skins_, other.skins_);
+    CopyList(hfields_, other.hfields_);
+    CopyList(textures_, other.textures_);
+    CopyList(materials_, other.materials_);
+    CopyList(keys_, other.keys_);
   }
-  CopyList(flexes_, other.flexes_, def_map, defaults_);
-  CopyList(pairs_, other.pairs_, def_map, defaults_);
-  CopyList(excludes_, other.excludes_, def_map, defaults_);
-  CopyList(tendons_, other.tendons_, def_map, defaults_);
-  CopyList(equalities_, other.equalities_, def_map, defaults_);
-  CopyList(actuators_, other.actuators_, def_map, defaults_);
-  CopyList(sensors_, other.sensors_, def_map, defaults_);
-  CopyList(numerics_, other.numerics_, def_map, defaults_);
-  CopyList(texts_, other.texts_, def_map, defaults_);
-  CopyList(tuples_, other.tuples_, def_map, defaults_);
+  CopyList(flexes_, other.flexes_);
+  CopyList(pairs_, other.pairs_);
+  CopyList(excludes_, other.excludes_);
+  CopyList(tendons_, other.tendons_);
+  CopyList(equalities_, other.equalities_);
+  CopyList(actuators_, other.actuators_);
+  CopyList(sensors_, other.sensors_);
+  CopyList(numerics_, other.numerics_);
+  CopyList(texts_, other.texts_);
+  CopyList(tuples_, other.tuples_);
 
   // plugins are global
   plugins_ = other.plugins_;
@@ -353,6 +345,24 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   }
 
   PointToLocal();
+  return *this;
+}
+
+
+
+// add default tree to this model
+mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
+  defaults_.push_back(&subtree);
+
+  // set parent to the main default if this is not the only default in the model
+  if (!subtree.parent && &subtree != defaults_[0]) {
+    subtree.parent = defaults_[0];
+    defaults_[0]->child.push_back(&subtree);
+  }
+
+  for (auto def : subtree.child) {
+    *this += *def;  // triggers recursive call
+  }
   return *this;
 }
 
@@ -806,7 +816,7 @@ mjCDef* mjCModel::AddDefault(string name, mjCDef* parent) {
   // initialize contents
   if (parent && parent->id<thisid) {
     parent->CopyFromSpec();
-    *def = *parent;
+    def->CopyWithoutChildren(*parent);
     parent->child.push_back(def);
   }
   def->parent = parent;

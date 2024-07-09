@@ -491,7 +491,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
 
     // add user-specified joints
     else {
-      for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
+      for (auto& defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
         mjsJoint* jnt = mjs_addJoint(b, &defjnt.spec);
         mjs_setDefault(jnt->element, mjs_getDefault(body->element));
       }
