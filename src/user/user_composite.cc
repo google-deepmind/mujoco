@@ -674,7 +674,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjsBody* body, char* error, int err
 
         // create tendon
         mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
-        ten->def = model->Default();
+        ten->classname = model->Default()->name;
         mju::sprintf_arr(txt, "%sT%d_%d_%d", prefix.c_str(), i, ix, iy);
         ten->name = txt;
         ten->WrapSite(txt1);
@@ -1131,7 +1131,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjsBody* body, char* error, int erro
 
   // fixed tendon for all joints
   mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
-  ten->def = model->Default();
+  ten->classname = model->Default()->name;
   mju::sprintf_arr(txt, "%sT", prefix.c_str());
   ten->name = txt;
 
@@ -1245,7 +1245,7 @@ void mjCComposite::MakeShear(mjCModel* model) {
 
       // create tendon
       mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_SHEAR);
-      ten->def = model->Default();
+      ten->classname = model->Default()->name;
       ten->WrapSite(txt1);
       ten->WrapSite(txt2);
 

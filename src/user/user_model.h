@@ -269,6 +269,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   void SaveState(const mjData* d);
   void RestoreState(const mjModel* m, mjData** dest);
 
+  // map from default class name to default class pointer
+  std::map<std::string, mjCDef*> def_map;
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;

@@ -460,7 +460,9 @@ mjSpec* mjs_getSpec(mjsBody* body) {
 
 // get default
 mjsDefault* mjs_getDefault(mjsElement* element) {
-  return &(static_cast<mjCBase*>(element)->def->spec);
+  mjCModel* model = static_cast<mjCBase*>(element)->model;
+  std::string classname = static_cast<mjCBase*>(element)->classname;
+  return &(model->def_map[classname]->spec);
 }
 
 
@@ -569,7 +571,7 @@ int mjs_getId(mjsElement* element) {
 // set default
 void mjs_setDefault(mjsElement* element, mjsDefault* defspec) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->def = static_cast<mjCDef*>(defspec->element);
+  baseC->classname = static_cast<mjCDef*>(defspec->element)->name;
 }
 
 

@@ -110,7 +110,8 @@ mjCModel::mjCModel() {
   world->parentid = 0;
   world->weldid = 0;
   world->name = "world";
-  world->def = defaults_[0];
+  world->classname = "main";
+  def_map["main"] = Default();
   bodies_.push_back(world);
 
   // create mjCBase lists from children lists
@@ -146,6 +147,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // add everything else
     *this += other;
 
+    // update the default map
+    def_map["main"] = Default();
+
     // copy name maps
     for (int i=0; i<mjNOBJECT; i++) {
       ids[i] = other.ids[i];
@@ -179,7 +183,6 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     // copy the element from the other model to this model
     dest.push_back(candidate);
     dest.back()->model = this;
-    dest.back()->def = defaults[def_map[candidate->def]];
     dest.back()->id = -1;
   }
   if (!dest.empty()) {
@@ -249,26 +252,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // plugins are global
   plugins_ = other.plugins_;
   active_plugins_ = other.active_plugins_;
-
-  // update defaults for the copied objects
-  for (int i = 1; i < other.bodies_.size(); i++) {
-    bodies_[i]->def = defaults_[def_map[other.bodies_[i]->def]];
-  }
-  for (int i = 0; i < other.joints_.size(); i++) {
-    joints_[i]->def = defaults_[def_map[other.joints_[i]->def]];
-  }
-  for (int i = 0; i < other.geoms_.size(); i++) {
-    geoms_[i]->def = defaults_[def_map[other.geoms_[i]->def]];
-  }
-  for (int i = 0; i < other.sites_.size(); i++) {
-    sites_[i]->def = defaults_[def_map[other.sites_[i]->def]];
-  }
-  for (int i = 0; i < other.cameras_.size(); i++) {
-    cameras_[i]->def = defaults_[def_map[other.cameras_[i]->def]];
-  }
-  for (int i = 0; i < other.lights_.size(); i++) {
-    lights_[i]->def= defaults_[def_map[other.lights_[i]->def]];
-  }
 
   // restore to the original state
   if (!compiled) {
@@ -573,7 +556,7 @@ template <class T>
 T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   T* obj = new T(this, def ? def : defaults_[0]);
   obj->id = (int)list.size();
-  obj->def = def ? def : defaults_[0];
+  obj->classname = def ? def->name : "main";
   list.push_back(obj);
   return obj;
 }
@@ -829,6 +812,7 @@ mjCDef* mjCModel::AddDefault(string name, mjCDef* parent) {
   def->parent = parent;
   def->name = name;
   def->child.clear();
+  def_map[name] = def;
 
   return def;
 }

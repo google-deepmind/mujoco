@@ -643,7 +643,6 @@ mjCBase::mjCBase() {
   id = -1;
   info = "";
   model = 0;
-  def = 0;
   frame = nullptr;
 }
 
@@ -774,9 +773,6 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     lights.clear();
     id = other.id;
 
-    // copy defaults
-    def = other.def;
-
     // add elements to lists
     *this += other;
   }
@@ -884,7 +880,7 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
     dst.back()->body = this;
     dst.back()->model = model;
     dst.back()->id = -1;
-    dst.back()->def = src[i]->def;
+    dst.back()->classname = src[i]->classname;
 
     // assign dst frame to src frame
     dst.back()->frame = src[i]->frame ? frames[fmap[src[i]->frame]] : nullptr;
@@ -1007,7 +1003,7 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
   mjCBody* obj = new mjCBody(model);
 
   // handle def recursion (i.e. childclass)
-  obj->def = _def ? _def : def;
+  obj->classname = _def ? _def->name : classname;
 
   bodies.push_back(obj);
   return obj;
@@ -1042,7 +1038,7 @@ mjCJoint* mjCBody::AddFreeJoint() {
 // create new joint and add it to body
 mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   // create joint
-  mjCJoint* obj = new mjCJoint(model, _def ? _def : def);
+  mjCJoint* obj = new mjCJoint(model, _def ? _def : model->def_map[classname]);
 
   // set body pointer, add
   obj->body = this;
@@ -1056,7 +1052,7 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
 // create new geom and add it to body
 mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   // create geom
-  mjCGeom* obj = new mjCGeom(model, _def ? _def : def);
+  mjCGeom* obj = new mjCGeom(model, _def ? _def : model->def_map[classname]);
 
   //  set body pointer, add
   obj->body = this;
@@ -1070,7 +1066,7 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
 // create new site and add it to body
 mjCSite* mjCBody::AddSite(mjCDef* _def) {
   // create site
-  mjCSite* obj = new mjCSite(model, _def ? _def : def);
+  mjCSite* obj = new mjCSite(model, _def ? _def : model->def_map[classname]);
 
   // set body pointer, add
   obj->body = this;
@@ -1084,7 +1080,7 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
 // create new camera and add it to body
 mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   // create camera
-  mjCCamera* obj = new mjCCamera(model, _def ? _def : def);
+  mjCCamera* obj = new mjCCamera(model, _def ? _def : model->def_map[classname]);
 
   // set body pointer, add
   obj->body = this;
@@ -1098,7 +1094,7 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
 // create new light and add it to body
 mjCLight* mjCBody::AddLight(mjCDef* _def) {
   // create light
-  mjCLight* obj = new mjCLight(model, _def ? _def : def);
+  mjCLight* obj = new mjCLight(model, _def ? _def : model->def_map[classname]);
 
   // set body pointer, add
   obj->body = this;
@@ -1691,8 +1687,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // point to local
   PointToLocal();
@@ -1899,8 +1894,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // point to local
   PointToLocal();
@@ -2542,8 +2536,7 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 }
 
 
@@ -2688,8 +2681,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // point to local
   PointToLocal();
@@ -2842,8 +2834,7 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   PointToLocal();
   CopyFromSpec();
@@ -3887,8 +3878,7 @@ mjCMaterial::mjCMaterial(mjCModel* _model, mjCDef* _def) {
   }
 
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   PointToLocal();
 
@@ -3974,8 +3964,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // point to local
   PointToLocal();
@@ -4335,8 +4324,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // point to local
   PointToLocal();
@@ -4497,8 +4485,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // point to local
   PointToLocal();
@@ -4975,8 +4962,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
-  def = (_def ? _def : (_model ? _model->Default() : 0));
-  classname = def ? def->name : "";
+  classname = _def ? _def->name : "main";
 
   // in case this actuator is not compiled
   CopyFromSpec();

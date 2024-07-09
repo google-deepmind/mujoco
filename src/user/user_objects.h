@@ -202,7 +202,6 @@ class mjCBase : public mjCBase_ {
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 
-  mjCDef* def;                    // defaults class used to init this object
   mjCFrame* frame;                // pointer to frame transformation
   mjCModel* model;                // pointer to model that created object
 
