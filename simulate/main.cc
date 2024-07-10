@@ -213,6 +213,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   // load and compile
   char loadError[kErrorLength] = "";
   mjModel* mnew = 0;
+  auto load_start = mj::Simulate::Clock::now();
   if (mju::strlen_arr(filename)>4 &&
       !std::strncmp(filename + mju::strlen_arr(filename) - 4, ".mjb",
                     mju::sizeof_arr(filename) - mju::strlen_arr(filename)+4)) {
@@ -222,6 +223,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     }
   } else {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
+
     // remove trailing newline character from loadError
     if (loadError[0]) {
       int error_length = mju::strlen_arr(loadError);
@@ -229,6 +231,13 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
         loadError[error_length-1] = '\0';
       }
     }
+  }
+  auto load_interval = mj::Simulate::Clock::now() - load_start;
+  double load_seconds = Seconds(load_interval).count();
+
+  // if no error and load took more than 1/2 seconds, report load time
+  if (!loadError[0] && load_seconds > 0.5) {
+    mju::sprintf_arr(loadError, "Model loaded in %.1g seconds", load_seconds);
   }
 
   mju::strcpy_arr(sim.load_error, loadError);
