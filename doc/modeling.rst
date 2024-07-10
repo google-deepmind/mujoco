@@ -737,8 +737,7 @@ Automatic computation of actuator length ranges is done at compile time, and the
 mjModel.actuator_lengthrange of the compiled model. If the model is then saved (either as XML or MJB), the computation
 does not need to be repeated at the next load. This is important because the computation can slow down the model
 compiler with large musculo-skeletal models. Indeed we have made the compiler multi-threaded just to speed up this
-operation (different actuators are processed in parallel in different threads). Incidentally, this is why the flag
-'-pthread' is now needed when linking user code against the MuJoCo library on Linux and macOS.
+operation (different actuators are processed in parallel in different threads).
 
 Automatic computation relies on modified physics simulation. For each actuator we apply force (negative when computing
 the minimum, positive when computing the maximum) through the actuator's transmission, advance the simulation in a

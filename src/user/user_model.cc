@@ -24,6 +24,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -51,25 +52,6 @@ namespace mju = ::mujoco::util;
 using std::string;
 using std::vector;
 }  // namespace
-
-// pthread on Linux, std::thread on Mac and Windows
-#if defined(__APPLE__) || defined(_WIN32)
-  #include <thread>
-  using std::thread;
-
-  int getnumproc(void) {
-    return thread::hardware_concurrency();
-  }
-#else
-  #include <pthread.h>
-  #include <sys/sysinfo.h>
-
-  int getnumproc(void) {
-    return get_nprocs();
-  }
-#endif
-
-
 
 //---------------------------------- CONSTRUCTOR AND DESTRUCTOR ------------------------------------
 
@@ -1550,7 +1532,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   }
 
   // number of threads available, max 16
-  const int nthread = mjMIN(16, getnumproc()/2);
+  const int nthread = mjMIN(16, std::thread::hardware_concurrency()/2);
 
   // count actuators that need computation
   int cnt = 0;
@@ -1609,32 +1591,16 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
       err[i][0] = 0;
     }
 
-    // use std::thread
-#if defined(_WIN32) || defined(__APPLE__)
     // launch threads
-    thread th[16];
+    std::thread th[16];
     for (int i=0; i<nthread; i++) {
-      th[i] = thread(LRfunc, arg+i);
+      th[i] = std::thread(LRfunc, arg+i);
     }
 
     // wait for threads to finish
     for (int i=0; i<nthread; i++) {
       th[i].join();
     }
-
-    // use pthread
-#else
-    // launch threads
-    pthread_t th[16];
-    for (int i=0; i<nthread; i++) {
-      pthread_create(th+i, NULL, LRfunc, arg+i);
-    }
-
-    // wait for threads to finish
-    for (int i=0; i<nthread; i++) {
-      pthread_join(th[i], NULL);
-    }
-#endif
 
     // free mjData allocated here
     for (int i=1; i<nthread; i++) {
