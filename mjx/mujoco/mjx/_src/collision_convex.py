@@ -14,9 +14,8 @@
 # ==============================================================================
 """Convex collisions."""
 
-from collections.abc import Callable
 import functools
-from typing import Tuple, Union
+from typing import Callable, Tuple, Union
 
 import jax
 from jax import numpy as jp
