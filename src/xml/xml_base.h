@@ -19,6 +19,7 @@
 #include <string>
 
 #include "tinyxml2.h"
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "xml/xml_util.h"
 
@@ -79,7 +80,7 @@ class mjXBase : public mjXUtil {
   virtual ~mjXBase() = default;
 
   // parse: implemented in derived parser classes
-  virtual void Parse(tinyxml2::XMLElement* root) {};
+  virtual void Parse(tinyxml2::XMLElement* root, const mjVFS* vfs = nullptr) {};
 
   // write: implemented in derived writer class
   virtual std::string Write(char *error, std::size_t error_sz) {

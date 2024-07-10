@@ -697,6 +697,9 @@ void mjCBase::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
+  if (!classname.empty() && m != model) {
+    classname = m->prefix + classname + m->suffix;
+  }
 }
 
 
@@ -999,6 +1002,9 @@ void mjCBody::NameSpace(const mjCModel* m) {
 void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
+  }
+  if (!classname.empty() && m != model) {
+    classname = m->prefix + classname + m->suffix;
   }
 
   for (auto& body : bodies) {
@@ -2004,6 +2010,9 @@ void mjCGeom::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
+  if (!classname.empty() && m != model) {
+    classname = m->prefix + classname + m->suffix;
+  }
   if (!spec_material_.empty() && model != m) {
     spec_material_ = m->prefix + spec_material_ + m->suffix;
   }
@@ -2768,6 +2777,9 @@ void mjCCamera::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
+  if (!classname.empty() && m != model) {
+    classname = m->prefix + classname + m->suffix;
+  }
   if (!spec_targetbody_.empty()) {
     spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
   }
@@ -2916,6 +2928,9 @@ void mjCLight::PointToLocal() {
 void mjCLight::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
+  }
+  if (!classname.empty() && m != model) {
+    classname = m->prefix + classname + m->suffix;
   }
   if (!spec_targetbody_.empty()) {
     spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;

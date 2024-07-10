@@ -110,11 +110,11 @@ Meta elements
 
 These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
 perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
-saving the XML. There are currently five meta-elements in MJCF:
+saving the XML. There are currently six meta-elements in MJCF:
 
 - :ref:`include<include>`, :ref:`frame<frame>`, and :ref:`replicate<replicate>` which are outside of the schema.
-- :ref:`composite<body-composite>` and :ref:`flexcomp<body-flexcomp>` which are part of the schema, but serve to
-  procedurally generate other MJCF elements.
+- :ref:`composite<body-composite>`, :ref:`flexcomp<body-flexcomp>` and :ref:`attach<body-attach>` which are part of the
+  schema, but serve to procedurally generate other MJCF elements.
 
 .. _frame:
 
@@ -1739,6 +1739,24 @@ properties are grouped together.
    definition could in fact come from a defaults class. The remaining material properties always apply.
 
 
+.. _asset-model:
+
+:el-prefix:`asset/` |-| **model** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This element specifies other MJCF models which may be used for :ref:`attachment<body-attach>` in the current model.
+
+.. _asset-model-name:
+
+:at:`name`: :at-val:`string, required`
+   Name of the sub-model, used for referencing in :ref:`attach<body-attach>`. If unspecified, the
+   :ref:`model name<mujoco-model>` is used.
+
+.. _asset-model-file:
+
+:at:`file`: :at-val:`string, required`
+   The file from which the sub-model will be loaded. Note that the sub-model must be a valid MJCF model.
+
+
 .. _body:
 
 **(world)body** (R)
@@ -2816,24 +2834,6 @@ the direction specified by the dir attribute. It does not have a full spatial fr
    The specular color of the light.
 
 
-.. _body-plugin:
-
-:el-prefix:`body/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
-
-.. _body-plugin-plugin:
-
-:at:`plugin`: :at-val:`string, optional`
-   Plugin identifier, used for implicit plugin instantiation.
-
-.. _body-plugin-instance:
-
-:at:`instance`: :at-val:`string, optional`
-   Instance name, used for explicit plugin instantiation.
-
-
 .. _body-composite:
 
 :el-prefix:`body/` |-| **composite** (*)
@@ -3638,10 +3638,71 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
    Instance name, used for explicit plugin instantiation.
 
 
+.. _body-plugin:
+
+:el-prefix:`body/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _body-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _body-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+
+.. _body-attach:
+
+:el-prefix:`body/` |-| **attach** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
+Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from
+one file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model
+must first be defined as an :ref:`asset<model-asset>`. When creating an attachment, the top body of the attached subtree
+is specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are
+also copied into the top-level model. Additionally, any elements referenced from within the attached subtree (e.g.
+defaults and assets) will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving
+all attachments will appear in the saved XML file.
+
+.. admonition:: Known issues
+   :class: attention
+
+   The :el:`attach` meta-element is new and not well tested. Please report any issues you encounter to the development
+   team. Additionally, the following known limitations exist, to be addressed in a future release:
+
+   - The world body cannot be attached.
+   - An entire model cannot be attached (i.e. including all elements, referenced or not).
+   - All assets from the child model will be copied in, whether they are referenced or not.
+   - Self-attach or circular references are not checked for and will lead to infinite loops.
+   - :ref:`Keyframes<keyframe>` are not yet supported. When attaching, all keyframes will be deleted.
+
+.. _body-attach-model:
+
+:at:`model`: :at-val:`string, optional`
+   The sub-model from which to attach a subtree.
+
+.. _body-attach-body:
+
+:at:`body`: :at-val:`string, optional`
+   Name of the body in the sub-model to attach here. The body and its subtree will be attached.
+
+.. _body-attach-prefix:
+
+:at:`prefix`: :at-val:`string, optional`
+   Prefix to prepend to names of elements in the sub-model. If empty, the names are unchanged. This attribute is
+   required to prevent name collisions with the parent or when attaching the same sub-tree multiple times.
+
+
 .. _body-frame:
 
 :el-prefix:`body/` |-| **frame** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
 and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.

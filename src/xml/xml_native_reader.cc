@@ -14,6 +14,7 @@
 
 #include "xml/xml_native_reader.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -38,6 +39,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include <mujoco/mjspec.h>
+#include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
 #include "user/user_util.h"
@@ -243,6 +245,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "hflip", "vflip"},
         {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
             "emission", "specular", "shininess", "reflectance", "metallic", "roughness", "rgba"},
+        {"model", "*", "2", "name", "file"},
     {">"},
 
     {"body", "R", "11", "name", "childclass", "pos", "quat", "mocap",
@@ -267,6 +270,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
               {"config", "*", "2", "key", "value"},
             {">"},
         {">"},
+        {"attach", "*", "3", "model", "body", "prefix"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
         {"camera", "*", "20", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
@@ -805,7 +809,7 @@ void mjXReader::PrintSchema(std::stringstream& str, bool html, bool pad) {
 
 // main entry point for XML parser
 //  mjCModel is allocated here; caller is responsible for deallocation
-void mjXReader::Parse(XMLElement* root) {
+void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
   // check schema
   if (!schema.GetError().empty()) {
     throw mjXError(0, "XML Schema Construction Error: %s\n",
@@ -880,7 +884,7 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = FirstChildElement(root, "asset"); section;
        section = NextSiblingElement(section, "asset")) {
-    Asset(section);
+    Asset(section, vfs);
   }
 
   for (XMLElement* section = FirstChildElement(root, "contact"); section;
@@ -3045,7 +3049,7 @@ void mjXReader::Visual(XMLElement* section) {
 
 
 // asset section parser
-void mjXReader::Asset(XMLElement* section) {
+void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
   int n;
   string text, name, texname, content_type;
   XMLElement* elem;
@@ -3207,6 +3211,27 @@ void mjXReader::Asset(XMLElement* section) {
           mjs_setFloat(phf->userdata, zero.data(), zero.size());
         }
       }
+    }
+
+    // model sub-element
+    else if (name=="model") {
+      auto filename = modelfiledir_ + ReadAttrFile(elem, "file", "").value();
+
+      // parse the child
+      std::array<char, 1024> error;
+      mjSpec* child = mj_parseXML(filename.c_str(), vfs, error.data(), error.size());
+      if (!child) {
+        throw mjXError(elem, "could not parse model file with error: %s", error.data());
+      }
+
+      // overwrite model name if given
+      std::string modelname = "";
+      if (ReadAttrTxt(elem, "name", modelname)) {
+        mjs_setString(child->modelname, modelname.c_str());
+      }
+
+      // store child spec in model
+      mjs_addSpec(model, child);
     }
 
     // advance to next element
@@ -3437,8 +3462,8 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
         Body(elem, subtree, pframe);
 
         // attach to parent
-        if (mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str()) < 0) {
-          throw mjXError(elem, "failed to attach frame");
+        if (mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
+          throw mjXError(elem, mjs_getError(model));
         }
       }
 
@@ -3494,6 +3519,35 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
 
       // make recursive call
       Body(elem, pchild, nullptr);
+    }
+
+    // attachment
+    else if (name=="attach") {
+      std::string model_name, body_name, prefix;
+      ReadAttrTxt(elem, "model", model_name);
+      ReadAttrTxt(elem, "body", body_name);
+      ReadAttrTxt(elem, "prefix", prefix);
+
+      mjsBody* child = mjs_findBody(model, (prefix+body_name).c_str());
+      mjsFrame* pframe = frame ? frame : mjs_addFrame(pbody, nullptr);
+
+      if (!child) {
+        mjSpec* asset = mjs_findSpec(model, model_name.c_str());
+        if (!asset) {
+          throw mjXError(0, "could not find model '%s'", model_name.c_str());
+        }
+        child = mjs_findBody(asset, body_name.c_str());
+        if (!child) {
+          throw mjXError(0, "could not find body '%s''%s'", body_name.c_str());
+        }
+        if (mjs_attachBody(pframe, child, prefix.c_str(), "") != 0) {
+          mj_deleteSpec(asset);
+          throw mjXError(elem, mjs_getError(model));
+        }
+      } else {
+        // only set frame to existing body
+        mjs_setFrame(child->element, pframe);
+      }
     }
 
     // no match

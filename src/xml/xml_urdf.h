@@ -19,6 +19,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "xml/xml_base.h"
 #include "tinyxml2.h"
@@ -41,7 +42,7 @@ class mjXURDF : public mjXBase {
       double* pos,
       double* quat,
       bool static_body);
-  void Parse(tinyxml2::XMLElement* root);             // main parser
+  void Parse(tinyxml2::XMLElement* root, const mjVFS* vfs = nullptr);  // main parser
 
  private:
   std::string GetPrefixedName(const std::string& name);            // get prefix/name of element

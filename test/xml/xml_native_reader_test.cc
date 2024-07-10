@@ -1054,6 +1054,7 @@ TEST_F(XMLReaderTest, DuplicateFrameName) {
 
 
 // ---------------------- test replicate parsing -------------------------------
+
 TEST_F(XMLReaderTest, ParseReplicate) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1253,7 +1254,146 @@ TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
   std::array<char, 1024> error;
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, IsNull()) << error.data();
-  EXPECT_THAT(error.data(), HasSubstr("failed to attach frame"));
+  EXPECT_THAT(error.data(), HasSubstr("repeated name 'b' in actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("Element 'replicate'"));
+}
+
+// ---------------------- test spec assets parsing -----------------------------
+
+TEST_F(XMLReaderTest, ParseSpecAssets) {
+  std::array<char, 1024> er;
+
+  static const char* const kParentPath =
+      "xml/testdata/parent.xml";
+  static const char* const kChildPath =
+      "xml/testdata/child.xml";
+
+  const std::string xml_parent = GetTestDataFilePath(kParentPath);
+  const std::string xml_child = GetTestDataFilePath(kChildPath);
+
+  mjModel* parent = mj_loadXML(xml_parent.c_str(), 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+
+  mjModel* child = mj_loadXML(xml_child.c_str(), 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  mj_deleteModel(parent);
+  mj_deleteModel(child);
+}
+
+TEST_F(XMLReaderTest, AttachSpecAssets) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="xml_child.xml"/>
+    </asset>
+    <worldbody>
+      <body name="parent">
+        <geom name="geom" size="2"/>
+        <replicate count="2" offset="0 0 1">
+          <attach model="child" body="body" prefix="other"/>
+        </replicate>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <geom name="geom" size="1" pos="2 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_expected[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom name="geom" size="2"/>
+        <body name="otherbody0">
+          <geom name="othergeom0" size="1" pos="2 0 0"/>
+        </body>
+        <body name="otherbody1" pos="0 0 1">
+          <geom name="othergeom1" size="1" pos="2 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "xml_child.xml", xml_child, sizeof(xml_child));
+
+  std::array<char, 1024> er;
+  mjModel* model =
+      LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
+  EXPECT_THAT(model, NotNull()) << er.data();
+
+  mjModel* expected = LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(expected, NotNull()) << er.data();
+
+  mjtNum tol = 0;
+  std::string field = "";
+  EXPECT_LE(CompareModel(model, expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';;
+
+  mj_deleteModel(model);
+  mj_deleteModel(expected);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(XMLReaderTest, InvalidAttach) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <asset>
+      <model name="other" file="child.xml"/>
+    </asset>
+    <worldbody>
+      <body name="parent">
+        <joint name="joint1"/>
+        <geom size="2"/>
+        <attach model="other" body="body"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <motor name="actuator" joint="joint1"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco model="child">
+    <worldbody>
+      <body name="body">
+        <joint name="joint2"/>
+        <geom size="1" pos="2 0 0"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <motor name="actuator" joint="joint2"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child.xml", xml_child, sizeof(xml_child));
+
+  std::array<char, 1024> er;
+  mjModel* model =
+      LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
+
+  EXPECT_THAT(model, IsNull()) << er.data();
+  EXPECT_THAT(er.data(), HasSubstr("repeated name 'actuator' in actuator"));
+  EXPECT_THAT(er.data(), HasSubstr("Element 'attach'"));
+  mj_deleteVFS(vfs.get());
 }
 
 // ----------------------- test camera parsing ---------------------------------

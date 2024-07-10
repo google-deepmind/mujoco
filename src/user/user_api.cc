@@ -101,6 +101,7 @@ int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
   try {
     *frame_parent += std::string(prefix) + *child_body + std::string(suffix);
   } catch (mjCError& e) {
+    frame_parent->model->SetError(e);
     return -1;
   }
   return 0;
@@ -116,6 +117,7 @@ int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
   try {
     *body_parent += std::string(prefix) + *child_frame + std::string(suffix);
   } catch (mjCError& e) {
+    body_parent->model->SetError(e);
     return -1;
   }
   return 0;
@@ -154,6 +156,14 @@ int mjs_isWarning(mjSpec* s) {
 void mj_deleteSpec(mjSpec* s) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   delete model;
+}
+
+
+
+// add spec (model asset) to spec
+void mjs_addSpec(mjSpec* s, mjSpec* child) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  model->AppendSpec(child);
 }
 
 
@@ -462,6 +472,14 @@ mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* p
 // get objects
 mjSpec* mjs_getSpec(mjsBody* body) {
   return &(static_cast<mjCBody*>(body->element)->model->spec);
+}
+
+
+
+// find spec (model asset) by name
+mjSpec* mjs_findSpec(mjSpec* s, const char* name) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  return model->FindSpec(name);
 }
 
 

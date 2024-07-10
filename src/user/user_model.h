@@ -192,7 +192,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCTuple* AddTuple();
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
-
+  void AppendSpec(mjSpec* spec);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -209,12 +209,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   // API for access to other variables
   bool IsCompiled() const;                                         // is model already compiled
   const mjCError& GetError() const;                                // get reference of error object
+  void SetError(const mjCError& error) { errInfo = error; }        // set value of error object
   mjCBody* GetWorld();                                             // pointer to world body
   mjCDef* FindDefault(std::string name);                           // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);  // add defaults class to array
   mjCBase* FindObject(mjtObj type, std::string name) const;        // find object given type and name
   mjCBody* FindBody(mjCBody* body, std::string name);              // find body given name
   mjCFrame* FindFrame(mjCBody* body, std::string name) const;      // find frame given name
+  mjSpec* FindSpec(std::string name) const;                        // find spec given name
   bool IsNullPose(const mjtNum* pos, const mjtNum* quat) const;    // detect null pose
   void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
     active_plugins_ = std::move(active_plugins);
@@ -312,6 +314,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::vector<mjCTuple*>    tuples_;      // list of tuple fields
   std::vector<mjCKey*>      keys_;        // list of keyframe fields
   std::vector<mjCPlugin*>   plugins_;     // list of plugin instances
+  std::vector<mjSpec*>      specs_;       // list of specs
 
   // pointers to objects created inside kinematic tree
   std::vector<mjCBody*>   bodies_;   // list of bodies

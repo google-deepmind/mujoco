@@ -39,27 +39,30 @@ General
    :align: right
    :width: 240px
 
-7. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
+7. Add :ref:`attach<body-attach>` meta-element to MJCF, which allows attaching a model to a body.
+8. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
    :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
-8. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
-9. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
-10. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
-11. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
+9. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
+10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
+11. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
+12. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+    :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
+13. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
     `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
     with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
     point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
 
     Relatedly, fixed various type errors that prevented building with single-precision.
-12. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
+14. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
     :ref:`mj_kinematics`. Instead they are normalized when they are used. After the first step, quaternions in
     ``mjData->qpos`` will be normalized.
 
 MJX
 ~~~
-13. Added support for :ref:`elliptic friction cones<option-cone>`.
-14. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-15. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+15. Added support for :ref:`elliptic friction cones<option-cone>`.
+16. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+17. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 
 .. youtube:: P83tKA1iz2Y
@@ -68,14 +71,14 @@ MJX
 
 Simulate
 ^^^^^^^^
-16. Added improved tutorial video.
-17. Improved the Brownian noise generator.
+18. Added improved tutorial video.
+19. Improved the Brownian noise generator.
 
 |br| |br| |br| |br|
 
 Python bindings
 ^^^^^^^^^^^^^^^
-18. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+20. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------

@@ -60,6 +60,9 @@ MJAPI void mj_copyBack(mjSpec* s, const mjModel* m);
 // Delete spec.
 MJAPI void mj_deleteSpec(mjSpec* s);
 
+// Add spec (model asset) to spec.
+MJAPI void mjs_addSpec(mjSpec* s, mjSpec* child);
+
 
 //---------------------------------- Attachment ----------------------------------------------------
 
@@ -181,6 +184,9 @@ MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
 
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(mjsBody* body);
+
+// Find spec (model asset) by name.
+MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 
 // Find body in model by name.
 MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);

@@ -364,7 +364,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
   }
 }
 
-void mjXURDF::Parse(XMLElement* root) {
+void mjXURDF::Parse(XMLElement* root, const mjVFS* vfs) {
   double pos[3] = {0};
   mjuu_setvec(pos, 0, 0, 0);
   double quat[4] = {1, 0, 0, 0};

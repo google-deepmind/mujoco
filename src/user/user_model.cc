@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <array>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
@@ -33,7 +34,6 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjvisualize.h>
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
@@ -338,6 +338,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 // add default tree to this model
 mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
   defaults_.push_back(&subtree);
+  def_map[subtree.name] = &subtree;
 
   // set parent to the main default if this is not the only default in the model
   if (!subtree.parent && &subtree != defaults_[0]) {
@@ -660,6 +661,11 @@ mjCPlugin* mjCModel::AddPlugin() {
 }
 
 
+// append spec to spec
+void mjCModel::AppendSpec(mjSpec* spec) {
+  specs_.push_back(spec);
+}
+
 
 
 //------------------------ API FOR ACCESS TO MODEL ELEMENTS  ---------------------------------------
@@ -881,6 +887,18 @@ mjCFrame* mjCModel::FindFrame(mjCBody* body, std::string name) const{
     }
   }
 
+  return nullptr;
+}
+
+
+
+// find spec by name
+mjSpec* mjCModel::FindSpec(std::string name) const {
+  for (auto spec : specs_) {
+    if (mjs_getString(spec->modelname) == name) {
+      return spec;
+    }
+  }
   return nullptr;
 }
 
@@ -3246,6 +3264,12 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     _mjPRIVATE__set_tls_warning_fn(save_warning);
     return nullptr;
   }
+
+  // destroy attached specs
+  for (auto spec : specs_) {
+    mj_deleteSpec(spec);
+  }
+  specs_.clear();
 
   // restore error handler, mark as compiled, return mjModel
   _mjPRIVATE__set_tls_error_fn(save_error);

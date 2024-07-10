@@ -369,7 +369,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
 
       // parse MuJoCo model
       parser.SetModel(spec);
-      parser.Parse(root);
+      parser.Parse(root, vfs);
     }
 
     else if (!strcasecmp(root->Value(), "robot")) {

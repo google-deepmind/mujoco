@@ -502,8 +502,8 @@ TEST_F(MujocoTest, AttachDifferent) {
             <joint type="hinge" name="attached-hinge-1"/>
             <geom class="attached-cylinder-1" material="attached-material-1"/>
             <light mode="targetbody" target="attached-targetbody-1"/>
-              <body name="attached-targetbody-1"/>
-              <body/>
+            <body name="attached-targetbody-1"/>
+            <body/>
           </body>
         </frame>
       </body>
@@ -618,8 +618,8 @@ TEST_F(MujocoTest, AttachFrame) {
               <joint type="hinge" name="attached-hinge-1"/>
               <geom class="attached-cylinder-1" material="attached-material-1"/>
               <light mode="targetbody" target="attached-targetbody-1"/>
-                <body name="attached-targetbody-1"/>
-                <body/>
+              <body name="attached-targetbody-1"/>
+              <body/>
             </body>
           </frame>
         </frame>
@@ -650,7 +650,7 @@ TEST_F(MujocoTest, AttachFrame) {
   mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
 
-  // get frame
+  // get body
   mjsBody* body = mjs_findBody(parent, "sphere");
   EXPECT_THAT(body, NotNull());
 
@@ -662,7 +662,7 @@ TEST_F(MujocoTest, AttachFrame) {
   mjsFrame* frame = mjs_findFrame(child, "pframe");
   EXPECT_THAT(frame, NotNull());
 
-  // attach child to parent frame
+  // attach child frame to parent body
   EXPECT_THAT(
       mjs_attachFrame(body, frame, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
 
