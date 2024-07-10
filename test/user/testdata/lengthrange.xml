@@ -1,0 +1,44 @@
+<mujoco>
+  <compiler>
+    <lengthrange mode="all"/>
+  </compiler>
+
+  <worldbody>
+    <light pos="0 0 10"/>
+    <site name="a" size=".02"/>
+    <replicate offset="0 .1 0" count="17">
+      <body pos="1 0 1">
+        <joint axis="0 -1 0" range="0 90"/>
+        <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+        <site name="b" pos="0 0 -1"/>
+      </body>
+    </replicate>
+  </worldbody>
+
+  <tendon>
+    <spatial name="b">
+      <site site="a"/>
+      <site site="b"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <position name="b00" tendon="b00" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b01" tendon="b01" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b02" tendon="b02" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b03" tendon="b03" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b04" tendon="b04" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b05" tendon="b05" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b06" tendon="b06" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b07" tendon="b07" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b08" tendon="b08" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b09" tendon="b09" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b10" tendon="b10" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b11" tendon="b11" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b12" tendon="b12" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b13" tendon="b13" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b14" tendon="b14" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b15" tendon="b15" ctrlrange="0 3" kp="100" dampratio="1"/>
+    <position name="b16" tendon="b16" ctrlrange="0 3" kp="100" dampratio="1"/>
+  </actuator>
+</mujoco>

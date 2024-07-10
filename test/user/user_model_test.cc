@@ -15,8 +15,10 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -402,6 +404,45 @@ TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
   mj_deleteModel(model2);
   mj_deleteData(d1);
   mj_deleteData(d2);
+}
+
+// ------------- test lengthrange ----------------------------------------------
+
+using LengthRangeTest = MujocoTest;
+
+TEST_F(LengthRangeTest, LengthRangeThreading) {
+  char error[1024];
+  size_t error_sz = 1024;
+  std::string field = "";
+
+  static const char* const kLengthrangePath =
+      "user/testdata/lengthrange.xml";
+
+  const std::string xml_path1 = GetTestDataFilePath(kLengthrangePath);
+  mjSpec* spec = mj_parseXML(xml_path1.c_str(), 0, error, error_sz);
+  EXPECT_THAT(spec, NotNull()) << error;
+  mjModel* model1 = mj_compile(spec, 0);
+  EXPECT_THAT(model1, NotNull()) << error;
+
+  // model is such that the lengthrange for first actuator is [1, sqrt(5)]
+  EXPECT_THAT(model1->actuator_lengthrange[0], DoubleNear(1.0, 1e-3));
+  EXPECT_THAT(model1->actuator_lengthrange[1],
+              DoubleNear(std::sqrt(5.0), 1e-3));
+
+  // recompile without threads
+  ASSERT_EQ(spec->usethread, 1);
+  spec->usethread = 0;
+  mjModel* model2 = mj_compile(spec, 0);
+  EXPECT_THAT(model2, NotNull()) << error;
+
+  // expect threaded and unthreaded models to be identical
+  EXPECT_LE(CompareModel(model1, model2, field), 0)
+      << "Threaded and unthreaded lengthrange models are different!\n"
+      << "Different field: " << field << '\n';
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec);
 }
 
 }  // namespace
