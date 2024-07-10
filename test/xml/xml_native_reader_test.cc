@@ -1217,6 +1217,45 @@ TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler>
+      <lengthrange mode="all"/>
+    </compiler>
+
+    <worldbody>
+      <light pos="0 0 10"/>
+
+      <replicate offset="0 .1 0" count="2">
+        <site name="a" size=".02"/>
+        <body pos="1 0 1">
+          <joint axis="0 -1 0" range="0 90"/>
+          <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+          <site name="b" pos="0 0 -1"/>
+        </body>
+      </replicate>
+    </worldbody>
+
+    <tendon>
+      <spatial name="b">
+        <site site="a"/>
+        <site site="b"/>
+      </spatial>
+    </tendon>
+
+    <actuator>
+      <position name="b" tendon="b0" ctrlrange="0 3" kp="100" dampratio="1"/>
+      <position name="b" tendon="b1" ctrlrange="0 3" kp="100" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("failed to attach frame"));
+}
+
 // ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {

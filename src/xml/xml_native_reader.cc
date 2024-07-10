@@ -3437,7 +3437,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
         Body(elem, subtree, pframe);
 
         // attach to parent
-        mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str());
+        if (mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str()) < 0) {
+          throw mjXError(elem, "failed to attach frame");
+        }
       }
 
       // delete subtree

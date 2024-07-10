@@ -98,7 +98,11 @@ int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                    const char* prefix, const char* suffix) {
   mjCFrame* frame_parent = static_cast<mjCFrame*>(parent->element);
   mjCBody* child_body = static_cast<mjCBody*>(child->element);
-  *frame_parent += std::string(prefix) + *child_body + std::string(suffix);
+  try {
+    *frame_parent += std::string(prefix) + *child_body + std::string(suffix);
+  } catch (mjCError& e) {
+    return -1;
+  }
   return 0;
 }
 
@@ -109,7 +113,11 @@ int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                     const char* prefix, const char* suffix) {
   mjCBody* body_parent = static_cast<mjCBody*>(parent->element);
   mjCFrame* child_frame = static_cast<mjCFrame*>(child->element);
-  *body_parent += std::string(prefix) + *child_frame + std::string(suffix);
+  try {
+    *body_parent += std::string(prefix) + *child_frame + std::string(suffix);
+  } catch (mjCError& e) {
+    return -1;
+  }
   return 0;
 }
 
