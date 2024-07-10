@@ -17,21 +17,19 @@
 import logging
 import os
 
-import mujoco
-
 from absl.testing import absltest
 from etils import epath
+import mujoco
+
 
 # Open3D and USD are not fully supported on all MuJoCo architectures.
-# pylint: disable=python.style(g-import-not-at-top)
 execute_test = True
 try:
-  from mujoco.usd import exporter as exporter_module
-  from pxr import Usd
+  from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
 except ImportError:
   logging.warning('Skipping test due to missing import')
   execute_test = False
-# pylint: enable=python.style(g-import-not-at-top)
+
 
 class ExporterTest(absltest.TestCase):
 
@@ -52,19 +50,19 @@ class ExporterTest(absltest.TestCase):
     data = mujoco.MjData(model)
     exporter = exporter_module.USDExporter(
         model,
-        output_directory_name="mujoco_usdpkg",
+        output_directory_name='mujoco_usdpkg',
         output_directory_root=output_dir,
     )
     exporter.update_scene(data)
-    exporter.save_scene("export.usda")
+    exporter.save_scene('export.usda')
 
     with open(os.path.join(
-        output_dir, "mujoco_usdpkg/frames", "frame_1_.export.usda"), "r") as f:
+        output_dir, 'mujoco_usdpkg/frames', 'frame_1.export.usda'), 'r') as f:
       golden_path = os.path.join(
-          epath.resource_path("mujoco"), "testdata", "usd_golden.usda")
-      with open(golden_path, "r") as golden_file:
+          epath.resource_path('mujoco'), 'testdata', 'usd_golden.usda')
+      with open(golden_path, 'r') as golden_file:
         self.assertEqual(f.read(), golden_file.read())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   absltest.main()
