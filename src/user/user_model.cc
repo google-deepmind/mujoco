@@ -132,7 +132,10 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // create new default tree
     mjCDef* subtree = new mjCDef(*other.defaults_[0]);
     *this += *subtree;
-    def_map["main"] = Default();
+    for (const auto& [name, def] : other.def_map) {
+      std::size_t index = std::find(other.defaults_.begin(), other.defaults_.end(), def) - other.defaults_.begin();
+      def_map[name] = defaults_[index];
+    }
 
     // copy name maps
     for (int i=0; i<mjNOBJECT; i++) {
