@@ -24,6 +24,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
+#include <absl/strings/str_replace.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
@@ -72,6 +73,7 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::StartsWith;
 
 // ------------- test invalid filenames ----------------------------------------
 
@@ -745,25 +747,56 @@ TEST_F(MjCMeshTest, VolumeNegativeDefaultsLegacy) {
   <mujoco>
     <compiler exactmeshinertia="true"/>
     <asset>
-      <mesh name="example_mesh"
-        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
-        face="3 0 2  0 3 1  1 3 2  0 1 2" />
+      MESH_DEFINITIONS
     </asset>
     <worldbody>
       <body>
-        <geom type="mesh" mesh="example_mesh"/>
+        GEOM_DEFINITIONS
       </body>
     </worldbody>
   </mujoco>
   )";
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
-  EXPECT_LE(mju_abs(model->geom_size[0]), 1);
-  EXPECT_LE(mju_abs(model->geom_size[1]), 1);
-  EXPECT_LE(mju_abs(model->geom_size[2]), 1);
-  EXPECT_THAT(error.data(), HasSubstr("Malformed"));
-  mj_deleteModel(model);
+
+  static constexpr char bad_mesh[] = R"(
+      <mesh name="bad_mesh%d"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="3 0 2  0 3 1  1 3 2  0 1 2"/>\n"
+  )";
+  static constexpr char geom[] = R"(<geom type="mesh" mesh="bad_mesh%d"/>\n)";
+
+  for (int nmesh : {3, 16, 17, 50}) {
+    std::string mesh_definitions = "";
+    for (int i = 1; i < nmesh+1; i++) {
+      mesh_definitions += absl::StrFormat(bad_mesh, i);
+    }
+
+    std::string geom_definitions = "";
+    for (int i = 1; i < nmesh+1; i++) {
+      geom_definitions += absl::StrFormat(geom, i);
+    }
+
+    std::string xml_str = xml;
+    absl::StrReplaceAll({{"MESH_DEFINITIONS", mesh_definitions},
+                         {"GEOM_DEFINITIONS", geom_definitions}}, &xml_str);
+
+    std::array<char, 1024> error;
+    mjModel* model = LoadModelFromString(xml_str.c_str(),
+                                         error.data(), error.size());
+    EXPECT_THAT(model, NotNull()) << error.data();
+    EXPECT_LE(mju_abs(model->geom_size[0]), 1);
+    EXPECT_LE(mju_abs(model->geom_size[1]), 1);
+    EXPECT_LE(mju_abs(model->geom_size[2]), 1);
+
+    EXPECT_THAT(error.data(), StartsWith("Malformed mesh 'bad_mesh1'"));
+
+    // first 7 warnings fit in the length-500 warning buffer
+    for (int i = 2; i < mjMIN(nmesh+1, 8); ++i) {
+      std::string msg = "Malformed mesh 'bad_mesh" + std::to_string(i);
+      EXPECT_THAT(error.data(), HasSubstr(msg));
+    }
+
+    mj_deleteModel(model);
+  }
 }
 
 TEST_F(MjCMeshTest, VolumeTooSmallAllowedWorld) {

@@ -261,6 +261,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear objects allocated by Compile
   void Clear();
 
+  // multi-threaded mesh compilation
+  void CompileMeshes(const mjVFS* vfs);
+
   // if asset name is missing, set to filename
   template<class T> void SetDefaultNames(std::vector<T*>& assets);
 

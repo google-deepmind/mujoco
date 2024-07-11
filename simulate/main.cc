@@ -235,9 +235,9 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   auto load_interval = mj::Simulate::Clock::now() - load_start;
   double load_seconds = Seconds(load_interval).count();
 
-  // if no error and load took more than 1/2 seconds, report load time
-  if (!loadError[0] && load_seconds > 0.5) {
-    mju::sprintf_arr(loadError, "Model loaded in %.1g seconds", load_seconds);
+  // if no error and load took more than 1/4 seconds, report load time
+  if (!loadError[0] && load_seconds > 0.25) {
+    mju::sprintf_arr(loadError, "Model loaded in %.2g seconds", load_seconds);
   }
 
   mju::strcpy_arr(sim.load_error, loadError);

@@ -1376,7 +1376,7 @@ void mjCMesh::Process() {
 
     // perform computation with convex mesh if volume is negative
     if (GetVolumeRef(type) <= 0 && exactmeshinertia) {
-      mju_warning("Malformed mesh %s, computing mesh inertia from convex hull", name.c_str());
+      mju_warning("Malformed mesh '%s', computing mesh inertia from convex hull", name.c_str());
       exactmeshinertia = false;
       ComputeVolume(CoM, type, facecen, exactmeshinertia);
     }

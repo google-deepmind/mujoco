@@ -57,12 +57,13 @@ General
 14. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
     :ref:`mj_kinematics`. Instead they are normalized when they are used. After the first step, quaternions in
     ``mjData->qpos`` will be normalized.
+15. Mesh loading in the compiler, which is usually the slowest part of the loading process, is now multi-threaded.
 
 MJX
 ~~~
-15. Added support for :ref:`elliptic friction cones<option-cone>`.
-16. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-17. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+16. Added support for :ref:`elliptic friction cones<option-cone>`.
+17. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+18. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 
 .. youtube:: P83tKA1iz2Y
@@ -71,18 +72,17 @@ MJX
 
 Simulate
 ^^^^^^^^
-18. Added improved tutorial video.
-19. Improved the Brownian noise generator.
-
-|br| |br| |br| |br|
+19. Added improved tutorial video.
+20. Improved the Brownian noise generator.
+21. Now displaying model load times if they are longer than 0.25 seconds.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-20. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+22. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
 
 Bug fixes
 ^^^^^^^^^
-21. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
+23. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
     correctly (:github:issue:`1710`).
 
 Version 3.1.6 (Jun 3, 2024)

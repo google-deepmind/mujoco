@@ -3664,7 +3664,7 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
 Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from
 one file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model
-must first be defined as an :ref:`asset<model-asset>`. When creating an attachment, the top body of the attached subtree
+must first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree
 is specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are
 also copied into the top-level model. Additionally, any elements referenced from within the attached subtree (e.g.
 defaults and assets) will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving
