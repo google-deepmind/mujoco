@@ -418,6 +418,9 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     data_copy = copy.copy(self.data)
     self.assertEqual(data_copy.ncon, 2)
 
+    # Make sure contact details are copied.
+    self.assertEqual(data_copy.contact[0].dist, self.data.contact[0].dist)
+
     # Make sure it's a copy.
     mujoco.mj_resetData(self.model, self.data)
     mujoco.mj_forward(self.model, self.data)

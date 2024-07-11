@@ -80,6 +80,11 @@ Python bindings
 ^^^^^^^^^^^^^^^
 20. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
 
+Bug fixes
+^^^^^^^^^
+21. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
+    correctly (:github:issue:`1710`).
+
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
 

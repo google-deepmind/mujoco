@@ -1265,10 +1265,24 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   }
 
   // copy arena memory
+#undef MJ_D
+#define MJ_D(n) (src->n)
+#undef MJ_M
+#define MJ_M(n) (m->n)
 #define X(type, name, nr, nc)  \
-  dest->name = src->name ? (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)) : NULL;
+  if (src->name) { \
+    dest->name = (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)); \
+    memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*nr*nc); \
+  } else { \
+    dest->name = NULL; \
+  }
+
   MJDATA_ARENA_POINTERS
 #undef X
+#undef MJ_M
+#define MJ_M(n) n
+#undef MJ_D
+#define MJ_D(n) n
 
   // restore contact pointer
   dest->contact = dest->arena;
