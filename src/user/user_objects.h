@@ -846,7 +846,10 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
  private:
   void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
-  bool LoadCachedOBJ(const mjCAsset& asset);  // load OBJ from cache asset, return true on success
+  // load OBJ from cache asset, return true on success
+  bool LoadCachedOBJ(mjCCache *cache, const mjResource* resource);
+  // put OBJ into asset cache
+  void CacheOBJ(mjCCache *cache, const mjResource* resource);
   void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
   void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
   void LoadSDF();                             // generate mesh using marching cubes
@@ -863,6 +866,12 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   // mesh data to be copied into mjModel
   double* center_;                    // face circumcenter data (3*nface)
   int* graph_;                        // convex graph data
+
+  // for caching purposes
+  std::vector<int> vertex_index_;
+  std::vector<int> normal_index_;
+  std::vector<int> texcoord_index_;
+  std::vector<unsigned char> num_face_vertices_;
 
   // compute the volume and center-of-mass of the mesh given the face center
   void ComputeVolume(double CoM[3], mjtGeomInertia type, const double facecen[3],

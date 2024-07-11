@@ -18,10 +18,12 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <random>
 #include <sstream>
@@ -47,9 +49,91 @@
 
 namespace {
 namespace mju = ::mujoco::util;
-using std::string;
-using std::vector;
+
+class PNGImage {
+ public:
+  static PNGImage Load(const mjCBase* obj, mjResource* resource,
+                       LodePNGColorType color_type);
+  int Width() const { return width_; }
+  int Height() const { return height_; }
+  uint8_t operator[] (int i) const { return data_[i]; }
+  std::vector<unsigned char>& MoveData() { return data_; }
+
+ private:
+  std::size_t Size() const {
+    return data_.size() + (3 * sizeof(int));
+  }
+
+  int width_;
+  int height_;
+  LodePNGColorType color_type_;
+  std::vector<uint8_t> data_;
+};
+
+PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
+                        LodePNGColorType color_type) {
+  PNGImage image;
+  image.color_type_ = color_type;
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+
+  // try loading from cache
+  if (cache && cache->PopulateData(resource, [&image](const void* data) {
+    const PNGImage *cached_image = static_cast<const PNGImage*>(data);
+    if (cached_image->color_type_ == image.color_type_) {
+      image = *cached_image;
+    }
+  })) {
+    if (!image.data_.empty()) return image;
+  }
+
+  // open PNG resource
+  const unsigned char* buffer;
+  int nbuffer = mju_readResource(resource, (const void**) &buffer);
+
+  if (nbuffer < 0) {
+    throw mjCError(obj, "could not read PNG file '%s'", resource->name);
+  }
+
+  if (!nbuffer) {
+    throw mjCError(obj, "empty PNG file '%s'", resource->name);
+  }
+
+  // decode PNG from buffer
+  unsigned int w, h;
+  unsigned err = lodepng::decode(image.data_, w, h,
+                                 buffer, nbuffer, image.color_type_, 8);
+
+  // check for errors
+  if (err) {
+    std::stringstream ss;
+    ss << "error decoding PNG file '" << resource->name << "': " << lodepng_error_text(err);
+    throw mjCError(obj, "%s", ss.str().c_str());
+  }
+
+  image.width_ = w;
+  image.height_ = h;
+
+  if (image.width_ <= 0 || image.height_ < 0) {
+    std::stringstream ss;
+    ss << "error decoding PNG file '" << resource->name << "': " << "dimensions are invalid";
+    throw mjCError(obj, "%s", ss.str().c_str());
+  }
+
+  // insert raw image data into cache
+  if (cache) {
+    PNGImage *cached_image = new PNGImage(image);;
+    std::size_t size = image.Size();
+    std::shared_ptr<const void> cached_data(cached_image, +[](const void* data) {
+      delete static_cast<const PNGImage*>(data);
+    });
+    cache->Insert("", resource, cached_data, size);
+  }
+
+  return image;
+}
+
 }  // namespace
+
 
 // utiility function for checking size parameters
 static void checksize(double* size, mjtGeom type, mjCBase* object, const char* name, int id) {
@@ -90,92 +174,6 @@ static bool islimited(int limited, const double range[2]) {
   }
   return false;
 }
-
-
-
-// fetches cached image from PNG asset, returns nullopt if not available
-static std::optional<std::vector<unsigned char>>
-LoadCachedPNG(mjCAsset& asset, unsigned& w, unsigned& h, LodePNGColorType color_type) {
-  if (!asset.HasData("dims") || !asset.HasData("image")) {
-    return std::nullopt;
-  }
-
-  std::vector<unsigned int> dims
-      = asset.GetVector<unsigned int>("dims").value();
-  auto maybe_cached_image = asset.GetVector<unsigned char>("image");
-
-  if (dims.size() != 3) {
-    return std::nullopt;
-  }
-
-  if ((maybe_cached_image->size() != dims[0] * dims[1]) || (color_type != dims[2])) {
-    return std::nullopt;
-  }
-
-  w = dims[0];
-  h = dims[1];
-
-  return maybe_cached_image;
-}
-
-
-
-// decodes PNG images from the given resource
-std::vector<unsigned char> LoadPNG(const mjCBase* obj, mjResource* resource,
-                                   unsigned& w, unsigned& h, LodePNGColorType color_type) {
-  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
-
-  // try loading from cache
-  if (cache) {
-    auto asset = cache->Get(resource->name);
-    if (asset.has_value() &&
-        !mju_isModifiedResource(resource, asset->Timestamp().c_str())) {
-      auto maybe_cached_image = LoadCachedPNG(asset.value(), w, h, color_type);
-      if (maybe_cached_image.has_value()) {
-        return maybe_cached_image.value();
-      }
-    }
-  }
-
-  // open PNG resource
-  const unsigned char* buffer;
-  int buffer_sz = mju_readResource(resource, (const void**) &buffer);
-
-  if (buffer_sz < 0) {
-    throw mjCError(obj, "could not read PNG file '%s'", resource->name);
-  }
-
-  if (!buffer_sz) {
-    throw mjCError(obj, "empty PNG file '%s'", resource->name);
-  }
-
-  // decode PNG from buffer
-  std::vector<unsigned char> image;
-  unsigned err = lodepng::decode(image, w, h, buffer, buffer_sz, color_type, 8);
-
-  // check for errors
-  if (err) {
-    std::stringstream ss;
-    ss << "error decoding PNG file '" << resource->name << "': " << lodepng_error_text(err);
-    throw mjCError(obj, "%s", ss.str().c_str());
-  }
-
-  if (!w || !h) {
-    throw mjCError(obj, "error decoding PNG file '%s': zero dimension", resource->name);
-  }
-
-  // insert raw image data into cache
-  if (cache) {
-    mjCAsset asset("", resource->name, resource->timestamp);
-    asset.AddVector("dims", std::vector<unsigned>{w, h, static_cast<unsigned int>(color_type)});
-    asset.AddVector("image", image);
-    cache->Insert(std::move(asset));
-  }
-
-  return image;
-}
-
-
 
 //------------------------- class mjCError implementation ------------------------------------------
 
@@ -705,7 +703,7 @@ void mjCBase::NameSpace(const mjCModel* m) {
 
 
 // load resource if found (fallback to OS filesystem)
-mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
+mjResource* mjCBase::LoadResource(std::string filename, const mjVFS* vfs) {
   // try reading from provided VFS
   mjResource* r = mju_openVfsResource(filename.c_str(), vfs);
 
@@ -1200,7 +1198,7 @@ mjCBase* mjCBody::GetObject(mjtObj type, int id) {
 
 // find object by name in given list
 template <class T>
-static T* findobject(string name, vector<T*>& list) {
+static T* findobject(std::string name, std::vector<T*>& list) {
   for (unsigned int i=0; i<list.size(); i++) {
     if (list[i]->name == name) {
       return list[i];
@@ -1213,7 +1211,7 @@ static T* findobject(string name, vector<T*>& list) {
 
 
 // recursive find by name
-mjCBase* mjCBody::FindObject(mjtObj type, string _name, bool recursive) {
+mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
   mjCBase* res = 0;
 
   // check self: just in case
@@ -1308,7 +1306,7 @@ void mjCBody::GeomFrame(void) {
   int sz;
   double com[3] = {0, 0, 0};
   double toti[6] = {0, 0, 0, 0, 0, 0};
-  vector<mjCGeom*> sel;
+  std::vector<mjCGeom*> sel;
 
   // select geoms based on group
   sel.clear();
@@ -3103,11 +3101,10 @@ void mjCHField::LoadCustom(mjResource* resource) {
 
 // load elevation data from PNG format
 void mjCHField::LoadPNG(mjResource* resource) {
-  unsigned w, h;
-  std::vector<unsigned char> image = ::LoadPNG(this, resource, w, h, LCT_GREY);
+  PNGImage image = PNGImage::Load(this, resource, LCT_GREY);
 
-  ncol = w;
-  nrow = h;
+  ncol = image.Width();
+  nrow = image.Height();
 
   // copy image data over with rows reversed
   data.reserve(nrow * ncol);
@@ -3161,7 +3158,7 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
+    std::string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -3525,7 +3522,10 @@ void mjCTexture::BuiltinCube(void) {
 void mjCTexture::LoadPNG(mjResource* resource,
                          std::vector<unsigned char>& image,
                          unsigned int& w, unsigned int& h) {
-  image = ::LoadPNG(this, resource, w, h, LCT_RGB);
+  PNGImage png_image = PNGImage::Load(this, resource, LCT_RGB);
+  w = png_image.Width();
+  h = png_image.Height();
+  image = png_image.MoveData();
 }
 
 
@@ -3570,7 +3570,7 @@ void mjCTexture::LoadCustom(mjResource* resource,
 
 
 // load from PNG or custom file, flip if specified
-void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
+void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   std::string asset_type = GetAssetContentType(filename, content_type_);
@@ -3646,7 +3646,7 @@ void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
 
 
 // load 2D
-void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
+void mjCTexture::Load2D(std::string filename, const mjVFS* vfs) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
@@ -3669,7 +3669,7 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
 
 
 // load cube or skybox from single file (repeated or grid)
-void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
+void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this, "gridsize must be non-zero and no more than 12 squares in texture");
@@ -3779,7 +3779,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // make filename
-      string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, cubefiles_[i]);
+      std::string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, cubefiles_[i]);
 
       // load PNG or custom
       unsigned int w, h;
@@ -3877,7 +3877,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // make filename
-    string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, file_);
+    std::string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, file_);
 
     // dispatch
     if (type==mjTEXTURE_2D) {
@@ -4113,7 +4113,7 @@ void mjCPair::ResolveReferences(const mjCModel* m) {
 
   // swap if body1 > body2
   if (geom1->body->id > geom2->body->id) {
-    string nametmp = geomname1_;
+    std::string nametmp = geomname1_;
     geomname1_ = geomname2_;
     geomname2_ = nametmp;
 
@@ -4337,7 +4337,7 @@ void mjCBodyPair::ResolveReferences(const mjCModel* m) {
 
   // swap if body1 > body2
   if (pb1->id > pb2->id) {
-    string nametmp = bodyname1_;
+    std::string nametmp = bodyname1_;
     bodyname1_ = bodyname2_;
     bodyname2_ = nametmp;
 
@@ -4639,7 +4639,7 @@ void mjCTendon::SetModel(mjCModel* _model) {
 
 
 // add site as wrap object
-void mjCTendon::WrapSite(string name, std::string_view info) {
+void mjCTendon::WrapSite(std::string name, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
   wrap->info = info;
@@ -4654,7 +4654,7 @@ void mjCTendon::WrapSite(string name, std::string_view info) {
 
 
 // add geom (with side site) as wrap object
-void mjCTendon::WrapGeom(string name, string sidesite, std::string_view info) {
+void mjCTendon::WrapGeom(std::string name, std::string sidesite, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
   wrap->info = info;
@@ -4670,7 +4670,7 @@ void mjCTendon::WrapGeom(string name, string sidesite, std::string_view info) {
 
 
 // add joint as wrap object
-void mjCTendon::WrapJoint(string name, double coef, std::string_view info) {
+void mjCTendon::WrapJoint(std::string name, double coef, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
   wrap->info = info;

@@ -21,13 +21,13 @@
 #include <cstring>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <mujoco/mjspec.h>
+#include <mujoco/mujoco.h>
 #include "user/user_api.h"
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
@@ -68,9 +68,6 @@
 extern "C" {
 #include "qhull_ra.h"
 }
-
-using std::string;
-using std::vector;
 
 // compute triangle area, surface normal, center
 static double _triangle(double* normal, double* center,
@@ -337,7 +334,41 @@ void mjCMesh::LoadSDF() {
   delete[] field;
 }
 
+void mjCMesh::CacheOBJ(mjCCache* cache, const mjResource* resource) {
+  if (cache == nullptr) return;
 
+  // cache mesh data into new mesh object
+  mjCMesh *mesh =  new mjCMesh();
+  mesh->vert_ = vert_;
+  mesh->normal_ = normal_;
+  mesh->texcoord_ = texcoord_;
+  mesh->face_ = face_;
+  mesh->facetexcoord_ = facetexcoord_;
+  mesh->facenormal_ = facenormal_;
+  mesh->vertex_index_ = vertex_index_;
+  mesh->normal_index_ = normal_index_;
+  mesh->texcoord_index_ = texcoord_index_;
+  mesh->num_face_vertices_ = num_face_vertices_;
+
+  // calculate estimated size of mesh
+  std::size_t size = sizeof(mjCMesh)
+      + (sizeof(float) * vert_.size())
+      + (sizeof(float) * normal_.size())
+      + (sizeof(float) * texcoord_.size())
+      + (sizeof(int) * face_.size())
+      + (sizeof(int) * facetexcoord_.size())
+      + (sizeof(int) * facenormal_.size())
+      + (sizeof(int) * vertex_index_.size())
+      + (sizeof(int) * normal_index_.size())
+      + (sizeof(int) * texcoord_index_.size())
+      + (sizeof(unsigned char) * num_face_vertices_.size());
+
+  std::shared_ptr<const void> cached_data(mesh, +[](const void* data) {
+    const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
+    delete mesh;
+  });
+  cache->Insert("", resource, cached_data, size);
+}
 
 // compiler
 void mjCMesh::Compile(const mjVFS* vfs) {
@@ -368,14 +399,19 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
+    std::string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
       if (asset_type == "model/stl") {
         LoadSTL(resource);
       } else if (asset_type == "model/obj") {
-        LoadOBJ(resource);
+        // try loading from cache
+        mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+        if (!cache || !LoadCachedOBJ(cache, resource)) {
+          LoadOBJ(resource);
+          CacheOBJ(cache, resource);
+        }
       } else {
         LoadMSH(resource);
       }
@@ -855,18 +891,6 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
   tinyobj::ObjReader objReader;
   const void* bytes = nullptr;
 
-  // try loading from cache
-  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
-  if (cache) {
-    auto asset = cache->Get(resource->name);
-    if (asset.has_value() &&
-        !mju_isModifiedResource(resource, asset->Timestamp().c_str())) {
-      if (LoadCachedOBJ(asset.value())) {
-        return;
-      }
-    }
-  }
-
   int buffer_sz = mju_readResource(resource, &bytes);
   if (buffer_sz < 0) {
     throw mjCError(this, "could not read OBJ file '%s'", resource->name);
@@ -933,108 +957,83 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
     texcoord_[2*i+1] = 1-texcoord_[2*i+1];
   }
 
-  // try caching asset
-  if (cache) {
-    mjCAsset asset("", resource->name, resource->timestamp);
+  // save some partial data for caching
+  if (!objReader.GetShapes().empty()) {
+    const auto& mesh = objReader.GetShapes()[0].mesh;
+    num_face_vertices_ = mesh.num_face_vertices;
 
-    asset.AddVector("vert_", vert_);
-    asset.AddVector("normal_", normal_);
-    asset.AddVector("texcoord_", texcoord_);
+    vertex_index_.reserve(mesh.indices.size());
+    normal_index_.reserve(mesh.indices.size());
+    texcoord_index_.reserve(mesh.indices.size());
 
-    if (!objReader.GetShapes().empty()) {
-      const auto& mesh = objReader.GetShapes()[0].mesh;
-      std::vector<int> vertex_index;
-      vertex_index.reserve(mesh.indices.size());
-
-      std::vector<int> normal_index;
-      normal_index.reserve(mesh.indices.size());
-
-      std::vector<int> texcoord_index;
-      texcoord_index.reserve(mesh.indices.size());
-
-      for (tinyobj::index_t index : mesh.indices) {
-        vertex_index.push_back(index.vertex_index);
-        normal_index.push_back(index.normal_index);
-        texcoord_index.push_back(index.texcoord_index);
-      }
-
-      asset.AddVector("num_face_vertices", mesh.num_face_vertices);
-      asset.AddVector("vertex_index", vertex_index);
-      asset.AddVector("normal_index", normal_index);
-      asset.AddVector("texcoord_index", texcoord_index);
-    } else {
-      asset.AddVector("num_face_vertices", std::vector<unsigned char>());
-      asset.AddVector("vertex_index", std::vector<int>());
-      asset.AddVector("normal_index", std::vector<int>());
-      asset.AddVector("texcoord_index", std::vector<int>());
+    for (tinyobj::index_t index : mesh.indices) {
+      vertex_index_.push_back(index.vertex_index);
+      normal_index_.push_back(index.normal_index);
+      texcoord_index_.push_back(index.texcoord_index);
     }
-    cache->Insert(std::move(asset));
   }
 }
 
 
 
 // load OBJ from cached asset, return true on success
-bool mjCMesh::LoadCachedOBJ(const mjCAsset& asset) {
+bool mjCMesh::LoadCachedOBJ(mjCCache *cache, const mjResource* resource) {
   // check that asset has all data
-  if (!asset.HasData("vert_") || !asset.HasData("normal_")
-      || !asset.HasData("texcoord_") || !asset.HasData("num_face_vertices")
-      || !asset.HasData("vertex_index") || !asset.HasData("normal_index")
-      || !asset.HasData("texcoord_index")) {
+  if (!cache->PopulateData(resource, [&](const void* data) {
+    const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
+    vert_ = mesh->vert_;
+    normal_ = mesh->normal_;
+    texcoord_ = mesh->texcoord_;
+    vertex_index_ = mesh->vertex_index_;
+    normal_index_ = mesh->normal_index_;
+    texcoord_index_ = mesh->texcoord_index_;
+    num_face_vertices_ = mesh->num_face_vertices_;
+  })) {
     return false;
   }
-  vert_ = asset.GetVector<float>("vert_").value();
-  normal_ = asset.GetVector<float>("normal_").value();
-  texcoord_ = asset.GetVector<float>("texcoord_").value();
-
-  vector<int> vertex_index = asset.GetVector<int>("vertex_index").value();
-  vector<int> normal_index = asset.GetVector<int>("normal_index").value();
-  vector<int> texcoord_index = asset.GetVector<int>("texcoord_index").value();
-  vector<unsigned char> num_face_vertices =
-      asset.GetVector<unsigned char>("num_face_vertices").value();
 
   bool righthand = (scale[0] * scale[1] * scale[2]) > 0;
 
 
-  for (int face = 0, i = 0; i < vertex_index.size();) {
-    int nfacevert = num_face_vertices[face];
+  for (int face = 0, i = 0; i < vertex_index_.size();) {
+    int nfacevert = num_face_vertices_[face];
     if (nfacevert < 3 || nfacevert > 4) {
       throw mjCError(
           this, "only tri or quad meshes are supported for OBJ (file '%s')",
-          asset.Id().c_str());
+          resource->name);
     }
 
-    face_.push_back(vertex_index[i]);
-    face_.push_back(vertex_index[i + (righthand == 1 ? 1 : 2)]);
-    face_.push_back(vertex_index[i + (righthand == 1 ? 2 : 1)]);
+    face_.push_back(vertex_index_[i]);
+    face_.push_back(vertex_index_[i + (righthand == 1 ? 1 : 2)]);
+    face_.push_back(vertex_index_[i + (righthand == 1 ? 2 : 1)]);
 
     if (!normal_.empty()) {
-      facenormal_.push_back(normal_index[i]);
-      facenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
-      facenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+      facenormal_.push_back(normal_index_[i]);
+      facenormal_.push_back(normal_index_[i + (righthand == 1 ? 1 : 2)]);
+      facenormal_.push_back(normal_index_[i + (righthand == 1 ? 2 : 1)]);
     }
 
     if (!texcoord_.empty()) {
-      facetexcoord_.push_back(texcoord_index[i]);
-      facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
-      facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+      facetexcoord_.push_back(texcoord_index_[i]);
+      facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 1 : 2)]);
+      facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 2 : 1)]);
     }
 
     if (nfacevert == 4) {
-      face_.push_back(vertex_index[i]);
-      face_.push_back(vertex_index[i + (righthand == 1 ? 2 : 3)]);
-      face_.push_back(vertex_index[i + (righthand == 1 ? 3 : 2)]);
+      face_.push_back(vertex_index_[i]);
+      face_.push_back(vertex_index_[i + (righthand == 1 ? 2 : 3)]);
+      face_.push_back(vertex_index_[i + (righthand == 1 ? 3 : 2)]);
 
       if (!normal_.empty()) {
-        facenormal_.push_back(normal_index[i]);
-        facenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
-        facenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+        facenormal_.push_back(normal_index_[i]);
+        facenormal_.push_back(normal_index_[i + (righthand == 1 ? 1 : 2)]);
+        facenormal_.push_back(normal_index_[i + (righthand == 1 ? 2 : 1)]);
       }
 
       if (!texcoord_.empty()) {
-        facetexcoord_.push_back(texcoord_index[i]);
-        facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
-        facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+        facetexcoord_.push_back(texcoord_index_[i]);
+        facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 1 : 2)]);
+        facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 2 : 1)]);
       }
     }
     i += nfacevert;
@@ -2086,12 +2085,12 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     }
 
     // load SKN
-    string ext = mjuu_getext(file_);
+    std::string ext = mjuu_getext(file_);
     if (strcasecmp(ext.c_str(), ".skn")) {
       throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
+    std::string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
     mjResource* resource = LoadResource(filename, vfs);
 
     try {
@@ -2152,7 +2151,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // set total vertex weights to 0
-  vector<float> vw;
+  std::vector<float> vw;
   size_t nvert = vert_.size()/3;
   vw.resize(nvert);
   fill(vw.begin(), vw.end(), 0.0f);
@@ -2520,7 +2519,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // process elements
   for (int e=0; e<(int)elem_.size()/(dim+1); e++) {
     // make sorted copy of element
-    vector<int> el;
+    std::vector<int> el;
     el.assign(elem_.begin()+e*(dim+1), elem_.begin()+(e+1)*(dim+1));
     std::sort(el.begin(), el.end());
 
@@ -2555,7 +2554,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // compute global vertex positions
-  vertxpos = vector<double> (3*nvert);
+  vertxpos = std::vector<double> (3*nvert);
   for (int i=0; i < nvert; i++) {
     // get body id, set vertxpos = body.xpos0
     int b = rigid ? vertbodyid[0] : vertbodyid[i];
@@ -2702,17 +2701,17 @@ void mjCFlex::CreateBVH(void) {
 
 // create shells and element-vertex collision pairs
 void mjCFlex::CreateShellPair(void) {
-  vector<vector<int>> fragspec(nelem*(dim+1));   // [sorted frag vertices, elem, original frag vertices]
-  vector<vector<int>> connectspec;               // [elem1, elem2, common sorted frag vertices]
-  vector<bool> border(nelem, false);             // is element on the border
-  vector<bool> borderfrag(nelem*(dim+1), false); // is fragment on the border
+  std::vector<std::vector<int>> fragspec(nelem*(dim+1));   // [sorted frag vertices, elem, original frag vertices]
+  std::vector<std::vector<int>> connectspec;               // [elem1, elem2, common sorted frag vertices]
+  std::vector<bool> border(nelem, false);              // is element on the border
+  std::vector<bool> borderfrag(nelem*(dim+1), false);  // is fragment on the border
 
   // make fragspec
   for (int e=0; e<nelem; e++) {
     int n = e*(dim+1);
 
     // element vertices in original (unsorted) order
-    vector<int> el;
+    std::vector<int> el;
     el.assign(elem_.begin()+n, elem_.begin()+n+dim+1);
 
     // line: 2 vertex fragments
@@ -2797,13 +2796,13 @@ void mjCFlex::CreateShellPair(void) {
   int cnt = 1;
   for (int n=1; n<nelem*(dim+1); n++) {
     // extract frag vertices, without elem
-    vector<int> previous = {fragspec[n-1].begin(), fragspec[n-1].begin()+dim};
-    vector<int> current = {fragspec[n].begin(), fragspec[n].begin()+dim};
+    std::vector<int> previous = {fragspec[n-1].begin(), fragspec[n-1].begin()+dim};
+    std::vector<int> current = {fragspec[n].begin(), fragspec[n].begin()+dim};
 
     // same sequential fragments
     if (previous==current) {
       // found pair of elements connected by common fragment
-      vector<int> connect;
+      std::vector<int> connect;
       connect.insert(connect.end(), fragspec[n-1][dim]);
       connect.insert(connect.end(), fragspec[n][dim]);
       connect.insert(connect.end(), fragspec[n].begin(), fragspec[n].begin()+dim);
@@ -2843,10 +2842,10 @@ void mjCFlex::CreateShellPair(void) {
 
   // compute elemlayer (distance from border) via value iteration in 3D
   if (dim<3) {
-    elemlayer = vector<int> (nelem, 0);
+    elemlayer = std::vector<int> (nelem, 0);
   }
   else {
-    elemlayer = vector<int> (nelem, nelem+1);   // init with greater than max value
+    elemlayer = std::vector<int> (nelem, nelem+1);   // init with greater than max value
     for (int e=0; e<nelem; e++) {
       if (border[e]) {
         elemlayer[e] = 0;                       // set border elements to 0
@@ -2878,7 +2877,7 @@ void mjCFlex::CreateShellPair(void) {
     for (const auto& connect : connectspec) {
       if (border[connect[0]] || border[connect[1]]) {
         // extract common fragment
-        vector<int> frag = {connect.begin()+2, connect.end()};
+        std::vector<int> frag = {connect.begin()+2, connect.end()};
 
         // process both elements
         for (int ei=0; ei < 2; ei++) {
