@@ -234,5 +234,21 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.sensors[1].name, 'sensor2')
     self.assertEqual(spec.sensors[2].name, 'sensor3')
 
+  def test_iterators(self):
+    spec = mujoco.MjSpec()
+    geom1 = spec.worldbody.add_geom()
+    geom2 = spec.worldbody.add_geom()
+    geom3 = spec.worldbody.add_geom()
+    geom1.name = 'geom1'
+    geom2.name = 'geom2'
+    geom3.name = 'geom3'
+    geom = spec.worldbody.first_geom()
+    i = 1
+    while geom:
+      self.assertEqual(geom.name, 'geom' + str(i))
+      geom = spec.worldbody.next_geom(geom)
+      i += 1
+
+
 if __name__ == '__main__':
   absltest.main()
