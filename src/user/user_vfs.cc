@@ -14,8 +14,6 @@
 
 #include "user/user_vfs.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstring>
 #include <cstdint>
@@ -31,9 +29,11 @@
 
 namespace {
 
+using mujoco::user::FilePath;
+
 // internal struct for VFS files
 struct VFSFile {
-  std::string filename;
+  FilePath filename;
   std::vector<uint8_t> filedata;
   std::size_t filesize;
   uint64_t filestamp;
@@ -43,18 +43,18 @@ struct VFSFile {
 class VFS {
  public:
   // returns true if the file exists in the VFS
-  bool HasFile(const std::string& filename) const;
+  bool HasFile(const FilePath& filename) const;
 
   // returns inserted mjuuVFSFile if the file was added successfully. This class
   // assumes ownership of the buffer.
-  VFSFile* AddFile(const std::string& filename, std::vector<uint8_t>&& buffer,
+  VFSFile* AddFile(const FilePath& filename, std::vector<uint8_t>&& buffer,
                    uint64_t filestamp);
 
   // returns the internal file struct for the given filename
-  const VFSFile* GetFile(const std::string& filename) const;
+  const VFSFile* GetFile(const FilePath& filename) const;
 
   // deletes file from VFS, return 0: success, -1: not found
-  int DeleteFile(const std::string& filename);
+  int DeleteFile(const FilePath& filename);
 
  private:
   std::unordered_map<std::string, VFSFile> files_;
@@ -66,13 +66,8 @@ inline VFS* GetVFSImpl(const mjVFS* vfs) {
 }
 
 // strip path prefix from filename and make lowercase
-std::string StripPath(const char* name) {
-  std::string newname = mjuu_strippath(name);
-
-  // make lowercase
-  std::transform(newname.begin(), newname.end(), newname.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-  return newname;
+FilePath StripPath(const char* filename) {
+  return FilePath(filename).StripPath().Lower();
 }
 
 // copies data into a buffer and produces a hash of the data
@@ -103,13 +98,13 @@ uint64_t vfs_hash(const std::vector<uint8_t>& buffer) {
   return hash;
 }
 
-bool VFS::HasFile(const std::string& filename) const {
-  return files_.find(filename) != files_.end();
+bool VFS::HasFile(const FilePath& filename) const {
+  return files_.find(filename.Str()) != files_.end();
 }
 
-VFSFile* VFS::AddFile(const std::string& filename, std::vector<uint8_t>&& buffer,
+VFSFile* VFS::AddFile(const FilePath& filename, std::vector<uint8_t>&& buffer,
                       uint64_t filestamp) {
-  auto [it, inserted] = files_.insert({filename, VFSFile()});
+  auto [it, inserted] = files_.insert({filename.Str(), VFSFile()});
   if (!inserted) {
     return nullptr;  // repeated name
   }
@@ -119,16 +114,16 @@ VFSFile* VFS::AddFile(const std::string& filename, std::vector<uint8_t>&& buffer
   return &(it->second);
 }
 
-const VFSFile* VFS::GetFile(const std::string& filename) const {
-  auto it = files_.find(filename);
+const VFSFile* VFS::GetFile(const FilePath& filename) const {
+  auto it = files_.find(filename.Str());
   if (it == files_.end()) {
     return nullptr;
   }
   return &it->second;
 }
 
-int VFS::DeleteFile(const std::string& filename) {
-  auto it = files_.find(filename);
+int VFS::DeleteFile(const FilePath& filename) {
+  auto it = files_.find(filename.Str());
   if (it == files_.end()) {
     return -1;
   }
@@ -221,10 +216,10 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   VFS* cvfs = GetVFSImpl(vfs);
 
   // make full name
-  std::string fullname = mjuu_combinePaths(directory, filename);
+  FilePath fullname = FilePath(directory, filename);
 
   // strip path
-  std::string newname = StripPath(filename);
+  FilePath newname = StripPath(filename);
 
   // check beforehand for repeated name, to avoid reading file into memory
   if (cvfs->HasFile(newname)) {

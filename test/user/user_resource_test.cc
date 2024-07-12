@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for user/user_resource.c
+// Tests for user/user_resource.cc
 
 #include <array>
 #include <cstdint>

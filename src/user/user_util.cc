@@ -14,12 +14,18 @@
 
 #include "user/user_util.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
@@ -934,3 +940,131 @@ std::string mjuu_extToContentType(std::string_view filename) {
     return "";
   }
 }
+
+namespace mujoco::user {
+
+std::string FilePath::Combine(const std::string& s1, const std::string& s2) {
+  // str2 has absolute path
+  if (!AbsPrefix(s2).empty()) {
+    return s2;
+  }
+
+  std::size_t n = s1.size();
+  if (n > 0 && s1[n - 1] != '\\' && s1[n - 1] != '/') {
+    return s1 + "/" + s2;
+  }
+  return s1 + s2;
+}
+
+std::string FilePath::PathReduce(const std::string& str) {
+  std::vector<std::string> dirs;
+  std::string abs_prefix = AbsPrefix(str);
+
+  int j = abs_prefix.size();
+
+  for (int i = j; i < str.size(); ++i) {
+    if (IsSeperator(str[i])) {
+      std::string temp = str.substr(j, i - j);
+      j = i + 1;
+      if (temp == ".." && !dirs.empty()) {
+        dirs.pop_back();
+      } else if (temp != ".") {
+        dirs.push_back(std::move(temp));
+      }
+    }
+  }
+
+  // push the rest of the string
+  dirs.push_back(str.substr(j, str.size() - j));
+
+  // join the path
+  std::stringstream path;
+  auto it = dirs.begin();
+  path << abs_prefix << *it++;
+  for (; it != dirs.end(); ++it) {
+    path << "/" << *it;
+  }
+  return path.str();
+}
+
+FilePath FilePath::operator+(const FilePath& path) const {
+  return FilePath(path_, path.path_);
+}
+
+std::string FilePath::Ext() const {
+  std::size_t n = path_.find_last_of('.');
+
+  if (n == std::string::npos) {
+    return "";
+  }
+  return path_.substr(n, path_.size() - n);
+}
+
+FilePath FilePath::StripExt() const {
+  size_t n = path_.find_last_of('.');
+
+  // no extension
+  if (n == std::string::npos) {
+    return FilePathFast(path_);
+  }
+
+  // return path without extension
+  return FilePathFast(path_.substr(0, n));
+}
+
+
+// is directory absolute path
+std::string FilePath::AbsPrefix(const std::string& str) {
+  // empty: not absolute
+  if (str.empty()) {
+    return "";
+  }
+
+  // path is scheme:filename which we consider an absolute path
+  // e.g. file URI's are always absolute paths
+  const mjpResourceProvider* provider = mjp_getResourceProvider(str.c_str());
+  if (provider != nullptr) {
+    std::size_t n = std::strlen(provider->prefix);
+    return str.substr(0, n + 1);
+  }
+
+  // check first char
+  if (str[0] == '\\' || str[0] == '/') {
+    return str.substr(0, 1);
+  }
+
+  // find ":/" or ":\"
+  std::size_t pos = str.find(":/");
+  if (pos != std::string::npos) {
+    return str.substr(0, pos + 2);
+  }
+
+  pos = str.find(":\\");
+  if (pos != std::string::npos) {
+    return str.substr(0, pos + 2);
+  }
+
+  return "";
+}
+
+FilePath FilePath::StripPath() const {
+  // find last path symbol
+  std::size_t n = path_.find_last_of("/\\");
+
+  // no path
+  if (n == std::string::npos) {
+    return FilePathFast(path_);
+  }
+
+  return FilePathFast(path_.substr(n + 1, path_.size() - (n + 1)));
+}
+
+std::string FilePath::StrLower() const {
+  std::string str = path_;
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return str;
+}
+
+}  // namespace mujoco::user
+
