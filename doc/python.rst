@@ -465,6 +465,49 @@ Alternatively, if a callback is implemented in a native dynamic library, users c
 it to ``mujoco.set_mjcb_foo``. The bindings will then retrieve the underlying function pointer and assign it directly to
 the raw callback pointer, and the GIL will **not** be acquired each time the callback is entered.
 
+.. _PyModelEdit:
+
+Model editing
+=============
+The :doc:`Model Editing<programming/modeledit>` framework which allows for procedural model manipulation is exposed
+via Python. In many ways this API is conceptually similar to ``dm_control``'s
+`PyMJCF module <https://github.com/google-deepmind/dm_control/tree/main/dm_control/mjcf#readme>`__, where ``MjSpec``
+plays the role of ``mjcf_model``. The largest difference between these two APIs is speed. Native model manipulation via
+``MjSpec`` is around ~100x faster than PyMJCF.
+
+Below is a simple example of how to use the model editing API. For more examples, please refer to
+`specs_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/specs_test.py>`__.
+
+.. code-block:: python
+
+   import mujoco
+   spec = mujoco.MjSpec()
+   body = spec.worldbody.add_body()
+   body.pos = [1, 2, 3]
+   body.quat = [0, 1, 0, 0]
+   geom = body.add_geom()
+   geom.name = 'my_geom'
+   geom.type = mujoco.mjtGeom.mjGEOM_SPHERE
+   geom.size[0] = 1
+   geom.rgba = [1, 0, 0, 1]
+   ...
+   model = spec.compile()
+
+.. admonition:: Missing features
+   :class: attention
+
+   We are aware of multiple missing features in the Python API, including:
+
+   - Convenient constructors like:
+     |br| :python:`geom = body.add_geom(name='my_geom', size=[1, 1, 1], rgba=[1, 0, 0, 1])`
+   - Better tree traversal utilities like :python:`children = body.children()` etc.
+   - PyMJCF's notion of "binding", allowing access to :ref:`mjModel` and :ref:`mjData` values via the associated ``mjs``
+     elements.
+
+   There are certainly other missing features that we are not aware of. Please contact us on GitHub with feature
+   requests or bug reports and we will prioritize accordingly.
+
+
 .. _PyBuild:
 
 Building from source

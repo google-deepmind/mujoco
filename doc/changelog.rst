@@ -5,65 +5,68 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+New features
+^^^^^^^^^^^^
+
+1. Introduced a major new feature: **procedural model creation and editing**, using a new top-level data-structure
+   :ref:`mjSpec`. See the :doc:`Model Editing<programming/modeledit>` chapter for details.
+   Note that as of this release this feature is still in testing and subject to future breaking changes.
+   Fixes :github:issue:`364`.
+
 General
 ^^^^^^^
+
 .. admonition:: Breaking API changes
    :class: attention
 
-   1. Removed deprecated ``mj_makeEmptyFileVFS`` and ``mj_findFileVFS`` functions. The constants ``mjMAXVFS`` and
+   2. Removed deprecated ``mj_makeEmptyFileVFS`` and ``mj_findFileVFS`` functions. The constants ``mjMAXVFS`` and
       ``mjMAXVFSNAME`` are also removed as they are no longer needed.
 
       **Migration:** Use :ref:`mj_addBufferVFS` to copy a buffer into a VFS file directly.
 
-   2. Calls to :ref:`mj_defaultVFS` may allocate memory inside VFS, and the corresponding
+   3. Calls to :ref:`mj_defaultVFS` may allocate memory inside VFS, and the corresponding
       :ref:`mj_deleteVFS` must be called to deallocate any internal allocated memory.
 
-   3. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+   4. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
       :ref:`mju_mulMatTVec3`. These function names and argument order are more consistent with the rest of the API.
       The older functions have been removed from the Python bindings and will be removed from the C API in the next
       release.
-   4. Removed the ``actuator_actdim`` callback from actuator plugins. They now have the ``actdim`` attribute, which
+   5. Removed the ``actuator_actdim`` callback from actuator plugins. They now have the ``actdim`` attribute, which
       must be used with actuators that write state to the ``act`` array. This fixed a crash which happend when
       keyframes were used in a model with stateful actuator plugins. The PID plugin will give an error when the wrong
       value of actdim is provided.
 
-5. The :ref:`VFS<Virtualfilesystem>` implementation has been rewritten in C++ and is now considerably more efficient in
+6. Added :ref:`attach<body-attach>` meta-element to MJCF, which allows :ref:`attaching<meAttachment>` a subtree from a
+   different model to a body in the current model.
+7. The :ref:`VFS<Virtualfilesystem>` implementation has been rewritten in C++ and is now considerably more efficient in
    speed and memory footprint.
-
-6. Added a new API for :doc:`procedural model manipulation<programming/modeledit>`. Fixes :github:issue:`364`.
-   Still missing:
-
-   - Detailed documentation.
 
 .. youtube:: ZXBTEIDWHhs
    :align: right
    :width: 240px
 
-7. Add :ref:`attach<body-attach>` meta-element to MJCF, which allows attaching a model to a body.
 8. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
    :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
 9. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
 11. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
-12. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
-    :ref:`mju_mulMatTVec3`. These functions names and argument ordering are more consistent with the rest of the API.
-13. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
+12. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
     `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
     with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
     point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
 
     Relatedly, fixed various type errors that prevented building with single-precision.
-14. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
+13. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
     :ref:`mj_kinematics`. Instead they are normalized when they are used. After the first step, quaternions in
     ``mjData->qpos`` will be normalized.
-15. Mesh loading in the compiler, which is usually the slowest part of the loading process, is now multi-threaded.
+14. Mesh loading in the compiler, which is usually the slowest part of the loading process, is now multi-threaded.
 
 MJX
 ~~~
-16. Added support for :ref:`elliptic friction cones<option-cone>`.
-17. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
-18. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
+15. Added support for :ref:`elliptic friction cones<option-cone>`.
+16. Fixed a bug that resulted in less-optimal linesearch solutions for some difficult constraint settings.
+17. Fixed a bug in the Newton solver that sometimes resulted in less-optimal gradients.
 
 
 .. youtube:: P83tKA1iz2Y
@@ -72,17 +75,17 @@ MJX
 
 Simulate
 ^^^^^^^^
-19. Added improved tutorial video.
-20. Improved the Brownian noise generator.
-21. Now displaying model load times if they are longer than 0.25 seconds.
+18. Added improved tutorial video.
+19. Improved the Brownian noise generator.
+20. Now displaying model load times if they are longer than 0.25 seconds.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-22. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+21. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
 
 Bug fixes
 ^^^^^^^^^
-23. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
+22. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
     correctly (:github:issue:`1710`).
 
 Version 3.1.6 (Jun 3, 2024)

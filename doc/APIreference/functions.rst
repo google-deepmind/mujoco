@@ -56,7 +56,17 @@ mj_recompile
 
 .. mujoco-include:: mj_recompile
 
-Recompile spec to model, preserving the state.
+Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
+:ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
+reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
+:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
+struct pointers while editing the model programmatically.
+
+.. admonition:: Incomplete implementation
+   :class: attention
+
+   This function is currently incomplete, preserving only ``mjData.qpos`` and ``mjData.qvel``.
 
 .. _mj_saveLastXML:
 
@@ -2682,7 +2692,8 @@ Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:
 All outputs are optional.
 
 
-These functions provide high level manipulation for :ref:`mjSpec` structs, which represent an uncompiled :ref:`mjModel`.
+These functions provide high level manipulation for the :ref:`mjSpec` struct, which represents an
+uncompiled :ref:`mjModel`.
 
 .. _Plugins-api:
 

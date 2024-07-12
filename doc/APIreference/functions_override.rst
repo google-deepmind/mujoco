@@ -29,6 +29,20 @@ The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and c
 a valid mjModel, or NULL - in which case the user should check the error information in the user-provided string.
 The model and all files referenced in it can be loaded from disk or from a VFS when provided.
 
+.. _mj_recompile:
+
+Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
+:ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
+reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
+:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
+struct pointers while editing the model programmatically.
+
+.. admonition:: Incomplete implementation
+   :class: attention
+
+   This function is currently incomplete, preserving only ``mjData.qpos`` and ``mjData.qvel``.
+
 .. _Mainsimulation:
 
 These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
@@ -638,5 +652,5 @@ All outputs are optional.
 
 .. _SpecManip:
 
-These functions provide high level manipulation for :ref:`mjSpec` structs, which represent an uncompiled :ref:`mjModel`.
-
+These functions provide high level manipulation for the :ref:`mjSpec` struct, which represents an
+uncompiled :ref:`mjModel`.

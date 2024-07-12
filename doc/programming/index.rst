@@ -110,7 +110,7 @@ To build MuJoCo from source, you will need CMake and a working C++17 compiler in
 
 #. Clone the ``mujoco`` repository from GitHub.
 #. Create a new build directory somewhere, and ``cd`` into it.
-#. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
+#. Run :shell:`cmake $PATH_TO_CLONED_REPO` to configure the build.
 #. Run ``cmake --build .`` to build.
 
 MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
@@ -123,11 +123,11 @@ section of the documentation.
 Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
 target directory.
 
-5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
+5. Select the directory: :shell:`cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>`
 #. After building, install with ``cmake --install .``
 
 When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
-installed (see `here <https://github.com/google-deepmind/mujoco/issues/862>`__ for more details).
+installed (see :github:issue:`862` for more details).
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
@@ -198,7 +198,7 @@ the symbol :ref:`mjVERSION_HEADER <glNumeric>` and the library provides the func
 .. code-block:: C
 
    // recommended version check
-   if( mjVERSION_HEADER!=mj_version() )
+   if (mjVERSION_HEADER!=mj_version())
      complain();
 
 Note that only the main header defines this symbol. We assume that the collection of headers released with each software

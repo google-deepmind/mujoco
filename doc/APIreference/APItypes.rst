@@ -1078,12 +1078,13 @@ is initialized, others change at runtime.
 
 .. _tySpecStructure:
 
-mjSpec
-^^^^^^
+Model Editing
+^^^^^^^^^^^^^
 
-The strucs below are defined in `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
-and, with the exception of the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix.
-For more details, see the :doc:`Model Editing <../programming/modeledit>` chapter.
+The strucs below are defined in
+`mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__ and, with the exception of
+the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix. For more details, see the :doc:`Model Editing
+<../programming/modeledit>` chapter.
 
 .. _mjSpec:
 
@@ -1375,6 +1376,8 @@ Plugin specification.
 .. mujoco-include:: mjsPlugin
 
 
+.. _ArrayHandles:
+
 .. _mjString:
 
 .. _mjStringVec:
@@ -1392,7 +1395,8 @@ Plugin specification.
 Array handles
 ~~~~~~~~~~~~~
 
-Explain how handles work.
+C handles for C++ strings and vector types. When using from C, use the provided :ref:`getters<AttributeGetters>` and
+:ref:`setters<AttributeSetters>`.
 
 .. code-block:: C++
 
