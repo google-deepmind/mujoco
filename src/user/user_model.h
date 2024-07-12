@@ -20,6 +20,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -276,7 +277,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void RestoreState(const mjModel* m, mjData** dest);
 
   // map from default class name to default class pointer
-  std::map<std::string, mjCDef*> def_map;
+  std::unordered_map<std::string, mjCDef*> def_map;
 
  private:
   // settings for each defaults class
