@@ -37,14 +37,14 @@ using tinyxml2::XMLElement;
 
 // base constructor
 mjXBase::mjXBase() {
-  model = NULL;
+  spec = NULL;
 }
 
 
 
 // set model field
 void mjXBase::SetModel(const mjSpec* _model) {
-  model = (mjSpec*)_model;
+  spec = (mjSpec*)_model;
 }
 
 

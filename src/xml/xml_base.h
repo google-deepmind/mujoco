@@ -94,7 +94,7 @@ class mjXBase : public mjXUtil {
   static int ReadAlternative(tinyxml2::XMLElement* elem, mjsOrientation& alt);
 
  protected:
-  mjSpec* model;                    // internally-allocated model
+  mjSpec* spec;                    // internally-allocated model
 };
 
 #endif  // MUJOCO_SRC_XML_XML_BASE_H_
