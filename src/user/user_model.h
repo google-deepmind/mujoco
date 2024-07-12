@@ -342,8 +342,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void CopyList(std::vector<T*>& dest,
                                    const std::vector<T*>& sources);
 
-  // delete from list the elements that are compatible with other but not this model
-  template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
+  // delete from list the elements that cause an error
+  template <class T> void RemoveFromList(std::vector<T*>& list);
 
   // create mjCBase lists from children lists
   void CreateObjectLists();

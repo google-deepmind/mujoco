@@ -168,6 +168,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
       candidate->ResolveReferences(this);
     } catch (mjCError err) {
       // if not present, skip the element
+      // TODO: do not skip elements that contain user errors
       delete candidate;
       continue;
     }
@@ -256,25 +257,20 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
 
 
 template <class T>
-void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
+void mjCModel::RemoveFromList(std::vector<T*>& list) {
   int nlist = (int)list.size();
   int removed = 0;
   for (int i = 0; i < nlist; i++) {
     T* element = list[i];
     element->id -= removed;
     try {
-      // check if the element contains an error
-      element->NameSpace(&other);
-      element->CopyFromSpec();
-      element->ResolveReferences(&other);
-    } catch (mjCError err) {
-      continue;
-    }
-    try {
       // check if the element references something that was removed
+      // TODO: do not remove elements that contain user errors
       element->NameSpace(this);
+      element->CopyFromSpec();
       element->ResolveReferences(this);
     } catch (mjCError err) {
+      ids[element->elemtype].erase(element->name);
       delete element;
       list.erase(list.begin() + i);
       nlist--;
@@ -315,12 +311,12 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   ProcessLists(/*checkrepeat=*/false);
 
   // check if we have to remove anything else
-  RemoveFromList(pairs_, oldmodel);
-  RemoveFromList(excludes_, oldmodel);
-  RemoveFromList(tendons_, oldmodel);
-  RemoveFromList(equalities_, oldmodel);
-  RemoveFromList(actuators_, oldmodel);
-  RemoveFromList(sensors_, oldmodel);
+  RemoveFromList(pairs_);
+  RemoveFromList(excludes_);
+  RemoveFromList(tendons_);
+  RemoveFromList(equalities_);
+  RemoveFromList(actuators_);
+  RemoveFromList(sensors_);
 
   // restore to the original state
   if (!compiled) {
