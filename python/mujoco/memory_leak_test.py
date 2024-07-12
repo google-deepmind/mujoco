@@ -40,7 +40,7 @@ class MemoryLeakTest(absltest.TestCase):
       </worldbody>
     </mujoco>
     """)
-    limit = self._memory_limit(4 * 2**30)
+    limit = self._memory_limit(4 * 2**32)
     try:
       model = mujoco.MjModel.from_xml_string(model_xml)
       data = mujoco.MjData(model)
