@@ -3322,8 +3322,9 @@ void CompileMesh(mjCMesh* mesh, const mjVFS* vfs, std::exception_ptr& exception,
 void mjCModel::CompileMeshes(const mjVFS* vfs) {
   std::vector<std::thread> threads;
   int nmesh = meshes_.size();
-  int hardware_threads = std::thread::hardware_concurrency();
-  int nthread = std::max(1, std::min(kMaxCompilerThreads, hardware_threads / 2));
+  int hardware_threads = std::thread::hardware_concurrency() / 2;
+  int maxthread = std::min(nmesh, std::min(kMaxCompilerThreads, hardware_threads));
+  int nthread = std::max(1, maxthread);
 
   threads.reserve(nthread);
 
@@ -3445,7 +3446,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetNuser();
 
   // compile meshes (needed for geom compilation)
-  if (usethread) {
+  if (usethread && meshes_.size() > 1) {
     // multi-threaded mesh compile
     CompileMeshes(vfs);
   } else {
