@@ -726,7 +726,7 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
 
 TEST_F(XMLWriterTest, WritesFrameDefaults) {
   static constexpr char xml[] = R"(
-  <mujoco>
+  <mujoco model="test">
     <default>
       <default class="dframe">
         <geom size=".1"/>
@@ -741,24 +741,53 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
       <body name="body">
         <frame pos="0 1 0" name="f2" childclass="dframe">
           <geom pos="0 1 0"/>
-          <body pos="1 0 0">
-            <geom pos="0 0 1"/>
-          </body>
+          <frame pos="0 1 0" name="f3">
+            <frame pos="0 1 0" name="f4">
+              <body pos="1 0 0">
+                <geom pos="0 0 1"/>
+              </body>
+            </frame>
+          </frame>
         </frame>
       </body>
     </worldbody>
   </mujoco>
   )";
+
+  static constexpr char xml_expected[] = R"(<mujoco model="test">
+  <compiler angle="radian"/>
+
+  <default>
+    <default class="dframe">
+      <geom size="0.1 0 0"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="body">
+      <frame name="f2" childclass="dframe">
+        <geom pos="0 2 0"/>
+        <frame name="f3" childclass="dframe">
+          <frame name="f4" childclass="dframe">
+            <body pos="1 3 0">
+              <geom pos="0 0 1"/>
+            </body>
+          </frame>
+        </frame>
+      </frame>
+    </body>
+    <frame name="f1">
+      <geom size="0.5" quat="0.906308 0 0 0.422618"/>
+    </frame>
+  </worldbody>
+</mujoco>
+)";
+
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, NotNull()) << error.data();
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f1\""));
-  EXPECT_THAT(saved_xml, HasSubstr("frame name=\"f2\" childclass=\"dframe\">"));
-  EXPECT_THAT(saved_xml, HasSubstr("geom pos=\"0 2 0\""));
-  EXPECT_THAT(saved_xml, HasSubstr("body pos=\"1 1 0\""));
-  EXPECT_THAT(saved_xml, HasSubstr("geom pos=\"0 0 1\""));
-  EXPECT_THAT(saved_xml, Not(HasSubstr("<frame>")));
+  EXPECT_STREQ(saved_xml.c_str(), xml_expected);
   mj_deleteModel(model);
 }
 

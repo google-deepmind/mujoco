@@ -867,7 +867,7 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   Extension(root);
   Custom(root);
   Asset(root);
-  Body(InsertEnd(root, "worldbody"), model->GetWorld());
+  Body(InsertEnd(root, "worldbody"), model->GetWorld(), nullptr);
   Contact(root);
   Deformable(root);
   Equality(root);
@@ -1526,14 +1526,17 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame) {
 
   XMLElement* frame_elem = InsertEnd(elem, "frame");
   WriteAttrTxt(frame_elem, "name", frame->name);
-  WriteAttrTxt(frame_elem, "childclass", frame->classname);
+  if (frame->classname != "main") {
+    WriteAttrTxt(frame_elem, "childclass", frame->classname);
+  }
   return frame_elem;
 }
 
 
 
 // recursive body and frame writer
-void mjXWriter::Body(XMLElement* elem, mjCBody* body, std::string_view childclass) {
+void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
+                     std::string_view childclass) {
   double unitq[4] = {1, 0, 0, 0};
 
   if (!body) {
@@ -1541,7 +1544,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, std::string_view childclas
   }
 
   // write body attributes and inertial
-  else if (body!=model->GetWorld()) {
+  else if (!frame && body!=model->GetWorld()) {
     WriteAttrTxt(elem, "name", body->name);
     if (childclass != body->classname && body->classname != "main") {
       WriteAttrTxt(elem, "childclass", body->classname);
@@ -1574,57 +1577,67 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, std::string_view childclas
     }
   }
 
-  // write joints
-  for (int i=0; i<body->joints.size(); i++) {
-    XMLElement* celem = OneFrame(elem, body->joints[i]->frame);
+  // joints in this frame
+  for (int i = 0; i < body->joints.size(); i++) {
+    if (body->joints[i]->frame != frame) {
+      continue;
+    }
     std::string classname = body->joints[i]->frame && !body->joints[i]->frame->classname.empty()
                                 ? body->joints[i]->frame->classname
                                 : body->classname;
-    OneJoint(InsertEnd(celem, "joint"), body->joints[i],
+    OneJoint(InsertEnd(elem, "joint"), body->joints[i],
              model->def_map[body->joints[i]->classname],
              classname.empty() ? childclass : classname);
   }
 
-  // write geoms
-  for (int i=0; i<body->geoms.size(); i++) {
-    XMLElement* celem = OneFrame(elem, body->geoms[i]->frame);
+  // geoms in this frame
+  for (int i = 0; i < body->geoms.size(); i++) {
+    if (body->geoms[i]->frame != frame) {
+      continue;
+    }
     std::string classname = body->geoms[i]->frame && !body->geoms[i]->frame->classname.empty()
                                 ? body->geoms[i]->frame->classname
                                 : body->classname;
-    OneGeom(InsertEnd(celem, "geom"), body->geoms[i],
+    OneGeom(InsertEnd(elem, "geom"), body->geoms[i],
             model->def_map[body->geoms[i]->classname],
             classname.empty() ? childclass : classname);
   }
 
-  // write sites
-  for (int i=0; i<body->sites.size(); i++) {
-    XMLElement* celem = OneFrame(elem, body->sites[i]->frame);
+  // sites in this frame
+  for (int i = 0; i < body->sites.size(); i++) {
+    if (body->sites[i]->frame != frame) {
+      continue;
+    }
     std::string classname = body->sites[i]->frame && !body->sites[i]->frame->classname.empty()
                                 ? body->sites[i]->frame->classname
                                 : body->classname;
-    OneSite(InsertEnd(celem, "site"), body->sites[i],
+    OneSite(InsertEnd(elem, "site"), body->sites[i],
             model->def_map[body->sites[i]->classname],
             classname.empty() ? childclass : classname);
   }
 
-  // write cameras
-  for (int i=0; i<body->cameras.size(); i++) {
-    XMLElement* celem = OneFrame(elem, body->cameras[i]->frame);
+  // cameras in this frame
+  for (int i = 0; i < body->cameras.size(); i++) {
+    if (body->cameras[i]->frame != frame) {
+      continue;
+    }
     std::string classname = body->cameras[i]->frame && !body->cameras[i]->frame->classname.empty()
                                 ? body->cameras[i]->frame->classname
                                 : body->classname;
-    OneCamera(InsertEnd(celem, "camera"), body->cameras[i],
+    OneCamera(InsertEnd(elem, "camera"), body->cameras[i],
               model->def_map[body->cameras[i]->classname],
               classname.empty() ? childclass : classname);
   }
 
-  // write lights
-  for (int i=0; i<body->lights.size(); i++) {
-    XMLElement* celem = OneFrame(elem, body->lights[i]->frame);
+  // lights in this frame
+  for (int i = 0; i < body->lights.size(); i++) {
+    if (body->lights[i]->frame != frame) {
+      continue;
+    }
     std::string classname = body->lights[i]->frame && !body->lights[i]->frame->classname.empty()
                                 ? body->lights[i]->frame->classname
                                 : body->classname;
-    OneLight(InsertEnd(celem, "light"), body->lights[i],
+    OneLight(InsertEnd(elem, "light"), body->lights[i],
              model->def_map[body->lights[i]->classname],
              classname.empty() ? childclass : classname);
   }
@@ -1634,13 +1647,49 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, std::string_view childclas
     OnePlugin(InsertEnd(elem, "plugin"), &body->plugin);
   }
 
-  // write child bodies recursively
-  for (int i=0; i<body->bodies.size(); i++) {
-    XMLElement* celem = OneFrame(elem, body->bodies[i]->frame);
-    std::string classname = body->bodies[i]->frame && !body->bodies[i]->frame->classname.empty()
-                                ? body->bodies[i]->frame->classname
-                                : body->classname;
-    Body(InsertEnd(celem, "body"), body->bodies[i], classname.empty() ? childclass : classname);
+  // write children recursively
+  int i = 0, j = 0;
+  while (i < body->bodies.size() || body->bodies.empty()) {
+    mjCFrame* bframe = body->bodies.empty() ? nullptr : body->bodies[i]->frame;
+
+    // write body if its frame matches the current frame, avoid access if there are no bodies
+    if (bframe == frame && !body->bodies.empty()) {
+      std::string classname = bframe && !bframe->classname.empty()
+                                  ? bframe->classname
+                                  : body->classname;
+      Body(InsertEnd(elem, "body"), body->bodies[i], nullptr,
+            classname.empty() ? childclass : classname);
+    }
+
+    i++;
+
+    // do not go to frames until we reach a body with a frame or we are done with bodies
+    if (!bframe && i < body->bodies.size()) {
+      continue;
+    }
+
+    // loop over the remaining frames in the current body
+    while (j < body->frames.size()) {
+      mjCFrame* fframe = body->frames[j++];
+
+      // write frame if its frame matches the current frame
+      if (fframe->frame == frame) {
+        std::string classname = fframe && !fframe->classname.empty()
+                                    ? fframe->classname
+                                    : body->classname;
+        Body(OneFrame(elem, fframe), body, fframe, childclass);
+      }
+
+      // stop if we reached the frame of the current child body, ignore if there are no bodies
+      if (bframe && bframe == fframe) {
+        break;
+      }
+    }
+
+    // if there are no bodies, we only want to run the loop once
+    if (body->bodies.empty()) {
+      break;
+    }
   }
 }
 

@@ -59,7 +59,7 @@ class mjXWriter : public mjXBase {
   void Keyframe(tinyxml2::XMLElement* root);                              // keyframe section
 
   // body/world section
-  void Body(tinyxml2::XMLElement* elem, mjCBody* body, std::string_view childclass = "");
+  void Body(tinyxml2::XMLElement* elem, mjCBody* body, mjCFrame* frame, std::string_view childclass = "");
 
   // single element writers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);
