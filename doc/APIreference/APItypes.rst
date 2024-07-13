@@ -1081,7 +1081,7 @@ is initialized, others change at runtime.
 Model Editing
 ^^^^^^^^^^^^^
 
-The strucs below are defined in
+The structs below are defined in
 `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__ and, with the exception of
 the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix. For more details, see the :doc:`Model Editing
 <../programming/modeledit>` chapter.
@@ -1101,19 +1101,13 @@ Model specification.
 mjsElement
 ~~~~~~~~~~
 
-Special type corresponding to any element.
+Special type corresponding to any element. This struct is the first member of all other elements; in the low-level C++
+implementation, it is not included as a member but via class inheritance. Inclusion via inheritance allows the compiler
+to ``static_cast`` an ``mjsElement`` to the correct C++ object class. Unlike all other attributes of the structs below,
+which are user-settable by design, modifying the contents of an ``mjsElement`` is not allowed and leads to undefined
+behavior.
 
 .. mujoco-include:: mjsElement
-
-
-.. _mjsOrientation:
-
-mjsOrientation
-~~~~~~~~~~~~~~
-
-Alternative orientation specifiers.
-
-.. mujoco-include:: mjsOrientation
 
 
 .. _mjsBody:
@@ -1374,6 +1368,16 @@ mjsPlugin
 Plugin specification.
 
 .. mujoco-include:: mjsPlugin
+
+
+.. _mjsOrientation:
+
+mjsOrientation
+~~~~~~~~~~~~~~
+
+Alternative orientation specifiers.
+
+.. mujoco-include:: mjsOrientation
 
 
 .. _ArrayHandles:

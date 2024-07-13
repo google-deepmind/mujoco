@@ -57,9 +57,9 @@ General
     point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
 
     Relatedly, fixed various type errors that prevented building with single-precision.
-13. Quaternions in ``mjData->qpos`` and ``mjData->mocap_quat`` are no longer normalized in-place by
+13. Quaternions in ``mjData.qpos`` and ``mjData.mocap_quat`` are no longer normalized in-place by
     :ref:`mj_kinematics`. Instead they are normalized when they are used. After the first step, quaternions in
-    ``mjData->qpos`` will be normalized.
+    ``mjData.qpos`` will be normalized.
 14. Mesh loading in the compiler, which is usually the slowest part of the loading process, is now multi-threaded.
 
 MJX

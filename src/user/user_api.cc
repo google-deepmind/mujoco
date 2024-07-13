@@ -639,7 +639,7 @@ mjsBody* mjs_asBody(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_BODY) {
     return &(static_cast<mjCBody*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -649,7 +649,7 @@ mjsGeom* mjs_asGeom(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_GEOM) {
     return &(static_cast<mjCGeom*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -659,7 +659,7 @@ mjsJoint* mjs_asJoint(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_JOINT) {
     return &(static_cast<mjCJoint*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -669,7 +669,7 @@ mjsSite* mjs_asSite(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_SITE) {
     return &(static_cast<mjCSite*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -679,7 +679,7 @@ mjsCamera* mjs_asCamera(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_CAMERA) {
     return &(static_cast<mjCCamera*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -689,7 +689,7 @@ mjsLight* mjs_asLight(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_LIGHT) {
     return &(static_cast<mjCLight*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -699,7 +699,7 @@ mjsFrame* mjs_asFrame(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_FRAME) {
     return &(static_cast<mjCFrame*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -709,7 +709,7 @@ mjsActuator* mjs_asActuator(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_ACTUATOR) {
     return &(static_cast<mjCActuator*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -719,7 +719,7 @@ mjsSensor* mjs_asSensor(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_SENSOR) {
     return &(static_cast<mjCSensor*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -729,7 +729,7 @@ mjsFlex* mjs_asFlex(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_FLEX) {
     return &(static_cast<mjCFlex*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -739,7 +739,7 @@ mjsPair* mjs_asPair(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_PAIR) {
     return &(static_cast<mjCPair*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -749,7 +749,7 @@ mjsEquality* mjs_asEquality(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_EQUALITY) {
     return &(static_cast<mjCEquality*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -759,7 +759,7 @@ mjsExclude* mjs_asExclude(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_EXCLUDE) {
     return &(static_cast<mjCBodyPair*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -769,7 +769,7 @@ mjsTendon* mjs_asTendon(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TENDON) {
     return &(static_cast<mjCTendon*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -779,7 +779,7 @@ mjsNumeric* mjs_asNumeric(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_NUMERIC) {
     return &(static_cast<mjCNumeric*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -789,7 +789,7 @@ mjsText* mjs_asText(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TEXT) {
     return &(static_cast<mjCText*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -799,7 +799,7 @@ mjsTuple* mjs_asTuple(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TUPLE) {
     return &(static_cast<mjCTuple*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -809,7 +809,7 @@ mjsKey* mjs_asKey(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_KEY) {
     return &(static_cast<mjCKey*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -819,7 +819,7 @@ mjsMesh* mjs_asMesh(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_MESH) {
     return &(static_cast<mjCMesh*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -829,7 +829,7 @@ mjsHField* mjs_asHField(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_HFIELD) {
     return &(static_cast<mjCHField*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -839,7 +839,7 @@ mjsSkin* mjs_asSkin(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_SKIN) {
     return &(static_cast<mjCSkin*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -849,7 +849,7 @@ mjsTexture* mjs_asTexture(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_TEXTURE) {
     return &(static_cast<mjCTexture*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
@@ -859,7 +859,7 @@ mjsMaterial* mjs_asMaterial(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_MATERIAL) {
     return &(static_cast<mjCMaterial*>(element)->spec);
   }
-  return  nullptr;
+  return nullptr;
 }
 
 
