@@ -207,28 +207,26 @@ rendering, is given below.
    mjModel* m;
    mjData* d;
 
-   int main(void)
-   {
-      // load model from file and check for errors
-      m = mj_loadXML("hello.xml", NULL, error, 1000);
-      if( !m )
-      {
-         printf("%s\n", error);
-         return 1;
-      }
+   int main(void) {
+     // load model from file and check for errors
+     m = mj_loadXML("hello.xml", NULL, error, 1000);
+     if (!m) {
+       printf("%s\n", error);
+       return 1;
+     }
 
-      // make data corresponding to model
-      d = mj_makeData(m);
+     // make data corresponding to model
+     d = mj_makeData(m);
 
-      // run simulation for 10 seconds
-      while( d->time<10 )
-         mj_step(m, d);
+     // run simulation for 10 seconds
+     while (d->time < 10)
+       mj_step(m, d);
 
-      // free model and data
-      mj_deleteData(d);
-      mj_deleteModel(m);
+     // free model and data
+     mj_deleteData(d);
+     mj_deleteModel(m);
 
-      return 0;
+     return 0;
    }
 
 This is technically a C file, but it is also a legitimate C++ file. Indeed the MuJoCo API is compatible with both C and
@@ -823,8 +821,9 @@ convention. Suppose we already have ``mjModel* m``. To print the range of a join
 .. code:: C
 
    int jntid = mj_name2id(m, mjOBJ_JOINT, "elbow");
-   if( jntid>=0 )
+   if (jntid >= 0)
       printf("(%f, %f)\n", m->jnt_range[2*jntid], m->jnt_range[2*jntid+1]);
+
 
 If the name is not found the function returns -1, which is why one should always check for id>=0.
 
@@ -943,7 +942,7 @@ can be obtained as:
    int qposadr = -1, qveladr = -1;
 
    // make sure we have a floating body: it has a single free joint
-   if( bodyid>=0 && m->body_jntnum[bodyid]==1 && m->jnt_type[m->body_jntadr[bodyid]]==mjJNT_FREE ) {
+   if (bodyid >= 0 && m->body_jntnum[bodyid] == 1 && m->jnt_type[m->body_jntadr[bodyid]] == mjJNT_FREE) {
      // extract the addresses from the joint specification
      qposadr = m->jnt_qposadr[m->body_jntadr[bodyid]];
      qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
