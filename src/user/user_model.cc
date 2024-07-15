@@ -397,6 +397,11 @@ void mjCModel::PointToLocal() {
   spec.modelname = &spec_modelname_;
   spec.meshdir = &spec_meshdir_;
   spec.texturedir = &spec_texturedir_;
+  comment = &comment_;
+  modelfiledir = &modelfiledir_;
+  modelname = &modelname_;
+  meshdir = &meshdir_;
+  texturedir = &texturedir_;
 }
 
 
@@ -408,11 +413,6 @@ void mjCModel::CopyFromSpec() {
   modelname_ = spec_modelname_;
   meshdir_ = spec_meshdir_;
   texturedir_ = spec_texturedir_;
-  comment = &comment_;
-  modelfiledir = &modelfiledir_;
-  modelname = &modelname_;
-  meshdir = &meshdir_;
-  texturedir = &texturedir_;
 }
 
 

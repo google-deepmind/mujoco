@@ -952,13 +952,13 @@ void mjCBody::PointToLocal() {
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = (&plugin_instance_name);
   spec.info = &info;
+  userdata = &userdata_;
 }
 
 
 void mjCBody::CopyFromSpec() {
   *static_cast<mjsBody*>(this) = spec;
   userdata_ = spec_userdata_;
-  userdata = &userdata_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -1778,6 +1778,7 @@ void mjCJoint::PointToLocal() {
   spec.name = &name;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
+  userdata = &spec_userdata_;
 }
 
 
@@ -1785,7 +1786,6 @@ void mjCJoint::PointToLocal() {
 void mjCJoint::CopyFromSpec() {
   *static_cast<mjsJoint*>(this) = spec;
   userdata_ = spec_userdata_;
-  userdata = &spec_userdata_;
 }
 
 
@@ -1982,6 +1982,10 @@ void mjCGeom::PointToLocal(void) {
   spec.hfieldname = &spec_hfieldname_;
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = &plugin_instance_name;
+  userdata = &userdata_;
+  hfieldname = &hfieldname_;
+  meshname = &meshname_;
+  material = &material_;
 }
 
 
@@ -1992,10 +1996,6 @@ void mjCGeom::CopyFromSpec() {
   hfieldname_ = spec_hfieldname_;
   meshname_ = spec_meshname_;
   material_ = spec_material_;
-  userdata = &userdata_;
-  hfieldname = &hfieldname_;
-  meshname = &meshname_;
-  material = &material_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -2616,6 +2616,8 @@ void mjCSite::PointToLocal() {
   spec.info = &info;
   spec.material = &spec_material_;
   spec.userdata = &spec_userdata_;
+  userdata = &userdata_;
+  material = &material_;
 }
 
 
@@ -2624,8 +2626,6 @@ void mjCSite::CopyFromSpec() {
   *static_cast<mjsSite*>(this) = spec;
   userdata_ = spec_userdata_;
   material_ = spec_material_;
-  userdata = &userdata_;
-  material = &material_;
 }
 
 
@@ -2767,6 +2767,8 @@ void mjCCamera::PointToLocal() {
   spec.userdata = &spec_userdata_;
   spec.targetbody = &spec_targetbody_;
   spec.info = &info;
+  userdata = &userdata_;
+  targetbody = &targetbody_;
 }
 
 
@@ -2789,8 +2791,6 @@ void mjCCamera::CopyFromSpec() {
   *static_cast<mjsCamera*>(this) = spec;
   userdata_ = spec_userdata_;
   targetbody_ = spec_targetbody_;
-  userdata = &userdata_;
-  targetbody = &targetbody_;
 }
 
 
@@ -2919,6 +2919,7 @@ void mjCLight::PointToLocal() {
   spec.name = &name;
   spec.targetbody = &spec_targetbody_;
   spec.info = &info;
+  targetbody = &targetbody_;
 }
 
 
@@ -2940,7 +2941,6 @@ void mjCLight::NameSpace(const mjCModel* m) {
 void mjCLight::CopyFromSpec() {
   *static_cast<mjsLight*>(this) = spec;
   targetbody_ = spec_targetbody_;
-  targetbody = &targetbody_;
 }
 
 
@@ -3023,6 +3023,9 @@ void mjCHField::PointToLocal() {
   spec.content_type = &spec_content_type_;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
+  file = &file_;
+  content_type = &content_type_;
+  userdata = &userdata_;
 }
 
 
@@ -3032,9 +3035,6 @@ void mjCHField::CopyFromSpec() {
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   userdata_ = spec_userdata_;
-  file = &file_;
-  content_type = &content_type_;
-  userdata = &userdata_;
 
   // clear precompiled asset. TODO: use asset cache
   data.clear();
@@ -3251,6 +3251,9 @@ void mjCTexture::PointToLocal() {
   spec.content_type = &spec_content_type_;
   spec.cubefiles = &spec_cubefiles_;
   spec.info = &info;
+  file = &file_;
+  content_type = &content_type_;
+  cubefiles = &cubefiles_;
 }
 
 
@@ -3260,9 +3263,6 @@ void mjCTexture::CopyFromSpec() {
   file_ = spec_file_;
   content_type_ = spec_content_type_;
   cubefiles_ = spec_cubefiles_;
-  file = &file_;
-  content_type = &content_type_;
-  cubefiles = &cubefiles_;
 
   // clear precompiled asset. TODO: use asset cache
   rgb.clear();
@@ -3970,6 +3970,7 @@ void mjCMaterial::PointToLocal() {
   spec.name = &name;
   spec.texture = &spec_texture_;
   spec.info = &info;
+  texture = &texture_;
 }
 
 
@@ -3977,7 +3978,6 @@ void mjCMaterial::PointToLocal() {
 void mjCMaterial::CopyFromSpec() {
   *static_cast<mjsMaterial*>(this) = spec;
   texture_ = spec_texture_;
-  texture = &texture_;
 }
 
 
@@ -4059,6 +4059,8 @@ void mjCPair::PointToLocal() {
   spec.name = &name;
   spec.geomname1 = &spec_geomname1_;
   spec.geomname2 = &spec_geomname2_;
+  geomname1 = &geomname1_;
+  geomname2 = &geomname2_;
   spec.info = &info;
 }
 
@@ -4078,8 +4080,6 @@ void mjCPair::CopyFromSpec() {
   *static_cast<mjsPair*>(this) = spec;
   geomname1_ = spec_geomname1_;
   geomname2_ = spec_geomname2_;
-  geomname1 = &geomname1_;
-  geomname2 = &geomname2_;
 }
 
 
@@ -4284,6 +4284,8 @@ void mjCBodyPair::PointToLocal() {
   spec.bodyname1 = &spec_bodyname1_;
   spec.bodyname2 = &spec_bodyname2_;
   spec.info = &info;
+  bodyname1 = &bodyname1_;
+  bodyname2 = &bodyname2_;
 }
 
 
@@ -4302,8 +4304,6 @@ void mjCBodyPair::CopyFromSpec() {
   *static_cast<mjsExclude*>(this) = spec;
   bodyname1_ = spec_bodyname1_;
   bodyname2_ = spec_bodyname2_;
-  bodyname1 = &bodyname1_;
-  bodyname2 = &bodyname2_;
 }
 
 
@@ -4418,6 +4418,8 @@ void mjCEquality::PointToLocal() {
   spec.name1 = &spec_name1_;
   spec.name2 = &spec_name2_;
   spec.info = &info;
+  name1 = &name1_;
+  name2 = &name2_;
 }
 
 
@@ -4436,8 +4438,6 @@ void mjCEquality::CopyFromSpec() {
   *static_cast<mjsEquality*>(this) = spec;
   name1_ = spec_name1_;
   name2_ = spec_name2_;
-  name1 = &name1_;
-  name2 = &name2_;
 }
 
 
@@ -4586,6 +4586,8 @@ void mjCTendon::PointToLocal() {
   spec.material = &spec_material_;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
+  material = &material_;
+  userdata = &userdata_;
 }
 
 
@@ -4604,8 +4606,6 @@ void mjCTendon::CopyFromSpec() {
   *static_cast<mjsTendon*>(this) = spec;
   material_ = spec_material_;
   userdata_ = spec_userdata_;
-  material = &material_;
-  userdata = &userdata_;
 
   // clear precompiled
   for (int i=0; i<path.size(); i++) {
@@ -5070,6 +5070,10 @@ void mjCActuator::PointToLocal() {
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = &plugin_instance_name;
   spec.info = &info;
+  userdata = &userdata_;
+  target = &target_;
+  refsite = &refsite_;
+  slidersite = &slidersite_;
 }
 
 
@@ -5091,10 +5095,6 @@ void mjCActuator::CopyFromSpec() {
   target_ = spec_target_;
   refsite_ = spec_refsite_;
   slidersite_ = spec_slidersite_;
-  userdata = &userdata_;
-  target = &target_;
-  refsite = &refsite_;
-  slidersite = &slidersite_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -5393,6 +5393,9 @@ void mjCSensor::PointToLocal() {
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = &plugin_instance_name;
   spec.info = &info;
+  userdata = &userdata_;
+  objname = &objname_;
+  refname = &refname_;
 }
 
 
@@ -5412,9 +5415,6 @@ void mjCSensor::CopyFromSpec() {
   userdata_ = spec_userdata_;
   objname_ = spec_objname_;
   refname_ = spec_refname_;
-  userdata = &userdata_;
-  objname = &objname_;
-  refname = &refname_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
@@ -5891,6 +5891,7 @@ void mjCNumeric::PointToLocal() {
   spec.name = &name;
   spec.data = &spec_data_;
   spec.info = &info;
+  data = &data_;
 }
 
 
@@ -5898,7 +5899,6 @@ void mjCNumeric::PointToLocal() {
 void mjCNumeric::CopyFromSpec() {
   *static_cast<mjsNumeric*>(this) = spec;
   data_ = spec_data_;
-  data = &data_;
 }
 
 
@@ -5980,6 +5980,7 @@ void mjCText::PointToLocal() {
   spec.name = &name;
   spec.data = &spec_data_;
   spec.info = &info;
+  data = &data_;
 }
 
 
@@ -5987,7 +5988,6 @@ void mjCText::PointToLocal() {
 void mjCText::CopyFromSpec() {
   *static_cast<mjsText*>(this) = spec;
   data_ = spec_data_;
-  data = &data_;
 }
 
 
@@ -6062,6 +6062,8 @@ void mjCTuple::PointToLocal() {
   spec.objname = &spec_objname_;
   spec.objprm = &spec_objprm_;
   spec.info = &info;
+  objname = &objname_;
+  objprm = &objprm_;
 }
 
 
@@ -6083,8 +6085,6 @@ void mjCTuple::CopyFromSpec() {
   objname_ = spec_objname_;
   objprm_ = spec_objprm_;
   objtype = (mjIntVec*)&objtype_;
-  objname = &objname_;
-  objprm = &objprm_;
 }
 
 
@@ -6200,6 +6200,12 @@ void mjCKey::PointToLocal() {
   spec.mquat = &spec_mquat_;
   spec.ctrl = &spec_ctrl_;
   spec.info = &info;
+  qpos = &qpos_;
+  qvel = &qvel_;
+  act = &act_;
+  mpos = &mpos_;
+  mquat = &mquat_;
+  ctrl = &ctrl_;
 }
 
 
@@ -6212,12 +6218,6 @@ void mjCKey::CopyFromSpec() {
   mpos_ = spec_mpos_;
   mquat_ = spec_mquat_;
   ctrl_ = spec_ctrl_;
-  qpos = &qpos_;
-  qvel = &qvel_;
-  act = &act_;
-  mpos = &mpos_;
-  mquat = &mquat_;
-  ctrl = &ctrl_;
 }
 
 
