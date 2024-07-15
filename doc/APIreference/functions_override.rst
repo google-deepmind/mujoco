@@ -649,8 +649,3 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
-
-.. _SpecManip:
-
-These functions provide high level manipulation for the :ref:`mjSpec` struct, which represents an
-uncompiled :ref:`mjModel`.
