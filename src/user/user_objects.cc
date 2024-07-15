@@ -952,7 +952,7 @@ void mjCBody::PointToLocal() {
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = (&plugin_instance_name);
   spec.info = &info;
-  userdata = &userdata_;
+  userdata = nullptr;
 }
 
 
@@ -1778,7 +1778,7 @@ void mjCJoint::PointToLocal() {
   spec.name = &name;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
-  userdata = &spec_userdata_;
+  userdata = nullptr;
 }
 
 
@@ -1982,10 +1982,10 @@ void mjCGeom::PointToLocal(void) {
   spec.hfieldname = &spec_hfieldname_;
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = &plugin_instance_name;
-  userdata = &userdata_;
-  hfieldname = &hfieldname_;
-  meshname = &meshname_;
-  material = &material_;
+  userdata = nullptr;
+  hfieldname = nullptr;
+  meshname = nullptr;
+  material = nullptr;
 }
 
 
@@ -2616,8 +2616,8 @@ void mjCSite::PointToLocal() {
   spec.info = &info;
   spec.material = &spec_material_;
   spec.userdata = &spec_userdata_;
-  userdata = &userdata_;
-  material = &material_;
+  userdata = nullptr;
+  material = nullptr;
 }
 
 
@@ -2767,8 +2767,8 @@ void mjCCamera::PointToLocal() {
   spec.userdata = &spec_userdata_;
   spec.targetbody = &spec_targetbody_;
   spec.info = &info;
-  userdata = &userdata_;
-  targetbody = &targetbody_;
+  userdata = nullptr;
+  targetbody = nullptr;
 }
 
 
@@ -2919,7 +2919,7 @@ void mjCLight::PointToLocal() {
   spec.name = &name;
   spec.targetbody = &spec_targetbody_;
   spec.info = &info;
-  targetbody = &targetbody_;
+  targetbody = nullptr;
 }
 
 
@@ -3023,9 +3023,9 @@ void mjCHField::PointToLocal() {
   spec.content_type = &spec_content_type_;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
-  file = &file_;
-  content_type = &content_type_;
-  userdata = &userdata_;
+  file = nullptr;
+  content_type = nullptr;
+  userdata = nullptr;
 }
 
 
@@ -3251,9 +3251,9 @@ void mjCTexture::PointToLocal() {
   spec.content_type = &spec_content_type_;
   spec.cubefiles = &spec_cubefiles_;
   spec.info = &info;
-  file = &file_;
-  content_type = &content_type_;
-  cubefiles = &cubefiles_;
+  file = nullptr;
+  content_type = nullptr;
+  cubefiles = nullptr;
 }
 
 
@@ -3970,7 +3970,7 @@ void mjCMaterial::PointToLocal() {
   spec.name = &name;
   spec.texture = &spec_texture_;
   spec.info = &info;
-  texture = &texture_;
+  texture = nullptr;
 }
 
 
@@ -4059,8 +4059,8 @@ void mjCPair::PointToLocal() {
   spec.name = &name;
   spec.geomname1 = &spec_geomname1_;
   spec.geomname2 = &spec_geomname2_;
-  geomname1 = &geomname1_;
-  geomname2 = &geomname2_;
+  geomname1 = nullptr;
+  geomname2 = nullptr;
   spec.info = &info;
 }
 
@@ -4284,8 +4284,8 @@ void mjCBodyPair::PointToLocal() {
   spec.bodyname1 = &spec_bodyname1_;
   spec.bodyname2 = &spec_bodyname2_;
   spec.info = &info;
-  bodyname1 = &bodyname1_;
-  bodyname2 = &bodyname2_;
+  bodyname1 = nullptr;
+  bodyname2 = nullptr;
 }
 
 
@@ -4418,8 +4418,8 @@ void mjCEquality::PointToLocal() {
   spec.name1 = &spec_name1_;
   spec.name2 = &spec_name2_;
   spec.info = &info;
-  name1 = &name1_;
-  name2 = &name2_;
+  name1 = nullptr;
+  name2 = nullptr;
 }
 
 
@@ -4586,8 +4586,8 @@ void mjCTendon::PointToLocal() {
   spec.material = &spec_material_;
   spec.userdata = &spec_userdata_;
   spec.info = &info;
-  material = &material_;
-  userdata = &userdata_;
+  material = nullptr;
+  userdata = nullptr;
 }
 
 
@@ -5070,10 +5070,10 @@ void mjCActuator::PointToLocal() {
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = &plugin_instance_name;
   spec.info = &info;
-  userdata = &userdata_;
-  target = &target_;
-  refsite = &refsite_;
-  slidersite = &slidersite_;
+  userdata = nullptr;
+  target = nullptr;
+  refsite = nullptr;
+  slidersite = nullptr;
 }
 
 
@@ -5393,9 +5393,9 @@ void mjCSensor::PointToLocal() {
   spec.plugin.name = &plugin_name;
   spec.plugin.instance_name = &plugin_instance_name;
   spec.info = &info;
-  userdata = &userdata_;
-  objname = &objname_;
-  refname = &refname_;
+  userdata = nullptr;
+  objname = nullptr;
+  refname = nullptr;
 }
 
 
@@ -5891,7 +5891,7 @@ void mjCNumeric::PointToLocal() {
   spec.name = &name;
   spec.data = &spec_data_;
   spec.info = &info;
-  data = &data_;
+  data = nullptr;
 }
 
 
@@ -5980,7 +5980,7 @@ void mjCText::PointToLocal() {
   spec.name = &name;
   spec.data = &spec_data_;
   spec.info = &info;
-  data = &data_;
+  data = nullptr;
 }
 
 
@@ -6062,8 +6062,8 @@ void mjCTuple::PointToLocal() {
   spec.objname = &spec_objname_;
   spec.objprm = &spec_objprm_;
   spec.info = &info;
-  objname = &objname_;
-  objprm = &objprm_;
+  objname = nullptr;
+  objprm = nullptr;
 }
 
 
@@ -6200,12 +6200,12 @@ void mjCKey::PointToLocal() {
   spec.mquat = &spec_mquat_;
   spec.ctrl = &spec_ctrl_;
   spec.info = &info;
-  qpos = &qpos_;
-  qvel = &qvel_;
-  act = &act_;
-  mpos = &mpos_;
-  mquat = &mquat_;
-  ctrl = &ctrl_;
+  qpos = nullptr;
+  qvel = nullptr;
+  act = nullptr;
+  mpos = nullptr;
+  mquat = nullptr;
+  ctrl = nullptr;
 }
 
 

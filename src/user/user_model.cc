@@ -397,11 +397,11 @@ void mjCModel::PointToLocal() {
   spec.modelname = &spec_modelname_;
   spec.meshdir = &spec_meshdir_;
   spec.texturedir = &spec_texturedir_;
-  comment = &comment_;
-  modelfiledir = &modelfiledir_;
-  modelname = &modelname_;
-  meshdir = &meshdir_;
-  texturedir = &texturedir_;
+  comment = nullptr;
+  modelfiledir = nullptr;
+  modelname = nullptr;
+  meshdir = nullptr;
+  texturedir = nullptr;
 }
 
 
