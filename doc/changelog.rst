@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.2.0 (Jul 15, 2024)
+----------------------------
 
 New features
 ^^^^^^^^^^^^
