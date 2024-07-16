@@ -69,8 +69,8 @@ scipy==1.11.3; python_version >= '3.9' \
     --hash=sha256:715c9966eb8906bc67e450e962bd07a5254420077178f98258904da4004a172f \
     --hash=sha256:d4d88a6fc091614b842a739b3db6ae15f95c77b308113bd6daefd4b05539b103 \
     --hash=sha256:cf0dbc4d3fe3107358868a60f263c9d8c2e9ba5de8a934cac4164124f727e6ca
-setuptools==68.2.2 \
-    --hash=sha256:b454a35605876da60632df1a60f736524eb73cc47bbc9f3f1ef1b644de74fd2a
+setuptools==70.3.0 \
+    --hash=sha256:fe384da74336c398e0d956d1cae0669bc02eed936cdb1d49b57de1990dc11ffc
 trimesh==4.0.0 \
     --hash=sha256:c1600e2a1121cff069e89d1403c85c88e49c9dc5b636e96c977a924de432ee50
 wheel==0.41.2 \
