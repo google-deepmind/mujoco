@@ -109,7 +109,7 @@ Known issues
   which is already using this API.
 - One of the central design consideration of the new API is incremental compilation, meaning that after making small
   changes to a spec that has already been compiled, subsequent re-compilation will be very fast. While the code is
-  written to support inceremntal compilation, this functionality is not fully implemented and will be added in the
+  written to support incremental compilation, this functionality is not fully implemented and will be added in the
   future, resulting in faster re-compilation times.
 - Since the main test for the new API is the MJCF parser, which always constructs a model from scratch, there
   might be latent bugs related to model editing. Please report such bugs if you encounter them.

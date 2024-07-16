@@ -87,6 +87,7 @@ Bug fixes
 ^^^^^^^^^
 22. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
     correctly (:github:issue:`1710`).
+23. Fix an issue with saving to XML that caused frames to be written multiple times (:github:issue:`1802`).
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
