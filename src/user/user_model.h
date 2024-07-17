@@ -273,8 +273,9 @@ class mjCModel : public mjCModel_, private mjSpec {
                                          std::string_view name = "");
 
   // save/restore the current state
-  void SaveState(const mjData* d);
-  void RestoreState(const mjModel* m, mjData** dest);
+  void SaveState(const mjtNum* qpos, const mjtNum* qvel, const mjtNum* act);
+  void MakeData(const mjModel* m, mjData** dest);
+  void RestoreState(mjtNum* qpos, mjtNum* qvel, mjtNum* act);
 
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;

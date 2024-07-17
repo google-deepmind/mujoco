@@ -863,8 +863,11 @@ TEST_F(MujocoTest, PreserveState) {
     EXPECT_EQ(data->act[i], d_expected->act[i]) << i;
   }
 
-  // destroy everything
+  // check that the function is callable with no data
   mj_deleteData(data);
+  mj_recompile(spec, 0, model, nullptr);
+
+  // destroy everything
   mj_deleteData(d_expected);
   mj_deleteSpec(spec);
   mj_deleteModel(model);

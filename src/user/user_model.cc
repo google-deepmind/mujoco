@@ -2776,68 +2776,73 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 
 // save the current state
-void mjCModel::SaveState(const mjData* d) {
+void mjCModel::SaveState(const mjtNum* qpos, const mjtNum* qvel, const mjtNum* act) {
   for (auto joint : joints_) {
     switch (joint->type) {
       case mjJNT_FREE:
-        mjuu_copyvec(joint->qpos, d->qpos + joint->qposadr_, 7);
-        mjuu_copyvec(joint->qvel, d->qvel + joint->dofadr_, 6);
+        if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, 7);
+        if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, 6);
         break;
       case mjJNT_BALL:
-        mjuu_copyvec(joint->qpos, d->qpos + joint->qposadr_, 4);
-        mjuu_copyvec(joint->qvel, d->qvel + joint->dofadr_, 3);
+        if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, 4);
+        if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, 3);
         break;
       case mjJNT_HINGE:
       case mjJNT_SLIDE:
-        mjuu_copyvec(joint->qpos, d->qpos + joint->qposadr_, 1);
-        mjuu_copyvec(joint->qvel, d->qvel + joint->dofadr_, 1);
+        if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, 1);
+        if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, 1);
         break;
     }
   }
 
   for (auto actuator : actuators_) {
-    if (actuator->actadr_ != -1) {
+    if (actuator->actadr_ != -1 && act) {
       actuator->act.assign(actuator->actnum_, 0);
-      mjuu_copyvec(actuator->act.data(), d->act + actuator->actadr_, actuator->actnum_);
+      mjuu_copyvec(actuator->act.data(), act + actuator->actadr_, actuator->actnum_);
     }
   }
 }
 
 
 
-// restore the previous state
-void mjCModel::RestoreState(const mjModel* m, mjData** dest) {
+// clear existing data
+void mjCModel::MakeData(const mjModel* m, mjData** dest) {
   mj_makeRawData(dest, m);
   mjData* d = *dest;
   if (d) {
     mj_initPlugin(m, d);
     mj_resetData(m, d);
   }
+}
 
+
+
+// restore the previous state
+void mjCModel::RestoreState(mjtNum* qpos, mjtNum* qvel, mjtNum* act) {
   for (auto joint : joints_) {
     if (!mjuu_defined(joint->qpos[0]) || !mjuu_defined(joint->qvel[0])) {
       continue;
     }
     switch (joint->type) {
       case mjJNT_FREE:
-        mjuu_copyvec(d->qpos + joint->qposadr_, joint->qpos, 7);
-        mjuu_copyvec(d->qvel + joint->dofadr_, joint->qvel, 6);
+        if (qpos) mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, 7);
+        if (qvel) mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, 6);
         break;
       case mjJNT_BALL:
-        mjuu_copyvec(d->qpos + joint->qposadr_, joint->qpos, 4);
-        mjuu_copyvec(d->qvel + joint->dofadr_, joint->qvel, 3);
+        if (qpos) mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, 4);
+        if (qvel) mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, 3);
         break;
       case mjJNT_HINGE:
       case mjJNT_SLIDE:
-        mjuu_copyvec(d->qpos + joint->qposadr_, joint->qpos, 1);
-        mjuu_copyvec(d->qvel + joint->dofadr_, joint->qvel, 1);
+        if (qpos) mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, 1);
+        if (qvel) mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, 1);
         break;
     }
   }
 
   for (auto actuator : actuators_) {
-    if (mjuu_defined(actuator->act[0])) {
-      mjuu_copyvec(d->act + actuator->actadr_, actuator->act.data(), actuator->actnum_);
+    if (mjuu_defined(actuator->act[0]) && act) {
+      mjuu_copyvec(act + actuator->actadr_, actuator->act.data(), actuator->actnum_);
     }
   }
 }
