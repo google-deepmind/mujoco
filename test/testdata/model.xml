@@ -45,8 +45,8 @@
     <light pos="0 0 3"/>
     <geom name="floor" type="plane" size="4 4 .1"/>
     <geom type="hfield" hfield="hfield" pos="-.4 .6 .05" rgba="0 0 1 1"/>
-    <body name="head" pos="0 0 .7">
-      <geom type="ellipsoid" size=".2 .2 .4" density="100" material="grid"/>
+    <body name="head" pos="0 0 .7" gravcomp="0.5">
+      <geom type="ellipsoid" size=".2 .2 .4" density="200" material="grid"/>
       <site name="head" pos="0 0 .4" size=".1 .1 .05" type="box"/>
       <site name="anchor0" pos="0 .2 0"/>
       <site name="rf" pos="0 0 -0.41" zaxis="0 0 -1"/>
@@ -117,7 +117,7 @@
   </worldbody>
 
   <equality>
-    <weld body1="cylinder" body2="world"/>
+    <weld body1="world" body2="cylinder"/>
   </equality>
 
   <tendon>
