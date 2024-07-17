@@ -17,19 +17,20 @@
 #include <cstddef>
 #include <cstring>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "user/user_resource.h"
 #include "user/user_util.h"
 
 namespace {
 
 using mujoco::user::FilePath;
+using mujoco::user::FileToMemory;
 
 // internal struct for VFS files
 struct VFSFile {
@@ -177,7 +178,7 @@ void Close(mjResource* resource) {
 // getdir callback for the VFS resource provider
 void GetDir(mjResource* resource, const char** dir, int* ndir) {
   *dir = (resource) ? resource->name : nullptr;
-  *ndir = (resource) ? mju_dirnamelen(resource->name) : 0;
+  *ndir = (resource) ? mjuu_dirnamelen(resource->name) : 0;
 }
 
 // modified callback for the VFS resource provider
@@ -227,7 +228,7 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   }
 
   // allocate and read
-  std::vector<uint8_t> buffer = mju_fileToMemory(fullname.c_str());
+  std::vector<uint8_t> buffer = FileToMemory(fullname.c_str());
   if (buffer.empty()) {
     return -1;
   }
@@ -265,44 +266,8 @@ void mj_deleteVFS(mjVFS* vfs) {
   }
 }
 
-// open VFS resource
-mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs) {
-  if (vfs == nullptr) {
-    return nullptr;
-  }
-
-  // VFS provider
-  static struct mjpResourceProvider provider = { nullptr, &Open, &Read, &Close,
-                                                &GetDir, &Modified, nullptr };
-
-  // create resource
-  mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
-  if (resource == nullptr) {
-    mjERROR("could not allocate memory");
-    return nullptr;
-  }
-
-  // clear out resource
-  memset(resource, 0, sizeof(mjResource));
-
-  // copy name
-  std::size_t n = std::strlen(name);
-  resource->name = (char*) mju_malloc(sizeof(char) * (n + 1));
-  if (resource->name == nullptr) {
-    mju_closeResource(resource);
-    mjERROR("could not allocate memory");
-    return nullptr;
-  }
-  std::memcpy(resource->name, name, sizeof(char) * (n + 1));
-  resource->data = (void*) vfs;
-
-  // open resource
-  resource->provider = &provider;
-  if (provider.open(resource)) {
-    return resource;
-  }
-
-  // not found in VFS
-  mju_closeResource(resource);
-  return nullptr;
+const mjpResourceProvider* GetVfsResourceProvider() {
+  static mjpResourceProvider provider
+      = { nullptr, &Open, &Read, &Close, &GetDir, &Modified, nullptr };
+  return &provider;
 }

@@ -233,7 +233,7 @@ TEST_F(ResourceTest, GeneralTest) {
   EXPECT_GT(i, 0);
 
   // open resource
-  mjResource* resource = mju_openResource("str:file", nullptr, 0);
+  mjResource* resource = mju_openResource("str:file", nullptr, nullptr, 0);
   ASSERT_THAT(resource,  NotNull());
 
   const char* buffer = NULL;
@@ -256,7 +256,7 @@ TEST_F(ResourceTest, GeneralFailureTest) {
   static std::array<char, 1024> error;
 
   // open resource
-  mjResource* resource = mju_openResource("str:notfound",
+  mjResource* resource = mju_openResource("str:notfound", nullptr,
                                           error.data(), error.size());
   ASSERT_THAT(resource, IsNull());
 
@@ -281,7 +281,7 @@ TEST_F(ResourceTest, NameWithValidPrefix) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("nop:found", nullptr, 0);
+  mjResource* resource = mju_openResource("nop:found", nullptr, nullptr, 0);
   ASSERT_THAT(resource, NotNull());
   mju_closeResource(resource);
 }
@@ -304,7 +304,7 @@ TEST_F(ResourceTest, NameWithUpperCasePrefix) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("NOP:found", nullptr, 0);
+  mjResource* resource = mju_openResource("NOP:found", nullptr, nullptr, 0);
   ASSERT_THAT(resource, NotNull());
   mju_closeResource(resource);
 }
@@ -327,7 +327,7 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("nopfound", nullptr, 0);
+  mjResource* resource = mju_openResource("nopfound", nullptr, nullptr, 0);
   ASSERT_THAT(resource, IsNull());
 }
 
@@ -338,7 +338,8 @@ TEST_F(ResourceTest, OSFilesystemTimestamps) {
   const char* const file = "engine/testdata/collision_box/boxbox_deep.xml";
   const std::string xml_path = GetTestDataFilePath(file);
 
-  mjResource* resource = mju_openResource(xml_path.c_str(), nullptr, 0);
+  mjResource* resource = mju_openResource(xml_path.c_str(), nullptr,
+                                          nullptr, 0);
   mju_decodeBase64((uint8_t*) &t, resource->timestamp);
 
   // equal timestamps

@@ -45,11 +45,10 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 // delete all files from VFS
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
-// open VFS resource
-MJAPI mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs);
-
 #ifdef __cplusplus
 }
 #endif
+
+const mjpResourceProvider* GetVfsResourceProvider();
 
 #endif  // MUJOCO_SRC_USER_USER_VFS_H_

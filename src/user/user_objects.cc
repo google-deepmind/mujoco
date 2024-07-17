@@ -33,7 +33,6 @@
 #include <vector>
 
 #include "lodepng.h"
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
@@ -45,7 +44,6 @@
 #include "user/user_model.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
-#include "user/user_vfs.h"
 
 namespace {
 namespace mju = ::mujoco::util;
@@ -704,18 +702,14 @@ void mjCBase::NameSpace(const mjCModel* m) {
 
 // load resource if found (fallback to OS filesystem)
 mjResource* mjCBase::LoadResource(std::string filename, const mjVFS* vfs) {
-  // try reading from provided VFS
-  mjResource* r = mju_openVfsResource(filename.c_str(), vfs);
-
-  if (!r) {
-    std::array<char, 1024> error;
-    // not in vfs try a provider or fallback to OS filesystem
-    r = mju_openResource(filename.c_str(), error.data(), error.size());
-    if (!r) {
-      throw mjCError(nullptr, "%s", error.data());
-    }
+  // try reading from provided VFS or fallback to OS filesystem
+  std::array<char, 1024> error;
+  mjResource* resource = mju_openResource(filename.c_str(), vfs,
+                                          error.data(), error.size());
+  if (!resource) {
+    throw mjCError(nullptr, "%s", error.data());
   }
-  return r;
+  return resource;
 }
 
 

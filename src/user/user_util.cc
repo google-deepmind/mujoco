@@ -16,8 +16,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <climits>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <optional>
@@ -941,6 +943,22 @@ std::string mjuu_extToContentType(std::string_view filename) {
   }
 }
 
+// get the length of the dirname portion of a given path
+int mjuu_dirnamelen(const char* path) {
+  if (!path) {
+    return 0;
+  }
+
+  int pos = -1;
+  for (int i = 0; path[i]; ++i) {
+    if (path[i] == '/' || path[i] == '\\') {
+      pos = i;
+    }
+  }
+
+  return pos + 1;
+}
+
 namespace mujoco::user {
 
 std::string FilePath::Combine(const std::string& s1, const std::string& s2) {
@@ -1012,7 +1030,6 @@ FilePath FilePath::StripExt() const {
   return FilePathFast(path_.substr(0, n));
 }
 
-
 // is directory absolute path
 std::string FilePath::AbsPrefix(const std::string& str) {
   // empty: not absolute
@@ -1064,6 +1081,60 @@ std::string FilePath::StrLower() const {
   std::transform(str.begin(), str.end(), str.begin(),
                  [](unsigned char c) { return std::tolower(c); });
   return str;
+}
+
+// read file into memory buffer
+std::vector<uint8_t> FileToMemory(const char* filename) {
+  FILE* fp = fopen(filename, "rb");
+  if (!fp) {
+    return {};
+  }
+
+  // find size
+  if (fseek(fp, 0, SEEK_END) != 0) {
+    fclose(fp);
+    mju_warning("Failed to calculate size for '%s'", filename);
+    return {};
+  }
+
+  // ensure file size fits in int
+  long long_filesize = ftell(fp);  // NOLINT(runtime/int)
+  if (long_filesize > INT_MAX) {
+    fclose(fp);
+    mju_warning("File size over 2GB is not supported. File: '%s'", filename);
+    return {};
+  } else if (long_filesize < 0) {
+    fclose(fp);
+    mju_warning("Failed to calculate size for '%s'", filename);
+    return {};
+  }
+
+  std::vector<uint8_t> buffer(long_filesize);
+
+  // go back to start of file
+  if (fseek(fp, 0, SEEK_SET) != 0) {
+    fclose(fp);
+    mju_warning("Read error while reading '%s'", filename);
+    return {};
+  }
+
+  // allocate and read
+  std::size_t bytes_read = fread(buffer.data(), 1, buffer.size(), fp);
+
+  // check that read data matches file size
+  if (bytes_read != buffer.size()) {  // SHOULD NOT OCCUR
+    if (ferror(fp)) {
+      fclose(fp);
+      mju_warning("Read error while reading '%s'", filename);
+      return {};
+    } else if (feof(fp)) {
+      buffer.resize(bytes_read);
+    }
+  }
+
+  // close file, return contents
+  fclose(fp);
+  return buffer;
 }
 
 }  // namespace mujoco::user

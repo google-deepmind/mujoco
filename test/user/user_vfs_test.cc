@@ -30,7 +30,7 @@ using ::testing::NotNull;
 using UserVfsTest = MujocoTest;
 
 static bool HasFile(const mjVFS* vfs, const std::string& filename) {
-  mjResource* resource = mju_openVfsResource(filename.c_str(), vfs);
+  mjResource* resource = mju_openResource(filename.c_str(), vfs, nullptr, 0);
   bool result = resource != nullptr;
   mju_closeResource(resource);
   return result;
@@ -222,7 +222,7 @@ TEST_F(UserVfsTest, Timestamps) {
   mj_defaultVFS(&vfs);
   mj_addBufferVFS(&vfs, "cube.obj", cube, sizeof(cube));
 
-  mjResource* resource = mju_openVfsResource("cube.obj", &vfs);
+  mjResource* resource = mju_openResource("cube.obj", &vfs, nullptr, 0);
 
   // same timestamps
   EXPECT_EQ(mju_isModifiedResource(resource, resource->timestamp), 0);

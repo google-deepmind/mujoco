@@ -14,6 +14,7 @@
 
 #include "xml/xml_api.h"
 
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -186,15 +187,12 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
 
 // load model from binary MJB resource
 mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
-  mjResource* resource = nullptr;
-
-  // first try vfs, otherwise try a provider or OS filesystem
-  if (!(resource = mju_openVfsResource(filename, vfs))) {
-    char error[1024];
-    if (!(resource = mju_openResource(filename, error, 1024))) {
-       mju_warning("%s", error);
-      return nullptr;
-    }
+  std::array<char, 1024> error;
+  mjResource* resource = mju_openResource(filename, vfs,
+                                          error.data(), error.size());
+  if (resource == nullptr) {
+    mju_warning("%s", error.data());
+    return nullptr;
   }
 
   const void* buffer = NULL;

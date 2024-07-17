@@ -169,7 +169,8 @@ static std::string ResolveFilePath(XMLElement* e, std::string filename,
   // TODO(kylebayes): We first look in the base model directory for files to
   // remain backwards compatible.
   std::string full_filename = mjuu_combinePaths(dir, filename);
-  mjResource *resource = mju_openResource(full_filename.c_str(), nullptr, 0);
+  mjResource *resource = mju_openResource(full_filename.c_str(), nullptr,
+                                          nullptr, 0);
   if (resource != nullptr) {
     mju_closeResource(resource);
     return filename;

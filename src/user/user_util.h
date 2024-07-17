@@ -16,9 +16,11 @@
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 const double mjEPS = 1E-14;     // minimum value in various calculations
 const double mjMINMASS = 1E-6;  // minimum mass allowed
@@ -230,6 +232,9 @@ class FilePath {
   std::string path_;
 };
 
+// read file into memory buffer
+std::vector<uint8_t> FileToMemory(const char* filename);
+
 }  // namespace mujoco::user
 
 // strip path from filename
@@ -257,5 +262,8 @@ std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_vie
 
 // convert filename extension to content type; return empty string if not found
 std::string mjuu_extToContentType(std::string_view filename);
+
+// get the length of the dirname portion of a given path
+int mjuu_dirnamelen(const char* path);
 
 #endif  // MUJOCO_SRC_USER_USER_UTIL_H_

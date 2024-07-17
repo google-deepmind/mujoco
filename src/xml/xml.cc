@@ -173,25 +173,21 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
   } else {
     fullname = filename;
   }
-  mjResource *resource = mju_openVfsResource(fullname.c_str(), vfs);
-  if (!resource) {
-    // load from provider or OS filesystem
-    std::array<char, 1024> error;
-    resource = mju_openResource(fullname.c_str(), error.data(), error.size());
-    if (!resource) {
-      if (!mjuu_isabspath(filename)) {
-        fullname = std::string(dir) + filename;
-      } else {
-        fullname = filename;
-      }
 
-      // load from provider or OS filesystem
-      std::array<char, 1024> error;
-      resource = mju_openResource(fullname.c_str(), error.data(), error.size());
-      if (!resource) {
-        throw mjXError(elem, "%s", error.data());
-      }
+  // legacy behavior: try to load in top level directory
+  std::array<char, 1024> error;
+  mjResource *resource = mju_openResource(fullname.c_str(), vfs,
+                                          error.data(), error.size());
+  if (resource == nullptr) {
+    // new behavior: try to load in relative directory
+    if (!mjuu_isabspath(filename)) {
+      fullname = std::string(dir) + filename;
+      resource = mju_openResource(fullname.c_str(), vfs, error.data(), error.size());
     }
+  }
+
+  if (resource == nullptr) {
+    throw mjXError(elem, "%s", error.data());
   }
 
   if (!mjuu_isabspath(filename)) {
@@ -293,16 +289,12 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
 
   // get data source
   const char* xmlstring = nullptr;
-  mjResource* resource = mju_openVfsResource(filename, vfs);
-
-  if (!resource) {
-    // load from provider or fallback to OS filesystem
-    std::array<char, 1024> rerror;
-    resource = mju_openResource(filename, rerror.data(), rerror.size());
-    if (!resource) {
-      std::snprintf(error, error_sz, "mjParseXML: %s", rerror.data());
-      return nullptr;
-    }
+  std::array<char, 1024> rerror;
+  mjResource* resource = mju_openResource(filename, vfs,
+                                          rerror.data(), rerror.size());
+  if (resource == nullptr) {
+    std::snprintf(error, error_sz, "mjParseXML: %s", rerror.data());
+    return nullptr;
   }
 
   int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
