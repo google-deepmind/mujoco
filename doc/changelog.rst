@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+
+1. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
+
 Version 3.2.0 (Jul 15, 2024)
 ----------------------------
 
