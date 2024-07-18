@@ -1079,51 +1079,56 @@ def _hfield_collision(
   bmask = jp.array([True, True, False])
 
   # process all prisms in sub-grid
-  prisms = []
-  for r in range(subgrid_size[1]):
-    for c in range(subgrid_size[0]):
-      ri, ci = rmin + r, cmin + c
+  rs = jp.repeat(jp.arange(subgrid_size[1]), subgrid_size[0])
+  cs = jp.tile(jp.arange(subgrid_size[0]), subgrid_size[1])
 
-      # ensure ri, ci are in the bounds of the hfield
-      ri = jp.clip(ri, 0, h.nrow - 2)
-      ci = jp.clip(ci, 0, h.ncol - 2)
+  @jax.vmap
+  def make_prisms(r, c):
+    ri, ci = rmin + r, cmin + c
 
-      p1 = [
-          dx * ci - h.size[0],
-          dy * ri - h.size[1],
-          h.data[ci, ri] * h.size[2],
-      ]
-      p2 = [
-          dx * (ci + 1) - h.size[0],
-          dy * (ri + 1) - h.size[1],
-          h.data[ci + 1, ri + 1] * h.size[2],
-      ]
-      p3 = [
-          dx * ci - h.size[0],
-          dy * (ri + 1) - h.size[1],
-          h.data[ci, ri + 1] * h.size[2],
-      ]
-      top = jp.array([p1, p2, p3])
-      bottom = jp.array([p1, p3, p2]) * bmask + bvert
-      vert = jp.concatenate([bottom, top])
-      prisms.append(mesh.hfield_prism(vert))
+    # ensure ri, ci are in the bounds of the hfield
+    ri = jp.clip(ri, 0, h.nrow - 2)
+    ci = jp.clip(ci, 0, h.ncol - 2)
 
-      p3 = p2
-      p2 = [
-          dx * (ci + 1) - h.size[0],
-          dy * ri - h.size[1],
-          h.data[ci + 1, ri] * h.size[2],
-      ]
-      top = jp.array([p1, p2, p3])
-      bottom = jp.array([p1, p3, p2]) * bmask + bvert
-      vert = jp.concatenate([bottom, top])
-      # NB: If the order of verts is updated above, the corresponding
-      # hfield_prism function must be updated to ensure that all faces have the
-      # correct winding order.
-      prisms.append(mesh.hfield_prism(vert))
+    p1 = [
+        dx * ci - h.size[0],
+        dy * ri - h.size[1],
+        h.data[ci, ri] * h.size[2],
+    ]
+    p2 = [
+        dx * (ci + 1) - h.size[0],
+        dy * (ri + 1) - h.size[1],
+        h.data[ci + 1, ri + 1] * h.size[2],
+    ]
+    p3 = [
+        dx * ci - h.size[0],
+        dy * (ri + 1) - h.size[1],
+        h.data[ci, ri + 1] * h.size[2],
+    ]
+    top = jp.array([p1, p2, p3])
+    bottom = jp.array([p1, p3, p2]) * bmask + bvert
+    vert = jp.concatenate([bottom, top])
+    prism1 = mesh.hfield_prism(vert)
 
-  n_prisms = len(prisms)
-  prisms = jax.tree_util.tree_map(lambda *x: jp.stack(x), *prisms)
+    p3 = p2
+    p2 = [
+        dx * (ci + 1) - h.size[0],
+        dy * ri - h.size[1],
+        h.data[ci + 1, ri] * h.size[2],
+    ]
+    top = jp.array([p1, p2, p3])
+    bottom = jp.array([p1, p3, p2]) * bmask + bvert
+    vert = jp.concatenate([bottom, top])
+    # NB: If the order of verts is updated above, the corresponding
+    # hfield_prism function must be updated to ensure that all faces have the
+    # correct winding order.
+    prism2 = mesh.hfield_prism(vert)
+
+    return prism1, prism2
+
+  prism1, prism2 = make_prisms(rs, cs)
+  n_prisms = 2 * rs.shape[0]
+  prisms = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), prism1, prism2)
   dist, pos, n = jax.vmap(collider_fn, in_axes=[None, 0])(
       obj.replace(pos=obj_pos, mat=obj_mat), prisms
   )
