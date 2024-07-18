@@ -218,9 +218,13 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   // (needed in MJMODEL_POINTERS)
   MJMODEL_POINTERS_PREAMBLE(m1);
 
-  // compare ints
+  // compare ints, exclude nbuffer because it hides the actual difference
   #define X(name) \
-    if (m1->name != m2->name) {maxdif = m1->name - m2->name; field = #name;}
+    if (strncmp(#name, "nbuffer", 7)) {                            \
+      if (m1->name != m2->name) {                                  \
+        maxdif = mju_abs(m1->name - m2->name); field = #name;      \
+      }                                                            \
+    }
     MJMODEL_INTS
   #undef X
   if (maxdif > 0) return maxdif;
