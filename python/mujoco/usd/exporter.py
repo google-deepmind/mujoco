@@ -29,6 +29,8 @@ import scipy
 import termcolor
 import tqdm
 
+# TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
+# pytype: disable=module-attr
 from pxr import Sdf
 from pxr import Usd
 from pxr import UsdGeom

@@ -14,9 +14,11 @@
 # ==============================================================================
 """Built-in shapes for USD exporter."""
 
+from typing import Dict, Any
+
 import mujoco
 import numpy as np
-import open3d as o3d
+from open3d import open3d as o3d
 
 
 def create_hemisphere(
@@ -41,7 +43,7 @@ def create_hemisphere(
   return mesh
 
 
-def decouple_config(config: dict[str, any]):
+def decouple_config(config: Dict[str, Any]):
   """Breaks a shape config into is subcomponent shapes."""
   decoupled_config = []
   for key, value in config.items():
@@ -58,7 +60,7 @@ def decouple_config(config: dict[str, any]):
 
 def mesh_config_generator(
     name: str,
-    geom_type: mujoco.mjtGeom,
+    geom_type: int | mujoco.mjtGeom,
     size: np.ndarray,
     decouple: bool = False,
 ):
@@ -93,7 +95,9 @@ def mesh_config_generator(
         },
     }
   elif geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
-    sphere = mesh_config_generator(name, mujoco.mjtGeom.mjGEOM_SPHERE, [1.0])
+    sphere = mesh_config_generator(
+        name, mujoco.mjtGeom.mjGEOM_SPHERE, np.array([1.0])
+    )
     sphere["sphere"]["transform"] = {"scale": tuple(size)}
     config = {
         "name": name,
@@ -128,13 +132,13 @@ def mesh_config_generator(
 
 
 def mesh_generator(
-    mesh_config: dict[str, any],
+    mesh_config: Dict[str, Any],
     resolution: int = 100,
 ):
   """Generates a mesh given a config consisting of shapes."""
   assert "name" in mesh_config
 
-  prim_mesh, mesh = None, None
+  mesh = None
 
   for shape, config in mesh_config.items():
 
@@ -164,6 +168,8 @@ def mesh_generator(
           resolution=resolution,
           create_uv_map=True,
       )
+    else:
+      raise ValueError("Shape not supported")
 
     if "transform" in config:
       if "rotate" in config["transform"]:

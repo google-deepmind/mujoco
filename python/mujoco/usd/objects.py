@@ -16,13 +16,15 @@
 
 import abc
 import collections
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import mujoco
 import mujoco.usd.shapes as shapes_component
 import mujoco.usd.utils as utils_component
 import numpy as np
 
+# TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
+# pytype: disable=module-attr
 from pxr import Gf
 from pxr import Sdf
 from pxr import Usd
@@ -310,7 +312,7 @@ class USDPrimitiveMesh(USDObject):
 
   def __init__(
       self,
-      mesh_config: dict[any, any],
+      mesh_config: Dict[Any, Any],
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
@@ -379,7 +381,7 @@ class USDTendon(USDObject):
 
   def __init__(
       self,
-      mesh_config: dict[any, any],
+      mesh_config: Dict[Any, Any],
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
       obj_name: str,
