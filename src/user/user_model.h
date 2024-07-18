@@ -353,6 +353,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // populate objects ids
   void ProcessLists(bool checkrepeat = true);
 
+  // reset lists of kinematic tree
+  void ResetTreeLists();
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   bool plugin_owner;  // this class allocated the plugins

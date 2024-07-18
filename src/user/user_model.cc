@@ -188,19 +188,26 @@ static void resetlist(std::vector<T*>& list) {
 
 
 
+void mjCModel::ResetTreeLists() {
+  mjCBody *world = bodies_[0];
+  resetlist(bodies_);
+  resetlist(joints_);
+  resetlist(geoms_);
+  resetlist(sites_);
+  resetlist(cameras_);
+  resetlist(lights_);
+  resetlist(frames_);
+  world->id = 0;
+  bodies_.push_back(world);
+}
+
+
+
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
   mjCBody *world = bodies_[0];
   if (compiled) {
-    resetlist(bodies_);
-    resetlist(joints_);
-    resetlist(geoms_);
-    resetlist(sites_);
-    resetlist(cameras_);
-    resetlist(lights_);
-    resetlist(frames_);
-    world->id = 0;
-    bodies_.push_back(world);
+    ResetTreeLists();
   }
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
@@ -233,15 +240,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
 
   // restore to the original state
   if (!compiled) {
-    resetlist(bodies_);
-    resetlist(joints_);
-    resetlist(geoms_);
-    resetlist(sites_);
-    resetlist(cameras_);
-    resetlist(lights_);
-    resetlist(frames_);
-    world->id = 0;
-    bodies_.push_back(world);
+    ResetTreeLists();
   }
 
   PointToLocal();
@@ -291,15 +290,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
   // create global lists
   if (compiled) {
-    resetlist(bodies_);
-    resetlist(joints_);
-    resetlist(geoms_);
-    resetlist(sites_);
-    resetlist(cameras_);
-    resetlist(lights_);
-    resetlist(frames_);
-    world->id = 0;
-    bodies_.push_back(world);
+    ResetTreeLists();
   }
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
@@ -314,15 +305,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
   // restore to the original state
   if (!compiled) {
-    resetlist(bodies_);
-    resetlist(joints_);
-    resetlist(geoms_);
-    resetlist(sites_);
-    resetlist(cameras_);
-    resetlist(lights_);
-    resetlist(frames_);
-    world->id = 0;
-    bodies_.push_back(world);
+    ResetTreeLists();
   }
 
   PointToLocal();
