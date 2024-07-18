@@ -1168,14 +1168,18 @@ void mj_transmission(const mjModel* m, mjData* d) {
         for (int j=0; j < d->ncon; j++) {
           const mjContact* con = d->contact+j;
 
+          // get geom ids
+          int g1 = con->geom[0];
+          int g2 = con->geom[1];
+
           // contact involving flex, continue
-          if (con->geom[0] < 0 || con->geom[1] < 0) {
+          if (g1 < 0 || g2 < 0) {
             continue;
           }
 
           // get body ids
-          int b1 = m->geom_bodyid[con->geom[0]];
-          int b2 = m->geom_bodyid[con->geom[1]];
+          int b1 = m->geom_bodyid[g1];
+          int b2 = m->geom_bodyid[g2];
 
           // irrelevant contact, continue
           if (b1 != id && b2 != id) {
