@@ -1250,6 +1250,13 @@ mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
 
 template <class T>
 static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
+  if (!child) {
+    if (list.empty()) {
+      return nullptr;
+    }
+    return list[0]->spec.element;
+  }
+
   for (unsigned int i = 0; i < list.size()-1; i++) {
     if (list[i]->spec.element == child) {
       return list[i+1]->spec.element;
@@ -1275,19 +1282,19 @@ mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type) {
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_XBODY:
-      return child ? GetNext(bodies, child) : bodies[0];
+      return GetNext(bodies, child);
     case mjOBJ_JOINT:
-      return child ? GetNext(joints, child) : joints[0];
+      return GetNext(joints, child);
     case mjOBJ_GEOM:
-      return child ? GetNext(geoms, child) : geoms[0];
+      return GetNext(geoms, child);
     case mjOBJ_SITE:
-      return child ? GetNext(sites, child) : sites[0];
+      return GetNext(sites, child);
     case mjOBJ_CAMERA:
-      return child ? GetNext(cameras, child) : cameras[0];
+      return GetNext(cameras, child);
     case mjOBJ_LIGHT:
-      return child ? GetNext(lights, child) : lights[0];
+      return GetNext(lights, child);
     case mjOBJ_FRAME:
-      return child ? GetNext(frames, child) : frames[0];
+      return GetNext(frames, child);
     default:
       return nullptr;
   }

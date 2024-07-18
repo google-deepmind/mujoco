@@ -75,6 +75,8 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsSite* site3 = mjs_addSite(body, 0);
   mjsGeom* geom3 = mjs_addGeom(body, 0);
 
+  mjsElement* a_el1 = mjs_firstElement(spec, mjOBJ_ACTUATOR);
+  mjsElement* c_el1 = mjs_firstChild(body, mjOBJ_CAMERA);
   mjsElement* t_el1 = mjs_firstChild(body, mjOBJ_TENDON);
   mjsElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE);
   mjsElement* s_el2 = mjs_nextChild(body, s_el1);
@@ -85,6 +87,8 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsElement* g_el3 = mjs_nextChild(body, g_el2);
   mjsElement* g_el4 = mjs_nextChild(body, g_el3);
 
+  EXPECT_EQ(a_el1, nullptr);
+  EXPECT_EQ(c_el1, nullptr);
   EXPECT_EQ(t_el1, nullptr);
   EXPECT_EQ(s_el1, site1->element);
   EXPECT_EQ(s_el2, site2->element);
