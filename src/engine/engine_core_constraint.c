@@ -1656,7 +1656,6 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
         if (id[1] >= 0) {
           NV = mju_combineSparseCount(NV, NV2, chain, chain2);
-          NV = 2;
         }
         break;
 
