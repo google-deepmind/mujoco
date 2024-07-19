@@ -2893,18 +2893,25 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of columns in texture image       (ntex x 1)',
              ),
              StructFieldDecl(
+                 name='tex_nchannel',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of channels in texture image      (ntex x 1)',
+             ),
+             StructFieldDecl(
                  name='tex_adr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address in rgb                           (ntex x 1)',
+                 doc='start address in tex_data                (ntex x 1)',
              ),
              StructFieldDecl(
-                 name='tex_rgb',
+                 name='tex_data',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='rgb (alpha = 1)                          (ntexdata x 1)',
+                 doc='pixel values                             (ntexdata x 1)',
              ),
              StructFieldDecl(
                  name='tex_pathadr',

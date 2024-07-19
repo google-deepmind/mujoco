@@ -288,15 +288,15 @@ TEST_F(PluginTest, RecompileComparePngCache) {
   // load model once
   mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
   EXPECT_EQ(m->ntexdata, 18);  // w x h x rgb = 3 x 2 x 3
-  mjtByte byte = m->tex_rgb[0];
+  mjtByte byte = m->tex_data[0];
   mj_deleteModel(m);
 
   // update tex.png, load again
   mj_deleteFileVFS(vfs.get(), "tex.png");
   mj_addBufferVFS(vfs.get(), "tex.png", tex2, sizeof(tex2));
   m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
-  EXPECT_NE(m->tex_rgb[0], byte);
-  EXPECT_EQ(m->tex_rgb[15], byte);  // first pixel is now last pixel
+  EXPECT_NE(m->tex_data[0], byte);
+  EXPECT_EQ(m->tex_data[15], byte);  // first pixel is now last pixel
   mj_deleteModel(m);
 
   mj_deleteVFS(vfs.get());

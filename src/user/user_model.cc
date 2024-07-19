@@ -2505,9 +2505,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_height[i] = ptex->height;
     m->tex_width[i] = ptex->width;
     m->tex_adr[i] = data_adr;
+    m->tex_nchannel[i] = 3;
 
     // copy rgb data
-    memcpy(m->tex_rgb + data_adr, ptex->rgb.data(), 3*ptex->width*ptex->height);
+    memcpy(m->tex_data + data_adr, ptex->rgb.data(), 3*ptex->width*ptex->height);
 
     // advance counter
     data_adr += 3*ptex->width*ptex->height;

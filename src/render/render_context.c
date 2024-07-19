@@ -1382,7 +1382,7 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
 
     // assign data
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m->tex_width[texid], m->tex_height[texid], 0,
-                 GL_RGB, GL_UNSIGNED_BYTE, m->tex_rgb + m->tex_adr[texid]);
+                 GL_RGB, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid]);
 
     // generate mipmaps
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -1416,7 +1416,7 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     if (m->tex_width[texid] == m->tex_height[texid]) {
       for (int i=0; i < 6; i++) {
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, w, w, 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, m->tex_rgb + m->tex_adr[texid]);
+                     GL_RGB, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid]);
       }
     }
 
@@ -1424,7 +1424,7 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     else {
       for (int i=0; i < 6; i++) {
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, w, w, 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, m->tex_rgb + m->tex_adr[texid] + i*3*w*w);
+                     GL_RGB, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid] + i*3*w*w);
       }
     }
 

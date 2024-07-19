@@ -5451,8 +5451,9 @@ public unsafe struct mjModel_ {
   public int* tex_type;
   public int* tex_height;
   public int* tex_width;
+  public int* tex_nchannel;
   public int* tex_adr;
-  public byte* tex_rgb;
+  public byte* tex_data;
   public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;

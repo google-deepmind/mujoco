@@ -5,10 +5,15 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+1. Renamed ``mjModel.tex_rbg`` to ``mjModel.tex_data``.
+
 MJX
 ^^^
 
-1. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
+2. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
 
 Python bindings
 ^^^^^^^^^^^^^^^

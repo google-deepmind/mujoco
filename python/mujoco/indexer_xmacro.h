@@ -262,11 +262,12 @@
   X( float,   tendon, _rgba,         ntendon, 4                  )
 
 #define MJMODEL_TEXTURE                   \
-  X( int,     tex_, type,   ntex,     1 ) \
-  X( int,     tex_, height, ntex,     1 ) \
-  X( int,     tex_, width,  ntex,     1 ) \
-  X( int,     tex_, adr,    ntex,     1 ) \
-  X( mjtByte, tex_, rgb,    ntexdata, 1 )
+  X( int,     tex_, type,     ntex,     1 ) \
+  X( int,     tex_, height,   ntex,     1 ) \
+  X( int,     tex_, width,    ntex,     1 ) \
+  X( int,     tex_, nchannel, ntex,     1 ) \
+  X( int,     tex_, adr,      ntex,     1 ) \
+  X( mjtByte, tex_, data,     ntexdata, 1 )
 
 #define MJMODEL_TUPLE                         \
   X( int,    tuple_, adr,     ntuple,     1 ) \
