@@ -271,48 +271,71 @@ class Option(PyTreeNode):
   """Physics options.
 
   Attributes:
-    timestep:         timestep
-    impratio:         ratio of friction-to-normal contact impedance
-    tolerance:        main solver tolerance
-    ls_tolerance:     CG/Newton linesearch tolerance
-    gravity:          gravitational acceleration                 (3,)
-    wind:             wind (for lift, drag and viscosity)
-    density:          density of medium
-    viscosity:        viscosity of medium
-    has_fluid_params: automatically set by mjx if wind/density/viscosity are
+    timestep:          timestep
+    apirate:           update rate for remote API (Hz) (not used)
+    impratio:          ratio of friction-to-normal contact impedance
+    tolerance:         main solver tolerance
+    ls_tolerance:      CG/Newton linesearch tolerance
+    noslip_tolerance:  noslip solver tolerance (not used)
+    mpr_tolerance:     MPR solver tolerance (not used)
+    gravity:           gravitational acceleration                 (3,)
+    wind:              wind (for lift, drag and viscosity)
+    magnetic:          global magnetic flux (not used)
+    density:           density of medium
+    viscosity:         viscosity of medium
+    o_margin:          contact solver override: margin (not used)
+    o_solref:          contact solver override: solref (not used)
+    o_solimp:          contact solver override: solimp (not used)
+    o_friction[5]:     contact solver override: friction (not used)
+    has_fluid_params:  automatically set by mjx if wind/density/viscosity are
       nonzero. Not used by mj
-    integrator:       integration mode
-    cone:             type of friction cone
-    jacobian:         matrix layout for mass matrices (dense or sparse)
-                      (note that this is different from MuJoCo, where jacobian
-                      specifies whether efc_J and its accompanying matrices
-                      are dense or sparse.
-    solver:           solver algorithm
-    iterations:       number of main solver iterations
-    ls_iterations:    maximum number of CG/Newton linesearch iterations
-    disableflags:     bit flags for disabling standard features
+    integrator:        integration mode
+    cone:              type of friction cone
+    jacobian:          matrix layout for mass matrices (dense or sparse)
+                       (note that this is different from MuJoCo, where jacobian
+                       specifies whether efc_J and its accompanying matrices
+                       are dense or sparse.
+    solver:            solver algorithm
+    iterations:        number of main solver iterations
+    ls_iterations:     maximum number of CG/Newton linesearch iterations
+    noslip_iterations: maximum number of noslip solver iterations (not used)
+    mpr_iterations:    maximum number of MPR solver iterations (not used)
+    disableflags:      bit flags for disabling standard features
+    enableflags:       bit flags for enabling optional features (not used)
+    disableactuator:   bit flags for disabling actuators by group id (not used)
+    sdf_initpoints:    number of starting points for gradient descent (not used)
+    sdf_iterations:    max number of iterations for gradient descent (not used)
   """
   timestep: jax.Array
-  # unsupported: apirate
+  apirate: jax.Array
   impratio: jax.Array
   tolerance: jax.Array
   ls_tolerance: jax.Array
-  # unsupported: noslip_tolerance, mpr_tolerance
+  noslip_tolerance: jax.Array
+  mpr_tolerance: jax.Array
   gravity: jax.Array
   wind: jax.Array
+  magnetic: jax.Array
   density: jax.Array
   viscosity: jax.Array
+  o_margin: jax.Array
+  o_solref: jax.Array
+  o_solimp: jax.Array
+  o_friction: jax.Array
   has_fluid_params: bool
-  # unsupported: magnetic, o_margin, o_solref, o_solimp
   integrator: IntegratorType
   cone: ConeType
   jacobian: JacobianType
   solver: SolverType
   iterations: int
   ls_iterations: int
-  # unsupported: noslip_iterations, mpr_iterations
+  noslip_iterations: int
+  mpr_iterations: int
   disableflags: DisableBit
-  # unsupported: enableflags
+  enableflags: int
+  disableactuator: int
+  sdf_initpoints: int
+  sdf_iterations: int
 
 
 class Statistic(PyTreeNode):
@@ -320,9 +343,16 @@ class Statistic(PyTreeNode):
 
   Attributes:
     meaninertia: mean diagonal inertia
+    meanmass: mean body mass (not used)
+    meansize: mean body size (not used)
+    extent: spatial extent (not used)
+    center: center of model (not used)
   """
   meaninertia: jax.Array
-  # unsupported: meanmass, meansize, extent, center
+  meanmass: jax.Array
+  meansize: jax.Array
+  extent: jax.Array
+  center: jax.Array
 
 
 class Model(PyTreeNode):
@@ -907,6 +937,7 @@ class Model(PyTreeNode):
   actuator_cranklength: np.ndarray
   actuator_acc0: np.ndarray
   actuator_lengthrange: np.ndarray
+  actuator_plugin: np.ndarray
   sensor_type: np.ndarray
   sensor_datatype: np.ndarray
   sensor_needstage: np.ndarray
@@ -939,6 +970,7 @@ class Model(PyTreeNode):
   name_tupleadr: np.ndarray
   name_keyadr: np.ndarray
   names: bytes
+  _sizes: jax.Array
 
 
 class Contact(PyTreeNode):

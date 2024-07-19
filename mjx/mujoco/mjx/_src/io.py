@@ -60,7 +60,13 @@ def _make_option(o: mujoco.MjOption) -> types.Option:
 
 def _make_statistic(s: mujoco.MjStatistic) -> types.Statistic:
   """Puts mujoco.MjStatistic onto a device, resulting in mjx.Statistic."""
-  return types.Statistic(meaninertia=s.meaninertia)
+  return types.Statistic(
+      meaninertia=s.meaninertia,
+      meanmass=s.meanmass,
+      meansize=s.meansize,
+      extent=s.extent,
+      center=s.center,
+  )
 
 
 def put_model(m: mujoco.MjModel, device=None) -> types.Model:
@@ -193,19 +199,19 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       cinert=jp.zeros((m.nbody, 10), dtype=float),
       flexvert_xpos=jp.zeros((m.nflexvert, 3), dtype=float),
       flexelem_aabb=jp.zeros((m.nflexelem, 6), dtype=float),
-      flexedge_J_rownnz=jp.zeros((m.nflexedge,), dtype=int),
-      flexedge_J_rowadr=jp.zeros((m.nflexedge,), dtype=int),
-      flexedge_J_colind=jp.zeros((m.nflexedge, m.nv), dtype=int),
+      flexedge_J_rownnz=jp.zeros((m.nflexedge,), dtype=jp.int32),
+      flexedge_J_rowadr=jp.zeros((m.nflexedge,), dtype=jp.int32),
+      flexedge_J_colind=jp.zeros((m.nflexedge, m.nv), dtype=jp.int32),
       flexedge_J=jp.zeros((m.nflexedge, m.nv), dtype=float),
       flexedge_length=jp.zeros((m.nflexedge,), dtype=float),
-      ten_wrapadr=jp.zeros((m.ntendon,), dtype=int),
-      ten_wrapnum=jp.zeros((m.ntendon,), dtype=int),
-      ten_J_rownnz=jp.zeros((m.ntendon,), dtype=int),
-      ten_J_rowadr=jp.zeros((m.ntendon,), dtype=int),
-      ten_J_colind=jp.zeros((m.ntendon, m.nv), dtype=int),
+      ten_wrapadr=jp.zeros((m.ntendon,), dtype=jp.int32),
+      ten_wrapnum=jp.zeros((m.ntendon,), dtype=jp.int32),
+      ten_J_rownnz=jp.zeros((m.ntendon,), dtype=jp.int32),
+      ten_J_rowadr=jp.zeros((m.ntendon,), dtype=jp.int32),
+      ten_J_colind=jp.zeros((m.ntendon, m.nv), dtype=jp.int32),
       ten_J=jp.zeros((m.ntendon, m.nv), dtype=float),
       ten_length=jp.zeros((m.ntendon,), dtype=float),
-      wrap_obj=jp.zeros((m.nwrap, 2), dtype=int),
+      wrap_obj=jp.zeros((m.nwrap, 2), dtype=jp.int32),
       wrap_xpos=jp.zeros((m.nwrap, 6), dtype=float),
       actuator_length=jp.zeros((m.nu,), dtype=float),
       actuator_moment=jp.zeros((m.nu, m.nv), dtype=float),
@@ -242,12 +248,12 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       subtree_angmom=jp.zeros((m.nbody, 3), dtype=float),
       qH=jp.zeros((m.nM,), dtype=float),
       qHDiagInv=jp.zeros((m.nv,), dtype=float),
-      D_rownnz=jp.zeros((m.nv,), dtype=int),
-      D_rowadr=jp.zeros((m.nv,), dtype=int),
-      D_colind=jp.zeros((m.nD,), dtype=int),
-      B_rownnz=jp.zeros((m.nbody,), dtype=int),
-      B_rowadr=jp.zeros((m.nbody,), dtype=int),
-      B_colind=jp.zeros((m.nB,), dtype=int),
+      D_rownnz=jp.zeros((m.nv,), dtype=jp.int32),
+      D_rowadr=jp.zeros((m.nv,), dtype=jp.int32),
+      D_colind=jp.zeros((m.nD,), dtype=jp.int32),
+      B_rownnz=jp.zeros((m.nbody,), dtype=jp.int32),
+      B_rowadr=jp.zeros((m.nbody,), dtype=jp.int32),
+      B_colind=jp.zeros((m.nB,), dtype=jp.int32),
       qDeriv=jp.zeros((m.nD,), dtype=float),
       qLU=jp.zeros((m.nD,), dtype=float),
       actuator_force=jp.zeros((m.nu,), dtype=float),
