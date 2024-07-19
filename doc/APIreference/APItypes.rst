@@ -175,6 +175,17 @@ Texture types, specifying how the texture will be mapped. These values are used 
 .. mujoco-include:: mjtTexture
 
 
+.. _mjtTextureRole:
+
+mjtTextureRole
+~~~~~~~~~~~~~~
+
+Texture roles, specifying how the renderer should interpret the texture.  Note that the MuJoCo built-in renderer only
+uses RGB textures.  These values are used to store the texture index in the material's array ``m->mat_texid``.
+
+.. mujoco-include:: mjtTextureRole
+
+
 .. _mjtIntegrator:
 
 mjtIntegrator

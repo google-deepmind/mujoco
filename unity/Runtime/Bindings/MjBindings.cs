@@ -50,7 +50,6 @@ public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
-public const int mjNTEXMAT = 6;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
@@ -208,6 +207,19 @@ public enum mjtTexture : int{
   mjTEXTURE_2D = 0,
   mjTEXTURE_CUBE = 1,
   mjTEXTURE_SKYBOX = 2,
+}
+public enum mjtTextureRole : int{
+  mjTEXROLE_USER = 0,
+  mjTEXROLE_RGB = 1,
+  mjTEXROLE_OCCLUSION = 2,
+  mjTEXROLE_ROUGHNESS = 3,
+  mjTEXROLE_METALLIC = 4,
+  mjTEXROLE_NORMAL = 5,
+  mjTEXROLE_OPACITY = 6,
+  mjTEXROLE_EMISSIVE = 7,
+  mjTEXROLE_RGBA = 8,
+  mjTEXROLE_ORM = 9,
+  mjNTEXROLE = 10,
 }
 public enum mjtIntegrator : int{
   mjINT_EULER = 0,
@@ -5631,7 +5643,7 @@ public unsafe struct mjrContext_ {
   public fixed uint auxFBO_r[10];
   public fixed uint auxColor[10];
   public fixed uint auxColor_r[10];
-  public fixed int mat_texid[600];
+  public fixed int mat_texid[1000];
   public fixed int mat_texuniform[100];
   public fixed int mat_texrepeat[200];
   public int ntexture;

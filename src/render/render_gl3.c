@@ -63,7 +63,9 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   float plane[4], scl[2];
   int texid = -1;
   if (geom) {
-    texid = (geom->matid == -1) ? -1 : con->mat_texid[mjNTEXMAT * geom->matid];
+    if (geom->matid >= 0) {
+      texid = con->mat_texid[mjNTEXROLE * geom->matid + mjTEXROLE_RGB];
+    }
   }
 
   // shadow

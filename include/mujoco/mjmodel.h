@@ -42,7 +42,6 @@
 #define mjNIMP          5         // number of solver impedance parameters
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
-#define mjNTEXMAT       6         // number of textures per material
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
 
@@ -131,6 +130,21 @@ typedef enum mjtTexture_ {        // type of texture
   mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
   mjTEXTURE_SKYBOX                // cube texture used as skybox
 } mjtTexture;
+
+
+typedef enum mjtTextureRole_ {    // role of texture map in rendering
+  mjTEXROLE_USER      = 0,        // unspecified
+  mjTEXROLE_RGB,                  // base color (albedo)
+  mjTEXROLE_OCCLUSION,            // ambient occlusion
+  mjTEXROLE_ROUGHNESS,            // roughness
+  mjTEXROLE_METALLIC,             // metallic
+  mjTEXROLE_NORMAL,               // normal (bump) map
+  mjTEXROLE_OPACITY,              // transperancy
+  mjTEXROLE_EMISSIVE,             // light emission
+  mjTEXROLE_RGBA,                 // base color, opacity
+  mjTEXROLE_ORM,                  // occlusion, roughness, metallic
+  mjNTEXROLE
+} mjtTextureRole;
 
 
 typedef enum mjtIntegrator_ {     // integrator mode
@@ -930,7 +944,7 @@ struct mjModel_ {
   int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
-  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXMAT)
+  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXROLE)
   mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)

@@ -2925,7 +2925,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='indices of textures; -1: none            (nmat x mjNTEXMAT)',  # pylint: disable=line-too-long
+                 doc='indices of textures; -1: none            (nmat x mjNTEXROLE)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='mat_texuniform',
@@ -7967,7 +7967,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='mat_texid',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
-                     extents=(600,),
+                     extents=(1000,),
                  ),
                  doc='material texture ids (-1: no texture)',
              ),

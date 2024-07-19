@@ -477,6 +477,19 @@ typedef enum mjtTexture_ {        // type of texture
   mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
   mjTEXTURE_SKYBOX                // cube texture used as skybox
 } mjtTexture;
+typedef enum mjtTextureRole_ {    // role of texture map in rendering
+  mjTEXROLE_USER      = 0,        // unspecified
+  mjTEXROLE_RGB,                  // base color (albedo)
+  mjTEXROLE_OCCLUSION,            // ambient occlusion
+  mjTEXROLE_ROUGHNESS,            // roughness
+  mjTEXROLE_METALLIC,             // metallic
+  mjTEXROLE_NORMAL,               // normal (bump) map
+  mjTEXROLE_OPACITY,              // transperancy
+  mjTEXROLE_EMISSIVE,             // light emission
+  mjTEXROLE_RGBA,                 // base color, opacity
+  mjTEXROLE_ORM,                  // occlusion, roughness, metallic
+  mjNTEXROLE
+} mjtTextureRole;
 typedef enum mjtIntegrator_ {     // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
@@ -1217,7 +1230,7 @@ struct mjModel_ {
   int*      tex_pathadr;          // address of texture asset path; -1: none  (ntex x 1)
 
   // materials
-  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXMAT)
+  int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXROLE)
   mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)
@@ -1544,9 +1557,9 @@ struct mjrContext_ {                // custom OpenGL context
   unsigned int auxColor_r[mjNAUX];  // auxiliary color buffer for resolving
 
   // materials with textures
-  int mat_texid[mjMAXMATERIAL*mjNTEXMAT];  // material texture ids (-1: no texture)
-  int mat_texuniform[mjMAXMATERIAL];       // texture repetition for 2d mapping
-  int mat_texrepeat[mjMAXMATERIAL*2];      // texture repetition for 2d mapping
+  int mat_texid[mjMAXMATERIAL*mjNTEXROLE];       // material texture ids (-1: no texture)
+  int mat_texuniform[mjMAXMATERIAL];            // texture repetition for 2d mapping
+  int mat_texrepeat[mjMAXMATERIAL*2];           // texture repetition for 2d mapping
 
   // texture objects and info
   int ntexture;                        // number of allocated textures

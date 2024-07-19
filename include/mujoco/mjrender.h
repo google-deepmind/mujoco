@@ -115,9 +115,9 @@ struct mjrContext_ {                // custom OpenGL context
   unsigned int auxColor_r[mjNAUX];  // auxiliary color buffer for resolving
 
   // materials with textures
-  int mat_texid[mjMAXMATERIAL*mjNTEXMAT];  // material texture ids (-1: no texture)
-  int mat_texuniform[mjMAXMATERIAL];       // texture repetition for 2d mapping
-  int mat_texrepeat[mjMAXMATERIAL*2];      // texture repetition for 2d mapping
+  int mat_texid[mjMAXMATERIAL*mjNTEXROLE];       // material texture ids (-1: no texture)
+  int mat_texuniform[mjMAXMATERIAL];            // texture repetition for 2d mapping
+  int mat_texrepeat[mjMAXMATERIAL*2];           // texture repetition for 2d mapping
 
   // texture objects and info
   int ntexture;                        // number of allocated textures

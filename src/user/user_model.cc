@@ -2520,10 +2520,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjCMaterial* pmat = materials_[i];
 
     // set fields
-    m->mat_texid[mjNTEXMAT*i] = pmat->texid;
-    for (int j=1; j<mjNTEXMAT; j++) {
-      m->mat_texid[mjNTEXMAT*i+j] = -1;
+    for (int j=0; j<mjNTEXROLE; j++) {
+      m->mat_texid[mjNTEXROLE*i+j] = -1;
     }
+    m->mat_texid[mjNTEXROLE*i+mjTEXROLE_RGB] = pmat->texid;
     m->mat_texuniform[i] = pmat->texuniform;
     mjuu_copyvec(m->mat_texrepeat+2*i, pmat->texrepeat, 2);
     m->mat_emission[i] = pmat->emission;

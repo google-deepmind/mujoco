@@ -1307,9 +1307,9 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
     mju_error("Maximum number of materials is %d", mjMAXMATERIAL);
   }
   for (int i=0; i < m->nmat; i++) {
-    if (m->mat_texid[i*mjNTEXMAT] >= 0) {
-      for (int j=0; j < mjNTEXMAT; j++) {
-        con->mat_texid[i*mjNTEXMAT + j] = m->mat_texid[i*mjNTEXMAT + j];
+    if (m->mat_texid[i*mjNTEXROLE + mjTEXROLE_RGB] >= 0) {
+      for (int j=0; j < mjNTEXROLE; j++) {
+        con->mat_texid[i*mjNTEXROLE + j] = m->mat_texid[i*mjNTEXROLE + j];
       }
       con->mat_texuniform[i] = m->mat_texuniform[i];
       con->mat_texrepeat[2*i] = m->mat_texrepeat[2*i];
@@ -1322,10 +1322,10 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
       if (m->nmat >= mjMAXMATERIAL-2) {
         mju_error("With skybox, maximum number of materials is %d", mjMAXMATERIAL);
       }
-      con->mat_texid[mjNTEXMAT * (mjMAXMATERIAL-1)] = i;
-      for (int j=1; j < mjNTEXMAT; j++) {
-        con->mat_texid[mjNTEXMAT * (mjMAXMATERIAL-1) + j] = -1;
+      for (int j=0; j < mjNTEXROLE; j++) {
+        con->mat_texid[mjNTEXROLE * (mjMAXMATERIAL-1) + j] = -1;
       }
+      con->mat_texid[mjNTEXROLE * (mjMAXMATERIAL-1) + mjTEXROLE_RGB] = i;
 
       break;
     }
