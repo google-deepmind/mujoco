@@ -423,8 +423,9 @@ MjModelWrapper MjModelWrapper::LoadXML(
   return MjModelWrapper(model);
 }
 
-MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec) {
-  auto m = mj_compile(spec, nullptr);
+MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec,
+                                           const mjVFS* vfs) {
+  auto m = mj_compile(spec, vfs);
   if (!m || mjs_isWarning(spec)) {
     throw py::value_error(mjs_getError(spec));
   }
@@ -1572,7 +1573,14 @@ R"(Loads an MjModel from an XML string and an optional assets dictionary.)"));
   mjModel.def_static(
       "_from_spec_ptr", [](uintptr_t addr) {
         return MjModelWrapper::CompileSpec(
-            reinterpret_cast<raw::MjSpec*>(addr));
+            reinterpret_cast<raw::MjSpec*>(addr),
+            nullptr);
+      });
+  mjModel.def_static(
+      "_from_spec_ptr", [](uintptr_t addr, uintptr_t vfs) {
+        return MjModelWrapper::CompileSpec(
+            reinterpret_cast<raw::MjSpec*>(addr),
+            reinterpret_cast<mjVFS*>(vfs));
       });
   mjModel.def_static(
       "from_xml_path", &MjModelWrapper::LoadXMLFile,

@@ -10,6 +10,11 @@ MJX
 
 1. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
 
+Python bindings
+^^^^^^^^^^^^^^^
+2. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
+   ``mujoco.spec.compile``.
+
 Version 3.2.0 (Jul 15, 2024)
 ----------------------------
 

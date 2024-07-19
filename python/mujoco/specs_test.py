@@ -249,6 +249,26 @@ class SpecsTest(absltest.TestCase):
       geom = spec.worldbody.next_geom(geom)
       i += 1
 
+  def test_assets(self):
+    cube = """
+      v -1 -1  1
+      v  1 -1  1
+      v -1  1  1
+      v  1  1  1
+      v -1  1 -1
+      v  1  1 -1
+      v -1 -1 -1
+      v  1 -1 -1"""
+    spec = mujoco.MjSpec()
+    mesh = spec.add_mesh()
+    mesh.name = 'cube'
+    mesh.file = 'cube.obj'
+    geom = spec.worldbody.add_geom()
+    geom.type = mujoco.mjtGeom.mjGEOM_MESH
+    geom.meshname = 'cube'
+    model = spec.compile({'cube.obj': cube})
+    self.assertEqual(model.nmeshvert, 8)
+
 
 if __name__ == '__main__':
   absltest.main()
