@@ -1317,17 +1317,17 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* pflex) {
   if (ReadAttrTxt(elem, "body", text, true)) {
     mjs_setStringVec(pflex->vertbody, text.c_str());
   }
-  if (ReadAttrTxt(elem, "vertex", text)) {
-    std::vector<double> vert = String2Vector<double>(text);
-    mjs_setDouble(pflex->vert, vert.data(), vert.size());
+  auto vert = ReadAttrVec<double>(elem, "vertex");
+  if (vert.has_value()) {
+    mjs_setDouble(pflex->vert, vert->data(), vert->size());
   }
-  if (ReadAttrTxt(elem, "element", text, true)) {
-    std::vector<int> elem = String2Vector<int>(text);
-    mjs_setInt(pflex->elem, elem.data(), elem.size());
+  auto element = ReadAttrVec<int>(elem, "element", true);
+  if (element.has_value()) {
+    mjs_setInt(pflex->elem, element->data(), element->size());
   }
-  if (ReadAttrTxt(elem, "texcoord", text)) {
-    std::vector<float> texcoord = String2Vector<float>(text);
-    mjs_setFloat(pflex->texcoord, texcoord.data(), texcoord.size());
+  auto texcoord = ReadAttrVec<float>(elem, "texcoord");
+  if (texcoord.has_value()) {
+    mjs_setFloat(pflex->texcoord, texcoord->data(), texcoord->size());
   }
 
   // contact subelement
@@ -1459,21 +1459,21 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin) {
   ReadAttr(elem, "inflate", 1, &pskin->inflate, text);
 
   // read vertex data
-  if (ReadAttrTxt(elem, "vertex", text)) {
-    std::vector<float> vert = String2Vector<float>(text);
-    mjs_setFloat(pskin->vert, vert.data(), vert.size());
+  auto vertex = ReadAttrVec<float>(elem, "vertex");
+  if (vertex.has_value()) {
+    mjs_setFloat(pskin->vert, vertex->data(), vertex->size());
   }
 
   // read texcoord data
-  if (ReadAttrTxt(elem, "texcoord", text)) {
-    std::vector<float> texcoord = String2Vector<float>(text);
-    mjs_setFloat(pskin->texcoord, texcoord.data(), texcoord.size());
+  auto texcoord = ReadAttrVec<float>(elem, "texcoord");
+  if (texcoord.has_value()) {
+    mjs_setFloat(pskin->texcoord, texcoord->data(), texcoord->size());
   }
 
   // read user face data
-  if (ReadAttrTxt(elem, "face", text)) {
-    std::vector<int> face = String2Vector<int>(text);
-    mjs_setInt(pskin->face, face.data(), face.size());
+  auto face = ReadAttrVec<int>(elem, "face");
+  if (face.has_value()) {
+    mjs_setInt(pskin->face, face->data(), face->size());
   }
 
   // read bones
@@ -1500,14 +1500,16 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin) {
     bindquat.push_back(data[3]);
 
     // read vertid
-    ReadAttrTxt(bone, "vertid", text, true);
-    vector<int> tempid = String2Vector<int>(text);
-    mjs_appendIntVec(pskin->vertid, tempid.data(), tempid.size());
+    auto tempid = ReadAttrVec<int>(bone, "vertid", true);
+    if (tempid.has_value()) {
+      mjs_appendIntVec(pskin->vertid, tempid->data(), tempid->size());
+    }
 
     // read vertweight
-    ReadAttrTxt(bone, "vertweight", text, true);
-    vector<float> tempweight = String2Vector<float>(text);
-    mjs_appendFloatVec(pskin->vertweight, tempweight.data(), tempweight.size());
+    auto tempweight = ReadAttrVec<float>(bone, "vertweight", true);
+    if (tempweight.has_value()) {
+      mjs_appendFloatVec(pskin->vertweight, tempweight->data(), tempweight->size());
+    }
 
     // advance to next bone
     bone = NextSiblingElement(bone, "bone");
@@ -2287,8 +2289,9 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjsDefault* def) 
   ReadAttrTxt(elem, "curve", curves);
   ReadAttrTxt(elem, "initial", comp.initial);
   ReadAttr(elem, "size", 3, comp.size, text, false, false);
-  if (ReadAttrTxt(elem, "vertex", text)) {
-    comp.uservert = String2Vector<float>(text);
+  auto uservert = ReadAttrVec<float>(elem, "vertex");
+  if (uservert.has_value()) {
+    comp.uservert = std::move(uservert.value());
   }
 
   // shell
@@ -2530,14 +2533,17 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody) {
   if (MapValue(elem, "rigid", &n, bool_map, 2)) {
     fcomp.rigid = (n==1);
   }
-  if (ReadAttrTxt(elem, "point", text)){
-    fcomp.point = String2Vector<double>(text);
+  auto point = ReadAttrVec<double>(elem, "point");
+  if (point.has_value()) {
+    fcomp.point = std::move(point.value());
   }
-  if (ReadAttrTxt(elem, "element", text)){
-    fcomp.element = String2Vector<int>(text);
+  auto element = ReadAttrVec<int>(elem, "element");
+  if (element.has_value()) {
+    fcomp.element = std::move(element.value());
   }
-  if (ReadAttrTxt(elem, "texcoord", text)) {
-    fcomp.texcoord = String2Vector<float>(text);
+  auto texcoord = ReadAttrVec<float>(elem, "texcoord");
+  if (texcoord.has_value()) {
+    fcomp.texcoord = std::move(texcoord.value());
   }
 
   // edge
@@ -2575,23 +2581,22 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody) {
   // pin
   XMLElement* epin = FirstChildElement(elem, "pin");
   while (epin) {
-    // accumulate id, coord, range
-    if (ReadAttrTxt(epin, "id", text)) {
-      vector<int> v = String2Vector<int>(text);
-      fcomp.pinid.insert(fcomp.pinid.end(), v.begin(), v.end());
+    auto id = ReadAttrVec<int>(epin, "id");
+    if (id.has_value()) {
+      fcomp.pinid.insert(fcomp.pinid.end(), id->begin(), id->end());
     }
-    if (ReadAttrTxt(epin, "range", text)) {
-      vector<int> v = String2Vector<int>(text);
-      fcomp.pinrange.insert(fcomp.pinrange.end(), v.begin(), v.end());
+    auto range = ReadAttrVec<int>(epin, "range");
+    if (range.has_value()) {
+      fcomp.pinrange.insert(fcomp.pinrange.end(), range->begin(), range->end());
     }
-    if (ReadAttrTxt(epin, "grid", text)) {
-
-      vector<int> v = String2Vector<int>(text);
-      fcomp.pingrid.insert(fcomp.pingrid.end(), v.begin(), v.end());
+    auto grid = ReadAttrVec<int>(epin, "grid");
+    if (grid.has_value()) {
+      fcomp.pingrid.insert(fcomp.pingrid.end(), grid->begin(), grid->end());
     }
-    if (ReadAttrTxt(epin, "gridrange", text)) {
-      vector<int> v = String2Vector<int>(text);
-      fcomp.pingridrange.insert(fcomp.pingridrange.end(), v.begin(), v.end());
+    auto gridrange = ReadAttrVec<int>(epin, "gridrange");
+    if (gridrange.has_value()) {
+      fcomp.pingridrange.insert(fcomp.pingridrange.end(),
+                                gridrange->begin(), gridrange->end());
     }
 
     // advance

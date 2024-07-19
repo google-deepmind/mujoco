@@ -27,7 +27,12 @@
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_cache.h"
-#include "xml/xml_util.h"
+
+namespace {
+
+using mujoco::user::StringToVector;
+
+}  // namespace
 
 // global cache size in bytes (default 500MB)
 static constexpr std::size_t kGlobalCacheSize = 500 * (1 << 20);
@@ -892,7 +897,7 @@ mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
 // split text and copy into string array
 void mjs_setStringVec(mjStringVec* dest, const char* text) {
   std::vector<std::string>* v = static_cast<std::vector<std::string>*>(dest);
-  *v = mjXUtil::String2Vector<std::string>(text);
+  *v = StringToVector<std::string>(text);
 }
 
 

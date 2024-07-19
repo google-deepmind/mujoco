@@ -345,7 +345,7 @@ TEST_F(XMLReaderTest, InvalidArrayElement) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("problem reading attribute 'axisangle'"));
+  EXPECT_THAT(error.data(), HasSubstr("bad format in attribute 'axisangle'"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
@@ -396,8 +396,24 @@ TEST_F(XMLReaderTest, InvalidNumber) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("problem reading attribute"));
+  EXPECT_THAT(error.data(), HasSubstr("bad format in attribute 'axisangle'"));
   EXPECT_THAT(error.data(), HasSubstr("line 5"));
+}
+
+TEST_F(XMLReaderTest, InvalidNumberRange) {
+    static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" file="mesh.stl" face="100000000000000000000000"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("number is too large in attribute 'face'"));
+  EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
 TEST_F(XMLReaderTest, InvalidNumberOfAttributes) {

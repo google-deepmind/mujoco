@@ -1238,7 +1238,7 @@ TEST_F(XMLWriterTest, SetPrecision) {
   EXPECT_EQ(model->geom_size[1], model_lo->geom_size[1]);
   EXPECT_NE(model->geom_size[2], model_lo->geom_size[2]);
   {
-    // save to XML and re-load with FullFloatPrecision
+    // save to XML and reload with FullFloatPrecision
     // expect to maintain precision
     FullFloatPrecision increase_precision;
     mjModel* model_hi = LoadModelFromString(SaveAndReadXml(model));
@@ -1276,8 +1276,10 @@ TEST_F(XMLWriterLocaleTest, IgnoresLocale) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("0.1 1.23 2.345"));
   mj_deleteModel(model);

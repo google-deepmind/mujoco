@@ -16,11 +16,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <sstream>
@@ -31,6 +33,16 @@
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
+
+
+// workaround with locale bug on some MacOS machines
+#if defined (__APPLE__) && defined (__MACH__)
+#include <xlocale.h>
+#include <locale.h>
+
+#define strtof(X, Y) strtof_l((X), (Y), _c_locale)
+#define strtod(X, Y) strtod_l((X), (Y), _c_locale)
+#endif
 
 // check if numeric variable is defined
 bool mjuu_defined(double num) {
@@ -1137,5 +1149,109 @@ std::vector<uint8_t> FileToMemory(const char* filename) {
   return buffer;
 }
 
-}  // namespace mujoco::user
+// convert vector to string separating elements by whitespace
+template<typename T> std::string VectorToString(const std::vector<T>& v) {
+  std::stringstream ss;
 
+  for (const T& t : v) {
+    ss << t << " ";
+  }
+
+  std::string s = ss.str();
+  if (!s.empty()) s.pop_back();  // remove trailing space
+  return s;
+}
+
+template std::string VectorToString(const std::vector<int>& v);
+template std::string VectorToString(const std::vector<float>& v);
+template std::string VectorToString(const std::vector<double>& v);
+template std::string VectorToString(const std::vector<std::string>& v);
+
+namespace {
+
+template<typename T> T StrToNum(char* str, char** c);
+
+template<> int StrToNum(char* str, char** c) {
+  long n = std::strtol(str, c, 10);
+  if (n < INT_MIN || n > INT_MAX) errno = ERANGE;
+  return n;
+}
+
+template<> float StrToNum(char* str, char** c) {
+  float f = strtof(str, c);
+  if (std::isnan(f)) errno = EDOM;
+  return f;
+}
+
+template<> double StrToNum(char* str, char** c) {
+  double d = strtod(str, c);
+  if (std::isnan(d)) errno = EDOM;
+  return d;
+}
+
+template<> unsigned char StrToNum(char* str, char** c) {
+  long n = std::strtol(str, c, 10);
+  if (n < 0 || n > UCHAR_MAX) errno = ERANGE;
+  return n;
+}
+
+inline bool IsNullOrSpace(char* c) {
+  return std::isspace(static_cast<unsigned char>(*c)) || *c == '\0';
+}
+
+inline char* SkipSpace(char* c) {
+  for (; *c != '\0'; c++) {
+    if (!IsNullOrSpace(c)) {
+      break;
+    }
+  }
+  return c;
+}
+}  // namespace
+
+template <typename T> std::vector<T> StringToVector(char* cs) {
+  std::vector<T> v;
+  char* ch = cs;
+
+  errno = 0;
+  // reserve worst case
+  v.reserve((std::strlen(cs) >> 1) + 1);
+
+  for (;;) {
+    cs = SkipSpace(ch);                      // skip leading spaces
+    if (*cs == '\0') break;                  // end of string
+    T num = StrToNum<T>(cs, &ch);            // parse number
+    if (!IsNullOrSpace(ch)) errno = EINVAL;  // invalid separator
+    if (cs == ch) errno = EINVAL;            // failed to parse number
+    if (errno && errno != EDOM) break;       // NaNs are quietly ignored
+    v.push_back(num);
+  }
+
+  v.shrink_to_fit();
+  return v;
+}
+
+template<> std::vector<std::string> StringToVector(const std::string& s) {
+  std::vector<std::string> v;
+  std::stringstream ss(s);
+  std::string word;
+  while (ss >> word) {
+    v.push_back(word);
+  }
+  return v;
+}
+
+template std::vector<int>    StringToVector(char* cs);
+template std::vector<float>  StringToVector(char* cs);
+template std::vector<double> StringToVector(char* cs);
+
+
+template <typename T> std::vector<T> StringToVector(const std::string& s) {
+  return StringToVector<T>(const_cast<char*>(s.c_str()));
+}
+template std::vector<int>    StringToVector(const std::string& s);
+template std::vector<float>  StringToVector(const std::string& s);
+template std::vector<double> StringToVector(const std::string& s);
+template std::vector<unsigned char> StringToVector(const std::string& s);
+
+}  // namespace mujoco::user

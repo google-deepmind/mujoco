@@ -62,12 +62,15 @@
 #include "user/user_objects.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
-#include "xml/xml_util.h"
 #include <tiny_obj_loader.h>
 
 extern "C" {
 #include "qhull_ra.h"
 }
+
+namespace {
+  using mujoco::user::VectorToString;
+}  // namespace
 
 // compute triangle area, surface normal, center
 static double _triangle(double* normal, double* center,
@@ -2627,8 +2630,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // add plugins
   std::string userface, useredge;
-  mjXUtil::Vector2String(userface, elem_);
-  mjXUtil::Vector2String(useredge, edgeidx);
+  userface = VectorToString(elem_);
+  useredge = VectorToString(edgeidx);
 
   for (const auto& vbodyid : vertbodyid) {
     if (model->Bodies()[vbodyid]->plugin.instance) {

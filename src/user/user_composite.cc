@@ -36,12 +36,11 @@
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
-#include "xml/xml_util.h"
 
 namespace {
 namespace mju = ::mujoco::util;
-using std::vector;
-using std::string;
+using mujoco::user::VectorToString;
+using mujoco::user::StringToVector;
 }  // namespace
 
 // strncpy with 0, return false
@@ -418,12 +417,12 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
         }
       }
     }
-    mjXUtil::Vector2String(userface, face);
+    userface = VectorToString(face);
   } else {
     dim = 2;  // can only load a surface for now
-    face = mjXUtil::String2Vector<int>(userface);
+    face = StringToVector<int>(userface);
     for (int i=0; i<face.size(); face[i++]--) {};
-    mjXUtil::Vector2String(userface, face);
+    userface = VectorToString(face);
   }
 
   // compute volume
@@ -438,7 +437,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
     }
   }
   if (!userface.empty()) {
-    face = mjXUtil::String2Vector<int>(userface);
+    face = StringToVector<int>(userface);
     for (int j=0; j<face.size()/3; j++) {
       double area[3];
       double edge1[3];
@@ -1307,7 +1306,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   // copy skin from existing mesh
   if (type==mjCOMPTYPE_PARTICLE && username.empty()) {
     std::vector<int> skinface;
-    skinface = mjXUtil::String2Vector<int>(userface);
+    skinface = StringToVector<int>(userface);
     int nvert = uservert.size()/3;
 
     for (int j=0; j<2; j++) {
@@ -2034,9 +2033,9 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
 // add skin to 3D
 void mjCComposite::MakeSkin3(mjCModel* model) {
   int vcnt = 0;
-  std::map<string, int> vmap;
+  std::map<std::string, int> vmap;
   char txt[100], cnt0[10], cnt1[10], cnt2[10];
-  string fmt;
+  std::string fmt;
 
   // string counts
   mju::sprintf_arr(cnt0, "%d", count[0]-1);
@@ -2056,17 +2055,17 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   if (type==mjCOMPTYPE_BOX || type==mjCOMPTYPE_PARTICLE) {
     // z-faces
     MakeSkin3Box(skin, count[0], count[1], 1, vcnt, "%sB%d_%d_0");
-    fmt = "%sB%d_%d_" + string(cnt2);
+    fmt = "%sB%d_%d_" + std::string(cnt2);
     MakeSkin3Box(skin, count[0], count[1], 0, vcnt, fmt.c_str());
 
     // y-faces
     MakeSkin3Box(skin, count[0], count[2], 0, vcnt, "%sB%d_0_%d");
-    fmt = "%sB%d_" + string(cnt1) + "_%d";
+    fmt = "%sB%d_" + std::string(cnt1) + "_%d";
     MakeSkin3Box(skin, count[0], count[2], 1, vcnt, fmt.c_str());
 
     // x-faces
     MakeSkin3Box(skin, count[1], count[2], 1, vcnt, "%sB0_%d_%d");
-    fmt = "%sB" + string(cnt0) + "_%d_%d";
+    fmt = "%sB" + std::string(cnt0) + "_%d_%d";
     MakeSkin3Box(skin, count[1], count[2], 0, vcnt, fmt.c_str());
   }
 
@@ -2112,17 +2111,17 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
 
     // y-faces
     MakeSkin3Smooth(skin, count[0], count[2], 0, vmap, "%sB%d_0_%d");
-    fmt = "%sB%d_" + string(cnt1) + "_%d";
+    fmt = "%sB%d_" + std::string(cnt1) + "_%d";
     MakeSkin3Smooth(skin, count[0], count[2], 1, vmap, fmt.c_str());
 
     // x-faces
     MakeSkin3Smooth(skin, count[1], count[2], 1, vmap, "%sB0_%d_%d");
-    fmt = "%sB" + string(cnt0) + "_%d_%d";
+    fmt = "%sB" + std::string(cnt0) + "_%d_%d";
     MakeSkin3Smooth(skin, count[1], count[2], 0, vmap, fmt.c_str());
 
     // z-faces, boxy-type
     MakeSkin3Box(skin, count[0], count[1], 1, vcnt, "%sB%d_%d_0");
-    fmt = "%sB%d_%d_" + string(cnt2);
+    fmt = "%sB%d_%d_" + std::string(cnt2);
     MakeSkin3Box(skin, count[0], count[1], 0, vcnt, fmt.c_str());
   }
 
@@ -2172,17 +2171,17 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
 
     // z-faces
     MakeSkin3Smooth(skin, count[0], count[1], 1, vmap, "%sB%d_%d_0");
-    fmt = "%sB%d_%d_" + string(cnt2);
+    fmt = "%sB%d_%d_" + std::string(cnt2);
     MakeSkin3Smooth(skin, count[0], count[1], 0, vmap, fmt.c_str());
 
     // y-faces
     MakeSkin3Smooth(skin, count[0], count[2], 0, vmap, "%sB%d_0_%d");
-    fmt = "%sB%d_" + string(cnt1) + "_%d";
+    fmt = "%sB%d_" + std::string(cnt1) + "_%d";
     MakeSkin3Smooth(skin, count[0], count[2], 1, vmap, fmt.c_str());
 
     // x-faces
     MakeSkin3Smooth(skin, count[1], count[2], 1, vmap, "%sB0_%d_%d");
-    fmt = "%sB" + string(cnt0) + "_%d_%d";
+    fmt = "%sB" + std::string(cnt0) + "_%d_%d";
     MakeSkin3Smooth(skin, count[1], count[2], 0, vmap, fmt.c_str());
   }
 
@@ -2248,7 +2247,8 @@ void mjCComposite::MakeSkin3Box(mjsSkin* skin, int c0, int c1, int side,
 
 // make one face of 3D skin, smooth
 void mjCComposite::MakeSkin3Smooth(mjsSkin* skin, int c0, int c1, int side,
-                                   const std::map<string, int>& vmap, const char* format) {
+                                   const std::map<std::string, int>& vmap,
+                                   const char* format) {
   char txt00[100], txt01[100], txt10[100], txt11[100];
 
   // loop over bodies/vertices of specified face

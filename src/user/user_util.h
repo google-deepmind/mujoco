@@ -235,6 +235,13 @@ class FilePath {
 // read file into memory buffer
 std::vector<uint8_t> FileToMemory(const char* filename);
 
+// convert vector to string separating elements by whitespace
+template<typename T> std::string VectorToString(const std::vector<T>& v);
+
+// convert string to vector
+template<typename T> std::vector<T> StringToVector(char *cs);
+template<typename T> std::vector<T> StringToVector(const std::string& s);
+
 }  // namespace mujoco::user
 
 // strip path from filename
