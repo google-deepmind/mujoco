@@ -18,14 +18,10 @@ import os
 from typing import List, Optional
 
 import mujoco
-# import mujoco.usd.camera as camera_module
-# import mujoco.usd.lights as light_module
-# import mujoco.usd.objects as object_module
-# import mujoco.usd.shapes as shapes_module
-import camera as camera_module
-import lights as light_module
-import objects as object_module
-import shapes as shapes_module
+import mujoco.usd.camera as camera_module
+import mujoco.usd.lights as light_module
+import mujoco.usd.objects as object_module
+import mujoco.usd.shapes as shapes_module
 import numpy as np
 from PIL import Image as im
 from PIL import ImageOps

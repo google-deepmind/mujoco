@@ -18,8 +18,7 @@ import argparse
 import pathlib
 
 import mujoco
-# from mujoco.usd import exporter
-import exporter
+from mujoco.usd import exporter
 
 def generate_usd_trajectory(local_args):
   """Generates a USD file given the user arguments."""
