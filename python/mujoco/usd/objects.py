@@ -363,19 +363,22 @@ class USDPrimitiveMesh(USDObject):
   def _get_uv_geometry(self):
     assert self.prim_mesh and self.prim_mesh.triangle_uvs is not None
 
-    s_scale, t_scale = self.model.mat_texrepeat[self.geom.matid]
-
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
     
-    if self.model.mat_texuniform[self.geom.matid]:
-      if self.geom.size[0] > 0:
-        s_scale *= self.geom.size[0]
-      if self.geom.size[1] > 0:
-        t_scale *= self.geom.size[1]
+    geom_rgb_texture = self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB][1]
 
-    mesh_texcoord[:, 0] *= s_scale / (self.geom.size[0] * 2)
-    mesh_texcoord[:, 1] *= t_scale / (self.geom.size[1] * 2)
+    if geom_rgb_texture == mujoco.mjtTexture.mjTEXTURE_2D:
+      s_scale, t_scale = self.model.mat_texrepeat[self.geom.matid]
+
+      if self.model.mat_texuniform[self.geom.matid]:
+        if self.geom.size[0] > 0:
+          s_scale *= self.geom.size[0]
+        if self.geom.size[1] > 0:
+          t_scale *= self.geom.size[1]
+
+      mesh_texcoord[:, 0] *= s_scale / (self.geom.size[0] * 2)
+      mesh_texcoord[:, 1] *= t_scale / (self.geom.size[1] * 2)
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 

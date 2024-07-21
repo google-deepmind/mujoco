@@ -27,11 +27,48 @@ def get_triangle_uvs(
   if texture_type == None:
     return None
 
-  # (jabhi) assuming all mappings are 2d mapping temporarily
-  triangle_uvs = np.array([
-    [vertices[i][0], vertices[i][1]] for i in np.nditer(triangles)]
-  )
-  return triangle_uvs
+  triangle_uvs = []
+  if texture_type == mujoco.mjtTexture.mjTEXTURE_2D:
+    triangle_uvs = [[vertices[i][0], vertices[i][1]] for i in np.nditer(triangles)]
+    
+  elif texture_type == mujoco.mjtTexture.mjTEXTURE_CUBE:
+    center = np.mean(vertices, axis=0)
+    for vertex_id in np.nditer(triangles):
+      x, y, z = vertices[vertex_id] - center
+
+      abs_x, abs_y, abs_z = abs(x), abs(y), abs(z)
+      
+      if x > 0 and abs_x >= abs_y and abs_x >= abs_z:
+        u = -z / abs_x
+        v = y / abs_x
+      elif x <= 0 and abs_x >= abs_y and abs_x >= abs_z:
+        u = z / abs_x
+        v = y / abs_x
+      elif y > 0 and abs_y >= abs_x and abs_y >= abs_z:
+        u = x / abs_y
+        v = -z / abs_y
+      elif y <= 0 and abs_y >= abs_x and abs_y >= abs_z:
+        u = x / abs_y
+        v = z / abs_y
+      elif z > 0 and abs_z >= abs_x and abs_z >= abs_y:
+        u = x / abs_z
+        v = y / abs_z
+      elif z <= 0 and abs_z >= abs_x and abs_z >= abs_y:
+        u = -x / abs_z
+        v = y / abs_z
+
+      u = (u + 1.0) / 2.0
+      v = (v + 1.0) / 2.0
+      v /= 6
+
+      assert 0 <= u and u <= 1 and 0 <= v and v <= 1
+
+      triangle_uvs.append([u, v])
+  elif texture_type == mujoco.mjtTexture.mjTEXTURE_SKYBOX:
+    # defaults to 2D mapping temporarily
+    triangle_uvs = [[vertices[i][0], vertices[i][1]] for i in np.nditer(triangles)]
+
+  return np.array(triangle_uvs)
 
 class TriangleMesh():
   """ Store UV and geometry information for a primitve mesh
@@ -210,7 +247,9 @@ class TriangleMesh():
       new_vertices = np.vstack((self.vertices, other.vertices))
       other_triangles = other.triangles + len(self.vertices)
       new_triangles = np.vstack((self.triangles, other_triangles))
-      new_triangle_uvs = np.vstack((self.triangle_uvs, other.triangle_uvs))
+      new_triangle_uvs = None
+      if self.triangle_uvs is not None:
+        new_triangle_uvs = np.vstack((self.triangle_uvs, other.triangle_uvs))
       return TriangleMesh(new_vertices, new_triangles, new_triangle_uvs)
     raise TypeError(f"Cannot add TriangleMesh with {type(other)}")
 
@@ -304,7 +343,7 @@ def mesh_config_generator(
 def mesh_factory(
     mesh_config: Dict[str, Any],
     texture_type: Optional[mujoco.mjtTexture],
-    resolution: int = 10,
+    resolution: int = 100,
 ):
   """Generates a mesh given a config consisting of shapes."""
   assert "name" in mesh_config
