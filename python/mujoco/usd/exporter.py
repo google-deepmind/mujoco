@@ -251,12 +251,10 @@ class USDExporter:
 
     assert geom_name not in self.geom_names
 
-    texture_file = (
-        self.texture_files[
-            self.model.mat_texid[geom.matid][mujoco.mjtTextureRole.mjTEXROLE_RGB]
-        ]
-        if geom.matid != -1
-        else None
+    geom_textures = (
+      [(self.texture_files[i], self.model.tex_type[i]) if i != -1 else None for i in self.model.mat_texid[geom.matid]]
+      if geom.matid != -1
+      else None
     )
 
     # handling meshes in our scene
@@ -268,7 +266,7 @@ class USDExporter:
           obj_name=geom_name,
           dataid=self.model.geom_dataid[geom.objid],
           rgba=geom.rgba,
-          texture_file=texture_file,
+          geom_textures=geom_textures,
       )
     else:
       # handling tendons in our scene
@@ -286,7 +284,7 @@ class USDExporter:
             geom=geom,
             obj_name=geom_name,
             rgba=geom.rgba,
-            texture_file=texture_file,
+            geom_textures=geom_textures,
         )
       # handling primitives in our scene
       else:
@@ -302,7 +300,7 @@ class USDExporter:
             geom=geom,
             obj_name=geom_name,
             rgba=geom.rgba,
-            texture_file=texture_file,
+            geom_textures=geom_textures,
         )
 
     self.geom_names.add(geom_name)

@@ -14,17 +14,24 @@
 # ==============================================================================
 """Built-in shapes for USD exporter."""
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 import mujoco
 import numpy as np
 
-def get_triangle_uvs(vertices: np.array, triangles: np.array):
-    # (jabhi) asusming all mappings are 2d mapping temporarily
-    triangle_uvs = np.array([
-      [vertices[i][0], vertices[i][1]] for i in np.nditer(triangles)]
-    )
-    return triangle_uvs
+def get_triangle_uvs(
+    vertices: np.array,
+    triangles: np.array,
+    texture_type: Optional[mujoco.mjtTexture]
+):
+  if texture_type == None:
+    return None
+
+  # (jabhi) assuming all mappings are 2d mapping temporarily
+  triangle_uvs = np.array([
+    [vertices[i][0], vertices[i][1]] for i in np.nditer(triangles)]
+  )
+  return triangle_uvs
 
 class TriangleMesh():
   """ Store UV and geometry information for a primitve mesh
@@ -39,7 +46,11 @@ class TriangleMesh():
 
   @classmethod
   def create_box(
-      cls, width: float, height: float, depth: float
+      cls,
+      width: float,
+      height: float,
+      depth: float,
+      texture_type: Optional[mujoco.mjtTexture]
   ):
     vertices = np.array([[0.0, 0.0, 0.0],
                          [width, 0.0, 0.0],
@@ -63,13 +74,16 @@ class TriangleMesh():
                           [0, 4, 1],
                           [1, 4, 5]])
     
-    triangle_uvs = get_triangle_uvs(vertices, triangles)
+    triangle_uvs = get_triangle_uvs(vertices, triangles, texture_type)
     
     return TriangleMesh(vertices, triangles, triangle_uvs)
 
   @classmethod
   def create_sphere(
-      cls, radius: float, resolution: int
+      cls,
+      radius: float,
+      texture_type: Optional[mujoco.mjtTexture],
+      resolution: int
   ):
     vertices = []
     triangles = []
@@ -93,13 +107,16 @@ class TriangleMesh():
     vertices = np.array(vertices)
     triangles = np.array(triangles)
 
-    triangle_uvs = get_triangle_uvs(vertices, triangles)
+    triangle_uvs = get_triangle_uvs(vertices, triangles, texture_type)
     
     return TriangleMesh(vertices, triangles, triangle_uvs)
 
   @classmethod
   def create_hemisphere(
-    cls, radius: float, resolution: int
+    cls,
+    radius: float,
+    texture_type: Optional[mujoco.mjtTexture],
+    resolution: int
   ):
     vertices = []
     triangles = []
@@ -128,13 +145,17 @@ class TriangleMesh():
     vertices = np.array(vertices)
     triangles = np.array(triangles)
 
-    triangle_uvs = get_triangle_uvs(vertices, triangles)
+    triangle_uvs = get_triangle_uvs(vertices, triangles, texture_type)
     
     return TriangleMesh(vertices, triangles, triangle_uvs)
 
   @classmethod
   def create_cylinder(
-      cls, radius: float, height: float, resolution: int
+      cls,
+      radius: float,
+      height: float,
+      texture_type: Optional[mujoco.mjtTexture],
+      resolution: int
   ):
     vertices = []
     triangles = []
@@ -166,7 +187,7 @@ class TriangleMesh():
     vertices = np.array(vertices)
     triangles = np.array(triangles)
 
-    triangle_uvs = get_triangle_uvs(vertices, triangles)
+    triangle_uvs = get_triangle_uvs(vertices, triangles, texture_type)
     
     return TriangleMesh(vertices, triangles, triangle_uvs)
 
@@ -189,7 +210,7 @@ class TriangleMesh():
       new_vertices = np.vstack((self.vertices, other.vertices))
       other_triangles = other.triangles + len(self.vertices)
       new_triangles = np.vstack((self.triangles, other_triangles))
-      new_triangle_uvs = get_triangle_uvs(new_vertices, new_triangles)
+      new_triangle_uvs = np.vstack((self.triangle_uvs, other.triangle_uvs))
       return TriangleMesh(new_vertices, new_triangles, new_triangle_uvs)
     raise TypeError(f"Cannot add TriangleMesh with {type(other)}")
 
@@ -282,7 +303,8 @@ def mesh_config_generator(
 
 def mesh_factory(
     mesh_config: Dict[str, Any],
-    resolution: int = 100,
+    texture_type: Optional[mujoco.mjtTexture],
+    resolution: int = 10,
 ):
   """Generates a mesh given a config consisting of shapes."""
   assert "name" in mesh_config
@@ -300,22 +322,26 @@ def mesh_factory(
       prim_mesh = TriangleMesh.create_box(
           width=mesh_config[shape]["width"],
           height=mesh_config[shape]["height"],
-          depth=mesh_config[shape]["depth"]
+          depth=mesh_config[shape]["depth"],
+          texture_type=texture_type
       )
     elif "hemisphere" in shape:
       prim_mesh = TriangleMesh.create_hemisphere(
           radius=mesh_config[shape]["radius"],
+          texture_type=texture_type,
           resolution=resolution
       )
     elif "sphere" in shape:
       prim_mesh = TriangleMesh.create_sphere(
           radius=mesh_config[shape]["radius"],
+          texture_type=texture_type,
           resolution=resolution
       )
     elif "cylinder" in shape:
       prim_mesh = TriangleMesh.create_cylinder(
           radius=mesh_config[shape]["radius"],
           height=mesh_config[shape]["height"],
+          texture_type=texture_type,
           resolution=resolution
       )
     else:
