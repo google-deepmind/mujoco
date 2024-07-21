@@ -19,9 +19,12 @@ import collections
 from typing import Optional, Dict, Any
 
 import mujoco
-import mujoco.usd.shapes as shapes_component
-import mujoco.usd.utils as utils_component
+# import mujoco.usd.shapes as shapes_module
+# import mujoco.usd.utils as utils_modules
+import shapes as shapes_module
+import utils as utils_module
 import numpy as np
+
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
@@ -185,7 +188,7 @@ class USDObject(abc.ABC):
       scale: Optional[np.ndarray] = None,
   ):
     """Updates the position and orientation of an object."""
-    transformation_mat = utils_component.create_transform_matrix(
+    transformation_mat = utils_module.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -353,23 +356,31 @@ class USDPrimitiveMesh(USDObject):
 
   def generate_primitive_mesh(self):
     """Generates the mesh for the primitive USD object."""
-    _, prim_mesh = shapes_component.mesh_generator(self.mesh_config)
+    _, prim_mesh = shapes_module.mesh_factory(self.mesh_config)
     prim_mesh.translate(-prim_mesh.get_center())
     return prim_mesh
 
   def _get_uv_geometry(self):
     assert self.prim_mesh
 
+    # x_scale, y_scale = self.geom.texrepeat
+
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
-    # TODO(etom): bring back support for rescaling the texture coordinates.
+    
+    # x_multiplier, y_multiplier = 1, 1
+    # if self.geom.texuniform:
+    #   x_multiplier, y_multiplier = self.geom.size[:2]
+
+    # mesh_texcoord[:, 0] *= x_scale * x_multiplier
+    # mesh_texcoord[:, 1] *= y_scale * y_multiplier
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 
   def _get_mesh_geometry(self):
     assert self.prim_mesh
 
-    # get mesh geometry from the open3d mesh model
+    # get mesh geometry
     mesh_vert = np.asarray(self.prim_mesh.vertices)
     mesh_face = np.asarray(self.prim_mesh.triangles)
 
@@ -444,7 +455,7 @@ class USDTendon(USDObject):
     """Generates the tendon mesh using primitives."""
     mesh_parts = {}
     for part_config in self.mesh_config:
-      mesh_name, prim_mesh = shapes_component.mesh_generator(part_config)
+      mesh_name, prim_mesh = shapes_module.mesh_factory(part_config)
       prim_mesh.translate(-prim_mesh.get_center())
       mesh_parts[mesh_name] = prim_mesh
     return mesh_parts
@@ -463,7 +474,7 @@ class USDTendon(USDObject):
   def _get_mesh_geometry(self):
     part_geometries = collections.defaultdict(dict)
     for name, mesh in self.tendon_parts.items():
-      # get mesh geometry from the open3d mesh model
+      # get mesh geometry
       mesh_vert = np.asarray(mesh.vertices)
       mesh_face = np.asarray(mesh.triangles)
       part_geometries[name] = {

@@ -18,8 +18,8 @@ import argparse
 import pathlib
 
 import mujoco
-from mujoco.usd import exporter
-
+# from mujoco.usd import exporter
+import exporter
 
 def generate_usd_trajectory(local_args):
   """Generates a USD file given the user arguments."""
@@ -41,6 +41,10 @@ def generate_usd_trajectory(local_args):
     mujoco.mj_step(m, d)
     if exp.frame_count < d.time * local_args.framerate:
       exp.update_scene(data=d)
+
+  exp.add_light(pos=(0, 0, 0),
+                intensity=2000,
+                light_type="dome")
 
   exp.save_scene(filetype=local_args.export_extension)
 
