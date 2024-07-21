@@ -53,12 +53,14 @@ class USDObject(abc.ABC):
   def __init__(
       self,
       stage: Usd.Stage,
+      model: mujoco.MjModel,
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
+    self.model = model
     self.geom = geom
     self.obj_name = obj_name
     self.rgba = rgba
@@ -227,9 +229,8 @@ class USDMesh(USDObject):
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
+    super().__init__(stage, model, geom, obj_name, rgba, texture_file)
 
-    self.model = model
     self.dataid = dataid
 
     mesh_path = f"{self.xform_path}/Mesh_{obj_name}"
@@ -317,12 +318,13 @@ class USDPrimitiveMesh(USDObject):
       self,
       mesh_config: Dict[Any, Any],
       stage: Usd.Stage,
+      model: mujoco.MjModel,
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
+    super().__init__(stage, model, geom, obj_name, rgba, texture_file)
 
     self.mesh_config = mesh_config
     self.prim_mesh = self.generate_primitive_mesh()
@@ -363,17 +365,19 @@ class USDPrimitiveMesh(USDObject):
   def _get_uv_geometry(self):
     assert self.prim_mesh
 
-    # x_scale, y_scale = self.geom.texrepeat
+    s_scale, t_scale = self.model.mat_texrepeat[self.geom.matid]
 
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
     
-    # x_multiplier, y_multiplier = 1, 1
-    # if self.geom.texuniform:
-    #   x_multiplier, y_multiplier = self.geom.size[:2]
+    if self.model.mat_texuniform[self.geom.matid]:
+      if self.geom.size[0] > 0:
+        s_scale *= self.geom.size[0]
+      if self.geom.size[1] > 0:
+        t_scale *= self.geom.size[1]
 
-    # mesh_texcoord[:, 0] *= x_scale * x_multiplier
-    # mesh_texcoord[:, 1] *= y_scale * y_multiplier
+    mesh_texcoord[:, 0] *= s_scale / (self.geom.size[0] * 2)
+    mesh_texcoord[:, 1] *= t_scale / (self.geom.size[1] * 2)
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 
@@ -394,12 +398,13 @@ class USDTendon(USDObject):
       self,
       mesh_config: Dict[Any, Any],
       stage: Usd.Stage,
+      model: mujoco.MjModel,
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
-    super().__init__(stage, geom, obj_name, rgba, texture_file)
+    super().__init__(stage, model, geom, obj_name, rgba, texture_file)
 
     self.mesh_config = mesh_config
     self.tendon_parts = self.generate_primitive_mesh()

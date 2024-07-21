@@ -282,7 +282,7 @@ def mesh_config_generator(
 
 def mesh_factory(
     mesh_config: Dict[str, Any],
-    resolution: int = 20,
+    resolution: int = 100,
 ):
   """Generates a mesh given a config consisting of shapes."""
   assert "name" in mesh_config

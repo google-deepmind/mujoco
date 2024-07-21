@@ -286,6 +286,7 @@ class USDExporter:
         usd_geom = object_module.USDTendon(
             mesh_config=mesh_config,
             stage=self.stage,
+            model=self.model,
             geom=geom,
             obj_name=geom_name,
             rgba=geom.rgba,
@@ -301,6 +302,7 @@ class USDExporter:
         usd_geom = object_module.USDPrimitiveMesh(
             mesh_config=mesh_config,
             stage=self.stage,
+            model=self.model,
             geom=geom,
             obj_name=geom_name,
             rgba=geom.rgba,
