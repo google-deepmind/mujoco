@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any
 
 import mujoco
 import mujoco.usd.shapes as shapes_module
-import mujoco.usd.utils as utils_modules
+import mujoco.usd.utils as utils_module
 import numpy as np
 
 
