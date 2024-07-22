@@ -3206,6 +3206,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
       bodies_[i]->subtreedofs = 0;
     }
     mjCBody* world = bodies_[0];
+    ResetTreeLists();
     Clear();
     bodies_.push_back(world);
   }

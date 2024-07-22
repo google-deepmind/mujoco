@@ -739,12 +739,18 @@ void MakePhysicsSection(mj::Simulate* sim) {
   for (int i=0; i<mjNDISABLE; i++) {
     mju::strcpy_arr(defFlag[0].name, mjDISABLESTRING[i]);
     defFlag[0].pdata = sim->disable + i;
+    if ((1 << i) == mjDSBL_AUTORESETNAN) {
+      defFlag[0].state = 0;
+    } else {
+      defFlag[0].state = 2;
+    }
     mjui_add(&sim->ui0, defFlag);
   }
   mjui_add(&sim->ui0, defEnableFlags);
   for (int i=0; i<mjNENABLE; i++) {
     mju::strcpy_arr(defFlag[0].name, mjENABLESTRING[i]);
     defFlag[0].pdata = sim->enable + i;
+    defFlag[0].state = 2;
     mjui_add(&sim->ui0, defFlag);
   }
   // add contact override
