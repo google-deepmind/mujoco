@@ -500,6 +500,7 @@ typedef struct mjsTexture_ {       // texture specification
   double random;                   // probability of random dots
   int height;                      // height in pixels (square for cube and skybox)
   int width;                       // width in pixels
+  int nchannel;                    // number of channels
 
   // method 2: single file
   mjString* content_type;          // content type of file
@@ -522,7 +523,7 @@ typedef struct mjsTexture_ {       // texture specification
 typedef struct mjsMaterial_ {      // material specification
   mjsElement* element;             // element type
   mjString* name;                  // name
-  mjString* texture;               // name of texture (empty: none)
+  mjStringVec* textures;           // names of textures (empty: none)
   mjtByte texuniform;              // make texture cube uniform
   float texrepeat[2];              // texture repetition for 2D mapping
   float emission;                  // emission

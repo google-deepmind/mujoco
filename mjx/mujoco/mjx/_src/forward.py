@@ -66,6 +66,7 @@ def fwd_position(m: Model, d: Data) -> Data:
   d = smooth.kinematics(m, d)
   d = smooth.com_pos(m, d)
   d = smooth.camlight(m, d)
+  d = smooth.tendon(m, d)
   d = smooth.crb(m, d)
   d = smooth.factor_m(m, d)
   d = collision_driver.collision(m, d)
@@ -77,7 +78,10 @@ def fwd_position(m: Model, d: Data) -> Data:
 @named_scope
 def fwd_velocity(m: Model, d: Data) -> Data:
   """Velocity-dependent computations."""
-  d = d.replace(actuator_velocity=d.actuator_moment @ d.qvel)
+  d = d.replace(
+      actuator_velocity=d.actuator_moment @ d.qvel,
+      ten_velocity=d.ten_J @ d.qvel,
+  )
   d = smooth.com_vel(m, d)
   d = passive.passive(m, d)
   d = smooth.rne(m, d)

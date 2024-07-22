@@ -947,13 +947,11 @@ void mjCModel::DeleteMaterial(std::vector<T*>& list, std::string_view name) {
 
 
 
-// delete texture with given name or all textures if the name is omitted
+// delete all textures
 template <class T>
-static void DeleteTexture(std::vector<T*>& list, std::string_view name = "") {
+static void DeleteAllTextures(std::vector<T*>& list) {
   for (T* plist : list) {
-    if (name.empty() || plist->get_texture() == name) {
-      plist->del_texture();
-    }
+    plist->del_textures();
   }
 }
 
@@ -1046,7 +1044,7 @@ void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
 
 template <>
 void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
-  DeleteTexture(materials_);
+  DeleteAllTextures(materials_);
   for (mjCTexture* element : elements) {
     delete element;
   }
@@ -1202,13 +1200,15 @@ void mjCModel::IndexAssets(bool discard) {
   for (int i=0; i<materials_.size(); i++) {
     mjCMaterial* material = materials_[i];
 
-    // find texture by name
-    if (!material->texture_.empty()) {
-      mjCBase* texture = FindObject(mjOBJ_TEXTURE, material->texture_);
-      if (texture) {
-        material->texid = texture->id;
-      } else {
-        throw mjCError(material, "texture '%s' not found in material %d", material->texture_.c_str(), i);
+    // find textures by name
+    for (int j=0; j<mjNTEXROLE; j++) {
+      if (!material->textures_[j].empty()) {
+        mjCBase* texture = FindObject(mjOBJ_TEXTURE, material->textures_[j]);
+        if (texture) {
+          material->texid[j] = texture->id;
+        } else {
+          throw mjCError(material, "texture '%s' not found in material %d", material->textures_[j].c_str(), i);
+        }
       }
     }
   }
@@ -2504,14 +2504,15 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_type[i] = ptex->type;
     m->tex_height[i] = ptex->height;
     m->tex_width[i] = ptex->width;
+    m->tex_nchannel[i] = ptex->nchannel;
     m->tex_adr[i] = data_adr;
-    m->tex_nchannel[i] = 3;
 
     // copy rgb data
-    memcpy(m->tex_data + data_adr, ptex->rgb.data(), 3*ptex->width*ptex->height);
+    memcpy(m->tex_data + data_adr, ptex->data.data(),
+           ptex->nchannel * ptex->width * ptex->height);
 
     // advance counter
-    data_adr += 3*ptex->width*ptex->height;
+    data_adr += ptex->nchannel * ptex->width * ptex->height;
   }
 
   // materials
@@ -2521,9 +2522,8 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     for (int j=0; j<mjNTEXROLE; j++) {
-      m->mat_texid[mjNTEXROLE*i+j] = -1;
+      m->mat_texid[mjNTEXROLE*i+j] = pmat->texid[j];
     }
-    m->mat_texid[mjNTEXROLE*i+mjTEXROLE_RGB] = pmat->texid;
     m->mat_texuniform[i] = pmat->texuniform;
     mjuu_copyvec(m->mat_texrepeat+2*i, pmat->texrepeat, 2);
     m->mat_emission[i] = pmat->emission;

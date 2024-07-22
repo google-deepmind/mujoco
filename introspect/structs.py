@@ -9970,6 +9970,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='width in pixels',
              ),
              StructFieldDecl(
+                 name='nchannel',
+                 type=ValueType(name='int'),
+                 doc='number of channels',
+             ),
+             StructFieldDecl(
                  name='content_type',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),
@@ -10045,11 +10050,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='name',
              ),
              StructFieldDecl(
-                 name='texture',
+                 name='textures',
                  type=PointerType(
-                     inner_type=ValueType(name='mjString'),
+                     inner_type=ValueType(name='mjStringVec'),
                  ),
-                 doc='name of texture (empty: none)',
+                 doc='names of textures (empty: none)',
              ),
              StructFieldDecl(
                  name='texuniform',

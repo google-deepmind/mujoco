@@ -239,12 +239,23 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"bone", "*", "5", "body", "bindpos", "bindquat", "vertid", "vertweight"},
         {">"},
-        {"texture", "*", "22", "name", "type", "content_type", "file", "gridsize", "gridlayout",
+        {"texture", "*", "23", "name", "type", "content_type", "file", "gridsize", "gridlayout",
             "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
-            "hflip", "vflip"},
+            "hflip", "vflip", "nchannel"},
         {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
             "emission", "specular", "shininess", "reflectance", "metallic", "roughness", "rgba"},
+        {"<"},
+            {"rgb", "?", "1", "texture"},
+            {"occlusion", "?", "1", "texture"},
+            {"roughness", "?", "1", "texture"},
+            {"metallic", "?", "1", "texture"},
+            {"normal", "?", "1", "texture"},
+            {"opacity", "?", "1", "texture"},
+            {"emissive", "?", "1", "texture"},
+            {"rgba", "?", "1", "texture"},
+            {"orm", "?", "1", "texture"},
+        {">"},
         {"model", "*", "2", "name", "file"},
     {">"},
 
@@ -577,6 +588,19 @@ const mjMap camlight_map[camlight_sz] = {
   {"targetbodycom", mjCAMLIGHT_TARGETBODYCOM}
 };
 
+// texmat role type
+const int texrole_sz = mjNTEXROLE - 1;
+const mjMap texrole_map[texrole_sz] = {
+  {"rgb",           mjTEXROLE_RGB},
+  {"occlusion",     mjTEXROLE_OCCLUSION},
+  {"roughness",     mjTEXROLE_ROUGHNESS},
+  {"metallic",      mjTEXROLE_METALLIC},
+  {"normal",        mjTEXROLE_NORMAL},
+  {"opacity",       mjTEXROLE_OPACITY},
+  {"emissive",      mjTEXROLE_EMISSIVE},
+  {"rgba",          mjTEXROLE_RGBA},
+  {"orm",           mjTEXROLE_ORM},
+};
 
 // integrator type
 const int integrator_sz = 4;
@@ -1534,9 +1558,26 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* pmat) {
   if (ReadAttrTxt(elem, "name", name)) {
     mjs_setString(pmat->name, name.c_str());
   }
+
+  bool tex_attributes_found = false;
   if (ReadAttrTxt(elem, "texture", texture)) {
-    mjs_setString(pmat->texture, texture.c_str());
+    mjs_setInStringVec(pmat->textures, mjTEXROLE_RGB, texture.c_str());
+    tex_attributes_found = true;
   }
+
+  XMLElement* tex_elem = FirstChildElement(elem);
+  while (tex_elem) {
+    if (tex_attributes_found) {
+      throw mjXError(tex_elem, "A material with a texture attribute cannot have texture sub-elements");
+    }
+    // texture sub-element
+    int role = FindKey(texrole_map, texrole_sz, tex_elem->Name());
+    string texmat;
+    ReadAttrTxt(tex_elem, "texture", texmat, true);
+    mjs_setInStringVec(pmat->textures, role, texmat.c_str());
+    tex_elem = NextSiblingElement(tex_elem);
+  }
+
   if (MapValue(elem, "texuniform", &n, bool_map, 2)) {
     pmat->texuniform = (n==1);
   }
@@ -3095,6 +3136,9 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
       ReadAttrInt(elem, "width", &ptex->width);
       ReadAttrInt(elem, "height", &ptex->height);
+      if (!ReadAttrInt(elem, "nchannel", &ptex->nchannel)) {
+        ptex->nchannel = 3;
+      }
       ReadAttr(elem, "rgb1", 3, ptex->rgb1, text);
       ReadAttr(elem, "rgb2", 3, ptex->rgb2, text);
       ReadAttr(elem, "markrgb", 3, ptex->markrgb, text);

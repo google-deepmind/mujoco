@@ -782,10 +782,106 @@ TEST_F(XMLReaderTest, FallbackIncludePathTest) {
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
                               error.data(), error.size());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
   mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MaterialTextureTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture file="tiny0.png" type="2d" name="tiny0"/>
+      <texture file="tiny1.png" type="2d" name="tiny1"/>
+      <material name="material">
+        <occlusion texture="tiny0"/>
+        <roughness texture="tiny0"/>
+        <metallic texture="tiny0"/>
+        <rgb texture="tiny1"/>
+      </material>
+    </asset>
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MockFilesystem fs("MaterialTextureTest");
+  fs.AddFile("tiny0.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("tiny1.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  char error[1024];
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, error, 1024);
+
+  EXPECT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->mat_texid[mjTEXROLE_RGB], 1);
+  EXPECT_EQ(model->mat_texid[mjTEXROLE_METALLIC], 0);
+  EXPECT_EQ(model->mat_texid[mjTEXROLE_ROUGHNESS], 0);
+  EXPECT_EQ(model->mat_texid[mjTEXROLE_OCCLUSION], 0);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, LegacyMaterialTextureTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture file="tiny0.png" type="2d" name="tiny0"/>
+      <texture file="tiny1.png" type="2d" name="tiny1"/>
+      <material name="material" texture="tiny1"/>
+    </asset>
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MockFilesystem fs("LegacyMaterialTextureTest");
+  fs.AddFile("tiny0.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("tiny1.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  char error[1024];
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, error, 1024);
+
+  EXPECT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->mat_texid[mjTEXROLE_RGB], 1);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MaterialTextureFailTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture file="tiny0.png" type="2d" name="tiny0"/>
+      <texture file="tiny1.png" type="2d" name="tiny1"/>
+      <material name="material" texture="tiny1">
+        <rgb texture="tiny1"/>
+        <occlusion texture="tiny0"/>
+      </material>
+    </asset>
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MockFilesystem fs("MaterialTextureFailTest");
+  fs.AddFile("tiny0.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("tiny1.png", kTinyPng, sizeof(kTinyPng));
+  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
+  std::string modelpath = fs.FullPath("model.xml");
+
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("A material with a texture attribute "
+                                      "cannot have texture sub-elements"));
 }
 
 TEST_F(XMLReaderTest, IncludeAssetsTest) {

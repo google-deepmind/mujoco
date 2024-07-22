@@ -1636,6 +1636,11 @@ still be specified here but this functionality is now deprecated and will be rem
 :at:`vflip`: :at-val:`[false, true], "false"`
    If true, images loaded from file are flipped in the vertical direction. Does not affect procedural textures.
 
+.. _asset-texture-nchannel:
+
+:at:`nchannel`: :at-val:`int, "3"`
+   The number of channels in the texture image file. This allows loading 4-channel textures (RGBA) or single-channel
+   textures (e.g., for Physics-Based Rendering properties such as roughness or metallic).
 
 
 .. _asset-material:
@@ -1666,7 +1671,12 @@ properties are grouped together.
    If this attribute is specified, the material has a texture associated with it. Referencing the material from a model
    element will cause the texture to be applied to that element. Note that the value of this attribute is the name of a
    texture asset, not a texture file name. Textures cannot be loaded in the material definition; instead they must be
-   loaded explicitly via the :ref:`texture <asset-texture>` element and then referenced here.
+   loaded explicitly via the :ref:`texture <asset-texture>` element and then referenced here. The texture referenced
+   here is used for specifying the RGB values. For advanced rendering (e.g., Physics-Based Rendering), more texture
+   types need to be specified (e.g., roughness, metallic).  In this case, this texture attribute should be omitted, and
+   the texture types should be specified explicitly via the specific role child elements, e.g.,
+   :ref:`texture <material-orm>`.  Note however that the built-in renderer does not support PBR properties, so these
+   advanced rendering features are only available when using an external renderer.
 
 .. _asset-material-texrepeat:
 
@@ -1737,6 +1747,116 @@ properties are grouped together.
    the default value of "1 1 1 1" has the effect of leaving the texture unchanged. When the material is applied to a
    model element which defines its own local rgba attribute, the local definition has precedence. Note that this "local"
    definition could in fact come from a defaults class. The remaining material properties always apply.
+
+.. _material-rgb:
+
+:el-prefix:`material/` |-| **rgb** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify base color / albedo values.
+
+.. _material-rgb-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly 3 channels.
+
+.. _material-normal:
+
+:el-prefix:`material/` |-| **normal** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify the bump map (surface normals).
+
+.. _material-normal-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly 3 channels.
+
+.. _material-occlusion:
+
+:el-prefix:`material/` |-| **occlusion** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify ambient occlusion.
+
+.. _material-occlusion-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly one channel.
+
+.. _material-roughness:
+
+:el-prefix:`material/` |-| **roughness** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify the roughness map.
+
+.. _material-roughness-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly one channel.
+
+.. _material-metallic:
+
+:el-prefix:`material/` |-| **metallic** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify the metallic map.
+
+.. _material-metallic-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly one channel.
+
+.. _material-opacity:
+
+:el-prefix:`material/` |-| **opacity** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify the opacity map (alpha channel, transparency).
+
+.. _material-opacity-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly one channel.
+
+.. _material-emissive:
+
+:el-prefix:`material/` |-| **emissive** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify light emission.
+
+.. _material-emissive-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly 4 channels.
+
+.. _material-orm:
+
+:el-prefix:`material/` |-| **orm** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify a packed ORM map, where occlusion, roughness, and metallic
+are joined into the corresponding RGB values of a single texture.
+
+.. _material-orm-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly 3 channels.
+
+.. _material-rgba:
+
+:el-prefix:`material/` |-| **rgba** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element references a texture asset used to specify a packed map where albedo and opacity are joined into the same
+4-channel texture.
+
+.. _material-rgba-texture:
+
+:at:`texture`: :at-val:`string, required`
+   Name of the texture, expected to have exactly 4 channels.
 
 
 .. _asset-model:

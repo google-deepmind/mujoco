@@ -25,7 +25,7 @@ import numpy as np
 class DisableBit(enum.IntFlag):
   """Disable default feature bitflags.
 
-  Attributes:
+  Members:
     CONSTRAINT:   entire constraint solver
     EQUALITY:     equality constraints
     FRICTIONLOSS: joint and tendon frictionloss constraints
@@ -56,7 +56,7 @@ class DisableBit(enum.IntFlag):
 class JointType(enum.IntEnum):
   """Type of degree of freedom.
 
-  Attributes:
+  Members:
     FREE:  global position and orientation (quat)       (7,)
     BALL:  orientation (quat) relative to parent        (4,)
     SLIDE: sliding distance along body-fixed axis       (1,)
@@ -77,7 +77,7 @@ class JointType(enum.IntEnum):
 class IntegratorType(enum.IntEnum):
   """Integrator mode.
 
-  Attributes:
+  Members:
     EULER: semi-implicit Euler
     RK4: 4th-order Runge Kutta
   """
@@ -89,7 +89,7 @@ class IntegratorType(enum.IntEnum):
 class GeomType(enum.IntEnum):
   """Type of geometry.
 
-  Attributes:
+  Members:
     PLANE: plane
     HFIELD: height field
     SPHERE: sphere
@@ -115,7 +115,7 @@ class GeomType(enum.IntEnum):
 class ConvexMesh(PyTreeNode):
   """Geom properties for convex meshes.
 
-  Attributes:
+  Members:
     vert: vertices of the convex mesh
     face: faces of the convex mesh
     face_normal: normal vectors for the faces
@@ -133,7 +133,7 @@ class ConvexMesh(PyTreeNode):
 class ConeType(enum.IntEnum):
   """Type of friction cone.
 
-  Attributes:
+  Members:
     PYRAMIDAL: pyramidal
     ELLIPTIC: elliptic
   """
@@ -144,7 +144,7 @@ class ConeType(enum.IntEnum):
 class JacobianType(enum.IntEnum):
   """Type of constraint Jacobian.
 
-  Attributes:
+  Members:
     DENSE: dense
     SPARSE: sparse
     AUTO: sparse if nv>60 and device is TPU, dense otherwise
@@ -157,7 +157,7 @@ class JacobianType(enum.IntEnum):
 class SolverType(enum.IntEnum):
   """Constraint solver algorithm.
 
-  Attributes:
+  Members:
     CG: Conjugate gradient (primal)
   """
   # unsupported: PGS
@@ -168,33 +168,46 @@ class SolverType(enum.IntEnum):
 class EqType(enum.IntEnum):
   """Type of equality constraint.
 
-  Attributes:
+  Members:
     CONNECT: connect two bodies at a point (ball joint)
     WELD: fix relative position and orientation of two bodies
     JOINT: couple the values of two scalar joints with cubic
+    TENDON: couple the lengths of two tendons with cubic
   """
   CONNECT = mujoco.mjtEq.mjEQ_CONNECT
   WELD = mujoco.mjtEq.mjEQ_WELD
   JOINT = mujoco.mjtEq.mjEQ_JOINT
-  # unsupported: TENDON, DISTANCE
+  TENDON = mujoco.mjtEq.mjEQ_TENDON
+  # unsupported: DISTANCE
+
+
+class WrapType(enum.IntEnum):
+  """Type of tendon wrap object.
+
+  Members:
+    JOINT: constant moment arm
+  """
+  JOINT = mujoco.mjtWrap.mjWRAP_JOINT
+  # unsupported: NONE, PULLEY, SITE, SPHERE, CYLINDER
 
 
 class TrnType(enum.IntEnum):
   """Type of actuator transmission.
 
-  Attributes:
+  Members:
     JOINT: force on joint
     SITE: force on site
   """
   JOINT = mujoco.mjtTrn.mjTRN_JOINT
   SITE = mujoco.mjtTrn.mjTRN_SITE
-  # unsupported: JOINTINPARENT, SLIDERCRANK, TENDON, BODY
+  TENDON = mujoco.mjtTrn.mjTRN_TENDON
+  # unsupported: JOINTINPARENT, SLIDERCRANK, BODY
 
 
 class DynType(enum.IntEnum):
   """Type of actuator dynamics.
 
-  Attributes:
+  Members:
     NONE: no internal dynamics; ctrl specifies force
     INTEGRATOR: integrator: da/dt = u
     FILTER: linear filter: da/dt = (u-a) / tau
@@ -210,7 +223,7 @@ class DynType(enum.IntEnum):
 class GainType(enum.IntEnum):
   """Type of actuator gain.
 
-  Attributes:
+  Members:
     FIXED: fixed gain
     AFFINE: const + kp*length + kv*velocity
   """
@@ -222,7 +235,7 @@ class GainType(enum.IntEnum):
 class BiasType(enum.IntEnum):
   """Type of actuator bias.
 
-  Attributes:
+  Members:
     NONE: no bias
     AFFINE: const + kp*length + kv*velocity
   """
@@ -234,16 +247,17 @@ class BiasType(enum.IntEnum):
 class ConstraintType(enum.IntEnum):
   """Type of constraint.
 
-  Attributes:
+  Members:
     EQUALITY: equality constraint
     LIMIT_JOINT: joint limit
+    LIMIT_TENDON: tendon limit
     CONTACT_FRICTIONLESS: frictionless contact
     CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
   """
   EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
   # unsupported: FRICTION_DOF, FRICTION_TENDON
   LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT
-  # unsupported: LIMIT_TENDON
+  LIMIT_TENDON = mujoco.mjtConstraint.mjCNSTR_LIMIT_TENDON
   CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
   CONTACT_PYRAMIDAL = mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
   CONTACT_ELLIPTIC = mujoco.mjtConstraint.mjCNSTR_CONTACT_ELLIPTIC
@@ -252,7 +266,7 @@ class ConstraintType(enum.IntEnum):
 class CamLightType(enum.IntEnum):
   """Type of camera light.
 
-  Attributes:
+  Members:
     FIXED: pos and rot fixed in body
     TRACK: pos tracks body, rot fixed in global
     TRACKCOM: pos tracks subtree com, rot fixed in body
@@ -900,18 +914,18 @@ class Model(PyTreeNode):
   tendon_adr: np.ndarray
   tendon_num: np.ndarray
   tendon_limited: np.ndarray
-  tendon_solref_lim: np.ndarray
-  tendon_solimp_lim: np.ndarray
-  tendon_solref_fri: np.ndarray
-  tendon_solimp_fri: np.ndarray
-  tendon_range: np.ndarray
-  tendon_margin: np.ndarray
-  tendon_stiffness: np.ndarray
-  tendon_damping: np.ndarray
-  tendon_frictionloss: np.ndarray
-  tendon_lengthspring: np.ndarray
-  tendon_length0: np.ndarray
-  tendon_invweight0: np.ndarray
+  tendon_solref_lim: jax.Array
+  tendon_solimp_lim: jax.Array
+  tendon_solref_fri: jax.Array
+  tendon_solimp_fri: jax.Array
+  tendon_range: jax.Array
+  tendon_margin: jax.Array
+  tendon_stiffness: jax.Array
+  tendon_damping: jax.Array
+  tendon_frictionloss: jax.Array
+  tendon_lengthspring: jax.Array
+  tendon_length0: jax.Array
+  tendon_invweight0: jax.Array
   wrap_type: np.ndarray
   wrap_objid: np.ndarray
   wrap_prm: np.ndarray
@@ -1193,7 +1207,7 @@ class Data(PyTreeNode):
   qM: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  qLDiagSqrtInv: jax.Array
+  qLDiagSqrtInv: jax.Array  # pylint:disable=invalid-name
   bvh_aabb_dyn: jax.Array
   bvh_active: jax.Array
   # position, velocity dependent:
@@ -1243,6 +1257,6 @@ class Data(PyTreeNode):
   efc_force: jax.Array
   # sparse representation of qM, qLD, qLDiagInv, for compatibility with MuJoCo
   # when in dense mode
-  _qM_sparse: jax.Array
-  _qLD_sparse: jax.Array
-  _qLDiagInv_sparse: jax.Array
+  _qM_sparse: jax.Array  # pylint:disable=invalid-name
+  _qLD_sparse: jax.Array  # pylint:disable=invalid-name
+  _qLDiagInv_sparse: jax.Array  # pylint:disable=invalid-name
