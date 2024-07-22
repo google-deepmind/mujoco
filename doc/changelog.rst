@@ -9,15 +9,16 @@ General
 ^^^^^^^
 
 1. Renamed ``mjModel.tex_rbg`` to ``mjModel.tex_data``.
+2. Added a new disable flag ``mjDSBL_AUTORESETNAN`` to disable automatic reset when NaNs or infinities are produced.
 
 MJX
 ^^^
 
-2. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
+3. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-2. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
+4. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
    ``mujoco.spec.compile``.
 
 Version 3.2.0 (Jul 15, 2024)
