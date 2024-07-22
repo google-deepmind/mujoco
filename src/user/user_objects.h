@@ -1003,7 +1003,7 @@ class mjCHField : public mjCHField_, private mjsHField {
 
 class mjCTexture_ : public mjCBase {
  protected:
-  std::vector<mjtByte> rgb;                   // rgb data
+  std::vector<mjtByte> data;  // texture data (rgb, roughness, etc.)
 
   std::string file_;
   std::string content_type_;
@@ -1063,9 +1063,9 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
 class mjCMaterial_ : public mjCBase {
  protected:
-  int texid;                      // id of material's texture
-  std::string texture_;
-  std::string spec_texture_;
+  int texid[mjNTEXROLE];                    // id of material's textures
+  std::vector<std::string> textures_;
+  std::vector<std::string> spec_textures_;
 };
 
 class mjCMaterial : public mjCMaterial_, private mjsMaterial {
@@ -1086,8 +1086,8 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
   void PointToLocal();
   void NameSpace(const mjCModel* m);
 
-  const std::string& get_texture() const { return texture_; }
-  void del_texture() { texture_.clear(); }
+  const std::string& get_texture(int i) const { return textures_[i]; }
+  void del_textures() { for (auto& t : textures_) t.clear(); }
 
  private:
   void Compile(void);                       // compiler

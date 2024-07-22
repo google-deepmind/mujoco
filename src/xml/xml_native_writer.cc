@@ -305,8 +305,20 @@ void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* pmat, mjCDef* d
   }
 
   // defaults and regular
-  if (pmat->texture != def->Material().texture) {
-    WriteAttrTxt(elem, "texture", pmat->get_texture());
+  bool has_non_rgb = false;
+  for (int i=1; i<mjNTEXROLE; i++) {
+    if (!pmat->textures_[i].empty()) {
+      if (i != mjTEXROLE_RGB) {
+        has_non_rgb = true;
+      }
+    }
+    if (pmat->textures_[i] != def->Material().textures_[i]) {
+      WriteAttrTxt(elem, "texture", pmat->get_texture(i));
+    }
+  }
+  if (has_non_rgb) {
+  //   // TODO elem = InsertEnd(section, "role");
+    mju_error("mjXWriter: no support for non-RGB textures.");
   }
   WriteAttrKey(elem, "texuniform", bool_map, 2, pmat->texuniform, def->Material().texuniform);
   WriteAttr(elem, "texrepeat", 2, pmat->texrepeat, def->Material().texrepeat);

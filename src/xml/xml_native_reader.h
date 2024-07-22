@@ -99,7 +99,7 @@ class mjXReader : public mjXBase {
 };
 
 // MJCF schema
-#define nMJCF 232
+#define nMJCF 243
 extern const char* MJCF[nMJCF][mjXATTRNUM];
 
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_
