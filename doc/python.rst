@@ -575,6 +575,17 @@ The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run
 ``python -c "import mujoco"``.
 
+.. note::
+   You can also build the python bindings from source by going into the
+   python directory and running:
+
+   .. code-block:: shell
+
+      MUJOCO_PATH=/PATH/TO/MUJOCO MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN ./build_python_bindings.sh
+
+   This is especially useful if you require to rebuild the python bindings
+   after making modifying them.
+
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
