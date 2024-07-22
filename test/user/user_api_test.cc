@@ -186,6 +186,38 @@ TEST_F(PluginTest, RecompileCompare) {
   }
 }
 
+TEST_F(PluginTest, RecompileEdit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec *spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(spec, NotNull()) << er.data();
+  mjModel *m1 = mj_compile(spec, nullptr);
+  EXPECT_THAT(m1, NotNull());
+
+  // add a geom
+  mjsBody *world = mjs_findBody(spec, "world");
+  mjsGeom *geom = mjs_addGeom(world, nullptr);
+  geom->size[0] = 1;
+
+  // compile again
+  mjModel *m2 = mj_compile(spec, nullptr);
+  EXPECT_THAT(m2, NotNull());
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
+
 // ------------------- test cache with modified assets -------------------------
 
 TEST_F(PluginTest, RecompileCompareObjCache) {
