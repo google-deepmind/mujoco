@@ -2152,7 +2152,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   if (pmat) {
     matid = pmat->id;
   } else if (!material_.empty()) {
-      throw mjCError(this, "unkown material '%s' in skin", material_.c_str());
+    throw mjCError(this, "unknown material '%s' in skin", material_.c_str());
   }
 
   // set total vertex weights to 0
@@ -2452,7 +2452,7 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
     if (pbody) {
       vertbodyid.push_back(pbody->id);
     } else {
-        throw mjCError(this, "unkown body '%s' in flex", vertbody.c_str());
+      throw mjCError(this, "unknown body '%s' in flex", vertbody.c_str());
     }
   }
 }
@@ -2515,7 +2515,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (pmat) {
     matid = pmat->id;
   } else if (!material_.empty()) {
-      throw mjCError(this, "unkown material '%s' in flex", material_.c_str());
+    throw mjCError(this, "unknown material '%s' in flex", material_.c_str());
   }
 
   // resolve body ids
