@@ -18,10 +18,14 @@ MJX
 ^^^
 
 4. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
+5. Added support for :ref:`fixed tendons <tendon-fixed>`.
+6. Added support for tendon length limits (``mjCNSTR_LIMIT_TENDON`` in :ref:`mjtConstraint`).
+7. Added support for tendon equality constraints (``mjEQ_TENDON`` in :ref:`mjtEq`).
+8. Added support for tendon actuator transmission (``mjTRN_TENDON`` in :ref:`mjtTrn`).
 
 Python bindings
 ^^^^^^^^^^^^^^^
-5. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
+9. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
    ``mujoco.spec.compile``.
 
 Version 3.2.0 (Jul 15, 2024)

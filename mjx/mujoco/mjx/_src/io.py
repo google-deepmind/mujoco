@@ -15,7 +15,7 @@
 """Functions to initialize, load, or save data."""
 
 import copy
-from typing import Any, Dict, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import jax
 from jax import numpy as jp
@@ -74,9 +74,6 @@ def put_model(
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
 
-  if _check_unsupported and m.ntendon:
-    raise NotImplementedError('tendons are not supported')
-
   mesh_geomid = set()
   for g1, g2, ip in collision_driver.geom_pairs(m):
     t1, t2 = m.geom_type[[g1, g2]]
@@ -104,6 +101,7 @@ def put_model(
       (m.actuator_gaintype, types.GainType, mujoco.mjtGain),
       (m.actuator_trntype, types.TrnType, mujoco.mjtTrn),
       (m.eq_type, types.EqType, mujoco.mjtEq),
+      (m.wrap_type, types.WrapType, mujoco.mjtWrap),
   ):
     missing = set(enum_field) - set(enum_type)
     if _check_unsupported and missing:

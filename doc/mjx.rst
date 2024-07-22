@@ -188,7 +188,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINT``, ``TRN_SITE``
+     - ``TRN_JOINT``, ``TRN_SITE``, ``TRN_TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
    * - :ref:`Actuator Gain <mjtGain>`
@@ -200,7 +200,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Constraint <mjtConstraint>`
      - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``, ``CONTACT_ELLIPTIC``
    * - :ref:`Equality <mjtEq>`
-     - ``CONNECT``, ``WELD``, ``JOINT``
+     - ``CONNECT``, ``WELD``, ``JOINT``, ``TENDON``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``EULER``, ``RK4``
    * - :ref:`Cone <mjtCone>`
@@ -211,6 +211,8 @@ The following features are **fully supported** in MJX:
      - ``CG``, ``NEWTON``
    * - Fluid Model
      - :ref:`flInertia`
+   * - :ref:`Tendons <tendon>`
+     - :ref:`Fixed <tendon-fixed>`
 
 The following features are **in development** and coming soon:
 
@@ -230,8 +232,6 @@ The following features are **in development** and coming soon:
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
-   * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``MUSCLE``
    * - :ref:`Actuator Gain <mjtGain>`
@@ -243,9 +243,7 @@ The following features are **in development** and coming soon:
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
-     - :ref:`Spatial <tendon-spatial>`, :ref:`Fixed <tendon-fixed>`
-   * - :ref:`Equality <mjtEq>`
-     - ``TENDON``
+     - :ref:`Spatial <tendon-spatial>`
    * - :ref:`Sensors <mjtSensor>`
      - All except ``PLUGIN``, ``USER``
    * - Lights

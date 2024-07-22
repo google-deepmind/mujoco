@@ -64,10 +64,22 @@
     </body>
   </worldbody>
 
+  <tendon>
+    <fixed name="tendon_1" limited="true" range="-0.3 0.1" stiffness=".1" damping=".2">
+      <joint joint="joint3" coef=".1"/>
+      <joint joint="joint4" coef="-.2"/>
+    </fixed>
+    <fixed name="tendon_2" limited="true" range="-0.3 2" solreflimit="0.03 0.9" solimplimit="0.89 0.9 0.01 2.1">
+      <joint joint="joint4" coef=".3"/>
+      <joint joint="joint5" coef="-.4"/>
+    </fixed>
+  </tendon>
+
   <equality>
     <connect name="connect"  body1="anchor1"    body2="beam1"   anchor="1 0 -1" />
     <weld    name="weld"     body1="anchor2"    body2="beam2"   relpose="0 0 0 1 -.3 0 0" torquescale="0.002" anchor="0 -2 0"/>
     <joint   name="joint"    joint1="joint3"    joint2="joint4" polycoef="0.5 -1 0.1 0.15 0.2" />
+    <tendon  name="tendon"   tendon1="tendon_1" tendon2="tendon_2" polycoef="0.5 -1 0.1 0.15 0.2"/>
   </equality>
 
   <actuator>

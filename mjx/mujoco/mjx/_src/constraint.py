@@ -205,6 +205,44 @@ def _efc_equality_joint(m: Model, d: Data) -> Optional[_Efc]:
   return rows(*args)
 
 
+def _efc_equality_tendon(m: Model, d: Data) -> Optional[_Efc]:
+  """Calculates constraint rows for tendon equality constraints."""
+
+  eq_id = np.nonzero(m.eq_type == EqType.TENDON)[0]
+
+  if (m.opt.disableflags & DisableBit.EQUALITY) or eq_id.size == 0:
+    return None
+
+  obj1id, obj2id, data, solref, solimp = jax.tree_util.tree_map(
+      lambda x: x[eq_id],
+      (
+          m.eq_obj1id,
+          m.eq_obj2id,
+          m.eq_data,
+          m.eq_solref,
+          m.eq_solimp,
+      ),
+  )
+
+  @jax.vmap
+  def rows(obj2id, data, solref, solimp, invweight, jac1, jac2, pos1, pos2):
+    dif = pos2 * (obj2id > -1)
+    dif_power = jp.power(dif, jp.arange(0, 5))
+    pos = pos1 - jp.dot(data[:5], dif_power)
+    deriv = jp.dot(data[1:5], dif_power[:4] * jp.arange(1, 5)) * (obj2id > -1)
+    j = jac1 + jac2 * -deriv
+
+    return _row(j, pos, pos, invweight, solref, solimp)
+
+  inv1, inv2 = m.tendon_invweight0[obj1id], m.tendon_invweight0[obj2id]
+  jac1, jac2 = d.ten_J[obj1id], d.ten_J[obj2id]
+  pos1 = d.ten_length[obj1id] - m.tendon_length0[obj1id]
+  pos2 = d.ten_length[obj2id] - m.tendon_length0[obj2id]
+  invweight = inv1 + inv2 * (obj2id > -1)
+
+  return rows(obj2id, data, solref, solimp, invweight, jac1, jac2, pos1, pos2)
+
+
 def _efc_friction(m: Model, d: Data) -> Optional[_Efc]:
   # TODO(robotics-team): implement _instantiate_friction
   del m, d
@@ -222,6 +260,8 @@ def _efc_limit_ball(m: Model, d: Data) -> Optional[_Efc]:
   @jax.vmap
   def rows(qposadr, dofadr, jnt_range, jnt_margin, solref, solimp):
     axis, angle = math.quat_to_axis_angle(d.qpos[jp.arange(4) + qposadr])
+    # ball rotation angle is always positive
+    axis, angle = math.normalize_with_norm(axis * angle)
     pos = jp.amax(jnt_range) - angle - jnt_margin
     active = pos < 0
     j = jp.zeros(m.nv).at[jp.arange(3) + dofadr].set(-axis)
@@ -261,6 +301,34 @@ def _efc_limit_slide_hinge(m: Model, d: Data) -> Optional[_Efc]:
   args = jax.tree_util.tree_map(lambda x: x[jnt_id], args)
 
   return rows(*args)
+
+
+def _efc_limit_tendon(m: Model, d: Data) -> Optional[_Efc]:
+  """Calculates constraint rows for tendon limits."""
+  tendon_id = np.nonzero(m.tendon_limited)[0]
+
+  if (m.opt.disableflags & DisableBit.LIMIT) or tendon_id.size == 0:
+    return None
+
+  length, j, range_, margin, invweight, solref, solimp = jax.tree_util.tree_map(
+      lambda x: x[tendon_id],
+      (
+          d.ten_length,
+          d.ten_J,
+          m.tendon_range,
+          m.tendon_margin,
+          m.tendon_invweight0,
+          m.tendon_solref_lim,
+          m.tendon_solimp_lim,
+      ),
+  )
+
+  dist_min, dist_max = length - range_[:, 0], range_[:, 1] - length
+  pos = jp.minimum(dist_min, dist_max) - margin
+  active = pos < 0
+  j = jax.vmap(jp.multiply)(j, ((dist_min < dist_max) * 2 - 1) * active)
+
+  return jax.vmap(_row)(j, pos * active, pos, invweight, solref, solimp)
 
 
 def _efc_contact_frictionless(m: Model, d: Data) -> Optional[_Efc]:
@@ -365,6 +433,7 @@ def counts(efc_type: np.ndarray) -> Tuple[int, int, int, int]:
   ne = (efc_type == ConstraintType.EQUALITY).sum()
   nf = 0  # no support for friction loss yet
   nl = (efc_type == ConstraintType.LIMIT_JOINT).sum()
+  nl += (efc_type == ConstraintType.LIMIT_TENDON).sum()
   nc_f = (efc_type == ConstraintType.CONTACT_FRICTIONLESS).sum()
   nc_p = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
   nc_e = (efc_type == ConstraintType.CONTACT_ELLIPTIC).sum()
@@ -387,10 +456,12 @@ def make_efc_type(
     num_rows = (m.eq_type == EqType.CONNECT).sum() * 3
     num_rows += (m.eq_type == EqType.WELD).sum() * 6
     num_rows += (m.eq_type == EqType.JOINT).sum()
+    num_rows += (m.eq_type == EqType.TENDON).sum()
     efc_types += [ConstraintType.EQUALITY] * num_rows
 
   if not m.opt.disableflags & DisableBit.LIMIT:
     efc_types += [ConstraintType.LIMIT_JOINT] * m.jnt_limited.sum()
+    efc_types += [ConstraintType.LIMIT_TENDON] * m.tendon_limited.sum()
 
   if not m.opt.disableflags & DisableBit.CONTACT:
     for condim in (1, 3, 4, 6):
@@ -441,9 +512,11 @@ def make_constraint(m: Model, d: Data) -> Data:
         _efc_equality_connect(m, d),
         _efc_equality_weld(m, d),
         _efc_equality_joint(m, d),
+        _efc_equality_tendon(m, d),
         _efc_friction(m, d),
         _efc_limit_ball(m, d),
         _efc_limit_slide_hinge(m, d),
+        _efc_limit_tendon(m, d),
         _efc_contact_frictionless(m, d),
     )
     if m.opt.cone == ConeType.ELLIPTIC:

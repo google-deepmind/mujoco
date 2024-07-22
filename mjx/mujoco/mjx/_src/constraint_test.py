@@ -96,21 +96,21 @@ class ConstraintTest(parameterized.TestCase):
     ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
     self.assertEqual(ne, 0)
     self.assertEqual(nf, 0)
-    self.assertEqual(nl, 3)
+    self.assertEqual(nl, 5)
     self.assertEqual(nc, 148)
     dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
-    self.assertEqual(dx.efc_J.shape[0], 151)  # only joint range, contact
+    self.assertEqual(dx.efc_J.shape[0], 153)  # only joint/tendon limit, contact
 
   def test_disable_contact(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONTACT
     ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
-    self.assertEqual(ne, 10)
+    self.assertEqual(ne, 11)
     self.assertEqual(nf, 0)
-    self.assertEqual(nl, 3)
+    self.assertEqual(nl, 5)
     self.assertEqual(nc, 0)
     dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
-    self.assertEqual(dx.efc_J.shape[0], 13)  # only joint range, limit
+    self.assertEqual(dx.efc_J.shape[0], 16)  # only equality, joint/tendon limit
 
 
 if __name__ == '__main__':

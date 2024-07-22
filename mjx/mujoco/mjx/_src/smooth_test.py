@@ -48,7 +48,7 @@ class SmoothTest(absltest.TestCase):
     """Tests MJX smooth functions match MuJoCo smooth functions."""
 
     m = test_util.load_test_file('pendula.xml')
-    # # force MJX sparse for testing:
+    # tell MJX to use sparse mass matrices:
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mujoco.MjData(m)
     # give the system a little kick to ensure we have non-identity rotations
@@ -75,6 +75,10 @@ class SmoothTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'subtree_com')
     _assert_attr_eq(d, dx, 'cinert')
     _assert_attr_eq(d, dx, 'cdof')
+    # camlight
+    dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'cam_xpos')
+    _assert_eq(d.cam_xmat.reshape((-1, 3, 3)), dx.cam_xmat, 'cam_xmat')
     # crb
     dx = jax.jit(mjx.crb)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'crb')
@@ -90,14 +94,22 @@ class SmoothTest(absltest.TestCase):
     # rne
     dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_bias')
+
+    # set dense jacobian for tendon:
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    # tendon
+    dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'ten_J')
+    _assert_attr_eq(d, dx, 'ten_length')
     # transmission
-    dx = jax.jit(mjx.transmission)(mx, mjx.put_data(m, d))
+    dx = jax.jit(mjx.transmission)(mx, dx)
     _assert_attr_eq(d, dx, 'actuator_length')
     _assert_attr_eq(d, dx, 'actuator_moment')
-    # camlight
-    dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'cam_xpos')
-    _assert_eq(d.cam_xmat.reshape((-1, 3, 3)), dx.cam_xmat, 'cam_xmat')
 
   def test_disable_gravity(self):
     m = mujoco.MjModel.from_xml_string("""

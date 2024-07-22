@@ -148,20 +148,28 @@ class ModelIOTest(parameterized.TestCase):
           )
       )
 
-  def test_tendon_not_implemented(self):
+  def test_spatial_tendon_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
         <mujoco>
           <worldbody>
-            <body>
-              <joint name="left_hip" type="hinge"/>
-              <geom size="0.05"/>
+            <body name="arm">
+              <joint name="arm" axis="0 1 0"/>
+              <geom name="shoulder" type="sphere" size=".05"/>
+              <site name="arm" pos="-.1 0 .05"/>
+            </body>
+            <body name="slider" pos=".05 0 -.2">
+              <joint name="slider" type="slide" damping="1"/>
+              <geom name="slider" type="box" size=".01 .01 .01"/>
+              <site name="slider" pos="0 0 .01"/>
             </body>
           </worldbody>
+
           <tendon>
-            <fixed>
-              <joint coef="1" joint="left_hip"/>
-            </fixed>
+            <spatial name="rope" range="0 .35">
+              <site site="slider"/>
+              <site site="arm"/>
+            </spatial>
           </tendon>
         </mujoco>"""))
 

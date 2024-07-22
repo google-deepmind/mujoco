@@ -126,6 +126,17 @@
     </body>
   </worldbody>
 
+  <tendon>
+    <fixed name="tendon_1" limited="true" range="-0.3 0.1" stiffness=".1" damping=".2">
+      <joint joint="joint2" coef=".1"/>
+      <joint joint="joint3" coef="-.2"/>
+    </fixed>
+    <fixed name="tendon_2" limited="true" range="-0.3 2" springlength="0 0.05" stiffness=".3" damping=".4">
+      <joint joint="joint4" coef=".3"/>
+      <joint joint="joint5" coef="-.4"/>
+    </fixed>
+  </tendon>
+
   <actuator>
     <motor gear="250 0 0" joint="joint1" name="act1"/>
     <motor gear="0 275 0" joint="joint1" name="act2"/>
@@ -135,5 +146,6 @@
     <motor gear="150" joint="joint15" name="act6"/>
     <motor gear="150" joint="joint16" name="act7"/>
     <motor gear="150" joint="joint17" name="act8"/>
+    <position tendon="tendon_2" kp="100"/>
   </actuator>
 </mujoco>
