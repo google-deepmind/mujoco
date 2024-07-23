@@ -192,7 +192,7 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
 // load model from binary MJB resource
 mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   std::array<char, 1024> error;
-  mjResource* resource = mju_openResource(filename, vfs,
+  mjResource* resource = mju_openResource("", filename, vfs,
                                           error.data(), error.size());
   if (resource == nullptr) {
     mju_warning("%s", error.data());

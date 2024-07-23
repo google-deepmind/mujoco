@@ -156,8 +156,8 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   }
 
   // get filename
-  auto file_attr = mjXUtil::ReadAttrFile(elem, "file", reader.ModelFileDir(),
-                                         true);
+  auto file_attr = mjXUtil::ReadAttrFile(elem, "file", vfs,
+                                         reader.ModelFileDir(), true);
   if (!file_attr.has_value()) {
     throw mjXError(elem, "Include element missing file attribute");
   }
@@ -171,17 +171,17 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
 
   // TODO: b/325905702 - We have a messy wrapper here to remain backwards
   // compatible, which will be removed in the near future.
-  FilePath fullname = reader.ModelFileDir() + filename;
-
   // legacy behavior: try to load in top level directory
   std::array<char, 1024> error;
-  mjResource *resource = mju_openResource(fullname.c_str(), vfs,
+  mjResource *resource = mju_openResource(reader.ModelFileDir().c_str(),
+                                          filename.c_str(), vfs,
                                           error.data(), error.size());
   if (resource == nullptr) {
     // new behavior: try to load in relative directory
     if (!filename.IsAbs()) {
-      fullname = dir + filename;
-      resource = mju_openResource(fullname.c_str(), vfs, error.data(), error.size());
+      FilePath fullname = dir + filename;
+      resource = mju_openResource(reader.ModelFileDir().c_str(),
+                                  fullname.c_str(), vfs, error.data(), error.size());
     }
   }
 
@@ -195,7 +195,6 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   int ninclude_dir = 0;
   mju_getResourceDir(resource, &include_dir, &ninclude_dir);
   FilePath next_dir = FilePath(std::string(include_dir, ninclude_dir));
-  next_dir = dir + next_dir;
   elem->SetAttribute("dir", next_dir.c_str());
 
   const char* xmlstring = nullptr;
@@ -285,7 +284,7 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
   // get data source
   const char* xmlstring = nullptr;
   std::array<char, 1024> rerror;
-  mjResource* resource = mju_openResource(filename, vfs,
+  mjResource* resource = mju_openResource("", filename, vfs,
                                           rerror.data(), rerror.size());
   if (resource == nullptr) {
     std::snprintf(error, nerror, "ParseXML: %s", rerror.data());
@@ -352,7 +351,7 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
       parser.SetModelFileDir(mjs_getString(spec->modelfiledir));
-      IncludeXML(parser, root, parser.ModelFileDir(), vfs, included);
+      IncludeXML(parser, root, FilePath(), vfs, included);
 
       // parse MuJoCo model
       parser.SetModel(spec);

@@ -142,9 +142,13 @@ int Open(mjResource* resource) {
   const VFS* cvfs = GetVFSImpl(vfs);
   const VFSFile* file = cvfs->GetFile(StripPath(resource->name));
   if (file == nullptr) {
-    return 0;
+    file = cvfs->GetFile(FilePath(resource->name));
+    if (file == nullptr) {
+      return 0;
+    }
   }
 
+  resource->data = (void*) file;
   resource->timestamp[0] = '\0';
   if (file->filestamp) {
     mju_encodeBase64(resource->timestamp, (uint8_t*) &file->filestamp,
@@ -160,8 +164,7 @@ int Read(mjResource* resource, const void** buffer) {
     return -1;
   }
 
-  const VFS* vfs = GetVFSImpl(static_cast<const mjVFS*>(resource->data));
-  const VFSFile* file = vfs->GetFile(StripPath(resource->name));
+  const VFSFile* file = static_cast<const VFSFile*>(resource->data);
   if (file == nullptr) {
     *buffer = nullptr;
     return -1;
@@ -193,8 +196,7 @@ int Modified(const mjResource* resource, const char* timestamp) {
   if (!filestamp) return 3;  // no hash (assume modified)
 
   if (resource) {
-    const VFS* cvfs = GetVFSImpl(static_cast<const mjVFS*>(resource->data));
-    const VFSFile* file = cvfs->GetFile(StripPath(resource->name));
+    const VFSFile* file = static_cast<const VFSFile*>(resource->data);
     if (file == nullptr) return 4;  // missing file (assume modified)
     if (!file->filestamp) return 5;  // missing filestamp (assume modified)
 
@@ -245,7 +247,7 @@ int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
   std::vector<uint8_t> inbuffer;
   VFS* cvfs = GetVFSImpl(vfs);
   VFSFile* file;
-  if (!(file = cvfs->AddFile(StripPath(name), std::move(inbuffer), 0))) {
+  if (!(file = cvfs->AddFile(FilePath(name), std::move(inbuffer), 0))) {
     return 2;  // AddFile failed, repeated name
   }
   file->filedata.reserve(nbuffer);
@@ -256,7 +258,10 @@ int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
 // delete file from VFS, return 0: success, -1: not found in VFS
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
   VFS* cvfs = GetVFSImpl(vfs);
-  return cvfs->DeleteFile(StripPath(filename));
+  if (cvfs->DeleteFile(StripPath(filename))) {
+    return cvfs->DeleteFile(FilePath(filename));
+  }
+  return 0;
 }
 
 // delete all files from VFS

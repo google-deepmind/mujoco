@@ -76,7 +76,7 @@ static std::optional<T> ParseInfOrNan(const std::string& s) {
 }
 
 FilePath ResolveFilePath(XMLElement* e, const FilePath& filename,
-                         const FilePath& dir) {
+                         const FilePath& dir, const mjVFS* vfs) {
   std::string path = "";
   if (filename.IsAbs()) {
     return filename;
@@ -85,7 +85,7 @@ FilePath ResolveFilePath(XMLElement* e, const FilePath& filename,
   // TODO(kylebayes): We first look in the base model directory for files to
   // remain backwards compatible.
   FilePath fullname = dir + filename;
-  mjResource *resource = mju_openResource(fullname.c_str(), nullptr,
+  mjResource *resource = mju_openResource("", fullname.c_str(), vfs,
                                           nullptr, 0);
   if (resource != nullptr) {
     mju_closeResource(resource);
@@ -623,14 +623,14 @@ mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr, bool required) {
 
 // if attribute is present, return attribute as a filename
 std::optional<FilePath>
-mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr,
+mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr, const mjVFS* vfs,
                       const FilePath& dir, bool required) {
   auto maybe_str = ReadAttrStr(elem, attr, required);
   if (!maybe_str.has_value()) {
     return std::nullopt;
   }
   FilePath filename(maybe_str.value());
-  return ResolveFilePath(elem, filename, dir);
+  return ResolveFilePath(elem, filename, dir, vfs);
 }
 
 // if attribute is present, return numerical value of attribute

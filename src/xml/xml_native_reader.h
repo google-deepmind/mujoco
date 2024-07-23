@@ -49,16 +49,17 @@ class mjXReader : public mjXBase {
 
  private:
   // XML section specific to MJCF
-  void Default(tinyxml2::XMLElement* section, const mjsDefault* def);  // default section
+  void Default(tinyxml2::XMLElement* section, const mjsDefault* def,
+               const mjVFS* vfs);                                      // default section
   void Extension(tinyxml2::XMLElement* section);                       // extension section
   void Custom(tinyxml2::XMLElement* section);                          // custom section
   void Visual(tinyxml2::XMLElement* section);                          // visual section
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section
   void Asset(tinyxml2::XMLElement* section, const mjVFS* vfs);         // asset section
   void Body(tinyxml2::XMLElement* section, mjsBody* pbody,
-            mjsFrame* pframe);                                         // body/world section
+            mjsFrame* pframe, const mjVFS* vfs);                       // body/world section
   void Contact(tinyxml2::XMLElement* section);                         // contact section
-  void Deformable(tinyxml2::XMLElement* section);                      // deformable section
+  void Deformable(tinyxml2::XMLElement* section, const mjVFS* vfs);    // deformable section
   void Equality(tinyxml2::XMLElement* section);                        // equality section
   void Tendon(tinyxml2::XMLElement* section);                          // tendon section
   void Actuator(tinyxml2::XMLElement* section);                        // actuator section
@@ -67,8 +68,8 @@ class mjXReader : public mjXBase {
 
   // single element parsers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, mjsFlex* pflex);
-  void OneMesh(tinyxml2::XMLElement* elem, mjsMesh* pmesh);
-  void OneSkin(tinyxml2::XMLElement* elem, mjsSkin* pskin);
+  void OneMesh(tinyxml2::XMLElement* elem, mjsMesh* pmesh, const mjVFS* vfs);
+  void OneSkin(tinyxml2::XMLElement* elem, mjsSkin* pskin, const mjVFS* vfs);
   void OneMaterial(tinyxml2::XMLElement* elem, mjsMaterial* pmaterial);
   void OneJoint(tinyxml2::XMLElement* elem, mjsJoint* pjoint);
   void OneGeom(tinyxml2::XMLElement* elem, mjsGeom* pgeom);
@@ -80,7 +81,7 @@ class mjXReader : public mjXBase {
   void OneTendon(tinyxml2::XMLElement* elem, mjsTendon* ptendon);
   void OneActuator(tinyxml2::XMLElement* elem, mjsActuator* pactuator);
   void OneComposite(tinyxml2::XMLElement* elem, mjsBody* pbody, mjsDefault* def);
-  void OneFlexcomp(tinyxml2::XMLElement* elem, mjsBody* pbody);
+  void OneFlexcomp(tinyxml2::XMLElement* elem, mjsBody* pbody, const mjVFS* vfs);
   void OnePlugin(tinyxml2::XMLElement* elem, mjsPlugin* plugin);
 
   mjXSchema schema;                                     // schema used for validation

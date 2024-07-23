@@ -26,6 +26,7 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
 #include "user/user_util.h"
 
 // error string copy
@@ -114,6 +115,7 @@ class mjXUtil {
   // if attribute is present, return attribute as a filename
   static std::optional<mujoco::user::FilePath>
       ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
+                   const mjVFS* vfs,
                    const mujoco::user::FilePath& dir = mujoco::user::FilePath(),
                    bool required = false);
 
