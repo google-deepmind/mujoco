@@ -996,7 +996,7 @@ std::string FilePath::PathReduce(const std::string& str) {
     if (IsSeperator(str[i])) {
       std::string temp = str.substr(j, i - j);
       j = i + 1;
-      if (temp == ".." && !dirs.empty()) {
+      if (temp == ".." && !dirs.empty() && dirs.back() != "..") {
         dirs.pop_back();
       } else if (temp != ".") {
         dirs.push_back(std::move(temp));

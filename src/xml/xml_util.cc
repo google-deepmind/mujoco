@@ -45,6 +45,7 @@ namespace {
 
 using tinyxml2::XMLAttribute;
 using tinyxml2::XMLElement;
+using mujoco::user::FilePath;
 
 namespace mju = ::mujoco::util;
 
@@ -72,6 +73,36 @@ static std::optional<T> ParseInfOrNan(const std::string& s) {
     }
   }
   return std::nullopt;
+}
+
+FilePath ResolveFilePath(XMLElement* e, const FilePath& filename,
+                         const FilePath& dir) {
+  std::string path = "";
+  if (filename.IsAbs()) {
+    return filename;
+  }
+
+  // TODO(kylebayes): We first look in the base model directory for files to
+  // remain backwards compatible.
+  FilePath fullname = dir + filename;
+  mjResource *resource = mju_openResource(fullname.c_str(), nullptr,
+                                          nullptr, 0);
+  if (resource != nullptr) {
+    mju_closeResource(resource);
+    return filename;
+  }
+
+  XMLElement* parent = e->Parent()->ToElement();
+  for (; parent; parent = parent->Parent()->ToElement()) {
+    if (!std::strcmp(parent->Value(), "include")) {
+      auto file_attr = mjXUtil::ReadAttrStr(parent, "dir", false);
+      if (file_attr.has_value()) {
+        path = file_attr.value();
+      }
+      break;
+    }
+  }
+  return FilePath(path) + filename;
 }
 
 }  // namespace
@@ -153,36 +184,6 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
   }
 
   return nullptr;
-}
-
-static std::string ResolveFilePath(XMLElement* e, std::string filename,
-    const std::string& dir) {
-  std::string path = "";
-  if (mjuu_isabspath(filename)) {
-    return filename;
-  }
-
-  // TODO(kylebayes): We first look in the base model directory for files to
-  // remain backwards compatible.
-  std::string full_filename = mjuu_combinePaths(dir, filename);
-  mjResource *resource = mju_openResource(full_filename.c_str(), nullptr,
-                                          nullptr, 0);
-  if (resource != nullptr) {
-    mju_closeResource(resource);
-    return filename;
-  }
-
-  XMLElement* parent = e->Parent()->ToElement();
-  for (; parent; parent = parent->Parent()->ToElement()) {
-    if (!std::strcmp(parent->Value(), "include")) {
-      auto file_attr = mjXUtil::ReadAttrStr(parent, "dir", false);
-      if (file_attr.has_value()) {
-        path = file_attr.value();
-      }
-      break;
-    }
-  }
-  return mjuu_combinePaths(path, filename);
 }
 
 // constructor
@@ -621,14 +622,15 @@ mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr, bool required) {
 }
 
 // if attribute is present, return attribute as a filename
-std::optional<std::string>
+std::optional<FilePath>
 mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr,
-                      const std::string& dir, bool required) {
+                      const FilePath& dir, bool required) {
   auto maybe_str = ReadAttrStr(elem, attr, required);
   if (!maybe_str.has_value()) {
     return std::nullopt;
   }
-  return ResolveFilePath(elem, maybe_str.value(), dir);
+  FilePath filename(maybe_str.value());
+  return ResolveFilePath(elem, filename, dir);
 }
 
 // if attribute is present, return numerical value of attribute

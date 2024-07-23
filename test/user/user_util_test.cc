@@ -46,6 +46,11 @@ TEST_F(UserUtilTest, PathReduce2) {
   EXPECT_EQ(path.Str(), "../hello/world/");
 }
 
+TEST_F(UserUtilTest, PathReduce3) {
+  FilePath path = FilePath("../../hello/world.txt");
+  EXPECT_EQ(path.Str(), "../../hello/world.txt");
+}
+
 TEST_F(UserUtilTest, PathReduceWin) {
   FilePath path = FilePath("C:\\hello\\..\\world");
   EXPECT_EQ(path.Str(), "C:\\world");

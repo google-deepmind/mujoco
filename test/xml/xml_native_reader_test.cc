@@ -649,7 +649,7 @@ TEST_F(XMLReaderTest, IncludeTest) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(),
                                        error.size(), vfs.get());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
   mj_deleteModel(model);
@@ -733,12 +733,14 @@ TEST_F(XMLReaderTest, IncludePathTest) {
   fs.ChangeDirectory("submodels/");
   fs.AddFile("model1.xml", (const unsigned char*) xml1, sizeof(xml1));
   fs.AddFile("model2.xml", (const unsigned char*) xml2, sizeof(xml2));
-  fs.AddFile("subsubmodels/model3.xml", (const unsigned char*) xml3, sizeof(xml3));
+  fs.AddFile("subsubmodels/model3.xml", (const unsigned char*) xml3,
+             sizeof(xml3));
   fs.ChangeDirectory("/");
 
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
-                              nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, error.data(),
+                              error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
   mj_deleteModel(model);
@@ -920,9 +922,11 @@ TEST_F(XMLReaderTest, IncludeAssetsTest) {
   std::string modelpath = fs.FullPath("model.xml");
 
   // loading the file should be successful
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, nullptr, 0);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, error.data(),
+                              error.size());
 
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
 }
@@ -969,7 +973,7 @@ TEST_F(XMLReaderTest, FallbackIncludeAssetsTest) {
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
                               error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
 }
@@ -1013,7 +1017,7 @@ TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
   // loading the file should be successful
   mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
                               error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
 }
@@ -1054,7 +1058,7 @@ TEST_F(XMLReaderTest, IncludeAbsoluteMeshDirTest) {
   // loading the file should be successful
   mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
                               error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
 }

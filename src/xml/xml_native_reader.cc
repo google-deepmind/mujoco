@@ -49,6 +49,7 @@
 namespace {
 using std::string;
 using std::vector;
+using mujoco::user::FilePath;
 using tinyxml2::XMLElement;
 
 void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjsPlugin* p) {
@@ -2553,7 +2554,12 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody) {
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
-  fcomp.file = ReadAttrFile(elem, "file", modelfiledir_).value_or("");
+  auto maybe_file = ReadAttrFile(elem, "file", modelfiledir_);
+  if (maybe_file.has_value()) {
+    fcomp.file = std::move(maybe_file.value().Str());
+  } else {
+    fcomp.file = "";
+  }
   if (ReadAttrTxt(elem, "material", material)) {
     mjs_setString(dflex.material, material.c_str());
   }
@@ -3171,14 +3177,18 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
 
       // separate files
-      std::vector<string> cubefiles(6);
-      cubefiles[0] = ReadAttrFile(elem, "fileright", TextureDir()).value_or("");
-      cubefiles[1] = ReadAttrFile(elem, "fileleft", TextureDir()).value_or("");
-      cubefiles[2] = ReadAttrFile(elem, "fileup", TextureDir()).value_or("");
-      cubefiles[3] = ReadAttrFile(elem, "filedown", TextureDir()).value_or("");
-      cubefiles[4] = ReadAttrFile(elem, "filefront", TextureDir()).value_or("");
-      cubefiles[5] = ReadAttrFile(elem, "fileback", TextureDir()).value_or("");
+      std::vector<std::string> cubefiles(6);
+      std::vector<std::string> cubefile_names = {"fileright", "fileleft",
+                                                 "fileup", "filedown",
+                                                 "filefront", "fileback"};
       for (int i = 0; i < cubefiles.size(); i++) {
+        auto maybe_file = ReadAttrFile(elem, cubefile_names[i].c_str(),
+                                       TextureDir());
+        if (maybe_file.has_value()) {
+          cubefiles[i] = maybe_file.value().Str();
+        } else {
+          cubefiles[i] = "";
+        }
         mjs_setInStringVec(ptex->cubefiles, i, cubefiles[i].c_str());
       }
     }
@@ -3264,7 +3274,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
     // model sub-element
     else if (name=="model") {
-      auto filename = modelfiledir_ + ReadAttrFile(elem, "file", "").value();
+      auto filename = modelfiledir_ + ReadAttrFile(elem, "file").value();
 
       // parse the child
       std::array<char, 1024> error;
@@ -4227,36 +4237,35 @@ mjsDefault* mjXReader::GetClass(XMLElement* section) {
   return def;
 }
 
-void mjXReader::SetModelFileDir(std::string modelfiledir) {
-  modelfiledir_ = modelfiledir;
+void mjXReader::SetModelFileDir(const std::string& modelfiledir) {
+  modelfiledir_ = FilePath(modelfiledir);
 }
 
-void mjXReader::SetAssetDir(std::string assetdir) {
-  assetdir_ = assetdir;
+void mjXReader::SetAssetDir(const std::string& assetdir) {
+  assetdir_ = FilePath(assetdir);
 }
 
-void mjXReader::SetMeshDir(std::string meshdir) {
-  meshdir_ = meshdir;
+void mjXReader::SetMeshDir(const std::string& meshdir) {
+  meshdir_ = FilePath(meshdir);
 }
 
-void mjXReader::SetTextureDir(std::string texturedir) {
-  texturedir_ = texturedir;
+void mjXReader::SetTextureDir(const std::string& texturedir) {
+  texturedir_ = FilePath(texturedir);
 }
 
-std::string mjXReader::AssetDir() const {
-  return mjuu_combinePaths(modelfiledir_, assetdir_);
+FilePath mjXReader::AssetDir() const {
+  return modelfiledir_ + assetdir_;
 }
 
-std::string mjXReader::MeshDir() const {
+FilePath mjXReader::MeshDir() const {
   if (meshdir_.empty()) {
     return AssetDir();
   }
-  return mjuu_combinePaths(modelfiledir_, meshdir_);
+  return modelfiledir_ + meshdir_;
 }
-
-std::string mjXReader::TextureDir() const {
+FilePath mjXReader::TextureDir() const {
   if (texturedir_.empty()) {
     return AssetDir();
   }
-  return mjuu_combinePaths(modelfiledir_, texturedir_);
+  return modelfiledir_ + texturedir_;
 }
