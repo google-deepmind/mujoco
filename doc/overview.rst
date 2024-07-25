@@ -9,7 +9,7 @@ aims to facilitate research and development in robotics, biomechanics, graphics 
 other areas that demand fast and accurate simulation of articulated structures interacting with their environment.
 Initially developed by Roboti LLC, it was acquired and made `freely available
 <https://github.com/google-deepmind/mujoco/blob/main/LICENSE>`__ by DeepMind in October 2021, and open sourced in May
-2022. The MuJoCo codebase is available at the `deepmind/mujoco <https://github.com/google-deepmind/mujoco>`__ repository
+2022. The MuJoCo codebase is available at the `google-deepmind/mujoco <https://github.com/google-deepmind/mujoco>`__ repository
 on GitHub.
 
 MuJoCo is a C/C++ library with a C API, intended for researchers and developers. The runtime simulation module is tuned

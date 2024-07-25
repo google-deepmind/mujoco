@@ -945,7 +945,7 @@ this body quaternion, the quaternions of all other objects attached to the body 
 multiplication. The function :ref:`mj_local2Global` converts from local body coordinates to global Cartesian
 coordinates.
 
-:ref:`mju_negPose` and :ref:`mju_trnVecPose`. A pose is a grouping of a 3D position and a unit quaternion orientation.
+A pose is a grouping of a 3D position and a unit quaternion orientation.
 There is no separate data structure; the grouping is in terms of logic. This represents a position and orientation in
 space, or in other words a spatial frame. Note that OpenGL uses 4-by-4 matrices to represent the same information,
 except here we use a quaternion for orientation. The function mju_mulPose multiplies two poses, meaning that it

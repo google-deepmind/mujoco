@@ -185,7 +185,7 @@ faithfully restored.
 
 Plugins must declare the number of floating point values required for each instance via the ``nstate`` callback of its
 :ref:`mjpPlugin` struct. Note that this number can depend on the exact configuration of the instance. During
-:ref:`mj_makeData`, MuJoCo allocate the requisite number of slots in the ``plugin_state`` field of :ref:`mjData` for
+:ref:`mj_makeData`, MuJoCo allocates the requisite number of slots in the ``plugin_state`` field of :ref:`mjData` for
 each plugin instance. The ``plugin_stateadr`` field in :ref:`mjModel` indicates the position within the overall
 ``plugin_state`` array at which each plugin instance can find its state values.
 

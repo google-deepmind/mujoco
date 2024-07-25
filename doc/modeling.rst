@@ -1407,7 +1407,7 @@ Using the :ref:`flexcomp<body-flexcomp>` element, we can create flexes from mesh
 automatically generate all the bodies/vertices and connect them with suitable elements. We can also create grids and
 other topologies automatically. This machinery makes it easy to create very large flexes, involving thousands or even
 tens of thousands of bodies, elements and edges. Obviously such simulations will not be fast. Even for medium-sized
-flexes, pruning of collision pairs and essential. This is why we have developed elaborate methods for pruning
+flexes, pruning of collision pairs is essential. This is why we have developed elaborate methods for pruning
 self-collisions; see XML reference.
 
 In case of 3D flexes made of tetrahedra, it may be useful to examine how the flex is "triangulated" internally. We have
@@ -1724,7 +1724,7 @@ better visualize and understand the contact configuration and resulting forces.
   model by design, since without it the inverse dynamics are not defined. This is discussed in detail in the
   :ref:`softness and slip<Soft>` clarification. This type of slippage can be addressed in two ways.
 
-  a. Increase the :ref:`impration<option-impratio>` parameter. This will reduce (but not entirely prevent) slow
+  a. Increase the :ref:`impratio<option-impratio>` parameter. This will reduce (but not entirely prevent) slow
      slippage. Note that high impratio values work well only with :ref:`elliptic cones<option-cone>`.
   b. Enable the noslip solver by increasing :ref:`noslip_iterations<option-noslip_iterations>` to a positive integer.
      A small number (1, 2 or 3) is usually sufficient. The noslip post-processing solver will entirely prevent slip,

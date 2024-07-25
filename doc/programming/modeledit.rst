@@ -20,7 +20,7 @@ Overview
 The new API augments the traditional workflow of creating and editing models using XML files, breaking up the *parse* and
 *compile* steps. As summarized in the the :ref:`Overview chapter<Instance>`, the traditional workflow is:
 
- 1. Create an XML model description file (MJCF or URDF) and ascociated assets. |br|
+ 1. Create an XML model description file (MJCF or URDF) and associated assets. |br|
  2. Call :ref:`mj_loadXML`, obtain an :ref:`mjModel` instance.
 
 The new workflow is:
@@ -107,7 +107,7 @@ Known issues
   to `user_api_test.cc <https://github.com/google-deepmind/mujoco/blob/main/test/user/user_api_test.cc>`__ and the MJCF
   parser in `xml_native_reader.cc <https://github.com/google-deepmind/mujoco/blob/main/src/xml/xml_native_reader.cc>`__,
   which is already using this API.
-- One of the central design consideration of the new API is incremental compilation, meaning that after making small
+- One of the central design considerations of the new API is incremental compilation, meaning that after making small
   changes to a spec that has already been compiled, subsequent re-compilation will be very fast. While the code is
   written to support incremental compilation, this functionality is not fully implemented and will be added in the
   future, resulting in faster re-compilation times.

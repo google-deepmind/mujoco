@@ -1328,7 +1328,7 @@ representations of the constraint Jacobian and related matrices.
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
    developed the Newton method which appears to be better in every way. PGS uses the dual formulation. Unlike
-   gradient-based method which improve the solution along oblique directions, Gauss-Seidel works on one scalar component
+   gradient-based methods which improve the solution along oblique directions, Gauss-Seidel works on one scalar component
    at a time, and sets it to its optimal value given the current values of all other components. One sweep of PGS has
    the computational complexity of one matrix-vector multiplication (although the constants are larger). It has
    first-order convergence but nevertheless makes rapid progress in a few iterations.
