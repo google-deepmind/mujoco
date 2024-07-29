@@ -7,16 +7,14 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-
 1. Renamed ``mjModel.tex_rbg`` to ``mjModel.tex_data``.
 2. Added a new disable flag ``mjDSBL_AUTORESETNAN`` to disable automatic reset when NaNs or infinities are produced.
 3. Added sub-elements to the MJCF :ref:`material<asset-material>` element, to allow specification of multiple textures
-for rendering (e.g., :ref:`occlusion-roughness-metallic<material-orm>`). Note that the MuJoCo renderer doesn't support
-these new features, and they are made available for use with external renderers.
+   for rendering (e.g., :ref:`occlusion-roughness-metallic<material-orm>`). Note that the MuJoCo renderer doesn't
+   support these new features, and they are made available for use with external renderers.
 
 MJX
 ^^^
-
 4. Added more fields to ``mjx.Model`` and ``mjx.Data`` for further compatibility with the corresponding MuJoCo structs.
 5. Added support for :ref:`fixed tendons <tendon-fixed>`.
 6. Added support for tendon length limits (``mjCNSTR_LIMIT_TENDON`` in :ref:`mjtConstraint`).
@@ -27,6 +25,10 @@ Python bindings
 ^^^^^^^^^^^^^^^
 9. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
    ``mujoco.spec.compile``.
+
+Bug fixes
+^^^^^^^^^
+10. Fixed a bug where implicit integrators did not take into account disabled actuators (:github:issue:`1838`).
 
 Version 3.2.0 (Jul 15, 2024)
 ----------------------------
