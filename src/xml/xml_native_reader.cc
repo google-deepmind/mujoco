@@ -3497,12 +3497,16 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       double pos[3] = {0, 0, 0};
       double quat[4] = {1, 0, 0, 0};
 
-      for (int i = 0; i < count; i++) {
-        // create parent frame
-        mjsFrame* pframe = mjs_addFrame(subtree, frame);
-        mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
-        mjs_setDefault(pframe->element, childdef ? childdef : def);
+      // parent frame that will be used to attach the subtree
+      mjsFrame* pframe = mjs_addFrame(subtree, frame);
+      mjs_setDefault(pframe->element, childdef ? childdef : def);
+      mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
+      // parse subtree
+      Body(elem, subtree, pframe, vfs);
+
+      // update pframe and attach
+      for (int i = 0; i < count; i++) {
         // accumulate rotation
         mjuu_setvec(pframe->pos, pos[0], pos[1], pos[2]);
         mjuu_frameaccum(pos, quat, offset, rotation);
@@ -3517,9 +3521,6 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
         // process suffix
         std::string suffix = separator;
         UpdateString(suffix, count, i);
-
-        // process subtree
-        Body(elem, subtree, pframe, vfs);
 
         // attach to parent
         if (mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
