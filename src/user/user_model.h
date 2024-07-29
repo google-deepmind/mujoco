@@ -345,7 +345,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                                    const std::vector<T*>& sources);
 
   // delete from list the elements that cause an error
-  template <class T> void RemoveFromList(std::vector<T*>& list);
+  template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
   // create mjCBase lists from children lists
   void CreateObjectLists();
