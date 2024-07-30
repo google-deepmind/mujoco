@@ -14,7 +14,7 @@
 # ==============================================================================
 """Built-in shapes for USD exporter."""
 
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, Union
 
 import mujoco
 import numpy as np
@@ -270,7 +270,7 @@ def decouple_config(config: Dict[str, Any]):
 
 def mesh_config_generator(
     name: str,
-    geom_type: int | mujoco.mjtGeom,
+    geom_type: Union[int, mujoco.mjtGeom],
     size: np.ndarray,
     decouple: bool = False,
 ):
