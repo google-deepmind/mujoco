@@ -568,7 +568,6 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSBODY =====================================
   mjsBody.def_property_readonly(
       "id", [](raw::MjsBody& self) -> int { return mjs_getId(self.element); });
-  mjsBody.def("delete", [](raw::MjsBody& self) { mjs_delete(self.element); });
   mjsBody.def(
       "add_body",
       [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsBody* {

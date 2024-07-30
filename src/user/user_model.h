@@ -202,6 +202,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete all elements
   template <class T> void DeleteAll(std::vector<T*>& elements);
 
+  // delete object from the corresponding list
+  void DeleteElement(mjsElement* el);
+
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
@@ -345,7 +348,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                                    const std::vector<T*>& sources);
 
   // delete from list the elements that cause an error
-  template <class T> void RemoveFromList(std::vector<T*>& list);
+  template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
   // create mjCBase lists from children lists
   void CreateObjectLists();

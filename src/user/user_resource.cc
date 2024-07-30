@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <string>
 #include <vector>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
@@ -117,8 +118,8 @@ int FileModified(const mjResource* resource, const char*timestamp) {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-mjResource* mju_openResource(const char* name, const mjVFS* vfs,
-                             char* error, size_t nerror) {
+mjResource* mju_openResource(const char* dir, const char* name,
+                             const mjVFS* vfs, char* error, size_t nerror) {
   // no error so far
   if (error) {
     error[0] = '\0';
@@ -136,8 +137,10 @@ mjResource* mju_openResource(const char* name, const mjVFS* vfs,
   // clear out resource
   memset(resource, 0, sizeof(mjResource));
 
-  // copy name
-  resource->name = (char*) mju_malloc(sizeof(char) * (strlen(name) + 1));
+  // make space for filename
+  std::string fullname = mjuu_combinePaths(dir, name);
+  std::size_t n = fullname.size();
+  resource->name = (char*) mju_malloc(sizeof(char) * (n + 1));
   if (resource->name == nullptr) {
     if (error) {
       strncpy(error, "could not allocate memory", nerror);
@@ -146,10 +149,11 @@ mjResource* mju_openResource(const char* name, const mjVFS* vfs,
     mju_closeResource(resource);
     return nullptr;
   }
-  memcpy(resource->name, name, sizeof(char) * (strlen(name) + 1));
 
   // first priority is to check the VFS
   if (vfs != nullptr) {
+    memcpy(resource->name, name,
+           sizeof(char) * (std::strlen(name) + 1));
     const mjpResourceProvider* provider = GetVfsResourceProvider();
     resource->data = (void*) vfs;
     resource->provider = provider;
@@ -158,8 +162,11 @@ mjResource* mju_openResource(const char* name, const mjVFS* vfs,
     }
   }
 
+  // copy full path over
+  memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
+
   // find provider based off prefix of name
-  const mjpResourceProvider* provider = mjp_getResourceProvider(name);
+  const mjpResourceProvider* provider = mjp_getResourceProvider(resource->name);
   if (provider != nullptr) {
     resource->provider = provider;
     resource->data = nullptr;
@@ -170,7 +177,7 @@ mjResource* mju_openResource(const char* name, const mjVFS* vfs,
     if (error) {
       snprintf(error, nerror, "could not open '%s'"
                "using a resource provider matching prefix '%s'",
-               name, provider->prefix);
+               resource->name, provider->prefix);
     }
 
     mju_closeResource(resource);

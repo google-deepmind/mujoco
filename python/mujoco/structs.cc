@@ -16,7 +16,9 @@
 
 #include <Python.h>
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -83,6 +85,22 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
 
 inline std::size_t NConMax(const mjData* d) {
   return d->narena / sizeof(mjContact);
+}
+
+// strip path prefix from filename and make lowercase
+std::string StripPath(const char* name) {
+  std::string filename(name);
+  size_t start = filename.find_last_of("/\\");
+
+  // get name without path
+  if (start != std::string::npos) {
+    filename = filename.substr(start + 1, filename.size() - start - 1);
+  }
+
+  // make lowercase
+  std::transform(filename.begin(), filename.end(), filename.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return filename;
 }
 }  // namespace
 
@@ -323,8 +341,9 @@ static raw::MjModel* LoadModelFileImpl(
     mj_defaultVFS(&vfs);
     vfs_ptr = &vfs;
     for (const auto& asset : assets) {
+      std::string buffer_name = StripPath(asset.name);
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          vfs_ptr, asset.name, asset.content, asset.content_size);
+          vfs_ptr, buffer_name.c_str(), asset.content, asset.content_size);
       if (vfs_error) {
         throw py::value_error("assets dict is too big");
       }

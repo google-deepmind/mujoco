@@ -47,7 +47,7 @@ void CacheText(mjCCache& cache, const std::string& model,
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   mj_addBufferVFS(&vfs, name.c_str(), text.data(), text.size());
-  mjResource* resource = mju_openResource(name.c_str(), &vfs, nullptr, 0);
+  mjResource* resource = mju_openResource("", name.c_str(), &vfs, nullptr, 0);
   std::shared_ptr<const void> data(&text, +[](const void* data) {});
   cache.Insert(model, resource, data, text.size());
   mju_closeResource(resource);
@@ -61,7 +61,7 @@ GetCachedText(mjCCache& cache, const std::string& model,
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   mj_addBufferVFS(&vfs, name.c_str(), text.data(), std::strlen(text.c_str()));
-  mjResource* resource = mju_openResource(name.c_str(), &vfs, nullptr, 0);
+  mjResource* resource = mju_openResource("", name.c_str(), &vfs, nullptr, 0);
   bool inserted = cache.PopulateData(resource,
                                      [&cached_text](const void* data) {
     cached_text = *(static_cast<const std::string*>(data));

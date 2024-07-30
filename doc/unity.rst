@@ -328,7 +328,7 @@ ___________________________________
 
 Roboti’s `MuJoCo plug-in for Unity <https://roboti.us/download.html>`_ steps the simulation in an external Python
 process, and uses Unity only for rendering.  In contrast, our plug-in relies on Unity to step the simulation. It should
-be possible to use our plug-in while an external process "drives" the simulation, for example by seting ``qpos``,
+be possible to use our plug-in while an external process "drives" the simulation, for example by setting ``qpos``,
 calling ``mj_kinematics``, synchronizing the transforms, and then using Unity to render or compute game logic. In order
 to establish communication with an external process, you can use Unity's `ML-Agents
 <https://github.com/Unity-Technologies/ml-agents>`_ package.

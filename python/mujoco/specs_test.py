@@ -98,6 +98,34 @@ class SpecsTest(absltest.TestCase):
         </mujoco>
     """),)
 
+  def test_load_xml(self):
+    filename = '../../test/testdata/model.xml'
+    state_type = mujoco.mjtState.mjSTATE_INTEGRATION
+
+    # Load from file.
+    spec1 = mujoco.MjSpec()
+    spec1.from_file(filename)
+    model1 = spec1.compile()
+    data1 = mujoco.MjData(model1)
+    mujoco.mj_step(model1, data1)
+    size1 = mujoco.mj_stateSize(model1, state_type)
+    state1 = np.empty(size1, np.float64)
+    mujoco.mj_getState(model1, data1, state1, state_type)
+
+    # Load from string.
+    spec2 = mujoco.MjSpec()
+    with open(filename, 'r') as file:
+      spec2.from_string(file.read().rstrip())
+    model2 = spec2.compile()
+    data2 = mujoco.MjData(model2)
+    mujoco.mj_step(model2, data2)
+    size2 = mujoco.mj_stateSize(model2, state_type)
+    state2 = np.empty(size2, np.float64)
+    mujoco.mj_getState(model2, data2, state2, state_type)
+
+    # Check that the state is the same.
+    np.testing.assert_array_equal(state1, state2)
+
   def test_compile_errors_with_line_info(self):
     spec = mujoco.MjSpec()
 
@@ -269,6 +297,30 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile({'cube.obj': cube})
     self.assertEqual(model.nmeshvert, 8)
 
+  def test_delete(self):
+    filename = '../../test/testdata/model.xml'
+
+    spec = mujoco.MjSpec()
+    spec.from_file(filename)
+
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.nsite, 11)
+    self.assertEqual(model.nsensor, 11)
+
+    head = spec.find_body('head')
+    self.assertIsNotNone(head)
+    site = head.first_site()
+    self.assertIsNotNone(site)
+
+    site.delete()
+    spec.sensors[-1].delete()
+    spec.sensors[-1].delete()
+
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.nsite, 10)
+    self.assertEqual(model.nsensor, 9)
 
 if __name__ == '__main__':
   absltest.main()

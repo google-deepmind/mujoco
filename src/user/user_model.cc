@@ -250,15 +250,22 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
 
 
 template <class T>
-void mjCModel::RemoveFromList(std::vector<T*>& list) {
+void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
   int nlist = (int)list.size();
   int removed = 0;
   for (int i = 0; i < nlist; i++) {
     T* element = list[i];
     element->id -= removed;
     try {
+      // check if the element contains an error
+      element->NameSpace(&other);
+      element->CopyFromSpec();
+      element->ResolveReferences(&other);
+    } catch (mjCError err) {
+      continue;
+    }
+    try {
       // check if the element references something that was removed
-      // TODO: do not remove elements that contain user errors
       element->NameSpace(this);
       element->CopyFromSpec();
       element->ResolveReferences(this);
@@ -296,12 +303,12 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   ProcessLists(/*checkrepeat=*/false);
 
   // check if we have to remove anything else
-  RemoveFromList(pairs_);
-  RemoveFromList(excludes_);
-  RemoveFromList(tendons_);
-  RemoveFromList(equalities_);
-  RemoveFromList(actuators_);
-  RemoveFromList(sensors_);
+  RemoveFromList(pairs_, oldmodel);
+  RemoveFromList(excludes_, oldmodel);
+  RemoveFromList(tendons_, oldmodel);
+  RemoveFromList(equalities_, oldmodel);
+  RemoveFromList(actuators_, oldmodel);
+  RemoveFromList(sensors_, oldmodel);
 
   // restore to the original state
   if (!compiled) {
@@ -329,6 +336,68 @@ mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
     *this += *def;  // triggers recursive call
   }
   return *this;
+}
+
+
+
+template <class T>
+void deletefromlist(std::vector<T*>* list, mjsElement* element) {
+  if (!list) {
+    return;
+  }
+  for (int j = 0; j < list->size(); ++j) {
+    list->at(j)->id = -1;
+    if (list->at(j) == element) {
+      delete list->at(j);
+      list->erase(list->begin() + j);
+      j--;
+    }
+  }
+}
+
+
+
+// discard all invalid elements from all lists
+void mjCModel::DeleteElement(mjsElement* el) {
+  mjCBody *world = bodies_[0];
+  if (compiled) {
+    ResetTreeLists();
+  }
+
+  switch (el->elemtype) {
+    case mjOBJ_BODY:
+      throw mjCError(NULL, "bodies cannot be deleted, use detach instead");
+      break;
+
+    case mjOBJ_GEOM:
+      deletefromlist(&(static_cast<mjCGeom*>(el)->body->geoms), el);
+      break;
+
+    case mjOBJ_SITE:
+      deletefromlist(&(static_cast<mjCSite*>(el)->body->sites), el);
+      break;
+
+    case mjOBJ_JOINT:
+      deletefromlist(&(static_cast<mjCJoint*>(el)->body->joints), el);
+      break;
+
+    case mjOBJ_LIGHT:
+      deletefromlist(&(static_cast<mjCLight*>(el)->body->lights), el);
+      break;
+
+    case mjOBJ_CAMERA:
+      deletefromlist(&(static_cast<mjCCamera*>(el)->body->cameras), el);
+      break;
+
+    default:
+      deletefromlist(object_lists_[el->elemtype], el);
+      break;
+  }
+
+  if (compiled) {
+    MakeLists(world);
+    ProcessLists(/*checkrepeat=*/false);
+  }
 }
 
 

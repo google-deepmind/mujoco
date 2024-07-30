@@ -323,7 +323,7 @@ frame (``point``) treated as attached to the body, the Jacobian has both transla
 (``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
 3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
 respect to the degrees-of-freedom. The :ref:`pipeline stages<piStages>` required for Jacobian computations to be
-consistenst with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos`.
+consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos`.
 
 .. _mj_jacBody:
 
@@ -1882,7 +1882,7 @@ Twice continuously differentiable sigmoid function using a quintic polynomial:
 Interaction
 ^^^^^^^^^^^
 
-These function implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
+These functions implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
 illustrated in :ref:`simulate<saSimulate>`.
 
 .. _mjv_defaultCamera:
@@ -2066,8 +2066,8 @@ an illustration.
 Visualization
 ^^^^^^^^^^^^^
 
-The functions in this section implement abstract visualization. The results are used by the OpenGL rendered, and can
-also be used by users wishing to implement their own rendered, or hook up MuJoCo to advanced rendering tools such as
+The functions in this section implement abstract visualization. The results are used by the OpenGL renderer, and can
+also be used by users wishing to implement their own renderer, or hook up MuJoCo to advanced rendering tools such as
 Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
 .. _mjv_defaultOption:

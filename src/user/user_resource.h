@@ -18,8 +18,6 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_
 
 #include <cstddef>
-#include <cstdint>
-#include <vector>
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mujoco.h>
@@ -30,8 +28,8 @@ extern "C" {
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
-MJAPI mjResource* mju_openResource(const char* name, const mjVFS* vfs,
-                                   char* error, std::size_t nerror);
+MJAPI mjResource* mju_openResource(const char* dir, const char* name,
+                                   const mjVFS* vfs, char* error, size_t nerror);
 
 // close the given resource; no-op if resource is NULL
 MJAPI void mju_closeResource(mjResource* resource);

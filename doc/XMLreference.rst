@@ -577,6 +577,11 @@ from its default.
    This flag disables implicit integration with respect to joint damping in the Euler integrator. See the
    :ref:`Numerical Integration<geIntegration>` section for more details.
 
+.. _option-flag-autoreset:
+
+:at:`autoreset`: :at-val:`[disable, enable], "enable"`
+   This flag disables the automatic reseting of the simulation state when numerical issues are detected.
+
 .. _option-flag-override:
 
 :at:`override`: :at-val:`[disable, enable], "disable"`
@@ -1751,7 +1756,7 @@ properties are grouped together.
 .. _material-rgb:
 
 :el-prefix:`material/` |-| **rgb** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify base color / albedo values.
 
@@ -1763,7 +1768,7 @@ This element references a texture asset used to specify base color / albedo valu
 .. _material-normal:
 
 :el-prefix:`material/` |-| **normal** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify the bump map (surface normals).
 
@@ -1775,7 +1780,7 @@ This element references a texture asset used to specify the bump map (surface no
 .. _material-occlusion:
 
 :el-prefix:`material/` |-| **occlusion** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify ambient occlusion.
 
@@ -1787,7 +1792,7 @@ This element references a texture asset used to specify ambient occlusion.
 .. _material-roughness:
 
 :el-prefix:`material/` |-| **roughness** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify the roughness map.
 
@@ -1799,7 +1804,7 @@ This element references a texture asset used to specify the roughness map.
 .. _material-metallic:
 
 :el-prefix:`material/` |-| **metallic** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify the metallic map.
 
@@ -1811,7 +1816,7 @@ This element references a texture asset used to specify the metallic map.
 .. _material-opacity:
 
 :el-prefix:`material/` |-| **opacity** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify the opacity map (alpha channel, transparency).
 
@@ -1823,7 +1828,7 @@ This element references a texture asset used to specify the opacity map (alpha c
 .. _material-emissive:
 
 :el-prefix:`material/` |-| **emissive** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify light emission.
 
@@ -1835,7 +1840,7 @@ This element references a texture asset used to specify light emission.
 .. _material-orm:
 
 :el-prefix:`material/` |-| **orm** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify a packed ORM map, where occlusion, roughness, and metallic
 are joined into the corresponding RGB values of a single texture.
@@ -1848,7 +1853,7 @@ are joined into the corresponding RGB values of a single texture.
 .. _material-rgba:
 
 :el-prefix:`material/` |-| **rgba** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element references a texture asset used to specify a packed map where albedo and opacity are joined into the same
 4-channel texture.

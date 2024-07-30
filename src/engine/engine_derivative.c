@@ -834,6 +834,11 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
   // process actuators
   for (int i=0; i < m->nu; i++) {
+    // skip if disabled
+    if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
+
     mjtNum bias_vel = 0, gain_vel = 0;
 
     // affine bias

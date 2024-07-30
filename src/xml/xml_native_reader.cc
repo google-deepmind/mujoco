@@ -49,6 +49,7 @@
 namespace {
 using std::string;
 using std::vector;
+using mujoco::user::FilePath;
 using tinyxml2::XMLElement;
 
 void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjsPlugin* p) {
@@ -114,9 +115,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         "solver", "iterations", "ls_iterations", "noslip_iterations", "mpr_iterations",
         "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
-        {"flag", "?", "21", "constraint", "equality", "frictionloss", "limit", "contact",
+        {"flag", "?", "22", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
-            "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp",
+            "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp", "autoreset",
             "override", "energy", "fwdinv", "invdiscrete", "multiccd", "island"},
     {">"},
 
@@ -892,7 +893,7 @@ void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
   readingdefaults = true;
   for (XMLElement* section = FirstChildElement(root, "default"); section;
        section = NextSiblingElement(section, "default")) {
-    Default(section, nullptr);
+    Default(section, nullptr, vfs);
   }
   readingdefaults = false;
 
@@ -918,7 +919,7 @@ void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
 
   for (XMLElement* section = FirstChildElement(root, "deformable"); section;
        section = NextSiblingElement(section, "deformable")) {
-    Deformable(section);
+    Deformable(section, vfs);
   }
 
   for (XMLElement* section = FirstChildElement(root, "equality"); section;
@@ -948,7 +949,7 @@ void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
 
   for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
        section = NextSiblingElement(section, "worldbody")) {
-    Body(section, mjs_findBody(spec, "world"), nullptr);
+    Body(section, mjs_findBody(spec, "world"), nullptr, vfs);
   }
 }
 
@@ -1121,6 +1122,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("sensor",       mjDSBL_SENSOR)
     READDSBL("midphase",     mjDSBL_MIDPHASE)
     READDSBL("eulerdamp",    mjDSBL_EULERDAMP)
+    READDSBL("autoreset",    mjDSBL_AUTORESET)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1388,7 +1390,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* pflex) {
 
 
 // mesh element parser
-void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh) {
+void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh, const mjVFS* vfs) {
   int n;
   string text, name, content_type;
 
@@ -1399,7 +1401,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh) {
   if (ReadAttrTxt(elem, "content_type", content_type)) {
     *pmesh->content_type = content_type;
   }
-  auto file = ReadAttrFile(elem, "file", MeshDir());
+  auto file = ReadAttrFile(elem, "file", vfs, MeshDir());
   if (file) {
     mjs_setString(pmesh->file, file->c_str());
   }
@@ -1460,7 +1462,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh) {
 
 
 // skin element parser
-void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin) {
+void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin, const mjVFS* vfs) {
   string text, name, material;
   float data[4];
 
@@ -1468,7 +1470,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin) {
   if (ReadAttrTxt(elem, "name", name)) {
     mjs_setString(pskin->name, name.c_str());
   }
-  auto file = ReadAttrFile(elem, "file", AssetDir());
+  auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
   if (file.has_value()) {
     mjs_setString(pskin->file, file->c_str());
   }
@@ -2535,7 +2537,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjsDefault* def) 
 
 
 // make flexcomp
-void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody) {
+void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody, const mjVFS* vfs) {
   string text, material;
   int n;
 
@@ -2553,7 +2555,12 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody) {
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
-  fcomp.file = ReadAttrFile(elem, "file", modelfiledir_).value_or("");
+  auto maybe_file = ReadAttrFile(elem, "file", vfs, modelfiledir_);
+  if (maybe_file.has_value()) {
+    fcomp.file = std::move(maybe_file.value().Str());
+  } else {
+    fcomp.file = "";
+  }
   if (ReadAttrTxt(elem, "material", material)) {
     mjs_setString(dflex.material, material.c_str());
   }
@@ -2684,7 +2691,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
 //------------------ MJCF-specific sections --------------------------------------------------------
 
 // default section parser
-void mjXReader::Default(XMLElement* section, const mjsDefault* def) {
+void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS* vfs) {
   XMLElement* elem;
   string text, name;
 
@@ -2715,7 +2722,7 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def) {
     name = elem->Value();
 
     // read mesh
-    if (name=="mesh") OneMesh(elem, def->mesh);
+    if (name=="mesh") OneMesh(elem, def->mesh, vfs);
 
     // read material
     else if (name=="material") OneMaterial(elem, def->material);
@@ -2769,7 +2776,7 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def) {
 
     // read default
     if (name=="default") {
-      Default(elem, def);
+      Default(elem, def, vfs);
     }
 
     // advance
@@ -3130,7 +3137,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       if (ReadAttrTxt(elem, "content_type", content_type)) {
         mjs_setString(ptex->content_type, content_type.c_str());
       }
-      auto file = ReadAttrFile(elem, "file", TextureDir());
+      auto file = ReadAttrFile(elem, "file", vfs, TextureDir());
       if (file.has_value()) {
         mjs_setString(ptex->file, file->c_str());
       }
@@ -3171,14 +3178,18 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
 
       // separate files
-      std::vector<string> cubefiles(6);
-      cubefiles[0] = ReadAttrFile(elem, "fileright", TextureDir()).value_or("");
-      cubefiles[1] = ReadAttrFile(elem, "fileleft", TextureDir()).value_or("");
-      cubefiles[2] = ReadAttrFile(elem, "fileup", TextureDir()).value_or("");
-      cubefiles[3] = ReadAttrFile(elem, "filedown", TextureDir()).value_or("");
-      cubefiles[4] = ReadAttrFile(elem, "filefront", TextureDir()).value_or("");
-      cubefiles[5] = ReadAttrFile(elem, "fileback", TextureDir()).value_or("");
+      std::vector<std::string> cubefiles(6);
+      std::vector<std::string> cubefile_names = {"fileright", "fileleft",
+                                                 "fileup", "filedown",
+                                                 "filefront", "fileback"};
       for (int i = 0; i < cubefiles.size(); i++) {
+        auto maybe_file = ReadAttrFile(elem, cubefile_names[i].c_str(), vfs,
+                                       TextureDir());
+        if (maybe_file.has_value()) {
+          cubefiles[i] = maybe_file.value().Str();
+        } else {
+          cubefiles[i] = "";
+        }
         mjs_setInStringVec(ptex->cubefiles, i, cubefiles[i].c_str());
       }
     }
@@ -3194,14 +3205,14 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
     else if (name=="mesh") {
       // create mesh and parse
       mjsMesh* pmesh = mjs_addMesh(spec, def);
-      OneMesh(elem, pmesh);
+      OneMesh(elem, pmesh, vfs);
     }
 
     // skin sub-element... deprecate ???
     else if (name=="skin") {
       // create skin and parse
       mjsSkin* pskin = mjs_addSkin(spec);
-      OneSkin(elem, pskin);
+      OneSkin(elem, pskin, vfs);
     }
 
     // hfield sub-element
@@ -3220,7 +3231,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       if (ReadAttrTxt(elem, "content_type", content_type)) {
         mjs_setString(phf->content_type, content_type.c_str());
       }
-      auto file = ReadAttrFile(elem, "file", AssetDir());
+      auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
       if (file.has_value()) {
         mjs_setString(phf->file, file->c_str());
       }
@@ -3264,7 +3275,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
     // model sub-element
     else if (name=="model") {
-      auto filename = modelfiledir_ + ReadAttrFile(elem, "file", "").value();
+      auto filename = modelfiledir_ + ReadAttrFile(elem, "file", vfs).value();
 
       // parse the child
       std::array<char, 1024> error;
@@ -3291,7 +3302,8 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
 
 // body/world section parser; recursive
-void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
+void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
+                     const mjVFS* vfs) {
   string text, name;
   XMLElement* elem;
   int n;
@@ -3417,7 +3429,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
     // flexcomp sub-element
     else if (name=="flexcomp") {
       // parse flexcomp
-      OneFlexcomp(elem, pbody);
+      OneFlexcomp(elem, pbody, vfs);
     }
 
     // frame sub-element
@@ -3449,7 +3461,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       ReadQuat(elem, "quat", pframe->quat, text);
       ReadAlternative(elem, pframe->alt);
 
-      Body(elem, pbody, pframe);
+      Body(elem, pbody, pframe, vfs);
     }
 
     // replicate sub-element
@@ -3486,12 +3498,16 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       double pos[3] = {0, 0, 0};
       double quat[4] = {1, 0, 0, 0};
 
-      for (int i = 0; i < count; i++) {
-        // create parent frame
-        mjsFrame* pframe = mjs_addFrame(subtree, frame);
-        mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
-        mjs_setDefault(pframe->element, childdef ? childdef : def);
+      // parent frame that will be used to attach the subtree
+      mjsFrame* pframe = mjs_addFrame(subtree, frame);
+      mjs_setDefault(pframe->element, childdef ? childdef : def);
+      mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
+      // parse subtree
+      Body(elem, subtree, pframe, vfs);
+
+      // update pframe and attach
+      for (int i = 0; i < count; i++) {
         // accumulate rotation
         mjuu_setvec(pframe->pos, pos[0], pos[1], pos[2]);
         mjuu_frameaccum(pos, quat, offset, rotation);
@@ -3506,9 +3522,6 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
         // process suffix
         std::string suffix = separator;
         UpdateString(suffix, count, i);
-
-        // process subtree
-        Body(elem, subtree, pframe);
 
         // attach to parent
         if (mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
@@ -3567,7 +3580,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame) {
       mjs_setFrame(pchild->element, frame);
 
       // make recursive call
-      Body(elem, pchild, nullptr);
+      Body(elem, pchild, nullptr, vfs);
     }
 
     // attachment
@@ -3685,7 +3698,7 @@ void mjXReader::Equality(XMLElement* section) {
 
 
 // deformable section parser
-void mjXReader::Deformable(XMLElement* section) {
+void mjXReader::Deformable(XMLElement* section, const mjVFS* vfs) {
   string name;
   XMLElement* elem;
 
@@ -3712,7 +3725,7 @@ void mjXReader::Deformable(XMLElement* section) {
     else if (name=="skin") {
       // create skin and parse
       mjsSkin* pskin = mjs_addSkin(spec);
-      OneSkin(elem, pskin);
+      OneSkin(elem, pskin, vfs);
     }
 
     // advance to next element
@@ -4227,36 +4240,35 @@ mjsDefault* mjXReader::GetClass(XMLElement* section) {
   return def;
 }
 
-void mjXReader::SetModelFileDir(std::string modelfiledir) {
-  modelfiledir_ = modelfiledir;
+void mjXReader::SetModelFileDir(const std::string& modelfiledir) {
+  modelfiledir_ = FilePath(modelfiledir);
 }
 
-void mjXReader::SetAssetDir(std::string assetdir) {
-  assetdir_ = assetdir;
+void mjXReader::SetAssetDir(const std::string& assetdir) {
+  assetdir_ = FilePath(assetdir);
 }
 
-void mjXReader::SetMeshDir(std::string meshdir) {
-  meshdir_ = meshdir;
+void mjXReader::SetMeshDir(const std::string& meshdir) {
+  meshdir_ = FilePath(meshdir);
 }
 
-void mjXReader::SetTextureDir(std::string texturedir) {
-  texturedir_ = texturedir;
+void mjXReader::SetTextureDir(const std::string& texturedir) {
+  texturedir_ = FilePath(texturedir);
 }
 
-std::string mjXReader::AssetDir() const {
-  return mjuu_combinePaths(modelfiledir_, assetdir_);
+FilePath mjXReader::AssetDir() const {
+  return modelfiledir_ + assetdir_;
 }
 
-std::string mjXReader::MeshDir() const {
+FilePath mjXReader::MeshDir() const {
   if (meshdir_.empty()) {
     return AssetDir();
   }
-  return mjuu_combinePaths(modelfiledir_, meshdir_);
+  return modelfiledir_ + meshdir_;
 }
-
-std::string mjXReader::TextureDir() const {
+FilePath mjXReader::TextureDir() const {
   if (texturedir_.empty()) {
     return AssetDir();
   }
-  return mjuu_combinePaths(modelfiledir_, texturedir_);
+  return modelfiledir_ + texturedir_;
 }

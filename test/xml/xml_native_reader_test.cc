@@ -15,7 +15,6 @@
 // Tests for xml/xml_native_reader.cc.
 
 #include <array>
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -613,6 +612,18 @@ static constexpr unsigned char kTinyPng[] = {
   0x82
 };
 
+// mesh OBJ file of a cube
+static constexpr char kTinyObj[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+
 TEST_F(XMLReaderTest, IncludeTest) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -649,7 +660,7 @@ TEST_F(XMLReaderTest, IncludeTest) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(),
                                        error.size(), vfs.get());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
   mj_deleteModel(model);
@@ -726,22 +737,22 @@ TEST_F(XMLReaderTest, IncludePathTest) {
     <geom name="another_box" type="box" size="2 2 2"/>
   </mujoco>)";
 
-  MockFilesystem fs("IncludePathTest");
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
+  mj_addBufferVFS(&vfs, "submodels/model1.xml", xml1, sizeof(xml1));
+  mj_addBufferVFS(&vfs, "submodels/model2.xml", xml2, sizeof(xml2));
+  mj_addBufferVFS(&vfs, "submodels/subsubmodels/model3.xml", xml3,
+                  sizeof(xml3));
 
-  fs.ChangeDirectory("submodels/");
-  fs.AddFile("model1.xml", (const unsigned char*) xml1, sizeof(xml1));
-  fs.AddFile("model2.xml", (const unsigned char*) xml2, sizeof(xml2));
-  fs.AddFile("subsubmodels/model3.xml", (const unsigned char*) xml3, sizeof(xml3));
-  fs.ChangeDirectory("/");
-
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
-                              nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(),
+                              error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
   mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(XMLReaderTest, FallbackIncludePathTest) {
@@ -770,22 +781,21 @@ TEST_F(XMLReaderTest, FallbackIncludePathTest) {
     <geom name="another_box" type="box" size="2 2 2"/>
   </mujoco>)";
 
-  MockFilesystem fs("FallbackIncludePathTest");
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
-
-  fs.AddFile("model1.xml", (const unsigned char*) xml1, sizeof(xml1));
-  fs.AddFile("submodels/model2.xml", (const unsigned char*) xml2, sizeof(xml2));
-  fs.AddFile("subsubmodels/model3.xml", (const unsigned char*) xml3,
-   sizeof(xml3));
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
+  mj_addBufferVFS(&vfs, "model1.xml", xml1, sizeof(xml1));
+  mj_addBufferVFS(&vfs, "submodels/model2.xml", xml2, sizeof(xml2));
+  mj_addBufferVFS(&vfs, "subsubmodels/model3.xml", xml3, sizeof(xml3));
 
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+  mjModel* model = mj_loadXML("model.xml", &vfs,
                               error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "ball"), 2);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "another_box"), 3);
   mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(XMLReaderTest, MaterialTextureTest) {
@@ -807,14 +817,14 @@ TEST_F(XMLReaderTest, MaterialTextureTest) {
   </mujoco>
   )";
 
-  MockFilesystem fs("MaterialTextureTest");
-  fs.AddFile("tiny0.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("tiny1.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tiny0.png", kTinyPng, sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "tiny1.png", kTinyPng, sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
 
   char error[1024];
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, error, 1024);
+  mjModel* model = mj_loadXML("model.xml", &vfs, error, 1024);
 
   EXPECT_THAT(model, NotNull()) << error;
   EXPECT_EQ(model->mat_texid[mjTEXROLE_RGB], 1);
@@ -823,6 +833,7 @@ TEST_F(XMLReaderTest, MaterialTextureTest) {
   EXPECT_EQ(model->mat_texid[mjTEXROLE_OCCLUSION], 0);
 
   mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(XMLReaderTest, LegacyMaterialTextureTest) {
@@ -839,19 +850,20 @@ TEST_F(XMLReaderTest, LegacyMaterialTextureTest) {
   </mujoco>
   )";
 
-  MockFilesystem fs("LegacyMaterialTextureTest");
-  fs.AddFile("tiny0.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("tiny1.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tiny0.png", kTinyPng, sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "tiny1.png", kTinyPng, sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
 
   char error[1024];
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, error, 1024);
+  mjModel* model = mj_loadXML("model.xml", &vfs, error, 1024);
 
   EXPECT_THAT(model, NotNull()) << error;
   EXPECT_EQ(model->mat_texid[mjTEXROLE_RGB], 1);
 
   mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(XMLReaderTest, MaterialTextureFailTest) {
@@ -870,12 +882,6 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
     </worldbody>
   </mujoco>
   )";
-
-  MockFilesystem fs("MaterialTextureFailTest");
-  fs.AddFile("tiny0.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("tiny1.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
 
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
@@ -905,26 +911,32 @@ TEST_F(XMLReaderTest, IncludeAssetsTest) {
   static constexpr char subassets[] = R"(
   <mujoco>
     <texture file="subtiny.png" type="2d"/>
+    <mesh name="cube" file="cube.obj"/>
     <material name="submaterial" texture="subtiny"/>
   </mujoco>
   )";
 
-  MockFilesystem fs("IncludeAssetsTest");
-  fs.AddFile("assets/tiny.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("assets/subassets/subtiny.png", kTinyPng, sizeof(kTinyPng));
-  fs.AddFile("assets/assets.xml", (const unsigned char*) assets,
-   sizeof(assets));
-  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*) subassets,
-   sizeof(subassets));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "assets/tiny.png", kTinyPng, sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "assets/subassets/subtiny.png", kTinyPng,
+                  sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "assets/subassets/cube.obj", kTinyObj,
+                  sizeof(kTinyObj));
+  mj_addBufferVFS(&vfs, "assets/assets.xml", assets, sizeof(assets));
+  mj_addBufferVFS(&vfs, "assets/subassets/assets.xml", subassets,
+                  sizeof(subassets));
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
 
   // loading the file should be successful
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr, nullptr, 0);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(),
+                              error.size());
 
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(XMLReaderTest, FallbackIncludeAssetsTest) {
@@ -952,26 +964,26 @@ TEST_F(XMLReaderTest, FallbackIncludeAssetsTest) {
   </mujoco>
   )";
 
-  MockFilesystem fs("FallbackIncludeAssetsTest");
-  fs.AddFile("assets/tiny.png", kTinyPng, sizeof(kTinyPng));
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "assets/tiny.png", kTinyPng, sizeof(kTinyPng));
 
   // need to fallback for backwards compatibility
-  fs.AddFile("subtiny.png", kTinyPng, sizeof(kTinyPng));
+  mj_addBufferVFS(&vfs, "subtiny.png", kTinyPng, sizeof(kTinyPng));
 
-  fs.AddFile("assets/assets.xml", (const unsigned char*) assets,
-   sizeof(assets));
-  fs.AddFile("assets/subassets/assets.xml", (const unsigned char*) subassets,
-   sizeof(subassets));
-  fs.AddFile("model.xml", (const unsigned char*) xml, sizeof(xml));
-  std::string modelpath = fs.FullPath("model.xml");
+  mj_addBufferVFS(&vfs, "assets/assets.xml", assets, sizeof(assets));
+  mj_addBufferVFS(&vfs, "assets/subassets/assets.xml", subassets,
+                  sizeof(subassets));
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
 
   // loading the file should be successful
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
+  mjModel* model = mj_loadXML("model.xml", &vfs,
                               error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
@@ -1013,7 +1025,7 @@ TEST_F(XMLReaderTest, IncludeAbsoluteTest) {
   // loading the file should be successful
   mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
                               error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
 }
@@ -1054,7 +1066,7 @@ TEST_F(XMLReaderTest, IncludeAbsoluteMeshDirTest) {
   // loading the file should be successful
   mjModel* model = mj_loadXML(modelpath.c_str(), nullptr,
                               error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  ASSERT_THAT(model, NotNull()) << error.data();
 
   mj_deleteModel(model);
 }

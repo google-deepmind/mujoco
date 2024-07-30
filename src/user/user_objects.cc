@@ -701,10 +701,12 @@ void mjCBase::NameSpace(const mjCModel* m) {
 
 
 // load resource if found (fallback to OS filesystem)
-mjResource* mjCBase::LoadResource(std::string filename, const mjVFS* vfs) {
+mjResource* mjCBase::LoadResource(const std::string& modelfiledir,
+                                  const std::string& filename,
+                                  const mjVFS* vfs) {
   // try reading from provided VFS or fallback to OS filesystem
   std::array<char, 1024> error;
-  mjResource* resource = mju_openResource(filename.c_str(), vfs,
+  mjResource* resource = mju_openResource(modelfiledir.c_str(), filename.c_str(), vfs,
                                           error.data(), error.size());
   if (!resource) {
     throw mjCError(nullptr, "%s", error.data());
@@ -3159,8 +3161,8 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    std::string filename = mjuu_combinePaths(model->modelfiledir_, model->meshdir_, file_);
-    mjResource* resource = LoadResource(filename, vfs);
+    std::string filename = mjuu_combinePaths(model->meshdir_, file_);
+    mjResource* resource = LoadResource(model->modelfiledir_, filename, vfs);
 
     try {
       if (asset_type == "image/png") {
@@ -3594,7 +3596,7 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
-  mjResource* resource = LoadResource(filename, vfs);
+  mjResource* resource = LoadResource(model->modelfiledir_, filename, vfs);
 
   try {
     if (asset_type == "image/png") {
@@ -3797,7 +3799,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // make filename
-      std::string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, cubefiles_[i]);
+      std::string filename = mjuu_combinePaths(model->texturedir_, cubefiles_[i]);
 
       // load PNG or custom
       unsigned int w, h;
@@ -3895,7 +3897,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // make filename
-    std::string filename = mjuu_combinePaths(model->modelfiledir_, model->texturedir_, file_);
+    std::string filename = mjuu_combinePaths(model->texturedir_, file_);
 
     // dispatch
     if (type==mjTEXTURE_2D) {

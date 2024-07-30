@@ -181,7 +181,8 @@ class mjCBase : public mjCBase_ {
 
  public:
   // load resource if found (fallback to OS filesystem)
-  static mjResource* LoadResource(std::string filename, const mjVFS* vfs);
+  static mjResource* LoadResource(const std::string& modelfiledir,
+                                  const std::string& filename, const mjVFS* vfs);
 
   // Get and sanitize content type from raw_text if not empty, otherwise parse
   // content type from resource_name; throw on failure

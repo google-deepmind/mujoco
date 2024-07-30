@@ -42,7 +42,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjDSBL_SENSOR', 4096),
              ('mjDSBL_MIDPHASE', 8192),
              ('mjDSBL_EULERDAMP', 16384),
-             ('mjDSBL_AUTORESETNAN', 32768),
+             ('mjDSBL_AUTORESET', 32768),
              ('mjNDISABLE', 16),
          ]),
      )),
