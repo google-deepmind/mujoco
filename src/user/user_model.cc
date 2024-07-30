@@ -340,6 +340,68 @@ mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
 
 
 
+template <class T>
+void deletefromlist(std::vector<T*>* list, mjsElement* element) {
+  if (!list) {
+    return;
+  }
+  for (int j = 0; j < list->size(); ++j) {
+    list->at(j)->id = -1;
+    if (list->at(j) == element) {
+      delete list->at(j);
+      list->erase(list->begin() + j);
+      j--;
+    }
+  }
+}
+
+
+
+// discard all invalid elements from all lists
+void mjCModel::DeleteElement(mjsElement* el) {
+  mjCBody *world = bodies_[0];
+  if (compiled) {
+    ResetTreeLists();
+  }
+
+  switch (el->elemtype) {
+    case mjOBJ_BODY:
+      throw mjCError(NULL, "bodies cannot be deleted, use detach instead");
+      break;
+
+    case mjOBJ_GEOM:
+      deletefromlist(&(static_cast<mjCGeom*>(el)->body->geoms), el);
+      break;
+
+    case mjOBJ_SITE:
+      deletefromlist(&(static_cast<mjCSite*>(el)->body->sites), el);
+      break;
+
+    case mjOBJ_JOINT:
+      deletefromlist(&(static_cast<mjCJoint*>(el)->body->joints), el);
+      break;
+
+    case mjOBJ_LIGHT:
+      deletefromlist(&(static_cast<mjCLight*>(el)->body->lights), el);
+      break;
+
+    case mjOBJ_CAMERA:
+      deletefromlist(&(static_cast<mjCCamera*>(el)->body->cameras), el);
+      break;
+
+    default:
+      deletefromlist(object_lists_[el->elemtype], el);
+      break;
+  }
+
+  if (compiled) {
+    MakeLists(world);
+    ProcessLists(/*checkrepeat=*/false);
+  }
+}
+
+
+
 // TODO: we should not use C-type casting with multiple C++ inheritance
 void mjCModel::CreateObjectLists() {
   for (int i = 0; i < mjNOBJECT; ++i) {

@@ -202,6 +202,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete all elements
   template <class T> void DeleteAll(std::vector<T*>& elements);
 
+  // delete object from the corresponding list
+  void DeleteElement(mjsElement* el);
+
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
