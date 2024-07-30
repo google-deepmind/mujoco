@@ -199,6 +199,16 @@ void scanPluginLibraries() {
 
 //------------------------------------------- simulation -------------------------------------------
 
+const char* Diverged(int disableflags, const mjData* d) {
+  if (disableflags & mjDSBL_AUTORESET) {
+    for (mjtWarning w : {mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS}) {
+      if (d->warning[w].number > 0) {
+        return mju_warningText(w, d->warning[w].lastinfo);
+      }
+    }
+  }
+  return nullptr;
+}
 
 mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   // this copy is needed so that the mju::strlen call below compiles
@@ -356,7 +366,13 @@ void PhysicsLoop(mj::Simulate& sim) {
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
-            stepped = true;
+            const char* message = Diverged(m->opt.disableflags, d);
+            if (message) {
+              sim.run = 0;
+              mju::strcpy_arr(sim.load_error, message);
+            } else {
+              stepped = true;
+            }
           }
 
           // in-sync: step until ahead of cpu
@@ -381,7 +397,13 @@ void PhysicsLoop(mj::Simulate& sim) {
 
               // call mj_step
               mj_step(m, d);
-              stepped = true;
+              const char* message = Diverged(m->opt.disableflags, d);
+              if (message) {
+                sim.run = 0;
+                mju::strcpy_arr(sim.load_error, message);
+              } else {
+                stepped = true;
+              }
 
               // break if reset
               if (d->time < prevSim) {

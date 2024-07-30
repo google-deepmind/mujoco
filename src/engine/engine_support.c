@@ -58,7 +58,7 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Sensor",
   "Midphase",
   "Eulerdamp",
-  "AutoResetNaN"
+  "AutoReset"
 };
 
 

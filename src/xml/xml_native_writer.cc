@@ -1001,6 +1001,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("sensor",         mjDSBL_SENSOR)
     WRITEDSBL("midphase",       mjDSBL_MIDPHASE)
     WRITEDSBL("eulerdamp",      mjDSBL_EULERDAMP)
+    WRITEDSBL("autoreset",      mjDSBL_AUTORESET)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \

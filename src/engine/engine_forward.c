@@ -52,7 +52,7 @@ void mj_checkPos(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nq; i++) {
     if (mju_isBad(d->qpos[i])) {
       mj_warning(d, mjWARN_BADQPOS, i);
-      if (!(m->opt.disableflags & mjDSBL_AUTORESETNAN)) {
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_resetData(m, d);
       }
       d->warning[mjWARN_BADQPOS].number++;
@@ -69,7 +69,7 @@ void mj_checkVel(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nv; i++) {
     if (mju_isBad(d->qvel[i])) {
       mj_warning(d, mjWARN_BADQVEL, i);
-      if (!(m->opt.disableflags & mjDSBL_AUTORESETNAN)) {
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_resetData(m, d);
       }
       d->warning[mjWARN_BADQVEL].number++;
@@ -86,12 +86,12 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nv; i++) {
     if (mju_isBad(d->qacc[i])) {
       mj_warning(d, mjWARN_BADQACC, i);
-      if (!(m->opt.disableflags & mjDSBL_AUTORESETNAN)) {
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_resetData(m, d);
       }
       d->warning[mjWARN_BADQACC].number++;
       d->warning[mjWARN_BADQACC].lastinfo = i;
-      if (!(m->opt.disableflags & mjDSBL_AUTORESETNAN)) {
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_forward(m, d);
       }
       return;

@@ -577,6 +577,11 @@ from its default.
    This flag disables implicit integration with respect to joint damping in the Euler integrator. See the
    :ref:`Numerical Integration<geIntegration>` section for more details.
 
+.. _option-flag-autoreset:
+
+:at:`autoreset`: :at-val:`[disable, enable], "enable"`
+   This flag disables the automatic reseting of the simulation state when numerical issues are detected.
+
 .. _option-flag-override:
 
 :at:`override`: :at-val:`[disable, enable], "disable"`
