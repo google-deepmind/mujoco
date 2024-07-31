@@ -50,7 +50,13 @@ GlfwAdapter::GlfwAdapter() {
   }
 
   // multisampling
+#ifdef mjBUILDSIMULATEVR
+  // window resampling must be disabled to allow different resolutions on monitor and VR headset
+  Glfw().glfwWindowHint(GLFW_SAMPLES, 0);
+#else
   Glfw().glfwWindowHint(GLFW_SAMPLES, 4);
+#endif // mjBUILDSIMULATEVR
+
   Glfw().glfwWindowHint(GLFW_VISIBLE, 1);
 
   // get video mode and save
