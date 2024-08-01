@@ -1272,6 +1272,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 #define X(type, name, nr, nc)  \
   if (src->name) { \
     dest->name = (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)); \
+    ASAN_UNPOISON_MEMORY_REGION(dest->name, sizeof(type)*nr*nc); \
     memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*nr*nc); \
   } else { \
     dest->name = NULL; \
