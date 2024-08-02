@@ -14,14 +14,14 @@
 # ==============================================================================
 """Built-in shapes for USD exporter."""
 
-from typing import Dict, Any, Tuple, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import mujoco
 import numpy as np
 
 def get_triangle_uvs(
-    vertices: np.array,
-    triangles: np.array,
+    vertices: np.ndarray,
+    triangles: np.ndarray,
     texture_type: Optional[mujoco.mjtTexture]
 ):
   if texture_type == None:
@@ -70,13 +70,12 @@ def get_triangle_uvs(
 
   return np.array(triangle_uvs)
 
-class TriangleMesh():
-  """ Store UV and geometry information for a primitve mesh
-  """
+class TriangleMesh:
+  """Store UV and geometry information for a primitive mesh."""
   def __init__(self,
-               vertices: np.array,
-               triangles: np.array,
-               triangle_uvs: np.array):
+               vertices: np.ndarray,
+               triangles: np.ndarray,
+               triangle_uvs: np.ndarray):
     self.vertices = vertices
     self.triangles = triangles
     self.triangle_uvs = triangle_uvs
@@ -88,7 +87,7 @@ class TriangleMesh():
       height: float,
       depth: float,
       texture_type: Optional[mujoco.mjtTexture]
-  ):
+  ) -> 'TriangleMesh':
     vertices = np.array([[0.0, 0.0, 0.0],
                          [width, 0.0, 0.0],
                          [0.0, 0.0, depth],
@@ -121,7 +120,7 @@ class TriangleMesh():
       radius: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int
-  ):
+  ) -> 'TriangleMesh':
     vertices = []
     triangles = []
     for i in range(2*resolution + 1):
@@ -154,7 +153,7 @@ class TriangleMesh():
     radius: float,
     texture_type: Optional[mujoco.mjtTexture],
     resolution: int
-  ):
+  ) -> 'TriangleMesh':
     vertices = []
     triangles = []
     for i in range(resolution + 1):
@@ -193,7 +192,7 @@ class TriangleMesh():
       height: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int
-  ):
+  ) -> 'TriangleMesh':
     vertices = []
     triangles = []
 
