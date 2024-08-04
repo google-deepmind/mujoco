@@ -43,7 +43,7 @@ typedef enum mjtState_ {          // state elements
 
   // convenience values for commonly used state specifications
   mjSTATE_PHYSICS       = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
-  mjSTATE_FULLPHYSICS   = mjSTATE_PHYSICS | mjSTATE_TIME | mjSTATE_PLUGIN,
+  mjSTATE_FULLPHYSICS   = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
   mjSTATE_USER          = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
                           mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
                           mjSTATE_USERDATA,
