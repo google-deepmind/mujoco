@@ -140,7 +140,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  d7aaad83b488fd62bd51c81ecf16cd938532cc0a # LTS 20240116.2
+  4447c7562e3bc702ade25105912dce503f0c4010 # LTS 20240722.0
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
