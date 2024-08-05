@@ -548,6 +548,10 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 //      D: (nsensordata x nu)
 void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
+  if (m->opt.integrator == mjINT_RK4) {
+    mjERROR("RK4 integrator is not supported");
+  }
+
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of state Jacobians
 

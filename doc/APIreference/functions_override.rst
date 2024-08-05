@@ -592,6 +592,9 @@ These matrices and their dimensions are:
   fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
   all calls to the solver will perform exactly the same number of iterations.
 
+.. attention::
+   - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
+
 .. _mjd_inverseFD:
 
 Finite differenced continuous-time inverse-dynamics Jacobians.
@@ -623,6 +626,12 @@ using finite-differencing. These matrices and their dimensions are:
 - ``eps`` is the (forward) finite-differencing epsilon.
 - ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
   dynamics. If this flag is positive, actuator forces are not considered as external.
+- The model option flag ``invdiscrete`` should correspond to the representation of ``mjData.qacc`` in order to compute
+  the correct derivative information.
+
+.. attention::
+   - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
+   - The noslip solver is not supported.
 
 .. _mjd_subQuat:
 
