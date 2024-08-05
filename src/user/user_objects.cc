@@ -22,8 +22,10 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
+#include <new>
 #include <optional>
 #include <random>
 #include <sstream>
@@ -3423,6 +3425,9 @@ void mjCTexture::Builtin2D(void) {
 void mjCTexture::BuiltinCube(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3], RGBi[3];
   int w = width;
+  if (w > std::numeric_limits<int>::max() / w) {
+    throw mjCError(this, "Cube texture width is too large.");
+  }
   int ww = width*width;
 
   // convert fixed colors
@@ -3436,6 +3441,9 @@ void mjCTexture::BuiltinCube(void) {
 
   // gradient
   if (builtin == mjBUILTIN_GRADIENT) {
+    if (ww > std::numeric_limits<int>::max() / 18) {
+      throw mjCError(this, "Gradient texture width is too large.");
+    }
     for (int r = 0; r < w; r++) {
       for (int c = 0; c < w; c++) {
         // compute normalized pixel coordinates
@@ -3677,12 +3685,17 @@ void mjCTexture::Load2D(std::string filename, const mjVFS* vfs) {
   height = h;
 
   // allocate and copy data
-  data.assign(nchannel*width*height, 0);
-  if (data.empty()) {
+  std::int64_t size = static_cast<std::int64_t>(width)*height;
+  if (size >= std::numeric_limits<int>::max() / nchannel || size <= 0) {
+    throw mjCError(this, "Texture too large");
+  }
+  try {
+    data.assign(nchannel*size, 0);
+  } catch (const std::bad_alloc& e) {
     throw mjCError(this, "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
   }
-  memcpy(data.data(), image.data(), nchannel*width*height);
+  memcpy(data.data(), image.data(), nchannel*size);
   image.clear();
 }
 
@@ -3712,12 +3725,20 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
     width = height = w;
   } else {
     width = w/gridsize[1];
+    if (width >= std::numeric_limits<int>::max()/6) {
+      throw mjCError(this, "Invalid width of cube texture");
+    }
     height = 6*width;
   }
 
   // allocate data
-  data.assign(3*width*height, 0);
-  if (data.empty()) {
+  std::int64_t size = static_cast<std::int64_t>(width)*height;
+  if (size >= std::numeric_limits<int>::max() / 3 || size <= 0) {
+    throw mjCError(this, "Cube texture too large");
+  }
+  try {
+    data.assign(3*size, 0);
+  } catch (const std::bad_alloc& e) {
     throw mjCError(this,
                    "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
@@ -3816,9 +3837,17 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       // first file: set size and allocate data
       if (data.empty()) {
         width = w;
+        if (width >= std::numeric_limits<int>::max()/6) {
+          throw mjCError(this, "Invalid width of builtin texture");
+        }
         height = 6*width;
-        data.assign(3*width*height, 0);
-        if (data.empty()) {
+        std::int64_t size = static_cast<std::int64_t>(width)*height;
+        if (size >= std::numeric_limits<int>::max() / 3 || size <= 0) {
+          throw mjCError(this, "PNG texture too large");
+        }
+        try {
+          data.assign(3*size, 0);
+        } catch (const std::bad_alloc& e) {
           throw mjCError(this, "Could not allocate memory for texture");
         }
       }
@@ -3868,6 +3897,9 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
     // adjust height of cube texture
     if (type != mjTEXTURE_2D) {
+      if (width >= std::numeric_limits<int>::max()/6) {
+        throw mjCError(this, "Invalid width of builtin texture");
+      }
       height = 6*width;
     } else {
       if (height<1) {
@@ -3875,9 +3907,14 @@ void mjCTexture::Compile(const mjVFS* vfs) {
       }
     }
 
+    std::int64_t size = static_cast<std::int64_t>(width)*height;
+    if (size >= std::numeric_limits<int>::max() / nchannel || size <= 0) {
+      throw mjCError(this, "Builtin texture too large");
+    }
     // allocate data
-    data.assign(nchannel*width*height, 0);
-    if (data.empty()) {
+    try {
+      data.assign(nchannel*size, 0);
+    } catch (const std::bad_alloc& e) {
       throw mjCError(this, "Could not allocate memory for texture");
     }
 
