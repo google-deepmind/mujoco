@@ -20,6 +20,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -1350,7 +1351,12 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     char maxNodeTagChar[11] = {0};
     ReadStrFromBuffer(maxNodeTagChar, buffer + nodebegin, std::min(10, nodeend - nodebegin));
     size_t measuredHeaderSize = strnlen(maxNodeTagChar, 10) - 1;
-    size_t maxNodeTag = std::stoi(maxNodeTagChar);
+    size_t maxNodeTag;
+    try {
+      maxNodeTag = std::stoi(maxNodeTagChar);
+    } catch (const std::out_of_range& e) {
+      throw mjCError(NULL, "Invalid number of nodes");
+    }
     numNodes = maxNodeTag;
 
     // check number of nodes is a positive number
@@ -1490,7 +1496,12 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     char maxElementTagChar[11] = {0};
     ReadStrFromBuffer(maxElementTagChar, buffer + elembegin, std::min(10, elemend - elembegin));
     int measuredHeaderSize = strnlen(maxElementTagChar, 10) - 1;
-    int maxElementTag = std::stoi(maxElementTagChar);
+    int maxElementTag;
+    try {
+      maxElementTag = std::stoi(maxElementTagChar);
+    } catch (const std::out_of_range& e) {
+      throw mjCError(NULL, "Invalid number of elements");
+    }
     int numElements = maxElementTag;
     int tag, numTags;
     int nodeTag;
