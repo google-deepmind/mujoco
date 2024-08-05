@@ -17,6 +17,7 @@
 #include "src/engine/engine_util_solve.h"
 
 #include <random>
+#include <iomanip>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
