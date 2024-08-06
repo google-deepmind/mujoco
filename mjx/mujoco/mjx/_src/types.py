@@ -984,7 +984,6 @@ class Model(PyTreeNode):
   name_tupleadr: np.ndarray
   name_keyadr: np.ndarray
   names: bytes
-  _sizes: jax.Array
 
 
 class Contact(PyTreeNode):
