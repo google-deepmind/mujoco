@@ -1197,14 +1197,10 @@ files (MJCF, URDF and included files), STL meshes, PNGs for textures and height 
 height field format. Model and resource files in the VFS can also be constructed programmatically (say using a Python
 library that writes to memory). Once all desired files are in the VFS, the user can call :ref:`mj_loadModel` or
 :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the loaders will first check the VFS for any
-file they are about to load, and only access the disk if the file is not found in the VFS. The file names stored in the
-VFS have their name and extension but the path information is stripped; this can be bypassed however by using a custom
-path symbol in the file names, say "mydir_myfile.xml".
+files they are about to load, and only access the disk if the file is not found in the VFS.
 
-The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
-this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
-mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
-mj_loadModel, and then clear everything with mj_deleteVFS.
+The VFS must first be allocated using :ref:`mj_defaultVFS` and must be freed with :ref:`mj_deleteVFS`.
+
 
 .. _mj_defaultVFS:
 
@@ -1213,7 +1209,7 @@ mj_defaultVFS
 
 .. mujoco-include:: mj_defaultVFS
 
-Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
+Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VFS.
 
 .. _mj_addFileVFS:
 
