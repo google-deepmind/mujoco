@@ -7967,7 +7967,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='mat_texid',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
-                     extents=(1000,),
+                     extents=(10000,),
                  ),
                  doc='material texture ids (-1: no texture)',
              ),
@@ -7975,7 +7975,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='mat_texuniform',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
-                     extents=(100,),
+                     extents=(1000,),
                  ),
                  doc='texture repetition for 2d mapping',
              ),
@@ -7983,7 +7983,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='mat_texrepeat',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
-                     extents=(200,),
+                     extents=(2000,),
                  ),
                  doc='texture repetition for 2d mapping',
              ),
@@ -7996,7 +7996,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='textureType',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
-                     extents=(100,),
+                     extents=(1000,),
                  ),
                  doc='type of texture (mjtTexture) (ntexture)',
              ),
@@ -8004,7 +8004,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='texture',
                  type=ArrayType(
                      inner_type=ValueType(name='unsigned int'),
-                     extents=(100,),
+                     extents=(1000,),
                  ),
                  doc='texture names',
              ),

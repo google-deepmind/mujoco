@@ -22,8 +22,8 @@ extern "C" {
 #endif
 
 #define mjNAUX          10        // number of auxiliary buffers
-#define mjMAXTEXTURE    100       // maximum number of textures
-#define mjMAXMATERIAL   100       // maximum number of materials with textures
+#define mjMAXTEXTURE    1000      // maximum number of textures
+#define mjMAXMATERIAL   1000      // maximum number of materials with textures
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
