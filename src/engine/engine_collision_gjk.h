@@ -34,6 +34,9 @@ typedef struct _mjCCDConfig mjCCDConfig;
 // recoverable from x_0 in obj1 and obj2.
 MJAPI mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2);
 
+// Same as mj_gjk, but returns the penetration depth (negative distance) if the objects intersect.
+MJAPI mjtNum mj_gjkPenetration(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2);
+
 #ifdef __cplusplus
 }
 #endif
