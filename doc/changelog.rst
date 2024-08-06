@@ -27,7 +27,7 @@ MJX
 Python bindings
 ^^^^^^^^^^^^^^^
 10. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
-   ``mujoco.spec.compile``.
+    ``mujoco.spec.compile``.
 
 Bug fixes
 ^^^^^^^^^
