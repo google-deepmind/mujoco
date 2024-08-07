@@ -567,7 +567,7 @@ because that may result in incorrect sizes or indexing. This rule does not hold 
 parameters such as inertias are expected to obey certain properties. On the other hand, some structural parameters
 such as object types may be possible to change, but that depends on whether any sizes or indexes depend on them.
 Arrays of type mjtByte can be changed safely, since they are binary indicators that enable and disable certain
-features. The only exception here is ``mjModel.tex_rgb`` which is texture data represented as mjtByte.
+features. The only exception here is ``mjModel.tex_data`` which is texture data represented as mjtByte.
 
 When changing mjModel fields that corresponds to resources uploaded to the GPU, the user must also call the
 corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used
