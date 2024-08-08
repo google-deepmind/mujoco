@@ -72,18 +72,12 @@ directory; it contains error and warning messages, and can be deleted at any tim
      doc     - README.txt and REFERENCE.txt
      include - header files needed to develop with MuJoCo
      model   - model collection
-     sample  - code samples and makefile need to build them
+     sample  - code samples and CMakeLists.txt needed to build them
 
 After verifying that the simulator works, you may also want to re-compile the code samples to ensure that you have a
-working development environment. We provide Makefiles for `Windows
-<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile.windows>`_, `macOS
-<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and `Linux
-<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform `CMake
+working development environment. We provide a cross-platform `CMake
 <https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
-applications independently of the MuJoCo library itself. If you are using the vanilla Makefile, we assume that you are
-using Visual Studio on Windows and LLVM/Clang on Linux. On Windows, you also need to either open a Visual Studio command
-prompt with native x64 tools or call the ``vcvarsall.bat`` script that comes with your MSVC installation to set up the
-appropriate environment variables.
+applications independently of the MuJoCo library itself.
 
 On macOS, the DMG disk image contains ``MuJoCo.app``, which you can double-click to launch the ``simulate`` GUI. You can
 also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. While

@@ -804,7 +804,7 @@ first, followed by the limits of the second joint etc. This ordering reflects th
 row-major format.
 
 The available element types are defined in `mjmodel.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L237>`_, in the enum type :ref:`mjtObj`.
 These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
 MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
 

@@ -305,7 +305,7 @@ Collisions between large meshes
   the convex mesh should have roughly **fewer than 32 vertices**.
   With careful
   tuning, MJX can simulate scenes with mesh collisions -- see the MJX
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
   config for an example. Speeding up mesh collision detection is an active area of development for MJX.
 
 Large, complex scenes with many contacts
