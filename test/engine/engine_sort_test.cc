@@ -63,7 +63,7 @@ TEST_F(EngineSortTest, Sort) {
   EXPECT_EQ(x[2], 3);
 
   // test custom struct with mjQUICKSORT
-  std::vector<IntStruct> y = {{.value = 1}, {.value = 3}, {.value = 2}};
+  std::vector<IntStruct> y = {{1}, {3}, {2}};
   mjQUICKSORT(y.data(), y.size(), sizeof(IntStruct), intstruct_compare, NULL);
   EXPECT_EQ(y[0].value, 1);
   EXPECT_EQ(y[1].value, 2);
