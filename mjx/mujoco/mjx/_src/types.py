@@ -100,7 +100,6 @@ class GeomType(enum.IntEnum):
     MESH: mesh
     SDF: signed distance field
   """
-
   PLANE = mujoco.mjtGeom.mjGEOM_PLANE
   HFIELD = mujoco.mjtGeom.mjGEOM_HFIELD
   SPHERE = mujoco.mjtGeom.mjGEOM_SPHERE
@@ -122,7 +121,6 @@ class ConvexMesh(PyTreeNode):
     edge: edge indexes for all edges in the convex mesh
     edge_face_normal: indexes for face normals adjacent to edges in `edge`
   """
-
   vert: jax.Array
   face: jax.Array
   face_normal: jax.Array
@@ -273,12 +271,22 @@ class CamLightType(enum.IntEnum):
     TARGETBODY: pos fixed in body, rot tracks target body
     TARGETBODYCOM: pos fixed in body, rot tracks target subtree com
   """
-
   FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED
   TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK
   TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM
   TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY
   TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM
+
+
+class SensorType(enum.IntEnum):
+  """Type of sensor.
+
+  Members:
+    JOINTPOS: joint position
+    ACTUATORPOS: actuator position
+  """
+  JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
+  ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
 
 
 class Option(PyTreeNode):

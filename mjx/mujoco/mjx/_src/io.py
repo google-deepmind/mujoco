@@ -101,6 +101,8 @@ def put_model(
       (m.actuator_gaintype, types.GainType, mujoco.mjtGain),
       (m.actuator_trntype, types.TrnType, mujoco.mjtTrn),
       (m.eq_type, types.EqType, mujoco.mjtEq),
+      # TODO(taylorhowell): causes Menagerie test to fail
+      # (m.sensor_type, types.SensorType, mujoco.mjtSensor),
       (m.wrap_type, types.WrapType, mujoco.mjtWrap),
   ):
     missing = set(enum_field) - set(enum_type)

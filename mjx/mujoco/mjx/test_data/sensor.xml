@@ -1,0 +1,29 @@
+<!-- For validating sensors:
+
+* position-dependent:
+-jointpos
+-actuatorpos
+* velocity-dependent:
+* acceleration/force-dependent:
+-->
+<mujoco model="sensor">
+  <worldbody>
+    <!-- body 0 -->
+    <body name="body0" pos="1 2 3">
+      <joint name="hinge0" type="hinge" axis="1 0 0"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="motor0" joint="hinge0" ctrlrange="-1 1" ctrllimited="true"/>
+  </actuator>
+
+  <sensor>
+    <!-- position-dependent sensors -->
+    <jointpos name="jointpos0" joint="hinge0"/>
+    <actuatorpos name="actuatorpos0" actuator="motor0"/>
+    <!-- velocity-dependent sensors -->
+    <!-- acceleration/force-dependent sensors -->
+  </sensor>
+</mujoco>

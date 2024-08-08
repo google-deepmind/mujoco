@@ -1,0 +1,9 @@
+<!-- For validating model with no sensor -->
+<mujoco model="no_sensor">
+  <worldbody>
+    <body>
+      <joint type="hinge"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+</mujoco>
