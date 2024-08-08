@@ -25,29 +25,12 @@
 #endif
 // IWYU pragma: end_keep
 
-// Sorting and case-insensitive comparison functions.
+// Case-insensitive comparison functions.
 #ifdef _WIN32
   #define strcasecmp _stricmp
   #define strncasecmp _strnicmp
-
-  #define mjQUICKSORT(buf, elnum, elsz, func, context) \
-      qsort_s(buf, elnum, elsz, func, context)
-  #define quicksortfunc(name, context, el1, el2) \
-      static int name(void* context, const void* el1, const void* el2)
 #else  // assumes POSIX
   #include <strings.h>
-
-  #ifdef __APPLE__
-    #define mjQUICKSORT(buf, elnum, elsz, func, context) \
-        qsort_r(buf, elnum, elsz, context, func)
-    #define quicksortfunc(name, context, el1, el2) \
-        static int name(void* context, const void* el1, const void* el2)
-  #else  // non-Apple
-    #define mjQUICKSORT(buf, elnum, elsz, func, context) \
-        qsort_r(buf, elnum, elsz, func, context)
-    #define quicksortfunc(name, context, el1, el2) \
-        static int name(const void* el1, const void* el2, void* context)
-  #endif
 #endif
 
 // Switch-case fallthrough annotation.

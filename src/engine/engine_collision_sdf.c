@@ -21,9 +21,9 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_primitive.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"

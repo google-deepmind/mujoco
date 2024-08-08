@@ -63,6 +63,7 @@ set(MUJOCO_ENGINE_SRCS
     engine_setconst.h
     engine_solver.c
     engine_solver.h
+    engine_sort.h
     engine_support.c
     engine_support.h
     engine_util_blas.c

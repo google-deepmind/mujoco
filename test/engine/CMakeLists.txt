@@ -78,6 +78,9 @@ target_link_libraries(engine_sensor_test fixture gmock)
 mujoco_test(engine_solver_test)
 target_link_libraries(engine_solver_test fixture gmock)
 
+mujoco_test(engine_sort_test)
+target_link_libraries(engine_sort_test fixture gmock)
+
 mujoco_test(engine_support_test)
 target_link_libraries(engine_support_test fixture gmock)
 

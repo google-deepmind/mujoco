@@ -56,6 +56,7 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"

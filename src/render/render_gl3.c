@@ -22,7 +22,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_crossplatform.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_vis_init.h"
 #include "render/render_context.h"
 #include "render/render_gl2.h"
