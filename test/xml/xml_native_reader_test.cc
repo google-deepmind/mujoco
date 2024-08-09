@@ -1637,8 +1637,10 @@ TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(),
-              HasSubstr("multiple orientation specifiers are not allowed"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "fullinertia and orientation specifiers cannot be used together"));
 }
 
 TEST_F(XMLReaderTest, ReadShellParameter) {

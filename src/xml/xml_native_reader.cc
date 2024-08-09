@@ -3344,7 +3344,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       bool alt = ReadAlternative(elem, pbody->ialt);
       bool full = ReadAttr(elem, "fullinertia", 6, pbody->fullinertia, text);
       if (alt && full) {
-        throw mjXError(elem, "multiple orientation specifiers are not allowed");
+        throw mjXError(elem, "fullinertia and orientation specifiers cannot be used together");
       }
     }
 
