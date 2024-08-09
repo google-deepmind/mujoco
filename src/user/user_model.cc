@@ -1360,10 +1360,6 @@ void mjCModel::CheckEmptyNames(void) {
 
 
 
-// number of position and velocity coordinates for each joint type
-const int nPOS[4] = {7, 4, 1, 1};
-const int nVEL[4] = {6, 3, 1, 1};
-
 template <typename T>
 static size_t getpathslength(std::vector<T> list) {
   size_t result = 0;
@@ -1404,8 +1400,8 @@ void mjCModel::SetSizes() {
 
   // nq, nv
   for (int i=0; i<njnt; i++) {
-    nq += nPOS[joints_[i]->type];
-    nv += nVEL[joints_[i]->type];
+    nq += joints_[i]->nq();
+    nv += joints_[i]->nv();
   }
 
   // nu, na
@@ -1536,7 +1532,7 @@ void mjCModel::AutoSpringDamper(mjModel* m) {
   for (int n=0; n<m->njnt; n++) {
     // get joint dof address and number of dimensions
     int adr = m->jnt_dofadr[n];
-    int ndim = nVEL[m->jnt_type[n]];
+    int ndim = mjCJoint::nv((mjtJoint)m->jnt_type[n]);
 
     // get timeconst and dampratio from joint specificatin
     mjtNum timeconst = (mjtNum)joints_[n]->springdamper[0];
@@ -2009,7 +2005,7 @@ void mjCModel::CopyTree(mjModel* m) {
       }
 
       // set dof fields for this joint
-      for (int j1=0; j1<nVEL[pj->type]; j1++) {
+      for (int j1=0; j1<pj->nv(); j1++) {
         // set attributes
         m->dof_bodyid[dofadr] = pb->id;
         m->dof_jntid[dofadr] = jid;
@@ -2029,7 +2025,7 @@ void mjCModel::CopyTree(mjModel* m) {
 
       // advance joint and qpos counters
       jntadr++;
-      qposadr += nPOS[pj->type];
+      qposadr += pj->nq();
     }
 
     // simple body with sliders and no rotational dofs: promote to simple level 2
@@ -2832,21 +2828,8 @@ void mjCModel::CopyObjects(mjModel* m) {
 // save the current state
 void mjCModel::SaveState(const mjtNum* qpos, const mjtNum* qvel, const mjtNum* act) {
   for (auto joint : joints_) {
-    switch (joint->type) {
-      case mjJNT_FREE:
-        if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, 7);
-        if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, 6);
-        break;
-      case mjJNT_BALL:
-        if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, 4);
-        if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, 3);
-        break;
-      case mjJNT_HINGE:
-      case mjJNT_SLIDE:
-        if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, 1);
-        if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, 1);
-        break;
-    }
+    if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, joint->nq());
+    if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, joint->nv());
   }
 
   for (auto actuator : actuators_) {
@@ -2874,23 +2857,11 @@ void mjCModel::MakeData(const mjModel* m, mjData** dest) {
 // restore the previous state
 void mjCModel::RestoreState(mjtNum* qpos, mjtNum* qvel, mjtNum* act) {
   for (auto joint : joints_) {
-    if (!mjuu_defined(joint->qpos[0]) || !mjuu_defined(joint->qvel[0])) {
-      continue;
+    if (mjuu_defined(joint->qpos[0]) && qpos) {
+      mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, joint->nq());
     }
-    switch (joint->type) {
-      case mjJNT_FREE:
-        if (qpos) mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, 7);
-        if (qvel) mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, 6);
-        break;
-      case mjJNT_BALL:
-        if (qpos) mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, 4);
-        if (qvel) mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, 3);
-        break;
-      case mjJNT_HINGE:
-      case mjJNT_SLIDE:
-        if (qpos) mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, 1);
-        if (qvel) mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, 1);
-        break;
+    if (mjuu_defined(joint->qvel[0]) && qvel) {
+      mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, joint->nv());
     }
   }
 

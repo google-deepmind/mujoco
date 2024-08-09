@@ -1778,6 +1778,34 @@ bool mjCJoint::is_actfrclimited() const { return islimited(actfrclimited, actfrc
 
 
 
+int mjCJoint::nq(mjtJoint joint_type) {
+  switch (joint_type) {
+    case mjJNT_FREE:
+      return 7;
+    case mjJNT_BALL:
+      return 4;
+    case mjJNT_SLIDE:
+    case mjJNT_HINGE:
+      return 1;
+  }
+}
+
+
+
+int mjCJoint::nv(mjtJoint joint_type) {
+  switch (joint_type) {
+    case mjJNT_FREE:
+      return 6;
+    case mjJNT_BALL:
+      return 3;
+    case mjJNT_SLIDE:
+    case mjJNT_HINGE:
+      return 1;
+  }
+}
+
+
+
 void mjCJoint::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;

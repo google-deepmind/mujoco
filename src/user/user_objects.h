@@ -424,6 +424,11 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   bool is_limited() const;
   bool is_actfrclimited() const;
 
+  static int nq(mjtJoint joint_type);
+  static int nv(mjtJoint joint_type);
+  int nq() const { return nq(spec.type); }
+  int nv() const { return nv(spec.type); }
+
  private:
   int Compile(void);               // compiler; return dofnum
   void PointToLocal(void);
