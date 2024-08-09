@@ -18,8 +18,8 @@
 
 #include <array>
 
-#include "third_party/ccd/src/ccd/ccd.h"
-#include "third_party/ccd/src/ccd/vec3.h"
+#include <ccd/ccd.h>
+#include <ccd/vec3.h>
 
 #include "src/engine/engine_collision_convex.h"
 #include <mujoco/mujoco.h>
