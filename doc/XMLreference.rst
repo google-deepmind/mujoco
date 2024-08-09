@@ -2451,14 +2451,15 @@ helps clarify the role of bodies and geoms in MuJoCo.
    given mass, using the geom shape and the assumption of uniform density. The computed density is then used to obtain
    the geom inertia. Recall that the geom mass and inertia are only used during compilation, to infer the body mass and
    inertia if necessary. At runtime only the body inertial properties affect the simulation; the geom mass and inertia
-   are not even saved in mjModel.
+   are not saved in mjModel.
 
 .. _body-geom-density:
 
 :at:`density`: :at-val:`real, "1000"`
    Material density used to compute the geom mass and inertia. The computation is based on the geom shape and the
    assumption of uniform density. The internal default of 1000 is the density of water in SI units. This attribute is
-   used only when the mass attribute above is unspecified.
+   used only when the mass attribute above is unspecified. If `shellinertia` is "false" (the default), density has
+   semantics of mass/volume; if "true", it has semantics of mass/area.
 
 .. _body-geom-shellinertia:
 

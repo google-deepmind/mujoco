@@ -32,6 +32,8 @@
 namespace mujoco {
 namespace {
 
+constexpr double kInertiaTol = 1e-6;
+
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
   return std::vector<mjtNum>(array, array + n);
 }
@@ -698,6 +700,380 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
   mjtNum capsule_x_inertia = model->body_inertia[3*kCapsuleBodyId];
   EXPECT_DOUBLE_EQ(sphere_cylinder_x_inertia, capsule_x_inertia);
   mj_deleteModel(model);
+}
+
+TEST_F(MjCGeomTest, ShellInertiaSphere) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="sphere"size="1.5" shellinertia="true"/>
+      </body>
+      <body>
+        <!-- mass is difference of body 4 and 3 masses -->
+        <geom type="sphere" size="1.5" mass="28.274333953857422" shellinertia="true"/>
+      </body>
+      <body>
+        <geom type="sphere" size="1.5" density="1e8"/>
+      </body>
+      <body>
+        <geom type="sphere" size="1.50000001" density="1e8"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // radius
+  mjtNum r = 1.5;
+  mjtNum r2 = r * r;
+
+  // body 1: shell inertia
+  mjtNum mass1 = 4 * mjPI * r2 * 1000;  // surface area * surface density
+  EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
+  mjtNum I1 = 2 * mass1 * r2 / 3;
+  EXPECT_NEAR(m->body_inertia[3], I1, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[4], I1, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[5], I1, kInertiaTol);
+
+  // body 2: shell inertia, with specified mass
+  mjtNum I2 = 2 * m->body_mass[2] * r2 / 3;
+  EXPECT_NEAR(m->body_inertia[6], I2, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[7], I2, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[8], I2, kInertiaTol);
+
+  mjtNum mass3 = m->body_mass[3];
+  mjtNum mass4 = m->body_mass[4];
+  EXPECT_FLOAT_EQ(mass4 - mass3, m->body_mass[2]);
+
+  // compute approximate shell inertia by subtracting inertias of massive bodies
+  // with small radius difference
+  mjtNum* inertia3 = m->body_inertia + 9;
+  mjtNum* inertia4 = m->body_inertia + 12;
+  mjtNum shell_inertia[3];
+  mju_sub3(shell_inertia, inertia4, inertia3);
+  EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(MjCGeomTest, ShellInertiaCapsule) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="capsule" size="0.1 0.25" shellinertia="true"/>
+      </body>
+      <!-- mass is difference of body 4 and 3 masses -->
+      <body>
+        <geom type="capsule" size="0.1 0.25" mass="4.3982325" shellinertia="true"/>
+      </body>
+      <body>
+        <geom type="capsule" size="0.1 0.25" density="1e8"/>
+      </body>
+      <body>
+        <geom type="capsule" size="0.1000001 0.25" density="1e8"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // dimensions
+  mjtNum r = 0.1;
+  mjtNum r2 = r * r;
+  mjtNum hh = 0.25;
+  mjtNum h = 2 * hh;
+  mjtNum h2 = h * h;
+
+  // hemisphere
+  mjtNum hs_com = r / 2;        // height of hemisphere center of mass
+  mjtNum hs_pos = hh + hs_com;  // distance from origin to hemisphere com
+
+  // surface area
+  double Asphere = 4 * mjPI * r2;       // sphere
+  double Acylinder = 2 * mjPI * r * h;  // cylinder
+  double Atotal = Asphere + Acylinder;
+
+  // body 1: shell inertia
+  mjtNum mass1 = Atotal * 1000;  // surface area * surface density
+  EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
+  mjtNum mass1_sphere = mass1 * Asphere / Atotal;
+  mjtNum mass1_cylinder = mass1 - mass1_sphere;
+  double sphere1_inertia = 2 * mass1_sphere * r2 / 3;
+  mjtNum I1x = mass1_cylinder * (6 * r2 + h2) / 12 + sphere1_inertia +
+               mass1_sphere * (hs_pos * hs_pos - hs_com * hs_com);
+  mjtNum I1z = mass1_cylinder * r2 + sphere1_inertia;
+  EXPECT_NEAR(m->body_inertia[3], I1x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[4], I1x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[5], I1z, kInertiaTol);
+
+  // body 2: shell inertia, with specified mass
+  mjtNum mass2 = 4.3982325;
+  EXPECT_NEAR(m->body_mass[2], mass2, kInertiaTol);
+  EXPECT_FLOAT_EQ(m->body_mass[4] - m->body_mass[3], m->body_mass[2]);
+
+  mjtNum mass2_sphere = mass2 * Asphere / Atotal;
+  mjtNum mass2_cylinder = mass2 - mass2_sphere;
+  double sphere2_inertia = 2 * mass2_sphere * r2 / 3;
+  mjtNum I2x = mass2_cylinder * (6 * r2 + h2) / 12 + sphere2_inertia +
+               mass2_sphere * (hs_pos * hs_pos - hs_com * hs_com);
+  mjtNum I2z = mass2_cylinder * r2 + sphere2_inertia;
+  EXPECT_NEAR(m->body_inertia[6], I2x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[7], I2x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[8], I2z, kInertiaTol);
+
+  // compute approximate shell inertia by subtracting inertias of massive bodies
+  // with small radius difference
+  mjtNum* inertia3 = m->body_inertia + 9;
+  mjtNum* inertia4 = m->body_inertia + 12;
+  mjtNum shell_inertia[3];
+  mju_sub3(shell_inertia, inertia4, inertia3);
+  EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(MjCGeomTest, ShellInertiaCylinder) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="cylinder" size="0.1 0.25" shellinertia="true"/>
+      </body>
+      <!-- mass is difference of body 4 and 3 masses -->
+      <body>
+        <geom type="cylinder" size="0.1 0.25" mass="3.7699139" shellinertia="true"/>
+      </body>
+      <body>
+        <geom type="cylinder" size="0.1 0.25" density="1e8"/>
+      </body>
+      <body>
+        <geom type="cylinder" size="0.1000001 0.2500001" density="1e8"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // dimensions
+  mjtNum r = 0.1;
+  mjtNum hh = 0.25;
+  mjtNum r2 = r * r;
+  mjtNum h = 2 * hh;
+  mjtNum h2 = h * h;
+
+  // surface area
+  double Adisk = mjPI * r2;             // disk
+  double Acylinder = 2 * mjPI * r * h;  // cylinder
+  double Atotal = 2 * Adisk + Acylinder;
+
+  // body 1: shell inertia
+  mjtNum mass1 = Atotal * 1000;  // surface area * surface density
+  EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
+  mjtNum mass1_disk = mass1 * Adisk / Atotal;
+  mjtNum mass1_cylinder = mass1 - 2 * mass1_disk;
+  mjtNum I1x = mass1_cylinder * (6 * r2 + h2) / 12 +
+               2 * (mass1_disk * r2 / 4 + mass1_disk * hh * hh);
+  mjtNum I1z = mass1_cylinder * r2 + mass1_disk * r2;
+  EXPECT_NEAR(m->body_inertia[3], I1x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[4], I1x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[5], I1z, kInertiaTol);
+
+  // body 2: shell inertia, with specified mass
+  mjtNum mass2 = 3.7699139;
+  EXPECT_NEAR(m->body_mass[2], mass2, kInertiaTol);
+  EXPECT_FLOAT_EQ(m->body_mass[4] - m->body_mass[3], m->body_mass[2]);
+
+  mjtNum mass2_disk = mass2 * Adisk / Atotal;
+  mjtNum mass2_cylinder = mass2 - 2 * mass2_disk;
+  mjtNum I2x = mass2_cylinder * (6 * r2 + h2) / 12 +
+               2 * (mass2_disk * r2 / 4 + mass2_disk * hh * hh);
+  mjtNum I2z = mass2_cylinder * r2 + mass2_disk * r2;
+  EXPECT_NEAR(m->body_inertia[6], I2x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[7], I2x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[8], I2z, kInertiaTol);
+
+  // compute approximate shell inertia by subtracting inertias of massive bodies
+  // with small radius difference
+  mjtNum* inertia3 = m->body_inertia + 9;
+  mjtNum* inertia4 = m->body_inertia + 12;
+  mjtNum shell_inertia[3];
+  mju_sub3(shell_inertia, inertia4, inertia3);
+  EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
+  // test special case of ellipsoid with dimensions: a = b = c
+  // TODO(taylorhowell): add test for ellipsoid with dimensions: a != b != c
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="ellipsoid" size="0.1 0.1 0.1" shellinertia="true"/>
+      </body>
+      <body>
+        <!-- mass is difference of body 4 and 3 masses -->
+        <geom type="ellipsoid" size="0.1 0.1 0.1" mass="0.12566371" shellinertia="true"/>
+      </body>
+      <body>
+        <geom type="ellipsoid" size="0.1 0.1 0.1" density="1e8"/>
+      </body>
+      <body>
+        <geom type="ellipsoid" size="0.10000001 0.10000001 0.10000001" density="1e8"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // dimensions
+  mjtNum r = 0.1;
+  mjtNum r2 = r * r;
+
+  // body 1: shell inertia
+  mjtNum mass1 = 4 * mjPI * r2 * 1000;  // surface area * surface density
+  EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
+  mjtNum I1 = 2 * mass1 * r2 / 3;
+
+  // note: increased tolerance, this is due to ellipsoid approximation
+  EXPECT_NEAR(m->body_inertia[3], I1, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[4], I1, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[5], I1, 10 * kInertiaTol);
+
+  // body 2: shell inertia, with specified mass
+  mjtNum mass2 = 0.12566371;
+  EXPECT_NEAR(m->body_mass[2], mass2, kInertiaTol);
+  EXPECT_FLOAT_EQ(m->body_mass[4] - m->body_mass[3], m->body_mass[2]);
+
+  mjtNum I2 = 2 * m->body_mass[2] * r2 / 3;
+  EXPECT_NEAR(m->body_inertia[6], I2, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[7], I2, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[8], I2, 10 * kInertiaTol);
+
+  // compute approximate shell inertia by subtracting inertias of massive bodies
+  // with small radius difference
+  mjtNum* inertia3 = m->body_inertia + 9;
+  mjtNum* inertia4 = m->body_inertia + 12;
+  mjtNum shell_inertia[3];
+  mju_sub3(shell_inertia, inertia4, inertia3);
+  EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], 10 * kInertiaTol);
+  EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], 10 * kInertiaTol);
+  EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], 10 * kInertiaTol);
+
+  mj_deleteModel(m);
+}
+
+TEST_F(MjCGeomTest, ShellInertiaBox) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size="0.1 0.2 0.3" shellinertia="true"/>
+      </body>
+      <!-- mass is difference of body 4 and 3 masses -->
+      <body>
+        <geom type="box" size="0.1 0.2 0.3" mass="8.800005" shellinertia="true"/>
+      </body>
+      <body>
+        <geom type="box" size="0.1 0.2 0.3" density="1e8"/>
+      </body>
+      <body>
+        <geom type="box" size="0.1000001 0.2000001 0.3000001" density="1e8"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // dimensions
+  mjtNum dx = 0.1;
+  mjtNum dy = 0.2;
+  mjtNum dz = 0.3;
+
+  // length
+  mjtNum lx = 2 * dx;
+  mjtNum ly = 2 * dy;
+  mjtNum lz = 2 * dz;
+
+  // surface area
+  double A0 = lx * ly;
+  double A1 = ly * lz;
+  double A2 = lz * lx;
+  double Atotal = 2 * (A0 + A1 + A2);
+
+  // body 1: shell inertia
+  mjtNum mass1 = Atotal * 1000;  // surface area * surface density
+  EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
+
+  mjtNum mass1_0 = mass1 * A0 / Atotal;
+  mjtNum mass1_1 = mass1 * A1 / Atotal;
+  mjtNum mass1_2 = mass1 * A2 / Atotal;
+  mjtNum I1x = 2 * (mass1_0 * ly * ly / 12 + mass1_0 * dz * dz +
+                    mass1_1 * (ly * ly + lz * lz) / 12 +
+                    mass1_2 * lz * lz / 12 + mass1_2 * dy * dy);
+  mjtNum I1y =
+      2 * (mass1_0 * lx * lx / 12 + mass1_0 * dz * dz + mass1_1 * lz * lz / 12 +
+           mass1_1 * dx * dx + mass1_2 * (lx * lx + lz * lz) / 12);
+  mjtNum I1z =
+      2 * (mass1_0 * (lx * lx + ly * ly) / 12 + mass1_1 * ly * ly / 12 +
+           mass1_1 * dx * dx + mass1_2 * lx * lx / 12 + mass1_2 * dy * dy);
+
+  EXPECT_NEAR(m->body_inertia[3], I1x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[4], I1y, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[5], I1z, kInertiaTol);
+
+  // body 2: shell inertia, with specified mass
+  mjtNum mass2 = 8.800005;
+  EXPECT_NEAR(m->body_mass[2], mass2, 1e-6);
+  EXPECT_FLOAT_EQ(m->body_mass[4] - m->body_mass[3], m->body_mass[2]);
+
+  mjtNum mass2_0 = mass2 * A0 / Atotal;
+  mjtNum mass2_1 = mass2 * A1 / Atotal;
+  mjtNum mass2_2 = mass2 * A2 / Atotal;
+  mjtNum I2x = 2 * (mass2_0 * ly * ly / 12 + mass2_0 * dz * dz +
+                    mass2_1 * (ly * ly + lz * lz) / 12 +
+                    mass2_2 * lz * lz / 12 + mass2_2 * dy * dy);
+  mjtNum I2y =
+      2 * (mass2_0 * lx * lx / 12 + mass2_0 * dz * dz + mass2_1 * lz * lz / 12 +
+           mass2_1 * dx * dx + mass2_2 * (lx * lx + lz * lz) / 12);
+  mjtNum I2z =
+      2 * (mass2_0 * (lx * lx + ly * ly) / 12 + mass2_1 * ly * ly / 12 +
+           mass2_1 * dx * dx + mass2_2 * lx * lx / 12 + mass2_2 * dy * dy);
+
+  EXPECT_NEAR(m->body_inertia[6], I2x, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[7], I2y, kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[8], I2z, kInertiaTol);
+
+  // compute approximate shell inertia by subtracting inertias of massive bodies
+  // with small radius difference
+  mjtNum* inertia3 = m->body_inertia + 9;
+  mjtNum* inertia4 = m->body_inertia + 12;
+  mjtNum shell_inertia[3];
+  mju_sub3(shell_inertia, inertia4, inertia3);
+  EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], kInertiaTol);
+  EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], kInertiaTol);
+
+  mj_deleteModel(m);
 }
 
 // ------------- test inertiagrouprange ----------------------------------------

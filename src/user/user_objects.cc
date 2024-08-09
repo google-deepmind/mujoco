@@ -38,6 +38,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_passive.h"
 #include <mujoco/mjspec.h>
@@ -2057,10 +2058,8 @@ void mjCGeom::NameSpace(const mjCModel* m) {
 
 
 
-// compute geom volume
+// compute geom volume / surface area
 double mjCGeom::GetVolume() const {
-  double height;
-
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (mesh->id<0 || !((std::size_t) mesh->id <= model->Meshes().size())) {
@@ -2070,30 +2069,74 @@ double mjCGeom::GetVolume() const {
     return mesh->GetVolumeRef(typeinertia);
   }
 
-  // compute from geom shape
-  else {
-    switch (type) {
-    case mjGEOM_SPHERE:
-      return 4*mjPI*size[0]*size[0]*size[0]/3;
-
-    case mjGEOM_CAPSULE:
-      height = 2*size[1];
-      return mjPI*(size[0]*size[0]*height + 4*size[0]*size[0]*size[0]/3);
-
-    case mjGEOM_CYLINDER:
-      height = 2*size[1];
-      return mjPI*size[0]*size[0]*height;
-
-    case mjGEOM_ELLIPSOID:
-      return 4*mjPI*size[0]*size[1]*size[2]/3;
-
+  // compute from geom shape (type) and inertia (typeinertia)
+  switch (type) {
+    case mjGEOM_SPHERE: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          return 4 * mjPI * size[0] * size[0];
+        }
+        case mjINERTIA_VOLUME: {
+          return 4 * mjPI * size[0] * size[0] * size[0] / 3;
+        }
+      }
+    }
+    case mjGEOM_CAPSULE: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          double radius = size[0];
+          double height = 2 * size[1];
+          return 4 * mjPI * radius * radius + 2 * mjPI * radius * height;
+        }
+        case mjINERTIA_VOLUME: {
+          double height = 2 * size[1];
+          return mjPI * (size[0] * size[0] * height + 4 * size[0] * size[0] * size[0] / 3);
+        }
+      }
+    }
+    case mjGEOM_CYLINDER: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          double radius = size[0];
+          double height = 2 * size[1];
+          return 2 * mjPI * radius * radius + 2 * mjPI * radius * height;
+        }
+        case mjINERTIA_VOLUME: {
+          double height = 2 * size[1];
+          return mjPI * size[0] * size[0] * height;
+        }
+      }
+    }
+    case mjGEOM_ELLIPSOID: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          // Thomsen approximation
+          // https://www.numericana.com/answer/ellipsoid.htm#thomsen
+          double p = 1.6075;
+          double tmp = mju_pow(size[0] * size[1], p) +
+                       mju_pow(size[1] * size[2], p) +
+                       mju_pow(size[2] * size[0], p);
+          return 4 * mjPI * mju_pow(tmp / 3, 1 / p);
+        }
+        case mjINERTIA_VOLUME: {
+          return 4 * mjPI * size[0] * size[1] * size[2] / 3;
+        }
+      }
+    }
     case mjGEOM_HFIELD:
-    case mjGEOM_BOX:
-      return size[0]*size[1]*size[2]*8;
+    case mjGEOM_BOX: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          return 8 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
+        }
 
+        case mjINERTIA_VOLUME: {
+          return size[0] * size[1] * size[2] * 8;
+        }
+      }
+    }
     default:
       return 0;
-    }
   }
 }
 
@@ -2112,68 +2155,210 @@ void mjCGeom::SetBoundingVolume(mjCBoundingVolume* bv) const {
 
 // set geom diagonal inertia given density
 void mjCGeom::SetInertia(void) {
-  double height;
-
   // get from mesh
-  if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    if (mesh->id<0 || !((std::size_t) mesh->id <= model->Meshes().size())) {
+  if (type == mjGEOM_MESH || type == mjGEOM_SDF) {
+    if (mesh->id < 0 || !((std::size_t)mesh->id <= model->Meshes().size())) {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
     double* boxsz = mesh->GetInertiaBoxPtr(typeinertia);
-    inertia[0] = mass_*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
-    inertia[1] = mass_*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
-    inertia[2] = mass_*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
+    inertia[0] = mass_ * (boxsz[1] * boxsz[1] + boxsz[2] * boxsz[2]) / 3;
+    inertia[1] = mass_ * (boxsz[0] * boxsz[0] + boxsz[2] * boxsz[2]) / 3;
+    inertia[2] = mass_ * (boxsz[0] * boxsz[0] + boxsz[1] * boxsz[1]) / 3;
+
+    return;
   }
 
-  // compute from geom shape
-  else {
-    if (typeinertia)
-      throw mjCError(this, "typeinertia currently only available for meshes'%s' (id = %d)",
-                     name.c_str(), id);
-    switch (type) {
-    case mjGEOM_SPHERE:
-      inertia[0] = inertia[1] = inertia[2] = 2*mass_*size[0]*size[0]/5;
-      return;
-
-    case mjGEOM_CAPSULE: {
-      height = 2*size[1];
-      double radius = size[0];
-      double sphere_mass = mass_*4*radius/(4*radius + 3*height);  // mass*(sphere_vol/total_vol)
-      double cylinder_mass = mass_ - sphere_mass;
-      // cylinder part
-      inertia[0] = inertia[1] = cylinder_mass*(3*radius*radius + height*height)/12;
-      inertia[2] = cylinder_mass*radius*radius/2;
-      // add two hemispheres, displace along third axis
-      double sphere_inertia = 2*sphere_mass*radius*radius/5;
-      inertia[0] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
-      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
-      inertia[2] += sphere_inertia;
-      return;
+  // compute from geom shape (type) and inertia (typeinertia)
+  switch (type) {
+    case mjGEOM_SPHERE: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          inertia[0] = inertia[1] = inertia[2] = 2 * mass_ * size[0] * size[0] / 3;
+          return;
+        }
+        case mjINERTIA_VOLUME: {
+          inertia[0] = inertia[1] = inertia[2] = 2 * mass_ * size[0] * size[0] / 5;
+          return;
+        }
+      }
     }
+    case mjGEOM_CAPSULE: {
+      double halfheight = size[1];
+      double height = 2 * size[1];
+      double radius = size[0];
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          // surface area
+          double Asphere = 4 * mjPI * radius * radius;
+          double Acylinder = 2 * mjPI * radius * height;
+          double Atotal = Asphere + Acylinder;
 
-    case mjGEOM_CYLINDER:
-      height = 2*size[1];
-      inertia[0] = inertia[1] = mass_*(3*size[0]*size[0]+height*height)/12;
-      inertia[2] = mass_*size[0]*size[0]/2;
-      return;
+          // mass
+          double sphere_mass = mass_ * Asphere / Atotal;  // mass*(sphere_area/total_area)
+          double cylinder_mass = mass_ - sphere_mass;
 
-    case mjGEOM_ELLIPSOID:
-      inertia[0] = mass_*(size[1]*size[1]+size[2]*size[2])/5;
-      inertia[1] = mass_*(size[0]*size[0]+size[2]*size[2])/5;
-      inertia[2] = mass_*(size[0]*size[0]+size[1]*size[1])/5;
-      return;
+          // cylinder part
+          inertia[0] = inertia[1] = cylinder_mass * (6 * radius * radius + height * height) / 12;
+          inertia[2] = cylinder_mass * radius * radius;
 
+          // add two hemispheres, displace along third axis
+          double sphere_inertia = 2 * sphere_mass * radius * radius / 3;
+          double hs_com = radius / 2;           // hemisphere center of mass
+          double hs_pos = halfheight + hs_com;  // hemisphere position
+          inertia[0] += sphere_inertia + sphere_mass * (hs_pos * hs_pos - hs_com * hs_com);
+          inertia[1] += sphere_inertia + sphere_mass * (hs_pos * hs_pos - hs_com * hs_com);
+          inertia[2] += sphere_inertia;
+          return;
+        }
+        case mjINERTIA_VOLUME: {
+          double sphere_mass =
+              mass_ * 4 * radius / (4 * radius + 3 * height);  // mass*(sphere_vol/total_vol)
+          double cylinder_mass = mass_ - sphere_mass;
+
+          // cylinder part
+          inertia[0] = inertia[1] = cylinder_mass * (3 * radius * radius + height * height) / 12;
+          inertia[2] = cylinder_mass * radius * radius / 2;
+
+          // add two hemispheres, displace along third axis
+          double sphere_inertia = 2 * sphere_mass * radius * radius / 5;
+          inertia[0] += sphere_inertia + sphere_mass * height * (3 * radius + 2 * height) / 8;
+          inertia[1] += sphere_inertia + sphere_mass * height * (3 * radius + 2 * height) / 8;
+          inertia[2] += sphere_inertia;
+          return;
+        }
+      }
+    }
+    case mjGEOM_CYLINDER: {
+      double halfheight = size[1];
+      double height = 2 * halfheight;
+      double radius = size[0];
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          // surface area
+          double Adisk = mjPI * radius * radius;
+          double Acylinder = 2 * mjPI * radius * height;
+          double Atotal = 2 * Adisk + Acylinder;
+
+          // mass
+          double mass_disk = mass_ * Adisk / Atotal;
+          double mass_cylinder = mass_ - 2 * mass_disk;
+
+          // cylinder contribution
+          inertia[0] = inertia[1] = mass_cylinder * (6 * radius * radius + height * height) / 12;
+          inertia[2] = mass_cylinder * radius * radius;
+
+          // disk inertia
+          double inertia_disk_x = mass_disk * radius * radius / 4 +
+                                  mass_disk * halfheight * halfheight;
+          double inertia_disk_z = mass_disk * radius * radius / 2;
+
+          // top and bottom disk contributions
+          inertia[0] += 2 * inertia_disk_x;
+          inertia[1] += 2 * inertia_disk_x;
+          inertia[2] += 2 * inertia_disk_z;
+          return;
+        }
+        case mjINERTIA_VOLUME: {
+          inertia[0] = inertia[1] = mass_ * (3 * radius * radius + height * height) / 12;
+          inertia[2] = mass_ * radius * radius / 2;
+          return;
+        }
+      }
+    }
+    case mjGEOM_ELLIPSOID: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          // approximate shell inertia by subtracting ellipsoid from expanded
+          // ellipsoid
+          double eps = 1e-6;
+
+          // solid volume (a)
+          double Va = 4 * mjPI * size[0] * size[1] * size[2] / 3;
+
+          // expanded volume (b)
+          double ae = size[0] + eps;
+          double be = size[1] + eps;
+          double ce = size[2] + eps;
+          double Vb = 4 * mjPI * ae * be * ce / 3;
+
+          // density
+          double density = mass_ / (Vb - Va);
+
+          // inertia
+          double mass_a = Va * density;
+          double inertia_a[3];
+          inertia_a[0] = mass_a * (size[1] * size[1] + size[2] * size[2]) / 5;
+          inertia_a[1] = mass_a * (size[0] * size[0] + size[2] * size[2]) / 5;
+          inertia_a[2] = mass_a * (size[0] * size[0] + size[1] * size[1]) / 5;
+
+          double mass_b = Vb * density;
+          double inertia_b[3];
+          inertia_b[0] = mass_b * (be * be + ce * ce) / 5;
+          inertia_b[1] = mass_b * (ae * ae + ce * ce) / 5;
+          inertia_b[2] = mass_b * (ae * ae + be * be) / 5;
+
+          // shell inertia
+          mju_sub3(inertia, inertia_b, inertia_a);
+          return;
+        }
+        case mjINERTIA_VOLUME: {
+          inertia[0] = mass_ * (size[1] * size[1] + size[2] * size[2]) / 5;
+          inertia[1] = mass_ * (size[0] * size[0] + size[2] * size[2]) / 5;
+          inertia[2] = mass_ * (size[0] * size[0] + size[1] * size[1]) / 5;
+          return;
+        }
+      }
+    }
     case mjGEOM_HFIELD:
-    case mjGEOM_BOX:
-      inertia[0] = mass_*(size[1]*size[1]+size[2]*size[2])/3;
-      inertia[1] = mass_*(size[0]*size[0]+size[2]*size[2])/3;
-      inertia[2] = mass_*(size[0]*size[0]+size[1]*size[1])/3;
-      return;
+    case mjGEOM_BOX: {
+      switch (typeinertia) {
+        case mjINERTIA_SHELL: {
+          // length
+          double lx = 2 * size[0];  // side 0
+          double ly = 2 * size[1];  // side 1
+          double lz = 2 * size[2];  // side 2
 
-    default:
-      inertia[0] = inertia[1] = inertia[2] = 0;
-      return;
+          // surface area
+          double A0 = lx * ly;  // side 0
+          double A1 = ly * lz;  // side 1
+          double A2 = lz * lx;  // side 2
+          double Atotal = 2 * (A0 + A1 + A2);
+
+          // side 0
+          double mass0 = mass_ * A0 / Atotal;
+          double Ix0 = mass0 * ly * ly / 12;
+          double Iy0 = mass0 * lx * lx / 12;
+          double Iz0 = mass0 * (lx * lx + ly * ly) / 12;
+
+          // side 1
+          double mass1 = mass_ * A1 / Atotal;
+          double Ix1 = mass1 * (ly * ly + lz * lz) / 12;
+          double Iy1 = mass1 * lz * lz / 12;
+          double Iz1 = mass1 * ly * ly / 12;
+
+          // side 3
+          double mass2 = mass_ * A2 / Atotal;
+          double Ix2 = mass2 * lz * lz / 12;
+          double Iy2 = mass2 * (lx * lx + lz * lz) / 12;
+          double Iz2 = mass2 * lx * lx / 12;
+
+          // total inertia
+          inertia[0] = 2 * (Ix0 + mass0 * size[2] * size[2] + Ix1 + Ix2 + mass2 * size[1] * size[1]);
+          inertia[1] = 2 * (Iy0 + mass0 * size[2] * size[2] + Iy1 + mass1 * size[0] * size[0] + Iy2);
+          inertia[2] = 2 * (Iz0 + Iz1 + mass1 * size[0] * size[0] + Iz2 + mass2 * size[1] * size[1]);
+          return;
+        }
+        case mjINERTIA_VOLUME: {
+          inertia[0] = mass_ * (size[1] * size[1] + size[2] * size[2]) / 3;
+          inertia[1] = mass_ * (size[0] * size[0] + size[2] * size[2]) / 3;
+          inertia[2] = mass_ * (size[0] * size[0] + size[1] * size[1]) / 3;
+          return;
+        }
+      }
+      default:
+        inertia[0] = inertia[1] = inertia[2] = 0;
+        return;
     }
   }
 }

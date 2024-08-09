@@ -2,6 +2,13 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+- :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
+
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------
 
@@ -34,7 +41,8 @@ MJX
 Python bindings
 ^^^^^^^^^^^^^^^
 10. Added support for asset dictionary argument in ``mujoco.spec.from_file``, ``mujoco.spec.from_string`` and
-   ``mujoco.spec.compile``.
+    ``mujoco.spec.compile``.
+
 
 Bug fixes
 ^^^^^^^^^
