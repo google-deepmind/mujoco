@@ -19,6 +19,9 @@
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_convex.h"
 
+#include <ccd/ccd.h>
+#include <ccd/vec3.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,9 +37,9 @@ typedef struct _mjCCDConfig mjCCDConfig;
 // recoverable from x_0 in obj1 and obj2.
 MJAPI mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2);
 
-// Same as mj_gjk, but returns the penetration depth (negative distance) if the objects intersect.
-MJAPI mjtNum mj_gjkPenetration(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2);
-
+// Penetration function with same signature as LibCCD's ccdMPRPenetration and ccdGJKPenetration
+MJAPI int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
+                            ccd_real_t *depth, ccd_vec3_t *dir, ccd_vec3_t *pos);
 #ifdef __cplusplus
 }
 #endif

@@ -24,6 +24,9 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_spatial.h"
 
+#include <ccd/ccd.h>
+#include <ccd/vec3.h>
+
 // Computes the shortest distance between the origin and an n-simplex (n <= 3) and returns the
 // barycentric coordinates of the closest point in the simplex. This is the so called distance
 // sub-algorithm of the original 1988 GJK algorithm.
@@ -40,7 +43,7 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]);
 static void S1D(mjtNum lambda[2], const mjtNum simplex[6]);
 
 // helper function to compute the support point in the Minkowski difference
-static void support(mjtNum s[3], mjCCDObj* obj1, mjCCDObj* obj2, const mjtNum d[3]);
+static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2, const mjtNum d[3]);
 
 // support function tweaked for GJK by taking kth iteration point as input and setting both
 // support points to recover witness points
@@ -60,7 +63,14 @@ typedef struct {
 } Face;
 
 typedef struct {
-  mjtNum* verts;
+  mjtNum v1[3];
+  mjtNum v2[3];
+  mjtNum v[3];
+  mjtNum dist;
+} Vertex;
+
+typedef struct {
+  Vertex* verts;
   int nverts;
   int vcap;
   Face* faces;
@@ -70,21 +80,24 @@ typedef struct {
 
 // generates a polytope from a 1-simplex, 2-simplex, or 3-simplex respectively
 // returns true if the polytope can be generated, false otherwise
-static int polytope2(Polytope* pt, const mjtNum simplex[6], mjCCDObj* obj1, mjCCDObj* obj2);
-static int polytope3(Polytope* pt, const mjtNum simplex[9]);
-static int polytope4(Polytope* pt, const mjtNum simplex[12]);
+static int polytope2(Polytope* pt, const mjtNum simplex1[6], const mjtNum simplex2[6],
+                     mjCCDObj* obj1, mjCCDObj* obj2);
+static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simplex2[9],
+                     mjCCDObj* obj1, mjCCDObj* obj2);
+static int polytope4(Polytope* pt, const mjtNum simplex1[12], const mjtNum simplex2[12]);
 
 // initializes the polytope (faces and vertices must be freed by caller)
 static void initPolytope(Polytope* pt);
 
 // copies a vertex into the polytope and return its index
-static int newVertex(Polytope* pt, const mjtNum v1[3]);
+static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 
 // attaches a face to the polytope with the given vertex indices in the polytope
 static void attachFace(Polytope* pt, int v1, int v2, int v3);
 
 // returns the penetration depth (negative distance) of the convex objects
-static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
+static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
+                  mjCCDObj* obj1, mjCCDObj* obj2, Face* nearest);
 
 // internal data structure for the returning simplex from GJK
 typedef struct {
@@ -93,7 +106,8 @@ typedef struct {
 } Simplex;
 
 // internal GJK with returned data for EPA
-static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2, Simplex* ret) {
+static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2,
+                   Simplex* ret1, Simplex* ret2) {
   mjtNum simplex[12];  // our current simplex with max 4 vertices due to only 3 dimensions
   int n = 0;           // number of vertices in the simplex
   mjtNum x_k[3];       // the kth approximation point with initial value x_0
@@ -159,10 +173,12 @@ static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2, Si
       mju_copy3(simplex + 3*n++, simplex + 3*i);
     }
   }
-  if (ret) {
-    ret->nverts = n;
+  if (ret1 && ret2) {
+    ret1->nverts = n;
+    ret2->nverts = n;
     for (int i = 0; i < n; i++) {
-      mju_copy3(ret->verts + 3*i, simplex + 3*i);
+      mju_copy3(ret1->verts + 3*i, simplex1 + 3*i);
+      mju_copy3(ret2->verts + 3*i, simplex2 + 3*i);
     }
   }
   return mju_norm3(x_k);
@@ -173,35 +189,7 @@ static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2, Si
 // returns the distance between the two objects. The witness points are
 // recoverable from the x_0 field in obj1 and obj2.
 mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2) {
-  return _gjk(config, obj1, obj2, NULL);
-}
-
-
-
-// Same as mj_gjk, but returns the penetration depth (negative distance) if the objects intersect.
-mjtNum mj_gjkPenetration(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2) {
-  Simplex simplex;
-  mjtNum dist = _gjk(config, obj1, obj2, &simplex);
-
-  if (dist <= config->tolerance && simplex.nverts > 1) {
-    Polytope pt;
-    int ret;
-    if (simplex.nverts == 2) {
-      ret = polytope2(&pt, simplex.verts, obj1, obj2);
-    } else if (simplex.nverts == 3) {
-      ret = polytope3(&pt, simplex.verts);
-    } else {
-      ret = polytope4(&pt, simplex.verts);
-    }
-
-    // simplex not on boundary (objects are penetrating)
-    if (ret) {
-      dist = -epa(config, &pt, obj1, obj2);
-    }
-    mju_free(pt.faces);
-    mju_free(pt.verts);
-  }
-  return dist;
+  return _gjk(config, obj1, obj2, NULL, NULL);
 }
 
 
@@ -222,9 +210,9 @@ static void gjk_support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* ob
 
 
 // helper function to compute the support point in the Minkowski difference
-static void support(mjtNum s[3], mjCCDObj* obj1, mjCCDObj* obj2,
+static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                     const mjtNum d[3]) {
-  mjtNum dir[3], dir_neg[3], s1[3], s2[3];
+  mjtNum dir[3], dir_neg[3];
   mju_copy3(dir, d);
   mju_normalize3(dir);  // mjc_support assumes a normalized direction
   mju_scl3(dir_neg, dir, -1);
@@ -232,7 +220,6 @@ static void support(mjtNum s[3], mjCCDObj* obj1, mjCCDObj* obj2,
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
   mjc_support(s1, obj1, dir);
   mjc_support(s2, obj2, dir_neg);
-  mju_sub3(s, s1, s2);
 }
 
 
@@ -580,37 +567,6 @@ static void S1D(mjtNum lambda[2], const mjtNum simplex[6]) {
 
 
 
-// helper function to test if the origin is in the same side of the plane formed by P0P1P2 as P3.
-static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
-                    const mjtNum p2[3], const mjtNum p3[3]) {
-    mjtNum diff1[3], diff2[3], diff3[3], diff4[3], n[3];
-    mju_sub3(diff1, p1, p0);
-    mju_sub3(diff2, p2, p0);
-    mju_cross(n, diff1, diff2);
-
-    mju_sub3(diff3, p3, p0);
-    mjtNum dot1 = mju_dot3(n, diff3);
-
-    mju_scl3(diff4, p0, -1);
-    mjtNum dot2 = mju_dot3(n, diff4);
-    if (dot1 > 0 && dot2 > 0) return 1;
-    if (dot1 < 0 && dot2 < 0) return 1;
-    return 0;
-}
-
-
-
-// determines if the origin is contained in the tetrahedron.
-static int testTetra(const mjtNum p0[3], const mjtNum p1[3],
-                     const mjtNum p2[3], const mjtNum p3[3]) {
-  return sameSide(p0, p1, p2, p3)
-      && sameSide(p1, p2, p3, p0)
-      && sameSide(p2, p3, p0, p1)
-      && sameSide(p3, p0, p1, p2);
-}
-
-
-
 // sets rotation matrix for 120 degrees along axis
 static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
   mjtNum n = mju_norm3(axis);
@@ -631,15 +587,20 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 
 
 // creates a polytope from a 1-simplex (2 points i.e. line segment)
-static int polytope2(Polytope* pt, const mjtNum simplex[6],
+static int polytope2(Polytope* pt, const mjtNum simplex1[6], const mjtNum simplex2[6],
                               mjCCDObj* obj1, mjCCDObj* obj2) {
-  initPolytope(pt);
-  const mjtNum* s1 = simplex;
-  const mjtNum* s2 = simplex + 3;
+  const mjtNum* s1a = simplex1;
+  const mjtNum* s1b = simplex2;
+  const mjtNum* s2a = simplex1 + 3;
+  const mjtNum* s2b = simplex2 + 3;
+  mjtNum s1[3], s2[3];
+  mju_sub3(s1, s1a, s1b);
+  mju_sub3(s2, s2a, s2b);
+
   mjtNum diff[3];
   mju_sub3(diff, s2, s1);
 
-  // find component with largest magnitude (so cross product is largest)
+  // find component with smallest magnitude (so cross product is largest)
   mjtNum value = mjMAXVAL;
   int index = 0;
   for (int i = 0; i < 3; i++) {
@@ -663,45 +624,51 @@ static int polytope2(Polytope* pt, const mjtNum simplex[6],
   mju_mulMatVec(d3, R, d2, 3, 3);
 
 
+  mjtNum v1a[3], v2a[3], v3a[3];
+  mjtNum v1b[3], v2b[3], v3b[3];
   mjtNum v1[3], v2[3], v3[3];
-  support(v1, obj1, obj2, d1);
-  support(v2, obj1, obj2, d2);
-  support(v3, obj1, obj2, d3);
+  support(v1a, v1b, obj1, obj2, d1);
+  support(v2a, v2b, obj1, obj2, d2);
+  support(v3a, v3b, obj1, obj2, d3);
 
-  // points of a hexahedron (we test to see what half the origin is contained in)
-  int s1i = newVertex(pt, s1);
-  int v1i = newVertex(pt, v1);
-  int v2i = newVertex(pt, v2);
-  int v3i = newVertex(pt, v3);
-  int s2i = newVertex(pt, s2);
+  mju_sub3(v1, v1a, v1b);
+  mju_sub3(v2, v2a, v2b);
+  mju_sub3(v3, v3a, v3b);
 
-  if (testTetra(s1, v1, v2, v3)) {
-    attachFace(pt, s1i, v2i, v1i);
-    attachFace(pt, s1i, v3i, v1i);
-    attachFace(pt, s1i, v3i, v2i);
-    attachFace(pt, v1i, v2i, v3i);
-    return 1;
-  }
 
-  if (testTetra(s2, v1, v2, v3)) {
-    attachFace(pt, s2i, v1i, v2i);
-    attachFace(pt, s2i, v1i, v3i);
-    attachFace(pt, s2i, v2i, v3i);
-    attachFace(pt, v1i, v2i, v3i);
-    return 1;
-  }
-  return 0;
+  int s1i = newVertex(pt, s1a, s1b);
+  int v1i = newVertex(pt, v1a, v1b);
+  int v2i = newVertex(pt, v2a, v2b);
+  int v3i = newVertex(pt, v3a, v3b);
+  int s2i = newVertex(pt, s2a, s2b);
+
+  // TODO(kylebayes): check what side of the hexahedron the origin is on
+  attachFace(pt, s1i, v2i, v1i);
+  attachFace(pt, s1i, v3i, v1i);
+  attachFace(pt, s1i, v3i, v2i);
+  attachFace(pt, s2i, v1i, v2i);
+  attachFace(pt, s2i, v1i, v3i);
+  attachFace(pt, s2i, v2i, v3i);
+  return 1;
 }
 
 
 
 // creates a polytope from a 2-simplex (3 points i.e. triangle)
-static int polytope3(Polytope* pt, const mjtNum simplex[9]) {
-  initPolytope(pt);
+static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simplex2[9],
+                     mjCCDObj* obj1, mjCCDObj* obj2) {
+  const mjtNum* s1a = simplex1;
+  const mjtNum* s2a = simplex1 + 3;
+  const mjtNum* s3a = simplex1 + 6;
 
-  const mjtNum* s1 = simplex;
-  const mjtNum* s2 = simplex + 3;
-  const mjtNum* s3 = simplex + 6;
+  const mjtNum* s1b = simplex2;
+  const mjtNum* s2b = simplex2 + 3;
+  const mjtNum* s3b = simplex2 + 6;
+
+  mjtNum s1[3], s2[3], s3[3];
+  mju_sub3(s1, s1a, s1b);
+  mju_sub3(s2, s2a, s2b);
+  mju_sub3(s3, s3a, s3b);
 
   // form hexahedron from triangle and two face normals
 
@@ -711,11 +678,15 @@ static int polytope3(Polytope* pt, const mjtNum simplex[9]) {
   mju_cross(n, diff1, diff2);
   mju_scl3(neg_n, n, -1);
 
-  int ni = newVertex(pt, n);
-  int s1i = newVertex(pt, s1);
-  int s2i = newVertex(pt, s2);
-  int s3i = newVertex(pt, s3);
-  int nni = newVertex(pt, neg_n);
+  mjtNum na[3], nb[3], nna[3], nnb[3];
+  support(na, nb, obj1, obj2, n);
+  support(nna, nnb, obj1, obj2, neg_n);
+
+  int ni = newVertex(pt, na, nb);
+  int s1i = newVertex(pt, s1a, s1b);
+  int s2i = newVertex(pt, s2a, s2b);
+  int s3i = newVertex(pt, s3a, s3b);
+  int nni = newVertex(pt, nna, nnb);
 
   attachFace(pt, s1i, s2i, ni);
   attachFace(pt, s3i, s1i, ni);
@@ -732,13 +703,11 @@ static int polytope3(Polytope* pt, const mjtNum simplex[9]) {
 
 
 // creates a polytope from a 3-simplex (4 points i.e. tetrahedron)
-static int polytope4(Polytope* pt, const mjtNum simplex[12]) {
-  initPolytope(pt);
-
-  int v1 = newVertex(pt, simplex);
-  int v2 = newVertex(pt, simplex + 3);
-  int v3 = newVertex(pt, simplex + 6);
-  int v4 = newVertex(pt, simplex + 9);
+static int polytope4(Polytope* pt, const mjtNum simplex1[12], const mjtNum simplex2[12]) {
+  int v1 = newVertex(pt, simplex1, simplex2);
+  int v2 = newVertex(pt, simplex1 + 3, simplex2 + 3);
+  int v3 = newVertex(pt, simplex1 + 6, simplex2 + 6);
+  int v4 = newVertex(pt, simplex1 + 9, simplex2 + 9);
 
   attachFace(pt, v1, v2, v3);
   attachFace(pt, v1, v2, v4);
@@ -772,7 +741,7 @@ static void initPolytope(Polytope* pt) {
   // vertices
   pt->nverts = 0;
   pt->vcap = mjMINCAP;
-  pt->verts = (mjtNum*) mju_malloc(pt->vcap * 3 * sizeof(mjtNum));
+  pt->verts = (Vertex*) mju_malloc(pt->vcap * sizeof(Vertex));
 
   // faces
   pt->nfaces = 0;
@@ -783,17 +752,19 @@ static void initPolytope(Polytope* pt) {
 
 
 // copies a vertex into the polytope and return its index
-static int newVertex(Polytope* pt, const mjtNum v[3]) {
+static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
   int capacity = pt->vcap;
   int n = pt->nverts++;
   if (n == capacity) {
     capacity *= 2;
-    pt->verts = (mjtNum*) realloc(pt->verts, capacity * 3 * sizeof(mjtNum));
+    pt->verts = (Vertex*) realloc(pt->verts, capacity * sizeof(Vertex));
     pt->vcap = capacity;
   }
-
-
-  mju_copy3(pt->verts + 3*n, v);
+  Vertex* v = &pt->verts[n];
+  mju_copy3(v->v1, v1);
+  mju_copy3(v->v2, v2);
+  mju_sub3(v->v, v1, v2);
+  v->dist = mju_norm3(v->v);
   return n;
 }
 
@@ -815,9 +786,9 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3) {
   face->verts[2] = v3;
 
   // compute normal n
-  mjtNum* pv1 = pt->verts + (v1 * 3);
-  mjtNum* pv2 = pt->verts + (v2 * 3);
-  mjtNum* pv3 = pt->verts + (v3 * 3);
+  mjtNum* pv1 = pt->verts[v1].v;
+  mjtNum* pv2 = pt->verts[v2].v;
+  mjtNum* pv3 = pt->verts[v3].v;
   mjtNum diff1[3], diff2[3];
   mju_sub3(diff1, pv2, pv1);
   mju_sub3(diff2, pv3, pv1);
@@ -874,18 +845,18 @@ static void addEdgeIfUnique(Horizon* h, int v1, int v2) {
 
 
 // returns the penetration depth (negative distance) of the convex objects
-static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
+static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
+                  mjCCDObj* obj1, mjCCDObj* obj2, Face* nearest) {
   mjtNum dist = mjMAXVAL;
+  int index;
   Horizon h;
   initHorizon(&h);
   int N = config->max_iterations;
   mjtNum tolerance = config->tolerance;
 
   for (int j = 0; j < N; j++) {
-    dist = mjMAXVAL;
-    int index = -1;
-
     // find the closest face to the origin
+    dist = mjMAXVAL;
     for (int i = 0; i < pt->nfaces; i++) {
       if (pt->faces[i].ignored) continue;
       if (pt->faces[i].dist < dist) {
@@ -895,8 +866,9 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
     }
 
     // compute support point w from the closest face's normal
-    mjtNum w[3];
-    support(w, obj1, obj2, pt->faces[index].v);
+    mjtNum w1[3], w2[3], w[3];
+    support(w1, w2, obj1, obj2, pt->faces[index].v);
+    mju_sub3(w, w1, w2);
     mjtNum next_dist = mju_dot3(pt->faces[index].v, w) / dist;
     if (next_dist - dist < tolerance) {
       break;
@@ -917,7 +889,7 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
     }
 
     // insert w as new vertex and attach faces along the horizon
-    int wi = newVertex(pt, w);
+    int wi = newVertex(pt, w1, w2);
     for (int i = 0; i < h.n; i++) {
       if (h.edges[i].ignore) continue;
       attachFace(pt, wi, h.edges[i].v1, h.edges[i].v2);
@@ -926,5 +898,117 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
     h.n = 0;  // clear horizon
   }
   mju_free(h.edges);
+  nearest->dist = dist;
+  mju_copy3(nearest->n, pt->faces[index].n);
   return dist;
+}
+
+
+
+// runs both GJK and EPA (if needed)
+static mjtNum _gjk_epa(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2, Polytope* pt,
+                       Face* nearest) {
+  Simplex simplex1, simplex2;
+  mjtNum dist = _gjk(config, obj1, obj2, &simplex1, &simplex2);
+
+  if (dist <= config->tolerance && simplex1.nverts > 1) {
+    int ret;
+    if (simplex1.nverts == 2) {
+      ret = polytope2(pt, simplex1.verts, simplex2.verts, obj1, obj2);
+    } else if (simplex1.nverts == 3) {
+      ret = polytope3(pt, simplex1.verts, simplex2.verts, obj1, obj2);
+    } else {
+      ret = polytope4(pt, simplex1.verts, simplex2.verts);
+    }
+
+    // simplex not on boundary (objects are penetrating)
+    if (ret) {
+      epa(config, pt, obj1, obj2, nearest);
+      return -nearest->dist;
+    }
+    return 0;
+  }
+  return dist;
+}
+
+// --------------------------- LibCCD Compatibility Layer -----------------------------------------
+
+static int posCompare(const void *a, const void *b) {
+    Vertex *v1, *v2;
+    v1 = *(Vertex**) a;
+    v2 = *(Vertex**) b;
+
+    if (v1->dist == v2->dist) {
+        return 0;
+    } else if (v1->dist < v2->dist) {
+        return -1;
+    } else {
+        return 1;
+    }
+}
+
+
+
+// computes the position of contact in the same manner as LibCCD
+static int computePos(const Polytope* pt, mjtNum pos[3]) {
+    Vertex** vs;
+    int len = pt->nverts;
+    mjtNum scale = 0;
+
+    vs = (Vertex**) mju_malloc(len * sizeof(Vertex*));
+    if (vs == NULL) return -1;
+
+    for (int i = 0; i < len; i++) {
+      vs[i] = pt->verts + i;
+    }
+
+    qsort(vs, len, sizeof(Vertex*), posCompare);
+
+    mju_zero3(pos);
+    if (len % 2 == 1) len++;
+
+    // average out the vertices of the polytope
+    for (int i = 0; i < len / 2; i++) {
+      mju_add3(pos, pos, vs[i]->v1);
+      mju_add3(pos, pos, vs[i]->v2);
+      scale += 2;
+    }
+    mju_scl3(pos, pos, 1 / scale);
+
+    mju_free(vs);
+    return 0;
+}
+
+
+
+// Penetration function with same signature as LibCCD's ccdMPRPenetration and ccdGJKPenetration
+int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
+                      ccd_real_t *depth, ccd_vec3_t *dir, ccd_vec3_t *pos) {
+  Polytope pt;
+  initPolytope(&pt);
+  Face nearest;
+  mjCCDConfig config;
+  mjCCDObj* o1 = (mjCCDObj*) obj1;
+  mjCCDObj* o2 = (mjCCDObj*) obj2;
+  nearest.n[1] = 34;
+
+  mjc_center(o1->x0, o1);
+  mjc_center(o2->x0, o2);
+
+  config.max_iterations = ccd->max_iterations;
+  config.tolerance = ccd->mpr_tolerance;
+  mjtNum dist = _gjk_epa(&config, o1, o2, &pt, &nearest);
+
+  if (dist < 0) {
+    if (depth) *depth = nearest.dist;
+    if (dir) mju_copy3(dir->v, nearest.n);
+    if (pos) computePos(&pt, pos->v);
+  } else {
+    if (depth) *depth = 0;
+    if (dir) mju_zero3(dir->v);
+    if (pos) mju_zero3(dir->v);
+  }
+  mju_free(pt.faces);
+  mju_free(pt.verts);
+  return dist >= 0;
 }

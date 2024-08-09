@@ -18,6 +18,9 @@
 
 #include <array>
 
+#include "third_party/ccd/src/ccd/ccd.h"
+#include "third_party/ccd/src/ccd/vec3.h"
+
 #include "src/engine/engine_collision_convex.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjtnum.h>
@@ -34,17 +37,50 @@ using ::testing::ElementsAre;
 constexpr mjtNum kTolerance = 1e-6;
 constexpr int kMaxIterations = 1000;
 
-static mjtNum run_gjk(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
+// ccd center function
+void mjccd_center(const void *obj, ccd_vec3_t *center) {
+  mjc_center(center->v, (const mjCCDObj*) obj);
+}
+
+// ccd support function
+void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
+  mjc_support(vec->v, (mjCCDObj*) obj, _dir->v);
+}
+
+mjtNum run_gjk(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
                mjtNum x2[3]) {
   mjCCDConfig config = {kMaxIterations, kTolerance};
   mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
   mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
   mjc_center(obj1.x0, &obj1);
   mjc_center(obj2.x0, &obj2);
-  mjtNum dist = mj_gjkPenetration(&config, &obj1, &obj2);
+  mjtNum dist = mj_gjk(&config, &obj1, &obj2);
   if (x1 != nullptr) mju_copy3(x1, obj1.x0);
   if (x2 != nullptr) mju_copy3(x2, obj2.x0);
   return dist;
+}
+
+
+mjtNum run_gjkPenetration(mjModel* m, mjData* d, int g1, int g2,
+                          mjtNum dir[3] = nullptr, mjtNum pos[3] = nullptr) {
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  ccd_t ccd;
+  ccd.mpr_tolerance = kTolerance;
+  ccd.epa_tolerance = kTolerance;
+  ccd.max_iterations = kMaxIterations;
+  ccd.center1 = mjccd_center;
+  ccd.center2 = mjccd_center;
+  ccd.support1 = mjccd_support;
+  ccd.support2 = mjccd_support;
+
+  ccd_real_t depth;
+  ccd_vec3_t ccd_dir, ccd_pos;
+
+  mj_gjkPenetration(&obj1, &obj2, &ccd, &depth, &ccd_dir, &ccd_pos);
+  if (dir) mju_copy3(dir, ccd_dir.v);
+  if (pos) mju_copy3(pos, ccd_pos.v);
+  return depth;
 }
 
 using MjGjkTest = MujocoTest;
@@ -126,9 +162,13 @@ TEST_F(MjGjkTest, BoxBoxIntersect) {
 
   int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
-  mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
+  mjtNum dir[3], pos[3];
+  mjtNum dist = run_gjkPenetration(model, data, geom1, geom2, dir, pos);
 
-  EXPECT_NEAR(dist, -1, kTolerance);
+  EXPECT_NEAR(dist, 1, kTolerance);
+  EXPECT_NEAR(dir[0], 1, kTolerance);
+  EXPECT_NEAR(dir[1], 0, kTolerance);
+  EXPECT_NEAR(dir[2], 0, kTolerance);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
