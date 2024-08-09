@@ -1789,6 +1789,7 @@ int mjCJoint::nq(mjtJoint joint_type) {
     case mjJNT_HINGE:
       return 1;
   }
+  return 1;
 }
 
 
@@ -1803,6 +1804,7 @@ int mjCJoint::nv(mjtJoint joint_type) {
     case mjJNT_HINGE:
       return 1;
   }
+  return 1;
 }
 
 
