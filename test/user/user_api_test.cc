@@ -851,6 +851,7 @@ TEST_F(MujocoTest, PreserveState) {
   // step models
   mj_step(model, data);
   mj_step(m_expected, d_expected);
+  EXPECT_THAT(data->time, model->opt.timestep);
 
   // detach subtree
   mjsBody* body = mjs_findBody(spec, "detachable");
@@ -877,6 +878,7 @@ TEST_F(MujocoTest, PreserveState) {
   // compile new model
   mj_recompile(spec, 0, model, data);
   EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(data->time, model->opt.timestep);
 
   // compare qpos
   EXPECT_EQ(model->nq, m_expected->nq);
