@@ -2117,10 +2117,10 @@ double mjCGeom::GetVolume() const {
           // Thomsen approximation
           // https://www.numericana.com/answer/ellipsoid.htm#thomsen
           double p = 1.6075;
-          double tmp = mju_pow(size[0] * size[1], p) +
-                       mju_pow(size[1] * size[2], p) +
-                       mju_pow(size[2] * size[0], p);
-          return 4 * mjPI * mju_pow(tmp / 3, 1 / p);
+          double tmp = std::pow(size[0] * size[1], p) +
+                       std::pow(size[1] * size[2], p) +
+                       std::pow(size[2] * size[0], p);
+          return 4 * mjPI * std::pow(tmp / 3, 1 / p);
           break;
         }
         case mjINERTIA_VOLUME:
@@ -2314,7 +2314,9 @@ void mjCGeom::SetInertia(void) {
           inertia_b[2] = mass_b * (ae * ae + be * be) / 5;
 
           // shell inertia
-          mju_sub3(inertia, inertia_b, inertia_a);
+          inertia[0] = inertia_b[0] - inertia_a[0];
+          inertia[1] = inertia_b[1] - inertia_a[1];
+          inertia[2] = inertia_b[2] - inertia_a[2];
           return;
           break;
         }
