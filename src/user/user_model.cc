@@ -2033,8 +2033,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->body_simple[i] = 2;
       for (int j=0; j<(int)pb->joints.size(); j++) {
         if (pb->joints[j]->type!=mjJNT_SLIDE) {
-        m->body_simple[i] = 1;
-        break;
+          m->body_simple[i] = 1;
+          break;
         }
       }
     }
