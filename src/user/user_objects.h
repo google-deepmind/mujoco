@@ -112,14 +112,12 @@ class mjCBoundingVolume {
 
 // bounding volume hierarchy
 struct mjCBoundingVolumeHierarchy_ {
- public:
-  int nbvh;
-  std::vector<mjtNum> bvh;            // bounding boxes                                (nbvh x 6)
-  std::vector<int> child;             // children of each node                         (nbvh x 2)
-  std::vector<int*> nodeid;           // geom of elem id contained by the node         (nbvh x 1)
-  std::vector<int> level;             // levels of each node                           (nbvh x 1)
-
  protected:
+  int nbvh_ = 0;
+  std::vector<mjtNum> bvh_;           // bounding boxes                        (nbvh x 6)
+  std::vector<int> child_;            // children of each node                 (nbvh x 2)
+  std::vector<int*> nodeid_;          // id of elem contained by the node      (nbvh x 1)
+  std::vector<int> level_;            // levels of each node                   (nbvh x 1)
   std::vector<mjCBoundingVolume> bvleaf_;
   std::string name_;
   double ipos_[3];
@@ -131,11 +129,19 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   mjCBoundingVolumeHierarchy();
 
   // make bounding volume hierarchy
-  void CreateBVH(void);
+  void CreateBVH();
   void Set(double ipos_element[3], double iquat_element[4]);
   void AllocateBoundingVolumes(int nleaf);
   void RemoveInactiveVolumes(int nmax);
   mjCBoundingVolume* GetBoundingVolume(int id);
+
+  // public accessors
+  int Nbvh() const { return nbvh_; }
+  const std::vector<mjtNum>& Bvh() const { return bvh_; }
+  const std::vector<int>& Child() const { return child_; }
+  const std::vector<int*>& Nodeid() const { return nodeid_; }
+  const int* Nodeid(int id) const { return nodeid_[id]; }
+  const std::vector<int>& Level() const { return level_; }
 
  private:
   // internal class used during BVH construction, for partial sorting of bounding volumes

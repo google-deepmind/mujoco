@@ -340,7 +340,6 @@ const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
 
 // constructor
 mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
-  nbvh = 0;
   mjuu_setvec(ipos_, 0, 0, 0);
   mjuu_setvec(iquat_, 1, 0, 0, 0);
 }
@@ -355,11 +354,11 @@ void mjCBoundingVolumeHierarchy::Set(double ipos_element[3], double iquat_elemen
 
 
 void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
-  nbvh = 0;
-  bvh.clear();
-  child.clear();
-  nodeid.clear();
-  level.clear();
+  nbvh_ = 0;
+  bvh_.clear();
+  child_.clear();
+  nodeid_.clear();
+  level_.clear();
   bvleaf_.clear();
   bvleaf_.resize(nleaf);
 }
@@ -453,26 +452,26 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   }
 
   // store current index
-  int index = nbvh++;
-  child.push_back(-1);
-  child.push_back(-1);
-  nodeid.push_back(nullptr);
-  level.push_back(lev);
+  int index = nbvh_++;
+  child_.push_back(-1);
+  child_.push_back(-1);
+  nodeid_.push_back(nullptr);
+  level_.push_back(lev);
 
   // store bounding box of the current node
   for (int i=0; i<3; i++) {
-    bvh.push_back((AAMM[3+i] + AAMM[i]) / 2);
+    bvh_.push_back((AAMM[3+i] + AAMM[i]) / 2);
   }
   for (int i=0; i<3; i++) {
-    bvh.push_back((AAMM[3+i] - AAMM[i]) / 2);
+    bvh_.push_back((AAMM[3+i] - AAMM[i]) / 2);
   }
 
   // leaf node, return
   if (nelements==1) {
     for (int i=0; i<2; i++) {
-      child[2*index+i] = -1;
+      child_[2*index+i] = -1;
     }
-    nodeid[index] = (int*)elements_begin->e->GetId();
+    nodeid_[index] = (int*)elements_begin->e->GetId();
     return index;
   }
 
@@ -491,15 +490,15 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
   // recursive calls
   if (m > 0) {
-    child[2*index+0] = MakeBVH(elements_begin, elements_begin + m, lev+1);
+    child_[2*index+0] = MakeBVH(elements_begin, elements_begin + m, lev+1);
   }
 
   if (m != nelements) {
-    child[2*index+1] = MakeBVH(elements_begin + m, elements_end, lev+1);
+    child_[2*index+1] = MakeBVH(elements_begin + m, elements_end, lev+1);
   }
 
   // SHOULD NOT OCCUR
-  if (child[2*index+0]==-1 && child[2*index+1]==-1) {
+  if (child_[2*index+0]==-1 && child_[2*index+1]==-1) {
     mju_error("this should have been a leaf, body=%s nelements=%d",
               name_.c_str(), nelements);
   }

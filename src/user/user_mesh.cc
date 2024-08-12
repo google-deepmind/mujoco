@@ -567,7 +567,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // make bounding volume hierarchy
-  if (tree_.bvh.empty()) {
+  if (tree_.Bvh().empty()) {
     face_aabb_.assign(6*nface(), 0);
     tree_.AllocateBoundingVolumes(nface());
     for (int i=0; i < nface(); i++) {

@@ -1412,13 +1412,13 @@ void mjCModel::SetSizes() {
 
   // nbvh, nbvhstatic, nbvhdynamic
   for (int i=0; i<nbody; i++) {
-    nbvhstatic += bodies_[i]->tree.nbvh;
+    nbvhstatic += bodies_[i]->tree.Nbvh();
   }
   for (int i=0; i<nmesh; i++) {
-    nbvhstatic += meshes_[i]->tree().nbvh;
+    nbvhstatic += meshes_[i]->tree().Nbvh();
   }
   for (int i=0; i<nflex; i++) {
-    nbvhdynamic += flexes_[i]->tree.nbvh;
+    nbvhdynamic += flexes_[i]->tree.Nbvh();
   }
   nbvh = nbvhstatic + nbvhdynamic;
 
@@ -1884,17 +1884,17 @@ void mjCModel::CopyTree(mjModel* m) {
     m->body_margin[i] = (mjtNum)pb->margin;
 
     // bounding volume hierarchy
-    m->body_bvhadr[i] = pb->tree.nbvh ? bvh_adr : -1;
-    m->body_bvhnum[i] = pb->tree.nbvh;
-    if (pb->tree.nbvh) {
-      memcpy(m->bvh_aabb + 6*bvh_adr, pb->tree.bvh.data(), 6*pb->tree.nbvh*sizeof(mjtNum));
-      memcpy(m->bvh_child + 2*bvh_adr, pb->tree.child.data(), 2*pb->tree.nbvh*sizeof(int));
-      memcpy(m->bvh_depth + bvh_adr, pb->tree.level.data(), pb->tree.nbvh*sizeof(int));
-      for (int i=0; i<pb->tree.nbvh; i++) {
-        m->bvh_nodeid[i + bvh_adr] = pb->tree.nodeid[i] ? *(pb->tree.nodeid[i]) : -1;
+    m->body_bvhadr[i] = pb->tree.Nbvh() ? bvh_adr : -1;
+    m->body_bvhnum[i] = pb->tree.Nbvh();
+    if (pb->tree.Nbvh()) {
+      memcpy(m->bvh_aabb + 6*bvh_adr, pb->tree.Bvh().data(), 6*pb->tree.Nbvh()*sizeof(mjtNum));
+      memcpy(m->bvh_child + 2*bvh_adr, pb->tree.Child().data(), 2*pb->tree.Nbvh()*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pb->tree.Level().data(), pb->tree.Nbvh()*sizeof(int));
+      for (int i=0; i<pb->tree.Nbvh(); i++) {
+        m->bvh_nodeid[i + bvh_adr] = pb->tree.Nodeid(i) ? *(pb->tree.Nodeid(i)) : -1;
       }
     }
-    bvh_adr += pb->tree.nbvh;
+    bvh_adr += pb->tree.Nbvh();
 
     // count free joints
     int cntfree = 0;
@@ -2307,8 +2307,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_faceadr[i] = face_adr;
     m->mesh_facenum[i] = pme->nface();
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
-    m->mesh_bvhnum[i] = pme->tree().nbvh;
-    m->mesh_bvhadr[i] = pme->tree().nbvh ? bvh_adr : -1;
+    m->mesh_bvhnum[i] = pme->tree().Nbvh();
+    m->mesh_bvhadr[i] = pme->tree().Nbvh() ? bvh_adr : -1;
     mjuu_copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
     mjuu_copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
     mjuu_copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
@@ -2329,12 +2329,12 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // copy bvh data
-    if (pme->tree().nbvh) {
-      memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree().bvh.data(), 6*pme->tree().nbvh*sizeof(mjtNum));
-      memcpy(m->bvh_child + 2*bvh_adr, pme->tree().child.data(), 2*pme->tree().nbvh*sizeof(int));
-      memcpy(m->bvh_depth + bvh_adr, pme->tree().level.data(), pme->tree().nbvh*sizeof(int));
-      for (int j=0; j<pme->tree().nbvh; j++) {
-        m->bvh_nodeid[j + bvh_adr] = pme->tree().nodeid[j] ? *(pme->tree().nodeid[j]) : -1;
+    if (pme->tree().Nbvh()) {
+      memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree().Bvh().data(), 6*pme->tree().Nbvh()*sizeof(mjtNum));
+      memcpy(m->bvh_child + 2*bvh_adr, pme->tree().Child().data(), 2*pme->tree().Nbvh()*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pme->tree().Level().data(), pme->tree().Nbvh()*sizeof(int));
+      for (int j=0; j<pme->tree().Nbvh(); j++) {
+        m->bvh_nodeid[j + bvh_adr] = pme->tree().Nodeid(j) ? *(pme->tree().Nodeid(j)) : -1;
       }
     }
 
@@ -2344,7 +2344,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     texcoord_adr += (pme->HasTexcoord() ? pme->ntexcoord() : 0);
     face_adr += pme->nface();
     graph_adr += pme->szgraph();
-    bvh_adr += pme->tree().nbvh;
+    bvh_adr += pme->tree().Nbvh();
   }
 
   // flexes
@@ -2414,8 +2414,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_flatskin[i] = pfl->flatskin;
     m->flex_selfcollide[i] = pfl->selfcollide;
     m->flex_activelayers[i] = pfl->activelayers;
-    m->flex_bvhnum[i] = pfl->tree.nbvh;
-    m->flex_bvhadr[i] = pfl->tree.nbvh ? bvh_adr : -1;
+    m->flex_bvhnum[i] = pfl->tree.Nbvh();
+    m->flex_bvhadr[i] = pfl->tree.Nbvh() ? bvh_adr : -1;
 
     // find equality constraint referencing this flex
     m->flex_edgeequality[i] = 0;
@@ -2427,11 +2427,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // copy bvh data (flex aabb computed dynamically in mjData)
-    if (pfl->tree.nbvh) {
-      memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.child.data(), 2*pfl->tree.nbvh*sizeof(int));
-      memcpy(m->bvh_depth + bvh_adr, pfl->tree.level.data(), pfl->tree.nbvh*sizeof(int));
-      for (int i=0; i<pfl->tree.nbvh; i++) {
-        m->bvh_nodeid[i+ bvh_adr] = pfl->tree.nodeid[i] ? *(pfl->tree.nodeid[i]) : -1;
+    if (pfl->tree.Nbvh()) {
+      memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.Child().data(), 2*pfl->tree.Nbvh()*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pfl->tree.Level().data(), pfl->tree.Nbvh()*sizeof(int));
+      for (int i=0; i<pfl->tree.Nbvh(); i++) {
+        m->bvh_nodeid[i+ bvh_adr] = pfl->tree.Nodeid(i) ? *(pfl->tree.Nodeid(i)) : -1;
       }
     }
 
@@ -2476,7 +2476,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     shelldata_adr += (int)pfl->shell.size();
     evpair_adr += (int)pfl->evpair.size()/2;
     texcoord_adr += (int)pfl->texcoord_.size()/2;
-    bvh_adr += pfl->tree.nbvh;
+    bvh_adr += pfl->tree.Nbvh();
   }
 
   // skins
@@ -3117,10 +3117,10 @@ void mjCModel::FuseStatic(void) {
     }
 
     // recompute BVH
-    int nbvhfuse = body->tree.nbvh + par->tree.nbvh;
+    int nbvhfuse = body->tree.Nbvh() + par->tree.Nbvh();
     par->ComputeBVH();
-    nbvhstatic += par->tree.nbvh - nbvhfuse;
-    nbvh += par->tree.nbvh - nbvhfuse;
+    nbvhstatic += par->tree.Nbvh() - nbvhfuse;
+    nbvh += par->tree.Nbvh() - nbvhfuse;
 
     //------------- delete body (without deleting children)
 
