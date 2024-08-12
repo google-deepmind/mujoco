@@ -318,7 +318,7 @@ void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* pmat, mjCDef* d
   }
   if (has_non_rgb) {
   //   // TODO elem = InsertEnd(section, "role");
-    mju_error("mjXWriter: no support for non-RGB textures.");
+    throw mjXError(0, "no support for non-RGB textures.");
   }
   WriteAttrKey(elem, "texuniform", bool_map, 2, pmat->texuniform, def->Material().texuniform);
   WriteAttr(elem, "texrepeat", 2, pmat->texrepeat, def->Material().texrepeat);
@@ -1450,6 +1450,14 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttr(elem, "random", 1, &ptex->random, &deftex.random);
       WriteAttrInt(elem, "width", ptex->width);
       WriteAttrInt(elem, "height", ptex->height);
+    }
+
+    // write buffer
+    else if (ptex->get_cubefiles()[0].empty() && ptex->get_cubefiles()[1].empty() &&
+             ptex->get_cubefiles()[2].empty() && ptex->get_cubefiles()[3].empty() &&
+             ptex->get_cubefiles()[4].empty() && ptex->get_cubefiles()[5].empty() &&
+             ptex->get_file().empty() && ptex->gridsize[0] == 1 && ptex->gridsize[1] == 1) {
+      throw mjXError(0, "no support for buffer textures.");
     }
 
     // write textures loaded from files

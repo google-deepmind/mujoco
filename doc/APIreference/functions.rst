@@ -4417,6 +4417,15 @@ Safely cast an element as mjsMaterial, or return NULL if the element is not an m
 
 Attribute setters
 ^^^^^^^^^^^^^^^^^
+.. _mjs_setBuffer:
+
+mjs_setBuffer
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setBuffer
+
+Copy buffer.
+
 .. _mjs_setString:
 
 mjs_setString

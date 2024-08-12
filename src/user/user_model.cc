@@ -21,6 +21,7 @@
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -2573,7 +2574,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_adr[i] = data_adr;
 
     // copy rgb data
-    memcpy(m->tex_data + data_adr, ptex->data.data(),
+    memcpy(m->tex_data + data_adr, ptex->data_.data(),
            ptex->nchannel * ptex->width * ptex->height);
 
     // advance counter

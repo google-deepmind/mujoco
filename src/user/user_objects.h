@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
+#include <cstddef>
 #include <cstdlib>
 #include <functional>
 #include <map>
@@ -1015,7 +1016,7 @@ class mjCHField : public mjCHField_, private mjsHField {
 
 class mjCTexture_ : public mjCBase {
  protected:
-  std::vector<mjtByte> data;  // texture data (rgb, roughness, etc.)
+  std::vector<std::byte> data_;  // texture data (rgb, roughness, etc.)
 
   std::string file_;
   std::string content_type_;
@@ -1066,6 +1067,8 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   void LoadCustom(mjResource* resource,
                   std::vector<unsigned char>& image,
                   unsigned int& w, unsigned int& h);
+
+  bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };
 
 

@@ -146,6 +146,24 @@ def _ptr_binding_code(
           self.{fullvarname}->push_back(py::cast<{vartype}>(val));
       }}
     }}, py::return_value_policy::reference_internal);"""
+  elif vartype == 'mjBuffer':  # C++ buffer -> Python list
+    return f"""\
+  {classname}.def_property(
+    "{varname}",
+    []({rawclassname}& self) -> py::list {{
+        py::list list;
+        for (auto val : *self.{fullvarname}) {{
+          list.append(val);
+        }}
+        return list;
+      }},
+    []({rawclassname}& self, py::object rhs) {{
+        self.{fullvarname}->clear();
+        self.{fullvarname}->reserve(py::len(rhs));
+        for (auto val : rhs) {{
+          self.{fullvarname}->push_back(py::cast<const std::byte>(val));
+        }}
+    }}, py::return_value_policy::reference_internal);"""
   elif vartype == 'mjStringVec':  # C++ vector of strings -> Python list
     return f"""\
   {classname}.def_property(

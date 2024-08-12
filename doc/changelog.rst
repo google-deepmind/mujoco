@@ -7,6 +7,13 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+1. Add :ref:`mjSpec` option for creating a texture from a buffer.
+
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
 - :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
 
 Version 3.2.2 (Aug 8, 2024)
@@ -22,7 +29,7 @@ Version 3.2.1 (Aug 5, 2024)
 
 General
 ^^^^^^^
-1. Renamed ``mjModel.tex_rbg`` to ``mjModel.tex_data``.
+1. Renamed ``mjModel.tex_rgb`` to ``mjModel.tex_data``.
 2. Added a new :ref:`autoreset<option-flag-autoreset>` flag to disable automatic reset when NaNs or infinities are
    detected.
 3. Added sub-elements to the MJCF :ref:`material<asset-material>` element, to allow specification of multiple textures

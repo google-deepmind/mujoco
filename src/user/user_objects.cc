@@ -3459,7 +3459,8 @@ mjCTexture::mjCTexture(mjCModel* _model) {
   spec_cubefiles_.assign(6, "");
 
   // clear internal variables
-  data.clear();
+  data_.clear();
+  clear_data_ = false;
 
   // point to local
   PointToLocal();
@@ -3480,6 +3481,7 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCTexture_*>(this) = static_cast<const mjCTexture_&>(other);
+    clear_data_ = other.clear_data_;
   }
   PointToLocal();
   return *this;
@@ -3491,6 +3493,7 @@ void mjCTexture::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.file = &spec_file_;
+  spec.data = &data_;
   spec.content_type = &spec_content_type_;
   spec.cubefiles = &spec_cubefiles_;
   spec.info = &info;
@@ -3507,21 +3510,23 @@ void mjCTexture::CopyFromSpec() {
   content_type_ = spec_content_type_;
   cubefiles_ = spec_cubefiles_;
 
-  // clear precompiled asset. TODO: use asset cache
-  data.clear();
+  if (clear_data_) {
+    // clear precompiled asset. TODO: use asset cache
+    data_.clear();
+  }
 }
 
 
 
 // free data storage allocated by lodepng
 mjCTexture::~mjCTexture() {
-  data.clear();
+  data_.clear();
 }
 
 
 
 // insert random dots
-static void randomdot(unsigned char* rgb, const double* markrgb,
+static void randomdot(std::byte* rgb, const double* markrgb,
                       int width, int height, double probability) {
   // make distribution using fixed seed
   std::mt19937_64 rng;
@@ -3533,7 +3538,7 @@ static void randomdot(unsigned char* rgb, const double* markrgb,
     for (int c=0; c<width; c++) {
       if (dist(rng)<probability) {
         for (int j=0; j<3; j++) {
-          rgb[3*(r*width+c)+j] = (mjtByte)(255*markrgb[j]);
+          rgb[3*(r*width+c)+j] = (std::byte)(255*markrgb[j]);
         }
       }
     }
@@ -3543,7 +3548,7 @@ static void randomdot(unsigned char* rgb, const double* markrgb,
 
 
 // interpolate between colors based on value in (-1, +1)
-static void interp(unsigned char* rgb, const double* rgb1, const double* rgb2, double pos) {
+static void interp(std::byte* rgb, const double* rgb1, const double* rgb2, double pos) {
   const double correction = 1.0/sqrt(2);
   double alpha = 0.5*(1 + pos/sqrt(1+pos*pos)/correction);
   if (alpha<0) {
@@ -3553,14 +3558,14 @@ static void interp(unsigned char* rgb, const double* rgb1, const double* rgb2, d
   }
 
   for (int j=0; j<3; j++) {
-    rgb[j] = (mjtByte)(255*(alpha*rgb1[j] + (1-alpha)*rgb2[j]));
+    rgb[j] = (std::byte)(255*(alpha*rgb1[j] + (1-alpha)*rgb2[j]));
   }
 }
 
 
 
 // make checker pattern for one side
-static void checker(unsigned char* rgb, const unsigned char* RGB1, const unsigned char* RGB2,
+static void checker(std::byte* rgb, const std::byte* RGB1, const std::byte* RGB2,
                     int width, int height) {
   for (int r=0; r<height/2; r++) {
     for (int c=0; c<width/2; c++) {
@@ -3588,12 +3593,12 @@ static void checker(unsigned char* rgb, const unsigned char* RGB1, const unsigne
 
 // make builtin: 2D
 void mjCTexture::Builtin2D(void) {
-  unsigned char RGB1[3], RGB2[3], RGBm[3];
+  std::byte RGB1[3], RGB2[3], RGBm[3];
   // convert fixed colors
   for (int j=0; j<3; j++) {
-    RGB1[j] = (mjtByte)(255*rgb1[j]);
-    RGB2[j] = (mjtByte)(255*rgb2[j]);
-    RGBm[j] = (mjtByte)(255*markrgb[j]);
+    RGB1[j] = (std::byte)(255*rgb1[j]);
+    RGB2[j] = (std::byte)(255*rgb2[j]);
+    RGBm[j] = (std::byte)(255*markrgb[j]);
   }
 
   //------------------ face
@@ -3608,21 +3613,21 @@ void mjCTexture::Builtin2D(void) {
         double pos = 2*sqrt(x*x+y*y) - 1;
 
         // interpolate through sigmoid
-        interp(data.data() + 3*(r*width+c), rgb2, rgb1, pos);
+        interp(data_.data() + 3*(r*width+c), rgb2, rgb1, pos);
       }
     }
   }
 
   // checker
   else if (builtin==mjBUILTIN_CHECKER) {
-    checker(data.data(), RGB1, RGB2, width, height);
+    checker(data_.data(), RGB1, RGB2, width, height);
   }
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
     for (int r=0; r<height; r++) {
       for (int c=0; c<width; c++) {
-        memcpy(data.data()+3*(r*width+c), RGB1, 3);
+        memcpy(data_.data()+3*(r*width+c), RGB1, 3);
       }
     }
   }
@@ -3632,28 +3637,28 @@ void mjCTexture::Builtin2D(void) {
   // edge
   if (mark==mjMARK_EDGE) {
     for (int r=0; r<height; r++) {
-      memcpy(data.data()+3*(r*width+0), RGBm, 3);
-      memcpy(data.data()+3*(r*width+width-1), RGBm, 3);
+      memcpy(data_.data()+3*(r*width+0), RGBm, 3);
+      memcpy(data_.data()+3*(r*width+width-1), RGBm, 3);
     }
     for (int c=0; c<width; c++) {
-      memcpy(data.data()+3*(0*width+c), RGBm, 3);
-      memcpy(data.data()+3*((height-1)*width+c), RGBm, 3);
+      memcpy(data_.data()+3*(0*width+c), RGBm, 3);
+      memcpy(data_.data()+3*((height-1)*width+c), RGBm, 3);
     }
   }
 
   // cross
   else if (mark==mjMARK_CROSS) {
     for (int r=0; r<height; r++) {
-      memcpy(data.data()+3*(r*width+width/2), RGBm, 3);
+      memcpy(data_.data()+3*(r*width+width/2), RGBm, 3);
     }
     for (int c=0; c<width; c++) {
-      memcpy(data.data()+3*(height/2*width+c), RGBm, 3);
+      memcpy(data_.data()+3*(height/2*width+c), RGBm, 3);
     }
   }
 
   // random dots
   else if (mark==mjMARK_RANDOM && random>0) {
-    randomdot(data.data(), markrgb, width, height, random);
+    randomdot(data_.data(), markrgb, width, height, random);
   }
 }
 
@@ -3661,7 +3666,7 @@ void mjCTexture::Builtin2D(void) {
 
 // make builtin: Cube
 void mjCTexture::BuiltinCube(void) {
-  unsigned char RGB1[3], RGB2[3], RGBm[3], RGBi[3];
+  std::byte RGB1[3], RGB2[3], RGBm[3], RGBi[3];
   int w = width;
   if (w > std::numeric_limits<int>::max() / w) {
     throw mjCError(this, "Cube texture width is too large.");
@@ -3670,9 +3675,9 @@ void mjCTexture::BuiltinCube(void) {
 
   // convert fixed colors
   for (int j = 0; j < 3; j++) {
-    RGB1[j] = (mjtByte)(255 * rgb1[j]);
-    RGB2[j] = (mjtByte)(255 * rgb2[j]);
-    RGBm[j] = (mjtByte)(255 * markrgb[j]);
+    RGB1[j] = (std::byte)(255 * rgb1[j]);
+    RGB2[j] = (std::byte)(255 * rgb2[j]);
+    RGBm[j] = (std::byte)(255 * markrgb[j]);
   }
 
   //------------------ faces
@@ -3694,26 +3699,26 @@ void mjCTexture::BuiltinCube(void) {
 
         // set sides
         interp(RGBi, rgb1, rgb2, elside);
-        memcpy(data.data() + 0 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 0: right
-        memcpy(data.data() + 1 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 1: left
-        memcpy(data.data() + 4 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 4: front
-        memcpy(data.data() + 5 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 5: back
+        memcpy(data_.data() + 0 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 0: right
+        memcpy(data_.data() + 1 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 1: left
+        memcpy(data_.data() + 4 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 4: front
+        memcpy(data_.data() + 5 * 3 * ww + 3 * (r * w + c), RGBi, 3);  // 5: back
 
         // set up and down
-        interp(data.data() + 2 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, elup);  // 2: up
-        interp(data.data() + 3 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, -elup);  // 3: down
+        interp(data_.data() + 2 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, elup);  // 2: up
+        interp(data_.data() + 3 * 3 * ww + 3 * (r * w + c), rgb1, rgb2, -elup);  // 3: down
       }
     }
   }
 
   // checker
   else if (builtin == mjBUILTIN_CHECKER) {
-    checker(data.data() + 0 * 3 * ww, RGB1, RGB2, w, w);
-    checker(data.data() + 1 * 3 * ww, RGB1, RGB2, w, w);
-    checker(data.data() + 2 * 3 * ww, RGB1, RGB2, w, w);
-    checker(data.data() + 3 * 3 * ww, RGB1, RGB2, w, w);
-    checker(data.data() + 4 * 3 * ww, RGB2, RGB1, w, w);
-    checker(data.data() + 5 * 3 * ww, RGB2, RGB1, w, w);
+    checker(data_.data() + 0 * 3 * ww, RGB1, RGB2, w, w);
+    checker(data_.data() + 1 * 3 * ww, RGB1, RGB2, w, w);
+    checker(data_.data() + 2 * 3 * ww, RGB1, RGB2, w, w);
+    checker(data_.data() + 3 * 3 * ww, RGB1, RGB2, w, w);
+    checker(data_.data() + 4 * 3 * ww, RGB2, RGB1, w, w);
+    checker(data_.data() + 5 * 3 * ww, RGB2, RGB1, w, w);
   }
 
   // flat
@@ -3721,14 +3726,14 @@ void mjCTexture::BuiltinCube(void) {
     for (int r = 0; r < w; r++) {
       for (int c = 0; c < w; c++) {
         // set sides and up
-        memcpy(data.data() + 0 * 3 * ww + 3 * (r * w + c), RGB1, 3);
-        memcpy(data.data() + 1 * 3 * ww + 3 * (r * w + c), RGB1, 3);
-        memcpy(data.data() + 2 * 3 * ww + 3 * (r * w + c), RGB1, 3);
-        memcpy(data.data() + 4 * 3 * ww + 3 * (r * w + c), RGB1, 3);
-        memcpy(data.data() + 5 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(data_.data() + 0 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(data_.data() + 1 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(data_.data() + 2 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(data_.data() + 4 * 3 * ww + 3 * (r * w + c), RGB1, 3);
+        memcpy(data_.data() + 5 * 3 * ww + 3 * (r * w + c), RGB1, 3);
 
         // set down
-        memcpy(data.data() + 3 * 3 * ww + 3 * (r * w + c), RGB2, 3);
+        memcpy(data_.data() + 3 * 3 * ww + 3 * (r * w + c), RGB2, 3);
       }
     }
   }
@@ -3739,12 +3744,12 @@ void mjCTexture::BuiltinCube(void) {
   if (mark == mjMARK_EDGE) {
     for (int j = 0; j < 6; j++) {
       for (int r = 0; r < w; r++) {
-        memcpy(data.data() + j * 3 * ww + 3 * (r * w + 0), RGBm, 3);
-        memcpy(data.data() + j * 3 * ww + 3 * (r * w + w - 1), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (r * w + 0), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (r * w + w - 1), RGBm, 3);
       }
       for (int c = 0; c < w; c++) {
-        memcpy(data.data() + j * 3 * ww + 3 * (0 * w + c), RGBm, 3);
-        memcpy(data.data() + j * 3 * ww + 3 * ((w - 1) * w + c), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (0 * w + c), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * ((w - 1) * w + c), RGBm, 3);
       }
     }
   }
@@ -3753,17 +3758,17 @@ void mjCTexture::BuiltinCube(void) {
   else if (mark == mjMARK_CROSS) {
     for (int j = 0; j < 6; j++) {
       for (int r = 0; r < w; r++) {
-        memcpy(data.data() + j * 3 * ww + 3 * (r * w + w / 2), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (r * w + w / 2), RGBm, 3);
       }
       for (int c = 0; c < w; c++) {
-        memcpy(data.data() + j * 3 * ww + 3 * (w / 2 * w + c), RGBm, 3);
+        memcpy(data_.data() + j * 3 * ww + 3 * (w / 2 * w + c), RGBm, 3);
       }
     }
   }
 
   // random dots
   else if (mark == mjMARK_RANDOM && random > 0) {
-    randomdot(data.data(), markrgb, w, height, random);
+    randomdot(data_.data(), markrgb, w, height, random);
   }
 }
 
@@ -3928,12 +3933,12 @@ void mjCTexture::Load2D(std::string filename, const mjVFS* vfs) {
     throw mjCError(this, "Texture too large");
   }
   try {
-    data.assign(nchannel*size, 0);
+    data_.assign(nchannel*size, std::byte(0));
   } catch (const std::bad_alloc& e) {
     throw mjCError(this, "Could not allocate memory for texture '%s' (id %d)",
                    (const char*)file_.c_str(), id);
   }
-  memcpy(data.data(), image.data(), nchannel*size);
+  memcpy(data_.data(), image.data(), nchannel*size);
   image.clear();
 }
 
@@ -3975,7 +3980,7 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
     throw mjCError(this, "Cube texture too large");
   }
   try {
-    data.assign(3*size, 0);
+    data_.assign(3*size, std::byte(0));
   } catch (const std::bad_alloc& e) {
     throw mjCError(this,
                    "Could not allocate memory for texture '%s' (id %d)",
@@ -3984,7 +3989,7 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
 
   // copy: repeated
   if (gridsize[0]==1 && gridsize[1]==1) {
-    memcpy(data.data(), image.data(), 3*width*width);
+    memcpy(data_.data(), image.data(), 3*width*width);
   }
 
   // copy: grid
@@ -4017,7 +4022,7 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
         int rstart = width*(k/gridsize[1]);
         int cstart = width*(k%gridsize[1]);
         for (int j=0; j<width; j++) {
-          memcpy(data.data()+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
+          memcpy(data_.data()+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
         }
 
         // mark as defined
@@ -4031,7 +4036,7 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
         for (int k=0; k<width; k++) {
           for (int s=0; s<width; s++) {
             for (int j=0; j<3; j++) {
-              data[i*3*width*width + 3*(k*width+s) + j] = (mjtByte)(255*rgb1[j]);
+              data_[i*3*width*width + 3*(k*width+s) + j] = (std::byte)(255*rgb1[j]);
             }
           }
         }
@@ -4073,7 +4078,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // first file: set size and allocate data
-      if (data.empty()) {
+      if (data_.empty()) {
         width = w;
         if (width >= std::numeric_limits<int>::max()/6) {
           throw mjCError(this, "Invalid width of builtin texture");
@@ -4084,7 +4089,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
           throw mjCError(this, "PNG texture too large");
         }
         try {
-          data.assign(3*size, 0);
+          data_.assign(3*size, std::byte(0));
         } catch (const std::bad_alloc& e) {
           throw mjCError(this, "Could not allocate memory for texture");
         }
@@ -4098,7 +4103,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // copy data
-      memcpy(data.data()+i*3*width*width, image.data(), 3*width*width);
+      memcpy(data_.data()+i*3*width*width, image.data(), 3*width*width);
       image.clear();
 
       // mark as defined
@@ -4112,7 +4117,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       for (int k=0; k<width; k++) {
         for (int s=0; s<width; s++) {
           for (int j=0; j<3; j++) {
-            data[i*3*width*width + 3*(k*width+s) + j] = (mjtByte)(255*rgb1[j]);
+            data_[i*3*width*width + 3*(k*width+s) + j] = (std::byte)(255*rgb1[j]);
           }
         }
       }
@@ -4126,8 +4131,17 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 void mjCTexture::Compile(const mjVFS* vfs) {
   CopyFromSpec();
 
+  // buffer from user
+  if (!data_.empty()) {
+    if (data_.size() != nchannel*width*height) {
+      throw mjCError(this, "Texture buffer has incorrect size, given %d expected %d", nullptr,
+                     data_.size(), nchannel * width * height);
+    }
+    return;
+  }
+
   // builtin
-  if (builtin != mjBUILTIN_NONE) {
+  else if (builtin != mjBUILTIN_NONE) {
     // check width
     if (width<1) {
       throw mjCError(this, "Invalid width of builtin texture");
@@ -4151,7 +4165,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
     // allocate data
     try {
-      data.assign(nchannel*size, 0);
+      data_.assign(nchannel*size, std::byte(0));
     } catch (const std::bad_alloc& e) {
       throw mjCError(this, "Could not allocate memory for texture");
     }
@@ -4208,9 +4222,12 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR
-  if (data.empty()) {
+  if (data_.empty()) {
     throw mjCError(this, "texture '%s' (id %d) was not specified", name.c_str(), id);
   }
+
+  // if recompiled is called, clear data_ first
+  clear_data_ = true;
 }
 
 

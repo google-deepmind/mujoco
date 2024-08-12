@@ -10245,6 +10245,30 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.',  # pylint: disable=line-too-long
      )),
+    ('mjs_setBuffer',
+     FunctionDecl(
+         name='mjs_setBuffer',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjBuffer'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy buffer.',
+     )),
     ('mjs_setString',
      FunctionDecl(
          name='mjs_setString',

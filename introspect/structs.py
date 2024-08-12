@@ -10012,6 +10012,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='different file for each side of the cube',
              ),
              StructFieldDecl(
+                 name='data',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjBuffer'),
+                 ),
+                 doc='texture data',
+             ),
+             StructFieldDecl(
                  name='hflip',
                  type=ValueType(name='mjtByte'),
                  doc='horizontal flip',

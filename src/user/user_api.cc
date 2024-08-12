@@ -14,8 +14,10 @@
 
 #include "user/user_api.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <new>
 #include <string>
@@ -873,6 +875,16 @@ mjsMaterial* mjs_asMaterial(mjsElement* element) {
     return &(static_cast<mjCMaterial*>(element)->spec);
   }
   return nullptr;
+}
+
+
+
+// copy buffer to destination buffer
+void mjs_setBuffer(mjBuffer* dest, const void* array, int size) {
+  const std::byte* buffer = static_cast<const std::byte*>(array);
+  dest->clear();
+  dest->reserve(size);
+  std::copy_n(buffer, size, std::back_inserter(*dest));
 }
 
 

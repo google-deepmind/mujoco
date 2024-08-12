@@ -2026,6 +2026,9 @@ typedef struct mjsTexture_ {       // texture specification
   // method 3: separate files
   mjStringVec* cubefiles;          // different file for each side of the cube
 
+  // method 4: from buffer read by user
+  mjBuffer* data;                  // texture data
+
   // flip options
   mjtByte hflip;                   // horizontal flip
   mjtByte vflip;                   // vertical flip
@@ -3584,6 +3587,7 @@ mjsHField* mjs_asHField(mjsElement* element);
 mjsSkin* mjs_asSkin(mjsElement* element);
 mjsTexture* mjs_asTexture(mjsElement* element);
 mjsMaterial* mjs_asMaterial(mjsElement* element);
+void mjs_setBuffer(mjBuffer* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
 void mjs_setStringVec(mjStringVec* dest, const char* text);
 mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);

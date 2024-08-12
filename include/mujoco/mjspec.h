@@ -22,6 +22,7 @@
 
 // this is a C-API
 #ifdef __cplusplus
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@ extern "C" {
 
 #ifdef __cplusplus
   // C++: defined to be compatible with corresponding std types
+  using mjBuffer      = std::vector<std::byte>;
   using mjString      = std::string;
   using mjStringVec   = std::vector<std::string>;
   using mjIntVec      = std::vector<int>;
@@ -41,6 +43,7 @@ extern "C" {
   using mjDoubleVec   = std::vector<double>;
 #else
   // C: opaque types
+  typedef void mjBuffer;
   typedef void mjString;
   typedef void mjStringVec;
   typedef void mjIntVec;
@@ -510,6 +513,9 @@ typedef struct mjsTexture_ {       // texture specification
 
   // method 3: separate files
   mjStringVec* cubefiles;          // different file for each side of the cube
+
+  // method 4: from buffer read by user
+  mjBuffer* data;                  // texture data
 
   // flip options
   mjtByte hflip;                   // horizontal flip
