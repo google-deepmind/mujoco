@@ -101,7 +101,7 @@ void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
   modelC->Compile(vfs, &m);
   if (d) {
     modelC->MakeData(m, &d);
-    modelC->RestoreState(d->qpos, d->qvel, d->act);
+    modelC->RestoreState(m->qpos0, d->qpos, d->qvel, d->act);
     d->time = time;
   }
 }

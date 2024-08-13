@@ -845,6 +845,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   mjCBody* subtree = other.body;
   other.model->prefix = other.prefix;
   other.model->suffix = other.suffix;
+  other.model->StoreKeyframes();
 
   // attach defaults
   if (other.model != model) {
@@ -887,13 +888,11 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
     bodies.back()->frame =
         subtree->bodies[i]->frame ? frames[fmap[subtree->bodies[i]->frame]] : nullptr;
     bodies.back()->NameSpace_(other.model, /*propagate=*/ false);
+    subtree->bodies[i]->ForgetKeyframes();
   }
 
   // attach referencing elements
   *model += *other.model;
-
-  // (b/350784262) delete keyframes
-  model->DeleteAll<mjCKey>(model->keys_);
 
   // clear namespace and return body
   other.model->prefix.clear();
@@ -937,6 +936,10 @@ mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
     }
     *bodies[i] -= subtree;
   }
+
+  // (b/350784262) delete keyframes
+  model->DeleteAll<mjCKey>(model->keys_);
+
   return *this;
 }
 
@@ -1402,6 +1405,19 @@ void mjCBody::ComputeBVH() {
 
 
 
+// reset keyframe references for allowing self-attach
+void mjCBody::ForgetKeyframes() const {
+  for (auto joint : joints) {
+    joint->qpos[0] = mjNAN;
+    joint->qvel[0] = mjNAN;
+  }
+  for (auto body : bodies) {
+    body->ForgetKeyframes();
+  }
+}
+
+
+
 // compiler
 void mjCBody::Compile(void) {
   CopyFromSpec();
@@ -1631,7 +1647,14 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 
 // attach body to frame
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
+  other.model->prefix = other.prefix;
+  other.model->suffix = other.suffix;
+  other.model->StoreKeyframes();
+  other.model->prefix = "";
+  other.model->suffix = "";
+
   mjCBody* subtree = new mjCBody(other, model);
+  other.ForgetKeyframes();
   other.model->prefix = subtree->prefix;
   other.model->suffix = subtree->suffix;
   subtree->SetFrame(this);
@@ -1649,9 +1672,6 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // attach referencing elements
   *model += *other.model;
-
-  // (b/350784262) delete keyframes
-  model->DeleteAll<mjCKey>(model->keys_);
 
   // clear suffixes and return
   other.model->suffix.clear();
@@ -5349,6 +5369,13 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
   }
   PointToLocal();
   return *this;
+}
+
+
+
+void mjCActuator::ForgetKeyframes() {
+  act.clear();
+  act.push_back(mjNAN);
 }
 
 

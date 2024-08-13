@@ -34,6 +34,13 @@
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
+typedef struct mjKeyInfo_ {
+  std::string name;
+  bool qpos;
+  bool qvel;
+  bool act;
+} mjKeyInfo;
+
 class mjCModel_ : public mjsElement {
  public:
   // attach namespaces
@@ -276,9 +283,14 @@ class mjCModel : public mjCModel_, private mjSpec {
                                          std::string_view name = "");
 
   // save/restore the current state
-  void SaveState(const mjtNum* qpos, const mjtNum* qvel, const mjtNum* act);
+  template <class T> void SaveState(const T* qpos, const T* qvel, const T* act);
+  template <class T> void RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act);
+
+  // clear existing data
   void MakeData(const mjModel* m, mjData** dest);
-  void RestoreState(mjtNum* qpos, mjtNum* qvel, mjtNum* act);
+
+  // resolve keyframe references
+  void StoreKeyframes();
 
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;
@@ -359,8 +371,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   // reset lists of kinematic tree
   void ResetTreeLists();
 
+  // save dof offsets in joints and actuators
+  void SaveDofOffsets();
+
+  // convert pending keyframes info to actual keyframes
+  void ResolveKeyframes(const mjModel* m);
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   bool plugin_owner;  // this class allocated the plugins
+  std::vector<mjKeyInfo> key_pending_;  // attached keyframes
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

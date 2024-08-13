@@ -421,13 +421,18 @@ static constexpr char xml_child[] = R"(
     </tendon>
 
     <actuator>
-      <position name="hinge" joint="hinge"/>
-      <position name="fixed" tendon="fixed"/>
+      <position name="hinge" joint="hinge" timeconst=".01"/>
+      <position name="fixed" tendon="fixed" timeconst=".01"/>
     </actuator>
 
     <contact>
       <exclude body1="body" body2="targetbody"/>
     </contact>
+
+    <keyframe>
+      <key name="two" qpos="2" act="2 2"/>
+      <key name="three" qpos="3" act="3 3"/>
+    </keyframe>
   </mujoco>)";
 
 TEST_F(MujocoTest, AttachSame) {
@@ -484,16 +489,22 @@ TEST_F(MujocoTest, AttachSame) {
     </tendon>
 
     <actuator>
-      <position name="hinge" joint="hinge"/>
-      <position name="fixed" tendon="fixed"/>
-      <position name="attached-hinge-1" joint="attached-hinge-1"/>
-      <position name="attached-fixed-1" tendon="attached-fixed-1"/>
+      <position name="hinge" joint="hinge" timeconst=".01"/>
+      <position name="fixed" tendon="fixed" timeconst=".01"/>
+      <position name="attached-hinge-1" joint="attached-hinge-1" timeconst=".01"/>
+      <position name="attached-fixed-1" tendon="attached-fixed-1" timeconst=".01"/>
     </actuator>
 
     <contact>
       <exclude body1="body" body2="targetbody"/>
       <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
     </contact>
+
+    <keyframe>
+      <key name="two" qpos="2 0" act="2 2 0 0"/>
+      <key name="three" qpos="3 0" act="3 3 0 0"/>
+      <key name="attached-two-1" qpos="0 2" act="0 0 2 2"/>
+    </keyframe>
   </mujoco>)";
 
   // create parent
@@ -600,13 +611,17 @@ TEST_F(MujocoTest, AttachDifferent) {
     </tendon>
 
     <actuator>
-      <position name="attached-hinge-1" joint="attached-hinge-1"/>
-      <position name="attached-fixed-1" tendon="attached-fixed-1"/>
+      <position name="attached-hinge-1" joint="attached-hinge-1" timeconst=".01"/>
+      <position name="attached-fixed-1" tendon="attached-fixed-1" timeconst=".01"/>
     </actuator>
 
     <contact>
       <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
     </contact>
+
+    <keyframe>
+      <key name="attached-two-1" qpos="0 0 0 1 0 0 0 2" act="2 2"/>
+    </keyframe>
   </mujoco>)";
 
   // model with one free sphere and a frame
@@ -717,13 +732,17 @@ TEST_F(MujocoTest, AttachFrame) {
     </tendon>
 
     <actuator>
-      <position name="attached-hinge-1" joint="attached-hinge-1"/>
-      <position name="attached-fixed-1" tendon="attached-fixed-1"/>
+      <position name="attached-hinge-1" joint="attached-hinge-1" timeconst=".01"/>
+      <position name="attached-fixed-1" tendon="attached-fixed-1" timeconst=".01"/>
     </actuator>
 
     <contact>
       <exclude body1="attached-body-1" body2="attached-targetbody-1"/>
     </contact>
+
+    <keyframe>
+      <key name="attached-two-1" qpos="0 0 0 1 0 0 0 2" act="2 2"/>
+    </keyframe>
   </mujoco>)";
 
   // model with one free sphere and a frame
@@ -790,6 +809,7 @@ void TestDetachBody(bool compile) {
       <body name="ignore"/>
       <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
     </worldbody>
+
     <sensor>
       <framepos name="ignore" objtype="body" objname="ignore"/>
     </sensor>

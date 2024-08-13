@@ -215,6 +215,10 @@ class mjCBase : public mjCBase_ {
 
   virtual ~mjCBase() = default;   // destructor
 
+  // reset keyframe references for allowing self-attach
+  virtual void ForgetKeyframes() {}
+  virtual void ForgetKeyframes() const {}
+
  protected:
   mjCBase();                                 // constructor
   mjCBase(const mjCBase& other);             // copy constructor
@@ -314,6 +318,9 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // get next child of given type
   mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN);
+
+  // reset keyframe references for allowing self-attach
+  void ForgetKeyframes() const;
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -1384,7 +1391,7 @@ class mjCActuator_ : public mjCBase {
 
   // variable used for temporarily storing the state of the actuator
   int actadr_;              // address of dof in data->act
-  int actnum_;              // number of dofs in data->act
+  int actdim_;              // number of dofs in data->act
   std::vector<mjtNum> act;  // act at the previous step
 
   // variable-size data
@@ -1430,6 +1437,9 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
+
+  // reset keyframe references for allowing self-attach
+  void ForgetKeyframes();
 
   mjCBase* ptarget;  // transmission target
 };

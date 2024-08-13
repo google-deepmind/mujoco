@@ -134,6 +134,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // add everything else
     *this += other;
 
+    // add keyframes
+    CopyList(keys_, other.keys_);
+
     // create new default tree
     mjCDef* subtree = new mjCDef(*other.defaults_[0]);
     *this += *subtree;
@@ -168,6 +171,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
       continue;
     }
     // copy the element from the other model to this model
+    source[i]->ForgetKeyframes();
     dest.push_back(candidate);
     dest.back()->model = this;
     dest.back()->id = -1;
@@ -204,6 +208,32 @@ void mjCModel::ResetTreeLists() {
 
 
 
+// save associated state addresses in related elements
+void mjCModel::SaveDofOffsets() {
+  int qposadr = 0;
+  int dofadr = 0;
+  int actadr = 0;
+
+  for (auto joint : joints_) {
+    joint->qposadr_ = qposadr;
+    joint->dofadr_ = dofadr;
+    qposadr += joint->nq();
+    dofadr += joint->nv();
+  }
+
+  for (auto actuator : actuators_) {
+    if (actuator->spec.actdim > 0) {
+      actuator->actdim_ = actuator->spec.actdim;
+    } else {
+      actuator->actdim_ = (actuator->spec.dyntype != mjDYN_NONE);
+    }
+    actuator->actadr_ = actuator->actdim_ ? actadr : -1;
+    actadr += actuator->actdim_;
+  }
+}
+
+
+
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
   mjCBody *world = bodies_[0];
@@ -222,7 +252,9 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     CopyList(hfields_, other.hfields_);
     CopyList(textures_, other.textures_);
     CopyList(materials_, other.materials_);
-    CopyList(keys_, other.keys_);
+    for (const auto& key : other.key_pending_) {
+      key_pending_.push_back(key);
+    }
   }
   CopyList(flexes_, other.flexes_);
   CopyList(pairs_, other.pairs_);
@@ -2693,7 +2725,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_actnum[i] = pac->actdim;
     m->actuator_actadr[i] = m->actuator_actnum[i] ? adr : -1;
     pac->actadr_ = m->actuator_actadr[i];
-    pac->actnum_ = m->actuator_actnum[i];
+    pac->actdim_ = m->actuator_actnum[i];
     adr += m->actuator_actnum[i];
     m->actuator_group[i] = pac->group;
     m->actuator_ctrllimited[i] = (mjtByte)pac->is_ctrllimited();
@@ -2827,7 +2859,8 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 
 // save the current state
-void mjCModel::SaveState(const mjtNum* qpos, const mjtNum* qvel, const mjtNum* act) {
+template <class T>
+void mjCModel::SaveState(const T* qpos, const T* qvel, const T* act) {
   for (auto joint : joints_) {
     if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, joint->nq());
     if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, joint->nv());
@@ -2835,8 +2868,8 @@ void mjCModel::SaveState(const mjtNum* qpos, const mjtNum* qvel, const mjtNum* a
 
   for (auto actuator : actuators_) {
     if (actuator->actadr_ != -1 && act) {
-      actuator->act.assign(actuator->actnum_, 0);
-      mjuu_copyvec(actuator->act.data(), act + actuator->actadr_, actuator->actnum_);
+      actuator->act.assign(actuator->actdim_, 0);
+      mjuu_copyvec(actuator->act.data(), act + actuator->actadr_, actuator->actdim_);
     }
   }
 }
@@ -2856,20 +2889,64 @@ void mjCModel::MakeData(const mjModel* m, mjData** dest) {
 
 
 // restore the previous state
-void mjCModel::RestoreState(mjtNum* qpos, mjtNum* qvel, mjtNum* act) {
+template <class T>
+void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act) {
   for (auto joint : joints_) {
-    if (mjuu_defined(joint->qpos[0]) && qpos) {
-      mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, joint->nq());
+    if (qpos) {
+      if (mjuu_defined(joint->qpos[0])) {
+        mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, joint->nq());
+      } else {
+        mjuu_copyvec(qpos + joint->qposadr_, pos0 + joint->qposadr_, joint->nq());
+      }
     }
     if (mjuu_defined(joint->qvel[0]) && qvel) {
       mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, joint->nv());
     }
   }
 
+  // restore act
   for (auto actuator : actuators_) {
     if (mjuu_defined(actuator->act[0]) && act) {
-      mjuu_copyvec(act + actuator->actadr_, actuator->act.data(), actuator->actnum_);
+      mjuu_copyvec(act + actuator->actadr_, actuator->act.data(), actuator->actdim_);
     }
+  }
+}
+
+
+
+// force explicit instantiations
+template void mjCModel::SaveState<mjtNum>(const mjtNum* qpos,
+                                          const mjtNum* qvel,
+                                          const mjtNum* act);
+
+template void mjCModel::RestoreState<mjtNum>(const mjtNum* qpos0, mjtNum* qpos,
+                                             mjtNum* qvel, mjtNum* act);
+
+
+
+// resolve keyframe references
+void mjCModel::StoreKeyframes() {
+  bool resetlists = false;
+  if (joints_.empty()) {
+    MakeLists(bodies_[0]);
+    resetlists = true;
+  }
+
+  SaveDofOffsets();
+
+  for (auto key : keys_) {
+    mjKeyInfo info;
+    info.name = prefix + key->name + suffix;
+    info.qpos = !key->spec_qpos_.empty();
+    info.qvel = !key->spec_qvel_.empty();
+    info.act = !key->spec_act_.empty();
+    key_pending_.push_back(info);
+    SaveState(key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
+    break;  // (b/350784262) save only the first keyframe for now
+  }
+
+  if (resetlists) {
+    ResetTreeLists();
   }
 }
 
@@ -3401,6 +3478,49 @@ void mjCModel::CompileMeshes(const mjVFS* vfs) {
 
 
 
+// convert pending keyframes info to actual keyframes
+void mjCModel::ResolveKeyframes(const mjModel* m) {
+  if (key_pending_.empty()) {
+    return;
+  }
+
+  // resize non-pending keyframes to the new number of dofs
+  for (unsigned int i = 0; i < nkey - key_pending_.size(); i++) {
+    mjCKey* key = keys_[i];
+    if (!key->spec_qpos_.empty()) {
+      int nq0 = key->spec_qpos_.size();
+      key->spec_qpos_.resize(nq);
+      for (int i=nq0; i<m->nq; i++) {
+        key->spec_qpos_[i] = (double)m->qpos0[i];
+      }
+    }
+    if (!key->spec_qvel_.empty()) {
+      key->spec_qvel_.resize(nv);
+    }
+    if (!key->spec_act_.empty()) {
+      key->spec_act_.resize(na);
+    }
+  }
+
+  // store dof offsets in joints and actuators
+  SaveDofOffsets();
+
+  // copy state stored in joints and actuators to keyframes
+  for (const auto& info : key_pending_) {
+    mjCKey* key = (mjCKey*)FindObject(mjOBJ_KEY, info.name);
+    key->name = info.name;
+    if (info.qpos) key->spec_qpos_.assign(nq, 0);
+    if (info.qvel) key->spec_qvel_.assign(nv, 0);
+    if (info.act) key->spec_act_.assign(na, 0);
+    RestoreState(m->qpos0, key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
+  }
+
+  // the attached keyframes have been copied into the model
+  key_pending_.clear();
+}
+
+
+
 void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // check if nan test works
   double test = mjNAN;
@@ -3446,6 +3566,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetDefaultNames(hfields_);
   SetDefaultNames(textures_);
   CheckEmptyNames();
+
+  // create pending keyframes
+  for (const auto& info : key_pending_) {
+    mjCKey* key = AddKey();
+    key->name = info.name;
+  }
 
   // set object ids, check for repeated names
   ProcessLists();
@@ -3671,6 +3797,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
+  ResolveKeyframes(m);
+
   for (int i=0; i<keys_.size(); i++) {
     keys_[i]->Compile(m);
   }
