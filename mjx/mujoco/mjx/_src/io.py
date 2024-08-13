@@ -153,9 +153,9 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       solreffriction=jp.zeros((ncon, mujoco.mjNREF), dtype=float),
       solimp=jp.zeros((ncon, mujoco.mjNIMP), dtype=float),
       dim=dim,
-      geom1=jp.full((ncon,), -1, dtype=int),
-      geom2=jp.full((ncon,), -1, dtype=int),
-      geom=jp.full((ncon, 2), -1, dtype=int),
+      geom1=jp.full((ncon,), -1, dtype=jp.int32),
+      geom2=jp.full((ncon,), -1, dtype=jp.int32),
+      geom=jp.full((ncon, 2), -1, dtype=jp.int32),
       efc_address=efc_address,
   )
 
