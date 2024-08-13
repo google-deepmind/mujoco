@@ -1706,7 +1706,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
 // count frictional constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
-  int nf = 0, nnzf = 0;
+  int nf = 0;
   int nv = m->nv, ntendon = m->ntendon;
 
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
@@ -1716,19 +1716,15 @@ static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
   for (int i=0; i < nv; i++) {
     if (m->dof_frictionloss[i] > 0) {
       nf += mj_addConstraintCount(m, 1, 1);
-      nnzf++;
+      if (nnz) *nnz += 1;
     }
   }
 
   for (int i=0; i < ntendon; i++) {
     if (m->tendon_frictionloss[i] > 0) {
       nf += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-      nnzf += d->ten_J_rownnz[i];
+      if (nnz) *nnz += d->ten_J_rownnz[i];
     }
-  }
-
-  if (nnz) {
-    *nnz += nnzf;
   }
 
   return nf;
@@ -1738,7 +1734,7 @@ static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
 
 // count limit constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
-  int nnzl = 0, nl = 0;
+  int nl = 0;
   int ntendon = m->ntendon;
   int side;
   mjtNum margin, value, dist;
@@ -1763,7 +1759,7 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
         dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
         if (dist < margin) {
           nl += mj_addConstraintCount(m, 1, 1);
-          nnzl++;
+          if (nnz) *nnz += 1;
         }
       }
     }
@@ -1777,7 +1773,7 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
       dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
       if (dist < margin) {
         nl += mj_addConstraintCount(m, 1, 3);
-        nnzl += 3;
+        if (nnz) *nnz += 3;
       }
     }
   }
@@ -1792,15 +1788,12 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
         dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
         if (dist < margin) {
           nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-          nnzl += d->ten_J_rownnz[i];
+          if (nnz) *nnz += d->ten_J_rownnz[i];
         }
       }
     }
   }
 
-  if (nnz) {
-    *nnz += nnzl;
-  }
   return nl;
 }
 
