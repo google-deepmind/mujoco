@@ -2077,10 +2077,8 @@ double mjCGeom::GetVolume() const {
       switch (typeinertia) {
         case mjINERTIA_SHELL:
           return 4 * mjPI * radius * radius;
-          break;
         case mjINERTIA_VOLUME:
           return 4 * mjPI * radius * radius * radius / 3;
-          break;
       }
     }
     break;
@@ -2090,10 +2088,8 @@ double mjCGeom::GetVolume() const {
       switch (typeinertia) {
         case mjINERTIA_SHELL:
           return 4 * mjPI * radius * radius + 2 * mjPI * radius * height;
-          break;
         case mjINERTIA_VOLUME:
           return mjPI * (radius * radius * height + 4 * radius * radius * radius / 3);
-          break;
       }
     }
     break;
@@ -2103,10 +2099,8 @@ double mjCGeom::GetVolume() const {
       switch (typeinertia) {
         case mjINERTIA_SHELL:
           return 2 * mjPI * radius * radius + 2 * mjPI * radius * height;
-          break;
         case mjINERTIA_VOLUME:
           return mjPI * radius * radius * height;
-          break;
       }
     }
     break;
@@ -2120,11 +2114,9 @@ double mjCGeom::GetVolume() const {
                        std::pow(size[1] * size[2], p) +
                        std::pow(size[2] * size[0], p);
           return 4 * mjPI * std::pow(tmp / 3, 1 / p);
-          break;
         }
         case mjINERTIA_VOLUME:
           return 4 * mjPI * size[0] * size[1] * size[2] / 3;
-          break;
       }
     }
     break;
@@ -2133,15 +2125,11 @@ double mjCGeom::GetVolume() const {
       switch (typeinertia) {
         case mjINERTIA_SHELL:
           return 8 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
-          break;
         case mjINERTIA_VOLUME:
           return size[0] * size[1] * size[2] * 8;
-          break;
       }
     }
     break;
-    default:
-      return 0;
   }
   return 0;
 }
