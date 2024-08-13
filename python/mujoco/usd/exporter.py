@@ -27,7 +27,6 @@ from PIL import Image as im
 from PIL import ImageOps
 import scipy
 import termcolor
-import tqdm
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
@@ -209,7 +208,7 @@ class USDExporter:
     """Load textures."""
     data_adr = 0
     self.texture_files = []
-    for texture_id in tqdm.tqdm(range(self.model.ntex)):
+    for texture_id in range(self.model.ntex):
       texture_height = self.model.tex_height[texture_id]
       texture_width = self.model.tex_width[texture_id]
       texture_nchannel = self.model.tex_nchannel[texture_id]
@@ -251,13 +250,13 @@ class USDExporter:
 
     assert geom_name not in self.geom_names
 
-    texture_file = (
-        self.texture_files[
-            self.model.mat_texid[geom.matid][mujoco.mjTEXROLE_RGB]
-        ]
-        if geom.matid != -1
-        else None
-    )
+    if geom.matid == -1:
+      geom_textures = []
+    else:
+      geom_textures = [
+          (self.texture_files[i], self.model.tex_type[i]) if i != -1 else None
+          for i in self.model.mat_texid[geom.matid]
+      ]
 
     # handling meshes in our scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
@@ -268,7 +267,7 @@ class USDExporter:
           obj_name=geom_name,
           dataid=self.model.geom_dataid[geom.objid],
           rgba=geom.rgba,
-          texture_file=texture_file,
+          geom_textures=geom_textures,
       )
     else:
       # handling tendons in our scene
@@ -282,10 +281,11 @@ class USDExporter:
         usd_geom = object_module.USDTendon(
             mesh_config=mesh_config,
             stage=self.stage,
+            model=self.model,
             geom=geom,
             obj_name=geom_name,
             rgba=geom.rgba,
-            texture_file=texture_file,
+            geom_textures=geom_textures,
         )
       # handling primitives in our scene
       else:
@@ -297,10 +297,11 @@ class USDExporter:
         usd_geom = object_module.USDPrimitiveMesh(
             mesh_config=mesh_config,
             stage=self.stage,
+            model=self.model,
             geom=geom,
             obj_name=geom_name,
             rgba=geom.rgba,
-            texture_file=texture_file,
+            geom_textures=geom_textures,
         )
 
     self.geom_names.add(geom_name)
