@@ -39,8 +39,6 @@
 
 namespace {
 
-using std::size_t;
-using std::string;
 using tinyxml2::XMLComment;
 using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
@@ -64,7 +62,7 @@ class mj_XMLPrinter : public tinyxml2::XMLPrinter {
 
 
 // save XML file using custom 2-space indentation
-static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
+static std::string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   doc.ClearError();
   mj_XMLPrinter stream(nullptr, /*compact=*/false);
   doc.Print(&stream);
@@ -72,7 +70,7 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
     mjCopyError(error, doc.ErrorStr(), error_sz);
     return "";
   }
-  std::string str = string(stream.CStr());
+  std::string str = std::string(stream.CStr());
 
   // top level sections
   std::array<std::string, 17> sections = {
@@ -86,10 +84,10 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
 
   // insert newlines before section headers
   for (const std::string& section : sections) {
-    size_t pos = 0;
+    std::size_t pos = 0;
     while ((pos = str.find(section, pos)) != std::string::npos) {
       // find newline before this section
-      size_t line_pos = str.rfind('\n', pos);
+      std::size_t line_pos = str.rfind('\n', pos);
 
       // save position of first section
       if (line_pos < first_pos) first_pos = line_pos;
@@ -127,7 +125,7 @@ XMLElement* mjXWriter::InsertEnd(XMLElement* parent, const char* name) {
 
 // write flex
 void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* pflex) {
-  string text;
+  std::string text;
   mjCFlex defflex;
 
   // common attributes
@@ -195,7 +193,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* pflex) {
 
 // write mesh
 void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* pmesh, mjCDef* def) {
-  string text;
+  std::string text;
 
   // regular
   if (!writingdefaults) {
@@ -203,60 +201,60 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* pmesh, mjCDef* def) {
     if (pmesh->classname != "main") {
       WriteAttrTxt(elem, "class", pmesh->classname);
     }
-    WriteAttrTxt(elem, "content_type", pmesh->get_content_type());
-    WriteAttrTxt(elem, "file", pmesh->get_file());
+    WriteAttrTxt(elem, "content_type", pmesh->ContentType());
+    WriteAttrTxt(elem, "file", pmesh->File());
 
     // write vertex data
-    if (!pmesh->get_uservert().empty()) {
-      text = VectorToString(pmesh->get_uservert());
+    if (!pmesh->UserVert().empty()) {
+      text = VectorToString(pmesh->UserVert());
       WriteAttrTxt(elem, "vertex", text);
     }
 
     // write normal data
-    if (!pmesh->get_usernormal().empty()) {
-      text = VectorToString(pmesh->get_usernormal());
+    if (!pmesh->UserNormal().empty()) {
+      text = VectorToString(pmesh->UserNormal());
       WriteAttrTxt(elem, "normal", text);
     }
 
     // write texcoord data
-    if (!pmesh->get_usertexcoord().empty()) {
-      text = VectorToString(pmesh->get_usertexcoord());
+    if (!pmesh->UserTexcoord().empty()) {
+      text = VectorToString(pmesh->UserTexcoord());
       WriteAttrTxt(elem, "texcoord", text);
     }
 
     // write face data
-    if (!pmesh->get_userface().empty()) {
-      text = VectorToString(pmesh->get_userface());
+    if (!pmesh->UserFace().empty()) {
+      text = VectorToString(pmesh->UserFace());
       WriteAttrTxt(elem, "face", text);
     }
   }
 
   // defaults and regular
-  WriteAttr(elem, "refpos", 3, pmesh->refpos, def->Mesh().refpos);
-  WriteAttr(elem, "refquat", 4, pmesh->refquat, def->Mesh().refquat);
-  WriteAttr(elem, "scale", 3, pmesh->scale, def->Mesh().scale);
-  WriteAttrKey(elem, "smoothnormal", bool_map, 2, pmesh->get_smoothnormal(),
-               def->Mesh().get_smoothnormal());
+  WriteAttr(elem, "refpos", 3, pmesh->Refpos(), def->Mesh().Refpos());
+  WriteAttr(elem, "refquat", 4, pmesh->Refquat(), def->Mesh().Refquat());
+  WriteAttr(elem, "scale", 3, pmesh->Scale(), def->Mesh().Scale());
+  WriteAttrKey(elem, "smoothnormal", bool_map, 2, pmesh->SmoothNormal(),
+               def->Mesh().SmoothNormal());
 }
 
 
 
 // write skin
 void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* pskin) {
-  string text;
+  std::string text;
   mjCDef mydef;
   float zero = 0;
 
   // write attributes
   WriteAttrTxt(elem, "name", pskin->name);
-  WriteAttrTxt(elem, "file", pskin->get_file());
+  WriteAttrTxt(elem, "file", pskin->File());
   WriteAttrTxt(elem, "material", pskin->get_material());
   WriteAttrInt(elem, "group", pskin->group, 0);
   WriteAttr(elem, "rgba", 4, pskin->rgba, mydef.Geom().rgba);
   WriteAttr(elem, "inflate", 1, &pskin->inflate, &zero);
 
   // write data if no file
-  if (pskin->get_file().empty()) {
+  if (pskin->File().empty()) {
     // mesh vert
     text = VectorToString(pskin->get_vert());
     WriteAttrTxt(elem, "vertex", text);
@@ -846,7 +844,7 @@ void mjXWriter::SetModel(const mjSpec* spec) {
 
 
 // save existing model in MJCF canonical format, must be compiled
-string mjXWriter::Write(char *error, size_t error_sz) {
+std::string mjXWriter::Write(char *error, size_t error_sz) {
   // check model
   if (!model || !model->IsCompiled()) {
     mjCopyError(error, "XML Write error: Only compiled model can be written", error_sz);
@@ -862,7 +860,7 @@ string mjXWriter::Write(char *error, size_t error_sz) {
   doc.InsertFirstChild(root);
 
   // write comment if present
-  string text = mjs_getString(model->comment);
+  std::string text = mjs_getString(model->comment);
   if (!text.empty()) {
     XMLComment* comment = doc.NewComment(text.c_str());
     root->LinkEndChild(comment);
@@ -1456,7 +1454,7 @@ void mjXWriter::Asset(XMLElement* root) {
     else if (ptex->get_cubefiles()[0].empty() && ptex->get_cubefiles()[1].empty() &&
              ptex->get_cubefiles()[2].empty() && ptex->get_cubefiles()[3].empty() &&
              ptex->get_cubefiles()[4].empty() && ptex->get_cubefiles()[5].empty() &&
-             ptex->get_file().empty() && ptex->gridsize[0] == 1 && ptex->gridsize[1] == 1) {
+             ptex->File().empty() && ptex->gridsize[0] == 1 && ptex->gridsize[1] == 1) {
       throw mjXError(0, "no support for buffer textures.");
     }
 
@@ -1464,7 +1462,7 @@ void mjXWriter::Asset(XMLElement* root) {
     else {
       // write single file
       WriteAttrTxt(elem, "content_type", ptex->get_content_type());
-      WriteAttrTxt(elem, "file", ptex->get_file());
+      WriteAttrTxt(elem, "file", ptex->File());
 
       // write separate files
       WriteAttrTxt(elem, "fileright", ptex->get_cubefiles()[0]);
@@ -1501,10 +1499,10 @@ void mjXWriter::Asset(XMLElement* root) {
   for (int i=0; i<nmesh; i++) {
     // create element and write
     mjCMesh* pmesh = (mjCMesh*)model->GetObject(mjOBJ_MESH, i);
-    if (pmesh->plugin.active) {
+    if (pmesh->Plugin().active) {
       elem = InsertEnd(section, "mesh");
       WriteAttrTxt(elem, "name", pmesh->name);
-      OnePlugin(InsertEnd(elem, "plugin"), &pmesh->plugin);
+      OnePlugin(InsertEnd(elem, "plugin"), &pmesh->Plugin());
     } else{
       elem = InsertEnd(section, "mesh");
       OneMesh(elem, pmesh, model->def_map[pmesh->classname]);
@@ -1527,7 +1525,7 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrInt(elem, "nrow", phf->nrow);
       WriteAttrInt(elem, "ncol", phf->ncol);
       if (!phf->get_userdata().empty()) {
-        string text;
+        std::string text;
         Vector2String(text, phf->get_userdata(), phf->ncol);
         WriteAttrTxt(elem, "elevation", text);
       }

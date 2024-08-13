@@ -788,9 +788,6 @@ class mjCMesh_ : public mjCBase {
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
-  friend class mjCModel;
-  friend class mjCFlexcomp;
-  friend class mjXWriter;
  public:
   mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCMesh(const mjCMesh& other);
@@ -804,20 +801,24 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void CopyFromSpec(void);
   void PointToLocal(void);
 
-  // public getters and setters
-  const std::string& get_content_type() const { return content_type_; }
-  const std::string& get_file() const { return file_; }
-  const double* get_refpos() const { return refpos; }
-  const double* get_refquat() const { return refquat; }
-  const double* get_scale() const { return scale; }
-  bool get_smoothnormal() const { return smoothnormal; }
-  void set_needhull(bool needhull);
+  // accessors
+  const mjsPlugin& Plugin() const { return plugin; }
+  const std::string& ContentType() const { return content_type_; }
+  const std::string& File() const { return file_; }
+  const double* Refpos() const { return refpos; }
+  const double* Refquat() const { return refquat; }
+  const double* Scale() const { return scale; }
+  bool SmoothNormal() const { return smoothnormal; }
+  const std::vector<float>& Vert() const { return vert_; }
+  float Vert(int i) const { return vert_[i]; }
+  const std::vector<float>& UserVert() const { return spec_vert_; }
+  const std::vector<float>& UserNormal() const { return spec_normal_; }
+  const std::vector<float>& UserTexcoord() const { return spec_texcoord_; }
+  const std::vector<int>& Face() const { return face_; }
+  const std::vector<int>& UserFace() const { return spec_face_; }
 
-  // public getters for user data
-  const std::vector<float>& get_uservert() const { return spec_vert_; }
-  const std::vector<float>& get_usernormal() const { return spec_normal_; }
-  const std::vector<float>& get_usertexcoord() const { return spec_texcoord_; }
-  const std::vector<int>& get_userface() const { return spec_face_; }
+  // setters
+  void SetNeedHull(bool needhull) { needhull_ = needhull; }
 
   // mesh properties computed by Compile
   const double* aamm() const { return aamm_; }
@@ -858,23 +859,27 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   // sets properties of a bounding volume given a face id
   void SetBoundingVolume(int faceid);
 
+  void LoadOBJ(mjResource* resource);  // load mesh in wavefront OBJ format
+  void LoadSTL(mjResource* resource);  // load mesh in STL BIN format
+  void LoadMSH(mjResource* resource);  // load mesh in MSH BIN format
+
+  void RemoveRepeated();               // remove repeated vertices
+
  private:
-  void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
-  // load OBJ from cache asset, return true on success
-  bool LoadCachedOBJ(mjCCache *cache, const mjResource* resource);
-  // put OBJ into asset cache
-  void CacheOBJ(mjCCache *cache, const mjResource* resource);
-  void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
-  void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
+  // load mesh from cache asset, return true on success (OBJ files are only supported)
+  bool LoadCachedMesh(mjCCache *cache, const mjResource* resource);
+  // store mesh into asset cache (OBJ files are only supported)
+  void CacheMesh(mjCCache *cache, const mjResource* resource,
+                 std::string_view asset_type);
+
   void LoadSDF();                             // generate mesh using marching cubes
-  void MakeGraph(void);                       // make graph of convex hull
-  void CopyGraph(void);                       // copy graph into face data
-  void MakeNormal(void);                      // compute vertex normals
-  void MakeCenter(void);                      // compute face circumcircle data
+  void MakeGraph();                           // make graph of convex hull
+  void CopyGraph();                           // copy graph into face data
+  void MakeNormal();                          // compute vertex normals
+  void MakeCenter();                          // compute face circumcircle data
   void Process();                             // compute inertial properties
   void ApplyTransformations();                // apply user transformations
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
-  void RemoveRepeated(void);                  // remove repeated vertices
   void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
 
   // mesh data to be copied into mjModel
@@ -940,7 +945,7 @@ class mjCSkin: public mjCSkin_, private mjsSkin {
   using mjCBase::name;
   using mjCBase::info;
 
-  const std::string& get_file() const { return file_; }
+  const std::string& File() const { return file_; }
   const std::string& get_material() const { return material_; }
   const std::vector<float>& get_vert() const { return vert_; }
   const std::vector<float>& get_texcoord() const { return texcoord_; }
@@ -997,7 +1002,7 @@ class mjCHField : public mjCHField_, private mjsHField {
   void CopyFromSpec(void);
   void PointToLocal(void);
 
-  std::string get_file() const { return file_; }
+  std::string File() const { return file_; }
 
   // getter for user data
   std::vector<float>& get_userdata() { return userdata_; }
@@ -1044,7 +1049,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   void CopyFromSpec(void);
   void PointToLocal(void);
 
-  std::string get_file() const { return file_; }
+  std::string File() const { return file_; }
   std::string get_content_type() const { return content_type_; }
   std::vector<std::string> get_cubefiles() const { return cubefiles_; }
 
@@ -1194,13 +1199,12 @@ class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
   std::string get_bodyname1() const { return bodyname1_; }
   std::string get_bodyname2() const { return bodyname2_; }
 
-  int GetSignature(void) {
+  int GetSignature() {
     return signature;
   }
 
  private:
-
-  void Compile(void);              // compiler
+  void Compile();              // compiler
 };
 
 

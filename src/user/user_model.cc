@@ -1310,7 +1310,7 @@ void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
   for (int i=0; i<assets.size(); i++) {
     assets[i]->CopyFromSpec();
     if (assets[i]->name.empty()) {
-      stripped = mjuu_strippath(assets[i]->get_file());
+      stripped = mjuu_strippath(assets[i]->File());
       assets[i]->name = mjuu_stripext(stripped);
       names[assets[i]->name].push_back(i);
     }
@@ -1365,8 +1365,8 @@ template <typename T>
 static size_t getpathslength(std::vector<T> list) {
   size_t result = 0;
   for (const auto& element : list) {
-    if (!element->get_file().empty()) {
-      result += element->get_file().length() + 1;
+    if (!element->File().empty()) {
+      result += element->File().length() + 1;
     }
   }
 
@@ -1827,10 +1827,10 @@ template <class T>
 static int pathlist(vector<T*>& list, int adr, int* path_adr, char* paths) {
   for (unsigned int i = 0; i < list.size(); ++i) {
     path_adr[i] = -1;
-    if (!list[i] || list[i]->get_file().empty()) {
+    if (!list[i] || list[i]->File().empty()) {
       continue;
     }
-    adr = addtolist(list[i]->get_file(), adr, &path_adr[i], paths);
+    adr = addtolist(list[i]->File(), adr, &path_adr[i], paths);
   }
 
   return adr;
@@ -2310,7 +2310,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhnum[i] = pme->tree().Nbvh();
     m->mesh_bvhadr[i] = pme->tree().Nbvh() ? bvh_adr : -1;
-    mjuu_copyvec(&m->mesh_scale[3 * i], pme->get_scale(), 3);
+    mjuu_copyvec(&m->mesh_scale[3 * i], pme->Scale(), 3);
     mjuu_copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
     mjuu_copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 
@@ -3466,7 +3466,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     if (geoms_[i]->mesh &&
         (geoms_[i]->spec.type==mjGEOM_MESH || geoms_[i]->spec.type==mjGEOM_SDF) &&
         (geoms_[i]->spec.contype || geoms_[i]->spec.conaffinity)) {
-      geoms_[i]->mesh->set_needhull(true);
+      geoms_[i]->mesh->SetNeedHull(true);
     }
   }
 
