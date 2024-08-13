@@ -8,13 +8,7 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 1. Add :ref:`mjSpec` option for creating a texture from a buffer.
-
-Upcoming version (not yet released)
------------------------------------
-
-General
-^^^^^^^
-- :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
+2. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
 
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------
