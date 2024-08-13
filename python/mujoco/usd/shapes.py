@@ -26,7 +26,7 @@ def get_triangle_uvs(
     texture_type: Optional[mujoco.mjtTexture]
 ):
   """Returns UV coordinates for a given mesh."""
-  if not texture_type:
+  if texture_type is None:
     return None
 
   triangle_uvs = []
@@ -110,7 +110,7 @@ class TriangleMesh:
       height: float,
       depth: float,
       texture_type: Optional[mujoco.mjtTexture]
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a box."""
     vertices = np.array([[0.0, 0.0, 0.0],
                          [width, 0.0, 0.0],
@@ -144,7 +144,7 @@ class TriangleMesh:
       radius: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a sphere."""
     vertices = []
     triangles = []
@@ -178,7 +178,7 @@ class TriangleMesh:
       radius: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int,
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a hemisphere."""
     vertices = []
     triangles = []
@@ -218,7 +218,7 @@ class TriangleMesh:
       height: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a cylinder."""
     vertices = []
     triangles = []

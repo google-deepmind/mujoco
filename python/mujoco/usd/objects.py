@@ -392,8 +392,14 @@ class USDPrimitiveMesh(USDObject):
         if self.geom.size[1] > 0:
           t_scale *= self.geom.size[1]
 
-      mesh_texcoord[:, 0] *= s_scale / (self.geom.size[0] * 2)
-      mesh_texcoord[:, 1] *= t_scale / (self.geom.size[1] * 2)
+      s_size, t_size = self.geom.size[:2]
+      if self.geom.type == mujoco.mjtGeom.mjGEOM_PLANE:
+        s_size = s_size if s_size > 0 else 1
+        t_size = t_size if t_size > 0 else 1
+
+      if self.model.mat_texuniform[self.geom.matid]:
+        mesh_texcoord[:, 0] *= s_scale / (s_size * 2)
+        mesh_texcoord[:, 1] *= t_scale / (t_size * 2)
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 
