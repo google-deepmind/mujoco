@@ -567,7 +567,7 @@ outputs of derivative functions are the trailing rather than leading arguments.
 
 .. _mjd_transitionFD:
 
-Finite-differenced discrete-time transition matrices.
+Compute finite-differenced discrete-time transition matrices.
 
 Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
@@ -588,12 +588,27 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
-- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
-  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
-  all calls to the solver will perform exactly the same number of iterations.
+- The Runge-Kutta integrator (:ref:`mjINT_RK4<mjtIntegrator>`) is not supported.
 
-.. attention::
-   - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
+.. admonition:: Improving speed and accuracy
+   :class: tip
+
+   warmstart
+     If warm-starts are not :ref:`disabled<option-flag-warmstart>`, the warm-start accelerations
+     ``mjData.qacc_warmstart`` which are present at call-time are loaded at the start of every relevant pipeline call,
+     to preserve determinism. If solver computations are an expensive part of the simulation, the following trick can
+     lead to significant speed-ups: First call :ref:`mj_forward` to let the solver converge, then reduce :ref:`solver
+     iterations<option-iterations>` significantly, then call :ref:`mjd_transitionFD`, finally, restore the original
+     value of :ref:`iterations<option-iterations>`. Because we are already near the solution, few iteration are required
+     to find the new minimum. This is especially true for the :ref:`Newton<option-solver>` solver, where the required
+     number of iteration for convergence near the minimum can be as low as 1.
+
+   tolerance
+      Accuracy can be improved if solver :ref:`tolerance<option-tolerance>` is set to 0. This means that all calls to
+      the solver will perform exactly the same number of iterations, preventing numerical errors due to early
+      termination. Of course, this means that :ref:`solver iterations<option-iterations>` should be small, to not tread
+      water at the minimum. This method and the one described above can and should be combined.
+
 
 .. _mjd_inverseFD:
 
