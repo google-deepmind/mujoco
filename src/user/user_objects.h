@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
 #include <cstddef>
+#include <array>
 #include <cstdlib>
 #include <functional>
 #include <map>
@@ -401,10 +402,10 @@ class mjCJoint_ : public mjCBase {
   mjCBody* body;                   // joint's body
 
   // variable used for temporarily storing the state of the joint
-  int qposadr_;                    // address of dof in data->qpos
-  int dofadr_;                     // address of dof in data->qvel
-  mjtNum qpos[7];                  // qpos at the previous step
-  mjtNum qvel[6];                  // qvel at the previous step
+  int qposadr_;                                        // address of dof in data->qpos
+  int dofadr_;                                         // address of dof in data->qvel
+  std::map<std::string, std::array<mjtNum, 7>> qpos_;  // qpos at the previous step
+  std::map<std::string, std::array<mjtNum, 6>> qvel_;  // qvel at the previous step
 
   // variable-size data
   std::vector<double> userdata_;
@@ -442,6 +443,9 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   static int nv(mjtJoint joint_type);
   int nq() const { return nq(spec.type); }
   int nv() const { return nv(spec.type); }
+
+  mjtNum* qpos();
+  mjtNum* qvel();
 
  private:
   int Compile(void);               // compiler; return dofnum
@@ -1390,9 +1394,9 @@ class mjCActuator_ : public mjCBase {
   int trnid[2];                   // id of transmission target
 
   // variable used for temporarily storing the state of the actuator
-  int actadr_;              // address of dof in data->act
-  int actdim_;              // number of dofs in data->act
-  std::vector<mjtNum> act;  // act at the previous step
+  int actadr_;                                      // address of dof in data->act
+  int actdim_;                                      // number of dofs in data->act
+  std::map<std::string, std::vector<mjtNum>> act_;  // act at the previous step
 
   // variable-size data
   std::string plugin_name;
@@ -1430,6 +1434,8 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   bool is_ctrllimited() const;
   bool is_forcelimited() const;
   bool is_actlimited() const;
+
+  std::vector<mjtNum>& act();
 
  private:
   void Compile(void);                       // compiler

@@ -109,6 +109,9 @@ mjCModel::mjCModel() {
 
   // this class allocated the plugins
   plugin_owner = true;
+
+  // default state name
+  state_name_ = "state";
 }
 
 
@@ -2862,14 +2865,17 @@ void mjCModel::CopyObjects(mjModel* m) {
 template <class T>
 void mjCModel::SaveState(const T* qpos, const T* qvel, const T* act) {
   for (auto joint : joints_) {
-    if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, joint->nq());
-    if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, joint->nv());
+    if (joint->qposadr_ == -1 || joint->dofadr_ == -1) {
+      throw mjCError(NULL, "SaveState: joint %s has no address", joint->name.c_str());
+    }
+    if (qpos) mjuu_copyvec(joint->qpos(), qpos + joint->qposadr_, joint->nq());
+    if (qvel) mjuu_copyvec(joint->qvel(), qvel + joint->dofadr_, joint->nv());
   }
 
   for (auto actuator : actuators_) {
-    if (actuator->actadr_ != -1 && act) {
-      actuator->act.assign(actuator->actdim_, 0);
-      mjuu_copyvec(actuator->act.data(), act + actuator->actadr_, actuator->actdim_);
+    if (actuator->actadr_ != -1 && actuator->actdim_ != -1 && act) {
+      actuator->act().assign(actuator->actdim_, 0);
+      mjuu_copyvec(actuator->act().data(), act + actuator->actadr_, actuator->actdim_);
     }
   }
 }
@@ -2893,21 +2899,21 @@ template <class T>
 void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act) {
   for (auto joint : joints_) {
     if (qpos) {
-      if (mjuu_defined(joint->qpos[0])) {
-        mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, joint->nq());
+      if (mjuu_defined(joint->qpos()[0])) {
+        mjuu_copyvec(qpos + joint->qposadr_, joint->qpos(), joint->nq());
       } else {
         mjuu_copyvec(qpos + joint->qposadr_, pos0 + joint->qposadr_, joint->nq());
       }
     }
-    if (mjuu_defined(joint->qvel[0]) && qvel) {
-      mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, joint->nv());
+    if (mjuu_defined(joint->qvel()[0]) && qvel) {
+      mjuu_copyvec(qvel + joint->dofadr_, joint->qvel(), joint->nv());
     }
   }
 
   // restore act
   for (auto actuator : actuators_) {
-    if (mjuu_defined(actuator->act[0]) && act) {
-      mjuu_copyvec(act + actuator->actadr_, actuator->act.data(), actuator->actdim_);
+    if (!actuator->act().empty() && mjuu_defined(actuator->act()[0]) && act) {
+      mjuu_copyvec(act + actuator->actadr_, actuator->act().data(), actuator->actdim_);
     }
   }
 }
@@ -2941,8 +2947,8 @@ void mjCModel::StoreKeyframes() {
     info.qvel = !key->spec_qvel_.empty();
     info.act = !key->spec_act_.empty();
     key_pending_.push_back(info);
+    state_name_ = info.name;
     SaveState(key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
-    break;  // (b/350784262) save only the first keyframe for now
   }
 
   if (resetlists) {
@@ -3512,6 +3518,7 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
     if (info.qpos) key->spec_qpos_.assign(nq, 0);
     if (info.qvel) key->spec_qvel_.assign(nv, 0);
     if (info.act) key->spec_act_.assign(na, 0);
+    state_name_ = info.name;
     RestoreState(m->qpos0, key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
   }
 

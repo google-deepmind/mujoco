@@ -1408,8 +1408,8 @@ void mjCBody::ComputeBVH() {
 // reset keyframe references for allowing self-attach
 void mjCBody::ForgetKeyframes() const {
   for (auto joint : joints) {
-    joint->qpos[0] = mjNAN;
-    joint->qvel[0] = mjNAN;
+    joint->qpos_.clear();
+    joint->qvel_.clear();
   }
   for (auto body : bodies) {
     body->ForgetKeyframes();
@@ -1769,8 +1769,8 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   CopyFromSpec();
 
   // no previous state when a joint is created
-  qpos[0] = mjNAN;
-  qvel[0] = mjNAN;
+  qposadr_ = -1;
+  dofadr_ = -1;
 }
 
 
@@ -1824,6 +1824,24 @@ int mjCJoint::nv(mjtJoint joint_type) {
       return 1;
   }
   return 1;
+}
+
+
+
+mjtNum* mjCJoint::qpos() {
+  if (qpos_.find(model->state_name_) == qpos_.end()) {
+    qpos_[model->state_name_] = {mjNAN, 0, 0, 0, 0, 0, 0};
+  }
+  return qpos_.at(model->state_name_).data();
+}
+
+
+
+mjtNum* mjCJoint::qvel() {
+  if (qvel_.find(model->state_name_) == qvel_.end()) {
+    qvel_[model->state_name_] = {mjNAN, 0, 0, 0, 0, 0};
+  }
+  return qvel_.at(model->state_name_).data();
 }
 
 
@@ -5349,7 +5367,8 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   PointToLocal();
 
   // no previous state when an actuator is created
-  act.push_back(mjNAN);
+  actadr_ = -1;
+  actdim_ = -1;
 }
 
 
@@ -5374,8 +5393,7 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
 
 
 void mjCActuator::ForgetKeyframes() {
-  act.clear();
-  act.push_back(mjNAN);
+  act_.clear();
 }
 
 
@@ -5383,6 +5401,15 @@ void mjCActuator::ForgetKeyframes() {
 bool mjCActuator::is_ctrllimited() const { return islimited(ctrllimited, ctrlrange); }
 bool mjCActuator::is_forcelimited() const { return islimited(forcelimited, forcerange); }
 bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange); }
+
+
+
+std::vector<mjtNum>& mjCActuator::act() {
+  if (act_.find(model->state_name_) == act_.end()) {
+    act_[model->state_name_] = std::vector<mjtNum>(model->nu, mjNAN);
+  }
+  return act_.at(model->state_name_);
+}
 
 
 
