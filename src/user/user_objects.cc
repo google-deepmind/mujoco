@@ -2128,15 +2128,15 @@ double mjCGeom::GetVolume() const {
     return mesh->GetVolumeRef(typeinertia);
   }
 
-  // compute from geom shape (type) and inertia (typeinertia)
+  // compute from geom shape (type) and inertia type (typeinertia)
   switch (type) {
     case mjGEOM_SPHERE: {
       double radius = size[0];
       switch (typeinertia) {
-        case mjINERTIA_SHELL:
-          return 4 * mjPI * radius * radius;
         case mjINERTIA_VOLUME:
           return 4 * mjPI * radius * radius * radius / 3;
+        case mjINERTIA_SHELL:
+          return 4 * mjPI * radius * radius;
       }
       break;
     }
@@ -2144,10 +2144,10 @@ double mjCGeom::GetVolume() const {
       double height = 2 * size[1];
       double radius = size[0];
       switch (typeinertia) {
-        case mjINERTIA_SHELL:
-          return 4 * mjPI * radius * radius + 2 * mjPI * radius * height;
         case mjINERTIA_VOLUME:
           return mjPI * (radius * radius * height + 4 * radius * radius * radius / 3);
+        case mjINERTIA_SHELL:
+          return 4 * mjPI * radius * radius + 2 * mjPI * radius * height;
       }
       break;
     }
@@ -2155,15 +2155,17 @@ double mjCGeom::GetVolume() const {
       double height = 2 * size[1];
       double radius = size[0];
       switch (typeinertia) {
-        case mjINERTIA_SHELL:
-          return 2 * mjPI * radius * radius + 2 * mjPI * radius * height;
         case mjINERTIA_VOLUME:
           return mjPI * radius * radius * height;
+        case mjINERTIA_SHELL:
+          return 2 * mjPI * radius * radius + 2 * mjPI * radius * height;
       }
       break;
     }
     case mjGEOM_ELLIPSOID: {
       switch (typeinertia) {
+        case mjINERTIA_VOLUME:
+          return 4 * mjPI * size[0] * size[1] * size[2] / 3;
         case mjINERTIA_SHELL: {
           // Thomsen approximation
           // https://www.numericana.com/answer/ellipsoid.htm#thomsen
@@ -2173,18 +2175,16 @@ double mjCGeom::GetVolume() const {
                        std::pow(size[2] * size[0], p);
           return 4 * mjPI * std::pow(tmp / 3, 1 / p);
         }
-        case mjINERTIA_VOLUME:
-          return 4 * mjPI * size[0] * size[1] * size[2] / 3;
       }
       break;
     }
     case mjGEOM_HFIELD:
     case mjGEOM_BOX: {
       switch (typeinertia) {
-        case mjINERTIA_SHELL:
-          return 8 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
         case mjINERTIA_VOLUME:
           return size[0] * size[1] * size[2] * 8;
+        case mjINERTIA_SHELL:
+          return 8 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
       }
       break;
     }
@@ -2223,15 +2223,15 @@ void mjCGeom::SetInertia(void) {
     return;
   }
 
-  // compute from geom shape (type) and inertia (typeinertia)
+  // compute from geom shape (type) and inertia type (typeinertia)
   switch (type) {
     case mjGEOM_SPHERE: {
       switch (typeinertia) {
-        case mjINERTIA_SHELL:
-          inertia[0] = inertia[1] = inertia[2] = 2 * mass_ * size[0] * size[0] / 3;
-          return;
         case mjINERTIA_VOLUME:
           inertia[0] = inertia[1] = inertia[2] = 2 * mass_ * size[0] * size[0] / 5;
+          return;
+        case mjINERTIA_SHELL:
+          inertia[0] = inertia[1] = inertia[2] = 2 * mass_ * size[0] * size[0] / 3;
           return;
       }
       break;
@@ -2241,6 +2241,22 @@ void mjCGeom::SetInertia(void) {
       double height = 2 * size[1];
       double radius = size[0];
       switch (typeinertia) {
+        case mjINERTIA_VOLUME: {
+          double sphere_mass =
+              mass_ * 4 * radius / (4 * radius + 3 * height);  // mass*(sphere_vol/total_vol)
+          double cylinder_mass = mass_ - sphere_mass;
+
+          // cylinder part
+          inertia[0] = inertia[1] = cylinder_mass * (3 * radius * radius + height * height) / 12;
+          inertia[2] = cylinder_mass * radius * radius / 2;
+
+          // add two hemispheres, displace along third axis
+          double sphere_inertia = 2 * sphere_mass * radius * radius / 5;
+          inertia[0] += sphere_inertia + sphere_mass * height * (3 * radius + 2 * height) / 8;
+          inertia[1] += sphere_inertia + sphere_mass * height * (3 * radius + 2 * height) / 8;
+          inertia[2] += sphere_inertia;
+          return;
+        }
         case mjINERTIA_SHELL: {
           // surface area
           double Asphere = 4 * mjPI * radius * radius;
@@ -2264,22 +2280,6 @@ void mjCGeom::SetInertia(void) {
           inertia[2] += sphere_inertia;
           return;
         }
-        case mjINERTIA_VOLUME: {
-          double sphere_mass =
-              mass_ * 4 * radius / (4 * radius + 3 * height);  // mass*(sphere_vol/total_vol)
-          double cylinder_mass = mass_ - sphere_mass;
-
-          // cylinder part
-          inertia[0] = inertia[1] = cylinder_mass * (3 * radius * radius + height * height) / 12;
-          inertia[2] = cylinder_mass * radius * radius / 2;
-
-          // add two hemispheres, displace along third axis
-          double sphere_inertia = 2 * sphere_mass * radius * radius / 5;
-          inertia[0] += sphere_inertia + sphere_mass * height * (3 * radius + 2 * height) / 8;
-          inertia[1] += sphere_inertia + sphere_mass * height * (3 * radius + 2 * height) / 8;
-          inertia[2] += sphere_inertia;
-          return;
-        }
         break;
       }
       break;
@@ -2289,6 +2289,10 @@ void mjCGeom::SetInertia(void) {
       double height = 2 * halfheight;
       double radius = size[0];
       switch (typeinertia) {
+        case mjINERTIA_VOLUME:
+          inertia[0] = inertia[1] = mass_ * (3 * radius * radius + height * height) / 12;
+          inertia[2] = mass_ * radius * radius / 2;
+          return;
         case mjINERTIA_SHELL: {
           // surface area
           double Adisk = mjPI * radius * radius;
@@ -2314,10 +2318,6 @@ void mjCGeom::SetInertia(void) {
           inertia[2] += 2 * inertia_disk_z;
           return;
         }
-        case mjINERTIA_VOLUME:
-          inertia[0] = inertia[1] = mass_ * (3 * radius * radius + height * height) / 12;
-          inertia[2] = mass_ * radius * radius / 2;
-          return;
       }
       break;
     }
@@ -2326,6 +2326,12 @@ void mjCGeom::SetInertia(void) {
       double s11 = size[1] * size[1];
       double s22 = size[2] * size[2];
       switch (typeinertia) {
+        case mjINERTIA_VOLUME: {
+          inertia[0] = mass_ * (s11 + s22) / 5;
+          inertia[1] = mass_ * (s00 + s22) / 5;
+          inertia[2] = mass_ * (s00 + s11) / 5;
+          return;
+        }
         case mjINERTIA_SHELL: {
           // approximate shell inertia by subtracting ellipsoid from expanded ellipsoid
           double eps = 1e-6;
@@ -2361,12 +2367,6 @@ void mjCGeom::SetInertia(void) {
           inertia[2] = inertia_b[2] - inertia_a[2];
           return;
         }
-        case mjINERTIA_VOLUME: {
-          inertia[0] = mass_ * (s11 + s22) / 5;
-          inertia[1] = mass_ * (s00 + s22) / 5;
-          inertia[2] = mass_ * (s00 + s11) / 5;
-          return;
-        }
       }
       break;
     }
@@ -2376,6 +2376,12 @@ void mjCGeom::SetInertia(void) {
       double s11 = size[1] * size[1];
       double s22 = size[2] * size[2];
       switch (typeinertia) {
+        case mjINERTIA_VOLUME: {
+          inertia[0] = mass_ * (s11 + s22) / 3;
+          inertia[1] = mass_ * (s00 + s22) / 3;
+          inertia[2] = mass_ * (s00 + s11) / 3;
+          return;
+        }
         case mjINERTIA_SHELL: {
           // length
           double lx = 2 * size[0];  // side 0
@@ -2410,12 +2416,6 @@ void mjCGeom::SetInertia(void) {
           inertia[0] = 2 * (mass0 * s22 + mass2 * s11 + Ix0 + Ix1 + Ix2);
           inertia[1] = 2 * (mass0 * s22 + mass1 * s00 + Iy0 + Iy1 + Iy2);
           inertia[2] = 2 * (mass1 * s00 + mass2 * s11 + Iz0 + Iz1 + Iz2);
-          return;
-        }
-        case mjINERTIA_VOLUME: {
-          inertia[0] = mass_ * (s11 + s22) / 3;
-          inertia[1] = mass_ * (s00 + s22) / 3;
-          inertia[2] = mass_ * (s00 + s11) / 3;
           return;
         }
         break;
