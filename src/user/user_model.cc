@@ -2952,6 +2952,7 @@ void mjCModel::StoreKeyframes() {
   for (auto key : keys_) {
     mjKeyInfo info;
     info.name = prefix + key->name + suffix;
+    info.time = key->spec.time;
     info.qpos = !key->spec_qpos_.empty();
     info.qvel = !key->spec_qvel_.empty();
     info.act = !key->spec_act_.empty();
@@ -3529,6 +3530,7 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
   for (const auto& info : key_pending_) {
     mjCKey* key = (mjCKey*)FindObject(mjOBJ_KEY, info.name);
     key->name = info.name;
+    key->spec.time = info.time;
     if (info.qpos) key->spec_qpos_.assign(nq, 0);
     if (info.qvel) key->spec_qvel_.assign(nv, 0);
     if (info.act) key->spec_act_.assign(na, 0);

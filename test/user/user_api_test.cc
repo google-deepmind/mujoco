@@ -430,8 +430,8 @@ static constexpr char xml_child[] = R"(
     </contact>
 
     <keyframe>
-      <key name="two" qpos="2" act="2 2" ctrl="2 2"/>
-      <key name="three" qpos="3" act="3 3" ctrl="3 3"/>
+      <key name="two" time="2" qpos="2" act="2 2" ctrl="2 2"/>
+      <key name="three" time="3" qpos="3" act="3 3" ctrl="3 3"/>
     </keyframe>
   </mujoco>)";
 
@@ -501,10 +501,10 @@ TEST_F(MujocoTest, AttachSame) {
     </contact>
 
     <keyframe>
-      <key name="two" qpos="2 0" act="2 2 0 0" ctrl="2 2 0 0"/>
-      <key name="three" qpos="3 0" act="3 3 0 0" ctrl="3 3 0 0"/>
-      <key name="attached-two-1" qpos="0 2" act="0 0 2 2" ctrl="0 0 2 2"/>
-      <key name="attached-three-1" qpos="0 3" act="0 0 3 3" ctrl="0 0 3 3"/>
+      <key name="two" time="2" qpos="2 0" act="2 2 0 0" ctrl="2 2 0 0"/>
+      <key name="three" time="3" qpos="3 0" act="3 3 0 0" ctrl="3 3 0 0"/>
+      <key name="attached-two-1" time="2" qpos="0 2" act="0 0 2 2" ctrl="0 0 2 2"/>
+      <key name="attached-three-1" time="3" qpos="0 3" act="0 0 3 3" ctrl="0 0 3 3"/>
     </keyframe>
   </mujoco>)";
 
@@ -621,8 +621,8 @@ TEST_F(MujocoTest, AttachDifferent) {
     </contact>
 
     <keyframe>
-      <key name="attached-two-1" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
-      <key name="attached-three-1" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
+      <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
+      <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
     </keyframe>
   </mujoco>)";
 
@@ -743,8 +743,8 @@ TEST_F(MujocoTest, AttachFrame) {
     </contact>
 
     <keyframe>
-      <key name="attached-two-1" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
-      <key name="attached-three-1" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
+      <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
+      <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
     </keyframe>
   </mujoco>)";
 

@@ -36,6 +36,7 @@ typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
 typedef struct mjKeyInfo_ {
   std::string name;
+  double time;
   bool qpos;
   bool qvel;
   bool act;
