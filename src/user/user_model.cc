@@ -2863,7 +2863,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 // save the current state
 template <class T>
-void mjCModel::SaveState(const T* qpos, const T* qvel, const T* act) {
+void mjCModel::SaveState(const T* qpos, const T* qvel, const T* act, const T* ctrl) {
   for (auto joint : joints_) {
     if (joint->qposadr_ == -1 || joint->dofadr_ == -1) {
       throw mjCError(NULL, "SaveState: joint %s has no address", joint->name.c_str());
@@ -2872,10 +2872,14 @@ void mjCModel::SaveState(const T* qpos, const T* qvel, const T* act) {
     if (qvel) mjuu_copyvec(joint->qvel(), qvel + joint->dofadr_, joint->nv());
   }
 
-  for (auto actuator : actuators_) {
+  for (unsigned int i=0; i<actuators_.size(); i++) {
+    auto actuator = actuators_[i];
     if (actuator->actadr_ != -1 && actuator->actdim_ != -1 && act) {
       actuator->act().assign(actuator->actdim_, 0);
       mjuu_copyvec(actuator->act().data(), act + actuator->actadr_, actuator->actdim_);
+    }
+    if (ctrl) {
+      actuator->ctrl() = ctrl[i];
     }
   }
 }
@@ -2896,7 +2900,7 @@ void mjCModel::MakeData(const mjModel* m, mjData** dest) {
 
 // restore the previous state
 template <class T>
-void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act) {
+void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act, T* ctrl) {
   for (auto joint : joints_) {
     if (qpos) {
       if (mjuu_defined(joint->qpos()[0])) {
@@ -2911,9 +2915,13 @@ void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act) {
   }
 
   // restore act
-  for (auto actuator : actuators_) {
+  for (unsigned int i=0; i<actuators_.size(); i++) {
+    auto actuator = actuators_[i];
     if (!actuator->act().empty() && mjuu_defined(actuator->act()[0]) && act) {
       mjuu_copyvec(act + actuator->actadr_, actuator->act().data(), actuator->actdim_);
+    }
+    if (ctrl) {
+      ctrl[i] = mjuu_defined(actuator->ctrl()) ? actuator->ctrl() : 0;
     }
   }
 }
@@ -2923,10 +2931,11 @@ void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act) {
 // force explicit instantiations
 template void mjCModel::SaveState<mjtNum>(const mjtNum* qpos,
                                           const mjtNum* qvel,
-                                          const mjtNum* act);
+                                          const mjtNum* act,
+                                          const mjtNum* ctrl);
 
 template void mjCModel::RestoreState<mjtNum>(const mjtNum* qpos0, mjtNum* qpos,
-                                             mjtNum* qvel, mjtNum* act);
+                                             mjtNum* qvel, mjtNum* act, mjtNum* ctrl);
 
 
 
@@ -2946,9 +2955,11 @@ void mjCModel::StoreKeyframes() {
     info.qpos = !key->spec_qpos_.empty();
     info.qvel = !key->spec_qvel_.empty();
     info.act = !key->spec_act_.empty();
+    info.ctrl = !key->spec_ctrl_.empty();
     key_pending_.push_back(info);
     state_name_ = info.name;
-    SaveState(key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
+    SaveState(key->spec_qpos_.data(), key->spec_qvel_.data(),
+              key->spec_act_.data(), key->spec_ctrl_.data());
   }
 
   if (resetlists) {
@@ -3506,6 +3517,9 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
     if (!key->spec_act_.empty()) {
       key->spec_act_.resize(na);
     }
+    if (!key->spec_ctrl_.empty()) {
+      key->spec_ctrl_.resize(nu);
+    }
   }
 
   // store dof offsets in joints and actuators
@@ -3518,8 +3532,10 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
     if (info.qpos) key->spec_qpos_.assign(nq, 0);
     if (info.qvel) key->spec_qvel_.assign(nv, 0);
     if (info.act) key->spec_act_.assign(na, 0);
+    if (info.ctrl) key->spec_ctrl_.assign(nu, 0);
     state_name_ = info.name;
-    RestoreState(m->qpos0, key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
+    RestoreState(m->qpos0, key->spec_qpos_.data(), key->spec_qvel_.data(),
+                           key->spec_act_.data(), key->spec_ctrl_.data());
   }
 
   // the attached keyframes have been copied into the model

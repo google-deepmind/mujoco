@@ -39,6 +39,7 @@ typedef struct mjKeyInfo_ {
   bool qpos;
   bool qvel;
   bool act;
+  bool ctrl;
 } mjKeyInfo;
 
 class mjCModel_ : public mjsElement {
@@ -283,8 +284,8 @@ class mjCModel : public mjCModel_, private mjSpec {
                                          std::string_view name = "");
 
   // save/restore the current state
-  template <class T> void SaveState(const T* qpos, const T* qvel, const T* act);
-  template <class T> void RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act);
+  template <class T> void SaveState(const T* qpos, const T* qvel, const T* act, const T* ctrl);
+  template <class T> void RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act, T* ctrl);
 
   // clear existing data
   void MakeData(const mjModel* m, mjData** dest);

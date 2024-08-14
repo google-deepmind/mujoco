@@ -5394,6 +5394,7 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
 
 void mjCActuator::ForgetKeyframes() {
   act_.clear();
+  ctrl_.clear();
 }
 
 
@@ -5409,6 +5410,15 @@ std::vector<mjtNum>& mjCActuator::act() {
     act_[model->state_name_] = std::vector<mjtNum>(model->nu, mjNAN);
   }
   return act_.at(model->state_name_);
+}
+
+
+
+mjtNum& mjCActuator::ctrl() {
+  if (ctrl_.find(model->state_name_) == ctrl_.end()) {
+    ctrl_[model->state_name_] = mjNAN;
+  }
+  return ctrl_.at(model->state_name_);
 }
 
 

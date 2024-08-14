@@ -1397,6 +1397,7 @@ class mjCActuator_ : public mjCBase {
   int actadr_;                                      // address of dof in data->act
   int actdim_;                                      // number of dofs in data->act
   std::map<std::string, std::vector<mjtNum>> act_;  // act at the previous step
+  std::map<std::string, mjtNum> ctrl_;              // ctrl at the previous step
 
   // variable-size data
   std::string plugin_name;
@@ -1436,6 +1437,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   bool is_actlimited() const;
 
   std::vector<mjtNum>& act();
+  mjtNum& ctrl();
 
  private:
   void Compile(void);                       // compiler
