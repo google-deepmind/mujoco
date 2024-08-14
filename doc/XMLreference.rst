@@ -3808,7 +3808,6 @@ all attachments will appear in the saved XML file.
    - An entire model cannot be attached (i.e. including all elements, referenced or not).
    - All assets from the child model will be copied in, whether they are referenced or not.
    - Self-attach or circular references are not checked for and will lead to infinite loops.
-   - :ref:`Keyframes<keyframe>` are not yet supported. When attaching, all keyframes will be deleted.
 
 .. _body-attach-model:
 

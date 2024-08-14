@@ -870,6 +870,8 @@ TEST_F(MujocoTest, PreserveState) {
         <joint type="slide" axis="0 0 1" name="slide"/>
         <geom type="sphere" size=".2"/>
       </body>
+      <body name="mocap_detach" mocap="true"/>
+      <body name="mocap" mocap="true"/>
     </worldbody>
     <actuator>
       <position name="hinge" joint="hinge" timeconst=".01"/>
@@ -888,6 +890,7 @@ TEST_F(MujocoTest, PreserveState) {
         <joint type="slide" axis="0 0 1"/>
         <geom type="sphere" size=".3"/>
       </body>
+      <body name="mocap" mocap="true"/>
     </worldbody>
     <actuator>
       <position name="slide" joint="slide" timeconst=".01"/>
@@ -915,6 +918,14 @@ TEST_F(MujocoTest, PreserveState) {
   data->ctrl[1] = 2;
   d_expected->ctrl[0] = 2;
 
+  // set mocap
+  data->mocap_pos[3] = 1;
+  data->mocap_quat[4] = 0;
+  data->mocap_quat[5] = 1;
+  d_expected->mocap_pos[0] = 1;
+  d_expected->mocap_quat[0] = 0;
+  d_expected->mocap_quat[1] = 1;
+
   // step models
   mj_step(model, data);
   mj_step(m_expected, d_expected);
@@ -924,6 +935,11 @@ TEST_F(MujocoTest, PreserveState) {
   mjsBody* body = mjs_findBody(spec, "detachable");
   EXPECT_THAT(body, NotNull());
   EXPECT_THAT(mjs_detachBody(spec, body), 0);
+
+  // detach mocap
+  mjsBody* mocap_body = mjs_findBody(spec, "mocap_detach");
+  EXPECT_THAT(mocap_body, NotNull());
+  EXPECT_THAT(mjs_detachBody(spec, mocap_body), 0);
 
   // add body
   mjsBody* newbody = mjs_addBody(mjs_findBody(spec, "world"), 0);
@@ -968,12 +984,86 @@ TEST_F(MujocoTest, PreserveState) {
     EXPECT_EQ(data->act[i], d_expected->act[i]) << i;
   }
 
+  // compare mocap
+  EXPECT_EQ(model->nmocap, m_expected->nmocap);
+  for (int i = 0; i < model->nmocap; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_EQ(data->mocap_pos[3*i+j], d_expected->mocap_pos[3*i+j]) << i;
+    }
+    for (int j = 0; j < 4; ++j) {
+      EXPECT_EQ(data->mocap_quat[4*i+j], d_expected->mocap_quat[4*i+j]) << i;
+    }
+  }
+
   // check that the function is callable with no data
   mj_deleteData(data);
   mj_recompile(spec, 0, model, nullptr);
 
   // destroy everything
   mj_deleteData(d_expected);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteModel(m_expected);
+}
+
+TEST_F(MujocoTest, AttachMocap) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="1 1 1" quat="0 1 0 0" name="mocap" mocap="true"/>
+    </worldbody>
+    <keyframe>
+      <key name="key" time="1" mpos="2 2 2" mquat="1 0 0 0"/>
+    </keyframe>
+  </mujoco>)";
+
+  static constexpr char xml_expected[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="1 1 1" quat="0 1 0 0" name="mocap" mocap="true"/>
+      <body pos="3 3 3" quat="0 0 1 0" name="attached-mocap-1" mocap="true"/>
+    </worldbody>
+    <keyframe>
+      <key name="key" time="1" mpos="2 2 2 3 3 3" mquat="1 0 0 0 0 0 1 0"/>
+      <key name="attached-key-1" time="1" mpos="1 1 1 2 2 2" mquat="0 1 0 0 1 0 0 0"/>
+    </keyframe>
+  </mujoco>)";
+
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(spec, NotNull()) << er.data();
+
+  mjsBody* body = mjs_findBody(spec, "mocap");
+  EXPECT_THAT(body, NotNull());
+
+  mjsBody* world = mjs_findBody(spec, "world");
+  EXPECT_THAT(world, NotNull());
+
+  mjsFrame* frame = mjs_addFrame(world, NULL);
+  mjs_attachBody(frame, body, "attached-", "-1");
+
+  mjsBody* attached_body = mjs_findBody(spec, "attached-mocap-1");
+  EXPECT_THAT(attached_body, NotNull());
+  attached_body->pos[0] = 3;
+  attached_body->pos[1] = 3;
+  attached_body->pos[2] = 3;
+  attached_body->quat[0] = 0;
+  attached_body->quat[1] = 0;
+  attached_body->quat[2] = 1;
+  attached_body->quat[3] = 0;
+
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull());
+
+  mjModel* m_expected = LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, m_expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
   mj_deleteSpec(spec);
   mj_deleteModel(model);
   mj_deleteModel(m_expected);

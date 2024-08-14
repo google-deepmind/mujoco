@@ -1411,9 +1411,29 @@ void mjCBody::ForgetKeyframes() const {
     joint->qpos_.clear();
     joint->qvel_.clear();
   }
+  model->FindBody((mjCBody*)this, name)->mpos_.clear();  // this is a hack to avoid const
+  model->FindBody((mjCBody*)this, name)->mquat_.clear();  // this is a hack to avoid const
   for (auto body : bodies) {
     body->ForgetKeyframes();
   }
+}
+
+
+
+mjtNum* mjCBody::mpos(const std::string& state_name) {
+  if (mpos_.find(state_name) == mpos_.end()) {
+    mpos_[state_name] = {mjNAN, 0, 0};
+  }
+  return mpos_.at(state_name).data();
+}
+
+
+
+mjtNum* mjCBody::mquat(const std::string& state_name) {
+  if (mquat_.find(state_name) == mquat_.end()) {
+    mquat_[state_name] = {mjNAN, 0, 0, 0};
+  }
+  return mquat_.at(state_name).data();
 }
 
 
@@ -1828,20 +1848,20 @@ int mjCJoint::nv(mjtJoint joint_type) {
 
 
 
-mjtNum* mjCJoint::qpos() {
-  if (qpos_.find(model->state_name_) == qpos_.end()) {
-    qpos_[model->state_name_] = {mjNAN, 0, 0, 0, 0, 0, 0};
+mjtNum* mjCJoint::qpos(const std::string& state_name) {
+  if (qpos_.find(state_name) == qpos_.end()) {
+    qpos_[state_name] = {mjNAN, 0, 0, 0, 0, 0, 0};
   }
-  return qpos_.at(model->state_name_).data();
+  return qpos_.at(state_name).data();
 }
 
 
 
-mjtNum* mjCJoint::qvel() {
-  if (qvel_.find(model->state_name_) == qvel_.end()) {
-    qvel_[model->state_name_] = {mjNAN, 0, 0, 0, 0, 0};
+mjtNum* mjCJoint::qvel(const std::string& state_name) {
+  if (qvel_.find(state_name) == qvel_.end()) {
+    qvel_[state_name] = {mjNAN, 0, 0, 0, 0, 0};
   }
-  return qvel_.at(model->state_name_).data();
+  return qvel_.at(state_name).data();
 }
 
 
@@ -5405,20 +5425,20 @@ bool mjCActuator::is_actlimited() const { return islimited(actlimited, actrange)
 
 
 
-std::vector<mjtNum>& mjCActuator::act() {
-  if (act_.find(model->state_name_) == act_.end()) {
-    act_[model->state_name_] = std::vector<mjtNum>(model->nu, mjNAN);
+std::vector<mjtNum>& mjCActuator::act(const std::string& state_name) {
+  if (act_.find(state_name) == act_.end()) {
+    act_[state_name] = std::vector<mjtNum>(model->nu, mjNAN);
   }
-  return act_.at(model->state_name_);
+  return act_.at(state_name);
 }
 
 
 
-mjtNum& mjCActuator::ctrl() {
-  if (ctrl_.find(model->state_name_) == ctrl_.end()) {
-    ctrl_[model->state_name_] = mjNAN;
+mjtNum& mjCActuator::ctrl(const std::string& state_name) {
+  if (ctrl_.find(state_name) == ctrl_.end()) {
+    ctrl_[state_name] = mjNAN;
   }
-  return ctrl_.at(model->state_name_);
+  return ctrl_.at(state_name);
 }
 
 

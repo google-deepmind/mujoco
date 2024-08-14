@@ -7,10 +7,9 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Add :ref:`mjSpec` option for creating a texture from a buffer.
+1. Added :ref:`mjSpec` option for creating a texture from a buffer.
 2. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
-3. Add support for :ref:`attaching<meAttachment>` keyframes. Note: this only supports keyframe containing qpos, qvel,
-   and act.
+3. Added support for :ref:`attaching<meAttachment>` keyframes.
 
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------

@@ -255,6 +255,10 @@ class mjCBody_ : public mjCBase {
   std::string plugin_instance_name;
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
+
+  // variables used for temporarily storing the state of the mocap bodies
+  std::map<std::string, std::array<mjtNum, 3>> mpos_;   // saved mocap_pos
+  std::map<std::string, std::array<mjtNum, 4>> mquat_;  // saved mocap_quat
 };
 
 class mjCBody : public mjCBody_, private mjsBody {
@@ -322,6 +326,10 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
+
+  // get mocap position and quaternion
+  mjtNum* mpos(const std::string& state_name);
+  mjtNum* mquat(const std::string& state_name);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -444,8 +452,8 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   int nq() const { return nq(spec.type); }
   int nv() const { return nv(spec.type); }
 
-  mjtNum* qpos();
-  mjtNum* qvel();
+  mjtNum* qpos(const std::string& state_name);
+  mjtNum* qvel(const std::string& state_name);
 
  private:
   int Compile(void);               // compiler; return dofnum
@@ -1436,8 +1444,8 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   bool is_forcelimited() const;
   bool is_actlimited() const;
 
-  std::vector<mjtNum>& act();
-  mjtNum& ctrl();
+  std::vector<mjtNum>& act(const std::string& state_name);
+  mjtNum& ctrl(const std::string& state_name);
 
  private:
   void Compile(void);                       // compiler

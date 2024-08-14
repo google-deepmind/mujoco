@@ -41,6 +41,8 @@ typedef struct mjKeyInfo_ {
   bool qvel;
   bool act;
   bool ctrl;
+  bool mpos;
+  bool mquat;
 } mjKeyInfo;
 
 class mjCModel_ : public mjsElement {
@@ -284,9 +286,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
 
-  // save/restore the current state
-  template <class T> void SaveState(const T* qpos, const T* qvel, const T* act, const T* ctrl);
-  template <class T> void RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act, T* ctrl);
+  // save the current state
+  template <class T>
+  void SaveState(const std::string& state_name, const T* qpos, const T* qvel, const T* act,
+                 const T* ctrl, const T* mpos, const T* mquat);
+
+  // restore the previously saved state
+  template <class T>
+  void RestoreState(const std::string& state_name, const mjtNum* pos0, const mjtNum* mpos0,
+                    const mjtNum* mquat0, T* qpos, T* qvel, T* act, T* ctrl, T* mpos, T* mquat);
 
   // clear existing data
   void MakeData(const mjModel* m, mjData** dest);
@@ -383,7 +391,5 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCError errInfo;   // last error info
   bool plugin_owner;  // this class allocated the plugins
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
-
-  std::string state_name_;
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

@@ -93,15 +93,17 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 // recompile spec into existing model and data while preserving the state
 void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  std::string state_name = "state";
   mjtNum time = 0;
   if (d) {
     time = d->time;
-    modelC->SaveState(d->qpos, d->qvel, d->act, d->ctrl);
+    modelC->SaveState(state_name, d->qpos, d->qvel, d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
   }
   modelC->Compile(vfs, &m);
   if (d) {
     modelC->MakeData(m, &d);
-    modelC->RestoreState(m->qpos0, d->qpos, d->qvel, d->act, d->ctrl);
+    modelC->RestoreState(state_name, m->qpos0, m->body_pos, m->body_quat, d->qpos, d->qvel,
+                         d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
     d->time = time;
   }
 }
