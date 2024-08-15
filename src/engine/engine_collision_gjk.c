@@ -203,8 +203,8 @@ static void gjk_support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* ob
   mju_scl3(dir, dir_neg, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
-  mjc_support(s1, obj1, dir);
-  mjc_support(s2, obj2, dir_neg);
+  obj1->support(s1, obj1, dir);
+  obj2->support(s2, obj2, dir_neg);
 }
 
 
@@ -218,8 +218,8 @@ static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
   mju_scl3(dir_neg, dir, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
-  mjc_support(s1, obj1, dir);
-  mjc_support(s2, obj2, dir_neg);
+  obj1->support(s1, obj1, dir);
+  obj2->support(s2, obj2, dir_neg);
 }
 
 
@@ -1007,8 +1007,8 @@ int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
   mjCCDObj* o2 = (mjCCDObj*) obj2;
   nearest.n[1] = 34;
 
-  mjc_center(o1->x0, o1);
-  mjc_center(o2->x0, o2);
+  o1->center(o1->x0, o1);
+  o2->center(o2->x0, o2);
 
   config.max_iterations = ccd->max_iterations;
   config.tolerance = ccd->mpr_tolerance;

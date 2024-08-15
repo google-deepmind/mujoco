@@ -50,8 +50,10 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 mjtNum run_gjk(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
                mjtNum x2[3]) {
   mjCCDConfig config = {kMaxIterations, kTolerance};
-  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
   mjc_center(obj1.x0, &obj1);
   mjc_center(obj2.x0, &obj2);
   mjtNum dist = mj_gjk(&config, &obj1, &obj2);
@@ -63,8 +65,10 @@ mjtNum run_gjk(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
 
 mjtNum run_gjkPenetration(mjModel* m, mjData* d, int g1, int g2,
                           mjtNum dir[3] = nullptr, mjtNum pos[3] = nullptr) {
-  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
   ccd_t ccd;
   ccd.mpr_tolerance = kTolerance;
   ccd.epa_tolerance = kTolerance;
@@ -194,6 +198,31 @@ TEST_F(MjGjkTest, EllipsoidEllipsoid) {
   mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
 
   EXPECT_NEAR(dist, 0.7542, .0001);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom name="geom1" type="ellipsoid" pos="1.5 0 -.5" size="2.25 4.5 3"/>
+    <geom name="geom2" type="ellipsoid" pos="1.5 .5 .5" size="1.5 1.5 2.25"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
+
+  EXPECT_NEAR(dist, 0, kTolerance);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
