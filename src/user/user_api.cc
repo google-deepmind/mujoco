@@ -606,6 +606,9 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 
 // get id
 int mjs_getId(mjsElement* element) {
+  if (!element) {
+    return -1;
+  }
   return static_cast<mjCBase*>(element)->id;
 }
 

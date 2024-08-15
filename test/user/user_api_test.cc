@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -102,6 +103,41 @@ TEST_F(MujocoTest, TreeTraversal) {
   EXPECT_EQ(s_el4, nullptr);
 
   mj_deleteSpec(spec);
+}
+
+TEST_F(PluginTest, ActivatePlugin) {
+  std::string plugin_name = "mujoco.elasticity.cable";
+  mjSpec* spec = mj_makeSpec();
+
+  // get slot of requested plugin
+  int plugin_slot = -1;
+  const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
+  EXPECT_THAT(plugin, NotNull());
+
+  // activated plugin in the slot
+  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
+  active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
+  mjs_setActivePlugins(spec, &active_plugins);
+
+  // associate plugin to body
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  mjs_setString(body->plugin.name, plugin_name.c_str());
+  body->plugin.instance = mjs_addPlugin(spec)->instance;
+  body->plugin.active = true;
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  geom->type = mjGEOM_BOX;
+  geom->size[0] = 1;
+  geom->size[1] = 1;
+  geom->size[2] = 1;
+
+  // compile and check that the plugin is present
+  mjModel* model = mj_compile(spec, NULL);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nplugin, 1);
+  EXPECT_THAT(model->body_plugin[1], 0);
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
 }
 
 // ------------------- test recompilation multiple files -----------------------

@@ -1017,9 +1017,12 @@ PYBIND11_MODULE(_specs, m) {
   mjsTuple.def("delete", [](raw::MjsTuple& self) { mjs_delete(self.element); });
 
   // ============================= MJSPLUGIN ===================================
-  mjsPlugin.def_property_readonly("id", [](raw::MjsPlugin& self) -> int {
-    return mjs_getId(self.instance);
-  });
+  mjsPlugin.def_property(
+      "id",
+      [](raw::MjsPlugin& self) -> int { return mjs_getId(self.instance); },
+      [](raw::MjsPlugin& self, raw::MjsPlugin* other) {
+        self.instance = other->instance;
+      });
   mjsPlugin.def("delete",
                 [](raw::MjsPlugin& self) { mjs_delete(self.instance); });
 
