@@ -1319,115 +1319,115 @@ void mjXReader::Statistic(XMLElement* section) {
 //---------------------------------- one-element parsers -------------------------------------------
 
 // flex element parser
-void mjXReader::OneFlex(XMLElement* elem, mjsFlex* pflex) {
+void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   string text, name, material;
   int n;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pflex->name, name.c_str());
+    mjs_setString(flex->name, name.c_str());
   }
   if (ReadAttrTxt(elem, "material", material)) {
-    mjs_setString(pflex->material, material.c_str());
+    mjs_setString(flex->material, material.c_str());
   }
 
-  ReadAttr(elem, "radius", 1, &pflex->radius, text);
-  ReadAttr(elem, "rgba", 4, pflex->rgba, text);
+  ReadAttr(elem, "radius", 1, &flex->radius, text);
+  ReadAttr(elem, "rgba", 4, flex->rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
-    pflex->flatskin = (n==1);
+    flex->flatskin = (n==1);
   }
-  ReadAttrInt(elem, "dim", &pflex->dim);
-  ReadAttrInt(elem, "group", &pflex->group);
+  ReadAttrInt(elem, "dim", &flex->dim);
+  ReadAttrInt(elem, "group", &flex->group);
 
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
-    mjs_setStringVec(pflex->vertbody, text.c_str());
+    mjs_setStringVec(flex->vertbody, text.c_str());
   }
   auto vert = ReadAttrVec<double>(elem, "vertex");
   if (vert.has_value()) {
-    mjs_setDouble(pflex->vert, vert->data(), vert->size());
+    mjs_setDouble(flex->vert, vert->data(), vert->size());
   }
   auto element = ReadAttrVec<int>(elem, "element", true);
   if (element.has_value()) {
-    mjs_setInt(pflex->elem, element->data(), element->size());
+    mjs_setInt(flex->elem, element->data(), element->size());
   }
   auto texcoord = ReadAttrVec<float>(elem, "texcoord");
   if (texcoord.has_value()) {
-    mjs_setFloat(pflex->texcoord, texcoord->data(), texcoord->size());
+    mjs_setFloat(flex->texcoord, texcoord->data(), texcoord->size());
   }
 
   // contact subelement
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
-    ReadAttrInt(cont, "contype", &pflex->contype);
-    ReadAttrInt(cont, "conaffinity", &pflex->conaffinity);
-    ReadAttrInt(cont, "condim", &pflex->condim);
-    ReadAttrInt(cont, "priority", &pflex->priority);
-    ReadAttr(cont, "friction", 3, pflex->friction, text, false, false);
-    ReadAttr(cont, "solmix", 1, &pflex->solmix, text);
-    ReadAttr(cont, "solref", mjNREF, pflex->solref, text, false, false);
-    ReadAttr(cont, "solimp", mjNIMP, pflex->solimp, text, false, false);
-    ReadAttr(cont, "margin", 1, &pflex->margin, text);
-    ReadAttr(cont, "gap", 1, &pflex->gap, text);
+    ReadAttrInt(cont, "contype", &flex->contype);
+    ReadAttrInt(cont, "conaffinity", &flex->conaffinity);
+    ReadAttrInt(cont, "condim", &flex->condim);
+    ReadAttrInt(cont, "priority", &flex->priority);
+    ReadAttr(cont, "friction", 3, flex->friction, text, false, false);
+    ReadAttr(cont, "solmix", 1, &flex->solmix, text);
+    ReadAttr(cont, "solref", mjNREF, flex->solref, text, false, false);
+    ReadAttr(cont, "solimp", mjNIMP, flex->solimp, text, false, false);
+    ReadAttr(cont, "margin", 1, &flex->margin, text);
+    ReadAttr(cont, "gap", 1, &flex->gap, text);
     if (MapValue(cont, "internal", &n, bool_map, 2)) {
-      pflex->internal = (n==1);
+      flex->internal = (n==1);
     }
-    MapValue(cont, "selfcollide", &pflex->selfcollide, flexself_map, 5);
-    ReadAttrInt(cont, "activelayers", &pflex->activelayers);
+    MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
+    ReadAttrInt(cont, "activelayers", &flex->activelayers);
   }
 
   // edge subelement
   XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
-    ReadAttr(edge, "stiffness", 1, &pflex->edgestiffness, text);
-    ReadAttr(edge, "damping", 1, &pflex->edgedamping, text);
+    ReadAttr(edge, "stiffness", 1, &flex->edgestiffness, text);
+    ReadAttr(edge, "damping", 1, &flex->edgedamping, text);
   }
 
   // write error info
-  mjs_setString(pflex->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(flex->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // mesh element parser
-void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh, const mjVFS* vfs) {
+void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   int n;
   string text, name, content_type;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    *pmesh->name = name;
+    *mesh->name = name;
   }
   if (ReadAttrTxt(elem, "content_type", content_type)) {
-    *pmesh->content_type = content_type;
+    *mesh->content_type = content_type;
   }
   auto file = ReadAttrFile(elem, "file", vfs, MeshDir());
   if (file) {
-    mjs_setString(pmesh->file, file->c_str());
+    mjs_setString(mesh->file, file->c_str());
   }
-  ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
-  ReadAttr(elem, "refquat", 4, pmesh->refquat, text);
-  ReadAttr(elem, "scale", 3, pmesh->scale, text);
+  ReadAttr(elem, "refpos", 3, mesh->refpos, text);
+  ReadAttr(elem, "refquat", 4, mesh->refquat, text);
+  ReadAttr(elem, "scale", 3, mesh->scale, text);
 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
-    OnePlugin(eplugin, &pmesh->plugin);
+    OnePlugin(eplugin, &mesh->plugin);
   }
 
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
-    pmesh->smoothnormal = (n==1);
+    mesh->smoothnormal = (n==1);
   }
 
   if (ReadAttrInt(elem, "maxhullvert", &n)) {
     if (n != 0 && n < 4) throw mjXError(elem, "maxhullvert must be larger than 3");
-    pmesh->maxhullvert = n;
+    mesh->maxhullvert = n;
   }
 
   // read user vertex data
   if (ReadAttrTxt(elem, "vertex", text)) {
     auto uservert = ReadAttrVec<float>(elem, "vertex");
     if (uservert.has_value()) {
-      mjs_setFloat(pmesh->uservert, uservert->data(), uservert->size());
+      mjs_setFloat(mesh->uservert, uservert->data(), uservert->size());
     }
   }
 
@@ -1435,7 +1435,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh, const mjVFS* vfs) {
   if (ReadAttrTxt(elem, "normal", text)) {
     auto usernormal = ReadAttrVec<float>(elem, "normal");
     if (usernormal.has_value()) {
-      mjs_setFloat(pmesh->usernormal, usernormal->data(), usernormal->size());
+      mjs_setFloat(mesh->usernormal, usernormal->data(), usernormal->size());
     }
   }
 
@@ -1443,7 +1443,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh, const mjVFS* vfs) {
   if (ReadAttrTxt(elem, "texcoord", text)) {
     auto usertexcoord = ReadAttrVec<float>(elem, "texcoord");
     if (usertexcoord.has_value()) {
-      mjs_setFloat(pmesh->usertexcoord, usertexcoord->data(), usertexcoord->size());
+      mjs_setFloat(mesh->usertexcoord, usertexcoord->data(), usertexcoord->size());
     }
   }
 
@@ -1451,55 +1451,55 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* pmesh, const mjVFS* vfs) {
   if (ReadAttrTxt(elem, "face", text)) {
     auto userface = ReadAttrVec<int>(elem, "face");
     if (userface.has_value()) {
-      mjs_setInt(pmesh->userface, userface->data(), userface->size());
+      mjs_setInt(mesh->userface, userface->data(), userface->size());
     }
   }
 
   // write error info
-  mjs_setString(pmesh->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(mesh->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // skin element parser
-void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin, const mjVFS* vfs) {
+void mjXReader::OneSkin(XMLElement* elem, mjsSkin* skin, const mjVFS* vfs) {
   string text, name, material;
   float data[4];
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pskin->name, name.c_str());
+    mjs_setString(skin->name, name.c_str());
   }
   auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
   if (file.has_value()) {
-    mjs_setString(pskin->file, file->c_str());
+    mjs_setString(skin->file, file->c_str());
   }
   if (ReadAttrTxt(elem, "material", material)) {
-    mjs_setString(pskin->material, material.c_str());
+    mjs_setString(skin->material, material.c_str());
 }
-  ReadAttrInt(elem, "group", &pskin->group);
-  if (pskin->group<0 || pskin->group>=mjNGROUP) {
+  ReadAttrInt(elem, "group", &skin->group);
+  if (skin->group<0 || skin->group>=mjNGROUP) {
     throw mjXError(elem, "skin group must be between 0 and 5");
   }
-  ReadAttr(elem, "rgba", 4, pskin->rgba, text);
-  ReadAttr(elem, "inflate", 1, &pskin->inflate, text);
+  ReadAttr(elem, "rgba", 4, skin->rgba, text);
+  ReadAttr(elem, "inflate", 1, &skin->inflate, text);
 
   // read vertex data
   auto vertex = ReadAttrVec<float>(elem, "vertex");
   if (vertex.has_value()) {
-    mjs_setFloat(pskin->vert, vertex->data(), vertex->size());
+    mjs_setFloat(skin->vert, vertex->data(), vertex->size());
   }
 
   // read texcoord data
   auto texcoord = ReadAttrVec<float>(elem, "texcoord");
   if (texcoord.has_value()) {
-    mjs_setFloat(pskin->texcoord, texcoord->data(), texcoord->size());
+    mjs_setFloat(skin->texcoord, texcoord->data(), texcoord->size());
   }
 
   // read user face data
   auto face = ReadAttrVec<int>(elem, "face");
   if (face.has_value()) {
-    mjs_setInt(pskin->face, face->data(), face->size());
+    mjs_setInt(skin->face, face->data(), face->size());
   }
 
   // read bones
@@ -1510,7 +1510,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin, const mjVFS* vfs) {
   while (bone) {
     // read body
     ReadAttrTxt(bone, "body", text, true);
-    mjs_appendString(pskin->bodyname, text.c_str());
+    mjs_appendString(skin->bodyname, text.c_str());
 
     // read bindpos
     ReadAttr(bone, "bindpos", 3, data, text, true);
@@ -1528,13 +1528,13 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin, const mjVFS* vfs) {
     // read vertid
     auto tempid = ReadAttrVec<int>(bone, "vertid", true);
     if (tempid.has_value()) {
-      mjs_appendIntVec(pskin->vertid, tempid->data(), tempid->size());
+      mjs_appendIntVec(skin->vertid, tempid->data(), tempid->size());
     }
 
     // read vertweight
     auto tempweight = ReadAttrVec<float>(bone, "vertweight", true);
     if (tempweight.has_value()) {
-      mjs_appendFloatVec(pskin->vertweight, tempweight->data(), tempweight->size());
+      mjs_appendFloatVec(skin->vertweight, tempweight->data(), tempweight->size());
     }
 
     // advance to next bone
@@ -1542,28 +1542,28 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* pskin, const mjVFS* vfs) {
   }
 
   // set bind vectors
-  mjs_setFloat(pskin->bindpos, bindpos.data(), bindpos.size());
-  mjs_setFloat(pskin->bindquat, bindquat.data(), bindquat.size());
+  mjs_setFloat(skin->bindpos, bindpos.data(), bindpos.size());
+  mjs_setFloat(skin->bindquat, bindquat.data(), bindquat.size());
 
   // write error info
-  mjs_setString(pskin->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(skin->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // material element parser
-void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* pmat) {
+void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* material) {
   string text, name, texture;
   int n;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pmat->name, name.c_str());
+    mjs_setString(material->name, name.c_str());
   }
 
   bool tex_attributes_found = false;
   if (ReadAttrTxt(elem, "texture", texture)) {
-    mjs_setInStringVec(pmat->textures, mjTEXROLE_RGB, texture.c_str());
+    mjs_setInStringVec(material->textures, mjTEXROLE_RGB, texture.c_str());
     tex_attributes_found = true;
   }
 
@@ -1576,77 +1576,77 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* pmat) {
     int role = FindKey(texrole_map, texrole_sz, tex_elem->Name());
     string texmat;
     ReadAttrTxt(tex_elem, "texture", texmat, true);
-    mjs_setInStringVec(pmat->textures, role, texmat.c_str());
+    mjs_setInStringVec(material->textures, role, texmat.c_str());
     tex_elem = NextSiblingElement(tex_elem);
   }
 
   if (MapValue(elem, "texuniform", &n, bool_map, 2)) {
-    pmat->texuniform = (n==1);
+    material->texuniform = (n==1);
   }
-  ReadAttr(elem, "texrepeat", 2, pmat->texrepeat, text);
-  ReadAttr(elem, "emission", 1, &pmat->emission, text);
-  ReadAttr(elem, "specular", 1, &pmat->specular, text);
-  ReadAttr(elem, "shininess", 1, &pmat->shininess, text);
-  ReadAttr(elem, "reflectance", 1, &pmat->reflectance, text);
-  ReadAttr(elem, "metallic", 1, &pmat->metallic, text);
-  ReadAttr(elem, "roughness", 1, &pmat->roughness, text);
-  ReadAttr(elem, "rgba", 4, pmat->rgba, text);
+  ReadAttr(elem, "texrepeat", 2, material->texrepeat, text);
+  ReadAttr(elem, "emission", 1, &material->emission, text);
+  ReadAttr(elem, "specular", 1, &material->specular, text);
+  ReadAttr(elem, "shininess", 1, &material->shininess, text);
+  ReadAttr(elem, "reflectance", 1, &material->reflectance, text);
+  ReadAttr(elem, "metallic", 1, &material->metallic, text);
+  ReadAttr(elem, "roughness", 1, &material->roughness, text);
+  ReadAttr(elem, "rgba", 4, material->rgba, text);
 
   // write error info
-  mjs_setString(pmat->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(material->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // joint element parser
-void mjXReader::OneJoint(XMLElement* elem, mjsJoint* pjoint) {
+void mjXReader::OneJoint(XMLElement* elem, mjsJoint* joint) {
   string text, name;
   std::vector<double> userdata;
   int n;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pjoint->name, name.c_str());
+    mjs_setString(joint->name, name.c_str());
   }
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
-    pjoint->type = (mjtJoint)n;
+    joint->type = (mjtJoint)n;
   }
-  MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
-  MapValue(elem, "actuatorfrclimited", &pjoint->actfrclimited, TFAuto_map, 3);
-  ReadAttrInt(elem, "group", &pjoint->group);
-  ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
-  ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
-  ReadAttr(elem, "solreffriction", mjNREF, pjoint->solref_friction, text, false, false);
-  ReadAttr(elem, "solimpfriction", mjNIMP, pjoint->solimp_friction, text, false, false);
-  ReadAttr(elem, "pos", 3, pjoint->pos, text);
-  ReadAttr(elem, "axis", 3, pjoint->axis, text);
-  ReadAttr(elem, "springdamper", 2, pjoint->springdamper, text);
-  ReadAttr(elem, "stiffness", 1, &pjoint->stiffness, text);
-  ReadAttr(elem, "range", 2, pjoint->range, text);
-  ReadAttr(elem, "actuatorfrcrange", 2, pjoint->actfrcrange, text);
-  ReadAttr(elem, "margin", 1, &pjoint->margin, text);
-  ReadAttr(elem, "ref", 1, &pjoint->ref, text);
-  ReadAttr(elem, "springref", 1, &pjoint->springref, text);
-  ReadAttr(elem, "armature", 1, &pjoint->armature, text);
-  ReadAttr(elem, "damping", 1, &pjoint->damping, text);
-  ReadAttr(elem, "frictionloss", 1, &pjoint->frictionloss, text);
+  MapValue(elem, "limited", &joint->limited, TFAuto_map, 3);
+  MapValue(elem, "actuatorfrclimited", &joint->actfrclimited, TFAuto_map, 3);
+  ReadAttrInt(elem, "group", &joint->group);
+  ReadAttr(elem, "solreflimit", mjNREF, joint->solref_limit, text, false, false);
+  ReadAttr(elem, "solimplimit", mjNIMP, joint->solimp_limit, text, false, false);
+  ReadAttr(elem, "solreffriction", mjNREF, joint->solref_friction, text, false, false);
+  ReadAttr(elem, "solimpfriction", mjNIMP, joint->solimp_friction, text, false, false);
+  ReadAttr(elem, "pos", 3, joint->pos, text);
+  ReadAttr(elem, "axis", 3, joint->axis, text);
+  ReadAttr(elem, "springdamper", 2, joint->springdamper, text);
+  ReadAttr(elem, "stiffness", 1, &joint->stiffness, text);
+  ReadAttr(elem, "range", 2, joint->range, text);
+  ReadAttr(elem, "actuatorfrcrange", 2, joint->actfrcrange, text);
+  ReadAttr(elem, "margin", 1, &joint->margin, text);
+  ReadAttr(elem, "ref", 1, &joint->ref, text);
+  ReadAttr(elem, "springref", 1, &joint->springref, text);
+  ReadAttr(elem, "armature", 1, &joint->armature, text);
+  ReadAttr(elem, "damping", 1, &joint->damping, text);
+  ReadAttr(elem, "frictionloss", 1, &joint->frictionloss, text);
   if (MapValue(elem, "actuatorgravcomp", &n, bool_map, 2)) {
-    pjoint->actgravcomp = (n==1);
+    joint->actgravcomp = (n==1);
   }
 
   // read userdata
   if (ReadVector(elem, "user", userdata, text)) {
-    mjs_setDouble(pjoint->userdata, userdata.data(), userdata.size());
+    mjs_setDouble(joint->userdata, userdata.data(), userdata.size());
   }
 
   // write error info
-  mjs_setString(pjoint->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(joint->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // geom element parser
-void mjXReader::OneGeom(XMLElement* elem, mjsGeom* pgeom) {
+void mjXReader::OneGeom(XMLElement* elem, mjsGeom* geom) {
   string text, name;
   std::vector<double> userdata;
   std::string hfieldname, meshname, material;
@@ -1654,65 +1654,65 @@ void mjXReader::OneGeom(XMLElement* elem, mjsGeom* pgeom) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pgeom->name, name.c_str());
+    mjs_setString(geom->name, name.c_str());
   }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
-    pgeom->type = (mjtGeom)n;
+    geom->type = (mjtGeom)n;
   }
-  ReadAttr(elem, "size", 3, pgeom->size, text, false, false);
-  ReadAttrInt(elem, "contype", &pgeom->contype);
-  ReadAttrInt(elem, "conaffinity", &pgeom->conaffinity);
-  ReadAttrInt(elem, "condim", &pgeom->condim);
-  ReadAttrInt(elem, "group", &pgeom->group);
-  ReadAttrInt(elem, "priority", &pgeom->priority);
-  ReadAttr(elem, "friction", 3, pgeom->friction, text, false, false);
-  ReadAttr(elem, "solmix", 1, &pgeom->solmix, text);
-  ReadAttr(elem, "solref", mjNREF, pgeom->solref, text, false, false);
-  ReadAttr(elem, "solimp", mjNIMP, pgeom->solimp, text, false, false);
-  ReadAttr(elem, "margin", 1, &pgeom->margin, text);
-  ReadAttr(elem, "gap", 1, &pgeom->gap, text);
+  ReadAttr(elem, "size", 3, geom->size, text, false, false);
+  ReadAttrInt(elem, "contype", &geom->contype);
+  ReadAttrInt(elem, "conaffinity", &geom->conaffinity);
+  ReadAttrInt(elem, "condim", &geom->condim);
+  ReadAttrInt(elem, "group", &geom->group);
+  ReadAttrInt(elem, "priority", &geom->priority);
+  ReadAttr(elem, "friction", 3, geom->friction, text, false, false);
+  ReadAttr(elem, "solmix", 1, &geom->solmix, text);
+  ReadAttr(elem, "solref", mjNREF, geom->solref, text, false, false);
+  ReadAttr(elem, "solimp", mjNIMP, geom->solimp, text, false, false);
+  ReadAttr(elem, "margin", 1, &geom->margin, text);
+  ReadAttr(elem, "gap", 1, &geom->gap, text);
   if (ReadAttrTxt(elem, "hfield", hfieldname)) {
-    mjs_setString(pgeom->hfieldname, hfieldname.c_str());
+    mjs_setString(geom->hfieldname, hfieldname.c_str());
   }
   if (ReadAttrTxt(elem, "mesh", meshname)) {
-    mjs_setString(pgeom->meshname, meshname.c_str());
+    mjs_setString(geom->meshname, meshname.c_str());
   }
-  ReadAttr(elem, "fitscale", 1, &pgeom->fitscale, text);
+  ReadAttr(elem, "fitscale", 1, &geom->fitscale, text);
   if (ReadAttrTxt(elem, "material", material)) {
-    mjs_setString(pgeom->material, material.c_str());
+    mjs_setString(geom->material, material.c_str());
   }
-  ReadAttr(elem, "rgba", 4, pgeom->rgba, text);
+  ReadAttr(elem, "rgba", 4, geom->rgba, text);
   if (MapValue(elem, "fluidshape", &n, fluid_map, 2)) {
-    pgeom->fluid_ellipsoid = (n == 1);
+    geom->fluid_ellipsoid = (n == 1);
   }
-  ReadAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, text, false, false);
+  ReadAttr(elem, "fluidcoef", 5, geom->fluid_coefs, text, false, false);
 
   // read userdata
   if (ReadVector(elem, "user", userdata, text)) {
-    mjs_setDouble(pgeom->userdata, userdata.data(), userdata.size());
+    mjs_setDouble(geom->userdata, userdata.data(), userdata.size());
   }
 
   // plugin sub-element
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
-    OnePlugin(eplugin, &pgeom->plugin);
+    OnePlugin(eplugin, &geom->plugin);
   }
 
   // remaining attributes
-  ReadAttr(elem, "mass", 1, &pgeom->mass, text);
-  ReadAttr(elem, "density", 1, &pgeom->density, text);
-  ReadAttr(elem, "fromto", 6, pgeom->fromto, text);
-  ReadAttr(elem, "pos", 3, pgeom->pos, text);
-  ReadQuat(elem, "quat", pgeom->quat, text);
-  ReadAlternative(elem, pgeom->alt);
+  ReadAttr(elem, "mass", 1, &geom->mass, text);
+  ReadAttr(elem, "density", 1, &geom->density, text);
+  ReadAttr(elem, "fromto", 6, geom->fromto, text);
+  ReadAttr(elem, "pos", 3, geom->pos, text);
+  ReadQuat(elem, "quat", geom->quat, text);
+  ReadAlternative(elem, geom->alt);
 
   // compute inertia using either solid or shell geometry
   if (MapValue(elem, "shellinertia", &n, meshtype_map, 2)) {
-    pgeom->typeinertia = (mjtGeomInertia)n;
+    geom->typeinertia = (mjtGeomInertia)n;
   }
 
   // write error info
-  mjs_setString(pgeom->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(geom->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -1752,41 +1752,41 @@ void mjXReader::OneSite(XMLElement* elem, mjsSite* site) {
 
 
 // camera element parser
-void mjXReader::OneCamera(XMLElement* elem, mjsCamera* pcam) {
+void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
   int n;
   string text, name, targetbody;
   std::vector<double> userdata;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pcam->name, name.c_str());
+    mjs_setString(camera->name, name.c_str());
   }
   if (ReadAttrTxt(elem, "target", targetbody)) {
-    mjs_setString(pcam->targetbody, targetbody.c_str());
+    mjs_setString(camera->targetbody, targetbody.c_str());
   }
   if (MapValue(elem, "mode", &n, camlight_map, camlight_sz)) {
-    pcam->mode = (mjtCamLight)n;
+    camera->mode = (mjtCamLight)n;
   }
-  ReadAttr(elem, "pos", 3, pcam->pos, text);
-  ReadQuat(elem, "quat", pcam->quat, text);
-  ReadAlternative(elem, pcam->alt);
-  ReadAttr(elem, "ipd", 1, &pcam->ipd, text);
+  ReadAttr(elem, "pos", 3, camera->pos, text);
+  ReadQuat(elem, "quat", camera->quat, text);
+  ReadAlternative(elem, camera->alt);
+  ReadAttr(elem, "ipd", 1, &camera->ipd, text);
 
   if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
-    pcam->orthographic = (n==1);
+    camera->orthographic = (n==1);
   }
 
-  bool has_principal = ReadAttr(elem, "principalpixel", 2, pcam->principal_pixel, text) ||
-                       ReadAttr(elem, "principal", 2, pcam->principal_length, text);
-  bool has_focal = ReadAttr(elem, "focalpixel", 2, pcam->focal_pixel, text) ||
-                   ReadAttr(elem, "focal", 2, pcam->focal_length, text);
+  bool has_principal = ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text) ||
+                       ReadAttr(elem, "principal", 2, camera->principal_length, text);
+  bool has_focal = ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text) ||
+                   ReadAttr(elem, "focal", 2, camera->focal_length, text);
   bool needs_sensorsize = has_principal || has_focal;
-  bool has_sensorsize = ReadAttr(elem, "sensorsize", 2, pcam->sensor_size, text, needs_sensorsize);
-  bool has_fovy = ReadAttr(elem, "fovy", 1, &pcam->fovy, text);
+  bool has_sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text, needs_sensorsize);
+  bool has_fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
   bool needs_resolution = has_focal || has_sensorsize;
-  ReadAttr(elem, "resolution", 2, pcam->resolution, text, needs_resolution);
+  ReadAttr(elem, "resolution", 2, camera->resolution, text, needs_resolution);
 
-  if (pcam->resolution[0] < 0 || pcam->resolution[1] < 0) {
+  if (camera->resolution[0] < 0 || camera->resolution[1] < 0) {
     throw mjXError(elem, "camera resolution cannot be negative");
   }
 
@@ -1798,128 +1798,128 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* pcam) {
 
   // read userdata
   ReadVector(elem, "user", userdata, text);
-  mjs_setDouble(pcam->userdata, userdata.data(), userdata.size());
+  mjs_setDouble(camera->userdata, userdata.data(), userdata.size());
 
   // write error info
-  mjs_setString(pcam->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(camera->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // light element parser
-void mjXReader::OneLight(XMLElement* elem, mjsLight* plight) {
+void mjXReader::OneLight(XMLElement* elem, mjsLight* light) {
   int n;
   string text, name, targetbody;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(plight->name, name.c_str());
+    mjs_setString(light->name, name.c_str());
   }
   if (ReadAttrTxt(elem, "target", targetbody)) {
-    mjs_setString(plight->targetbody, targetbody.c_str());
+    mjs_setString(light->targetbody, targetbody.c_str());
   }
   if (MapValue(elem, "mode", &n, camlight_map, camlight_sz)) {
-    plight->mode = (mjtCamLight)n;
+    light->mode = (mjtCamLight)n;
   }
   if (MapValue(elem, "directional", &n, bool_map, 2)) {
-    plight->directional = (n==1);
+    light->directional = (n==1);
   }
   if (MapValue(elem, "castshadow", &n, bool_map, 2)) {
-    plight->castshadow = (n==1);
+    light->castshadow = (n==1);
   }
   if (MapValue(elem, "active", &n, bool_map, 2)) {
-    plight->active = (n==1);
+    light->active = (n==1);
   }
-  ReadAttr(elem, "pos", 3, plight->pos, text);
-  ReadAttr(elem, "dir", 3, plight->dir, text);
-  ReadAttr(elem, "bulbradius", 1, &plight->bulbradius, text);
-  ReadAttr(elem, "attenuation", 3, plight->attenuation, text);
-  ReadAttr(elem, "cutoff", 1, &plight->cutoff, text);
-  ReadAttr(elem, "exponent", 1, &plight->exponent, text);
-  ReadAttr(elem, "ambient", 3, plight->ambient, text);
-  ReadAttr(elem, "diffuse", 3, plight->diffuse, text);
-  ReadAttr(elem, "specular", 3, plight->specular, text);
+  ReadAttr(elem, "pos", 3, light->pos, text);
+  ReadAttr(elem, "dir", 3, light->dir, text);
+  ReadAttr(elem, "bulbradius", 1, &light->bulbradius, text);
+  ReadAttr(elem, "attenuation", 3, light->attenuation, text);
+  ReadAttr(elem, "cutoff", 1, &light->cutoff, text);
+  ReadAttr(elem, "exponent", 1, &light->exponent, text);
+  ReadAttr(elem, "ambient", 3, light->ambient, text);
+  ReadAttr(elem, "diffuse", 3, light->diffuse, text);
+  ReadAttr(elem, "specular", 3, light->specular, text);
 
   // write error info
-  mjs_setString(plight->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(light->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // pair element parser
-void mjXReader::OnePair(XMLElement* elem, mjsPair* ppair) {
+void mjXReader::OnePair(XMLElement* elem, mjsPair* pair) {
   string text, name, geomname1, geomname2;
 
   // regular only
   if (!readingdefaults) {
     if (ReadAttrTxt(elem, "geom1", geomname1)) {
-      mjs_setString(ppair->geomname1, geomname1.c_str());
+      mjs_setString(pair->geomname1, geomname1.c_str());
     }
     if (ReadAttrTxt(elem, "geom2", geomname2)) {
-      mjs_setString(ppair->geomname2, geomname2.c_str());
+      mjs_setString(pair->geomname2, geomname2.c_str());
     }
   }
 
   // read other parameters
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(ppair->name, name.c_str());
+    mjs_setString(pair->name, name.c_str());
   }
-  ReadAttrInt(elem, "condim", &ppair->condim);
-  ReadAttr(elem, "solref", mjNREF, ppair->solref, text, false, false);
-  ReadAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, text, false, false);
-  ReadAttr(elem, "solimp", mjNIMP, ppair->solimp, text, false, false);
-  ReadAttr(elem, "margin", 1, &ppair->margin, text);
-  ReadAttr(elem, "gap", 1, &ppair->gap, text);
-  ReadAttr(elem, "friction", 5, ppair->friction, text, false, false);
+  ReadAttrInt(elem, "condim", &pair->condim);
+  ReadAttr(elem, "solref", mjNREF, pair->solref, text, false, false);
+  ReadAttr(elem, "solreffriction", mjNREF, pair->solreffriction, text, false, false);
+  ReadAttr(elem, "solimp", mjNIMP, pair->solimp, text, false, false);
+  ReadAttr(elem, "margin", 1, &pair->margin, text);
+  ReadAttr(elem, "gap", 1, &pair->gap, text);
+  ReadAttr(elem, "friction", 5, pair->friction, text, false, false);
 
   // write error info
-  mjs_setString(ppair->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(pair->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // equality element parser
-void mjXReader::OneEquality(XMLElement* elem, mjsEquality* pequality) {
+void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
   int n;
   string text, name1, name2, name;
 
   // read type (bad keywords already detected by schema)
   text = elem->Value();
-  pequality->type = (mjtEq)FindKey(equality_map, equality_sz, text);
+  equality->type = (mjtEq)FindKey(equality_map, equality_sz, text);
 
   // regular only
   if (!readingdefaults) {
     if (ReadAttrTxt(elem, "name", name)) {
-      mjs_setString(pequality->name, name.c_str());
+      mjs_setString(equality->name, name.c_str());
     }
 
-    switch (pequality->type) {
+    switch (equality->type) {
     case mjEQ_CONNECT:
       ReadAttrTxt(elem, "body1", name1, true);
       ReadAttrTxt(elem, "body2", name2);
-      ReadAttr(elem, "anchor", 3, pequality->data, text, true);
+      ReadAttr(elem, "anchor", 3, equality->data, text, true);
       break;
 
     case mjEQ_WELD:
       ReadAttrTxt(elem, "body1", name1, true);
       ReadAttrTxt(elem, "body2", name2);
-      ReadAttr(elem, "relpose", 7, pequality->data+3, text);
-      ReadAttr(elem, "torquescale", 1, pequality->data+10, text);
-      if (!ReadAttr(elem, "anchor", 3, pequality->data, text)) {
-        mjuu_zerovec(pequality->data, 3);
+      ReadAttr(elem, "relpose", 7, equality->data+3, text);
+      ReadAttr(elem, "torquescale", 1, equality->data+10, text);
+      if (!ReadAttr(elem, "anchor", 3, equality->data, text)) {
+        mjuu_zerovec(equality->data, 3);
       }
       break;
 
     case mjEQ_JOINT:
       ReadAttrTxt(elem, "joint1", name1, true);
       ReadAttrTxt(elem, "joint2", name2);
-      ReadAttr(elem, "polycoef", 5, pequality->data, text, false, false);
+      ReadAttr(elem, "polycoef", 5, equality->data, text, false, false);
       break;
 
     case mjEQ_TENDON:
       ReadAttrTxt(elem, "tendon1", name1, true);
       ReadAttrTxt(elem, "tendon2", name2);
-      ReadAttr(elem, "polycoef", 5, pequality->data, text, false, false);
+      ReadAttr(elem, "polycoef", 5, equality->data, text, false, false);
       break;
 
     case mjEQ_FLEX:
@@ -1934,114 +1934,114 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* pequality) {
       throw mjXError(elem, "unrecognized equality constraint type");
     }
 
-    mjs_setString(pequality->name1, name1.c_str());
+    mjs_setString(equality->name1, name1.c_str());
     if (!name2.empty()) {
-      mjs_setString(pequality->name2, name2.c_str());
+      mjs_setString(equality->name2, name2.c_str());
     }
   }
 
   // read attributes
   if (MapValue(elem, "active", &n, bool_map, 2)) {
-    pequality->active = (n==1);
+    equality->active = (n==1);
   }
-  ReadAttr(elem, "solref", mjNREF, pequality->solref, text, false, false);
-  ReadAttr(elem, "solimp", mjNIMP, pequality->solimp, text, false, false);
+  ReadAttr(elem, "solref", mjNREF, equality->solref, text, false, false);
+  ReadAttr(elem, "solimp", mjNIMP, equality->solimp, text, false, false);
 
   // write error info
-  mjs_setString(pequality->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(equality->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // tendon element parser
-void mjXReader::OneTendon(XMLElement* elem, mjsTendon* pten) {
+void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
   string text, name, material;
   std::vector<double> userdata;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pten->name, name.c_str());
+    mjs_setString(tendon->name, name.c_str());
   }
-  ReadAttrInt(elem, "group", &pten->group);
+  ReadAttrInt(elem, "group", &tendon->group);
   if (ReadAttrTxt(elem, "material", material)) {
-    mjs_setString(pten->material, material.c_str());
+    mjs_setString(tendon->material, material.c_str());
   }
-  MapValue(elem, "limited", &pten->limited, TFAuto_map, 3);
-  ReadAttr(elem, "width", 1, &pten->width, text);
-  ReadAttr(elem, "solreflimit", mjNREF, pten->solref_limit, text, false, false);
-  ReadAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, text, false, false);
-  ReadAttr(elem, "solreffriction", mjNREF, pten->solref_friction, text, false, false);
-  ReadAttr(elem, "solimpfriction", mjNIMP, pten->solimp_friction, text, false, false);
-  ReadAttr(elem, "range", 2, pten->range, text);
-  ReadAttr(elem, "margin", 1, &pten->margin, text);
-  ReadAttr(elem, "stiffness", 1, &pten->stiffness, text);
-  ReadAttr(elem, "damping", 1, &pten->damping, text);
-  ReadAttr(elem, "frictionloss", 1, &pten->frictionloss, text);
+  MapValue(elem, "limited", &tendon->limited, TFAuto_map, 3);
+  ReadAttr(elem, "width", 1, &tendon->width, text);
+  ReadAttr(elem, "solreflimit", mjNREF, tendon->solref_limit, text, false, false);
+  ReadAttr(elem, "solimplimit", mjNIMP, tendon->solimp_limit, text, false, false);
+  ReadAttr(elem, "solreffriction", mjNREF, tendon->solref_friction, text, false, false);
+  ReadAttr(elem, "solimpfriction", mjNIMP, tendon->solimp_friction, text, false, false);
+  ReadAttr(elem, "range", 2, tendon->range, text);
+  ReadAttr(elem, "margin", 1, &tendon->margin, text);
+  ReadAttr(elem, "stiffness", 1, &tendon->stiffness, text);
+  ReadAttr(elem, "damping", 1, &tendon->damping, text);
+  ReadAttr(elem, "frictionloss", 1, &tendon->frictionloss, text);
   // read springlength, either one or two values; if one, copy to second value
-  if (ReadAttr(elem, "springlength", 2, pten->springlength, text, false, false) == 1) {
-    pten->springlength[1] = pten->springlength[0];
+  if (ReadAttr(elem, "springlength", 2, tendon->springlength, text, false, false) == 1) {
+    tendon->springlength[1] = tendon->springlength[0];
   }
-  ReadAttr(elem, "rgba", 4, pten->rgba, text);
+  ReadAttr(elem, "rgba", 4, tendon->rgba, text);
 
   // read userdata
   if (ReadVector(elem, "user", userdata, text)) {
-    mjs_setDouble(pten->userdata, userdata.data(), userdata.size());
+    mjs_setDouble(tendon->userdata, userdata.data(), userdata.size());
   }
 
   // write error info
-  mjs_setString(pten->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(tendon->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
 
 // actuator element parser
-void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
+void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   string text, type, name, target, slidersite, refsite;
 
   // common attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setString(pact->name, name.c_str());
+    mjs_setString(actuator->name, name.c_str());
   }
-  ReadAttrInt(elem, "group", &pact->group);
-  MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3);
-  MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3);
-  MapValue(elem, "actlimited", &pact->actlimited, TFAuto_map, 3);
-  ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
-  ReadAttr(elem, "forcerange", 2, pact->forcerange, text);
-  ReadAttr(elem, "actrange", 2, pact->actrange, text);
-  ReadAttr(elem, "lengthrange", 2, pact->lengthrange, text);
-  ReadAttr(elem, "gear", 6, pact->gear, text, false, false);
+  ReadAttrInt(elem, "group", &actuator->group);
+  MapValue(elem, "ctrllimited", &actuator->ctrllimited, TFAuto_map, 3);
+  MapValue(elem, "forcelimited", &actuator->forcelimited, TFAuto_map, 3);
+  MapValue(elem, "actlimited", &actuator->actlimited, TFAuto_map, 3);
+  ReadAttr(elem, "ctrlrange", 2, actuator->ctrlrange, text);
+  ReadAttr(elem, "forcerange", 2, actuator->forcerange, text);
+  ReadAttr(elem, "actrange", 2, actuator->actrange, text);
+  ReadAttr(elem, "lengthrange", 2, actuator->lengthrange, text);
+  ReadAttr(elem, "gear", 6, actuator->gear, text, false, false);
 
   // transmission target and type
   int cnt = 0;
   if (ReadAttrTxt(elem, "joint", target)) {
-    mjs_setString(pact->target, target.c_str());
-    pact->trntype = mjTRN_JOINT;
+    mjs_setString(actuator->target, target.c_str());
+    actuator->trntype = mjTRN_JOINT;
     cnt++;
   }
   if (ReadAttrTxt(elem, "jointinparent", target)) {
-    mjs_setString(pact->target, target.c_str());
-    pact->trntype = mjTRN_JOINTINPARENT;
+    mjs_setString(actuator->target, target.c_str());
+    actuator->trntype = mjTRN_JOINTINPARENT;
     cnt++;
   }
   if (ReadAttrTxt(elem, "tendon", target)) {
-    mjs_setString(pact->target, target.c_str());
-    pact->trntype = mjTRN_TENDON;
+    mjs_setString(actuator->target, target.c_str());
+    actuator->trntype = mjTRN_TENDON;
     cnt++;
   }
   if (ReadAttrTxt(elem, "cranksite", target)) {
-    mjs_setString(pact->target, target.c_str());
-    pact->trntype = mjTRN_SLIDERCRANK;
+    mjs_setString(actuator->target, target.c_str());
+    actuator->trntype = mjTRN_SLIDERCRANK;
     cnt++;
   }
   if (ReadAttrTxt(elem, "site", target)) {
-    mjs_setString(pact->target, target.c_str());
-    pact->trntype = mjTRN_SITE;
+    mjs_setString(actuator->target, target.c_str());
+    actuator->trntype = mjTRN_SITE;
     cnt++;
   }
   if (ReadAttrTxt(elem, "body", target)) {
-    mjs_setString(pact->target, target.c_str());
-    pact->trntype = mjTRN_BODY;
+    mjs_setString(actuator->target, target.c_str());
+    actuator->trntype = mjTRN_BODY;
     cnt++;
   }
   // check for repeated transmission
@@ -2050,21 +2050,21 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
   }
 
   // slidercrank-specific parameters
-  int r1 = ReadAttr(elem, "cranklength", 1, &pact->cranklength, text);
+  int r1 = ReadAttr(elem, "cranklength", 1, &actuator->cranklength, text);
   int r2 = ReadAttrTxt(elem, "slidersite", slidersite);
   if (r2) {
-    mjs_setString(pact->slidersite, slidersite.c_str());
+    mjs_setString(actuator->slidersite, slidersite.c_str());
   }
-  if ((r1 || r2) && pact->trntype!=mjTRN_SLIDERCRANK && pact->trntype!=mjTRN_UNDEFINED) {
+  if ((r1 || r2) && actuator->trntype!=mjTRN_SLIDERCRANK && actuator->trntype!=mjTRN_UNDEFINED) {
     throw mjXError(elem, "cranklength and slidersite can only be used in slidercrank transmission");
   }
 
   // site-specific parameters (refsite)
   int r3 = ReadAttrTxt(elem, "refsite", refsite);
   if (r3) {
-    mjs_setString(pact->refsite, refsite.c_str());
+    mjs_setString(actuator->refsite, refsite.c_str());
   }
-  if (r3 && pact->trntype!=mjTRN_SITE && pact->trntype!=mjTRN_UNDEFINED) {
+  if (r3 && actuator->trntype!=mjTRN_SITE && actuator->trntype!=mjTRN_UNDEFINED) {
     throw mjXError(elem, "refsite can only be used with site transmission");
   }
 
@@ -2076,39 +2076,39 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
     // explicit attributes
     int n;
     if (MapValue(elem, "dyntype", &n, dyn_map, dyn_sz)) {
-      pact->dyntype = (mjtDyn)n;
+      actuator->dyntype = (mjtDyn)n;
     }
     if (MapValue(elem, "gaintype", &n, gain_map, gain_sz)) {
-      pact->gaintype = (mjtGain)n;
+      actuator->gaintype = (mjtGain)n;
     }
     if (MapValue(elem, "biastype", &n, bias_map, bias_sz)) {
-      pact->biastype = (mjtBias)n;
+      actuator->biastype = (mjtBias)n;
     }
     if (MapValue(elem, "actearly", &n, bool_map, 2)) {
-      pact->actearly = (n==1);
+      actuator->actearly = (n==1);
     }
-    ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
-    ReadAttr(elem, "gainprm", mjNGAIN, pact->gainprm, text, false, false);
-    ReadAttr(elem, "biasprm", mjNBIAS, pact->biasprm, text, false, false);
-    ReadAttrInt(elem, "actdim", &pact->actdim);
+    ReadAttr(elem, "dynprm", mjNDYN, actuator->dynprm, text, false, false);
+    ReadAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, text, false, false);
+    ReadAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, text, false, false);
+    ReadAttrInt(elem, "actdim", &actuator->actdim);
   }
 
   // direct drive motor
   else if (type=="motor") {
     // unit gain
-    pact->gainprm[0] = 1;
+    actuator->gainprm[0] = 1;
 
     // implied parameters
-    pact->dyntype = mjDYN_NONE;
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_NONE;
+    actuator->dyntype = mjDYN_NONE;
+    actuator->gaintype = mjGAIN_FIXED;
+    actuator->biastype = mjBIAS_NONE;
   }
 
   // position or integrated velocity servo
   else if (type=="position" || type=="intvelocity") {
     // explicit attributes
-    ReadAttr(elem, "kp", 1, pact->gainprm, text);
-    pact->biasprm[1] = -pact->gainprm[0];
+    ReadAttr(elem, "kp", 1, actuator->gainprm, text);
+    actuator->biasprm[1] = -actuator->gainprm[0];
 
     // read kv
     double kv = -1;  // -1: undefined
@@ -2126,165 +2126,165 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
     if (dampratio > 0 && kv > 0) {
       throw mjXError(elem, "kv and dampratio cannot both be defined");
     }
-    if (kv > 0) pact->biasprm[2] = -kv;
-    if (dampratio > 0) pact->biasprm[2] = dampratio;
+    if (kv > 0) actuator->biasprm[2] = -kv;
+    if (dampratio > 0) actuator->biasprm[2] = dampratio;
 
     // read timeconst, set dyntype
-    if (ReadAttr(elem, "timeconst", 1, pact->dynprm, text)) {
-      if (pact->dynprm[0] < 0)
+    if (ReadAttr(elem, "timeconst", 1, actuator->dynprm, text)) {
+      if (actuator->dynprm[0] < 0)
         throw mjXError(elem, "timeconst cannot be negative");
-      pact->dyntype = pact->dynprm[0] ? mjDYN_FILTEREXACT : mjDYN_NONE;
+      actuator->dyntype = actuator->dynprm[0] ? mjDYN_FILTEREXACT : mjDYN_NONE;
     }
 
     // handle inheritrange
-    ReadAttr(elem, "inheritrange", 1, &pact->inheritrange, text);
-    if (pact->inheritrange > 0) {
+    ReadAttr(elem, "inheritrange", 1, &actuator->inheritrange, text);
+    if (actuator->inheritrange > 0) {
       if (type == "position") {
-        if (pact->ctrlrange[0] || pact->ctrlrange[1]) {
+        if (actuator->ctrlrange[0] || actuator->ctrlrange[1]) {
           throw mjXError(elem, "ctrlrange and inheritrange cannot both be defined");
         }
       } else {
-        if (pact->actrange[0] || pact->actrange[1]) {
+        if (actuator->actrange[0] || actuator->actrange[1]) {
           throw mjXError(elem, "actrange and inheritrange cannot both be defined");
         }
       }
     }
 
     // implied parameters
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_AFFINE;
+    actuator->gaintype = mjGAIN_FIXED;
+    actuator->biastype = mjBIAS_AFFINE;
 
     if (type=="intvelocity") {
-      pact->dyntype = mjDYN_INTEGRATOR;
-      pact->actlimited = 1;
+      actuator->dyntype = mjDYN_INTEGRATOR;
+      actuator->actlimited = 1;
     }
   }
 
   // velocity servo
   else if (type=="velocity") {
     // clear bias
-    mjuu_zerovec(pact->biasprm, mjNBIAS);
+    mjuu_zerovec(actuator->biasprm, mjNBIAS);
 
     // explicit attributes
-    ReadAttr(elem, "kv", 1, pact->gainprm, text);
-    pact->biasprm[2] = -pact->gainprm[0];
+    ReadAttr(elem, "kv", 1, actuator->gainprm, text);
+    actuator->biasprm[2] = -actuator->gainprm[0];
 
     // implied parameters
-    pact->dyntype = mjDYN_NONE;
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_AFFINE;
+    actuator->dyntype = mjDYN_NONE;
+    actuator->gaintype = mjGAIN_FIXED;
+    actuator->biastype = mjBIAS_AFFINE;
   }
 
   // damper
   else if (type=="damper") {
     // clear gain
-    mjuu_zerovec(pact->gainprm, mjNGAIN);
+    mjuu_zerovec(actuator->gainprm, mjNGAIN);
 
     // explicit attributes
-    ReadAttr(elem, "kv", 1, pact->gainprm+2, text);
-    if (pact->gainprm[2]<0)
+    ReadAttr(elem, "kv", 1, actuator->gainprm+2, text);
+    if (actuator->gainprm[2]<0)
       throw mjXError(elem, "damping coefficient cannot be negative");
-    pact->gainprm[2] = -pact->gainprm[2];
+    actuator->gainprm[2] = -actuator->gainprm[2];
 
     // require nonnegative range
-    if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
+    if (actuator->ctrlrange[0]<0 || actuator->ctrlrange[1]<0) {
       throw mjXError(elem, "damper control range cannot be negative");
     }
 
     // implied parameters
-    pact->ctrllimited = 1;
-    pact->dyntype = mjDYN_NONE;
-    pact->gaintype = mjGAIN_AFFINE;
-    pact->biastype = mjBIAS_NONE;
+    actuator->ctrllimited = 1;
+    actuator->dyntype = mjDYN_NONE;
+    actuator->gaintype = mjGAIN_AFFINE;
+    actuator->biastype = mjBIAS_NONE;
   }
 
   // cylinder
   else if (type=="cylinder") {
     // explicit attributes
-    ReadAttr(elem, "timeconst", 1, pact->dynprm, text);
-    ReadAttr(elem, "bias", 3, pact->biasprm, text);
-    ReadAttr(elem, "area", 1, pact->gainprm, text);
+    ReadAttr(elem, "timeconst", 1, actuator->dynprm, text);
+    ReadAttr(elem, "bias", 3, actuator->biasprm, text);
+    ReadAttr(elem, "area", 1, actuator->gainprm, text);
     double diameter;
     if (ReadAttr(elem, "diameter", 1, &diameter, text)) {
-      pact->gainprm[0] = mjPI / 4 * diameter*diameter;
+      actuator->gainprm[0] = mjPI / 4 * diameter*diameter;
     }
 
     // implied parameters
-    pact->dyntype = mjDYN_FILTER;
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_AFFINE;
+    actuator->dyntype = mjDYN_FILTER;
+    actuator->gaintype = mjGAIN_FIXED;
+    actuator->biastype = mjBIAS_AFFINE;
   }
 
   // muscle
   else if (type=="muscle") {
     // set muscle defaults if same as global defaults
-    if (pact->dynprm[0]==1) pact->dynprm[0] = 0.01;    // tau act
-    if (pact->dynprm[1]==0) pact->dynprm[1] = 0.04;    // tau deact
-    if (pact->gainprm[0]==1) pact->gainprm[0] = 0.75;  // range[0]
-    if (pact->gainprm[1]==0) pact->gainprm[1] = 1.05;  // range[1]
-    if (pact->gainprm[2]==0) pact->gainprm[2] = -1;    // force
-    if (pact->gainprm[3]==0) pact->gainprm[3] = 200;   // scale
-    if (pact->gainprm[4]==0) pact->gainprm[4] = 0.5;   // lmin
-    if (pact->gainprm[5]==0) pact->gainprm[5] = 1.6;   // lmax
-    if (pact->gainprm[6]==0) pact->gainprm[6] = 1.5;   // vmax
-    if (pact->gainprm[7]==0) pact->gainprm[7] = 1.3;   // fpmax
-    if (pact->gainprm[8]==0) pact->gainprm[8] = 1.2;   // fvmax
+    if (actuator->dynprm[0]==1) actuator->dynprm[0] = 0.01;    // tau act
+    if (actuator->dynprm[1]==0) actuator->dynprm[1] = 0.04;    // tau deact
+    if (actuator->gainprm[0]==1) actuator->gainprm[0] = 0.75;  // range[0]
+    if (actuator->gainprm[1]==0) actuator->gainprm[1] = 1.05;  // range[1]
+    if (actuator->gainprm[2]==0) actuator->gainprm[2] = -1;    // force
+    if (actuator->gainprm[3]==0) actuator->gainprm[3] = 200;   // scale
+    if (actuator->gainprm[4]==0) actuator->gainprm[4] = 0.5;   // lmin
+    if (actuator->gainprm[5]==0) actuator->gainprm[5] = 1.6;   // lmax
+    if (actuator->gainprm[6]==0) actuator->gainprm[6] = 1.5;   // vmax
+    if (actuator->gainprm[7]==0) actuator->gainprm[7] = 1.3;   // fpmax
+    if (actuator->gainprm[8]==0) actuator->gainprm[8] = 1.2;   // fvmax
 
     // explicit attributes
-    ReadAttr(elem, "timeconst", 2, pact->dynprm, text);
-    ReadAttr(elem, "tausmooth", 1, pact->dynprm+2, text);
-    if (pact->dynprm[2]<0)
+    ReadAttr(elem, "timeconst", 2, actuator->dynprm, text);
+    ReadAttr(elem, "tausmooth", 1, actuator->dynprm+2, text);
+    if (actuator->dynprm[2]<0)
       throw mjXError(elem, "muscle tausmooth cannot be negative");
-    ReadAttr(elem, "range", 2, pact->gainprm, text);
-    ReadAttr(elem, "force", 1, pact->gainprm+2, text);
-    ReadAttr(elem, "scale", 1, pact->gainprm+3, text);
-    ReadAttr(elem, "lmin", 1, pact->gainprm+4, text);
-    ReadAttr(elem, "lmax", 1, pact->gainprm+5, text);
-    ReadAttr(elem, "vmax", 1, pact->gainprm+6, text);
-    ReadAttr(elem, "fpmax", 1, pact->gainprm+7, text);
-    ReadAttr(elem, "fvmax", 1, pact->gainprm+8, text);
+    ReadAttr(elem, "range", 2, actuator->gainprm, text);
+    ReadAttr(elem, "force", 1, actuator->gainprm+2, text);
+    ReadAttr(elem, "scale", 1, actuator->gainprm+3, text);
+    ReadAttr(elem, "lmin", 1, actuator->gainprm+4, text);
+    ReadAttr(elem, "lmax", 1, actuator->gainprm+5, text);
+    ReadAttr(elem, "vmax", 1, actuator->gainprm+6, text);
+    ReadAttr(elem, "fpmax", 1, actuator->gainprm+7, text);
+    ReadAttr(elem, "fvmax", 1, actuator->gainprm+8, text);
 
     // biasprm = gainprm
     for (int n=0; n<9; n++) {
-      pact->biasprm[n] = pact->gainprm[n];
+      actuator->biasprm[n] = actuator->gainprm[n];
     }
 
     // implied parameters
-    pact->dyntype = mjDYN_MUSCLE;
-    pact->gaintype = mjGAIN_MUSCLE;
-    pact->biastype = mjBIAS_MUSCLE;
+    actuator->dyntype = mjDYN_MUSCLE;
+    actuator->gaintype = mjGAIN_MUSCLE;
+    actuator->biastype = mjBIAS_MUSCLE;
   }
 
   // adhesion
   else if (type=="adhesion") {
     // explicit attributes
-    ReadAttr(elem, "gain", 1, pact->gainprm, text);
-    if (pact->gainprm[0]<0)
+    ReadAttr(elem, "gain", 1, actuator->gainprm, text);
+    if (actuator->gainprm[0]<0)
       throw mjXError(elem, "adhesion gain cannot be negative");
 
     // require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
-    if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
+    ReadAttr(elem, "ctrlrange", 2, actuator->ctrlrange, text);
+    if (actuator->ctrlrange[0]<0 || actuator->ctrlrange[1]<0) {
       throw mjXError(elem, "adhesion control range cannot be negative");
     }
 
     // implied parameters
-    pact->ctrllimited = 1;
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_NONE;
+    actuator->ctrllimited = 1;
+    actuator->gaintype = mjGAIN_FIXED;
+    actuator->biastype = mjBIAS_NONE;
   }
 
   else if (type == "plugin") {
-    OnePlugin(elem, &pact->plugin);
+    OnePlugin(elem, &actuator->plugin);
     int n;
     if (MapValue(elem, "dyntype", &n, dyn_map, dyn_sz)) {
-      pact->dyntype = (mjtDyn)n;
+      actuator->dyntype = (mjtDyn)n;
     }
     if (MapValue(elem, "actearly", &n, bool_map, 2)) {
-      pact->actearly = (n==1);
+      actuator->actearly = (n==1);
     }
-    ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
-    ReadAttrInt(elem, "actdim", &pact->actdim);
+    ReadAttr(elem, "dynprm", mjNDYN, actuator->dynprm, text, false, false);
+    ReadAttrInt(elem, "actdim", &actuator->actdim);
   }
 
   else {          // SHOULD NOT OCCUR
@@ -2294,11 +2294,11 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* pact) {
   // read userdata
   std::vector<double> userdata;
   if (ReadVector(elem, "user", userdata, text)) {
-    mjs_setDouble(pact->userdata, userdata.data(), userdata.size());
+    mjs_setDouble(actuator->userdata, userdata.data(), userdata.size());
   }
 
   // write info
-  mjs_setString(pact->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+  mjs_setString(actuator->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 }
 
 
@@ -2537,7 +2537,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjsDefault* def) 
 
 
 // make flexcomp
-void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody, const mjVFS* vfs) {
+void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   string text, material;
   int n;
 
@@ -2659,7 +2659,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* pbody, const mjVFS* vfs) 
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make(spec, pbody, error, 200);
+  bool res = fcomp.Make(spec, body, error, 200);
 
   // throw error
   if (!res) {
@@ -2848,7 +2848,7 @@ void mjXReader::Extension(XMLElement* section) {
 
 // custom section parser
 void mjXReader::Custom(XMLElement* section) {
-  string text, name;
+  string str, name;
   XMLElement* elem;
   double data[500];
 
@@ -2862,65 +2862,65 @@ void mjXReader::Custom(XMLElement* section) {
     // numeric
     if (name=="numeric") {
       // create custom
-      mjsNumeric* pnum = mjs_addNumeric(spec);
+      mjsNumeric* numeric = mjs_addNumeric(spec);
 
       // write error info
-      mjs_setString(pnum->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(numeric->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
-      mjs_setString(pnum->name, elname.c_str());
-      if (ReadAttrInt(elem, "size", &pnum->size)) {
-        int sz = pnum->size < 500 ? pnum->size : 500;
+      mjs_setString(numeric->name, elname.c_str());
+      if (ReadAttrInt(elem, "size", &numeric->size)) {
+        int sz = numeric->size < 500 ? numeric->size : 500;
         for (int i=0; i<sz; i++) {
           data[i] = 0;
         }
       } else {
-        pnum->size = 501;
+        numeric->size = 501;
       }
-      int len = ReadAttr(elem, "data", pnum->size, data, text, false, false);
-      if (pnum->size==501) {
-        pnum->size = len;
+      int len = ReadAttr(elem, "data", numeric->size, data, str, false, false);
+      if (numeric->size==501) {
+        numeric->size = len;
       }
-      if (pnum->size<1 || pnum->size>500) {
+      if (numeric->size<1 || numeric->size>500) {
         throw mjXError(elem, "custom field size must be between 1 and 500");
       }
 
       // copy data
-      mjs_setDouble(pnum->data, data, pnum->size);
+      mjs_setDouble(numeric->data, data, numeric->size);
     }
 
     // text
     else if (name=="text") {
       // create custom
-      mjsText* pte = mjs_addText(spec);
+      mjsText* text = mjs_addText(spec);
 
       // write error info
-      mjs_setString(pte->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(text->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
-      mjs_setString(pte->name, elname.c_str());
-      ReadAttrTxt(elem, "data", text, true);
-      if (text.empty()) {
+      mjs_setString(text->name, elname.c_str());
+      ReadAttrTxt(elem, "data", str, true);
+      if (str.empty()) {
         throw mjXError(elem, "text field cannot be empty");
       }
 
       // copy data
-      mjs_setString(pte->data, text.c_str());
+      mjs_setString(text->data, str.c_str());
     }
 
     // tuple
     else if (name=="tuple") {
       // create custom
-      mjsTuple* ptu = mjs_addTuple(spec);
+      mjsTuple* tuple = mjs_addTuple(spec);
 
       // write error info
-      mjs_setString(ptu->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(tuple->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
-      mjs_setString(ptu->name, elname.c_str());
+      mjs_setString(tuple->name, elname.c_str());
 
       // read objects and add
       XMLElement* obj = FirstChildElement(elem);
@@ -2935,20 +2935,20 @@ void mjXReader::Custom(XMLElement* section) {
         // new object
         if (name=="element") {
           // read type, check and assign
-          ReadAttrTxt(obj, "objtype", text, true);
-          mjtObj otype = (mjtObj)mju_str2Type(text.c_str());
+          ReadAttrTxt(obj, "objtype", str, true);
+          mjtObj otype = (mjtObj)mju_str2Type(str.c_str());
           if (otype==mjOBJ_UNKNOWN) {
             throw mjXError(obj, "unknown object type");
           }
           objtype.push_back(otype);
 
           // read name and assign
-          ReadAttrTxt(obj, "objname", text, true);
-          objname += " " + text;
+          ReadAttrTxt(obj, "objname", str, true);
+          objname += " " + str;
 
           // read parameter and assign
           double oprm = 0;
-          ReadAttr(obj, "prm", 1, &oprm, text);
+          ReadAttr(obj, "prm", 1, &oprm, str);
           objprm.push_back(oprm);
         }
 
@@ -2956,9 +2956,9 @@ void mjXReader::Custom(XMLElement* section) {
         obj = NextSiblingElement(obj);
       }
 
-      mjs_setInt(ptu->objtype, objtype.data(), objtype.size());
-      mjs_setStringVec(ptu->objname, objname.c_str());
-      mjs_setDouble(ptu->objprm, objprm.data(), objprm.size());
+      mjs_setInt(tuple->objtype, objtype.data(), objtype.size());
+      mjs_setStringVec(tuple->objname, objname.c_str());
+      mjs_setDouble(tuple->objprm, objprm.data(), objprm.size());
     }
 
     // advance to next element
@@ -3122,59 +3122,59 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
     // texture sub-element
     if (name=="texture") {
       // create texture
-      mjsTexture* ptex = mjs_addTexture(spec);
+      mjsTexture* texture = mjs_addTexture(spec);
 
       // write error info
-      mjs_setString(ptex->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(texture->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       if (MapValue(elem, "type", &n, texture_map, texture_sz)) {
-        ptex->type = (mjtTexture)n;
+        texture->type = (mjtTexture)n;
       }
       if (ReadAttrTxt(elem, "name", texname)) {
-        mjs_setString(ptex->name, texname.c_str());
+        mjs_setString(texture->name, texname.c_str());
       }
       if (ReadAttrTxt(elem, "content_type", content_type)) {
-        mjs_setString(ptex->content_type, content_type.c_str());
+        mjs_setString(texture->content_type, content_type.c_str());
       }
       auto file = ReadAttrFile(elem, "file", vfs, TextureDir());
       if (file.has_value()) {
-        mjs_setString(ptex->file, file->c_str());
+        mjs_setString(texture->file, file->c_str());
       }
-      ReadAttrInt(elem, "width", &ptex->width);
-      ReadAttrInt(elem, "height", &ptex->height);
-      if (!ReadAttrInt(elem, "nchannel", &ptex->nchannel)) {
-        ptex->nchannel = 3;
+      ReadAttrInt(elem, "width", &texture->width);
+      ReadAttrInt(elem, "height", &texture->height);
+      if (!ReadAttrInt(elem, "nchannel", &texture->nchannel)) {
+        texture->nchannel = 3;
       }
-      ReadAttr(elem, "rgb1", 3, ptex->rgb1, text);
-      ReadAttr(elem, "rgb2", 3, ptex->rgb2, text);
-      ReadAttr(elem, "markrgb", 3, ptex->markrgb, text);
-      ReadAttr(elem, "random", 1, &ptex->random, text);
+      ReadAttr(elem, "rgb1", 3, texture->rgb1, text);
+      ReadAttr(elem, "rgb2", 3, texture->rgb2, text);
+      ReadAttr(elem, "markrgb", 3, texture->markrgb, text);
+      ReadAttr(elem, "random", 1, &texture->random, text);
       if (MapValue(elem, "builtin", &n, builtin_map, builtin_sz)) {
-        ptex->builtin = (mjtBuiltin)n;
+        texture->builtin = (mjtBuiltin)n;
       }
       if (MapValue(elem, "mark", &n, mark_map, mark_sz)) {
-        ptex->mark = (mjtMark)n;
+        texture->mark = (mjtMark)n;
       }
       if (MapValue(elem, "hflip", &n, bool_map, 2)) {
-        ptex->hflip = (n!=0);
+        texture->hflip = (n!=0);
       }
       if (MapValue(elem, "vflip", &n, bool_map, 2)) {
-        ptex->vflip = (n!=0);
+        texture->vflip = (n!=0);
       }
 
       // grid
-      ReadAttr(elem, "gridsize", 2, ptex->gridsize, text);
+      ReadAttr(elem, "gridsize", 2, texture->gridsize, text);
       if (ReadAttrTxt(elem, "gridlayout", text)) {
         // check length
         if (text.length()>12) {
           throw mjXError(elem, "gridlayout length cannot exceed 12 characters");
         }
-        if (text.length()!=ptex->gridsize[0]*ptex->gridsize[1]) {
+        if (text.length()!=texture->gridsize[0]*texture->gridsize[1]) {
           throw mjXError(elem, "gridlayout length must match gridsize");
         }
 
-        memcpy(ptex->gridlayout, text.data(), text.length());
+        memcpy(texture->gridlayout, text.data(), text.length());
       }
 
       // separate files
@@ -3190,59 +3190,59 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
         } else {
           cubefiles[i] = "";
         }
-        mjs_setInStringVec(ptex->cubefiles, i, cubefiles[i].c_str());
+        mjs_setInStringVec(texture->cubefiles, i, cubefiles[i].c_str());
       }
     }
 
     // material sub-element
     else if (name=="material") {
       // create material and parse
-      mjsMaterial* pmat = mjs_addMaterial(spec, def);
-      OneMaterial(elem, pmat);
+      mjsMaterial* material = mjs_addMaterial(spec, def);
+      OneMaterial(elem, material);
     }
 
     // mesh sub-element
     else if (name=="mesh") {
       // create mesh and parse
-      mjsMesh* pmesh = mjs_addMesh(spec, def);
-      OneMesh(elem, pmesh, vfs);
+      mjsMesh* mesh = mjs_addMesh(spec, def);
+      OneMesh(elem, mesh, vfs);
     }
 
     // skin sub-element... deprecate ???
     else if (name=="skin") {
       // create skin and parse
-      mjsSkin* pskin = mjs_addSkin(spec);
-      OneSkin(elem, pskin, vfs);
+      mjsSkin* skin = mjs_addSkin(spec);
+      OneSkin(elem, skin, vfs);
     }
 
     // hfield sub-element
     else if (name=="hfield") {
       // create hfield
-      mjsHField* phf = mjs_addHField(spec);
+      mjsHField* hfield = mjs_addHField(spec);
 
       // write error info
-      mjs_setString(phf->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(hfield->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read attributes
       string name, content_type;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setString(phf->name, name.c_str());
+        mjs_setString(hfield->name, name.c_str());
       }
       if (ReadAttrTxt(elem, "content_type", content_type)) {
-        mjs_setString(phf->content_type, content_type.c_str());
+        mjs_setString(hfield->content_type, content_type.c_str());
       }
       auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
       if (file.has_value()) {
-        mjs_setString(phf->file, file->c_str());
+        mjs_setString(hfield->file, file->c_str());
       }
-      ReadAttrInt(elem, "nrow", &phf->nrow);
-      ReadAttrInt(elem, "ncol", &phf->ncol);
-      ReadAttr(elem, "size", 4, phf->size, text, true);
+      ReadAttrInt(elem, "nrow", &hfield->nrow);
+      ReadAttrInt(elem, "ncol", &hfield->ncol);
+      ReadAttr(elem, "size", 4, hfield->size, text, true);
 
       // allocate buffer for dynamic hfield, copy user data if given
-      if (!file.has_value() && phf->nrow>0 && phf->ncol>0) {
-        int nrow = phf->nrow;
-        int ncol = phf->ncol;
+      if (!file.has_value() && hfield->nrow>0 && hfield->ncol>0) {
+        int nrow = hfield->nrow;
+        int ncol = hfield->ncol;
 
         // read user data
         auto userdata = ReadAttrVec<float>(elem, "elevation");
@@ -3262,13 +3262,13 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
             }
           }
 
-          mjs_setFloat(phf->userdata, flipped.data(), flipped.size());
+          mjs_setFloat(hfield->userdata, flipped.data(), flipped.size());
         }
 
         // user data not given, set to 0
         else {
           std::vector<float> zero(nrow*ncol);
-          mjs_setFloat(phf->userdata, zero.data(), zero.size());
+          mjs_setFloat(hfield->userdata, zero.data(), zero.size());
         }
       }
     }
@@ -3302,19 +3302,19 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
 
 // body/world section parser; recursive
-void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
+void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
                      const mjVFS* vfs) {
   string text, name;
   XMLElement* elem;
   int n;
 
   // sanity check
-  if (!pbody) {
+  if (!body) {
     throw mjXError(section, "null body pointer");
   }
 
   // no attributes allowed in world body
-  if (mjs_getId(pbody->element)==0 && section->FirstAttribute() && !frame) {
+  if (mjs_getId(body->element)==0 && section->FirstAttribute() && !frame) {
     throw mjXError(section, "World body cannot have attributes");
   }
 
@@ -3327,22 +3327,22 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
     // get class if specified, otherwise use body
     mjsDefault* def = GetClass(elem);
     if (!def) {
-      def = mjs_getDefault(frame ? frame->element : pbody->element);
+      def = mjs_getDefault(frame ? frame->element : body->element);
     }
 
     // inertial sub-element
     if (name=="inertial") {
       // no inertia allowed in world body
-      if (mjs_getId(pbody->element)==0) {
+      if (mjs_getId(body->element)==0) {
         throw mjXError(elem, "World body cannot have inertia");
       }
-      pbody->explicitinertial = true;
-      ReadAttr(elem, "pos", 3, pbody->ipos, text, true);
-      ReadQuat(elem, "quat", pbody->iquat, text);
-      ReadAttr(elem, "mass", 1, &pbody->mass, text, true);
-      ReadAttr(elem, "diaginertia", 3, pbody->inertia, text);
-      bool alt = ReadAlternative(elem, pbody->ialt);
-      bool full = ReadAttr(elem, "fullinertia", 6, pbody->fullinertia, text);
+      body->explicitinertial = true;
+      ReadAttr(elem, "pos", 3, body->ipos, text, true);
+      ReadQuat(elem, "quat", body->iquat, text);
+      ReadAttr(elem, "mass", 1, &body->mass, text, true);
+      ReadAttr(elem, "diaginertia", 3, body->inertia, text);
+      bool alt = ReadAlternative(elem, body->ialt);
+      bool full = ReadAttr(elem, "fullinertia", 6, body->fullinertia, text);
       if (alt && full) {
         throw mjXError(elem, "fullinertia and orientation specifiers cannot be used together");
       }
@@ -3351,50 +3351,50 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
     // joint sub-element
     else if (name=="joint") {
       // no joints allowed in world body
-      if (mjs_getId(pbody->element)==0) {
+      if (mjs_getId(body->element)==0) {
         throw mjXError(elem, "World body cannot have joints");
       }
 
       // create joint and parse
-      mjsJoint* pjoint = mjs_addJoint(pbody, def);
-      OneJoint(elem, pjoint);
-      mjs_setFrame(pjoint->element, frame);
+      mjsJoint* joint = mjs_addJoint(body, def);
+      OneJoint(elem, joint);
+      mjs_setFrame(joint->element, frame);
     }
 
     // freejoint sub-element
     else if (name=="freejoint") {
       // no joints allowed in world body
-      if (mjs_getId(pbody->element)==0) {
+      if (mjs_getId(body->element)==0) {
         throw mjXError(elem, "World body cannot have joints");
       }
 
       // create free joint without defaults
-      mjsJoint* pjoint = mjs_addFreeJoint(pbody);
-      mjs_setFrame(pjoint->element, frame);
+      mjsJoint* joint = mjs_addFreeJoint(body);
+      mjs_setFrame(joint->element, frame);
 
       // save defaults after creation, to make sure writing is ok
-      mjs_setDefault(pjoint->element, def);
+      mjs_setDefault(joint->element, def);
 
       // read attributes
       std::string name;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setString(pjoint->name, name.c_str());
+        mjs_setString(joint->name, name.c_str());
       }
-      ReadAttrInt(elem, "group", &pjoint->group);
+      ReadAttrInt(elem, "group", &joint->group);
     }
 
     // geom sub-element
     else if (name=="geom") {
       // create geom and parse
-      mjsGeom* pgeom = mjs_addGeom(pbody, def);
-      OneGeom(elem, pgeom);
-      mjs_setFrame(pgeom->element, frame);
+      mjsGeom* geom = mjs_addGeom(body, def);
+      OneGeom(elem, geom);
+      mjs_setFrame(geom->element, frame);
     }
 
     // site sub-element
     else if (name=="site") {
       // create site and parse
-      mjsSite* site = mjs_addSite(pbody,  def);
+      mjsSite* site = mjs_addSite(body,  def);
       OneSite(elem, site);
       mjs_setFrame(site->element, frame);
     }
@@ -3402,34 +3402,34 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
     // camera sub-element
     else if (name=="camera") {
       // create camera and parse
-      mjsCamera* pcam = mjs_addCamera(pbody, def);
-      OneCamera(elem, pcam);
-      mjs_setFrame(pcam->element, frame);
+      mjsCamera* camera = mjs_addCamera(body, def);
+      OneCamera(elem, camera);
+      mjs_setFrame(camera->element, frame);
     }
 
     // light sub-element
     else if (name=="light") {
       // create light and parse
-      mjsLight* plight = mjs_addLight(pbody, def);
-      OneLight(elem, plight);
-      mjs_setFrame(plight->element, frame);
+      mjsLight* light = mjs_addLight(body, def);
+      OneLight(elem, light);
+      mjs_setFrame(light->element, frame);
     }
 
     // plugin sub-element
     else if (name == "plugin") {
-      OnePlugin(elem, &(pbody->plugin));
+      OnePlugin(elem, &(body->plugin));
     }
 
     // composite sub-element
     else if (name=="composite") {
       // parse composite
-      OneComposite(elem, pbody, def);
+      OneComposite(elem, body, def);
     }
 
     // flexcomp sub-element
     else if (name=="flexcomp") {
       // parse flexcomp
-      OneFlexcomp(elem, pbody, vfs);
+      OneFlexcomp(elem, body, vfs);
     }
 
     // frame sub-element
@@ -3445,7 +3445,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       }
 
       // create frame
-      mjsFrame* pframe = mjs_addFrame(pbody, frame);
+      mjsFrame* pframe = mjs_addFrame(body, frame);
       mjs_setString(pframe->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
       mjs_setDefault(pframe->element, childdef ? childdef : def);
 
@@ -3461,7 +3461,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       ReadQuat(elem, "quat", pframe->quat, text);
       ReadAlternative(elem, pframe->alt);
 
-      Body(elem, pbody, pframe, vfs);
+      Body(elem, body, pframe, vfs);
     }
 
     // replicate sub-element
@@ -3494,7 +3494,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       }
 
       // create subtree
-      mjsBody* subtree = mjs_addBody(pbody, childdef);
+      mjsBody* subtree = mjs_addBody(body, childdef);
       double pos[3] = {0, 0, 0};
       double quat[4] = {1, 0, 0, 0};
 
@@ -3524,7 +3524,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
         UpdateString(suffix, count, i);
 
         // attach to parent
-        if (mjs_attachFrame(pbody, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
+        if (mjs_attachFrame(body, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
           throw mjXError(elem, mjs_getError(spec));
         }
       }
@@ -3546,41 +3546,40 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       }
 
       // create child body
-      mjsBody* pchild = mjs_addBody(pbody, childdef);
-      mjs_setString(pchild->info,
-                    std::string("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjsBody* child = mjs_addBody(body, childdef);
+      mjs_setString(child->info, std::string("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // set default from class or childclass
-      mjs_setDefault(pchild->element, childdef ? childdef : def);
+      mjs_setDefault(child->element, childdef ? childdef : def);
 
       // read attributes
       std::string name, childclass;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setString(pchild->name, name.c_str());
+        mjs_setString(child->name, name.c_str());
       }
       if (ReadAttrTxt(elem, "childclass", childclass)) {
-        mjs_setString(pchild->childclass, childclass.c_str());
+        mjs_setString(child->childclass, childclass.c_str());
       }
-      ReadAttr(elem, "pos", 3, pchild->pos, text);
-      ReadQuat(elem, "quat", pchild->quat, text);
+      ReadAttr(elem, "pos", 3, child->pos, text);
+      ReadQuat(elem, "quat", child->quat, text);
       if (MapValue(elem, "mocap", &n, bool_map, 2)) {
-        pchild->mocap = (n==1);
+        child->mocap = (n==1);
       }
-      ReadAlternative(elem, pchild->alt);
+      ReadAlternative(elem, child->alt);
 
       // read gravcomp
-      ReadAttr(elem, "gravcomp", 1, &pchild->gravcomp, text);
+      ReadAttr(elem, "gravcomp", 1, &child->gravcomp, text);
 
       // read userdata
       std::vector<double> userdata;
       ReadVector(elem, "user", userdata, text);
-      mjs_setDouble(pchild->userdata, userdata.data(), userdata.size());
+      mjs_setDouble(child->userdata, userdata.data(), userdata.size());
 
       // add frame
-      mjs_setFrame(pchild->element, frame);
+      mjs_setFrame(child->element, frame);
 
       // make recursive call
-      Body(elem, pchild, nullptr, vfs);
+      Body(elem, child, nullptr, vfs);
     }
 
     // attachment
@@ -3591,7 +3590,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* pbody, mjsFrame* frame,
       ReadAttrTxt(elem, "prefix", prefix);
 
       mjsBody* child = mjs_findBody(spec, (prefix+body_name).c_str());
-      mjsFrame* pframe = frame ? frame : mjs_addFrame(pbody, nullptr);
+      mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
 
       if (!child) {
         mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
@@ -3644,26 +3643,26 @@ void mjXReader::Contact(XMLElement* section) {
     // geom pair to include
     if (name=="pair") {
       // create pair and parse
-      mjsPair* ppair = mjs_addPair(spec, def);
-      OnePair(elem, ppair);
+      mjsPair* pair = mjs_addPair(spec, def);
+      OnePair(elem, pair);
     }
 
     // body pair to exclude
     else if (name=="exclude") {
-      mjsExclude* pexclude = mjs_addExclude(spec);
+      mjsExclude* exclude = mjs_addExclude(spec);
       string exname, exbody1, exbody2;
 
       // write error info
-      mjs_setString(pexclude->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(exclude->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // read name and body names
       if (ReadAttrTxt(elem, "name", exname)) {
-        mjs_setString(pexclude->name, exname.c_str());
+        mjs_setString(exclude->name, exname.c_str());
       }
       ReadAttrTxt(elem, "body1", exbody1, true);
-      mjs_setString(pexclude->bodyname1, exbody1.c_str());
+      mjs_setString(exclude->bodyname1, exbody1.c_str());
       ReadAttrTxt(elem, "body2", exbody2, true);
-      mjs_setString(pexclude->bodyname2, exbody2.c_str());
+      mjs_setString(exclude->bodyname2, exbody2.c_str());
     }
 
     // advance to next element
@@ -3687,8 +3686,8 @@ void mjXReader::Equality(XMLElement* section) {
     }
 
     // create equality constraint and parse
-    mjsEquality* pequality = mjs_addEquality(spec, def);
-    OneEquality(elem, pequality);
+    mjsEquality* equality = mjs_addEquality(spec, def);
+    OneEquality(elem, equality);
 
     // advance to next element
     elem = NextSiblingElement(elem);
@@ -3717,15 +3716,15 @@ void mjXReader::Deformable(XMLElement* section, const mjVFS* vfs) {
     // flex sub-element
     if (name=="flex") {
       // create flex and parse
-      mjsFlex* pflex = mjs_addFlex(spec);
-      OneFlex(elem, pflex);
+      mjsFlex* flex = mjs_addFlex(spec);
+      OneFlex(elem, flex);
     }
 
     // skin sub-element
     else if (name=="skin") {
       // create skin and parse
-      mjsSkin* pskin = mjs_addSkin(spec);
-      OneSkin(elem, pskin, vfs);
+      mjsSkin* skin = mjs_addSkin(spec);
+      OneSkin(elem, skin, vfs);
     }
 
     // advance to next element
@@ -3751,46 +3750,46 @@ void mjXReader::Tendon(XMLElement* section) {
     }
 
     // create equality constraint and parse
-    mjsTendon* pten = mjs_addTendon(spec, def);
-    OneTendon(elem, pten);
+    mjsTendon* tendon = mjs_addTendon(spec, def);
+    OneTendon(elem, tendon);
 
     // process wrap sub-elements
     XMLElement* sub = FirstChildElement(elem);
     while (sub) {
       // get wrap type
-      string wrap = sub->Value();
-      mjsWrap* pwrap;;
+      string type = sub->Value();
+      mjsWrap* wrap;;
 
       // read attributes depending on type
-      if (wrap=="site") {
+      if (type=="site") {
         ReadAttrTxt(sub, "site", text, true);
-        pwrap = mjs_wrapSite(pten, text.c_str());
+        wrap = mjs_wrapSite(tendon, text.c_str());
       }
 
-      else if (wrap=="geom") {
+      else if (type=="geom") {
         ReadAttrTxt(sub, "geom", text, true);
         if (!ReadAttrTxt(sub, "sidesite", text1)) {
           text1.clear();
         }
-        pwrap = mjs_wrapGeom(pten, text.c_str(), text1.c_str());
+        wrap = mjs_wrapGeom(tendon, text.c_str(), text1.c_str());
       }
 
-      else if (wrap=="pulley") {
+      else if (type=="pulley") {
         ReadAttr(sub, "divisor", 1, &data, text, true);
-        pwrap = mjs_wrapPulley(pten, data);
+        wrap = mjs_wrapPulley(tendon, data);
       }
 
-      else if (wrap=="joint") {
+      else if (type=="joint") {
         ReadAttrTxt(sub, "joint", text, true);
         ReadAttr(sub, "coef", 1, &data, text1, true);
-        pwrap = mjs_wrapJoint(pten, text.c_str(), data);
+        wrap = mjs_wrapJoint(tendon, text.c_str(), data);
       }
 
       else {
         throw mjXError(sub, "unknown wrap type");  // SHOULD NOT OCCUR
       }
 
-      mjs_setString(pwrap->info, ("line " + std::to_string(sub->GetLineNum())).c_str());
+      mjs_setString(wrap->info, ("line " + std::to_string(sub->GetLineNum())).c_str());
 
       // advance to next sub-element
       sub = NextSiblingElement(sub);
@@ -3817,8 +3816,8 @@ void mjXReader::Actuator(XMLElement* section) {
     }
 
     // create actuator and parse
-    mjsActuator* pact = mjs_addActuator(spec, def);
-    OneActuator(elem, pact);
+    mjsActuator* actuator = mjs_addActuator(spec, def);
+    OneActuator(elem, actuator);
 
     // advance to next element
     elem = NextSiblingElement(elem);
@@ -3833,237 +3832,237 @@ void mjXReader::Sensor(XMLElement* section) {
   XMLElement* elem = FirstChildElement(section);
   while (elem) {
     // create sensor, get string type
-    mjsSensor* psen = mjs_addSensor(spec);
+    mjsSensor* sensor = mjs_addSensor(spec);
     string type = elem->Value();
     string text, name, objname, refname;
     std::vector<double> userdata;
 
     // read name, noise, userdata
     if (ReadAttrTxt(elem, "name", name)) {
-      mjs_setString(psen->name, name.c_str());
+      mjs_setString(sensor->name, name.c_str());
     }
-    ReadAttr(elem, "cutoff", 1, &psen->cutoff, text);
-    ReadAttr(elem, "noise", 1, &psen->noise, text);
+    ReadAttr(elem, "cutoff", 1, &sensor->cutoff, text);
+    ReadAttr(elem, "noise", 1, &sensor->noise, text);
     if (ReadVector(elem, "user", userdata, text)) {
-      mjs_setDouble(psen->userdata, userdata.data(), userdata.size());
+      mjs_setDouble(sensor->userdata, userdata.data(), userdata.size());
     }
 
     // common robotic sensors, attached to a site
     if (type=="touch") {
-      psen->type = mjSENS_TOUCH;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_TOUCH;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="accelerometer") {
-      psen->type = mjSENS_ACCELEROMETER;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_ACCELEROMETER;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="velocimeter") {
-      psen->type = mjSENS_VELOCIMETER;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_VELOCIMETER;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="gyro") {
-      psen->type = mjSENS_GYRO;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_GYRO;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="force") {
-      psen->type = mjSENS_FORCE;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_FORCE;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="torque") {
-      psen->type = mjSENS_TORQUE;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_TORQUE;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="magnetometer") {
-      psen->type = mjSENS_MAGNETOMETER;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_MAGNETOMETER;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     } else if (type=="camprojection") {
-      psen->type = mjSENS_CAMPROJECTION;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_CAMPROJECTION;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
       ReadAttrTxt(elem, "camera", refname, true);
-      psen->reftype = mjOBJ_CAMERA;
+      sensor->reftype = mjOBJ_CAMERA;
     } else if (type=="rangefinder") {
-      psen->type = mjSENS_RANGEFINDER;
-      psen->objtype = mjOBJ_SITE;
+      sensor->type = mjSENS_RANGEFINDER;
+      sensor->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", objname, true);
     }
 
     // sensors related to scalar joints, tendons, actuators
     else if (type=="jointpos") {
-      psen->type = mjSENS_JOINTPOS;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_JOINTPOS;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="jointvel") {
-      psen->type = mjSENS_JOINTVEL;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_JOINTVEL;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="tendonpos") {
-      psen->type = mjSENS_TENDONPOS;
-      psen->objtype = mjOBJ_TENDON;
+      sensor->type = mjSENS_TENDONPOS;
+      sensor->objtype = mjOBJ_TENDON;
       ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="tendonvel") {
-      psen->type = mjSENS_TENDONVEL;
-      psen->objtype = mjOBJ_TENDON;
+      sensor->type = mjSENS_TENDONVEL;
+      sensor->objtype = mjOBJ_TENDON;
       ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="actuatorpos") {
-      psen->type = mjSENS_ACTUATORPOS;
-      psen->objtype = mjOBJ_ACTUATOR;
+      sensor->type = mjSENS_ACTUATORPOS;
+      sensor->objtype = mjOBJ_ACTUATOR;
       ReadAttrTxt(elem, "actuator", objname, true);
     } else if (type=="actuatorvel") {
-      psen->type = mjSENS_ACTUATORVEL;
-      psen->objtype = mjOBJ_ACTUATOR;
+      sensor->type = mjSENS_ACTUATORVEL;
+      sensor->objtype = mjOBJ_ACTUATOR;
       ReadAttrTxt(elem, "actuator", objname, true);
     } else if (type=="actuatorfrc") {
-      psen->type = mjSENS_ACTUATORFRC;
-      psen->objtype = mjOBJ_ACTUATOR;
+      sensor->type = mjSENS_ACTUATORFRC;
+      sensor->objtype = mjOBJ_ACTUATOR;
       ReadAttrTxt(elem, "actuator", objname, true);
     } else if (type=="jointactuatorfrc") {
-      psen->type = mjSENS_JOINTACTFRC;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_JOINTACTFRC;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     }
 
     // sensors related to ball joints
     else if (type=="ballquat") {
-      psen->type = mjSENS_BALLQUAT;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_BALLQUAT;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="ballangvel") {
-      psen->type = mjSENS_BALLANGVEL;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_BALLANGVEL;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     }
 
     // joint and tendon limit sensors
     else if (type=="jointlimitpos") {
-      psen->type = mjSENS_JOINTLIMITPOS;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_JOINTLIMITPOS;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="jointlimitvel") {
-      psen->type = mjSENS_JOINTLIMITVEL;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_JOINTLIMITVEL;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="jointlimitfrc") {
-      psen->type = mjSENS_JOINTLIMITFRC;
-      psen->objtype = mjOBJ_JOINT;
+      sensor->type = mjSENS_JOINTLIMITFRC;
+      sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
     } else if (type=="tendonlimitpos") {
-      psen->type = mjSENS_TENDONLIMITPOS;
-      psen->objtype = mjOBJ_TENDON;
+      sensor->type = mjSENS_TENDONLIMITPOS;
+      sensor->objtype = mjOBJ_TENDON;
       ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="tendonlimitvel") {
-      psen->type = mjSENS_TENDONLIMITVEL;
-      psen->objtype = mjOBJ_TENDON;
+      sensor->type = mjSENS_TENDONLIMITVEL;
+      sensor->objtype = mjOBJ_TENDON;
       ReadAttrTxt(elem, "tendon", objname, true);
     } else if (type=="tendonlimitfrc") {
-      psen->type = mjSENS_TENDONLIMITFRC;
-      psen->objtype = mjOBJ_TENDON;
+      sensor->type = mjSENS_TENDONLIMITFRC;
+      sensor->objtype = mjOBJ_TENDON;
       ReadAttrTxt(elem, "tendon", objname, true);
     }
 
     // sensors attached to an object with spatial frame: (x)body, geom, site, camera
     else if (type=="framepos") {
-      psen->type = mjSENS_FRAMEPOS;
+      sensor->type = mjSENS_FRAMEPOS;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="framequat") {
-      psen->type = mjSENS_FRAMEQUAT;
+      sensor->type = mjSENS_FRAMEQUAT;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="framexaxis") {
-      psen->type = mjSENS_FRAMEXAXIS;
+      sensor->type = mjSENS_FRAMEXAXIS;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="frameyaxis") {
-      psen->type = mjSENS_FRAMEYAXIS;
+      sensor->type = mjSENS_FRAMEYAXIS;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="framezaxis") {
-      psen->type = mjSENS_FRAMEZAXIS;
+      sensor->type = mjSENS_FRAMEZAXIS;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="framelinvel") {
-      psen->type = mjSENS_FRAMELINVEL;
+      sensor->type = mjSENS_FRAMELINVEL;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="frameangvel") {
-      psen->type = mjSENS_FRAMEANGVEL;
+      sensor->type = mjSENS_FRAMEANGVEL;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
         ReadAttrTxt(elem, "refname", refname, true);
       } else if (ReadAttrTxt(elem, "refname", text)) {
         throw mjXError(elem, "refname '%s' given but reftype is missing", text.c_str());
       }
     } else if (type=="framelinacc") {
-      psen->type = mjSENS_FRAMELINACC;
+      sensor->type = mjSENS_FRAMELINACC;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
     } else if (type=="frameangacc") {
-      psen->type = mjSENS_FRAMEANGACC;
+      sensor->type = mjSENS_FRAMEANGACC;
       ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);
     }
 
     // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
     else if (type=="subtreecom") {
-      psen->type = mjSENS_SUBTREECOM;
-      psen->objtype = mjOBJ_BODY;
+      sensor->type = mjSENS_SUBTREECOM;
+      sensor->objtype = mjOBJ_BODY;
       ReadAttrTxt(elem, "body", objname, true);
     } else if (type=="subtreelinvel") {
-      psen->type = mjSENS_SUBTREELINVEL;
-      psen->objtype = mjOBJ_BODY;
+      sensor->type = mjSENS_SUBTREELINVEL;
+      sensor->objtype = mjOBJ_BODY;
       ReadAttrTxt(elem, "body", objname, true);
     } else if (type=="subtreeangmom") {
-      psen->type = mjSENS_SUBTREEANGMOM;
-      psen->objtype = mjOBJ_BODY;
+      sensor->type = mjSENS_SUBTREEANGMOM;
+      sensor->objtype = mjOBJ_BODY;
       ReadAttrTxt(elem, "body", objname, true);
     }
 
@@ -4074,85 +4073,85 @@ void mjXReader::Sensor(XMLElement* section) {
       if (has_body1 == has_geom1) {
         throw mjXError(elem, "exactly one of (geom1, body1) must be specified");
       }
-      psen->objtype = has_body1 ? mjOBJ_BODY : mjOBJ_GEOM;
+      sensor->objtype = has_body1 ? mjOBJ_BODY : mjOBJ_GEOM;
       bool has_body2 = ReadAttrTxt(elem, "body2", refname);
       bool has_geom2 = ReadAttrTxt(elem, "geom2", refname);
       if (has_body2 == has_geom2) {
         throw mjXError(elem, "exactly one of (geom2, body2) must be specified");
       }
-      psen->reftype = has_body2 ? mjOBJ_BODY : mjOBJ_GEOM;
+      sensor->reftype = has_body2 ? mjOBJ_BODY : mjOBJ_GEOM;
       if (type=="distance") {
-        psen->type = mjSENS_GEOMDIST;
+        sensor->type = mjSENS_GEOMDIST;
       } else if (type=="normal") {
-        psen->type = mjSENS_GEOMNORMAL;
+        sensor->type = mjSENS_GEOMNORMAL;
       } else {
-        psen->type = mjSENS_GEOMFROMTO;
+        sensor->type = mjSENS_GEOMFROMTO;
       }
     }
 
     // global sensors
     else if (type=="clock") {
-      psen->type = mjSENS_CLOCK;
-      psen->objtype = mjOBJ_UNKNOWN;
+      sensor->type = mjSENS_CLOCK;
+      sensor->objtype = mjOBJ_UNKNOWN;
     }
 
     // user-defined sensor
     else if (type=="user") {
-      psen->type = mjSENS_USER;
+      sensor->type = mjSENS_USER;
       bool objname_given = ReadAttrTxt(elem, "objname", objname);
       if (ReadAttrTxt(elem, "objtype", text)) {
         if (!objname_given) {
           throw mjXError(elem, "objtype '%s' given but objname is missing", text.c_str());
         }
-        psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       } else if (objname_given) {
         throw mjXError(elem, "objname '%s' given but objtype is missing", objname.c_str());
       }
-      ReadAttrInt(elem, "dim", &psen->dim, true);
+      ReadAttrInt(elem, "dim", &sensor->dim, true);
 
       // keywords
       if (MapValue(elem, "needstage", &n, stage_map, stage_sz)) {
-        psen->needstage = (mjtStage)n;
+        sensor->needstage = (mjtStage)n;
       }
       if (MapValue(elem, "datatype", &n, datatype_map, datatype_sz)) {
-       psen->datatype = (mjtDataType)n;
+       sensor->datatype = (mjtDataType)n;
       }
     }
 
     else if (type=="plugin") {
-      psen->type = mjSENS_PLUGIN;
-      OnePlugin(elem, &psen->plugin);
+      sensor->type = mjSENS_PLUGIN;
+      OnePlugin(elem, &sensor->plugin);
       ReadAttrTxt(elem, "objtype", text);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname);
-      if (psen->objtype != mjOBJ_UNKNOWN && objname.empty()) {
+      if (sensor->objtype != mjOBJ_UNKNOWN && objname.empty()) {
         throw mjXError(elem, "objtype is specified but objname is not");
       }
-      if (psen->objtype == mjOBJ_UNKNOWN && !objname.empty()) {
+      if (sensor->objtype == mjOBJ_UNKNOWN && !objname.empty()) {
         throw mjXError(elem, "objname is specified but objtype is not");
       }
       if (ReadAttrTxt(elem, "reftype", text)) {
-        psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+        sensor->reftype = (mjtObj)mju_str2Type(text.c_str());
       }
       ReadAttrTxt(elem, "refname", refname);
-      if (psen->reftype != mjOBJ_UNKNOWN && refname.empty()) {
+      if (sensor->reftype != mjOBJ_UNKNOWN && refname.empty()) {
         throw mjXError(elem, "reftype is specified but refname is not");
       }
-      if (psen->reftype == mjOBJ_UNKNOWN && !refname.empty()) {
+      if (sensor->reftype == mjOBJ_UNKNOWN && !refname.empty()) {
         throw mjXError(elem, "refname is specified but reftype is not");
       }
     }
 
     if (!objname.empty()) {
-      mjs_setString(psen->objname, objname.c_str());
+      mjs_setString(sensor->objname, objname.c_str());
     }
 
     if (!refname.empty()) {
-      mjs_setString(psen->refname, refname.c_str());
+      mjs_setString(sensor->refname, refname.c_str());
     }
 
     // write info
-    mjs_setString(psen->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+    mjs_setString(sensor->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
 
     // advance to next element
     elem = NextSiblingElement(elem);
@@ -4173,47 +4172,47 @@ void mjXReader::Keyframe(XMLElement* section) {
     string text, name = "";
 
     // add keyframe
-    mjsKey* pk = mjs_addKey(spec);
+    mjsKey* key = mjs_addKey(spec);
 
     // read name, time
     ReadAttrTxt(elem, "name", name);
-    mjs_setString(pk->name, name.c_str());
-    ReadAttr(elem, "time", 1, &pk->time, text);
+    mjs_setString(key->name, name.c_str());
+    ReadAttr(elem, "time", 1, &key->time, text);
 
     // read qpos
     n = ReadAttr(elem, "qpos", 1000, data, text, false, false);
     if (n) {
-      mjs_setDouble(pk->qpos, data, n);
+      mjs_setDouble(key->qpos, data, n);
     }
 
     // read qvel
     n = ReadAttr(elem, "qvel", 1000, data, text, false, false);
     if (n) {
-      mjs_setDouble(pk->qvel, data, n);
+      mjs_setDouble(key->qvel, data, n);
     }
 
     // read act
     n = ReadAttr(elem, "act", 1000, data, text, false, false);
     if (n) {
-      mjs_setDouble(pk->act, data, n);
+      mjs_setDouble(key->act, data, n);
     }
 
     // read mpos
     n = ReadAttr(elem, "mpos", 1000, data, text, false, false);
     if (n) {
-      mjs_setDouble(pk->mpos, data, n);
+      mjs_setDouble(key->mpos, data, n);
     }
 
     // read mquat
     n = ReadAttr(elem, "mquat", 1000, data, text, false, false);
     if (n) {
-      mjs_setDouble(pk->mquat, data, n);
+      mjs_setDouble(key->mquat, data, n);
     }
 
     // read ctrl
     n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
     if (n) {
-      mjs_setDouble(pk->ctrl, data, n);
+      mjs_setDouble(key->ctrl, data, n);
     }
 
     // advance to next element
