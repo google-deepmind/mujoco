@@ -937,9 +937,6 @@ mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
     *bodies[i] -= subtree;
   }
 
-  // (b/350784262) delete keyframes
-  model->DeleteAll<mjCKey>(model->keys_);
-
   return *this;
 }
 

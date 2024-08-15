@@ -816,6 +816,11 @@ void TestDetachBody(bool compile) {
     <sensor>
       <framepos name="ignore" objtype="body" objname="ignore"/>
     </sensor>
+
+    <keyframe>
+      <key name="two" time="2"/>
+      <key name="three" time="3"/>
+    </keyframe>
   </mujoco>)";
 
   // model with one cylinder and a hinge

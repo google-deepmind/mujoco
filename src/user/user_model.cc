@@ -325,6 +325,16 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 
 
 
+template <>
+void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
+  for (mjCKey* element : elements) {
+    delete element;
+  }
+  elements.clear();
+}
+
+
+
 mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   mjCModel oldmodel(*this);
 
@@ -345,6 +355,10 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
 
+  // store keyframes in the old model
+  oldmodel.key_pending_.clear();
+  oldmodel.StoreKeyframes();
+
   // check if we have to remove anything else
   RemoveFromList(pairs_, oldmodel);
   RemoveFromList(excludes_, oldmodel);
@@ -352,6 +366,12 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(equalities_, oldmodel);
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
+
+  // move all keyframes to pending so that they will be resized
+  DeleteAll(keys_);
+  for (const auto& key : oldmodel.key_pending_) {
+    key_pending_.push_back(key);
+  }
 
   // restore to the original state
   if (!compiled) {
@@ -1163,13 +1183,6 @@ void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   elements.clear();
 }
 
-template <>
-void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
-  for (mjCKey* element : elements) {
-    delete element;
-  }
-  elements.clear();
-}
 
 // set nuser fields
 void mjCModel::SetNuser() {
@@ -2983,14 +2996,17 @@ template void mjCModel::RestoreState<mjtNum>(
 // resolve keyframe references
 void mjCModel::StoreKeyframes() {
   bool resetlists = false;
-  if (joints_.empty()) {
+
+  // create tree lists if they are empty, occurs if an uncompiled model is attached
+  if (bodies_.size() == 1 && geoms_.empty() && sites_.empty() && joints_.empty() &&
+      cameras_.empty() && lights_.empty() && frames_.empty()) {
     MakeLists(bodies_[0]);
     resetlists = true;
   }
 
   SaveDofOffsets();
 
-  for (auto key : keys_) {
+  for (auto& key : keys_) {
     mjKeyInfo info;
     info.name = prefix + key->name + suffix;
     info.time = key->spec.time;
