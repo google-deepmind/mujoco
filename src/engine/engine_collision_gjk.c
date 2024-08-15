@@ -246,6 +246,33 @@ static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
 }
 
 
+// res = origin projected onto plane defined by v1, v2, v3
+static inline void projectOriginPlane(mjtNum res[3], mjtNum normal[3], const mjtNum v1[3],
+                                      const mjtNum v2[3], const mjtNum v3[3]) {
+  mjtNum diff1[3], diff2[3], tmp[3];
+  mju_sub3(diff1, v2, v1);
+  mju_sub3(diff2, v3, v1);
+  mju_cross(tmp, diff1, diff2);  // vector normal to the plane
+
+  // res = tmp * <tmp, v1> / ||tmp||^2
+  mjtNum tmp_sqr = mju_dot3(tmp, tmp);
+  mju_scl3(res, tmp, mju_dot3(tmp, v1) / tmp_sqr);
+  if (normal) mju_scl3(normal, tmp, 1/mju_sqrt(tmp_sqr));
+}
+
+
+
+// res = origin projected onto line defined by v1, v2
+static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
+  // res = v2 - <v2, v2 - v1> / <v2 - v1, v2 - v1> * (v2 - v1)
+  mjtNum diff[3];
+  mju_sub3(diff, v2, v1);
+  mjtNum temp1 = mju_dot3(v2, diff);
+  mjtNum temp2 = mju_dot3(diff, diff);
+  mju_addScl3(res, v2, diff, - temp1 / temp2);
+}
+
+
 
 // returns true only when a and b are both strictly positive or both strictly negative
 static int compareSigns(mjtNum a, mjtNum b) {
@@ -391,32 +418,25 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
   const mjtNum* s2 = simplex + 3;
   const mjtNum* s3 = simplex + 6;
 
-  // compute normal
-  mjtNum diff1[3], diff2[3], n[3];
-  mju_sub3(diff1, s2, s1);
-  mju_sub3(diff2, s3, s1);
-  mju_cross(n, diff1, diff2);
-
-  // project origin
+  // project origin onto affine hull of the simplex
   mjtNum p_o[3];
-  mju_scl3(p_o, n, mju_dot3(n, s1) / mju_dot3(n, n));
+  projectOriginPlane(p_o, NULL, s1, s2, s3);
 
-  mjtNum mu_max = 0;
-
-  //  Below are the minors M_i4 of the matrix M given by
-  //  [[ s1_x, s2_x, s3_x, s4_x ],
-  //   [ s1_y, s2_y, s3_y, s4_y ],
-  //   [ s1_z, s2_z, s3_z, s4_z ],
-  //   [ 1,    1,    1,    1    ]]
+  // Below are the minors M_i4 of the matrix M given by
+  // [[ s1_x, s2_x, s3_x, s4_x ],
+  //  [ s1_y, s2_y, s3_y, s4_y ],
+  //  [ s1_z, s2_z, s3_z, s4_z ],
+  //  [ 1,    1,    1,    1    ]]
   mjtNum M_14 = s2[1]*s3[2] - s2[2]*s3[1] - s1[1]*s3[2] + s1[2]*s3[1] + s1[1]*s2[2] - s1[2]*s2[1];
   mjtNum M_24 = s2[0]*s3[2] - s2[2]*s3[0] - s1[0]*s3[2] + s1[2]*s3[0] + s1[0]*s2[2] - s1[2]*s2[0];
   mjtNum M_34 = s2[0]*s3[1] - s2[1]*s3[0] - s1[0]*s3[1] + s1[1]*s3[0] + s1[0]*s2[1] - s1[1]*s2[0];
 
   // exclude one of the axes with the largest projection of the simplex using the computed minors
+  mjtNum M_max = 0;
   mjtNum s1_2D[2], s2_2D[2], s3_2D[2], p_o_2D[2];
   mjtNum mu1 = mju_abs(M_14), mu2 = mju_abs(M_24), mu3 = mju_abs(M_34);
   if (mu1 >= mu2 && mu1 >= mu3) {
-    mu_max = mu1;
+    M_max = M_14;
     s1_2D[0] = s1[1];
     s1_2D[1] = s1[2];
 
@@ -429,7 +449,7 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     p_o_2D[0] = p_o[1];
     p_o_2D[1] = p_o[2];
   } else if (mu2 >= mu3) {
-    mu_max = mu2;
+    M_max = M_24;
     s1_2D[0] = s1[0];
     s1_2D[1] = s1[2];
 
@@ -442,7 +462,7 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     p_o_2D[0] = p_o[0];
     p_o_2D[1] = p_o[2];
   } else {
-    mu_max = mu3;
+    M_max = M_34;
     s1_2D[0] = s1[0];
     s1_2D[1] = s1[1];
 
@@ -456,25 +476,32 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     p_o_2D[1] = p_o[1];
   }
 
-  // substitute p_o as a vertex in simplex
-  mjtNum C1 = p_o_2D[0]*s2_2D[1] + p_o_2D[1]*s3_2D[0] + s2_2D[0]*s3_2D[1]
-            - p_o_2D[0]*s3_2D[1] - p_o_2D[1]*s2_2D[0] - s3_2D[0]*s2_2D[1];
+  // compute the cofactors C3i of the following matrix:
+  // [[ s1_2D[0] - p_o_2D[0], s2_2D[0] - p_o_2D[0], s3_2D[0] - p_o_2D[0] ],
+  //  [ s1_2D[1] - p_o_2D[1], s2_2D[1] - p_o_2D[1], s3_2D[1] - p_o_2D[1] ],
+  //  [ 1,                    1,                    1                    ]]
 
-  mjtNum C2 = p_o_2D[0]*s3_2D[1] + p_o_2D[1]*s1_2D[0] + s3_2D[0]*s1_2D[1]
-            - p_o_2D[0]*s1_2D[1] - p_o_2D[1]*s3_2D[0] - s1_2D[0]*s3_2D[1];
+  // C31 corresponds to the signed area of 2-simplex: (p_o_2D, s2_2D, s3_2D)
+  mjtNum C31 = p_o_2D[0]*s2_2D[1] + p_o_2D[1]*s3_2D[0] + s2_2D[0]*s3_2D[1]
+             - p_o_2D[0]*s3_2D[1] - p_o_2D[1]*s2_2D[0] - s3_2D[0]*s2_2D[1];
 
-  mjtNum C3 = p_o_2D[0]*s1_2D[1] + p_o_2D[1]*s2_2D[0] + s1_2D[0]*s2_2D[1]
-            - p_o_2D[0]*s2_2D[1] - p_o_2D[1]*s1_2D[0] - s2_2D[0]*s1_2D[1];
+  // C32 corresponds to the signed area of 2-simplex: (_po_2D, s1_2D, s3_2D)
+  mjtNum C32 = p_o_2D[0]*s3_2D[1] + p_o_2D[1]*s1_2D[0] + s3_2D[0]*s1_2D[1]
+             - p_o_2D[0]*s1_2D[1] - p_o_2D[1]*s3_2D[0] - s1_2D[0]*s3_2D[1];
 
-  int comp1 = compareSigns(mu_max, C1),
-      comp2 = compareSigns(mu_max, C2),
-      comp3 = compareSigns(mu_max, C3);
+  // C33 corresponds to the signed area of 2-simplex: (p_o_2D, s1_2D, s2_2D)
+  mjtNum C33 = p_o_2D[0]*s1_2D[1] + p_o_2D[1]*s2_2D[0] + s1_2D[0]*s2_2D[1]
+             - p_o_2D[0]*s2_2D[1] - p_o_2D[1]*s1_2D[0] - s2_2D[0]*s1_2D[1];
 
-  // inside the simplex
+  int comp1 = compareSigns(M_max, C31),
+      comp2 = compareSigns(M_max, C32),
+      comp3 = compareSigns(M_max, C33);
+
+  // all the same sign, p_o is inside the 2-simplex
   if (comp1 && comp2 && comp3) {
-    lambda[0] = C1 / mu_max;
-    lambda[1] = C2 / mu_max;
-    lambda[2] = C3 / mu_max;
+    lambda[0] = C31 / M_max;
+    lambda[1] = C32 / M_max;
+    lambda[2] = C33 / M_max;
     return;
   }
 
@@ -517,9 +544,9 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
     lincomb(x, lambda_1d, verts, 2);
     mjtNum d = mju_norm3(x);
     if (d < dist) {
+      lambda[0] = 0;
       lambda[1] = lambda_1d[0];
       lambda[2] = lambda_1d[1];
-      lambda[0] = 0;
       dist = d;
     }
   }
@@ -533,13 +560,8 @@ static void S1D(mjtNum lambda[2], const mjtNum simplex[6]) {
   const mjtNum* s2 = simplex + 3;
 
   // find projection of origin onto the 1-simplex:
-  //   p_o = s2 - <s2, s2 - s1> / <s2 - s1, s2 - s1> * (s2 - s1)
   mjtNum p_o[3];
-  mjtNum diff[3];
-  mju_sub3(diff, s2, s1);
-  mjtNum temp1 = mju_dot3(s2, diff);
-  mjtNum temp2 = mju_dot3(diff, diff);
-  mju_addScl3(p_o, s2, diff, - temp1 / temp2);
+  projectOriginLine(p_o, s1, s2);
 
   // find the axis with the largest projection "shadow" of the simplex
   mjtNum mu_max = 0;
@@ -785,18 +807,11 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3) {
   face->verts[1] = v2;
   face->verts[2] = v3;
 
-  // compute normal n
+    // compute witness point v
   mjtNum* pv1 = pt->verts[v1].v;
   mjtNum* pv2 = pt->verts[v2].v;
   mjtNum* pv3 = pt->verts[v3].v;
-  mjtNum diff1[3], diff2[3];
-  mju_sub3(diff1, pv2, pv1);
-  mju_sub3(diff2, pv3, pv1);
-  mju_cross(face->n, diff1, diff2);
-  mju_normalize3(face->n);
-
-  // compute witness point v
-  mju_scl3(face->v, face->n, mju_dot3(face->n, pv1));
+  projectOriginPlane(face->v, face->n, pv1, pv2, pv3);
   face->dist = mju_norm3(face->v);
 
   // orientation check

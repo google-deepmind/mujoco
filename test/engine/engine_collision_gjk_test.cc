@@ -218,7 +218,7 @@ TEST_F(MjGjkTest, CapsuleCapsule) {
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
   mjtNum dist = run_gjk(model, data, geom1, geom2, nullptr, nullptr);
 
-  EXPECT_NEAR(dist, 0.4765, .0001);
+  EXPECT_NEAR(dist, 0.4711, .0001);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
