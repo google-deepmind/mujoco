@@ -11,6 +11,10 @@ General
 2. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
 3. Added support for :ref:`attaching<meAttachment>` keyframes.
 
+MJX
+^^^
+4. Added ``efc_pos`` to ``mjx.Data``.
+
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------
 

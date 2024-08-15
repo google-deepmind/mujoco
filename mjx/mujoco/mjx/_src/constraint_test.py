@@ -65,6 +65,8 @@ class ConstraintTest(parameterized.TestCase):
       _assert_eq(d.efc_aref, dx.efc_aref[order][:d.nefc], 'efc_aref')
       _assert_eq(0, dx.efc_aref[order][d.nefc:], 'efc_aref')
       _assert_eq(d.efc_D, dx.efc_D[order][:d.nefc], 'efc_D')
+      _assert_eq(d.efc_pos, dx.efc_pos[order][:d.nefc], 'efc_pos')
+
 
   def test_disable_refsafe(self):
     m = test_util.load_test_file('constraints.xml')

@@ -529,7 +529,7 @@ def make_constraint(m: Model, d: Data) -> Data:
   if not efcs:
     z = jp.empty(0)
     d = d.replace(efc_J=jp.empty((0, m.nv)))
-    d = d.replace(efc_D=z, efc_aref=z, efc_frictionloss=z)
+    d = d.replace(efc_D=z, efc_aref=z, efc_frictionloss=z, efc_pos=z)
     return d
 
   efc = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *efcs)
@@ -539,10 +539,10 @@ def make_constraint(m: Model, d: Data) -> Data:
     k, b, imp = _kbi(m, efc.solref, efc.solimp, efc.pos_imp)
     r = jp.maximum(efc.invweight * (1 - imp) / imp, mujoco.mjMINVAL)
     aref = -b * (efc.J @ d.qvel) - k * imp * efc.pos_aref
-    return aref, r
+    return aref, r, efc.pos_aref
 
-  aref, r = fn(efc)
-  d = d.replace(efc_J=efc.J, efc_D=1 / r, efc_aref=aref)
+  aref, r, pos = fn(efc)
+  d = d.replace(efc_J=efc.J, efc_D=1 / r, efc_aref=aref, efc_pos=pos)
   d = d.replace(efc_frictionloss=jp.zeros_like(r))
 
   return d

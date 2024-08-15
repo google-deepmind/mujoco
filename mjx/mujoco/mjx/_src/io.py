@@ -270,6 +270,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       contact=contact,
       efc_type=efc_type,
       efc_J=jp.zeros((nefc, m.nv), dtype=float),
+      efc_pos=jp.zeros((nefc,), dtype=float),
       efc_frictionloss=jp.zeros((nefc,), dtype=float),
       efc_D=jp.zeros((nefc,), dtype=float),
       efc_aref=jp.zeros((nefc,), dtype=float),
@@ -461,7 +462,14 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
     fields['efc_J'] = fields['efc_J'].reshape((-1 if m.nv else 0, m.nv))
 
   # move efc rows to their correct offsets
-  for fname in ('efc_J', 'efc_frictionloss', 'efc_D', 'efc_aref', 'efc_force'):
+  for fname in (
+      'efc_J',
+      'efc_pos',
+      'efc_frictionloss',
+      'efc_D',
+      'efc_aref',
+      'efc_force',
+  ):
     value = np.zeros((nefc, m.nv)) if fname == 'efc_J' else np.zeros(nefc)
     for i in range(3):
       value_beg = sum([ne, nf][:i])
