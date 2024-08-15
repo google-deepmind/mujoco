@@ -264,21 +264,6 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, i
 
 
 
-// return number of dofs given joint type
-static int jnt_dofnum(mjtJoint type) {
-  if (type == mjJNT_FREE) {
-    return 6;
-  }
-
-  if (type == mjJNT_BALL) {
-    return 3;
-  }
-
-  return 1;
-}
-
-
-
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
@@ -493,6 +478,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // actuator-level gravity compensation
   if (m->ngravcomp && !mjDISABLED(mjDSBL_GRAVITY) && mju_norm3(m->opt.gravity)) {
+    // number of dofs for each joint type: {mjJNT_FREE, mjJNT_BALL, mjJNT_SLIDE, mjJNT_HINGE}
+    static const int jnt_dofnum[4] = {6, 3, 1, 1};
     int njnt = m->njnt;
     for (int i=0; i < njnt; i++) {
       // skip if gravcomp added as passive force
@@ -501,7 +488,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
 
       // add gravcomp force
-      int dofnum = jnt_dofnum(m->jnt_type[i]);
+      int dofnum = jnt_dofnum[m->jnt_type[i]];
       int dofadr = m->jnt_dofadr[i];
       mju_addTo(d->qfrc_actuator + dofadr, d->qfrc_gravcomp + dofadr, dofnum);
     }
