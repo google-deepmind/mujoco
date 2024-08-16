@@ -39,6 +39,8 @@
 
 namespace {
 
+using std::string;
+using std::string_view;
 using tinyxml2::XMLComment;
 using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
@@ -62,7 +64,7 @@ class mj_XMLPrinter : public tinyxml2::XMLPrinter {
 
 
 // save XML file using custom 2-space indentation
-static std::string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
+static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   doc.ClearError();
   mj_XMLPrinter stream(nullptr, /*compact=*/false);
   doc.Print(&stream);
@@ -70,22 +72,22 @@ static std::string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
     mjCopyError(error, doc.ErrorStr(), error_sz);
     return "";
   }
-  std::string str = std::string(stream.CStr());
+  string str = string(stream.CStr());
 
   // top level sections
-  std::array<std::string, 17> sections = {
+  std::array<string, 17> sections = {
       "<actuator", "<asset",      "<compiler", "<contact",   "<custom",
       "<default>", "<deformable", "<equality", "<extension", "<keyframe",
       "<option",   "<sensor",     "<size",     "<statistic", "<tendon",
       "<visual",   "<worldbody"};
 
   // position of newline before first section
-  size_t first_pos = std::string::npos;
+  size_t first_pos = string::npos;
 
   // insert newlines before section headers
-  for (const std::string& section : sections) {
+  for (const string& section : sections) {
     std::size_t pos = 0;
-    while ((pos = str.find(section, pos)) != std::string::npos) {
+    while ((pos = str.find(section, pos)) != string::npos) {
       // find newline before this section
       std::size_t line_pos = str.rfind('\n', pos);
 
@@ -93,7 +95,7 @@ static std::string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
       if (line_pos < first_pos) first_pos = line_pos;
 
       // insert another newline
-      if (line_pos != std::string::npos) {
+      if (line_pos != string::npos) {
         str.insert(line_pos + 1, "\n");
         pos++;  // account for inserted newline
       }
@@ -104,7 +106,7 @@ static std::string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   }
 
   // remove added newline before the first section
-  if (first_pos != std::string::npos) {
+  if (first_pos != string::npos) {
     str.erase(first_pos, 1);
   }
 
@@ -125,7 +127,7 @@ XMLElement* mjXWriter::InsertEnd(XMLElement* parent, const char* name) {
 
 // write flex
 void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
-  std::string text;
+  string text;
   mjCFlex defflex;
 
   // common attributes
@@ -193,7 +195,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
 
 // write mesh
 void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
-  std::string text;
+  string text;
 
   // regular
   if (!writingdefaults) {
@@ -241,7 +243,7 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
 
 // write skin
 void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
-  std::string text;
+  string text;
   mjCDef mydef;
   float zero = 0;
 
@@ -333,7 +335,7 @@ void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* material, mjCDe
 
 // write joint
 void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
-                         std::string_view classname) {
+                         string_view classname) {
   double zero = 0;
 
   // regular
@@ -384,8 +386,7 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
 }
 
 // write geom
-void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def,
-                        std::string_view classname) {
+void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, string_view classname) {
   double unitq[4] = {1, 0, 0, 0};
   double mass = 0;
 
@@ -480,8 +481,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def,
 }
 
 // write site
-void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def,
-                        std::string_view classname) {
+void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, string_view classname) {
   double unitq[4] = {1, 0, 0, 0};
 
   // regular
@@ -517,7 +517,7 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def,
 
 // write camera
 void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def,
-                          std::string_view classname) {
+                          string_view classname) {
   double unitq[4] = {1, 0, 0, 0};
 
   // regular
@@ -558,7 +558,7 @@ void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def
 
 // write light
 void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
-                         std::string_view classname) {
+                         string_view classname) {
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", light->name);
@@ -803,8 +803,8 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
 
 // write plugin
 void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
-  const std::string instance_name = std::string(mjs_getString(plugin->instance_name));
-  const std::string plugin_name = std::string(mjs_getString(plugin->name));
+  const string instance_name = string(mjs_getString(plugin->instance_name));
+  const string plugin_name = string(mjs_getString(plugin->name));
   if (!instance_name.empty()) {
     WriteAttrTxt(elem, "instance", instance_name);
   } else {
@@ -813,7 +813,7 @@ void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
         static_cast<mjCPlugin*>(plugin->instance)->spec.plugin_slot);
     const char* c = &(static_cast<mjCPlugin*>(plugin->instance)->flattened_attributes[0]);
     for (int i = 0; i < pplugin->nattribute; ++i) {
-      std::string value(c);
+      string value(c);
       if (!value.empty()) {
         XMLElement* config_elem = InsertEnd(elem, "config");
         WriteAttrTxt(config_elem, "key", pplugin->attributes[i]);
@@ -844,7 +844,7 @@ void mjXWriter::SetModel(const mjSpec* spec) {
 
 
 // save existing model in MJCF canonical format, must be compiled
-std::string mjXWriter::Write(char *error, size_t error_sz) {
+string mjXWriter::Write(char *error, size_t error_sz) {
   // check model
   if (!model || !model->IsCompiled()) {
     mjCopyError(error, "XML Write error: Only compiled model can be written", error_sz);
@@ -860,7 +860,7 @@ std::string mjXWriter::Write(char *error, size_t error_sz) {
   doc.InsertFirstChild(root);
 
   // write comment if present
-  std::string text = mjs_getString(model->comment);
+  string text = mjs_getString(model->comment);
   if (!text.empty()) {
     XMLComment* comment = doc.NewComment(text.c_str());
     root->LinkEndChild(comment);
@@ -1332,7 +1332,7 @@ void mjXWriter::Extension(XMLElement* root) {
     // write plugin config attributes
     const char* c = &pp->flattened_attributes[0];
     for (int i = 0; i < plugin->nattribute; ++i) {
-      std::string value(c);
+      string value(c);
       if (!value.empty()) {
         XMLElement* config_elem = InsertEnd(elem, "config");
         WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
@@ -1525,7 +1525,7 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrInt(elem, "nrow", hfield->nrow);
       WriteAttrInt(elem, "ncol", hfield->ncol);
       if (!hfield->get_userdata().empty()) {
-        std::string text;
+        string text;
         Vector2String(text, hfield->get_userdata(), hfield->ncol);
         WriteAttrTxt(elem, "elevation", text);
       }
@@ -1555,8 +1555,7 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame) {
 
 
 // recursive body and frame writer
-void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
-                     std::string_view childclass) {
+void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_view childclass) {
   double unitq[4] = {1, 0, 0, 0};
 
   if (!body) {
@@ -1587,8 +1586,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
     WriteVector(elem, "user", body->get_userdata());
 
     // write inertial
-    if (body->explicitinertial &&
-        model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
+    if (body->explicitinertial && model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);
       WriteAttr(inertial, "quat", 4, body->iquat, unitq);
@@ -1602,9 +1600,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
     if (body->joints[i]->frame != frame) {
       continue;
     }
-    std::string classname = body->joints[i]->frame && !body->joints[i]->frame->classname.empty()
-                                ? body->joints[i]->frame->classname
-                                : body->classname;
+    string classname = body->joints[i]->frame && !body->joints[i]->frame->classname.empty()
+                           ? body->joints[i]->frame->classname
+                           : body->classname;
     OneJoint(InsertEnd(elem, "joint"), body->joints[i],
              model->def_map[body->joints[i]->classname],
              classname.empty() ? childclass : classname);
@@ -1615,9 +1613,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
     if (body->geoms[i]->frame != frame) {
       continue;
     }
-    std::string classname = body->geoms[i]->frame && !body->geoms[i]->frame->classname.empty()
-                                ? body->geoms[i]->frame->classname
-                                : body->classname;
+    string classname = body->geoms[i]->frame && !body->geoms[i]->frame->classname.empty()
+                           ? body->geoms[i]->frame->classname
+                           : body->classname;
     OneGeom(InsertEnd(elem, "geom"), body->geoms[i],
             model->def_map[body->geoms[i]->classname],
             classname.empty() ? childclass : classname);
@@ -1628,9 +1626,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
     if (body->sites[i]->frame != frame) {
       continue;
     }
-    std::string classname = body->sites[i]->frame && !body->sites[i]->frame->classname.empty()
-                                ? body->sites[i]->frame->classname
-                                : body->classname;
+    string classname = body->sites[i]->frame && !body->sites[i]->frame->classname.empty()
+                           ? body->sites[i]->frame->classname
+                           : body->classname;
     OneSite(InsertEnd(elem, "site"), body->sites[i],
             model->def_map[body->sites[i]->classname],
             classname.empty() ? childclass : classname);
@@ -1641,9 +1639,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
     if (body->cameras[i]->frame != frame) {
       continue;
     }
-    std::string classname = body->cameras[i]->frame && !body->cameras[i]->frame->classname.empty()
-                                ? body->cameras[i]->frame->classname
-                                : body->classname;
+    string classname = body->cameras[i]->frame && !body->cameras[i]->frame->classname.empty()
+                           ? body->cameras[i]->frame->classname
+                           : body->classname;
     OneCamera(InsertEnd(elem, "camera"), body->cameras[i],
               model->def_map[body->cameras[i]->classname],
               classname.empty() ? childclass : classname);
@@ -1654,9 +1652,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
     if (body->lights[i]->frame != frame) {
       continue;
     }
-    std::string classname = body->lights[i]->frame && !body->lights[i]->frame->classname.empty()
-                                ? body->lights[i]->frame->classname
-                                : body->classname;
+    string classname = body->lights[i]->frame && !body->lights[i]->frame->classname.empty()
+                           ? body->lights[i]->frame->classname
+                           : body->classname;
     OneLight(InsertEnd(elem, "light"), body->lights[i],
              model->def_map[body->lights[i]->classname],
              classname.empty() ? childclass : classname);
@@ -1674,9 +1672,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
 
     // write body if its frame matches the current frame, avoid access if there are no bodies
     if (bframe == frame && !body->bodies.empty()) {
-      std::string classname = bframe && !bframe->classname.empty()
-                                  ? bframe->classname
-                                  : body->classname;
+      string classname = bframe && !bframe->classname.empty()
+                             ? bframe->classname
+                             : body->classname;
       Body(InsertEnd(elem, "body"), body->bodies[i], nullptr,
             classname.empty() ? childclass : classname);
     }
@@ -1694,9 +1692,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame,
 
       // write frame if its frame matches the current frame
       if (fframe->frame == frame) {
-        std::string classname = fframe && !fframe->classname.empty()
-                                    ? fframe->classname
-                                    : body->classname;
+        string classname = fframe && !fframe->classname.empty()
+                               ? fframe->classname
+                               : body->classname;
         Body(OneFrame(elem, fframe), body, fframe, childclass);
       }
 
@@ -1914,8 +1912,8 @@ void mjXWriter::Sensor(XMLElement* root) {
   for (int i=0; i<num; i++) {
     XMLElement* elem = 0;
     mjCSensor* sensor = model->Sensors()[i];
-    std::string instance_name = "";
-    std::string plugin_name = "";
+    string instance_name = "";
+    string plugin_name = "";
 
     // write sensor type and type-specific attributes
     switch (sensor->type) {

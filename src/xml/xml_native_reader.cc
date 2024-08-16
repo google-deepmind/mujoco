@@ -48,20 +48,21 @@
 
 namespace {
 using std::string;
+using std::string_view;
 using std::vector;
 using mujoco::user::FilePath;
 using tinyxml2::XMLElement;
 
 void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjsPlugin* p) {
-  std::map<std::string, std::string, std::less<>> config_attribs;
+  std::map<string, string, std::less<>> config_attribs;
   XMLElement* child = FirstChildElement(elem);
   while (child) {
-    std::string_view name = child->Value();
+    string_view name = child->Value();
     if (name == "config") {
-      std::string key, value;
+      string key, value;
       mjXUtil::ReadAttrTxt(child, "key", key, /* required = */ true);
       if (config_attribs.find(key) != config_attribs.end()) {
-        std::string err = "duplicate config key: " + key;
+        string err = "duplicate config key: " + key;
         throw mjXError(child, "%s", err.c_str());
       }
       mjXUtil::ReadAttrTxt(child, "value", value, /* required = */ true);
@@ -79,10 +80,10 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjsPlugin* p) {
   }
 }
 
-static void UpdateString(std::string& psuffix, int count, int i) {
+static void UpdateString(string& psuffix, int count, int i) {
   int ndigits = std::to_string(count).length();
-  std::string i_string = std::to_string(i);
-  std::string prefix = "";
+  string i_string = std::to_string(i);
+  string prefix = "";
   while (ndigits-- > i_string.length()) {
     prefix += '0';
   }
@@ -996,7 +997,7 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
     mjs_setString(spec->texturedir, text.c_str());
   }
   // meshdir and texturedir take precedence over assetdir
-  std::string meshdir, texturedir;
+  string meshdir, texturedir;
   if (ReadAttrTxt(section, "meshdir", meshdir)) {
     mjs_setString(spec->meshdir, meshdir.c_str());
   };
@@ -1157,11 +1158,11 @@ void mjXReader::Size(XMLElement* section, mjSpec* spec) {
       }
 
       // trim entire string
-      std::string trimmed;
+      string trimmed;
       {
-        std::istringstream strm((std::string(pstr)));
+        std::istringstream strm((string(pstr)));
         strm >> trimmed;
-        std::string trailing;
+        string trailing;
         strm >> trailing;
         if (!trailing.empty() || !strm.eof()) {
           throw mjXError(section, "%s", err_msg);
@@ -1649,7 +1650,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjsJoint* joint) {
 void mjXReader::OneGeom(XMLElement* elem, mjsGeom* geom) {
   string text, name;
   std::vector<double> userdata;
-  std::string hfieldname, meshname, material;
+  string hfieldname, meshname, material;
   int n;
 
   // read attributes
@@ -1722,7 +1723,7 @@ void mjXReader::OneSite(XMLElement* elem, mjsSite* site) {
   int n;
   string text, name;
   std::vector<double> userdata;
-  std::string material;
+  string material;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
@@ -2328,7 +2329,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
   }
 
   // cable
-  std::string curves;
+  string curves;
   ReadAttrTxt(elem, "curve", curves);
   ReadAttrTxt(elem, "initial", comp.initial);
   ReadAttr(elem, "size", 3, comp.size, text, false, false);
@@ -2381,7 +2382,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
   // geom
   XMLElement* egeom = FirstChildElement(elem, "geom");
   if (egeom) {
-    std::string material;
+    string material;
     mjsGeom& dgeom = *comp.def[0].spec.geom;
     if (MapValue(egeom, "type", &n, geom_map, mjNGEOMTYPES)) {
       dgeom.type = (mjtGeom)n;
@@ -2409,7 +2410,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
   // site
   XMLElement* esite = FirstChildElement(elem, "site");
   if (esite) {
-    std::string material;
+    string material;
     mjsSite& dsite = *comp.def[0].spec.site;
     ReadAttr(esite, "size", 3, dsite.size, text, false, false);
     ReadAttrInt(esite, "group", &dsite.group);
@@ -2486,7 +2487,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
     ReadAttr(eten, "solimpfix", mjNIMP, dequality.solimp, text, false, false);
 
     // tendon attributes
-    std::string material;
+    string material;
     MapValue(elem, "limited", &dtendon.limited, TFAuto_map, 3);
     ReadAttrInt(eten, "group", &dtendon.group);
     ReadAttr(eten, "solreflimit", mjNREF, dtendon.solref_limit, text, false, false);
@@ -2672,8 +2673,8 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
 // add plugin
 void mjXReader::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
   plugin->active = true;
-  std::string name = "";
-  std::string instance_name = "";
+  string name = "";
+  string instance_name = "";
   ReadAttrTxt(elem, "plugin", name);
   ReadAttrTxt(elem, "instance", instance_name);
   mjs_setString(plugin->name, name.c_str());
@@ -2793,10 +2794,10 @@ void mjXReader::Extension(XMLElement* section) {
 
   while (elem) {
     // get sub-element name
-    std::string_view name = elem->Value();
+    string_view name = elem->Value();
 
     if (name == "plugin") {
-      std::string plugin_name;
+      string plugin_name;
       int plugin_slot = -1;
       ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
       const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
@@ -2817,7 +2818,7 @@ void mjXReader::Extension(XMLElement* section) {
 
       XMLElement* child = FirstChildElement(elem);
       while (child) {
-        if (std::string(child->Value())=="instance") {
+        if (string(child->Value())=="instance") {
           if (spec->hasImplicitPluginElem) {
             throw mjXError(
                 child, "explicit plugin instance must appear before implicit plugin elements");
@@ -2925,7 +2926,7 @@ void mjXReader::Custom(XMLElement* section) {
       // read objects and add
       XMLElement* obj = FirstChildElement(elem);
       std::vector<int> objtype;
-      std::string objname = "";
+      string objname = "";
       std::vector<double> objprm;
 
       while (obj) {
@@ -3178,8 +3179,8 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
 
       // separate files
-      std::vector<std::string> cubefiles(6);
-      std::vector<std::string> cubefile_names = {"fileright", "fileleft",
+      std::vector<string> cubefiles(6);
+      std::vector<string> cubefile_names = {"fileright", "fileleft",
                                                  "fileup", "filedown",
                                                  "filefront", "fileback"};
       for (int i = 0; i < cubefiles.size(); i++) {
@@ -3285,7 +3286,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
 
       // overwrite model name if given
-      std::string modelname = "";
+      string modelname = "";
       if (ReadAttrTxt(elem, "name", modelname)) {
         mjs_setString(child->modelname, modelname.c_str());
       }
@@ -3376,7 +3377,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       mjs_setDefault(joint->element, def);
 
       // read attributes
-      std::string name;
+      string name;
       if (ReadAttrTxt(elem, "name", name)) {
         mjs_setString(joint->name, name.c_str());
       }
@@ -3450,7 +3451,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       mjs_setDefault(pframe->element, childdef ? childdef : def);
 
       // read attributes
-      std::string name, childclass;
+      string name, childclass;
       if (ReadAttrTxt(elem, "name", name)) {
         mjs_setString(pframe->name, name.c_str());
       }
@@ -3469,7 +3470,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       int count;
       double offset[3] = {0, 0, 0};
       double euler[3] = {0, 0, 0};
-      std::string separator = "";
+      string separator = "";
       ReadAttr(elem, "count", 1, &count, text, true);
       ReadAttr(elem, "offset", 3, offset, text);
       ReadAttr(elem, "euler", 3, euler, text);
@@ -3520,7 +3521,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
 
         // process suffix
-        std::string suffix = separator;
+        string suffix = separator;
         UpdateString(suffix, count, i);
 
         // attach to parent
@@ -3547,13 +3548,13 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
 
       // create child body
       mjsBody* child = mjs_addBody(body, childdef);
-      mjs_setString(child->info, std::string("line " + std::to_string(elem->GetLineNum())).c_str());
+      mjs_setString(child->info, string("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // set default from class or childclass
       mjs_setDefault(child->element, childdef ? childdef : def);
 
       // read attributes
-      std::string name, childclass;
+      string name, childclass;
       if (ReadAttrTxt(elem, "name", name)) {
         mjs_setString(child->name, name.c_str());
       }
@@ -3584,7 +3585,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
 
     // attachment
     else if (name=="attach") {
-      std::string model_name, body_name, prefix;
+      string model_name, body_name, prefix;
       ReadAttrTxt(elem, "model", model_name);
       ReadAttrTxt(elem, "body", body_name);
       ReadAttrTxt(elem, "prefix", prefix);
@@ -4232,26 +4233,26 @@ mjsDefault* mjXReader::GetClass(XMLElement* section) {
     if (!def) {
       throw mjXError(
           section,
-          std::string("unknown default class name '" + text + "'").c_str());
+          string("unknown default class name '" + text + "'").c_str());
     }
   }
 
   return def;
 }
 
-void mjXReader::SetModelFileDir(const std::string& modelfiledir) {
+void mjXReader::SetModelFileDir(const string& modelfiledir) {
   modelfiledir_ = FilePath(modelfiledir);
 }
 
-void mjXReader::SetAssetDir(const std::string& assetdir) {
+void mjXReader::SetAssetDir(const string& assetdir) {
   assetdir_ = FilePath(assetdir);
 }
 
-void mjXReader::SetMeshDir(const std::string& meshdir) {
+void mjXReader::SetMeshDir(const string& meshdir) {
   meshdir_ = FilePath(meshdir);
 }
 
-void mjXReader::SetTextureDir(const std::string& texturedir) {
+void mjXReader::SetTextureDir(const string& texturedir) {
   texturedir_ = FilePath(texturedir);
 }
 
