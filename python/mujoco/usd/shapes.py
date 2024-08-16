@@ -254,14 +254,14 @@ class TriangleMesh:
 
     return TriangleMesh(vertices, triangles, triangle_uvs)
 
-  def translate(self, translation: np.array):
+  def translate(self, translation: np.ndarray) -> None:
     self.vertices = self.vertices + translation
 
-  def rotate(self, rotation: np.array, center: Tuple[float, ...]):
+  def rotate(self, rotation: np.ndarray, center: Tuple[float, ...]) -> None:
     translated_point = self.vertices - center
     self.vertices = np.dot(translated_point, rotation) + center
 
-  def scale(self, scale: np.array):
+  def scale(self, scale: np.ndarray) -> None:
     self.vertices = self.vertices * scale
 
   def get_center(self):

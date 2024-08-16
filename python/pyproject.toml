@@ -58,4 +58,5 @@ mujoco = [
     "include/mujoco/*.h",
     "testdata/*.xml",
     "testdata/*.msh",
+    "testdata/*.usda",
 ]

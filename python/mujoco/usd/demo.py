@@ -79,7 +79,10 @@ if __name__ == '__main__':
   )
 
   parser.add_argument(
-      '--camera_names', type=str, nargs='+', help='cameras to include in usd'
+      '--camera_names',
+      type=str,
+      nargs='+',
+      help='cameras to include in usd'
   )
 
   parser.add_argument(

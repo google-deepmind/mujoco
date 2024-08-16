@@ -194,7 +194,6 @@ class USDExporter:
 
     if self.updates == 0:
       self._initialize_usd_stage()
-
       self._load_lights()
       self._load_cameras()
 
