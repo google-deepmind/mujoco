@@ -1,0 +1,19 @@
+<!-- For validating model with unsupported sensor -->
+<mujoco model="unsupported_sensor">
+  <worldbody>
+    <body>
+      <joint type="hinge"/>
+      <geom name="geom0" size="1"/>
+      <site name="site"/>
+    </body>
+    <body>
+      <joint type="hinge"/>
+      <geom name="geom1" size="1"/>
+    </body>
+  </worldbody>
+  <sensor>
+    <distance name="distance" geom1="geom0" geom2="geom1"/>
+    <framelinvel name="framelinvel" objtype="site" objname="site"/>
+    <touch name="touch" site="site"/>
+  </sensor>
+</mujoco>

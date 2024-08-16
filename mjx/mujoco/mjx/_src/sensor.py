@@ -31,7 +31,8 @@ def sensor_pos(m: Model, d: Data) -> Data:
   """Compute position-dependent sensors values."""
 
   # no position-dependent sensors
-  if sum(m.sensor_needstage == mujoco.mjtStage.mjSTAGE_POS) == 0:
+  stage_pos = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_POS
+  if sum(stage_pos) == 0:
     return d
 
   # position and orientation by object type
@@ -56,7 +57,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
 
   sensors, adrs = [], []
 
-  for sensor_type in set(m.sensor_type):
+  for sensor_type in set(m.sensor_type[stage_pos]):
     idx = m.sensor_type == sensor_type
     objid = m.sensor_objid[idx]
     adr = m.sensor_adr[idx]
@@ -126,9 +127,14 @@ def sensor_pos(m: Model, d: Data) -> Data:
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.CLOCK:
       sensor = jp.repeat(d.time, sum(idx))
+    else:
+      continue  # unsupported sensor type
 
     sensors.append(sensor)
     adrs.append(adr)
+
+  if not adrs:
+    return d
 
   sensordata = d.sensordata.at[np.concatenate(adrs)].set(
       jp.concatenate(sensors)

@@ -62,6 +62,13 @@ class SensorTest(parameterized.TestCase):
     # sensor values
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
 
+  def test_unsupported_sensor(self):
+    """Tests MJX sensor functions do not break for unsupported sensors."""
+    m = test_util.load_test_file('unsupported_sensor.xml')
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.forward)(mx, mjx.put_data(m, mujoco.MjData(m)))
+    _assert_eq(np.zeros(m.nsensordata), dx.sensordata, 'sensordata')
+
 
 if __name__ == '__main__':
   absltest.main()
