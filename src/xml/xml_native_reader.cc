@@ -2304,7 +2304,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjsDefault* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
   string text;
   int n;
 
@@ -2526,7 +2526,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* pbody, mjsDefault* def) 
 
   // make composite
   char error[200];
-  bool res = comp.Make(spec, pbody, error, 200);
+  bool res = comp.Make(spec, body, error, 200);
 
   // throw error
   if (!res) {
