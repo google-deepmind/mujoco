@@ -14,6 +14,8 @@ General
 MJX
 ^^^
 4. Added ``efc_pos`` to ``mjx.Data``.
+5. Added position-dependent sensors: ``MAGNETOMETER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``,
+   ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``, ``CLOCK``.
 
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------

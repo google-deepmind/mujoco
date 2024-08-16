@@ -282,11 +282,46 @@ class SensorType(enum.IntEnum):
   """Type of sensor.
 
   Members:
+    MAGNETOMETER: magnetometer
     JOINTPOS: joint position
     ACTUATORPOS: actuator position
+    BALLQUAT: ball joint orientation
+    FRAMEPOS: frame position
+    FRAMEXAXIS: frame x-axis
+    FRAMEYAXIS: frame y-axis
+    FRAMEZAXIS: frame z-axis
+    SUBTREECOM: subtree centor of mass
+    CLOCK: simulation time
   """
+  MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
   JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
   ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
+  BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT
+  FRAMEPOS = mujoco.mjtSensor.mjSENS_FRAMEPOS
+  FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS
+  FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS
+  FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS
+  SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
+  CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
+
+
+class ObjType(PyTreeNode):
+  """Type of object.
+
+  Members:
+    UNKNOWN: unknown object type
+    BODY: body
+    XBODY: body, used to access regular frame instead of i-frame
+    GEOM: geom
+    SITE: site
+    CAMERA: camera
+  """
+  UNKNOWN = mujoco.mjtObj.mjOBJ_UNKNOWN
+  BODY = mujoco.mjtObj.mjOBJ_BODY
+  XBODY = mujoco.mjtObj.mjOBJ_XBODY
+  GEOM = mujoco.mjtObj.mjOBJ_GEOM
+  SITE = mujoco.mjtObj.mjOBJ_SITE
+  CAMERA = mujoco.mjtObj.mjOBJ_CAMERA
 
 
 class Option(PyTreeNode):
