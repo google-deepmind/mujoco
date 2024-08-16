@@ -1011,6 +1011,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
     WRITEENBL("island",         mjENBL_ISLAND)
+    WRITEENBL("nativeccd",      mjENBL_NATIVECCD)
 #undef WRITEENBL
   }
 
