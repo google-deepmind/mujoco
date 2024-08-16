@@ -1722,20 +1722,23 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 Derivatives
 -----------
 
-MuJoCo's entire computational pipline including its constraint solver are analytically differentiable. Writing
-efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
-smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
+MuJoCo's entire computational pipline including its constraint solver are analytically differentiable in principle.
+Writing efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives
+of the smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
 :ref:`implicit integrators<geIntegration>`.
+
+Note that the default value of the :ref:`solver impedance<CSolverImpedance>` is such that contacts are *not*
+differentiable by default, and needs to be :ref:`set to 0<solimp0>` in order for contact-force onset to be smooth.
 
 Two functions are currently available which use efficient finite-differencing in order to compute dynamics Jacobians:
 
 :ref:`mjd_transitionFD`:
   Computes state-transition and control-transition Jacobians for the discrete-time forward dynamics (:ref:`mj_step`).
-  See :ref:`API documentation<mjd_transitionFD>`.
+  See :ref:`documentation<mjd_transitionFD>`.
 
 :ref:`mjd_inverseFD`:
-  Computes Jacobians for the continuous-time inverse dynamics (:ref:`mj_inverse`).
-  See :ref:`API documentation<mjd_inverseFD>`.
+  Computes Jacobians for the continuous or discrete-time inverse dynamics (:ref:`mj_inverse`).
+  See :ref:`documentation<mjd_inverseFD>`.
 
 These derivatives are made efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
 recomputed when not required. For example when differencing with respect to controls, quantities which depend only on

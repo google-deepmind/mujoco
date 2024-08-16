@@ -322,5 +322,35 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsite, 10)
     self.assertEqual(model.nsensor, 9)
 
+  def test_plugin(self):
+    xml = """
+    <mujoco>
+      <extension>
+        <plugin plugin="mujoco.elasticity.cable"/>
+      </extension>
+    </mujoco>
+    """
+
+    spec = mujoco.MjSpec()
+    spec.from_string(xml)
+    self.assertIsNotNone(spec.worldbody)
+
+    body = spec.worldbody.add_body()
+    body.plugin.name = 'mujoco.elasticity.cable'
+    body.plugin.id = spec.add_plugin()
+    body.plugin.active = True
+    self.assertEqual(body.plugin.id, 0)
+
+    geom = body.add_geom()
+    geom.type = mujoco.mjtGeom.mjGEOM_BOX
+    geom.size[0] = 1
+    geom.size[1] = 1
+    geom.size[2] = 1
+
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.nplugin, 1)
+    self.assertEqual(model.body_plugin[1], 0)
+
 if __name__ == '__main__':
   absltest.main()

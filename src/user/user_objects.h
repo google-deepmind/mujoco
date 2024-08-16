@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
 #include <cstddef>
+#include <array>
 #include <cstdlib>
 #include <functional>
 #include <map>
@@ -254,6 +255,10 @@ class mjCBody_ : public mjCBase {
   std::string plugin_instance_name;
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
+
+  // variables used for temporarily storing the state of the mocap bodies
+  std::map<std::string, std::array<mjtNum, 3>> mpos_;   // saved mocap_pos
+  std::map<std::string, std::array<mjtNum, 4>> mquat_;  // saved mocap_quat
 };
 
 class mjCBody : public mjCBody_, private mjsBody {
@@ -321,6 +326,10 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
+
+  // get mocap position and quaternion
+  mjtNum* mpos(const std::string& state_name);
+  mjtNum* mquat(const std::string& state_name);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -401,10 +410,10 @@ class mjCJoint_ : public mjCBase {
   mjCBody* body;                   // joint's body
 
   // variable used for temporarily storing the state of the joint
-  int qposadr_;                    // address of dof in data->qpos
-  int dofadr_;                     // address of dof in data->qvel
-  mjtNum qpos[7];                  // qpos at the previous step
-  mjtNum qvel[6];                  // qvel at the previous step
+  int qposadr_;                                        // address of dof in data->qpos
+  int dofadr_;                                         // address of dof in data->qvel
+  std::map<std::string, std::array<mjtNum, 7>> qpos_;  // qpos at the previous step
+  std::map<std::string, std::array<mjtNum, 6>> qvel_;  // qvel at the previous step
 
   // variable-size data
   std::vector<double> userdata_;
@@ -442,6 +451,9 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   static int nv(mjtJoint joint_type);
   int nq() const { return nq(spec.type); }
   int nv() const { return nv(spec.type); }
+
+  mjtNum* qpos(const std::string& state_name);
+  mjtNum* qvel(const std::string& state_name);
 
  private:
   int Compile(void);               // compiler; return dofnum
@@ -1390,9 +1402,10 @@ class mjCActuator_ : public mjCBase {
   int trnid[2];                   // id of transmission target
 
   // variable used for temporarily storing the state of the actuator
-  int actadr_;              // address of dof in data->act
-  int actdim_;              // number of dofs in data->act
-  std::vector<mjtNum> act;  // act at the previous step
+  int actadr_;                                      // address of dof in data->act
+  int actdim_;                                      // number of dofs in data->act
+  std::map<std::string, std::vector<mjtNum>> act_;  // act at the previous step
+  std::map<std::string, mjtNum> ctrl_;              // ctrl at the previous step
 
   // variable-size data
   std::string plugin_name;
@@ -1430,6 +1443,9 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   bool is_ctrllimited() const;
   bool is_forcelimited() const;
   bool is_actlimited() const;
+
+  std::vector<mjtNum>& act(const std::string& state_name);
+  mjtNum& ctrl(const std::string& state_name);
 
  private:
   void Compile(void);                       // compiler

@@ -52,6 +52,9 @@ struct _mjCCDObj {
   mjtNum margin;
   mjtNum rotate[4];
   mjtNum x0[3];  // initial guess of the witness point
+  void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
+  void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
+  mjtNum prism[6][3];  // for hfield
 };
 typedef struct _mjCCDObj mjCCDObj;
 

@@ -653,7 +653,7 @@ msh2obj.py
 
 The `msh2obj.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/msh2obj.py>`__ script converts the
 :ref:`legacy .msh format<legacy-msh-docs>` for surface meshes (different from the possibly-volumetric
-:ref:`gmsh format<gmsh-file-docs>` also using .msh), to OBJ files. The legacy format is depricated and will be removed
+:ref:`gmsh format<gmsh-file-docs>` also using .msh), to OBJ files. The legacy format is deprecated and will be removed
 in a future release. Please convert all legacy files to OBJ.
 
 

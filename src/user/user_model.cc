@@ -213,6 +213,7 @@ void mjCModel::SaveDofOffsets() {
   int qposadr = 0;
   int dofadr = 0;
   int actadr = 0;
+  int nmocap = 0;
 
   for (auto joint : joints_) {
     joint->qposadr_ = qposadr;
@@ -229,6 +230,15 @@ void mjCModel::SaveDofOffsets() {
     }
     actuator->actadr_ = actuator->actdim_ ? actadr : -1;
     actadr += actuator->actdim_;
+  }
+
+  for (mjCBody* body : bodies_) {
+    if (body->spec.mocap) {
+      body->mocapid = nmocap;
+      nmocap++;
+    } else {
+      body->mocapid = -1;
+    }
   }
 }
 
@@ -315,6 +325,16 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 
 
 
+template <>
+void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
+  for (mjCKey* element : elements) {
+    delete element;
+  }
+  elements.clear();
+}
+
+
+
 mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   mjCModel oldmodel(*this);
 
@@ -335,6 +355,10 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
 
+  // store keyframes in the old model
+  oldmodel.key_pending_.clear();
+  oldmodel.StoreKeyframes();
+
   // check if we have to remove anything else
   RemoveFromList(pairs_, oldmodel);
   RemoveFromList(excludes_, oldmodel);
@@ -342,6 +366,12 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(equalities_, oldmodel);
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
+
+  // move all keyframes to pending so that they will be resized
+  DeleteAll(keys_);
+  for (const auto& key : oldmodel.key_pending_) {
+    key_pending_.push_back(key);
+  }
 
   // restore to the original state
   if (!compiled) {
@@ -1153,13 +1183,6 @@ void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   elements.clear();
 }
 
-template <>
-void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
-  for (mjCKey* element : elements) {
-    delete element;
-  }
-  elements.clear();
-}
 
 // set nuser fields
 void mjCModel::SetNuser() {
@@ -2860,16 +2883,36 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 // save the current state
 template <class T>
-void mjCModel::SaveState(const T* qpos, const T* qvel, const T* act) {
+void mjCModel::SaveState(const std::string& state_name, const T* qpos, const T* qvel, const T* act,
+                         const T* ctrl, const T* mpos, const T* mquat) {
   for (auto joint : joints_) {
-    if (qpos) mjuu_copyvec(joint->qpos, qpos + joint->qposadr_, joint->nq());
-    if (qvel) mjuu_copyvec(joint->qvel, qvel + joint->dofadr_, joint->nv());
+    if (joint->qposadr_ == -1 || joint->dofadr_ == -1) {
+      throw mjCError(NULL, "SaveState: joint %s has no address", joint->name.c_str());
+    }
+    if (qpos) mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, joint->nq());
+    if (qvel) mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, joint->nv());
   }
 
-  for (auto actuator : actuators_) {
-    if (actuator->actadr_ != -1 && act) {
-      actuator->act.assign(actuator->actdim_, 0);
-      mjuu_copyvec(actuator->act.data(), act + actuator->actadr_, actuator->actdim_);
+  for (unsigned int i=0; i<actuators_.size(); i++) {
+    auto actuator = actuators_[i];
+    if (actuator->actadr_ != -1 && actuator->actdim_ != -1 && act) {
+      actuator->act(state_name).assign(actuator->actdim_, 0);
+      mjuu_copyvec(actuator->act(state_name).data(), act + actuator->actadr_, actuator->actdim_);
+    }
+    if (ctrl) {
+      actuator->ctrl(state_name) = ctrl[i];
+    }
+  }
+
+  for (auto body : bodies_) {
+    if (!body->spec.mocap) {
+      continue;
+    }
+    if (mpos) {
+      mjuu_copyvec(body->mpos(state_name), mpos + 3*body->mocapid, 3);
+    }
+    if (mquat) {
+      mjuu_copyvec(body->mquat(state_name), mquat + 4*body->mocapid, 4);
     }
   }
 }
@@ -2890,59 +2933,93 @@ void mjCModel::MakeData(const mjModel* m, mjData** dest) {
 
 // restore the previous state
 template <class T>
-void mjCModel::RestoreState(const mjtNum* pos0, T* qpos, T* qvel, T* act) {
+void mjCModel::RestoreState(const std::string& state_name, const mjtNum* pos0,
+                            const mjtNum* mpos0, const mjtNum* mquat0, T* qpos,
+                            T* qvel, T* act, T* ctrl, T* mpos, T* mquat) {
   for (auto joint : joints_) {
     if (qpos) {
-      if (mjuu_defined(joint->qpos[0])) {
-        mjuu_copyvec(qpos + joint->qposadr_, joint->qpos, joint->nq());
+      if (mjuu_defined(joint->qpos(state_name)[0])) {
+        mjuu_copyvec(qpos + joint->qposadr_, joint->qpos(state_name), joint->nq());
       } else {
         mjuu_copyvec(qpos + joint->qposadr_, pos0 + joint->qposadr_, joint->nq());
       }
     }
-    if (mjuu_defined(joint->qvel[0]) && qvel) {
-      mjuu_copyvec(qvel + joint->dofadr_, joint->qvel, joint->nv());
+    if (mjuu_defined(joint->qvel(state_name)[0]) && qvel) {
+      mjuu_copyvec(qvel + joint->dofadr_, joint->qvel(state_name), joint->nv());
     }
   }
 
   // restore act
-  for (auto actuator : actuators_) {
-    if (mjuu_defined(actuator->act[0]) && act) {
-      mjuu_copyvec(act + actuator->actadr_, actuator->act.data(), actuator->actdim_);
+  for (unsigned int i=0; i<actuators_.size(); i++) {
+    auto actuator = actuators_[i];
+    if (!actuator->act(state_name).empty() && mjuu_defined(actuator->act(state_name)[0]) && act) {
+      mjuu_copyvec(act + actuator->actadr_, actuator->act(state_name).data(), actuator->actdim_);
+    }
+    if (ctrl) {
+      ctrl[i] = mjuu_defined(actuator->ctrl(state_name)) ? actuator->ctrl(state_name) : 0;
+    }
+  }
+
+  for (unsigned int i=0; i<bodies_.size(); i++) {
+    auto body = bodies_[i];
+    if (!body->mocap) {
+      continue;
+    }
+    if (mpos) {
+      if (mjuu_defined(body->mpos(state_name)[0])) {
+        mjuu_copyvec(mpos + 3*body->mocapid, body->mpos(state_name), 3);
+      } else {
+        mjuu_copyvec(mpos + 3*body->mocapid, mpos0 + 3*i, 3);
+      }
+    }
+    if (mquat) {
+      if (mjuu_defined(body->mquat(state_name)[0])) {
+        mjuu_copyvec(mquat + 4*body->mocapid, body->mquat(state_name), 4);
+      } else {
+        mjuu_copyvec(mquat + 4*body->mocapid, mquat0 + 4*i, 4);
+      }
     }
   }
 }
 
-
-
 // force explicit instantiations
-template void mjCModel::SaveState<mjtNum>(const mjtNum* qpos,
-                                          const mjtNum* qvel,
-                                          const mjtNum* act);
+template void mjCModel::SaveState<mjtNum>(
+    const std::string& name, const mjtNum* qpos, const mjtNum* qvel, const mjtNum* act,
+    const mjtNum* ctrl, const mjtNum* mpos, const mjtNum* mquat);
 
-template void mjCModel::RestoreState<mjtNum>(const mjtNum* qpos0, mjtNum* qpos,
-                                             mjtNum* qvel, mjtNum* act);
+template void mjCModel::RestoreState<mjtNum>(
+    const std::string& name, const mjtNum* qpos0, const mjtNum* mpos0, const mjtNum* mquat0,
+    mjtNum* qpos, mjtNum* qvel, mjtNum* act, mjtNum* ctrl, mjtNum* mpos, mjtNum* mquat);
 
 
 
 // resolve keyframe references
 void mjCModel::StoreKeyframes() {
   bool resetlists = false;
-  if (joints_.empty()) {
+
+  // create tree lists if they are empty, occurs if an uncompiled model is attached
+  if (bodies_.size() == 1 && geoms_.empty() && sites_.empty() && joints_.empty() &&
+      cameras_.empty() && lights_.empty() && frames_.empty()) {
     MakeLists(bodies_[0]);
     resetlists = true;
   }
 
   SaveDofOffsets();
 
-  for (auto key : keys_) {
+  for (auto& key : keys_) {
     mjKeyInfo info;
     info.name = prefix + key->name + suffix;
+    info.time = key->spec.time;
     info.qpos = !key->spec_qpos_.empty();
     info.qvel = !key->spec_qvel_.empty();
     info.act = !key->spec_act_.empty();
+    info.ctrl = !key->spec_ctrl_.empty();
+    info.mpos = !key->spec_mpos_.empty();
+    info.mquat = !key->spec_mquat_.empty();
     key_pending_.push_back(info);
-    SaveState(key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
-    break;  // (b/350784262) save only the first keyframe for now
+    SaveState(info.name, key->spec_qpos_.data(), key->spec_qvel_.data(),
+              key->spec_act_.data(), key->spec_ctrl_.data(),
+              key->spec_mpos_.data(), key->spec_mquat_.data());
   }
 
   if (resetlists) {
@@ -3484,7 +3561,10 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
     return;
   }
 
-  // resize non-pending keyframes to the new number of dofs
+  // store dof offsets in joints and actuators
+  SaveDofOffsets();
+
+  // resize existing keyframes to the new state, fill in missing default values
   for (unsigned int i = 0; i < nkey - key_pending_.size(); i++) {
     mjCKey* key = keys_[i];
     if (!key->spec_qpos_.empty()) {
@@ -3500,19 +3580,53 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
     if (!key->spec_act_.empty()) {
       key->spec_act_.resize(na);
     }
+    if (!key->spec_ctrl_.empty()) {
+      key->spec_ctrl_.resize(nu);
+    }
+    if (!key->spec_mpos_.empty()) {
+      int nmocap0 = key->spec_mpos_.size() / 3;
+      key->spec_mpos_.resize(3*nmocap);
+      for (unsigned int j = 0; j < bodies_.size(); j++) {
+        if (bodies_[j]->mocapid < nmocap0) {
+          continue;
+        }
+        int i = bodies_[j]->mocapid;
+        key->spec_mpos_[3*i+0] = (double)m->body_pos[3*j+0];
+        key->spec_mpos_[3*i+1] = (double)m->body_pos[3*j+1];
+        key->spec_mpos_[3*i+2] = (double)m->body_pos[3*j+2];
+      }
+    }
+    if (!key->spec_mquat_.empty()) {
+      int nmocap0 = key->spec_mquat_.size() / 4;
+      key->spec_mquat_.resize(4*nmocap);
+      for (unsigned int j = 0; j < bodies_.size(); j++) {
+        if (bodies_[j]->mocapid < nmocap0) {
+          continue;
+        }
+        int i = bodies_[j]->mocapid;
+        key->spec_mquat_[4*i+0] = (double)m->body_quat[4*j+0];
+        key->spec_mquat_[4*i+1] = (double)m->body_quat[4*j+1];
+        key->spec_mquat_[4*i+2] = (double)m->body_quat[4*j+2];
+        key->spec_mquat_[4*i+3] = (double)m->body_quat[4*j+3];
+      }
+    }
   }
 
-  // store dof offsets in joints and actuators
-  SaveDofOffsets();
-
-  // copy state stored in joints and actuators to keyframes
+  // create new keyframes, fill in missing default values
   for (const auto& info : key_pending_) {
     mjCKey* key = (mjCKey*)FindObject(mjOBJ_KEY, info.name);
     key->name = info.name;
+    key->spec.time = info.time;
     if (info.qpos) key->spec_qpos_.assign(nq, 0);
     if (info.qvel) key->spec_qvel_.assign(nv, 0);
     if (info.act) key->spec_act_.assign(na, 0);
-    RestoreState(m->qpos0, key->spec_qpos_.data(), key->spec_qvel_.data(), key->spec_act_.data());
+    if (info.ctrl) key->spec_ctrl_.assign(nu, 0);
+    if (info.mpos) key->spec_mpos_.assign(3*nmocap, 0);
+    if (info.mquat) key->spec_mquat_.assign(4*nmocap, 0);
+    RestoreState(info.name, m->qpos0, m->body_pos, m->body_quat,
+                 key->spec_qpos_.data(), key->spec_qvel_.data(),
+                 key->spec_act_.data(), key->spec_ctrl_.data(),
+                 key->spec_mpos_.data(), key->spec_mquat_.data());
   }
 
   // the attached keyframes have been copied into the model

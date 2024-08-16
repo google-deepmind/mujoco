@@ -360,8 +360,10 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -586,46 +588,45 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
 
 //----------------------------  heightfield collisions ---------------------------------------------
 
-// ccd prism object type
-struct _mjtPrism {
-  mjtNum v[6][3];
-};
-
-typedef struct _mjtPrism mjtPrism;
-
-
-// ccd prism support function
-static void prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec) {
+// prism support function
+static void mjc_prism_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   int istart, ibest;
   mjtNum best, tmp;
-  const mjtPrism* p = (const mjtPrism*)obj;
 
   // find best vertex in halfspace determined by dir.z
-  istart = dir->v[2] < 0 ? 0 : 3;
+  istart = dir[2] < 0 ? 0 : 3;
   ibest = istart;
-  best = mju_dot3(p->v[istart], dir->v);
+  best = mju_dot3(obj->prism[istart], dir);
   for (int i=istart+1; i < istart+3; i++) {
-    if ((tmp = mju_dot3(p->v[i], dir->v)) > best) {
+    if ((tmp = mju_dot3(obj->prism[i], dir)) > best) {
       ibest = i;
       best = tmp;
     }
   }
 
   // copy best point
-  mju_copy3(vec->v, p->v[ibest]);
+  mju_copy3(res, obj->prism[ibest]);
+}
+
+// ccd prism support function
+static void mjccd_prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec) {
+  mjc_prism_support(vec->v, (mjCCDObj*) obj, dir->v);
 }
 
 
-// ccd prism center function
-static void prism_center(const void *obj, ccd_vec3_t *center) {
-  const mjtPrism* p = (const mjtPrism*)obj;
-
+// prism center function
+static void mjc_prism_center(mjtNum res[3], const mjCCDObj* obj) {
   // compute mean
-  mju_zero3(center->v);
+  mju_zero3(res);
   for (int i=0; i < 6; i++) {
-    mju_addTo3(center->v, p->v[i]);
+    mju_addTo3(res, obj->prism[i]);
   }
-  mju_scl3(center->v, center->v, 1.0/6.0);
+  mju_scl3(res, res, 1.0/6.0);
+}
+
+// ccd prism center function
+static void mjccd_prism_center(const void *obj, ccd_vec3_t *center) {
+  mjc_prism_center(center->v, (const mjCCDObj*) obj);
 }
 
 
@@ -636,17 +637,17 @@ static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
 
 
 // add vertex to prism, count vertices
-static void addVert(int* nvert, mjtPrism* prism, mjtNum x, mjtNum y, mjtNum z) {
+static void addVert(int* nvert, mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
   // move old data
-  mju_copy3(prism->v[0], prism->v[1]);
-  mju_copy3(prism->v[1], prism->v[2]);
-  mju_copy3(prism->v[3], prism->v[4]);
-  mju_copy3(prism->v[4], prism->v[5]);
+  mju_copy3(obj->prism[0], obj->prism[1]);
+  mju_copy3(obj->prism[1], obj->prism[2]);
+  mju_copy3(obj->prism[3], obj->prism[4]);
+  mju_copy3(obj->prism[4], obj->prism[5]);
 
   // add new vertex at last position
-  prism->v[2][0] = prism->v[5][0] = x;
-  prism->v[2][1] = prism->v[5][1] = y;
-  prism->v[5][2] = z;
+  obj->prism[2][0] = obj->prism[5][0] = x;
+  obj->prism[2][1] = obj->prism[5][1] = y;
+  obj->prism[5][2] = z;
 
   // count
   (*nvert)++;
@@ -665,12 +666,15 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   int ncol = m->hfield_ncol[hid];
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   const float* data = m->hfield_data + m->hfield_adr[hid];
-  mjtPrism prism;
+  mjCCDObj obj1;
+  obj1.center = mjc_prism_center;
+  obj1.support = mjc_prism_support;
 
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
+                  mjc_center, mjc_support};
   ccd_t ccd;
 
   // point size1 to hfield size instead of geom1 size
@@ -713,32 +717,32 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
 
   // get support point in +X
   ccdVec3Set(&dirccd, 1, 0, 0);
-  mjccd_support(&obj, &dirccd, &vecccd);
+  mjccd_support(&obj2, &dirccd, &vecccd);
   xmax = vecccd.v[0];
 
   // get support point in -X
   ccdVec3Set(&dirccd, -1, 0, 0);
-  mjccd_support(&obj, &dirccd, &vecccd);
+  mjccd_support(&obj2, &dirccd, &vecccd);
   xmin = vecccd.v[0];
 
   // get support point in +Y
   ccdVec3Set(&dirccd, 0, 1, 0);
-  mjccd_support(&obj, &dirccd, &vecccd);
+  mjccd_support(&obj2, &dirccd, &vecccd);
   ymax = vecccd.v[1];
 
   // get support point in -Y
   ccdVec3Set(&dirccd, 0, -1, 0);
-  mjccd_support(&obj, &dirccd, &vecccd);
+  mjccd_support(&obj2, &dirccd, &vecccd);
   ymin = vecccd.v[1];
 
   // get support point in +Z
   ccdVec3Set(&dirccd, 0, 0, 1);
-  mjccd_support(&obj, &dirccd, &vecccd);
+  mjccd_support(&obj2, &dirccd, &vecccd);
   zmax = vecccd.v[2];
 
   // get support point in -Z
   ccdVec3Set(&dirccd, 0, 0, -1);
-  mjccd_support(&obj, &dirccd, &vecccd);
+  mjccd_support(&obj2, &dirccd, &vecccd);
   zmin = vecccd.v[2];
 
   // box-box test
@@ -767,13 +771,13 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   // init ccd structure
   mjc_initCCD(&ccd, m);
   ccd.first_dir = prism_firstdir;
-  ccd.center1 = prism_center;
+  ccd.center1 = mjccd_prism_center;
   ccd.center2 = mjccd_center;
-  ccd.support1 = prism_support;
+  ccd.support1 = mjccd_prism_support;
   ccd.support2 = mjccd_support;
 
   // geom margin needed for actual collision test
-  obj.margin = margin;
+  obj2.margin = margin;
 
   // compute real-valued grid step, and triangulation direction
   dx = (2.0*size1[0]) / (ncol-1);
@@ -782,7 +786,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   dr[1] = 0;
 
   // set zbottom value using base size
-  prism.v[0][2] = prism.v[1][2] = prism.v[2][2] = -size1[3];
+  obj1.prism[0][2] = obj1.prism[1][2] = obj1.prism[2][2] = -size1[3];
 
   // process all prisms in sub-grid
   cnt = 0;
@@ -791,19 +795,20 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
     for (int c=cmin; c <= cmax; c++) {
       for (int i=0; i < 2; i++) {
         // send vertex to prism constructor
-        addVert(&nvert, &prism, dx*c-size1[0], dy*(r+dr[i])-size1[1],
+        addVert(&nvert, &obj1, dx*c-size1[0], dy*(r+dr[i])-size1[1],
                 data[(r+dr[i])*ncol+c]*size1[2]+margin);
 
         // check for enough vertices
         if (nvert > 2) {
           // prism height test
-          if (prism.v[3][2] < zmin && prism.v[4][2] < zmin && prism.v[5][2] < zmin) {
+          if (obj1.prism[3][2] < zmin && obj1.prism[4][2] < zmin
+              && obj1.prism[5][2] < zmin) {
             continue;
           }
 
           // run MPR, save contact
-          if (_mjCCDPENETRATION(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0 &&
-              !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
+          if (_mjCCDPENETRATION(&obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0
+              && !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
             // fill in contact data, transform to global coordinates
             con[cnt].dist = -depth;
             mju_mulMatVec3(con[cnt].frame, mat1, dirccd.v);
@@ -1103,8 +1108,10 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
                    int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}, {0, 0, 0}};
-  mjCCDObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
+                   mjc_center, mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -1128,7 +1135,9 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   mjtNum vec[3], dx, dy;
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
   int dr[2], cnt, rmin, rmax, cmin, cmax;
-  mjtPrism prism;
+  mjCCDObj obj1;
+  obj1.center = mjc_prism_center;
+  obj1.support = mjc_prism_support;
 
   // get hfield info
   int hid = m->geom_dataid[g];
@@ -1151,7 +1160,8 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj2 = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
+                  mjc_center, mjc_support};
   ccd_t ccd;
 
   //------------------------------------- AABB computation, box-box test
@@ -1211,9 +1221,9 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // init ccd structure
   CCD_INIT(&ccd);
   ccd.first_dir = prism_firstdir;
-  ccd.center1 = prism_center;
+  ccd.center1 = mjccd_prism_center;
   ccd.center2 = mjccd_center;
-  ccd.support1 = prism_support;
+  ccd.support1 = mjccd_prism_support;
   ccd.support2 = mjccd_support;
 
   // set ccd parameters
@@ -1227,7 +1237,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   dr[1] = 0;
 
   // set zbottom value using base size
-  prism.v[0][2] = prism.v[1][2] = prism.v[2][2] = -hsize[3];
+  obj1.prism[0][2] = obj1.prism[1][2] = obj1.prism[2][2] = -hsize[3];
 
   // process all prisms in sub-grid
   cnt = 0;
@@ -1236,18 +1246,18 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
     for (int c=cmin; c <= cmax; c++) {
       for (int k=0; k < 2; k++) {
         // send vertex to prism constructor
-        addVert(&nvert, &prism, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
+        addVert(&nvert, &obj1, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
                 hdata[(r+dr[k])*ncol+c]*hsize[2]+margin);
 
         // check for enough vertices
         if (nvert > 2) {
           // prism height test
-          if (prism.v[3][2] < zmin && prism.v[4][2] < zmin && prism.v[5][2] < zmin) {
+          if (obj1.prism[3][2] < zmin && obj1.prism[4][2] < zmin && obj1.prism[5][2] < zmin) {
             continue;
           }
 
           // run MPR, save contact
-          if (_mjCCDPENETRATION(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0) {
+          if (_mjCCDPENETRATION(&obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0) {
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
               con[cnt].dist = -depth;

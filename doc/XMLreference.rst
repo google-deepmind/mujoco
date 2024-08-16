@@ -175,6 +175,12 @@ replicating 200 times, suffixes will be ``000, 001, ...`` etc). All referencing 
 and namespaced appropriately. Detailed examples of models using replicate can be found in the
 `model/replicate/ <https://github.com/google-deepmind/mujoco/tree/main/model/replicate>`__ directory.
 
+There is a caveat concerning :ref:`keyframes<keyframe>` when using replicate. Since :ref:`mjs_attachFrame` is used to
+self-attach multiple times the enclosed kinematic tree, if this tree contains further :ref:`attach<body-attach>`
+elements, keyframes will not be replicated nor namespaced by :ref:`replicate<replicate>`, but they will be attached and
+namespaced once by the innermost call of :ref:`mjs_attachFrame` or :ref:`mjs_attachBody`. See the limitations discussed
+in :ref:`attach<body-attach>`.
+
 .. _replicate-count:
 
 :at:`count`: :at-val:`int, required`
@@ -1106,7 +1112,8 @@ to convert to one of the other supported formats.
 
 .. _legacy-msh-docs:
 
-MSH file format
+.. collapse:: Legacy MSH file format
+
    The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
    (nnormal), vertex texture coordinates (ntexcoord), and vertex indices making up the faces (nface), followed by the
    numeric data. nvertex must be at least 4. nnormal and ntexcoord can be zero (in which case the corresponding data is
@@ -1190,7 +1197,8 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
    the edge, unless :ref:`smoothnormal<asset-mesh-smoothnormal>` is true.
    Note that normals cannot be provided with STL meshes;
-#. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
+#. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling. Save these
+   transformations in ``mjModel.mesh_{pos, quat, scale}``.
 #. Construct the convex hull if specified;
 #. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
    too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
@@ -3806,7 +3814,7 @@ all attachments will appear in the saved XML file.
    - An entire model cannot be attached (i.e. including all elements, referenced or not).
    - All assets from the child model will be copied in, whether they are referenced or not.
    - Self-attach or circular references are not checked for and will lead to infinite loops.
-   - :ref:`Keyframes<keyframe>` are not yet supported. When attaching, all keyframes will be deleted.
+   - :ref:`Keyframes<keyframe>` are attached once, so they are not replicated in nested attachments.
 
 .. _body-attach-model:
 

@@ -39,8 +39,10 @@ def _value_binding_code(
     fullvarname = 'ptr->' + varname
   if field.name.startswith('mjs'):  # all other mjs are raw structs
     fulltype = field.name.replace('mjs', 'raw::Mjs')
-    if field.name != 'mjsPlugin' and field.name != 'mjsOrientation':
-      fulltype = fulltype + '*'  # plugin and orientation are pointers
+    if field.name == 'mjsPlugin' or field.name == 'mjsOrientation':
+      fulltype = fulltype + '&'  # plugin and orientation are not pointers
+    else:
+      fulltype = fulltype + '*'
 
   def_property_args = (
       f'"{varname}"',

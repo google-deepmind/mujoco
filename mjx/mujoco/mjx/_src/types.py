@@ -14,12 +14,20 @@
 # ==============================================================================
 """Base types used in MJX."""
 
+import dataclasses
 import enum
 from typing import Tuple
 import jax
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
+
+
+def _restricted_to(platform: str):
+  """Specifies whether a field exists in only MuJoCo or MJX."""
+  if platform not in ('mujoco', 'mjx'):
+    raise ValueError(f'unknown platform: {platform}')
+  return dataclasses.field(metadata={'restricted_to': platform})
 
 
 class DisableBit(enum.IntFlag):
@@ -282,11 +290,46 @@ class SensorType(enum.IntEnum):
   """Type of sensor.
 
   Members:
+    MAGNETOMETER: magnetometer
     JOINTPOS: joint position
     ACTUATORPOS: actuator position
+    BALLQUAT: ball joint orientation
+    FRAMEPOS: frame position
+    FRAMEXAXIS: frame x-axis
+    FRAMEYAXIS: frame y-axis
+    FRAMEZAXIS: frame z-axis
+    SUBTREECOM: subtree centor of mass
+    CLOCK: simulation time
   """
+  MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
   JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
   ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
+  BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT
+  FRAMEPOS = mujoco.mjtSensor.mjSENS_FRAMEPOS
+  FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS
+  FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS
+  FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS
+  SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
+  CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
+
+
+class ObjType(PyTreeNode):
+  """Type of object.
+
+  Members:
+    UNKNOWN: unknown object type
+    BODY: body
+    XBODY: body, used to access regular frame instead of i-frame
+    GEOM: geom
+    SITE: site
+    CAMERA: camera
+  """
+  UNKNOWN = mujoco.mjtObj.mjOBJ_UNKNOWN
+  BODY = mujoco.mjtObj.mjOBJ_BODY
+  XBODY = mujoco.mjtObj.mjOBJ_XBODY
+  GEOM = mujoco.mjtObj.mjOBJ_GEOM
+  SITE = mujoco.mjtObj.mjOBJ_SITE
+  CAMERA = mujoco.mjtObj.mjOBJ_CAMERA
 
 
 class Option(PyTreeNode):
@@ -329,12 +372,12 @@ class Option(PyTreeNode):
     sdf_iterations:    max number of iterations for gradient descent (not used)
   """
   timestep: jax.Array
-  apirate: jax.Array
+  apirate: jax.Array = _restricted_to('mujoco')
   impratio: jax.Array
   tolerance: jax.Array
   ls_tolerance: jax.Array
-  noslip_tolerance: jax.Array
-  mpr_tolerance: jax.Array
+  noslip_tolerance: jax.Array = _restricted_to('mujoco')
+  mpr_tolerance: jax.Array = _restricted_to('mujoco')
   gravity: jax.Array
   wind: jax.Array
   magnetic: jax.Array
@@ -344,20 +387,20 @@ class Option(PyTreeNode):
   o_solref: jax.Array
   o_solimp: jax.Array
   o_friction: jax.Array
-  has_fluid_params: bool
+  has_fluid_params: bool = _restricted_to('mjx')
   integrator: IntegratorType
   cone: ConeType
   jacobian: JacobianType
   solver: SolverType
   iterations: int
   ls_iterations: int
-  noslip_iterations: int
-  mpr_iterations: int
+  noslip_iterations: int = _restricted_to('mujoco')
+  mpr_iterations: int = _restricted_to('mujoco')
   disableflags: DisableBit
   enableflags: int
   disableactuator: int
-  sdf_initpoints: int
-  sdf_iterations: int
+  sdf_initpoints: int = _restricted_to('mujoco')
+  sdf_iterations: int = _restricted_to('mujoco')
 
 
 class Statistic(PyTreeNode):
@@ -688,22 +731,22 @@ class Model(PyTreeNode):
   nu: int
   na: int
   nbody: int
-  nbvh: int
-  nbvhstatic: int
-  nbvhdynamic: int
+  nbvh: int = _restricted_to('mujoco')
+  nbvhstatic: int = _restricted_to('mujoco')
+  nbvhdynamic: int = _restricted_to('mujoco')
   njnt: int
   ngeom: int
   nsite: int
   ncam: int
   nlight: int
-  nflex: int
-  nflexvert: int
-  nflexedge: int
-  nflexelem: int
-  nflexelemdata: int
-  nflexshelldata: int
-  nflexevpair: int
-  nflextexcoord: int
+  nflex: int = _restricted_to('mujoco')
+  nflexvert: int = _restricted_to('mujoco')
+  nflexedge: int = _restricted_to('mujoco')
+  nflexelem: int = _restricted_to('mujoco')
+  nflexelemdata: int = _restricted_to('mujoco')
+  nflexshelldata: int = _restricted_to('mujoco')
+  nflexevpair: int = _restricted_to('mujoco')
+  nflextexcoord: int = _restricted_to('mujoco')
   nmesh: int
   nmeshvert: int
   nmeshnormal: int
@@ -726,11 +769,11 @@ class Model(PyTreeNode):
   nM: int  # pylint:disable=invalid-name
   nD: int  # pylint:disable=invalid-name
   nB: int  # pylint:disable=invalid-name
-  ntree: int
+  ntree: int = _restricted_to('mujoco')
   ngravcomp: int
   nuserdata: int
   nsensordata: int
-  narena: int
+  narena: int = _restricted_to('mujoco')
   opt: Option
   stat: Statistic
   qpos0: jax.Array
@@ -759,11 +802,11 @@ class Model(PyTreeNode):
   body_margin: np.ndarray
   body_contype: np.ndarray
   body_conaffinity: np.ndarray
-  body_bvhadr: np.ndarray
-  body_bvhnum: np.ndarray
-  bvh_child: np.ndarray
-  bvh_nodeid: np.ndarray
-  bvh_aabb: np.ndarray
+  body_bvhadr: np.ndarray = _restricted_to('mujoco')
+  body_bvhnum: np.ndarray = _restricted_to('mujoco')
+  bvh_child: np.ndarray = _restricted_to('mujoco')
+  bvh_nodeid: np.ndarray = _restricted_to('mujoco')
+  bvh_aabb: np.ndarray = _restricted_to('mujoco')
   body_invweight0: jax.Array
   jnt_type: np.ndarray
   jnt_qposadr: np.ndarray
@@ -809,7 +852,7 @@ class Model(PyTreeNode):
   geom_size: jax.Array
   geom_aabb: np.ndarray
   geom_rbound: jax.Array
-  geom_rbound_hfield: np.ndarray
+  geom_rbound_hfield: np.ndarray = _restricted_to('mjx')
   geom_pos: jax.Array
   geom_quat: jax.Array
   geom_friction: jax.Array
@@ -835,54 +878,54 @@ class Model(PyTreeNode):
   cam_resolution: np.ndarray
   cam_sensorsize: np.ndarray
   cam_intrinsic: np.ndarray
-  light_mode: np.ndarray
-  light_bodyid: np.ndarray
-  light_targetbodyid: np.ndarray
-  light_pos: np.ndarray
-  light_dir: np.ndarray
-  light_poscom0: np.ndarray
-  light_pos0: np.ndarray
-  light_dir0: np.ndarray
-  flex_contype: np.ndarray
-  flex_conaffinity: np.ndarray
-  flex_condim: np.ndarray
-  flex_priority: np.ndarray
-  flex_solmix: np.ndarray
-  flex_solref: np.ndarray
-  flex_solimp: np.ndarray
-  flex_friction: np.ndarray
-  flex_margin: np.ndarray
-  flex_gap: np.ndarray
-  flex_internal: np.ndarray
-  flex_selfcollide: np.ndarray
-  flex_activelayers: np.ndarray
-  flex_dim: np.ndarray
-  flex_vertadr: np.ndarray
-  flex_vertnum: np.ndarray
-  flex_edgeadr: np.ndarray
-  flex_edgenum: np.ndarray
-  flex_elemadr: np.ndarray
-  flex_elemnum: np.ndarray
-  flex_elemdataadr: np.ndarray
-  flex_evpairadr: np.ndarray
-  flex_evpairnum: np.ndarray
-  flex_vertbodyid: np.ndarray
-  flex_edge: np.ndarray
-  flex_elem: np.ndarray
-  flex_elemlayer: np.ndarray
-  flex_evpair: np.ndarray
-  flex_vert: np.ndarray
-  flexedge_length0: np.ndarray
-  flexedge_invweight0: np.ndarray
-  flex_radius: np.ndarray
-  flex_edgestiffness: np.ndarray
-  flex_edgedamping: np.ndarray
-  flex_edgeequality: np.ndarray
-  flex_rigid: np.ndarray
-  flexedge_rigid: np.ndarray
-  flex_centered: np.ndarray
-  flex_bvhadr: np.ndarray
-  flex_bvhnum: np.ndarray
+  light_mode: np.ndarray = _restricted_to('mujoco')
+  light_bodyid: np.ndarray = _restricted_to('mujoco')
+  light_targetbodyid: np.ndarray = _restricted_to('mujoco')
+  light_pos: np.ndarray = _restricted_to('mujoco')
+  light_dir: np.ndarray = _restricted_to('mujoco')
+  light_poscom0: np.ndarray = _restricted_to('mujoco')
+  light_pos0: np.ndarray = _restricted_to('mujoco')
+  light_dir0: np.ndarray = _restricted_to('mujoco')
+  flex_contype: np.ndarray = _restricted_to('mujoco')
+  flex_conaffinity: np.ndarray = _restricted_to('mujoco')
+  flex_condim: np.ndarray = _restricted_to('mujoco')
+  flex_priority: np.ndarray = _restricted_to('mujoco')
+  flex_solmix: np.ndarray = _restricted_to('mujoco')
+  flex_solref: np.ndarray = _restricted_to('mujoco')
+  flex_solimp: np.ndarray = _restricted_to('mujoco')
+  flex_friction: np.ndarray = _restricted_to('mujoco')
+  flex_margin: np.ndarray = _restricted_to('mujoco')
+  flex_gap: np.ndarray = _restricted_to('mujoco')
+  flex_internal: np.ndarray = _restricted_to('mujoco')
+  flex_selfcollide: np.ndarray = _restricted_to('mujoco')
+  flex_activelayers: np.ndarray = _restricted_to('mujoco')
+  flex_dim: np.ndarray = _restricted_to('mujoco')
+  flex_vertadr: np.ndarray = _restricted_to('mujoco')
+  flex_vertnum: np.ndarray = _restricted_to('mujoco')
+  flex_edgeadr: np.ndarray = _restricted_to('mujoco')
+  flex_edgenum: np.ndarray = _restricted_to('mujoco')
+  flex_elemadr: np.ndarray = _restricted_to('mujoco')
+  flex_elemnum: np.ndarray = _restricted_to('mujoco')
+  flex_elemdataadr: np.ndarray = _restricted_to('mujoco')
+  flex_evpairadr: np.ndarray = _restricted_to('mujoco')
+  flex_evpairnum: np.ndarray = _restricted_to('mujoco')
+  flex_vertbodyid: np.ndarray = _restricted_to('mujoco')
+  flex_edge: np.ndarray = _restricted_to('mujoco')
+  flex_elem: np.ndarray = _restricted_to('mujoco')
+  flex_elemlayer: np.ndarray = _restricted_to('mujoco')
+  flex_evpair: np.ndarray = _restricted_to('mujoco')
+  flex_vert: np.ndarray = _restricted_to('mujoco')
+  flexedge_length0: np.ndarray = _restricted_to('mujoco')
+  flexedge_invweight0: np.ndarray = _restricted_to('mujoco')
+  flex_radius: np.ndarray = _restricted_to('mujoco')
+  flex_edgestiffness: np.ndarray = _restricted_to('mujoco')
+  flex_edgedamping: np.ndarray = _restricted_to('mujoco')
+  flex_edgeequality: np.ndarray = _restricted_to('mujoco')
+  flex_rigid: np.ndarray = _restricted_to('mujoco')
+  flexedge_rigid: np.ndarray = _restricted_to('mujoco')
+  flex_centered: np.ndarray = _restricted_to('mujoco')
+  flex_bvhadr: np.ndarray = _restricted_to('mujoco')
+  flex_bvhnum: np.ndarray = _restricted_to('mujoco')
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
@@ -894,7 +937,7 @@ class Model(PyTreeNode):
   mesh_graph: np.ndarray
   mesh_pos: np.ndarray
   mesh_quat: np.ndarray
-  mesh_convex: Tuple[ConvexMesh, ...]
+  mesh_convex: Tuple[ConvexMesh, ...] = _restricted_to('mjx')
   hfield_size: np.ndarray
   hfield_nrow: np.ndarray
   hfield_ncol: np.ndarray
@@ -934,9 +977,9 @@ class Model(PyTreeNode):
   tendon_lengthspring: jax.Array
   tendon_length0: jax.Array
   tendon_invweight0: jax.Array
-  wrap_type: np.ndarray
-  wrap_objid: np.ndarray
-  wrap_prm: np.ndarray
+  wrap_type: np.ndarray = _restricted_to('mujoco')
+  wrap_objid: np.ndarray = _restricted_to('mujoco')
+  wrap_prm: np.ndarray = _restricted_to('mujoco')
   actuator_trntype: np.ndarray
   actuator_dyntype: np.ndarray
   actuator_gaintype: np.ndarray
@@ -959,7 +1002,7 @@ class Model(PyTreeNode):
   actuator_cranklength: np.ndarray
   actuator_acc0: np.ndarray
   actuator_lengthrange: np.ndarray
-  actuator_plugin: np.ndarray
+  actuator_plugin: np.ndarray = _restricted_to('mujoco')
   sensor_type: np.ndarray
   sensor_datatype: np.ndarray
   sensor_needstage: np.ndarray
@@ -1137,6 +1180,7 @@ class Data(PyTreeNode):
     contact: all detected contacts                              (ncon,)
     efc_type: constraint type                                   (nefc,)
     efc_J: constraint Jacobian                                  (nefc, nv)
+    efc_pos: constraint position (equality, contact)            (nefc,)
     efc_frictionloss: frictionloss (friction)                   (nefc,)
     efc_D: constraint mass                                      (nefc,)
     efc_aref: reference pseudo-acceleration                     (nefc,)
@@ -1166,8 +1210,8 @@ class Data(PyTreeNode):
   xfrc_applied: jax.Array
   eq_active: jax.Array
   # mocap data:
-  mocap_pos: jax.Array
-  mocap_quat: jax.Array
+  mocap_pos: jax.Array = _restricted_to('mujoco')
+  mocap_quat: jax.Array = _restricted_to('mujoco')
   # dynamics:
   qacc: jax.Array
   act_dot: jax.Array
@@ -1188,27 +1232,27 @@ class Data(PyTreeNode):
   site_xmat: jax.Array
   cam_xpos: jax.Array
   cam_xmat: jax.Array
-  light_xpos: jax.Array
-  light_xdir: jax.Array
+  light_xpos: jax.Array = _restricted_to('mujoco')
+  light_xdir: jax.Array = _restricted_to('mujoco')
   subtree_com: jax.Array
   cdof: jax.Array
   cinert: jax.Array
-  flexvert_xpos: jax.Array
+  flexvert_xpos: jax.Array = _restricted_to('mujoco')
   flexelem_aabb: jax.Array
-  flexedge_J_rownnz: jax.Array  # pylint:disable=invalid-name
-  flexedge_J_rowadr: jax.Array  # pylint:disable=invalid-name
-  flexedge_J_colind: jax.Array  # pylint:disable=invalid-name
-  flexedge_J: jax.Array  # pylint:disable=invalid-name
-  flexedge_length: jax.Array
-  ten_wrapadr: jax.Array
-  ten_wrapnum: jax.Array
-  ten_J_rownnz: jax.Array  # pylint:disable=invalid-name
-  ten_J_rowadr: jax.Array  # pylint:disable=invalid-name
-  ten_J_colind: jax.Array  # pylint:disable=invalid-name
+  flexedge_J_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  flexedge_J_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  flexedge_J_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  flexedge_J: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  flexedge_length: jax.Array = _restricted_to('mujoco')
+  ten_wrapadr: jax.Array = _restricted_to('mujoco')
+  ten_wrapnum: jax.Array = _restricted_to('mujoco')
+  ten_J_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  ten_J_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  ten_J_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   ten_J: jax.Array  # pylint:disable=invalid-name
   ten_length: jax.Array
-  wrap_obj: jax.Array
-  wrap_xpos: jax.Array
+  wrap_obj: jax.Array = _restricted_to('mujoco')
+  wrap_xpos: jax.Array = _restricted_to('mujoco')
   actuator_length: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array
@@ -1216,32 +1260,32 @@ class Data(PyTreeNode):
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
   qLDiagSqrtInv: jax.Array  # pylint:disable=invalid-name
-  bvh_aabb_dyn: jax.Array
-  bvh_active: jax.Array
+  bvh_aabb_dyn: jax.Array = _restricted_to('mujoco')
+  bvh_active: jax.Array = _restricted_to('mujoco')
   # position, velocity dependent:
-  flexedge_velocity: jax.Array
+  flexedge_velocity: jax.Array = _restricted_to('mujoco')
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
   cvel: jax.Array
   cdof_dot: jax.Array
   qfrc_bias: jax.Array
-  qfrc_spring: jax.Array
-  qfrc_damper: jax.Array
+  qfrc_spring: jax.Array = _restricted_to('mujoco')
+  qfrc_damper: jax.Array = _restricted_to('mujoco')
   qfrc_gravcomp: jax.Array
   qfrc_fluid: jax.Array
   qfrc_passive: jax.Array
   subtree_linvel: jax.Array
   subtree_angmom: jax.Array
-  qH: jax.Array  # pylint:disable=invalid-name
-  qHDiagInv: jax.Array  # pylint:disable=invalid-name
-  D_rownnz: jax.Array  # pylint:disable=invalid-name
-  D_rowadr: jax.Array  # pylint:disable=invalid-name
-  D_colind: jax.Array  # pylint:disable=invalid-name
-  B_rownnz: jax.Array  # pylint:disable=invalid-name
-  B_rowadr: jax.Array  # pylint:disable=invalid-name
-  B_colind: jax.Array  # pylint:disable=invalid-name
-  qDeriv: jax.Array  # pylint:disable=invalid-name
-  qLU: jax.Array  # pylint:disable=invalid-name
+  qH: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  qHDiagInv: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  B_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  B_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  B_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  qDeriv: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  qLU: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   # position, velocity, control & acceleration dependent:
   qfrc_actuator: jax.Array
   actuator_force: jax.Array
@@ -1257,6 +1301,7 @@ class Data(PyTreeNode):
   # dynamically sized - position dependent:
   efc_type: jax.Array
   efc_J: jax.Array  # pylint:disable=invalid-name
+  efc_pos: jax.Array
   efc_frictionloss: jax.Array
   efc_D: jax.Array  # pylint:disable=invalid-name
   # dynamically sized - position & velocity dependent:
@@ -1265,6 +1310,6 @@ class Data(PyTreeNode):
   efc_force: jax.Array
   # sparse representation of qM, qLD, qLDiagInv, for compatibility with MuJoCo
   # when in dense mode
-  _qM_sparse: jax.Array  # pylint:disable=invalid-name
-  _qLD_sparse: jax.Array  # pylint:disable=invalid-name
-  _qLDiagInv_sparse: jax.Array  # pylint:disable=invalid-name
+  _qM_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
+  _qLD_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
+  _qLDiagInv_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name

@@ -1915,7 +1915,7 @@ void mjCMesh::MakeCenter(void) {
     // compute circumradius
     double norm_a_2 = mjuu_dot3(a, a);
     double norm_b_2 = mjuu_dot3(b, b);
-    double area = mjuu_normvec(nrm, 3);
+    double area = sqrt(mjuu_dot3(nrm, nrm));
 
     // compute circumcenter
     double res[3], vec[3] = {

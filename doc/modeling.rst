@@ -347,8 +347,15 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    For friction loss or friction dimensions of elliptic cones, the violation :math:`r` is identically zero, so
    only :math:`d(0)` affects these constraints, all other :at:`solimp` values are ignored.
 
-   .. tip::
-      For completely smooth dynamics, limits and contacts should have :math:`d_0=0`.
+   .. _solimp0:
+
+   .. admonition:: Smoothness and differentiability
+      :class: tip
+
+      For completely smooth (differentiable) dynamics, limits and contacts should have :math:`d_0=0` (``solimp[0]=0``).
+      Specifically for contacts, the :ref:`mixing rules<solmixing>` of geom-associated solver parameters should be kept
+      in mind. See also discussion of derivatives in the :ref:`Computation chapter<derivatives>` and in the
+      :ref:`mjd_transitionFD` documentation.
 
 .. _CSolverReference:
 
@@ -485,11 +492,14 @@ are as follows:
 **margin**, **gap**
    The maximum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
    margin and gap are distance properties and a one-sided specification makes little sense.
+
+.. _solmixing:
+
 **solref**, **solimp**
-   If one of the two geoms has higher priority, its solref and solimp parameters are used. If both geoms have the same
-   priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e., weight1 =
-   solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging
-   rule. If solref for either geom is non-positive, i.e., it relies on the direct format,
+   If one of the two geoms has higher :ref:`priority<body-geom-priority>`, its solref and solimp parameters are used. If
+   both geoms have the same priority, the weighted average is used. The weights are proportional to the solmix
+   attributes, i.e., weight1 = solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception
+   to this weighted averaging rule. If solref for either geom is non-positive, i.e., it relies on the direct format,
    then the element-wise minimum is used regardless of solmix. This is because averaging solref parameters in different
    formats would be meaningless.
 
