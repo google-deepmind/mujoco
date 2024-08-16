@@ -24,6 +24,11 @@ Bug fixes
 7. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
    integrators, wrong derivatives would be computed.
 
+Python bindings
+^^^^^^^^^^^^^^^
+8. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+
+
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------
 
