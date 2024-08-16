@@ -17,6 +17,13 @@ MJX
 5. Added position-dependent sensors: ``MAGNETOMETER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``,
    ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``, ``CLOCK``.
 
+Bug fixes
+^^^^^^^^^
+6. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+   contribution by :github:user:`michael-ahn`).
+7. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
+   integrators, wrong derivatives would be computed.
+
 Version 3.2.2 (Aug 8, 2024)
 ---------------------------
 

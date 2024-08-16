@@ -223,6 +223,85 @@ TEST_F(DerivativeTest, DisabledActuators) {
   mj_deleteModel(m1);
 }
 
+// actuator order has no effect
+TEST_F(DerivativeTest, ActuatorOrder) {
+  // model with stateful actuator first
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="0" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="1" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <muscle joint="0" ctrlrange="0 6"/>
+      <damper joint="1" kv="200" ctrlrange="0 6"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml1, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << "Failed to load model: " << error;
+  mjData* d1 = mj_makeData(m1);
+
+  d1->ctrl[0] = 6;
+  d1->ctrl[1] = 6;
+
+  while (d1->time < 1)
+    mj_step(m1, d1);
+
+  // model with stateful actuator second
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="0" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="1" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <damper joint="1" kv="200" ctrlrange="0 6"/>
+      <muscle joint="0" ctrlrange="0 6"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  mjModel* m2 = LoadModelFromString(xml2, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << "Failed to load model: " << error;
+  mjData* d2 = mj_makeData(m2);
+
+  d2->ctrl[0] = 6;
+  d2->ctrl[1] = 6;
+
+  while (d2->time < 1)
+    mj_step(m2, d2);
+
+  // expect same qvel in both models
+  EXPECT_EQ(d1->qvel[0], d2->qvel[0]);
+  EXPECT_EQ(d1->qvel[1], d2->qvel[1]);
+
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+}
+
 // compare analytic and fin-diff d_qfrc_passive/d_qvel
 TEST_F(DerivativeTest, PassiveDvel) {
   for (const char* local_path : {kTumblingThinObjectPath,
