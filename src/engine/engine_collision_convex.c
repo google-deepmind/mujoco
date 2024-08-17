@@ -23,14 +23,24 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
-// the LibCCD penetration function we use (ccdMPRPenetration or ccdGJKPenetration)
-#define _mjCCDPENETRATION ccdMPRPenetration
+
+// call LibCCD or GJK to recover penetration info
+static int mjc_penetration(const mjModel* m, const void *obj1, const void *obj2, const ccd_t *ccd,
+                           ccd_real_t *depth, ccd_vec3_t *dir, ccd_vec3_t *pos) {
+  if (mjENABLED(mjENBL_NATIVECCD)) {
+    return mj_gjkPenetration(obj1, obj2, ccd, depth, dir, pos);
+  } else {
+    return ccdMPRPenetration(obj1, obj2, ccd, depth, dir, pos);
+  }
+}
+
 
 // ccd center function
 void mjccd_center(const void *obj, ccd_vec3_t *center) {
@@ -294,7 +304,7 @@ static int mjc_MPRIteration(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
                             mjContact* con, mjtNum margin) {
   ccd_vec3_t dir, pos;
   ccd_real_t depth;
-  if (_mjCCDPENETRATION(obj1, obj2, ccd, &depth, &dir, &pos) == 0) {
+  if (mjc_penetration(m, obj1, obj2, ccd, &depth, &dir, &pos) == 0) {
     // contact is found but normal is undefined
     if (ccdVec3Eq(&dir, ccd_vec3_origin)) {
       return 0;
@@ -806,8 +816,8 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
             continue;
           }
 
-          // run MPR, save contact
-          if (_mjCCDPENETRATION(&obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0
+          // run penetration function, save contact
+          if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0
               && !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
             // fill in contact data, transform to global coordinates
             con[cnt].dist = -depth;
@@ -1257,7 +1267,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
           }
 
           // run MPR, save contact
-          if (_mjCCDPENETRATION(&obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0) {
+          if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0) {
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
               con[cnt].dist = -depth;
@@ -1289,5 +1299,3 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
   return cnt;
 }
-
-#undef _mjCCDPENETRATION
