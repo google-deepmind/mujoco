@@ -19,6 +19,7 @@ from jax import numpy as jp
 import mujoco
 # pylint: disable=g-importing-member
 from mujoco.mjx._src import math
+from mujoco.mjx._src import ray
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
@@ -71,6 +72,19 @@ def sensor_pos(m: Model, d: Data) -> Data:
           d.site_xmat[objid]
       ).reshape(-1)
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.RANGEFINDER:
+      site_bodyid = m.site_bodyid[objid]
+      for sid in set(site_bodyid):
+        id_ = sid == site_bodyid
+        objid_ = objid[id_]
+        site_xpos = d.site_xpos[objid_]
+        site_mat = d.site_xmat[objid_].reshape((-1, 9))[:, np.array([2, 5, 8])]
+        sensor, _ = jax.vmap(
+            ray.ray, in_axes=(None, None, 0, 0, None, None, None)
+        )(m, d, site_xpos, site_mat, (), True, sid)
+        sensors.append(sensor)
+        adrs.append(adr[id_])
+      continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.JOINTPOS:
       sensor = d.qpos[m.jnt_qposadr[objid]]
     elif sensor_type == SensorType.ACTUATORPOS:

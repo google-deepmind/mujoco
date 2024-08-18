@@ -17,8 +17,8 @@ General
 MJX
 ^^^
 5. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
-6. Added position-dependent sensors: ``MAGNETOMETER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``,
-   ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``, ``CLOCK``.
+6. Added position-dependent sensors: ``MAGNETOMETER``, ``RANGEFINDER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``,
+   ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``, ``CLOCK``.
 7. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
 8. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
 

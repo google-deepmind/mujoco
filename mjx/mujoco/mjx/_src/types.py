@@ -293,6 +293,7 @@ class SensorType(enum.IntEnum):
 
   Members:
     MAGNETOMETER: magnetometer
+    RANGEFINDER: rangefinder
     JOINTPOS: joint position
     ACTUATORPOS: actuator position
     BALLQUAT: ball joint orientation
@@ -304,6 +305,7 @@ class SensorType(enum.IntEnum):
     CLOCK: simulation time
   """
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
+  RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER
   JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
   ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
   BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT

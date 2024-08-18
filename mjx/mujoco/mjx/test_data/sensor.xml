@@ -2,6 +2,7 @@
 
 * position-dependent sensors:
 -magnetometer
+-rangefinder
 -jointpos
 -actuatorpos
 -ballquat
@@ -15,11 +16,16 @@
 * acceleration/force-dependent sensors:
 -->
 <mujoco model="sensor">
+  <asset>
+    <material name="material"/>
+  </asset>
   <worldbody>
     <!-- tree 0 -->
     <body name="body0" pos="1 2 3">
       <joint name="hinge0" type="hinge" axis="1 0 0"/>
-      <geom size="1"/>
+      <geom size="0.1" material="material"/>
+      <site name="site_rangefinder0" pos="-1e-3 0 0.2"/>
+      <site name="site_rangefinder1" pos="-1e-3 0 0.175"/>
       <site name="site0" pos=".1 .2 .3"/>
       <body name="body1" pos="0.1 0.2 0.3">
         <joint name="hinge1" type="hinge" axis="0 1 0"/>
@@ -39,6 +45,11 @@
       <joint name="ballquat3" type="ball" pos="0.1 0.2 0.3"/>
       <geom size="1"/>
     </body>
+
+    <!-- body for rangefinder -->
+    <body name="body_rangefinder" pos="1 2 4">
+      <geom size="0.01" material="material"/>
+    </body>
   </worldbody>
 
   <actuator>
@@ -51,6 +62,7 @@
   <sensor>
     <!-- position-dependent sensors -->
     <magnetometer name="magnetometer0" site="site0"/>
+    <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <jointpos name="jointpos0" joint="hinge0"/>
     <actuatorpos name="actuatorpos0" actuator="motor0"/>
     <ballquat name="ballquat2" joint="ballquat2"/>
@@ -67,6 +79,7 @@
     <framexaxis name="framexaxis1" objtype="site" objname="site1"/>
     <ballquat name="ballquat3" joint="ballquat3"/>
     <frameyaxis name="frameyaxis1" objtype="site" objname="site1"/>
+    <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
     <clock/>
     <!-- velocity-dependent sensors -->
