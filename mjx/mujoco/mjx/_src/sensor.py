@@ -35,11 +35,6 @@ def sensor_pos(m: Model, d: Data) -> Data:
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
 
-  # no position-dependent sensors
-  stage_pos = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_POS
-  if sum(stage_pos) == 0:
-    return d
-
   # position and orientation by object type
   objtype_data = {
       ObjType.UNKNOWN: (
@@ -60,6 +55,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
       SensorType.FRAMEZAXIS: 2,
   }
 
+  stage_pos = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_POS
   sensors, adrs = [], []
 
   for sensor_type in set(m.sensor_type[stage_pos]):
@@ -206,6 +202,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.CLOCK:
       sensor = jp.repeat(d.time, sum(idx))
     else:
+      # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
 
     sensors.append(sensor)
@@ -227,7 +224,37 @@ def sensor_vel(m: Model, d: Data) -> Data:
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
 
-  return d
+  stage_vel = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_VEL
+  sensors, adrs = [], []
+
+  for sensor_type in set(m.sensor_type[stage_vel]):
+    idx = m.sensor_type == sensor_type
+    objid = m.sensor_objid[idx]
+    adr = m.sensor_adr[idx]
+
+    if sensor_type == SensorType.JOINTVEL:
+      sensor = d.qvel[m.jnt_dofadr[objid]]
+    elif sensor_type == SensorType.ACTUATORVEL:
+      sensor = d.actuator_velocity[objid]
+    elif sensor_type == SensorType.BALLANGVEL:
+      jnt_dotadr = m.jnt_dofadr[objid, None] + np.arange(3)[None]
+      sensor = d.qvel[jnt_dotadr].reshape(-1)
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    else:
+      # TODO(taylorhowell): raise error after adding sensor check to io.py
+      continue  # unsupported sensor typ
+
+    sensors.append(sensor)
+    adrs.append(adr)
+
+  if not adrs:
+    return d
+
+  sensordata = d.sensordata.at[np.concatenate(adrs)].set(
+      jp.concatenate(sensors)
+  )
+
+  return d.replace(sensordata=sensordata)
 
 
 def sensor_acc(m: Model, d: Data) -> Data:

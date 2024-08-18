@@ -304,6 +304,9 @@ class SensorType(enum.IntEnum):
     FRAMEZAXIS: frame z-axis
     SUBTREECOM: subtree centor of mass
     CLOCK: simulation time
+    JOINTVEL: joint velocity
+    ACTUATORVEL: actuator velocity
+    BALLANGVEL: ball joint angular velocity
   """
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
   CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
@@ -317,6 +320,9 @@ class SensorType(enum.IntEnum):
   FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS
   SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
   CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
+  JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
+  ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL
+  BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL
 
 
 class ObjType(PyTreeNode):

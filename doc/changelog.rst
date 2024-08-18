@@ -20,19 +20,20 @@ MJX
 6. Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
    ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``,
    ``CLOCK``.
-7. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
-8. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
+7. Added velocity-dependent sensors: ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``.
+8. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
+9. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
 
 Bug fixes
 ^^^^^^^^^
-9.  Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+10.  Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
     contribution by :github:user:`michael-ahn`).
-10. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
+11. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
     integrators, wrong derivatives would be computed.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-11. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+12. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
 
 
 Version 3.2.2 (Aug 8, 2024)

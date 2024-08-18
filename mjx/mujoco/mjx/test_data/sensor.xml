@@ -14,6 +14,9 @@
 -subtreecom
 -clock
 * velocity-dependent sensors:
+-jointvel
+-actuatorvel
+-ballangvel
 * acceleration/force-dependent sensors:
 -->
 <mujoco model="sensor">
@@ -77,8 +80,11 @@
     <magnetometer name="magnetometer0" site="site0"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <jointpos name="jointpos0" joint="hinge0"/>
+    <jointvel name="jointvel0" joint="hinge0"/>
     <actuatorpos name="actuatorpos0" actuator="motor0"/>
+    <actuatorvel name="actuatorvel0" actuator="motor0"/>
     <ballquat name="ballquat2" joint="ballquat2"/>
+    <ballangvel name="ballangvel2" joint="ballquat2"/>
     <framexaxis name="framexaxis0" objtype="site" objname="site0"/>
     <framezaxis name="framezaxis0" objtype="site" objname="site0"/>
     <frameyaxis name="frameyaxis0" objtype="site" objname="site0"/>
@@ -87,12 +93,15 @@
     <camprojection site="frontorigin" camera="fixedcamera"/>
     <magnetometer name="magnetometer1" site="site1"/>
     <jointpos name="jointpos1" joint="hinge1"/>
+    <jointvel name="jointvel1" joint="hinge1"/>
     <actuatorpos name="actuatorpos1" actuator="motor1"/>
+    <actuatorvel name="actuatorvel1" actuator="motor1"/>
     <framepos name="framepos1" objtype="site" objname="site1"/>
     <framezaxis name="framezaxis1" objtype="site" objname="site1"/>
     <framexaxis name="framexaxis1" objtype="site" objname="site1"/>
     <ballquat name="ballquat3" joint="ballquat3"/>
     <camprojection site="frontcenter" camera="fixedcamera"/>
+    <ballangvel name="ballangvel3" joint="ballquat3"/>
     <frameyaxis name="frameyaxis1" objtype="site" objname="site1"/>
     <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
