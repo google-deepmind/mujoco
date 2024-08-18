@@ -20,6 +20,7 @@ import mujoco
 # pylint: disable=g-importing-member
 from mujoco.mjx._src import math
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
@@ -29,6 +30,9 @@ import numpy as np
 
 def sensor_pos(m: Model, d: Data) -> Data:
   """Compute position-dependent sensors values."""
+
+  if m.opt.disableflags & DisableBit.SENSOR:
+    return d
 
   # no position-dependent sensors
   stage_pos = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_POS
@@ -145,9 +149,17 @@ def sensor_pos(m: Model, d: Data) -> Data:
 
 def sensor_vel(m: Model, d: Data) -> Data:
   """Compute velocity-dependent sensors values."""
+
+  if m.opt.disableflags & DisableBit.SENSOR:
+    return d
+
   return d
 
 
 def sensor_acc(m: Model, d: Data) -> Data:
   """Compute acceleration/force-dependent sensors values."""
+
+  if m.opt.disableflags & DisableBit.SENSOR:
+    return d
+
   return d

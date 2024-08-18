@@ -45,6 +45,7 @@ class DisableBit(enum.IntFlag):
     WARMSTART:    warmstart constraint solver
     ACTUATION:    apply actuation forces
     REFSAFE:      integrator safety: make ref[0]>=2*timestep
+    SENSOR:       sensors
   """
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
   EQUALITY = mujoco.mjtDisableBit.mjDSBL_EQUALITY
@@ -56,9 +57,10 @@ class DisableBit(enum.IntFlag):
   WARMSTART = mujoco.mjtDisableBit.mjDSBL_WARMSTART
   ACTUATION = mujoco.mjtDisableBit.mjDSBL_ACTUATION
   REFSAFE = mujoco.mjtDisableBit.mjDSBL_REFSAFE
+  SENSOR = mujoco.mjtDisableBit.mjDSBL_SENSOR
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
   FILTERPARENT = mujoco.mjtDisableBit.mjDSBL_FILTERPARENT
-  # unsupported: FRICTIONLOSS, SENSOR, MIDPHASE
+  # unsupported: FRICTIONLOSS, MIDPHASE
 
 
 class JointType(enum.IntEnum):
