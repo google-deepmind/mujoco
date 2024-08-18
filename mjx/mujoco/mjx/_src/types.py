@@ -293,6 +293,7 @@ class SensorType(enum.IntEnum):
 
   Members:
     MAGNETOMETER: magnetometer
+    CAMPROJECTION: camera projection
     RANGEFINDER: rangefinder
     JOINTPOS: joint position
     ACTUATORPOS: actuator position
@@ -305,6 +306,7 @@ class SensorType(enum.IntEnum):
     CLOCK: simulation time
   """
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
+  CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
   RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER
   JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
   ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS

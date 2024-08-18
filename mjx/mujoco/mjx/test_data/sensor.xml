@@ -2,6 +2,7 @@
 
 * position-dependent sensors:
 -magnetometer
+-camprojection
 -rangefinder
 -jointpos
 -actuatorpos
@@ -46,6 +47,19 @@
       <geom size="1"/>
     </body>
 
+    <!-- bodies for camera projection -->
+    <body pos="11.1 0 1">
+      <geom type="box" size=".1 .6 .375"/>
+      <site name="frontorigin" pos="-.1  .6  .375"/>
+      <site name="frontcenter" pos="-.1 0 0"/>
+    </body>
+    <body pos="10 0 0">
+      <joint axis="0 0 1" range="-180 180" limited="false"/>
+      <geom type="sphere" size=".2" pos="0 0 0.9"/>
+      <camera pos="0 0 1" xyaxes="0 -1 0 0 0 1" fovy="41.11209"
+              resolution="1920 1200" name="fixedcamera"/>
+    </body>
+
     <!-- body for rangefinder -->
     <body name="body_rangefinder" pos="1 2 4">
       <geom size="0.01" material="material"/>
@@ -60,7 +74,6 @@
   </actuator>
 
   <sensor>
-    <!-- position-dependent sensors -->
     <magnetometer name="magnetometer0" site="site0"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <jointpos name="jointpos0" joint="hinge0"/>
@@ -71,6 +84,7 @@
     <frameyaxis name="frameyaxis0" objtype="site" objname="site0"/>
     <framepos name="framepos0" objtype="site" objname="site0"/>
     <subtreecom name="subtreecom0" body="body0"/>
+    <camprojection site="frontorigin" camera="fixedcamera"/>
     <magnetometer name="magnetometer1" site="site1"/>
     <jointpos name="jointpos1" joint="hinge1"/>
     <actuatorpos name="actuatorpos1" actuator="motor1"/>
@@ -78,11 +92,10 @@
     <framezaxis name="framezaxis1" objtype="site" objname="site1"/>
     <framexaxis name="framexaxis1" objtype="site" objname="site1"/>
     <ballquat name="ballquat3" joint="ballquat3"/>
+    <camprojection site="frontcenter" camera="fixedcamera"/>
     <frameyaxis name="frameyaxis1" objtype="site" objname="site1"/>
     <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
     <clock/>
-    <!-- velocity-dependent sensors -->
-    <!-- acceleration/force-dependent sensors -->
   </sensor>
 </mujoco>
