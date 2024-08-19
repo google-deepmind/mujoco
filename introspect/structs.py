@@ -10014,7 +10014,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='data',
                  type=PointerType(
-                     inner_type=ValueType(name='mjBuffer'),
+                     inner_type=ValueType(name='mjByteVec'),
                  ),
                  doc='texture data',
              ),

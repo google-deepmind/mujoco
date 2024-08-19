@@ -885,7 +885,7 @@ mjsMaterial* mjs_asMaterial(mjsElement* element) {
 
 
 // copy buffer to destination buffer
-void mjs_setBuffer(mjBuffer* dest, const void* array, int size) {
+void mjs_setBuffer(mjByteVec* dest, const void* array, int size) {
   const std::byte* buffer = static_cast<const std::byte*>(array);
   dest->clear();
   dest->reserve(size);

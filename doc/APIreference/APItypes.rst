@@ -1393,7 +1393,7 @@ Alternative orientation specifiers.
 
 .. _ArrayHandles:
 
-.. _mjBuffer:
+.. _mjByteVec:
 
 .. _mjString:
 
@@ -1419,7 +1419,6 @@ C handles for C++ strings and vector types. When using from C, use the provided 
 
    #ifdef __cplusplus
      // C++: defined to be compatible with corresponding std types
-     using mjBuffer      = std::vector<std::byte>;
      using mjString      = std::string;
      using mjStringVec   = std::vector<std::string>;
      using mjIntVec      = std::vector<int>;
@@ -1427,9 +1426,9 @@ C handles for C++ strings and vector types. When using from C, use the provided 
      using mjFloatVec    = std::vector<float>;
      using mjFloatVecVec = std::vector<std::vector<float>>;
      using mjDoubleVec   = std::vector<double>;
+     using mjByteVec     = std::vector<std::byte>;
    #else
      // C: opaque types
-     typedef void mjBuffer;
      typedef void mjString;
      typedef void mjStringVec;
      typedef void mjIntVec;
@@ -1437,6 +1436,7 @@ C handles for C++ strings and vector types. When using from C, use the provided 
      typedef void mjFloatVec;
      typedef void mjFloatVecVec;
      typedef void mjDoubleVec;
+     typedef void mjByteVec;
    #endif
 
 

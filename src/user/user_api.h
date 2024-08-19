@@ -303,7 +303,7 @@ MJAPI mjsMaterial* mjs_asMaterial(mjsElement* element);
 //---------------------------------- Attribute setters ---------------------------------------------
 
 // Copy buffer.
-MJAPI void mjs_setBuffer(mjBuffer* dest, const void* array, int size);
+MJAPI void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 
 // Copy text to string.
 MJAPI void mjs_setString(mjString* dest, const char* text);

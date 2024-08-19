@@ -10253,7 +10253,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='dest',
                  type=PointerType(
-                     inner_type=ValueType(name='mjBuffer'),
+                     inner_type=ValueType(name='mjByteVec'),
                  ),
              ),
              FunctionParameterDecl(
