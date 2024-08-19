@@ -90,10 +90,12 @@ class IntegratorType(enum.IntEnum):
   Members:
     EULER: semi-implicit Euler
     RK4: 4th-order Runge Kutta
+    IMPLICITFAST: implicit in velocity, no rne derivative
   """
   EULER = mujoco.mjtIntegrator.mjINT_EULER
   RK4 = mujoco.mjtIntegrator.mjINT_RK4
-  # unsupported: IMPLICIT, IMPLICITFAST
+  IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+  # unsupported: IMPLICIT
 
 
 class GeomType(enum.IntEnum):

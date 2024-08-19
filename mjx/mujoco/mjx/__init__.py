@@ -23,6 +23,7 @@ from mujoco.mjx._src.forward import fwd_acceleration
 from mujoco.mjx._src.forward import fwd_actuation
 from mujoco.mjx._src.forward import fwd_position
 from mujoco.mjx._src.forward import fwd_velocity
+from mujoco.mjx._src.forward import implicit
 from mujoco.mjx._src.forward import rungekutta4
 from mujoco.mjx._src.forward import step
 from mujoco.mjx._src.io import get_data
@@ -32,9 +33,9 @@ from mujoco.mjx._src.io import put_data
 from mujoco.mjx._src.io import put_model
 from mujoco.mjx._src.passive import passive
 from mujoco.mjx._src.ray import ray
+from mujoco.mjx._src.sensor import sensor_acc
 from mujoco.mjx._src.sensor import sensor_pos
 from mujoco.mjx._src.sensor import sensor_vel
-from mujoco.mjx._src.sensor import sensor_acc
 from mujoco.mjx._src.smooth import camlight
 from mujoco.mjx._src.smooth import com_pos
 from mujoco.mjx._src.smooth import com_vel

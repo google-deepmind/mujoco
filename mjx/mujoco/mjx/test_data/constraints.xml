@@ -83,7 +83,7 @@
   </equality>
 
   <actuator>
-    <position ctrlrange="-20 20" gear="500" joint="joint1" name="act1"/>
+    <position ctrlrange="-20 20" gear="500" joint="joint1" kv="0.5" name="act1"/>
     <motor gear="50000" joint="joint3" name="act2"/>
     <motor gear="75000" joint="joint4" name="act3"/>
   </actuator>

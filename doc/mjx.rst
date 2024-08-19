@@ -202,7 +202,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Equality <mjtEq>`
      - ``CONNECT``, ``WELD``, ``JOINT``, ``TENDON``
    * - :ref:`Integrator <mjtIntegrator>`
-     - ``EULER``, ``RK4``
+     - ``EULER``, ``RK4``, ``IMPLICITFAST`` (``IMPLICITFAST`` not supported with :doc:`fluid drag <computation/fluid>`)
    * - :ref:`Cone <mjtCone>`
      - ``PYRAMIDAL``, ``ELLIPTIC``
    * - :ref:`Condim <coContact>`
@@ -229,7 +229,7 @@ The following features are **in development** and coming soon:
    * - :ref:`Constraint <mjtConstraint>`
      - :ref:`Frictionloss <coFriction>`, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
-     - ``IMPLICIT``, ``IMPLICITFAST``
+     - ``IMPLICIT``
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
    * - :ref:`Actuator Dynamics <mjtDyn>`

@@ -47,13 +47,18 @@ def _make_option(o: mujoco.MjOption) -> types.Option:
     if o.enableflags & 2**i:
       raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
 
+  has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
+  implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+  if implicitfast and has_fluid_params:
+    raise NotImplementedError('implicitfast not implemented for fluid drag.')
+
   fields = {f.name: getattr(o, f.name, None) for f in types.Option.fields()}
   fields['integrator'] = types.IntegratorType(o.integrator)
   fields['cone'] = types.ConeType(o.cone)
   fields['jacobian'] = types.JacobianType(o.jacobian)
   fields['solver'] = types.SolverType(o.solver)
   fields['disableflags'] = types.DisableBit(o.disableflags)
-  fields['has_fluid_params'] = o.density > 0 or o.viscosity > 0 or o.wind.any()
+  fields['has_fluid_params'] = has_fluid_params
 
   return types.Option(**fields)
 
