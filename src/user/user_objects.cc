@@ -1307,7 +1307,7 @@ mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type) {
 
 
 // compute geom inertial frame: ipos, iquat, mass, inertia
-void mjCBody::GeomFrame(void) {
+void mjCBody::InertiaFromGeom(void) {
   int sz;
   double com[3] = {0, 0, 0};
   double toti[6] = {0, 0, 0, 0, 0, 0};
@@ -1477,7 +1477,7 @@ void mjCBody::Compile(void) {
     throw mjCError(this, "error '%s' in inertia alternative", ierr);
   }
 
-  // compile all geoms, phase 1
+  // compile all geoms
   for (int i=0; i<geoms.size(); i++) {
     geoms[i]->inferinertia = id>0 &&
       (!explicitinertial || model->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) &&
@@ -1489,7 +1489,7 @@ void mjCBody::Compile(void) {
   // set inertial frame from geoms if necessary
   if (id>0 && (model->inertiafromgeom==mjINERTIAFROMGEOM_TRUE ||
                (!mjuu_defined(ipos[0]) && model->inertiafromgeom==mjINERTIAFROMGEOM_AUTO))) {
-    GeomFrame();
+    InertiaFromGeom();
   }
 
   // both pos and ipos undefined: error
@@ -1574,17 +1574,16 @@ void mjCBody::Compile(void) {
   }
 
   // make sure mocap body is fixed child of world
-  if (mocap)
-    if (dofnum || parentid) {
-      throw mjCError(this, "mocap body '%s' is not a fixed child of world", name.c_str());
-    }
+  if (mocap && (dofnum || parentid)) {
+    throw mjCError(this, "mocap body '%s' is not a fixed child of world", name.c_str());
+  }
 
   // compute body global pose (no joint transformations in qpos0)
   if (id>0) {
-    mjCBody* par = model->Bodies()[parentid];
-    mjuu_rotVecQuat(xpos0, pos, par->xquat0);
-    mjuu_addtovec(xpos0, par->xpos0, 3);
-    mjuu_mulquat(xquat0, par->xquat0, quat);
+    mjCBody* parent = model->Bodies()[parentid];
+    mjuu_rotVecQuat(xpos0, pos, parent->xquat0);
+    mjuu_addtovec(xpos0, parent->xpos0, 3);
+    mjuu_mulquat(xquat0, parent->xquat0, quat);
   }
 
   // compile all sites
@@ -1613,15 +1612,13 @@ void mjCBody::Compile(void) {
     }
   }
 
-  if (!model->discardvisual) {
-    return;
-  }
-
-  // set inertial to explicit for bodies containing visual geoms
-  for (int j=0; j<geoms.size(); j++) {
-    if (geoms[j]->IsVisual()) {
-      explicitinertial = true;
-      break;
+  // if discarding visual geoms, use explicit inertias
+  if (model->discardvisual) {
+    for (int j=0; j<geoms.size(); j++) {
+      if (geoms[j]->IsVisual()) {
+        explicitinertial = true;
+        break;
+      }
     }
   }
 }
@@ -1946,22 +1943,15 @@ int mjCJoint::Compile(void) {
     }
   }
 
-  // frame
-  if (frame) {
-    double mat[9];
-    mjuu_quat2mat(mat, frame->quat);
-    mjuu_mulvecmat(axis, axis, mat);
-  }
-
-  // FREE or BALL: set axis to (0,0,1)
+  // axis: FREE or BALL are fixed to (0,0,1)
   if (type==mjJNT_FREE || type==mjJNT_BALL) {
     axis[0] = axis[1] = 0;
     axis[2] = 1;
   }
 
-  // FREE: set pos to (0,0,0)
-  if (type==mjJNT_FREE) {
-    mjuu_zerovec(pos, 3);
+  // otherwise accumulate frame rotation
+  else if (frame) {
+    mjuu_rotVecQuat(axis, axis, frame->quat);
   }
 
   // normalize axis, check norm
@@ -1974,10 +1964,13 @@ int mjCJoint::Compile(void) {
     throw mjCError(this, "limits should not be defined in free joint");
   }
 
-  // compute local position
+  // pos: FREE is fixed to (0,0,0)
   if (type == mjJNT_FREE) {
     mjuu_zerovec(pos, 3);
-  } else if (frame) {
+  }
+
+  // otherwise accumulate frame translation
+  else if (frame) {
     double qunit[4] = {1, 0, 0, 0};
     mjuu_frameaccumChild(frame->pos, frame->quat, pos, qunit);
   }
