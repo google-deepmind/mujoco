@@ -14,7 +14,6 @@
 # ==============================================================================
 """Tests for the MuJoCo USD Exporter."""
 
-import logging
 import os
 
 from absl.testing import absltest
