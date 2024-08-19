@@ -7,28 +7,31 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Added :ref:`mjSpec` option for creating a texture from a buffer.
-2. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
-3. Added support for :ref:`attaching<meAttachment>` keyframes.
+1. Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
+   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
+   early stages of testing.
+2. Added :ref:`mjSpec` option for creating a texture from a buffer.
+3. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
+4. Added support for :ref:`attaching<meAttachment>` keyframes.
 
 MJX
 ^^^
-4. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
-5. Added position-dependent sensors: ``MAGNETOMETER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``,
+5. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
+6. Added position-dependent sensors: ``MAGNETOMETER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``,
    ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``, ``CLOCK``.
-6. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
-7. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
+7. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
+8. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
 
 Bug fixes
 ^^^^^^^^^
-8. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
-   contribution by :github:user:`michael-ahn`).
-9. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
-   integrators, wrong derivatives would be computed.
+9.  Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+    contribution by :github:user:`michael-ahn`).
+10. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
+    integrators, wrong derivatives would be computed.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-10. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+11. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
 
 
 Version 3.2.2 (Aug 8, 2024)

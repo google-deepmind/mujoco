@@ -69,7 +69,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Fwdinv",
   "InvDiscrete",
   "MultiCCD",
-  "Island"
+  "Island",
+  "NativeCCD"
 };
 
 
