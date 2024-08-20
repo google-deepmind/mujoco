@@ -3222,11 +3222,14 @@ void mjCLight::CopyFromSpec() {
 void mjCLight::Compile(void) {
   CopyFromSpec();
 
-  double quat[4]= {1, 0, 0, 0};
-
   // frame
   if (frame) {
-    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
+    // apply frame transform to pos, qunit is unused
+    double qunit[4]= {1, 0, 0, 0};
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, qunit);
+
+    // rotate dir
+    mjuu_rotVecQuat(dir, dir, frame->quat);
   }
 
   // normalize direction, make sure it is not zero

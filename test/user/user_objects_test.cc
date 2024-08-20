@@ -2086,7 +2086,6 @@ TEST_F(MujocoTest, Frame) {
       </body>
     </worldbody>
   </mujoco>
-
   )";
   constexpr mjtNum eps = 1e-14;
   std::array<char, 1024> error;
@@ -2141,6 +2140,34 @@ TEST_F(MujocoTest, Frame) {
   mj_deleteModel(m);
   mj_deleteData(d);
 }
+
+TEST_F(MujocoTest, FrameTransformsLight) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame euler="0 45 0" pos="0 0 1">
+        <light pos="-1 0 0" dir="1 0 -1"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_EQ(m->nlight, 1);
+
+  constexpr mjtNum eps = 1e-14;
+  EXPECT_NEAR(m->light_pos[0], -mju_sqrt(.5), eps);
+  EXPECT_NEAR(m->light_pos[1], 0, eps);
+  EXPECT_NEAR(m->light_pos[2], 1 + mju_sqrt(.5), eps);
+
+  EXPECT_NEAR(m->light_dir[0], 0, eps);
+  EXPECT_NEAR(m->light_dir[1], 0, eps);
+  EXPECT_NEAR(m->light_dir[2], -1, eps);
+
+  mj_deleteModel(m);
+}
+
 
 // ------------- test bvh ------------------------------------------------------
 TEST_F(MujocoTest, RobustBVH) {
