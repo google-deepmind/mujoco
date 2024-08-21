@@ -70,6 +70,7 @@ mjtNum run_gjkPenetration(mjModel* m, mjData* d, int g1, int g2,
   mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
                    mjc_center, mjc_support};
   ccd_t ccd;
+  // CCD_INIT(&ccd);  // uncomment to run ccdMPRPenetration
   ccd.mpr_tolerance = kTolerance;
   ccd.epa_tolerance = kTolerance;
   ccd.max_iterations = kMaxIterations;

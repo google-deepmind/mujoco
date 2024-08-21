@@ -96,8 +96,9 @@ static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 static void attachFace(Polytope* pt, int v1, int v2, int v3);
 
 // returns the penetration depth (negative distance) of the convex objects
+// witness points are stored in x1 and x2
 static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
-                  mjCCDObj* obj1, mjCCDObj* obj2, Face* nearest);
+                  mjCCDObj* obj1, mjCCDObj* obj2, mjtNum x1[3], mjtNum x2[3]);
 
 // internal data structure for the returning simplex from GJK
 typedef struct {
@@ -858,10 +859,37 @@ static void addEdgeIfUnique(Horizon* h, int v1, int v2) {
 
 #undef mjMINCAP
 
+// recover witness points from EPA polytope
+static void epa_witness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]) {
+  Face* face = &pt->faces[index];
+  int s1 = face->verts[0], s2 = face->verts[1], s3 = face->verts[2];
+
+  // run S2D to get barycentric coordinates of witness point
+  // witness point is guaranteed to be an internal point of face
+  mjtNum simplex[9], lambda[4];
+  mju_copy3(simplex, pt->verts[s1].v);
+  mju_copy3(simplex + 3, pt->verts[s2].v);
+  mju_copy3(simplex + 6, pt->verts[s3].v);
+  S2D(lambda, simplex);
+
+  // face on geom 1
+  mjtNum simplex1[9];
+  mju_copy3(simplex1, pt->verts[s1].v1);
+  mju_copy3(simplex1 + 3, pt->verts[s2].v1);
+  mju_copy3(simplex1 + 6, pt->verts[s3].v1);
+  lincomb(x1, lambda, simplex1, 3);
+
+  // face on geom 2
+  mjtNum simplex2[9];
+  mju_copy3(simplex2, pt->verts[s1].v2);
+  mju_copy3(simplex2 + 3, pt->verts[s2].v2);
+  mju_copy3(simplex2 + 6, pt->verts[s3].v2);
+  lincomb(x2, lambda, simplex2, 3);
+}
 
 // returns the penetration depth (negative distance) of the convex objects
 static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
-                  mjCCDObj* obj1, mjCCDObj* obj2, Face* nearest) {
+                  mjCCDObj* obj1, mjCCDObj* obj2, mjtNum x1[3], mjtNum x2[3]) {
   mjtNum dist = mjMAXVAL;
   int index;
   Horizon h;
@@ -913,8 +941,7 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
     h.n = 0;  // clear horizon
   }
   mju_free(h.edges);
-  nearest->dist = dist;
-  mju_copy3(nearest->n, pt->faces[index].n);
+  epa_witness(pt, index, x1, x2);
   return dist;
 }
 
@@ -922,7 +949,7 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
 
 // runs both GJK and EPA (if needed)
 static mjtNum _gjk_epa(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2, Polytope* pt,
-                       Face* nearest) {
+                       mjtNum x1[3], mjtNum x2[3]) {
   Simplex simplex1, simplex2;
   mjtNum dist = _gjk(config, obj1, obj2, &simplex1, &simplex2);
 
@@ -938,8 +965,8 @@ static mjtNum _gjk_epa(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2
 
     // simplex not on boundary (objects are penetrating)
     if (ret) {
-      epa(config, pt, obj1, obj2, nearest);
-      return -nearest->dist;
+      dist = epa(config, pt, obj1, obj2, x1, x2);
+      return -dist;
     }
     return 0;
   }
@@ -948,76 +975,35 @@ static mjtNum _gjk_epa(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2
 
 // --------------------------- LibCCD Compatibility Layer -----------------------------------------
 
-static int posCompare(const void *a, const void *b) {
-    Vertex *v1, *v2;
-    v1 = *(Vertex**) a;
-    v2 = *(Vertex**) b;
-
-    if (v1->dist == v2->dist) {
-        return 0;
-    } else if (v1->dist < v2->dist) {
-        return -1;
-    } else {
-        return 1;
-    }
-}
-
-
-
-// computes the position of contact in the same manner as LibCCD
-static int computePos(const Polytope* pt, mjtNum pos[3]) {
-    Vertex** vs;
-    int len = pt->nverts;
-    mjtNum scale = 0;
-
-    vs = (Vertex**) mju_malloc(len * sizeof(Vertex*));
-    if (vs == NULL) return -1;
-
-    for (int i = 0; i < len; i++) {
-      vs[i] = pt->verts + i;
-    }
-
-    qsort(vs, len, sizeof(Vertex*), posCompare);
-
-    mju_zero3(pos);
-    if (len % 2 == 1) len++;
-
-    // average out the vertices of the polytope
-    for (int i = 0; i < len / 2; i++) {
-      mju_add3(pos, pos, vs[i]->v1);
-      mju_add3(pos, pos, vs[i]->v2);
-      scale += 2;
-    }
-    mju_scl3(pos, pos, 1 / scale);
-
-    mju_free(vs);
-    return 0;
-}
-
-
-
 // Penetration function with same signature as LibCCD's ccdMPRPenetration and ccdGJKPenetration
 int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
                       ccd_real_t *depth, ccd_vec3_t *dir, ccd_vec3_t *pos) {
   Polytope pt;
   initPolytope(&pt);
-  Face nearest;
   mjCCDConfig config;
   mjCCDObj* o1 = (mjCCDObj*) obj1;
   mjCCDObj* o2 = (mjCCDObj*) obj2;
-  nearest.n[1] = 34;
-
   o1->center(o1->x0, o1);
   o2->center(o2->x0, o2);
 
   config.max_iterations = ccd->max_iterations;
   config.tolerance = ccd->mpr_tolerance;
-  mjtNum dist = _gjk_epa(&config, o1, o2, &pt, &nearest);
+  mjtNum x1[3], x2[3];
+  mjtNum dist = _gjk_epa(&config, o1, o2, &pt, x1, x2);
 
   if (dist < 0) {
-    if (depth) *depth = nearest.dist;
-    if (dir) mju_copy3(dir->v, nearest.n);
-    if (pos) computePos(&pt, pos->v);
+    if (depth) *depth = -dist;
+    if (dir) {
+      mjtNum d[3];
+      mju_sub3(d, x1, x2);
+      mju_normalize3(d);
+      mju_copy3(dir->v, d);
+    }
+    if (pos) {
+      mju_scl3(x1, x1, 0.5);
+      mju_scl3(x2, x2, 0.5);
+      mju_add3(pos->v, x1, x2);
+    }
   } else {
     if (depth) *depth = 0;
     if (dir) mju_zero3(dir->v);
