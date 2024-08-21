@@ -91,3 +91,7 @@ pluggy==1.3.0 \
     --hash=sha256:d89c696a773f8bd377d18e5ecda92b7a3793cbe66c87060a6fb58c7b6e1061f7
 pyparsing==3.1.1 \
     --hash=sha256:32c7c0b711493c72ff18a981d24f28aaf9c1fb7ed5e9667c9e84e3db623bdbfb
+
+# Dependencies for USD
+usd-core==24.8 \
+    --hash=sha256:39fe8e266875e1105886cab870df4bcbe2d40a84696177bc574c22b96d843bf6

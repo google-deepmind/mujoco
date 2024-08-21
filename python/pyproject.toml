@@ -60,3 +60,6 @@ mujoco = [
     "testdata/*.msh",
     "testdata/*.usda",
 ]
+
+[project.optional-dependencies]
+usd = ["usd-core"]
