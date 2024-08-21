@@ -263,4 +263,30 @@ def sensor_acc(m: Model, d: Data) -> Data:
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
 
-  return d
+  stage_acc = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_ACC
+  sensors, adrs = [], []
+
+  for sensor_type in set(m.sensor_type[stage_acc]):
+    idx = m.sensor_type == sensor_type
+    objid = m.sensor_objid[idx]
+    adr = m.sensor_adr[idx]
+
+    if sensor_type == SensorType.ACTUATORFRC:
+      sensor = d.actuator_force[objid]
+    elif sensor_type == SensorType.JOINTACTFRC:
+      sensor = d.qfrc_actuator[m.jnt_dofadr[objid]]
+    else:
+      # TODO(taylorhowell): raise error after adding sensor check to io.py
+      continue  # unsupported sensor type
+
+    sensors.append(sensor)
+    adrs.append(adr)
+
+  if not adrs:
+    return d
+
+  sensordata = d.sensordata.at[np.concatenate(adrs)].set(
+      jp.concatenate(sensors)
+  )
+
+  return d.replace(sensordata=sensordata)

@@ -309,6 +309,8 @@ class SensorType(enum.IntEnum):
     JOINTVEL: joint velocity
     ACTUATORVEL: actuator velocity
     BALLANGVEL: ball joint angular velocity
+    ACTUATORFRC: scalar actuator force
+    JOINTACTFRC: scalar actuator force, measured at the joint
   """
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
   CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
@@ -325,6 +327,8 @@ class SensorType(enum.IntEnum):
   JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
   ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL
   BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL
+  ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC
+  JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC
 
 
 class ObjType(PyTreeNode):
