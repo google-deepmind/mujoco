@@ -245,13 +245,6 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   auto load_interval = mj::Simulate::Clock::now() - load_start;
   double load_seconds = Seconds(load_interval).count();
 
-  // if no error and load took more than 1/4 seconds, report load time
-  if (!loadError[0] && load_seconds > 0.25) {
-    mju::sprintf_arr(loadError, "Model loaded in %.2g seconds", load_seconds);
-  }
-
-  mju::strcpy_arr(sim.load_error, loadError);
-
   if (!mnew) {
     std::printf("%s\n", loadError);
     return nullptr;
@@ -263,6 +256,13 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     std::printf("Model compiled, but simulation warning (paused):\n  %s\n", loadError);
     sim.run = 0;
   }
+
+  // if no error and load took more than 1/4 seconds, report load time
+  if (!loadError[0] && load_seconds > 0.25) {
+    mju::sprintf_arr(loadError, "Model loaded in %.2g seconds", load_seconds);
+  }
+
+  mju::strcpy_arr(sim.load_error, loadError);
 
   return mnew;
 }
