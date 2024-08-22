@@ -11,6 +11,7 @@
 -framexaxis
 -frameyaxis
 -framezaxis
+-framequat
 -subtreecom
 -clock
 * velocity-dependent sensors:
@@ -50,6 +51,7 @@
     <body name="body3" pos="-.1 -.1 -.1">
       <joint name="ballquat3" type="ball" pos="0.1 0.2 0.3"/>
       <geom size="1"/>
+      <site name="site3"/>
     </body>
 
     <!-- bodies for camera projection -->
@@ -91,6 +93,7 @@
     <framexaxis name="framexaxis0" objtype="site" objname="site0"/>
     <jointactuatorfrc name="jointactfrc1" joint="hinge1"/>
     <framezaxis name="framezaxis0" objtype="site" objname="site0"/>
+    <framequat name="framequat3" objtype="site" objname="site3"/>
     <frameyaxis name="frameyaxis0" objtype="site" objname="site0"/>
     <framepos name="framepos0" objtype="site" objname="site0"/>
     <actuatorfrc name="actuatorfrc1" actuator="motor1"/>
@@ -109,6 +112,7 @@
     <camprojection site="frontcenter" camera="fixedcamera"/>
     <ballangvel name="ballangvel3" joint="ballquat3"/>
     <frameyaxis name="frameyaxis1" objtype="site" objname="site1"/>
+    <framequat name="framequat0" objtype="site" objname="site0"/>
     <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
     <clock/>

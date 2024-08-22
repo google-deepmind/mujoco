@@ -18,8 +18,8 @@ MJX
 ^^^
 5. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
 6. Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
-   ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``,
-   ``CLOCK``.
+   ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
+   ``SUBTREECOM``, ``CLOCK``.
 7. Added velocity-dependent sensors: ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``.
 8. Added acceleration/force-dependent sensors: ``ACTUATORFRC``, ``JOINTACTFRC``.
 9. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.

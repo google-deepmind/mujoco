@@ -61,6 +61,9 @@ def sensor_pos(m: Model, d: Data) -> Data:
   for sensor_type in set(m.sensor_type[stage_pos]):
     idx = m.sensor_type == sensor_type
     objid = m.sensor_objid[idx]
+    objtype = m.sensor_objtype[idx]
+    refid = m.sensor_refid[idx]
+    reftype = m.sensor_reftype[idx]
     adr = m.sensor_adr[idx]
 
     if sensor_type == SensorType.MAGNETOMETER:
@@ -113,7 +116,6 @@ def sensor_pos(m: Model, d: Data) -> Data:
 
         return sensor[:2]
 
-      refid = m.sensor_refid[idx]
       sensorsize = m.cam_sensorsize[refid]
       intrinsic = m.cam_intrinsic[refid]
       fovy = m.cam_fovy[refid]
@@ -131,15 +133,15 @@ def sensor_pos(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.RANGEFINDER:
       site_bodyid = m.site_bodyid[objid]
       for sid in set(site_bodyid):
-        id_ = sid == site_bodyid
-        objid_ = objid[id_]
-        site_xpos = d.site_xpos[objid_]
-        site_mat = d.site_xmat[objid_].reshape((-1, 9))[:, np.array([2, 5, 8])]
+        idxs = sid == site_bodyid
+        objids = objid[idxs]
+        site_xpos = d.site_xpos[objids]
+        site_mat = d.site_xmat[objids].reshape((-1, 9))[:, np.array([2, 5, 8])]
         sensor, _ = jax.vmap(
             ray.ray, in_axes=(None, None, 0, 0, None, None, None)
         )(m, d, site_xpos, site_mat, (), True, sid)
         sensors.append(sensor)
-        adrs.append(adr[id_])
+        adrs.append(adr[idxs])
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.JOINTPOS:
       sensor = d.qpos[m.jnt_qposadr[objid]]
@@ -155,23 +157,19 @@ def sensor_pos(m: Model, d: Data) -> Data:
       def _framepos(xpos, xpos_ref, xmat_ref, refid):
         return jp.where(refid == -1, xpos, xmat_ref.T @ (xpos - xpos_ref))
 
-      objtype = m.sensor_objtype[idx]
-      reftype = m.sensor_reftype[idx]
-      refid = m.sensor_refid[idx]
-
       # evaluate for valid object and reference object type pairs
       for ot, rt in set(zip(objtype, reftype)):
-        id_ = (objtype == ot) & (reftype == rt)
-        refid_ = refid[id_]
+        idxt = (objtype == ot) & (reftype == rt)
+        refidt = refid[idxt]
         xpos, _ = objtype_data[ot]
         xpos_ref, xmat_ref = objtype_data[rt]
-        xpos = xpos[objid[id_]]
-        xpos_ref = xpos_ref[refid_]
-        xmat_ref = xmat_ref[refid_]
-        sensor = jax.vmap(_framepos)(xpos, xpos_ref, xmat_ref, refid_)
-        adr_ = adr[id_, None] + np.arange(3)[None]
+        xpos = xpos[objid[idxt]]
+        xpos_ref = xpos_ref[refidt]
+        xmat_ref = xmat_ref[refidt]
+        sensor = jax.vmap(_framepos)(xpos, xpos_ref, xmat_ref, refidt)
+        adrt = adr[idxt, None] + np.arange(3)[None]
         sensors.append(sensor.reshape(-1))
-        adrs.append(adr_.reshape(-1))
+        adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type in frame_axis:
 
@@ -179,22 +177,58 @@ def sensor_pos(m: Model, d: Data) -> Data:
         axis = xmat[:, frame_axis[sensor_type]]
         return jp.where(refid == -1, axis, xmat_ref.T @ axis)
 
-      objtype = m.sensor_objtype[idx]
-      reftype = m.sensor_reftype[idx]
-      refid = m.sensor_refid[idx]
+      # evaluate for valid object and reference object type pairs
+      for ot, rt in set(zip(objtype, reftype)):
+        idxt = (objtype == ot) & (reftype == rt)
+        refidt = refid[idxt]
+        _, xmat = objtype_data[ot]
+        _, xmat_ref = objtype_data[rt]
+        xmat = xmat[objid[idxt]]
+        xmat_ref = xmat_ref[refidt]
+        sensor = jax.vmap(_frameaxis)(xmat, xmat_ref, refidt)
+        adrt = adr[idxt, None] + np.arange(3)[None]
+        sensors.append(sensor.reshape(-1))
+        adrs.append(adrt.reshape(-1))
+      continue  # avoid adding to sensors/adrs list a second time
+    elif sensor_type == SensorType.FRAMEQUAT:
+
+      def _quat(otype, oid):
+        if otype == ObjType.XBODY:
+          return d.xquat[oid]
+        elif otype == ObjType.BODY:
+          return jax.vmap(math.quat_mul)(d.xquat[oid], m.body_iquat[oid])
+        elif otype == ObjType.GEOM:
+          return jax.vmap(math.quat_mul)(
+              d.xquat[m.geom_bodyid[oid]], m.geom_quat[oid]
+          )
+        elif otype == ObjType.SITE:
+          return jax.vmap(math.quat_mul)(
+              d.xquat[m.site_bodyid[oid]], m.site_quat[oid]
+          )
+        elif otype == ObjType.CAMERA:
+          return jax.vmap(math.quat_mul)(
+              d.xquat[m.cam_bodyid[oid]], m.cam_quat[oid]
+          )
+        elif otype == ObjType.UNKNOWN:
+          return jp.tile(jp.array([1.0, 0.0, 0.0, 0.0]), (oid.size, 1))
+        else:
+          raise ValueError(f'Unknown object type: {otype}')
 
       # evaluate for valid object and reference object type pairs
       for ot, rt in set(zip(objtype, reftype)):
-        id_ = (objtype == ot) & (reftype == rt)
-        refid_ = refid[id_]
-        _, xmat = objtype_data[ot]
-        _, xmat_ref = objtype_data[rt]
-        xmat = xmat[objid[id_]]
-        xmat_ref = xmat_ref[refid_]
-        sensor = jax.vmap(_frameaxis)(xmat, xmat_ref, refid_)
-        adr_ = adr[id_, None] + np.arange(3)[None]
+        idxt = (objtype == ot) & (reftype == rt)
+        objidt = objid[idxt]
+        refidt = refid[idxt]
+        quat = _quat(ot, objidt)
+        refquat = _quat(rt, refidt)
+        sensor = jax.vmap(
+            lambda q, r, rid: jp.where(
+                rid == -1, q, math.quat_mul(math.quat_inv(r), q)
+            )
+        )(quat, refquat, refidt)
+        adrt = adr[idxt, None] + np.arange(4)[None]
         sensors.append(sensor.reshape(-1))
-        adrs.append(adr_.reshape(-1))
+        adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.SUBTREECOM:
       sensor = d.subtree_com[objid].reshape(-1)

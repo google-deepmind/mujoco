@@ -304,6 +304,7 @@ class SensorType(enum.IntEnum):
     FRAMEXAXIS: frame x-axis
     FRAMEYAXIS: frame y-axis
     FRAMEZAXIS: frame z-axis
+    FRAMEQUAT: frame orientation, represented as quaternion
     SUBTREECOM: subtree centor of mass
     CLOCK: simulation time
     JOINTVEL: joint velocity
@@ -322,6 +323,7 @@ class SensorType(enum.IntEnum):
   FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS
   FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS
   FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS
+  FRAMEQUAT = mujoco.mjtSensor.mjSENS_FRAMEQUAT
   SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
   CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
   JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
