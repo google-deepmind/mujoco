@@ -396,6 +396,8 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjSAMEFRAME_NONE', 0),
              ('mjSAMEFRAME_BODY', 1),
              ('mjSAMEFRAME_INERTIA', 2),
+             ('mjSAMEFRAME_BODYROT', 3),
+             ('mjSAMEFRAME_INERTIAROT', 4),
          ]),
      )),
     ('mjtLRMode',

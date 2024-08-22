@@ -396,6 +396,8 @@ public enum mjtSameFrame : int{
   mjSAMEFRAME_NONE = 0,
   mjSAMEFRAME_BODY = 1,
   mjSAMEFRAME_INERTIA = 2,
+  mjSAMEFRAME_BODYROT = 3,
+  mjSAMEFRAME_INERTIAROT = 4,
 }
 public enum mjtLRMode : int{
   mjLRMODE_NONE = 0,

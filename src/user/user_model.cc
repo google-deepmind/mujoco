@@ -2013,8 +2013,11 @@ void mjCModel::CopyTree(mjModel* m) {
 
     // set sameframe
     mjtSameFrame sameframe;
+    mjtNum* nullnum = static_cast<mjtNum*>(nullptr);
     if (IsNullPose(m->body_ipos+3*i, m->body_iquat+4*i)) {
       sameframe = mjSAMEFRAME_BODY;
+    } else if (IsNullPose(nullnum, m->body_iquat+4*i)) {
+      sameframe = mjSAMEFRAME_BODYROT;
     } else {
       sameframe = mjSAMEFRAME_NONE;
     }
@@ -2064,7 +2067,7 @@ void mjCModel::CopyTree(mjModel* m) {
       bool axis_aligned = ((std::abs(pj->axis[0]) > mjEPS) +
                            (std::abs(pj->axis[1]) > mjEPS) +
                            (std::abs(pj->axis[2]) > mjEPS)) == 1;
-      if (rotfound || !IsNullPose(m->jnt_pos+3*jid, static_cast<mjtNum*>(nullptr)) ||
+      if (rotfound || !IsNullPose(m->jnt_pos+3*jid, nullnum) ||
           ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
         m->body_simple[i] = 0;
       }
@@ -2172,10 +2175,15 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
 
       // determine sameframe
+      double* nulldouble = static_cast<double*>(nullptr);
       if (IsNullPose(m->geom_pos+3*gid, m->geom_quat+4*gid)) {
         sameframe = mjSAMEFRAME_BODY;
+      } else if (IsNullPose(nullnum, m->geom_quat+4*gid)) {
+        sameframe = mjSAMEFRAME_BODYROT;
       } else if (IsSamePose(pg->pos, pb->ipos, pg->quat, pb->iquat)) {
         sameframe = mjSAMEFRAME_INERTIA;
+      } else if (IsSamePose(nulldouble, nulldouble, pg->quat, pb->iquat)) {
+        sameframe = mjSAMEFRAME_INERTIAROT;
       } else {
         sameframe = mjSAMEFRAME_NONE;
       }
@@ -2203,10 +2211,15 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->site_rgba+4*sid, ps->rgba, 4);
 
       // determine sameframe
+      double* nulldouble = static_cast<double*>(nullptr);
       if (IsNullPose(m->site_pos+3*sid, m->site_quat+4*sid)) {
         sameframe = mjSAMEFRAME_BODY;
+      } else if (IsNullPose(nullnum, m->site_quat+4*sid)) {
+        sameframe = mjSAMEFRAME_BODYROT;
       } else if (IsSamePose(ps->pos, pb->ipos, ps->quat, pb->iquat)) {
         sameframe = mjSAMEFRAME_INERTIA;
+      } else if (IsSamePose(nulldouble, nulldouble, ps->quat, pb->iquat)) {
+        sameframe = mjSAMEFRAME_INERTIAROT;
       } else {
         sameframe = mjSAMEFRAME_NONE;
       }

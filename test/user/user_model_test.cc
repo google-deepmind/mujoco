@@ -36,10 +36,15 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::Pointwise;
 
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
   return std::vector<mjtNum>(array + ncolumn * row,
                              array + ncolumn * (row + 1));
+}
+
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
 }
 
 // ----------------------------- test mjCModel  --------------------------------
@@ -63,6 +68,58 @@ TEST_F(UserCModelTest, RepeatedNames) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
 }
+
+TEST_F(UserCModelTest, SameFrame) {
+  static constexpr char xml[] = R"(
+   <mujoco>
+     <default>
+      <geom type="box" size="1 2 3"/>
+     </default>
+
+     <worldbody>
+       <body name="body1">
+         <geom name="none"       mass="0" pos="1 1 1" euler="10 10 10"/>
+         <geom name="body"       mass="0"/>
+         <geom name="inertia"    mass="1" pos="3 2 1" euler="20 30 40"/>
+         <geom name="bodyrot"    mass="0" pos="1 1 1"/>
+         <geom name="inertiarot" mass="0" euler="20 30 40"/>
+        </body>
+      </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->geom_sameframe[0], mjSAMEFRAME_NONE);
+  EXPECT_EQ(model->geom_sameframe[1], mjSAMEFRAME_BODY);
+  EXPECT_EQ(model->geom_sameframe[2], mjSAMEFRAME_INERTIA);
+  EXPECT_EQ(model->geom_sameframe[3], mjSAMEFRAME_BODYROT);
+  EXPECT_EQ(model->geom_sameframe[4], mjSAMEFRAME_INERTIAROT);
+
+  // make data, get geom_xpos
+  mjData* data = mj_makeData(model);
+  mj_kinematics(model, data);
+  auto geom_xpos = AsVector(data->geom_xpos, model->ngeom*3);
+  auto geom_xmat = AsVector(data->geom_xmat, model->ngeom*9);
+
+  // set all geom_sameframe to 0, call kinematics again
+  for (int i = 0; i < model->ngeom; i++) {
+    model->geom_sameframe[i] = mjSAMEFRAME_NONE;
+  }
+  mj_resetData(model, data);
+  mj_kinematics(model, data);
+  auto geom_xpos2 = AsVector(data->geom_xpos, model->ngeom*3);
+  auto geom_xmat2 = AsVector(data->geom_xmat, model->ngeom*9);
+
+  // expect them to be equal
+  constexpr double eps = 1e-6;
+  EXPECT_THAT(geom_xpos, Pointwise(DoubleNear(eps), geom_xpos2));
+  EXPECT_THAT(geom_xmat, Pointwise(DoubleNear(eps), geom_xmat2));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 

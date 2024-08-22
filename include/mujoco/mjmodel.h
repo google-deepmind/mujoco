@@ -377,6 +377,8 @@ typedef enum mjtSameFrame_ {      // frame alignment of bodies with their childr
   mjSAMEFRAME_NONE    = 0,        // no alignment
   mjSAMEFRAME_BODY,               // frame is same as body frame
   mjSAMEFRAME_INERTIA,            // frame is same as inertial frame
+  mjSAMEFRAME_BODYROT,            // frame orientation is same as body orientation
+  mjSAMEFRAME_INERTIAROT          // frame orientation is same as inertia orientation
 } mjtSameFrame;
 
 

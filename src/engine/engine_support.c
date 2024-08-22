@@ -1620,6 +1620,8 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   if (xpos && pos) {
     switch (sf) {
     case mjSAMEFRAME_NONE:
+    case mjSAMEFRAME_BODYROT:
+    case mjSAMEFRAME_INERTIAROT:
       mju_mulMatVec3(xpos, d->xmat+9*body, pos);
       mju_addTo3(xpos, d->xpos+3*body);
       break;
@@ -1641,9 +1643,11 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
       mju_quat2Mat(xmat, tmp);
       break;
     case mjSAMEFRAME_BODY:
+    case mjSAMEFRAME_BODYROT:
       mju_copy(xmat, d->xmat+9*body, 9);
       break;
     case mjSAMEFRAME_INERTIA:
+    case mjSAMEFRAME_INERTIAROT:
       mju_copy(xmat, d->ximat+9*body, 9);
       break;
     }
