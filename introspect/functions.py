@@ -3168,7 +3168,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtByte'),
              ),
          ),
-         doc='Map from body local to global Cartesian coordinates.',
+         doc='Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.',  # pylint: disable=line-too-long
      )),
     ('mj_getTotalmass',
      FunctionDecl(

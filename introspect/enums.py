@@ -388,6 +388,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjDATATYPE_QUATERNION', 3),
          ]),
      )),
+    ('mjtSameFrame',
+     EnumDecl(
+         name='mjtSameFrame',
+         declname='enum mjtSameFrame_',
+         values=dict([
+             ('mjSAMEFRAME_NONE', 0),
+             ('mjSAMEFRAME_BODY', 1),
+             ('mjSAMEFRAME_INERTIA', 2),
+         ]),
+     )),
     ('mjtLRMode',
      EnumDecl(
          name='mjtLRMode',

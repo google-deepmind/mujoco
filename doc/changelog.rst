@@ -12,31 +12,34 @@ General
    early stages of testing.
 2. Added :ref:`mjSpec` option for creating a texture from a buffer.
 3. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
-4. Added support for :ref:`attaching<meAttachment>` keyframes.
+4. When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
+   parent model, but only on the first attachment.
+5. Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
+   alignments are used as shortcuts in :ref:`mj_kinematics`.
 
 MJX
 ^^^
-5. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
-6. Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
+6. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
+7. Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
    ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
    ``SUBTREECOM``, ``CLOCK``.
-7. Added velocity-dependent sensors: ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``.
-8. Added acceleration/force-dependent sensors: ``ACTUATORFRC``, ``JOINTACTFRC``.
-9. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
-10. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
-11. Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
+8. Added velocity-dependent sensors: ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``.
+9. Added acceleration/force-dependent sensors: ``ACTUATORFRC``, ``JOINTACTFRC``.
+10. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
+11. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
+12. Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
     :doc:`fluid drag <computation/fluid>`.
 
 Bug fixes
 ^^^^^^^^^
-12. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+13. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
     contribution by :github:user:`michael-ahn`).
-13. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
+14. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
     integrators, wrong derivatives would be computed.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-14. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+15. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
 
 
 Version 3.2.2 (Aug 8, 2024)

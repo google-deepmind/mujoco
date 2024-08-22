@@ -392,6 +392,11 @@ public enum mjtDataType : int{
   mjDATATYPE_AXIS = 2,
   mjDATATYPE_QUATERNION = 3,
 }
+public enum mjtSameFrame : int{
+  mjSAMEFRAME_NONE = 0,
+  mjSAMEFRAME_BODY = 1,
+  mjSAMEFRAME_INERTIA = 2,
+}
 public enum mjtLRMode : int{
   mjLRMODE_NONE = 0,
   mjLRMODE_MUSCLE = 1,

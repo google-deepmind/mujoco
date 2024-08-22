@@ -507,7 +507,7 @@ MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, m
 // Normalize all quaternions in qpos-type vector.
 MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 
-// Map from body local to global Cartesian coordinates.
+// Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.
 MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9], const mjtNum pos[3],
                            const mjtNum quat[4], int body, mjtByte sameframe);
 

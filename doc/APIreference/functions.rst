@@ -551,7 +551,7 @@ mj_local2Global
 
 .. mujoco-include:: mj_local2Global
 
-Map from body local to global Cartesian coordinates.
+Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.
 
 .. _mj_getTotalmass:
 
