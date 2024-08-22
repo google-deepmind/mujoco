@@ -291,9 +291,9 @@ void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 // initialize CCD structure
 static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
   CCD_INIT(ccd);
-  ccd->mpr_tolerance = m->opt.mpr_tolerance;
-  ccd->epa_tolerance = m->opt.mpr_tolerance;  // use MPR tolerance for EPA
-  ccd->max_iterations = m->opt.mpr_iterations;
+  ccd->mpr_tolerance = m->opt.ccd_tolerance;
+  ccd->epa_tolerance = m->opt.ccd_tolerance;  // use MPR tolerance for EPA
+  ccd->max_iterations = m->opt.ccd_iterations;
 }
 
 
@@ -1237,8 +1237,8 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   ccd.support2 = mjccd_support;
 
   // set ccd parameters
-  ccd.max_iterations = m->opt.mpr_iterations;
-  ccd.mpr_tolerance = m->opt.mpr_tolerance;
+  ccd.max_iterations = m->opt.ccd_iterations;
+  ccd.mpr_tolerance = m->opt.ccd_tolerance;
 
   // compute real-valued grid step, and triangulation direction
   dx = (2.0*hsize[0]) / (ncol-1);

@@ -124,7 +124,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->tolerance          = 1e-8;
   opt->ls_tolerance       = 0.01;
   opt->noslip_tolerance   = 1e-6;
-  opt->mpr_tolerance      = 1e-6;
+  opt->ccd_tolerance      = 1e-6;
 
   // physical constants
   opt->gravity[0]         = 0;
@@ -156,7 +156,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->iterations         = 100;
   opt->ls_iterations      = 50;
   opt->noslip_iterations  = 0;
-  opt->mpr_iterations     = 50;
+  opt->ccd_iterations     = 50;
   opt->disableflags       = 0;
   opt->enableflags        = 0;
   opt->disableactuator    = 0;

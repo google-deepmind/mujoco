@@ -362,7 +362,7 @@ class Option(PyTreeNode):
     tolerance:         main solver tolerance
     ls_tolerance:      CG/Newton linesearch tolerance
     noslip_tolerance:  noslip solver tolerance (not used)
-    mpr_tolerance:     MPR solver tolerance (not used)
+    ccd_tolerance:     CCD solver tolerance (not used)
     gravity:           gravitational acceleration                 (3,)
     wind:              wind (for lift, drag and viscosity)
     magnetic:          global magnetic flux (not used)
@@ -384,7 +384,7 @@ class Option(PyTreeNode):
     iterations:        number of main solver iterations
     ls_iterations:     maximum number of CG/Newton linesearch iterations
     noslip_iterations: maximum number of noslip solver iterations (not used)
-    mpr_iterations:    maximum number of MPR solver iterations (not used)
+    ccd_iterations:    maximum number of CCD solver iterations (not used)
     disableflags:      bit flags for disabling standard features
     enableflags:       bit flags for enabling optional features (not used)
     disableactuator:   bit flags for disabling actuators by group id (not used)
@@ -397,7 +397,7 @@ class Option(PyTreeNode):
   tolerance: jax.Array
   ls_tolerance: jax.Array
   noslip_tolerance: jax.Array = _restricted_to('mujoco')
-  mpr_tolerance: jax.Array = _restricted_to('mujoco')
+  ccd_tolerance: jax.Array = _restricted_to('mujoco')
   gravity: jax.Array
   wind: jax.Array
   magnetic: jax.Array
@@ -415,7 +415,7 @@ class Option(PyTreeNode):
   iterations: int
   ls_iterations: int
   noslip_iterations: int = _restricted_to('mujoco')
-  mpr_iterations: int = _restricted_to('mujoco')
+  ccd_iterations: int = _restricted_to('mujoco')
   disableflags: DisableBit
   enableflags: int
   disableactuator: int

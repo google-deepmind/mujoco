@@ -7,6 +7,15 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The runtime options ``mpr_tolerance`` and ``mpr_iterations`` were renamed to
+     :ref:`ccd_tolerance<option-ccd_tolerance>` and :ref:`ccd_iterations<option-ccd_iterations>`, both in XML and in
+     the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
+     the MPR algorithm. The semantics of these options remain identical.
+
 - Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
   early stages of testing.

@@ -135,9 +135,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='noslip solver tolerance',
              ),
              StructFieldDecl(
-                 name='mpr_tolerance',
+                 name='ccd_tolerance',
                  type=ValueType(name='mjtNum'),
-                 doc='MPR solver tolerance',
+                 doc='convex collision solver tolerance',
              ),
              StructFieldDecl(
                  name='gravity',
@@ -238,9 +238,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='maximum number of noslip solver iterations',
              ),
              StructFieldDecl(
-                 name='mpr_iterations',
+                 name='ccd_iterations',
                  type=ValueType(name='int'),
-                 doc='maximum number of MPR solver iterations',
+                 doc='maximum number of convex collision solver iterations',
              ),
              StructFieldDecl(
                  name='disableflags',

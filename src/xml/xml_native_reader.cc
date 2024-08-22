@@ -110,10 +110,10 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"option", "*", "27",
         "timestep", "apirate", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
-        "mpr_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
+        "ccd_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp", "o_friction",
         "integrator", "cone", "jacobian",
-        "solver", "iterations", "ls_iterations", "noslip_iterations", "mpr_iterations",
+        "solver", "iterations", "ls_iterations", "noslip_iterations", "ccd_iterations",
         "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
         {"flag", "?", "23", "constraint", "equality", "frictionloss", "limit", "contact",
@@ -1061,7 +1061,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttr(section, "tolerance", 1, &opt->tolerance, text);
   ReadAttr(section, "ls_tolerance", 1, &opt->ls_tolerance, text);
   ReadAttr(section, "noslip_tolerance", 1, &opt->noslip_tolerance, text);
-  ReadAttr(section, "mpr_tolerance", 1, &opt->mpr_tolerance, text);
+  ReadAttr(section, "ccd_tolerance", 1, &opt->ccd_tolerance, text);
   ReadAttr(section, "gravity", 3, opt->gravity, text);
   ReadAttr(section, "wind", 3, opt->wind, text);
   ReadAttr(section, "magnetic", 3, opt->magnetic, text);
@@ -1080,7 +1080,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttrInt(section, "iterations", &opt->iterations);
   ReadAttrInt(section, "ls_iterations", &opt->ls_iterations);
   ReadAttrInt(section, "noslip_iterations", &opt->noslip_iterations);
-  ReadAttrInt(section, "mpr_iterations", &opt->mpr_iterations);
+  ReadAttrInt(section, "ccd_iterations", &opt->ccd_iterations);
   ReadAttrInt(section, "sdf_iterations", &opt->sdf_iterations);
   ReadAttrInt(section, "sdf_initpoints", &opt->sdf_initpoints);
 

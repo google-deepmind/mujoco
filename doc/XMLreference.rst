@@ -444,16 +444,16 @@ adjust it properly through the XML.
 :at:`noslip_tolerance`: :at-val:`real, "1e-6"`
    Tolerance threshold used for early termination of the Noslip solver.
 
-.. _option-mpr_iterations:
+.. _option-ccd_iterations:
 
-:at:`mpr_iterations`: :at-val:`int, "50"`
-   Maximum number of iterations of the MPR algorithm used for convex mesh collisions. This rarely needs to be adjusted,
+:at:`ccd_iterations`: :at-val:`int, "50"`
+   Maximum number of iterations of the algorithm used for convex collisions. This rarely needs to be adjusted,
    except in situations where some geoms have very large aspect ratios.
 
-.. _option-mpr_tolerance:
+.. _option-ccd_tolerance:
 
-:at:`mpr_tolerance`: :at-val:`real, "1e-6"`
-   Tolerance threshold used for early termination of the MPR algorithm.
+:at:`ccd_tolerance`: :at-val:`real, "1e-6"`
+   Tolerance threshold used for early termination of the convex collision algorithm.
 
 .. _option-sdf_iterations:
 
