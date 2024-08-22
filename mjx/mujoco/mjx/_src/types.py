@@ -1201,6 +1201,7 @@ class Data(PyTreeNode):
     efc_type: constraint type                                   (nefc,)
     efc_J: constraint Jacobian                                  (nefc, nv)
     efc_pos: constraint position (equality, contact)            (nefc,)
+    efc_margin: inclusion margin (contact)                      (nefc,)
     efc_frictionloss: frictionloss (friction)                   (nefc,)
     efc_D: constraint mass                                      (nefc,)
     efc_aref: reference pseudo-acceleration                     (nefc,)
@@ -1322,6 +1323,7 @@ class Data(PyTreeNode):
   efc_type: jax.Array
   efc_J: jax.Array  # pylint:disable=invalid-name
   efc_pos: jax.Array
+  efc_margin: jax.Array
   efc_frictionloss: jax.Array
   efc_D: jax.Array  # pylint:disable=invalid-name
   # dynamically sized - position & velocity dependent:

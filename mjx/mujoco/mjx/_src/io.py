@@ -286,6 +286,7 @@ def make_data(
         'cfrc_ext': (m.nbody, 6, float),
         'efc_J': (nefc, m.nv, float),
         'efc_pos': (nefc, float),
+        'efc_margin': (nefc, float),
         'efc_frictionloss': (nefc, float),
         'efc_D': (nefc, float),
         'efc_aref': (nefc, float),
@@ -521,6 +522,7 @@ def put_data(
   for fname in (
       'efc_J',
       'efc_pos',
+      'efc_margin',
       'efc_frictionloss',
       'efc_D',
       'efc_aref',
