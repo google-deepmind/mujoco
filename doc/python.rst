@@ -522,8 +522,8 @@ Building from source
 1. Make sure you have CMake and a C++17 compiler installed.
 
 2. Download the `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
-   from GitHub. On macOS, the download corresponds to a DMG file from which you
-   can drag ``MuJoCo.app`` into your ``/Applications`` folder.
+   from GitHub. On macOS, the download corresponds to a DMG file which you can mount by
+   double-clicking or running ``hdiutil attach <dmg_file>``.
 
 3. Clone the entire ``mujoco`` repository from GitHub and ``cd`` into the python
    directory:
@@ -545,7 +545,6 @@ Building from source
 
    .. code-block:: shell
 
-      cd python
       bash make_sdist.sh
 
    The ``make_sdist.sh`` script generates additional C++ header files that are
@@ -556,19 +555,21 @@ Building from source
 
 6. Use the generated source distribution to build and install the bindings.
    You'll need to specify the path to the MuJoCo library you downloaded earlier
-   in the ``MUJOCO_PATH`` environment variable.
+   in the ``MUJOCO_PATH`` environment variable, and the path to the MuJoCo
+   plugin directory in the ``MUJOCO_PLUGIN_PATH`` environment variable.
 
    .. note::
-      For macOS, this can be the path to a directory that contains the
-      ``mujoco.framework``. In particular, you can set
-      ``MUJOCO_PATH=/Applications/MuJoCo.app`` if you installed MuJoCo as
-      suggested in step 1.
+      For macOS, the files need to be extracted from the DMG.
+      Once you mounted it as in step 2, the ``mujoco.framework`` directory can be found in ``/Volumes/MuJoCo``,
+      and the plugins directory can be found in ``/Volumes/MuJoCo/MuJoCo.app/Contents/MacOS/mujoco_plugin``.
+      Those two directories can be copied out somewhere convenient, or you can use
+      ``MUJOCO_PATH=/Volumes/MuJoCo MUJOCO_PLUGIN_PATH=/Volumes/MuJoCo/MuJoCo.app/Contents/MacOS/mujoco_plugin``.
 
    .. code-block:: shell
 
       cd dist
-      MUJOCO_PATH=/PATH/TO/MUJOCO
-      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN
+      MUJOCO_PATH=/PATH/TO/MUJOCO \
+      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN \
       pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
