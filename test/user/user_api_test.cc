@@ -140,6 +140,27 @@ TEST_F(PluginTest, ActivatePlugin) {
   mj_deleteModel(model);
 }
 
+TEST_F(MujocoTest, RecompileFails) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  geom->type = mjGEOM_SPHERE;
+  geom->size[0] = 1;
+
+  mjModel* model = mj_compile(spec, 0);
+  mjData* data = mj_makeData(model);
+
+  mjsMaterial* mat1 = mjs_addMaterial(spec, 0);
+  mjsMaterial* mat2 = mjs_addMaterial(spec, 0);
+  mjs_setString(mat1->name, "yellow");
+  mjs_setString(mat2->name, "yellow");
+
+  EXPECT_EQ(mj_recompile(spec, 0, model, data), -1);
+  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'yellow' in material");
+
+  mj_deleteSpec(spec);
+}
+
 // ------------------- test recompilation multiple files -----------------------
 TEST_F(PluginTest, RecompileCompare) {
   mjtNum tol = 0;

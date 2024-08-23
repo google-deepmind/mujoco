@@ -251,7 +251,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_recompile',
      FunctionDecl(
          name='mj_recompile',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='s',
@@ -278,7 +278,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Recompile spec to model, preserving the state.',
+         doc='Recompile spec to model, preserving the state, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_saveLastXML',
      FunctionDecl(

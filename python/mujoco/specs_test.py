@@ -352,5 +352,29 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nplugin, 1)
     self.assertEqual(model.body_plugin[1], 0)
 
+  def test_recompile_error(self):
+    main_xml = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size="0.1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+
+    spec = mujoco.MjSpec()
+    spec.from_string(main_xml)
+    model = spec.compile()
+    data = mujoco.MjData(model)
+
+    spec.add_material().name = 'yellow'
+    spec.add_material().name = 'yellow'
+
+    with self.assertRaisesRegex(
+        ValueError, "Error: repeated name 'yellow' in material"
+    ):
+      spec.recompile(model, data)
+
 if __name__ == '__main__':
   absltest.main()

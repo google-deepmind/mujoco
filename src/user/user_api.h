@@ -42,8 +42,8 @@ MJAPI mjSpec* mj_makeSpec(void);
 // Compile spec to model.
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
-// Recompile spec to model preserving the current state.
-MJAPI void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
+// Recompile spec to model, preserving the state, return 0 on success.
+MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
 // Copy spec.
 MJAPI mjSpec* mj_copySpec(const mjSpec* s);

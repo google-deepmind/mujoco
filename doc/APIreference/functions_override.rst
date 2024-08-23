@@ -29,6 +29,12 @@ The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and c
 a valid mjModel, or NULL - in which case the user should check the error information in the user-provided string.
 The model and all files referenced in it can be loaded from disk or from a VFS when provided.
 
+.. _mj_compile:
+
+Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multiple times, returning a new
+:ref:`mjModel` instance that takes the edits into account.
+If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
+
 .. _mj_recompile:
 
 Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
@@ -38,10 +44,8 @@ reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second,
 newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
 struct pointers while editing the model programmatically.
 
-.. admonition:: Incomplete implementation
-   :class: attention
-
-   This function is currently incomplete, preserving only ``mjData.qpos`` and ``mjData.qvel``.
+:ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
+instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
 .. _Mainsimulation:
 
