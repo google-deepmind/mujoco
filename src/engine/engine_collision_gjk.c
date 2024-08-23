@@ -19,6 +19,7 @@
 
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -618,16 +619,12 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 // creates a polytope from a 1-simplex (2 points i.e. line segment)
 static int polytope2(Polytope* pt, const mjtNum simplex1[6], const mjtNum simplex2[6],
                               mjCCDObj* obj1, mjCCDObj* obj2) {
-  const mjtNum* s1a = simplex1;
-  const mjtNum* s1b = simplex2;
-  const mjtNum* s2a = simplex1 + 3;
-  const mjtNum* s2b = simplex2 + 3;
-  mjtNum s1[3], s2[3];
-  mju_sub3(s1, s1a, s1b);
-  mju_sub3(s2, s2a, s2b);
+  mjtNum v1[3], v2[3];
+  mju_sub3(v1, simplex1 + 0, simplex2 + 0);
+  mju_sub3(v2, simplex1 + 3, simplex2 + 3);
 
   mjtNum diff[3];
-  mju_sub3(diff, s2, s1);
+  mju_sub3(diff, v2, v1);
 
   // find component with smallest magnitude (so cross product is largest)
   mjtNum value = mjMAXVAL;
@@ -653,31 +650,50 @@ static int polytope2(Polytope* pt, const mjtNum simplex1[6], const mjtNum simple
   mju_mulMatVec(d3, R, d2, 3, 3);
 
 
-  mjtNum v1a[3], v2a[3], v3a[3];
-  mjtNum v1b[3], v2b[3], v3b[3];
-  mjtNum v1[3], v2[3], v3[3];
-  support(v1a, v1b, obj1, obj2, d1);
-  support(v2a, v2b, obj1, obj2, d2);
-  support(v3a, v3b, obj1, obj2, d3);
-
-  mju_sub3(v1, v1a, v1b);
-  mju_sub3(v2, v2a, v2b);
+  mjtNum v3a[3], v3b[3], v3[3];
+  support(v3a, v3b, obj1, obj2, d1);
   mju_sub3(v3, v3a, v3b);
 
+  mjtNum v4a[3], v4b[3], v4[3];
+  support(v4a, v4b, obj1, obj2, d2);
+  mju_sub3(v4, v4a, v4b);
 
-  int s1i = newVertex(pt, s1a, s1b);
-  int v1i = newVertex(pt, v1a, v1b);
-  int v2i = newVertex(pt, v2a, v2b);
+  mjtNum v5a[3], v5b[3], v5[3];
+  support(v5a, v5b, obj1, obj2, d3);
+  mju_sub3(v5, v5a, v5b);
+
+  // check that all six faces are valid triangles (not collinear)
+  if (mju_abs(det3(v1, v3, v4)) < mjMINVAL || mju_abs(det3(v1, v3, v5)) < mjMINVAL ||
+      mju_abs(det3(v1, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v3, v4)) < mjMINVAL ||
+      mju_abs(det3(v2, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v4, v5)) < mjMINVAL) {
+    return 0;
+  }
+
+  // save vertices and get indices for each one
+  int v1i = newVertex(pt, simplex1 + 0, simplex2 + 0);
+  int v2i = newVertex(pt, simplex1 + 3, simplex2 + 3);
   int v3i = newVertex(pt, v3a, v3b);
-  int s2i = newVertex(pt, s2a, s2b);
+  int v4i = newVertex(pt, v4a, v4b);
+  int v5i = newVertex(pt, v5a, v5b);
 
-  // TODO(kylebayes): check what side of the hexahedron the origin is on
-  attachFace(pt, s1i, v2i, v1i);
-  attachFace(pt, s1i, v3i, v1i);
-  attachFace(pt, s1i, v3i, v2i);
-  attachFace(pt, s2i, v1i, v2i);
-  attachFace(pt, s2i, v1i, v3i);
-  attachFace(pt, s2i, v2i, v3i);
+
+  // build hexahedron
+  attachFace(pt, v1i, v3i, v4i);
+  attachFace(pt, v1i, v3i, v5i);
+  attachFace(pt, v1i, v4i, v5i);
+  attachFace(pt, v2i, v3i, v4i);
+  attachFace(pt, v2i, v3i, v5i);
+  attachFace(pt, v2i, v4i, v5i);
+
+  // if the origin is on the affine hull of any of the faces then the origin is not in the
+  //  hexahedron or the hexahedron is degenerate
+  for (int i = 0; i < 6; i++) {
+    if (pt->faces[i].dist < mjMINVAL) {
+      return 0;
+    }
+  }
+
+  // valid hexahedron for EPA
   return 1;
 }
 
@@ -686,46 +702,70 @@ static int polytope2(Polytope* pt, const mjtNum simplex1[6], const mjtNum simple
 // creates a polytope from a 2-simplex (3 points i.e. triangle)
 static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simplex2[9],
                      mjCCDObj* obj1, mjCCDObj* obj2) {
-  const mjtNum* s1a = simplex1;
-  const mjtNum* s2a = simplex1 + 3;
-  const mjtNum* s3a = simplex1 + 6;
+  // get vertices of simplex from GJK
+  mjtNum v1[3], v2[3], v3[3];
+  mju_sub3(v1, simplex1 + 0, simplex2 + 0);
+  mju_sub3(v2, simplex1 + 3, simplex2 + 3);
+  mju_sub3(v3, simplex1 + 6, simplex2 + 6);
 
-  const mjtNum* s1b = simplex2;
-  const mjtNum* s2b = simplex2 + 3;
-  const mjtNum* s3b = simplex2 + 6;
-
-  mjtNum s1[3], s2[3], s3[3];
-  mju_sub3(s1, s1a, s1b);
-  mju_sub3(s2, s2a, s2b);
-  mju_sub3(s3, s3a, s3b);
-
-  // form hexahedron from triangle and two face normals
-
-  mjtNum diff1[3], diff2[3], n[3], neg_n[3];
-  mju_sub3(diff1, s2, s1);
-  mju_sub3(diff2, s3, s1);
+  // get normals in both directions
+  mjtNum diff1[3], diff2[3], n[3], nn[3];
+  mju_sub3(diff1, v2, v1);
+  mju_sub3(diff2, v3, v1);
   mju_cross(n, diff1, diff2);
-  mju_scl3(neg_n, n, -1);
+  if (mju_norm3(n) < mjMINVAL) {
+    return 0;
+  }
 
-  mjtNum na[3], nb[3], nna[3], nnb[3];
-  support(na, nb, obj1, obj2, n);
-  support(nna, nnb, obj1, obj2, neg_n);
+  // negative of triangle normal n
+  mju_scl3(nn, n, -1);
 
-  int ni = newVertex(pt, na, nb);
-  int s1i = newVertex(pt, s1a, s1b);
-  int s2i = newVertex(pt, s2a, s2b);
-  int s3i = newVertex(pt, s3a, s3b);
-  int nni = newVertex(pt, nna, nnb);
+  // get 4th vertex in n direction
+  mjtNum v4a[3], v4b[3], v4[3];
+  support(v4a, v4b, obj1, obj2, n);
+  mju_sub3(v4, v4a, v4b);
 
-  attachFace(pt, s1i, s2i, ni);
-  attachFace(pt, s3i, s1i, ni);
-  attachFace(pt, s2i, s3i, ni);
+  // we must check that all three faces are valid triangles (not collinear)
+  if (mju_abs(det3(v4, v1, v2)) < mjMINVAL ||
+      mju_abs(det3(v4, v2, v3)) < mjMINVAL ||
+      mju_abs(det3(v4, v3, v1)) < mjMINVAL) {
+    return 0;
+  }
 
-  attachFace(pt, s1i, s2i, nni);
-  attachFace(pt, s3i, s1i, nni);
-  attachFace(pt, s2i, s3i, nni);
+  // get 5th vertex in -n direction
+  mjtNum v5a[3], v5b[3], v5[3];
+  support(v5a, v5b, obj1, obj2, nn);
+  mju_sub3(v5, v5a, v4b);
 
-  // TODO(kylebayes): check what side of the hexahedron the origin is on
+  // we must check that all three faces are valid triangles (not collinear)
+  if (mju_abs(det3(v5, v1, v2)) < mjMINVAL ||
+      mju_abs(det3(v5, v2, v3)) < mjMINVAL ||
+      mju_abs(det3(v5, v3, v1)) < mjMINVAL) {
+    return 0;
+  }
+
+  // save vertices and get indices for each one
+  int v1i = newVertex(pt, simplex1 + 0, simplex2 + 0);
+  int v2i = newVertex(pt, simplex1 + 3, simplex2 + 3);
+  int v3i = newVertex(pt, simplex1 + 6, simplex2 + 6);
+  int v5i = newVertex(pt, v5a, v5b);
+  int v4i = newVertex(pt, v4a, v4b);
+
+  // create hexahedron for EPA
+  attachFace(pt, v1i, v2i, v4i);
+  attachFace(pt, v3i, v1i, v4i);
+  attachFace(pt, v2i, v3i, v4i);
+  attachFace(pt, v1i, v2i, v5i);
+  attachFace(pt, v3i, v1i, v5i);
+  attachFace(pt, v2i, v3i, v5i);
+
+  // if the origin is on the affine hull of any of the faces then the origin is not in the
+  //  hexahedron or the hexahedron is degenerate
+  for (int i = 0; i < 6; i++) {
+    if (pt->faces[i].dist < mjMINVAL) {
+      return 0;
+    }
+  }
   return 1;
 }
 
@@ -733,7 +773,7 @@ static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simple
 
 // creates a polytope from a 3-simplex (4 points i.e. tetrahedron)
 static int polytope4(Polytope* pt, const mjtNum simplex1[12], const mjtNum simplex2[12]) {
-  int v1 = newVertex(pt, simplex1, simplex2);
+  int v1 = newVertex(pt, simplex1 + 0, simplex2 + 0);
   int v2 = newVertex(pt, simplex1 + 3, simplex2 + 3);
   int v3 = newVertex(pt, simplex1 + 6, simplex2 + 6);
   int v4 = newVertex(pt, simplex1 + 9, simplex2 + 9);
@@ -742,8 +782,6 @@ static int polytope4(Polytope* pt, const mjtNum simplex1[12], const mjtNum simpl
   attachFace(pt, v1, v2, v4);
   attachFace(pt, v1, v4, v3);
   attachFace(pt, v4, v2, v3);
-
-  // TODO(kylebayes): check if contains origin
   return 1;
 }
 
@@ -893,6 +931,8 @@ static void epa_witness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3
   lincomb(x2, lambda, simplex2, 3);
 }
 
+
+
 // returns the penetration depth (negative distance) of the convex objects
 static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
                   mjtNum dir[3]) {
@@ -906,12 +946,19 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
   for (int j = 0; j < N; j++) {
     // find the closest face to the origin
     dist = mjMAXVAL;
+    index = -1;
     for (int i = 0; i < pt->nfaces; i++) {
       if (pt->faces[i].ignored) continue;
       if (pt->faces[i].dist < dist) {
         dist = pt->faces[i].dist;
         index = i;
       }
+    }
+
+    // check if index is set
+    if (index < 0) {
+      mju_warning("EPA: empty polytope (most likely a bug)");
+      return 0;  // assume 0 depth
     }
 
     // compute support point w from the closest face's normal
