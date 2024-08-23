@@ -82,10 +82,11 @@ mjtNum run_gjkPenetration(mjModel* m, mjData* d, int g1, int g2,
   ccd_real_t depth;
   ccd_vec3_t ccd_dir, ccd_pos;
 
-  mj_gjkPenetration(&obj1, &obj2, &ccd, &depth, &ccd_dir, &ccd_pos);
+  int ret = mj_gjkPenetration(&obj1, &obj2, &ccd, &depth, &ccd_dir, &ccd_pos);
+  if (ret) return 0;  // objects not colliding
   if (dir) mju_copy3(dir, ccd_dir.v);
   if (pos) mju_copy3(pos, ccd_pos.v);
-  return depth;
+  return -depth;
 }
 
 using MjGjkTest = MujocoTest;
@@ -170,7 +171,7 @@ TEST_F(MjGjkTest, BoxBoxIntersect) {
   mjtNum dir[3], pos[3];
   mjtNum dist = run_gjkPenetration(model, data, geom1, geom2, dir, pos);
 
-  EXPECT_NEAR(dist, 1, kTolerance);
+  EXPECT_NEAR(dist, -1, kTolerance);
   EXPECT_NEAR(dir[0], 1, kTolerance);
   EXPECT_NEAR(dir[1], 0, kTolerance);
   EXPECT_NEAR(dir[2], 0, kTolerance);

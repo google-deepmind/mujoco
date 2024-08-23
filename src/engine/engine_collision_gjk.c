@@ -97,8 +97,8 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3);
 
 // returns the penetration depth (negative distance) of the convex objects
 // witness points are stored in x1 and x2
-static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
-                  mjCCDObj* obj1, mjCCDObj* obj2, mjtNum x1[3], mjtNum x2[3]);
+static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
+                  mjtNum dir[3]);
 
 // internal data structure for the returning simplex from GJK
 typedef struct {
@@ -118,6 +118,7 @@ static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2,
   mjtNum* x1_k = obj1->x0;
   mjtNum* x2_k = obj2->x0;
   mju_sub3(x_k, x1_k, x2_k);
+  mjtNum epsilon = config->tolerance * config->tolerance;
 
   int N = config->max_iterations;
   for (size_t k = 0; k < N; k++) {
@@ -130,10 +131,10 @@ static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2,
     mju_sub3(s_k, s1, s2);
 
     // the stopping criteria relies on the Frank-Wolfe duality gap given by
-    //  f(x_k) - f(x_min) <= < grad f(x_k), (x_k - s_k) >
+    //  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - s_k) >
     mjtNum diff[3];
     mju_sub3(diff, x_k, s_k);
-    if (2*mju_dot3(x_k, diff) < config->tolerance) {
+    if (2*mju_dot3(x_k, diff) < epsilon) {
       break;
     }
 
@@ -172,6 +173,11 @@ static mjtNum _gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2,
 
       // simplex in Minkowski difference
       mju_copy3(simplex + 3*n++, simplex + 3*i);
+    }
+
+    // we have a tetrahedron containing the origin so return early
+    if (n == 4) {
+      break;
     }
   }
   if (ret1 && ret2) {
@@ -888,8 +894,8 @@ static void epa_witness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3
 }
 
 // returns the penetration depth (negative distance) of the convex objects
-static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
-                  mjCCDObj* obj1, mjCCDObj* obj2, mjtNum x1[3], mjtNum x2[3]) {
+static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
+                  mjtNum dir[3]) {
   mjtNum dist = mjMAXVAL;
   int index;
   Horizon h;
@@ -941,7 +947,9 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
     h.n = 0;  // clear horizon
   }
   mju_free(h.edges);
-  epa_witness(pt, index, x1, x2);
+  Face face = pt->faces[index];
+  mju_copy3(dir, face.v);
+  epa_witness(pt, index, obj1->x0, obj2->x0);
   return dist;
 }
 
@@ -949,7 +957,7 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt,
 
 // runs both GJK and EPA (if needed)
 static mjtNum _gjk_epa(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2, Polytope* pt,
-                       mjtNum x1[3], mjtNum x2[3]) {
+                       mjtNum dir[3]) {
   Simplex simplex1, simplex2;
   mjtNum dist = _gjk(config, obj1, obj2, &simplex1, &simplex2);
 
@@ -965,7 +973,7 @@ static mjtNum _gjk_epa(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2
 
     // simplex not on boundary (objects are penetrating)
     if (ret) {
-      dist = epa(config, pt, obj1, obj2, x1, x2);
+      dist = epa(config, pt, obj1, obj2, dir);
       return -dist;
     }
     return 0;
@@ -981,21 +989,23 @@ int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
   Polytope pt;
   initPolytope(&pt);
   mjCCDConfig config;
+
   mjCCDObj* o1 = (mjCCDObj*) obj1;
+  mjtNum* x1 = o1->x0;
   mjCCDObj* o2 = (mjCCDObj*) obj2;
-  o1->center(o1->x0, o1);
-  o2->center(o2->x0, o2);
+  mjtNum* x2 = o2->x0;
+
+  o1->center(x1, o1);
+  o2->center(x2, o2);
 
   config.max_iterations = ccd->max_iterations;
   config.tolerance = ccd->mpr_tolerance;
-  mjtNum x1[3], x2[3];
-  mjtNum dist = _gjk_epa(&config, o1, o2, &pt, x1, x2);
+  mjtNum d[3];
+  mjtNum dist = _gjk_epa(&config, o1, o2, &pt, d);
 
   if (dist < 0) {
     if (depth) *depth = -dist;
     if (dir) {
-      mjtNum d[3];
-      mju_sub3(d, x1, x2);
       mju_normalize3(d);
       mju_copy3(dir->v, d);
     }
