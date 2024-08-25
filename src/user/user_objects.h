@@ -336,7 +336,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCBody& operator=(const mjCBody& other);         // copy assignment
 
   void Compile(void);             // compiler
-  void GeomFrame(void);           // get inertial info from geoms
+  void InertiaFromGeom(void);     // get inertial info from geoms
 
   // objects allocated by Add functions
   std::vector<mjCBody*>    bodies;     // child bodies

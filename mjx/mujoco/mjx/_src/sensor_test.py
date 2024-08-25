@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
@@ -61,6 +62,25 @@ class SensorTest(parameterized.TestCase):
 
     # sensor values
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
+  def test_disable_sensor(self):
+    """Tests disabling sensor."""
+    m = test_util.load_test_file('sensor.xml')
+    # disable sensors
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.SENSOR
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    # random sensor values
+    random_sensor = jp.array(np.random.random(dx.sensordata.shape))
+    dx = dx.replace(sensordata=random_sensor)
+    # call sensor functions
+    dx = jax.jit(mjx.forward)(mx, dx)
+    # sensor values
+    _assert_eq(random_sensor, dx.sensordata, 'sensordata')
 
   def test_unsupported_sensor(self):
     """Tests MJX sensor functions do not break for unsupported sensors."""

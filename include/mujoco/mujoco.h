@@ -106,8 +106,8 @@ MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, 
 // Compile spec to model.
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
-// Recompile spec to model, preserving the state.
-MJAPI void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
+// Recompile spec to model, preserving the state, return 0 on success.
+MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
 // Update XML data structures with info from low-level model, save as MJCF.
 // If error is not NULL, it must have size error_sz.
@@ -507,7 +507,7 @@ MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, m
 // Normalize all quaternions in qpos-type vector.
 MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 
-// Map from body local to global Cartesian coordinates.
+// Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.
 MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9], const mjtNum pos[3],
                            const mjtNum quat[4], int body, mjtByte sameframe);
 
@@ -1630,7 +1630,7 @@ MJAPI mjsMaterial* mjs_asMaterial(mjsElement* element);
 //---------------------------------- Attribute setters ---------------------------------------------
 
 // Copy buffer.
-MJAPI void mjs_setBuffer(mjBuffer* dest, const void* array, int size);
+MJAPI void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 
 // Copy text to string.
 MJAPI void mjs_setString(mjString* dest, const char* text);

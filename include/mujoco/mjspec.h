@@ -33,7 +33,6 @@ extern "C" {
 
 #ifdef __cplusplus
   // C++: defined to be compatible with corresponding std types
-  using mjBuffer      = std::vector<std::byte>;
   using mjString      = std::string;
   using mjStringVec   = std::vector<std::string>;
   using mjIntVec      = std::vector<int>;
@@ -41,9 +40,9 @@ extern "C" {
   using mjFloatVec    = std::vector<float>;
   using mjFloatVecVec = std::vector<std::vector<float>>;
   using mjDoubleVec   = std::vector<double>;
+  using mjByteVec     = std::vector<std::byte>;
 #else
   // C: opaque types
-  typedef void mjBuffer;
   typedef void mjString;
   typedef void mjStringVec;
   typedef void mjIntVec;
@@ -51,6 +50,7 @@ extern "C" {
   typedef void mjFloatVec;
   typedef void mjFloatVecVec;
   typedef void mjDoubleVec;
+  typedef void mjByteVec;
 #endif
 
 
@@ -515,7 +515,7 @@ typedef struct mjsTexture_ {       // texture specification
   mjStringVec* cubefiles;          // different file for each side of the cube
 
   // method 4: from buffer read by user
-  mjBuffer* data;                  // texture data
+  mjByteVec* data;                  // texture data
 
   // flip options
   mjtByte hflip;                   // horizontal flip

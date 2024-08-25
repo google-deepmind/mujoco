@@ -45,6 +45,7 @@ class DisableBit(enum.IntFlag):
     WARMSTART:    warmstart constraint solver
     ACTUATION:    apply actuation forces
     REFSAFE:      integrator safety: make ref[0]>=2*timestep
+    SENSOR:       sensors
   """
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
   EQUALITY = mujoco.mjtDisableBit.mjDSBL_EQUALITY
@@ -56,9 +57,10 @@ class DisableBit(enum.IntFlag):
   WARMSTART = mujoco.mjtDisableBit.mjDSBL_WARMSTART
   ACTUATION = mujoco.mjtDisableBit.mjDSBL_ACTUATION
   REFSAFE = mujoco.mjtDisableBit.mjDSBL_REFSAFE
+  SENSOR = mujoco.mjtDisableBit.mjDSBL_SENSOR
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
   FILTERPARENT = mujoco.mjtDisableBit.mjDSBL_FILTERPARENT
-  # unsupported: FRICTIONLOSS, SENSOR, MIDPHASE
+  # unsupported: FRICTIONLOSS, MIDPHASE
 
 
 class JointType(enum.IntEnum):
@@ -88,10 +90,12 @@ class IntegratorType(enum.IntEnum):
   Members:
     EULER: semi-implicit Euler
     RK4: 4th-order Runge Kutta
+    IMPLICITFAST: implicit in velocity, no rne derivative
   """
   EULER = mujoco.mjtIntegrator.mjINT_EULER
   RK4 = mujoco.mjtIntegrator.mjINT_RK4
-  # unsupported: IMPLICIT, IMPLICITFAST
+  IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+  # unsupported: IMPLICIT
 
 
 class GeomType(enum.IntEnum):
@@ -291,6 +295,8 @@ class SensorType(enum.IntEnum):
 
   Members:
     MAGNETOMETER: magnetometer
+    CAMPROJECTION: camera projection
+    RANGEFINDER: rangefinder
     JOINTPOS: joint position
     ACTUATORPOS: actuator position
     BALLQUAT: ball joint orientation
@@ -298,10 +304,18 @@ class SensorType(enum.IntEnum):
     FRAMEXAXIS: frame x-axis
     FRAMEYAXIS: frame y-axis
     FRAMEZAXIS: frame z-axis
+    FRAMEQUAT: frame orientation, represented as quaternion
     SUBTREECOM: subtree centor of mass
     CLOCK: simulation time
+    JOINTVEL: joint velocity
+    ACTUATORVEL: actuator velocity
+    BALLANGVEL: ball joint angular velocity
+    ACTUATORFRC: scalar actuator force
+    JOINTACTFRC: scalar actuator force, measured at the joint
   """
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
+  CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
+  RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER
   JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
   ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
   BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT
@@ -309,8 +323,14 @@ class SensorType(enum.IntEnum):
   FRAMEXAXIS = mujoco.mjtSensor.mjSENS_FRAMEXAXIS
   FRAMEYAXIS = mujoco.mjtSensor.mjSENS_FRAMEYAXIS
   FRAMEZAXIS = mujoco.mjtSensor.mjSENS_FRAMEZAXIS
+  FRAMEQUAT = mujoco.mjtSensor.mjSENS_FRAMEQUAT
   SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
   CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
+  JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
+  ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL
+  BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL
+  ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC
+  JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC
 
 
 class ObjType(PyTreeNode):
@@ -342,7 +362,7 @@ class Option(PyTreeNode):
     tolerance:         main solver tolerance
     ls_tolerance:      CG/Newton linesearch tolerance
     noslip_tolerance:  noslip solver tolerance (not used)
-    mpr_tolerance:     MPR solver tolerance (not used)
+    ccd_tolerance:     CCD solver tolerance (not used)
     gravity:           gravitational acceleration                 (3,)
     wind:              wind (for lift, drag and viscosity)
     magnetic:          global magnetic flux (not used)
@@ -364,7 +384,7 @@ class Option(PyTreeNode):
     iterations:        number of main solver iterations
     ls_iterations:     maximum number of CG/Newton linesearch iterations
     noslip_iterations: maximum number of noslip solver iterations (not used)
-    mpr_iterations:    maximum number of MPR solver iterations (not used)
+    ccd_iterations:    maximum number of CCD solver iterations (not used)
     disableflags:      bit flags for disabling standard features
     enableflags:       bit flags for enabling optional features (not used)
     disableactuator:   bit flags for disabling actuators by group id (not used)
@@ -377,7 +397,7 @@ class Option(PyTreeNode):
   tolerance: jax.Array
   ls_tolerance: jax.Array
   noslip_tolerance: jax.Array = _restricted_to('mujoco')
-  mpr_tolerance: jax.Array = _restricted_to('mujoco')
+  ccd_tolerance: jax.Array = _restricted_to('mujoco')
   gravity: jax.Array
   wind: jax.Array
   magnetic: jax.Array
@@ -395,7 +415,7 @@ class Option(PyTreeNode):
   iterations: int
   ls_iterations: int
   noslip_iterations: int = _restricted_to('mujoco')
-  mpr_iterations: int = _restricted_to('mujoco')
+  ccd_iterations: int = _restricted_to('mujoco')
   disableflags: DisableBit
   enableflags: int
   disableactuator: int
@@ -1181,6 +1201,7 @@ class Data(PyTreeNode):
     efc_type: constraint type                                   (nefc,)
     efc_J: constraint Jacobian                                  (nefc, nv)
     efc_pos: constraint position (equality, contact)            (nefc,)
+    efc_margin: inclusion margin (contact)                      (nefc,)
     efc_frictionloss: frictionloss (friction)                   (nefc,)
     efc_D: constraint mass                                      (nefc,)
     efc_aref: reference pseudo-acceleration                     (nefc,)
@@ -1302,6 +1323,7 @@ class Data(PyTreeNode):
   efc_type: jax.Array
   efc_J: jax.Array  # pylint:disable=invalid-name
   efc_pos: jax.Array
+  efc_margin: jax.Array
   efc_frictionloss: jax.Array
   efc_D: jax.Array  # pylint:disable=invalid-name
   # dynamically sized - position & velocity dependent:

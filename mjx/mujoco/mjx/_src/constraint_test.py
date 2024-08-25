@@ -67,7 +67,6 @@ class ConstraintTest(parameterized.TestCase):
       _assert_eq(d.efc_D, dx.efc_D[order][:d.nefc], 'efc_D')
       _assert_eq(d.efc_pos, dx.efc_pos[order][:d.nefc], 'efc_pos')
 
-
   def test_disable_refsafe(self):
     m = test_util.load_test_file('constraints.xml')
 
@@ -113,6 +112,33 @@ class ConstraintTest(parameterized.TestCase):
     self.assertEqual(nc, 0)
     dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
     self.assertEqual(dx.efc_J.shape[0], 16)  # only equality, joint/tendon limit
+
+  def test_margin(self):
+    """Test margin."""
+    m = mujoco.MjModel.from_xml_string("""
+       <mujoco>
+          <worldbody>
+            <geom name="floor" size="0 0 .05" type="plane" condim="3"/>
+            <body pos="0 0 0.1">
+              <freejoint/>
+              <geom size="0.1" margin="0.25"/>
+            </body>
+            <body pos="0 0 1">
+              <joint type="hinge" limited="true" range="-1 1" margin="0.005"/>
+              <geom size="1" margin="0.01"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    dx = mjx.make_constraint(mx, dx)
+
+    order = test_util.efc_order(m, d, dx)
+    _assert_eq(d.efc_pos, dx.efc_pos[order][: d.nefc], 'efc_pos')
+    _assert_eq(d.efc_margin, dx.efc_margin[order][: d.nefc], 'efc_margin')
 
 
 if __name__ == '__main__':

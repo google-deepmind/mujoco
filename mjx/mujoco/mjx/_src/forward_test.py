@@ -68,6 +68,12 @@ class ForwardTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'qpos')
     _assert_attr_eq(d, dx, 'time')
 
+    # implicitfast
+    m.opt.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    dx = jax.jit(mjx.implicit)(mx, mjx.put_data(m, d))
+    mujoco.mj_implicit(m, d)
+    _assert_attr_eq(d, dx, 'qpos')
+
   def test_step(self):
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)

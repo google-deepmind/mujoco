@@ -232,7 +232,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBody* FindBody(mjCBody* body, std::string name);              // find body given name
   mjCFrame* FindFrame(mjCBody* body, std::string name) const;      // find frame given name
   mjSpec* FindSpec(std::string name) const;                        // find spec given name
-  bool IsNullPose(const mjtNum* pos, const mjtNum* quat) const;    // detect null pose
   void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
     active_plugins_ = std::move(active_plugins);
   }

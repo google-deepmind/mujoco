@@ -148,7 +148,7 @@ def _ptr_binding_code(
           self.{fullvarname}->push_back(py::cast<{vartype}>(val));
       }}
     }}, py::return_value_policy::reference_internal);"""
-  elif vartype == 'mjBuffer':  # C++ buffer -> Python list
+  elif vartype == 'mjByteVec':  # C++ buffer -> Python list
     return f"""\
   {classname}.def_property(
     "{varname}",

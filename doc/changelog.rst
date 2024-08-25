@@ -7,31 +7,48 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
-   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
-   early stages of testing.
-2. Added :ref:`mjSpec` option for creating a texture from a buffer.
-3. :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
-4. Added support for :ref:`attaching<meAttachment>` keyframes.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The runtime options ``mpr_tolerance`` and ``mpr_iterations`` were renamed to
+     :ref:`ccd_tolerance<option-ccd_tolerance>` and :ref:`ccd_iterations<option-ccd_iterations>`, both in XML and in
+     the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
+     the MPR algorithm. The semantics of these options remain identical.
+
+- Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
+  detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
+  early stages of testing.
+- Added :ref:`mjSpec` option for creating a texture from a buffer.
+- :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
+- When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
+  parent model, but only on the first attachment.
+- Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
+  alignments are used as shortcuts in :ref:`mj_kinematics`.
 
 MJX
 ^^^
-5. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
-6. Added position-dependent sensors: ``MAGNETOMETER``, ``JOINTPOS``, ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``,
-   ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``SUBTREECOM``, ``CLOCK``.
-7. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
-8. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
+- Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
+- Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
+  ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
+  ``SUBTREECOM``, ``CLOCK``.
+- Added velocity-dependent sensors: ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``.
+- Added acceleration/force-dependent sensors: ``ACTUATORFRC``, ``JOINTACTFRC``.
+- Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
+- Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
+- Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
+  :doc:`fluid drag <computation/fluid>`.
 
 Bug fixes
 ^^^^^^^^^
-9.  Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
-    contribution by :github:user:`michael-ahn`).
-10. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
-    integrators, wrong derivatives would be computed.
+- Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+  contribution by :github:user:`michael-ahn`).
+- Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
+  integrators, wrong derivatives would be computed.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-11. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+- Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
 
 
 Version 3.2.2 (Aug 8, 2024)

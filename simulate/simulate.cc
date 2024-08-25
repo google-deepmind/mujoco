@@ -690,8 +690,8 @@ void MakePhysicsSection(mj::Simulate* sim) {
     {mjITEM_EDITNUM,   "LS Tol",        2, &(opt->ls_tolerance),      "1 0 0.1"},
     {mjITEM_EDITINT,   "Noslip Iter",   2, &(opt->noslip_iterations), "1 0 1000"},
     {mjITEM_EDITNUM,   "Noslip Tol",    2, &(opt->noslip_tolerance),  "1 0 1"},
-    {mjITEM_EDITINT,   "MPR Iter",      2, &(opt->mpr_iterations),    "1 0 1000"},
-    {mjITEM_EDITNUM,   "MPR Tol",       2, &(opt->mpr_tolerance),     "1 0 1"},
+    {mjITEM_EDITINT,   "CCD Iter",      2, &(opt->ccd_iterations),    "1 0 1000"},
+    {mjITEM_EDITNUM,   "CCD Tol",       2, &(opt->ccd_tolerance),     "1 0 1"},
     {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
     {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
@@ -1886,7 +1886,7 @@ void Simulate::Sync() {
     X(impratio);
     X(tolerance);
     X(noslip_tolerance);
-    X(mpr_tolerance);
+    X(ccd_tolerance);
     X(gravity);
     X(wind);
     X(magnetic);
@@ -1902,7 +1902,7 @@ void Simulate::Sync() {
     X(solver);
     X(iterations);
     X(noslip_iterations);
-    X(mpr_iterations);
+    X(ccd_iterations);
     X(disableflags);
     X(enableflags);
     X(disableactuator);

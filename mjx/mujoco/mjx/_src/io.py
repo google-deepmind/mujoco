@@ -47,13 +47,18 @@ def _make_option(o: mujoco.MjOption) -> types.Option:
     if o.enableflags & 2**i:
       raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
 
+  has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
+  implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+  if implicitfast and has_fluid_params:
+    raise NotImplementedError('implicitfast not implemented for fluid drag.')
+
   fields = {f.name: getattr(o, f.name, None) for f in types.Option.fields()}
   fields['integrator'] = types.IntegratorType(o.integrator)
   fields['cone'] = types.ConeType(o.cone)
   fields['jacobian'] = types.JacobianType(o.jacobian)
   fields['solver'] = types.SolverType(o.solver)
   fields['disableflags'] = types.DisableBit(o.disableflags)
-  fields['has_fluid_params'] = o.density > 0 or o.viscosity > 0 or o.wind.any()
+  fields['has_fluid_params'] = has_fluid_params
 
   return types.Option(**fields)
 
@@ -281,6 +286,7 @@ def make_data(
         'cfrc_ext': (m.nbody, 6, float),
         'efc_J': (nefc, m.nv, float),
         'efc_pos': (nefc, float),
+        'efc_margin': (nefc, float),
         'efc_frictionloss': (nefc, float),
         'efc_D': (nefc, float),
         'efc_aref': (nefc, float),
@@ -516,6 +522,7 @@ def put_data(
   for fname in (
       'efc_J',
       'efc_pos',
+      'efc_margin',
       'efc_frictionloss',
       'efc_D',
       'efc_aref',

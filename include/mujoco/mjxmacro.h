@@ -26,7 +26,7 @@
     X( mjtNum,  tolerance        )  \
     X( mjtNum,  ls_tolerance     )  \
     X( mjtNum,  noslip_tolerance )  \
-    X( mjtNum,  mpr_tolerance    )  \
+    X( mjtNum,  ccd_tolerance    )  \
     X( mjtNum,  density          )  \
     X( mjtNum,  viscosity        )  \
     X( mjtNum,  o_margin         )  \
@@ -40,7 +40,7 @@
     X( int,     iterations        ) \
     X( int,     ls_iterations     ) \
     X( int,     noslip_iterations ) \
-    X( int,     mpr_iterations    ) \
+    X( int,     ccd_iterations    ) \
     X( int,     disableflags      ) \
     X( int,     enableflags       ) \
     X( int,     disableactuator   ) \

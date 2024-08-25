@@ -190,9 +190,9 @@ public struct MjOptionStruct {
   [Tooltip("Threshold used for early termination of the Noslip solver.")]
   public float NoSlipTolerance;
   [Tooltip("Maximum iterations for convex mesh collisions.")]
-  public int MprIterations;
+  public int CcdIterations;
   [Tooltip("Threshold used for early termination of the MPR algorithm.")]
-  public float MprTolerance;
+  public float CcdTolerance;
 
   public MjcfOptionFlag Flag;
 
@@ -214,8 +214,8 @@ public struct MjOptionStruct {
     Tolerance = 1e-8f,
     NoSlipIterations = 0,
     NoSlipTolerance = 1e-6f,
-    MprIterations = 50,
-    MprTolerance = 1e-6f,
+    CcdIterations = 50,
+    CcdTolerance = 1e-6f,
     Flag = MjcfOptionFlag.Default
   };
 
@@ -258,8 +258,8 @@ public struct MjOptionStruct {
     NoSlipIterations = (int)mjcf.GetFloatAttribute(
         "noslip_iterations", localDefault.NoSlipIterations);
     NoSlipTolerance = mjcf.GetFloatAttribute("noslip_tolerance", localDefault.NoSlipTolerance);
-    MprIterations = (int)mjcf.GetFloatAttribute("mpr_iterations", localDefault.MprIterations);
-    MprTolerance = mjcf.GetFloatAttribute("mpr_tolerance", localDefault.MprTolerance);
+    CcdIterations = (int)mjcf.GetFloatAttribute("ccd_iterations", localDefault.CcdIterations);
+    CcdTolerance = mjcf.GetFloatAttribute("ccd_tolerance", localDefault.CcdTolerance);
 
     var flagElements = mjcf.GetElementsByTagName("flag");
     if (flagElements.Count == 1) {
@@ -291,8 +291,8 @@ public struct MjOptionStruct {
     mjcf.SetAttribute("tolerance", MjEngineTool.MakeLocaleInvariant($"{Tolerance}"));
     mjcf.SetAttribute("noslip_iterations", MjEngineTool.MakeLocaleInvariant($"{NoSlipIterations}"));
     mjcf.SetAttribute("noslip_tolerance", MjEngineTool.MakeLocaleInvariant($"{NoSlipTolerance}"));
-    mjcf.SetAttribute("mpr_iterations", MjEngineTool.MakeLocaleInvariant($"{MprIterations}"));
-    mjcf.SetAttribute("mpr_tolerance", MjEngineTool.MakeLocaleInvariant($"{MprTolerance}"));
+    mjcf.SetAttribute("ccd_iterations", MjEngineTool.MakeLocaleInvariant($"{CcdIterations}"));
+    mjcf.SetAttribute("ccd_tolerance", MjEngineTool.MakeLocaleInvariant($"{CcdTolerance}"));
 
     var flags = (XmlElement)mjcf.AppendChild(
         mjcf.OwnerDocument.CreateElement("flag"));

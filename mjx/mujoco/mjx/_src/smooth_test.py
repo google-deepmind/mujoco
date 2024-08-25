@@ -172,6 +172,25 @@ class SmoothTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'actuator_length')
     _assert_attr_eq(d, dx, 'actuator_moment')
 
+  def test_subtree_vel(self):
+    """Tests MJX subtree_vel function matches MuJoCo mj_subtreeVel."""
+
+    m = test_util.load_test_file('humanoid/humanoid.xml')
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    # subtree velocity
+    mujoco.mj_subtreeVel(m, d)
+    dx = jax.jit(mjx.subtree_vel)(mx, dx)
+
+    _assert_attr_eq(d, dx, 'subtree_linvel')
+    _assert_attr_eq(d, dx, 'subtree_angmom')
+
 
 if __name__ == '__main__':
   absltest.main()

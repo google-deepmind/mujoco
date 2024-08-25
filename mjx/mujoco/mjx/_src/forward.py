@@ -349,6 +349,46 @@ def rungekutta4(m: Model, d: Data) -> Data:
 
 
 @named_scope
+def implicit(m: Model, d: Data) -> Data:
+  """Integrates fully implicit in velocity."""
+
+  qderiv = None
+
+  # qDeriv += d qfrc_actuator / d qvel
+  if not m.opt.disableflags & DisableBit.ACTUATION:
+    affine_bias = m.actuator_biastype == BiasType.AFFINE
+    bias_vel = m.actuator_biasprm[:, 2] * affine_bias
+    affine_gain = m.actuator_gaintype == GainType.AFFINE
+    gain_vel = m.actuator_gainprm[:, 2] * affine_gain
+    ctrl = d.ctrl.at[m.actuator_dyntype != DynType.NONE].set(d.act)
+    vel = bias_vel + gain_vel * ctrl
+    qderiv = d.actuator_moment.T @ jp.diag(vel) @ d.actuator_moment
+
+  # qDeriv += d qfrc_passive / d qvel
+  if not m.opt.disableflags & DisableBit.PASSIVE:
+    if qderiv is None:
+      qderiv = -jp.diag(m.dof_damping)
+    else:
+      qderiv -= jp.diag(m.dof_damping)
+    if m.ntendon:
+      qderiv -= d.ten_J.T @ jp.diag(m.tendon_damping) @ d.ten_J
+    # TODO(robotics-simulation): fluid drag model
+    if m.opt.has_fluid_params:
+      raise NotImplementedError('fluid drag not supported for implicitfast')
+
+  qacc = d.qacc
+  if qderiv is not None:
+    # TODO(robotics-simulation): use smooth.factor_m / solve_m here:
+    qm = support.full_m(m, d) if support.is_sparse(m) else d.qM
+    qm -= m.opt.timestep * qderiv
+    qh, _ = jax.scipy.linalg.cho_factor(qm)
+    qfrc = d.qfrc_smooth + d.qfrc_constraint
+    qacc = jax.scipy.linalg.cho_solve((qh, False), qfrc)
+
+  return _advance(m, d, d.act_dot, qacc)
+
+
+@named_scope
 def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
   d = fwd_position(m, d)
@@ -377,6 +417,8 @@ def step(m: Model, d: Data) -> Data:
     d = euler(m, d)
   elif m.opt.integrator == IntegratorType.RK4:
     d = rungekutta4(m, d)
+  elif m.opt.integrator == IntegratorType.IMPLICITFAST:
+    d = implicit(m, d)
   else:
     raise NotImplementedError(f'integrator {m.opt.integrator} not implemented.')
 

@@ -208,6 +208,14 @@ class ModelIOTest(parameterized.TestCase):
           </worldbody>
         </mujoco>"""))
 
+  def test_implicitfast_fluid_not_implemented(self):
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <option viscosity="3.0" integrator="implicitfast"/>
+          <worldbody/>
+        </mujoco>"""))
+
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""

@@ -219,11 +219,11 @@ void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
       vert_globalid = m->mesh_graph + graphadr + 2 + numvert;
       edge_localid = m->mesh_graph + graphadr + 2 + 2*numvert;
 
-      // init with first vertex in convex hull
-      ibest = 0;
-      tmp = local_dir[0] * (mjtNum)vertdata[3*vert_globalid[0]] +
-            local_dir[1] * (mjtNum)vertdata[3*vert_globalid[0]+1] +
-            local_dir[2] * (mjtNum)vertdata[3*vert_globalid[0]+2];
+      // init with first vertex in convex hull or warmstart
+      ibest = obj->meshindex < 0 ? 0 : obj->meshindex;
+      tmp = local_dir[0] * (mjtNum)vertdata[3*vert_globalid[ibest]+0] +
+            local_dir[1] * (mjtNum)vertdata[3*vert_globalid[ibest]+1] +
+            local_dir[2] * (mjtNum)vertdata[3*vert_globalid[ibest]+2];
 
       // hill-climb until no change
       change = 1;
@@ -291,9 +291,9 @@ void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 // initialize CCD structure
 static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
   CCD_INIT(ccd);
-  ccd->mpr_tolerance = m->opt.mpr_tolerance;
-  ccd->epa_tolerance = m->opt.mpr_tolerance;  // use MPR tolerance for EPA
-  ccd->max_iterations = m->opt.mpr_iterations;
+  ccd->mpr_tolerance = m->opt.ccd_tolerance;
+  ccd->epa_tolerance = m->opt.ccd_tolerance;  // use MPR tolerance for EPA
+  ccd->max_iterations = m->opt.ccd_iterations;
 }
 
 
@@ -1237,8 +1237,8 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   ccd.support2 = mjccd_support;
 
   // set ccd parameters
-  ccd.max_iterations = m->opt.mpr_iterations;
-  ccd.mpr_tolerance = m->opt.mpr_tolerance;
+  ccd.max_iterations = m->opt.ccd_iterations;
+  ccd.mpr_tolerance = m->opt.ccd_tolerance;
 
   // compute real-valued grid step, and triangulation direction
   dx = (2.0*hsize[0]) / (ncol-1);

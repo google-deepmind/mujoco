@@ -135,9 +135,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='noslip solver tolerance',
              ),
              StructFieldDecl(
-                 name='mpr_tolerance',
+                 name='ccd_tolerance',
                  type=ValueType(name='mjtNum'),
-                 doc='MPR solver tolerance',
+                 doc='convex collision solver tolerance',
              ),
              StructFieldDecl(
                  name='gravity',
@@ -238,9 +238,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='maximum number of noslip solver iterations',
              ),
              StructFieldDecl(
-                 name='mpr_iterations',
+                 name='ccd_iterations',
                  type=ValueType(name='int'),
-                 doc='maximum number of MPR solver iterations',
+                 doc='maximum number of convex collision solver iterations',
              ),
              StructFieldDecl(
                  name='disableflags',
@@ -1343,7 +1343,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='inertial frame is same as body frame     (nbody x 1)',
+                 doc='same frame as inertia (mjtSameframe)     (nbody x 1)',
              ),
              StructFieldDecl(
                  name='body_pos',
@@ -1770,7 +1770,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='same as body frame (1) or iframe (2)     (ngeom x 1)',
+                 doc='same frame as body (mjtSameframe)        (ngeom x 1)',
              ),
              StructFieldDecl(
                  name='geom_solmix',
@@ -1903,7 +1903,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='same as body frame (1) or iframe (2)     (nsite x 1)',
+                 doc='same frame as body (mjtSameframe)        (nsite x 1)',
              ),
              StructFieldDecl(
                  name='site_size',
@@ -10014,7 +10014,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='data',
                  type=PointerType(
-                     inner_type=ValueType(name='mjBuffer'),
+                     inner_type=ValueType(name='mjByteVec'),
                  ),
                  doc='texture data',
              ),

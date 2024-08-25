@@ -940,7 +940,7 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttr(section, "tolerance", 1, &model->option.tolerance, &opt.tolerance);
   WriteAttr(section, "ls_tolerance", 1, &model->option.ls_tolerance, &opt.ls_tolerance);
   WriteAttr(section, "noslip_tolerance", 1, &model->option.noslip_tolerance, &opt.noslip_tolerance);
-  WriteAttr(section, "mpr_tolerance", 1, &model->option.mpr_tolerance, &opt.mpr_tolerance);
+  WriteAttr(section, "ccd_tolerance", 1, &model->option.ccd_tolerance, &opt.ccd_tolerance);
   WriteAttr(section, "gravity", 3, model->option.gravity, opt.gravity);
   WriteAttr(section, "wind", 3, model->option.wind, opt.wind);
   WriteAttr(section, "magnetic", 3, model->option.magnetic, opt.magnetic);
@@ -963,7 +963,7 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttrInt(section, "iterations", model->option.iterations, opt.iterations);
   WriteAttrInt(section, "ls_iterations", model->option.ls_iterations, opt.ls_iterations);
   WriteAttrInt(section, "noslip_iterations", model->option.noslip_iterations, opt.noslip_iterations);
-  WriteAttrInt(section, "mpr_iterations", model->option.mpr_iterations, opt.mpr_iterations);
+  WriteAttrInt(section, "ccd_iterations", model->option.ccd_iterations, opt.ccd_iterations);
   WriteAttrInt(section, "sdf_iterations", model->option.sdf_iterations, opt.sdf_iterations);
   WriteAttrInt(section, "sdf_initpoints", model->option.sdf_initpoints, opt.sdf_initpoints);
 

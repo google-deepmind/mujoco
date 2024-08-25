@@ -1614,43 +1614,42 @@ void mj_normalizeQuat(const mjModel* m, mjtNum* qpos) {
 void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
                      const mjtNum pos[3], const mjtNum quat[4],
                      int body, mjtByte sameframe) {
-  mjtNum tmp[4];
+  mjtSameFrame sf = sameframe;
 
   // position
   if (xpos && pos) {
-    // compute
-    if (sameframe == 0) {
+    switch (sf) {
+    case mjSAMEFRAME_NONE:
+    case mjSAMEFRAME_BODYROT:
+    case mjSAMEFRAME_INERTIAROT:
       mju_mulMatVec3(xpos, d->xmat+9*body, pos);
       mju_addTo3(xpos, d->xpos+3*body);
-    }
-
-    // copy body position
-    else if (sameframe == 1) {
+      break;
+    case mjSAMEFRAME_BODY:
       mju_copy3(xpos, d->xpos+3*body);
-    }
-
-    // copy inertial body position
-    else {
+      break;
+    case mjSAMEFRAME_INERTIA:
       mju_copy3(xpos, d->xipos+3*body);
+      break;
     }
   }
 
   // orientation
   if (xmat && quat) {
-    // compute
-    if (sameframe == 0) {
+    mjtNum tmp[4];
+    switch (sf) {
+    case mjSAMEFRAME_NONE:
       mju_mulQuat(tmp, d->xquat+4*body, quat);
       mju_quat2Mat(xmat, tmp);
-    }
-
-    // copy body orientation
-    else if (sameframe == 1) {
+      break;
+    case mjSAMEFRAME_BODY:
+    case mjSAMEFRAME_BODYROT:
       mju_copy(xmat, d->xmat+9*body, 9);
-    }
-
-    // copy inertial body orientation
-    else {
+      break;
+    case mjSAMEFRAME_INERTIA:
+    case mjSAMEFRAME_INERTIAROT:
       mju_copy(xmat, d->ximat+9*body, 9);
+      break;
     }
   }
 }

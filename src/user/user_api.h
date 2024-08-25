@@ -42,8 +42,8 @@ MJAPI mjSpec* mj_makeSpec(void);
 // Compile spec to model.
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
-// Recompile spec to model preserving the current state.
-MJAPI void mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
+// Recompile spec to model, preserving the state, return 0 on success.
+MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
 // Copy spec.
 MJAPI mjSpec* mj_copySpec(const mjSpec* s);
@@ -303,7 +303,7 @@ MJAPI mjsMaterial* mjs_asMaterial(mjsElement* element);
 //---------------------------------- Attribute setters ---------------------------------------------
 
 // Copy buffer.
-MJAPI void mjs_setBuffer(mjBuffer* dest, const void* array, int size);
+MJAPI void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 
 // Copy text to string.
 MJAPI void mjs_setString(mjString* dest, const char* text);

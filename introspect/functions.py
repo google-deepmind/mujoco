@@ -251,7 +251,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_recompile',
      FunctionDecl(
          name='mj_recompile',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='s',
@@ -278,7 +278,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Recompile spec to model, preserving the state.',
+         doc='Recompile spec to model, preserving the state, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_saveLastXML',
      FunctionDecl(
@@ -3168,7 +3168,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtByte'),
              ),
          ),
-         doc='Map from body local to global Cartesian coordinates.',
+         doc='Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.',  # pylint: disable=line-too-long
      )),
     ('mj_getTotalmass',
      FunctionDecl(
@@ -10253,7 +10253,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='dest',
                  type=PointerType(
-                     inner_type=ValueType(name='mjBuffer'),
+                     inner_type=ValueType(name='mjByteVec'),
                  ),
              ),
              FunctionParameterDecl(

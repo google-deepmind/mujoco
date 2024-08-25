@@ -456,7 +456,9 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
   raw::MjModel* m = static_cast<raw::MjModel*>(mju_malloc(sizeof(mjModel)));
   m->buffer = nullptr;
   raw::MjData* d = mj_copyData(nullptr, old_m.get(), old_d.get());
-  mj_recompile(spec, nullptr, m, d);
+  if (mj_recompile(spec, nullptr, m, d)) {
+    throw py::value_error(mjs_getError(spec));
+  }
 
   py::object m_pyobj = py::cast((MjModelWrapper(m)));
   py::object d_pyobj =

@@ -19,7 +19,6 @@
 #include <cmath>
 #include <array>
 #include <csetjmp>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -56,6 +55,65 @@ namespace mju = ::mujoco::util;
 using std::string;
 using std::vector;
 constexpr int kMaxCompilerThreads = 16;
+
+
+
+//---------------------------------- LOCAL UTILITY FUNCTIONS ---------------------------------------
+
+constexpr double kFrameEps = 1e-6;  // difference below which frames are considered equal
+
+// return true if two 3-vectors are element-wise less than kFrameEps apart
+template <typename T>
+bool IsSameVec(const T pos1[3], const T pos2[3]) {
+  static_assert(std::is_floating_point_v<T>);
+  return std::abs(pos1[0] - pos2[0]) < kFrameEps &&
+         std::abs(pos1[1] - pos2[1]) < kFrameEps &&
+         std::abs(pos1[2] - pos2[2]) < kFrameEps;
+}
+
+// return true if two quaternions are element-wise less than kFrameEps apart, including double-cover
+template <typename T>
+bool IsSameQuat(const T quat1[4], const T quat2[4]) {
+  static_assert(std::is_floating_point_v<T>);
+  bool same_quat_minus = std::abs(quat1[0] - quat2[0]) < kFrameEps &&
+                         std::abs(quat1[1] - quat2[1]) < kFrameEps &&
+                         std::abs(quat1[2] - quat2[2]) < kFrameEps &&
+                         std::abs(quat1[3] - quat2[3]) < kFrameEps;
+
+  bool same_quat_plus = std::abs(quat1[0] + quat2[0]) < kFrameEps &&
+                        std::abs(quat1[1] + quat2[1]) < kFrameEps &&
+                        std::abs(quat1[2] + quat2[2]) < kFrameEps &&
+                        std::abs(quat1[3] + quat2[3]) < kFrameEps;
+
+  return same_quat_minus || same_quat_plus;
+}
+
+
+// compare two poses
+template <typename T>
+bool IsSamePose(const T pos1[3], const T pos2[3], const T quat1[4], const T quat2[4]) {
+  // check position if given
+  if (pos1 && pos2 && !IsSameVec(pos1, pos2)) {
+    return false;
+  }
+
+  // check orientation if given
+  if (quat1 && quat2 && !IsSameQuat(quat1, quat2)) {
+    return false;
+  }
+
+  return true;
+}
+
+// detect null pose
+template <typename T>
+bool IsNullPose(const T pos[3], const T quat[4]) {
+  T zero[3] = {0, 0, 0};
+  T qunit[4] = {1, 0, 0, 0};
+  return IsSamePose(pos, zero, quat, qunit);
+}
+
+
 }  // namespace
 
 //---------------------------------- CONSTRUCTOR AND DESTRUCTOR ------------------------------------
@@ -429,7 +487,7 @@ void mjCModel::DeleteElement(mjsElement* el) {
 
   switch (el->elemtype) {
     case mjOBJ_BODY:
-      throw mjCError(NULL, "bodies cannot be deleted, use detach instead");
+      throw mjCError(nullptr, "bodies cannot be deleted, use detach instead");
       break;
 
     case mjOBJ_GEOM:
@@ -825,12 +883,12 @@ static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
 mjsElement* mjCModel::NextObject(mjsElement* object, mjtObj type) {
   if (type == mjOBJ_UNKNOWN) {
     if (!object) {
-      throw mjCError(NULL, "type must be specified if no element is given");
+      throw mjCError(nullptr, "type must be specified if no element is given");
     } else {
       type = object->elemtype;
     }
   } else if (object && object->elemtype != type) {
-    throw mjCError(NULL, "element is not of requested type");
+    throw mjCError(nullptr, "element is not of requested type");
   }
 
   switch (type) {
@@ -1018,29 +1076,6 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
     }
   }
   return nullptr;
-}
-
-
-
-// detect null pose
-bool mjCModel::IsNullPose(const mjtNum* pos, const mjtNum* quat) const {
-  bool result = true;
-
-  // check position if given
-  if (pos) {
-    if (pos[0] || pos[1] || pos[2]) {
-      result = false;
-    }
-  }
-
-  // check orientation if given
-  if (quat) {
-    if (quat[0]!=1 || quat[1] || quat[2] || quat[3]) {
-      result = false;
-    }
-  }
-
-  return result;
 }
 
 
@@ -1640,12 +1675,12 @@ void* LRfunc(void* arg) {
   for (int i=larg->start; i<larg->start+larg->num; i++) {
     if (i<larg->m->nu) {
       if (!mj_setLengthRange(larg->m, larg->data, i, larg->LRopt, larg->error, larg->error_sz)) {
-        return NULL;
+        return nullptr;
       }
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 
@@ -1977,16 +2012,25 @@ void mjCModel::CopyTree(mjModel* m) {
     pb->lastdof = par->lastdof;
 
     // set sameframe
-    m->body_sameframe[i] = IsNullPose(m->body_ipos+3*i, m->body_iquat+4*i);
+    mjtSameFrame sameframe;
+    mjtNum* nullnum = static_cast<mjtNum*>(nullptr);
+    if (IsNullPose(m->body_ipos+3*i, m->body_iquat+4*i)) {
+      sameframe = mjSAMEFRAME_BODY;
+    } else if (IsNullPose(nullnum, m->body_iquat+4*i)) {
+      sameframe = mjSAMEFRAME_BODYROT;
+    } else {
+      sameframe = mjSAMEFRAME_NONE;
+    }
+    m->body_sameframe[i] = sameframe;
 
     // init simple: sameframe, and (self-root, or parent is fixed child of world)
-    int j = m->body_parentid[i];
-    m->body_simple[i] = (m->body_sameframe[i] &&
+    int parentid = m->body_parentid[i];
+    m->body_simple[i] = (sameframe == mjSAMEFRAME_BODY &&
                          (m->body_rootid[i]==i ||
-                          (m->body_parentid[j]==0 &&
-                           m->body_dofnum[j]==0)));
+                          (m->body_parentid[parentid]==0 &&
+                           m->body_dofnum[parentid]==0)));
 
-    // parent is not simple (unless world)
+    // a parent body is never simple (unless world)
     if (m->body_parentid[i]>0) {
       m->body_simple[m->body_parentid[i]] = 0;
     }
@@ -2020,12 +2064,11 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->jnt_user+nuser_jnt*jid, pj->get_userdata().data(), nuser_jnt);
 
       // not simple if: rotation already found, or pos not zero, or mis-aligned axis
-      if (rotfound ||
-          !IsNullPose(m->jnt_pos+3*jid, NULL) ||
-          ((pj->type==mjJNT_HINGE || pj->type==mjJNT_SLIDE) &&
-           ((std::abs(pj->axis[0])>mjEPS) +
-            (std::abs(pj->axis[1])>mjEPS) +
-            (std::abs(pj->axis[2])>mjEPS)) > 1)) {
+      bool axis_aligned = ((std::abs(pj->axis[0]) > mjEPS) +
+                           (std::abs(pj->axis[1]) > mjEPS) +
+                           (std::abs(pj->axis[2]) > mjEPS)) == 1;
+      if (rotfound || !IsNullPose(m->jnt_pos+3*jid, nullnum) ||
+          ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
         m->body_simple[i] = 0;
       }
 
@@ -2132,19 +2175,19 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
 
       // determine sameframe
+      double* nulldouble = static_cast<double*>(nullptr);
       if (IsNullPose(m->geom_pos+3*gid, m->geom_quat+4*gid)) {
-        m->geom_sameframe[gid] = 1;
-      } else if (pg->pos[0]==pb->ipos[0] &&
-                 pg->pos[1]==pb->ipos[1] &&
-                 pg->pos[2]==pb->ipos[2] &&
-                 pg->quat[0]==pb->iquat[0] &&
-                 pg->quat[1]==pb->iquat[1] &&
-                 pg->quat[2]==pb->iquat[2] &&
-                 pg->quat[3]==pb->iquat[3]) {
-        m->geom_sameframe[gid] = 2;
+        sameframe = mjSAMEFRAME_BODY;
+      } else if (IsNullPose(nullnum, m->geom_quat+4*gid)) {
+        sameframe = mjSAMEFRAME_BODYROT;
+      } else if (IsSamePose(pg->pos, pb->ipos, pg->quat, pb->iquat)) {
+        sameframe = mjSAMEFRAME_INERTIA;
+      } else if (IsSamePose(nulldouble, nulldouble, pg->quat, pb->iquat)) {
+        sameframe = mjSAMEFRAME_INERTIAROT;
       } else {
-        m->geom_sameframe[gid] = 0;
+        sameframe = mjSAMEFRAME_NONE;
       }
+      m->geom_sameframe[gid] = sameframe;
 
       // compute rbound
       m->geom_rbound[gid] = (mjtNum)pg->GetRBound();
@@ -2168,19 +2211,19 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->site_rgba+4*sid, ps->rgba, 4);
 
       // determine sameframe
+      double* nulldouble = static_cast<double*>(nullptr);
       if (IsNullPose(m->site_pos+3*sid, m->site_quat+4*sid)) {
-        m->site_sameframe[sid] = 1;
-      } else if (ps->pos[0]==pb->ipos[0] &&
-                 ps->pos[1]==pb->ipos[1] &&
-                 ps->pos[2]==pb->ipos[2] &&
-                 ps->quat[0]==pb->iquat[0] &&
-                 ps->quat[1]==pb->iquat[1] &&
-                 ps->quat[2]==pb->iquat[2] &&
-                 ps->quat[3]==pb->iquat[3]) {
-        m->site_sameframe[sid] = 2;
+        sameframe = mjSAMEFRAME_BODY;
+      } else if (IsNullPose(nullnum, m->site_quat+4*sid)) {
+        sameframe = mjSAMEFRAME_BODYROT;
+      } else if (IsSamePose(ps->pos, pb->ipos, ps->quat, pb->iquat)) {
+        sameframe = mjSAMEFRAME_INERTIA;
+      } else if (IsSamePose(nulldouble, nulldouble, ps->quat, pb->iquat)) {
+        sameframe = mjSAMEFRAME_INERTIAROT;
       } else {
-        m->site_sameframe[sid] = 0;
+        sameframe = mjSAMEFRAME_NONE;
       }
+      m->site_sameframe[sid] = sameframe;
     }
 
     // loop over cameras for this body
@@ -2887,7 +2930,7 @@ void mjCModel::SaveState(const std::string& state_name, const T* qpos, const T* 
                          const T* ctrl, const T* mpos, const T* mquat) {
   for (auto joint : joints_) {
     if (joint->qposadr_ == -1 || joint->dofadr_ == -1) {
-      throw mjCError(NULL, "SaveState: joint %s has no address", joint->name.c_str());
+      throw mjCError(nullptr, "SaveState: joint %s has no address", joint->name.c_str());
     }
     if (qpos) mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, joint->nq());
     if (qvel) mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, joint->nv());
@@ -3170,7 +3213,7 @@ void mjCModel::FuseStatic(void) {
         mjuu_copyvec(par->fullinertia, toti, 6);
         const char* err1 = mjuu_fullInertia(par->iquat, par->inertia, par->fullinertia);
         if (err1) {
-          throw mjCError(NULL, "error '%s' in fusing static body inertias", err1);
+          throw mjCError(nullptr, "error '%s' in fusing static body inertias", err1);
         }
       }
     }
@@ -3348,7 +3391,7 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
       auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
       if (adjacent != allnames.end()) {
         string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
-        throw mjCError(NULL, "%s", msg.c_str());
+        throw mjCError(nullptr, "%s", msg.c_str());
       }
     }
   }
