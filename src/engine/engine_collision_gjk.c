@@ -906,28 +906,66 @@ static void addEdgeIfUnique(Horizon* h, int v1, int v2) {
 // recover witness points from EPA polytope
 static void epa_witness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]) {
   Face* face = &pt->faces[index];
-  int s1 = face->verts[0], s2 = face->verts[1], s3 = face->verts[2];
+  int s1i = face->verts[0], s2i = face->verts[1], s3i = face->verts[2];
 
-  // run S2D to get barycentric coordinates of witness point
-  // witness point is guaranteed to be an internal point of face
-  mjtNum simplex[9], lambda[4];
-  mju_copy3(simplex, pt->verts[s1].v);
-  mju_copy3(simplex + 3, pt->verts[s2].v);
-  mju_copy3(simplex + 6, pt->verts[s3].v);
-  S2D(lambda, simplex);
+  // three vertices of face
+  const mjtNum* s1 = pt->verts[s1i].v;
+  const mjtNum* s2 = pt->verts[s2i].v;
+  const mjtNum* s3 = pt->verts[s3i].v;
+  const mjtNum* v  = face->v;
+
+  // compute minors as in S2D
+  mjtNum M_14 = s2[1]*s3[2] - s2[2]*s3[1] - s1[1]*s3[2] + s1[2]*s3[1] + s1[1]*s2[2] - s1[2]*s2[1];
+  mjtNum M_24 = s2[0]*s3[2] - s2[2]*s3[0] - s1[0]*s3[2] + s1[2]*s3[0] + s1[0]*s2[2] - s1[2]*s2[0];
+  mjtNum M_34 = s2[0]*s3[1] - s2[1]*s3[0] - s1[0]*s3[1] + s1[1]*s3[0] + s1[0]*s2[1] - s1[1]*s2[0];
+
+  // exclude one of the axes with the largest projection of the simplex using the computed minors
+  mjtNum M_max = 0;
+  int x, y;
+  mjtNum mu1 = mju_abs(M_14), mu2 = mju_abs(M_24), mu3 = mju_abs(M_34);
+  if (mu1 >= mu2 && mu1 >= mu3) {
+    M_max = M_14;
+    x = 1;
+    y = 2;
+  } else if (mu2 >= mu3) {
+    M_max = M_24;
+    x = 0;
+    y = 2;
+  } else {
+    M_max = M_34;
+    x = 0;
+    y = 1;
+  }
+  // C31 corresponds to the signed area of 2-simplex: (v, s2, s3)
+  mjtNum C31 = v[x]*s2[y] + v[y]*s3[x] + s2[x]*s3[y]
+             - v[x]*s3[y] - v[y]*s2[x] - s3[x]*s2[y];
+
+  // C32 corresponds to the signed area of 2-simplex: (v, s1, s3)
+  mjtNum C32 = v[x]*s3[y] + v[y]*s1[x] + s3[x]*s1[y]
+             - v[x]*s1[y] - v[y]*s3[x] - s1[x]*s3[y];
+
+  // C33 corresponds to the signed area of 2-simplex: (v, s1, s2)
+  mjtNum C33 = v[x]*s1[y] + v[y]*s2[x] + s1[x]*s2[y]
+             - v[x]*s2[y] - v[y]*s1[x] - s2[x]*s1[y];
+
+  // compute affine coordinates
+  mjtNum lambda[3];
+  lambda[0] = C31 / M_max;
+  lambda[1] = C32 / M_max;
+  lambda[2] = C33 / M_max;
 
   // face on geom 1
   mjtNum simplex1[9];
-  mju_copy3(simplex1, pt->verts[s1].v1);
-  mju_copy3(simplex1 + 3, pt->verts[s2].v1);
-  mju_copy3(simplex1 + 6, pt->verts[s3].v1);
+  mju_copy3(simplex1, pt->verts[s1i].v1);
+  mju_copy3(simplex1 + 3, pt->verts[s2i].v1);
+  mju_copy3(simplex1 + 6, pt->verts[s3i].v1);
   lincomb(x1, lambda, simplex1, 3);
 
   // face on geom 2
   mjtNum simplex2[9];
-  mju_copy3(simplex2, pt->verts[s1].v2);
-  mju_copy3(simplex2 + 3, pt->verts[s2].v2);
-  mju_copy3(simplex2 + 6, pt->verts[s3].v2);
+  mju_copy3(simplex2, pt->verts[s1i].v2);
+  mju_copy3(simplex2 + 3, pt->verts[s2i].v2);
+  mju_copy3(simplex2 + 6, pt->verts[s3i].v2);
   lincomb(x2, lambda, simplex2, 3);
 }
 
