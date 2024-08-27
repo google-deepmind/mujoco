@@ -96,6 +96,20 @@ static void islandColor(float rgba[4], int islanddofadr) {
   rgba[3] = 1;
 }
 
+// make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
+static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
+                         const mjtNum v2[3], const float rgba[4]) {
+  mjtNum e1[3] =  {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+  mjtNum e2[3] =  {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+  mjtNum normal[3];
+  mju_cross(normal, e1, e2);
+  mjtNum lengths[3] = {mju_normalize3(e1), mju_normalize3(e2), mju_normalize3(normal)};
+  mjtNum xmat[9] = {e1[0], e2[0], normal[0],
+                    e1[1], e2[1], normal[1],
+                    e1[2], e2[2], normal[2]};
+  mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, lengths, v0, xmat, rgba);
+}
+
 // add contact-related geoms in mjvObject
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
                            const mjvOption* vopt, mjvScene* scn) {
@@ -1553,20 +1567,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // triangulation and wireframe of the frustum
         for (int e=0; e < 4; e++) {
           START
-          mju_sub3(x, vfar[e], vnear[e]);
-          mju_sub3(y, vnear[(e+1)%4], vnear[e]);
-          mju_cross(z, x, y);
-          mjtNum tri1[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
-          mjtNum xmat1[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
-          mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri1, vnear[e], xmat1, rgba);
+          makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
           FINISH
           START
-          mju_sub3(y, vnear[(e+1)%4], vfar[e]);
-          mju_sub3(x, vfar[(e+1)%4], vfar[e]);
-          mju_cross(z, x, y);
-          mjtNum tri2[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
-          mjtNum xmat2[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
-          mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri2, vfar[e], xmat2, rgba);
+          makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
           FINISH
           START
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
