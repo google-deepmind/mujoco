@@ -385,8 +385,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
 // compute 3/6-by-nv Jacobian of global point attached to given body
 void mj_jac(const mjModel* m, const mjData* d,
             mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
-  int da, nv = m->nv;
-  mjtNum offset[3], tmp[3], *cdof = d->cdof;
+  int nv = m->nv;
 
   // clear jacobians
   if (jacp) {
@@ -397,6 +396,7 @@ void mj_jac(const mjModel* m, const mjData* d,
   }
 
   // compute point-com offset
+  mjtNum offset[3];
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed bodies
@@ -410,10 +410,12 @@ void mj_jac(const mjModel* m, const mjData* d,
   }
 
   // get last dof that affects this (as well as the original) body
-  da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+  int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
 
   // backward pass over dof ancestor chain
   while (da >= 0) {
+    mjtNum *cdof = d->cdof;
+
     // construct rotation jacobian
     if (jacr) {
       jacr[da] = cdof[6*da];
@@ -423,6 +425,7 @@ void mj_jac(const mjModel* m, const mjData* d,
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
+      mjtNum tmp[3];
       mju_cross(tmp, cdof+6*da, offset);
       jacp[da] = cdof[6*da+3] + tmp[0];
       jacp[da+nv] = cdof[6*da+4] + tmp[1];
