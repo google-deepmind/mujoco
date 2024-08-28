@@ -132,6 +132,7 @@ TEST_F(UtilMiscTest, SphereWrap) {
   mj_forward(model, data);
   mjtNum ten_length1 = data->sensordata[0];
 
+  // difference should be small
   mjtNum diff = ten_length1 - ten_length0;
   EXPECT_LT(mju_abs(diff), 1e-3);
 
