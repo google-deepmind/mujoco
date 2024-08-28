@@ -25,6 +25,8 @@ General
   parent model, but only on the first attachment.
 - Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
   alignments are used as shortcuts in :ref:`mj_kinematics`.
+- Fixed a bug in tendon wrapping around spheres. Before this fix, tendons that wrapped around spheres with an
+  externally-placed :ref:`sidesite<spatial-geom-sidesite>` could jump inside the sphere instead of wrapping around it.
 
 MJX
 ^^^

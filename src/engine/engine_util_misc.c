@@ -362,21 +362,17 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   if (side) {
     // side point: apply same projection as x0, x1
     mju_sub3(tmp, side, xpos);
-    mju_mulMatTVec(s, xmat, tmp, 3, 3);
+    mju_mulMatTVec3(s, xmat, tmp);
+
+    // side point: project and rescale
     sd[0] = mju_dot3(s, axis[0]);
     sd[1] = mju_dot3(s, axis[1]);
-
-    // map to circle if outside, set to (0,0) if inside
-    if (mju_norm(sd, 2) >= size[0]) {
-      mju_normalize(sd, 2);
-      mju_scl(sd, sd, size[0], 2);
-    } else {
-      sd[0] = sd[1] = 0;
-    }
+    mju_normalize(sd, 2);
+    mju_scl(sd, sd, size[0], 2);
   }
 
   // apply inside wrap
-  if (side && sd[0] == 0 && sd[1] == 0) {
+  if (side && mju_norm3(s) < size[0]) {
     wlen = wrap_inside(pnt, d, size[0]);
   }
 
