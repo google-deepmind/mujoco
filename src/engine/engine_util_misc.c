@@ -341,10 +341,6 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
     mju_cross(axis[1], normal, axis[0]);
     mju_normalize3(axis[1]);
   } else {
-    // normal = z
-    normal[2] = 1;
-    normal[0] = normal[1] = 0;
-
     // 1st axis = x
     axis[0][0] = 1;
     axis[0][1] = axis[0][2] = 0;
