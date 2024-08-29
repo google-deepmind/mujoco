@@ -229,6 +229,7 @@ class DataIOTest(parameterized.TestCase):
     nq = 22
     nbody = 5
     ncon = 46
+    nm = 64
     nv = 19
     nefc = 185
 
@@ -283,6 +284,13 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d.qfrc_constraint.shape, (nv,))
     self.assertEqual(d.qfrc_inverse.shape, (nv,))
     self.assertEqual(d.efc_force.shape, (nefc,))
+
+    # test sparse
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
+    d = mjx.make_data(m)
+    self.assertEqual(d.qM.shape, (nm,))
+    self.assertEqual(d.qLD.shape, (nm,))
+    self.assertEqual(d.qLDiagInv.shape, (nv,))
 
   def test_put_data(self):
     """Test that put_data puts the correct data for dense and sparse."""

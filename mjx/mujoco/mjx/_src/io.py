@@ -248,7 +248,7 @@ def make_data(
         'crb': (m.nbody, 10, float),
         'qM': (m.nM, float) if support.is_sparse(m) else (m.nv, m.nv, float),
         'qLD': (m.nM, float) if support.is_sparse(m) else (m.nv, m.nv, float),
-        'qLDiagInv': (m.nM, float) if support.is_sparse(m) else (0, float),
+        'qLDiagInv': (m.nv, float) if support.is_sparse(m) else (0, float),
         'qLDiagSqrtInv': (m.nv, float),
         'bvh_aabb_dyn': (m.nbvhdynamic, 6, float),
         'bvh_active': (m.nbvh, jp.uint8),

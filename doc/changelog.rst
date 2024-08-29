@@ -42,6 +42,7 @@ MJX
 - Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
 - Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
   :doc:`fluid drag <computation/fluid>`.
+- Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
 
 Bug fixes
 ^^^^^^^^^
