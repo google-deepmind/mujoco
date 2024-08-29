@@ -38,6 +38,7 @@ std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
   return std::vector<mjtNum>(array, array + n);
 }
 
+using std::string;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
@@ -392,7 +393,7 @@ using KeyframeTest = MujocoTest;
 constexpr char kKeyframePath[] = "user/testdata/keyframe.xml";
 
 TEST_F(KeyframeTest, CheckValues) {
-  const std::string xml_path = GetTestDataFilePath(kKeyframePath);
+  const string xml_path = GetTestDataFilePath(kKeyframePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
   EXPECT_EQ(model->nkey, 7);
@@ -410,7 +411,7 @@ TEST_F(KeyframeTest, CheckValues) {
 }
 
 TEST_F(KeyframeTest, ResetDataKeyframe) {
-  const std::string xml_path = GetTestDataFilePath(kKeyframePath);
+  const string xml_path = GetTestDataFilePath(kKeyframePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
@@ -442,7 +443,7 @@ TEST_F(KeyframeTest, ResetDataKeyframe) {
 }
 
 TEST_F(KeyframeTest, ResetDataKeyframeAcceptsNegativeKeyframe) {
-  const std::string xml_path = GetTestDataFilePath(kKeyframePath);
+  const string xml_path = GetTestDataFilePath(kKeyframePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
@@ -650,7 +651,7 @@ static constexpr int kSphereBodyId = 1, kCylinderBodyId = 2,
                      kCapsuleBodyId = 3, kCapsuleGeomId = 2;
 
 TEST_F(MjCGeomTest, CapsuleMass) {
-  const std::string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
+  const string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   // Mass of capsule should equal mass of cylinder + mass of sphere.
   mjtNum sphere_cylinder_mass =
@@ -661,7 +662,7 @@ TEST_F(MjCGeomTest, CapsuleMass) {
 }
 
 TEST_F(MjCGeomTest, CapsuleInertiaZ) {
-  const std::string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
+  const string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   // z-inertia of capsule should equal sphere + cylinder z-inertia.
   mjtNum sphere_cylinder_z_inertia =
@@ -673,7 +674,7 @@ TEST_F(MjCGeomTest, CapsuleInertiaZ) {
 }
 
 TEST_F(MjCGeomTest, CapsuleInertiaX) {
-  const std::string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
+  const string xml_path = GetTestDataFilePath(kCapsuleInertiaPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
 
   // The CoM of a solid hemisphere is 3/8*radius away from from the disk.
@@ -1168,7 +1169,7 @@ TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
 using MjCHFieldTest = MujocoTest;
 
 TEST_F(MjCHFieldTest, PngMap) {
-  const std::string xml_path =
+  const string xml_path =
       GetTestDataFilePath("user/testdata/hfield_png.xml");
   std::array<char, 1024> error;
   mjModel* model =
@@ -1853,7 +1854,7 @@ constexpr char kKeyAutoLimits[] = "user/testdata/auto_limits.xml";
 
 // check joint limit values when automatically inferred based on range
 TEST_F(LimitedTest, JointLimited) {
-  const std::string path = GetTestDataFilePath(kKeyAutoLimits);
+  const string path = GetTestDataFilePath(kKeyAutoLimits);
   std::array<char, 1024> err;
   mjModel* model = mj_loadXML(path.c_str(), nullptr, err.data(), err.size());
   ASSERT_THAT(model, NotNull()) << err.data();
@@ -2046,8 +2047,10 @@ TEST_F(SpringrangeTest, InvalidRange) {
   EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
 
+using UserObjectsTest = MujocoTest;
+
 // ------------- test frame ----------------------------------------------------
-TEST_F(MujocoTest, Frame) {
+TEST_F(UserObjectsTest, Frame) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2141,7 +2144,7 @@ TEST_F(MujocoTest, Frame) {
   mj_deleteData(d);
 }
 
-TEST_F(MujocoTest, FrameTransformsLight) {
+TEST_F(UserObjectsTest, FrameTransformsLight) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2153,7 +2156,7 @@ TEST_F(MujocoTest, FrameTransformsLight) {
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nlight, 1);
 
   constexpr mjtNum eps = 1e-14;
@@ -2170,7 +2173,7 @@ TEST_F(MujocoTest, FrameTransformsLight) {
 
 
 // ------------- test bvh ------------------------------------------------------
-TEST_F(MujocoTest, RobustBVH) {
+TEST_F(UserObjectsTest, RobustBVH) {
   static constexpr char xml1[] = R"(
   <mujoco>
     <worldbody>
@@ -2203,10 +2206,10 @@ TEST_F(MujocoTest, RobustBVH) {
 
   std::array<char, 1024> error;
   mjModel* m1 = LoadModelFromString(xml1, error.data(), error.size());
-  EXPECT_THAT(m1, testing::NotNull()) << error.data();
+  EXPECT_THAT(m1, NotNull()) << error.data();
 
   mjModel* m2 = LoadModelFromString(xml2, error.data(), error.size());
-  EXPECT_THAT(m2, testing::NotNull()) << error.data();
+  EXPECT_THAT(m2, NotNull()) << error.data();
 
   EXPECT_EQ(m1->nbvh, m2->nbvh);
   for (int i = 0; i < m1->nbvh; i++) {
@@ -2215,6 +2218,85 @@ TEST_F(MujocoTest, RobustBVH) {
 
   mj_deleteModel(m1);
   mj_deleteModel(m2);
+}
+
+// ------------- test equality compilation -------------------------------------
+
+TEST_F(UserObjectsTest, BadConnect) {
+  string base = R"(
+  <mujoco>
+    <worldbody>
+      <site name="0" size="1"/>
+      <body name="1" pos="0 0 1">
+        <freejoint/>
+        <geom size="1"/>
+        <site name="1"/>
+      </body>
+    </worldbody>
+    <equality>
+      CONNECT
+    </equality>
+  </mujoco>
+  )";
+  int pos = base.find("CONNECT");
+  int len = 7;
+
+  // good model using body semantic
+  string xml = base.replace(pos, len, "<connect body1='1' anchor='0 0 1'/>");
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  EXPECT_THAT(m, NotNull()) << error;
+  EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 1, 0, 0, 2));
+  mj_deleteModel(m);
+
+  // good model using site semantic
+  xml = base.replace(pos, len, "<connect site1='0' site2='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  EXPECT_THAT(m, NotNull()) << error;
+  EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 0, 0, 0, 0));
+  mj_deleteModel(m);
+
+  char error_missing[] = "either both body1 and anchor must be defined,"
+      " or both site1 and site2 must be defined\nElement 'connect', line 12";
+
+  // bad model (missing anchor)
+  xml = base.replace(pos, len, "<connect body1='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_missing));
+
+  char error_mixed[] = "body and site semantics cannot be mixed"
+      "\nElement 'connect', line 12";
+
+  // bad model (mixing body and site)
+  xml = base.replace(pos, len, "<connect body1='1' site1='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_mixed));
+
+  // load spec with no constraints
+  xml = base.erase(pos, len);
+  mjSpec* s = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
+  EXPECT_THAT(s, NotNull()) << error;
+
+  // add a connect but don't set objtype
+  mjsEquality* equality = mjs_addEquality(s, nullptr);
+  equality->type = mjEQ_CONNECT;
+  mjs_setString(equality->name1, "0");
+  mjs_setString(equality->name2, "1");
+
+  // expect compilation to fail
+  m = mj_compile(s, nullptr);
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(mjs_getError(s),
+              HasSubstr("connect constraint supports only sites and bodies"));
+
+  // set objtype, expect compilation to succeed
+  equality->objtype = mjOBJ_SITE;
+  m = mj_compile(s, nullptr);
+  EXPECT_THAT(m, NotNull()) << mjs_getError(s);
+  mj_deleteModel(m);
+  mj_deleteSpec(s);
 }
 
 }  // namespace

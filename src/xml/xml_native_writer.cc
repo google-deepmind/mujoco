@@ -620,9 +620,14 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
     switch (equality->type) {
     case mjEQ_CONNECT:
-      WriteAttrTxt(elem, "body1", mjs_getString(equality->name1));
-      WriteAttrTxt(elem, "body2", mjs_getString(equality->name2));
-      WriteAttr(elem, "anchor", 3, equality->data);
+      if (equality->objtype == mjOBJ_BODY) {
+        WriteAttrTxt(elem, "body1", mjs_getString(equality->name1));
+        WriteAttrTxt(elem, "body2", mjs_getString(equality->name2));
+        WriteAttr(elem, "anchor", 3, equality->data);
+      } else {
+        WriteAttrTxt(elem, "site1", mjs_getString(equality->name1));
+        WriteAttrTxt(elem, "site2", mjs_getString(equality->name2));
+      }
       break;
 
     case mjEQ_WELD:

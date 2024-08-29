@@ -505,21 +505,33 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       size = 0;
       NV = 0;
       NV2 = 0;
+      int body_id[2];
 
       // process according to type
       switch ((mjtEq) m->eq_type[i]) {
       case mjEQ_CONNECT:              // connect bodies with ball joint
-        // find global points
-        for (int j=0; j < 2; j++) {
-          mju_mulMatVec3(pos[j], d->xmat + 9*id[j], data + 3*j);
-          mju_addTo3(pos[j], d->xpos + 3*id[j]);
+        // find global points, body semantic
+        if (m->eq_objtype[i] == mjOBJ_BODY) {
+          for (int j=0; j < 2; j++) {
+            mju_mulMatVec3(pos[j], d->xmat + 9*id[j], data + 3*j);
+            mju_addTo3(pos[j], d->xpos + 3*id[j]);
+            body_id[j] = id[j];
+          }
+        }
+
+        // find global points, site semantic
+        else {
+          for (int j=0; j < 2; j++) {
+            mju_copy3(pos[j], d->site_xpos + 3*id[j]);
+            body_id[j] = m->site_bodyid[id[j]];
+          }
         }
 
         // compute position error
         mju_sub3(cpos, pos[0], pos[1]);
 
         // compute Jacobian difference (opposite of contact: 0 - 1)
-        NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
+        NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                            jac[1], jac[0], jacdif, NULL, NULL, NULL);
 
         // copy difference into jac[0]

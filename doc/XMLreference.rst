@@ -4347,9 +4347,15 @@ all equality constraint types, thus we document them only once, under the :ref:`
 :el-prefix:`equality/` |-| **connect** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates an equality constraint that connects two bodies at a point. The point is not necessarily within the
-geoms volumes of either body. This constraint can be used to define ball joints outside the kinematic tree.
+This element creates an equality constraint that connects two bodies at a point. The constraint effectively defines a
+ball joint outside the kinematic tree. Connect constraints can be specified in one of two ways
 
+- Using :ref:`body1<equality-connect-body1>` and :ref:`anchor<equality-connect-anchor>` (both required) and
+  optionally :ref:`body2<equality-connect-body2>`. When using this specification, the constraint is assumed to be
+  satisfied in the configuration in which the model is defined.
+- :ref:`site1<equality-connect-site1>` and :ref:`site2<equality-connect-site2>` (both required). When using this
+  specification, the two sites will be pulled together by the constraint, regardless of their position in the default
+  configuration.
 
 .. _equality-connect-name:
 
@@ -4377,8 +4383,9 @@ geoms volumes of either body. This constraint can be used to define ball joints 
 
 .. _equality-connect-body1:
 
-:at:`body1`: :at-val:`string, required`
-   Name of the first body participating in the constraint.
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body participating in the constraint. Either this attribute and :at:`anchor` must be specified, or
+   :at:`site1` and :at:`site2` must be specified.
 
 .. _equality-connect-body2:
 
@@ -4388,15 +4395,26 @@ geoms volumes of either body. This constraint can be used to define ball joints 
 
 .. _equality-connect-anchor:
 
-:at:`anchor`: :at-val:`real(3), required`
-   Coordinates of the 3D anchor point where the two bodies are connected. In the compiled mjModel the anchor is stored
-   twice, relative to the local frame of each body. At runtime this yields two global points computed by forward
-   kinematics; the constraint solver pushes these points towards each other. In the MJCF model however only one point is
-   given. We assume that the equality constraint is exactly satisfied in the configuration in which the model is defined
-   (this applies to all other constraint types as well). The compiler uses the single anchor specified in the MJCF model
-   to compute the two body-relative anchor points in mjModel. Specified relative to the local coordinate frame of
-   the *first* body.
+:at:`anchor`: :at-val:`real(3), optional`
+   Coordinates of the 3D anchor point where the two bodies are connected, in the local coordinate frame of :at:`body1`.
+   The constraint is assumed to be satisfied in the configuration in which the model is defined, which lets the compiler
+   compute the associated anchor point for :at:`body2`.
 
+.. _equality-connect-site1:
+
+:at:`site1`: :at-val:`string, optional`
+   Name of a site belonging to the first body participating in the constraint. When specified, :at:`site2` must also be
+   specified. The (:at:`site1`, :at:`site2`) specification is a more flexible alternative to the (:at:`body1`,
+   :at:`anchor`) specification, and is different in two ways. First, the sites are not required to overlap at the
+   default configuration; if they do not overlap then the sites will "snap together" at the beginning of the
+   simulation. Second, changing the site positions in ``mjModel.site_pos`` at runtime will correctly change the position
+   of the constraint (i.e. the content of ``mjModel.eq_data`` has no effect when this semantic is used).
+
+.. _equality-connect-site2:
+
+:at:`site2`: :at-val:`string, optional`
+   Name of a site belonging to the second body participating in the constraint. When specified, :at:`site1` must also be
+   specified. See the :ref:`site1<equality-connect-site1>` description for more details.
 
 .. _equality-weld:
 

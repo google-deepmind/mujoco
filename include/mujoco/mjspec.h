@@ -578,6 +578,7 @@ typedef struct mjsEquality_ {      // equality specification
   mjtByte active;                  // is equality initially active
   mjString* name1;                 // name of object 1
   mjString* name2;                 // name of object 2
+  mjtObj objtype;                  // type of both objects
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   mjString* info;                  // message appended to errors

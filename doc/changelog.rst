@@ -16,6 +16,10 @@ General
      the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
      the MPR algorithm. The semantics of these options remain identical.
 
+- Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
+  The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
+  hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
+  positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
 - Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
   early stages of testing.
@@ -24,7 +28,7 @@ General
 - When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
   parent model, but only on the first attachment.
 - Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
-  alignments are used as shortcuts in :ref:`mj_kinematics`.
+  alignments are used for computation shortcuts in :ref:`mj_kinematics`.
 
 MJX
 ^^^

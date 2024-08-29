@@ -363,8 +363,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"equality", "*", "0"},
     {"<"},
-        {"connect", "*", "8", "name", "class", "body1", "body2", "anchor",
-            "active", "solref", "solimp"},
+        {"connect", "*", "10", "name", "class", "body1", "body2", "anchor",
+            "site1", "site2", "active", "solref", "solimp"},
         {"weld", "*", "10", "name", "class", "body1", "body2", "relpose", "anchor",
             "active", "solref", "solimp", "torquescale"},
         {"joint", "*", "8", "name", "class", "joint1", "joint2", "polycoef",
@@ -1896,10 +1896,39 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
     }
 
     switch (equality->type) {
-    case mjEQ_CONNECT:
-      ReadAttrTxt(elem, "body1", name1, true);
-      ReadAttrTxt(elem, "body2", name2);
-      ReadAttr(elem, "anchor", 3, equality->data, text, true);
+    case mjEQ_CONNECT: {
+        auto maybe_site1 = ReadAttrStr(elem, "site1");
+        auto maybe_site2 = ReadAttrStr(elem, "site2");
+        auto maybe_body1 = ReadAttrStr(elem, "body1");
+        auto maybe_body2 = ReadAttrStr(elem, "body2");
+        bool has_anchor = ReadAttr(elem, "anchor", 3, equality->data, text);
+
+        bool maybe_site = maybe_site1.has_value() || maybe_site2.has_value();
+        bool maybe_body = maybe_body1.has_value() || maybe_body2.has_value() || has_anchor;
+
+        if (maybe_site && maybe_body) {
+          throw mjXError(elem, "body and site semantics cannot be mixed");
+        }
+
+        bool site_semantic = maybe_site1.has_value() && maybe_site2.has_value();
+        bool body_semantic = maybe_body1.has_value() && has_anchor;
+        if (site_semantic == body_semantic) {
+          throw mjXError(elem, "either both body1 and anchor must be defined,"
+                         " or both site1 and site2 must be defined");
+        }
+
+        if (body_semantic) {
+          name1 = maybe_body1.value();
+          if (maybe_body2.has_value()) {
+            name2 = maybe_body2.value();
+          }
+          equality->objtype = mjOBJ_BODY;
+        } else {
+          name1 = maybe_site1.value();
+          name2 = maybe_site2.value();
+          equality->objtype = mjOBJ_SITE;
+        }
+      }
       break;
 
     case mjEQ_WELD:

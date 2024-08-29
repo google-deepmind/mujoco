@@ -4793,65 +4793,64 @@ void mjCEquality::CopyFromSpec() {
 
 
 void mjCEquality::ResolveReferences(const mjCModel* m) {
-  mjtObj objtype;
+  mjtObj object_type;
   mjCBase *px1, *px2;
   mjtJoint jt1, jt2;
 
   // determine object type
-  if (type==mjEQ_CONNECT || type==mjEQ_WELD) {
-    objtype = mjOBJ_BODY;
+  if (type==mjEQ_WELD) {
+    object_type = mjOBJ_BODY;
+  } else if (type==mjEQ_CONNECT) {
+    if (objtype != mjOBJ_SITE && objtype != mjOBJ_BODY) {
+      throw mjCError(this, "connect constraint supports only sites and bodies");
+    }
+    object_type = objtype;
   } else if (type==mjEQ_JOINT) {
-    objtype = mjOBJ_JOINT;
+    object_type = mjOBJ_JOINT;
   } else if (type==mjEQ_TENDON) {
-    objtype = mjOBJ_TENDON;
+    object_type = mjOBJ_TENDON;
   } else if (type==mjEQ_FLEX) {
-    objtype = mjOBJ_FLEX;
+    object_type = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint");
   }
 
   // find object 1, get id
-  px1 = m->FindObject(objtype, name1_);
+  px1 = m->FindObject(object_type, name1_);
   if (!px1) {
-    throw mjCError(this, "unknown element '%s' in equality constraint %d", name1_.c_str(), id);
+    throw mjCError(this, "unknown element '%s' in equality constraint", name1_.c_str());
   }
   obj1id = px1->id;
 
   // find object 2, get id
   if (!name2_.empty()) {
-    px2 = m->FindObject(objtype, name2_);
+    px2 = m->FindObject(object_type, name2_);
     if (!px2) {
       throw mjCError(this, "unknown element '%s' in equality constraint %d", name2_.c_str(), id);
     }
     obj2id = px2->id;
-  }
-
-  // object 2 unspecified: set to -1
-  else {
-    if (objtype==mjOBJ_GEOM) {
-      throw mjCError(this, "both geom are required in equality constraint");
-    } else {
-      obj2id = -1;
-      px2 = 0;
-    }
+  } else {
+    // object 2 unspecified: set to -1
+    obj2id = -1;
+    px2 = nullptr;
   }
 
   // set missing body = world
-  if (objtype==mjOBJ_BODY && obj2id==-1) {
+  if (object_type == mjOBJ_BODY && obj2id == -1) {
     obj2id = 0;
   }
 
   // make sure the two objects are different
-  if (obj1id==obj2id) {
+  if (obj1id == obj2id) {
     throw mjCError(this, "element '%s' is repeated in equality constraint %d", name1_.c_str(), id);
   }
 
   // make sure joints are scalar
-  if (type==mjEQ_JOINT) {
+  if (type == mjEQ_JOINT) {
     jt1 = ((mjCJoint*)px1)->type;
     jt2 = (px2 ? ((mjCJoint*)px2)->type : mjJNT_HINGE);
-    if ((jt1!=mjJNT_HINGE && jt1!=mjJNT_SLIDE) ||
-        (jt2!=mjJNT_HINGE && jt2!=mjJNT_SLIDE)) {
+    if ((jt1 != mjJNT_HINGE && jt1 != mjJNT_SLIDE) ||
+        (jt2 != mjJNT_HINGE && jt2 != mjJNT_SLIDE)) {
       throw mjCError(this, "only HINGE and SLIDE joint allowed in constraint");
     }
   }

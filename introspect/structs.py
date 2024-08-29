@@ -3089,6 +3089,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='id of object 2                           (neq x 1)',
              ),
              StructFieldDecl(
+                 name='eq_objtype',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='type of both objects (mjtObj)            (neq x 1)',
+             ),
+             StructFieldDecl(
                  name='eq_active0',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
@@ -7218,6 +7225,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='eq_objtype',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='eq_data',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
@@ -10304,6 +10318,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjString'),
                  ),
                  doc='name of object 2',
+             ),
+             StructFieldDecl(
+                 name='objtype',
+                 type=ValueType(name='mjtObj'),
+                 doc='type of both objects',
              ),
              StructFieldDecl(
                  name='solref',
