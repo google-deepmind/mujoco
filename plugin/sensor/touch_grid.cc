@@ -242,9 +242,59 @@ TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel,
 
   // Allocate distance array.
   distance_.resize(size[0]*size[1], 0);
+  // New member to store taxel centers.
+  // std::vector<mjtNum> taxel_centers_;
 }
 
 void TouchGrid::Reset(const mjModel* m, int instance) {}
+
+// Generate taxel centers 
+void TouchGrid::ComputeTaxelCenters(const mjModel* m, mjData* d, int instance) {
+  // Get site id and frame
+  int site_id = m->sensor_objid[m->sensor_plugin[instance]];
+  mjtNum* site_pos = d->site_xpos + 3*site_id;
+  mjtNum* site_mat = d->site_xmat + 9*site_id;
+
+  // Allocate space for taxel centers (3 coordinates per taxel)
+  taxel_centers_.resize(size_[0] * size_[1] * 3);
+
+  // Allocate bin edges
+  mjtNum* x_edges = mj_stackAllocNum(d, size_[0] + 1);
+  mjtNum* y_edges = mj_stackAllocNum(d, size_[1] + 1);
+
+  // Make bin edges
+  BinEdges(x_edges, y_edges, size_, fov_, gamma_);
+
+  // Compute center points
+  for (int i = 0; i < size_[0]; i++) {
+    for (int j = 0; j < size_[1]; j++) {
+      mjtNum aer[3];
+      aer[0] = 0.5*(x_edges[i+1] + x_edges[i]);
+      aer[1] = 0.5*(y_edges[j+1] + y_edges[j]);
+      aer[2] = 1.0;  // Unit distance
+
+      mjtNum pos[3];
+      SphericalToCartesian(aer, pos);
+      mju_mulMatVec3(pos, site_mat, pos);
+      mju_addTo3(pos, site_pos);
+
+      int idx = (j*size_[0] + i) * 3;
+      taxel_centers_[idx] = pos[0];
+      taxel_centers_[idx+1] = pos[1];
+      taxel_centers_[idx+2] = pos[2];
+    }
+  }
+
+  // Initialize custom dynamic variable size for taxel centers
+  int nuserdata = size_[0] * size_[1] * 3;
+  // m->nuserdata = nuserdata;
+
+  // Set mjData userdata to taxel centers
+  mju_copy(d->userdata, taxel_centers_.data(), nuserdata);
+
+  delete[] x_edges;
+  delete[] y_edges;
+}
 
 void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   mj_markStack(d);
@@ -369,6 +419,9 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
       distance_.data()[i] /= counts[i];
     }
   }
+
+  // Calculate taxel centers
+  ComputeTaxelCenters(m, d, instance);
 
   mj_freeStack(d);
 }

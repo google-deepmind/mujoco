@@ -54,6 +54,7 @@ class TouchGrid {
   void Compute(const mjModel* m, mjData* d, int instance);
   void Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
                  mjvScene* scn, int instance);
+  void ComputeTaxelCenters(const mjModel* m, mjData* d, int instance);
 
   static void RegisterPlugin();
 
@@ -66,6 +67,7 @@ class TouchGrid {
   TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel, int* size,
             mjtNum* fov_x, mjtNum gamma);
   std::vector<mjtNum> distance_;
+  std::vector<mjtNum> taxel_centers_;
 };
 
 }  // namespace mujoco::plugin::sensor
