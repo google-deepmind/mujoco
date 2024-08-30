@@ -85,10 +85,14 @@
   <sensor>
     <magnetometer name="magnetometer0" site="site0"/>
     <velocimeter name="velocimeter0" site="site0"/>
+    <velocimeter name="velocimeter0cutoff" site="site0" cutoff="3e-4"/>
     <gyro name="gyro0" site="site0"/>
+    <gyro name="gyro0cutoff" site="site0" cutoff="2e-3"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <jointpos name="jointpos0" joint="hinge0"/>
+    <jointpos name="jointpos0cutoff" joint="hinge0" cutoff="1e-4"/>
     <jointvel name="jointvel0" joint="hinge0"/>
+    <jointvel name="jointvel0cutoff" joint="hinge0" cutoff="1e-3"/>
     <actuatorfrc name="actuatorfrc0" actuator="motor0"/>
     <actuatorpos name="actuatorpos0" actuator="motor0"/>
     <actuatorvel name="actuatorvel0" actuator="motor0"/>
