@@ -196,7 +196,8 @@ The following features are **fully supported** in MJX:
    * - :ref:`Actuator Bias <mjtBias>`
      - ``NONE``, ``AFFINE``
    * - :ref:`Geom <mjtGeom>`
-     - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and ``CYLINDER`` are implemented but only collide with other primitives.
+     - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and
+     ``CYLINDER`` are implemented but only collide with other primitives, note that ``BOX`` is implemented as a mesh.
    * - :ref:`Constraint <mjtConstraint>`
      - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``, ``CONTACT_ELLIPTIC``
    * - :ref:`Equality <mjtEq>`
@@ -225,7 +226,8 @@ The following features are **in development** and coming soon:
    * - Category
      - Feature
    * - :ref:`Geom <mjtGeom>`
-     - ``SDF``. Collisions between (``SPHERE``, ``BOX``, ``MESH``, ``HFIELD``) and ``CYLINDER``. Collisions between (``BOX``, ``MESH``, ``HFIELD``) and ``ELLIPSOID``.
+     - ``SDF``. Collisions between (``SPHERE``, ``BOX``, ``MESH``, ``HFIELD``) and ``CYLINDER``. Collisions between
+     (``BOX``, ``MESH``, ``HFIELD``) and ``ELLIPSOID``.
    * - :ref:`Constraint <mjtConstraint>`
      - :ref:`Frictionloss <coFriction>`, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
