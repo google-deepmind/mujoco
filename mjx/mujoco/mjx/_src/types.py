@@ -307,6 +307,8 @@ class SensorType(enum.IntEnum):
     FRAMEQUAT: frame orientation, represented as quaternion
     SUBTREECOM: subtree centor of mass
     CLOCK: simulation time
+    VELOCIMETER: 3D linear velocity, in local frame
+    GYRO: 3D angular velocity, in local frame
     JOINTVEL: joint velocity
     ACTUATORVEL: actuator velocity
     BALLANGVEL: ball joint angular velocity
@@ -326,6 +328,8 @@ class SensorType(enum.IntEnum):
   FRAMEQUAT = mujoco.mjtSensor.mjSENS_FRAMEQUAT
   SUBTREECOM = mujoco.mjtSensor.mjSENS_SUBTREECOM
   CLOCK = mujoco.mjtSensor.mjSENS_CLOCK
+  VELOCIMETER = mujoco.mjtSensor.mjSENS_VELOCIMETER
+  GYRO = mujoco.mjtSensor.mjSENS_GYRO
   JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
   ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL
   BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL

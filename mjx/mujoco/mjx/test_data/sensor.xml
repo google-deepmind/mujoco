@@ -15,6 +15,8 @@
 -subtreecom
 -clock
 * velocity-dependent sensors:
+-velocimeter
+-gyro
 -jointvel
 -actuatorvel
 -ballangvel
@@ -82,6 +84,8 @@
 
   <sensor>
     <magnetometer name="magnetometer0" site="site0"/>
+    <velocimeter name="velocimeter0" site="site0"/>
+    <gyro name="gyro0" site="site0"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <jointpos name="jointpos0" joint="hinge0"/>
     <jointvel name="jointvel0" joint="hinge0"/>
@@ -96,6 +100,8 @@
     <framequat name="framequat3" objtype="site" objname="site3"/>
     <frameyaxis name="frameyaxis0" objtype="site" objname="site0"/>
     <framepos name="framepos0" objtype="site" objname="site0"/>
+    <velocimeter name="velocimeter1" site="site1"/>
+    <gyro name="gyro1" site="site1"/>
     <actuatorfrc name="actuatorfrc1" actuator="motor1"/>
     <subtreecom name="subtreecom0" body="body0"/>
     <camprojection site="frontorigin" camera="fixedcamera"/>

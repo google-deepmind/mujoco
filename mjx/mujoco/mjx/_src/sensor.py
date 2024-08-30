@@ -266,7 +266,23 @@ def sensor_vel(m: Model, d: Data) -> Data:
     objid = m.sensor_objid[idx]
     adr = m.sensor_adr[idx]
 
-    if sensor_type == SensorType.JOINTVEL:
+    if sensor_type == SensorType.VELOCIMETER:
+      bodyid = m.site_bodyid[objid]
+      pos = d.site_xpos[objid]
+      rot = d.site_xmat[objid]
+      cvel = d.cvel[bodyid]
+      subtree_com = d.subtree_com[m.body_rootid[bodyid]]
+      sensor = jax.vmap(
+          lambda vec, dif, rot: rot.T @ (vec[3:] - jp.cross(dif, vec[:3]))
+      )(cvel, pos - subtree_com, rot).reshape(-1)
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.GYRO:
+      bodyid = m.site_bodyid[objid]
+      rot = d.site_xmat[objid]
+      ang = d.cvel[bodyid, :3]
+      sensor = jax.vmap(lambda ang, rot: rot.T @ ang)(ang, rot).reshape(-1)
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.JOINTVEL:
       sensor = d.qvel[m.jnt_dofadr[objid]]
     elif sensor_type == SensorType.ACTUATORVEL:
       sensor = d.actuator_velocity[objid]
