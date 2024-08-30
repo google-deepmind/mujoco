@@ -95,7 +95,7 @@ pyparsing==3.1.1 \
 
 # Dependencies for USD
 usd-core==24.8 \
-    --hash=sha256:39fe8e266875e1105886cab870df4bcbe2d40a84696177bc574c22b96d843bf6
-    --hash=sha256:8b38b347dce9336d00dacd4c0e5813bcb43c61e165c653d754e3ee3dc4b2b715
-    --hash=sha256:d1dfe295ccbc57cac39e6dee2d7ce831d7a6a504b8a17dc974e631e3521f83a6
+    --hash=sha256:39fe8e266875e1105886cab870df4bcbe2d40a84696177bc574c22b96d843bf6 \
+    --hash=sha256:8b38b347dce9336d00dacd4c0e5813bcb43c61e165c653d754e3ee3dc4b2b715 \
+    --hash=sha256:d1dfe295ccbc57cac39e6dee2d7ce831d7a6a504b8a17dc974e631e3521f83a6 \
     --hash=sha256:d3e06fd8c953c4de3d24591cdb9e8e65ca28a876519378d1e4a5d9bca419d7c1
