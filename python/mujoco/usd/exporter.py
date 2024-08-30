@@ -15,9 +15,10 @@
 """USD exporter."""
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import mujoco
+from mujoco import _structs, _enums, _functions
 import mujoco.usd.camera as camera_module
 import mujoco.usd.lights as light_module
 import mujoco.usd.objects as object_module
@@ -113,7 +114,7 @@ class USDExporter:
     self.usd_cameras = []
 
     # initializing rendering requirements
-    self.renderer = mujoco.Renderer(model, height, width, max_geom)
+    self._scene = _structs.MjvScene(model=model, maxgeom=max_geom)
     self._initialize_usd_stage()
     self._scene_option = mujoco.MjvOption()  # using default scene option
 
@@ -131,7 +132,7 @@ class USDExporter:
   @property
   def scene(self):
     """Returns the scene."""
-    return self.renderer.scene
+    return self._scene
 
   def _initialize_usd_stage(self):
     """Initializes a USD stage to represent the mujoco scene."""
@@ -164,9 +165,47 @@ class USDExporter:
 
     if self.verbose:
       print("Writing output frames and assets to"
-            f" {self.output_directory_path}",
-            "green"
+            f" {self.output_directory_path}"
       )
+
+  def _update_scene(
+    self,
+    data: _structs.MjData,
+    camera: Union[int, str] = -1,
+    scene_option: Optional[_structs.MjvOption] = None
+  ):
+    camera_id = camera
+    if isinstance(camera_id, str):
+      camera_id = _functions.mj_name2id(
+          self.model, _enums.mjtObj.mjOBJ_CAMERA.value, camera_id
+      )
+      if camera_id == -1:
+        raise ValueError(f"The camera '{camera}' does not exist.")
+    if camera_id < -1 or camera_id >= self.model.ncam:
+      raise ValueError(f"The camera id {camera_id} is out of"
+                        f" range [-1, {self.model.ncam}).")
+
+    # Render camera.
+    camera = _structs.MjvCamera()
+    camera.fixedcamid = camera_id
+
+    # Defaults to mjCAMERA_FREE, otherwise mjCAMERA_FIXED refers to a
+    # camera explicitly defined in the model.
+    if camera_id == -1:
+      camera.type = _enums.mjtCamera.mjCAMERA_FREE
+      _functions.mjv_defaultFreeCamera(self.model, camera)
+    else:
+      camera.type = _enums.mjtCamera.mjCAMERA_FIXED
+
+    scene_option = scene_option or self._scene_option
+    _functions.mjv_updateScene(
+        self.model,
+        data,
+        scene_option,
+        None,
+        camera, _enums.mjtCatBit.mjCAT_ALL.value,
+        self._scene,
+    )
 
   def update_scene(
       self,
@@ -185,7 +224,7 @@ class USDExporter:
     scene_option = scene_option or self._scene_option
 
     # update the mujoco renderer
-    self.renderer.update_scene(data, scene_option=scene_option)
+    self._update_scene(data, scene_option=scene_option)
 
     if self.updates == 0:
       self._initialize_usd_stage()
@@ -232,7 +271,6 @@ class USDExporter:
     if self.verbose:
       print(f"Completed writing {self.model.ntex} textures to"
             f" {self.assets_directory}",
-            "green",
       )
 
   def _load_geom(self, geom: mujoco.MjvGeom):
@@ -374,8 +412,8 @@ class USDExporter:
       camera = self.usd_cameras[i]
       camera_name = self.camera_names[i]
 
-      self.renderer.update_scene(
-          data, scene_option=scene_option, camera=camera_name
+      self._update_scene(
+        data, camera=camera_name, scene_option=scene_option,
       )
 
       avg_camera = mujoco.mjv_averageCamera(
@@ -441,11 +479,11 @@ class USDExporter:
     new_camera = camera_module.USDCamera(
         stage=self.stage, obj_name=obj_name)
 
-    R = np.zeros(9)
+    rotation = np.zeros(9)
     quat = np.zeros(4)
     mujoco.mju_euler2Quat(quat, rotation_xyz, "xyz")
-    mujoco.mju_quat2Mat(R, quat)
-    new_camera.update(cam_pos=np.array(pos), cam_mat=R, frame=0)
+    mujoco.mju_quat2Mat(rotation, quat)
+    new_camera.update(cam_pos=np.array(pos), cam_mat=rotation, frame=0)
 
   def save_scene(self, filetype: str = "usd"):
     """Saves the scene to a USD file."""
@@ -462,7 +500,7 @@ class USDExporter:
     )
     if self.verbose:
       print(
-        f"Completed writing frame_{self.frame_count}.{filetype}", "green"
+        f"Completed writing frame_{self.frame_count}.{filetype}"
       )
 
   def _get_geom_name(self, geom):
