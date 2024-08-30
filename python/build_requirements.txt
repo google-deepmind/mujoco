@@ -101,4 +101,6 @@ usd-core==24.8 \
     --hash=sha256:d3e06fd8c953c4de3d24591cdb9e8e65ca28a876519378d1e4a5d9bca419d7c1
 
 pillow==10.2.0 \
-    --hash=sha256:d3e06fd8c953c4de3d24591cdb9e8e65ca28a876519378d1e4a5d9bca419d7c1
+    --hash=sha256:a086c2af425c5f62a65e12fbf385f7c9fcb8f107d0849dba5839461a129cf311 \
+    --hash=sha256:35bb52c37f256f662abdfa49d2dfa6ce5d93281d323a9af377a120e89a9eafb5 \
+    --hash=sha256:1da3b2703afd040cf65ec97efea81cfba59cdbed9c11d8efc5ab09df9509fc56

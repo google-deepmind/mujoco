@@ -62,4 +62,7 @@ mujoco = [
 ]
 
 [project.optional-dependencies]
-usd = ["usd-core"]
+usd = [
+    "usd-core",
+    "pillow"
+]
