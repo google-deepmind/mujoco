@@ -25,8 +25,6 @@ import mujoco.usd.shapes as shapes_module
 import numpy as np
 from PIL import Image as im
 from PIL import ImageOps
-import scipy
-import termcolor
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
@@ -165,12 +163,9 @@ class USDExporter:
       os.makedirs(self.assets_directory)
 
     if self.verbose:
-      print(
-          termcolor.colored(
-              "Writing output frames and assets to"
-              f" {self.output_directory_path}",
-              "green",
-          )
+      print("Writing output frames and assets to"
+            f" {self.output_directory_path}",
+            "green"
       )
 
   def update_scene(
@@ -235,12 +230,9 @@ class USDExporter:
       data_adr += pixels
 
     if self.verbose:
-      print(
-          termcolor.colored(
-              f"Completed writing {self.model.ntex} textures to"
-              f" {self.assets_directory}",
-              "green",
-          )
+      print(f"Completed writing {self.model.ntex} textures to"
+            f" {self.assets_directory}",
+            "green",
       )
 
   def _load_geom(self, geom: mujoco.MjvGeom):
@@ -449,9 +441,11 @@ class USDExporter:
     new_camera = camera_module.USDCamera(
         stage=self.stage, obj_name=obj_name)
 
-    r = scipy.spatial.transform.Rotation.from_euler(
-        "xyz", rotation_xyz, degrees=True)
-    new_camera.update(cam_pos=np.array(pos), cam_mat=r.as_matrix(), frame=0)
+    R = np.zeros(9)
+    quat = np.zeros(4)
+    mujoco.mju_euler2Quat(quat, rotation_xyz, "xyz")
+    mujoco.mju_quat2Mat(R, quat)
+    new_camera.update(cam_pos=np.array(pos), cam_mat=R, frame=0)
 
   def save_scene(self, filetype: str = "usd"):
     """Saves the scene to a USD file."""
@@ -468,9 +462,7 @@ class USDExporter:
     )
     if self.verbose:
       print(
-          termcolor.colored(
-              f"Completed writing frame_{self.frame_count}.{filetype}", "green"
-          )
+        f"Completed writing frame_{self.frame_count}.{filetype}", "green"
       )
 
   def _get_geom_name(self, geom):
