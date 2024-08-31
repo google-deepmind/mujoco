@@ -20,6 +20,8 @@
 -jointvel
 -actuatorvel
 -ballangvel
+-framelinvel
+-frameangvel
 * acceleration/force-dependent sensors:
 -actuatorfrc
 -jointactfrc
@@ -46,7 +48,7 @@
     <!-- body 2 -->
     <body name="body2" pos=".1 .1 .1">
       <joint name="ballquat2" type="ball" pos="0.1 0.1 0.1"/>
-      <geom size="1"/>
+      <geom name="geom2" size="1"/>
     </body>
 
     <!-- body 3 -->
@@ -94,6 +96,8 @@
     <jointvel name="jointvel0" joint="hinge0"/>
     <jointvel name="jointvel0cutoff" joint="hinge0" cutoff="1e-3"/>
     <actuatorfrc name="actuatorfrc0" actuator="motor0"/>
+    <framelinvel name="framelinvel3" objtype="site" objname="site3"/>
+    <framelinvel name="framelinvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
     <actuatorpos name="actuatorpos0" actuator="motor0"/>
     <actuatorvel name="actuatorvel0" actuator="motor0"/>
     <ballquat name="ballquat2" joint="ballquat2"/>
@@ -106,6 +110,9 @@
     <framepos name="framepos0" objtype="site" objname="site0"/>
     <velocimeter name="velocimeter1" site="site1"/>
     <gyro name="gyro1" site="site1"/>
+    <frameangvel name="frameangvel3" objtype="site" objname="site3"/>
+    <frameangvel name="frameangvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
+    <frameangvel name="frameangvel3cutoff" objtype="site" objname="site3" cutoff="1e-3"/>
     <actuatorfrc name="actuatorfrc1" actuator="motor1"/>
     <subtreecom name="subtreecom0" body="body0"/>
     <camprojection site="frontorigin" camera="fixedcamera"/>
@@ -121,10 +128,15 @@
     <ballquat name="ballquat3" joint="ballquat3"/>
     <camprojection site="frontcenter" camera="fixedcamera"/>
     <ballangvel name="ballangvel3" joint="ballquat3"/>
+    <frameangvel name="frameangvel0" objtype="site" objname="site0"/>
+    <frameangvel name="frameangvel0ref" objtype="site" objname="site0" reftype="site" refname="site3"/>
     <frameyaxis name="frameyaxis1" objtype="site" objname="site1"/>
     <framequat name="framequat0" objtype="site" objname="site0"/>
     <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
+    <framelinvel name="framelinvel0" objtype="site" objname="site0"/>
+    <framelinvel name="framelinvel0ref" objtype="site" objname="site0" reftype="geom" refname="geom2"/>
+    <framelinvel name="framelinvel0cutoff" objtype="site" objname="site0" cutoff="3e-4"/>
     <clock/>
   </sensor>
 </mujoco>

@@ -55,8 +55,8 @@ def sensor_pos(m: Model, d: Data) -> Data:
   # position and orientation by object type
   objtype_data = {
       ObjType.UNKNOWN: (
-          np.expand_dims(np.eye(3), axis=0),
           np.zeros((1, 3)),
+          np.expand_dims(np.eye(3), axis=0),
       ),  # world
       ObjType.BODY: (d.xipos, d.ximat),
       ObjType.XBODY: (d.xpos, d.xmat),
@@ -281,6 +281,20 @@ def sensor_vel(m: Model, d: Data) -> Data:
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
 
+  # position and orientation by object type
+  objtype_data = {
+      ObjType.UNKNOWN: (
+          np.zeros((1, 3)),
+          np.expand_dims(np.eye(3), axis=0),
+          np.arange(1),
+      ),  # world
+      ObjType.BODY: (d.xipos, d.ximat, np.arange(m.nbody)),
+      ObjType.XBODY: (d.xpos, d.xmat, np.arange(m.nbody)),
+      ObjType.GEOM: (d.geom_xpos, d.geom_xmat, m.geom_bodyid),
+      ObjType.SITE: (d.site_xpos, d.site_xmat, m.site_bodyid),
+      ObjType.CAMERA: (d.cam_xpos, d.cam_xmat, m.cam_bodyid),
+  }
+
   stage_vel = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_VEL
   sensors, adrs = [], []
 
@@ -315,9 +329,65 @@ def sensor_vel(m: Model, d: Data) -> Data:
       jnt_dotadr = m.jnt_dofadr[objid, None] + np.arange(3)[None]
       sensor = d.qvel[jnt_dotadr]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type in (SensorType.FRAMELINVEL, SensorType.FRAMEANGVEL):
+      objtype = m.sensor_objtype[idx]
+      reftype = m.sensor_reftype[idx]
+      refid = m.sensor_refid[idx]
+
+      # evaluate for valid object and reference object type pairs
+      for ot, rt in set(zip(objtype, reftype)):
+        idxt = (objtype == ot) & (reftype == rt)
+        objidt = objid[idxt]
+        refidt = refid[idxt]
+        cutofft = cutoff[idxt]
+
+        xpos, _, _ = objtype_data[ot]
+        xposref, xmatref, _ = objtype_data[rt]
+        xpos = xpos[objidt]
+        xposref = xposref[refidt]
+        xmatref = xmatref[refidt]
+
+        def _cvel_offset(otype, oid):
+          pos, _, bodyid = objtype_data[otype]
+          pos = pos[oid]
+          bodyid = bodyid[oid]
+          return d.cvel[bodyid], pos - d.subtree_com[m.body_rootid[bodyid]]
+
+        cvel, offset = _cvel_offset(ot, objidt)
+        cvelref, offsetref = _cvel_offset(rt, refidt)
+        cangvel = cvel[:, :3]
+        cangvelref = cvelref[:, :3]
+
+        if sensor_type == SensorType.FRAMELINVEL:
+          clinvel = cvel[:, 3:]
+          clinvelref = cvelref[:, 3:]
+          xlinvel = clinvel - jp.cross(offset, cangvel)
+          xlinvelref = clinvelref - jp.cross(offsetref, cangvelref)
+          rvec = xpos - xposref
+          rel_vel = xlinvel - xlinvelref + jp.cross(rvec, cangvelref)
+          sensor = jp.where(
+              (refidt > -1)[:, None],
+              jax.vmap(lambda mat, vec: mat.T @ vec)(xmatref, rel_vel),
+              xlinvel,
+          )
+        elif sensor_type == SensorType.FRAMEANGVEL:
+          rel_vel = cangvel - cangvelref
+          sensor = jp.where(
+              (refidt > -1)[:, None],
+              jax.vmap(lambda mat, vec: mat.T @ vec)(xmatref, rel_vel),
+              cangvel,
+          )
+        else:
+          raise ValueError(f'Unknown sensor type: {sensor_type}')
+
+        adrt = adr[idxt, None] + np.arange(3)[None]
+
+        sensors.append(apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
+        adrs.append(adrt.reshape(-1))
+      continue  # avoid adding to sensors/adrs list a second time
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
-      continue  # unsupported sensor typ
+      continue  # unsupported sensor type
 
     sensors.append(apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
     adrs.append(adr)

@@ -32,7 +32,8 @@ MJX
 - Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
   ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
   ``SUBTREECOM``, ``CLOCK``.
-- Added velocity-dependent sensors: ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``.
+- Added velocity-dependent sensors: ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``,
+  ``FRAMELINVEL``, ``FRAMEANGVEL``.
 - Added acceleration/force-dependent sensors: ``ACTUATORFRC``, ``JOINTACTFRC``.
 - Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
 - Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
