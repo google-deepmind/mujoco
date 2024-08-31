@@ -16,6 +16,10 @@ General
      the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
      the MPR algorithm. The semantics of these options remain identical.
 
+- Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
+  The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
+  hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
+  positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
 - Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
   early stages of testing.
@@ -24,7 +28,7 @@ General
 - When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
   parent model, but only on the first attachment.
 - Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
-  alignments are used as shortcuts in :ref:`mj_kinematics`.
+  alignments are used for computation shortcuts in :ref:`mj_kinematics`.
 
 MJX
 ^^^
@@ -39,6 +43,7 @@ MJX
 - Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
 - Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
   :doc:`fluid drag <computation/fluid>`.
+- Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
 
 Bug fixes
 ^^^^^^^^^
@@ -46,6 +51,8 @@ Bug fixes
   contribution by :github:user:`michael-ahn`).
 - Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
   integrators, wrong derivatives would be computed.
+- Fixed a bug in tendon wrapping around spheres. Before this fix, tendons that wrapped around spheres with an
+  externally-placed :ref:`sidesite<spatial-geom-sidesite>` could jump inside the sphere instead of wrapping around it.
 
 Python bindings
 ^^^^^^^^^^^^^^^
