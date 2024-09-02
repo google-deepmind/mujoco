@@ -3892,11 +3892,10 @@ thus the description here is brief.
 :el-prefix:`contact/` |-| **pair** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a predefined geom pair, which will be checked for collision if the collision attribute of
-:ref:`option <option>` is set to "all" or "predefined". Unlike dynamically generated pairs whose properties are inferred
-from the corresponding geom properties, the pairs created here specify all their properties explicitly or through
-defaults, and the properties of the individual geoms are not used. Anisotropic friction can only be created with this
-element.
+This element creates a predefined geom pair which will be checked for collision. Unlike dynamically generated pairs
+whose properties are inferred from the corresponding geom properties, the pairs created here specify all their
+properties explicitly or through defaults, and the properties of the individual geoms are not used. Anisotropic
+friction can only be created with this element.
 
 .. _contact-pair-name:
 
@@ -3975,10 +3974,7 @@ element.
 
 This element is used to exclude a pair of bodies from collision checking. Unlike all other contact-related elements
 which refer to geoms, this element refers to bodies. Experience has shown that exclusion is more useful on the level of
-bodies. The collision between any geom defined in the first body and any geom defined in the second body is excluded.
-The exclusion rules defined here are applied only when the collision attribute of :ref:`option <option>` is set to "all"
-or "dynamic". Setting this attribute to "predefined" disables the exclusion mechanism and the geom pairs defined with
-the :ref:`pair <contact-pair>` element above are checked for collisions.
+bodies. Collisions between any geom defined in the first body and any geom defined in the second body are excluded.
 
 .. _contact-exclude-name:
 
