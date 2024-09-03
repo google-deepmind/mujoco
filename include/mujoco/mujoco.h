@@ -456,6 +456,10 @@ MJAPI void mj_jacSite(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* j
 MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacAxis,
                            const mjtNum point[3], const mjtNum axis[3], int body);
 
+// Compute 3/6-by-nv Jacobian time derivative of global point attached to given body.
+MJAPI void mj_jacDot(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
+                     const mjtNum point[3], int body);
+
 // Compute subtree angular momentum matrix.
 MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 

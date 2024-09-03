@@ -1624,7 +1624,6 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) 
 // compute cvel, cdof_dot
 void mj_comVel(const mjModel* m, mjData* d) {
   int nbody = m->nbody;
-  mjtNum tmp[6], cvel[6], cdofdot[36];
 
   // set world vel to 0
   mju_zero(d->cvel, 6);
@@ -1635,11 +1634,15 @@ void mj_comVel(const mjModel* m, mjData* d) {
     int bda = m->body_dofadr[i];
 
     // cvel = cvel_parent
+    mjtNum cvel[6];
     mju_copy(cvel, d->cvel+6*m->body_parentid[i], 6);
 
     // cvel = cvel_parent + cdof * qvel,  cdofdot = cvel x cdof
     int dofnum = m->body_dofnum[i];
+    mjtNum cdofdot[36];
     for (int j=0; j < dofnum; j++) {
+      mjtNum tmp[6];
+
       // compute cvel and cdofdot
       switch ((mjtJoint) m->jnt_type[m->dof_jntid[bda+j]]) {
       case mjJNT_FREE:

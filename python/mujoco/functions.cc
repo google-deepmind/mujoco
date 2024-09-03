@@ -449,6 +449,26 @@ PYBIND11_MODULE(_functions, pymodule) {
             jacr.has_value() ? jacr->data() : nullptr,
             &(*point)[0], &(*axis)[0], body);
       });
+  Def<traits::mj_jacDot>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacp,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacr,
+         const mjtNum (*point)[3], int body) {
+        if (jacp.has_value() &&
+            (jacp->rows() != 3 || jacp->cols() != m->nv)) {
+          throw py::type_error("jacp should be of shape (3, nv)");
+        }
+        if (jacr.has_value() &&
+            (jacr->rows() != 3 || jacr->cols() != m->nv)) {
+          throw py::type_error("jacr should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_jacDot)(
+            m, d,
+            jacp.has_value() ? jacp->data() : nullptr,
+            jacr.has_value() ? jacr->data() : nullptr,
+            &(*point)[0], body);
+      });
   Def<traits::mj_angmomMat>(
       pymodule, [](const raw::MjModel* m, raw::MjData* d,
                    Eigen::Ref<EigenArrayXX> mat, int body) {

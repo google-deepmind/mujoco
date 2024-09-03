@@ -2623,6 +2623,49 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.',  # pylint: disable=line-too-long
      )),
+    ('mj_jacDot',
+     FunctionDecl(
+         name='mj_jacDot',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='jacp',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='jacr',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='point',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='body',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Compute 3/6-by-nv Jacobian time derivative of global point attached to given body.',  # pylint: disable=line-too-long
+     )),
     ('mj_angmomMat',
      FunctionDecl(
          name='mj_angmomMat',

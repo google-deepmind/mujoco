@@ -184,12 +184,20 @@ frame (``point``) treated as attached to the body, the Jacobian has both transla
 (``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
 3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
 respect to the degrees-of-freedom. The :ref:`pipeline stages<piStages>` required for Jacobian computations to be
-consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos`.
+consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos` (in
+that order).
 
 .. _mj_jacBody:
 
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
+
+.. _mj_jacDot:
+
+This function computes the time-derivative of an end-effector kinematic Jacobian computed by :ref:`mj_jac`.
+The minimal :ref:`pipeline stages<piStages>` required for computation to be
+consistent with the current generalized positions and velocities ``mjData.{qpos, qvel}`` are
+:ref:`mj_kinematics`, :ref:`mj_comPos`, :ref:`mj_comVel` (in that order).
 
 .. _mj_angmomMat:
 

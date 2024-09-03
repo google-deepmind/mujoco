@@ -29,16 +29,17 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::testing::DoubleNear;
 using ::testing::Eq;
 using ::testing::ContainsRegex;  // NOLINT
 using ::testing::MatchesRegex;
 using ::testing::Pointwise;
 using ::testing::ElementsAreArray;
+using ::testing::Pointwise;
+
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
 
 using AngMomMatTest = MujocoTest;
 
@@ -283,6 +284,164 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   mju_free(jac_subtree);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+static constexpr char kQuat[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="query">
+      <joint type="ball"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="2 3 5"/>
+  </keyframe>
+</mujoco>
+)";
+
+static constexpr char kFreeBall[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="distractor1" pos="0 0 .3">
+      <freejoint/>
+      <geom size=".1"/>
+    </body>
+    <body name="main">
+      <freejoint/>
+      <geom size=".1"/>
+      <body pos=".1 0 0">
+        <joint axis="0 1 0"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 .2 0 0"/>
+        <body pos=".2 0 0">
+          <joint type="ball" stiffness="20"/>
+          <geom type="capsule" size=".03" fromto="0 0 0 0 .2 0"/>
+          <body name="query" pos="0 .2 0">
+            <joint type="slide" axis="1 1 1"/>
+            <geom size=".05"/>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="distractor2" pos="0 0 -.3">
+      <freejoint/>
+      <geom size=".1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"/>
+  </keyframe>
+</mujoco>
+)";
+
+static constexpr char kQuatlessPendulum[] = R"(
+<mujoco>
+  <option integrator="implicit">
+    <flag constraint="disable"/>
+  </option>
+  <worldbody>
+    <body pos="0.15 0 0">
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+      <body pos="0.1 0 0">
+        <joint type="slide" axis="1 0 0" stiffness="200"/>
+        <geom type="capsule" size="0.015" fromto="-.1 0 0 .1 0 0"/>
+        <body pos=".1 0 0">
+          <joint axis="1 0 0"/>
+          <joint axis="0 1 0"/>
+          <joint axis="0 0 1"/>
+          <geom type="box" size=".02" fromto="0 0 0 0 .1 0"/>
+          <body name="query" pos="0 .1 0">
+            <joint axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 0 .1 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char kTelescope[] = R"(
+<mujoco>
+  <worldbody>
+    <body>
+      <joint type="ball"/>
+      <geom type="capsule" size="0.02" fromto="0 .02 0 .1 .02 0"/>
+      <body pos=".1 .02 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+        <body pos=".1 .02 0">
+          <joint type="slide" axis="1 0 0"/>
+          <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+          <body pos=".1 .02 0" name="query">
+            <joint type="slide" axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="1 1 1 1 1 1"/>
+  </keyframe>
+</mujoco>
+)";
+
+// compare mj_jacDot with finite-differenced mj_jac
+TEST_F(JacobianTest, JacDot) {
+  for (auto xml : {kQuat, kFreeBall, kQuatlessPendulum, kTelescope}) {
+    mjModel* model = LoadModelFromString(xml);
+    int nv = model->nv;
+    mjtNum point[3] = {.01, .02, .03};
+    mjData* data = mj_makeData(model);
+
+    // load keyframe if present, step for a bit
+    if (model->nkey) mj_resetDataKeyframe(model, data, 0);
+    while (data->time < 0.1) {
+      mj_step(model, data);
+    }
+
+    // minimal call required for mj_jacDot outputs to be valid
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mj_comVel(model, data);
+
+    // get bodyid
+    int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
+    EXPECT_GT(bodyid, 0);
+
+    // jac, jac_dot
+    mj_markStack(data);
+    mjtNum* jac = mj_stackAllocNum(data, 6*nv);
+    mj_jac(model, data, jac, jac+3*nv, point, bodyid);
+    mjtNum* jac_dot =  mj_stackAllocNum(data, 6*nv);
+    mj_jacDot(model, data, jac_dot, jac_dot+3*nv, point, bodyid);
+
+    // jac_h: jacobian after integrating qpos with a timestep of h
+    mjtNum h = 1e-7;
+    mj_integratePos(model, data->qpos, data->qvel, h);
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mjtNum* jac_h =  mj_stackAllocNum(data, 6*nv);;
+    mj_jac(model, data, jac_h, jac_h+3*nv, point, bodyid);
+
+    // jac_dot_h finite-difference approximation
+    mjtNum* jac_dot_h = mj_stackAllocNum(data, 6*nv);;
+    mju_sub(jac_dot_h, jac_h, jac, 6*nv);
+    mju_scl(jac_dot_h, jac_dot_h, 1/h, 6*nv);
+
+    // compare finite-differenced and analytic
+    mjtNum tol = 1e-5;
+    for (int j=0; j < 6; j++) {
+      EXPECT_THAT(AsVector(jac_dot_h + j*nv, nv),
+                  Pointwise(DoubleNear(tol), AsVector(jac_dot + j*nv, nv)));
+    }
+
+    mj_freeStack(data);
+    mj_deleteData(data);
+    mj_deleteModel(model);
+  }
 }
 
 using Name2idTest = MujocoTest;

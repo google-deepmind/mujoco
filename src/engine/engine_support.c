@@ -386,18 +386,16 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
 void mj_jac(const mjModel* m, const mjData* d,
             mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
   int nv = m->nv;
+  mjtNum offset[3];
 
-  // clear jacobians
+  // clear jacobians, compute offset if required
   if (jacp) {
     mju_zero(jacp, 3*nv);
+    mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
   }
   if (jacr) {
     mju_zero(jacr, 3*nv);
   }
-
-  // compute point-com offset
-  mjtNum offset[3];
-  mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed bodies
   while (body && !m->body_dofnum[body]) {
@@ -410,30 +408,30 @@ void mj_jac(const mjModel* m, const mjData* d,
   }
 
   // get last dof that affects this (as well as the original) body
-  int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+  int i = m->body_dofadr[body] + m->body_dofnum[body] - 1;
 
   // backward pass over dof ancestor chain
-  while (da >= 0) {
-    mjtNum *cdof = d->cdof;
+  while (i >= 0) {
+    mjtNum* cdof = d->cdof+6*i;
 
     // construct rotation jacobian
     if (jacr) {
-      jacr[da] = cdof[6*da];
-      jacr[da+nv] = cdof[6*da+1];
-      jacr[da+2*nv] = cdof[6*da+2];
+      jacr[i+0*nv] = cdof[0];
+      jacr[i+1*nv] = cdof[1];
+      jacr[i+2*nv] = cdof[2];
     }
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
       mjtNum tmp[3];
-      mju_cross(tmp, cdof+6*da, offset);
-      jacp[da] = cdof[6*da+3] + tmp[0];
-      jacp[da+nv] = cdof[6*da+4] + tmp[1];
-      jacp[da+2*nv] = cdof[6*da+5] + tmp[2];
+      mju_cross(tmp, cdof, offset);
+      jacp[i+0*nv] = cdof[3] + tmp[0];
+      jacp[i+1*nv] = cdof[4] + tmp[1];
+      jacp[i+2*nv] = cdof[5] + tmp[2];
     }
 
     // advance to parent dof
-    da = m->dof_parentid[da];
+    i = m->dof_parentid[i];
   }
 }
 
@@ -594,7 +592,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
                         int body, int flg_second, int NV, int start) {
-  mjtNum offset[3], tmp[3], *cdof = d->cdof;
+  mjtNum offset[3], tmp[3];
 
   // compute point-com offset
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
@@ -608,39 +606,41 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
   int ci = start;
   int end = m->body_dofadr[body] + m->body_dofnum[body];
   for (int da=m->body_dofadr[body]; da < end; da++) {
+    mjtNum *cdof = d->cdof+6*da;
+
     // construct rotation jacobian
     if (jacdifr) {
       // plus sign
       if (flg_second) {
-        jacdifr[ci] = cdof[6*da];
-        jacdifr[ci+NV] = cdof[6*da+1];
-        jacdifr[ci+2*NV] = cdof[6*da+2];
+        jacdifr[ci+0*NV] = cdof[0];
+        jacdifr[ci+1*NV] = cdof[1];
+        jacdifr[ci+2*NV] = cdof[2];
       }
 
       // minus sign
       else {
-        jacdifr[ci] = -cdof[6*da];
-        jacdifr[ci+NV] = -cdof[6*da+1];
-        jacdifr[ci+2*NV] = -cdof[6*da+2];
+        jacdifr[ci+0*NV] = -cdof[0];
+        jacdifr[ci+1*NV] = -cdof[1];
+        jacdifr[ci+2*NV] = -cdof[2];
       }
     }
 
     // construct translation jacobian (correct for rotation)
     if (jacdifp) {
-      mju_cross(tmp, cdof+6*da, offset);
+      mju_cross(tmp, cdof, offset);
 
       // plus sign
       if (flg_second) {
-        jacdifp[ci] = (cdof[6*da+3] + tmp[0]);
-        jacdifp[ci+NV] = (cdof[6*da+4] + tmp[1]);
-        jacdifp[ci+2*NV] = (cdof[6*da+5] + tmp[2]);
+        jacdifp[ci+0*NV] = (cdof[3] + tmp[0]);
+        jacdifp[ci+1*NV] = (cdof[4] + tmp[1]);
+        jacdifp[ci+2*NV] = (cdof[5] + tmp[2]);
       }
 
       // plus sign
       else {
-        jacdifp[ci] = -(cdof[6*da+3] + tmp[0]);
-        jacdifp[ci+NV] = -(cdof[6*da+4] + tmp[1]);
-        jacdifp[ci+2*NV] = -(cdof[6*da+5] + tmp[2]);
+        jacdifp[ci+0*NV] = -(cdof[3] + tmp[0]);
+        jacdifp[ci+1*NV] = -(cdof[4] + tmp[1]);
+        jacdifp[ci+2*NV] = -(cdof[5] + tmp[2]);
       }
     }
 
@@ -798,6 +798,72 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
   mj_freeStack(d);
 
   return NV;
+}
+
+
+
+// compute 3/6-by-nv Jacobian time derivative of global point attached to given body
+void mj_jacDot(const mjModel* m, const mjData* d,
+               mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
+  int nv = m->nv;
+  mjtNum offset[3];
+
+  // clear jacobians, compute offset if required
+  if (jacp) {
+    mju_zero(jacp, 3*nv);
+    mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
+  }
+  if (jacr) {
+    mju_zero(jacr, 3*nv);
+  }
+
+  // skip fixed bodies
+  while (body && !m->body_dofnum[body]) {
+    body = m->body_parentid[body];
+  }
+
+  // no movable body found: nothing to do
+  if (!body) {
+    return;
+  }
+
+  // get last dof that affects this (as well as the original) body
+  int i = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+
+  // backward pass over dof ancestor chain
+  while (i >= 0) {
+    mjtNum cdof_dot[6];
+    mju_copy(cdof_dot, d->cdof_dot+6*i, 6);
+
+    // check for quaternion
+    mjtJoint type = m->jnt_type[m->dof_jntid[i]];
+    int dofadr = m->jnt_dofadr[m->dof_jntid[i]];
+    int is_quat = type == mjJNT_BALL || (type == mjJNT_FREE && i >= dofadr + 3);
+
+    // compute cdof_dot for quaternion (use current body cvel)
+    if (is_quat) {
+      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], d->cdof+6*i);
+    }
+
+    // construct rotation jacobian
+    if (jacr) {
+      jacr[i+0*nv] += cdof_dot[0];
+      jacr[i+1*nv] += cdof_dot[1];
+      jacr[i+2*nv] += cdof_dot[2];
+    }
+
+    // construct translation jacobian (correct for rotation)
+    if (jacp) {
+      mjtNum tmp[3] = {0};
+      mju_cross(tmp, cdof_dot, offset);
+      jacp[i+0*nv] += cdof_dot[3] + tmp[0];
+      jacp[i+1*nv] += cdof_dot[4] + tmp[1];
+      jacp[i+2*nv] += cdof_dot[5] + tmp[2];
+    }
+
+    // advance to parent dof
+    i = m->dof_parentid[i];
+  }
 }
 
 

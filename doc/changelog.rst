@@ -29,6 +29,7 @@ General
   parent model, but only on the first attachment.
 - Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
   alignments are used for computation shortcuts in :ref:`mj_kinematics`.
+- Added :ref:`mj_jacDot` for computing time-derivatives of kinematic Jacobians. Fixes :github:issue:`411`.
 
 MJX
 ^^^
