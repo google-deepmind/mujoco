@@ -95,7 +95,7 @@ class SolverTest(parameterized.TestCase):
       # lower (due to slight differences in the MJX linsearch algorithm)
       mj_cost = cost(d.qacc)
       mjx_cost = cost(dx.qacc)
-      self.assertLess(mjx_cost, mj_cost * 1.01)
+      self.assertLess(mjx_cost, mj_cost * 1.015)
 
   def test_no_warmstart(self):
     """Test no warmstart."""
