@@ -145,9 +145,23 @@ class _LSPoint(PyTreeNode):
     """Creates a linesearch point with first and second derivatives."""
     # roughly corresponds to CGEval in mujoco/src/engine/engine_solver.c
 
-    # TODO(robotics-team): change this to support friction constraints
     cost, deriv_0, deriv_1 = 0.0, 0.0, 0.0
     quad_total = quad_gauss
+    x = ctx.Jaref + alpha * jv
+    active = (x < 0).at[: d.ne + d.nf].set(True)
+
+    dof_fl, ten_fl = m.dof_hasfrictionloss, m.tendon_hasfrictionloss
+    if (dof_fl.any() or ten_fl.any()) and not (
+        m.opt.disableflags & DisableBit.FRICTIONLOSS
+    ):
+      f = d.efc_frictionloss
+      r = 1.0 / (d.efc_D + (d.efc_D == 0.0) * mujoco.mjMINVAL)
+      rf, z = r * f, jp.zeros_like(f)
+      linear_neg = (x <= -rf)[:, None]
+      linear_pos = (x >= rf)[:, None]
+      qf = linear_neg * jp.array([f * (-0.5 * rf - ctx.Jaref), -f * jv, z]).T
+      qf += linear_pos * jp.array([f * (-0.5 * rf + ctx.Jaref), f * jv, z]).T
+      quad = jp.where(f[:, None] > 0, qf, quad)
 
     if m.opt.cone == ConeType.ELLIPTIC:
       mu, u0 = ctx.fri[:, 0], ctx.u[:, 0]
@@ -161,7 +175,6 @@ class _LSPoint(PyTreeNode):
       # quadratic cost for equality, friction, limits, frictionless contacts
       dim1 = d.contact.efc_address[d.contact.dim == 1]
       nefl = d.ne + d.nf + d.nl
-      active = ((ctx.Jaref + alpha * jv) < 0).at[:d.ne + d.nf].set(True)
       active = active.at[nefl:].set(False).at[dim1].set(active[dim1])
       quad_efld = jax.vmap(jp.multiply)(quad, active)
       quad_total += jp.sum(quad_efld, axis=0)
@@ -181,7 +194,6 @@ class _LSPoint(PyTreeNode):
       deriv_0 = jp.sum(dm * nmt * (n1 - mu * t1))
       deriv_1 = jp.sum(dm * (jp.square(n1 - mu * t1) - nmt * mu * t2))
     elif m.opt.cone == ConeType.PYRAMIDAL:
-      active = ((ctx.Jaref + alpha * jv) < 0).at[:d.ne + d.nf].set(True)
       quad = jax.vmap(jp.multiply)(quad, active)  # only active
       quad_total += jp.sum(quad, axis=0)
     else:
@@ -228,7 +240,7 @@ def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
 
 
 def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
-  """Updates constraint force and resulting cost given latst solver iteration.
+  """Updates constraint force and resulting cost given last solver iteration.
 
   Corresponds to CGupdateConstraint in mujoco/src/engine/engine_solver.c
 
@@ -240,10 +252,27 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   Returns:
     context with new constraint force and costs
   """
+  # ne constraints are always active, nf are conditionally active, others are
+  # non-negative constraints.
+  active = (ctx.Jaref < 0).at[: d.ne + d.nf].set(True)
+
+  floss_force, floss_cost = jp.zeros(d.nefc), 0.0
+  dof_fl, ten_fl = m.dof_hasfrictionloss, m.tendon_hasfrictionloss
+  if (dof_fl.any() or ten_fl.any()) and not (
+      m.opt.disableflags & DisableBit.FRICTIONLOSS
+  ):
+    f = d.efc_frictionloss
+    r = 1.0 / (d.efc_D + (d.efc_D == 0.0) * mujoco.mjMINVAL)
+    linear_neg = (ctx.Jaref <= -r * f) * (f > 0)
+    linear_pos = (ctx.Jaref >= r * f) * (f > 0)
+    active = active & ~linear_neg & ~linear_pos
+    floss_force = linear_neg * f + linear_pos * -f
+    floss_cost = linear_neg * (-0.5 * r * f * f - f * ctx.Jaref)
+    floss_cost += linear_pos * (-0.5 * r * f * f + f * ctx.Jaref)
+    floss_cost = floss_cost.sum()
+
   if m.opt.cone == ConeType.PYRAMIDAL:
-    # ne/nf constraints are always active, rest are non-negative constraints
-    active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
-    efc_force = d.efc_D * -ctx.Jaref * active
+    efc_force = d.efc_D * -ctx.Jaref * active + floss_force
     cost = 0.5 * jp.sum(d.efc_D * ctx.Jaref * ctx.Jaref * active)
     dm, u, h = 0.0, 0.0, 0.0
   elif m.opt.cone == ConeType.ELLIPTIC:
@@ -256,13 +285,12 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
 
     # bottom zone: quadratic
     bottom_zone = ((t <= 0) & (n < 0)) | ((t > 0) & ((mu * n + t) <= 0))
-    active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
     adr_i, adr_j = [], []
     for i, (condim, addr) in enumerate(zip(dim, efc_address)):
       adr_i.extend(range(addr, addr + condim))
       adr_j.extend([i] * condim)
     active = active.at[jp.array(adr_i)].set(bottom_zone[jp.array(adr_j)])
-    efc_force = d.efc_D * -ctx.Jaref * active
+    efc_force = d.efc_D * -ctx.Jaref * active + floss_force
     cost = 0.5 * jp.sum(d.efc_D * ctx.Jaref * ctx.Jaref * active)
 
     # middle zone: cone
@@ -309,7 +337,7 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   ctx = ctx.replace(
       qfrc_constraint=qfrc_constraint,
       gauss=gauss,
-      cost=cost + gauss,
+      cost=cost + gauss + floss_cost,
       prev_cost=ctx.cost,
       efc_force=efc_force,
       active=active,

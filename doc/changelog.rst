@@ -45,6 +45,7 @@ MJX
 - Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
   :doc:`fluid drag <computation/fluid>`.
 - Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
+- Added support for joint and tendon :ref:`frictionloss <coFriction>`.
 
 Bug fixes
 ^^^^^^^^^

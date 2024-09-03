@@ -49,6 +49,7 @@ class DisableBit(enum.IntFlag):
   """
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
   EQUALITY = mujoco.mjtDisableBit.mjDSBL_EQUALITY
+  FRICTIONLOSS = mujoco.mjtDisableBit.mjDSBL_FRICTIONLOSS
   LIMIT = mujoco.mjtDisableBit.mjDSBL_LIMIT
   CONTACT = mujoco.mjtDisableBit.mjDSBL_CONTACT
   PASSIVE = mujoco.mjtDisableBit.mjDSBL_PASSIVE
@@ -60,7 +61,7 @@ class DisableBit(enum.IntFlag):
   SENSOR = mujoco.mjtDisableBit.mjDSBL_SENSOR
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
   FILTERPARENT = mujoco.mjtDisableBit.mjDSBL_FILTERPARENT
-  # unsupported: FRICTIONLOSS, MIDPHASE
+  # unsupported: MIDPHASE
 
 
 class JointType(enum.IntEnum):
@@ -265,7 +266,8 @@ class ConstraintType(enum.IntEnum):
     CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
   """
   EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
-  # unsupported: FRICTION_DOF, FRICTION_TENDON
+  FRICTION_DOF = mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF
+  FRICTION_TENDON = mujoco.mjtConstraint.mjCNSTR_FRICTION_TENDON
   LIMIT_JOINT = mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT
   LIMIT_TENDON = mujoco.mjtConstraint.mjCNSTR_LIMIT_TENDON
   CONTACT_FRICTIONLESS = mujoco.mjtConstraint.mjCNSTR_CONTACT_FRICTIONLESS
@@ -557,6 +559,7 @@ class Model(PyTreeNode):
     dof_solref: constraint solver reference:frictionloss      (nv, mjNREF)
     dof_solimp: constraint solver impedance:frictionloss      (nv, mjNIMP)
     dof_frictionloss: dof friction loss                       (nv,)
+    dof_hasfrictionloss: dof has >0 frictionloss (MJX)        (nv,)
     dof_armature: dof armature inertia/mass                   (nv,)
     dof_damping: damping coefficient                          (nv,)
     dof_invweight0: diag. inverse inertia in qpos0            (nv,)
@@ -697,6 +700,7 @@ class Model(PyTreeNode):
     tendon_lengthspring: spring resting length range          (ntendon, 2)
     tendon_length0: tendon length in qpos0                    (ntendon,)
     tendon_invweight0: inv. weight in qpos0                   (ntendon,)
+    tendon_hasfrictionloss: tendon has >0 frictionloss (MJX)  (ntendon,)
     wrap_type: wrap object type (mjtWrap)                     (nwrap,)
     wrap_objid: object id: geom, site, joint                  (nwrap,)
     wrap_prm: divisor, joint coef, or site id                 (nwrap,)
@@ -860,6 +864,7 @@ class Model(PyTreeNode):
   dof_solref: jax.Array
   dof_solimp: jax.Array
   dof_frictionloss: jax.Array
+  dof_hasfrictionloss: np.ndarray = _restricted_to('mjx')
   dof_armature: jax.Array
   dof_damping: jax.Array
   dof_invweight0: jax.Array
@@ -1005,6 +1010,7 @@ class Model(PyTreeNode):
   tendon_lengthspring: jax.Array
   tendon_length0: jax.Array
   tendon_invweight0: jax.Array
+  tendon_hasfrictionloss: np.ndarray = _restricted_to('mjx')
   wrap_type: np.ndarray = _restricted_to('mujoco')
   wrap_objid: np.ndarray = _restricted_to('mujoco')
   wrap_prm: np.ndarray = _restricted_to('mujoco')

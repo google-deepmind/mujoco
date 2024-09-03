@@ -29,7 +29,7 @@
     </body>
 
     <body name="beam3" pos="1 0 0">
-      <joint name="joint3" axis="1 0 0" type="hinge" range="-20 20"/>
+      <joint name="joint3" axis="1 0 0" type="hinge" range="-20 20" frictionloss="0.1"/>
       <geom class="box"/>
     </body>
 
@@ -65,7 +65,7 @@
   </worldbody>
 
   <tendon>
-    <fixed name="tendon_1" limited="true" range="-0.3 0.1" stiffness=".1" damping=".2">
+    <fixed name="tendon_1" limited="true" range="-0.3 0.1" stiffness=".1" damping=".2" frictionloss="0.1">
       <joint joint="joint3" coef=".1"/>
       <joint joint="joint4" coef="-.2"/>
     </fixed>

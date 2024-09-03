@@ -126,15 +126,14 @@ def put_model(
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
-  if not np.allclose(m.dof_frictionloss, 0) and not _full_compat:
-    raise NotImplementedError('dof_frictionloss is not implemented.')
-
   mj_field_names = {
       f.name
       for f in types.Model.fields()
       if f.metadata.get('restricted_to') != 'mjx'
   }
   fields = {f: getattr(m, f) for f in mj_field_names}
+  fields['dof_hasfrictionloss'] = fields['dof_frictionloss'] > 0
+  fields['tendon_hasfrictionloss'] = fields['tendon_frictionloss'] > 0
   fields['geom_rbound_hfield'] = fields['geom_rbound']
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _make_option(m.opt)
