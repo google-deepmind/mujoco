@@ -1253,26 +1253,38 @@ mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
 
 
 template <class T>
-static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
+mjsElement* mjCBody::GetNext(std::vector<T*>& list, const mjsElement* child, bool recursive) {
+  if (list.empty()) {
+    // no children
+    return nullptr;
+  }
+
   if (!child) {
-    if (list.empty()) {
-      return nullptr;
-    }
+    // first child
     return list[0]->spec.element;
   }
 
   for (unsigned int i = 0; i < list.size()-1; i++) {
+    // next child is in this body
     if (list[i]->spec.element == child) {
       return list[i+1]->spec.element;
     }
   }
+
+  if (recursive && list.back()->spec.element == child) {
+    // next child is in next body
+    for (int i=0; i<(int)bodies.size(); i++) {
+      return bodies[i]->NextChild(NULL, child->elemtype, true);
+    }
+  }
+
   return nullptr;
 }
 
 
 
 // get next child of given type
-mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type) {
+mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type, bool recursive) {
   if (type == mjOBJ_UNKNOWN) {
     if (!child) {
       throw mjCError(this, "child type must be specified if no child element is given");
@@ -1283,25 +1295,44 @@ mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type) {
     throw mjCError(this, "child element is not of requested type");
   }
 
+  mjsElement* candidate = nullptr;
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_XBODY:
-      return GetNext(bodies, child);
+      candidate = GetNext(bodies, child, recursive);
+      break;
     case mjOBJ_JOINT:
-      return GetNext(joints, child);
+      candidate = GetNext(joints, child, recursive);
+      break;
     case mjOBJ_GEOM:
-      return GetNext(geoms, child);
+      candidate = GetNext(geoms, child, recursive);
+      break;
     case mjOBJ_SITE:
-      return GetNext(sites, child);
+      candidate = GetNext(sites, child, recursive);
+      break;
     case mjOBJ_CAMERA:
-      return GetNext(cameras, child);
+      candidate = GetNext(cameras, child, recursive);
+      break;
     case mjOBJ_LIGHT:
-      return GetNext(lights, child);
+      candidate = GetNext(lights, child, recursive);
+      break;
     case mjOBJ_FRAME:
-      return GetNext(frames, child);
+      candidate = GetNext(frames, child, recursive);
+      break;
     default:
-      return nullptr;
+      break;
   }
+
+  if (!candidate && recursive) {
+    for (int i=0; i<(int)bodies.size(); i++) {
+      candidate = bodies[i]->NextChild(child, type, true);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return candidate;
 }
 
 

@@ -70,6 +70,7 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* world = mjs_findBody(spec, "world");
   mjsBody* body = mjs_addBody(world, 0);
+  mjsBody* body1 = mjs_addBody(body, 0);
 
   mjsSite* site1 = mjs_addSite(body, 0);
   mjsGeom* geom1 = mjs_addGeom(body, 0);
@@ -77,6 +78,7 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsSite* site2 = mjs_addSite(body, 0);
   mjsSite* site3 = mjs_addSite(body, 0);
   mjsGeom* geom3 = mjs_addGeom(body, 0);
+  mjsSite* site4 = mjs_addSite(body1, 0);
 
   mjs_setString(site1->name, "site1");
   mjs_setString(geom1->name, "geom1");
@@ -84,30 +86,40 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjs_setString(site2->name, "site2");
   mjs_setString(site3->name, "site3");
   mjs_setString(geom3->name, "geom3");
+  mjs_setString(site4->name, "site4");
 
-  mjsElement* a_el1 = mjs_firstElement(spec, mjOBJ_ACTUATOR);
-  mjsElement* c_el1 = mjs_firstChild(body, mjOBJ_CAMERA);
-  mjsElement* t_el1 = mjs_firstChild(body, mjOBJ_TENDON);
+  mjsElement* a_el0 = mjs_firstElement(spec, mjOBJ_ACTUATOR);
+  mjsElement* l_el0 = mjs_firstElement(spec, mjOBJ_LIGHT);
+  mjsElement* c_el0 = mjs_firstChild(body, mjOBJ_CAMERA);
+  mjsElement* t_el0 = mjs_firstChild(body, mjOBJ_TENDON);
   mjsElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE);
   mjsElement* s_el2 = mjs_nextChild(body, s_el1);
   mjsElement* s_el3 = mjs_nextChild(body, s_el2);
-  mjsElement* s_el4 = mjs_nextChild(body, s_el3);
+  mjsElement* s_el0 = mjs_nextChild(body, s_el3);
+  mjsElement* s_el4 = mjs_firstChild(body1, mjOBJ_SITE);
   mjsElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM);
   mjsElement* g_el2 = mjs_nextChild(body, g_el1);
   mjsElement* g_el3 = mjs_nextChild(body, g_el2);
-  mjsElement* g_el4 = mjs_nextChild(body, g_el3);
+  mjsElement* g_el0 = mjs_nextChild(body, g_el3);
 
-  EXPECT_EQ(a_el1, nullptr);
-  EXPECT_EQ(c_el1, nullptr);
-  EXPECT_EQ(t_el1, nullptr);
+  EXPECT_EQ(a_el0, nullptr);
+  EXPECT_EQ(l_el0, nullptr);
+  EXPECT_EQ(c_el0, nullptr);
+  EXPECT_EQ(t_el0, nullptr);
+  EXPECT_EQ(g_el0, nullptr);
+  EXPECT_EQ(s_el0, nullptr);
   EXPECT_EQ(s_el1, site1->element);
   EXPECT_EQ(s_el2, site2->element);
   EXPECT_EQ(s_el3, site3->element);
+  EXPECT_EQ(s_el4, site4->element);
   EXPECT_EQ(g_el1, geom1->element);
   EXPECT_EQ(g_el2, geom2->element);
   EXPECT_EQ(g_el3, geom3->element);
-  EXPECT_EQ(g_el4, nullptr);
-  EXPECT_EQ(s_el4, nullptr);
+  EXPECT_EQ(s_el1, mjs_firstElement(spec, mjOBJ_SITE));
+  EXPECT_EQ(s_el2, mjs_nextElement(spec, s_el1));
+  EXPECT_EQ(s_el3, mjs_nextElement(spec, s_el2));
+  EXPECT_EQ(s_el4, mjs_nextElement(spec, s_el3));
+  EXPECT_EQ(nullptr, mjs_nextElement(spec, s_el4));
   EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site1"), site1->element);
   EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site2"), site2->element);
   EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site3"), site3->element);

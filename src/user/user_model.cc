@@ -892,6 +892,14 @@ mjsElement* mjCModel::NextObject(mjsElement* object, mjtObj type) {
   }
 
   switch (type) {
+    case mjOBJ_BODY:
+    case mjOBJ_SITE:
+    case mjOBJ_GEOM:
+    case mjOBJ_JOINT:
+    case mjOBJ_CAMERA:
+    case mjOBJ_LIGHT:
+    case mjOBJ_FRAME:
+      return bodies_[0]->NextChild(object, type, /*recursive=*/true);
     case mjOBJ_ACTUATOR:
       return GetNext(actuators_, object);
     case mjOBJ_SENSOR:

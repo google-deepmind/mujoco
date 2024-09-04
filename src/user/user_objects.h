@@ -322,7 +322,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   const std::vector<double>& get_userdata() { return userdata_; }
 
   // get next child of given type
-  mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN);
+  mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN, bool recursive = false);
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
@@ -355,6 +355,10 @@ class mjCBody : public mjCBody_, private mjsBody {
   template <typename T>
   void CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
                 std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe = nullptr);
+
+  // gets next child of the same type in this body
+  template <class T>
+  mjsElement* GetNext(std::vector<T*>& list, const mjsElement* child, bool recursive = false);
 };
 
 
