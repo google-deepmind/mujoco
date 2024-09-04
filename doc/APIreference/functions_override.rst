@@ -20,7 +20,7 @@ Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VF
 
 .. _mj_addFileVFS:
 
-Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
+Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
 .. _Parseandcompile:

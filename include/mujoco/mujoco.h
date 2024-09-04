@@ -77,10 +77,10 @@ MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
 // Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
 MJAPI void mj_defaultVFS(mjVFS* vfs);
 
-// Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+// Add file to VFS, return 0: success, 2: repeated name, -1: failed to load.
 MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
-// Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+// Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.
 MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 
 // Delete file from VFS, return 0: success, -1: not found in VFS.

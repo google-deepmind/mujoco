@@ -64,7 +64,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
+         doc='Add file to VFS, return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_addBufferVFS',
      FunctionDecl(
@@ -94,7 +94,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
+         doc='Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_deleteFileVFS',
      FunctionDecl(

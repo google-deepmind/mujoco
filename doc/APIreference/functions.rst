@@ -1231,7 +1231,7 @@ mj_addFileVFS
 
 .. mujoco-include:: mj_addFileVFS
 
-Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
+Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
 .. _mj_addBufferVFS:
@@ -1241,7 +1241,7 @@ mj_addBufferVFS
 
 .. mujoco-include:: mj_addBufferVFS
 
-Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.
 
 .. _mj_deleteFileVFS:
 
