@@ -1285,66 +1285,6 @@ void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
 }
 
 
-//-------------------------- sparse system matrix conversion ---------------------------------------
-
-// dst[D] = src[M], handle different sparsity representations
-void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
-  int nv = m->nv;
-  mj_markStack(d);
-
-  // init remaining
-  int* remaining = mj_stackAllocInt(d, nv);
-  mju_copyInt(remaining, d->D_rownnz, nv);
-
-  // copy data
-  for (int i = nv - 1; i >= 0; i--) {
-    // init at diagonal
-    int adr = m->dof_Madr[i];
-    remaining[i]--;
-    dst[d->D_rowadr[i] + remaining[i]] = src[adr];
-    adr++;
-
-    // process below diagonal
-    int j = i;
-    while ((j = m->dof_parentid[j]) >= 0) {
-      remaining[i]--;
-      dst[d->D_rowadr[i] + remaining[i]] = src[adr];
-
-      remaining[j]--;
-      dst[d->D_rowadr[j] + remaining[j]] = src[adr];
-
-      adr++;
-    }
-  }
-
-  mj_freeStack(d);
-}
-
-
-
-// dst[M] = src[D lower], handle different sparsity representations
-void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
-  int nv = m->nv;
-
-  // copy data
-  for (int i = nv - 1; i >= 0; i--) {
-    // find diagonal in qDeriv
-    int j = 0;
-    while (d->D_colind[d->D_rowadr[i] + j] < i) {
-      j++;
-    }
-
-    // copy
-    int adr = m->dof_Madr[i];
-    while (j >= 0) {
-      dst[adr] = src[d->D_rowadr[i] + j];
-      adr++;
-      j--;
-    }
-  }
-}
-
-
 
 //-------------------------- perturbations ---------------------------------------------------------
 

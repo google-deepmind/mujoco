@@ -1000,6 +1000,20 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
   fprintf(fp, "\n\n");
 
+  // mapM2D
+  fprintf(fp, NAME_FORMAT, "mapM2D");
+  for (int i = 0; i < m->nD; i++) {
+    fprintf(fp, " %d", d->mapM2D[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // mapD2M
+  fprintf(fp, NAME_FORMAT, "mapD2M");
+  for (int i = 0; i < m->nM; i++) {
+    fprintf(fp, " %d", d->mapD2M[i]);
+  }
+  fprintf(fp, "\n\n");
+
   // B_rownnz
   fprintf(fp, NAME_FORMAT, "B_rownnz");
   for (int i = 0; i < m->nbody; i++) {

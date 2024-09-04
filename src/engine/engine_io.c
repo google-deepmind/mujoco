@@ -1059,6 +1059,107 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 
 
 
+// integer valued dst[D] = src[M], handle different sparsity representations
+static void copyM2DSparse(const mjModel* m, mjData* d, int* dst, const int* src) {
+  int nv = m->nv;
+  mj_markStack(d);
+
+  // init remaining
+  int* remaining = mj_stackAllocInt(d, nv);
+  mju_copyInt(remaining, d->D_rownnz, nv);
+
+  // copy data
+  for (int i = nv - 1; i >= 0; i--) {
+    // init at diagonal
+    int adr = m->dof_Madr[i];
+    remaining[i]--;
+    dst[d->D_rowadr[i] + remaining[i]] = src[adr];
+    adr++;
+
+    // process below diagonal
+    int j = i;
+    while ((j = m->dof_parentid[j]) >= 0) {
+      remaining[i]--;
+      dst[d->D_rowadr[i] + remaining[i]] = src[adr];
+
+      remaining[j]--;
+      dst[d->D_rowadr[j] + remaining[j]] = src[adr];
+
+      adr++;
+    }
+  }
+
+  // check that none remaining
+  for (int i=0; i < nv; i++) {
+    if (remaining[i]) {
+      mjERROR("unassigned index");
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+
+// integer valued dst[M] = src[D lower], handle different sparsity representations
+static void copyD2MSparse(const mjModel* m, const mjData* d, int* dst, const int* src) {
+  int nv = m->nv;
+
+  // copy data
+  for (int i = nv - 1; i >= 0; i--) {
+    // find diagonal in qDeriv
+    int j = 0;
+    while (d->D_colind[d->D_rowadr[i] + j] < i) {
+      j++;
+    }
+
+    // copy
+    int adr = m->dof_Madr[i];
+    while (j >= 0) {
+      dst[adr] = src[d->D_rowadr[i] + j];
+      adr++;
+      j--;
+    }
+  }
+}
+
+
+
+// construct index mappings between D <-> M
+static void makeDmap(const mjModel* m, mjData* d) {
+  int nM = m->nM, nD = m->nD;
+  mj_markStack(d);
+
+  // make mapM2D
+  int* M = mj_stackAllocInt(d, nM);
+  for (int i=0; i < nM; i++) M[i] = i;
+  for (int i=0; i < nD; i++) d->mapM2D[i] = -1;
+  copyM2DSparse(m, d, d->mapM2D, M);
+
+  // check that all indices are filled in
+  for (int i=0; i < nD; i++) {
+    if (d->mapM2D[i] < 0) {
+      mjERROR("unassigned index in mapM2D");
+    }
+  }
+
+  // make mapD2M
+  int* D = mj_stackAllocInt(d, nD);
+  for (int i=0; i < nD; i++) D[i] = i;
+  for (int i=0; i < nM; i++) d->mapD2M[i] = -1;
+  copyD2MSparse(m, d, d->mapD2M, D);
+
+  // check that all indices are filled in
+  for (int i=0; i < nM; i++) {
+    if (d->mapD2M[i] < 0) {
+      mjERROR("unassigned index in mapD2M");
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
 //----------------------------------- mjData construction ------------------------------------------
 
 // set pointers into mjData buffer
@@ -1707,6 +1808,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     makeDSparse(m, d);
     makeBSparse(m, d);
     checkDBSparse(m, d);
+    makeDmap(m, d);
   }
 
   // restore pluginstate and plugindata

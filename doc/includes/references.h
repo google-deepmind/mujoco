@@ -309,6 +309,8 @@ struct mjData_ {
   int*    D_rownnz;          // non-zeros in each row                            (nv x 1)
   int*    D_rowadr;          // address of each row in D_colind                  (nv x 1)
   int*    D_colind;          // column indices of non-zeros                      (nD x 1)
+  int*    mapM2D;            // index mapping from M to D                        (nD x 1)
+  int*    mapD2M;            // index mapping from D to M                        (nM x 1)
   int*    B_rownnz;          // non-zeros in each row                            (nbody x 1)
   int*    B_rowadr;          // address of each row in B_colind                  (nbody x 1)
   int*    B_colind;          // column indices of non-zeros                      (nB x 1)

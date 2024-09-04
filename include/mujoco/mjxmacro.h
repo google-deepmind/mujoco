@@ -643,6 +643,8 @@
     X   ( int,       D_rownnz,          nv,          1           ) \
     X   ( int,       D_rowadr,          nv,          1           ) \
     X   ( int,       D_colind,          nD,          1           ) \
+    X   ( int,       mapM2D,            nD,          1           ) \
+    X   ( int,       mapD2M,            nM,          1           ) \
     X   ( int,       B_rownnz,          nbody,       1           ) \
     X   ( int,       B_rowadr,          nbody,       1           ) \
     X   ( int,       B_colind,          nB,          1           ) \

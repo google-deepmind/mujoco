@@ -792,7 +792,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjtNum* MhB = mj_stackAllocNum(d, nM);
 
       // MhB = M + h*diag(B)
-      mju_copy(MhB, d->qM, m->nM);
+      mju_copy(MhB, d->qM, nM);
       for (int i=0; i < nv; i++) {
         MhB[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
       }
@@ -933,7 +933,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv;
+  int nv = m->nv, nM = m->nM, nD = m->nD;
 
   mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
@@ -949,7 +949,9 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
       // set qLU = qM
-      mj_copyM2DSparse(m, d, d->qLU, d->qM);
+      for (int i=0; i < nD; i++) {
+        d->qLU[i] = d->qM[d->mapM2D[i]];
+      }
 
       // set qLU = qM - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
@@ -970,18 +972,20 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
       // modified mass matrix MhB = qDeriv[Lower]
-      mjtNum* MhB = mj_stackAllocNum(d, m->nM);
-      mj_copyD2MSparse(m, d, MhB, d->qDeriv);
+      mjtNum* MhB = mj_stackAllocNum(d, nM);
+      for (int i=0; i < nM; i++) {
+        MhB[i] = d->qDeriv[d->mapD2M[i]];
+      }
 
       // set MhB = M - dt*qDeriv
-      mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, m->nM);
+      mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
       // factorize
       mj_factorI(m, d, MhB, d->qH, d->qHDiagInv, NULL);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
-    mju_copy(qacc, qfrc, m->nv);
+    mju_copy(qacc, qfrc, nv);
     mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
   } else {
     mjERROR("integrator must be implicit or implicitfast");

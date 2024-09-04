@@ -4867,6 +4867,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='column indices of non-zeros                      (nD x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='mapM2D',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='index mapping from M to D                        (nD x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='mapD2M',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='index mapping from D to M                        (nM x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='B_rownnz',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

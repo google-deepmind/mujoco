@@ -148,15 +148,6 @@ MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 MJAPI void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst);
 
 
-//-------------------------- sparse system matrix conversion ---------------------------------------
-
-// dst[D] = src[M], handle different sparsity representations
-MJAPI void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
-
-// dst[M] = src[D lower], handle different sparsity representations
-MJAPI void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
-
-
 //-------------------------- perturbations ---------------------------------------------------------
 
 // apply Cartesian force and torque
