@@ -979,6 +979,55 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
   printArray("QLDIAGSQRTINV", m->nv, 1, d->qLDiagSqrtInv, fp, float_format);
 
+  // B_rownnz
+  fprintf(fp, NAME_FORMAT, "B_rownnz");
+  for (int i = 0; i < m->nbody; i++) {
+    fprintf(fp, " %d", d->B_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // B_rowadr
+  fprintf(fp, NAME_FORMAT, "B_rowadr");
+  for (int i = 0; i < m->nbody; i++) {
+    fprintf(fp, " %d", d->B_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // B_colind
+  fprintf(fp, NAME_FORMAT, "B_colind");
+  for (int i = 0; i < m->nB; i++) {
+    fprintf(fp, " %d", d->B_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // C_rownnz
+  fprintf(fp, NAME_FORMAT, "C_rownnz");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->C_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // C_rowadr
+  fprintf(fp, NAME_FORMAT, "C_rowadr");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->C_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // C_colind
+  fprintf(fp, NAME_FORMAT, "C_colind");
+  for (int i = 0; i < m->nC; i++) {
+    fprintf(fp, " %d", d->C_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // mapM2C
+  fprintf(fp, NAME_FORMAT, "mapM2C");
+  for (int i = 0; i < m->nC; i++) {
+    fprintf(fp, " %d", d->mapM2C[i]);
+  }
+  fprintf(fp, "\n\n");
+
   // D_rownnz
   fprintf(fp, NAME_FORMAT, "D_rownnz");
   for (int i = 0; i < m->nv; i++) {
@@ -1011,27 +1060,6 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, NAME_FORMAT, "mapD2M");
   for (int i = 0; i < m->nM; i++) {
     fprintf(fp, " %d", d->mapD2M[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // B_rownnz
-  fprintf(fp, NAME_FORMAT, "B_rownnz");
-  for (int i = 0; i < m->nbody; i++) {
-    fprintf(fp, " %d", d->B_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // B_rowadr
-  fprintf(fp, NAME_FORMAT, "B_rowadr");
-  for (int i = 0; i < m->nbody; i++) {
-    fprintf(fp, " %d", d->B_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // B_colind
-  fprintf(fp, NAME_FORMAT, "B_colind");
-  for (int i = 0; i < m->nB; i++) {
-    fprintf(fp, " %d", d->B_colind[i]);
   }
   fprintf(fp, "\n\n");
 

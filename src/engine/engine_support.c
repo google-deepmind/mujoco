@@ -1145,17 +1145,17 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
   // sparse
   if (rownnz && rowadr && colind) {
-    int nv = m->nv;
+    int nC = m->nC;
     mj_markStack(d);
-    // create sparse inertia matrix M
-    int nnz = m->nD;  // use sparse dof-dof matrix
-    int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
-    int* M_colind = mj_stackAllocInt(d, nnz);
-    mjtNum* M = mj_stackAllocNum(d, nnz);
 
-    mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
-    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, M,
-                  M_rownnz, NULL, M_colind);
+    // create reduced sparse inertia matrix C
+    mjtNum* C = mj_stackAllocNum(d, nC);
+    for (int i=0; i < nC; i++) {
+      C[i] = d->qM[d->mapM2C[i]];
+    }
+
+    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, C,
+                  d->C_rownnz, d->C_rowadr, d->C_colind);
     mj_freeStack(d);
   }
 
@@ -1167,81 +1167,11 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
 
 
-// make inertia matrix M
-void mj_makeMSparse(const mjModel* m, mjData* d, mjtNum* M,
-                    int* M_rownnz, int* M_rowadr, int* M_colind) {
-  int nv = m->nv;
-  // currently the sparse dof-dof matrix D row addresses are used, since D has
-  // the same predetermined sparsity structure as M, however with simple bodies
-  // M has less non-zeros and can be precounted for further memory reduction
-  if (M_rowadr == NULL) {
-    M_rowadr = d->D_rowadr;
-  }
-
-  // build M into sparse format, lower triangle
-  for (int i = 0; i < nv; i++) {
-    int Madr = m->dof_Madr[i];
-
-    // simple, fill diagonal only
-    if (m->dof_simplenum[i]) {
-      M_rownnz[i] = 1;
-      M[M_rowadr[i]] = d->qM[Madr];
-      M_colind[M_rowadr[i]] = i;
-      continue;
-    }
-
-    // backward pass over dofs: construct M_row(i) in reverse order
-    int col = M_rowadr[i];  // current column in row i
-    for (int j = i; j >= 0; j = m->dof_parentid[j]) {
-      M[col] = d->qM[Madr++];
-      M_colind[col++] = j;
-    }
-
-    // track nnz of lower triangle for row i
-    int nnz = M_rownnz[i] = col - M_rowadr[i];
-
-    // reverse order
-    int end = nnz >> 1;
-    for (int j = 0; j < end; j++) {
-      int a1 = M_rowadr[i] + j;              // address 1
-      int a2 = (M_rowadr[i] + nnz - 1) - j;  // address 2
-
-      // swap M data on row i
-      mjtNum val = M[a1];
-      M[a1] = M[a2];
-      M[a2] = val;
-
-      // swap M column indices on row i
-      int ind = M_colind[a1];
-      M_colind[a1] = M_colind[a2];
-      M_colind[a2] = ind;
-    }
-  }
-
-  // fill upper triangle
-  for (int i = 1; i < nv; i++) {
-    int end = M_rowadr[i] + M_rownnz[i] - 1;
-    for (int j = M_rowadr[i]; j < end; j++) {
-      int a = M_rowadr[M_colind[j]] + M_rownnz[M_colind[j]]++;
-      M[a] = M[j];
-      M_colind[a] = i;
-    }
-  }
-}
-
-
-
 // add inertia matrix to sparse destination matrix
 void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind, mjtNum* M,
                    int* M_rownnz, int* M_rowadr, int* M_colind) {
   int nv = m->nv;
-  // currently the sparse dof-dof matrix D row addresses are used, since D has
-  // the same predetermined sparsity structure as M, however with simple bodies
-  // M has less non-zeros and can be precounted for further memory reduction
-  if (M_rowadr == NULL) {
-    M_rowadr = d->D_rowadr;
-  }
 
   mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, nv);

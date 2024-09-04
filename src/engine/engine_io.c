@@ -886,11 +886,14 @@ int mj_sizeModel(const mjModel* m) {
 //-------------------------- sparse system matrix construction -------------------------------------
 
 // construct sparse representation of dof-dof matrix
-static void makeDSparse(const mjModel* m, mjData* d) {
+static void makeDofDofSparse(const mjModel* m, mjData* d,
+                             int* rownnz, int* rowadr, int* colind, int reduced) {
   int nv = m->nv;
-  int* rownnz = d->D_rownnz;
-  int* rowadr = d->D_rowadr;
-  int* colind = d->D_colind;
+
+  // no dofs, nothing to do
+  if (!nv) {
+    return;
+  }
 
   mj_markStack(d);
   int* remaining = mj_stackAllocInt(d, nv);
@@ -902,10 +905,12 @@ static void makeDSparse(const mjModel* m, mjData* d) {
     int j = i;
     rownnz[i]++;
 
-    // process below diagonal
-    while ((j = m->dof_parentid[j]) >= 0) {
-      rownnz[i]++;
-      rownnz[j]++;
+    // process below diagonal unless reduced and dof is simple
+    if (!reduced || !m->dof_simplenum[i]) {
+      while ((j = m->dof_parentid[j]) >= 0) {
+        rownnz[i]++;
+        rownnz[j]++;
+      }
     }
   }
 
@@ -922,28 +927,33 @@ static void makeDSparse(const mjModel* m, mjData* d) {
     remaining[i]--;
     colind[rowadr[i] + remaining[i]] = i;
 
-    // process below diagonal
-    int j = i;
-    while ((j = m->dof_parentid[j]) >= 0) {
-      remaining[i]--;
-      colind[rowadr[i] + remaining[i]] = j;
+    // process below diagonal unless reduced and dof is simple
+    if (!reduced || !m->dof_simplenum[i]) {
+      int j = i;
+      while ((j = m->dof_parentid[j]) >= 0) {
+        remaining[i]--;
+        colind[rowadr[i] + remaining[i]] = j;
 
-      remaining[j]--;
-      colind[rowadr[j] + remaining[j]] = i;
+        remaining[j]--;
+        colind[rowadr[j] + remaining[j]] = i;
+      }
     }
   }
 
-  // sanity check; SHOULD NOT OCCUR
+  // check for remaining; SHOULD NOT OCCUR
   for (int i = 0; i < nv; i++) {
     if (remaining[i] != 0) {
       mjERROR("unexpected remaining");
     }
   }
 
+  // check total nnz; SHOULD NOT OCCUR
+  if (rowadr[nv - 1] + rownnz[nv - 1] != (reduced ? m->nC : m->nD)) {
+    mjERROR("sum of rownnz different from expected");
+  }
+
   mj_freeStack(d);
 }
-
-
 
 // construct sparse representation of body-dof matrix
 static void makeBSparse(const mjModel* m, mjData* d) {
@@ -959,7 +969,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
     rownnz[m->body_parentid[i]] += rownnz[i];
   }
 
-  // sanity check; SHOULD NOT OCCUR
+  // check if rownnz[0] != nv; SHOULD NOT OCCUR
   if (rownnz[0] != nv) {
     mjERROR("rownnz[0] different from nv");
   }
@@ -979,7 +989,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
     rowadr[i] = rowadr[i - 1] + rownnz[i - 1];
   }
 
-  // sanity check; SHOULD NOT OCCUR
+  // check if total nnz != nB; SHOULD NOT OCCUR
   if (m->nB != rowadr[nbody - 1] + rownnz[nbody - 1]) {
     mjERROR("sum of rownnz different from nB");
   }
@@ -1059,33 +1069,46 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 
 
 
-// integer valued dst[D] = src[M], handle different sparsity representations
-static void copyM2DSparse(const mjModel* m, mjData* d, int* dst, const int* src) {
+// integer valued dst[D or C] = src[M], handle different sparsity representations
+static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
+                         int reduced) {
   int nv = m->nv;
+  const int* rownnz;
+  const int* rowadr;
+  if (reduced) {
+    rownnz = d->C_rownnz;
+    rowadr = d->C_rowadr;
+  } else {
+    rownnz = d->D_rownnz;
+    rowadr = d->D_rowadr;
+  }
+
   mj_markStack(d);
 
   // init remaining
   int* remaining = mj_stackAllocInt(d, nv);
-  mju_copyInt(remaining, d->D_rownnz, nv);
+  mju_copyInt(remaining, rownnz, nv);
 
   // copy data
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
     int adr = m->dof_Madr[i];
     remaining[i]--;
-    dst[d->D_rowadr[i] + remaining[i]] = src[adr];
+    dst[rowadr[i] + remaining[i]] = src[adr];
     adr++;
 
-    // process below diagonal
-    int j = i;
-    while ((j = m->dof_parentid[j]) >= 0) {
-      remaining[i]--;
-      dst[d->D_rowadr[i] + remaining[i]] = src[adr];
+    // process below diagonal unless reduced and dof is simple
+    if (!reduced || !m->dof_simplenum[i]) {
+      int j = i;
+      while ((j = m->dof_parentid[j]) >= 0) {
+        remaining[i]--;
+        dst[rowadr[i] + remaining[i]] = src[adr];
 
-      remaining[j]--;
-      dst[d->D_rowadr[j] + remaining[j]] = src[adr];
+        remaining[j]--;
+        dst[rowadr[j] + remaining[j]] = src[adr];
 
-      adr++;
+        adr++;
+      }
     }
   }
 
@@ -1125,16 +1148,16 @@ static void copyD2MSparse(const mjModel* m, const mjData* d, int* dst, const int
 
 
 
-// construct index mappings between D <-> M
+// construct index mappings between M <-> D and M -> C
 static void makeDmap(const mjModel* m, mjData* d) {
-  int nM = m->nM, nD = m->nD;
+  int nM = m->nM, nC = m->nC, nD = m->nD;
   mj_markStack(d);
 
   // make mapM2D
   int* M = mj_stackAllocInt(d, nM);
   for (int i=0; i < nM; i++) M[i] = i;
   for (int i=0; i < nD; i++) d->mapM2D[i] = -1;
-  copyM2DSparse(m, d, d->mapM2D, M);
+  copyM2Sparse(m, d, d->mapM2D, M, /*reduced=*/0);
 
   // check that all indices are filled in
   for (int i=0; i < nD; i++) {
@@ -1153,6 +1176,17 @@ static void makeDmap(const mjModel* m, mjData* d) {
   for (int i=0; i < nM; i++) {
     if (d->mapD2M[i] < 0) {
       mjERROR("unassigned index in mapD2M");
+    }
+  }
+
+  // make mapM2C
+  for (int i=0; i < nC; i++) d->mapM2C[i] = -1;
+  copyM2Sparse(m, d, d->mapM2C, M, /*reduced=*/1);
+
+  // check that all indices are filled in
+  for (int i=0; i < nC; i++) {
+    if (d->mapM2C[i] < 0) {
+      mjERROR("unassigned index in mapM2C");
     }
   }
 
@@ -1805,9 +1839,15 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // construct sparse matrix representations
   if (m->body_dofadr) {
-    makeDSparse(m, d);
+    // make D
+    makeDofDofSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_colind, /*reduced=*/0);
+
+    // make B, check D and B
     makeBSparse(m, d);
     checkDBSparse(m, d);
+
+    // make C
+    makeDofDofSparse(m, d, d->C_rownnz, d->C_rowadr, d->C_colind, /*reduced=*/1);
     makeDmap(m, d);
   }
 

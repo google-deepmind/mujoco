@@ -1442,12 +1442,12 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // sparse
   if (mj_isSparse(m)) {
-    // create sparse inertia matrix M
-    int nnz = m->nD;  // use sparse dof-dof matrix
-    int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
-    int* M_colind = mj_stackAllocInt(d, nnz);
-    mjtNum* M = mj_stackAllocNum(d, nnz);
-    mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
+    // fill-in reduced sparse inertia matrix C (no off-diagonals for simple dofs)
+    int nC = m->nC;
+    mjtNum* C = mj_stackAllocNum(d, nC);
+    for (int i=0; i < nC; i++) {
+      C[i] = d->qM[d->mapM2C[i]];
+    }
 
     // compute H = J'*D*J
 
@@ -1462,7 +1462,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
     // compute H = M + J'*D*J
     mj_addMSparse(m, d, ctx->H, ctx->rownnz, ctx->rowadr, ctx->colind,
-                  M, M_rownnz, NULL, M_colind);
+                  C, d->C_rownnz, d->C_rowadr, d->C_colind);
 
     // factorize H, uncompressed layout
     int rank = mju_cholFactorSparse(ctx->H, nv, mjMINVAL,

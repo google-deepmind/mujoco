@@ -1159,14 +1159,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in sparse inertia matrix',
              ),
              StructFieldDecl(
-                 name='nD',
-                 type=ValueType(name='int'),
-                 doc='number of non-zeros in sparse dof-dof matrix',
-             ),
-             StructFieldDecl(
                  name='nB',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in sparse body-dof matrix',
+             ),
+             StructFieldDecl(
+                 name='nC',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in sparse reduced dof-dof matrix',
+             ),
+             StructFieldDecl(
+                 name='nD',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in sparse dof-dof matrix',
              ),
              StructFieldDecl(
                  name='ntree',
@@ -4846,25 +4851,74 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='1/diag(D) of modified M                          (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='B_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='body-dof: non-zeros in each row                  (nbody x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='B_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='body-dof: address of each row in B_colind        (nbody x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='B_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='body-dof: column indices of non-zeros            (nB x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='C_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='reduced dof-dof: non-zeros in each row           (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='C_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='reduced dof-dof: address of each row in C_colind (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='C_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='reduced dof-dof: column indices of non-zeros     (nC x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='mapM2C',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='index mapping from M to C                        (nC x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='D_rownnz',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='non-zeros in each row                            (nv x 1)',  # pylint: disable=line-too-long
+                 doc='dof-dof: non-zeros in each row                   (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='D_rowadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of each row in D_colind                  (nv x 1)',  # pylint: disable=line-too-long
+                 doc='dof-dof: address of each row in D_colind         (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='D_colind',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='column indices of non-zeros                      (nD x 1)',  # pylint: disable=line-too-long
+                 doc='dof-dof: column indices of non-zeros             (nD x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='mapM2D',
@@ -4879,27 +4933,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='index mapping from D to M                        (nM x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='B_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='non-zeros in each row                            (nbody x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='B_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of each row in B_colind                  (nbody x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='B_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices of non-zeros                      (nB x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='qDeriv',

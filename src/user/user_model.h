@@ -114,8 +114,9 @@ class mjCModel_ : public mjsElement {
   int nnames;          // number of chars in all names
   int npaths;          // number of chars in all paths
   int nM;              // number of non-zeros in sparse inertia matrix
-  int nD;              // number of non-zeros in sparse dof-dof matrix
   int nB;              // number of non-zeros in sparse body-dof matrix
+  int nC;              // number of non-zeros in reduced sparse dof-dof matrix
+  int nD;              // number of non-zeros in sparse dof-dof matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst

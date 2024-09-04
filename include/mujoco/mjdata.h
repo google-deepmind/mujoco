@@ -334,14 +334,18 @@ struct mjData_ {
   mjtNum* qHDiagInv;         // 1/diag(D) of modified M                          (nv x 1)
 
   // computed by mj_resetData
-  int*    D_rownnz;          // non-zeros in each row                            (nv x 1)
-  int*    D_rowadr;          // address of each row in D_colind                  (nv x 1)
-  int*    D_colind;          // column indices of non-zeros                      (nD x 1)
+  int*    B_rownnz;          // body-dof: non-zeros in each row                  (nbody x 1)
+  int*    B_rowadr;          // body-dof: address of each row in B_colind        (nbody x 1)
+  int*    B_colind;          // body-dof: column indices of non-zeros            (nB x 1)
+  int*    C_rownnz;          // reduced dof-dof: non-zeros in each row           (nv x 1)
+  int*    C_rowadr;          // reduced dof-dof: address of each row in C_colind (nv x 1)
+  int*    C_colind;          // reduced dof-dof: column indices of non-zeros     (nC x 1)
+  int*    mapM2C;            // index mapping from M to C                        (nC x 1)
+  int*    D_rownnz;          // dof-dof: non-zeros in each row                   (nv x 1)
+  int*    D_rowadr;          // dof-dof: address of each row in D_colind         (nv x 1)
+  int*    D_colind;          // dof-dof: column indices of non-zeros             (nD x 1)
   int*    mapM2D;            // index mapping from M to D                        (nD x 1)
   int*    mapD2M;            // index mapping from D to M                        (nM x 1)
-  int*    B_rownnz;          // non-zeros in each row                            (nbody x 1)
-  int*    B_rowadr;          // address of each row in B_colind                  (nbody x 1)
-  int*    B_colind;          // column indices of non-zeros                      (nB x 1)
 
   // computed by mj_implicit/mj_derivative
   mjtNum* qDeriv;            // d (passive + actuator - bias) / d qvel           (nD x 1)
