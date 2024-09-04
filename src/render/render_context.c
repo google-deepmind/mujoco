@@ -1382,8 +1382,16 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     glTexGenfv(GL_T, GL_OBJECT_PLANE, plane);
 
     // assign data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m->tex_width[texid], m->tex_height[texid], 0,
-                 GL_RGB, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid]);
+    int type = 0;
+    if (m->tex_nchannel[texid] == 3) {
+      type = GL_RGB;
+    } else if (m->tex_nchannel[texid] == 4) {
+      type = GL_RGBA;
+    } else {
+      mju_error("Number of channels not supported: %d", m->tex_nchannel[texid]);
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, type, m->tex_width[texid], m->tex_height[texid], 0,
+                 type, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid]);
 
     // generate mipmaps
     glGenerateMipmap(GL_TEXTURE_2D);

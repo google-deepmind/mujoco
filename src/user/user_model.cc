@@ -1547,7 +1547,7 @@ void mjCModel::SetSizes() {
   for (int i=0; i<nhfield; i++) nhfielddata += hfields_[i]->nrow * hfields_[i]->ncol;
 
   // ntexdata
-  for (int i=0; i<ntex; i++) ntexdata += 3 * textures_[i]->width * textures_[i]->height;
+  for (int i=0; i<ntex; i++) ntexdata += textures_[i]->nchannel * textures_[i]->width * textures_[i]->height;
 
   // nwrap
   for (int i=0; i<ntendon; i++) nwrap += (int)tendons_[i]->path.size();

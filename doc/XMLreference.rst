@@ -1893,6 +1893,11 @@ This element specifies other MJCF models which may be used for :ref:`attachment<
 :at:`file`: :at-val:`string, required`
    The file from which the sub-model will be loaded. Note that the sub-model must be a valid MJCF model.
 
+.. _asset-model-content_type:
+
+:at:`content_type` :at-val:`string, optional`
+   The file type to be loaded into a model. Currently only text/xml is supported.
+
 
 .. _body:
 

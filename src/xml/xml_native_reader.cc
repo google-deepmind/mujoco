@@ -258,7 +258,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             {"rgba", "?", "1", "texture"},
             {"orm", "?", "1", "texture"},
         {">"},
-        {"model", "*", "2", "name", "file"},
+        {"model", "*", "3", "name", "file", "content_type"},
     {">"},
 
     {"body", "R", "11", "name", "childclass", "pos", "quat", "mocap",
@@ -3306,11 +3306,22 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
     // model sub-element
     else if (name=="model") {
-      auto filename = modelfiledir_ + ReadAttrFile(elem, "file", vfs).value();
+      string content_type;
+      if (!ReadAttrTxt(elem, "content_type", content_type)) {
+        content_type = "text/xml";
+      }
 
       // parse the child
+      mjSpec* child = nullptr;
       std::array<char, 1024> error;
-      mjSpec* child = mj_parseXML(filename.c_str(), vfs, error.data(), error.size());
+      auto filename = modelfiledir_ + ReadAttrFile(elem, "file", vfs).value();
+
+      if (content_type == "text/xml") {
+        child = mj_parseXML(filename.c_str(), vfs, error.data(), error.size());
+      } else {
+        throw mjXError(elem, "unsupported content_type: %s", content_type.c_str());
+      }
+
       if (!child) {
         throw mjXError(elem, "could not parse model file with error: %s", error.data());
       }
