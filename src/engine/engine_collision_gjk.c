@@ -595,6 +595,37 @@ static void S1D(mjtNum lambda[2], const mjtNum simplex[6]) {
   }
 }
 
+// ---------------------------------------- EPA ---------------------------------------------------
+
+// helper function to test if the origin is in the same side of the plane formed by P0P1P2 as P3.
+static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
+                    const mjtNum p2[3], const mjtNum p3[3]) {
+    mjtNum diff1[3], diff2[3], diff3[3], diff4[3], n[3];
+    mju_sub3(diff1, p1, p0);
+    mju_sub3(diff2, p2, p0);
+    mju_cross(n, diff1, diff2);
+
+    mju_sub3(diff3, p3, p0);
+    mjtNum dot1 = mju_dot3(n, diff3);
+
+    mju_scl3(diff4, p0, -1);
+    mjtNum dot2 = mju_dot3(n, diff4);
+    if (dot1 > 0 && dot2 > 0) return 1;
+    if (dot1 < 0 && dot2 < 0) return 1;
+    return 0;
+}
+
+
+
+// determines if the origin is contained in the tetrahedron.
+static int testTetra(const mjtNum p0[3], const mjtNum p1[3],
+                     const mjtNum p2[3], const mjtNum p3[3]) {
+  return sameSide(p0, p1, p2, p3)
+      && sameSide(p1, p2, p3, p0)
+      && sameSide(p2, p3, p0, p1)
+      && sameSide(p3, p0, p1, p2);
+}
+
 
 
 // sets rotation matrix for 120 degrees along axis
@@ -801,6 +832,18 @@ static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simple
 
   // check that v5 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v5)) {
+    return 0;
+  }
+
+  // if origin does not lie on simplex then we need to check that the hexahedron contains the
+  // origin
+  //
+  // TODO(kylebayes): It's possible for GJK to return a 2-simplex with the origin not contained in
+  // it but within tolerance from it. In that case the hexahedron could possibly be constructed
+  // that doesn't contain the origin, but nonetheless there is penetration depth.
+  mjtNum dir[3];
+  mju_sub3(dir, obj1->x0, obj2->x0);
+  if (mju_norm3(dir) > mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
     return 0;
   }
 
