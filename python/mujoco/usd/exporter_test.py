@@ -18,6 +18,7 @@ import os
 
 from absl.testing import absltest
 from etils import epath
+import tempfile
 import mujoco
 from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
 
@@ -25,7 +26,7 @@ class ExporterTest(absltest.TestCase):
 
   def test_usd_export(self):
 
-    output_dir_root = os.getenv("TEST_UNDECLARED_OUTPUTS_DIR")
+    output_dir_root = os.getenv('TEST_UNDECLARED_OUTPUTS_DIR', tempfile.gettempdir())
     output_dir_name = "usd_test"
     xml = """
 <mujoco>
