@@ -542,14 +542,30 @@ mjsDefault* mjs_getSpecDefault(mjSpec* s) {
 
 // find body in model by name
 mjsBody* mjs_findBody(mjSpec* s, const char* name) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  mjCBase* body = 0;
-  if (model->IsCompiled()) {
-    body = model->FindObject(mjOBJ_BODY, std::string(name));  // fast lookup
-  } else {
-    body = model->FindBody(model->GetWorld(), std::string(name));  // recursive search
-  }
+  mjsElement* body = mjs_findElement(s, mjOBJ_BODY, name);
   return body ? &(static_cast<mjCBody*>(body)->spec) : nullptr;
+}
+
+
+
+// find element in spec by name
+mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsCompiled()) {
+    return model->FindObject(type, std::string(name));  // fast lookup
+  }
+  switch (type) {
+    case mjOBJ_BODY:
+    case mjOBJ_SITE:
+    case mjOBJ_GEOM:
+    case mjOBJ_JOINT:
+    case mjOBJ_CAMERA:
+    case mjOBJ_LIGHT:
+    case mjOBJ_FRAME:
+      return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
+    default:
+      return model->FindObject(type, std::string(name));  // always available
+  }
 }
 
 
@@ -563,29 +579,10 @@ mjsBody* mjs_findChild(mjsBody* bodyspec, const char* name) {
 
 
 
-// find mesh by name
-mjsMesh* mjs_findMesh(mjSpec* s, const char* name) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  mjCMesh* mesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, std::string(name));
-  return mesh ? &(static_cast<mjCMesh*>(mesh)->spec) : nullptr;
-}
-
-
-
 // find frame by name
 mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  mjCFrame* frame = (mjCFrame*)model->FindFrame(model->GetWorld(), std::string(name));
+  mjsElement* frame = mjs_findElement(s, mjOBJ_FRAME, name);
   return frame ? &(static_cast<mjCFrame*>(frame)->spec) : nullptr;
-}
-
-
-
-// find keyframe by name
-mjsKey* mjs_findKeyframe(mjSpec* s, const char* name) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  mjCKey* key = (mjCKey*)model->FindObject(mjOBJ_KEY, std::string(name));
-  return key ? &(static_cast<mjCKey*>(key)->spec) : nullptr;
 }
 
 

@@ -15,6 +15,8 @@ General
      :ref:`ccd_tolerance<option-ccd_tolerance>` and :ref:`ccd_iterations<option-ccd_iterations>`, both in XML and in
      the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
      the MPR algorithm. The semantics of these options remain identical.
+   - The functions ``mjs_findMesh`` and ``mjs_findKeyframe`` were replaced by ``mjs_findElement``, which allows to look
+     for any object type.
 
 - Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
   The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not

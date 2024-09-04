@@ -592,7 +592,7 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
     meshname = mjuu_stripext(meshname);
 
     // look for existing mesh
-    mjsMesh* mesh = mjs_findMesh(spec, meshname.c_str());
+    mjsMesh* mesh = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, meshname.c_str()));
     mjsMesh* pmesh = 0;
 
     // does not exist: create

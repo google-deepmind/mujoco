@@ -223,16 +223,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjsElement* NextObject(mjsElement* object, mjtObj type = mjOBJ_UNKNOWN);  // next object of specified type
 
   // API for access to other variables
-  bool IsCompiled() const;                                         // is model already compiled
-  const mjCError& GetError() const;                                // get reference of error object
-  void SetError(const mjCError& error) { errInfo = error; }        // set value of error object
-  mjCBody* GetWorld();                                             // pointer to world body
-  mjCDef* FindDefault(std::string name);                           // find defaults class name
-  mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);  // add defaults class to array
-  mjCBase* FindObject(mjtObj type, std::string name) const;        // find object given type and name
-  mjCBody* FindBody(mjCBody* body, std::string name);              // find body given name
-  mjCFrame* FindFrame(mjCBody* body, std::string name) const;      // find frame given name
-  mjSpec* FindSpec(std::string name) const;                        // find spec given name
+  bool IsCompiled() const;                                          // is model already compiled
+  const mjCError& GetError() const;                                 // get reference of error object
+  void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
+  mjCBody* GetWorld();                                              // pointer to world body
+  mjCDef* FindDefault(std::string name);                            // find defaults class name
+  mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
+  mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
+  mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
+  mjSpec* FindSpec(std::string name) const;                         // find spec given name
   void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
     active_plugins_ = std::move(active_plugins);
   }

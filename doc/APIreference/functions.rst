@@ -4123,7 +4123,16 @@ mjs_findBody
 
 .. mujoco-include:: mjs_findBody
 
-Find body in model by name.
+Find body in spec by name.
+
+.. _mjs_findElement:
+
+mjs_findElement
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findElement
+
+Find element in spec by name.
 
 .. _mjs_findChild:
 
@@ -4134,15 +4143,6 @@ mjs_findChild
 
 Find child body by name.
 
-.. _mjs_findMesh:
-
-mjs_findMesh
-~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_findMesh
-
-Find mesh by name.
-
 .. _mjs_findFrame:
 
 mjs_findFrame
@@ -4151,15 +4151,6 @@ mjs_findFrame
 .. mujoco-include:: mjs_findFrame
 
 Find frame by name.
-
-.. _mjs_findKeyframe:
-
-mjs_findKeyframe
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_findKeyframe
-
-Find keyframe by name.
 
 .. _mjs_getDefault:
 

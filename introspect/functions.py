@@ -9678,7 +9678,33 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Find body in model by name.',
+         doc='Find body in spec by name.',
+     )),
+    ('mjs_findElement',
+     FunctionDecl(
+         name='mjs_findElement',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsElement'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='type',
+                 type=ValueType(name='mjtObj'),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Find element in spec by name.',
      )),
     ('mjs_findChild',
      FunctionDecl(
@@ -9702,28 +9728,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Find child body by name.',
      )),
-    ('mjs_findMesh',
-     FunctionDecl(
-         name='mjs_findMesh',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjsMesh'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='name',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Find mesh by name.',
-     )),
     ('mjs_findFrame',
      FunctionDecl(
          name='mjs_findFrame',
@@ -9745,28 +9749,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Find frame by name.',
-     )),
-    ('mjs_findKeyframe',
-     FunctionDecl(
-         name='mjs_findKeyframe',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjsKey'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='name',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Find keyframe by name.',
      )),
     ('mjs_getDefault',
      FunctionDecl(

@@ -188,20 +188,17 @@ MJAPI mjSpec* mjs_getSpec(mjsBody* body);
 // Find spec (model asset) by name.
 MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 
-// Find body in model by name.
+// Find body in spec by name.
 MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);
+
+// Find element in spec by name.
+MJAPI mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
 
 // Find child body by name.
 MJAPI mjsBody* mjs_findChild(mjsBody* body, const char* name);
 
-// Find mesh by name.
-MJAPI mjsMesh* mjs_findMesh(mjSpec* s, const char* name);
-
 // Find frame by name.
 MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
-
-// Find keyframe by name.
-MJAPI mjsKey* mjs_findKeyframe(mjSpec* s, const char* name);
 
 // Get default corresponding to an element.
 MJAPI mjsDefault* mjs_getDefault(mjsElement* element);

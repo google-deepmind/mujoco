@@ -134,21 +134,9 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjSpec.def(
-      "find_mesh",
-      [](MjSpec& self, std::string& name) -> raw::MjsMesh* {
-        return mjs_findMesh(self.ptr, name.c_str());
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
       "find_frame",
       [](MjSpec& self, std::string& name) -> raw::MjsFrame* {
         return mjs_findFrame(self.ptr, name.c_str());
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_keyframe",
-      [](MjSpec& self, std::string& name) -> raw::MjsKey* {
-        return mjs_findKeyframe(self.ptr, name.c_str());
       },
       py::return_value_policy::reference_internal);
   mjSpec.def(

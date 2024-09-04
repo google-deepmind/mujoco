@@ -1408,8 +1408,8 @@ void mjCBody::ForgetKeyframes() const {
     joint->qpos_.clear();
     joint->qvel_.clear();
   }
-  model->FindBody((mjCBody*)this, name)->mpos_.clear();  // this is a hack to avoid const
-  model->FindBody((mjCBody*)this, name)->mquat_.clear();  // this is a hack to avoid const
+  ((mjCBody*)this)->mpos_.clear();
+  ((mjCBody*)this)->mquat_.clear();
   for (auto body : bodies) {
     body->ForgetKeyframes();
   }

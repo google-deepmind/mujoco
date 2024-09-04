@@ -78,6 +78,13 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsSite* site3 = mjs_addSite(body, 0);
   mjsGeom* geom3 = mjs_addGeom(body, 0);
 
+  mjs_setString(site1->name, "site1");
+  mjs_setString(geom1->name, "geom1");
+  mjs_setString(geom2->name, "geom2");
+  mjs_setString(site2->name, "site2");
+  mjs_setString(site3->name, "site3");
+  mjs_setString(geom3->name, "geom3");
+
   mjsElement* a_el1 = mjs_firstElement(spec, mjOBJ_ACTUATOR);
   mjsElement* c_el1 = mjs_firstChild(body, mjOBJ_CAMERA);
   mjsElement* t_el1 = mjs_firstChild(body, mjOBJ_TENDON);
@@ -101,6 +108,12 @@ TEST_F(MujocoTest, TreeTraversal) {
   EXPECT_EQ(g_el3, geom3->element);
   EXPECT_EQ(g_el4, nullptr);
   EXPECT_EQ(s_el4, nullptr);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site1"), site1->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site2"), site2->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site3"), site3->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom1"), geom1->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom2"), geom2->element);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom3"), geom3->element);
 
   mj_deleteSpec(spec);
 }

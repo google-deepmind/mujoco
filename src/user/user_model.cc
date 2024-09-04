@@ -1031,33 +1031,61 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) const {
 
 
 // find body by name
-mjCBody* mjCModel::FindBody(mjCBody* body, std::string name) {
-  if (body->name == name) {
-    return body;
+mjCBase* mjCModel::FindTree(mjCBody* body, mjtObj type, std::string name) {
+  switch (type) {
+    case mjOBJ_BODY:
+      if (body->name == name) {
+        return body;
+      }
+      break;
+    case mjOBJ_SITE:
+      for (auto site : body->sites) {
+        if (site->name == name) {
+          return site;
+        }
+      }
+      break;
+    case mjOBJ_GEOM:
+      for (auto geom : body->geoms) {
+        if (geom->name == name) {
+          return geom;
+        }
+      }
+      break;
+    case mjOBJ_JOINT:
+      for (auto joint : body->joints) {
+        if (joint->name == name) {
+          return joint;
+        }
+      }
+      break;
+    case mjOBJ_CAMERA:
+      for (auto camera : body->cameras) {
+        if (camera->name == name) {
+          return camera;
+        }
+      }
+      break;
+    case mjOBJ_LIGHT:
+      for (auto light : body->lights) {
+        if (light->name == name) {
+          return light;
+        }
+      }
+      break;
+    case mjOBJ_FRAME:
+      for (auto frame : body->frames) {
+        if (frame->name == name) {
+          return frame;
+        }
+      }
+      break;
+    default:
+      return nullptr;
   }
 
   for (auto child : body->bodies) {
-    auto candidate = FindBody(child, name);
-    if (candidate) {
-      return candidate;
-    }
-  }
-
-  return nullptr;
-}
-
-
-
-// find frame by name
-mjCFrame* mjCModel::FindFrame(mjCBody* body, std::string name) const{
-  for (auto frame : body->frames) {
-    if (frame->name == name) {
-      return frame;
-    }
-  }
-
-  for (auto body : body->bodies) {
-    auto candidate = FindFrame(body, name);
+    auto candidate = FindTree(child, type, name);
     if (candidate) {
       return candidate;
     }
