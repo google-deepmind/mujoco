@@ -6706,7 +6706,7 @@ void mjCKey::Compile(const mjModel* m) {
       qpos_[i] = (double)m->qpos0[i];
     }
   } else if (qpos_.size() != m->nq) {
-    throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
+    throw mjCError(this, "keyframe %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
   // qvel: allocate or check size
@@ -6716,7 +6716,7 @@ void mjCKey::Compile(const mjModel* m) {
       qvel_[i] = 0;
     }
   } else if (qvel_.size() != m->nv) {
-    throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
+    throw mjCError(this, "keyframe %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
   // act: allocate or check size
@@ -6726,7 +6726,7 @@ void mjCKey::Compile(const mjModel* m) {
       act_[i] = 0;
     }
   } else if (act_.size() != m->na) {
-    throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
+    throw mjCError(this, "keyframe %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
   // mpos: allocate or check size
@@ -6743,7 +6743,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mpos_.size() != 3*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
+    throw mjCError(this, "keyframe %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
   // mquat: allocate or check size
@@ -6761,7 +6761,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mquat_.size() != 4*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
+    throw mjCError(this, "keyframe %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
   }
 
   // ctrl: allocate or check size
@@ -6771,7 +6771,7 @@ void mjCKey::Compile(const mjModel* m) {
       ctrl_[i] = 0;
     }
   } else if (ctrl_.size() != m->nu) {
-    throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
+    throw mjCError(this, "keyframe %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 }
 
