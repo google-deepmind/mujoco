@@ -735,7 +735,7 @@ static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simple
   // get 5th vertex in -n direction
   mjtNum v5a[3], v5b[3], v5[3];
   support(v5a, v5b, obj1, obj2, nn);
-  mju_sub3(v5, v5a, v4b);
+  mju_sub3(v5, v5a, v5b);
 
   // we must check that all three faces are valid triangles (not collinear)
   if (mju_abs(det3(v5, v1, v2)) < mjMINVAL ||
@@ -808,12 +808,12 @@ static void initPolytope(Polytope* pt) {
   // vertices
   pt->nverts = 0;
   pt->vcap = mjMINCAP;
-  pt->verts = (Vertex*) mju_malloc(pt->vcap * sizeof(Vertex));
+  pt->verts = (Vertex*) malloc(pt->vcap * sizeof(Vertex));
 
   // faces
   pt->nfaces = 0;
   pt->fcap = mjMINCAP;
-  pt->faces = (Face*) mju_malloc(pt->fcap * sizeof(Face));
+  pt->faces = (Face*) malloc(pt->fcap * sizeof(Face));
 }
 
 
@@ -870,7 +870,7 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3) {
 static void initHorizon(Horizon* h) {
   h->n = 0;
   h->capacity = mjMINCAP;
-  h->edges = (Edge*) mju_malloc(h->capacity * sizeof(Edge));
+  h->edges = (Edge*) malloc(h->capacity * sizeof(Edge));
 }
 
 
@@ -999,6 +999,11 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
       return 0;  // assume 0 depth
     }
 
+    // check if dist is 0
+    if (dist <= 0) {
+      mju_warning("EPA: origin lies on affine hull of face (most likely a bug)");
+    }
+
     // compute support point w from the closest face's normal
     mjtNum w1[3], w2[3], w[3];
     support(w1, w2, obj1, obj2, pt->faces[index].v);
@@ -1031,7 +1036,7 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
 
     h.n = 0;  // clear horizon
   }
-  mju_free(h.edges);
+  free(h.edges);
   Face face = pt->faces[index];
   mju_copy3(dir, face.v);
   epa_witness(pt, index, obj1->x0, obj2->x0);
@@ -1104,7 +1109,7 @@ int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
     if (dir) mju_zero3(dir->v);
     if (pos) mju_zero3(dir->v);
   }
-  mju_free(pt.faces);
-  mju_free(pt.verts);
+  free(pt.faces);
+  free(pt.verts);
   return dist >= 0;
 }
