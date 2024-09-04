@@ -1650,6 +1650,11 @@ typedef enum mjtLimited_ {         // type of limit specification
   mjLIMITED_TRUE,                  // limited
   mjLIMITED_AUTO,                  // limited inferred from presence of range
 } mjtLimited;
+typedef enum mjtAlignFree_ {       // whether to align free joints with the inertial frame
+  mjALIGNFREE_FALSE = 0,           // don't align
+  mjALIGNFREE_TRUE,                // align
+  mjALIGNFREE_AUTO,                // respect the global compiler flag
+} mjtAlignFree;
 typedef enum mjtInertiaFromGeom_ { // whether to infer body inertias from child geoms
   mjINERTIAFROMGEOM_FALSE = 0,     // do not use; inertial element required
   mjINERTIAFROMGEOM_TRUE,          // always use; overwrite inertial element
@@ -1688,6 +1693,7 @@ typedef struct mjSpec_ {           // model specification
   int inertiafromgeom;             // use geom inertias (mjtInertiaFromGeom)
   int inertiagrouprange[2];        // range of geom groups used to compute inertia
   mjtByte exactmeshinertia;        // if false, use old formula
+  int alignfree;                   // align free joints with inertial frame
   mjLROpt LRopt;                   // options for lengthrange computation
 
   // engine data
@@ -1778,6 +1784,7 @@ typedef struct mjsJoint_ {         // joint specification
   double pos[3];                   // anchor position
   double axis[3];                  // joint axis
   double ref;                      // value at reference configuration: qpos0
+  int align;                       // align free joint with body com (mjtAlignFree)
 
   // stiffness
   double stiffness;                // stiffness coefficient

@@ -658,6 +658,15 @@ Type of limit specification.
 
 .. mujoco-include:: mjtLimited
 
+.. _mjtAlignFree:
+
+mjtAlignFree
+~~~~~~~~~~~~
+
+Whether to align free joints with the inertial frame.
+
+.. mujoco-include:: mjtAlignFree
+
 .. _mjtInertiaFromGeom:
 
 mjtInertiaFromGeom

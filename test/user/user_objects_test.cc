@@ -39,10 +39,12 @@ std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
 }
 
 using std::string;
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::Pointwise;
 
 // -------------------- test OS filesystem fallback ----------------------------
 
@@ -1163,6 +1165,87 @@ TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
   EXPECT_EQ(model->body_mass[2], 0);
   mj_deleteModel(model);
 }
+
+// ------------- test joints --------------------------------------------------
+
+using MjCJointTest = MujocoTest;
+
+TEST_F(MjCJointTest, AlignFree) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/freejoint.xml");
+  std::array<char, 1024> err;
+  mjSpec* s = mj_parseXML(xml_path.c_str(), nullptr, err.data(), err.size());
+  ASSERT_THAT(s, NotNull()) << err.data();
+  s->alignfree = 1;  // auto-aligned free joint
+  mjModel* m = mj_compile(s, nullptr);
+  ASSERT_THAT(m, NotNull());
+
+  // with alignfree the body has sameframe and simple and all dof are simple
+  EXPECT_EQ(m->body_sameframe[1], 1);
+  EXPECT_EQ(m->body_simple[1], 1);
+  EXPECT_EQ(m->dof_simplenum[0], 6);
+
+  // make unaligned model
+  s->alignfree = 0;  // unaligned free joint
+  mjModel* m_u = mj_compile(s, nullptr);
+  ASSERT_THAT(m_u, NotNull());
+
+  // no sameframe or simple
+  EXPECT_EQ(m_u->body_sameframe[1], 0);
+  EXPECT_EQ(m_u->body_simple[1], 0);
+
+  // make datas for both models
+  mjData* d = mj_makeData(m);
+  mjData* d_u = mj_makeData(m_u);
+
+  // call mj_forward
+  mj_forward(m, d);
+  mj_forward(m_u, d_u);
+
+  // expect x-frames (sensors) to match to very high precision
+  double eps = 1e-10;
+  EXPECT_THAT(AsVector(d->sensordata, m->nsensordata),
+      Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
+
+  // no frame sensors for lights, test separately
+  EXPECT_THAT(AsVector(d->light_xpos, 3),
+      Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+  EXPECT_THAT(AsVector(d->light_xdir, 3),
+      Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+
+  // reduce timestep to 0.1ms and use RK4, simulate for 1 second
+  m->opt.timestep = m_u->opt.timestep = 1e-4;
+  m->opt.integrator = m_u->opt.integrator = mjINT_RK4;
+  while (d->time < 1) {
+    mj_step(m, d);
+    mj_step(m_u, d_u);
+  }
+
+  // expect qpos to be significantly different, since the semantics are changed
+  mj_markStack(d);
+  int nq = m->nq;
+  mjtNum* dqpos = mj_stackAllocNum(d, nq);
+  mju_sub(dqpos, d->qpos, d_u->qpos, nq);
+  EXPECT_GT(mju_norm(dqpos, nq), 1.0);
+  mj_freeStack(d);
+
+
+  // expect x-frames to match to reasonable precision
+  eps = 1e-5;
+  EXPECT_THAT(AsVector(d->sensordata, m->nsensordata),
+      Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
+  EXPECT_THAT(AsVector(d->light_xpos, 3),
+      Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+  EXPECT_THAT(AsVector(d->light_xdir, 3),
+      Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+
+  mj_deleteData(d_u);
+  mj_deleteData(d);
+  mj_deleteModel(m_u);
+  mj_deleteModel(m);
+  mj_deleteSpec(s);
+}
+
 
 // ------------- test height fields --------------------------------------------
 

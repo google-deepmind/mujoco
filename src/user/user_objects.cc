@@ -1579,6 +1579,33 @@ void mjCBody::Compile(void) {
     margin = std::max(margin, geoms[i]->margin);
   }
 
+  // check conditions for free-joint alignment
+  bool align_free = (joints.size() == 1                  &&  // only one joint AND
+                     joints[0]->spec.type == mjJNT_FREE  &&  // it is a free joint AND
+                     bodies.empty()                      &&  // no child bodies AND
+                     (joints[0]->spec.align == 1 ||          // either joint.align="true"
+                      (joints[0]->spec.align == 2        &&  // or joint.align="auto"
+                       model->alignfree)));                  //  and compiler.align="true"
+
+  // free-joint alignment, phase 1 (this body + child geoms)
+  double ipos_inverse[3], iquat_inverse[4];
+  if (align_free) {
+    // accumulate iframe transformation to body frame
+    mjuu_frameaccum(pos, quat, ipos, iquat);
+
+    // compute inverse iframe transformation
+    mjuu_frameinvert(ipos_inverse, iquat_inverse, ipos, iquat);
+
+    // save iframe, set it to null
+    mjuu_setvec(ipos, 0, 0, 0);
+    mjuu_setvec(iquat, 1, 0, 0, 0);
+
+    // apply inverse iframe transformation to all child geoms
+    for (int i=0; i<geoms.size(); i++) {
+      mjuu_frameaccumChild(ipos_inverse, iquat_inverse, geoms[i]->pos, geoms[i]->quat);
+    }
+  }
+
   // compute bounding volume hierarchy
   ComputeBVH();
 
@@ -1650,6 +1677,28 @@ void mjCBody::Compile(void) {
         explicitinertial = true;
         break;
       }
+    }
+  }
+
+  // free joint alignment, phase 2 (transform sites, cameras and lights)
+  if (align_free) {
+    // frames have already been compiled and applied to children
+
+    // sites
+    for (int i=0; i<sites.size(); i++) {
+      mjuu_frameaccumChild(ipos_inverse, iquat_inverse, sites[i]->pos, sites[i]->quat);
+    }
+
+    // cameras
+    for (int i=0; i<cameras.size(); i++) {
+      mjuu_frameaccumChild(ipos_inverse, iquat_inverse, cameras[i]->pos, cameras[i]->quat);
+    }
+
+    // lights
+    for (int i=0; i<lights.size(); i++) {
+      double qunit[4]= {1, 0, 0, 0};
+      mjuu_frameaccumChild(ipos_inverse, iquat_inverse, lights[i]->pos, qunit);
+      mjuu_rotVecQuat(lights[i]->dir, lights[i]->dir, iquat_inverse);
     }
   }
 }

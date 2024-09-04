@@ -104,6 +104,7 @@ void mjs_defaultJoint(mjsJoint* joint) {
   joint->axis[2] = 1;
   joint->limited = mjLIMITED_AUTO;
   joint->actfrclimited = mjLIMITED_AUTO;
+  joint->align = mjALIGNFREE_AUTO;
   mj_defaultSolRefImp(joint->solref_limit, joint->solimp_limit);
   mj_defaultSolRefImp(joint->solref_friction, joint->solimp_friction);
 }

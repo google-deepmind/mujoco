@@ -97,11 +97,11 @@ static void UpdateString(string& psuffix, int count, int i) {
 const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
+    {"compiler", "*", "21", "autolimits", "boundmass", "boundinertia", "settotalmass",
         "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
         "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
         "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia",
-        "assetdir"},
+        "assetdir", "alignfree"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -271,7 +271,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "stiffness", "range", "actuatorfrcrange", "actuatorgravcomp", "margin", "ref",
             "springref", "armature", "damping", "frictionloss", "user"},
-        {"freejoint", "*", "2", "name", "group"},
+        {"freejoint", "*", "3", "name", "group", "align"},
         {"geom", "*", "33", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
@@ -1020,6 +1020,9 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
   ReadAttr(section, "inertiagrouprange", 2, spec->inertiagrouprange, text);
   if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
     spec->exactmeshinertia = (n==1);
+  }
+  if (MapValue(section, "alignfree", &n, bool_map, 2)) {
+    spec->alignfree = (n==1);
   }
 
   // lengthrange subelement
@@ -3423,6 +3426,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         mjs_setString(joint->name, name.c_str());
       }
       ReadAttrInt(elem, "group", &joint->group);
+      MapValue(elem, "align", &joint->align, TFAuto_map, 3);
     }
 
     // geom sub-element

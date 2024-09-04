@@ -822,6 +822,14 @@ has any effect. The settings here are global and apply to the entire model.
    If this attribute is set to false, computes mesh inertia with the legacy algorithm, which is exact only for convex
    meshes. If set to true, it is exact for any closed mesh geometry.
 
+.. _compiler-alignfree:
+
+:at:`alignfree`: :at-val:`[false, true], "false"`
+   This attribute toggles the default behaviour of an optimization that applies to bodies with a
+   :ref:`free joint<body-freejoint>` and no child bodies.
+   When true, the body frame and free joint will automatically be aligned with inertial frame, which leads to both
+   faster and more stable simulation. See :ref:`freejoint/align<body-freejoint-align>` for details.
+
 .. _compiler-inertiagrouprange:
 
 :at:`inertiagrouprange`: :at-val:`int(2), "0 5"`
@@ -2251,6 +2259,20 @@ inherited*. If the XML model is saved, it will appear as a regular joint of type
    Integer group to which the joint belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of joints.
 
+.. _body-freejoint-align:
+
+:at:`align`: :at-val:`[false, true, auto], "auto"`
+   When set to :at-val:`true`, the body frame and free joint will automatically be aligned with inertial frame. When set
+   to :at-val:`false`, no alignment will occur. When set to :at-val:`auto`, the compiler's
+   :ref:`alignfree<compiler-alignfree>` global attribute will be respected.
+
+   Inertial frame alignment is an optimization only applies to bodies with a free joint and no child bodies ("simple
+   free bodies"). The alignment diagonalizes the 6x6 inertia matrix and minimizes bias forces, leading to faster and
+   more stable simulation. While this behaviour is a strict improvement, it modifies the semantics of the free joint,
+   making ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) invalid.
+
+   Note that the :at:`align` attribute is never saved to XML. Instead, the pose of simple free bodies and their children
+   will be modified such that the body frame and inertial frame are aligned.
 
 .. _body-geom:
 

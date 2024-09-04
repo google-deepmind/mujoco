@@ -759,6 +759,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjLIMITED_AUTO', 2),
          ]),
      )),
+    ('mjtAlignFree',
+     EnumDecl(
+         name='mjtAlignFree',
+         declname='enum mjtAlignFree_',
+         values=dict([
+             ('mjALIGNFREE_FALSE', 0),
+             ('mjALIGNFREE_TRUE', 1),
+             ('mjALIGNFREE_AUTO', 2),
+         ]),
+     )),
     ('mjtInertiaFromGeom',
      EnumDecl(
          name='mjtInertiaFromGeom',

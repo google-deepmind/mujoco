@@ -470,6 +470,11 @@ public enum mjtLimited : int{
   mjLIMITED_TRUE = 1,
   mjLIMITED_AUTO = 2,
 }
+public enum mjtAlignFree : int{
+  mjALIGNFREE_FALSE = 0,
+  mjALIGNFREE_TRUE = 1,
+  mjALIGNFREE_AUTO = 2,
+}
 public enum mjtInertiaFromGeom : int{
   mjINERTIAFROMGEOM_FALSE = 0,
   mjINERTIAFROMGEOM_TRUE = 1,

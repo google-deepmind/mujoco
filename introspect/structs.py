@@ -8362,6 +8362,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='if false, use old formula',
              ),
              StructFieldDecl(
+                 name='alignfree',
+                 type=ValueType(name='int'),
+                 doc='align free joints with inertial frame',
+             ),
+             StructFieldDecl(
                  name='LRopt',
                  type=ValueType(name='mjLROpt'),
                  doc='options for lengthrange computation',
@@ -8791,6 +8796,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='ref',
                  type=ValueType(name='double'),
                  doc='value at reference configuration: qpos0',
+             ),
+             StructFieldDecl(
+                 name='align',
+                 type=ValueType(name='int'),
+                 doc='align free joint with body com (mjtAlignFree)',
              ),
              StructFieldDecl(
                  name='stiffness',

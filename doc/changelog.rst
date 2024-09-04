@@ -18,13 +18,26 @@ General
    - The functions ``mjs_findMesh`` and ``mjs_findKeyframe`` were replaced by ``mjs_findElement``, which allows to look
      for any object type.
 
+- Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
+  detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
+  early stages of testing.
 - Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
   The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
   hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
   positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
-- Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
-  detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
-  early stages of testing.
+- Introduced an optimization that applies to bodies with a :ref:`free joint<body-freejoint>` and no child bodies (i.e.
+  simple free-floating bodies): aligning the free joint (body frame) with the inertial frame. The alignment diagonalizes
+  the related 6x6 inertia sub-matrix, leading to faster simulation, and minimizes bias forces, leading to more
+  stable simulation of free bodies.
+
+  While this optimization is a strict improvement over unaligned free joints, it also changes the semantics of the
+  joint's degrees-of-freedom w.r.t to previous versions. Therefore, ``qpos`` and ``qvel`` values saved in older versions
+  (for example, in :ref:`keyframes<keyframe>`) will become invalid.
+
+  This feature can be toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally
+  using the compiler :ref:`alignfree<compiler-alignfree>` attribute. The latter attribute currently defaults to "false"
+  due to the potential breakage described above, but could be changed to "true" in a future release. Aligned free joints
+  are recommended for all new models.
 - Added :ref:`mjSpec` option for creating a texture from a buffer.
 - :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
 - When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the

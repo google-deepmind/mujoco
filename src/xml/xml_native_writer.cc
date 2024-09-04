@@ -924,6 +924,9 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (model->boundinertia) {
     WriteAttr(section, "boundinertia", 1, &model->boundinertia);
   }
+  if (model->alignfree) {
+    WriteAttrTxt(section, "alignfree", "true");
+  }
   if (!model->autolimits) {
     WriteAttrTxt(section, "autolimits", "false");
   }
