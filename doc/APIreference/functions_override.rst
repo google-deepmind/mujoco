@@ -47,6 +47,14 @@ struct pointers while editing the model programmatically.
 :ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
 instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
+.. _mj_saveXMLString:
+
+Save spec to XML string, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
+
+.. _mj_saveXML:
+
+Save spec to XML file, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
+
 .. _Mainsimulation:
 
 These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes

@@ -103,7 +103,7 @@ mj_saveXMLString
 
 .. mujoco-include:: mj_saveXMLString
 
-Save spec to XML string, return 1 on success, 0 otherwise.
+Save spec to XML string, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
 
 .. _mj_saveXML:
 
@@ -112,7 +112,7 @@ mj_saveXML
 
 .. mujoco-include:: mj_saveXML
 
-Save spec to XML file, return 1 on success, 0 otherwise.
+Save spec to XML file, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
 
 .. _Mainsimulation:
 
