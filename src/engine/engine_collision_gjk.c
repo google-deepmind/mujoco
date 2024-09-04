@@ -699,6 +699,70 @@ static int polytope2(Polytope* pt, const mjtNum simplex1[6], const mjtNum simple
 
 
 
+// computes the affine coordinates of p on the triangle v1v2v3
+static void triConvexCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2[3],
+                           const mjtNum v3[3], const mjtNum p[3]) {
+  // compute minors as in S2D
+  mjtNum M_14 = v2[1]*v3[2] - v2[2]*v3[1] - v1[1]*v3[2] + v1[2]*v3[1] + v1[1]*v2[2] - v1[2]*v2[1];
+  mjtNum M_24 = v2[0]*v3[2] - v2[2]*v3[0] - v1[0]*v3[2] + v1[2]*v3[0] + v1[0]*v2[2] - v1[2]*v2[0];
+  mjtNum M_34 = v2[0]*v3[1] - v2[1]*v3[0] - v1[0]*v3[1] + v1[1]*v3[0] + v1[0]*v2[1] - v1[1]*v2[0];
+
+  // exclude one of the axes with the largest projection of the simplex using the computed minors
+  mjtNum M_max = 0;
+  int x, y;
+  mjtNum mu1 = mju_abs(M_14), mu2 = mju_abs(M_24), mu3 = mju_abs(M_34);
+  if (mu1 >= mu2 && mu1 >= mu3) {
+    M_max = M_14;
+    x = 1;
+    y = 2;
+  } else if (mu2 >= mu3) {
+    M_max = M_24;
+    x = 0;
+    y = 2;
+  } else {
+    M_max = M_34;
+    x = 0;
+    y = 1;
+  }
+
+  // C31 corresponds to the signed area of 2-simplex: (v, s2, s3)
+  mjtNum C31 = p[x]*v2[y] + p[y]*v3[x] + v2[x]*v3[y]
+             - p[x]*v3[y] - p[y]*v2[x] - v3[x]*v2[y];
+
+  // C32 corresponds to the signed area of 2-simplex: (v, s1, s3)
+  mjtNum C32 = p[x]*v3[y] + p[y]*v1[x] + v3[x]*v1[y]
+             - p[x]*v1[y] - p[y]*v3[x] - v1[x]*v3[y];
+
+  // C33 corresponds to the signed area of 2-simplex: (v, s1, s2)
+  mjtNum C33 = p[x]*v1[y] + p[y]*v2[x] + v1[x]*v2[y]
+             - p[x]*v2[y] - p[y]*v1[x] - v2[x]*v1[y];
+
+  // compute affine coordinates
+  lambda[0] = C31 / M_max;
+  lambda[1] = C32 / M_max;
+  lambda[2] = C33 / M_max;
+}
+
+
+
+// returns true if point p and triangle v1v2v3 intersect
+static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3],
+                             const mjtNum p[3]) {
+  mjtNum lambda[3];
+  triConvexCoord(lambda, v1, v2, v3, p);
+  if (lambda[0] < 0 || lambda[1] < 0 || lambda[2] < 0) {
+    return 0;
+  }
+  mjtNum pr[3], diff[3];
+  pr[0] = v1[0]*lambda[0] + v2[0]*lambda[1] + v3[0]*lambda[2];
+  pr[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
+  pr[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
+  mju_sub3(diff, pr, p);
+  return mju_norm3(diff) < mjMINVAL;
+}
+
+
+
 // creates a polytope from a 2-simplex (3 points i.e. triangle)
 static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simplex2[9],
                      mjCCDObj* obj1, mjCCDObj* obj2) {
@@ -725,10 +789,8 @@ static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simple
   support(v4a, v4b, obj1, obj2, n);
   mju_sub3(v4, v4a, v4b);
 
-  // we must check that all three faces are valid triangles (not collinear)
-  if (mju_abs(det3(v4, v1, v2)) < mjMINVAL ||
-      mju_abs(det3(v4, v2, v3)) < mjMINVAL ||
-      mju_abs(det3(v4, v3, v1)) < mjMINVAL) {
+  // check that v4 is not contained in the 2-simplex
+  if (triPointIntersect(v1, v2, v3, v4)) {
     return 0;
   }
 
@@ -737,10 +799,8 @@ static int polytope3(Polytope* pt, const mjtNum simplex1[9], const mjtNum simple
   support(v5a, v5b, obj1, obj2, nn);
   mju_sub3(v5, v5a, v5b);
 
-  // we must check that all three faces are valid triangles (not collinear)
-  if (mju_abs(det3(v5, v1, v2)) < mjMINVAL ||
-      mju_abs(det3(v5, v2, v3)) < mjMINVAL ||
-      mju_abs(det3(v5, v3, v1)) < mjMINVAL) {
+  // check that v5 is not contained in the 2-simplex
+  if (triPointIntersect(v1, v2, v3, v5)) {
     return 0;
   }
 
@@ -904,69 +964,29 @@ static void addEdgeIfUnique(Horizon* h, int v1, int v2) {
 #undef mjMINCAP
 
 // recover witness points from EPA polytope
-static void epa_witness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]) {
+static void epaWitness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]) {
   Face* face = &pt->faces[index];
   int s1i = face->verts[0], s2i = face->verts[1], s3i = face->verts[2];
 
   // three vertices of face
-  const mjtNum* s1 = pt->verts[s1i].v;
-  const mjtNum* s2 = pt->verts[s2i].v;
-  const mjtNum* s3 = pt->verts[s3i].v;
+  Vertex s1 = pt->verts[s1i];
+  Vertex s2 = pt->verts[s2i];
+  Vertex s3 = pt->verts[s3i];
   const mjtNum* v  = face->v;
 
   // compute minors as in S2D
-  mjtNum M_14 = s2[1]*s3[2] - s2[2]*s3[1] - s1[1]*s3[2] + s1[2]*s3[1] + s1[1]*s2[2] - s1[2]*s2[1];
-  mjtNum M_24 = s2[0]*s3[2] - s2[2]*s3[0] - s1[0]*s3[2] + s1[2]*s3[0] + s1[0]*s2[2] - s1[2]*s2[0];
-  mjtNum M_34 = s2[0]*s3[1] - s2[1]*s3[0] - s1[0]*s3[1] + s1[1]*s3[0] + s1[0]*s2[1] - s1[1]*s2[0];
-
-  // exclude one of the axes with the largest projection of the simplex using the computed minors
-  mjtNum M_max = 0;
-  int x, y;
-  mjtNum mu1 = mju_abs(M_14), mu2 = mju_abs(M_24), mu3 = mju_abs(M_34);
-  if (mu1 >= mu2 && mu1 >= mu3) {
-    M_max = M_14;
-    x = 1;
-    y = 2;
-  } else if (mu2 >= mu3) {
-    M_max = M_24;
-    x = 0;
-    y = 2;
-  } else {
-    M_max = M_34;
-    x = 0;
-    y = 1;
-  }
-  // C31 corresponds to the signed area of 2-simplex: (v, s2, s3)
-  mjtNum C31 = v[x]*s2[y] + v[y]*s3[x] + s2[x]*s3[y]
-             - v[x]*s3[y] - v[y]*s2[x] - s3[x]*s2[y];
-
-  // C32 corresponds to the signed area of 2-simplex: (v, s1, s3)
-  mjtNum C32 = v[x]*s3[y] + v[y]*s1[x] + s3[x]*s1[y]
-             - v[x]*s1[y] - v[y]*s3[x] - s1[x]*s3[y];
-
-  // C33 corresponds to the signed area of 2-simplex: (v, s1, s2)
-  mjtNum C33 = v[x]*s1[y] + v[y]*s2[x] + s1[x]*s2[y]
-             - v[x]*s2[y] - v[y]*s1[x] - s2[x]*s1[y];
-
-  // compute affine coordinates
   mjtNum lambda[3];
-  lambda[0] = C31 / M_max;
-  lambda[1] = C32 / M_max;
-  lambda[2] = C33 / M_max;
+  triConvexCoord(lambda, s1.v, s2.v, s3.v, v);
 
   // face on geom 1
-  mjtNum simplex1[9];
-  mju_copy3(simplex1, pt->verts[s1i].v1);
-  mju_copy3(simplex1 + 3, pt->verts[s2i].v1);
-  mju_copy3(simplex1 + 6, pt->verts[s3i].v1);
-  lincomb(x1, lambda, simplex1, 3);
+  x1[0] = s1.v1[0]*lambda[0] + s2.v1[0]*lambda[1] + s3.v1[0]*lambda[2];
+  x1[1] = s1.v1[1]*lambda[0] + s2.v1[1]*lambda[1] + s3.v1[1]*lambda[2];
+  x1[2] = s1.v1[2]*lambda[0] + s2.v1[2]*lambda[1] + s3.v1[2]*lambda[2];
 
   // face on geom 2
-  mjtNum simplex2[9];
-  mju_copy3(simplex2, pt->verts[s1i].v2);
-  mju_copy3(simplex2 + 3, pt->verts[s2i].v2);
-  mju_copy3(simplex2 + 6, pt->verts[s3i].v2);
-  lincomb(x2, lambda, simplex2, 3);
+  x2[0] = s1.v2[0]*lambda[0] + s2.v2[0]*lambda[1] + s3.v2[0]*lambda[2];
+  x2[1] = s1.v2[1]*lambda[0] + s2.v2[1]*lambda[1] + s3.v2[1]*lambda[2];
+  x2[2] = s1.v2[2]*lambda[0] + s2.v2[2]*lambda[1] + s3.v2[2]*lambda[2];
 }
 
 
@@ -1039,7 +1059,7 @@ static mjtNum epa(const mjCCDConfig* config, Polytope* pt, mjCCDObj* obj1, mjCCD
   free(h.edges);
   Face face = pt->faces[index];
   mju_copy3(dir, face.v);
-  epa_witness(pt, index, obj1->x0, obj2->x0);
+  epaWitness(pt, index, obj1->x0, obj2->x0);
   return dist;
 }
 
