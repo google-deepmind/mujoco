@@ -345,7 +345,13 @@ static raw::MjModel* LoadModelFileImpl(
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
           vfs_ptr, buffer_name.c_str(), asset.content, asset.content_size);
       if (vfs_error) {
-        throw py::value_error("assets dict is too big");
+        mj_deleteVFS(vfs_ptr);
+        if (vfs_error == 2) {
+          throw py::value_error("Repeated file name in assets dict: " +
+                                buffer_name);
+        } else {
+          throw py::value_error("Asset failed to load: " + buffer_name);
+        }
       }
     }
   }

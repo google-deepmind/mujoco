@@ -59,6 +59,7 @@ Bug fixes
 Python bindings
 ^^^^^^^^^^^^^^^
 - Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+- Better error reporting for issues with the assets dictionary, when loading models.
 
 
 Version 3.2.2 (Aug 8, 2024)
