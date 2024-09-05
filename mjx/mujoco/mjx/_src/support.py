@@ -319,3 +319,28 @@ def contact_force(
     force = force.reshape(-1)
 
   return force * (efc_address >= 0)
+
+
+def contact_force_dim(
+    m: Model, d: Data, dim: int
+) -> Tuple[jax.Array, np.ndarray]:
+  """Extract 6D force:torque for contacts with dimension dim."""
+  # valid contact and condim indices
+  idx_dim = (d.contact.efc_address >= 0) & (d.contact.dim == dim)
+
+  # contact force from efc
+  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+    efc_address = (
+        d.contact.efc_address[idx_dim, None]
+        + np.arange(np.where(dim == 1, 1, 2 * (dim - 1)))[None]
+    )
+    efc_force = d.efc_force[efc_address]
+    force = jax.vmap(_decode_pyramid, in_axes=(0, 0, None))(
+        efc_force, d.contact.friction[idx_dim], dim
+    )
+    return force, np.where(idx_dim)[0]
+  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
+    # TODO(taylorhowell): add support for elliptic cone
+    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  else:
+    raise ValueError(f'Unknown cone type: {m.opt.cone}.')

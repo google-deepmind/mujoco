@@ -40,7 +40,7 @@ def _assert_attr_eq(a, b, attr):
 
 class SensorTest(parameterized.TestCase):
 
-  @parameterized.parameters('no_sensor.xml', 'sensor.xml')
+  @parameterized.parameters('sensor/model.xml', 'sensor/sensor.xml')
   def test_sensor(self, filename):
     """Tests MJX sensor functions match MuJoCo sensor functions."""
     m = test_util.load_test_file(filename)
@@ -65,7 +65,7 @@ class SensorTest(parameterized.TestCase):
 
   def test_disable_sensor(self):
     """Tests disabling sensor."""
-    m = test_util.load_test_file('sensor.xml')
+    m = test_util.load_test_file('sensor/sensor.xml')
     # disable sensors
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.SENSOR
     d = mujoco.MjData(m)
@@ -84,7 +84,7 @@ class SensorTest(parameterized.TestCase):
 
   def test_unsupported_sensor(self):
     """Tests MJX sensor functions do not break for unsupported sensors."""
-    m = test_util.load_test_file('unsupported_sensor.xml')
+    m = test_util.load_test_file('sensor/unsupported.xml')
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.forward)(mx, mjx.put_data(m, mujoco.MjData(m)))
     _assert_eq(np.zeros(m.nsensordata), dx.sensordata, 'sensordata')
