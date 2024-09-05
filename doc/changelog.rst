@@ -61,6 +61,7 @@ MJX
   :doc:`fluid drag <computation/fluid>`.
 - Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
 - Added support for joint and tendon :ref:`frictionloss <coFriction>`.
+- Added support for :ref:`connect<equality-connect>` equality constraints using two sites.
 
 Bug fixes
 ^^^^^^^^^

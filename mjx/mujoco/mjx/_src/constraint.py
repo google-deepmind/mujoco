@@ -32,6 +32,7 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import EqType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ObjType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -106,25 +107,47 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     return None
 
   @jax.vmap
-  def rows(obj1id, obj2id, data, solref, solimp):
+  def rows(is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp):
     anchor1, anchor2 = data[0:3], data[3:6]
 
-    # error is difference in global positions
     pos1 = d.xmat[obj1id] @ anchor1 + d.xpos[obj1id]
     pos2 = d.xmat[obj2id] @ anchor2 + d.xpos[obj2id]
+
+    if m.nsite:
+      pos1 = jp.where(is_site, d.site_xpos[obj1id], pos1)
+      pos2 = jp.where(is_site, d.site_xpos[obj2id], pos2)
+
+    # error is difference in global positions
     pos = pos1 - pos2
 
     # compute Jacobian difference (opposite of contact: 0 - 1)
-    jacp1, _ = support.jac(m, d, pos1, obj1id)
-    jacp2, _ = support.jac(m, d, pos2, obj2id)
+    jacp1, _ = support.jac(m, d, pos1, body1id)
+    jacp2, _ = support.jac(m, d, pos2, body2id)
     j = (jacp1 - jacp2).T
     pos_imp = math.norm(pos)
-    invweight = m.body_invweight0[obj1id, 0] + m.body_invweight0[obj2id, 0]
+    invweight = m.body_invweight0[body1id, 0] + m.body_invweight0[body2id, 0]
     zero = jp.zeros_like(pos)
 
     return _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
 
-  args = (m.eq_obj1id, m.eq_obj2id, m.eq_data, m.eq_solref, m.eq_solimp)
+  is_site = m.eq_objtype == ObjType.SITE
+
+  body1id = np.copy(m.eq_obj1id)
+  body2id = np.copy(m.eq_obj2id)
+  if m.nsite:
+    body1id[is_site] = m.site_bodyid[body1id[is_site]]
+    body2id[is_site] = m.site_bodyid[body2id[is_site]]
+
+  args = (
+      is_site,
+      m.eq_obj1id,
+      m.eq_obj2id,
+      body1id,
+      body2id,
+      m.eq_data,
+      m.eq_solref,
+      m.eq_solimp,
+  )
   args = jax.tree_util.tree_map(lambda x: x[eq_id], args)
   # concatenate to drop row grouping
   return jax.tree_util.tree_map(jp.concatenate, rows(*args))

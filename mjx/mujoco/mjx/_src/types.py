@@ -681,6 +681,7 @@ class Model(PyTreeNode):
     eq_type: constraint type (mjtEq)                          (neq,)
     eq_obj1id: id of object 1                                 (neq,)
     eq_obj2id: id of object 2                                 (neq,)
+    eq_objtype: type of both objects (mjtObj)                 (neq,)
     eq_active0: initial enable/disable constraint state       (neq,)
     eq_solref: constraint solver reference                    (neq, mjNREF)
     eq_solimp: constraint solver impedance                    (neq, mjNIMP)
@@ -991,6 +992,7 @@ class Model(PyTreeNode):
   eq_type: np.ndarray
   eq_obj1id: np.ndarray
   eq_obj2id: np.ndarray
+  eq_objtype: np.ndarray
   eq_active0: np.ndarray
   eq_solref: jax.Array
   eq_solimp: jax.Array

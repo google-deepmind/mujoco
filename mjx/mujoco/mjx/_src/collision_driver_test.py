@@ -887,7 +887,7 @@ class DimTest(parameterized.TestCase):
   def test_ncon(self):
     m = test_util.load_test_file('constraints.xml')
     dim = collision_driver.make_condim(m)
-    expected = [1] * 4 + [3] * 20 + [4] * 4 + [6] * 4
+    expected = [1] * 4 + [3] * 24 + [4] * 4 + [6] * 4
     np.testing.assert_array_equal(dim, np.array(expected))
 
   def test_disable_contact(self):
