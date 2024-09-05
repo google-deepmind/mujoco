@@ -22,6 +22,8 @@
 -ballangvel
 -framelinvel
 -frameangvel
+-subtreelinvel
+-subtreeangmom
 * acceleration/force-dependent sensors:
 -actuatorfrc
 -jointactfrc
@@ -98,6 +100,7 @@
     <actuatorfrc name="actuatorfrc0" actuator="motor0"/>
     <framelinvel name="framelinvel3" objtype="site" objname="site3"/>
     <framelinvel name="framelinvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
+    <subtreelinvel name="subtreelinvel0" body="body0"/>
     <actuatorpos name="actuatorpos0" actuator="motor0"/>
     <actuatorvel name="actuatorvel0" actuator="motor0"/>
     <ballquat name="ballquat2" joint="ballquat2"/>
@@ -114,15 +117,18 @@
     <frameangvel name="frameangvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
     <frameangvel name="frameangvel3cutoff" objtype="site" objname="site3" cutoff="1e-3"/>
     <actuatorfrc name="actuatorfrc1" actuator="motor1"/>
+    <subtreeangmom name="subtreeangmom0" body="body0"/>
     <subtreecom name="subtreecom0" body="body0"/>
     <camprojection site="frontorigin" camera="fixedcamera"/>
     <magnetometer name="magnetometer1" site="site1"/>
     <jointpos name="jointpos1" joint="hinge1"/>
     <jointvel name="jointvel1" joint="hinge1"/>
     <actuatorpos name="actuatorpos1" actuator="motor1"/>
+    <subtreelinvel name="subtreelinvel1" body="body1"/>
     <actuatorvel name="actuatorvel1" actuator="motor1"/>
     <framepos name="framepos1" objtype="site" objname="site1"/>
     <jointactuatorfrc name="jointactfrc0" joint="hinge0"/>
+    <subtreeangmom name="subtreeangmom1" body="body1"/>
     <framezaxis name="framezaxis1" objtype="site" objname="site1"/>
     <framexaxis name="framexaxis1" objtype="site" objname="site1"/>
     <ballquat name="ballquat3" joint="ballquat3"/>

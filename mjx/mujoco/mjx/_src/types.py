@@ -316,6 +316,8 @@ class SensorType(enum.IntEnum):
     BALLANGVEL: ball joint angular velocity
     FRAMELINVEL: 3D linear velocity
     FRAMEANGVEL: 3D angular velocity
+    SUBTREELINVEL: subtree linear velocity
+    SUBTREEANGMOM: subtree angular momentum
     ACTUATORFRC: scalar actuator force
     JOINTACTFRC: scalar actuator force, measured at the joint
   """
@@ -339,6 +341,8 @@ class SensorType(enum.IntEnum):
   BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL
   FRAMELINVEL = mujoco.mjtSensor.mjSENS_FRAMELINVEL
   FRAMEANGVEL = mujoco.mjtSensor.mjSENS_FRAMEANGVEL
+  SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
+  SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
   ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC
   JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC
 

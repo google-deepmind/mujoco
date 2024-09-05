@@ -20,6 +20,7 @@ import mujoco
 # pylint: disable=g-importing-member
 from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
+from mujoco.mjx._src import smooth
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
@@ -296,9 +297,13 @@ def sensor_vel(m: Model, d: Data) -> Data:
   }
 
   stage_vel = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_VEL
-  sensors, adrs = [], []
+  sensor_types = set(m.sensor_type[stage_vel])
 
-  for sensor_type in set(m.sensor_type[stage_vel]):
+  if sensor_types & {SensorType.SUBTREELINVEL, SensorType.SUBTREEANGMOM}:
+    d = smooth.subtree_vel(m, d)
+
+  sensors, adrs = [], []
+  for sensor_type in sensor_types:
     idx = m.sensor_type == sensor_type
     objid = m.sensor_objid[idx]
     adr = m.sensor_adr[idx]
@@ -329,7 +334,7 @@ def sensor_vel(m: Model, d: Data) -> Data:
       jnt_dotadr = m.jnt_dofadr[objid, None] + np.arange(3)[None]
       sensor = d.qvel[jnt_dotadr]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
-    elif sensor_type in (SensorType.FRAMELINVEL, SensorType.FRAMEANGVEL):
+    elif sensor_type in {SensorType.FRAMELINVEL, SensorType.FRAMEANGVEL}:
       objtype = m.sensor_objtype[idx]
       reftype = m.sensor_reftype[idx]
       refid = m.sensor_refid[idx]
@@ -385,6 +390,12 @@ def sensor_vel(m: Model, d: Data) -> Data:
         sensors.append(apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
+    elif sensor_type == SensorType.SUBTREELINVEL:
+      sensor = d.subtree_linvel[objid]
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.SUBTREEANGMOM:
+      sensor = d.subtree_angmom[objid]
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
