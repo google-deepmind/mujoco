@@ -25,6 +25,7 @@
 -subtreelinvel
 -subtreeangmom
 * acceleration/force-dependent sensors:
+-accelerometer
 -actuatorfrc
 -jointactfrc
 -->
@@ -93,6 +94,7 @@
     <gyro name="gyro0" site="site0"/>
     <gyro name="gyro0cutoff" site="site0" cutoff="2e-3"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
+    <accelerometer name="accelerometer1" site="site1"/>
     <jointpos name="jointpos0" joint="hinge0"/>
     <jointpos name="jointpos0cutoff" joint="hinge0" cutoff="1e-4"/>
     <jointvel name="jointvel0" joint="hinge0"/>
@@ -140,6 +142,7 @@
     <framequat name="framequat0" objtype="site" objname="site0"/>
     <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
+    <accelerometer name="accelerometer0" site="site0"/>
     <framelinvel name="framelinvel0" objtype="site" objname="site0"/>
     <framelinvel name="framelinvel0ref" objtype="site" objname="site0" reftype="geom" refname="geom2"/>
     <framelinvel name="framelinvel0cutoff" objtype="site" objname="site0" cutoff="3e-4"/>

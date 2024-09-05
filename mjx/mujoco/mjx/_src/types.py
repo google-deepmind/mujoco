@@ -318,6 +318,7 @@ class SensorType(enum.IntEnum):
     FRAMEANGVEL: 3D angular velocity
     SUBTREELINVEL: subtree linear velocity
     SUBTREEANGMOM: subtree angular momentum
+    ACCELEROMETER: accelerometer
     ACTUATORFRC: scalar actuator force
     JOINTACTFRC: scalar actuator force, measured at the joint
   """
@@ -343,6 +344,7 @@ class SensorType(enum.IntEnum):
   FRAMEANGVEL = mujoco.mjtSensor.mjSENS_FRAMEANGVEL
   SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
   SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
+  ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER
   ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC
   JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC
 

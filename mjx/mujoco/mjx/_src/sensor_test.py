@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
@@ -46,18 +47,27 @@ class SensorTest(parameterized.TestCase):
     m = test_util.load_test_file(filename)
     d = mujoco.MjData(m)
     # give the system a little kick to ensure we have non-identity rotations
-    d.qvel = np.random.random(m.nv)
+    d.qvel = 0.1 * np.random.random(m.nv)
+    # apply external forces
+    d.xfrc_applied = 0.1 * np.random.random(d.xfrc_applied.shape)
     # apply control for activation dynamics
     d.ctrl = np.clip(
-        np.random.random(m.nu),
+        0.1 * np.random.random(m.nu),
         m.actuator_ctrlrange[:, 0],
         m.actuator_ctrlrange[:, 1],
     )
-    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
-    mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d)
-
+    mujoco.mj_step(m, d, 100)
     mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d).replace(
+        sensordata=jp.zeros_like(d.sensordata),
+        subtree_linvel=jp.zeros_like(d.subtree_linvel),
+        subtree_angmom=jp.zeros_like(d.subtree_angmom),
+        cacc=jp.zeros_like(d.cacc),
+        cfrc_int=jp.zeros_like(d.cfrc_int),
+        cfrc_ext=jp.zeros_like(d.cfrc_ext),
+    )
     dx = jax.jit(mjx.forward)(mx, dx)
 
     # sensor values
