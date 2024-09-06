@@ -16,7 +16,7 @@
 
 import abc
 import collections
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import mujoco
 import mujoco.usd.shapes as shapes_module
@@ -55,7 +55,7 @@ class USDObject(abc.ABC):
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: List[Optional[Tuple[str, mujoco.mjtTexture]]] = None
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
   ):
     self.stage = stage
     self.model = model
@@ -120,7 +120,7 @@ class USDObject(abc.ABC):
     # setting the image texture attributes
     image_shader.CreateIdAttr("UsdUVTexture")
     image_shader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
-        self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB][0]
+        self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value][0]
     )
     image_shader.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set(
         "sRGB"
@@ -225,7 +225,7 @@ class USDMesh(USDObject):
       obj_name: str,
       dataid: int,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: List[Optional[Tuple[str, mujoco.mjtTexture]]] = None
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
   ):
     super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
 
@@ -245,7 +245,7 @@ class USDMesh(USDObject):
 
     if (
         geom.matid != -1
-        and self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB]
+        and self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value]
     ):
       # setting mesh uv properties
       mesh_texcoord, mesh_facetexcoord = self._get_uv_geometry()
@@ -324,7 +324,7 @@ class USDPrimitiveMesh(USDObject):
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: List[Optional[Tuple[str, mujoco.mjtTexture]]] = None
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
   ):
     super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
 
@@ -345,7 +345,7 @@ class USDPrimitiveMesh(USDObject):
 
     if (
         geom.matid != -1
-        and self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB]
+        and self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value]
     ):
       # setting mesh uv properties
       mesh_texcoord, _ = self._get_uv_geometry()
@@ -366,7 +366,7 @@ class USDPrimitiveMesh(USDObject):
     """Generates the mesh for the primitive USD object."""
     tex_role = mujoco.mjtTextureRole
     geom_rgb_texture = (
-        self.geom_textures[tex_role.mjTEXROLE_RGB]
+        self.geom_textures[tex_role.mjTEXROLE_RGB.value]
         if self.geom_textures
         else None
     )
@@ -381,7 +381,7 @@ class USDPrimitiveMesh(USDObject):
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
     tex_role = mujoco.mjtTextureRole
-    geom_rgb_texture = self.geom_textures[tex_role.mjTEXROLE_RGB][1]
+    geom_rgb_texture = self.geom_textures[tex_role.mjTEXROLE_RGB.value][1]
 
     if geom_rgb_texture == mujoco.mjtTexture.mjTEXTURE_2D:
       s_scale, t_scale = self.model.mat_texrepeat[self.geom.matid]
@@ -392,8 +392,14 @@ class USDPrimitiveMesh(USDObject):
         if self.geom.size[1] > 0:
           t_scale *= self.geom.size[1]
 
-      mesh_texcoord[:, 0] *= s_scale / (self.geom.size[0] * 2)
-      mesh_texcoord[:, 1] *= t_scale / (self.geom.size[1] * 2)
+      s_size, t_size = self.geom.size[:2]
+      if self.geom.type == mujoco.mjtGeom.mjGEOM_PLANE:
+        s_size = s_size if s_size > 0 else 1
+        t_size = t_size if t_size > 0 else 1
+
+      if self.model.mat_texuniform[self.geom.matid]:
+        mesh_texcoord[:, 0] *= s_scale / (s_size * 2)
+        mesh_texcoord[:, 1] *= t_scale / (t_size * 2)
 
     return mesh_texcoord, mesh_facetexcoord.flatten()
 
@@ -418,7 +424,7 @@ class USDTendon(USDObject):
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: List[Optional[Tuple[str, mujoco.mjtTexture]]] = None
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
   ):
     super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
 
@@ -452,7 +458,7 @@ class USDTendon(USDObject):
       )
 
     tex_role = mujoco.mjtTextureRole
-    if geom.matid != -1 and self.geom_textures[tex_role.mjTEXROLE_RGB]:
+    if geom.matid != -1 and self.geom_textures[tex_role.mjTEXROLE_RGB.value]:
       # setting uv properties for each of the parts in the tendon
       part_uv_geometries = self._get_uv_geometry()
       for name, part_uv_geometry in part_uv_geometries.items():
@@ -479,7 +485,7 @@ class USDTendon(USDObject):
     """Generates the tendon mesh using primitives."""
     mesh_parts = {}
     geom_rgb_texture = (
-        self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB]
+        self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value]
         if self.geom_textures
         else None
     )

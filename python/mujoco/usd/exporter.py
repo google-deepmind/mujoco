@@ -15,7 +15,7 @@
 """USD exporter."""
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import mujoco
 import mujoco.usd.camera as camera_module
@@ -25,8 +25,6 @@ import mujoco.usd.shapes as shapes_module
 import numpy as np
 from PIL import Image as im
 from PIL import ImageOps
-import scipy
-import termcolor
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
@@ -115,7 +113,7 @@ class USDExporter:
     self.usd_cameras = []
 
     # initializing rendering requirements
-    self.renderer = mujoco.Renderer(model, height, width, max_geom)
+    self._scene = mujoco.MjvScene(model=model, maxgeom=max_geom)
     self._initialize_usd_stage()
     self._scene_option = mujoco.MjvOption()  # using default scene option
 
@@ -133,7 +131,7 @@ class USDExporter:
   @property
   def scene(self):
     """Returns the scene."""
-    return self.renderer.scene
+    return self._scene
 
   def _initialize_usd_stage(self):
     """Initializes a USD stage to represent the mujoco scene."""
@@ -165,13 +163,49 @@ class USDExporter:
       os.makedirs(self.assets_directory)
 
     if self.verbose:
-      print(
-          termcolor.colored(
-              "Writing output frames and assets to"
-              f" {self.output_directory_path}",
-              "green",
-          )
+      print(f"Writing output frames and assets to {self.output_directory_path}")
+
+  def _update_scene(
+      self,
+      data: mujoco.MjData,
+      camera: Union[int, str] = -1,
+      scene_option: Optional[mujoco.MjvOption] = None,
+  ):
+    """Updates the scene."""
+    camera_id = camera
+    if isinstance(camera_id, str):
+      camera_id = mujoco.mj_name2id(
+          self.model, mujoco.mjtObj.mjOBJ_CAMERA.value, camera_id
       )
+      if camera_id == -1:
+        raise ValueError(f"The camera '{camera}' does not exist.")
+    if camera_id < -1 or camera_id >= self.model.ncam:
+      raise ValueError(
+          f"The camera id {camera_id} is out of range [-1, {self.model.ncam})."
+      )
+
+    # Render camera.
+    camera = mujoco.MjvCamera()
+    camera.fixedcamid = camera_id
+
+    # Defaults to mjCAMERA_FREE, otherwise mjCAMERA_FIXED refers to a
+    # camera explicitly defined in the model.
+    if camera_id == -1:
+      camera.type = mujoco.mjtCamera.mjCAMERA_FREE
+      mujoco.mjv_defaultFreeCamera(self.model, camera)
+    else:
+      camera.type = mujoco.mjtCamera.mjCAMERA_FIXED
+
+    scene_option = scene_option or self._scene_option
+    mujoco.mjv_updateScene(
+        self.model,
+        data,
+        scene_option,
+        None,
+        camera,
+        mujoco.mjtCatBit.mjCAT_ALL.value,
+        self._scene,
+    )
 
   def update_scene(
       self,
@@ -190,11 +224,10 @@ class USDExporter:
     scene_option = scene_option or self._scene_option
 
     # update the mujoco renderer
-    self.renderer.update_scene(data, scene_option=scene_option)
+    self._update_scene(data, scene_option=scene_option)
 
     if self.updates == 0:
       self._initialize_usd_stage()
-
       self._load_lights()
       self._load_cameras()
 
@@ -237,11 +270,8 @@ class USDExporter:
 
     if self.verbose:
       print(
-          termcolor.colored(
-              f"Completed writing {self.model.ntex} textures to"
-              f" {self.assets_directory}",
-              "green",
-          )
+          f"Completed writing {self.model.ntex} textures to"
+          f" {self.assets_directory}",
       )
 
   def _load_geom(self, geom: mujoco.MjvGeom):
@@ -383,8 +413,10 @@ class USDExporter:
       camera = self.usd_cameras[i]
       camera_name = self.camera_names[i]
 
-      self.renderer.update_scene(
-          data, scene_option=scene_option, camera=camera_name
+      self._update_scene(
+          data,
+          camera=camera_name,
+          scene_option=scene_option,
       )
 
       avg_camera = mujoco.mjv_averageCamera(
@@ -450,9 +482,11 @@ class USDExporter:
     new_camera = camera_module.USDCamera(
         stage=self.stage, obj_name=obj_name)
 
-    r = scipy.spatial.transform.Rotation.from_euler(
-        "xyz", rotation_xyz, degrees=True)
-    new_camera.update(cam_pos=np.array(pos), cam_mat=r.as_matrix(), frame=0)
+    rotation = np.zeros(9)
+    quat = np.zeros(4)
+    mujoco.mju_euler2Quat(quat, rotation_xyz, "xyz")
+    mujoco.mju_quat2Mat(rotation, quat)
+    new_camera.update(cam_pos=np.array(pos), cam_mat=rotation, frame=0)
 
   def save_scene(self, filetype: str = "usd"):
     """Saves the scene to a USD file."""
@@ -468,11 +502,7 @@ class USDExporter:
         f"frames/frame_{self.frame_count}.{filetype}"
     )
     if self.verbose:
-      print(
-          termcolor.colored(
-              f"Completed writing frame_{self.frame_count}.{filetype}", "green"
-          )
-      )
+      print(f"Completed writing frame_{self.frame_count}.{filetype}")
 
   def _get_geom_name(self, geom):
     """Adding id as part of name for USD file."""

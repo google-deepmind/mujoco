@@ -26,7 +26,7 @@ def get_triangle_uvs(
     texture_type: Optional[mujoco.mjtTexture]
 ):
   """Returns UV coordinates for a given mesh."""
-  if not texture_type:
+  if texture_type is None:
     return None
 
   triangle_uvs = []
@@ -110,7 +110,7 @@ class TriangleMesh:
       height: float,
       depth: float,
       texture_type: Optional[mujoco.mjtTexture]
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a box."""
     vertices = np.array([[0.0, 0.0, 0.0],
                          [width, 0.0, 0.0],
@@ -144,7 +144,7 @@ class TriangleMesh:
       radius: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a sphere."""
     vertices = []
     triangles = []
@@ -178,7 +178,7 @@ class TriangleMesh:
       radius: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int,
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a hemisphere."""
     vertices = []
     triangles = []
@@ -218,7 +218,7 @@ class TriangleMesh:
       height: float,
       texture_type: Optional[mujoco.mjtTexture],
       resolution: int
-  ) -> TriangleMesh:
+  ) -> "TriangleMesh":
     """Creates a cylinder."""
     vertices = []
     triangles = []
@@ -254,14 +254,14 @@ class TriangleMesh:
 
     return TriangleMesh(vertices, triangles, triangle_uvs)
 
-  def translate(self, translation: np.array):
+  def translate(self, translation: np.ndarray) -> None:
     self.vertices = self.vertices + translation
 
-  def rotate(self, rotation: np.array, center: Tuple[float, ...]):
+  def rotate(self, rotation: np.ndarray, center: Tuple[float, ...]) -> None:
     translated_point = self.vertices - center
     self.vertices = np.dot(translated_point, rotation) + center
 
-  def scale(self, scale: np.array):
+  def scale(self, scale: np.ndarray) -> None:
     self.vertices = self.vertices * scale
 
   def get_center(self):
@@ -433,5 +433,8 @@ def mesh_factory(
       mesh = prim_mesh
     else:
       mesh += prim_mesh
+
+  if mesh is None:
+    raise ValueError("Mesh not found.")
 
   return mesh_config["name"], mesh

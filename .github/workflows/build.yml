@@ -142,6 +142,7 @@ jobs:
         fi
         source venv/bin/activate
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
     - name: Configure MuJoCo
       run: >
         mkdir build &&

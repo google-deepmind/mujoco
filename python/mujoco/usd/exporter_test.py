@@ -14,30 +14,23 @@
 # ==============================================================================
 """Tests for the MuJoCo USD Exporter."""
 
-import logging
 import os
+import tempfile
 
 from absl.testing import absltest
 from etils import epath
 import mujoco
-
-
-# Open3D and USD are not fully supported on all MuJoCo architectures.
-execute_test = True
-try:
-  from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
-except ImportError:
-  logging.warning('Skipping test due to missing import')
-  execute_test = False
+from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
 
 
 class ExporterTest(absltest.TestCase):
 
   def test_usd_export(self):
-    if not execute_test:
-      return
 
-    output_dir = os.getenv('TEST_UNDECLARED_OUTPUTS_DIR')
+    output_dir_root = os.getenv(
+        "TEST_UNDECLARED_OUTPUTS_DIR", tempfile.gettempdir()
+    )
+    output_dir_name = "usd_test"
     xml = """
 <mujoco>
   <worldbody>
@@ -50,19 +43,27 @@ class ExporterTest(absltest.TestCase):
     data = mujoco.MjData(model)
     exporter = exporter_module.USDExporter(
         model,
-        output_directory_name='mujoco_usdpkg',
-        output_directory_root=output_dir,
+        output_directory_name=output_dir_name,
+        output_directory_root=output_dir_root,
+        camera_names=["closeup"],
     )
+    mujoco.mj_step(model, data)
     exporter.update_scene(data)
-    exporter.save_scene('export.usda')
+    exporter.save_scene("usda")
 
-    with open(os.path.join(
-        output_dir, 'mujoco_usdpkg/frames', 'frame_1.export.usda'), 'r') as f:
+    with open(
+        os.path.join(
+            output_dir_root, f"{output_dir_name}/frames", "frame_1.usda"
+        ),
+        "r",
+        encoding="utf-8",
+    ) as f:
       golden_path = os.path.join(
-          epath.resource_path('mujoco'), 'testdata', 'usd_golden.usda')
-      with open(golden_path, 'r') as golden_file:
-        self.assertEqual(f.read(), golden_file.read())
+          epath.resource_path("mujoco"), "testdata", "usd_golden.usda"
+      )
+      with open(golden_path, "r", encoding="utf-8") as golden_file:
+        self.assertEqual(f.readlines(), golden_file.readlines())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   absltest.main()

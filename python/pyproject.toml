@@ -58,4 +58,11 @@ mujoco = [
     "include/mujoco/*.h",
     "testdata/*.xml",
     "testdata/*.msh",
+    "testdata/*.usda",
+]
+
+[project.optional-dependencies]
+usd = [
+    "usd-core",
+    "pillow"
 ]
