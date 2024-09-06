@@ -32,13 +32,40 @@
 
 
 // call LibCCD or GJK to recover penetration info
-static int mjc_penetration(const mjModel* m, const void *obj1, const void *obj2, const ccd_t *ccd,
-                           ccd_real_t *depth, ccd_vec3_t *dir, ccd_vec3_t *pos) {
+static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
+                           const ccd_t* ccd, ccd_real_t* depth, ccd_vec3_t* dir, ccd_vec3_t* pos) {
   if (mjENABLED(mjENBL_NATIVECCD)) {
-    return mj_gjkPenetration(obj1, obj2, ccd, depth, dir, pos);
-  } else {
-    return ccdMPRPenetration(obj1, obj2, ccd, depth, dir, pos);
+    mjCCDConfig config;
+    mjCCDStatus status;
+
+    // set config
+    config.max_iterations = ccd->max_iterations,
+    config.tolerance = ccd->mpr_tolerance,
+    config.contacts = 1;
+    config.distances = 0;  // no geom distances needed
+
+    mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
+    if (dist < 0) {
+      if (depth) *depth = -dist;
+      if (dir) {
+        mju_sub3(dir->v, status.x1, status.x2);
+        mju_normalize3(dir->v);
+      }
+      if (pos) {
+        pos->v[0] = 0.5 * (status.x1[0] + status.x2[0]);
+        pos->v[1] = 0.5 * (status.x1[1] + status.x2[1]);
+        pos->v[2] = 0.5 * (status.x1[2] + status.x2[2]);
+      }
+      return 0;
+    }
+    if (depth) *depth = 0;
+    if (dir) mju_zero3(dir->v);
+    if (pos) mju_zero3(dir->v);
+    return 1;
   }
+
+  // fallback to MPR
+  return ccdMPRPenetration(obj1, obj2, ccd, depth, dir, pos);
 }
 
 
@@ -298,8 +325,8 @@ static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
 
 
 
-// find single convex-convex collision, using libccd
-static int mjc_MPRIteration(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
+// find single convex-convex collision
+static int mjc_CCDIteration(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
                             const mjModel* m, const mjData* d,
                             mjContact* con, mjtNum margin) {
   ccd_vec3_t dir, pos;
@@ -370,10 +397,8 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
-                   mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -384,7 +409,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   ccd.support2 = mjccd_support;
 
   // find initial contact
-  int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, margin);
+  int ncon = mjc_CCDIteration(&obj1, &obj2, &ccd, m, d, con, margin);
 
   // look for additional contacts
   if (ncon && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
@@ -433,7 +458,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
         mju_rotateFrame(con[0].pos, invrot, d->geom_xmat+9*g2, d->geom_xpos+3*g2);
 
         // search for new contact
-        int new_contact = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con+ncon, margin);
+        int new_contact = mjc_CCDIteration(&obj1, &obj2, &ccd, m, d, con+ncon, margin);
 
         // check new contact
         if (new_contact && mjc_isDistinctContact(con, ncon + 1, tolerance)) {
@@ -501,7 +526,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjGETINFO
   mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   ccd_vec3_t dir, vec;
-  mjCCDObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0}};
+  mjCCDObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
 
   // get support point in -normal direction
   ccdVec3Set(&dir, -mat1[2], -mat1[5], -mat1[8]);
@@ -683,8 +708,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, {0, 0, 0},
-                  mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center, mjc_support};
   ccd_t ccd;
 
   // point size1 to hfield size instead of geom1 size
@@ -1118,10 +1142,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
                    int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}, {0, 0, 0},
-                   mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -1132,7 +1154,7 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
   ccd.support2 = mjccd_support;
 
   // find contacts
-  int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, margin);
+  int ncon = mjc_CCDIteration(&obj1, &obj2, &ccd, m, d, con, margin);
 
   return ncon;
 }
@@ -1170,8 +1192,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj2 = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}, {0, 0, 0},
-                  mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
   ccd_t ccd;
 
   //------------------------------------- AABB computation, box-box test

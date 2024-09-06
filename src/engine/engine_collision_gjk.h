@@ -19,27 +19,39 @@
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_convex.h"
 
-#include <ccd/ccd.h>
-#include <ccd/vec3.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// internal configuration for convex collision detection
+// configuration for convex collision detection
 struct _mjCCDConfig {
-  int max_iterations;
-  mjtNum tolerance;
+  int max_iterations;   // the maximum number of iterations for GJK and EPA
+  mjtNum tolerance;     // tolerance used by GJK and EPA
+  int contacts;         // set to true to recover contact (pendetration) info
+  int distances;        // set to true to recover distance info
 };
 typedef struct _mjCCDConfig mjCCDConfig;
 
-// Returns the distance between the two objects. The witness points are
-// recoverable from x_0 in obj1 and obj2.
-MJAPI mjtNum mj_gjk(const mjCCDConfig* config, mjCCDObj* obj1, mjCCDObj* obj2);
+// data produced from running GJK and EPA
+struct _mjCCDStatus {
+  mjtNum x1[3];              // witness point for geom 1
+  mjtNum x2[3];              // witness point for geom 2
 
-// Penetration function with same signature as LibCCD's ccdMPRPenetration and ccdGJKPenetration
-MJAPI int mj_gjkPenetration(const void *obj1, const void *obj2, const ccd_t *ccd,
-                            ccd_real_t *depth, ccd_vec3_t *dir, ccd_vec3_t *pos);
+  // configurations used
+  int max_iterations;         // the maximum number of iterations for GJK and EPA
+  mjtNum tolerance;           // tolerance used by GJK and EPA
+
+  // statistics for debugging purposes
+  int gjk_iterations;         // number of iterations that GJK ran
+  int epa_iterations;         // number of iterations that EPA ran (negative if EPA did not run)
+  mjtNum simplex1[12];        // the simplex that GJK returned for obj1
+  mjtNum simplex2[12];        // the simplex that GJK returned for obj2
+  int nsimplex;               // size of simplex 1 & 2
+};
+typedef struct _mjCCDStatus mjCCDStatus;
+
+// run general convex collision detection, returns positive for distance, negative for penetration
+MJAPI mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 #ifdef __cplusplus
 }
 #endif
