@@ -125,6 +125,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum* x2_k = status->x2;
   mju_sub3(x_k, x1_k, x2_k);
   mjtNum epsilon = status->tolerance * status->tolerance;
+  int get_dist = status->has_distances;
 
 // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
   if (discreteGeoms(obj1, obj2)) {
@@ -140,6 +141,11 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     // compute the kth support point
     gjkSupport(s1, s2, obj1, obj2, x_k);
     mju_sub3(s_k, s1, s2);
+
+    // return early if geom distance isn't needed
+    if (!get_dist && mju_dot3(x_k, s_k) > 0) {
+      return mjMAXVAL;
+    }
 
     // the stopping criteria relies on the Frank-Wolfe duality gap given by
     //  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - s_k) >
@@ -1116,6 +1122,8 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   status->epa_iterations = -1;
   status->tolerance = config->tolerance;
   status->max_iterations = config->max_iterations;
+  status->has_contacts = config->contacts;
+  status->has_distances = config->distances;
 
   mjtNum dist = gjk(status, obj1, obj2);
 

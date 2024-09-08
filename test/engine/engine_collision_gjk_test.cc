@@ -49,12 +49,19 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
 mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
                 mjtNum x2[3]) {
-  mjCCDConfig config = {kMaxIterations, kTolerance};
+  mjCCDConfig config;
+  mjCCDStatus status;
+
+  // set config
+  config.max_iterations = kMaxIterations,
+  config.tolerance = kTolerance,
+  config.contacts = 0;   // no geom contacts needed
+  config.distances = 1;  // no geom distances needed
+
   mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center,
                    mjc_support};
   mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center,
                    mjc_support};
-  mjCCDStatus status;
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
   if (x1 != nullptr) mju_copy3(x1, status.x1);
   if (x2 != nullptr) mju_copy3(x2, status.x2);

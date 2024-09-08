@@ -40,6 +40,8 @@ struct _mjCCDStatus {
   // configurations used
   int max_iterations;         // the maximum number of iterations for GJK and EPA
   mjtNum tolerance;           // tolerance used by GJK and EPA
+  int has_contacts;           // set to true if attempted to recover contact (pendetration) info
+  int has_distances;          // set to true if attempted to recover distance info
 
   // statistics for debugging purposes
   int gjk_iterations;         // number of iterations that GJK ran
