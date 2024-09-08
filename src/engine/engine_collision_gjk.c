@@ -97,6 +97,22 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
 
 
+// returns true if both geoms are discrete shapes (i.e. meshes or boxes)
+static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
+  // non-zero margin makes geoms smooth
+  if (obj1->margin != 0 || obj2->margin != 0) return 0;
+
+  // negative geom indices correspond to flex objects, return
+  if (obj1->geom < 0 || obj2->geom < 0) return 0;
+
+  int g1 = obj1->model->geom_type[obj1->geom];
+  int g2 = obj2->model->geom_type[obj2->geom];
+  return (g1 == mjGEOM_MESH || g1 == mjGEOM_BOX) &&
+         (g2 == mjGEOM_MESH || g2 == mjGEOM_BOX);
+}
+
+
+
 // GJK algorithm
 static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum simplex[12];  // our current simplex with max 4 vertices due to only 3 dimensions
@@ -109,6 +125,11 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum* x2_k = status->x2;
   mju_sub3(x_k, x1_k, x2_k);
   mjtNum epsilon = status->tolerance * status->tolerance;
+
+// if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
+  if (discreteGeoms(obj1, obj2)) {
+    epsilon = 0;
+  }
 
   int k = 0, N = status->max_iterations;
   for (; k < N; k++) {
@@ -146,8 +167,9 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // run the distance subalgorithm to compute the barycentric coordinates
     // of the closest point to the origin in the simplex
+    mjtNum tmp[3];
     signedVolume(lambda, simplex, ++n);
-    lincomb(x_k, lambda, simplex, 4);
+    lincomb(tmp, lambda, simplex, 4);
 
     // compute the approximate witness points
     lincomb(x1_k, lambda, simplex1, 4);
@@ -164,6 +186,12 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       // simplex in Minkowski difference
       mju_copy3(simplex + 3*n++, simplex + 3*i);
     }
+
+    // x_k has converged to minimum
+    if (mju_equal3(tmp, x_k)) {
+      break;
+    }
+    mju_copy3(x_k, tmp);
 
     // we have a tetrahedron containing the origin so return early
     if (n == 4) {

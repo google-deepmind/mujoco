@@ -67,6 +67,9 @@ extern "C" {
 // res = 0
 MJAPI void mju_zero3(mjtNum res[3]);
 
+// vec1 == vec2
+MJAPI int mju_equal3(const mjtNum vec1[3], const mjtNum vec2[3]);
+
 // res = vec
 MJAPI void mju_copy3(mjtNum res[3], const mjtNum data[3]);
 
@@ -119,7 +122,7 @@ MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9
 MJAPI void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 // multiply 3x3 matrices, first argument transposed
-MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]);
+MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 // multiply 3x3 matrices, second argument transposed
 MJAPI void mju_mulMatMatT3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
