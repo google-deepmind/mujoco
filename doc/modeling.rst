@@ -1649,17 +1649,17 @@ by the :ref:`testspeed<saTestspeed>` utility. When embarking on the more elabora
 expensive pipeline component reported by the profiler. Note that some of these are subtly different for MJX, see
 dedicated section :ref:`therein<MjxPerformance>`.
 
-1. :ref:`timestep<option-timestep>`: Try to increase the simulation timestep. As explained at the end of the
+1. :ref:`Timestep<option-timestep>`: Try to increase the simulation timestep. As explained at the end of the
    :ref:`Numerical Integration<geIntegration>` section, the timestep is the single most important parameter in any
    model. The default value is chosen for stability rather than efficiency, and can often be increased. At some point,
    increasing it further will cause diveregence, so the optimal timestep is the largest timestep at which divergence
    never happens or is very rare. The actual value is model-dependent.
-2. :ref:`integrator<option-integrator>`: Choose your integrator according to the recommendations at the end of the
+2. :ref:`Integrator<option-integrator>`: Choose your integrator according to the recommendations at the end of the
    :ref:`Numerical Integration<geIntegration>` section. The default recommended choice is the ``implicitfast``
    integrator.
-3. :ref:`jacobian<option-jacobian>`: Try switching the Jacobian setting between "dense" and "sparse". These two options
-   use seperate code paths using dense or sparse algebra, but are otherwise compationally identical, so the faster one
-   is always preferred. The default "auto" heuristic does not always make the right choice.
+3. :ref:`Constraint Jacobians<option-jacobian>`: Try switching the Jacobian setting between "dense" and "sparse". These
+   two options use seperate code paths using dense or sparse algebra, but are otherwise compationally identical, so the
+   faster one is always preferred. The default "auto" heuristic does not always make the right choice.
 4. **Constraint solver:** If the profiler reports that a large chunk of time is spent in the solver, consider the
    following:
 
@@ -1670,7 +1670,6 @@ dedicated section :ref:`therein<MjxPerformance>`.
      or, equivalently, increasing the solver's termination tolerance. In particular for the Newton solver, which
      typically acheives numerical convergence in 2-3 (expensive) iterations, the last iteration increases the precision
      to a level that has no noticable effect, and can be skipped.
-
 5. **Collisions:** If the profiler reports that collision detection takes up a large chunk of the computation
    time, consider the following steps:
 
@@ -1684,6 +1683,12 @@ dedicated section :ref:`therein<MjxPerformance>`.
      collisions are those involving SDF geometries.
    - If replacing collision meshes with primitives is not feasible, decimate the meshes as much as possible. Open source
      tools like trimesh, Blender, MeshLab and CoACD are very useful in this regard.
+6. :ref:`Friction cones<option-cone>`: Elliptic cones are more accurate and better at preventing slip with high
+   :ref:`impratio<option-impratio>`, but are more expensive. If accurate friction is not important, try switching
+   to pyramidal cones.
+7. Compile MuJoCo with 32-bit floating point precision (rather than the default 64). For large models running in
+   multi-threaded mode, where memory access is more expensive than computation, this can lead to (up to) 2x performance
+   improvement. See :ref:`mjtNum` for more information.
 
 .. _CSlippage:
 
@@ -1773,39 +1778,6 @@ parameterization of impedance functions shown in :ref:`Solver parameters <CSolve
 limits, the equality constraint approach will generate a softer transition between the backlash regime and the limit
 regime. It will also be active all the time, which is convenient in user code that needs the constraint violation or
 constraint force as input.
-
-.. _CDamping:
-
-Damping
-~~~~~~~
-
-Damping generates a force proportional to velocity and opposite to it. In a physical system damping always increases
-stability. But this is only because the Universe is equipped with an ideal continuous-time integrator which does not
-accumulate errors due to time discretization. In a computer simulation where time is discretized, large damping can
-destabilize the system because of integration errors. This was already discussed in the
-:ref:`Computation <gePassive>` chapter.
-
-The standard approach to reducing integration errors is to reduce the timestep or use the Runge-Kutta integrator, both
-of which are effective but slow down the simulation. An alternative approach is to put all damping in the joints and
-use the Euler integrator. In that case damping forces are integrated implicitly -- meaning that the inertia matrix is
-adjusted and re-factorized internally as part of the velocity update, in a way transparent to the user. Implicit
-integration is much more stable than explicit integration, allowing substantially larger time steps. Note that the
-Runge-Kutta integrator is explicit, and so is Euler except for the way it treats damping forces. Ideally we would have
-a fully implicit integrator, but there is no publicly available physics engine that currently has such an integrator.
-It is on our todo list for a future MuJoCo release.
-
-Given this state of affairs, joint damping is better behaved than damping in tendons or actuators, because the latter
-are not integrated implicitly. Now consider a velocity servo producing force:
-
-::
-
-       force = gain * (desired_velocity - current_velocity)
-
-This can be modeled as a velocity actuator, however such an actuator adds damping to the system and could cause
-instability when the gain is high. Instead we could split the above force in two terms. For the first term, define a
-motor which generates force = gain \* desired_velocity, by treating desired_velocity as the control signal. For the
-second term, add damping in the joint, with damping coefficient equal to the above servo gain. Now the overall force is
-the same yet the damping component of the force is integrated implicitly.
 
 .. _CRestitution:
 

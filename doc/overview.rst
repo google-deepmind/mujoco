@@ -901,14 +901,14 @@ density of water).
 Joint coordinates
 ~~~~~~~~~~~~~~~~~
 
-One of the key distinctions between MuJoCo and gaming engines (such as ODE, Bullet, Havoc, PhysX) is that MuJoCo
-operates in generalized or joint coordinates, while gaming engines operate in Cartesian coordinates, although Bullet now
-supports generalized coordinates. The differences between these two approaches can be summarized as follows:
+One of the key distinctions between MuJoCo and gaming engines is that MuJoCo operates in generalized or joint
+coordinates, while most gaming engines operate in Cartesian coordinates. The differences between these two approaches
+can be summarized as follows:
 
 Joint coordinates:
 
 -  Best suited for elaborate kinematic structures such as robots;
--  Joints add degrees of freedom among bodies that would be welded together by default;
+-  Joints **add** degrees of freedom among bodies that would be welded together by default;
 -  Joint constraints are implicit in the representation and cannot be violated;
 -  The positions and orientations of the simulated bodies are obtained from the generalized coordinates via forward
    kinematics, and cannot be manipulated directly (except for root bodies).
@@ -916,7 +916,7 @@ Joint coordinates:
 Cartesian coordinates:
 
 -  Best suited for many bodies that bounce off each other, as in molecular dynamics and box stacking;
--  Joints remove degrees of freedom among bodies that would be free-floating by default;
+-  Joints **remove** degrees of freedom among bodies that would be free-floating by default;
 -  Joint constraints are enforced numerically and can be violated;
 -  The positions and orientations of the simulated bodies are represented explicitly and can be manipulated directly,
    although this can introduce further joint constraint violations.
@@ -935,31 +935,17 @@ necessarily unique) set of joint coordinates for which the forward kinematics pl
 
 The situation is different for floating bodies, i.e., bodies that are connected to the world with a free joint. The
 positions and orientations as well as the linear and angular velocities of such bodies are explicitly represented in
-``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly. The general approach is to find the
-addresses in qpos and qvel where the body's data are. Of course qpos and qvel represents joints and not bodies, so you
-need the corresponding joint addresses. Suppose the body was named "myfloatingbody" in the XML. The necessary addresses
-can be obtained as:
+``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly.
 
-.. code:: C
-
-   int bodyid = mj_name2id(m, mjOBJ_BODY, "myfloatingbody");
-   int qposadr = -1, qveladr = -1;
-
-   // make sure we have a floating body: it has a single free joint
-   if (bodyid >= 0 && m->body_jntnum[bodyid] == 1 && m->jnt_type[m->body_jntadr[bodyid]] == mjJNT_FREE) {
-     // extract the addresses from the joint specification
-     qposadr = m->jnt_qposadr[m->body_jntadr[bodyid]];
-     qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
-   }
-
-Now if everything went well (i.e., "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses
-in qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed
-by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
-numbers can now be set to the desired pose and velocity of the body.
-
-The semantics of free joints are as follows. The linear postions of free joints are in the global frame, as are
+The semantics of free joints are as follows. The position data is 7 numbers (3D position followed
+by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity).
+The linear postions of free joints are in the global frame, as are
 linear velocities. The orientation of a free joint (the quaternion) is also in the global frame. However, the rotational
 velocities of a free joint are in the local body frame. This is not so much a design decision but rather correct
 use of the topology of quaternions. Angular velocities live in the quaternion tangent space, which is defined locally
-for a certain orientation, so frame-local angular velocities are a natural parameterization.
+for a certain orientation, so frame-local angular velocities are the natural parameterization.
 Accelerations are defined in the same space as the corresponding velocities.
+
+Free joints are always defined in the body frame, yet it is computationally favorable to align this frame with the
+body's inertia. Read more about this option in the documentation of the :ref:`freejoint/align<body-freejoint-align>`
+attribute.

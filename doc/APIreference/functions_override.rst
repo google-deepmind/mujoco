@@ -191,9 +191,10 @@ degrees-of-freedom and a given point. Given a body specified by its integer id (
 frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
 (``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
 3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
-respect to the degrees-of-freedom. The :ref:`pipeline stages<piStages>` required for Jacobian computations to be
-consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos` (in
-that order).
+respect to the degrees-of-freedom. The frame with respect to which the Jacobian is computed is centered at the body
+center-of-mass but aligned with the world frame. The minimal :ref:`pipeline stages<piForward>` required for Jacobian
+computations to be consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` followed
+by :ref:`mj_comPos`.
 
 .. _mj_jacBody:
 

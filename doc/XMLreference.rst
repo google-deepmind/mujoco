@@ -2066,8 +2066,8 @@ rotations as unit quaternions.
    The **ball** type creates a ball joint with three rotational degrees of freedom. The rotation is represented as a
    unit quaternion. The quaternion (1,0,0,0) corresponds to the initial configuration in which the model is defined. Any
    other quaternion is interpreted as a 3D rotation relative to this initial configuration. The rotation is around the
-   point defined by the pos attribute below. If a body has a ball joint, it cannot have other rotational joints (ball or
-   hinge). Combining ball joints with slide joints in the same body is allowed.
+   point defined by the :ref:`pos<body-joint-pos>` attribute. If a body has a ball joint, it cannot have other
+   rotational joints (ball or hinge). Combining ball joints with slide joints in the same body is allowed.
 
    The **slide** type creates a sliding or prismatic joint with one translational degree of freedom. Such joints are
    defined by a position and a sliding direction. For simulation purposes only the direction is needed; the joint
@@ -2139,10 +2139,10 @@ rotations as unit quaternions.
 .. _body-joint-limited:
 
 :at:`limited`: :at-val:`[false, true, auto], "auto"`
-   This attribute specifies if the joint has limits. It interacts with the range attribute below. If this attribute
-   is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
-   attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
-   if range is defined.
+   This attribute specifies if the joint has limits. It interacts with the :ref:`range<body-joint-range>` attribute. If
+   this attribute is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
+   attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled if range
+   is defined.
 
 .. _body-joint-actuatorfrcrange:
 
@@ -2157,9 +2157,9 @@ rotations as unit quaternions.
 :at:`actuatorfrclimited`: :at-val:`[false, true, auto], "auto"`
    This attribute specifies whether actuator forces acting on the joint should be clamped. See :ref:`CForceRange` for
    details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| This
-   attribute interacts with the actuatorfrcrange attribute below. If this attribute is "false", actuator force
-   clamping is disabled. If it is "true", actuator force clamping is enabled. If this attribute is "auto", and
-   :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if
+   attribute interacts with the :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` attribute. If this attribute is
+   "false", actuator force clamping is disabled. If it is "true", actuator force clamping is enabled. If this attribute
+   is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if
    :at:`actuatorfrcrange` is defined.
 
 .. _body-joint-actuatorgravcomp:
