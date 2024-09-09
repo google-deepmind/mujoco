@@ -1891,7 +1891,7 @@ This element specifies other MJCF models which may be used for :ref:`attachment<
 
 .. _asset-model-name:
 
-:at:`name`: :at-val:`string, required`
+:at:`name`: :at-val:`string, optional`
    Name of the sub-model, used for referencing in :ref:`attach<body-attach>`. If unspecified, the
    :ref:`model name<mujoco-model>` is used.
 
