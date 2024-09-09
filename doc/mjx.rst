@@ -302,7 +302,8 @@ Collisions between large meshes
   For
   collisions with convex meshes and primitives, the convex decompositon of the mesh should have
   roughly **200 vertices or less** for reasonable performance. For convex-convex collisions,
-  the convex mesh should have roughly **fewer than 32 vertices**.
+  the convex mesh should have roughly **fewer than 32 vertices**.  We recommend using
+  :ref:`maxhullvert<asset-mesh-maxhullvert>` in the MuJoCo compiler to achieve desired convex mesh properties.
   With careful
   tuning, MJX can simulate scenes with mesh collisions -- see the MJX
   `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
@@ -352,6 +353,9 @@ For MJX to perform well, some configuration parameters should be adjusted from t
   `OpenAI Gym Humanoid <https://github.com/openai/gym/blob/master/gym/envs/mujoco/humanoid_v4.py>`__ task resets when
   the humanoid starts to fall, so full contact with the floor is not needed.
 
+:ref:`maxhullvert<asset-mesh-maxhullvert>`
+   Set :ref:`maxhullvert<asset-mesh-maxhullvert>` to `64` or less for better convex mesh collision performance.
+
 :ref:`option/flag/eulerdamp<option-flag-eulerdamp>`
   Disabling ``eulerdamp`` can help performance and is often not needed for stability. Read the
   :ref:`Numerical Integration<geIntegration>` section for details regarding the semantics of this flag.
@@ -363,6 +367,15 @@ For MJX to perform well, some configuration parameters should be adjusted from t
   more degrees of freedom), or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse"
   with the Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup
   of 10% to 20%, as long as the dense matrices can fit on the device.
+
+Broadphase
+  While MuJoCo handles broadphase culling out of the box, MJX requires additional parameters. For an approximate version of
+  broadphase, use the experimental custom numeric parameters
+  ``max_contact_points`` and ``max_geom_pairs``. ``max_contact_points`` caps the number of contact points
+  sent to the solver for each condim type. ``max_geom_pairs`` caps the total number of geom-pairs sent to
+  respective collision functions for each geom-type pair. As an example, the
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
+  environment makes use of these parameters.
 
 GPU performance
 ---------------
