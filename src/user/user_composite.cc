@@ -301,6 +301,17 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
     }
   }
 
+  // check plugin compatibility
+  // TODO: move mujoco.elasticity.cable to the engine
+  if (plugin.active) {
+    if (type != mjCOMPTYPE_CABLE) {
+      return comperr(error, "Only cable composite supports plugins", error_sz);
+    }
+    if (plugin_name != "mujoco.elasticity.cable") {
+      return comperr(error, "Only mujoco.elasticity.cable is supported by composites", error_sz);
+    }
+  }
+
   // overwrite plugin name
   if (plugin_instance_name.empty() && plugin.active) {
     plugin_instance_name = "composite" + prefix;
@@ -372,93 +383,6 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
     }
   }
 
-  // create faces
-  if (userface.empty()) {
-    if (dim == 3) {
-      int cube2tets[6][4] = {{0, 3, 1, 7}, {0, 1, 4, 7},
-                             {1, 3, 2, 7}, {1, 2, 6, 7},
-                             {1, 5, 4, 7}, {1, 6, 5, 7}};
-      for (int ix = 0; ix < count[0]-1; ix++) {
-        for (int iy = 0; iy < count[1]-1; iy++) {
-          for (int iz = 0; iz < count[2]-1; iz++) {
-            int vert[8] = {
-              count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+0,
-              count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+0,
-              count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+0,
-              count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+0,
-              count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+1,
-              count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+1,
-              count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+1,
-              count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+1,
-            };
-            for (int s = 0; s < 6; s++) {
-              for (int v = 0; v < 4; v++) {
-                face.push_back(vert[cube2tets[s][v]]);
-              }
-            }
-          }
-        }
-      }
-    } else if (dim == 2) {
-      int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
-      for (int ix = 0; ix < count[0]-1; ix++) {
-        for (int iy = 0; iy < count[1]-1; iy++) {
-          int vert[4] = {
-            count[2]*count[1]*(ix+0) + count[2]*(iy+0),
-            count[2]*count[1]*(ix+1) + count[2]*(iy+0),
-            count[2]*count[1]*(ix+1) + count[2]*(iy+1),
-            count[2]*count[1]*(ix+0) + count[2]*(iy+1),
-          };
-          for (int s = 0; s < 2; s++) {
-            for (int v = 0; v < 3; v++) {
-              face.push_back(vert[quad2tri[s][v]]);
-            }
-          }
-        }
-      }
-    }
-    userface = VectorToString(face);
-  } else {
-    dim = 2;  // can only load a surface for now
-    face = StringToVector<int>(userface);
-    for (int i=0; i<face.size(); face[i++]--) {};
-    userface = VectorToString(face);
-  }
-
-  // compute volume
-  std::vector<double> volume(uservert.size()/3);
-  double thickness = 1;
-  if (dim == 2 && plugin.active) {
-    try {
-      mjCPlugin* pplugin = static_cast<mjCPlugin*>(plugin.instance);
-      thickness = std::stod(pplugin->config_attribs["thickness"], nullptr);
-    } catch (const std::invalid_argument& e) {
-      return comperr(error, "Invalid thickness attribute", error_sz);
-    }
-  }
-  if (!userface.empty()) {
-    face = StringToVector<int>(userface);
-    for (int j=0; j<face.size()/3; j++) {
-      double area[3];
-      double edge1[3];
-      double edge2[3];
-
-      for (int i=0; i<3; i++) {
-        edge1[i] = uservert[3*face[3*j+1]+i] - uservert[3*face[3*j]+i];
-        edge2[i] = uservert[3*face[3*j+2]+i] - uservert[3*face[3*j]+i];
-      }
-
-      mjuu_crossvec(area, edge1, edge2);
-      for (int i=0; i<3; i++) {
-        volume[face[3*j+i]] += sqrt(mjuu_dot3(area, area)) / 2 * thickness;
-      }
-    }
-  } else {
-    for (int i=0; i<uservert.size()/3; i++) {
-      volume[i] = 6 * spacing * spacing / 2 * thickness;
-    }
-  }
-
   // create bodies and geoms
   for (int i=0; i<uservert.size()/3; i++) {
     // create body
@@ -506,83 +430,6 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
     s->type = mjGEOM_SPHERE;
     mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
     mjs_setString(s->name, txt);
-
-    // add plugin
-    if (plugin.active) {
-      mjsPlugin* pplugin = &b->plugin;
-      mjCPlugin* cplugin = static_cast<mjCPlugin*>(plugin.instance);
-      pplugin->active = true;
-      pplugin->instance = plugin.instance;
-      mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
-      mjs_setString(pplugin->name, mjs_getString(plugin.name));
-
-      if (i==0 && !cplugin->config_attribs["face"].empty()) {
-        return comperr(error, "Face attribute already exists in plugin", error_sz);
-      }
-
-      cplugin->config_attribs["face"] = userface;
-      cplugin->config_attribs["edge"] = "";
-
-      // update density
-      if (dim == 2) {
-        g->density *= volume[i] / (4./3. * mjPI * pow(g->size[0], 3));
-      }
-    }
-  }
-
-  // add isometry constraints
-  if (dim==2) {
-    char txt0[100], txt1[100], txt2[100];
-    std::vector<std::pair<int, int>> edge;
-
-    // create edges
-    for (int i=0; i<face.size()/3; i++) {
-      for (int j=0; j<3; j++) {
-        int v0 = face[3*i+(j+0)%3];
-        int v1 = face[3*i+(j+1)%3];
-        edge.push_back(v0 < v1 ? std::pair(v0, v1) : std::pair(v1, v0));
-      }
-    }
-
-    std::sort(edge.begin(), edge.end());
-    auto last = std::unique(edge.begin(), edge.end());
-    edge.erase(last, edge.end());
-
-    // create constraints
-    for (int i=0; i<edge.size(); i++) {
-      int v0 = edge[i].first;
-      int v1 = edge[i].second;
-
-      mju::sprintf_arr(txt0, "%sT%d_%d", prefix.c_str(), v0, v1);
-      mju::sprintf_arr(txt1, "%sS%d", prefix.c_str(), v0);
-      mju::sprintf_arr(txt2, "%sS%d", prefix.c_str(), v1);
-
-      // create tendon
-      mjsTendon* ten = mjs_addTendon(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-      mjs_setDefault(ten->element, &model->Default()->spec);
-      mjs_setString(ten->name, txt0);
-      ten->group = 4;
-      mjs_wrapSite(ten, txt1);
-      mjs_wrapSite(ten, txt2);
-
-      // add equality constraint
-      mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-      mjs_setDefault(eq->element, &model->Default()->spec);
-      eq->type = mjEQ_TENDON;
-      mjs_setString(eq->name1, mjs_getString(ten->name));
-    }
-  }
-
-  if (skin && dim==3) {
-    MakeSkin3(model);
-  }
-
-  if (skin && dim==2) {
-    if (skinsubgrid>0) {
-      MakeSkin2Subgrid(model, skininflate);
-    } else {
-      MakeSkin2(model, skininflate);
-    }
   }
 
   return true;
@@ -1302,43 +1149,6 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = inflate;
   skin->group = skingroup;
-
-  // copy skin from existing mesh
-  if (type==mjCOMPTYPE_PARTICLE && username.empty()) {
-    std::vector<int> skinface;
-    skinface = StringToVector<int>(userface);
-    int nvert = uservert.size()/3;
-
-    for (int j=0; j<2; j++) {
-      for (int i=0; i<nvert; i++) {
-        vert.push_back(0);
-        vert.push_back(0);
-        vert.push_back(0);
-
-        mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), i);
-        mjs_appendString(skin->bodyname, txt);
-        bindpos.push_back(0);
-        bindpos.push_back(0);
-        bindpos.push_back(0);
-        bindquat.push_back(1);
-        bindquat.push_back(0);
-        bindquat.push_back(0);
-        bindquat.push_back(0);
-
-        vertid.push_back({j*nvert+i});
-        vertweight.push_back({1});
-      }
-
-      for (int i=0; i<skinface.size()/3; i++) {
-        face.push_back(j*nvert+skinface[3*i]);
-        face.push_back(j*nvert+skinface[3*i+(j==0 ? 1 : 2)]);
-        face.push_back(j*nvert+skinface[3*i+(j==0 ? 2 : 1)]);
-      }
-    }
-
-    CopyIntoSkin(skin);
-    return;
-  }
 
   // populate mesh: two sides
   for (int i=0; i<2; i++) {

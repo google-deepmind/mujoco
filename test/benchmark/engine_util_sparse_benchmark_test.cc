@@ -348,7 +348,7 @@ void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_8(mjtNum* res,
 // ----------------------------- benchmark ------------------------------------
 
 static void BM_MatVecSparse(benchmark::State& state, int unroll) {
-  static mjModel* m = LoadModelFromPath("plugin/elasticity/flag.xml");
+  static mjModel* m = LoadModelFromPath("plugin/elasticity/flag_flex.xml");
   mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state

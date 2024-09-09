@@ -106,7 +106,6 @@ class mjCComposite {
   // currently used only for cable
   std::string initial;            // root boundary type
   std::vector<float> uservert;    // user-specified vertex positions
-  std::string userface;           // connectivity
   double size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
 

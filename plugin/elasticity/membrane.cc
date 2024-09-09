@@ -123,8 +123,7 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
   }
 
   // vertex positions
-  mjtNum* body_pos =
-      f0 < 0 ? m->body_pos + 3*i0 : m->flex_xvert0 + 3*m->flex_vertadr[f0];
+  mjtNum* body_pos = m->flex_xvert0 + 3*m->flex_vertadr[f0];
 
   // generate triangles from the vertices
   nt = CreateStencils<Stencil2D>(elements, edges, simplex, edgeidx);
@@ -136,7 +135,7 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
   for (int t = 0; t < nt; t++) {
     int* v = elements[t].vertices;
     for (int i = 0; i < kNumVerts; i++) {
-      int bi = f0 < 0 ? i0+v[i] : m->flex_vertbodyid[m->flex_vertadr[f0]+v[i]];
+      int bi = m->flex_vertbodyid[m->flex_vertadr[f0]+v[i]];
       if (bi && m->body_plugin[bi] != instance) {
         mju_error("Body %d does not have plugin instance %d", bi, instance);
       }
@@ -182,12 +181,7 @@ void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum kD = damping / m->opt.timestep;
 
   // update edge lengths
-  if (f0 < 0) {
-    UpdateSquaredLengths(deformed, edges, d->xpos+3*i0);
-  } else {
-    UpdateSquaredLengthsFlex(deformed,
-                             d->flexedge_length + m->flex_edgeadr[f0]);
-  }
+  UpdateSquaredLengthsFlex(deformed, d->flexedge_length + m->flex_edgeadr[f0]);
 
   // we add generalized Rayleigh damping as decribed in Section 5.2 of
   // Kharevych et al., "Geometric, Variational Integrators for Computer
@@ -199,18 +193,14 @@ void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
   }
 
   // compute gradient of elastic energy and insert into passive force
-  int flex_vertadr = f0 < 0 ? -1 : m->flex_vertadr[f0];
-  mjtNum* xpos = f0 < 0 ? d->xpos + 3*i0 : d->flexvert_xpos + 3*flex_vertadr;
-  mjtNum* qfrc = d->qfrc_passive + (f0 < 0 ? m->body_dofadr[i0] : 0);
+  int flex_vertadr = m->flex_vertadr[f0];
+  mjtNum* xpos = d->flexvert_xpos + 3*flex_vertadr;
+  mjtNum* qfrc = d->qfrc_passive;
 
   ComputeForce<Stencil2D>(force, elements, metric, elongation, m, xpos);
 
   // insert into passive force
-  if (f0 < 0) {
-    mju_addTo(qfrc, force.data(), force.size());
-  } else {
-    AddFlexForce(qfrc, force, m, d, xpos, f0);
-  }
+  AddFlexForce(qfrc, force, m, d, xpos, f0);
 
   // update stored lengths
   if (kD > 0) {

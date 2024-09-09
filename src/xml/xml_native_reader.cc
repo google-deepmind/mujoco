@@ -296,8 +296,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
-        {"composite", "*", "13", "prefix", "type", "count", "spacing", "offset",
-            "flatinertia", "solrefsmooth", "solimpsmooth", "vertex", "face",
+        {"composite", "*", "12", "prefix", "type", "count", "spacing", "offset",
+            "flatinertia", "solrefsmooth", "solimpsmooth", "vertex",
             "initial", "curve", "size"},
         {"<"},
             {"joint", "*", "17", "kind", "group", "stiffness", "damping", "armature",
@@ -2370,9 +2370,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
   if (uservert.has_value()) {
     comp.uservert = std::move(uservert.value());
   }
-
-  // shell
-  ReadAttrTxt(elem, "face", comp.userface);
 
   // process curve string
   std::istringstream iss(curves);

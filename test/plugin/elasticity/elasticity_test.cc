@@ -184,12 +184,13 @@ TEST_F(ElasticityTest, InvalidThickness) {
   </extension>
 
   <worldbody>
-    <composite type="particle" count="2 2 1" spacing="1">
-      <geom size=".025"/>
+    <flexcomp type="grid" count="2 2 1" spacing="1 1 1"
+              radius=".025" name="test" dim="2">
       <plugin plugin="mujoco.elasticity.shell">
         <config key="thickness" value="hello"/>
       </plugin>
-    </composite>
+      <edge equality="false"/>
+    </flexcomp>
   </worldbody>
   </mujoco>
   )";
@@ -197,6 +198,7 @@ TEST_F(ElasticityTest, InvalidThickness) {
   char error[1024] = {0};
   mjModel* m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error, ::testing::HasSubstr("Invalid parameter"));
 }
 
 // -------------------------------- solid -----------------------------------

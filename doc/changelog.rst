@@ -17,7 +17,8 @@ General
      the MPR algorithm. The semantics of these options remain identical.
    - The functions ``mjs_findMesh`` and ``mjs_findKeyframe`` were replaced by ``mjs_findElement``, which allows to look
      for any object type.
-
+   - The experimental use of 2D/3D elasticity plugins with :ref:`composite<body-composite>` has been removed. Users
+     should instead use :ref:`flexcomp<body-flexcomp>`, which provides the correct collision behavior.
 - Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
   early stages of testing.
