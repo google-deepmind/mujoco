@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -171,32 +172,30 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 
   // allocate array
   ne = edges.size();
-  reference.assign(ne, 0);
-  deformed.assign(ne, 0);
-  previous.assign(ne, 0);
   elongation.assign(ne, 0);
   force.assign(3*nv, 0);
-
-  // compute edge lengths at equilibrium (m->flexedge_length0 not yet available)
-  UpdateSquaredLengths(reference, edges, body_pos);
-
-  // save previous lengths
-  previous = reference;
 }
 
 void Solid::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum kD = damping / m->opt.timestep;
 
-  // update edge lengths
-  UpdateSquaredLengthsFlex(deformed, d->flexedge_length + m->flex_edgeadr[f0]);
+  // read edge lengths
+  mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f0];
+  mjtNum* ref = m->flexedge_length0 + m->flex_edgeadr[f0];
+
+  // m->flexedge_length0 is not initialized when the plugin is constructed
+  if (prev.empty()) {
+    prev.assign(ne, 0);
+    memcpy(prev.data(), ref, sizeof(mjtNum) * ne);
+  }
 
   // we add generalized Rayleigh damping as decribed in Section 5.2 of
   // Kharevych et al., "Geometric, Variational Integrators for Computer
   // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
   for (int idx = 0; idx < ne; idx++) {
-    elongation[idx] = deformed[idx] - reference[idx] +
-                    ( deformed[idx] -  previous[idx] ) * kD;
+    elongation[idx] = deformed[idx]*deformed[idx] - ref[idx]*ref[idx] +
+                    ( deformed[idx]*deformed[idx] - prev[idx]*prev[idx] ) * kD;
   }
 
   // compute gradient of elastic energy and insert into passive force
@@ -211,7 +210,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
 
   // update stored lengths
   if (kD > 0) {
-    previous = deformed;
+    memcpy(prev.data(), deformed, sizeof(mjtNum) * ne);
   }
 }
 

@@ -33,28 +33,6 @@ struct PairHash
     }
 };
 
-inline mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
-  mjtNum dif[3] = {pos1[0]-pos2[0], pos1[1]-pos2[1], pos1[2]-pos2[2]};
-  return dif[0]*dif[0] + dif[1]*dif[1] + dif[2]*dif[2];
-}
-
-inline void UpdateSquaredLengths(std::vector<mjtNum>& len,
-                                 const std::vector<std::pair<int, int> >& edges,
-                                 const mjtNum* x) {
-  for (int e = 0; e < len.size(); e++) {
-    const mjtNum* p0 = x + 3*edges[e].first;
-    const mjtNum* p1 = x + 3*edges[e].second;
-    len[e] = SquaredDist3(p0, p1);
-  }
-}
-
-inline void UpdateSquaredLengthsFlex(std::vector<mjtNum>& len,
-                                     const mjtNum* flexedge_length) {
-  for (int e = 0; e < len.size(); e++) {
-    len[e] = flexedge_length[e]*flexedge_length[e];
-  }
-}
-
 struct Stencil2D {
   static constexpr int kNumEdges = 3;
   static constexpr int kNumVerts = 3;

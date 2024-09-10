@@ -53,9 +53,7 @@ class Membrane {
 
   // precomputed quantities
   std::vector<mjtNum> metric;               // geom-induced metric    (nt x 9)
-  std::vector<mjtNum> reference;            // reference lengths      (ne x 1)
-  std::vector<mjtNum> deformed;             // deformed lengths       (ne x 1)
-  std::vector<mjtNum> previous;             // previous-step lengths  (ne x 1)
+  std::vector<mjtNum> prev;                 // previous-step lengths  (ne x 1)
   std::vector<mjtNum> elongation;           // edge elongation        (ne x 1)
   std::vector<mjtNum> force;                // force at all vertices  (nv x 3)
 
