@@ -59,6 +59,7 @@ set(MUJOCO_HEADERS
     include/mujoco/mjmodel.h
     include/mujoco/mjplugin.h
     include/mujoco/mjrender.h
+    include/mujoco/mjsan.h
     include/mujoco/mjspec.h
     include/mujoco/mjthread.h
     include/mujoco/mjtnum.h

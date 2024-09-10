@@ -29,6 +29,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
+#include <mujoco/mjsan.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mjthread.h>
 #include <mujoco/mjtnum.h>
@@ -197,7 +198,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-#ifndef ADDRESS_SANITIZER
+#ifndef ADDRESS_SANITIZER  // Stack management functions declared in mjsan.h if ASAN is active.
 
 // Mark a new frame on the mjData stack.
 MJAPI void mj_markStack(mjData* d);
@@ -1765,35 +1766,6 @@ MJAPI void mjs_defaultKey(mjsKey* key);
 
 // Default plugin attributes.
 MJAPI void mjs_defaultPlugin(mjsPlugin* plugin);
-
-
-//---------------------------------- Sanitizer instrumentation -------------------------------------
-
-// Most users can ignore these functions, the following comments are primarily for developers.
-//
-// When built and run under address sanitizer (asan), mj_markStack and mj_freeStack are instrumented
-// to detect leakage of mjData stack frames. When the compiler inlines several callees that call
-// into mark/free into the same function, this instrumentation requires that the compiler retains
-// separate mark/free calls for each original callee. The memory-clobbered asm blocks act as a
-// barrier to prevent mark/free calls from being combined under optimization.
-
-#ifdef ADDRESS_SANITIZER
-
-void mj__markStack(mjData*) __attribute__((noinline));
-static inline void mj_markStack(mjData* d) __attribute__((always_inline)) {
-  asm volatile("" ::: "memory");
-  mj__markStack(d);
-  asm volatile("" ::: "memory");
-}
-
-void mj__freeStack(mjData*) __attribute__((noinline));
-static inline void mj_freeStack(mjData* d) __attribute__((always_inline)) {
-  asm volatile("" ::: "memory");
-  mj__freeStack(d);
-  asm volatile("" ::: "memory");
-}
-
-#endif  // ADDRESS_SANITIZER
 
 #ifdef __cplusplus
 }
