@@ -692,7 +692,7 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 using AddMTest = MujocoTest;
 
 TEST_F(AddMTest, DenseSameAsSparse) {
-  mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
   mjData* d = mj_makeData(m);
   int nv = m->nv;
 

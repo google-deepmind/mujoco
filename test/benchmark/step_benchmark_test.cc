@@ -103,7 +103,7 @@ BENCHMARK(BM_StepHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid100(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("humanoid100/humanoid100.xml");
+  static mjModel* model = LoadModelFromPath("humanoid/humanoid100.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid100);

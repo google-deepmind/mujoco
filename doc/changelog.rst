@@ -1030,7 +1030,7 @@ General
      become the default integrator in a future version.
 
    The table below shows the compute cost of the 627-DoF `humanoid100
-   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`__ model using different
+   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid100.xml>`__ model using different
    integrators. "implicit (old)" uses dense RNE derivatives, "implicit (new)" is after the sparsification mentioned
    above. Timings were measured on a single core of an AMD 3995WX CPU.
 
@@ -1057,7 +1057,7 @@ General
    duplicated in order to circumvent this limitation as they previously were.
 #. The non-zeros for the sparse constraint Jacobian matrix are now precounted and used for matrix memory allocation.
    For instance, the constraint Jacobian matrix from the `humanoid100
-   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`__ model, which previously
+   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid100.xml>`__ model, which previously
    required ~500,000 ``mjtNum``'s, now only requires ~6000. Very large models can now load and run with the CG solver.
 #. Modified :ref:`mju_error` and :ref:`mju_warning` to be variadic functions (support for printf-like arguments). The
    functions :ref:`mju_error_i`, :ref:`mju_error_s`, :ref:`mju_warning_i`, and :ref:`mju_warning_s` are now deprecated.
@@ -1105,7 +1105,7 @@ General
 
 1. A more performant mju_transposeSparse has been implemented that doesn't require dense memory allocation.
    For a constraint Jacobian matrix from the
-   `humanoid100.xml <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`__ model,
+   `humanoid100.xml <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid100.xml>`__ model,
    this function is 35% faster.
 #. The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
    performance.

@@ -86,7 +86,7 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid(benchmark::State& state) {
 BENCHMARK(BM_ParseHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid100(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("humanoid100/humanoid100.xml"), state);
+  run_parse_benchmark(GetModelPath("humanoid/humanoid100.xml"), state);
 }
 BENCHMARK(BM_ParseHumanoid100);
 
