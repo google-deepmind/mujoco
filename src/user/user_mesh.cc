@@ -72,6 +72,7 @@ extern "C" {
 
 namespace {
   using mujoco::user::VectorToString;
+  using mujoco::user::FilePath;
 }  // namespace
 
 // compute triangle area, surface normal, center
@@ -214,6 +215,14 @@ void mjCMesh::PointToLocal() {
   userface = nullptr;
   usertexcoord = nullptr;
   userfacetexcoord = nullptr;
+}
+
+
+
+void mjCMesh::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
+  modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  meshdir_ = FilePath(m->spec_meshdir_);
 }
 
 
@@ -388,6 +397,14 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     facenormal_.clear();
     facetexcoord_.clear();
 
+    // copy paths from model if not already defined
+    if (modelfiledir_.empty()) {
+      modelfiledir_ = FilePath(model->modelfiledir_);
+    }
+    if (meshdir_.empty()) {
+      meshdir_ = FilePath(model->meshdir_);
+    }
+
     // remove path from file if necessary
     if (model->strippath) {
       file_ = mjuu_strippath(file_);
@@ -402,8 +419,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    std::string filename = mjuu_combinePaths(model->meshdir_, file_);
-    resource = LoadResource(model->modelfiledir_, filename, vfs);
+    FilePath filename = meshdir_ + FilePath(file_);
+    resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
 
     // try loading from cache
     if (cache != nullptr && LoadCachedMesh(cache, resource)) {
@@ -2016,6 +2033,8 @@ void mjCSkin::NameSpace(const mjCModel* m) {
   for (auto& name : spec_bodyname_) {
     name = m->prefix + name + m->suffix;
   }
+  modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  meshdir_ = FilePath(m->spec_meshdir_);
 }
 
 
@@ -2097,8 +2116,16 @@ void mjCSkin::Compile(const mjVFS* vfs) {
       throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    std::string filename = mjuu_combinePaths(model->meshdir_, file_);
-    mjResource* resource = LoadResource(model->modelfiledir_, filename, vfs);
+    // copy paths from model if not already defined
+    if (modelfiledir_.empty()) {
+      modelfiledir_ = FilePath(model->modelfiledir_);
+    }
+    if (meshdir_.empty()) {
+      meshdir_ = FilePath(model->meshdir_);
+    }
+
+    FilePath filename = meshdir_ + FilePath(file_);
+    mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
 
     try {
       LoadSKN(resource);

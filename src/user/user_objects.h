@@ -808,6 +808,10 @@ class mjCMesh_ : public mjCBase {
 
   mjCBoundingVolumeHierarchy tree_;   // bounding volume hierarchy
   std::vector<double> face_aabb_;     // bounding boxes of all faces
+
+  // paths stored during model attachment
+  mujoco::user::FilePath modelfiledir_;
+  mujoco::user::FilePath meshdir_;
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -823,6 +827,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 
   // accessors
   const mjsPlugin& Plugin() const { return plugin; }
@@ -952,6 +957,10 @@ class mjCSkin_ : public mjCBase {
 
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
+
+  // paths stored during model attachment
+  mujoco::user::FilePath modelfiledir_;
+  mujoco::user::FilePath meshdir_;
 };
 
 class mjCSkin: public mjCSkin_, private mjsSkin {
@@ -1005,6 +1014,10 @@ class mjCHField_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<float> spec_userdata_;
+
+  // paths stored during model attachment
+  mujoco::user::FilePath modelfiledir_;
+  mujoco::user::FilePath meshdir_;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
@@ -1024,6 +1037,7 @@ class mjCHField : public mjCHField_, private mjsHField {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 
   std::string File() const { return file_; }
 
@@ -1052,6 +1066,10 @@ class mjCTexture_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<std::string> spec_cubefiles_;
+
+  // paths stored during model attachment
+  mujoco::user::FilePath modelfiledir_;
+  mujoco::user::FilePath texturedir_;
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {
@@ -1071,6 +1089,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 
   std::string File() const { return file_; }
   std::string get_content_type() const { return content_type_; }

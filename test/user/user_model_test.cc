@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -500,6 +501,48 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
   mj_deleteModel(model1);
   mj_deleteModel(model2);
   mj_deleteSpec(spec);
+}
+
+// ----------------------------- test modeldir  --------------------------------
+
+TEST_F(MujocoTest, Modeldir) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "meshdir/cube.obj", cube, sizeof(cube));
+
+  // child with the asset
+  mjSpec* child = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(child, 0);
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
+  mjs_setString(child->meshdir, "meshdir");
+  mjs_setString(mesh->file, "cube.obj");
+  mjs_setString(mesh->name, "cube");
+  mjs_setString(geom->meshname, "cube");
+  mjs_setFrame(geom->element, frame);
+  geom->type = mjGEOM_MESH;
+
+  // parent attaching the child
+  mjSpec* spec = mj_makeSpec();
+  mjs_setString(spec->meshdir, "asset");
+  mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
 }
 
 }  // namespace

@@ -50,6 +50,7 @@
 
 namespace {
 namespace mju = ::mujoco::util;
+using mujoco::user::FilePath;
 
 class PNGImage {
  public:
@@ -3402,6 +3403,14 @@ void mjCHField::CopyFromSpec() {
 
 
 
+void mjCHField::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
+  modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  meshdir_ = FilePath(m->spec_meshdir_);
+}
+
+
+
 // destructor
 mjCHField::~mjCHField() {
   data.clear();
@@ -3514,8 +3523,16 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    std::string filename = mjuu_combinePaths(model->meshdir_, file_);
-    mjResource* resource = LoadResource(model->modelfiledir_, filename, vfs);
+    // copy paths from model if not already defined
+    if (modelfiledir_.empty()) {
+      modelfiledir_ = FilePath(model->modelfiledir_);
+    }
+    if (meshdir_.empty()) {
+      meshdir_ = FilePath(model->meshdir_);
+    }
+
+    FilePath filename = meshdir_ + FilePath(file_);
+    mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
 
     try {
       if (asset_type == "image/png") {
@@ -3627,6 +3644,14 @@ void mjCTexture::CopyFromSpec() {
     // clear precompiled asset. TODO: use asset cache
     data_.clear();
   }
+}
+
+
+
+void mjCTexture::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
+  modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  texturedir_ = FilePath(m->spec_texturedir_);
 }
 
 
@@ -3960,7 +3985,7 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
-  mjResource* resource = LoadResource(model->modelfiledir_, filename, vfs);
+  mjResource* resource = LoadResource(modelfiledir_.Str(), filename, vfs);
 
   try {
     if (asset_type == "image/png") {
@@ -4176,12 +4201,12 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       }
 
       // make filename
-      std::string filename = mjuu_combinePaths(model->texturedir_, cubefiles_[i]);
+      FilePath filename = texturedir_ + FilePath(cubefiles_[i]);
 
       // load PNG or custom
       unsigned int w, h;
       std::vector<unsigned char> image;
-      LoadFlip(filename, vfs, image, w, h);
+      LoadFlip(filename.Str(), vfs, image, w, h);
 
       // PNG must be square
       if (w != h) {
@@ -4244,6 +4269,14 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 void mjCTexture::Compile(const mjVFS* vfs) {
   CopyFromSpec();
 
+  // copy paths from model if not already defined
+  if (modelfiledir_.empty()) {
+    modelfiledir_ = FilePath(model->modelfiledir_);
+  }
+  if (texturedir_.empty()) {
+    texturedir_ = FilePath(model->texturedir_);
+  }
+
   // buffer from user
   if (!data_.empty()) {
     if (data_.size() != nchannel*width*height) {
@@ -4299,13 +4332,13 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // make filename
-    std::string filename = mjuu_combinePaths(model->texturedir_, file_);
+    FilePath filename = texturedir_ + FilePath(file_);
 
     // dispatch
     if (type==mjTEXTURE_2D) {
-      Load2D(filename, vfs);
+      Load2D(filename.Str(), vfs);
     } else {
-      LoadCubeSingle(filename, vfs);
+      LoadCubeSingle(filename.Str(), vfs);
     }
   }
 
