@@ -1535,7 +1535,7 @@ convex but internally they are treated as unions of triangular prisms (using cus
 described above). Meshes specified by the user can be non-convex, and are rendered as such. For collision purposes
 however they are replaced with their convex hulls. Mesh collisions are based on the Minkowski Portal Refinement (MPR)
 algorithm as implemented in `libccd <https://github.com/danfis/libccd>`__. It has tolerance and maximum iteration
-parameters exposed as ``mjModel.opt.mpt_tolerance`` and ``mjModel.opt.mpr_iterations`` respectively. MPR operates on the
+parameters exposed as ``mjModel.opt.ccd_tolerance`` and ``mjModel.opt.ccd_iterations`` respectively. MPR operates on the
 convex hull implicitly, however pre-computing that hull can substantially improve performance for large meshes. The
 model compiler does that by default, using the `qhull <http://www.qhull.org/>`__ library.
 
