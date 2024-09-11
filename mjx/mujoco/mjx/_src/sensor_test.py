@@ -93,11 +93,29 @@ class SensorTest(parameterized.TestCase):
     _assert_eq(random_sensor, dx.sensordata, 'sensordata')
 
   def test_unsupported_sensor(self):
-    """Tests MJX sensor functions do not break for unsupported sensors."""
-    m = test_util.load_test_file('sensor/unsupported.xml')
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.forward)(mx, mjx.put_data(m, mujoco.MjData(m)))
-    _assert_eq(np.zeros(m.nsensordata), dx.sensordata, 'sensordata')
+    """Tests unsupported sensor raises error."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint type="hinge"/>
+            <geom name="geom0" size="0.1"/>
+            <site name="site0"/>
+            <body>
+              <joint type="hinge"/>
+              <geom name="geom1" size="0.25"/>
+              <site name="site1"/>
+            </body>
+          </body>
+        </worldbody>
+        <sensor>
+          <distance name="distance" geom1="geom0" geom2="geom1"/>
+          <touch name="touch" site="site0"/>
+        </sensor>
+      </mujoco>
+    """)
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(m)
 
 
 if __name__ == '__main__':
