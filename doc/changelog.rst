@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.2.3 (Sep 12, 2024)
+----------------------------
 
 General
 ^^^^^^^
@@ -11,75 +11,75 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The runtime options ``mpr_tolerance`` and ``mpr_iterations`` were renamed to
-     :ref:`ccd_tolerance<option-ccd_tolerance>` and :ref:`ccd_iterations<option-ccd_iterations>`, both in XML and in
-     the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
-     the MPR algorithm. The semantics of these options remain identical.
-   - The functions ``mjs_findMesh`` and ``mjs_findKeyframe`` were replaced by ``mjs_findElement``, which allows to look
-     for any object type.
-   - The experimental use of 2D/3D elasticity plugins with :ref:`composite<body-composite>` has been removed. Users
-     should instead use :ref:`flexcomp<body-flexcomp>`, which provides the correct collision behavior.
+   1. The runtime options ``mpr_tolerance`` and ``mpr_iterations`` were renamed to
+      :ref:`ccd_tolerance<option-ccd_tolerance>` and :ref:`ccd_iterations<option-ccd_iterations>`, both in XML and in
+      the :ref:`mjOption` struct. This is because the new convex collision detection pipeline (see below) does not use
+      the MPR algorithm. The semantics of these options remain identical.
+   2. The functions ``mjs_findMesh`` and ``mjs_findKeyframe`` were replaced by ``mjs_findElement``, which allows to look
+      for any object type.
+   3. The experimental use of 2D/3D elasticity plugins with :ref:`composite<body-composite>` has been removed. Users
+      should instead use :ref:`flexcomp<body-flexcomp>`, which provides the correct collision behavior.
 
-- Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
-  detection is handled with a new native code path, rather than `libccd <https://github.com/danfis/libccd>`__.
-  This feature is in early stages of testing, but users who've experienced issues related to collsion detection are
-  welcome to experiment with it and report any issues.
-- Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
-  The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
-  hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
-  positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
-- Introduced **free joint alignment**, an optimization that applies to bodies with a free joint and no child bodies
-  (simple free-floating bodies): automatically aligning the body frame with the inertial frame. This feature can be
-  toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally using the compiler
-  :ref:`alignfree<compiler-alignfree>` attribute. The alignment diagonalizes the related 6x6 inertia sub-matrix, leading
-  to both faster simulation and more stable simulation of free bodies.
+4. Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
+   detection is handled with a new native code path, rather than `libccd <https://github.com/danfis/libccd>`__.
+   This feature is in early stages of testing, but users who've experienced issues related to collsion detection are
+   welcome to experiment with it and report any issues.
+5. Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
+   The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
+   hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
+   positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
+6. Introduced **free joint alignment**, an optimization that applies to bodies with a free joint and no child bodies
+   (simple free-floating bodies): automatically aligning the body frame with the inertial frame. This feature can be
+   toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally using the compiler
+   :ref:`alignfree<compiler-alignfree>` attribute. The alignment diagonalizes the related 6x6 inertia sub-matrix, leading
+   to both faster simulation and more stable simulation of free bodies.
 
-  While this optimization is a strict improvement, it changes the semantics of the joint's degrees-of-freedom.
-  Therefore, ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) will
-  become invalid. The global compiler attribute currently defaults to "false" due to this potential breakage, but could
-  be changed to "true" in a future release. Aligned free joints are recommended for all new models.
+   While this optimization is a strict improvement, it changes the semantics of the joint's degrees-of-freedom.
+   Therefore, ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) will
+   become invalid. The global compiler attribute currently defaults to "false" due to this potential breakage, but could
+   be changed to "true" in a future release. Aligned free joints are recommended for all new models.
 
-- Added an :ref:`mjSpec` option for creating a texture directly from a buffer.
-- :ref:`shell (surface) inertia <body-geom-shellinertia>` is now supported by all geom types.
-- When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
-  parent model, but only on the first attachment.
-- Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
-  alignments are used for computation shortcuts in :ref:`mj_kinematics`.
-- Added :ref:`mj_jacDot` for computing time-derivatives of kinematic Jacobians. Fixes :github:issue:`411`.
+7. Added an :ref:`mjSpec` option for creating a texture directly from a buffer.
+8. :ref:`shell (surface) inertia <body-geom-shellinertia>` is now supported by all geom types.
+9. When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
+   parent model, but only on the first attachment.
+10. Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
+    alignments are used for computation shortcuts in :ref:`mj_kinematics`.
+11. Added :ref:`mj_jacDot` for computing time-derivatives of kinematic Jacobians. Fixes :github:issue:`411`.
 
 MJX
 ^^^
-- Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
-- Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
-  ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
-  ``SUBTREECOM``, ``CLOCK``.
-- Added velocity-dependent sensors: ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``,
-  ``FRAMELINVEL``, ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``.
-- Added acceleration/force-dependent sensors: ``ACCELEROMETER``, ``ACTUATORFRC``, ``JOINTACTFRC``.
-- Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
-- Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
-- Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
-  :doc:`fluid drag <computation/fluid>`.
-- Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
-- Added support for joint and tendon :ref:`frictionloss <coFriction>`.
-- Added support for :ref:`connect<equality-connect>` equality constraints using two sites.
-- Added support for :ref:`spatial tendons <tendon-spatial>` with site wrapping.
+12. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
+13. Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
+    ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
+    ``SUBTREECOM``, ``CLOCK``.
+14. Added velocity-dependent sensors: ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``,
+    ``FRAMELINVEL``, ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``.
+15. Added acceleration/force-dependent sensors: ``ACCELEROMETER``, ``ACTUATORFRC``, ``JOINTACTFRC``.
+16. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
+17. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
+18. Added support for :ref:`implicitfast integration<geIntegration>` for all cases except
+    :doc:`fluid drag <computation/fluid>`.
+19. Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
+20. Added support for joint and tendon :ref:`frictionloss <coFriction>`.
+21. Added support for :ref:`connect<equality-connect>` equality constraints using two sites.
+22. Added support for :ref:`spatial tendons <tendon-spatial>` with site wrapping.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
-  contribution by :github:user:`michael-ahn`).
-- Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
-  integrators, wrong derivatives would be computed.
-- Fixed a bug in tendon wrapping around spheres. Before this fix, tendons that wrapped around spheres with an
-  externally-placed :ref:`sidesite<spatial-geom-sidesite>` could jump inside the sphere instead of wrapping around it.
-- Fixed a bug that caused :at:`meshdir` and :at:`texturedir` to be overwritten during model
-  :ref:`attachment<meAttachment>`, preventing model attachment for models with assets in different directories.
+23. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+    contribution by :github:user:`michael-ahn`).
+24. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
+    integrators, wrong derivatives would be computed.
+25. Fixed a bug in tendon wrapping around spheres. Before this fix, tendons that wrapped around spheres with an
+    externally-placed :ref:`sidesite<spatial-geom-sidesite>` could jump inside the sphere instead of wrapping around it.
+26. Fixed a bug that caused :at:`meshdir` and :at:`texturedir` to be overwritten during model
+    :ref:`attachment<meAttachment>`, preventing model attachment for models with assets in different directories.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-- Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
-- Better error reporting for issues with the assets dictionary, when loading models.
+27. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+28. Better error reporting for issues with the assets dictionary, when loading models.
 
 
 Version 3.2.2 (Aug 8, 2024)
