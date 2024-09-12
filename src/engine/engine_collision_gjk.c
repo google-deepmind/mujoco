@@ -53,26 +53,27 @@ static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]);
 static void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n);
 
 typedef struct {
-  int ignored;
+  int ignored;   // face has been removed from polytope
   int verts[3];  // indices of the three vertices of the face in the polytope
-  mjtNum v[3];
-  mjtNum dist;
+  int adj[3];    // adjacent faces (one for each edge: [v1,v2], [v2,v3], [v3,v1])
+  mjtNum v[3];   // the projection of the origin on the face (can be used as face normal)
+  mjtNum dist;   // norm of v
 } Face;
 
 typedef struct {
-  mjtNum v1[3];
-  mjtNum v2[3];
-  mjtNum v[3];
-  mjtNum dist;
+  mjtNum v1[3];  // point in obj1
+  mjtNum v2[3];  // point in obj2
+  mjtNum v[3];   // v1 - v2; point in Minkowski sum
+  mjtNum dist;   // norm of v
 } Vertex;
 
 typedef struct {
-  Vertex* verts;
-  int nverts;
-  int vcap;
-  Face* faces;
-  int nfaces;
-  int fcap;
+  Vertex* verts;  // list of vertices that make up the polytope
+  int nverts;     // number of vertices
+  int vcap;       // capacity of spaces for adding new vertices
+  Face* faces;    // list of faces that make up the polytope
+  int nfaces;     // number of faces
+  int fcap;       // capacity of spaces for adding new faces
 } Polytope;
 
 // generates a polytope from a 1-simplex, 2-simplex, or 3-simplex respectively
@@ -88,7 +89,7 @@ static void initPolytope(Polytope* pt);
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 
 // attaches a face to the polytope with the given vertex indices in the polytope
-static void attachFace(Polytope* pt, int v1, int v2, int v3);
+static void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3);
 
 // returns the penetration depth (negative distance) of the convex objects
 // witness points are stored in x1 and x2
@@ -265,8 +266,8 @@ static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
 
 
 // res = origin projected onto plane defined by v1, v2, v3
-static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3],
-                                      const mjtNum v2[3], const mjtNum v3[3]) {
+static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
+                                      const mjtNum v3[3]) {
   mjtNum diff21[3], diff31[3], diff32[3], n[3], nv, nn;
   mju_sub3(diff21, v2, v1);
   mju_sub3(diff31, v3, v1);
@@ -737,12 +738,12 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
   // build hexahedron
-  attachFace(pt, v1i, v3i, v4i);
-  attachFace(pt, v1i, v3i, v5i);
-  attachFace(pt, v1i, v4i, v5i);
-  attachFace(pt, v2i, v3i, v4i);
-  attachFace(pt, v2i, v3i, v5i);
-  attachFace(pt, v2i, v4i, v5i);
+  attachFace(pt, v1i, v3i, v4i, 1, 3, 2);
+  attachFace(pt, v1i, v5i, v3i, 2, 4, 0);
+  attachFace(pt, v1i, v4i, v5i, 0, 5, 1);
+  attachFace(pt, v2i, v4i, v3i, 5, 0, 4);
+  attachFace(pt, v2i, v3i, v5i, 3, 1, 5);
+  attachFace(pt, v2i, v5i, v4i, 4, 2, 3);
 
   // if the origin is on the affine hull of any of the faces then the origin is not in the
   //  hexahedron or the hexahedron is degenerate
@@ -882,12 +883,13 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   int v4i = newVertex(pt, v4a, v4b);
 
   // create hexahedron for EPA
-  attachFace(pt, v1i, v2i, v4i);
-  attachFace(pt, v3i, v1i, v4i);
-  attachFace(pt, v2i, v3i, v4i);
-  attachFace(pt, v1i, v2i, v5i);
-  attachFace(pt, v3i, v1i, v5i);
-  attachFace(pt, v2i, v3i, v5i);
+  attachFace(pt, v4i, v1i, v2i, 1, 3, 2);
+  attachFace(pt, v4i, v3i, v1i, 2, 4, 0);
+  attachFace(pt, v4i, v2i, v3i, 0, 5, 1);
+  attachFace(pt, v5i, v2i, v1i, 5, 0, 4);
+  attachFace(pt, v5i, v1i, v3i, 3, 1, 5);
+  attachFace(pt, v5i, v3i, v2i, 4, 2, 3);
+
 
   // if the origin is on the affine hull of any of the faces then the origin is not in the
   //  hexahedron or the hexahedron is degenerate
@@ -908,30 +910,14 @@ static int polytope4(Polytope* pt, const mjCCDStatus* status) {
   int v3 = newVertex(pt, status->simplex1 + 6, status->simplex2 + 6);
   int v4 = newVertex(pt, status->simplex1 + 9, status->simplex2 + 9);
 
-  attachFace(pt, v1, v2, v3);
-  attachFace(pt, v1, v2, v4);
-  attachFace(pt, v1, v4, v3);
-  attachFace(pt, v4, v2, v3);
+  attachFace(pt, v1, v2, v3, 1, 3, 2);
+  attachFace(pt, v1, v4, v2, 2, 3, 0);
+  attachFace(pt, v1, v3, v4, 0, 3, 1);
+  attachFace(pt, v4, v3, v2, 2, 0, 1);
   return 1;
 }
 
 #define mjMINCAP 100  // starting capacity for dynamic buffers
-
-// an edge in the horizon
-typedef struct {
-  int v1;
-  int v2;
-  int ignore;  // deleted
-} Edge;
-
-// the horizon of the polytope
-typedef struct {
-  Edge* edges;   // edges in horizon
-  int n;
-  int capacity;
-} Horizon;
-
-
 
 // initializes the polytope (faces and vertices must be freed by caller)
 static void initPolytope(Polytope* pt) {
@@ -946,7 +932,7 @@ static void initPolytope(Polytope* pt) {
   pt->faces = (Face*) malloc(pt->fcap * sizeof(Face));
 }
 
-
+#undef mjMINCAP
 
 // copies a vertex into the polytope and return its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
@@ -968,7 +954,7 @@ static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
 
 
 // attaches a face to the polytope with the given vertex indices in the polytope
-static void attachFace(Polytope* pt, int v1, int v2, int v3) {
+static void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3) {
   int capacity = pt->fcap;
   if (pt->nfaces == capacity) {
     capacity *= 2;
@@ -982,6 +968,10 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3) {
   face->verts[1] = v2;
   face->verts[2] = v3;
 
+  face->adj[0] = adj1;
+  face->adj[1] = adj2;
+  face->adj[2] = adj3;
+
     // compute witness point v
   mjtNum* pv1 = pt->verts[v1].v;
   mjtNum* pv2 = pt->verts[v2].v;
@@ -993,42 +983,88 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3) {
 
 
 
-// initializes the horizon (edges must be freed by caller)
-static void initHorizon(Horizon* h) {
-  h->n = 0;
-  h->capacity = mjMINCAP;
-  h->edges = (Edge*) malloc(h->capacity * sizeof(Edge));
+// horizon: polytope boundary edges that can be seen from w
+typedef struct {
+  Polytope* pt;
+  int* indices;  // indices of faces on horizon
+  int* edges;    // corresponding edge of each face on the horizon
+  int nedges;    // number of edges in horizon
+  mjtNum* w;     // point where horizon is created
+} Horizon;
+
+
+
+// adds an edge to the horizon
+static inline void addEdge(Horizon* h, int index, int edge) {
+  h->edges[h->nedges] = edge;
+  h->indices[h->nedges++] = index;
 }
 
 
 
-// adds an edge to the horizon, if the edge is already in the horizon, it is
-// deleted (marked ignored)
-static void addEdgeIfUnique(Horizon* h, int v1, int v2) {
-  int capacity = h->capacity;
-  int n = h->n;
+// get edge index where vertex lies
+static inline int getEdge(Face* face, int vertex) {
+  if (face->verts[0] == vertex) return 0;
+  if (face->verts[1] == vertex) return 1;
+  return 2;
+}
 
-  for (int i = 0; i < n; i++) {
-    if (h->edges[i].ignore) continue;
-    int old_v1 = h->edges[i].v1;
-    int old_v2 = h->edges[i].v2;
-    if ((old_v1 == v1 && old_v2 == v2) || (old_v1 == v2 && old_v2 == v1)) {
-      h->edges[i].ignore = 1;
-      return;
+
+
+// recursive call to build horizon
+// return 1 if face is visible from w otherwise 0
+static int horizonRec(Horizon* h, Face* face, int e) {
+    mjtNum dist2 = face->dist * face->dist;
+
+    // v is visible from w so it is deleted and adjacent faces are checked
+    if (mju_dot3(face->v, h->w) >= dist2) {
+      face->ignored = 1;
+
+      // recursively search the adjacent faces on the next two edges
+      for (int k = 1; k < 3; k++) {
+        int i = (e + k) % 3;
+        Face* adjFace = &h->pt->faces[face->adj[i]];
+        if (!adjFace->ignored) {
+          int adjEdge = getEdge(adjFace, face->verts[(i + 1) % 3]);
+          if (!horizonRec(h, adjFace, adjEdge)) {
+            addEdge(h, face->adj[i], adjEdge);
+          }
+        }
+      }
+      return 1;
     }
-  }
-  if (n == capacity) {
-    capacity *= 2;
-    h->edges = (Edge*) realloc(h->edges, capacity * sizeof(Edge));
-    h->capacity = capacity;
-  }
-  h->edges[n].v1 = v1;
-  h->edges[n].v2 = v2;
-  h->edges[n].ignore = 0;
-  h->n++;
+  return 0;
 }
 
-#undef mjMINCAP
+
+
+// creates horizon given the face as starting point
+static void horizon(Horizon* h, Face* face) {
+  face->ignored = 1;
+
+  // first edge
+  Face* adjFace = &h->pt->faces[face->adj[0]];
+  int adjEdge = getEdge(adjFace, face->verts[1]);
+  if (!horizonRec(h, adjFace, adjEdge)) {
+    addEdge(h, face->adj[0], adjEdge);
+  }
+
+  // second edge
+  adjFace = &h->pt->faces[face->adj[1]];
+  adjEdge = getEdge(adjFace, face->verts[2]);
+  if (!horizonRec(h, adjFace, adjEdge)) {
+    addEdge(h, face->adj[1], adjEdge);
+  }
+
+  // third edge
+  adjFace = &h->pt->faces[face->adj[2]];
+  adjEdge = getEdge(adjFace, face->verts[0]);
+  if (!horizonRec(h, adjFace, adjEdge)) {
+    addEdge(h, face->adj[2], adjEdge);
+  }
+}
+
+
 
 // recover witness points from EPA polytope
 static void epaWitness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]) {
@@ -1060,14 +1096,19 @@ static void epaWitness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]
 
 // returns the penetration depth (negative distance) of the convex objects
 static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
-  mjtNum dist = mjMAXVAL;
-  int index;
-  Horizon h;
-  initHorizon(&h);
-  mjtNum tolerance = status->tolerance;
+  mjtNum dist = mjMAXVAL, tolerance = status->tolerance;
+  int index, k, N = status->max_iterations;
+  mjData* d = (mjData*) obj1->data;
 
-  int k = 0, N = status->max_iterations;
-  for (; k < N; k++) {
+  // initialize horizon
+  Horizon h;
+  mj_markStack(d);
+  h.indices = mj_stackAllocInt(d, 6 + status->max_iterations);
+  h.edges = mj_stackAllocInt(d, 6 + status->max_iterations);
+  h.nedges = 0;
+  h.pt = pt;
+
+  for (k = 0; k < N; k++) {
     // find the closest face to the origin
     dist = mjMAXVAL;
     index = -1;
@@ -1082,6 +1123,7 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
     // check if index is set
     if (index < 0) {
       mju_warning("EPA: empty polytope (most likely a bug)");
+      mj_freeStack(d);
       return 0;  // assume 0 depth
     }
 
@@ -1099,30 +1141,35 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
       break;
     }
 
-    // compute horizon for w
-    for (int i = 0; i < pt->nfaces; i++) {
-      Face* face = &pt->faces[i];
-      if (face->ignored) continue;
-      mjtNum dist2 = face->dist;
-      mjtNum* v = face->v;  // use witness point as normal
-      if (mju_dot3(v, w) >= dist2*dist2) {
-        face->ignored = 1;
-        addEdgeIfUnique(&h, face->verts[0], face->verts[1]);
-        addEdgeIfUnique(&h, face->verts[1], face->verts[2]);
-        addEdgeIfUnique(&h, face->verts[2], face->verts[0]);
-      }
-    }
+    h.w = w;
+    horizon(&h, &pt->faces[index]);
 
     // insert w as new vertex and attach faces along the horizon
-    int wi = newVertex(pt, w1, w2);
-    for (int i = 0; i < h.n; i++) {
-      if (h.edges[i].ignore) continue;
-      attachFace(pt, wi, h.edges[i].v1, h.edges[i].v2);
-    }
+    int wi = newVertex(pt, w1, w2), nfaces = pt->nfaces, nedges = h.nedges;
 
-    h.n = 0;  // clear horizon
+    // attach first face
+    int horIndex = h.indices[0], horEdge = h.edges[0];
+    Face* face = &pt->faces[horIndex];
+    int v1 = face->verts[horEdge],
+        v2 = face->verts[(horEdge + 1) % 3];
+    attachFace(pt, wi, v2, v1, nfaces + nedges - 1, horIndex, nfaces + 1);
+    pt->faces[horIndex].adj[horEdge] = nfaces;
+
+    // attach remaining faces
+    for (int i = 1; i < nedges; i++) {
+      int cur = nfaces + i;  // index of attached face
+      int next = nfaces + (i + 1) % nedges;  // index of next face
+
+      horIndex = h.indices[i], horEdge = h.edges[i];
+      face = &pt->faces[horIndex];
+      v1 = face->verts[horEdge];
+      v2 = face->verts[(horEdge + 1) % 3];
+      attachFace(pt, wi, v2, v1, cur - 1, horIndex, next);
+      pt->faces[horIndex].adj[horEdge] = cur;
+    }
+    h.nedges = 0;  // clear horizon
   }
-  free(h.edges);
+  mj_freeStack(d);
   epaWitness(pt, index, status->x1, status->x2);
   status->epa_iterations = k;
   return dist;
