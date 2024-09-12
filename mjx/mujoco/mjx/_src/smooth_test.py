@@ -15,6 +15,7 @@
 """Tests for smooth dynamics functions."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 import mujoco
 from mujoco import mjx
@@ -228,6 +229,37 @@ class SmoothTest(absltest.TestCase):
     _assert_eq(d.cacc, dx.cacc, 'cacc')
     _assert_eq(d.cfrc_ext, dx.cfrc_ext, 'cfrc_ext')
     _assert_eq(d.cfrc_int, dx.cfrc_int, 'cfrc_int')
+
+
+class TendonTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      'tendon/fixed.xml',
+      'tendon/site.xml',
+      'tendon/fixed_site.xml',
+      'tendon/no_tendon.xml',
+  )
+  def test_tendon(self, filename):
+    """Tests MJX tendon function matches MuJoCo mj_tendon."""
+    m = test_util.load_test_file(filename)
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.forward)(mx, dx)
+
+    _assert_eq(d.ten_length, dx.ten_length, 'ten_length')
+    _assert_eq(d.ten_J, dx.ten_J, 'ten_J')
+    _assert_eq(d.ten_wrapnum, dx.ten_wrapnum, 'ten_wrapnum')
+    _assert_eq(d.ten_wrapadr, dx.ten_wrapadr, 'ten_wrapadr')
+    if d.wrap_obj.shape == dx.wrap_obj.shape:
+      _assert_eq(d.wrap_obj, dx.wrap_obj, 'wrap_obj')
+    if d.wrap_xpos.shape == dx.wrap_xpos.shape:
+      _assert_eq(d.wrap_xpos, dx.wrap_xpos, 'wrap_xpos')
 
 
 if __name__ == '__main__':

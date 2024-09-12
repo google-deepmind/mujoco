@@ -195,6 +195,8 @@ The following features are **fully supported** in MJX:
      - ``FIXED``, ``AFFINE``
    * - :ref:`Actuator Bias <mjtBias>`
      - ``NONE``, ``AFFINE``
+   * - :ref:`Tendon Wrapping <mjtWrap>`
+     - ``JOINT``, ``SITE``
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and
        ``CYLINDER`` are implemented but only collide with other primitives, note that ``BOX`` is implemented as a mesh.
@@ -244,7 +246,7 @@ The following features are **in development** and coming soon:
    * - :ref:`Actuator Bias <mjtBias>`
      - ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
-     - ``NONE``, ``JOINT``, ``PULLEY``, ``SITE``, ``SPHERE``, ``CYLINDER``
+     - ``PULLEY``, ``SPHERE``, ``CYLINDER``
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`

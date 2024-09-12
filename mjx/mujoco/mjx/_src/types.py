@@ -197,9 +197,11 @@ class WrapType(enum.IntEnum):
 
   Members:
     JOINT: constant moment arm
+    SITE: pass through site
   """
   JOINT = mujoco.mjtWrap.mjWRAP_JOINT
-  # unsupported: NONE, PULLEY, SITE, SPHERE, CYLINDER
+  SITE = mujoco.mjtWrap.mjWRAP_SITE
+  # unsupported: NONE, PULLEY, SPHERE, CYLINDER
 
 
 class TrnType(enum.IntEnum):

@@ -27,6 +27,7 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import TrnType
+from mujoco.mjx._src.types import WrapType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -686,13 +687,106 @@ def tendon(m: Model, d: Data) -> Data:
   if not m.ntendon:
     return d
 
-  ten_id = np.repeat(np.arange(m.ntendon), m.tendon_num)
-  length = m.wrap_prm * d.qpos[m.jnt_qposadr[m.wrap_objid]]
-  ten_length = jax.ops.segment_sum(length, ten_id, m.ntendon)
-  ten_j = jp.zeros((m.ntendon, m.nv))
-  ten_j = ten_j.at[ten_id, m.jnt_dofadr[m.wrap_objid]].set(m.wrap_prm)
+  # process joint tendons
+  (wrap_id_jnt,) = np.nonzero(m.wrap_type == WrapType.JOINT)
+  (tendon_id_jnt,) = np.nonzero(np.isin(m.tendon_adr, wrap_id_jnt))
 
-  return d.replace(ten_length=ten_length, ten_J=ten_j)
+  ntendon_jnt = tendon_id_jnt.size
+  wrap_objid_jnt = m.wrap_objid[wrap_id_jnt]
+  tendon_num_jnt = m.tendon_num[tendon_id_jnt]
+
+  moment_jnt = m.wrap_prm[wrap_id_jnt]
+  length_jnt = jax.ops.segment_sum(
+      moment_jnt * d.qpos[m.jnt_qposadr[wrap_objid_jnt]],
+      np.repeat(np.arange(ntendon_jnt), tendon_num_jnt),
+      ntendon_jnt,
+  )
+
+  adr_moment_jnt = np.repeat(tendon_id_jnt, tendon_num_jnt)
+  dofadr_moment_jnt = m.jnt_dofadr[wrap_objid_jnt]
+
+  # process spatial tendon sites
+  (wrap_id_site,) = np.nonzero(m.wrap_type == WrapType.SITE)
+  nwrap_site = wrap_id_site.size
+
+  # find consecutive sites, skipping tendon transitions
+  (pair_id,) = np.nonzero(np.diff(wrap_id_site) == 1)
+  wrap_id_site_pair = np.setdiff1d(wrap_id_site[pair_id], m.tendon_adr[1:] - 1)
+  (tendon_id_site,) = np.nonzero(np.isin(m.tendon_adr, wrap_id_site_pair))
+
+  id0 = m.wrap_objid[wrap_id_site_pair]
+  id1 = m.wrap_objid[wrap_id_site_pair + 1]
+
+  @jax.vmap
+  def _length_moment(pnt0, pnt1, body0, body1):
+    dif = pnt1 - pnt0
+    length = jp.linalg.norm(dif)
+    vec = jp.where(
+        length < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dif / length
+    )
+
+    jacp1, _ = support.jac(m, d, pnt0, body0)
+    jacp2, _ = support.jac(m, d, pnt1, body1)
+    jacdif = jacp2 - jacp1
+    moment = jp.where(body0 != body1, jacdif @ vec, jp.zeros(m.nv))
+
+    return length, moment
+
+  lengths_site, moments_site = _length_moment(
+      d.site_xpos[id0], d.site_xpos[id1], m.site_bodyid[id0], m.site_bodyid[id1]
+  )
+
+  tendon_nsite = np.array([
+      sum((wrap_id_site_pair >= adr) & (wrap_id_site_pair < adr + num))
+      for adr, num in zip(m.tendon_adr, m.tendon_num)
+  ])
+  tendon_nsite = tendon_nsite[tendon_nsite > 0]
+  tendon_wrapnum_site = tendon_nsite + 1
+  tendon_with_site = sum([s > 0 for s in tendon_nsite])
+  ten_site_id = np.repeat(np.arange(tendon_with_site), tendon_nsite)
+
+  length_site = jax.ops.segment_sum(lengths_site, ten_site_id, tendon_with_site)
+  moment_site = jax.ops.segment_sum(moments_site, ten_site_id, tendon_with_site)
+
+  # assemble length and moment
+  ten_length = (
+      jp.zeros_like(d.ten_length)
+      .at[np.concatenate([tendon_id_jnt, tendon_id_site])]
+      .set(jp.concatenate([length_jnt, length_site]))
+  )
+  ten_moment = (
+      jp.zeros_like(d.ten_J)
+      .at[adr_moment_jnt, dofadr_moment_jnt]
+      .set(moment_jnt)
+  )
+  ten_moment = ten_moment.at[tendon_id_site].set(moment_site)
+
+  # wrap
+  wrap_xpos = jp.concatenate([
+      d.site_xpos[m.wrap_objid[wrap_id_site]],
+      jp.zeros((2 * m.nwrap - nwrap_site, 3)),
+  ]).reshape((m.nwrap, 6))
+
+  ten_wrapnum = np.zeros(m.ntendon)
+  ten_wrapnum[tendon_id_site] = tendon_wrapnum_site
+
+  ten_wrapadr = [0]
+  for wn in ten_wrapnum[:-1]:
+    ten_wrapadr.append(ten_wrapadr[-1] + wn)
+  ten_wrapadr = np.array(ten_wrapadr).astype(int)
+
+  wrap_obj = np.zeros(m.nwrap * 2, dtype=int)
+  wrap_obj[:nwrap_site] = -1
+  wrap_obj = wrap_obj.reshape((-1, 2))
+
+  return d.replace(
+      ten_length=ten_length,
+      ten_J=ten_moment,
+      ten_wrapadr=jp.array(ten_wrapadr),
+      ten_wrapnum=jp.array(ten_wrapnum),
+      wrap_xpos=wrap_xpos,
+      wrap_obj=jp.array(wrap_obj),
+  )
 
 
 def _site_dof_mask(m: Model) -> np.ndarray:

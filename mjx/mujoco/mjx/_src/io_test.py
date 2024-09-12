@@ -168,6 +168,7 @@ class ModelIOTest(parameterized.TestCase):
           <tendon>
             <spatial name="rope" range="0 .35">
               <site site="slider"/>
+              <geom geom="shoulder"/>
               <site site="arm"/>
             </spatial>
           </tendon>

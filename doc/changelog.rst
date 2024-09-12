@@ -19,6 +19,7 @@ General
      for any object type.
    - The experimental use of 2D/3D elasticity plugins with :ref:`composite<body-composite>` has been removed. Users
      should instead use :ref:`flexcomp<body-flexcomp>`, which provides the correct collision behavior.
+
 - Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
   detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
   early stages of testing.
@@ -63,6 +64,7 @@ MJX
 - Fixed a bug where ``qLDiagInv`` had the wrong size for sparse mass matrices.
 - Added support for joint and tendon :ref:`frictionloss <coFriction>`.
 - Added support for :ref:`connect<equality-connect>` equality constraints using two sites.
+- Added support for :ref:`spatial tendons <tendon-spatial>` with site wrapping.
 
 Bug fixes
 ^^^^^^^^^
@@ -73,7 +75,7 @@ Bug fixes
 - Fixed a bug in tendon wrapping around spheres. Before this fix, tendons that wrapped around spheres with an
   externally-placed :ref:`sidesite<spatial-geom-sidesite>` could jump inside the sphere instead of wrapping around it.
 - Fixed a bug that caused :at:`meshdir` and :at:`texturedir` to be overwritten during model
-  :ref:`attachment<meAttachment>.
+  :ref:`attachment<meAttachment>`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
