@@ -130,6 +130,112 @@ mjtNum Penetration(mjModel* m, mjData* d, int g1, int g2,
 
 using MjGjkTest = MujocoTest;
 
+TEST_F(MjGjkTest, SphereSphereIntersect) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom name="geom1" type="sphere" pos="-1 0 0" size="3"/>
+    <geom name="geom2" type="sphere" pos="3 0 0" size="3"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dir[3], pos[3];
+  mjtNum dist = Penetration(model, data, geom1, geom2, dir, pos);
+
+  // penetration depth
+  EXPECT_NEAR(dist, -2, kTolerance);
+
+  // direction
+  EXPECT_NEAR(dir[0], 1, kTolerance);
+  EXPECT_NEAR(dir[1], 0, 0.001);
+  EXPECT_NEAR(dir[2], 0, 0.001);
+
+  // position
+  EXPECT_NEAR(pos[0], 1, kTolerance);
+  EXPECT_NEAR(pos[1], 0, kTolerance);
+  EXPECT_NEAR(pos[2], 0, kTolerance);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjGjkTest, BoxBoxIntersect) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom name="geom1" type="box"  pos="-1 0 0" size="2.5 2.5 2.5"/>
+    <geom name="geom2" type="box" pos="1.5 0 0" size="1 1 1"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dir[3], pos[3];
+  mjtNum dist = Penetration(model, data, geom1, geom2, dir, pos);
+
+  EXPECT_NEAR(dist, -1, kTolerance);
+  EXPECT_NEAR(dir[0], 1, kTolerance);
+  EXPECT_NEAR(dir[1], 0, kTolerance);
+  EXPECT_NEAR(dir[2], 0, kTolerance);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjGjkTest, EllipsoidEllipsoidTouching) {
+  static constexpr char xml[] = R"()
+  <mujoco model="MuJoCo Model">
+  <compiler angle="radian"/>
+  <size nkey="1"/>
+  <worldbody>
+    <geom name="geom1" size="0.1 0.1 0.1" pos="0 0 -0.1" type="ellipsoid"/>
+    <body pos="0 0 0.1">
+      <joint type="free" limited="false" actuatorfrclimited="false"/>
+      <geom name="geom2" size="0.01 0.02 0.1" type="ellipsoid"/>
+    </body>
+  </worldbody>
+
+  <keyframe>
+    <key time="0.526"
+      qpos="7.11947e-07 -4.35075e-06 0.0955126 1 2.02101e-05 1.31548e-06 -4.92008e-09"
+      qvel="4.86327e-06 -3.27869e-05 -0.27468 0.000321014 2.68836e-05 -3.58931e-08"/>
+  </keyframe>
+</mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_resetDataKeyframe(model, data, 0);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dir[3], pos[3];
+  mjtNum dist = Penetration(model, data, geom1, geom2, dir, pos);
+
+  EXPECT_NEAR(dist, -0.0044873597898091094, kTolerance);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, SphereSphere) {
   static constexpr char xml[] = R"(
   <mujoco>
