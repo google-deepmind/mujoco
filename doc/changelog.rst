@@ -21,27 +21,26 @@ General
      should instead use :ref:`flexcomp<body-flexcomp>`, which provides the correct collision behavior.
 
 - Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
-  detection is handled natively, as opposed to using `libccd <https://github.com/danfis/libccd>`__. This feature is in
-  early stages of testing.
+  detection is handled with a new native code path, rather than `libccd <https://github.com/danfis/libccd>`__.
+  This feature is in early stages of testing, but users who've experienced issues related to collsion detection are
+  welcome to experiment with it and report any issues.
 - Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
   The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
   hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
   positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
-- Introduced an optimization that applies to bodies with a :ref:`free joint<body-freejoint>` and no child bodies (i.e.
-  simple free-floating bodies): aligning the free joint (body frame) with the inertial frame. The alignment diagonalizes
-  the related 6x6 inertia sub-matrix, leading to faster simulation, and minimizes bias forces, leading to more
-  stable simulation of free bodies.
+- Introduced **free joint alignment**, an optimization that applies to bodies with a free joint and no child bodies
+  (simple free-floating bodies): automatically aligning the body frame with the inertial frame. This feature can be
+  toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally using the compiler
+  :ref:`alignfree<compiler-alignfree>` attribute. The alignment diagonalizes the related 6x6 inertia sub-matrix, leading
+  to both faster simulation and more stable simulation of free bodies.
 
-  While this optimization is a strict improvement over unaligned free joints, it also changes the semantics of the
-  joint's degrees-of-freedom w.r.t to previous versions. Therefore, ``qpos`` and ``qvel`` values saved in older versions
-  (for example, in :ref:`keyframes<keyframe>`) will become invalid.
+  While this optimization is a strict improvement, it changes the semantics of the joint's degrees-of-freedom.
+  Therefore, ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) will
+  become invalid. The global compiler attribute currently defaults to "false" due to this potential breakage, but could
+  be changed to "true" in a future release. Aligned free joints are recommended for all new models.
 
-  This feature can be toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally
-  using the compiler :ref:`alignfree<compiler-alignfree>` attribute. The latter attribute currently defaults to "false"
-  due to the potential breakage described above, but could be changed to "true" in a future release. Aligned free joints
-  are recommended for all new models.
-- Added :ref:`mjSpec` option for creating a texture from a buffer.
-- :ref:`shellinertia <body-geom-shellinertia>` is now supported by all geom types.
+- Added an :ref:`mjSpec` option for creating a texture directly from a buffer.
+- :ref:`shell (surface) inertia <body-geom-shellinertia>` is now supported by all geom types.
 - When :ref:`attaching<meAttachment>` sub-models, :ref:`keyframes<keyframe>` will now be correctly merged into the
   parent model, but only on the first attachment.
 - Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
@@ -75,7 +74,7 @@ Bug fixes
 - Fixed a bug in tendon wrapping around spheres. Before this fix, tendons that wrapped around spheres with an
   externally-placed :ref:`sidesite<spatial-geom-sidesite>` could jump inside the sphere instead of wrapping around it.
 - Fixed a bug that caused :at:`meshdir` and :at:`texturedir` to be overwritten during model
-  :ref:`attachment<meAttachment>`.
+  :ref:`attachment<meAttachment>`, preventing model attachment for models with assets in different directories.
 
 Python bindings
 ^^^^^^^^^^^^^^^
