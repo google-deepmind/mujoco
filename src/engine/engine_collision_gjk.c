@@ -57,7 +57,6 @@ typedef struct {
   int verts[3];  // indices of the three vertices of the face in the polytope
   mjtNum v[3];
   mjtNum dist;
-  mjtNum n[3];
 } Face;
 
 typedef struct {
@@ -265,17 +264,36 @@ static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
 
 
 // res = origin projected onto plane defined by v1, v2, v3
-static inline void projectOriginPlane(mjtNum res[3], mjtNum normal[3], const mjtNum v1[3],
+static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3],
                                       const mjtNum v2[3], const mjtNum v3[3]) {
-  mjtNum diff1[3], diff2[3], tmp[3];
-  mju_sub3(diff1, v2, v1);
-  mju_sub3(diff2, v3, v1);
-  mju_cross(tmp, diff1, diff2);  // vector normal to the plane
+  mjtNum diff21[3], diff31[3], diff32[3], n[3], nv, nn;
+  mju_sub3(diff21, v2, v1);
+  mju_sub3(diff31, v3, v1);
+  mju_sub3(diff32, v3, v2);
 
-  // res = tmp * <tmp, v1> / ||tmp||^2
-  mjtNum tmp_sqr = mju_dot3(tmp, tmp);
-  mju_scl3(res, tmp, mju_dot3(tmp, v1) / tmp_sqr);
-  if (normal) mju_scl3(normal, tmp, 1/mju_sqrt(tmp_sqr));
+  // n = (v1 - v2) x (v3 - v2)
+  mju_cross(n, diff32, diff21);
+  nv = mju_dot3(n, v2);
+  nn = mju_dot3(n, n);
+  if (nv != 0 && nn > mjMINVAL) {
+    mju_scl3(res, n, nv / nn);
+    return;
+  }
+
+  // n = (v2 - v1) x (v3 - v1)
+  mju_cross(n, diff21, diff31);
+  nv = mju_dot3(n, v1);
+  nn = mju_dot3(n, n);
+  if (nv != 0 && nn > mjMINVAL) {
+    mju_scl3(res, n, nv / nn);
+    return;
+  }
+
+  // n = (v1 - v3) x (v2 - v3)
+  mju_cross(n, diff31, diff32);
+  nv = mju_dot3(n, v3);
+  nn = mju_dot3(n, n);
+  mju_scl3(res, n, nv / nn);
 }
 
 
@@ -438,7 +456,7 @@ static void S2D(mjtNum lambda[3], const mjtNum simplex[9]) {
 
   // project origin onto affine hull of the simplex
   mjtNum p_o[3];
-  projectOriginPlane(p_o, NULL, s1, s2, s3);
+  projectOriginPlane(p_o, s1, s2, s3);
 
   // Below are the minors M_i4 of the matrix M given by
   // [[ s1_x, s2_x, s3_x, s4_x ],
@@ -967,11 +985,8 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3) {
   mjtNum* pv1 = pt->verts[v1].v;
   mjtNum* pv2 = pt->verts[v2].v;
   mjtNum* pv3 = pt->verts[v3].v;
-  projectOriginPlane(face->v, face->n, pv1, pv2, pv3);
+  projectOriginPlane(face->v, pv1, pv2, pv3);
   face->dist = mju_norm3(face->v);
-
-  // orientation check
-  if (mju_dot3(face->n, pv1) < 0) mju_scl3(face->n, face->n, -1);
   pt->nfaces++;
 }
 
