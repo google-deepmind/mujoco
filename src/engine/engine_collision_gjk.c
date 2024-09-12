@@ -141,17 +141,18 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     gjkSupport(s1, s2, obj1, obj2, x_k);
     mju_sub3(s_k, s1, s2);
 
-    // return early if geom distance isn't needed
-    if (!get_dist && mju_dot3(x_k, s_k) > 0) {
-      return mjMAXVAL;
-    }
-
     // the stopping criteria relies on the Frank-Wolfe duality gap given by
     //  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - s_k) >
     mjtNum diff[3];
     mju_sub3(diff, x_k, s_k);
     if (2*mju_dot3(x_k, diff) < epsilon) {
       break;
+    }
+
+    // check if hyperplane is separating the Minkowski difference and the origin;
+    // if so the objects don't collide, so return early if geom distance isn't needed
+    if (!get_dist && mju_dot3(x_k, s_k) > 0) {
+      return mjMAXVAL;
     }
 
     // TODO(kylebayes): signedVolume has been written to assume the first vertex is the latest
@@ -1165,8 +1166,8 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     } else {
       dist = 0;
     }
-    mju_free(pt.faces);
-    mju_free(pt.verts);
+    free(pt.faces);
+    free(pt.verts);
   }
   return dist;
 }

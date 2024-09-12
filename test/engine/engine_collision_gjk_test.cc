@@ -101,10 +101,11 @@ int PenetrationWrapper(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
 }
 
 mjtNum Penetration(mjModel* m, mjData* d, int g1, int g2,
-                   mjtNum dir[3] = nullptr, mjtNum pos[3] = nullptr) {
-  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center,
+                   mjtNum dir[3] = nullptr, mjtNum pos[3] = nullptr,
+                   mjtNum margin = 0) {
+  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, mjc_center,
                    mjc_support};
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center,
+  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, mjc_center,
                    mjc_support};
   ccd_t ccd;
   // CCD_INIT(&ccd);  // uncomment to run ccdMPRPenetration
@@ -120,7 +121,8 @@ mjtNum Penetration(mjModel* m, mjData* d, int g1, int g2,
   ccd_vec3_t ccd_dir, ccd_pos;
 
   int ret = PenetrationWrapper(&obj1, &obj2, &ccd, &depth, &ccd_dir, &ccd_pos);
-  if (ret) return 0;  // objects not colliding
+  // objects not colliding, return max value as geom distance was never computed
+  if (ret) return mjMAXVAL;
   if (dir) mju_copy3(dir, ccd_dir.v);
   if (pos) mju_copy3(pos, ccd_pos.v);
   return -depth;
@@ -216,8 +218,8 @@ TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
-    <geom name="geom1" type="ellipsoid" pos="1.5 0 -.5" size="2.25 4.5 3"/>
-    <geom name="geom2" type="ellipsoid" pos="1.5 .5 .5" size="1.5 1.5 2.25"/>
+    <geom name="geom1" type="ellipsoid" pos="1.5 0 -.5" size=".15 .30 .20"/>
+    <geom name="geom2" type="ellipsoid" pos="1.5 .5 .5" size=".10 .10 .15"/>
   </worldbody>
   </mujoco>)";
 
@@ -230,9 +232,9 @@ TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
 
   int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
-  mjtNum dist = GeomDist(model, data, geom1, geom2, nullptr, nullptr);
+  mjtNum dist = Penetration(model, data, geom1, geom2, nullptr, nullptr, 15);
 
-  EXPECT_NEAR(dist, 0, kTolerance);
+  EXPECT_LT(dist, 0);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
