@@ -2,7 +2,7 @@
 Changelog
 =========
 
-Version 3.2.3 (Sep 12, 2024)
+Version 3.2.3 (Sep 16, 2024)
 ----------------------------
 
 General
@@ -24,15 +24,23 @@ General
    detection is handled with a new native code path, rather than `libccd <https://github.com/danfis/libccd>`__.
    This feature is in early stages of testing, but users who've experienced issues related to collsion detection are
    welcome to experiment with it and report any issues.
-5. Added a new way of defining :ref:`connect<equality-connect>` equality constraints, using two sites rather than bodies.
-   The new semantic is useful when the assumption that the constraint is satisfied in the base configuration does not
-   hold. In this case the sites will "snap together" at the beginning of the simulation. Additionally, changing the site
-   positions in ``mjModel.site_pos`` at runtime can be used to modify the constraint.
+
+.. youtube:: kcM_oauk3ZA
+   :align: right
+   :width: 240px
+
+5. Added a new way of defining :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constraints,
+   using two sites. The new semantic is useful when the assumption that the constraint is satisfied
+   in the base configuration does not hold. In this case the sites will "snap together" at the beginning of the
+   simulation. Additionally, changing the site positions (``mjModel.site_pos``) and orientations
+   ( ``mjModel.site_quat``) at runtime will correctly modify the constraint definition. This
+   `example model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/equality_site.xml>`__ using
+   the new semantic is shown in the video on the right.
 6. Introduced **free joint alignment**, an optimization that applies to bodies with a free joint and no child bodies
    (simple free-floating bodies): automatically aligning the body frame with the inertial frame. This feature can be
    toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally using the compiler
-   :ref:`alignfree<compiler-alignfree>` attribute. The alignment diagonalizes the related 6x6 inertia sub-matrix, leading
-   to both faster simulation and more stable simulation of free bodies.
+   :ref:`alignfree<compiler-alignfree>` attribute. The alignment diagonalizes the related 6x6 inertia sub-matrix,
+   leading to both faster simulation and more stable simulation of free bodies.
 
    While this optimization is a strict improvement, it changes the semantics of the joint's degrees-of-freedom.
    Therefore, ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) will

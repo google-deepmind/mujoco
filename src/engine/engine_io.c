@@ -2239,6 +2239,7 @@ const char* mj_validateReferences(const mjModel* m) {
   for (int i=0; i < m->neq; i++) {
     int obj1id = m->eq_obj1id[i];
     int obj2id = m->eq_obj2id[i];
+    int objtype = m->eq_objtype[i];
     switch ((mjtEq) m->eq_type[i]) {
     case mjEQ_JOINT:
       if (obj1id >= m->njnt || obj1id < 0) {
@@ -2262,11 +2263,22 @@ const char* mj_validateReferences(const mjModel* m) {
 
     case mjEQ_WELD:
     case mjEQ_CONNECT:
-      if (obj1id >= m->nbody || obj1id < 0) {
-        return "Invalid model: eq_obj1id out of bounds.";
-      }
-      if (obj2id >= m->nbody || obj2id < 0) {
-        return "Invalid model: eq_obj2id out of bounds.";
+      if (objtype == mjOBJ_BODY) {
+        if (obj1id >= m->nbody || obj1id < 0) {
+          return "Invalid model: eq_obj1id out of bounds.";
+        }
+        if (obj2id >= m->nbody || obj2id < 0) {
+          return "Invalid model: eq_obj2id out of bounds.";
+        }
+      } else if (objtype == mjOBJ_SITE) {
+        if (obj1id >= m->nsite || obj1id < 0) {
+          return "Invalid model: eq_obj1id out of bounds.";
+        }
+        if (obj2id >= m->nsite || obj2id < 0) {
+          return "Invalid model: eq_obj2id out of bounds.";
+        }
+      } else {
+        return "Invalid model: eq_objtype is not body or site.";
       }
       break;
 

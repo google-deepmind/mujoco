@@ -2328,14 +2328,14 @@ TEST_F(UserObjectsTest, BadConnect) {
   string xml = base.replace(pos, len, "<connect body1='1' anchor='0 0 1'/>");
   char error[1024];
   mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  EXPECT_THAT(m, NotNull()) << error;
+  ASSERT_THAT(m, NotNull()) << error;
   EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 1, 0, 0, 2));
   mj_deleteModel(m);
 
   // good model using site semantic
   xml = base.replace(pos, len, "<connect site1='0' site2='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  EXPECT_THAT(m, NotNull()) << error;
+  ASSERT_THAT(m, NotNull()) << error;
   EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 0, 0, 0, 0));
   mj_deleteModel(m);
 
@@ -2345,7 +2345,7 @@ TEST_F(UserObjectsTest, BadConnect) {
   // bad model (missing anchor)
   xml = base.replace(pos, len, "<connect body1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  EXPECT_THAT(m, IsNull());
+  ASSERT_THAT(m, IsNull());
   EXPECT_THAT(error, HasSubstr(error_missing));
 
   char error_mixed[] = "body and site semantics cannot be mixed"
@@ -2354,13 +2354,13 @@ TEST_F(UserObjectsTest, BadConnect) {
   // bad model (mixing body and site)
   xml = base.replace(pos, len, "<connect body1='1' site1='1'/>");
   m = LoadModelFromString(xml.c_str(), error, sizeof(error));
-  EXPECT_THAT(m, IsNull());
+  ASSERT_THAT(m, IsNull());
   EXPECT_THAT(error, HasSubstr(error_mixed));
 
   // load spec with no constraints
   xml = base.erase(pos, len);
   mjSpec* s = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
-  EXPECT_THAT(s, NotNull()) << error;
+  ASSERT_THAT(s, NotNull()) << error;
 
   // add a connect but don't set objtype
   mjsEquality* equality = mjs_addEquality(s, nullptr);
@@ -2370,14 +2370,119 @@ TEST_F(UserObjectsTest, BadConnect) {
 
   // expect compilation to fail
   m = mj_compile(s, nullptr);
-  EXPECT_THAT(m, IsNull());
+  ASSERT_THAT(m, IsNull());
   EXPECT_THAT(mjs_getError(s),
               HasSubstr("connect constraint supports only sites and bodies"));
 
   // set objtype, expect compilation to succeed
   equality->objtype = mjOBJ_SITE;
   m = mj_compile(s, nullptr);
-  EXPECT_THAT(m, NotNull()) << mjs_getError(s);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(s);
+  mj_deleteModel(m);
+  mj_deleteSpec(s);
+}
+
+TEST_F(UserObjectsTest, BadWeld) {
+  string base = R"(
+  <mujoco>
+    <worldbody>
+      <site name="0" size="1"/>
+      <body name="1" pos="0 0 1">
+        <freejoint/>
+        <geom size="1"/>
+        <site name="1"/>
+      </body>
+    </worldbody>
+    <equality>
+      WELD
+    </equality>
+  </mujoco>
+  )";
+  int pos = base.find("WELD");
+  int len = 4;
+
+  // good model using body semantic
+  string xml = base.replace(pos, len, "<weld body1='1' anchor='0 0 1' torquescale='2'/>");
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_THAT(AsVector(m->eq_data, 10),
+              ElementsAre(0, 0, 1, 0, 0, 0, 1, 0, 0, 0));
+  mj_deleteModel(m);
+
+  // good model using site semantic
+  xml = base.replace(pos, len, "<weld site1='0' site2='1' torquescale='2'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_THAT(AsVector(m->eq_data, 10),
+              ElementsAre(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+  mj_deleteModel(m);
+
+  char error_mixed[] =
+      "body and site semantics cannot be mixed"
+      "\nElement 'weld', line 12";
+
+  // bad model (mixing body and site)
+  xml = base.replace(pos, len, "<weld body1='1' site1='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_mixed));
+
+  // bad model (mixing site and anchor)
+  xml = base.replace(pos, len, "<weld anchor='0 0 1' site1='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_mixed));
+
+  // bad model (mixing site and relpose)
+  xml = base.replace(pos, len, "<weld relpose='0 0 0 1 0 0 0' site1='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_mixed));
+
+  // bad model (body and site semantics are valid, but both are specified)
+  xml = base.replace(pos, len, "<weld body1='1' site1='1' site2='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_mixed));
+
+  char error_underspecified[] =
+      "either body1 must be defined and optionally {body2, anchor, "
+      "relpose}, or site1 and site2 must be defined\nElement 'weld', line 12";
+
+  // bad model (underspecified body semantics)
+  xml = base.replace(pos, len, "<weld anchor='0 0 1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_underspecified));
+
+  // bad model (underspecified site semantics)
+  xml = base.replace(pos, len, "<weld site2='1'/>");
+  m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr(error_underspecified));
+
+  // load spec with no constraints
+  xml = base.erase(pos, len);
+  mjSpec* s = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(s, NotNull()) << error;
+
+  // add a weld but don't set objtype
+  mjsEquality* equality = mjs_addEquality(s, nullptr);
+  equality->type = mjEQ_WELD;
+  mjs_setString(equality->name1, "0");
+  mjs_setString(equality->name2, "1");
+
+  // expect compilation to fail
+  m = mj_compile(s, nullptr);
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(mjs_getError(s),
+              HasSubstr("weld constraint supports only sites and bodies"));
+
+  // set objtype, expect compilation to succeed
+  equality->objtype = mjOBJ_SITE;
+  m = mj_compile(s, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(s);
   mj_deleteModel(m);
   mj_deleteSpec(s);
 }

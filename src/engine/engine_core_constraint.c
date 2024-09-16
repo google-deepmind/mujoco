@@ -542,11 +542,22 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_WELD:                 // fix relative position and orientation
-        // find global points
-        for (int j=0; j < 2; j++) {
-          mjtNum* anchor = data + 3*(1-j);
-          mju_mulMatVec3(pos[j], d->xmat + 9*id[j], anchor);
-          mju_addTo3(pos[j], d->xpos + 3*id[j]);
+        // find global points, body semantic
+        if (m->eq_objtype[i] == mjOBJ_BODY) {
+          for (int j=0; j < 2; j++) {
+            mjtNum* anchor = data + 3*(1-j);
+            mju_mulMatVec3(pos[j], d->xmat + 9*id[j], anchor);
+            mju_addTo3(pos[j], d->xpos + 3*id[j]);
+            body_id[j] = id[j];
+          }
+        }
+
+        // find global points, site semantic
+        else {
+          for (int j=0; j < 2; j++) {
+            mju_copy3(pos[j], d->site_xpos + 3*id[j]);
+            body_id[j] = m->site_bodyid[id[j]];
+          }
         }
 
         // compute position error
@@ -556,7 +567,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mjtNum torquescale = data[10];
 
         // compute error Jacobian (opposite of contact: 0 - 1)
-        NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
+        NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                            jac[1], jac[0], jacdif,
                            jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv);
 
@@ -564,11 +575,23 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_copy(jac[0], jacdif, 3*NV);
         mju_copy(jac[0]+3*NV, jacdif+3*nv, 3*NV);
 
-        // compute orientation error: neg(q1) * q0 * relpose (axis components only)
-        mjtNum* relpose = data+6;
-        mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
-        mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
-        mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*relpose
+        // orientation, body semantic
+        if (m->eq_objtype[i] == mjOBJ_BODY) {
+          // compute orientation error: neg(q1) * q0 * relpose (axis components only)
+          mjtNum* relpose = data+6;
+          mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
+          mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
+        }
+
+        // orientation, site semantic
+        else {
+          mjtNum quat_site1[4];
+          mju_mulQuat(quat, d->xquat+4*body_id[0], m->site_quat+4*id[0]);
+          mju_mulQuat(quat_site1, d->xquat+4*body_id[1], m->site_quat+4*id[1]);
+          mju_negQuat(quat1, quat_site1);
+        }
+
+        mju_mulQuat(quat2, quat1, quat);
         mju_scl3(cpos+3, quat2+1, torquescale);         // scale axis components by torquescale
 
         // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * relpose

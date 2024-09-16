@@ -631,11 +631,16 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
       break;
 
     case mjEQ_WELD:
-      WriteAttrTxt(elem, "body1", mjs_getString(equality->name1));
-      WriteAttrTxt(elem, "body2", mjs_getString(equality->name2));
-      WriteAttr(elem, "anchor", 3, equality->data);
+      if (equality->objtype == mjOBJ_BODY) {
+        WriteAttrTxt(elem, "body1", mjs_getString(equality->name1));
+        WriteAttrTxt(elem, "body2", mjs_getString(equality->name2));
+        WriteAttr(elem, "anchor", 3, equality->data);
+        WriteAttr(elem, "relpose", 7, equality->data+3);
+      } else {
+        WriteAttrTxt(elem, "site1", mjs_getString(equality->name1));
+        WriteAttrTxt(elem, "site2", mjs_getString(equality->name2));
+      }
       WriteAttr(elem, "torquescale", 1, equality->data+10);
-      WriteAttr(elem, "relpose", 7, equality->data+3);
       break;
 
     case mjEQ_JOINT:

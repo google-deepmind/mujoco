@@ -2026,29 +2026,34 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       int is_connect = m->eq_type[i] == mjEQ_CONNECT;
       if (d->eq_active[i] && (is_connect || is_weld)) {
         // compute endpoints in global coordinates
+        mjtNum *xmat_j, *xmat_k;
         int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
-        if (is_connect && m->eq_objtype[i] == mjOBJ_SITE) {
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
           mju_copy3(vec, d->site_xpos+3*j);
           mju_copy3(end, d->site_xpos+3*k);
+          xmat_j = d->site_xmat+9*j;
+          xmat_k = d->site_xmat+9*k;
         } else {
           mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*is_weld);
           mju_addTo3(vec, d->xpos+3*j);
           mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*is_connect);
           mju_addTo3(end, d->xpos+3*k);
+          xmat_j = d->xmat+9*j;
+          xmat_k = d->xmat+9*k;
         }
 
         // construct geom
         sz[0] = scl * m->vis.scale.constraint;
 
         START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, d->xmat+9*j, m->vis.rgba.connect);
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
         FINISH
 
         START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, d->xmat+9*k, m->vis.rgba.constraint);
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }

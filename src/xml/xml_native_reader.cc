@@ -365,8 +365,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"<"},
         {"connect", "*", "10", "name", "class", "body1", "body2", "anchor",
             "site1", "site2", "active", "solref", "solimp"},
-        {"weld", "*", "10", "name", "class", "body1", "body2", "relpose", "anchor",
-            "active", "solref", "solimp", "torquescale"},
+        {"weld", "*", "12", "name", "class", "body1", "body2", "relpose", "anchor",
+            "site1", "site2", "active", "solref", "solimp", "torquescale"},
         {"joint", "*", "8", "name", "class", "joint1", "joint2", "polycoef",
             "active", "solref", "solimp"},
         {"tendon", "*", "8", "name", "class", "tendon1", "tendon2", "polycoef",
@@ -1934,13 +1934,50 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
       }
       break;
 
-    case mjEQ_WELD:
-      ReadAttrTxt(elem, "body1", name1, true);
-      ReadAttrTxt(elem, "body2", name2);
-      ReadAttr(elem, "relpose", 7, equality->data+3, text);
-      ReadAttr(elem, "torquescale", 1, equality->data+10, text);
-      if (!ReadAttr(elem, "anchor", 3, equality->data, text)) {
-        mjuu_zerovec(equality->data, 3);
+    case mjEQ_WELD: {
+        auto maybe_site1 = ReadAttrStr(elem, "site1");
+        auto maybe_site2 = ReadAttrStr(elem, "site2");
+        auto maybe_body1 = ReadAttrStr(elem, "body1");
+        auto maybe_body2 = ReadAttrStr(elem, "body2");
+        bool has_anchor = ReadAttr(elem, "anchor", 3, equality->data, text);
+        bool has_relpose = ReadAttr(elem, "relpose", 7, equality->data+3, text);
+
+        bool maybe_site = maybe_site1.has_value() || maybe_site2.has_value();
+        bool maybe_body = maybe_body1.has_value() ||
+                          maybe_body2.has_value() ||
+                          has_anchor              ||
+                          has_relpose;
+
+        if (maybe_site && maybe_body) {
+          throw mjXError(elem, "body and site semantics cannot be mixed");
+        }
+
+        bool site_semantic = maybe_site1.has_value() && maybe_site2.has_value();
+        bool body_semantic = maybe_body1.has_value();
+
+        if (site_semantic == body_semantic) {
+          throw mjXError(
+              elem,
+              "either body1 must be defined and optionally {body2, anchor, relpose},"
+              " or site1 and site2 must be defined");
+        }
+
+        if (body_semantic) {
+          name1 = maybe_body1.value();
+          if (maybe_body2.has_value()) {
+            name2 = maybe_body2.value();
+          }
+          equality->objtype = mjOBJ_BODY;
+          if (!has_anchor) {
+            mjuu_zerovec(equality->data, 3);
+          }
+        } else {
+          name1 = maybe_site1.value();
+          name2 = maybe_site2.value();
+          equality->objtype = mjOBJ_SITE;
+        }
+
+        ReadAttr(elem, "torquescale", 1, equality->data+10, text);
       }
       break;
 

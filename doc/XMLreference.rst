@@ -4372,7 +4372,8 @@ ball joint outside the kinematic tree. Connect constraints can be specified in o
   satisfied in the configuration in which the model is defined.
 - :ref:`site1<equality-connect-site1>` and :ref:`site2<equality-connect-site2>` (both required). When using this
   specification, the two sites will be pulled together by the constraint, regardless of their position in the default
-  configuration.
+  configuration. An example of this specification is shown in
+  `this model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/equality_site.xml>`__.
 
 .. _equality-connect-name:
 
@@ -4421,11 +4422,11 @@ ball joint outside the kinematic tree. Connect constraints can be specified in o
 
 :at:`site1`: :at-val:`string, optional`
    Name of a site belonging to the first body participating in the constraint. When specified, :at:`site2` must also be
-   specified. The (:at:`site1`, :at:`site2`) specification is a more flexible alternative to the (:at:`body1`,
-   :at:`anchor`) specification, and is different in two ways. First, the sites are not required to overlap at the
-   default configuration; if they do not overlap then the sites will "snap together" at the beginning of the
-   simulation. Second, changing the site positions in ``mjModel.site_pos`` at runtime will correctly change the position
-   of the constraint (i.e. the content of ``mjModel.eq_data`` has no effect when this semantic is used).
+   specified. The (:at:`site1`, :at:`site2`) specification is a more flexible alternative to the body-based
+   specification, and is different in two ways. First, the sites are not required to overlap at the default
+   configuration; if they do not overlap then the sites will "snap together" at the beginning of the simulation. Second,
+   changing the site positions in ``mjModel.site_pos`` at runtime will correctly change the position of the constraint
+   (i.e. the content of ``mjModel.eq_data`` has no effect when this semantic is used).
 
 .. _equality-connect-site2:
 
@@ -4442,7 +4443,15 @@ This element creates a weld equality constraint. It attaches two bodies to each 
 freedom between them (softly of course, like all other constraints in MuJoCo). The two bodies are not required to be
 close to each other. The relative body position and orientation being enforced by the constraint solver is the one in
 which the model was defined. Note that two bodies can also be welded together rigidly, by defining one body as a child
-of the other body, without any joint elements in the child body.
+of the other body, without any joint elements in the child body. Weld constraints can be specified in one of two ways:
+
+- Using :ref:`body1<equality-weld-body1>` (and optionally :ref:`anchor<equality-weld-anchor>`,
+  :ref:`relpose<equality-weld-relpose>`, :ref:`body2<equality-weld-body2>`). When using this specification, the
+  constraint is assumed to be satisfied at the configuration in which the model is defined.
+- :ref:`site1<equality-weld-site1>` and :ref:`site2<equality-weld-site2>` (both required). When using this
+  specification, the frames of the two sites will be aligned by the constraint, regardless of their position in the
+  default configuration. An example of this specification is shown in
+  `this model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/equality_site.xml>`__.
 
 .. _equality-weld-name:
 
@@ -4459,8 +4468,9 @@ of the other body, without any joint elements in the child body.
 
 .. _equality-weld-body1:
 
-:at:`body1`: :at-val:`string, required`
-   Name of the first body.
+:at:`body1`: :at-val:`string, optional`
+   Name of the first body participating in the constraint. Either this attribute and must be specified or :at:`site1`
+   and :at:`site2` must be specified.
 
 .. _equality-weld-body2:
 
@@ -4482,6 +4492,23 @@ of the other body, without any joint elements in the child body.
    Coordinates of the weld point relative to body2. If :at:`relpose` is not specified, the meaning of
    this parameter is the same as for connect constraints, except that is relative to body2. If :at:`relpose` is
    specified, body1 will use the pose to compute its anchor point.
+
+.. _equality-weld-site1:
+
+:at:`site1`: :at-val:`string, optional`
+   Name of a site belonging to the first body participating in the constraint. When specified, :at:`site2` must also be
+   specified. The (:at:`site1`, :at:`site2`) specification is a more flexible alternative to the body-based
+   specification, and is different in two ways. First, the sites are not required to overlap at the default
+   configuration; if they do not overlap then the sites will "snap together" at the beginning of the simulation. Second,
+   changing the site position and orientation in ``mjModel.site_pos`` and ``mjModel.site_quat`` at runtime will
+   correctly change the position and orientation of the constraint (i.e. the content of ``mjModel.eq_data`` has no
+   effect when this semantic is used, with the exception of :ref:`torquescale<equality-weld-torquescale>`).
+
+.. _equality-weld-site2:
+
+:at:`site2`: :at-val:`string, optional`
+   Name of a site belonging to the second body participating in the constraint. When specified, :at:`site1` must also be
+   specified. See the :ref:`site1<equality-weld-site1>` description for more details.
 
 .. _equality-weld-torquescale:
 

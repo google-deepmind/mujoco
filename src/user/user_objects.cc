@@ -4920,7 +4920,10 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
 
   // determine object type
   if (type==mjEQ_WELD) {
-    object_type = mjOBJ_BODY;
+    if (objtype != mjOBJ_SITE && objtype != mjOBJ_BODY) {
+      throw mjCError(this, "weld constraint supports only sites and bodies");
+    }
+    object_type = objtype;
   } else if (type==mjEQ_CONNECT) {
     if (objtype != mjOBJ_SITE && objtype != mjOBJ_BODY) {
       throw mjCError(this, "connect constraint supports only sites and bodies");
