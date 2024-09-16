@@ -29,9 +29,8 @@ extern "C" {
 //------------------------------ tendons and actuators ---------------------------------------------
 
 // wrap tendons around spheres and cylinders
-mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
-                const mjtNum* xpos, const mjtNum* xmat, mjtNum radius,
-                int type, const mjtNum* side);
+mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3], const mjtNum xpos[3],
+                const mjtNum xmat[9], mjtNum radius, int type, const mjtNum side[3]);
 
 // normalized muscle length-gain curve
 MJAPI mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax);
