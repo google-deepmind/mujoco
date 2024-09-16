@@ -280,22 +280,14 @@ TEST_F(UserDataTest, AutoNUserSensor) {
 
 // ------------- test duplicate names ------------------------------------------
 TEST_F(UserDataTest, DuplicateNames) {
-  static const char* const kFilePath = "user/testdata/load_twice.xml";
+  static const char* const kFilePath = "user/testdata/malformed_duplicated.xml";
   const std::string xml_path = GetTestDataFilePath(kFilePath);
 
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
 
-  EXPECT_THAT(m, NotNull()) << error.data();
-  EXPECT_THAT(m->nmesh, 2);
-
-  for (int i = 0; i < m->nmesh; i++) {
-    char mesh_name[mjMAXUINAME] = "";
-    util::strcat_arr(mesh_name, m->names + m->name_meshadr[i]);
-    EXPECT_THAT(std::string(mesh_name), "cube_" + std::to_string(i));
-  }
-
-  mj_deleteModel(m);
+  EXPECT_THAT(m, IsNull());
+  EXPECT_STREQ(error.data(), "Error: repeated name 'cube' in mesh");
 }
 
 // ------------- test fusestatic -----------------------------------------------

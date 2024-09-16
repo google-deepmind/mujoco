@@ -15,8 +15,6 @@
 // Tests for xml/xml_api.cc.
 
 #include <array>
-#include <cstddef>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -28,6 +26,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::IsNull;
 using ::testing::NotNull;
 
 // ---------------------------- test capsule --------------------------------
@@ -250,6 +249,70 @@ TEST_F(MujocoTest, ReadsJointTypes) {
   }
 
   mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, RepeatedMeshName) {
+  static constexpr char urdf[] = R"(
+  <robot name="">
+  <mujoco>
+    <compiler discardvisual="false"/>
+  </mujoco>
+
+  <link name="geom1">
+    <visual name="vis1">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="mesh.obj" scale="1 1 1"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <link name="geom2">
+    <visual name="vis2">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="mesh.obj" scale="2 2 2"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <link name="geom3">
+    <visual name="vis3">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="mesh.obj" scale="3 3 3"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <link name="geom4">
+    <visual name="vis4">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="mesh.obj" scale="2 2 2"/>
+      </geometry>
+    </visual>
+  </link>
+  </robot>
+  )";
+
+  std::array<char, 1000> error;
+  mjSpec* spec = mj_parseXMLString(urdf, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+
+  mjsMesh* mesh = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "mesh"));
+  mjsMesh* mesh1 = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "mesh1"));
+  mjsMesh* mesh2 = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "mesh2"));
+  mjsMesh* mesh3 = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "mesh3"));
+  EXPECT_THAT(mesh, NotNull());
+  EXPECT_THAT(mesh1, NotNull());
+  EXPECT_THAT(mesh2, NotNull());
+  EXPECT_THAT(mesh3, IsNull());
+  EXPECT_STREQ(mjs_getString(mesh->name), "mesh");
+  EXPECT_STREQ(mjs_getString(mesh1->name), "mesh1");
+  EXPECT_STREQ(mjs_getString(mesh2->name), "mesh2");
+
+  mj_deleteSpec(spec);
 }
 
 }  // namespace

@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_MUJOCO_SRC_XML_XML_URDF_
 #define THIRD_PARTY_MUJOCO_SRC_XML_XML_URDF_
 
+#include <map>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -66,6 +67,7 @@ class mjXURDF : public mjXBase {
   std::vector<std::string> urMat;               // material name
   std::vector<mjRGBA> urRGBA;                   // material RBG value
   std::unordered_set<std::string> urGeomNames;  // geom name
+  std::map<std::string, std::vector<mjsMesh*>> meshes;  // map from name to mjsMesh
 
   std::string urPrefix;                         // prefix to apply to all names
 };

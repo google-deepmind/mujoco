@@ -1431,7 +1431,6 @@ void mjCModel::IndexAssets(bool discard) {
 template <typename T>
 void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
   string stripped;
-  std::map<string, std::vector<int>> names;
 
   // use filename if name is missing
   for (int i=0; i<assets.size(); i++) {
@@ -1439,16 +1438,6 @@ void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
     if (assets[i]->name.empty()) {
       stripped = mjuu_strippath(assets[i]->File());
       assets[i]->name = mjuu_stripext(stripped);
-      names[assets[i]->name].push_back(i);
-    }
-  }
-
-  // add suffix if duplicates
-  for (auto const& [name, indices] : names) {
-    if (indices.size() > 1) {
-      for (int i=0; i<indices.size(); i++) {
-        assets[indices[i]]->name += "_" + std::to_string(i);
-      }
     }
   }
 }
