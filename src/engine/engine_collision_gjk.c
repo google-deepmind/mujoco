@@ -61,19 +61,13 @@ typedef struct {
 } Face;
 
 typedef struct {
-  mjtNum v1[3];  // point in obj1
-  mjtNum v2[3];  // point in obj2
-  mjtNum v[3];   // v1 - v2; point in Minkowski sum
-  mjtNum dist;   // norm of v
-} Vertex;
-
-typedef struct {
-  Vertex* verts;  // list of vertices that make up the polytope
-  int nverts;     // number of vertices
-  int vcap;       // capacity of spaces for adding new vertices
-  Face* faces;    // list of faces that make up the polytope
-  int nfaces;     // number of faces
-  int fcap;       // capacity of spaces for adding new faces
+  mjtNum* verts1;    // vertices of polytope in obj1
+  mjtNum* verts2;    // vertices of polytope in obj2
+  mjtNum* verts;     // v1 - v2; vertices in Minkowski sum making up polytope
+  int nverts;        // number of vertices
+  Face* faces;       // list of faces that make up the polytope
+  int nfaces;        // number of faces
+  int fcap;          // capacity of spaces for adding new faces
 } Polytope;
 
 // generates a polytope from a 1-simplex, 2-simplex, or 3-simplex respectively
@@ -81,9 +75,6 @@ typedef struct {
 static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 static int polytope4(Polytope* pt, const mjCCDStatus* status);
-
-// initializes the polytope (faces and vertices must be freed by caller)
-static void initPolytope(Polytope* pt);
 
 // copies a vertex into the polytope and return its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
@@ -127,7 +118,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum epsilon = status->tolerance * status->tolerance;
   int get_dist = status->has_distances;
 
-// if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
+  // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
   if (discreteGeoms(obj1, obj2)) {
     epsilon = 0;
   }
@@ -760,7 +751,7 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
 // computes the affine coordinates of p on the triangle v1v2v3
-static void triConvexCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2[3],
+static void triAffineCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2[3],
                            const mjtNum v3[3], const mjtNum p[3]) {
   // compute minors as in S2D
   mjtNum M_14 = v2[1]*v3[2] - v2[2]*v3[1] - v1[1]*v3[2] + v1[2]*v3[1] + v1[1]*v2[2] - v1[2]*v2[1];
@@ -809,7 +800,7 @@ static void triConvexCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2
 static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3],
                              const mjtNum p[3]) {
   mjtNum lambda[3];
-  triConvexCoord(lambda, v1, v2, v3, p);
+  triAffineCoord(lambda, v1, v2, v3, p);
   if (lambda[0] < 0 || lambda[1] < 0 || lambda[2] < 0) {
     return 0;
   }
@@ -917,37 +908,14 @@ static int polytope4(Polytope* pt, const mjCCDStatus* status) {
   return 1;
 }
 
-#define mjMINCAP 100  // starting capacity for dynamic buffers
 
-// initializes the polytope (faces and vertices must be freed by caller)
-static void initPolytope(Polytope* pt) {
-  // vertices
-  pt->nverts = 0;
-  pt->vcap = mjMINCAP;
-  pt->verts = (Vertex*) malloc(pt->vcap * sizeof(Vertex));
-
-  // faces
-  pt->nfaces = 0;
-  pt->fcap = mjMINCAP;
-  pt->faces = (Face*) malloc(pt->fcap * sizeof(Face));
-}
-
-#undef mjMINCAP
 
 // copies a vertex into the polytope and return its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
-  int capacity = pt->vcap;
-  int n = pt->nverts++;
-  if (n == capacity) {
-    capacity *= 2;
-    pt->verts = (Vertex*) realloc(pt->verts, capacity * sizeof(Vertex));
-    pt->vcap = capacity;
-  }
-  Vertex* v = &pt->verts[n];
-  mju_copy3(v->v1, v1);
-  mju_copy3(v->v2, v2);
-  mju_sub3(v->v, v1, v2);
-  v->dist = mju_norm3(v->v);
+  int n = 3*pt->nverts++;
+  mju_copy3(pt->verts1 + n, v1);
+  mju_copy3(pt->verts2 + n, v2);
+  mju_sub3(pt->verts + n, v1, v2);
   return n;
 }
 
@@ -973,9 +941,9 @@ static void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2,
   face->adj[2] = adj3;
 
     // compute witness point v
-  mjtNum* pv1 = pt->verts[v1].v;
-  mjtNum* pv2 = pt->verts[v2].v;
-  mjtNum* pv3 = pt->verts[v3].v;
+  mjtNum* pv1 = pt->verts + v1;
+  mjtNum* pv2 = pt->verts + v2;
+  mjtNum* pv3 = pt->verts + v3;
   projectOriginPlane(face->v, pv1, pv2, pv3);
   face->dist = mju_norm3(face->v);
   pt->nfaces++;
@@ -1067,29 +1035,29 @@ static void horizon(Horizon* h, Face* face) {
 
 
 // recover witness points from EPA polytope
-static void epaWitness(const Polytope* pt, int index, mjtNum x1[3], mjtNum x2[3]) {
-  Face* face = &pt->faces[index];
-  int s1i = face->verts[0], s2i = face->verts[1], s3i = face->verts[2];
-
-  // three vertices of face
-  Vertex s1 = pt->verts[s1i];
-  Vertex s2 = pt->verts[s2i];
-  Vertex s3 = pt->verts[s3i];
-  const mjtNum* v  = face->v;
-
-  // compute minors as in S2D
+static void epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
+  // compute affine coordinates for witness points on plane defined by face
   mjtNum lambda[3];
-  triConvexCoord(lambda, s1.v, s2.v, s3.v, v);
+  mjtNum* v1 = pt->verts + face->verts[0];
+  mjtNum* v2 = pt->verts + face->verts[1];
+  mjtNum* v3 = pt->verts + face->verts[2];
+  triAffineCoord(lambda, v1, v2, v3, face->v);
 
   // face on geom 1
-  x1[0] = s1.v1[0]*lambda[0] + s2.v1[0]*lambda[1] + s3.v1[0]*lambda[2];
-  x1[1] = s1.v1[1]*lambda[0] + s2.v1[1]*lambda[1] + s3.v1[1]*lambda[2];
-  x1[2] = s1.v1[2]*lambda[0] + s2.v1[2]*lambda[1] + s3.v1[2]*lambda[2];
+  v1 = pt->verts1 + face->verts[0];
+  v2 = pt->verts1 + face->verts[1];
+  v3 = pt->verts1 + face->verts[2];
+  x1[0] = v1[0]*lambda[0] + v2[0]*lambda[1] + v3[0]*lambda[2];
+  x1[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
+  x1[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
 
   // face on geom 2
-  x2[0] = s1.v2[0]*lambda[0] + s2.v2[0]*lambda[1] + s3.v2[0]*lambda[2];
-  x2[1] = s1.v2[1]*lambda[0] + s2.v2[1]*lambda[1] + s3.v2[1]*lambda[2];
-  x2[2] = s1.v2[2]*lambda[0] + s2.v2[2]*lambda[1] + s3.v2[2]*lambda[2];
+  v1 = pt->verts2 + face->verts[0];
+  v2 = pt->verts2 + face->verts[1];
+  v3 = pt->verts2 + face->verts[2];
+  x2[0] = v1[0]*lambda[0] + v2[0]*lambda[1] + v3[0]*lambda[2];
+  x2[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
+  x2[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
 }
 
 
@@ -1132,28 +1100,30 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
       mju_warning("EPA: origin lies on affine hull of face (most likely a bug)");
     }
 
+    Face* face = &pt->faces[index];
+
     // compute support point w from the closest face's normal
     mjtNum w1[3], w2[3], w[3];
-    support(w1, w2, obj1, obj2, pt->faces[index].v);
+    support(w1, w2, obj1, obj2, face->v);
     mju_sub3(w, w1, w2);
-    mjtNum next_dist = mju_dot3(pt->faces[index].v, w) / dist;
+    mjtNum next_dist = mju_dot3(face->v, w) / dist;
     if (next_dist - dist < tolerance) {
       break;
     }
 
     h.w = w;
-    horizon(&h, &pt->faces[index]);
+    horizon(&h, face);
 
     // insert w as new vertex and attach faces along the horizon
     int wi = newVertex(pt, w1, w2), nfaces = pt->nfaces, nedges = h.nedges;
 
     // attach first face
     int horIndex = h.indices[0], horEdge = h.edges[0];
-    Face* face = &pt->faces[horIndex];
-    int v1 = face->verts[horEdge],
-        v2 = face->verts[(horEdge + 1) % 3];
+    Face* horFace = &pt->faces[horIndex];
+    int v1 = horFace->verts[horEdge],
+        v2 = horFace->verts[(horEdge + 1) % 3];
+    horFace->adj[horEdge] = nfaces;
     attachFace(pt, wi, v2, v1, nfaces + nedges - 1, horIndex, nfaces + 1);
-    pt->faces[horIndex].adj[horEdge] = nfaces;
 
     // attach remaining faces
     for (int i = 1; i < nedges; i++) {
@@ -1161,16 +1131,16 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
       int next = nfaces + (i + 1) % nedges;  // index of next face
 
       horIndex = h.indices[i], horEdge = h.edges[i];
-      face = &pt->faces[horIndex];
-      v1 = face->verts[horEdge];
-      v2 = face->verts[(horEdge + 1) % 3];
+      horFace = &pt->faces[horIndex];
+      v1 = horFace->verts[horEdge];
+      v2 = horFace->verts[(horEdge + 1) % 3];
+      horFace->adj[horEdge] = cur;
       attachFace(pt, wi, v2, v1, cur - 1, horIndex, next);
-      pt->faces[horIndex].adj[horEdge] = cur;
     }
     h.nedges = 0;  // clear horizon
   }
   mj_freeStack(d);
-  epaWitness(pt, index, status->x1, status->x2);
+  epaWitness(pt, &pt->faces[index], status->x1, status->x2);
   status->epa_iterations = k;
   return dist;
 }
@@ -1197,7 +1167,20 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
 
   if (dist <= config->tolerance && status->nsimplex > 1) {
     Polytope pt;
-    initPolytope(&pt);
+    mjData* d = (mjData*) obj1->data;
+
+    // allocate memory for faces
+    pt.nfaces = 0;
+    pt.fcap = 1000;
+    pt.faces = (Face*) malloc(pt.fcap * sizeof(Face));
+
+    // allocate memory for vertices
+    mj_markStack(d);
+    pt.nverts = 0;
+    pt.verts  = mj_stackAllocNum(d, 3*(5 + status->max_iterations));
+    pt.verts1 = mj_stackAllocNum(d, 3*(5 + status->max_iterations));
+    pt.verts2 = mj_stackAllocNum(d, 3*(5 + status->max_iterations));
+
     int ret;
     if (status->nsimplex == 2) {
       ret = polytope2(&pt, status, obj1, obj2);
@@ -1213,8 +1196,8 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     } else {
       dist = 0;
     }
+    mj_freeStack(d);
     free(pt.faces);
-    free(pt.verts);
   }
   return dist;
 }
