@@ -4059,7 +4059,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt.disableflags |= mjDSBL_CONTACT;
   mj_makeRawData(&d, m);
   if (!d) {
-    mj_deleteModel(m);
+    // m will be deleted by the catch statement in mjCModel::Compile()
     throw mjCError(0, "could not create mjData");
   }
   mj_resetData(m, d);
@@ -4095,8 +4095,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // assert that model has valid references
   const char* validationerr = mj_validateReferences(m);
   if (validationerr) {  // SHOULD NOT OCCUR
-    mj_deleteData(d);
-    mj_deleteModel(m);
+    // m and d will be deleted by the catch statement in mjCModel::Compile()
     throw mjCError(0, "%s", validationerr);
   }
 
@@ -4105,7 +4104,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   d = nullptr;
   d = mj_makeData(m);
   if (!d) {
-    mj_deleteModel(m);
+    // m will be deleted by the catch statement in mjCModel::Compile()
     throw mjCError(0, "could not create mjData");
   }
 
