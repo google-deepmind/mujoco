@@ -545,5 +545,96 @@ TEST_F(MujocoTest, Modeldir) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(MujocoTest, NestedMeshDir) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="child_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="child_mesh.obj"/>
+    </asset>
+
+    <worldbody>
+      <body name="child">
+        <geom type="mesh" mesh="m"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="parent_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="parent_mesh.obj"/>
+      <model name="child" file="child.xml"/>
+    </asset>
+
+    <worldbody>
+      <body name="parent">
+        <geom type="mesh" mesh="m"/>
+        <attach model="child" body="child" prefix="child_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char grandparent_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="grandparent_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="grandparent_mesh.obj"/>
+      <model name="parent" file="parent.xml"/>
+    </asset>
+
+    <worldbody>
+      <geom type="mesh" mesh="m"/>
+      <attach model="parent" body="parent" prefix="parent_"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child_meshdir/child_mesh.obj", cube,
+                  sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+  mj_addBufferVFS(vfs.get(), "parent_meshdir/parent_mesh.obj", cube,
+                  sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "parent.xml", parent_xml, sizeof(parent_xml));
+  mj_addBufferVFS(vfs.get(), "grandparent_meshdir/grandparent_mesh.obj", cube,
+                  sizeof(cube));
+
+  std::array<char, 1024> error;
+  mjModel* child_model = LoadModelFromString(child_xml, error.data(),
+                                             error.size(), vfs.get());
+  EXPECT_THAT(child_model, NotNull()) << error.data();
+  mj_deleteModel(child_model);
+
+  mjModel* parent_model = LoadModelFromString(parent_xml, error.data(),
+                                              error.size(), vfs.get());
+  EXPECT_THAT(parent_model, NotNull()) << error.data();
+  mj_deleteModel(parent_model);
+
+  mjModel* grandparent_model = LoadModelFromString(
+      grandparent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(grandparent_model, NotNull()) << error.data();
+  mj_deleteModel(grandparent_model);
+
+  mj_deleteVFS(vfs.get());
+}
+
 }  // namespace
 }  // namespace mujoco

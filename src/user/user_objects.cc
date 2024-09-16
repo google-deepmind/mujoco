@@ -3405,8 +3405,12 @@ void mjCHField::CopyFromSpec() {
 
 void mjCHField::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
-  modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  meshdir_ = FilePath(m->spec_meshdir_);
+  if (modelfiledir_.empty()) {
+    modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  }
+  if (meshdir_.empty()) {
+    meshdir_ = FilePath(m->spec_meshdir_);
+  }
 }
 
 
@@ -3650,8 +3654,12 @@ void mjCTexture::CopyFromSpec() {
 
 void mjCTexture::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
-  modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  texturedir_ = FilePath(m->spec_texturedir_);
+  if (modelfiledir_.empty()) {
+    modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  }
+  if (texturedir_.empty()) {
+    texturedir_ = FilePath(m->spec_texturedir_);
+  }
 }
 
 

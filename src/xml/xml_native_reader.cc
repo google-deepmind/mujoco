@@ -3645,7 +3645,6 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
           throw mjXError(0, "could not find body '%s''%s'", body_name.c_str());
         }
         if (mjs_attachBody(pframe, child, prefix.c_str(), "") != 0) {
-          mj_deleteSpec(asset);
           throw mjXError(elem, mjs_getError(spec));
         }
       } else {

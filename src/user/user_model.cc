@@ -607,6 +607,7 @@ mjCModel::~mjCModel() {
   for (int i=0; i<tuples_.size(); i++) delete tuples_[i];
   for (int i=0; i<keys_.size(); i++) delete keys_[i];
   for (int i=0; i<defaults_.size(); i++) delete defaults_[i];
+  for (int i=0; i<specs_.size(); i++) mj_deleteSpec(specs_[i]);
 
   if (plugin_owner) {
     for (int i=0; i<plugins_.size(); i++) delete plugins_[i];

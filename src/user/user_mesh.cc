@@ -222,8 +222,12 @@ void mjCMesh::PointToLocal() {
 
 void mjCMesh::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
-  modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  meshdir_ = FilePath(m->spec_meshdir_);
+  if (modelfiledir_.empty()) {
+    modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  }
+  if (meshdir_.empty()) {
+    meshdir_ = FilePath(m->spec_meshdir_);
+  }
 }
 
 
@@ -2034,8 +2038,12 @@ void mjCSkin::NameSpace(const mjCModel* m) {
   for (auto& name : spec_bodyname_) {
     name = m->prefix + name + m->suffix;
   }
-  modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  meshdir_ = FilePath(m->spec_meshdir_);
+  if (modelfiledir_.empty()) {
+    modelfiledir_ = FilePath(m->spec_modelfiledir_);
+  }
+  if (meshdir_.empty()) {
+    meshdir_ = FilePath(m->spec_meshdir_);
+  }
 }
 
 
