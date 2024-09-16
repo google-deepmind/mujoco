@@ -3746,6 +3746,23 @@ element is used to adjust the properties of all edges in the flex.
    Edge stiffness and damping, passed through to the automatically generated flex.
 
 
+.. _flexcomp-elasticity:
+
+:el-prefix:`flexcomp/` |-| **elasticity** (*)
+'''''''''''''''''''''''''''''''''''''''''''''
+
+.. _flexcomp-elasticity-young:
+.. _flexcomp-elasticity-poisson:
+.. _flexcomp-elasticity-damping:
+.. _flexcomp-elasticity-thickness:
+
+.. |body/flexcomp/elasticity attrib list| replace::
+   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`
+
+|body/flexcomp/elasticity attrib list|
+   Same as in :ref:`flex/elasticity<flex-elasticity>`.
+   All attributes are passed through to the automatically-generated flex.
+
 .. _flexcomp-pin:
 
 :el-prefix:`flexcomp/` |-| **pin** (*)
@@ -4130,6 +4147,39 @@ these mechanisms to be combined as desired.
 
 :at:`damping`: :at-val:`real(1), "0"`
    Damping of all edges.
+
+
+.. _flex-elasticity:
+
+:el-prefix:`flex/` |-| **elasticity** (?)
+'''''''''''''''''''''''''''''''''''''''''
+
+.. _flex-elasticity-young:
+
+:at:`young`: :at-val:`real(1), "0"`
+   Young's elastic modulus, a measure of tensile and compressive stiffness for continuum elastic materials.
+   Units of :math:`\textrm{pressure}=\textrm{force}/\textrm{area}`.
+
+.. _flex-elasticity-poisson:
+
+:at:`poisson`: :at-val:`real(1), "0"`
+   Poisson's ratio, the ratio of transverse deformation to applied longitudinal strain.
+   This unitless quantity is in the range :math:`[0, 0.5)`.
+   Small or large values imply compressibility or incompressiblity, respectively.
+
+.. _flex-elasticity-damping:
+
+:at:`damping`: :at-val:`real(1), "0"`
+   Rayleigh's damping coefficient, units of time.
+   This quantity scales the stiffness defined by Young's modulus to produce the damping matrix.
+
+.. _flex-elasticity-thickness:
+
+:at:`thickness`: :at-val:`real(1), "-1"`
+   Shell thickness, units of length; only for used 2D flexes. Used to scale the stretching stiffness.
+   This thickness can be set equal to 2 times the :ref:`radius <deformable-flex-radius>` in order to match the geometry,
+   but is exposed seperately since the radius might be constrained by considerations related to collision detection.
+
 
 .. _flex-contact:
 

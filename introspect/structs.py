@@ -9632,6 +9632,26 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='name of material used for rendering',
              ),
              StructFieldDecl(
+                 name='young',
+                 type=ValueType(name='double'),
+                 doc="Young's modulus",
+             ),
+             StructFieldDecl(
+                 name='poisson',
+                 type=ValueType(name='double'),
+                 doc="Poisson's ratio",
+             ),
+             StructFieldDecl(
+                 name='damping',
+                 type=ValueType(name='double'),
+                 doc="Rayleigh's damping",
+             ),
+             StructFieldDecl(
+                 name='thickness',
+                 type=ValueType(name='double'),
+                 doc='thickness (2D only)',
+             ),
+             StructFieldDecl(
                  name='vertbody',
                  type=PointerType(
                      inner_type=ValueType(name='mjStringVec'),

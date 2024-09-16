@@ -44,10 +44,8 @@ TEST_F(ElasticityTest, FlexCompatibility) {
         <flexcomp name="soft" type="grid" count="3 3 3"
                   radius="0.01" dim="3"mass="1">
             <pin id="2"/>
-            <plugin plugin="mujoco.elasticity.solid">
-              <config key="poisson" value="0.2"/>
-              <config key="young" value="5e4"/>
-            </plugin>
+            <elasticity young="5e4" poisson="0.2"/>
+            <plugin plugin="mujoco.elasticity.solid"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -128,11 +126,8 @@ TEST_F(PluginTest, ElasticEnergyMembrane) {
   <worldbody>
     <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
               radius=".025" name="test" dim="2">
-      <plugin plugin="mujoco.elasticity.membrane">
-        <config key="poisson" value="0"/>
-        <config key="young" value="2"/>
-        <config key="thickness" value="1"/>
-      </plugin>
+      <elasticity young="2" poisson="0" thickness="1"/>
+      <plugin plugin="mujoco.elasticity.membrane"/>
       <edge equality="false"/>
     </flexcomp>
   </worldbody>
@@ -214,10 +209,8 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   <worldbody>
     <flexcomp type="grid" count="8 8 8" spacing="1 1 1"
               radius=".025" name="test" dim="3">
-      <plugin plugin="mujoco.elasticity.solid">
-        <config key="poisson" value="0"/>
-        <config key="young" value="2"/>
-      </plugin>
+      <elasticity young="2" poisson="0"/>
+      <plugin plugin="mujoco.elasticity.solid"/>
       <edge equality="false"/>
     </flexcomp>
   </worldbody>

@@ -37,11 +37,7 @@ Implemented in [membrane.cc](membrane.cc).
 
 The membrane plugin discretized an extensible 2D continuum. It is intended to simulate the stretching of membranes subjected to tensile stresses, where the bending is negligible.
 
-Parameters:
-
-   - `young` [Pa]: Young's modulus.
-   - `poisson` [Pa]: Poisson's ratio; if 0, then the material only opposed shear deformations; if near 0.5, then the material is nearly incompressible (rubber-like).
-   - `thickness` [m]: shell thickness, used to scale the stretching stiffness.
+Parameters: see [flex parameters](mujoco.readthedocs.io/en/latest/XMLreference.html#flexcomp-elasticity) in the XML Reference docs.
 
 ### Solid
 
@@ -49,8 +45,5 @@ Implemented in [solid.cc](solid.cc).
 
 The membrane plugin discretized an extensible 3D continuum. It is Saint Venant–Kirchhoff model intended to simulate the compression or elongation of hyperelastic materials subjected to large displacements (finite rotations) and small strains, since it uses a nonlinear strain-displacement but a linear stress-strain relationship.
 
-Parameters:
+Parameters: see [flex parameters](mujoco.readthedocs.io/en/latest/XMLreference.html#flexcomp-elasticity) in the XML Reference docs.
 
-   - `young` [Pa]: Young's modulus.
-   - `poisson` [Pa]: Poisson's ratio; if 0, then the material only opposed shear deformations; if near 0.5, then the material is nearly incompressible (rubber-like).
-   - `damping` [Ns/m^2]: damping coefficient for Rayleigh damping.

@@ -35,22 +35,16 @@
               radius=".005" rgba="0 .7 .7 1" dim="3" mass="5">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
       <edge damping="1"/>
-      <plugin plugin="mujoco.elasticity.solid">
-        <config key="poisson" value="0.4"/>
-        <!--Units are in Pa (SI)-->
-        <config key="young" value="1e4"/>
-      </plugin>
+      <elasticity young="1e4" poisson="0.4"/>
+      <plugin plugin="mujoco.elasticity.solid"/>
     </flexcomp>
 
     <flexcomp name="B" type="grid" count="4 4 4" spacing=".2 .2 .2" pos="1 0 .5"
               radius=".005" rgba="0 .7 .7 1" dim="3" mass="5">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
       <edge damping="1"/>
-      <plugin plugin="mujoco.elasticity.solid">
-        <config key="poisson" value="0"/>
-        <!--Units are in Pa (SI)-->
-        <config key="young" value="5e4"/>
-      </plugin>
+      <elasticity young="5e4" poisson="0"/>
+      <plugin plugin="mujoco.elasticity.solid"/>
     </flexcomp>
 
     <body>

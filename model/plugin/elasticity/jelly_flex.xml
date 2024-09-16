@@ -46,11 +46,8 @@
               radius=".005" rgba="0 .7 .7 1" mass="5" name="softbody">
       <edge damping="1"/>
       <contact selfcollide="none"/>
-      <plugin plugin="mujoco.elasticity.solid">
-        <config key="poisson" value="0"/>
-        <!--Units are in Pa (SI)-->
-        <config key="young" value="5e4"/>
-      </plugin>
+      <elasticity young="5e4"/>
+      <plugin plugin="mujoco.elasticity.solid"/>
     </flexcomp>
   </worldbody>
 </mujoco>

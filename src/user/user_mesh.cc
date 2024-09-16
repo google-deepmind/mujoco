@@ -2675,6 +2675,18 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (model->Bodies()[vbodyid]->plugin.instance) {
       mjCPlugin* plugin_instance =
           static_cast<mjCPlugin*>(model->Bodies()[vbodyid]->plugin.instance);
+      if (young > 0) {
+        plugin_instance->config_attribs["young"] = std::to_string(young);
+      }
+      if (poisson > 0) {
+        plugin_instance->config_attribs["poisson"] = std::to_string(poisson);
+      }
+      if (thickness > 0) {
+        plugin_instance->config_attribs["thickness"] = std::to_string(thickness);
+      }
+      if (damping > 0) {
+        plugin_instance->config_attribs["damping"] = std::to_string(damping);
+      }
       plugin_instance->config_attribs["face"] = userface;
       plugin_instance->config_attribs["edge"] = useredge;
     }

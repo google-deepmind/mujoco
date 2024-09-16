@@ -326,6 +326,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler"},
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
+            {"elasticity", "?", "4", "young", "poisson", "damping", "thickness"},
             {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
                 "internal", "selfcollide", "activelayers"},
@@ -346,6 +347,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
                 "internal", "selfcollide", "activelayers"},
             {"edge", "?", "2", "stiffness", "damping"},
+            {"elasticity", "?", "4", "young", "poisson", "damping", "thickness"},
         {">"},
         {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
             "vertex", "texcoord", "face", "group"},
@@ -1386,6 +1388,15 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   if (edge) {
     ReadAttr(edge, "stiffness", 1, &flex->edgestiffness, text);
     ReadAttr(edge, "damping", 1, &flex->edgedamping, text);
+  }
+
+  // elasticity subelement
+  XMLElement* elasticity = FirstChildElement(elem, "elasticity");
+  if (elasticity) {
+    ReadAttr(elasticity, "young", 1, &flex->young, text);
+    ReadAttr(elasticity, "poisson", 1, &flex->poisson, text);
+    ReadAttr(elasticity, "thickness", 1, &flex->thickness, text);
+    ReadAttr(elasticity, "damping", 1, &flex->damping, text);
   }
 
   // write error info
@@ -2672,6 +2683,15 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
     ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);
     ReadAttr(edge, "damping", 1, &dflex.edgedamping, text);
+  }
+
+  // elasticity
+  XMLElement* elasticity = FirstChildElement(elem, "elasticity");
+  if (elasticity) {
+    ReadAttr(elasticity, "young", 1, &dflex.young, text);
+    ReadAttr(elasticity, "poisson", 1, &dflex.poisson, text);
+    ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
+    ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
   }
 
   // contact
