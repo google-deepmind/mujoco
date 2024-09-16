@@ -129,9 +129,6 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
   // generate triangles from the vertices
   nt = CreateStencils<Stencil2D>(elements, edges, simplex, edgeidx);
 
-  // allocate metric induced by geometry
-  metric.assign(kNumEdges*kNumEdges*nt, 0);
-
   // loop over all triangles
   for (int t = 0; t < nt; t++) {
     int* v = elements[t].vertices;
@@ -160,7 +157,9 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
     }
 
     // compute metric tensor
-    MetricTensor<Stencil2D>(metric, t, mu, la, basis);
+    // TODO: do not write in a const mjModel
+    MetricTensor<Stencil2D>(m->flex_stiffness + 21 * m->flex_elemadr[f0], t, mu,
+                            la, basis);
   }
 
   // allocate array
@@ -196,7 +195,7 @@ void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum* xpos = d->flexvert_xpos + 3*flex_vertadr;
   mjtNum* qfrc = d->qfrc_passive;
 
-  ComputeForce<Stencil2D>(force, elements, metric, elongation, m, xpos);
+  ComputeForce<Stencil2D>(force, elements, elongation, m, f0, xpos);
 
   // insert into passive force
   AddFlexForce(qfrc, force, m, d, xpos, f0);

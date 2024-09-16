@@ -137,9 +137,6 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   // generate tetrahedra from the vertices
   nt = CreateStencils<Stencil3D>(elements, edges, simplex, edgeidx);
 
-  // allocate arrays
-  metric.assign(kNumEdges*kNumEdges*nt, 0);
-
   // loop over all tetrahedra
   for (int t = 0; t < nt; t++) {
     int* v = elements[t].vertices;
@@ -167,7 +164,9 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
     mjtNum la = E*nu / ((1+nu)*(1-2*nu)) * volume;
 
     // compute metric tensor
-    MetricTensor<Stencil3D>(metric, t, mu, la, basis);
+    // TODO: do not write in a const mjModel
+    MetricTensor<Stencil3D>(m->flex_stiffness + 21 * m->flex_elemadr[f0], t, mu,
+                            la, basis);
   }
 
   // allocate array
@@ -203,7 +202,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum* xpos = d->flexvert_xpos + 3*flex_vertadr;
   mjtNum* qfrc = d->qfrc_passive;
 
-  ComputeForce<Stencil3D>(force, elements, metric, elongation, m, xpos);
+  ComputeForce<Stencil3D>(force, elements, elongation, m, f0, xpos);
 
   // insert into passive force
   AddFlexForce(qfrc, force, m, d, xpos, f0);

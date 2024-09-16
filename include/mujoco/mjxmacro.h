@@ -347,6 +347,7 @@
     X   ( mjtNum,  flexedge_length0,      nflexedge,     1                    ) \
     X   ( mjtNum,  flexedge_invweight0,   nflexedge,     1                    ) \
     XMJV( mjtNum,  flex_radius,           nflex,         1                    ) \
+    X   ( mjtNum,  flex_stiffness,        nflexelem,     21                   ) \
     X   ( mjtNum,  flex_edgestiffness,    nflex,         1                    ) \
     X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
     X   ( mjtByte, flex_edgeequality,     nflex,         1                    ) \

@@ -2450,6 +2450,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='radius around primitive element          (nflex x 1)',
              ),
              StructFieldDecl(
+                 name='flex_stiffness',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='finite element stiffness matrix          (nflexelem x 21)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='flex_edgestiffness',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),

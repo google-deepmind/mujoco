@@ -2525,6 +2525,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_gap[i] = (mjtNum)pfl->gap;
     mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
+    // elasticity
+    // TODO: these are now written by plugins, they will be moved to mjCFlex
+    mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
+
     // set fields: mesh-like
     m->flex_dim[i] = pfl->dim;
     m->flex_vertadr[i] = vert_adr;

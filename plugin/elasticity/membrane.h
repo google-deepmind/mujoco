@@ -52,7 +52,6 @@ class Membrane {
   std::vector<std::pair<int, int> > edges;  // edge to vertex map     (ne x 2)
 
   // precomputed quantities
-  std::vector<mjtNum> metric;               // geom-induced metric    (nt x 9)
   std::vector<mjtNum> prev;                 // previous-step lengths  (ne x 1)
   std::vector<mjtNum> elongation;           // edge elongation        (ne x 1)
   std::vector<mjtNum> force;                // force at all vertices  (nv x 3)
