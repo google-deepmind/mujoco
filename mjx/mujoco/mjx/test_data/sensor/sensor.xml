@@ -26,6 +26,8 @@
 -subtreeangmom
 * acceleration/force-dependent sensors:
 -accelerometer
+-force
+-torque
 -actuatorfrc
 -jointactfrc
 -->
@@ -78,6 +80,22 @@
     <body name="body_rangefinder" pos="1 2 4">
       <geom size="0.01" material="material"/>
     </body>
+
+    <!-- bodies for force + torque sensors -->
+    <body pos="-1 -1 -1">
+      <joint type="hinge" axis="1 0 0"/>
+      <joint type="hinge" axis="0 1 0"/>
+      <joint type="hinge" axis="0 0 1"/>
+      <site name="site_force"/>
+      <geom size="0.1"/>
+    </body>
+    <body pos="-2 -2 -2">
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
+      <site name="site_torque"/>
+      <geom size="0.1"/>
+    </body>
   </worldbody>
 
   <actuator>
@@ -88,6 +106,7 @@
   </actuator>
 
   <sensor>
+    <torque site="site_torque"/>
     <magnetometer name="magnetometer0" site="site0"/>
     <velocimeter name="velocimeter0" site="site0"/>
     <velocimeter name="velocimeter0cutoff" site="site0" cutoff="3e-4"/>
@@ -95,6 +114,7 @@
     <gyro name="gyro0cutoff" site="site0" cutoff="2e-3"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <accelerometer name="accelerometer1" site="site1"/>
+    <force site="site_force"/>
     <jointpos name="jointpos0" joint="hinge0"/>
     <jointpos name="jointpos0cutoff" joint="hinge0" cutoff="1e-4"/>
     <jointvel name="jointvel0" joint="hinge0"/>

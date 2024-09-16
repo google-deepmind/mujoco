@@ -47,6 +47,22 @@
     <body name="body_rangefinder" pos="1 2 4">
       <geom size="0.01" material="material"/>
     </body>
+
+    <!-- bodies for force + torque sensors -->
+    <body>
+      <joint type="hinge" axis="1 0 0"/>
+      <joint type="hinge" axis="0 1 0"/>
+      <joint type="hinge" axis="0 0 1"/>
+      <site name="site_force"/>
+      <geom size="0.1"/>
+    </body>
+    <body>
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
+      <site name="site_torque"/>
+      <geom size="0.1"/>
+    </body>
   </worldbody>
 
   <actuator>

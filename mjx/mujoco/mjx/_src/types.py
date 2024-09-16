@@ -321,6 +321,8 @@ class SensorType(enum.IntEnum):
     SUBTREELINVEL: subtree linear velocity
     SUBTREEANGMOM: subtree angular momentum
     ACCELEROMETER: accelerometer
+    FORCE: force
+    TORQUE: torque
     ACTUATORFRC: scalar actuator force
     JOINTACTFRC: scalar actuator force, measured at the joint
   """
@@ -347,6 +349,8 @@ class SensorType(enum.IntEnum):
   SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
   SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
   ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER
+  FORCE = mujoco.mjtSensor.mjSENS_FORCE
+  TORQUE = mujoco.mjtSensor.mjSENS_TORQUE
   ACTUATORFRC = mujoco.mjtSensor.mjSENS_ACTUATORFRC
   JOINTACTFRC = mujoco.mjtSensor.mjSENS_JOINTACTFRC
 

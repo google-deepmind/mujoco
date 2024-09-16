@@ -68,9 +68,10 @@ class SensorTest(parameterized.TestCase):
         cfrc_int=jp.zeros_like(d.cfrc_int),
         cfrc_ext=jp.zeros_like(d.cfrc_ext),
     )
-    dx = jax.jit(mjx.forward)(mx, dx)
+    dx = jax.jit(mjx.sensor_pos)(mx, dx)
+    dx = jax.jit(mjx.sensor_vel)(mx, dx)
+    dx = jax.jit(mjx.sensor_acc)(mx, dx)
 
-    # sensor values
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
 
   def test_disable_sensor(self):

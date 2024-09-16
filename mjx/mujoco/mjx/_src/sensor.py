@@ -422,7 +422,11 @@ def sensor_acc(m: Model, d: Data) -> Data:
   stage_acc = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_ACC
   sensor_types = set(m.sensor_type[stage_acc])
 
-  if sensor_types & {SensorType.ACCELEROMETER}:
+  if sensor_types & {
+      SensorType.ACCELEROMETER,
+      SensorType.FORCE,
+      SensorType.TORQUE,
+  }:
     d = smooth.rne_postconstraint(m, d)
 
   sensors, adrs = [], []
@@ -451,6 +455,24 @@ def sensor_acc(m: Model, d: Data) -> Data:
       dif = d.site_xpos[objid] - d.subtree_com[m.body_rootid[bodyid]]
 
       sensor = _accelerometer(cvel, cacc, dif, rot)
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.FORCE:
+      bodyid = m.site_bodyid[objid]
+      cfrc_int = d.cfrc_int[bodyid]
+      site_xmat = d.site_xmat[objid]
+      sensor = jax.vmap(lambda mat, vec: mat.T @ vec)(
+          site_xmat, cfrc_int[:, 3:]
+      )
+      adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.TORQUE:
+      bodyid = m.site_bodyid[objid]
+      rootid = m.body_rootid[bodyid]
+      cfrc_int = d.cfrc_int[bodyid]
+      site_xmat = d.site_xmat[objid]
+      dif = d.site_xpos[objid] - d.subtree_com[rootid]
+      sensor = jax.vmap(
+          lambda vec, dif, rot: rot.T @ (vec[:3] - jp.cross(dif, vec[3:]))
+      )(cfrc_int, dif, site_xmat)
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.ACTUATORFRC:
       sensor = d.actuator_force[objid]
