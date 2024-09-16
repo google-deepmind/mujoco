@@ -30,6 +30,8 @@
 -torque
 -actuatorfrc
 -jointactfrc
+-framelinacc
+-frameangacc
 -->
 <mujoco model="sensor">
   <asset>
@@ -144,6 +146,8 @@
     <camprojection site="frontorigin" camera="fixedcamera"/>
     <magnetometer name="magnetometer1" site="site1"/>
     <jointpos name="jointpos1" joint="hinge1"/>
+    <framelinacc name="framelinacc0" objtype="site" objname="site0"/>
+    <frameangacc name="frameangacc0" objtype="site" objname="site0"/>
     <jointvel name="jointvel1" joint="hinge1"/>
     <actuatorpos name="actuatorpos1" actuator="motor1"/>
     <subtreelinvel name="subtreelinvel1" body="body1"/>
@@ -160,9 +164,11 @@
     <frameangvel name="frameangvel0ref" objtype="site" objname="site0" reftype="site" refname="site3"/>
     <frameyaxis name="frameyaxis1" objtype="site" objname="site1"/>
     <framequat name="framequat0" objtype="site" objname="site0"/>
+    <framelinacc name="framelinacc1" objtype="site" objname="site1"/>
     <rangefinder name="rangefinder1" site="site_rangefinder1"/>
     <subtreecom name="subtreecom1" body="body1"/>
     <accelerometer name="accelerometer0" site="site0"/>
+    <frameangacc name="frameangacc1" objtype="site" objname="site1"/>
     <framelinvel name="framelinvel0" objtype="site" objname="site0"/>
     <framelinvel name="framelinvel0ref" objtype="site" objname="site0" reftype="geom" refname="geom2"/>
     <framelinvel name="framelinvel0cutoff" objtype="site" objname="site0" cutoff="3e-4"/>

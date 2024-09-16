@@ -64,7 +64,7 @@ MJX
 14. Added velocity-dependent sensors: ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``ACTUATORVEL``, ``BALLANGVEL``,
     ``FRAMELINVEL``, ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``.
 15. Added acceleration/force-dependent sensors: ``ACCELEROMETER``, ``FORCE``, ``TORQUE``, ``ACTUATORFRC``,
-    ``JOINTACTFRC``.
+    ``JOINTACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``.
 16. Changed default policy to avoid placing unused (MuJoCo-only) arrays on device.
 17. Added ``device`` parameter to ``mjx.make_data`` to bring it to parity with ``mjx.put_model`` and ``mjx.put_data``.
 18. Added support for :ref:`implicitfast integration<geIntegration>` for all cases except

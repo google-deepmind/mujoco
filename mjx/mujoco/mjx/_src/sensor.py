@@ -419,6 +419,16 @@ def sensor_acc(m: Model, d: Data) -> Data:
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
 
+  # position and bodyid by object type
+  objtype_data = {
+      ObjType.UNKNOWN: (np.zeros((1, 3)), np.arange(1)),
+      ObjType.BODY: (d.xipos, np.arange(m.nbody)),
+      ObjType.XBODY: (d.xpos, np.arange(m.nbody)),
+      ObjType.GEOM: (d.geom_xpos, m.geom_bodyid),
+      ObjType.SITE: (d.site_xpos, m.site_bodyid),
+      ObjType.CAMERA: (d.cam_xpos, m.cam_bodyid),
+  }
+
   stage_acc = m.sensor_needstage == mujoco.mjtStage.mjSTAGE_ACC
   sensor_types = set(m.sensor_type[stage_acc])
 
@@ -478,6 +488,41 @@ def sensor_acc(m: Model, d: Data) -> Data:
       sensor = d.actuator_force[objid]
     elif sensor_type == SensorType.JOINTACTFRC:
       sensor = d.qfrc_actuator[m.jnt_dofadr[objid]]
+    elif sensor_type in (SensorType.FRAMELINACC, SensorType.FRAMEANGACC):
+      objtype = m.sensor_objtype[idx]
+
+      for ot in set(objtype):
+        idxt = objtype == ot
+        objidt = objid[idxt]
+        pos, bodyid = objtype_data[ot]
+        pos = pos[objidt]
+        bodyid = bodyid[objidt]
+        cacc = d.cacc[bodyid]
+
+        if sensor_type == SensorType.FRAMELINACC:
+
+          @jax.vmap
+          def _framelinacc(cvel, cacc, offset):
+            ang = cvel[:3]
+            lin = cvel[3:] - jp.cross(offset, cvel[:3])
+            acc = cacc[3:] - jp.cross(offset, cacc[:3])
+            correction = jp.cross(ang, lin)
+            return acc + correction
+
+          cvel = d.cvel[bodyid]
+          offset = pos - d.subtree_com[m.body_rootid[bodyid]]
+
+          sensor = _framelinacc(cvel, cacc, offset).reshape(-1)
+        elif sensor_type == SensorType.FRAMEANGACC:
+          sensor = cacc[:, :3].reshape(-1)
+        else:
+          raise ValueError(f'Unknown sensor type: {sensor_type}')
+
+        adrt = adr[idxt, None] + np.arange(3)[None]
+
+        sensors.append(sensor.reshape(-1))
+        adrs.append(adrt.reshape(-1))
+      continue  # avoid adding to sensors/adrs list a second time
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
