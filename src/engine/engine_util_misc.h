@@ -30,7 +30,7 @@ extern "C" {
 
 // wrap tendons around spheres and cylinders
 mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
-                const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
+                const mjtNum* xpos, const mjtNum* xmat, mjtNum radius,
                 int type, const mjtNum* side);
 
 // normalized muscle length-gain curve

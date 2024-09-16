@@ -755,7 +755,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
         }
 
         wlen = mju_wrap(wpnt+3, d->site_xpos+3*id0, d->site_xpos+3*id1,
-                        d->geom_xpos+3*idw, d->geom_xmat+9*idw, m->geom_size+3*idw, tpw,
+                        d->geom_xpos+3*idw, d->geom_xmat+9*idw, m->geom_size[3*idw], tpw,
                         (sideid >= 0 ? d->site_xpos+3*sideid : 0));
       } else {
         tpw = mjWRAP_NONE;
