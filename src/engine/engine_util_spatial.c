@@ -14,8 +14,6 @@
 
 #include "engine/engine_util_spatial.h"
 
-#include <math.h>
-
 #include <mujoco/mjmodel.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -271,7 +269,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   a = mju_normalize3(axis);
 
   // almost parallel
-  if (fabs(a) < mjMINVAL) {
+  if (mju_abs(a) < mjMINVAL) {
     // opposite: 180 deg rotation around x axis
     if (mju_dot3(vn, z) < 0) {
       quat[0] = 0;

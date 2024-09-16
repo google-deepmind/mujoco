@@ -14,7 +14,6 @@
 
 #include "engine/engine_collision_convex.h"
 
-#include <math.h>
 #include <stddef.h>
 
 #include <ccd/ccd.h>

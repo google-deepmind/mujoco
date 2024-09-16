@@ -14,7 +14,6 @@
 
 #include "engine/engine_util_solve.h"
 
-#include <math.h>
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>

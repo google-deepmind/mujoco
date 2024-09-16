@@ -14,7 +14,6 @@
 
 #include "engine/engine_collision_sdf.h"
 
-#include <math.h>
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>

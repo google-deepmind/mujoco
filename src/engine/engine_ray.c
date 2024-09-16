@@ -15,7 +15,6 @@
 
 #include "engine/engine_ray.h"
 
-#include <math.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>

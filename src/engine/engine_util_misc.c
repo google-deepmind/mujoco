@@ -15,7 +15,6 @@
 #include "engine/engine_util_misc.h"
 
 #include <ctype.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +38,7 @@ static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
 
   // compute determinant, check
   mjtNum det = (p4[1]-p3[1])*(p2[0]-p1[0]) - (p4[0]-p3[0])*(p2[1]-p1[1]);
-  if (fabs(det) < mjMINVAL) {
+  if (mju_abs(det) < mjMINVAL) {
     return 0;
   }
 
