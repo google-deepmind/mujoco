@@ -5184,6 +5184,7 @@ public unsafe struct mjModel_ {
   public int nflexedge;
   public int nflexelem;
   public int nflexelemdata;
+  public int nflexelemedge;
   public int nflexshelldata;
   public int nflexevpair;
   public int nflextexcoord;
@@ -5405,6 +5406,7 @@ public unsafe struct mjModel_ {
   public int* flex_elemadr;
   public int* flex_elemnum;
   public int* flex_elemdataadr;
+  public int* flex_elemedgeadr;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
   public int* flex_evpairadr;
@@ -5413,6 +5415,7 @@ public unsafe struct mjModel_ {
   public int* flex_vertbodyid;
   public int* flex_edge;
   public int* flex_elem;
+  public int* flex_elemedge;
   public int* flex_elemlayer;
   public int* flex_shell;
   public int* flex_evpair;

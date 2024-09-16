@@ -87,10 +87,7 @@ std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
         strtod(mj_getPluginConfig(m, instance, "thickness"), nullptr);
     mjtNum damp =
             strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-    std::vector<int> face, edge;
-    String2Vector(mj_getPluginConfig(m, instance, "face"), face);
-    String2Vector(mj_getPluginConfig(m, instance, "edge"), edge);
-    return Membrane(m, d, instance, nu, E, thick, damp, face, edge);
+    return Membrane(m, d, instance, nu, E, thick, damp);
   } else {
     mju_warning("Invalid parameter specification in shell plugin");
     return std::nullopt;
@@ -99,9 +96,7 @@ std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
 
 // plugin constructor
 Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
-                   mjtNum E, mjtNum thick, mjtNum damp,
-                   const std::vector<int>& simplex,
-                   const std::vector<int>& edgeidx)
+                   mjtNum E, mjtNum thick, mjtNum damp)
     : f0(-1), damping(damp), thickness(thick) {
   // count plugin bodies
   nv = ne = 0;
@@ -126,12 +121,10 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
   // vertex positions
   mjtNum* body_pos = m->flex_xvert0 + 3*m->flex_vertadr[f0];
 
-  // generate triangles from the vertices
-  nt = CreateStencils<Stencil2D>(elements, edges, simplex, edgeidx);
-
   // loop over all triangles
-  for (int t = 0; t < nt; t++) {
-    int* v = elements[t].vertices;
+  const int* elem = m->flex_elem + m->flex_elemdataadr[f0];
+  for (int t = 0; t < m->flex_elemnum[f0]; t++) {
+    const int* v = elem + (m->flex_dim[f0]+1) * t;
     for (int i = 0; i < kNumVerts; i++) {
       int bi = m->flex_vertbodyid[m->flex_vertadr[f0]+v[i]];
       if (bi && m->body_plugin[bi] != instance) {
@@ -163,7 +156,7 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
   }
 
   // allocate array
-  ne = edges.size();
+  ne = m->flex_edgenum[f0];
   elongation.assign(ne, 0);
   force.assign(3*nv, 0);
 }
@@ -195,7 +188,7 @@ void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum* xpos = d->flexvert_xpos + 3*flex_vertadr;
   mjtNum* qfrc = d->qfrc_passive;
 
-  ComputeForce<Stencil2D>(force, elements, elongation, m, f0, xpos);
+  ComputeForce<Stencil2D>(force, elongation, m, f0, xpos);
 
   // insert into passive force
   AddFlexForce(qfrc, force, m, d, xpos, f0);

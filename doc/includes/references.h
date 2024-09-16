@@ -899,6 +899,7 @@ struct mjModel_ {
   int nflexedge;                  // number of edges in all flexes
   int nflexelem;                  // number of elements in all flexes
   int nflexelemdata;              // number of element vertex ids in all flexes
+  int nflexelemedge;              // number of element edge ids in all flexes
   int nflexshelldata;             // number of shell fragment vertex ids in all flexes
   int nflexevpair;                // number of element-vertex pairs in all flexes
   int nflextexcoord;              // number of vertices with texture coordinates
@@ -1152,6 +1153,7 @@ struct mjModel_ {
   int*      flex_elemadr;         // first element address                    (nflex x 1)
   int*      flex_elemnum;         // number of elements                       (nflex x 1)
   int*      flex_elemdataadr;     // first element vertex id address          (nflex x 1)
+  int*      flex_elemedgeadr;     // first element edge id address            (nflex x 1)
   int*      flex_shellnum;        // number of shells                         (nflex x 1)
   int*      flex_shelldataadr;    // first shell data address                 (nflex x 1)
   int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
@@ -1160,6 +1162,7 @@ struct mjModel_ {
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
   int*      flex_edge;            // edge vertex ids (2 per edge)             (nflexedge x 2)
   int*      flex_elem;            // element vertex ids (dim+1 per elem)      (nflexelemdata x 1)
+  int*      flex_elemedge;        // element edge ids                         (nflexelemedge x 1)
   int*      flex_elemlayer;       // element distance from surface, 3D only   (nflexelem x 1)
   int*      flex_shell;           // shell fragment vertex ids (dim per frag) (nflexshelldata x 1)
   int*      flex_evpair;          // (element, vertex) collision pairs        (nflexevpair x 2)

@@ -694,6 +694,7 @@ class mjCFlex_ : public mjCBase {
   std::vector<double> vertxpos;           // global vertex positions
   mjCBoundingVolumeHierarchy tree;        // bounding volume hierarchy
   std::vector<double> elemaabb_;          // element bounding volume
+  std::vector<int> edgeidx_;              // element edge ids
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
@@ -740,6 +741,8 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   bool HasTexcoord() const;               // texcoord not null
   void DelTexcoord();                     // delete texcoord
+
+  static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
  private:
   void Compile(const mjVFS* vfs);         // compiler

@@ -919,6 +919,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of element vertex ids in all flexes',
              ),
              StructFieldDecl(
+                 name='nflexelemedge',
+                 type=ValueType(name='int'),
+                 doc='number of element edge ids in all flexes',
+             ),
+             StructFieldDecl(
                  name='nflexshelldata',
                  type=ValueType(name='int'),
                  doc='number of shell fragment vertex ids in all flexes',
@@ -2338,6 +2343,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first element vertex id address          (nflex x 1)',
              ),
              StructFieldDecl(
+                 name='flex_elemedgeadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='first element edge id address            (nflex x 1)',
+             ),
+             StructFieldDecl(
                  name='flex_shellnum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -2392,6 +2404,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='element vertex ids (dim+1 per elem)      (nflexelemdata x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='flex_elemedge',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='element edge ids                         (nflexelemedge x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='flex_elemlayer',

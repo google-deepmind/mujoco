@@ -93,10 +93,7 @@ std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
         mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
         mjtNum damp =
             strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-        std::vector<int> face, edge;
-        String2Vector(mj_getPluginConfig(m, instance, "face"), face);
-        String2Vector(mj_getPluginConfig(m, instance, "edge"), edge);
-        return Solid(m, d, instance, nu, E, damp, face, edge);
+        return Solid(m, d, instance, nu, E, damp);
     } else {
         mju_warning("Invalid parameter specification in solid plugin");
         return std::nullopt;
@@ -105,8 +102,7 @@ std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
 
 // plugin constructor
 Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-             mjtNum damp, const std::vector<int>& simplex,
-             const std::vector<int>& edgeidx)
+             mjtNum damp)
     : f0(-1), damping(damp) {
   // count plugin bodies
   nv = ne = 0;
@@ -134,12 +130,10 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   // vertex positions
   mjtNum* body_pos = m->flex_xvert0 + 3*m->flex_vertadr[f0];
 
-  // generate tetrahedra from the vertices
-  nt = CreateStencils<Stencil3D>(elements, edges, simplex, edgeidx);
-
   // loop over all tetrahedra
-  for (int t = 0; t < nt; t++) {
-    int* v = elements[t].vertices;
+  const int* elem = m->flex_elem + m->flex_elemdataadr[f0];
+  for (int t = 0; t < m->flex_elemnum[f0]; t++) {
+    const int* v = elem + (m->flex_dim[f0]+1) * t;
     for (int i = 0; i < kNumVerts; i++) {
       int bi = m->flex_vertbodyid[m->flex_vertadr[f0]+v[i]];
       if (bi && m->body_plugin[bi] != instance) {
@@ -170,7 +164,7 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   }
 
   // allocate array
-  ne = edges.size();
+  ne = m->flex_edgenum[f0];
   elongation.assign(ne, 0);
   force.assign(3*nv, 0);
 }
@@ -202,7 +196,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum* xpos = d->flexvert_xpos + 3*flex_vertadr;
   mjtNum* qfrc = d->qfrc_passive;
 
-  ComputeForce<Stencil3D>(force, elements, elongation, m, f0, xpos);
+  ComputeForce<Stencil3D>(force, elongation, m, f0, xpos);
 
   // insert into passive force
   AddFlexForce(qfrc, force, m, d, xpos, f0);

@@ -461,7 +461,7 @@ void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh,
     int nbvhstatic, int nbvhdynamic, int njnt, int ngeom, int nsite, int ncam,
     int nlight, int nflex, int nflexvert, int nflexedge, int nflexelem,
-    int nflexelemdata, int nflexshelldata, int nflexevpair, int nflextexcoord,
+    int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
     int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
     int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
     int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex,
@@ -507,6 +507,7 @@ void mj_makeModel(mjModel** dest,
   m->nflexedge = nflexedge;
   m->nflexelem = nflexelem;
   m->nflexelemdata = nflexelemdata;
+  m->nflexelemedge = nflexelemedge;
   m->nflexshelldata = nflexshelldata;
   m->nflexevpair = nflexevpair;
   m->nflextexcoord = nflextexcoord;
@@ -634,7 +635,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
       src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
       src->nbvhstatic, src->nbvhdynamic, src->njnt, src->ngeom, src->nsite,
       src->ncam, src->nlight, src->nflex, src->nflexvert, src->nflexedge,
-      src->nflexelem, src->nflexelemdata, src->nflexshelldata,
+      src->nflexelem, src->nflexelemdata, src->nflexelemedge, src->nflexshelldata,
       src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
       src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
       src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
@@ -795,7 +796,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-               ints[63]);
+               ints[63], ints[64]);
   if (!m || m->nbuffer != sizes[getnsize()-1]) {
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
@@ -2097,9 +2098,11 @@ const char* mj_validateReferences(const mjModel* m) {
   X(flex_evpairadr,     nflex,          nflexevpair   , m->flex_evpairnum      ) \
   X(flex_texcoordadr,   nflex,          nflextexcoord , 0                      ) \
   X(flex_elemdataadr,   nflex,          nflexelemdata , 0                      ) \
+  X(flex_elemedgeadr,   nflex,          nflexelemedge , 0                      ) \
   X(flex_shelldataadr,  nflex,          nflexshelldata, 0                      ) \
   X(flex_edge,          nflexedge*2,    nflexvert     , 0                      ) \
   X(flex_elem,          nflexelemdata,  nflexvert     , 0                      ) \
+  X(flex_elemedge,      nflexelemedge,  nflexedge     , 0                      ) \
   X(flex_shell,         nflexshelldata, nflexvert     , 0                      ) \
   X(flex_bvhadr,        nflex,          nbvh          , m->flex_bvhnum         ) \
   X(skin_matid,         nskin,          nmat          , 0                      ) \

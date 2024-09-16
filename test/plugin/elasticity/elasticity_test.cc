@@ -138,8 +138,6 @@ TEST_F(PluginTest, ElasticEnergyMembrane) {
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
-  auto* membrane =
-      reinterpret_cast<plugin::elasticity::Membrane*>(d->plugin_data[0]);
 
   mj_kinematics(m, d);
   mj_flex(m, d);
@@ -149,14 +147,14 @@ TEST_F(PluginTest, ElasticEnergyMembrane) {
   // trace(strain^2) = 2*scale^2
 
   for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < membrane->nt; t++) {
+    for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
       mjtNum volume = 1./2.;
       int idx = 0;
       for (int e1 = 0; e1 < 3; e1++) {
         for (int e2 = e1; e2 < 3; e2++) {
-          int idx1 = membrane->elements[t].edges[e1] + m->flex_edgeadr[0];
-          int idx2 = membrane->elements[t].edges[e2] + m->flex_edgeadr[0];
+          int idx1 = m->flex_elemedge[3*t+e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[3*t+e2 + m->flex_elemedgeadr[0]];
           mjtNum elong1 =
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
           mjtNum elong2 =
@@ -221,7 +219,6 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
-  auto* solid = reinterpret_cast<plugin::elasticity::Solid*>(d->plugin_data[0]);
 
   mj_kinematics(m, d);
   mj_flex(m, d);
@@ -231,14 +228,14 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   // trace(strain^2) = 3*scale^2
 
   for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < solid->nt; t++) {
+    for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
       mjtNum volume = 1./6.;
       int idx = 0;
       for (int e1 = 0; e1 < 6; e1++) {
         for (int e2 = e1; e2 < 6; e2++) {
-          int idx1 = solid->elements[t].edges[e1] + m->flex_edgeadr[0];
-          int idx2 = solid->elements[t].edges[e2] + m->flex_edgeadr[0];
+          int idx1 = m->flex_elemedge[6*t+e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[6*t+e2 + m->flex_elemedgeadr[0]];
           mjtNum elong1 =
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
           mjtNum elong2 =

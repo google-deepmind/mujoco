@@ -90,6 +90,7 @@ class mjCModel_ : public mjsElement {
   int nflexedge;       // number of edges in all flexes
   int nflexelem;       // number of elements in all flexes
   int nflexelemdata;   // number of element vertex ids in all flexes
+  int nflexelemedge;   // number of element edges in all flexes
   int nflexshelldata;  // number of shell fragment vertex ids in all flexes
   int nflexevpair;     // number of element-vertex pairs in all flexes
   int nflextexcoord;   // number of vertex texture coordinates in all flexes

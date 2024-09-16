@@ -2386,7 +2386,6 @@ struct PairHash
 };
 
 // simplex connectivity
-constexpr int kNumEdges[3] = {1, 3, 6};
 constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
                                   {-1, -1}, {-1, -1}, {-1, -1}},
                                  {{ 1,  2}, { 2,  0}, { 0,  1},
@@ -2637,7 +2636,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // create edges
-  std::vector<int> edgeidx(elem_.size()*kNumEdges[dim-1]);
+  edgeidx_.assign(elem_.size()*kNumEdges[dim-1]/(dim+1), 0);
 
   // map from edge vertices to their index in `edges` vector
   std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
@@ -2656,9 +2655,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
       if (inserted) {
         edge.push_back(pair);
-        edgeidx[f*kNumEdges[dim-1]+e] = nedge++;
+        edgeidx_[f*kNumEdges[dim-1]+e] = nedge++;
       } else {
-        edgeidx[f*kNumEdges[dim-1]+e] = it->second;
+        edgeidx_[f*kNumEdges[dim-1]+e] = it->second;
       }
     }
   }
@@ -2669,7 +2668,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // add plugins
   std::string userface, useredge;
   userface = VectorToString(elem_);
-  useredge = VectorToString(edgeidx);
+  useredge = VectorToString(edgeidx_);
 
   for (const auto& vbodyid : vertbodyid) {
     if (model->Bodies()[vbodyid]->plugin.instance) {

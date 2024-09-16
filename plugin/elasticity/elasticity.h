@@ -65,20 +65,19 @@ void inline GradSquaredLengths(mjtNum gradient[T::kNumEdges][2][3],
 
 template <typename T>
 inline void ComputeForce(std::vector<mjtNum>& qfrc_passive,
-                         const std::vector<T>& elements,
                          const std::vector<mjtNum>& elongationglob,
                          const mjModel* m, int flex,
                          const mjtNum* xpos) {
   mju_zero(qfrc_passive.data(), qfrc_passive.size());
   mjtNum* k = m->flex_stiffness + 21 * m->flex_elemadr[flex];
 
-  if (elements.size() != m->flex_elemnum[flex]) {
-    mju_error("plugin stencil does not match flex stencil");
-  }
+  int dim = m->flex_dim[flex];
+  const int* elem = m->flex_elem + m->flex_elemdataadr[flex];
+  const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[flex];
 
   // compute force element-by-element
   for (int t = 0; t < m->flex_elemnum[flex]; t++)  {
-    const int* v = elements[t].vertices;
+    const int* v = elem + (dim+1) * t;
 
     // compute length gradient with respect to dofs
     mjtNum gradient[T::kNumEdges][2][3];
@@ -87,7 +86,7 @@ inline void ComputeForce(std::vector<mjtNum>& qfrc_passive,
     // extract elongation of edges belonging to this element
     mjtNum elongation[T::kNumEdges];
     for (int e = 0; e < T::kNumEdges; e++) {
-      int idx = elements[t].edges[e];
+      int idx = edgeelem[t * T::kNumEdges + e];
       elongation[e] = elongationglob[idx];
     }
 
