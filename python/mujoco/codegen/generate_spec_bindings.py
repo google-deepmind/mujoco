@@ -132,7 +132,7 @@ def _ptr_binding_code(
       vartype == 'mjDoubleVec'
       or vartype == 'mjFloatVec'
       or vartype == 'mjIntVec'
-    ):
+  ):
     vartype = vartype.replace('mj', '').replace('Vec', '').lower()
     return f"""\
   {classname}.def_property(
@@ -232,10 +232,171 @@ def generate() -> None:
           print(code)
 
 
+def generate_body_add() -> None:
+  """Generate add functions for bodies."""
+  for key in [
+      'mjsSite',
+      'mjsGeom',
+      'mjsJoint',
+      'mjsLight',
+      'mjsCamera',
+      'mjsBody',
+  ]:
+
+    def _field(f: ast_nodes.StructFieldDecl):
+      # TODO(taylorhowell): add support for mjsOrientation and mjsPlugin
+      unsupported = (
+          ast_nodes.PointerType(
+              inner_type=ast_nodes.ValueType(name='mjsElement')
+          ),
+          ast_nodes.ValueType(name='mjsOrientation'),
+          ast_nodes.ValueType(name='mjsPlugin'),
+      )
+      if f.type in unsupported:
+        return '', '', ''
+      elif f.type == ast_nodes.PointerType(
+          inner_type=ast_nodes.ValueType(name='mjString')
+      ):
+        return f'set_string("{f.name}", out->{f.name});', 'string', f.name
+      elif isinstance(f.type, ast_nodes.PointerType):
+        return f'set_vec("{f.name}", out->{f.name});', 'vec', f.name
+      elif isinstance(f.type, ast_nodes.ArrayType):
+        return (
+            (
+                f'set_array("{f.name}", out->{f.name},'
+                f' {f.type.extents[0]});'
+            ),
+            'array', f.name
+        )
+      elif isinstance(f.type, ast_nodes.ValueType):
+        return f'set_value("{f.name}", out->{f.name});', 'value', f.name
+      else:
+        return '', '', ''
+
+    code_field = ''
+    set_types = []
+    names = []
+    for field in structs.STRUCTS[key].fields:
+      line, set_type, name = _field(field)
+      if line:
+        code_field = code_field + '\n        ' + line
+        set_types.append(set_type)
+        names.append(name)
+
+    # assemble
+    elem = key.removeprefix('mjs')
+    elemlower = elem.lower()
+    titlecase = 'Mjs' + elem
+
+    # function definition and call to mjs_add_
+    code = f"""
+      mjsBody.def("add_{elemlower}", [](raw::MjsBody& self, raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
+        auto out = mjs_add{elem}(&self, default_);
+    """
+
+    # check for valid kwargs
+    code += '\n        std::set<std::string> valid_kwargs = {'
+    valid_kwargs = ''
+    for i, name in enumerate(names):
+      valid_kwargs += f'"{name}"'
+      if i != len(names) - 1:
+        valid_kwargs += ', '
+    code += valid_kwargs + '};'
+
+    code += f"""\n
+        py::dict kwarg_dict = kwargs;
+        for (auto item: kwarg_dict) {{
+          std::string key = py::str(item.first);
+          if (valid_kwargs.count(key) == 0) {{
+            throw pybind11::type_error("Invalid '" + key + "' keyword argument. Valid options are: {", ".join(names)}.");
+          }}
+        }}
+    """
+
+    # include helper functions
+    if set_types:
+      for t in set(set_types):
+        if t == 'string':
+          code += """\n
+          auto set_string = [&kwargs](const char* str, std::basic_string<char>* des) {
+            if (kwargs.contains(str)) {
+              try {
+                *des = kwargs[str].cast<std::string>();
+              } catch (const py::cast_error &e) {
+                throw pybind11::value_error(std::string(str) + " should be a string.");
+              }
+            }
+          };
+          """
+        elif t == 'vec':
+          code += """\n
+          auto set_vec = [&kwargs](const char* str, auto&& des) {
+            if (kwargs.contains(str)) {
+              try {
+                using T = typename std::decay_t<decltype(*des)>::value_type;
+                std::vector<T> vec = kwargs[str].cast<std::vector<T>>();
+                des->clear();
+                des->reserve(vec.size());
+                for (auto val : vec) {
+                  des->push_back(val);
+                }
+              } catch (const py::cast_error &e) {
+                throw pybind11::value_error(std::string(str) + " has the wrong type.");
+              }
+            }
+          };
+          """
+        elif t == 'array':
+          code += """\n
+          auto set_array = [&kwargs](const char* str, auto&& des, int size) {
+            if (kwargs.contains(str)) {
+              try {
+                using T = std::remove_pointer_t<std::decay_t<decltype(des)>>;
+                std::vector<T> array = kwargs[str].cast<std::vector<T>>();
+                if (array.size() != size) {
+                  throw pybind11::value_error(std::string(str) + " should be a list/array of size " + std::to_string(size) + ".");
+                }
+                int idx = 0;
+                for (auto val : array) {
+                  des[idx++] = val;
+                }
+              } catch (const py::cast_error &e) {
+                throw pybind11::value_error(std::string(str) + " should be a list/array.");
+              }
+            }
+          };
+          """
+        elif t == 'value':
+          code += """\n
+          auto set_value = [&kwargs](const char* str, auto&& des) {
+            if (kwargs.contains(str)) {
+              try {
+                using T = std::decay_t<decltype(des)>;
+                des = kwargs[str].cast<T>();
+              } catch (const py::cast_error &e) {
+                throw pybind11::value_error(std::string(str) + " is the wrong type.");
+              }
+            }
+          };
+          """
+
+    code += code_field
+    code += """\n
+        return out;
+      },
+      py::arg_v("default", nullptr),
+      py::return_value_policy::reference_internal);
+    """
+
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   generate()
+  generate_body_add()
+
 
 if __name__ == '__main__':
   app.run(main)

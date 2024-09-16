@@ -557,30 +557,9 @@ PYBIND11_MODULE(_specs, m) {
   mjsBody.def_property_readonly(
       "id", [](raw::MjsBody& self) -> int { return mjs_getId(self.element); });
   mjsBody.def(
-      "add_body",
-      [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsBody* {
-        return mjs_addBody(&self, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
       "add_frame",
       [](raw::MjsBody& self, raw::MjsFrame* parentframe_) -> raw::MjsFrame* {
         return mjs_addFrame(&self, parentframe_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
-      "add_geom",
-      [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsGeom* {
-        return mjs_addGeom(&self, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
-      "add_joint",
-      [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsJoint* {
-        return mjs_addJoint(&self, default_);
       },
       py::arg_v("default", nullptr),
       py::return_value_policy::reference_internal);
@@ -589,27 +568,6 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsBody& self) -> raw::MjsJoint* {
         return mjs_addFreeJoint(&self);
       },
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
-      "add_light",
-      [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsLight* {
-        return mjs_addLight(&self, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
-      "add_site",
-      [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsSite* {
-        return mjs_addSite(&self, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
-      "add_camera",
-      [](raw::MjsBody& self, raw::MjsDefault* default_) -> raw::MjsCamera* {
-        return mjs_addCamera(&self, default_);
-      },
-      py::arg_v("default", nullptr),
       py::return_value_policy::reference_internal);
   mjsBody.def("set_frame",
               [](raw::MjsBody& self, raw::MjsFrame& frame) -> void {

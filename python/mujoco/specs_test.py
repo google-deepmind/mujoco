@@ -98,6 +98,88 @@ class SpecsTest(absltest.TestCase):
         </mujoco>
     """),)
 
+  def test_kwarg(self):
+    # Create a spec.
+    spec = mujoco.MjSpec()
+
+    # Add a body.
+    body = spec.worldbody.add_body(
+        name='body', pos=[1, 2, 3], quat=[0, 0, 0, 1]
+    )
+    self.assertEqual(body.name, 'body')
+    np.testing.assert_array_equal(body.pos, [1, 2, 3])
+    np.testing.assert_array_equal(body.quat, [0, 0, 0, 1])
+
+    # Add a geom.
+    geom = body.add_geom(
+        name='geom',
+        pos=[3, 2, 1],
+        fromto=[1, 2, 3, 4, 5, 6],
+        contype=3,
+    )
+
+    self.assertEqual(geom.name, 'geom')
+    np.testing.assert_array_equal(geom.pos, [3, 2, 1])
+    np.testing.assert_array_equal(geom.fromto, [1, 2, 3, 4, 5, 6])
+    self.assertEqual(geom.contype, 3)
+
+    # Add a site to the body with user data and read it back.
+    site = body.add_site(
+        name='sitename',
+        pos=[0, 1, 2],
+        quat=[1, 0, 0, 0],
+        fromto=[0, 1, 2, 3, 4, 5],
+        size=[3, 2, 1],
+        type=mujoco.mjtGeom.mjGEOM_BOX,
+        material='material',
+        group=7,
+        rgba=[1, 1, 1, 0.5],
+        userdata=[1, 2, 3, 4, 5, 6],
+        info='info',
+    )
+    self.assertEqual(site.name, 'sitename')
+    np.testing.assert_array_equal(site.pos, [0, 1, 2])
+    np.testing.assert_array_equal(site.quat, [1, 0, 0, 0])
+    np.testing.assert_array_equal(site.fromto, [0, 1, 2, 3, 4, 5])
+    np.testing.assert_array_equal(site.size, [3, 2, 1])
+    self.assertEqual(site.type, mujoco.mjtGeom.mjGEOM_BOX)
+    self.assertEqual(site.material, 'material')
+    self.assertEqual(site.group, 7)
+    np.testing.assert_array_equal(site.rgba, [1, 1, 1, 0.5])
+    np.testing.assert_array_equal(site.userdata, [1, 2, 3, 4, 5, 6])
+    self.assertEqual(site.info, 'info')
+
+    # Add camera.
+    cam = body.add_camera(orthographic=1, resolution=[10, 20])
+    self.assertEqual(cam.orthographic, 1)
+    np.testing.assert_array_equal(cam.resolution, [10, 20])
+
+    # Add joint.
+    jnt = body.add_joint(type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0])
+    self.assertEqual(jnt.type, mujoco.mjtJoint.mjJNT_HINGE)
+    np.testing.assert_array_equal(jnt.axis, [0, 1, 0])
+
+    # Add light.
+    light = body.add_light(attenuation=[1, 2, 3])
+    np.testing.assert_array_equal(light.attenuation, [1, 2, 3])
+
+    # Invalid input for valid keyword argument.
+    with self.assertRaises(ValueError):
+      body.add_geom(pos='pos')  # wrong type for array
+
+    with self.assertRaises(ValueError):
+      body.add_geom(pos=[0, 1])  # wrong size
+
+    with self.assertRaises(ValueError):
+      body.add_geom(type='type')  # wrong type for value
+
+    with self.assertRaises(ValueError):
+      body.add_geom(userdata='')  # wrong type of vector
+
+    # Invalid keyword argument.
+    with self.assertRaises(TypeError):
+      body.add_geom(vel='vel')
+
   def test_load_xml(self):
     filename = '../../test/testdata/model.xml'
     state_type = mujoco.mjtState.mjSTATE_INTEGRATION
