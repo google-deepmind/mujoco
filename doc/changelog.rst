@@ -40,7 +40,7 @@ General
    (simple free-floating bodies): automatically aligning the body frame with the inertial frame. This feature can be
    toggled individually using the :ref:`freejoint/align<body-freejoint-align>` attribute or globally using the compiler
    :ref:`alignfree<compiler-alignfree>` attribute. The alignment diagonalizes the related 6x6 inertia sub-matrix,
-   leading to both faster simulation and more stable simulation of free bodies.
+   leading to both faster and more stable simulation of free bodies.
 
    While this optimization is a strict improvement, it changes the semantics of the joint's degrees-of-freedom.
    Therefore, ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) will
