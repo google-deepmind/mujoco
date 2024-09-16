@@ -530,7 +530,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
-  mjtNum catenary[3*mjNCATENARY];
   mjtNum *cur, *nxt, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
@@ -1817,8 +1816,15 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             length = m->tendon_lengthspring[2*i+1];
           }
 
+          // get number of points along catenary path
+          int ncatenary = m->vis.quality.numslices + 1;
+
+          // allocate catenary
+          mj_markStack(d);
+          mjtNum* catenary = mj_stackAllocNum(d, 3*ncatenary);
+
           // points along catenary path
-          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary);
+          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
 
           // draw npoints-1 segments
           for (int j=0; j < npoints-1; j++) {
@@ -1839,6 +1845,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
             FINISH
           }
+          mj_freeStack(d);
         }
       }
     }
@@ -2854,7 +2861,7 @@ static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
 
 // points along catenary of given length between x0 and x1, returns number of points
 int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
-                 mjtNum catenary[3*mjNCATENARY]) {
+                 mjtNum* catenary, int ncatenary) {
   mjtNum dist = mju_dist3(x0, x1);
 
   // tendon is stretched longer than length: draw straight line
@@ -2914,7 +2921,7 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       return 3;
     }
 
-    // compute catenary: mjNCATENARY points
+    // compute full catenary: ncatenary points
     else {
       // b*h: scaled catenary flatness
       mjtNum bh = solve_catenary(v, h, length) * h;
@@ -2927,9 +2934,9 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       mju_copy3(catenary+0, x0);
 
       // hanging points
-      for (int i=1; i < mjNCATENARY-1; i++) {
+      for (int i=1; i < ncatenary-1; i++) {
         // linearly spaced horizontal offset
-        mjtNum horizontal = i*h/mjNCATENARY;
+        mjtNum horizontal = i*h/ncatenary;
         mju_addScl3(catenary+3*i, x0, across, horizontal);
 
         // vertical offset, evaluate catenary values
@@ -2938,9 +2945,9 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       }
 
       // end point
-      mju_copy3(catenary+3*(mjNCATENARY-1), x1);
+      mju_copy3(catenary+3*(ncatenary-1), x1);
 
-      return mjNCATENARY;
+      return ncatenary;
     }
   }
 
