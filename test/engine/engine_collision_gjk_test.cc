@@ -56,7 +56,7 @@ mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
   config.max_iterations = kMaxIterations,
   config.tolerance = kTolerance,
   config.contacts = 0;   // no geom contacts needed
-  config.distances = 1;  // no geom distances needed
+  config.distances = 1;
 
   mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center,
                    mjc_support};
