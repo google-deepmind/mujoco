@@ -27,9 +27,14 @@ set(MUJOCO_DEP_VERSION_lodepng
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 
-set(MUJOCO_DEP_VERSION_openvr
-    f51d87ecf8f7903e859b0aa4d617ff1e5f33db5a # 2.2.3
-    CACHE STRING "Version of `openvr` to be fetched."
+# set(MUJOCO_DEP_VERSION_openvr
+#     f51d87ecf8f7903e859b0aa4d617ff1e5f33db5a # 2.2.3
+#     CACHE STRING "Version of `openvr` to be fetched."
+# )
+
+set(MUJOCO_DEP_VERSION_openxr
+    9e9d023ffcc67037ee244f6f0bc3785370814c96 # 1.1.36
+    CACHE STRING "Version of `openxr` to be fetched."
 )
 
 project(
@@ -48,7 +53,8 @@ endif()
 
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
-option(SIMULATE_BUILD_VR "Build VR-enabled simulate executable binary." OFF)
+# option(SIMULATE_BUILD_VR "Build VR-enabled simulate executable binary." ON)
+option(SIMULATE_BUILD_XR "Build XR-enabled simulate executable binary." ON)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
@@ -109,40 +115,52 @@ if(NOT TARGET lodepng)
 endif()
 
 
-# Fetch openvr dependency.
-if(NOT TARGET openvr)
+# # Fetch openvr dependency.
+# if(NOT TARGET openvr)
+#   FetchContent_Declare(
+#     openvr
+#     GIT_REPOSITORY https://github.com/ValveSoftware/openvr.git
+#     GIT_TAG ${MUJOCO_DEP_VERSION_openvr}
+#   )
+
+#   FetchContent_GetProperties(openvr)
+#   if(NOT openvr_POPULATED)
+#     FetchContent_Populate(openvr)
+#     # include_directories(${openvr_SOURCE_DIR}/headers)
+#   endif()
+#   message("openvr_SOURCE_DIR: ${openvr_SOURCE_DIR} ")
+
+#   set(OPENVR_SRCS ${openvr_SOURCE_DIR}/src)
+#   set(OPENVR_HEADERS ${openvr_SOURCE_DIR}/headers)
+#   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+#     set(OPENVR_LIB_DIR ${openvr_SOURCE_DIR}/lib/win64)
+#     set(OPENVR_DLL_DIR ${openvr_SOURCE_DIR}/bin/win64)
+#   else()
+#     set(OPENVR_LIB_DIR ${openvr_SOURCE_DIR}/lib/win32)
+#     set(OPENVR_DLL_DIR ${openvr_SOURCE_DIR}/bin/win32)
+#   endif()
+#   link_directories(${OPENVR_LIB_DIR})
+
+#   add_library(openvr STATIC ${OPENVR_HEADERS} ${OPENVR_SRCS})
+#   set_target_properties(openvr PROPERTIES LINKER_LANGUAGE CXX)
+#   target_compile_options(openvr PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+#   target_link_options(openvr PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+#   target_include_directories(openvr PUBLIC ${openvr_SOURCE_DIR} ${OPENVR_SRCS})
+#   message("OPENVR_SRCS: ${OPENVR_SRCS} ")
+#   message("OPENVR_HEADERS: ${OPENVR_HEADERS} ")
+#   message("OPENVR_LIB_DIR: ${OPENVR_LIB_DIR} ")
+# endif()
+
+# Fetch openxr dependency.
+if(NOT TARGET openxr)
   FetchContent_Declare(
-    openvr
-    GIT_REPOSITORY https://github.com/ValveSoftware/openvr.git
-    GIT_TAG ${MUJOCO_DEP_VERSION_openvr}
+      openxr
+      URL_HASH MD5=924a94a2da0b5ef8e82154c623d88644
+      URL https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-1.0.34.zip
+          SOURCE_DIR
+          openxr
   )
-
-  FetchContent_GetProperties(openvr)
-  if(NOT openvr_POPULATED)
-    FetchContent_Populate(openvr)
-    # include_directories(${openvr_SOURCE_DIR}/headers)
-  endif()
-  message("openvr_SOURCE_DIR: ${openvr_SOURCE_DIR} ")
-
-  set(OPENVR_SRCS ${openvr_SOURCE_DIR}/src)
-  set(OPENVR_HEADERS ${openvr_SOURCE_DIR}/headers)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(OPENVR_LIB_DIR ${openvr_SOURCE_DIR}/lib/win64)
-    set(OPENVR_DLL_DIR ${openvr_SOURCE_DIR}/bin/win64)
-  else()
-    set(OPENVR_LIB_DIR ${openvr_SOURCE_DIR}/lib/win32)
-    set(OPENVR_DLL_DIR ${openvr_SOURCE_DIR}/bin/win32)
-  endif()
-  link_directories(${OPENVR_LIB_DIR})
-
-  add_library(openvr STATIC ${OPENVR_HEADERS} ${OPENVR_SRCS})
-  set_target_properties(openvr PROPERTIES LINKER_LANGUAGE CXX)
-  target_compile_options(openvr PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-  target_link_options(openvr PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-  target_include_directories(openvr PUBLIC ${openvr_SOURCE_DIR} ${OPENVR_SRCS})
-  message("OPENVR_SRCS: ${OPENVR_SRCS} ")
-  message("OPENVR_HEADERS: ${OPENVR_HEADERS} ")
-  message("OPENVR_LIB_DIR: ${OPENVR_LIB_DIR} ")
+  FetchContent_MakeAvailable(OpenXR)
 endif()
 
 
@@ -182,15 +200,36 @@ target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(libsimulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
-if(SIMULATE_BUILD_VR)
-  target_compile_definitions(mujoco PUBLIC mjBUILDSIMULATEVR)
-  target_include_directories(libsimulate PUBLIC ${OPENVR_HEADERS} ${OPENVR_SRCS})
-  target_link_libraries(libsimulate PUBLIC ${OPENVR_LIB_DIR}/openvr_api.lib)
+if(SIMULATE_BUILD_XR)
+  set(SIMULATE_OPENXR_HEADERS
+      simulate_xr/simulate_xr.h)
+  set(SIMULATE_OPENXR_SOURCES
+      simulate_xr/simulate_xr.cc)
+  set(SIMULATE_OPENXR_GLAD
+      simulate_xr/glad/glad.h simulate_xr/glad/glad.c)
+  target_include_directories(libsimulate PUBLIC
+      ${SIMULATE_OPENXR_HEADERS} ${SIMULATE_OPENXR_SOURCES}
+      # From OpenXR repo
+      "${openxr_SOURCE_DIR}/src/common"
+      "${openxr_SOURCE_DIR}/external/include"
+  )
+  target_link_libraries(libsimulate PUBLIC openxr_loader)
   target_sources(
     libsimulate
-    PUBLIC simulate_vr/simulate_vr.h
-    PRIVATE simulate_vr/simulate_vr.cc simulate_vr/glad/glad.h simulate_vr/glad/glad.c
+    PUBLIC ${SIMULATE_OPENXR_HEADERS}
+    PRIVATE ${SIMULATE_OPENXR_SOURCES} ${SIMULATE_OPENXR_GLAD}
   )
+
+  # target_include_directories(libsimulate PUBLIC ${OPENVR_HEADERS} ${OPENVR_SRCS})
+  # target_link_libraries(libsimulate PUBLIC ${OPENVR_LIB_DIR}/openvr_api.lib)
+  # target_sources(
+  #   libsimulate
+  #   PUBLIC simulate_vr/simulate_vr.h
+  #   PRIVATE simulate_vr/simulate_vr.cc simulate_vr/glad/glad.h simulate_vr/glad/glad.c
+  # )
+
+  # DEFINE to change the code
+  target_compile_definitions(mujoco PUBLIC mjBUILDSIMULATEXR)
 endif()
 
 if(APPLE)
@@ -325,10 +364,10 @@ if(SIMULATE_BUILD_EXECUTABLE)
 endif()
 
 
-if(SIMULATE_BUILD_VR)
-  message("CMAKE_BINARY_DIR::${CMAKE_BINARY_DIR} ")
-  # Adding dll to build/bin/Debug
-  add_custom_command(TARGET simulate
-    POST_BUILD
-    COMMAND  ${CMAKE_COMMAND} -E copy ${OPENVR_DLL_DIR}/openvr_api.dll  ${CMAKE_BINARY_DIR}/bin/Debug/)
-endif()
+# if(SIMULATE_BUILD_VR)
+#   message("CMAKE_BINARY_DIR::${CMAKE_BINARY_DIR} ")
+#   # Adding dll to build/bin/Debug
+#   add_custom_command(TARGET simulate
+#     POST_BUILD
+#     COMMAND  ${CMAKE_COMMAND} -E copy ${OPENVR_DLL_DIR}/openvr_api.dll  ${CMAKE_BINARY_DIR}/bin/Debug/)
+# endif()

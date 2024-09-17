@@ -30,9 +30,9 @@
 #include <mujoco/mujoco.h>
 #include "platform_ui_adapter.h"
 
-#ifdef mjBUILDSIMULATEVR
-  #include "simulate_vr/simulate_vr.h"
-#endif // mjBUILDSIMULATEVR
+#ifdef mjBUILDSIMULATEXR
+  #include "simulate_xr/simulate_xr.h"
+#endif // mjBUILDSIMULATEXR
 
 namespace mujoco {
 
@@ -250,9 +250,9 @@ class Simulate {
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
 
-#ifdef mjBUILDSIMULATEVR
-  mjvrHMD hmd;
-#endif // mjBUILDSIMULATEVR
+#ifdef mjBUILDSIMULATEXR
+  SimulateXr simXr;
+#endif // mjBUILDSIMULATEXR
 
   // additional user-defined visualization geoms (used in passive mode)
   mjvScene* user_scn = nullptr;

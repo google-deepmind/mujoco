@@ -640,7 +640,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <simulate_vr/glad/glad.h>
+#include <simulate_xr/glad/glad.h>
 
 static void* get_proc(const char *namez);
 
