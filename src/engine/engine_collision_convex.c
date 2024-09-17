@@ -700,9 +700,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   int ncol = m->hfield_ncol[hid];
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   const float* data = m->hfield_data + m->hfield_adr[hid];
-  mjCCDObj obj1;
-  obj1.center = mjc_prism_center;
-  obj1.support = mjc_prism_support;
+  mjCCDObj obj1 = {m, d, -1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_prism_center, mjc_prism_support};
 
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
