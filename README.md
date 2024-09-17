@@ -109,8 +109,7 @@ GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved
 for bug reports, feature requests and other development-related subjects.
 
 ## Related software
-MuJoCo forms the backbone of many environment packages, but these are too many
-to list here individually. Below we focus on bindings and converters.
+MuJoCo is the backbone for numerous environment packages. Below we list several bindings and converters.
 
 ### Bindings
 
