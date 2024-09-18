@@ -23,6 +23,7 @@
 #include "engine/engine_callback.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -32,6 +33,25 @@
 
 
 //----------------------------- passive forces -----------------------------------------------------
+
+// local edge-based vertex indexing for 2D and 3D elements, 2D and 3D elements
+// have 3 and 6 edges, respectively so the missing indexes are set to 0
+static int edges[2][6][2] = {{{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
+                             {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
+
+// compute gradient of squared lengths of edges belonging to a given element
+static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
+                                      const mjtNum* xpos,
+                                      const int vert[4],
+                                      const int edge[6][2],
+                                      int nedge) {
+  for (int e = 0; e < nedge; e++) {
+    for (int d = 0; d < 3; d++) {
+      gradient[e][0][d] = xpos[3*vert[edge[e][0]]+d] - xpos[3*vert[edge[e][1]]+d];
+      gradient[e][1][d] = xpos[3*vert[edge[e][1]]+d] - xpos[3*vert[edge[e][0]]+d];
+    }
+  }
+}
 
 // spring and damper forces
 static void mj_springdamper(const mjModel* m, mjData* d) {
@@ -91,6 +111,98 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     if (damping != 0) {
       d->qfrc_damper[i] = -damping*d->qvel[i];
     }
+  }
+
+  // flex elasticity
+  for (int f=0; f < m->nflex; f++) {
+    mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
+    int dim = m->flex_dim[f];
+
+    if (dim == 1 || m->flex_rigid[f] || k[0] == 0) {
+      continue;
+    }
+
+    int nedge = (dim == 2) ? 3 : 6;
+    int nvert = (dim == 2) ? 3 : 4;
+    const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+    const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+    mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+    mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
+    mjtNum* ref = m->flexedge_length0 + m->flex_edgeadr[f];
+    int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+
+    mj_markStack(d);
+    mjtNum* qfrc = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
+    mju_zero(qfrc, 3*m->flex_vertnum[f]);
+
+    // compute force element-by-element
+    for (int t = 0; t < m->flex_elemnum[f]; t++)  {
+      const int* vert = elem + (dim+1) * t;
+
+      // compute length gradient with respect to dofs
+      mjtNum gradient[6][2][3];
+      GradSquaredLengths(gradient, xpos, vert, edges[dim-2], nedge);
+
+      // extract elongation of edges belonging to this element
+      mjtNum elongation[6];
+      for (int e = 0; e < nedge; e++) {
+        int idx = edgeelem[t * nedge + e];
+        elongation[e] = deformed[idx]*deformed[idx] - ref[idx]*ref[idx];
+      }
+
+      // unpack triangular representation
+      mjtNum metric[36];
+      int id = 0;
+      for (int ed1 = 0; ed1 < nedge; ed1++) {
+        for (int ed2 = ed1; ed2 < nedge; ed2++) {
+          metric[nedge*ed1 + ed2] = k[21*t + id];
+          metric[nedge*ed2 + ed1] = k[21*t + id++];
+        }
+      }
+
+      // we now multiply the elongations by the precomputed metric tensor,
+      // notice that if metric=diag(1/reference) then this would yield a
+      // mass-spring model
+
+      // compute local force
+      mjtNum force[12] = {0};
+      for (int ed1 = 0; ed1 < nedge; ed1++) {
+        for (int ed2 = 0; ed2 < nedge; ed2++) {
+          for (int i = 0; i < 2; i++) {
+            for (int x = 0; x < 3; x++) {
+              force[3 * edges[dim-2][ed2][i] + x] -=
+                  elongation[ed1] * gradient[ed2][i][x] *
+                  metric[nedge * ed1 + ed2];
+            }
+          }
+        }
+      }
+
+      // insert into global force
+      for (int i = 0; i < nvert; i++) {
+        for (int x = 0; x < 3; x++) {
+          qfrc[3*vert[i]+x] += force[3*i+x];
+        }
+      }
+    }
+
+    // insert force into qfrc_passive, straightforward for simple bodies,
+    // need to distribute the force in case of pinned vertices
+    for (int v = 0; v < m->flex_vertnum[f]; v++) {
+      int bid = bodyid[v];
+      if (m->body_simple[bid] != 2) {
+        // this should only occur for pinned flex vertices
+        mj_applyFT(m, d, qfrc + 3*v, 0, xpos + 3*v, bid, d->qfrc_spring);
+      } else {
+        int body_dofnum = m->body_dofnum[bid];
+        int body_dofadr = m->body_dofadr[bid];
+        for (int x = 0; x < body_dofnum; x++) {
+          d->qfrc_spring[body_dofadr+x] += qfrc[3*v+x];
+        }
+      }
+    }
+
+    mj_freeStack(d);
   }
 
   // flexedge-level spring-dampers

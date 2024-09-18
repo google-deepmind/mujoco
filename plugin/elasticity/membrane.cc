@@ -31,15 +31,10 @@ namespace mujoco::plugin::elasticity {
 // factory function
 std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
                                          int instance) {
-  if (CheckAttr("face", m, instance) && CheckAttr("poisson", m, instance) &&
-      CheckAttr("young", m, instance) && CheckAttr("thickness", m, instance)) {
-    mjtNum nu = strtod(mj_getPluginConfig(m, instance, "poisson"), nullptr);
-    mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
-    mjtNum thick =
-        strtod(mj_getPluginConfig(m, instance, "thickness"), nullptr);
+  if (CheckAttr("face", m, instance)) {
     mjtNum damp =
             strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-    return Membrane(m, d, instance, nu, E, thick, damp);
+    return Membrane(m, d, instance, damp);
   } else {
     mju_warning("Invalid parameter specification in shell plugin");
     return std::nullopt;
@@ -47,9 +42,8 @@ std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
 }
 
 // plugin constructor
-Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
-                   mjtNum E, mjtNum thick, mjtNum damp)
-    : f0(-1), damping(damp), thickness(thick) {
+Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum damp)
+    : f0(-1), damping(damp) {
   // count plugin bodies
   nv = ne = 0;
   for (int i = 1; i < m->nbody; i++) {
@@ -106,8 +100,8 @@ void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
   // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
   for (int idx = 0; idx < ne; idx++) {
-    elongation[idx] = deformed[idx]*deformed[idx] - ref[idx]*ref[idx] +
-                    ( deformed[idx]*deformed[idx] - prev[idx]*prev[idx] ) * kD;
+    elongation[idx] =
+        (deformed[idx] * deformed[idx] - prev[idx] * prev[idx]) * kD;
   }
 
   // compute gradient of elastic energy and insert into passive force
@@ -135,7 +129,7 @@ void Membrane::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.membrane";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"face", "edge", "young", "poisson", "thickness", "damping"};
+  const char* attributes[] = {"face", "edge", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

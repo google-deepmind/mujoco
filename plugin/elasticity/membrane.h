@@ -52,11 +52,9 @@ class Membrane {
   std::vector<mjtNum> force;                // force at all vertices  (nv x 3)
 
   mjtNum damping;
-  mjtNum thickness;
 
  private:
-  Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-           mjtNum thick, mjtNum damp);
+  Membrane(const mjModel* m, mjData* d, int instance, mjtNum damp);
 };
 
 }  // namespace mujoco::plugin::elasticity

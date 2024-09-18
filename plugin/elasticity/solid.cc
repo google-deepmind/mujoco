@@ -32,14 +32,10 @@ namespace mujoco::plugin::elasticity {
 // factory function
 std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
     if (CheckAttr("face", m, instance) &&
-        CheckAttr("edge", m, instance) &&
-        CheckAttr("poisson", m, instance) &&
-        CheckAttr("young", m, instance)) {
-        mjtNum nu = strtod(mj_getPluginConfig(m, instance, "poisson"), nullptr);
-        mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
+        CheckAttr("edge", m, instance)) {
         mjtNum damp =
             strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-        return Solid(m, d, instance, nu, E, damp);
+        return Solid(m, d, instance, damp);
     } else {
         mju_warning("Invalid parameter specification in solid plugin");
         return std::nullopt;
@@ -47,8 +43,7 @@ std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
 }
 
 // plugin constructor
-Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-             mjtNum damp)
+Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum damp)
     : f0(-1), damping(damp) {
   // count plugin bodies
   nv = ne = 0;
@@ -109,8 +104,8 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
   // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
   for (int idx = 0; idx < ne; idx++) {
-    elongation[idx] = deformed[idx]*deformed[idx] - ref[idx]*ref[idx] +
-                    ( deformed[idx]*deformed[idx] - prev[idx]*prev[idx] ) * kD;
+    elongation[idx] =
+        (deformed[idx] * deformed[idx] - prev[idx] * prev[idx]) * kD;
   }
 
   // compute gradient of elastic energy and insert into passive force
@@ -138,7 +133,7 @@ void Solid::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.solid";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"face", "edge", "young", "poisson", "damping", "thickness"};
+  const char* attributes[] = {"face", "edge", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

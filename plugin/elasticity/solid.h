@@ -52,8 +52,7 @@ class Solid {
   mjtNum damping;
 
  private:
-  Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-        mjtNum damp);
+  Solid(const mjModel* m, mjData* d, int instance, mjtNum damp);
 };
 
 }  // namespace mujoco::plugin::elasticity
