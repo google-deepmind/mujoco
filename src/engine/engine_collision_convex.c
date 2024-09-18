@@ -788,10 +788,10 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   }
 
   // compute sub-grid bounds
-  cmin = (int) floor((xmin + size1[0]) / (2*size1[0]) * (ncol-1));
-  cmax = (int) ceil ((xmax + size1[0]) / (2*size1[0]) * (ncol-1));
-  rmin = (int) floor((ymin + size1[1]) / (2*size1[1]) * (nrow-1));
-  rmax = (int) ceil ((ymax + size1[1]) / (2*size1[1]) * (nrow-1));
+  cmin = (int) mju_floor((xmin + size1[0]) / (2*size1[0]) * (ncol-1));
+  cmax = (int) mju_ceil ((xmax + size1[0]) / (2*size1[0]) * (ncol-1));
+  rmin = (int) mju_floor((ymin + size1[1]) / (2*size1[1]) * (nrow-1));
+  rmax = (int) mju_ceil ((ymax + size1[1]) / (2*size1[1]) * (nrow-1));
   cmin = mjMAX(0, cmin);
   cmax = mjMIN(ncol-1, cmax);
   rmin = mjMAX(0, rmin);
@@ -1235,10 +1235,10 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   }
 
   // compute sub-grid bounds
-  cmin = (int) floor((xmin + hsize[0]) / (2*hsize[0]) * (ncol-1));
-  cmax = (int) ceil ((xmax + hsize[0]) / (2*hsize[0]) * (ncol-1));
-  rmin = (int) floor((ymin + hsize[1]) / (2*hsize[1]) * (nrow-1));
-  rmax = (int) ceil ((ymax + hsize[1]) / (2*hsize[1]) * (nrow-1));
+  cmin = (int) mju_floor((xmin + hsize[0]) / (2*hsize[0]) * (ncol-1));
+  cmax = (int) mju_ceil ((xmax + hsize[0]) / (2*hsize[0]) * (ncol-1));
+  rmin = (int) mju_floor((ymin + hsize[1]) / (2*hsize[1]) * (nrow-1));
+  rmax = (int) mju_ceil ((ymax + hsize[1]) / (2*hsize[1]) * (nrow-1));
   cmin = mjMAX(0, cmin);
   cmax = mjMIN(ncol-1, cmax);
   rmin = mjMAX(0, rmin);
