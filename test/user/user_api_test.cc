@@ -1156,5 +1156,43 @@ TEST_F(MujocoTest, AttachMocap) {
   mj_deleteModel(m_expected);
 }
 
+TEST_F(MujocoTest, AttachUnnamedAssets) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  mjSpec* child = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(child, 0);
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
+  mjs_setFrame(geom->element, frame);
+  mjs_setString(mesh->file, "cube.obj");
+  mjs_setString(geom->meshname, "cube");
+  geom->type = mjGEOM_MESH;
+
+  mjSpec* spec = mj_makeSpec();
+  mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
+
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nmesh, 1);
+  EXPECT_STREQ(mj_id2name(model, mjOBJ_MESH, 0), "_cube");
+
+  mj_deleteVFS(vfs.get());
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

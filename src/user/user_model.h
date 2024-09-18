@@ -279,9 +279,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // multi-threaded mesh compilation
   void CompileMeshes(const mjVFS* vfs);
 
-  // if asset name is missing, set to filename
-  template<class T> void SetDefaultNames(std::vector<T*>& assets);
-
   // delete material from object
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");

@@ -1428,23 +1428,6 @@ void mjCModel::IndexAssets(bool discard) {
 
 
 
-// if asset name is missing, set to filename
-template <typename T>
-void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
-  string stripped;
-
-  // use filename if name is missing
-  for (int i=0; i<assets.size(); i++) {
-    assets[i]->CopyFromSpec();
-    if (assets[i]->name.empty()) {
-      stripped = mjuu_strippath(assets[i]->File());
-      assets[i]->name = mjuu_stripext(stripped);
-    }
-  }
-}
-
-
-
 // throw error if a name is missing
 void mjCModel::CheckEmptyNames(void) {
   // meshes
@@ -3772,10 +3755,10 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   MakeLists(bodies_[0]);
 
   // fill missing names and check that they are all filled
-  SetDefaultNames(meshes_);
-  SetDefaultNames(skins_);
-  SetDefaultNames(hfields_);
-  SetDefaultNames(textures_);
+  for (const auto& asset : meshes_) asset->CopyFromSpec();
+  for (const auto& asset : skins_) asset->CopyFromSpec();
+  for (const auto& asset : hfields_) asset->CopyFromSpec();
+  for (const auto& asset : textures_) asset->CopyFromSpec();
   CheckEmptyNames();
 
   // create pending keyframes
