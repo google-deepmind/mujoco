@@ -59,6 +59,9 @@ class SimulateXr {
 
   void init_scene_vis(mjvScene *scn, mjModel *m);
 
+  bool before_render(mjvScene *scn, mjModel *m);
+  void after_render(mjrContext* con);
+
  private:
   XrInstance m_xrInstance = XR_NULL_HANDLE;
   std::vector<const char *> m_activeAPILayers = {};
@@ -166,10 +169,17 @@ class SimulateXr {
   void _create_swapchain();
   void _destroy_swapchain();
 
-  void _create_projection_layer();
+  bool m_sessionRunning = false;
+  void _poll_events();
+
+  // carried b/w calls before and after render
+  XrFrameState frameState{XR_TYPE_FRAME_STATE};
+  RenderLayerInfo renderLayerInfo;
+  bool rendered = false;
+  bool _render_frame_start();
+  void _render_frame_end();
 
 
-  void _prepare_xr();
 };
 
 #endif  // SIMULATE_XR_H_

@@ -2506,10 +2506,11 @@ void Simulate::Render() {
 
   // render scene
 #ifdef mjBUILDSIMULATEXR
-  //if (hmd.isInitialized()) {
-  //  mjrRect rectVR = { 0,0,0,0 };
-  //  rectVR.width = 2 * (int)hmd.width;
-  //  rectVR.height = (int)hmd.height;
+
+  simXr.before_render(&this->scn, this->m_);
+  mjrRect rectXR = {0, 0, 0, 0};
+  rectXR.width = (int)simXr.width_render;
+  rectXR.height = (int)simXr.height;
 
   //  // render in offscreen buffer
   //  mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
@@ -2518,11 +2519,12 @@ void Simulate::Render() {
   //  mjr_render(rectVR, &this->scn, &this->platform_ui->mjr_context());
   //  hmd.render(this->platform_ui->mjr_context(), this->uistate);
   //  mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
-  //}
-  //else {
-    // not a pretty solution to not initialized
-    mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
-  //}
+  //
+  // render in offscreen buffer
+  mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
+  mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+
+  simXr.after_render(&this->platform_ui->mjr_context());
 #else //mjBUILDSIMULATEXR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
 #endif //mjBUILDSIMULATEXR
