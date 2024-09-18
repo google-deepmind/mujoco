@@ -180,6 +180,13 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
     elem->DeleteChild(cont);
   }
 
+  // elasticity subelement
+  XMLElement* elastic = InsertEnd(elem, "elasticity");
+  WriteAttr(elastic, "young", 1, &flex->young, &defflex.young);
+  WriteAttr(elastic, "poisson", 1, &flex->poisson, &defflex.poisson);
+  WriteAttr(elastic, "thickness", 1, &flex->thickness, &defflex.thickness);
+  WriteAttr(elastic, "damping", 1, &flex->damping, &defflex.damping);
+
   // edge subelement
   XMLElement* edge = InsertEnd(elem, "edge");
   WriteAttr(edge, "stiffness", 1, &flex->edgestiffness, &defflex.edgestiffness);

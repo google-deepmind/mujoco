@@ -36,7 +36,10 @@ struct PairHash
 struct Stencil2D {
   static constexpr int kNumEdges = 3;
   static constexpr int kNumVerts = 3;
+  static constexpr int kNumFaces = 2;
   static constexpr int edge[kNumEdges][2] = {{1, 2}, {2, 0}, {0, 1}};
+  static constexpr int face[kNumVerts][2] = {{1, 2}, {2, 0}, {0, 1}};
+  static constexpr int edge2face[kNumEdges][2] = {{1, 2}, {2, 0}, {0, 1}};
   int vertices[kNumVerts];
   int edges[kNumEdges];
 };
@@ -44,8 +47,13 @@ struct Stencil2D {
 struct Stencil3D {
   static constexpr int kNumEdges = 6;
   static constexpr int kNumVerts = 4;
+  static constexpr int kNumFaces = 3;
   static constexpr int edge[kNumEdges][2] = {{0, 1}, {1, 2}, {2, 0},
                                              {2, 3}, {0, 3}, {1, 3}};
+  static constexpr int face[kNumVerts][3] = {{2, 1, 0}, {0, 1, 3},
+                                             {1, 2, 3}, {2, 0, 3}};
+  static constexpr int edge2face[kNumEdges][2] = {{2, 3}, {1, 3}, {2, 1},
+                                                  {1, 0}, {0, 2}, {0, 3}};
   int vertices[kNumVerts];
   int edges[kNumEdges];
 };
@@ -150,60 +158,6 @@ inline void AddFlexForce(mjtNum* qfrc,
     }
   }
 }
-
-// compute metric tensor of edge lengths inner product
-template <typename T>
-void inline MetricTensor(mjtNum* metric, int idx, mjtNum mu,
-                         mjtNum la, const mjtNum basis[T::kNumEdges][9]) {
-  mjtNum trE[T::kNumEdges] = {0};
-  mjtNum trEE[T::kNumEdges*T::kNumEdges] = {0};
-  mjtNum k[T::kNumEdges*T::kNumEdges];
-
-  // compute first invariant i.e. trace(strain)
-  for (int e = 0; e < T::kNumEdges; e++) {
-    for (int i = 0; i < 3; i++) {
-      trE[e] += basis[e][4*i];
-    }
-  }
-
-  // compute second invariant i.e. trace(strain^2)
-  for (int ed1 = 0; ed1 < T::kNumEdges; ed1++) {
-    for (int ed2 = 0; ed2 < T::kNumEdges; ed2++) {
-      for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-          trEE[T::kNumEdges*ed1+ed2] += basis[ed1][3*i+j] * basis[ed2][3*j+i];
-        }
-      }
-    }
-  }
-
-  // assembly of strain metric tensor
-  for (int ed1 = 0; ed1 < T::kNumEdges; ed1++) {
-    for (int ed2 = 0; ed2 < T::kNumEdges; ed2++) {
-      k[T::kNumEdges*ed1 + ed2] = mu * trEE[T::kNumEdges * ed1 + ed2] +
-                                  la * trE[ed2] * trE[ed1];
-    }
-  }
-
-  // copy to triangular representation
-  int id = 0;
-  for (int ed1 = 0; ed1 < T::kNumEdges; ed1++) {
-    for (int ed2 = ed1; ed2 < T::kNumEdges; ed2++) {
-      metric[21*idx + id++] = k[T::kNumEdges*ed1 + ed2];
-    }
-  }
-
-  if (id != T::kNumEdges*(T::kNumEdges+1)/2) {
-    mju_error("incorrect stiffness matrix size");
-  }
-}
-
-// convert from Flex connectivity to stencils
-template <typename T>
-int CreateStencils(std::vector<T>& elements,
-                   std::vector<std::pair<int, int>>& edges,
-                   const std::vector<int>& simplex,
-                   const std::vector<int>& edgeidx);
 
 // copied from mjXUtil
 void String2Vector(const std::string& txt, std::vector<int>& vec);

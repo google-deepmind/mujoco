@@ -2518,8 +2518,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
     // elasticity
-    // TODO: these are now written by plugins, they will be moved to mjCFlex
-    mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
+    if (!pfl->stiffness.empty()) {
+      mjuu_copyvec(m->flex_stiffness + 21 * elem_adr, pfl->stiffness.data(), pfl->stiffness.size());
+    } else {
+      mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
+    }
 
     // set fields: mesh-like
     m->flex_dim[i] = pfl->dim;
@@ -2588,7 +2591,7 @@ void mjCModel::CopyObjects(mjModel* m) {
       mjuu_zerovec(m->flex_vert + 3*vert_adr, 3*pfl->nvert);
     }
     else {
-      memcpy(m->flex_vert + 3*vert_adr, pfl->vert_.data(), 3*pfl->nvert*sizeof(mjtNum));
+      mjuu_copyvec(m->flex_vert + 3*vert_adr, pfl->vert_.data(), 3*pfl->nvert);
     }
 
     // copy or set vertbodyid

@@ -27,54 +27,6 @@
 
 
 namespace mujoco::plugin::elasticity {
-namespace {
-
-// local tetrahedron numbering
-constexpr int kNumEdges = Stencil2D::kNumEdges;
-constexpr int kNumVerts = Stencil2D::kNumVerts;
-
-// area of a triangle
-mjtNum ComputeVolume(const mjtNum* x, const int v[kNumVerts]) {
-  mjtNum normal[3];
-  mjtNum edge1[3];
-  mjtNum edge2[3];
-
-  mju_sub3(edge1, x+3*v[1], x+3*v[0]);
-  mju_sub3(edge2, x+3*v[2], x+3*v[0]);
-  mju_cross(normal, edge1, edge2);
-
-  return mju_norm3(normal) / 2;
-}
-
-// compute local basis
-void ComputeBasis(mjtNum basis[9], const mjtNum* x, const int v[kNumVerts],
-                  const int faceL[2], const int faceR[2], mjtNum area) {
-  mjtNum basisL[3], basisR[3];
-  mjtNum edgesL[3], edgesR[3];
-  mjtNum normal[3];
-
-  mju_sub3(edgesL, x+3*v[faceL[0]], x+3*v[faceL[1]]);
-  mju_sub3(edgesR, x+3*v[faceR[1]], x+3*v[faceR[0]]);
-
-  mju_cross(normal, edgesR, edgesL);
-  mju_normalize3(normal);
-  mju_cross(basisL, normal, edgesL);
-  mju_cross(basisR, edgesR, normal);
-
-  // we use as basis the symmetrized tensor products of the edge normals of the
-  // other two edges; this is shown in Weischedel "A discrete geometric view on
-  // shear-deformable shell models" in the remark at the end of section 4.1;
-  // equivalent to linear finite elements but in a coordinate-free formulation.
-
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      basis[3*i+j] = ( basisL[i]*basisR[j] +
-                       basisR[i]*basisL[j] ) / (8*area*area);
-    }
-  }
-}
-
-}  // namespace
 
 // factory function
 std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
@@ -118,41 +70,16 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
     }
   }
 
-  // vertex positions
-  mjtNum* body_pos = m->flex_xvert0 + 3*m->flex_vertadr[f0];
-
   // loop over all triangles
   const int* elem = m->flex_elem + m->flex_elemdataadr[f0];
   for (int t = 0; t < m->flex_elemnum[f0]; t++) {
     const int* v = elem + (m->flex_dim[f0]+1) * t;
-    for (int i = 0; i < kNumVerts; i++) {
+    for (int i = 0; i < Stencil2D::kNumVerts; i++) {
       int bi = m->flex_vertbodyid[m->flex_vertadr[f0]+v[i]];
       if (bi && m->body_plugin[bi] != instance) {
         mju_error("Body %d does not have plugin instance %d", bi, instance);
       }
     }
-
-    // triangles area
-    mjtNum volume = ComputeVolume(body_pos, v);
-
-    // material parameters
-    mjtNum mu = E / (2*(1+nu)) * mju_abs(volume) / 4 * thickness;
-    mjtNum la = E*nu / ((1+nu)*(1-2*nu)) * mju_abs(volume) / 4 * thickness;
-
-    // local geometric quantities
-    mjtNum basis[kNumEdges][9] = {{0}, {0}, {0}};
-
-    // compute edge basis
-    for (int e = 0; e < kNumEdges; e++) {
-      ComputeBasis(basis[e], body_pos, v,
-                   Stencil2D::edge[Stencil2D::edge[e][0]],
-                   Stencil2D::edge[Stencil2D::edge[e][1]], volume);
-    }
-
-    // compute metric tensor
-    // TODO: do not write in a const mjModel
-    MetricTensor<Stencil2D>(m->flex_stiffness + 21 * m->flex_elemadr[f0], t, mu,
-                            la, basis);
   }
 
   // allocate array
