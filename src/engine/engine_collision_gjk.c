@@ -898,7 +898,7 @@ static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
 
 
 // swap two nodes in heap
-inline void swap(Polytope* pt, int i, int j) {
+static inline void swap(Polytope* pt, int i, int j) {
   Face* tmp = pt->heap[i];
   pt->heap[i] = pt->heap[j];
   pt->heap[j] = tmp;
@@ -927,11 +927,19 @@ void heapify(Polytope* pt, int i) {
 
 // delete face from heap
 void deleteFace(Polytope* pt, Face* face) {
+  if (!pt->nheap) {
+    return;
+  }
+
+  face->dist = -1;
   pt->nheap--;
-  if (pt->nheap < 1) return;
+
+  // last face; nothing to do
+  if (!pt->nheap) {
+    return;
+  }
 
   // bubble up face to top of heap
-  face->dist = -1;
   int i = face->index;
   while (i != 0) {
     int parent = (i - 1) >> 1;
