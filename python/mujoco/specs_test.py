@@ -102,6 +102,89 @@ class SpecsTest(absltest.TestCase):
     # Create a spec.
     spec = mujoco.MjSpec()
 
+    # Add material.
+    material = spec.add_material(texrepeat=[1, 2], emission=-1)
+    np.testing.assert_array_equal(material.texrepeat, [1, 2])
+    self.assertEqual(material.emission, -1)
+
+    # Add mesh.
+    mesh = spec.add_mesh(refpos=[1, 2, 3])
+    np.testing.assert_array_equal(mesh.refpos, [1, 2, 3])
+
+    # Add pair.
+    pair = spec.add_pair(gap=0.1)
+    self.assertEqual(pair.gap, 0.1)
+
+    # Add equality.
+    equality = spec.add_equality(objtype=mujoco.mjtObj.mjOBJ_SITE)
+    self.assertEqual(equality.objtype, mujoco.mjtObj.mjOBJ_SITE)
+
+    # Add tendon.
+    tendon = spec.add_tendon(stiffness=2, springlength=[0.1, 0.2])
+    self.assertEqual(tendon.stiffness, 2)
+    np.testing.assert_array_equal(tendon.springlength, [0.1, 0.2])
+
+    # Add actuator.
+    actuator = spec.add_actuator(actdim=10, ctrlrange=[-1, 10])
+    self.assertEqual(actuator.actdim, 10)
+    np.testing.assert_array_equal(actuator.ctrlrange, [-1, 10])
+
+    # Add skin.
+    skin = spec.add_skin(inflate=2.0, vertid=[[1, 1], [2, 2]])
+    self.assertEqual(skin.inflate, 2.0)
+    np.testing.assert_array_equal(skin.vertid, [[1, 1], [2, 2]])
+
+    # Add texture.
+    texture = spec.add_texture(builtin=0, nchannel=3)
+    self.assertEqual(texture.builtin, 0)
+    self.assertEqual(texture.nchannel, 3)
+
+    # Add text.
+    text = spec.add_text(data='data', info='info')
+    self.assertEqual(text.data, 'data')
+    self.assertEqual(text.info, 'info')
+
+    # Add tuple.
+    tuple_ = spec.add_tuple(objprm=[2.0, 3.0, 5.0], objname=['obj'])
+    np.testing.assert_array_equal(tuple_.objprm, [2.0, 3.0, 5.0])
+    self.assertEqual(tuple_.objname, ['obj'])
+
+    # Add flex.
+    flex = spec.add_flex(friction=[1, 2, 3], texcoord=[1.0, 2.0, 3.0])
+    np.testing.assert_array_equal(flex.friction, [1, 2, 3])
+    np.testing.assert_array_equal(flex.texcoord, [1.0, 2.0, 3.0])
+
+    # Add hfield.
+    hfield = spec.add_hfield(nrow=2, content_type='type')
+    self.assertEqual(hfield.nrow, 2)
+    self.assertEqual(hfield.content_type, 'type')
+
+    # Add key.
+    key = spec.add_key(time=1.2, qpos=[1.0, 2.0])
+    self.assertEqual(key.time, 1.2)
+    np.testing.assert_array_equal(key.qpos, [1.0, 2.0])
+
+    # Add numeric.
+    numeric = spec.add_numeric(data=[1.0, 1.1, 1.2], size=2)
+    np.testing.assert_array_equal(numeric.data, [1.0, 1.1, 1.2])
+    self.assertEqual(numeric.size, 2)
+
+    # Add exclude.
+    exclude = spec.add_exclude(bodyname2='body2')
+    self.assertEqual(exclude.bodyname2, 'body2')
+
+    # Add sensor.
+    sensor = spec.add_sensor(
+        needstage=mujoco.mjtStage.mjSTAGE_ACC, objtype=mujoco.mjtObj.mjOBJ_SITE
+    )
+    self.assertEqual(sensor.needstage, mujoco.mjtStage.mjSTAGE_ACC)
+    self.assertEqual(sensor.objtype, mujoco.mjtObj.mjOBJ_SITE)
+
+    # Add plugin.
+    plugin = spec.add_plugin(plugin_slot=7, instance_name='plugin')
+    self.assertEqual(plugin.plugin_slot, 7)
+    self.assertEqual(plugin.instance_name, 'plugin')
+
     # Add a body.
     body = spec.worldbody.add_body(
         name='body', pos=[1, 2, 3], quat=[0, 0, 0, 1]
@@ -154,10 +237,38 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(cam.orthographic, 1)
     np.testing.assert_array_equal(cam.resolution, [10, 20])
 
+    # Add frame.
+    framea0 = body.add_frame(name='framea', pos=[1, 2, 3], quat=[0, 0, 0, 1])
+    np.testing.assert_array_equal(framea0.pos, [1, 2, 3])
+    np.testing.assert_array_equal(framea0.quat, [0, 0, 0, 1])
+
+    frameb0 = body.add_frame(
+        framea0, name='frameb', pos=[4, 5, 6], quat=[0, 1, 0, 0]
+    )
+
+    framea1 = body.first_frame()
+    frameb1 = body.next_frame(framea1)
+
+    self.assertEqual(framea1.name, framea0.name)
+    self.assertEqual(frameb1.name, frameb0.name)
+    np.testing.assert_array_equal(framea1.pos, framea0.pos)
+    np.testing.assert_array_equal(framea1.quat, framea0.quat)
+    np.testing.assert_array_equal(frameb1.pos, frameb0.pos)
+    np.testing.assert_array_equal(frameb1.quat, frameb0.quat)
+
     # Add joint.
-    jnt = body.add_joint(type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0])
-    self.assertEqual(jnt.type, mujoco.mjtJoint.mjJNT_HINGE)
-    np.testing.assert_array_equal(jnt.axis, [0, 1, 0])
+    joint = body.add_joint(type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0])
+    self.assertEqual(joint.type, mujoco.mjtJoint.mjJNT_HINGE)
+    np.testing.assert_array_equal(joint.axis, [0, 1, 0])
+
+    # Add freejoint.
+    freejoint = body.add_freejoint()
+    self.assertEqual(freejoint.type, mujoco.mjtJoint.mjJNT_FREE)
+    freejoint_align = body.add_freejoint(align=True)
+    self.assertEqual(freejoint_align.align, True)
+
+    with self.assertRaises(TypeError):
+      body.add_freejoint(axis=[1, 2, 3])  # invalid keyword argument
 
     # Add light.
     light = body.add_light(attenuation=[1, 2, 3])

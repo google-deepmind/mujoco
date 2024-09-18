@@ -271,92 +271,6 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_getSpecDefault(self.ptr);
       },
       py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_material",
-      [](MjSpec& self, raw::MjsDefault* default_) -> raw::MjsMaterial* {
-        return mjs_addMaterial(self.ptr, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_mesh",
-      [](MjSpec& self, raw::MjsDefault* default_) -> raw::MjsMesh* {
-        return mjs_addMesh(self.ptr, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_skin",
-      [](MjSpec& self) -> raw::MjsSkin* { return mjs_addSkin(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_texture",
-      [](MjSpec& self) -> raw::MjsTexture* { return mjs_addTexture(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_text",
-      [](MjSpec& self) -> raw::MjsText* { return mjs_addText(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_tuple",
-      [](MjSpec& self) -> raw::MjsTuple* { return mjs_addTuple(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_flex",
-      [](MjSpec& self) -> raw::MjsFlex* { return mjs_addFlex(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_hfield",
-      [](MjSpec& self) -> raw::MjsHField* { return mjs_addHField(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_key",
-      [](MjSpec& self) -> raw::MjsKey* { return mjs_addKey(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_numeric",
-      [](MjSpec& self) -> raw::MjsNumeric* { return mjs_addNumeric(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_pair",
-      [](MjSpec& self, raw::MjsDefault* default_) -> raw::MjsPair* {
-        return mjs_addPair(self.ptr, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_exclude",
-      [](MjSpec& self) -> raw::MjsExclude* { return mjs_addExclude(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_equality",
-      [](MjSpec& self, raw::MjsDefault* default_) -> raw::MjsEquality* {
-        return mjs_addEquality(self.ptr, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_tendon",
-      [](MjSpec& self, raw::MjsDefault* default_) -> raw::MjsTendon* {
-        return mjs_addTendon(self.ptr, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_sensor",
-      [](MjSpec& self) -> raw::MjsSensor* { return mjs_addSensor(self.ptr); },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_actuator",
-      [](MjSpec& self, raw::MjsDefault* default_) -> raw::MjsActuator* {
-        return mjs_addActuator(self.ptr, default_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "add_plugin",
-      [](MjSpec& self) -> raw::MjsPlugin* { return mjs_addPlugin(self.ptr); },
-      py::return_value_policy::reference_internal);
   mjSpec.def("detach_body", [](MjSpec& self, raw::MjsBody& body) {
     mjs_detachBody(self.ptr, &body);
   });
@@ -557,16 +471,37 @@ PYBIND11_MODULE(_specs, m) {
   mjsBody.def_property_readonly(
       "id", [](raw::MjsBody& self) -> int { return mjs_getId(self.element); });
   mjsBody.def(
-      "add_frame",
-      [](raw::MjsBody& self, raw::MjsFrame* parentframe_) -> raw::MjsFrame* {
-        return mjs_addFrame(&self, parentframe_);
-      },
-      py::arg_v("default", nullptr),
-      py::return_value_policy::reference_internal);
-  mjsBody.def(
       "add_freejoint",
-      [](raw::MjsBody& self) -> raw::MjsJoint* {
-        return mjs_addFreeJoint(&self);
+      [](raw::MjsBody& self, py::kwargs kwargs) -> raw::MjsJoint* {
+        auto out = mjs_addFreeJoint(&self);
+        py::dict kwarg_dict = kwargs;
+        for (auto item : kwarg_dict) {
+          std::string key = py::str(item.first);
+          if (key == "align") {
+            try {
+              out->align = kwargs["align"].cast<int>();
+            } catch (const py::cast_error& e) {
+              throw pybind11::value_error("align is the wrong type.");
+            }
+          } else if (key == "name") {
+            try {
+              *out->name = kwargs["name"].cast<std::string>();
+            } catch (const py::cast_error& e) {
+              throw pybind11::value_error("name is the wrong type.");
+            }
+          } else if (key == "group") {
+            try {
+              out->group = kwargs["group"].cast<int>();
+            } catch (const py::cast_error& e) {
+              throw pybind11::value_error("group is the wrong type.");
+            }
+          } else {
+            throw pybind11::type_error(
+                "Invalid '" + key +
+                "' keyword argument. Valid options are: align, group, name.");
+          }
+        }
+        return out;
       },
       py::return_value_policy::reference_internal);
   mjsBody.def("set_frame",

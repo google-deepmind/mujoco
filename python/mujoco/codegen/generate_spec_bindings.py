@@ -232,15 +232,33 @@ def generate() -> None:
           print(code)
 
 
-def generate_body_add() -> None:
-  """Generate add functions for bodies."""
-  for key in [
-      'mjsSite',
-      'mjsGeom',
-      'mjsJoint',
-      'mjsLight',
-      'mjsCamera',
-      'mjsBody',
+def generate_add() -> None:
+  """Generate add constructors with optional keyword arguments."""
+  for key, parent, default in [
+      ('mjsSite', 'Body', True),
+      ('mjsGeom', 'Body', True),
+      ('mjsJoint', 'Body', True),
+      ('mjsLight', 'Body', True),
+      ('mjsCamera', 'Body', True),
+      ('mjsBody', 'Body', True),
+      ('mjsFrame', 'Body', True),
+      ('mjsMaterial', 'Spec', True),
+      ('mjsMesh', 'Spec', True),
+      ('mjsPair', 'Spec', True),
+      ('mjsEquality', 'Spec', True),
+      ('mjsTendon', 'Spec', True),
+      ('mjsActuator', 'Spec', True),
+      ('mjsSkin', 'Spec', False),
+      ('mjsTexture', 'Spec', False),
+      ('mjsText', 'Spec', False),
+      ('mjsTuple', 'Spec', False),
+      ('mjsFlex', 'Spec', False),
+      ('mjsHField', 'Spec', False),
+      ('mjsKey', 'Spec', False),
+      ('mjsNumeric', 'Spec', False),
+      ('mjsExclude', 'Spec', False),
+      ('mjsSensor', 'Spec', False),
+      ('mjsPlugin', 'Spec', False),
   ]:
 
     def _field(f: ast_nodes.StructFieldDecl):
@@ -262,11 +280,9 @@ def generate_body_add() -> None:
         return f'set_vec("{f.name}", out->{f.name});', 'vec', f.name
       elif isinstance(f.type, ast_nodes.ArrayType):
         return (
-            (
-                f'set_array("{f.name}", out->{f.name},'
-                f' {f.type.extents[0]});'
-            ),
-            'array', f.name
+            f'set_array("{f.name}", out->{f.name}, {f.type.extents[0]});',
+            'array',
+            f.name,
         )
       elif isinstance(f.type, ast_nodes.ValueType):
         return f'set_value("{f.name}", out->{f.name});', 'value', f.name
@@ -289,10 +305,33 @@ def generate_body_add() -> None:
     titlecase = 'Mjs' + elem
 
     # function definition and call to mjs_add_
-    code = f"""
-      mjsBody.def("add_{elemlower}", [](raw::MjsBody& self, raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
-        auto out = mjs_add{elem}(&self, default_);
-    """
+    if parent == 'Spec':
+      if default:
+        code = f"""
+          {'mj' + parent}.def("add_{elemlower}", []({'Mj' + parent}& self,
+            raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            auto out = mjs_add{elem}(self.ptr, default_);
+        """
+      else:
+        code = f"""
+          {'mj' + parent}.def("add_{elemlower}", []({'Mj' + parent}& self, py::kwargs kwargs) -> raw::{titlecase}* {{
+            auto out = mjs_add{elem}(self.ptr);
+        """
+    elif parent == 'Body':
+      if key == 'mjsFrame':
+        code = f"""
+          {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
+            raw::MjsFrame* parentframe_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            auto out = mjs_add{elem}(&self, parentframe_);
+        """
+      else:
+        code = f"""
+          {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
+            raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            auto out = mjs_add{elem}(&self, default_);
+        """
+    else:
+      raise NotImplementedError(f'{parent} parent is not implement.')
 
     # check for valid kwargs
     code += '\n        std::set<std::string> valid_kwargs = {'
@@ -381,10 +420,10 @@ def generate_body_add() -> None:
           """
 
     code += code_field
-    code += """\n
+    code += f"""\n
         return out;
-      },
-      py::arg_v("default", nullptr),
+      }},
+      {'py::arg_v("default", nullptr),' if default else ''}
       py::return_value_policy::reference_internal);
     """
 
@@ -395,7 +434,7 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   generate()
-  generate_body_add()
+  generate_add()
 
 
 if __name__ == '__main__':
