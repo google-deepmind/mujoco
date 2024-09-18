@@ -36,8 +36,8 @@
 
 // local edge-based vertex indexing for 2D and 3D elements, 2D and 3D elements
 // have 3 and 6 edges, respectively so the missing indexes are set to 0
-static int edges[2][6][2] = {{{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
-                             {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
+static const int edges[2][6][2] = {{{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
+                                   {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}}};
 
 // compute gradient of squared lengths of edges belonging to a given element
 static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
