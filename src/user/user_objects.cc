@@ -1482,11 +1482,6 @@ void mjCBody::Compile(void) {
   }
   userdata_.resize(model->nuser_body);
 
-  // pos defaults to (0,0,0)
-  if (!mjuu_defined(pos[0])) {
-     mjuu_setvec(pos, 0, 0, 0);
-  }
-
   // normalize user-defined quaternions
   mjuu_normvec(quat, 4);
   mjuu_normvec(iquat, 4);
@@ -1524,21 +1519,10 @@ void mjCBody::Compile(void) {
     InertiaFromGeom();
   }
 
-  // both pos and ipos undefined: error
-  if (!mjuu_defined(ipos[0]) && !mjuu_defined(pos[0])) {
-    throw mjCError(this, "body pos and ipos are both undefined");
-  }
-
   // ipos undefined: copy body frame into inertial
-  else if (!mjuu_defined(ipos[0])) {
+  if (!mjuu_defined(ipos[0])) {
     mjuu_copyvec(ipos, pos, 3);
     mjuu_copyvec(iquat, quat, 4);
-  }
-
-  // pos undefined: copy inertial frame into body frame
-  else if (!mjuu_defined(pos[0])) {
-    mjuu_copyvec(pos, ipos, 3);
-    mjuu_copyvec(quat, iquat, 4);
   }
 
   // check and correct mass and inertia

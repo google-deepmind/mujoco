@@ -78,7 +78,6 @@ void mjs_defaultBody(mjsBody* body) {
   memset(body, 0, sizeof(mjsBody));
 
   // body frame
-  body->pos[0] = mjNAN;
   body->quat[0] = 1;
 
   // inertial frame
