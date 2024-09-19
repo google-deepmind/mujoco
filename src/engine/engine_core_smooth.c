@@ -549,7 +549,8 @@ void mj_flex(const mjModel* m, mjData* d) {
     // skip Jacobian if no built-in passive force is needed
     int skipjacobian = !m->flex_edgeequality[f] &&
                        !m->flex_edgedamping[f] &&
-                       !m->flex_edgestiffness[f];
+                       !m->flex_edgestiffness[f] &&
+                       !m->flex_damping[f];
 
     // process edges of this flex
     int vbase = m->flex_vertadr[f];

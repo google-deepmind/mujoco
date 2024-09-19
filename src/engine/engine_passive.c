@@ -127,9 +127,11 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     const int* elem = m->flex_elem + m->flex_elemdataadr[f];
     const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
     mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+    mjtNum* vel = d->flexedge_velocity + m->flex_edgeadr[f];
     mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
-    mjtNum* ref = m->flexedge_length0 + m->flex_edgeadr[f];
+    mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
     int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    mjtNum kD = m->flex_damping[f] / m->opt.timestep;
 
     mj_markStack(d);
     mjtNum* qfrc = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
@@ -143,11 +145,17 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       mjtNum gradient[6][2][3];
       GradSquaredLengths(gradient, xpos, vert, edges[dim-2], nedge);
 
+      // we add generalized Rayleigh damping as decribed in Section 5.2 of
+      // Kharevych et al., "Geometric, Variational Integrators for Computer
+      // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
+
       // extract elongation of edges belonging to this element
       mjtNum elongation[6];
       for (int e = 0; e < nedge; e++) {
         int idx = edgeelem[t * nedge + e];
-        elongation[e] = deformed[idx]*deformed[idx] - ref[idx]*ref[idx];
+        mjtNum previous = deformed[idx] - vel[idx] * m->opt.timestep;
+        elongation[e] = deformed[idx]*deformed[idx] - reference[idx]*reference[idx] +
+                       (deformed[idx]*deformed[idx] - previous*previous) * kD;
       }
 
       // unpack triangular representation

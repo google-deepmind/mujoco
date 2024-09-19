@@ -16,10 +16,6 @@
 <mujoco model="Press">
   <include file="scene.xml"/>
 
-  <extension>
-    <plugin plugin="mujoco.elasticity.solid"/>
-  </extension>
-
   <compiler autolimits="true"/>
 
   <option solver="Newton" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
@@ -36,7 +32,6 @@
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
       <edge damping="1"/>
       <elasticity young="1e4" poisson="0.4"/>
-      <plugin plugin="mujoco.elasticity.solid"/>
     </flexcomp>
 
     <flexcomp name="B" type="grid" count="4 4 4" spacing=".2 .2 .2" pos="1 0 .5"
@@ -44,7 +39,6 @@
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
       <edge damping="1"/>
       <elasticity young="5e4" poisson="0"/>
-      <plugin plugin="mujoco.elasticity.solid"/>
     </flexcomp>
 
     <body>

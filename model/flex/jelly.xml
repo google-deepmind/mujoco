@@ -16,10 +16,6 @@
 <mujoco model="Jelly">
   <include file="scene.xml"/>
 
-  <extension>
-    <plugin plugin="mujoco.elasticity.solid"/>
-  </extension>
-
   <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
 
   <size memory="10M"/>
@@ -47,7 +43,6 @@
       <edge damping="1"/>
       <contact selfcollide="none"/>
       <elasticity young="5e4"/>
-      <plugin plugin="mujoco.elasticity.solid"/>
     </flexcomp>
   </worldbody>
 </mujoco>

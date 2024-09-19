@@ -2,6 +2,17 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Removed the :at:`solid` and :at:`membrane` plugins and moved the associated computations into the engine. See `3D
+  example model <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__ and `2D example model
+  <https://github.com/google-deepmind/mujoco/blob/main/src/model/trampoline.xml>`__ for examples of flex objects
+  that previously required these plugins.
+
 Version 3.2.3 (Sep 16, 2024)
 ----------------------------
 

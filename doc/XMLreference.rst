@@ -4154,6 +4154,12 @@ these mechanisms to be combined as desired.
 :el-prefix:`flex/` |-| **elasticity** (?)
 '''''''''''''''''''''''''''''''''''''''''
 
+The elasticity model is a `Saint Venant-Kirchhoff
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model discretized with
+piecewise linear finite elements, intended to simulate the compression or elongation of hyperelastic materials subjected
+to large displacements (finite rotations) and small strains, since it uses a nonlinear strain-displacement but a linear
+stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
+
 .. _flex-elasticity-young:
 
 :at:`young`: :at-val:`real(1), "0"`

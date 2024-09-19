@@ -16,11 +16,6 @@
 <mujoco model="Trampoline">
   <include file="scene.xml"/>
 
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-    <plugin plugin="mujoco.elasticity.membrane"/>
-  </extension>
-
   <option timestep="0.001" solver="CG" tolerance="1e-6" integrator="implicitfast"/>
 
   <size memory="10M"/>
@@ -46,7 +41,6 @@
       <edge equality="false" damping="10"/>
       <elasticity young="3e5" poisson="0" thickness="1e-2"/>
       <pin id="0 15 240 255"/>
-      <plugin plugin="mujoco.elasticity.membrane"/>
     </flexcomp>
   </worldbody>
 </mujoco>

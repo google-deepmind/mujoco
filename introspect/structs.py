@@ -2476,6 +2476,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='finite element stiffness matrix          (nflexelem x 21)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='flex_damping',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc="Rayleigh's damping coefficient           (nflex x 1)",
+             ),
+             StructFieldDecl(
                  name='flex_edgestiffness',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
