@@ -16,6 +16,7 @@
    python
    MJX <mjx>
    unity
+   usd
    models
    changelog
 
