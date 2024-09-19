@@ -516,6 +516,7 @@ void mjCModel::DeleteElement(mjsElement* el) {
   }
 
   if (compiled) {
+    ResetTreeLists();  // in case of a nested delete
     MakeLists(world);
     ProcessLists(/*checkrepeat=*/false);
   }
@@ -586,6 +587,9 @@ void mjCModel::CopyFromSpec() {
 
 // destructor
 mjCModel::~mjCModel() {
+  // do not rebuild lists if we are in the process of deleting the model
+  compiled = false;
+
   // delete kinematic tree and all objects allocated in it
   delete bodies_[0];
 

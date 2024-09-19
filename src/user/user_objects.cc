@@ -984,6 +984,10 @@ mjCBody::~mjCBody() {
   sites.clear();
   cameras.clear();
   lights.clear();
+
+  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+    model->DeleteElement(spec.plugin.instance);
+  }
 }
 
 
@@ -2103,6 +2107,14 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
 
 mjCGeom::mjCGeom(const mjCGeom& other) {
   *this = other;
+}
+
+
+
+mjCGeom::~mjCGeom() {
+  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+    model->DeleteElement(spec.plugin.instance);
+  }
 }
 
 
@@ -5521,6 +5533,14 @@ mjCActuator::mjCActuator(const mjCActuator& other) {
 
 
 
+mjCActuator::~mjCActuator() {
+  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+    model->DeleteElement(spec.plugin.instance);
+  }
+}
+
+
+
 mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
   if (this != &other) {
     this->spec = other.spec;
@@ -5871,6 +5891,14 @@ mjCSensor::mjCSensor(mjCModel* _model) {
 
 mjCSensor::mjCSensor(const mjCSensor& other) {
   *this = other;
+}
+
+
+
+mjCSensor::~mjCSensor() {
+  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+    model->DeleteElement(spec.plugin.instance);
+  }
 }
 
 

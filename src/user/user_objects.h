@@ -511,6 +511,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   mjCGeom(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCGeom(const mjCGeom& other);
   mjCGeom& operator=(const mjCGeom& other);
+  ~mjCGeom();
 
   using mjCBase::name;
   mjsGeom spec;                       // variables set by user
@@ -1456,6 +1457,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   mjCActuator(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCActuator(const mjCActuator& other);
   mjCActuator& operator=(const mjCActuator& other);
+  ~mjCActuator();
 
   mjsActuator spec;
   using mjCBase::name;
@@ -1516,6 +1518,7 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   mjCSensor(mjCModel*);
   mjCSensor(const mjCSensor& other);
   mjCSensor& operator=(const mjCSensor& other);
+  ~mjCSensor();
 
   mjsSensor spec;
   using mjCBase::name;

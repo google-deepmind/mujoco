@@ -165,6 +165,57 @@ TEST_F(PluginTest, ActivatePlugin) {
   mj_deleteModel(model);
 }
 
+TEST_F(PluginTest, DeletePlugin) {
+  std::string plugin_name = "mujoco.pid";
+  mjSpec* spec = mj_makeSpec();
+
+  // get slot of requested plugin
+  int plugin_slot = -1;
+  const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
+  ASSERT_THAT(plugin, NotNull());
+
+  // activated plugin in the slot
+  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
+  active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
+  mjs_setActivePlugins(spec, &active_plugins);
+
+  // create body
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
+  mjsJoint* joint = mjs_addJoint(body, 0);
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  mjs_setString(joint->name, "j1");
+  joint->type = mjJNT_SLIDE;
+  geom->size[0] = 1;
+
+  // add actuator
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+  mjs_setString(actuator->target, "j1");
+  mjs_setString(actuator->plugin.name, plugin_name.c_str());
+  actuator->plugin.instance = mjs_addPlugin(spec)->instance;
+  actuator->plugin.active = true;
+  actuator->trntype = mjTRN_JOINT;
+
+  // compile and check that the plugin is present
+  mjModel* model = mj_compile(spec, NULL);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nu, 1);
+  EXPECT_THAT(model->nplugin, 1);
+  EXPECT_THAT(model->actuator_plugin[0], 0);
+
+  // delete actuator
+  mjs_delete(actuator->element);
+
+  // recompile and check that the plugin is not present
+  mjModel* newmodel = mj_compile(spec, NULL);
+  EXPECT_THAT(newmodel, NotNull());
+  EXPECT_THAT(newmodel->nu, 0);
+  EXPECT_THAT(newmodel->nplugin, 0);
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteModel(newmodel);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
