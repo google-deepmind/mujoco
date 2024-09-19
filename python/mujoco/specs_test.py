@@ -181,9 +181,18 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(sensor.objtype, mujoco.mjtObj.mjOBJ_SITE)
 
     # Add plugin.
-    plugin = spec.add_plugin(plugin_slot=7, instance_name='plugin')
+    plugin = spec.add_plugin(
+        name='name',
+        instance_name='instance',
+        plugin_slot=7,
+        active=True,
+        info='info',
+    )
+    self.assertEqual(plugin.name, 'name')
+    self.assertEqual(plugin.instance_name, 'instance')
     self.assertEqual(plugin.plugin_slot, 7)
-    self.assertEqual(plugin.instance_name, 'plugin')
+    self.assertEqual(plugin.active, True)
+    self.assertEqual(plugin.info, 'info')
 
     # Add a body.
     body = spec.worldbody.add_body(
@@ -192,6 +201,14 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(body.name, 'body')
     np.testing.assert_array_equal(body.pos, [1, 2, 3])
     np.testing.assert_array_equal(body.quat, [0, 0, 0, 1])
+
+    # Add a body with a plugin.
+    body_with_plugin = spec.worldbody.add_body(plugin=plugin)
+    self.assertEqual(body_with_plugin.plugin.name, 'name')
+    self.assertEqual(body_with_plugin.plugin.instance_name, 'instance')
+    self.assertEqual(body_with_plugin.plugin.plugin_slot, 7)
+    self.assertEqual(body_with_plugin.plugin.active, True)
+    self.assertEqual(body_with_plugin.plugin.info, 'info')
 
     # Add a geom.
     geom = body.add_geom(
@@ -267,29 +284,133 @@ class SpecsTest(absltest.TestCase):
     freejoint_align = body.add_freejoint(align=True)
     self.assertEqual(freejoint_align.align, True)
 
-    with self.assertRaises(TypeError):
-      body.add_freejoint(axis=[1, 2, 3])  # invalid keyword argument
+    with self.assertRaises(TypeError) as cm:
+      body.add_freejoint(axis=[1, 2, 3])
+    self.assertEqual(
+        str(cm.exception),
+        'Invalid axis keyword argument. Valid options are: align, group, name.',
+    )
 
     # Add light.
     light = body.add_light(attenuation=[1, 2, 3])
     np.testing.assert_array_equal(light.attenuation, [1, 2, 3])
 
     # Invalid input for valid keyword argument.
-    with self.assertRaises(ValueError):
-      body.add_geom(pos='pos')  # wrong type for array
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(pos='pos')
+    self.assertEqual(
+        str(cm.exception),
+        'pos should be a list/array.',
+    )
 
-    with self.assertRaises(ValueError):
-      body.add_geom(pos=[0, 1])  # wrong size
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(pos=[0, 1])
+    self.assertEqual(
+        str(cm.exception),
+        'pos should be a list/array of size 3.',
+    )
 
-    with self.assertRaises(ValueError):
-      body.add_geom(type='type')  # wrong type for value
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(type='type')
+    self.assertEqual(
+        str(cm.exception),
+        'type is the wrong type.',
+    )
 
-    with self.assertRaises(ValueError):
-      body.add_geom(userdata='')  # wrong type of vector
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(userdata='')
+    self.assertEqual(
+        str(cm.exception),
+        'userdata has the wrong type.',
+    )
 
     # Invalid keyword argument.
-    with self.assertRaises(TypeError):
+    with self.assertRaises(TypeError) as cm:
       body.add_geom(vel='vel')
+    self.assertEqual(
+        str(cm.exception),
+        'Invalid vel keyword argument. Valid options are: name, type, pos,'
+        ' quat, axisangle, xyaxes, zaxis, euler, fromto, size, contype,'
+        ' conaffinity, condim, priority, friction, solmix, solref, solimp,'
+        ' margin, gap, mass, density, typeinertia, fluid_ellipsoid,'
+        ' fluid_coefs, material, rgba, group, hfieldname, meshname, fitscale,'
+        ' userdata, plugin, info.',
+    )
+
+    # Orientation keyword arguments.
+    geom_axisangle = body.add_geom(axisangle=[1, 2, 3, 4])
+    geom_xyaxes = body.add_geom(xyaxes=[1, 2, 3, 4, 5, 6])
+    geom_zaxis = body.add_geom(zaxis=[1, 2, 3])
+    geom_euler = body.add_geom(euler=[1, 2, 3])
+
+    self.assertEqual(
+        geom_axisangle.alt.type, mujoco.mjtOrientation.mjORIENTATION_AXISANGLE
+    )
+    self.assertEqual(
+        geom_xyaxes.alt.type, mujoco.mjtOrientation.mjORIENTATION_XYAXES
+    )
+    self.assertEqual(
+        geom_zaxis.alt.type, mujoco.mjtOrientation.mjORIENTATION_ZAXIS
+    )
+    self.assertEqual(
+        geom_euler.alt.type, mujoco.mjtOrientation.mjORIENTATION_EULER
+    )
+    np.testing.assert_array_equal(geom_axisangle.alt.axisangle, [1, 2, 3, 4])
+    np.testing.assert_array_equal(geom_xyaxes.alt.xyaxes, [1, 2, 3, 4, 5, 6])
+    np.testing.assert_array_equal(geom_zaxis.alt.zaxis, [1, 2, 3])
+    np.testing.assert_array_equal(geom_euler.alt.euler, [1, 2, 3])
+
+    body_iaxisangle = spec.worldbody.add_body(iaxisangle=[1, 2, 3, 4])
+    body_ixyaxes = spec.worldbody.add_body(ixyaxes=[1, 2, 3, 4, 5, 6])
+    body_izaxis = spec.worldbody.add_body(izaxis=[1, 2, 3])
+    body_ieuler = spec.worldbody.add_body(ieuler=[1, 2, 3])
+    body_euler_ieuler = spec.worldbody.add_body(
+        euler=[1, 2, 3], ieuler=[4, 5, 6]
+    )
+    np.testing.assert_array_equal(body_iaxisangle.ialt.axisangle, [1, 2, 3, 4])
+    np.testing.assert_array_equal(body_ixyaxes.ialt.xyaxes, [1, 2, 3, 4, 5, 6])
+    np.testing.assert_array_equal(body_izaxis.ialt.zaxis, [1, 2, 3])
+    np.testing.assert_array_equal(body_ieuler.ialt.euler, [1, 2, 3])
+    np.testing.assert_array_equal(body_euler_ieuler.alt.euler, [1, 2, 3])
+    np.testing.assert_array_equal(body_euler_ieuler.ialt.euler, [4, 5, 6])
+
+    # Test invalid orientation keyword arguments.
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(axisangle=[1, 2, 3])
+    self.assertEqual(
+        str(cm.exception),
+        'axisangle should be a list/array of size 4.',
+    )
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(xyaxes=[1, 2, 3, 4, 5])
+    self.assertEqual(
+        str(cm.exception),
+        'xyaxes should be a list/array of size 6.',
+    )
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(zaxis=[1, 2, 3, 4])
+    self.assertEqual(
+        str(cm.exception),
+        'zaxis should be a list/array of size 3.',
+    )
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(euler=[1])
+    self.assertEqual(
+        str(cm.exception),
+        'euler should be a list/array of size 3.',
+    )
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(axisangle=[1, 2, 3, 4], euler=[1, 2, 3])
+    self.assertEqual(
+        str(cm.exception),
+        'Only one of: axisangle, xyaxes, zaxis, oreuler can be set.',
+    )
+    with self.assertRaises(ValueError) as cm:
+      spec.worldbody.add_body(iaxisangle=[1, 2, 3, 4], ieuler=[1, 2, 3])
+    self.assertEqual(
+        str(cm.exception),
+        'Only one of: iaxisangle, ixyaxes, izaxis, orieuler can be set.',
+    )
 
   def test_load_xml(self):
     filename = '../../test/testdata/model.xml'

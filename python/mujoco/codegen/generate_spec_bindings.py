@@ -262,16 +262,26 @@ def generate_add() -> None:
   ]:
 
     def _field(f: ast_nodes.StructFieldDecl):
-      # TODO(taylorhowell): add support for mjsOrientation and mjsPlugin
-      unsupported = (
-          ast_nodes.PointerType(
-              inner_type=ast_nodes.ValueType(name='mjsElement')
-          ),
-          ast_nodes.ValueType(name='mjsOrientation'),
-          ast_nodes.ValueType(name='mjsPlugin'),
-      )
-      if f.type in unsupported:
+      if f.type == ast_nodes.PointerType(
+          inner_type=ast_nodes.ValueType(name='mjsElement')
+      ):
         return '', '', ''
+      elif f.type == ast_nodes.ValueType(name='mjsPlugin'):
+        return f'set_plugin(out->{f.name});', 'plugin', f.name
+      elif f.type == ast_nodes.ValueType(name='mjsOrientation'):
+        return (
+            (
+                f'set_orientation(out->{f.name},'
+                f' "{"iaxisangle" if f.name == "ialt" else "axisangle"}",'
+                f' "{"ixyaxes" if f.name == "ialt" else "xyaxes"}",'
+                f' "{"izaxis" if f.name == "ialt" else "zaxis"}",'
+                f' "{"ieuler" if f.name == "ialt" else "euler"}");'
+            ),
+            'orientation',
+            ['iaxisangle', 'ixyaxes', 'izaxis', 'ieuler']
+            if f.name == 'ialt'
+            else ['axisangle', 'xyaxes', 'zaxis', 'euler'],
+        )
       elif f.type == ast_nodes.PointerType(
           inner_type=ast_nodes.ValueType(name='mjString')
       ):
@@ -297,7 +307,10 @@ def generate_add() -> None:
       if line:
         code_field = code_field + '\n        ' + line
         set_types.append(set_type)
-        names.append(name)
+        if set_type == 'orientation':
+          names.extend(name)
+        else:
+          names.append(name)
 
     # assemble
     elem = key.removeprefix('mjs')
@@ -347,7 +360,9 @@ def generate_add() -> None:
         for (auto item: kwarg_dict) {{
           std::string key = py::str(item.first);
           if (valid_kwargs.count(key) == 0) {{
-            throw pybind11::type_error("Invalid '" + key + "' keyword argument. Valid options are: {", ".join(names)}.");
+            throw pybind11::type_error("Invalid "
+              + key
+              + " keyword argument. Valid options are: {", ".join(names)}.");
           }}
         }}
     """
@@ -355,7 +370,105 @@ def generate_add() -> None:
     # include helper functions
     if set_types:
       for t in set(set_types):
-        if t == 'string':
+        if t == 'orientation':
+          code += """\n
+          auto set_orientation = [&kwargs](raw::MjsOrientation& orientation,
+            const char* axisangle,
+            const char* xyaxes,
+            const char* zaxis,
+            const char* euler) {
+            int nrepresentation = 0;
+            bool has_axisangle = kwargs.contains(axisangle);
+            nrepresentation += has_axisangle;
+            bool has_xyaxes = kwargs.contains(xyaxes);
+            nrepresentation += has_xyaxes;
+            bool has_zaxis = kwargs.contains(zaxis);
+            nrepresentation += has_zaxis;
+            bool has_euler = kwargs.contains(euler);
+            nrepresentation += has_euler;
+
+            if (nrepresentation == 0) {
+              return;
+            } else if (nrepresentation > 1) {
+              throw pybind11::value_error("Only one of: "
+                + std::string(axisangle) + ", "
+                + std::string(xyaxes) + ", "
+                + std::string(zaxis)
+                + ", or"
+                + std::string(euler)
+                + " can be set.");
+            }
+
+            auto set_array = [&kwargs](const char* str, double* des, int size) {
+              try {
+                std::vector<double> array = kwargs[str].cast<std::vector<double>>();
+                if (array.size() != size) {
+                  throw pybind11::value_error(std::string(str)
+                    + " should be a list/array of size "
+                    + std::to_string(size)
+                    + ".");
+                }
+                int idx = 0;
+                for (auto val : array) {
+                  des[idx++] = val;
+                }
+              } catch (const py::cast_error &e) {
+                throw pybind11::value_error(std::string(str)
+                  + " should be a list/array.");
+              }
+            };
+
+            if (has_axisangle) {
+              set_array(axisangle, orientation.axisangle, 4);
+              orientation.type = mjORIENTATION_AXISANGLE;
+            } else if (has_xyaxes) {
+              set_array(xyaxes, orientation.xyaxes, 6);
+              orientation.type = mjORIENTATION_XYAXES;
+            } else if (has_zaxis) {
+              set_array(zaxis, orientation.zaxis, 3);
+              orientation.type = mjORIENTATION_ZAXIS;
+            } else if (has_euler) {
+              set_array(euler, orientation.euler, 3);
+              orientation.type = mjORIENTATION_EULER;
+            }
+          };
+          """
+        elif t == 'plugin':
+          code += """\n
+          auto set_plugin = [&kwargs](raw::MjsPlugin& plugin) {
+            if (kwargs.contains("plugin")) {
+              std::optional<raw::MjsPlugin> input = kwargs["plugin"].cast<raw::MjsPlugin>();
+              if (input.has_value()) {
+                try {
+                  plugin.name = input->name;
+                } catch (const py::cast_error &e) {
+                  throw pybind11::value_error("plugin.name should be a string.");
+                }
+                try {
+                  plugin.instance_name = input->instance_name;
+                } catch (const py::cast_error &e) {
+                  throw pybind11::value_error("plugin.instance_name should be a string.");
+                }
+                try {
+                  plugin.plugin_slot = input->plugin_slot;
+                } catch (const py::cast_error &e) {
+                  throw pybind11::value_error("plugin.plugin_slot should be an int.");
+                }
+                try {
+                  plugin.active = input->active;
+                } catch (const py::cast_error &e) {
+                  throw pybind11::value_error("plugin.active should be an mjtByte.");
+                }
+                try {
+                  plugin.info = input->info;
+                } catch (const py::cast_error &e) {
+                  throw pybind11::value_error("plugin.info should be a string.");
+                }
+              }
+            }
+          };
+          """
+        elif t == 'string':
           code += """\n
           auto set_string = [&kwargs](const char* str, std::basic_string<char>* des) {
             if (kwargs.contains(str)) {
@@ -393,7 +506,10 @@ def generate_add() -> None:
                 using T = std::remove_pointer_t<std::decay_t<decltype(des)>>;
                 std::vector<T> array = kwargs[str].cast<std::vector<T>>();
                 if (array.size() != size) {
-                  throw pybind11::value_error(std::string(str) + " should be a list/array of size " + std::to_string(size) + ".");
+                  throw pybind11::value_error(std::string(str)
+                    + " should be a list/array of size "
+                    + std::to_string(size)
+                    + ".");
                 }
                 int idx = 0;
                 for (auto val : array) {

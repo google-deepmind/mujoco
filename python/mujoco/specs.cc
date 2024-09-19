@@ -497,8 +497,8 @@ PYBIND11_MODULE(_specs, m) {
             }
           } else {
             throw pybind11::type_error(
-                "Invalid '" + key +
-                "' keyword argument. Valid options are: align, group, name.");
+                "Invalid " + key +
+                " keyword argument. Valid options are: align, group, name.");
           }
         }
         return out;
