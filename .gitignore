@@ -19,6 +19,7 @@
 build/
 build_cmake/
 python/dist/
+doc/_build
 
 # Exclude macOS folder attributes
 .DS_Store
