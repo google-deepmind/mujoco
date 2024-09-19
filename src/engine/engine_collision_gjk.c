@@ -92,13 +92,10 @@ static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
   // non-zero margin makes geoms smooth
   if (obj1->margin != 0 || obj2->margin != 0) return 0;
 
-  // negative geom indices correspond to flex objects, return
-  if (obj1->geom < 0 || obj2->geom < 0) return 0;
-
-  int g1 = obj1->model->geom_type[obj1->geom];
-  int g2 = obj2->model->geom_type[obj2->geom];
-  return (g1 == mjGEOM_MESH || g1 == mjGEOM_BOX) &&
-         (g2 == mjGEOM_MESH || g2 == mjGEOM_BOX);
+  int g1 = obj1->geom_type;
+  int g2 = obj2->geom_type;
+  return (g1 == mjGEOM_MESH || g1 == mjGEOM_BOX || g1 == mjGEOM_HFIELD) &&
+         (g2 == mjGEOM_MESH || g2 == mjGEOM_BOX || g2 == mjGEOM_HFIELD);
 }
 
 

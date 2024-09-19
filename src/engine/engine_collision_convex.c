@@ -163,7 +163,7 @@ void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   mju_mulMatTVec3(local_dir, d->geom_xmat+9*g, dir);
 
   // compute result according to geom type
-  switch ((mjtGeom) m->geom_type[g]) {
+  switch ((mjtGeom) obj->geom_type) {
   case mjGEOM_SPHERE:
     mju_scl3(res, local_dir, size[0]);
     break;
@@ -396,8 +396,10 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
+  mjCCDObj obj1 = {m, d, g1, m->geom_type[g1], -1, -1, -1, -1, margin, {1, 0, 0, 0},
+                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, margin, {1, 0, 0, 0},
+                   mjc_center, mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -525,7 +527,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjGETINFO
   mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   ccd_vec3_t dir, vec;
-  mjCCDObj obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
+  mjCCDObj obj = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, 0, {1, 0, 0, 0}};
 
   // get support point in -normal direction
   ccdVec3Set(&dir, -mat1[2], -mat1[5], -mat1[8]);
@@ -700,12 +702,14 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   int ncol = m->hfield_ncol[hid];
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   const float* data = m->hfield_data + m->hfield_adr[hid];
-  mjCCDObj obj1 = {m, d, -1, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_prism_center, mjc_prism_support};
+  mjCCDObj obj1 = {m, d, -1, mjGEOM_HFIELD, -1, -1, -1, -1, 0, {1, 0, 0, 0},
+                   mjc_prism_center, mjc_prism_support};
 
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj2 = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}, mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, 0, {1, 0, 0, 0},
+                   mjc_center, mjc_support};
   ccd_t ccd;
 
   // point size1 to hfield size instead of geom1 size
@@ -1139,8 +1143,11 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
                    int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
+  int geom_type = (g1 >= 0) ? m->geom_type[g1] : mjGEOM_FLEX;
+  mjCCDObj obj1 = {m, d, g1, geom_type, -1, f1, e1, v1, margin, {1, 0, 0, 0},
+                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, -1, mjGEOM_FLEX, -1, f2, e2, -1, margin, {1, 0, 0, 0},
+                   mjc_center, mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -1158,7 +1165,7 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
 
 
 
-// test a heighfield geom and a flex flex element for collision
+// test a height field and a flex element for collision
 int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
                    int g, int f, int e, mjtNum margin) {
   mjtNum vec[3], dx, dy;
@@ -1189,7 +1196,8 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj2 = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}, mjc_center, mjc_support};
+  mjCCDObj obj2 = {m, d, -1, mjGEOM_FLEX, -1, f, e, -1, margin, {1, 0, 0, 0},
+                   mjc_center, mjc_support};
   ccd_t ccd;
 
   //------------------------------------- AABB computation, box-box test
