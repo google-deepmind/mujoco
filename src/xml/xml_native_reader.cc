@@ -3443,7 +3443,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       bool alt = ReadAlternative(elem, body->ialt);
       bool full = ReadAttr(elem, "fullinertia", 6, body->fullinertia, text);
       if (alt && full) {
-        throw mjXError(elem, "fullinertia and orientation specifiers cannot be used together");
+        throw mjXError(elem, "fullinertia and inertial orientation cannot both be specified");
       }
     }
 

@@ -1640,7 +1640,7 @@ TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   EXPECT_THAT(
       error.data(),
       HasSubstr(
-          "fullinertia and orientation specifiers cannot be used together"));
+          "fullinertia and inertial orientation cannot both be specified"));
 }
 
 TEST_F(XMLReaderTest, ReadShellParameter) {

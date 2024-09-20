@@ -2487,5 +2487,64 @@ TEST_F(UserObjectsTest, BadWeld) {
   mj_deleteSpec(s);
 }
 
+TEST_F(UserObjectsTest, Inertial) {
+  string xml = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <inertial mass="1" pos="2 3 4" euler="3 4 5" diaginertia="4 5 6"/>
+      </body>
+      <body>
+        <inertial mass="2" pos="1 2 3" fullinertia="4 3 2 0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_EQ(m->body_mass[1], 1);
+  EXPECT_THAT(AsVector(m->body_ipos+3, 3), ElementsAre(2, 3, 4));
+  EXPECT_THAT(AsVector(m->body_inertia+3, 3), ElementsAre(4, 5, 6));
+
+  mjtNum quat[4];
+  const mjtNum euler[3] = {3, 4, 5};
+  mju_euler2Quat(quat, euler, "xyz");
+  EXPECT_EQ(AsVector(m->body_iquat+4, 4), AsVector(quat, 4));
+
+  EXPECT_EQ(m->body_mass[2], 2);
+  EXPECT_THAT(AsVector(m->body_ipos+6, 3), ElementsAre(1, 2, 3));
+  EXPECT_THAT(AsVector(m->body_inertia+6, 3), ElementsAre(4, 3, 2));
+  mj_deleteModel(m);
+
+  string bad_xml1 = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial mass="1" pos="0 0 0" diaginertia="4 5 6" fullinertia="4 3 2 0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  m = LoadModelFromString(bad_xml1.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr("fullinertia and diagonal inertia cannot both"));
+
+  string bad_xml2 = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial mass="1" pos="0 0 0" euler="4 5 6" fullinertia="4 3 2 0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  m = LoadModelFromString(bad_xml2.c_str(), error, sizeof(error));
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error, HasSubstr("fullinertia and inertial orientation cannot"));
+}
+
 }  // namespace
 }  // namespace mujoco

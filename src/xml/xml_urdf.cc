@@ -274,9 +274,9 @@ void mjXURDF::Body(XMLElement* body_elem) {
     //  lquat = rotation from specified to default (joint/body) inertial frame
     double lquat[4] = {1, 0, 0, 0};
     double tmpquat[4] = {1, 0, 0, 0};
-    const char* altres = mjuu_fullInertia(lquat, pbody->inertia, pbody->fullinertia);
+    const char* altres = mjuu_fullInertia(lquat, nullptr, pbody->fullinertia);
 
-    // inertia are sometimes 0 in URDF files: ignore error in altres, fix later
+    // inertias are sometimes 0 in URDF files: ignore error in altres, fix later
     (void) altres;
 
     // correct for alignment of full inertia matrix
