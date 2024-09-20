@@ -396,10 +396,22 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_t ccd;
-  mjCCDObj obj1 = {m, d, g1, m->geom_type[g1], -1, -1, -1, -1, margin, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, margin, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj1 = {.model = m, .data = d,
+                   .geom = g1,
+                   .geom_type = m->geom_type[g1],
+                   .meshindex = -1, .flex = -1, .elem = -1, .vert = -1,
+                   .margin = margin,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_center,
+                   .support = mjc_support};
+  mjCCDObj obj2 = {.model = m, .data = d,
+                   .geom = g2,
+                   .geom_type = m->geom_type[g2],
+                   .meshindex = -1, .flex = -1, .elem = -1, .vert = -1,
+                   .margin = margin,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_center,
+                   .support = mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -527,7 +539,12 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjGETINFO
   mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   ccd_vec3_t dir, vec;
-  mjCCDObj obj = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, 0, {1, 0, 0, 0}};
+  mjCCDObj obj = {.model = m, .data = d,
+                  .geom = g2,
+                  .geom_type = m->geom_type[g2],
+                  .meshindex = -1, .flex = -1, .elem = -1, .vert = -1,
+                  .margin = 0,
+                  .rotate = {1, 0, 0, 0}};
 
   // get support point in -normal direction
   ccdVec3Set(&dir, -mat1[2], -mat1[5], -mat1[8]);
@@ -702,14 +719,26 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   int ncol = m->hfield_ncol[hid];
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   const float* data = m->hfield_data + m->hfield_adr[hid];
-  mjCCDObj obj1 = {m, d, -1, mjGEOM_HFIELD, -1, -1, -1, -1, 0, {1, 0, 0, 0},
-                   mjc_prism_center, mjc_prism_support};
+  mjCCDObj obj1 = {.model = m, .data = d,
+                   .geom = -1,
+                   .geom_type = mjGEOM_HFIELD,
+                   .meshindex = -1, .flex = -1, .elem = -1, .vert = -1,
+                   .margin = 0,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_prism_center,
+                   .support = mjc_prism_support};
 
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj2 = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, 0, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {.model = m, .data = d,
+                   .geom = g2,
+                   .geom_type = m->geom_type[g2],
+                   .meshindex = -1, .flex = -1, .elem = -1, .vert = -1,
+                   .margin = 0,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_center,
+                   .support = mjc_support};
   ccd_t ccd;
 
   // point size1 to hfield size instead of geom1 size
@@ -1143,11 +1172,28 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
                    int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
   ccd_t ccd;
-  int geom_type = (g1 >= 0) ? m->geom_type[g1] : mjGEOM_FLEX;
-  mjCCDObj obj1 = {m, d, g1, geom_type, -1, f1, e1, v1, margin, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, -1, mjGEOM_FLEX, -1, f2, e2, -1, margin, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj1 = {.model = m, .data = d,
+                   .geom = g1,
+                   .geom_type = (g1 >= 0) ? m->geom_type[g1] : mjGEOM_FLEX,
+                   .meshindex = -1,
+                   .flex = f1,
+                   .elem = e1,
+                   .vert = v1,
+                   .margin = margin,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_center,
+                   .support = mjc_support};
+  mjCCDObj obj2 = {.model = m, .data = d,
+                   .geom = -1,
+                   .geom_type = mjGEOM_FLEX,
+                   .meshindex = -1,
+                   .flex = f2,
+                   .elem = e2,
+                   .vert = -1,
+                   .margin = margin,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_center,
+                   .support = mjc_support};
 
   // init ccd structure
   mjc_initCCD(&ccd, m);
@@ -1196,8 +1242,17 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjCCDObj obj2 = {m, d, -1, mjGEOM_FLEX, -1, f, e, -1, margin, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj2 = {.model = m, .data = d,
+                   .geom = -1,
+                   .geom_type = mjGEOM_FLEX,
+                   .meshindex = -1,
+                   .flex = f,
+                   .elem = e,
+                   .vert = -1,
+                   .margin = margin,
+                   .rotate = {1, 0, 0, 0},
+                   .center = mjc_center,
+                   .support = mjc_support};
   ccd_t ccd;
 
   //------------------------------------- AABB computation, box-box test
