@@ -217,7 +217,7 @@ static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
 
 
 // linear combination of n 3D vectors
-static void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n) {
+static inline void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n) {
   mju_zero3(res);
   for (int i = 0; i < n; i++) {
     res[0] += coef[i] * v[3*i + 0];
@@ -249,7 +249,7 @@ static inline void lincomb3(mjtNum res[3], const mjtNum coef[3], const mjtNum v1
 
 
 // returns determinant of the 3x3 matrix with columns v1, v2, v3
-static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
+static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
   mjtNum temp[3];
   mju_cross(temp, v2, v3);
   return mju_dot3(v1, temp);
@@ -304,7 +304,7 @@ static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mj
 
 
 // returns true only when a and b are both strictly positive or both strictly negative
-static int sameSign(mjtNum a, mjtNum b) {
+static inline int sameSign(mjtNum a, mjtNum b) {
   if (a > 0 && b > 0) return 1;
   if (a < 0 && b < 0) return 1;
   return 0;
@@ -315,7 +315,7 @@ static int sameSign(mjtNum a, mjtNum b) {
 // subdistance algorithm for GJK that computes the barycentric coordinates of the point in a
 // simplex closest to the origin
 // implementation adapted from Montanari et al, ToG 2017
-static void subdistance(mjtNum lambda[4], const mjtNum simplex[12], int n) {
+static inline void subdistance(mjtNum lambda[4], const mjtNum simplex[12], int n) {
   mju_zero4(lambda);
   const mjtNum* s1 = simplex;
   const mjtNum* s2 = simplex + 3;
@@ -370,31 +370,31 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
   }
 
   // find the smallest distance, and use the corresponding barycentric coordinates
-  mjtNum dist = mjMAXVAL;
+  mjtNum dmin = mjMAXVAL;
 
   if (!comp2) {
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s3, s4);
     lincomb3(x, lambda_2d, s1, s3, s4);
-    mjtNum d = mju_norm3(x);
+    mjtNum d = mju_dot3(x, x);
     lambda[0] = lambda_2d[0];
     lambda[1] = 0;
     lambda[2] = lambda_2d[1];
     lambda[3] = lambda_2d[2];
-    dist = d;
+    dmin = d;
   }
 
   if (!comp3) {
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s2, s4);
     lincomb3(x, lambda_2d, s1, s2, s4);
-    mjtNum d = mju_norm3(x);
-    if (d < dist) {
+    mjtNum d = mju_dot3(x, x);
+    if (d < dmin) {
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
       lambda[2] = 0;
       lambda[3] = lambda_2d[2];
-      dist = d;
+      dmin = d;
     }
   }
 
@@ -402,13 +402,13 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s2, s3);
     lincomb3(x, lambda_2d, s1, s2, s3);
-    mjtNum d = mju_norm3(x);
-    if (d < dist) {
+    mjtNum d = mju_dot3(x, x);
+    if (d < dmin) {
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
       lambda[2] = lambda_2d[2];
       lambda[3] = 0;
-      dist = d;
+      dmin = d;
     }
   }
 
@@ -416,13 +416,13 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s2, s3, s4);
     lincomb3(x, lambda_2d, s2, s3, s4);
-    mjtNum d = mju_norm3(x);
-    if (d < dist) {
+    mjtNum d = mju_dot3(x, x);
+    if (d < dmin) {
       lambda[0] = 0;
       lambda[1] = lambda_2d[0];
       lambda[2] = lambda_2d[1];
       lambda[3] = lambda_2d[2];
-      dist = d;
+      dmin = d;
     }
   }
 }
@@ -518,29 +518,29 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
   }
 
   // find the smallest distance, and use the corresponding barycentric coordinates
-  mjtNum dist = mjMAXVAL;
+  mjtNum dmin = mjMAXVAL;
 
   if (!comp2) {
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s1, s3);
     lincomb2(x, lambda_1d, s1, s3);
-    mjtNum d = mju_norm3(x);
+    mjtNum d = mju_dot3(x, x);
     lambda[0] = lambda_1d[0];
     lambda[1] = 0;
     lambda[2] = lambda_1d[1];
-    dist = d;
+    dmin = d;
   }
 
   if (!comp3) {
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s1, s2);
     lincomb2(x, lambda_1d, s1, s2);
-    mjtNum d = mju_norm3(x);
-    if (d < dist) {
+    mjtNum d = mju_dot3(x, x);
+    if (d < dmin) {
       lambda[0] = lambda_1d[0];
       lambda[1] = lambda_1d[1];
       lambda[2] = 0;
-      dist = d;
+      dmin = d;
     }
   }
 
@@ -548,12 +548,12 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s2, s3);
     lincomb2(x, lambda_1d, s2, s3);
-    mjtNum d = mju_norm3(x);
-    if (d < dist) {
+    mjtNum d = mju_dot3(x, x);
+    if (d < dmin) {
       lambda[0] = 0;
       lambda[1] = lambda_1d[0];
       lambda[2] = lambda_1d[1];
-      dist = d;
+      dmin = d;
     }
   }
 }
