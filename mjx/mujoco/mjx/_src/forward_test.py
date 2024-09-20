@@ -52,9 +52,15 @@ class ForwardTest(absltest.TestCase):
     mx = mjx.put_model(m)
 
     # fwd_actuation
-    dx = jax.jit(mjx.fwd_actuation)(mx, mjx.put_data(m, d))
+    dx = mjx.put_data(m, d).replace(
+        act_dot=np.zeros_like(d.act_dot),
+        qfrc_actuator=np.zeros_like(d.qfrc_actuator),
+        actuator_force=np.zeros_like(d.actuator_force),
+    )
+    dx = jax.jit(mjx.fwd_actuation)(mx, dx)
     _assert_attr_eq(d, dx, 'act_dot')
     _assert_attr_eq(d, dx, 'qfrc_actuator')
+    _assert_attr_eq(d, dx, 'actuator_force')
 
     # fwd_accleration (fwd_position and fwd_velocity already tested elsewhere)
     dx = jax.jit(mjx.fwd_acceleration)(mx, mjx.put_data(m, d))

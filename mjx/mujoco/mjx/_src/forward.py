@@ -192,7 +192,9 @@ def fwd_actuation(m: Model, d: Data) -> Data:
   actfrcrange = actfrcrange[m.dof_jntid]
   qfrc_actuator = jp.clip(qfrc_actuator, actfrcrange[:, 0], actfrcrange[:, 1])
 
-  d = d.replace(act_dot=act_dot, qfrc_actuator=qfrc_actuator)
+  d = d.replace(
+      act_dot=act_dot, qfrc_actuator=qfrc_actuator, actuator_force=force
+  )
   return d
 
 

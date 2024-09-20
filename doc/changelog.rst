@@ -13,6 +13,11 @@ General
   <https://github.com/google-deepmind/mujoco/blob/main/src/model/trampoline.xml>`__ for examples of flex objects
   that previously required these plugins.
 
+Bug fixes
+^^^^^^^^^
+- Fixed a bug where ``actuator_force`` was not set in MJX (:github:issue:`2068`).
+
+
 Version 3.2.3 (Sep 16, 2024)
 ----------------------------
 
