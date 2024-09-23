@@ -43,6 +43,13 @@ def _value_binding_code(
       fulltype = fulltype + '&'  # plugin and orientation are not pointers
     else:
       fulltype = fulltype + '*'
+  # non-mjs structs
+  rawclassname = rawclassname.replace('mjOption', 'raw::MjOption')
+  rawclassname = rawclassname.replace('mjVisual', 'raw::MjVisual')
+  rawclassname = rawclassname.replace('mjStatistic', 'raw::MjStatistic')
+  fulltype = fulltype.replace('mjOption', 'raw::MjOption')
+  fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
+  fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
 
   def_property_args = (
       f'"{varname}"',
@@ -68,6 +75,9 @@ def _array_binding_code(
     raise NotImplementedError()
   innertype = field.inner_type.decl()
   rawclassname = classname.replace('mjs', 'raw::Mjs')
+  rawclassname = rawclassname.replace('mjOption', 'raw::MjOption')
+  rawclassname = rawclassname.replace('mjVisual', 'raw::MjVisual')
+  rawclassname = rawclassname.replace('mjStatistic', 'raw::MjStatistic')
   fullvarname = varname
   if classname == 'mjSpec':  # raw mjSpec has a wrapper
     rawclassname = classname.replace('mjS', 'MjS')
@@ -209,11 +219,16 @@ def _ptr_binding_code(
         }}
     }}, py::return_value_policy::reference_internal);"""
 
-  raise NotImplementedError()
+  raise NotImplementedError(
+      'Unsupported array type: ' + vartype + ' in ' + classname
+  )
 
 
 def _binding_code(field: ast_nodes.StructFieldDecl, key: str) -> str:
   if isinstance(field.type, ast_nodes.ValueType):
+    return _value_binding_code(field.type, key, field.name)
+  elif isinstance(field.type, ast_nodes.AnonymousStructDecl):
+    field.type = ast_nodes.ValueType(name='mjVisual'+field.name.title())
     return _value_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.PointerType):
     return _ptr_binding_code(field.type, key, field.name)
@@ -224,7 +239,10 @@ def _binding_code(field: ast_nodes.StructFieldDecl, key: str) -> str:
 
 def generate() -> None:
   for key in structs.STRUCTS.keys():
-    if (key.startswith('mjs') or key == 'mjSpec') and key != 'mjsElement':
+    if (
+        key.startswith('mjs')
+        or key in ['mjSpec', 'mjOption', 'mjVisual', 'mjStatistic']
+    ) and key != 'mjsElement':
       print('\n  // ' + key)
       for field in structs.STRUCTS[key].fields:
         code = _binding_code(field, key)

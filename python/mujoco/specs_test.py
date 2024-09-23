@@ -717,5 +717,30 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 0)
 
+  def test_access_option_stat_visual(self):
+    spec = mujoco.MjSpec()
+    spec.from_string(textwrap.dedent("""
+      <mujoco model="MuJoCo Model">
+        <option timestep="0.001"/>
+        <statistic meansize="0.05"/>
+        <visual>
+          <quality shadowsize="4096"/>
+        </visual>
+      </mujoco>
+    """))
+    self.assertEqual(spec.option.timestep, 0.001)
+    self.assertEqual(spec.stat.meansize, 0.05)
+    self.assertEqual(spec.visual.quality.shadowsize, 4096)
+
+    spec.option.timestep = 0.002
+    spec.stat.meansize = 0.06
+    spec.visual.quality.shadowsize = 8192
+
+    model = spec.compile()
+
+    self.assertEqual(model.opt.timestep, 0.002)
+    self.assertEqual(model.stat.meansize, 0.06)
+    self.assertEqual(model.vis.quality.shadowsize, 8192)
+
 if __name__ == '__main__':
   absltest.main()
