@@ -88,6 +88,11 @@ class ModelIOTest(parameterized.TestCase):
   def test_put_model(self):
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
     mx = mjx.put_model(m)
+    def assert_not_weak_type(x):
+      if isinstance(x, jax.Array):
+        assert not x.weak_type
+
+    jax.tree_util.tree_map(assert_not_weak_type, mx)
     self.assertEqual(mx.nq, m.nq)
     self.assertEqual(mx.nv, m.nv)
     self.assertEqual(mx.nu, m.nu)

@@ -29,6 +29,14 @@ import numpy as np
 import scipy
 
 
+def _strip_weak_type(tree):
+  def f(leaf):
+    if isinstance(leaf, jax.Array):
+      return leaf.astype(jax.dtypes.canonicalize_dtype(leaf.dtype))
+    return leaf
+  return jax.tree_util.tree_map(f, tree)
+
+
 def _make_option(o: mujoco.MjOption) -> types.Option:
   """Returns mjx.Option given mujoco.MjOption."""
   if o.integrator not in set(types.IntegratorType):
@@ -148,7 +156,8 @@ def put_model(
 
   model = types.Model(**{k: copy.copy(v) for k, v in fields.items()})
 
-  return jax.device_put(model, device=device)
+  model = jax.device_put(model, device=device)
+  return _strip_weak_type(model)
 
 
 def make_data(
