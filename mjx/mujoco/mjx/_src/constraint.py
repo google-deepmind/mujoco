@@ -110,8 +110,8 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
   def rows(is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp):
     anchor1, anchor2 = data[0:3], data[3:6]
 
-    pos1 = d.xmat[obj1id] @ anchor1 + d.xpos[obj1id]
-    pos2 = d.xmat[obj2id] @ anchor2 + d.xpos[obj2id]
+    pos1 = d.xmat[body1id] @ anchor1 + d.xpos[body1id]
+    pos2 = d.xmat[body2id] @ anchor2 + d.xpos[body2id]
 
     if m.nsite:
       pos1 = jp.where(is_site, d.site_xpos[obj1id], pos1)
@@ -131,12 +131,12 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     return _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
 
   is_site = m.eq_objtype == ObjType.SITE
-
   body1id = np.copy(m.eq_obj1id)
   body2id = np.copy(m.eq_obj2id)
+
   if m.nsite:
-    body1id[is_site] = m.site_bodyid[body1id[is_site]]
-    body2id[is_site] = m.site_bodyid[body2id[is_site]]
+    body1id[is_site] = m.site_bodyid[m.eq_obj1id[is_site]]
+    body2id[is_site] = m.site_bodyid[m.eq_obj2id[is_site]]
 
   args = (
       is_site,
@@ -161,24 +161,40 @@ def _efc_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     return None
 
   @jax.vmap
-  def rows(obj1id, obj2id, data, solref, solimp):
+  def rows(is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp):
     anchor1, anchor2 = data[0:3], data[3:6]
     relpose, torquescale = data[6:10], data[10]
 
     # error is difference in global position and orientation
-    pos1 = d.xmat[obj1id] @ anchor2 + d.xpos[obj1id]
-    pos2 = d.xmat[obj2id] @ anchor1 + d.xpos[obj2id]
+    pos1 = d.xmat[body1id] @ anchor2 + d.xpos[body1id]
+    pos2 = d.xmat[body2id] @ anchor1 + d.xpos[body2id]
+
+    if m.nsite:
+      pos1 = jp.where(is_site, d.site_xpos[obj1id], pos1)
+      pos2 = jp.where(is_site, d.site_xpos[obj2id], pos2)
+
     cpos = pos1 - pos2
 
     # compute Jacobian difference (opposite of contact: 0 - 1)
-    jacp1, jacr1 = support.jac(m, d, pos1, obj1id)
-    jacp2, jacr2 = support.jac(m, d, pos2, obj2id)
+    jacp1, jacr1 = support.jac(m, d, pos1, body1id)
+    jacp2, jacr2 = support.jac(m, d, pos2, body2id)
     jacdifp = jacp1 - jacp2
     jacdifr = (jacr1 - jacr2) * torquescale
 
     # compute orientation error: neg(q1) * q0 * relpose (axis components only)
-    quat = math.quat_mul(d.xquat[obj1id], relpose)
-    quat1 = math.quat_inv(d.xquat[obj2id])
+    quat = math.quat_mul(d.xquat[body1id], relpose)
+    quat1 = math.quat_inv(d.xquat[body2id])
+
+    if m.nsite:
+      quat = jp.where(
+          is_site, math.quat_mul(d.xquat[body1id], m.site_quat[obj1id]), quat
+      )
+      quat1 = jp.where(
+          is_site,
+          math.quat_inv(math.quat_mul(d.xquat[body2id], m.site_quat[obj2id])),
+          quat1,
+      )
+
     crot = math.quat_mul(quat1, quat)[1:]  # copy axis components
 
     pos = jp.concatenate((cpos, crot * torquescale))
@@ -188,13 +204,30 @@ def _efc_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     jacdifr = 0.5 * jax.vmap(jac_fn)(jacdifr)
     j = jp.concatenate((jacdifp.T, jacdifr.T))
     pos_imp = math.norm(pos)
-    invweight = m.body_invweight0[obj1id] + m.body_invweight0[obj2id]
+    invweight = m.body_invweight0[body1id] + m.body_invweight0[body2id]
     invweight = jp.repeat(invweight, 3, axis=0)
     zero = jp.zeros_like(pos)
 
     return _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
 
-  args = (m.eq_obj1id, m.eq_obj2id, m.eq_data, m.eq_solref, m.eq_solimp)
+  is_site = m.eq_objtype == ObjType.SITE
+  body1id = np.copy(m.eq_obj1id)
+  body2id = np.copy(m.eq_obj2id)
+
+  if m.nsite:
+    body1id[is_site] = m.site_bodyid[m.eq_obj1id[is_site]]
+    body2id[is_site] = m.site_bodyid[m.eq_obj2id[is_site]]
+
+  args = (
+      is_site,
+      m.eq_obj1id,
+      m.eq_obj2id,
+      body1id,
+      body2id,
+      m.eq_data,
+      m.eq_solref,
+      m.eq_solimp,
+  )
   args = jax.tree_util.tree_map(lambda x: x[eq_id], args)
   # concatenate to drop row grouping
   return jax.tree_util.tree_map(jp.concatenate, rows(*args))
