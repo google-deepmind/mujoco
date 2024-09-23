@@ -1697,7 +1697,7 @@ void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment) {
 // allocate mjtNums on the stack
 mjtNum* mj_stackAllocNum(mjData* d, size_t size) {
   if (mjUNLIKELY(size >= SIZE_MAX / sizeof(mjtNum))) {
-    mjERROR("requested size is too large.");
+    mjERROR("requested size is too large (more than 2^64 bytes).");
   }
   return (mjtNum*) stackalloc(d, size * sizeof(mjtNum), _Alignof(mjtNum));
 }
@@ -1707,7 +1707,7 @@ mjtNum* mj_stackAllocNum(mjData* d, size_t size) {
 // allocate ints on the stack
 int* mj_stackAllocInt(mjData* d, size_t size) {
   if (mjUNLIKELY(size >= SIZE_MAX / sizeof(int))) {
-    mjERROR("requested size is too large.");
+    mjERROR("requested size is too large (more than 2^64 bytes).");
   }
   return (int*) stackalloc(d, size * sizeof(int), _Alignof(int));
 }
