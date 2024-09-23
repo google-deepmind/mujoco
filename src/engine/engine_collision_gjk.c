@@ -372,16 +372,30 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
   // find the smallest distance, and use the corresponding barycentric coordinates
   mjtNum dmin = mjMAXVAL;
 
+  if (!comp1) {
+    mjtNum lambda_2d[3], x[3];
+    S2D(lambda_2d, s2, s3, s4);
+    lincomb3(x, lambda_2d, s2, s3, s4);
+    mjtNum d = mju_dot3(x, x);
+    lambda[0] = 0;
+    lambda[1] = lambda_2d[0];
+    lambda[2] = lambda_2d[1];
+    lambda[3] = lambda_2d[2];
+    dmin = d;
+  }
+
   if (!comp2) {
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s3, s4);
     lincomb3(x, lambda_2d, s1, s3, s4);
     mjtNum d = mju_dot3(x, x);
-    lambda[0] = lambda_2d[0];
-    lambda[1] = 0;
-    lambda[2] = lambda_2d[1];
-    lambda[3] = lambda_2d[2];
-    dmin = d;
+    if (d < dmin) {
+      lambda[0] = lambda_2d[0];
+      lambda[1] = 0;
+      lambda[2] = lambda_2d[1];
+      lambda[3] = lambda_2d[2];
+      dmin = d;
+    }
   }
 
   if (!comp3) {
@@ -408,20 +422,6 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
       lambda[1] = lambda_2d[1];
       lambda[2] = lambda_2d[2];
       lambda[3] = 0;
-      dmin = d;
-    }
-  }
-
-  if (!comp1) {
-    mjtNum lambda_2d[3], x[3];
-    S2D(lambda_2d, s2, s3, s4);
-    lincomb3(x, lambda_2d, s2, s3, s4);
-    mjtNum d = mju_dot3(x, x);
-    if (d < dmin) {
-      lambda[0] = 0;
-      lambda[1] = lambda_2d[0];
-      lambda[2] = lambda_2d[1];
-      lambda[3] = lambda_2d[2];
       dmin = d;
     }
   }
@@ -520,15 +520,28 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
   // find the smallest distance, and use the corresponding barycentric coordinates
   mjtNum dmin = mjMAXVAL;
 
+  if (!comp1) {
+    mjtNum lambda_1d[2], x[3];
+    S1D(lambda_1d, s2, s3);
+    lincomb2(x, lambda_1d, s2, s3);
+    mjtNum d = mju_dot3(x, x);
+    lambda[0] = 0;
+    lambda[1] = lambda_1d[0];
+    lambda[2] = lambda_1d[1];
+    dmin = d;
+  }
+
   if (!comp2) {
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s1, s3);
     lincomb2(x, lambda_1d, s1, s3);
     mjtNum d = mju_dot3(x, x);
-    lambda[0] = lambda_1d[0];
-    lambda[1] = 0;
-    lambda[2] = lambda_1d[1];
-    dmin = d;
+    if (d < dmin) {
+      lambda[0] = lambda_1d[0];
+      lambda[1] = 0;
+      lambda[2] = lambda_1d[1];
+      dmin = d;
+    }
   }
 
   if (!comp3) {
@@ -540,19 +553,6 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
       lambda[0] = lambda_1d[0];
       lambda[1] = lambda_1d[1];
       lambda[2] = 0;
-      dmin = d;
-    }
-  }
-
-  if (!comp1) {
-    mjtNum lambda_1d[2], x[3];
-    S1D(lambda_1d, s2, s3);
-    lincomb2(x, lambda_1d, s2, s3);
-    mjtNum d = mju_dot3(x, x);
-    if (d < dmin) {
-      lambda[0] = 0;
-      lambda[1] = lambda_1d[0];
-      lambda[2] = lambda_1d[1];
       dmin = d;
     }
   }
@@ -924,16 +924,19 @@ void heapify(Polytope* pt, int i) {
 
 // delete face from heap
 void deleteFace(Polytope* pt, Face* face) {
+  // SHOULD NOT OCCUR
   if (!pt->nheap) {
+    mju_warning("EPA: trying to delete face from empty polytope");
     return;
   }
 
   face->dist = -1;
   pt->nheap--;
 
+  // SHOULD NOT OCCUR
   // last face; nothing to do
   if (!pt->nheap) {
-    return;
+    return;  // EPA will flag a warning
   }
 
   // bubble up face to top of heap
@@ -1123,7 +1126,7 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
   for (k = 0; k < kmax; k++) {
     // find the face closest to the origin
     if (!pt->nheap) {
-      mju_warning("EPA: empty polytope (most likely a bug)");
+      mju_warning("EPA: empty polytope");
       mj_freeStack(d);
       return 0;  // assume 0 depth
     }
@@ -1133,7 +1136,7 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
     // check if dist is 0
     if (dist <= 0) {
-      mju_warning("EPA: origin lies on affine hull of face (most likely a bug)");
+      mju_warning("EPA: origin lies on affine hull of face");
     }
 
     // compute support point w from the closest face's normal
@@ -1158,11 +1161,11 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
         v2 = horFace->verts[(horEdge + 1) % 3];
     horFace->adj[horEdge] = nfaces;
     if (attachFace(pt, wi, v2, v1, nfaces + nedges - 1, horIndex, nfaces + 1)) {
-      break;
+      break;  // out of memory
     }
 
     // attach remaining faces
-    int exit = 0;
+    int oom = 0;  // set to 1 if out of memory
     for (int i = 1; i < nedges; i++) {
       int cur = nfaces + i;  // index of attached face
       int next = nfaces + (i + 1) % nedges;  // index of next face
@@ -1173,11 +1176,11 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
       v2 = horFace->verts[(horEdge + 1) % 3];
       horFace->adj[horEdge] = cur;
       if (attachFace(pt, wi, v2, v1, cur - 1, horIndex, next)) {
-        exit = 1;
+        oom = 1;
         break;
       }
     }
-    if (exit) break;
+    if (oom) break;
     h.nedges = 0;  // clear horizon
   }
 
