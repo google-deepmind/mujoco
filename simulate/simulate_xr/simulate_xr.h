@@ -60,9 +60,19 @@ class SimulateXr {
   void init_scene_vis(mjvScene *scn, mjModel *m);
 
   bool before_render(mjvScene *scn, mjModel *m);
-  void after_render(mjrContext* con);
+
+  void after_render(mjrContext *con);
+
+  bool before_render2(mjvScene *scn);
+  uint32_t view_count = 0;
+  bool before_render_view(mjvScene *scn, uint32_t i_view);
+
+  void after_render_view(mjrContext *con, uint32_t i_view);
+  void after_render2(mjrContext *con);
 
  private:
+  std::vector<XrView> m_views;
+
   XrInstance m_xrInstance = XR_NULL_HANDLE;
   std::vector<const char *> m_activeAPILayers = {};
   std::vector<const char *> m_activeInstanceExtensions = {};
