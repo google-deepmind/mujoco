@@ -14,6 +14,7 @@
 # ==============================================================================
 """An example integration of MJX with the MuJoCo viewer."""
 
+import logging
 import time
 from typing import Sequence
 
@@ -26,6 +27,17 @@ import mujoco.viewer
 
 _MODEL_PATH = flags.DEFINE_string('mjcf', None, 'Path to a MuJoCo MJCF file.',
                                   required=True)
+
+
+_VIEWER_GLOBAL_STATE = {
+    'running': True,
+}
+
+
+def key_callback(key: int) -> None:
+  if key == 32:  # Space bar
+    _VIEWER_GLOBAL_STATE['running'] = not _VIEWER_GLOBAL_STATE['running']
+    logging.info('RUNNING = %s', _VIEWER_GLOBAL_STATE['running'])
 
 
 def _main(argv: Sequence[str]) -> None:
@@ -48,7 +60,8 @@ def _main(argv: Sequence[str]) -> None:
   elapsed = time.time() - start
   print(f'Compilation took {elapsed}s.')
 
-  with mujoco.viewer.launch_passive(m, d) as v:
+  viewer = mujoco.viewer.launch_passive(m, d, key_callback=key_callback)
+  with viewer:
     while True:
       start = time.time()
 
@@ -62,9 +75,11 @@ def _main(argv: Sequence[str]) -> None:
           'opt.timestep': m.opt.timestep,
       })
 
-      dx = step_fn(mx, dx)
+      if _VIEWER_GLOBAL_STATE['running']:
+        dx = step_fn(mx, dx)
+
       mjx.get_data_into(d, m, dx)
-      v.sync()
+      viewer.sync()
 
       elapsed = time.time() - start
       if elapsed < m.opt.timestep:
