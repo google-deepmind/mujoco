@@ -8565,7 +8565,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          declname='struct mjsPlugin_',
          fields=(
              StructFieldDecl(
-                 name='instance',
+                 name='element',
                  type=PointerType(
                      inner_type=ValueType(name='mjsElement'),
                  ),

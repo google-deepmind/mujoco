@@ -959,7 +959,7 @@ void mjCBody::CopyFromSpec() {
   *static_cast<mjsBody*>(this) = spec;
   userdata_ = spec_userdata_;
   plugin.active = spec.plugin.active;
-  plugin.instance = spec.plugin.instance;
+  plugin.element = spec.plugin.element;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
 }
@@ -986,7 +986,7 @@ mjCBody::~mjCBody() {
   lights.clear();
 
   if (spec.plugin.active && spec.plugin.instance_name->empty()) {
-    model->DeleteElement(spec.plugin.instance);
+    model->DeleteElement(spec.plugin.element);
   }
 }
 
@@ -1669,9 +1669,9 @@ void mjCBody::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.element);
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-    plugin.instance = plugin_instance;
+    plugin.element = plugin_instance;
     const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_PASSIVE)) {
       throw mjCError(this, "plugin '%s' does not support passive forces", pplugin->name);
@@ -2132,7 +2132,7 @@ mjCGeom::mjCGeom(const mjCGeom& other) {
 
 mjCGeom::~mjCGeom() {
   if (spec.plugin.active && spec.plugin.instance_name->empty()) {
-    model->DeleteElement(spec.plugin.instance);
+    model->DeleteElement(spec.plugin.element);
   }
 }
 
@@ -2176,7 +2176,7 @@ void mjCGeom::CopyFromSpec() {
   meshname_ = spec_meshname_;
   material_ = spec_material_;
   plugin.active = spec.plugin.active;
-  plugin.instance = spec.plugin.instance;
+  plugin.element = spec.plugin.element;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
 }
@@ -2913,9 +2913,9 @@ void mjCGeom::Compile(void) {
           this, "neither 'plugin' nor 'instance' is specified for geom");
     }
 
-    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.element);
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-    plugin.instance = plugin_instance;
+    plugin.element = plugin_instance;
     const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
       throw mjCError(this, "plugin '%s' does not support sign distance fields", pplugin->name);
@@ -5554,7 +5554,7 @@ mjCActuator::mjCActuator(const mjCActuator& other) {
 
 mjCActuator::~mjCActuator() {
   if (spec.plugin.active && spec.plugin.instance_name->empty()) {
-    model->DeleteElement(spec.plugin.instance);
+    model->DeleteElement(spec.plugin.element);
   }
 }
 
@@ -5640,7 +5640,7 @@ void mjCActuator::CopyFromSpec() {
   refsite_ = spec_refsite_;
   slidersite_ = spec_slidersite_;
   plugin.active = spec.plugin.active;
-  plugin.instance = spec.plugin.instance;
+  plugin.element = spec.plugin.element;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
 }
@@ -5869,9 +5869,9 @@ void mjCActuator::Compile(void) {
           name.c_str(), id);
     }
 
-    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+    mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.element);
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-    plugin.instance = plugin_instance;
+    plugin.element = plugin_instance;
     const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
     if (!(pplugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
       throw mjCError(this, "plugin '%s' does not support actuators", pplugin->name);
@@ -5916,7 +5916,7 @@ mjCSensor::mjCSensor(const mjCSensor& other) {
 
 mjCSensor::~mjCSensor() {
   if (spec.plugin.active && spec.plugin.instance_name->empty()) {
-    model->DeleteElement(spec.plugin.instance);
+    model->DeleteElement(spec.plugin.element);
   }
 }
 
@@ -5968,7 +5968,7 @@ void mjCSensor::CopyFromSpec() {
   objname_ = spec_objname_;
   refname_ = spec_refname_;
   plugin.active = spec.plugin.active;
-  plugin.instance = spec.plugin.instance;
+  plugin.element = spec.plugin.element;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
 }
@@ -6373,9 +6373,9 @@ void mjCSensor::Compile(void) {
 
     // resolve plugin instance, or create one if using the "plugin" attribute shortcut
     {
-      mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+      mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.element);
       model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-      plugin.instance = plugin_instance;
+      plugin.element = plugin_instance;
       const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
       if (!(pplugin->capabilityflags & mjPLUGIN_SENSOR)) {
         throw mjCError(this, "plugin '%s' does not support sensors", pplugin->name);

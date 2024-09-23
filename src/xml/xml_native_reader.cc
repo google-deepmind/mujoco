@@ -2767,7 +2767,7 @@ void mjXReader::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
   mjs_setString(plugin->name, name.c_str());
   mjs_setString(plugin->instance_name, instance_name.c_str());
   if (instance_name.empty()) {
-    plugin->instance = mjs_addPlugin(spec)->instance;
+    plugin->element = mjs_addPlugin(spec)->element;
     ReadPluginConfigs(elem, plugin);
   } else {
     spec->hasImplicitPluginElem = true;

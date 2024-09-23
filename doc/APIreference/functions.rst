@@ -4432,6 +4432,15 @@ mjs_asMaterial
 
 Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.
 
+.. _mjs_asPlugin:
+
+mjs_asPlugin
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asPlugin
+
+Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.
+
 .. _AttributeSetters:
 
 Attribute setters

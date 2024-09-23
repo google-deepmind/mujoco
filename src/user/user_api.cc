@@ -471,7 +471,7 @@ mjsKey* mjs_addKey(mjSpec* s) {
 mjsPlugin* mjs_addPlugin(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCPlugin* plugin = modelC->AddPlugin();
-  plugin->spec.instance = static_cast<mjsElement*>(plugin);
+  plugin->spec.element = static_cast<mjsElement*>(plugin);
   return &plugin->spec;
 }
 
@@ -887,6 +887,16 @@ mjsMaterial* mjs_asMaterial(mjsElement* element) {
 
 
 
+// return plugin given mjsElement
+mjsPlugin* mjs_asPlugin(mjsElement* element) {
+  if (element && element->elemtype == mjOBJ_PLUGIN) {
+    return &(static_cast<mjCPlugin*>(element)->spec);
+  }
+  return nullptr;
+}
+
+
+
 // copy buffer to destination buffer
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size) {
   const std::byte* buffer = static_cast<const std::byte*>(array);
@@ -995,7 +1005,7 @@ const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
 
 // set plugin attributes
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
-  mjCPlugin* pluginC = static_cast<mjCPlugin*>(plugin->instance);
+  mjCPlugin* pluginC = static_cast<mjCPlugin*>(plugin->element);
   std::map<std::string, std::string, std::less<>>* config_attribs =
       reinterpret_cast<std::map<std::string, std::string, std::less<>>*>(attributes);
   pluginC->config_attribs = std::move(*config_attribs);

@@ -422,7 +422,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   // overwrite plugin name
   if (plugin.active && plugin_instance_name.empty()) {
     plugin_instance_name = "flexcomp_" + name;
-    static_cast<mjCPlugin*>(plugin.instance)->name = plugin_instance_name;
+    static_cast<mjCPlugin*>(plugin.element)->name = plugin_instance_name;
   }
 
   // create bodies, construct flex vert and vertbody
@@ -440,7 +440,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       if (plugin.active) {
         mjsPlugin* pplugin = &body->plugin;
         pplugin->active = true;
-        pplugin->instance = static_cast<mjsElement*>(plugin.instance);
+        pplugin->element = static_cast<mjsElement*>(plugin.element);
         mjs_setString(pplugin->name, mjs_getString(plugin.name));
         mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }
@@ -504,7 +504,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       if (plugin.active) {
         mjsPlugin* pplugin = &pb->plugin;
         pplugin->active = true;
-        pplugin->instance = static_cast<mjsElement*>(plugin.instance);
+        pplugin->element = static_cast<mjsElement*>(plugin.element);
         mjs_setString(pplugin->name, mjs_getString(plugin.name));
         mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
       }

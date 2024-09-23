@@ -10270,6 +10270,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.',  # pylint: disable=line-too-long
      )),
+    ('mjs_asPlugin',
+     FunctionDecl(
+         name='mjs_asPlugin',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsPlugin'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.',  # pylint: disable=line-too-long
+     )),
     ('mjs_setBuffer',
      FunctionDecl(
          name='mjs_setBuffer',

@@ -690,5 +690,32 @@ class SpecsTest(absltest.TestCase):
     ):
       spec.recompile(model, data)
 
+  def test_delete_unused_plugin(self):
+    spec = mujoco.MjSpec()
+    spec.from_string(textwrap.dedent("""
+      <mujoco model="MuJoCo Model">
+        <extension>
+          <plugin plugin="mujoco.pid">
+            <instance name="pid1">
+              <config key="kp" value="4.0"/>
+            </instance>
+          </plugin>
+        </extension>
+
+        <worldbody>
+          <body>
+            <geom size="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """))
+    plugin = spec.plugins[0]
+    self.assertIsNotNone(plugin)
+    plugin.delete()
+
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.nplugin, 0)
+
 if __name__ == '__main__':
   absltest.main()

@@ -296,6 +296,9 @@ MJAPI mjsTexture* mjs_asTexture(mjsElement* element);
 // Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.
 MJAPI mjsMaterial* mjs_asMaterial(mjsElement* element);
 
+// Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.
+MJAPI mjsPlugin* mjs_asPlugin(mjsElement* element);
+
 
 //---------------------------------- Attribute setters ---------------------------------------------
 

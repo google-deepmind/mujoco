@@ -181,7 +181,7 @@ typedef struct mjsOrientation_ {   // alternative orientation specifiers
 
 
 typedef struct mjsPlugin_ {        // plugin specification
-  mjsElement* instance;            // element type
+  mjsElement* element;             // element type
   mjString* name;                  // name
   mjString* instance_name;         // instance name
   int plugin_slot;                 // global registered slot number of the plugin

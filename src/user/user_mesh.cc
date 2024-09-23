@@ -246,7 +246,7 @@ void mjCMesh::CopyFromSpec() {
   facetexcoord_ = spec_facetexcoord_;
   maxhullvert_ = spec.maxhullvert;
   plugin.active = spec.plugin.active;
-  plugin.instance = spec.plugin.instance;
+  plugin.element = spec.plugin.element;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
 
@@ -270,7 +270,7 @@ mjCMesh::~mjCMesh() {
   if (center_) mju_free(center_);
   if (graph_) mju_free(graph_);
   if (spec.plugin.active && spec.plugin.instance_name->empty()) {
-    model->DeleteElement(spec.plugin.instance);
+    model->DeleteElement(spec.plugin.element);
   }
 }
 
@@ -289,9 +289,9 @@ void mjCMesh::LoadSDF() {
                    name.c_str(), id);
   }
 
-  mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
+  mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.element);
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
-  plugin.instance = plugin_instance;
+  plugin.element = plugin_instance;
   const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
   if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
@@ -2919,9 +2919,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   useredge = VectorToString(edgeidx_);
 
   for (const auto& vbodyid : vertbodyid) {
-    if (model->Bodies()[vbodyid]->plugin.instance) {
+    if (model->Bodies()[vbodyid]->plugin.element) {
       mjCPlugin* plugin_instance =
-          static_cast<mjCPlugin*>(model->Bodies()[vbodyid]->plugin.instance);
+          static_cast<mjCPlugin*>(model->Bodies()[vbodyid]->plugin.element);
       if (damping > 0) {
         plugin_instance->config_attribs["damping"] = std::to_string(damping);
       }

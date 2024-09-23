@@ -274,6 +274,18 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def("detach_body", [](MjSpec& self, raw::MjsBody& body) {
     mjs_detachBody(self.ptr, &body);
   });
+    mjSpec.def_property_readonly(
+      "plugins",
+      [](MjSpec& self) -> py::list {
+        py::list list;
+        raw::MjsElement* el = mjs_firstElement(self.ptr, mjOBJ_PLUGIN);
+        while (el) {
+          list.append(mjs_asPlugin(el));
+          el = mjs_nextElement(self.ptr, el);
+        }
+        return list;
+      },
+      py::return_value_policy::reference_internal);
   mjSpec.def_property_readonly(
       "actuators",
       [](MjSpec& self) -> py::list {
@@ -900,12 +912,12 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSPLUGIN ===================================
   mjsPlugin.def_property(
       "id",
-      [](raw::MjsPlugin& self) -> int { return mjs_getId(self.instance); },
+      [](raw::MjsPlugin& self) -> int { return mjs_getId(self.element); },
       [](raw::MjsPlugin& self, raw::MjsPlugin* other) {
-        self.instance = other->instance;
+        self.element = other->element;
       });
   mjsPlugin.def("delete",
-                [](raw::MjsPlugin& self) { mjs_delete(self.instance); });
+                [](raw::MjsPlugin& self) { mjs_delete(self.element); });
 
 #include "specs.cc.inc"
 }  // PYBIND11_MODULE // NOLINT

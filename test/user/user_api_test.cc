@@ -147,7 +147,7 @@ TEST_F(PluginTest, ActivatePlugin) {
   // associate plugin to body
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
   mjs_setString(body->plugin.name, plugin_name.c_str());
-  body->plugin.instance = mjs_addPlugin(spec)->instance;
+  body->plugin.element = mjs_addPlugin(spec)->element;
   body->plugin.active = true;
   mjsGeom* geom = mjs_addGeom(body, 0);
   geom->type = mjGEOM_BOX;
@@ -191,7 +191,7 @@ TEST_F(PluginTest, DeletePlugin) {
   mjsActuator* actuator = mjs_addActuator(spec, 0);
   mjs_setString(actuator->target, "j1");
   mjs_setString(actuator->plugin.name, plugin_name.c_str());
-  actuator->plugin.instance = mjs_addPlugin(spec)->instance;
+  actuator->plugin.element = mjs_addPlugin(spec)->element;
   actuator->plugin.active = true;
   actuator->trntype = mjTRN_JOINT;
 

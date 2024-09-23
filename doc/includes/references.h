@@ -1738,7 +1738,7 @@ typedef struct mjsOrientation_ {   // alternative orientation specifiers
   double euler[3];                 // Euler angles
 } mjsOrientation;
 typedef struct mjsPlugin_ {        // plugin specification
-  mjsElement* instance;            // element type
+  mjsElement* element;             // element type
   mjString* name;                  // name
   mjString* instance_name;         // instance name
   int plugin_slot;                 // global registered slot number of the plugin
@@ -3622,6 +3622,7 @@ mjsHField* mjs_asHField(mjsElement* element);
 mjsSkin* mjs_asSkin(mjsElement* element);
 mjsTexture* mjs_asTexture(mjsElement* element);
 mjsMaterial* mjs_asMaterial(mjsElement* element);
+mjsPlugin* mjs_asPlugin(mjsElement* element);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
 void mjs_setStringVec(mjStringVec* dest, const char* text);
