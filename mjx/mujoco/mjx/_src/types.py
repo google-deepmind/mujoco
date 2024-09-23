@@ -1029,9 +1029,9 @@ class Model(PyTreeNode):
   tendon_length0: jax.Array
   tendon_invweight0: jax.Array
   tendon_hasfrictionloss: np.ndarray = _restricted_to('mjx')
-  wrap_type: np.ndarray = _restricted_to('mujoco')
-  wrap_objid: np.ndarray = _restricted_to('mujoco')
-  wrap_prm: np.ndarray = _restricted_to('mujoco')
+  wrap_type: np.ndarray
+  wrap_objid: np.ndarray
+  wrap_prm: np.ndarray
   actuator_trntype: np.ndarray
   actuator_dyntype: np.ndarray
   actuator_gaintype: np.ndarray
@@ -1297,15 +1297,15 @@ class Data(PyTreeNode):
   flexedge_J_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   flexedge_J: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   flexedge_length: jax.Array = _restricted_to('mujoco')
-  ten_wrapadr: jax.Array = _restricted_to('mujoco')
-  ten_wrapnum: jax.Array = _restricted_to('mujoco')
+  ten_wrapadr: jax.Array
+  ten_wrapnum: jax.Array
   ten_J_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   ten_J_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   ten_J_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   ten_J: jax.Array  # pylint:disable=invalid-name
   ten_length: jax.Array
-  wrap_obj: jax.Array = _restricted_to('mujoco')
-  wrap_xpos: jax.Array = _restricted_to('mujoco')
+  wrap_obj: jax.Array
+  wrap_xpos: jax.Array
   actuator_length: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array

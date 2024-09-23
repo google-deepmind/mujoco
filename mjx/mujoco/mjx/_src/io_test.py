@@ -68,8 +68,8 @@ _MULTIPLE_CONSTRAINTS = """
         <freejoint/>
         <geom type="capsule" size=".2 .05"/>
         <body name="cap2" pos=".6 -.3 .3">
-          <joint axis="0 1 0" type="hinge" range="-45 45"/>
-          <joint axis="1 0 0" type="hinge" range="-0.001 0.001"/>
+          <joint name="joint1" axis="0 1 0" type="hinge" range="-45 45"/>
+          <joint name="joint2" axis="1 0 0" type="hinge" range="-0.001 0.001"/>
           <geom type="capsule" size=".2 .05"/>
           <site pos="-0.214 -0.078 0" quat="0.664 0.664 -0.242 -0.242"/>
         </body>
@@ -78,6 +78,12 @@ _MULTIPLE_CONSTRAINTS = """
     <equality>
       <connect body1="cap2" anchor="0 0 1"/>
     </equality>
+    <tendon>
+      <fixed name="tendon_1" limited="false" stiffness=".1" damping=".2">
+        <joint joint="joint1" coef=".1"/>
+        <joint joint="joint2" coef="-.2"/>
+      </fixed>
+    </tendon>
   </mujoco>
 """
 
@@ -85,8 +91,11 @@ _MULTIPLE_CONSTRAINTS = """
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
 
-  def test_put_model(self):
-    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
+  @parameterized.parameters(
+      _MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS
+  )
+  def test_put_model(self, xml):
+    m = mujoco.MjModel.from_xml_string(xml)
     mx = mjx.put_model(m)
     def assert_not_weak_type(x):
       if isinstance(x, jax.Array):
@@ -125,6 +134,10 @@ class ModelIOTest(parameterized.TestCase):
     np.testing.assert_allclose(mx.actuator_gaintype, m.actuator_gaintype)
     np.testing.assert_allclose(mx.actuator_biastype, m.actuator_biastype)
     np.testing.assert_allclose(mx.actuator_trnid, m.actuator_trnid)
+
+    np.testing.assert_equal(mx.wrap_type, m.wrap_type)
+    np.testing.assert_equal(mx.wrap_objid, m.wrap_objid)
+    np.testing.assert_equal(mx.wrap_prm, m.wrap_prm)
 
   def test_fluid_params(self):
     """Test that has_fluid_params is set when fluid params are present."""
@@ -337,6 +350,13 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.ximat.reshape((3, 9)), d.ximat)
     np.testing.assert_allclose(dx.geom_xmat.reshape((3, 9)), d.geom_xmat)
     np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
+
+    # tendon data is correct
+    np.testing.assert_allclose(dx.ten_length, d.ten_length)
+    np.testing.assert_equal(dx.ten_wrapadr, np.zeros((1,)))
+    np.testing.assert_equal(dx.ten_wrapnum, np.zeros((1,)))
+    np.testing.assert_equal(dx.wrap_obj, np.zeros((2, 2)))
+    np.testing.assert_equal(dx.wrap_xpos, np.zeros((2, 6)))
 
     # efc_ are also shape transformed and padded
     self.assertEqual(dx.efc_J.shape, (45, 8))  # nefc, nv
