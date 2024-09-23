@@ -52,5 +52,6 @@ API function can be classified as:
    - :ref:`Attribute getters<AttributeGetters>`.
    - :ref:`Spec utilities<SpecUtilities>`.
    - :ref:`Element initialization<ElementInitialization>`.
+   - :ref:`Element casting<ElementCasting>`.
 
 .. include:: functions.rst
