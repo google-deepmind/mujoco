@@ -57,8 +57,9 @@ target_compile_definitions(fixture PUBLIC MJSTATIC)
 target_link_libraries(
   fixture
   PUBLIC absl::core_headers
-         absl::strings
          absl::synchronization
+         absl::flat_hash_map
+         absl::flat_hash_set
          gtest
          gmock
          mujoco::mujoco
@@ -80,3 +81,4 @@ add_subdirectory(sample)
 add_subdirectory(user)
 add_subdirectory(xml)
 add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/actuator)

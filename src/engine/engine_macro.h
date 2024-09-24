@@ -24,9 +24,9 @@
 
 // thread local macro
 #ifdef _MSC_VER
-#define mjTHREADLOCAL __declspec(thread)
+  #define mjTHREADLOCAL __declspec(thread)
 #else
-#define mjTHREADLOCAL _Thread_local
+  #define mjTHREADLOCAL _Thread_local
 #endif
 
 
@@ -35,13 +35,14 @@
 #define TM_START mjtNum _tm = (mjcb_time ? mjcb_time() : 0);
 #define TM_RESTART _tm = (mjcb_time ? mjcb_time() : 0);
 #define TM_END(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm); d->timer[i].number++;}
+#define TM_ADD(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm);}
 #define TM_START1 mjtNum _tm1 = (mjcb_time ? mjcb_time() : 0);
 #define TM_END1(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm1); d->timer[i].number++;}
 
 //-------------------------- compiler builtin ------------------------------------------------------
 
 #ifndef __has_builtin
-#define __has_builtin(x) 0
+  #define __has_builtin(x) 0
 #endif
 
 //-------------------------- pointer arithmetic ----------------------------------------------------

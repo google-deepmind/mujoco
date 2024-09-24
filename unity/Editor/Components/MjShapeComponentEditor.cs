@@ -22,7 +22,7 @@ namespace Mujoco {
 
 [CustomEditor(typeof(MjShapeComponent), true)]
 [CanEditMultipleObjects]
-public class MjShapeComponentEditor : Editor {
+public class MjShapeComponentEditor : MjMouseSpring {
 
   public override void OnInspectorGUI() {
 
@@ -30,7 +30,7 @@ public class MjShapeComponentEditor : Editor {
     var shapeType = serializedObject.FindProperty("ShapeType");
     EditorGUILayout.PropertyField(shapeType);
     EditorGUILayout.PropertyField(
-        serializedObject.FindProperty($"{shapeType.enumDisplayNames[shapeType.enumValueIndex]}"),
+        serializedObject.FindProperty($"{shapeType.enumNames[shapeType.enumValueIndex]}"),
         includeChildren: true);
     serializedObject.ApplyModifiedProperties();
   }

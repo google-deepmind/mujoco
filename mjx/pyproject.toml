@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="mujoco-mjx"
+version = "3.2.3"
+authors = [
+    {name = "Google DeepMind", email = "mujoco@deepmind.com"},
+]
+description = "MuJoCo XLA (MJX)"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {text = "Apache License 2.0"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "absl-py",
+    "etils[epath]",
+    "jax",
+    "jaxlib",
+    "mujoco>=3.2.3.dev0",
+    "scipy",
+    "trimesh",
+]
+
+[project.scripts]
+mjx-testspeed = "mujoco.mjx.testspeed:main"
+mjx-viewer = "mujoco.mjx.viewer:main"
+
+[project.urls]
+Homepage = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
+Documentation = "https://mujoco.readthedocs.io/en/3.2.3"
+Repository = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
+Changelog = "https://mujoco.readthedocs.io/en/3.2.3/changelog.html"

@@ -75,6 +75,9 @@ MJAPI void mju_negPose(mjtNum posres[3], mjtNum quatres[4],
 MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4],
                           const mjtNum vec[3]);
 
+// convert sequence of Euler angles (radians) to quaternion
+// seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations
+MJAPI void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq);
 
 //------------------------------ spatial algebra ---------------------------------------------------
 

@@ -164,7 +164,8 @@ namespace Mujoco {
       RefFriction.FromMjcf(mjcf, "solreffriction");
       ImpFriction.FromMjcf(mjcf, "solimpfriction");
       FrictionLoss = mjcf.GetFloatAttribute("frictionloss", 0.0f);
-      Limited = mjcf.GetBoolAttribute("limited", false);
+
+      Limited = mjcf.GetLimitedAttribute("limited", mjcf.HasAttribute("range"));
       Margin = mjcf.GetFloatAttribute("margin", defaultValue: 0.0f);
     }
   }

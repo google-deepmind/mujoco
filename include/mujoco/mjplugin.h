@@ -17,14 +17,21 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 
 
 //---------------------------------- Resource Provider ---------------------------------------------
 
-#define mjVFS_PREFIX    "vfs"  // prefix for VFS providers
+struct mjResource_ {
+  char* name;                                   // name of resource (filename, etc)
+  void* data;                                   // opaque data pointer
+  char timestamp[512];                          // timestamp of the resource
+  const struct mjpResourceProvider* provider;   // pointer to the provider
+};
+typedef struct mjResource_ mjResource;
 
-// callback for opeing a resource, returns zero on failure
+// callback for opening a resource, returns zero on failure
 typedef int (*mjfOpenResource)(mjResource* resource);
 
 // callback for reading a resource
@@ -38,16 +45,24 @@ typedef void (*mjfCloseResource)(mjResource* resource);
 // sets dir to directory string with ndir being size of directory string
 typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
 
+// callback for checking if the current resource was modified from the time
+// specified by the timestamp
+// returns 0 if the resource's timestamp matches the provided timestamp
+// returns > 0 if the the resource is younger than the given timestamp
+// returns < 0 if the resource is older than the given timestamp
+typedef int (*mjfResourceModified)(const mjResource* resource, const char* timestamp);
+
 // struct describing a single resource provider
-struct mjpResourceProvider_ {
-  const char* prefix;                // prefix for match against a resource name
-  mjfOpenResource open;              // opening callback
-  mjfReadResource read;              // reading callback
-  mjfCloseResource close;            // closing callback
-  mjfGetResourceDir getdir;          // getdir callback (optional)
-  void* data;                        // opaque data pointer (resource invariant)
+struct mjpResourceProvider {
+  const char* prefix;               // prefix for match against a resource name
+  mjfOpenResource open;             // opening callback
+  mjfReadResource read;             // reading callback
+  mjfCloseResource close;           // closing callback
+  mjfGetResourceDir getdir;         // get directory callback (optional)
+  mjfResourceModified modified;     // resource modified callback (optional)
+  void* data;                       // opaque data pointer (resource invariant)
 };
-typedef struct mjpResourceProvider_ mjpResourceProvider;
+typedef struct mjpResourceProvider mjpResourceProvider;
 
 
 //---------------------------------- Plugins -------------------------------------------------------
@@ -56,6 +71,7 @@ typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
   mjPLUGIN_PASSIVE  = 1<<2,       // passive forces
+  mjPLUGIN_SDF      = 1<<3,       // signed distance fields
 } mjtPluginCapabilityBit;
 
 struct mjpPlugin_ {
@@ -83,7 +99,7 @@ struct mjpPlugin_ {
   void (*copy)(mjData* dest, const mjModel* m, const mjData* src, int instance);
 
   // called when an mjData is being reset (required)
-  void (*reset)(const mjModel* m, double* plugin_state, void* plugin_data, int instance);
+  void (*reset)(const mjModel* m, mjtNum* plugin_state, void* plugin_data, int instance);
 
   // called when the plugin needs to update its outputs (required)
   void (*compute)(const mjModel* m, mjData* d, int instance, int capability_bit);
@@ -93,6 +109,29 @@ struct mjpPlugin_ {
 
   // called by mjv_updateScene (optional)
   void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
+
+  // methods specific to actuators (optional)
+
+  // updates the actuator plugin's entries in act_dot
+  // called after native act_dot is computed and before the compute callback
+  void (*actuator_act_dot)(const mjModel* m, mjData* d, int instance);
+
+  // methods specific to signed distance fields (optional)
+
+  // signed distance from the surface
+  mjtNum (*sdf_distance)(const mjtNum point[3], const mjData* d, int instance);
+
+  // gradient of distance with respect to local coordinates
+  void (*sdf_gradient)(mjtNum gradient[3], const mjtNum point[3], const mjData* d, int instance);
+
+  // called during compilation for marching cubes
+  mjtNum (*sdf_staticdistance)(const mjtNum point[3], const mjtNum* attributes);
+
+  // convert attributes and provide defaults if not present
+  void (*sdf_attribute)(mjtNum attribute[], const char* name[], const char* value[]);
+
+  // bounding box of implicit surface
+  void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);
 };
 typedef struct mjpPlugin_ mjpPlugin;
 

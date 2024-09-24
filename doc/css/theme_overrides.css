@@ -18,6 +18,24 @@ body {
   color: var(--body-color);
 }
 
+/* Make the search bar query text readable in dark theme. */
+body[data-theme="dark"] {
+  --color-sidebar-search-foreground: white;
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] {
+    --color-sidebar-search-foreground: white;
+  }
+}
+
+.schema-small {
+  font-size: 93%;
+}
+
+.caption-small {
+  font-size: 85%;
+}
+
 .sidebar-brand-text {
   display: none;
 }
@@ -192,7 +210,7 @@ table.mjcf-attributes tbody tr td,
 table.mjcf-attributes tbody tr:nth-child(2n-1) td {
   border-style: none;
   padding: 0px 0px 0px 0px;
-  width: 33%;
+  width: 25%;
 }
 
 table.mjcf-attributes tbody tr td p {
@@ -240,6 +258,20 @@ dt .at {
 
 .admonition p:not(.admonition-title) {
   margin-left: 0.5em;
+}
+
+/* Reduce top and bottom margins around displayed KaTeX equations */
+.katex-display {
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
+}
+
+/* Adjust margins around code blocks */
+.highlight pre {
+  margin-top: -0.3em;
+  margin-bottom: -0.3em;
+  margin-left: -0.5em;
+  margin-right: -0.5em;
 }
 
 details summary {

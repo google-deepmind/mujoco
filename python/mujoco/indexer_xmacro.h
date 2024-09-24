@@ -78,14 +78,14 @@
   X( mjtNum, cam_, ipd,          ncam, 1               ) \
   X( mjtNum, cam_, user,         ncam, MJ_M(nuser_cam) )
 
-#define MJMODEL_EQUALITY                    \
-  X( int,     eq_, type,   neq, 1         ) \
-  X( int,     eq_, obj1id, neq, 1         ) \
-  X( int,     eq_, obj2id, neq, 1         ) \
-  X( mjtByte, eq_, active, neq, 1         ) \
-  X( mjtNum,  eq_, solref, neq, mjNREF    ) \
-  X( mjtNum,  eq_, solimp, neq, mjNIMP    ) \
-  X( mjtNum,  eq_, data,   neq, mjNEQDATA )
+#define MJMODEL_EQUALITY                     \
+  X( int,     eq_, type,    neq, 1         ) \
+  X( int,     eq_, obj1id,  neq, 1         ) \
+  X( int,     eq_, obj2id,  neq, 1         ) \
+  X( mjtByte, eq_, active0, neq, 1         ) \
+  X( mjtNum,  eq_, solref,  neq, mjNREF    ) \
+  X( mjtNum,  eq_, solimp,  neq, mjNIMP    ) \
+  X( mjtNum,  eq_, data,    neq, mjNEQDATA )
 
 #define MJMODEL_EXCLUDE                      \
   X( int, exclude_, signature, nexclude, 1 )
@@ -168,7 +168,7 @@
   X( float,   light_, specular,      nlight,  3 )
 
 #define MJMODEL_MATERIAL                   \
-  X( int,     mat_, texid,       nmat, 1 ) \
+  X( int,     mat_, texid,       nmat, mjNTEXROLE ) \
   X( mjtByte, mat_, texuniform,  nmat, 1 ) \
   X( float,   mat_, texrepeat,   nmat, 2 ) \
   X( float,   mat_, emission,    nmat, 1 ) \
@@ -262,11 +262,12 @@
   X( float,   tendon, _rgba,         ntendon, 4                  )
 
 #define MJMODEL_TEXTURE                   \
-  X( int,     tex_, type,   ntex,     1 ) \
-  X( int,     tex_, height, ntex,     1 ) \
-  X( int,     tex_, width,  ntex,     1 ) \
-  X( int,     tex_, adr,    ntex,     1 ) \
-  X( mjtByte, tex_, rgb,    ntexdata, 1 )
+  X( int,     tex_, type,     ntex,     1 ) \
+  X( int,     tex_, height,   ntex,     1 ) \
+  X( int,     tex_, width,    ntex,     1 ) \
+  X( int,     tex_, nchannel, ntex,     1 ) \
+  X( int,     tex_, adr,      ntex,     1 ) \
+  X( mjtByte, tex_, data,     ntexdata, 1 )
 
 #define MJMODEL_TUPLE                         \
   X( int,    tuple_, adr,     ntuple,     1 ) \
@@ -281,7 +282,8 @@
   X( mjtNum, key_, qvel,  nkey, MJ_M(nv)       ) \
   X( mjtNum, key_, act,   nkey, MJ_M(na)       ) \
   X( mjtNum, key_, mpos,  nkey, MJ_M(nmocap)*3 ) \
-  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 )
+  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 ) \
+  X( mjtNum, key_, ctrl,  nkey, MJ_M(nu)       )
 
 #define MJMODEL_VIEW_GROUPS                                            \
   XGROUP( MjModelActuatorViews, actuator, nu,       MJMODEL_ACTUATOR ) \

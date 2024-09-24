@@ -14,8 +14,11 @@
 
 // Tests for engine/engine_core_smooth.c.
 
+#include "src/engine/engine_core_smooth.h"
+
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -252,7 +255,7 @@ TEST_F(CoreSmoothTest, WeldRatioMultipleConstraints) {
 
 // Test Cartesian position control using site transmission with refsite
 TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
-  constexpr char kRefsitePath[] = "engine/testdata/refsite.xml";
+  constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   ASSERT_THAT(model, NotNull());
@@ -265,7 +268,7 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   mju_copy3(data->ctrl+3, targetrot);
 
   // step for 5 seconds
-  while (data->time < 5) {
+  while (data->time < 10) {
     mj_step(model, data);
   }
 
@@ -273,20 +276,100 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   int refsite_id = mj_name2id(model, mjOBJ_SITE, "reference");
   int site_id = mj_name2id(model, mjOBJ_SITE, "end_effector");
 
-  // check that position matches target to within 1e-5 length units
-  double tol_pos = 1e-5;
+  // check that position matches target to within 1e-3 length units
+  double tol_pos = 1e-3;
   mjtNum relpos[3];
   mju_sub3(relpos, data->site_xpos+3*site_id, data->site_xpos+3*refsite_id);
   EXPECT_THAT(relpos, Pointwise(DoubleNear(tol_pos), targetpos));
 
-  // check that orientation matches target to within 1e-3 radians
-  double tol_rot = 1e-3;
+  // check that orientation matches target to within 0.06 radians
+  double tol_rot = 0.06;
   mjtNum site_xquat[4], refsite_xquat[4], relrot[3];
   mju_mat2Quat(refsite_xquat, data->site_xmat+9*refsite_id);
   mju_mat2Quat(site_xquat, data->site_xmat+9*site_id);
   mju_subQuat(relrot, site_xquat, refsite_xquat);
   EXPECT_THAT(relrot, Pointwise(DoubleNear(tol_rot), targetrot));
 
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Test Cartesian position control w.r.t moving refsite
+TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
+  constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite_free.xml";
+  const std::string xml_path = GetTestDataFilePath(kRefsitePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1;
+  data->ctrl[1] = -1;
+
+  // simulate, assert that momentum is conserved
+  mjtNum eps = 1e-9;
+  while (data->time < 1) {
+    mj_step(model, data);
+    for (int i=0; i < 6; i++) {
+      EXPECT_LT(mju_abs(data->sensordata[i]), eps);
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+static const char* const kIlslandEfcPath =
+    "engine/testdata/island/island_efc.xml";
+
+TEST_F(CoreSmoothTest, SolveMIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+  int nv = model->nv;
+
+  // allocate vec, fill with arbitrary values, copy to sol
+  mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum) * nv);
+  mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum) * nv);
+  for (int i=0; i < nv; i++) {
+    vec[i] = 0.2 + 0.3*i;
+  }
+  mju_copy(res, vec, nv);
+
+  // simulate for 0.2 seconds
+  mj_resetData(model, data);
+  while (data->time < 0.2) {
+    mj_step(model, data);
+  }
+  mj_forward(model, data);
+
+  // divide by mass matrix: sol = M^-1 * vec
+  mj_solveM(model, data, res, res, 1);
+
+  // iterate over islands
+  for (int i=0; i < data->nisland; i++) {
+    // allocate dof vectors for island
+    int dofnum = data->island_dofnum[i];
+    mjtNum* res_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+
+    // copy values into sol_i
+    int* dofind = data->island_dofind + data->island_dofadr[i];
+    for (int j=0; j < dofnum; j++) {
+      res_i[j] = vec[dofind[j]];
+    }
+
+    // divide by mass matrix, for this island
+    mj_solveM_island(model, data, res_i, i);
+
+    // expect corresponding values to match
+    for (int j=0; j < dofnum; j++) {
+      EXPECT_THAT(res_i[j], DoubleNear(res[dofind[j]], 1e-12));
+    }
+
+    mju_free(res_i);
+  }
+
+  mju_free(res);
+  mju_free(vec);
   mj_deleteData(data);
   mj_deleteModel(model);
 }

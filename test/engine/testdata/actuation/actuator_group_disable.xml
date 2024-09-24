@@ -1,0 +1,94 @@
+<mujoco>
+  <visual>
+    <global elevation="-10"/>
+  </visual>
+
+  <compiler angle="radian"/>
+
+  <!-- Note: actuator groups 1, 2, are disabled by default -->
+  <option actuatorgroupdisable="1 2" cone="elliptic"/>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+    <texture name="body" type="cube" builtin="flat" mark="cross" width="128" height="128" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
+    <material name="body" texture="body" texuniform="true" rgba="0.8 0.6 .4 1"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="6 2" texuniform="false" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <general ctrlrange="-1 1"/>
+    <geom friction=".4"/>
+    <default class="decor">
+      <geom type="cylinder" size=".03" fromto="0 -.03 0 0 .03 0" rgba="1 1 1 1"/>
+    </default>
+    <default class="arm">
+      <joint damping="5" axis="0 -1 0"/>
+      <geom type="capsule" size=".02" material="body"/>
+    </default>
+    <default class="object">
+      <geom type="cylinder" size="0.1" rgba="0 .9 0 1" fromto="0 -.03 0 0 .03 0"
+            solref="-10000 -10" priority="1"/>
+      <joint group="3"/>
+    </default>
+
+    <!-- Note: motors, position, intvelocity actuators are in groups 0, 1, 2, respectively -->
+    <default class="motor">
+      <motor group="0" gear="30" ctrlrange="-1 1"/>
+    </default>
+    <default class="position">
+      <position group="1" kp="60"/>
+    </default>
+    <default class="intvelocity">
+      <intvelocity group="2" kp="60" ctrlrange="-.5 .5"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom name="floor" type="plane" size=".6 .2 0.01" material="grid"/>
+    <geom name="wall0" type="plane" size=".4 .2 0.01" material="grid" pos="-.6 0 .4" zaxis="1 0 0"/>
+    <geom name="wall1" type="plane" size=".4 .2 0.01" material="grid" pos=".6 0 .4" zaxis="-1 0 0"/>
+    <light pos="-.6 0 3" mode="targetbody" target="hand"/>
+    <light pos=".6 0 3" mode="targetbody" target="hand"/>
+    <body name="arm" pos="-.6 0 .6" childclass="arm">
+      <joint name="arm" range="-1.5 1.5"/>
+      <geom class="decor"/>
+      <geom name="arm" fromto="0 0 0 .7 0 0"/>
+      <body pos=".7 0 0">
+        <joint name="hand" range="-4.65 1.5"/>
+        <geom class="decor"/>
+        <geom fromto="0 0 0 0 0 0.4"/>
+        <body name="hand" pos="0 0 0.4">
+          <geom name="hand" type="sphere" size=".06" mass="0"/>
+        </body>
+      </body>
+    </body>
+
+    <body childclass="object" pos="-.3 0 .2">
+      <joint axis="1 0 0" type="slide"/>
+      <joint axis="0 0 1" type="slide"/>
+      <joint axis="0 1 0"/>
+      <geom/>
+    </body>
+    <body childclass="object" pos="-.2 0 .4">
+      <joint axis="1 0 0" type="slide"/>
+      <joint axis="0 0 1" type="slide"/>
+      <joint axis="0 1 0"/>
+      <geom/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="world" body2="arm"/>
+    <pair geom1="arm" geom2="hand"/>
+  </contact>
+
+  <actuator>
+    <motor class="motor" name="arm torque" joint="arm"/>
+    <motor class="motor" name="hand torque" joint="hand"/>
+    <position class="position" name="arm position" joint="arm" ctrlrange="-1.5 1.5"/>
+    <position class="position" name="hand position" joint="hand" ctrlrange="-1.5 4.65"/>
+    <intvelocity class="intvelocity" name="arm velocity" joint="arm" actrange="-1.5 1.5"/>
+    <intvelocity class="intvelocity" name="hand velocity" joint="hand" actrange="-1.5 4.65"/>
+  </actuator>
+</mujoco>

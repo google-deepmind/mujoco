@@ -123,7 +123,7 @@ class MjStructVisitor:
     """Makes a Decl object from a Clang AST RecordDecl node."""
     name = f"{node['tagUsed']} {node['name']}" if 'name' in node else ''
     fields = []
-    for child in node['inner']:
+    for child in node.get('inner', ()):
       child_kind = child.get('kind')
       if child_kind == 'FieldDecl':
         fields.append(self._make_field(child))
@@ -166,9 +166,15 @@ class MjStructVisitor:
     elif (node.get('kind') == 'TypedefDecl' and
           node['type']['qualType'].startswith('struct mj') and
           node['name'] not in _EXCLUDED):
-      struct = self._structs[node['type']['qualType']]
-      self._typedefs[node['name']] = ast_nodes.StructDecl(
-          name=node['name'], declname=struct.declname, fields=struct.fields)
+      declname = node['type']['qualType']
+      try:
+        struct = self._structs[declname]
+      except KeyError:
+        self._typedefs[node['name']] = ast_nodes.StructDecl(
+            name=node['name'], declname=declname, fields=())
+      else:
+        self._typedefs[node['name']] = ast_nodes.StructDecl(
+            name=node['name'], declname=struct.declname, fields=struct.fields)
 
   def resolve_all_anonymous(self) -> None:
     """Replaces anonymous struct placeholders with corresponding decl."""

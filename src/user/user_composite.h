@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
 
@@ -68,26 +69,25 @@ class mjCComposite {
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
   void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
-  bool Make(mjCModel* model, mjCBody* body, char* error, int error_sz);
+  bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
 
-  bool MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeGrid(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeRope(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeCloth(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz);
+  bool MakeParticle(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeGrid(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeRope(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
+  bool MakeBox(mjCModel* model, mjsBody* body, char* error, int error_sz);
   void MakeShear(mjCModel* model);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
   void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
-  void MakeClothBones(mjCModel* model, mjCSkin* skin);
-  void MakeClothBonesSubgrid(mjCModel* model, mjCSkin* skin);
-  void MakeCableBones(mjCModel* model, mjCSkin* skin);
-  void MakeCableBonesSubgrid(mjCModel* model, mjCSkin* skin);
+  void MakeClothBones(mjCModel* model, mjsSkin* skin);
+  void MakeClothBonesSubgrid(mjCModel* model, mjsSkin* skin);
+  void MakeCableBones(mjCModel* model, mjsSkin* skin);
+  void MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin);
 
   void MakeSkin3(mjCModel* model);
-  void MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
-  void MakeSkin3Smooth(mjCSkin* skin, int c0, int c1, int side,
+  void MakeSkin3Box(mjsSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
+  void MakeSkin3Smooth(mjsSkin* skin, int c0, int c1, int side,
                        const std::map<std::string, int>& vmap, const char* format);
 
   void BoxProject(double* pos);
@@ -106,14 +106,16 @@ class mjCComposite {
   // currently used only for cable
   std::string initial;            // root boundary type
   std::vector<float> uservert;    // user-specified vertex positions
-  mjtNum size[3];                 // rope size (meaning depends on the shape)
+  double size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
 
+  // body names used in the skin
+  std::vector<std::string> username;
+
   // plugin support
-  bool is_plugin;
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjCPlugin* plugin_instance;
+  mjsPlugin plugin;
 
   // skin
   bool skin;                      // generate skin
@@ -133,9 +135,18 @@ class mjCComposite {
   int dim;                        // dimensionality
 
  private:
-  mjCBody* AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1);
-  mjCBody* AddClothBody(mjCModel* model, mjCBody* body, int ix, int iy, int ix1, int iy1);
-  mjCBody* AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
+  mjsBody* AddRopeBody(mjCModel* model, mjsBody* body, int ix, int ix1);
+  mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, double normal[3], double prev_quat[4]);
+
+  // temporary skin vectors
+  void CopyIntoSkin(mjsSkin* skin);
+  std::vector<int> face;
+  std::vector<float> vert;
+  std::vector<float> bindpos;
+  std::vector<float> bindquat;
+  std::vector<float> texcoord;
+  std::vector<std::vector<int>> vertid;
+  std::vector<std::vector<float>> vertweight;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_COMPOSITE_H_

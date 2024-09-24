@@ -23,8 +23,10 @@
 
 #include <ccd/vec3.h>
 
+#include <mujoco/mjexport.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #define mjGETINFO_HFIELD \
     const mjtNum* pos1  = d->geom_xpos + 3*g1; \
@@ -38,23 +40,34 @@
 extern "C" {
 #endif
 
-// ccd general object type
-struct _mjtCCD {
+// internal object type for convex collision detection
+struct _mjCCDObj {
   const mjModel* model;
   const mjData* data;
   int geom;
+  int geom_type;
   int meshindex;
+  int flex;
+  int elem;
+  int vert;
   mjtNum margin;
   mjtNum rotate[4];
+  void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
+  void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
+  mjtNum prism[6][3];  // for hfield
 };
-typedef struct _mjtCCD mjtCCD;
+typedef struct _mjCCDObj mjCCDObj;
 
+// support function for convex collision algorithms
+MJAPI void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
+// center function for convex collision algorithms
+MJAPI void mjc_center(mjtNum res[3], const mjCCDObj *obj);
 
 // ccd support function
 void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
 
-
-// pairwise collision functions using ccd
+// pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,
                        mjContact* con, int g1, int g2, mjtNum margin);
 int mjc_ConvexHField  (const mjModel* m, const mjData* d,
@@ -62,6 +75,13 @@ int mjc_ConvexHField  (const mjModel* m, const mjData* d,
 int mjc_Convex        (const mjModel* m, const mjData* d,
                        mjContact* con, int g1, int g2, mjtNum margin);
 
+// geom-elem or elem-elem or vert-elem collision function using ccd
+int mjc_ConvexElem    (const mjModel* m, const mjData* d, mjContact* con,
+                       int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin);
+
+// heighfield-elem collision function using ccd
+int mjc_HFieldElem    (const mjModel* m, const mjData* d, mjContact* con,
+                       int g, int f, int e, mjtNum margin);
 
 // fix contact frame normal
 void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2);

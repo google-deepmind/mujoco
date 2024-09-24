@@ -13,16 +13,13 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "indexers.h"
-#include "mjdata_meta.h"
 #include "raw.h"
 #include "util/crossplatform.h"
 
@@ -76,7 +73,6 @@ IDToName MakeIDToName(int count, IntPtr name_offsets, CharPtr names) {
 //     the MuJoCo category of the entity itself, e.g. nbody indicates that the
 //     field belongs to a body.
 //   T: Scalar data type of the field.
-//   M: Either raw::MjModel or MjDataMetadata.
 //
 // Args:
 //   base_ptr: Pointer to the first entry in the entire field.
@@ -87,35 +83,35 @@ IDToName MakeIDToName(int count, IntPtr name_offsets, CharPtr names) {
 //     additional dimension of the size len(qvel) of the particular joint.
 //   m: Used for dereferencing MjSize.
 //   owner: The base object whose lifetime is tied to the returned array.
-template <auto MjSize, typename T, typename M>
+template <auto MjSize, typename T>
 py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
-                         const M& m, py::handle owner) {
+                         const raw::MjModel& m, py::handle owner) {
   int offset;
-  if (MjSize == &M::nq) {
+  if (MjSize == &raw::MjModel::nq) {
     offset = m.jnt_qposadr[index];
     shape.insert(
         shape.begin(),
         ((index < m.njnt-1) ? m.jnt_qposadr[index+1] : m.nq) - offset);
-  } else if (MjSize == &M::nv) {
+  } else if (MjSize == &raw::MjModel::nv) {
     offset = m.jnt_dofadr[index];
     shape.insert(
         shape.begin(),
         ((index < m.njnt-1) ? m.jnt_dofadr[index+1] : m.nv) - offset);
-  } else if (MjSize == &M::nhfielddata) {
+  } else if (MjSize == &raw::MjModel::nhfielddata) {
     offset = m.hfield_adr[index];
     shape.insert(shape.begin(), m.hfield_ncol[index]);
     shape.insert(shape.begin(), m.hfield_nrow[index]);
-  } else if (MjSize == &M::ntexdata) {
+  } else if (MjSize == &raw::MjModel::ntexdata) {
     offset = m.tex_adr[index];
     shape.insert(shape.begin(), m.tex_width[index]);
     shape.insert(shape.begin(), m.tex_height[index]);
-  } else if (MjSize == &M::nsensordata) {
+  } else if (MjSize == &raw::MjModel::nsensordata) {
     offset = m.sensor_adr[index];
     shape.insert(shape.begin(), m.sensor_dim[index]);
-  } else if (MjSize == &M::nnumericdata) {
+  } else if (MjSize == &raw::MjModel::nnumericdata) {
     offset = m.numeric_adr[index];
     shape.insert(shape.begin(), m.numeric_size[index]);
-  } else if (MjSize == &M::ntupledata) {
+  } else if (MjSize == &raw::MjModel::ntupledata) {
     offset = m.tuple_adr[index];
     shape.insert(shape.begin(), m.tuple_size[index]);
   } else {
@@ -135,9 +131,7 @@ py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
 }
 }  // namespace
 
-// M is either a raw::MjModel or MjDataMetadata.
-template <typename M>
-NameToIDMappings::NameToIDMappings(const M& m)
+NameToIDMappings::NameToIDMappings(const raw::MjModel& m)
     : body(MakeNameToID(m.nbody, m.name_bodyadr, m.names)),
       jnt(MakeNameToID(m.njnt, m.name_jntadr, m.names)),
       geom(MakeNameToID(m.ngeom, m.name_geomadr, m.names)),
@@ -160,9 +154,7 @@ NameToIDMappings::NameToIDMappings(const M& m)
       tuple(MakeNameToID(m.ntuple, m.name_tupleadr, m.names)),
       key(MakeNameToID(m.nkey, m.name_keyadr, m.names)) {}
 
-// M is either a raw::MjModel or MjDataMetadata.
-template <typename M>
-IDToNameMappings::IDToNameMappings(const M& m)
+IDToNameMappings::IDToNameMappings(const raw::MjModel& m)
     : body(MakeIDToName(m.nbody, m.name_bodyadr, m.names)),
       jnt(MakeIDToName(m.njnt, m.name_jntadr, m.names)),
       geom(MakeIDToName(m.ngeom, m.name_geomadr, m.names)),
@@ -223,7 +215,7 @@ MJMODEL_VIEW_GROUPS
 MJMODEL_VIEW_GROUPS
 #undef XGROUP
 
-MjDataIndexer::MjDataIndexer(raw::MjData* d, const MjDataMetadata* m,
+MjDataIndexer::MjDataIndexer(raw::MjData* d, const raw::MjModel* m,
                              py::handle owner)
     : d_(d),
       m_(m),
@@ -369,7 +361,7 @@ MJMODEL_KEYFRAME
 #define X(type, prefix, var, dim0, dim1)                            \
   py::array_t<type> XGROUP::var() {                               \
     if (!var##_.has_value()) {                                      \
-      var##_.emplace(MakeArray<&MjDataMetadata::dim0>(              \
+      var##_.emplace(MakeArray<&raw::MjModel::dim0>(              \
           d_->prefix##var, index_, MAKE_SHAPE(dim1), *m_, owner_)); \
     }                                                               \
     return *var##_;                                                 \

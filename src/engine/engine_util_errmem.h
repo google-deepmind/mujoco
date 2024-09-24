@@ -18,6 +18,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmacro.h>
@@ -31,8 +32,8 @@ extern "C" {
     #define mjPRINTFLIKE(n, m) __attribute__((format(printf, n, m)))
   #else
     #define mjPRINTFLIKE(n, m)
-  #endif // __GNUC__
-#endif // mjPRINTFLIKE
+  #endif  // __GNUC__
+#endif  // mjPRINTFLIKE
 
 
 //------------------------------ user handlers -----------------------------------------------------
@@ -54,6 +55,7 @@ MJAPI void _mjPRIVATE__set_tls_warning_fn(void (*h)(const char*));
 //------------------------------ errors and warnings -----------------------------------------------
 
 // errors
+MJAPI void mju_error_raw(const char* msg);
 MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 MJAPI void mju_error_v(const char* msg, va_list args);
 MJAPI void mju_error_i(const char* msg, int i);
@@ -69,42 +71,16 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
 
 //------------------------------ internal error macros --------------------------------------------
 
-// need at least c99 or c++11
-#if (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) ||       \
-    (defined(__cplusplus) && __cplusplus >= 201103L)
-
-  // macro to get the first argument
-  #define _GET_MSG(msg, ...) msg
-
-  // helper function for the mjERROR macro
-  // formats buf as '{prefix}: {msg}' and passes along to mju_error_v
-  static inline void _mju_error_prefix(char *buf, size_t nbuf, const char* prefix,
-                                       const char* msg, ...) mjPRINTFLIKE(4, 5);
-
-  static inline void _mju_error_prefix(char *buf, size_t nbuf, const char* prefix,
-                                       const char* msg, ...) {
-    snprintf(buf, nbuf, "%s: %s", prefix, msg);
-    va_list args;
-    va_start(args, msg);
-    mju_error_v(buf, args);
-    va_end(args);
-  }
-
-  // macro to get first argument
-  #define _GET_MSG(msg, ...) msg
-
-  // internal macro to prepend the calling function name to the error message
-  // standard support for variadic macros with zero arguments is only now
-  // supported in C23 and C++20 so we rely on a helper function to get around this
-  // in a portable way
-  #define mjERROR(...) {                                                \
-    char _buf[sizeof(_GET_MSG(__VA_ARGS__)) + sizeof(__func__) + 1];    \
-    _mju_error_prefix(_buf, sizeof(_buf), __func__, __VA_ARGS__);       \
-  }
-
-#else
-  #define mjERROR mju_error
-#endif  // c99 or c++11
+// internal macro to prepend the calling function name to the error message
+#pragma warning(disable : 4996)  // needed to use strncpy with Visual Studio
+#define mjERROR(...)                                                          \
+{                                                                             \
+  char _errbuf[1024];                                                         \
+  size_t _funclen = strlen(__func__);                                         \
+  strncpy(_errbuf, __func__, sizeof(_errbuf));                                \
+  snprintf(_errbuf + _funclen, sizeof(_errbuf) - _funclen, ": " __VA_ARGS__); \
+  mju_error_raw(_errbuf);                                                     \
+}
 
 //------------------------------ malloc and free ---------------------------------------------------
 

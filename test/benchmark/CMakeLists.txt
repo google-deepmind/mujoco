@@ -48,6 +48,14 @@ target_link_libraries(
   benchmark::benchmark
 )
 
+mujoco_benchmark_test(thread_performance_test)
+target_link_libraries(
+  thread_performance_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
 mujoco_benchmark_test(parse_benchmark_test)
 target_link_libraries(
   parse_benchmark_test

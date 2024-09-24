@@ -16,21 +16,26 @@
 #ifndef MUJOCO_SRC_XML_XML_UTIL_H_
 #define MUJOCO_SRC_XML_XML_UTIL_H_
 
-// stl
+#include <array>
+#include <functional>
+#include <optional>
+#include <set>
 #include <string>
 #include <vector>
 #include <sstream>
 
-#include <mujoco/mjmodel.h>
-
-
-// TinyXML
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
+#include "user/user_util.h"
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);
 
+using tinyxml2::XMLElement;
+
+XMLElement* FirstChildElement(XMLElement* e, const char* name = nullptr);
+XMLElement* NextSiblingElement(XMLElement* e, const char* name = nullptr);
 
 // XML Error info
 class [[nodiscard]] mjXError {
@@ -52,24 +57,22 @@ class [[nodiscard]] mjXError {
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM],         // constructor
-            int nrow, bool checkptr = true);
-  ~mjXSchema();                                       // destructor
+  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
 
-  std::string GetError(void);                         // return error
-  void Print(std::stringstream& str, int level);      // print schema
-  void PrintHTML(std::stringstream& str, int level, bool pad);
+  std::string GetError();                         // return error
+  void Print(std::stringstream& str, int level) const;      // print schema
+  void PrintHTML(std::stringstream& str, int level, bool pad) const;
 
   bool NameMatch(tinyxml2::XMLElement* elem, int level);               // does name match
   tinyxml2::XMLElement* Check(tinyxml2::XMLElement* elem, int level);  // validator
 
  private:
-  std::string name;                   // element name
-  char type;                          // element type: '?', '!', '*', 'R'
-  std::vector<std::string> attr;      // allowed attributes
-  std::vector<mjXSchema*> child;      // allowed child elements
+  std::string name_;                  // element name
+  char type_;                         // element type: '?', '!', '*', 'R'
+  std::set<std::string> attr_;        // allowed attributes
+  std::vector<mjXSchema> subschema_;  // allowed child elements
 
-  int refcnt;                         // refcount used for validation
+  int refcnt_ = 0;                    // refcount used for validation
   std::string error;                  // error from constructor or Check
 };
 
@@ -98,35 +101,80 @@ class mjXUtil {
   // find value in map, return key ("": not found)
   static std::string FindValue(const mjMap* map, int mapsz, int value);
 
-  // read any type from attribute, return number read
+  // if attribute is present, return vector of numerical data
   template<typename T>
-  static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, const int len,
+  static std::optional<std::vector<T>> ReadAttrVec(tinyxml2::XMLElement* elem,
+                                                   const char* attr,
+                                                   bool required = false);
+
+  // if attribute is present, return attribute as a string
+  static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem,
+                                                const char* attr,
+                                                bool required = false);
+
+  // if attribute is present, return attribute as a filename
+  static std::optional<mujoco::user::FilePath>
+      ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
+                   const mjVFS* vfs,
+                   const mujoco::user::FilePath& dir = mujoco::user::FilePath(),
+                   bool required = false);
+
+  // if attribute is present, return numerical value of attribute
+  template<typename T>
+  static std::optional<T> ReadAttrNum(tinyxml2::XMLElement* elem,
+                                      const char* attr,
+                                      bool required = false);
+
+  // if attribute is present, return array of numerical data
+  // N should be small as data is allocated on the stack
+  template<typename T, int N>
+  static std::optional<std::array<T, N>> ReadAttrArr(tinyxml2::XMLElement* elem,
+                                                     const char* attr,
+                                                     bool required = false) {
+    std::array<T, N> arr;
+    int n = 0;
+    if (!ReadAttrValues<T>(elem, attr, [&](int i, T num) { arr[i] = num; n++; }, N)) {
+      throw mjXError(elem, "attribute '%s' has too much data", attr);
+    }
+
+    if (!n) {
+      if (required) {
+        throw mjXError(elem, "required attribute missing: '%s'", attr);
+      } else {
+        return std::nullopt;
+      }
+    }
+
+    if (n < N) {
+      throw mjXError(elem, "attribute '%s' does not have enough data", attr);
+    }
+    return arr;
+  }
+
+  // deprecated: use ReadAttrVec or ReadAttrArr
+  template<typename T>
+  static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, int len,
                       T* data, std::string& text,
                       bool required = false, bool exact = true);
 
-  // read DOUBLE array into C++ vector, return number read
+  static int ReadQuat(tinyxml2::XMLElement* elem, const char* attr, double* data,
+                      std::string& text, bool required = false);
+
+  // deprecated: use ReadAttrVec
   static int ReadVector(tinyxml2::XMLElement* elem, const char* attr,
                         std::vector<double>& vec, std::string& text, bool required = false);
 
-  // read text attribute
+  // deprecated: use ReadAttrStr
   static bool ReadAttrTxt(tinyxml2::XMLElement* elem, const char* attr, std::string& text,
                           bool required = false);
 
-  // read int attribute
+  // deprecated: use ReadAttrNum
   static bool ReadAttrInt(tinyxml2::XMLElement* elem, const char* attr, int* data,
                           bool required = false);
 
-  // read vector<float> from string
-  static void String2Vector(const std::string& txt, std::vector<float>& vec);
-
-  // read vector<int> from string
-  static void String2Vector(const std::string& txt, std::vector<int>& vec);
-
   // write vector<float> to string
-  static void Vector2String(std::string& txt, const std::vector<float>& vec);
+  static void Vector2String(std::string& txt, const std::vector<float>& vec, int ncol = 0);
 
-  // write vector<int> to string
-  static void Vector2String(std::string& txt, const std::vector<int>& vec);
 
   // find subelement with given name, make sure it is unique
   static tinyxml2::XMLElement* FindSubElem(tinyxml2::XMLElement* elem, std::string name,
@@ -138,13 +186,14 @@ class mjXUtil {
 
   // write attribute- any type
   template<typename T>
-  static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, T* data,
-                        const T* def = 0);
+  static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
+                        const T* def = 0, bool trim = false);
 
   // write vector<double> attribute, with and without default
-  static void WriteVector(tinyxml2::XMLElement* elem, std::string name, std::vector<double>& vec);
-  static void WriteVector(tinyxml2::XMLElement* elem, std::string name, std::vector<double>& vec,
-                          std::vector<double>& def);
+  static void WriteVector(tinyxml2::XMLElement* elem, std::string name,
+                          const std::vector<double>& vec);
+  static void WriteVector(tinyxml2::XMLElement* elem, std::string name,
+                          const std::vector<double>& vec, const std::vector<double>& def);
 
   // write attribute- string
   static void WriteAttrTxt(tinyxml2::XMLElement* elem, std::string name, std::string value);
@@ -155,6 +204,11 @@ class mjXUtil {
   // write attribute- keyword
   static void WriteAttrKey(tinyxml2::XMLElement* elem, std::string name,
                            const mjMap* map, int mapsz, int data, int def = -12345);
+
+ private:
+  template<typename T>
+  static bool ReadAttrValues(tinyxml2::XMLElement* elem, const char* attr,
+                             std::function<void (int, T)> push, int max = -1);
 };
 
 #endif  // MUJOCO_SRC_XML_XML_UTIL_H_

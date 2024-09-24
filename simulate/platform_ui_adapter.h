@@ -22,7 +22,7 @@
 namespace mujoco {
 class PlatformUIAdapter {
  public:
-  virtual ~PlatformUIAdapter();
+  virtual ~PlatformUIAdapter() = default;
 
   inline mjuiState& state() { return state_; }
   inline const mjuiState& state() const { return state_; }
@@ -38,7 +38,7 @@ class PlatformUIAdapter {
     layout_callback_ = layout_callback;
   }
 
-  // Optionally overrideable function to (re)create an mjrContext for an mjModel
+  // Optionally overridable function to (re)create an mjrContext for an mjModel
   virtual bool RefreshMjrContext(const mjModel* m, int fontscale);
 
   virtual bool EnsureContextSize();
@@ -73,10 +73,11 @@ class PlatformUIAdapter {
 
  protected:
   PlatformUIAdapter();
+  void FreeMjrContext();
 
   // Event handlers
   void OnFilesDrop(int count, const char** paths);
-  void OnKey(int key, int scancode, int act);
+  virtual void OnKey(int key, int scancode, int act);
   void OnMouseButton(int button, int act);
   void OnMouseMove(double x, double y);
   void OnScroll(double xoffset, double yoffset);
@@ -84,6 +85,7 @@ class PlatformUIAdapter {
   void OnWindowResize(int width, int height);
 
   mjuiState state_;
+  int last_key_;
   void (*event_callback_)(mjuiState*);
   void (*layout_callback_)(mjuiState*);
 

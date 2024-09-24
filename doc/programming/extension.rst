@@ -84,6 +84,7 @@ supported plugin capabilities are:
 * Actuator plugin
 * Sensor plugin
 * Passive force plugin
+* Signed distance field plugin
 
 Additional capabilities will be added in the future as required.
 
@@ -184,7 +185,7 @@ faithfully restored.
 
 Plugins must declare the number of floating point values required for each instance via the ``nstate`` callback of its
 :ref:`mjpPlugin` struct. Note that this number can depend on the exact configuration of the instance. During
-:ref:`mj_makeData`, MuJoCo allocate the requisite number of slots in the ``plugin_state`` field of :ref:`mjData` for
+:ref:`mj_makeData`, MuJoCo allocates the requisite number of slots in the ``plugin_state`` field of :ref:`mjData` for
 each plugin instance. The ``plugin_stateadr`` field in :ref:`mjModel` indicates the position within the overall
 ``plugin_state`` array at which each plugin instance can find its state values.
 
@@ -197,6 +198,25 @@ create an arbitrary data structure that it requires to function and stores its p
 When :ref:`mjData` is being copied via :ref:`mj_copyData`, MuJoCo will copy over the plugin state. However, the plugin
 code is responsible for setting up the plugin data for the newly copied :ref:`mjData`. To facilitate this, MuJoCo calls
 the ``copy`` callback from :ref:`mjpPlugin` for each plugin instance present.
+
+.. _exActuatorAct:
+
+Actuator activations
+""""""""""""""""""""
+
+When writing stateful actuator plugins, there are two choices for where to save the actuator state. One option is using
+``plugin_state`` as described above, and the other is to use ``mjData.act`` by implementing the ``actuator_actdim`` and
+``actuator_act_dot`` callbacks on :ref:`mjpPlugin`.
+
+When using the latter option, the actuator plugin's state will be added to ``mjData.act``, and MuJoCo will
+automatically integrate ``mjData.act_dot`` values between timesteps. One advantage of this approach is that
+finite-differencing functions like :ref:`mjd_transitionFD` will work as they do for native actuators. The
+``mjpPlugin.advance`` callback will be called after ``act_dot`` is integrated, and actuator plugins may overwrite
+the ``act`` values at that point, if Euler integration isn't appropriate.
+
+Users may specify the :ref:`dyntype<actuator-plugin-dyntype>` attribute on actuator plugins, to introduce a filter or
+an integrator between user inputs and actuator activations. When they do, the activation variable introduced by
+``dyntype`` will be placed *after* the plugin's activation variables in the ``act`` array.
 
 .. _exRegistration:
 
@@ -234,10 +254,10 @@ provided for this scan-and-load use case.
 Writing plugins
 ^^^^^^^^^^^^^^^
 
-This section, targeted at developers, is not yet written. We encourage people who wish to write their own plugins
+This section, targeted at developers, is incomplete. We encourage people who wish to write their own plugins
 to contact the MuJoCo development team for help. A good starting point for experienced developers is the
-`associated tests <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_plugin_test.cc>`_ and the first-party
-plugins in the `first-party plugin directory <https://github.com/deepmind/mujoco/tree/main/plugin>`_.
+`associated tests <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_plugin_test.cc>`_ and the
+first-party plugins in the `first-party plugin directory <https://github.com/google-deepmind/mujoco/tree/main/plugin>`_.
 
 A future version of this section will include:
 
@@ -246,6 +266,62 @@ A future version of this section will include:
 * How to declare custom MJCF attributes for a plugin.
 * Things that developers need to keep in mind in order to ensure that plugins function correctly when :ref:`mjData` is
   copied, stepped, or reset.
+
+There are several first-party plugin directories:
+
+* **actuator:** The plugins in the `actuator/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/actuator>`__
+  directory implement custom actuators, so far only a PID controller. See the
+  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
+* **elasticity:** The plugins in the `elasticity/
+  <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are passive forces based on
+  continuum mechanics for 1-dimensional and 2-dimensional bodies. The 1D model is invariant under rotations and captures
+  the large deformation of elastic cables, decoupling twisting and bending strains. The 2D model is a suitable for
+  computing the bending stiffness of thin elastic plates (i.e. shells having a flat stress-free configuration). In this
+  case, the elastic energy is quadratic and therefore the stiffness matrix is constant. For more information, please see
+  the `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
+* **sensor:** The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__
+  directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
+  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
+* **sdf:** The plugins in the `sdf/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sdf>`__ directory
+  specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its gradient at
+  query points. This shape then acts as a new geom type in the collision table at the top of `engine_collision_driver.c
+  <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__. For more information
+  concerning the available SDFs and how to write your own implicit geometry, please see the `README
+  <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md>`__. The rest of this section will give more
+  detail concerning the collision algorithm and the plugin engine interface.
+
+  Collision points are found by minimizing the function A + B + abs(max(A, B)), where A and B are the two colliding
+  SDFs, via gradient descent. Because SDFs are non-convex, multiple starting points are required in order to converge to
+  multiple local minima. The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and
+  are initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes. The number of
+  gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
+
+  While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
+  any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
+  interior. For such functions, it is still possible to find collisons, albeit with a possibly
+  increased number of starting points.
+
+  The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
+  algorithm implemented by `MarchingCubeCpp <https://github.com/aparis69/MarchingCubeCpp>`__.
+
+  Future improvement to the gradient descent algorithm, such as a line search which takes advantage of the properties of
+  SDFs, might reduce the number of iterations and/or starting points.
+
+For the sdf plugin, the following methods need to be specified
+
+``sdf_distance``:
+  Returns the signed distance of the query point given in local coordinates.
+
+``sdf_staticdistance``:
+  This is the static version of the previous function, taking config attributes as additional inputs. This function is
+  required because mesh creation occurs during model compilation before the plugin object has been instantiated.
+
+``sdf_gradient``:
+  Computes the gradient in local coodinates of the SDF at the query point.
+
+``sdf_aabb``:
+  Computes the axis-aligned bounding box in local coordinates. This volume is voxelized uniformly before the call to
+  the marching cubes algorithm.
 
 .. _exProvider:
 
@@ -268,7 +344,6 @@ loading functions. The :ref:`mjpResourceProvider` struct stores three types of f
 .. _Uniform Resource Identifier: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
 
 Resource prefix
-
   Resources are identified by prefixes in their name. The chosen prefix should have a valid `Uniform Resource
   Identifier`_ (URI) scheme syntax. Resource names should also have a valid URI syntax, however this isn't enforced. A
   resource name with the syntax ``{prefix}:{filename}`` will match a provider using the scheme ``prefix``.  For
@@ -280,8 +355,9 @@ Resource prefix
 
 Callbacks
   There are three callbacks that a resource provider is required to implement: :ref:`open<mjfOpenResource>`,
-  :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. A fourth callback :ref:`getdir<mjfGetResourceDir>`
-  is optional.  More details on these callbacks are given below.
+  :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. The other two callback
+  :ref:`getdir<mjfGetResourceDir>` and :ref:`modified<mjfResourceModified>` are optional. More details on these callbacks
+  are given below.
 
 Data Pointer
   Lastly, there's an opaque data pointer for the provider to pass data into the callbacks. This data pointer is constant
@@ -301,6 +377,8 @@ Resource providers work via callbacks:
 - :ref:`mjfGetResourceDir<mjfGetResourceDir>`: This callback is optional and is used to extract the directory from a
   resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
   ``http://www.example.com/`` as its directory.
+- :ref:`mjfResourceModified<mjfResourceModified>`: This callback is optional and is used to check if an existing
+  opened resource has been modifed from its orginal source.
 
 .. _exProviderUsage:
 
@@ -322,7 +400,7 @@ the callbacks:
 
 .. code-block:: C
 
-   int data_open_callback(mjResource* resource) {
+   int str_open_callback(mjResource* resource) {
      // call some util function to validate
      if (!is_valid_data_uri(resource->name)) {
        return 0; // return failure
@@ -371,6 +449,6 @@ Now we can write assets as strings in our MJCF files:
 
    <asset>
      <texture name="grid" file="grid.png" type="2d"/>
-     <mesh file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
+     <mesh content-type="model/obj" file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
      ...
    </asset>

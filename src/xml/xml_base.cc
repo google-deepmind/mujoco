@@ -21,8 +21,8 @@
 #include <string>
 #include <vector>
 
-#include "user/user_model.h"
-#include "user/user_objects.h"
+#include <mujoco/mjspec.h>
+#include "xml/xml_util.h"
 #include "tinyxml2.h"
 
 namespace {
@@ -37,27 +37,40 @@ using tinyxml2::XMLElement;
 
 // base constructor
 mjXBase::mjXBase() {
-  model = NULL;
+  spec = NULL;
 }
 
 
 
 // set model field
-void mjXBase::SetModel(mjCModel* _model) {
-  model = _model;
+void mjXBase::SetModel(const mjSpec* _model) {
+  spec = (mjSpec*)_model;
 }
 
 
 
 // read alternative orientation specification
-void mjXBase::ReadAlternative(XMLElement* elem, mjCAlternative& alt) {
+int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
   string text;
-  int read = (int)(elem->Attribute("quat") != 0) +
-             (ReadAttr(elem, "axisangle", 4, alt.axisangle, text) ? 1 : 0) +
-             (ReadAttr(elem, "xyaxes", 6, alt.xyaxes, text) ? 1 : 0) +
-             (ReadAttr(elem, "zaxis", 3, alt.zaxis, text) ? 1 : 0) +
-             (ReadAttr(elem, "euler", 3, alt.euler, text) ? 1 : 0) +
-             (ReadAttr(elem, "fullinertia", 6, alt.fullinertia, text) ? 1 : 0);
-  if (read > 1)
-    throw mjXError(elem, "multiple orientation specifiers for the same field are not allowed");
+  int numspec = (int)(elem->Attribute("quat") != 0);
+  if (ReadAttr(elem, "axisangle", 4, alt.axisangle, text)) {
+    numspec++;
+    alt.type = mjORIENTATION_AXISANGLE;
+  }
+  if (ReadAttr(elem, "xyaxes", 6, alt.xyaxes, text)) {
+    numspec++;
+    alt.type = mjORIENTATION_XYAXES;
+  }
+  if (ReadAttr(elem, "zaxis", 3, alt.zaxis, text)) {
+    numspec++;
+    alt.type = mjORIENTATION_ZAXIS;
+  }
+  if (ReadAttr(elem, "euler", 3, alt.euler, text)) {
+    numspec++;
+    alt.type = mjORIENTATION_EULER;
+  }
+  if (numspec > 1) {
+    throw mjXError(elem, "multiple orientation specifiers are not allowed");
+  }
+  return numspec;
 }

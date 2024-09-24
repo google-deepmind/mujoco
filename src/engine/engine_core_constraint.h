@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,11 +36,18 @@ MJAPI int mj_isSparse(const mjModel* m);
 MJAPI int mj_isDual(const mjModel* m);
 
 // multiply Jacobian by vector
-MJAPI void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+
+// multiply Jacobian by vector, for one island
+MJAPI void mj_mulJacVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                               int island, int flg_resunc, int flg_vecunc);
 
 // multiply JacobianT by vector
-MJAPI void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
+// multiply JacobianT by vector, for one island
+MJAPI void mj_mulJacTVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                                int island, int flg_resunc, int flg_vecunc);
 
 //-------------------------- utility functions -----------------------------------------------------
 
@@ -49,24 +57,14 @@ void mj_assignRef(const mjModel* m, mjtNum* target, const mjtNum* source);
 // assign/override solver impedance parameters
 void mj_assignImp(const mjModel* m, mjtNum* target, const mjtNum* source);
 
-// assign/override geom/limit/tendon margin
+// assign/clamp contact friction parameters
+void mj_assignFriction(const mjModel* m, mjtNum* target, const mjtNum* source);
+
+// assign/override geom margin
 mjtNum mj_assignMargin(const mjModel* m, mjtNum source);
 
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
-
-// add #size rows to constraint Jacobian; set pos, margin, frictionloss, type, id
-//  result: 0=success; 1=buffer full
-int mj_addConstraint(const mjModel* m, mjData* d,
-                     const mjtNum* jac, const mjtNum* pos,
-                     const mjtNum* margin, mjtNum frictionloss,
-                     int size, int type, int id, int NV, const int* chain);
-
-// merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
-
-// merge dof chains for two simple bodies
-int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
 
 
 //-------------------------- constraint instantiation ----------------------------------------------
@@ -92,13 +90,6 @@ void mj_diagApprox(const mjModel* m, mjData* d);
 // compute efc_R, efc_D, efc_KDIP, adjust diagApprox
 void mj_makeImpedance(const mjModel* m, mjData* d);
 
-
-//------------------------- constraint counting
-
-// count the number of non-zeros in the sum of two sparse vectors
-MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
-
-
 //---------------------------- top-level API for constraint construction ---------------------------
 
 // main driver: call all functions above
@@ -114,6 +105,11 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 // optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
+
+// compute efc_state, efc_force, qfrc_constraint for one island
+MJAPI void mj_constraintUpdate_island(const mjModel* m, mjData* d, const mjtNum* jar,
+                                      mjtNum cost[1], int flg_coneHessian, int island);
+
 #ifdef __cplusplus
 }
 #endif

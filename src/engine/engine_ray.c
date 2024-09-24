@@ -20,8 +20,10 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_io.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -625,9 +627,10 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
 // ray vs tree intersection
 mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
                    const mjtNum* vec) {
+  int mark_active = m->vis.global.bvactive;
   const int meshid = m->geom_dataid[id];
   const int bvhadr = m->mesh_bvhadr[meshid];
-  const int* faceid = m->bvh_geomid + bvhadr;
+  const int* faceid = m->bvh_nodeid + bvhadr;
   const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
   const int* child = m->bvh_child + 2*bvhadr;
 
@@ -699,12 +702,17 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
+        if (mark_active) {
+          d->bvh_active[node + bvhadr] = 1;
+        }
       }
       continue;
     }
 
     // used for rendering
-    d->bvh_active[node + bvhadr] = 1;
+    if (mark_active) {
+      d->bvh_active[node + bvhadr] = 1;
+    }
 
     // add children to the stack
     for (int i=0; i < 2; i++) {
@@ -720,6 +728,73 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
 
   return x;
 }
+
+
+
+// intersect ray with signed distance field
+mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
+               const mjtNum* pnt, const mjtNum* vec) {
+  mjtNum distance_total = 0;
+  mjtNum p[3];
+  mjtNum kMinDist = 1e-7;
+
+  // exclude using bounding box
+  if (ray_box(d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g, pnt, vec, NULL) < 0) {
+    return -1;
+  }
+
+  // get sdf
+  int instance = m->geom_plugin[g];
+  const int nslot = mjp_pluginCount();
+  const int slot = m->plugin[instance];
+  const mjpPlugin* sdf = mjp_getPluginAtSlotUnsafe(slot, nslot);
+  if (!sdf) mjERROR("invalid plugin slot: %d", slot);
+  if (!(sdf->capabilityflags & mjPLUGIN_SDF)) {
+    mjERROR("Plugin is not a sign distance field at slot %d", slot);
+  }
+
+  // reset counter
+  sdf->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+
+  // compute transformation
+  mjtNum sdf_quat[4], sdf_xmat[9], sdf_xpos[9];
+  mjtNum negpos[3], negquat[4], xquat[4];
+  mjtNum* xpos = d->geom_xpos + 3*g;
+  mjtNum* pos = m->mesh_pos + 3*m->geom_dataid[g];
+  mjtNum* quat = m->mesh_quat + 4*m->geom_dataid[g];
+  mju_mat2Quat(xquat, d->geom_xmat + 9*g);
+  mju_negPose(negpos, negquat, pos, quat);
+  mju_mulPose(sdf_xpos, sdf_quat, xpos, xquat, negpos, negquat);
+  mju_quat2Mat(sdf_xmat, sdf_quat);
+
+  // map to local frame
+  mjtNum lpnt[3], lvec[3];
+  ray_map(sdf_xpos, sdf_xmat, pnt, vec, lpnt, lvec);
+
+  // unit direction
+  mju_normalize3(lvec);
+
+  // ray marching, see e.g. https://en.wikipedia.org/wiki/Ray_marching
+  for (int i=0; i < 40; i++) {
+    mju_addScl3(p, lpnt, lvec, distance_total);
+    mjtNum distance = sdf->sdf_distance(p, (mjData*)d, instance);
+    distance_total += distance;
+    if (mju_abs(distance) < kMinDist) {
+      return distance_total;
+    }
+    if (distance > 1e6) {
+      // no intersection
+      break;
+    }
+  }
+
+  // reset counter
+  sdf->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+
+  return -1;
+}
+
+
 
 // intersect ray with mesh
 mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
@@ -742,7 +817,7 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
 // intersect ray with pure geom, no meshes or hfields
 mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
                    const mjtNum* pnt, const mjtNum* vec, int geomtype) {
-  switch (geomtype) {
+  switch ((mjtGeom) geomtype) {
   case mjGEOM_PLANE:
     return ray_plane(pos, mat, size, pnt, vec);
 
@@ -765,6 +840,184 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
     mjERROR("unexpected geom type %d", geomtype);
     return -1;
   }
+}
+
+
+
+// intersect ray with flex, return nearest vertex id
+mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
+                   mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
+                   const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
+  int dim = m->flex_dim[flexid];
+
+  // compute bounding box
+  mjtNum box[3][2] = {{0, 0}, {0, 0}, {0, 0}};
+  mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[flexid];
+  for (int i=0; i < m->flex_vertnum[flexid]; i++) {
+    for (int j=0; j < 3; j++) {
+      // update minimum along side j
+      if (box[j][0] > vert[3*i+j] || i == 0) {
+        box[j][0] = vert[3*i+j];
+      }
+
+      // update maximum along side j
+      if (box[j][1] < vert[3*i+j] || i == 0) {
+        box[j][1] = vert[3*i+j];
+      }
+    }
+  }
+
+  // adjust box for radius
+  mjtNum radius = m->flex_radius[flexid];
+  for (int j=0; j < 3; j++) {
+    box[j][0] -= radius;
+    box[j][1] += radius;
+  }
+
+  // construct box geom
+  mjtNum pos[3], size[3], mat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  for (int j=0; j < 3; j++) {
+    pos[j] = 0.5*(box[j][0]+box[j][1]);
+    size[j] = 0.5*(box[j][1]-box[j][0]);
+  }
+
+  // apply bounding-box filter
+  if (ray_box(pos, mat, size, pnt, vec, NULL) < 0) {
+    return -1;
+  }
+
+  // construct basis vectors of normal plane
+  mjtNum b0[3] = {1, 1, 1}, b1[3];
+  if (mju_abs(vec[0]) >= mju_abs(vec[1]) && mju_abs(vec[0]) >= mju_abs(vec[2])) {
+    b0[0] = 0;
+  } else if (mju_abs(vec[1]) >= mju_abs(vec[2])) {
+    b0[1] = 0;
+  } else {
+    b0[2] = 0;
+  }
+  mju_addScl3(b1, b0, vec, -mju_dot3(vec, b0)/mju_dot3(vec, vec));
+  mju_normalize3(b1);
+  mju_cross(b0, b1, vec);
+  mju_normalize3(b0);
+
+  // init solution
+  mjtNum x = -1;
+
+  // check edges if rendered, or if skin
+  if (flg_edge || (dim > 1 && flg_skin)) {
+    int edge_end = m->flex_edgeadr[flexid]+m->flex_edgenum[flexid];
+    for (int e=m->flex_edgeadr[flexid]; e < edge_end; e++) {
+      // get vertices for this edge
+      mjtNum* v1 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid]+m->flex_edge[2*e]);
+      mjtNum* v2 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid]+m->flex_edge[2*e+1]);
+
+      // construct capsule geom
+      mju_add3(pos, v1, v2);
+      mju_scl3(pos, pos, 0.5);
+      mjtNum dif[3] = {v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]};
+      size[0] = radius;
+      size[1] = 0.5*mju_normalize3(dif);
+      mjtNum quat[4];
+      mju_quatZ2Vec(quat, dif);
+      mju_quat2Mat(mat, quat);
+
+      // intersect ray with capsule
+      mjtNum sol = mju_rayGeom(pos, mat, size, pnt, vec, mjGEOM_CAPSULE);
+
+      // update
+      if (sol >= 0 && (x < 0 || sol < x)) {
+        x = sol;
+
+        // construct intersection point
+        mjtNum intersect[3];
+        mju_addScl3(intersect, pnt, vec, sol);
+
+        // find nearest vertex
+        if (mju_dist3(v1, intersect) < mju_dist3(v2, intersect)) {
+          *vertid = m->flex_edge[2*e];
+        }
+        else {
+          *vertid = m->flex_edge[2*e+1];
+        }
+      }
+    }
+  }
+
+  // check vertices if rendered (and edges not checked)
+  else if (flg_vert && !(dim > 1 && flg_skin)) {
+    for (int v=0; v < m->flex_vertnum[flexid]; v++) {
+      // get vertex
+      mjtNum* vpos = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + v);
+
+      // construct sphere geom
+      size[0] = radius;
+
+      // intersect ray with sphere
+      mjtNum sol = mju_rayGeom(vpos, NULL, size, pnt, vec, mjGEOM_SPHERE);
+
+      // update
+      if (sol >= 0 && (x < 0 || sol < x)) {
+        x = sol;
+        *vertid = v;
+      }
+    }
+  }
+
+  // check faces if rendered
+  if (dim > 1 && (flg_face || flg_skin)) {
+    for (int e=0; e < m->flex_elemnum[flexid]; e++) {
+      // skip if 3D element is not visible
+      int elayer = m->flex_elemlayer[m->flex_elemadr[flexid]+e];
+      if (dim == 3 && ((flg_skin && elayer > 0) || (!flg_skin && elayer != flex_layer))) {
+        continue;
+      }
+
+      // get element data
+      const int* edata = m->flex_elem + m->flex_elemdataadr[flexid] + e*(dim+1);
+      mjtNum* v1 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[0]);
+      mjtNum* v2 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[1]);
+      mjtNum* v3 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[2]);
+      mjtNum* v4 = dim == 2 ? NULL : d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[3]);
+      mjtNum* vptr[4][3] = {{v1, v2, v3}, {v1, v2, v4}, {v1, v3, v4}, {v2, v3, v4}};
+      int vid[4][3] = {{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
+
+      // process triangles of this element
+      for (int i=0; i < (dim == 2?1:4); i++) {
+        // copy vertices into triangle representation
+        mjtNum v[3][3];
+        for (int j=0; j < 3; j++)
+          mju_copy3(v[j], vptr[i][j]);
+
+        // intersect ray with triangle
+        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1);
+
+        // update
+        if (sol >= 0 && (x < 0 || sol < x)) {
+          x = sol;
+
+          // construct intersection point
+          mjtNum intersect[3];
+          mju_addScl3(intersect, pnt, vec, sol);
+
+          // find nearest vertex
+          mjtNum dist[3] = {
+            mju_dist3(v[0], intersect),
+            mju_dist3(v[1], intersect),
+            mju_dist3(v[2], intersect)
+          };
+          if (dist[0] <= dist[1] && dist[0] <= dist[2]) {
+            *vertid = edata[vid[i][0]];
+          } else if (dist[1] <= dist[2]){
+            *vertid = edata[vid[i][1]];
+          } else {
+            *vertid = edata[vid[i][2]];
+          }
+        }
+      }
+    }
+  }
+
+  return x;
 }
 
 
@@ -815,7 +1068,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
   mju_normalize3(b0);
 
   // init solution
-  mjtNum x = -1, sol;
+  mjtNum x = -1;
 
   // process all faces
   for (int i=0; i < nface; i++) {
@@ -834,7 +1087,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
     }
 
     // solve
-    sol = ray_triangle(v, pnt, vec, b0, b1);
+    mjtNum sol = ray_triangle(v, pnt, vec, b0, b1);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {
@@ -869,7 +1122,7 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
   // compute point in local coordinates of the box
   mju_sub3(point, pnt, xpos);
-  mju_rotVecMatT(point, point, xmat);
+  mju_mulMatTVec3(point, xmat, point);
   mju_subFrom3(point, aabb);
 
   // check intersections
@@ -884,14 +1137,13 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
 
 
-//---------------------------- main entry point ---------------------------------------------------
+//---------------------------- main entry point ----------------------------------------------------
 
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-              int geomid[1]) {
+              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude, int geomid[1]) {
   mjtNum dist, newdist;
 
   // check vector length
@@ -901,7 +1153,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
 
   // clear result
   dist = -1;
-  *geomid = -1;
+  if (geomid) *geomid = -1;
 
   // loop over geoms not eliminated by mask and bodyexclude
   for (int i=0; i < m->ngeom; i++) {
@@ -911,6 +1163,8 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
         newdist = mj_rayMesh(m, d, i, pnt, vec);
       } else if (m->geom_type[i] == mjGEOM_HFIELD) {
         newdist = mj_rayHfield(m, d, i, pnt, vec);
+      } else if (m->geom_type[i] == mjGEOM_SDF) {
+        newdist = ray_sdf(m, d, i, pnt, vec);
       }
 
       // otherwise general dispatch
@@ -922,7 +1176,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
       // update if closer intersection found
       if (newdist >= 0 && (newdist < dist || dist < 0)) {
         dist = newdist;
-        *geomid = i;
+        if (geomid) *geomid = i;
       }
     }
   }
@@ -984,7 +1238,7 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
         vert[2] = (v&4 ? aabb[2]+aabb[5] : aabb[2]-aabb[5]);
 
         // rotate to the world frame
-        mju_rotVecMat(box, vert, xmat);
+        mju_mulMatVec3(box, xmat, vert);
         mju_addTo3(box, xpos);
 
         // spherical coordinates
@@ -1068,6 +1322,8 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
         newdist = mj_rayMesh(m, d, i, pnt, vec);
       } else if (m->geom_type[i] == mjGEOM_HFIELD) {
         newdist = mj_rayHfield(m, d, i, pnt, vec);
+      } else if (m->geom_type[i] == mjGEOM_SDF) {
+        newdist = ray_sdf(m, d, i, pnt, vec);
       }
 
       // otherwise general dispatch
@@ -1092,10 +1348,10 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate source
-  mjtNum* geom_ba = mj_stackAlloc(d, 4*m->ngeom);
+  mjtNum* geom_ba = mj_stackAllocNum(d, 4*m->ngeom);
   int* geom_eliminate = mj_stackAllocInt(d, m->ngeom);
 
   // initialize source
@@ -1107,5 +1363,5 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
     dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, geomid+i);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

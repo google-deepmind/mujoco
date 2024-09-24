@@ -1,0 +1,47 @@
+<mujoco model="Tendon">
+  <option solver="PGS"/>
+
+  <default>
+    <site size=".02" rgba="0 .8 0 1"/>
+    <geom condim="1"/>
+  </default>
+
+  <worldbody>
+    <light pos="1 0 4" dir="-1 0 -4"/>
+    <light pos="-1 0 4" dir="1 0 -4"/>
+    <geom type="plane" size="2 2 .01"/>
+    <site name="ceiling" pos="0.01 0.02 2.4"/>
+
+    <body pos="0 0 1.5">
+      <freejoint/>
+      <site name="hook" pos="0 0 .3"/>
+      <site name="bulb"/>
+      <geom name="bulb" size=".3" rgba="0 0 .8 1" density="100" contype="0" conaffinity="0"/>
+    </body>
+
+    <replicate count="18" euler="0 0 20">
+      <body pos=".2 0 1.5">
+        <freejoint/>
+        <site name="a"/>
+        <geom rgba=".8 0 .4 1" size=".03"/>
+      </body>
+      <body pos="1.2 0 1.5">
+        <freejoint/>
+        <site name="b"/>
+        <geom rgba=".8 .4 0 1" size=".1"/>
+      </body>
+    </replicate>
+  </worldbody>
+
+  <tendon>
+    <spatial springlength="0 0.5" stiffness="10000">
+      <site site="ceiling"/>
+      <site site="hook"/>
+    </spatial>
+    <spatial range="0 0.5">
+      <site site="a"/>
+      <geom geom="bulb" sidesite="bulb"/>
+      <site site="b"/>
+    </spatial>
+  </tendon>
+</mujoco>

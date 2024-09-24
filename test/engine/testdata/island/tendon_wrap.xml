@@ -1,0 +1,56 @@
+<mujoco>
+  <option>
+    <flag island="enable"/>
+  </option>
+
+  <default>
+    <joint type="slide" axis="1 0 0" damping="3" frictionloss=".1"/>
+    <geom type="cylinder" size=".07 .1" zaxis="0 1 0"/>
+    <site size=".015" rgba="1 0 0 1"/>
+  </default>
+
+  <worldbody>
+    <site name="anchor" pos="0 0 1"/>
+
+    <body pos="0 0 .75">
+      <joint stiffness="10"/>
+      <geom name="0"/>
+    </body>
+    <site name="side0" pos=".15 0 .75" rgba="0 0 1 1"/>
+
+    <site name="01" pos="0 0 .625"/>
+
+    <body pos="0 0 .5">
+      <joint stiffness="30"/>
+      <geom name="1"/>
+    </body>
+    <site name="side1" pos="-.15 0 .5" rgba="0 0 1 1"/>
+
+    <site name="12" pos="0 0 .375"/>
+
+    <body pos="0 0 .25">
+      <joint stiffness="100"/>
+      <geom name="2"/>
+    </body>
+    <site name="side2" pos=".15 0 .25" rgba="0 0 1 1"/>
+
+    <body>
+      <freejoint/>
+      <site name="box" pos="0 0 .1"/>
+      <geom type="box" size=".1 .1 .1"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial limited="true" range="0 1.05" rgba="0 1 0 1" width=".005">
+      <site site="anchor"/>
+      <geom geom="0" sidesite="side0"/>
+      <site site="01"/>
+      <geom geom="1" sidesite="side1"/>
+      <site site="12"/>
+      <geom geom="2" sidesite="side2"/>
+      <site site="box"/>
+    </spatial>
+  </tendon>
+</mujoco>
+

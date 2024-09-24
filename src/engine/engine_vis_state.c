@@ -48,19 +48,19 @@ static inline size_t roundUpToCacheLine(size_t n) {
 // set default scene
 void mjv_defaultSceneState(mjvSceneState* scnstate) {
   memset(scnstate, 0, sizeof(mjvSceneState));
-  mjv_defaultScene(&scnstate->plugincache);
+  mjv_defaultScene(&scnstate->scratch);
 }
 
 
 
 // allocate and init scene state
 void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnstate, int maxgeom) {
-  mjv_freeScene(&scnstate->plugincache);
+  mjv_freeScene(&scnstate->scratch);
   mju_free(scnstate->buffer);
 
 #ifdef MEMORY_SANITIZER
   __msan_allocated_memory(scnstate, sizeof(mjvSceneState));
-  mjv_defaultScene(&scnstate->plugincache);
+  mjv_defaultScene(&scnstate->scratch);
 #endif
 
   scnstate->nbuffer = 0;
@@ -86,9 +86,22 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 #undef XMJV
 #undef X
 
+  // create an arena in the scnstate, to allow visualization code to use the stack.
+  // TODO: Consider allocating way less than narena, since stack allocations in
+  // visualization code are much smaller than the arena space required by the model,
+  // typically.
+  scnstate->nbuffer += roundUpToCacheLine(m->narena);
+  // buffer space required for contacts
   int condimmax = mj_isPyramidal(m) ? 10 : 6;
-  scnstate->nbuffer += roundUpToCacheLine(sizeof(mjContact) * maxgeom);
-  scnstate->nbuffer += roundUpToCacheLine(sizeof(mjtNum) * maxgeom * condimmax);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->contact) * maxgeom);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->efc_force) * maxgeom * condimmax);
+
+  // buffer space required for islands
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->island_dofadr) * m->ntree);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->island_dofind) * m->nv);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->dof_island) * m->nv);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->efc_island) * maxgeom * condimmax);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->tendon_efcadr) * m->ntendon);
 
   scnstate->buffer = mju_malloc(scnstate->nbuffer);
 
@@ -110,25 +123,44 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 #undef XMJV
 #undef X
 
+  scnstate->model.narena = m->narena;
+  scnstate->data.arena = (void*)ptr;
+  ptr += roundUpToCacheLine(m->narena);
+
   scnstate->data.contact = (mjContact*)ptr;
-  ptr += roundUpToCacheLine(sizeof(mjContact) * scnstate->maxgeom);
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.contact) * scnstate->maxgeom);
 
   scnstate->data.efc_force = (mjtNum*)ptr;
-  ptr += roundUpToCacheLine(sizeof(mjtNum) * scnstate->maxgeom * condimmax);
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.efc_force) * scnstate->maxgeom * condimmax);
+
+  scnstate->data.island_dofadr = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.island_dofadr) * scnstate->model.ntree);
+
+  scnstate->data.island_dofind = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.island_dofind) * scnstate->model.nv);
+
+  scnstate->data.dof_island = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.dof_island) * scnstate->model.nv);
+
+  scnstate->data.efc_island = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.efc_island) * scnstate->maxgeom * condimmax);
+
+  scnstate->data.tendon_efcadr = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.tendon_efcadr) * m->ntendon);
 
   // should not occur
   if (ptr - (char*)scnstate->buffer != scnstate->nbuffer) {
     mjERROR("mjvSceneState buffer is not fully used");
   }
 
-  mjv_makeScene(m, &scnstate->plugincache, maxgeom);
+  mjv_makeScene(m, &scnstate->scratch, maxgeom);
 }
 
 
 
 // free scene state
 void mjv_freeSceneState(mjvSceneState* scnstate) {
-  mjv_freeScene(&scnstate->plugincache);
+  mjv_freeScene(&scnstate->scratch);
   mju_free(scnstate->buffer);
   mjv_defaultSceneState(scnstate);
 }
@@ -154,6 +186,7 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     m->opt = scnstate->model.opt;
     m->vis = scnstate->model.vis;
     m->stat = scnstate->model.stat;
+    m->narena = scnstate->model.narena;
 
 #define X(dtype, var, dim0, dim1)
 #define XMJV(dtype, var, dim0, dim1) m->var = scnstate->model.var;
@@ -171,9 +204,16 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
 #endif
 
     memcpy(d->warning, scnstate->data.warning, sizeof(d->warning));
+    d->threadpool = 0;
     d->nefc = scnstate->data.nefc;
     d->ncon = scnstate->data.ncon;
+    d->nisland = scnstate->data.nisland;
     d->time = scnstate->data.time;
+    d->narena = scnstate->model.narena;
+    d->arena = scnstate->data.arena;
+    d->parena = 0;
+    d->pbase = 0;
+    d->pstack = 0;
 
   #define X(dtype, var, dim0, dim1)
   #define XMJV(dtype, var, dim0, dim1) d->var = scnstate->data.var;
@@ -183,6 +223,11 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
 
     d->contact = scnstate->data.contact;
     d->efc_force = scnstate->data.efc_force;
+    d->island_dofadr = scnstate->data.island_dofadr;
+    d->island_dofind = scnstate->data.island_dofind;
+    d->dof_island = scnstate->data.dof_island;
+    d->efc_island = scnstate->data.efc_island;
+    d->tendon_efcadr = scnstate->data.tendon_efcadr;
   }
 }
 
@@ -200,23 +245,29 @@ int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt
   int warning_start = d.warning[mjWARN_VGEOMFULL].number;
 
   // copy mjvGeoms added by plugins
-  int nplugingeom = scnstate->plugincache.ngeom;
+  int nplugingeom = scnstate->scratch.ngeom;
   if (nplugingeom > scn->maxgeom) {
     mj_warning(&d, mjWARN_VGEOMFULL, scn->maxgeom);
     scn->ngeom = scn->maxgeom;
   } else {
     scn->ngeom = nplugingeom;
   }
-  memcpy(scn->geoms, scnstate->plugincache.geoms, sizeof(mjvGeom) * scn->ngeom);
+  memcpy(scn->geoms, scnstate->scratch.geoms, sizeof(mjvGeom) * scn->ngeom);
 
   // add all categories
   mjv_addGeoms(&m, &d, opt, pert, catmask, scn);
 
+  // update camera
+  mjv_updateCamera(&m, &d, cam, scn);
+
   // add lights
   mjv_makeLights(&m, &d, scn);
 
-  // update camera
-  mjv_updateCamera(&m, &d, cam, scn);
+  // update flexes
+  if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||
+      opt->flags[mjVIS_FLEXFACE] || opt->flags[mjVIS_FLEXSKIN]) {
+    mjv_updateActiveFlex(&m, &d, scn, opt);
+  }
 
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
@@ -234,16 +285,16 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
                           mjvSceneState* scnstate) {
   // Check that mjModel sizes haven't changed.
 #define X(var)
-#define XMJV(var)                      \
-  if (scnstate->model.var != m->var) { \
-    mjERROR("m->%s changed", #var);  \
+#define XMJV(var)                                                          \
+  if (scnstate->model.var != m->var) {                                     \
+    mjERROR("m->%s changed: %d vs %d", #var, scnstate->model.var, m->var); \
   }
   MJMODEL_INTS
 #undef XMJV
 #undef X
 
   // Update plugin visualization cache.
-  scnstate->plugincache.ngeom = 0;
+  scnstate->scratch.ngeom = 0;
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
     // iterate over plugins, call visualize if defined
@@ -254,7 +305,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
         mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
-        plugin->visualize(m, d, opt, &scnstate->plugincache, i);
+        plugin->visualize(m, d, opt, &scnstate->scratch, i);
       }
     }
   }
@@ -291,16 +342,17 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
     } else {
       scnstate->data.ncon = d->ncon;
     }
-    memcpy(scnstate->data.contact, d->contact, sizeof(mjContact) * scnstate->data.ncon);
+    memcpy(scnstate->data.contact, d->contact, sizeof(*d->contact) * scnstate->data.ncon);
   }
 
-  // Copy only the entries in efc_force that correspond to contacts.
+  // Copy only the entries in efc_force and efc_island that correspond to contacts.
   {
     scnstate->data.nefc = 0;
     for (int i = 0; i < scnstate->data.ncon; ++i) {
       const mjContact* con = &d->contact[i];
       scnstate->data.nefc += con->dim;
     }
+    scnstate->data.nefc += scnstate->model.ntendon;
 
     int efc_address = 0;
     int ispyramid = mj_isPyramidal(m);
@@ -312,10 +364,30 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
       }
       for (int j = 0; j < dim; ++j) {
         scnstate->data.efc_force[efc_address + j] = d->efc_force[con->efc_address + j];
+        if (d->nisland) {
+          scnstate->data.efc_island[efc_address + j] = d->efc_island[con->efc_address + j];
+        }
       }
       con->efc_address = efc_address;
       efc_address += dim;
     }
+    if (d->nisland) {
+      for (int i = 0; i < scnstate->model.ntendon; ++i) {
+        int efcadr = d->tendon_efcadr[i];
+        if (efcadr != -1) {
+          scnstate->data.efc_island[efcadr] = d->efc_island[efcadr];
+        }
+      }
+    }
+  }
+
+  // Copy island data.
+  scnstate->data.nisland = d->nisland;
+  if (d->nisland) {
+    memcpy(scnstate->data.island_dofadr, d->island_dofadr, sizeof(*d->island_dofadr) * d->nisland);
+    memcpy(scnstate->data.island_dofind, d->island_dofind, sizeof(*d->island_dofind) *  m->nv);
+    memcpy(scnstate->data.dof_island, d->dof_island, sizeof(*d->dof_island) * m->nv);
+    memcpy(scnstate->data.tendon_efcadr, d->tendon_efcadr, sizeof(*d->tendon_efcadr) * m->ntendon);
   }
 }
 

@@ -20,8 +20,10 @@ set(MUJOCO_ELASTICITY_SRCS
     cable.cc
     cable.h
     elasticity.cc
-    solid.cc
-    solid.h
+    elasticity.h
+    register.cc
+    shell.cc
+    shell.h
 )
 
 add_library(elasticity SHARED)

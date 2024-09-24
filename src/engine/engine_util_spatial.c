@@ -14,8 +14,6 @@
 
 #include "engine/engine_util_spatial.h"
 
-#include <math.h>
-
 #include <mujoco/mjmodel.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -25,18 +23,25 @@
 
 // rotate vector by quaternion
 void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
+  // zero vec: zero res
+  if (vec[0] == 0 && vec[1] == 0 && vec[2] == 0) {
+    mju_zero3(res);
+  }
+
   // null quat: copy vec
-  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
+  else if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
     mju_copy3(res, vec);
   }
 
   // regular processing
   else {
-    mjtNum tmp[3];
     // tmp = q_w * v + cross(q_xyz, v)
-    tmp[0] = quat[0]*vec[0] + quat[2]*vec[2] - quat[3]*vec[1];
-    tmp[1] = quat[0]*vec[1] + quat[3]*vec[0] - quat[1]*vec[2];
-    tmp[2] = quat[0]*vec[2] + quat[1]*vec[1] - quat[2]*vec[0];
+    mjtNum tmp[3] = {
+      quat[0]*vec[0] + quat[2]*vec[2] - quat[3]*vec[1],
+      quat[0]*vec[1] + quat[3]*vec[0] - quat[1]*vec[2],
+      quat[0]*vec[2] + quat[1]*vec[1] - quat[2]*vec[0]
+    };
+
     // res = v + 2 * cross(q_xyz, t)
     res[0] = vec[0] + 2 * (quat[2]*tmp[2] - quat[3]*tmp[1]);
     res[1] = vec[1] + 2 * (quat[3]*tmp[0] - quat[1]*tmp[2]);
@@ -240,8 +245,8 @@ void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale) {
   mju_copy3(tmp, vel);
   angle = scale * mju_normalize3(tmp);
   mju_axisAngle2Quat(qrot, tmp, angle);
-  mju_mulQuat(quat, quat, qrot);
   mju_normalize4(quat);
+  mju_mulQuat(quat, quat, qrot);
 }
 
 
@@ -264,7 +269,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   a = mju_normalize3(axis);
 
   // almost parallel
-  if (fabs(a) < mjMINVAL) {
+  if (mju_abs(a) < mjMINVAL) {
     // opposite: 180 deg rotation around x axis
     if (mju_dot3(vn, z) < 0) {
       quat[0] = 0;
@@ -464,8 +469,8 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
 
   // apply rotation if provided
   if (rotnew2old) {
-    mju_rotVecMatT(res, tran, rotnew2old);
-    mju_rotVecMatT(res+3, tran+3, rotnew2old);
+    mju_mulMatTVec3(res, rotnew2old, tran);
+    mju_mulMatTVec3(res+3, rotnew2old, tran+3);
   }
 
   // otherwise copy
@@ -503,4 +508,42 @@ void mju_makeFrame(mjtNum frame[9]) {
 
   // zaxis = cross(xaxis, yaxis)
   mju_cross(frame+6, frame, frame+3);
+}
+
+
+
+// convert sequence of Euler angles (radians) to quaternion
+// seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations
+void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq) {
+  if (strnlen(seq, 4) != 3) {
+    mjERROR("seq must contain exactly 3 characters");
+  }
+
+  // init
+  mjtNum tmp[4] = {1, 0, 0, 0};
+
+  // loop over euler angles, accumulate rotations
+  for (int i=0; i<3; i++) {
+    // construct quaternion rotation
+    mjtNum rot[4] = {cos(euler[i]/2), 0, 0, 0};
+    mjtNum sa = sin(euler[i]/2);
+    if (seq[i]=='x' || seq[i]=='X') {
+      rot[1] = sa;
+    } else if (seq[i]=='y' || seq[i]=='Y') {
+      rot[2] = sa;
+    } else if (seq[i]=='z' || seq[i]=='Z') {
+      rot[3] = sa;
+    } else {
+      mjERROR("seq[%d] is '%c', should be one of x, y, z, X, Y, Z", i, seq[i]);
+    }
+
+    // accumulate rotation
+    if (seq[i]=='x' || seq[i]=='y' || seq[i]=='z') {
+      mju_mulQuat(tmp, tmp, rot);  // moving axes: post-multiply
+    } else {
+      mju_mulQuat(tmp, rot, tmp);  // fixed axes: pre-multiply
+    }
+  }
+
+  mju_copy4(quat, tmp);
 }

@@ -58,6 +58,11 @@ MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
 MJAPI mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
                          const mjtNum* pnt, const mjtNum* vec, int geomtype);
 
+// intersect ray with flex, return nearest vertex id
+MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
+                         mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
+                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+
 // intersect ray with skin, return nearest vertex id
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum* pnt, const mjtNum* vec, int vertid[1]);

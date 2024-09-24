@@ -33,6 +33,9 @@ MJAPI void mj_comPos(const mjModel* m, mjData* d);
 // compute camera and light positions and orientations
 MJAPI void mj_camlight(const mjModel* m, mjData* d);
 
+// compute flex-related quantities
+MJAPI void mj_flex(const mjModel* m, mjData* d);
+
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 
@@ -41,9 +44,6 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 
 
 //-------------------------- inertia ---------------------------------------------------------------
-
-// composite rigid body inertia algorithm, with skip
-void mj_crbSkip(const mjModel* m, mjData* d, int skipsimple);
 
 // composite rigid body inertia algorithm
 MJAPI void mj_crb(const mjModel* m, mjData* d);
@@ -61,6 +61,9 @@ MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, int n,
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d
 MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+
+// sparse backsubstitution for one island:  x = inv(L'*D*L)*x, use factorization in d
+MJAPI void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* x, int island);
 
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);

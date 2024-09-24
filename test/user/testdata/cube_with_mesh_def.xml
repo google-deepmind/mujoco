@@ -1,0 +1,15 @@
+<mujoco>
+  <default>
+    <default class="mesh">
+      <mesh scale="2 2 2"/>
+    </default>
+  </default>
+
+  <asset>
+    <mesh file="cube.obj" class="mesh"/>
+  </asset>
+
+  <worldbody>
+    <geom type="mesh" mesh="cube"/>
+  </worldbody>
+</mujoco>

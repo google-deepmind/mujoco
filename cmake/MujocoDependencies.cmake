@@ -26,6 +26,10 @@ set(MUJOCO_DEP_VERSION_tinyobjloader
     1421a10d6ed9742f5b2c1766d22faa6cfbc56248
     CACHE STRING "Version of `tinyobjloader` to be fetched."
 )
+set(MUJOCO_DEP_VERSION_MarchingCubeCpp
+    f03a1b3ec29b1d7d865691ca8aea4f1eb2c2873d
+    CACHE STRING "Version of `MarchingCubeCpp` to be fetched."
+)
 set(MUJOCO_DEP_VERSION_ccd
     7931e764a19ef6b21b443376c699bbc9c6d4fba8 # v2.1
     CACHE STRING "Version of `ccd` to be fetched."
@@ -35,26 +39,32 @@ set(MUJOCO_DEP_VERSION_qhull
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    969c31eefcdfaab11da763bea3f7502086673ab0
+    f33af052e0e60d4aa367328e7d9dffc9dedca6d8
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    c2435f8342c2d0ed8101cb43adfd605fdc52dca2 # LTS 20230125.3
+    4447c7562e3bc702ade25105912dce503f0c4010 # LTS 20240722.0
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    b796f7d44681514f58a683a3a71ff17c94edb0c1 # v1.13.0
+    b514bdc898e2951020cbdca1304b75f5950d1f59 # v1.15.2
     CACHE STRING "Version of `gtest` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    2dd015dfef425c866d9a43f2c67d8b52d709acb6 # v1.8.0
+    7c8ed6b082aa3c7a3402f18e50da4480421d08fd # v1.8.4
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
+set(MUJOCO_DEP_VERSION_sdflib
+    1927bee6bb8225258a39c8cbf14e18a4d50409ae
+    CACHE STRING "Version of `SdfLib` to be fetched."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
+mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyobjloader)
 mark_as_advanced(MUJOCO_DEP_VERSION_ccd)
@@ -63,6 +73,7 @@ mark_as_advanced(MUJOCO_DEP_VERSION_Eigen3)
 mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
+mark_as_advanced(MUJOCO_DEP_VERSION_sdflib)
 
 include(FetchContent)
 include(FindOrFetch)
@@ -96,6 +107,20 @@ if(NOT TARGET lodepng)
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
     target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+  endif()
+endif()
+
+if(NOT TARGET marchingcubecpp)
+  FetchContent_Declare(
+    marchingcubecpp
+    GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+  )
+
+  FetchContent_GetProperties(marchingcubecpp)
+  if(NOT marchingcubecpp_POPULATED)
+    FetchContent_Populate(marchingcubecpp)
+    include_directories(${marchingcubecpp_SOURCE_DIR})
   endif()
 endif()
 
@@ -158,6 +183,27 @@ findorfetch(
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+
+option(SDFLIB_USE_ASSIMP OFF)
+option(SDFLIB_USE_OPENMP OFF)
+option(SDFLIB_USE_ENOKI OFF)
+findorfetch(
+  USE_SYSTEM_PACKAGE
+  OFF
+  PACKAGE_NAME
+  sdflib
+  LIBRARY_NAME
+  sdflib
+  GIT_REPO
+  https://github.com/UPC-ViRVIG/SdfLib.git
+  GIT_TAG
+  ${MUJOCO_DEP_VERSION_sdflib}
+  TARGETS
+  SdfLib
+  EXCLUDE_FROM_ALL
+)
+target_compile_options(SdfLib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(SdfLib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)

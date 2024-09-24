@@ -12,31 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
-#include "user/user_model.h"
-#include "user/user_objects.h"
+#include <mujoco/mjspec.h>
+#include "user/user_api.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_urdf.h"
+#include "xml/xml_util.h"
 
 #include "tinyxml2.h"
 
 using tinyxml2::XMLElement;
 
 // URDF joint type
-static const int urJoint_sz = 6;
+static const int urJoint_sz = 7;
 static const mjMap urJoint_map[urJoint_sz] = {
   {"revolute",    0},
   {"continuous",  1},
   {"prismatic",   2},
   {"fixed",       3},
   {"floating",    4},
-  {"planar",      5}
+  {"planar",      5},
+  {"spherical",   6}  // Bullet physics supports ball joints (non-standard URDF)
 };
 
 
@@ -58,7 +62,7 @@ mjXURDF::~mjXURDF() {
 
 // clear internal variables
 void mjXURDF::Clear(void) {
-  model = 0;
+  spec = 0;
 
   urName.clear();
   urParent.clear();
@@ -79,37 +83,39 @@ std::string mjXURDF::GetPrefixedName(const std::string& name) {
 }
 
 // actual parser
-void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, double* quat) {
+void mjXURDF::Parse(
+    XMLElement* root, const std::string& prefix, double* pos, double* quat,
+    const bool static_body) {
   std::string name, text;
   XMLElement *elem, *temp;
   int id_parent, id_child;
   urPrefix = prefix;
-
-  // set compiler defaults suitable for URDF
-  model->discardvisual = true;
 
   // parse MuJoCo sections (not part of URDF)
   XMLElement* mjc = FindSubElem(root, "mujoco");
   if (mjc) {
     XMLElement *section;
     if ((section = FindSubElem(mjc, "compiler"))) {
-      mjXReader::Compiler(section, model);
+      mjXReader::Compiler(section, spec);
     }
 
     if ((section = FindSubElem(mjc, "option"))) {
-      mjXReader::Option(section, &model->option);
+      mjXReader::Option(section, &spec->option);
     }
 
     if ((section = FindSubElem(mjc, "size"))) {
-      mjXReader::Size(section, model);
+      mjXReader::Size(section, spec);
     }
   }
 
   // enforce required compiler defaults for URDF
-  model->degree = false;
+  spec->degree = false;
 
   // get model name
-  ReadAttrTxt(root, "name", model->modelname);
+  std::string modelname;
+  if (ReadAttrTxt(root, "name", modelname)) {
+    mjs_setString(spec->modelname, modelname.c_str());
+  }
 
   // find and register all materials
   MakeMaterials(root);
@@ -202,15 +208,16 @@ void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, do
   // override the pose for the base link and add a free joint
   for (int i = 0; i < (int)urName.size(); i++) {
     if (urParent[i] < 0) {
-      mjCBody* pbody = (mjCBody*)model->GetWorld()->FindObject(mjOBJ_BODY, urName[i]);
+      mjsBody* world = mjs_findBody(spec, "world");
+      mjsBody* pbody = mjs_findChild(world, urName[i].c_str());
       mjuu_copyvec(pbody->pos, pos, 3);
       mjuu_copyvec(pbody->quat, quat, 4);
 
       // add a free joint to allow motion of the body
       // if the mass is 0, assume the object is static
-      if (pbody->mass > 0) {
-        auto pjoint = pbody->AddJoint();
-        pjoint->name = urName[i] + "_free_joint";
+      if (!static_body && pbody->mass > 0) {
+        mjsJoint* pjoint = mjs_addJoint(pbody, 0);
+        mjs_setString(pjoint->name, (urName[i] + "_free_joint").c_str());
         pjoint->type = mjJNT_FREE;
       }
     }
@@ -221,13 +228,14 @@ void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, do
 void mjXURDF::Body(XMLElement* body_elem) {
   std::string name, text;
   XMLElement *elem, *temp, *temp1;
-  mjCBody* pbody;
-  mjCGeom* pgeom;
+  mjsBody *pbody, *world;
+  mjsGeom* pgeom;
 
-  // get body name and pointer to mjCBody
+  // get body name and pointer to mjsBody
   ReadAttrTxt(body_elem, "name", name, true);
   name = GetPrefixedName(name);
-  pbody = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
+  world = mjs_findBody(spec, "world");
+  pbody = mjs_findChild(world, name.c_str());
   if (!pbody) {
     throw mjXError(body_elem, "URDF body not found");  // SHOULD NOT OCCUR
   }
@@ -243,21 +251,32 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
     // inertia
     temp = FindSubElem(elem, "inertia", true);
-    mjCAlternative alt;
-    ReadAttr(temp, "ixx", 1, alt.fullinertia+0, text, true);
-    ReadAttr(temp, "iyy", 1, alt.fullinertia+1, text, true);
-    ReadAttr(temp, "izz", 1, alt.fullinertia+2, text, true);
-    ReadAttr(temp, "ixy", 1, alt.fullinertia+3, text, true);
-    ReadAttr(temp, "ixz", 1, alt.fullinertia+4, text, true);
-    ReadAttr(temp, "iyz", 1, alt.fullinertia+5, text, true);
+    ReadAttr(temp, "ixx", 1, pbody->fullinertia+0, text, true);
+    ReadAttr(temp, "iyy", 1, pbody->fullinertia+1, text, true);
+    ReadAttr(temp, "izz", 1, pbody->fullinertia+2, text, true);
+    ReadAttr(temp, "ixy", 1, pbody->fullinertia+3, text, true);
+    ReadAttr(temp, "ixz", 1, pbody->fullinertia+4, text, true);
+    ReadAttr(temp, "iyz", 1, pbody->fullinertia+5, text, true);
+
+    // If the inertias are all 0 in a URDF then it is still undefined.
+    bool inertia_defined = false;
+    for (int i = 0; i < 6; ++i) {
+      if (pbody->fullinertia[i] != 0) {
+        inertia_defined = true;
+        break;
+      }
+    }
+    if (!inertia_defined) {
+      pbody->fullinertia[0] = mjNAN;
+    }
 
     // process inertia
     //  lquat = rotation from specified to default (joint/body) inertial frame
-    double lquat[4], tmpquat[4];
-    const char* altres =
-      alt.Set(lquat, pbody->inertia, model->degree, model->euler);
+    double lquat[4] = {1, 0, 0, 0};
+    double tmpquat[4] = {1, 0, 0, 0};
+    const char* altres = mjuu_fullInertia(lquat, nullptr, pbody->fullinertia);
 
-    // inertia are sometimes 0 in URDF files: ignore error in altres, fix later
+    // inertias are sometimes 0 in URDF files: ignore error in altres, fix later
     (void) altres;
 
     // correct for alignment of full inertia matrix
@@ -297,7 +316,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         }
       }
       // create geom if not discarded
-      if (!model->discardvisual) {
+      if (!spec->discardvisual) {
         pgeom = Geom(elem, pbody, false);
 
         // save color
@@ -309,7 +328,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         mjXUtil::ReadAttrTxt(elem, "name", geom_name);
         name = GetPrefixedName(name);
         if (urGeomNames.find(geom_name) == urGeomNames.end()) {
-          pgeom->name = geom_name;
+          mjs_setString(pgeom->name, geom_name.c_str());
           urGeomNames.insert(geom_name);
         } else {
           std::cerr << "WARNING: Geom with duplicate name '" << geom_name
@@ -332,7 +351,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
       mjXUtil::ReadAttrTxt(elem, "name", geom_name);
       geom_name = GetPrefixedName(geom_name);
       if (urGeomNames.find(geom_name) == urGeomNames.end()) {
-        pgeom->name = geom_name;
+        mjs_setString(pgeom->name, geom_name.c_str());
         urGeomNames.insert(geom_name);
       } else {
         std::cerr << "WARNING: Geom with duplicate name '" << geom_name
@@ -345,20 +364,20 @@ void mjXURDF::Body(XMLElement* body_elem) {
   }
 }
 
-void mjXURDF::Parse(XMLElement* root) {
+void mjXURDF::Parse(XMLElement* root, const mjVFS* vfs) {
   double pos[3] = {0};
   mjuu_setvec(pos, 0, 0, 0);
   double quat[4] = {1, 0, 0, 0};
   mjuu_setvec(quat, 1, 0, 0, 0);
-  Parse(root, /*prefix=*/"", pos, quat);
+  Parse(root, /*prefix=*/"", pos, quat, true);
 }
 
 // parse joint
 void mjXURDF::Joint(XMLElement* joint_elem) {
   std::string jntname, name, text;
   XMLElement *elem;
-  mjCBody *pbody, *parent;
-  mjCJoint *pjoint=0, *pjoint1=0, *pjoint2=0;
+  mjsBody *pbody, *parent, *world;
+  mjsJoint *pjoint=0, *pjoint1=0, *pjoint2=0;
   int jointtype;
 
   // get type and name
@@ -368,12 +387,13 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     throw mjXError(joint_elem, "invalid joint type in URDF joint definition");
   }
   ReadAttrTxt(joint_elem, "name", jntname, true);
-
+  jntname = GetPrefixedName(jntname);
   // get parent, check
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);
   name = GetPrefixedName(name);
-  parent = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
+  world = mjs_findBody(spec, "world");
+  parent = mjs_findChild(world, name.c_str());
   if (!parent) {                      // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid parent name in URDF joint definition");
   }
@@ -382,7 +402,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   elem = FindSubElem(joint_elem, "child", true);
   ReadAttrTxt(elem, "link", name, true);
   name = GetPrefixedName(name);
-  pbody = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
+  world = mjs_findBody(spec, "world");
+  pbody = mjs_findChild(world, name.c_str());
   if (!pbody) {                       // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid child name in URDF joint definition");
   }
@@ -399,16 +420,16 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   switch (jointtype) {
   case 0:     // revolute
   case 1:     // continuous
-    pjoint = pbody->AddJoint();
-    pjoint->name = jntname;
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, jntname.c_str());
     pjoint->type = mjJNT_HINGE;
     mjuu_setvec(pjoint->pos, 0, 0, 0);
     mjuu_copyvec(pjoint->axis, axis, 3);
     break;
 
   case 2:     // prismatic
-    pjoint = pbody->AddJoint();
-    pjoint->name = jntname;
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, jntname.c_str());
     pjoint->type = mjJNT_SLIDE;
     mjuu_setvec(pjoint->pos, 0, 0, 0);
     mjuu_copyvec(pjoint->axis, axis, 3);
@@ -418,8 +439,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     return;
 
   case 4:     // floating
-    pjoint = pbody->AddJoint();
-    pjoint->name = jntname;
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, jntname.c_str());
     pjoint->type = mjJNT_FREE;
     break;
 
@@ -429,8 +450,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     mjuu_quat2mat(mat, quat);
 
     // construct slider along x
-    pjoint = pbody->AddJoint();
-    pjoint->name = jntname + "_TX";
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, (jntname + "_TX").c_str());
     pjoint->type = mjJNT_SLIDE;
     tmpaxis[0] = mat[0];
     tmpaxis[1] = mat[3];
@@ -439,8 +460,8 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     mjuu_copyvec(pjoint->axis, tmpaxis, 3);
 
     // construct slider along y
-    pjoint1 = pbody->AddJoint();
-    pjoint1->name = jntname + "_TY";
+    pjoint1 = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint1->name, (jntname + "_TY").c_str());
     pjoint1->type = mjJNT_SLIDE;
     tmpaxis[0] = mat[1];
     tmpaxis[1] = mat[4];
@@ -449,11 +470,19 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     mjuu_copyvec(pjoint1->axis, tmpaxis, 3);
 
     // construct hinge around z = locaxis
-    pjoint2 = pbody->AddJoint();
-    pjoint2->name = jntname + "_RZ";
+    pjoint2 = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint2->name, (jntname + "_RZ").c_str());
     pjoint2->type = mjJNT_HINGE;
     mjuu_setvec(pjoint2->pos, 0, 0, 0);
     mjuu_copyvec(pjoint2->axis, axis, 3);
+    break;
+
+  case 6:  // ball joint
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, jntname.c_str());
+    pjoint->type = mjJNT_BALL;
+    mjuu_setvec(pjoint->pos, 0, 0, 0);
+    mjuu_copyvec(pjoint->axis, axis, 3);
   }
 
   // dynamics element
@@ -470,23 +499,30 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
 
   // limit element
   if ((elem = FindSubElem(joint_elem, "limit"))) {
-    ReadAttr(elem, "lower", 1, pjoint->range, text);
-    ReadAttr(elem, "upper", 1, pjoint->range+1, text);
-    pjoint->limited = (mjuu_defined(pjoint->range[0]) &&
-                       mjuu_defined(pjoint->range[1]) &&
-                       pjoint->range[0] < pjoint->range[1]);
+    bool haslower = ReadAttr(elem, "lower", 1, pjoint->range, text);
+    bool hasupper = ReadAttr(elem, "upper", 1, pjoint->range+1, text);
+
+    // handle range mis-specification, otherwise the default mjLIMITED_AUTO will do the right thing
+    bool bad_range = (haslower != hasupper) || pjoint->range[0] > pjoint->range[1];
+    if (bad_range) {
+      pjoint->limited = mjLIMITED_FALSE;
+    }
 
     // ReadAttr(elem, "velocity", 1, &pjoint->maxvel, text); // no maxvel in MuJoCo
-    ReadAttr(elem, "effort", 1, &pjoint->urdfeffort, text);
-  } else {
-    pjoint->limited = 0;
+    double effort = 0;
+    ReadAttr(elem, "effort", 1, &effort, text);
+    effort = std::abs(effort);
+    if (effort > 0) {
+      pjoint->actfrcrange[0] = -effort;
+      pjoint->actfrcrange[1] = effort;
+    }
   }
 }
 
 
 
 // parse origin and geometry elements of visual or collision
-mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
+mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
   XMLElement *elem, *temp;
   std::string text, meshfile;
 
@@ -494,8 +530,8 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
   elem = FindSubElem(geom_elem, "geometry", true);
 
   // add BOX geom, modify type later
-  mjCGeom* pgeom = pbody->AddGeom();
-  pgeom->name = "";
+  mjsGeom* pgeom = mjs_addGeom(pbody, 0);
+  mjs_setString(pgeom->name, "");
   pgeom->type = mjGEOM_BOX;
   if (collision) {
     pgeom->contype = 1;
@@ -539,14 +575,18 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
 
   // mesh
   else if ((temp = FindSubElem(elem, "mesh"))) {
+    mjsMesh* pmesh = 0;
+    bool newmesh = false;
+
     // set geom type and read mesh attributes
-    double meshscale[3] = {1, 1, 1};
     pgeom->type = mjGEOM_MESH;
-    ReadAttrTxt(temp, "filename", meshfile, true);
-    ReadAttr(temp, "scale", 3, meshscale, text);
+    meshfile = ReadAttrStr(temp, "filename", true).value();
+    std::array<double, 3> default_meshscale = {1, 1, 1};
+    std::array<double, 3> meshscale = ReadAttrArr<double, 3>(temp, "scale")
+                                      .value_or(default_meshscale);
 
     // strip file name if necessary
-    if (model->strippath) {
+    if (spec->strippath) {
       meshfile = mjuu_strippath(meshfile);
     }
 
@@ -554,27 +594,43 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     std::string meshname = mjuu_strippath(meshfile);
     meshname = mjuu_stripext(meshname);
 
-    // look for existing mesh
-    mjCMesh* pmesh = (mjCMesh*)model->FindObject(mjOBJ_MESH, meshname);
+    if (meshes.find(meshname) == meshes.end()) {
+      // does not exist: create
+      pmesh = mjs_addMesh(spec, 0);
+      meshes[meshname].push_back(pmesh);
+      newmesh = true;
+    } else {
+      int i = 0;
 
-    // does not exist: create
-    if (!pmesh) {
-      pmesh = model->AddMesh();
-    }
+      // find if it exists with the same scale
+      for (mjsMesh* mesh : meshes[meshname]) {
+        if (mesh->scale[0] == meshscale[0] &&
+            mesh->scale[1] == meshscale[1] &&
+            mesh->scale[2] == meshscale[2]) {
+          pmesh = mesh;
+          break;
+        }
+        i++;
+      }
 
-    // exists with different scale: append name with '1', create
-    else if (pmesh->scale[0]!=meshscale[0] ||
-             pmesh->scale[1]!=meshscale[1] ||
-             pmesh->scale[2]!=meshscale[2]) {
-      pmesh = model->AddMesh();
-      meshname = meshname + "1";
+      // add a new spec making an incremental new name
+      if (i == meshes[meshname].size()) {
+        pmesh = mjs_addMesh(spec, 0);
+        meshes[meshname].push_back(pmesh);
+        meshname = meshname + std::to_string(i);
+        newmesh = true;
+      }
     }
 
     // set fields
-    pmesh->file = meshfile;
-    pmesh->name = meshname;
-    pgeom->mesh = meshname;
-    mjuu_copyvec(pmesh->scale, meshscale, 3);
+    if (newmesh) {
+      mjs_setString(pmesh->file, meshfile.c_str());
+      mjs_setString(pmesh->name, meshname.c_str());
+      pmesh->scale[0] = meshscale[0];
+      pmesh->scale[1] = meshscale[1];
+      pmesh->scale[2] = meshscale[2];
+    }
+    mjs_setString(pgeom->meshname, meshname.c_str());
   }
 
   else {
@@ -604,9 +660,11 @@ void mjXURDF::Origin(XMLElement* origin_elem, double* pos, double* quat) {
     ReadAttr(temp, "xyz", 3, pos, text);
 
     // orientation
-    mjCAlternative alt;
+    mjsOrientation alt;
+    mjs_defaultOrientation(&alt);
     if (ReadAttr(temp, "rpy", 3, alt.euler, text)) {
-      alt.Set(quat, 0, 0, "XYZ");
+      alt.type = mjORIENTATION_EULER;
+      mjs_resolveOrientation(quat, 0, "XYZ", &alt);
     }
   }
 }
@@ -654,21 +712,22 @@ void mjXURDF::AddBody(std::string name) {
 // add body with given number to the mjCModel tree, process children
 void mjXURDF::AddToTree(int n) {
   // get pointer to parent in mjCModel tree
-  mjCBody *parent = 0, *child = 0;
+  mjsBody *parent = 0, *child = 0, *world = 0;
   if (urParent[n]>=0) {
-    parent = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, urName[urParent[n]]);
+    world = mjs_findBody(spec, "world");
+    parent = mjs_findChild(world, urName[urParent[n]].c_str());
 
     if (!parent)
       throw mjXError(0, "URDF body parent should already be in tree: %s",
                      urName[urParent[n]].c_str());       // SHOULD NOT OCCUR
   } else {
-    parent = model->GetWorld();
+    parent = mjs_findBody(spec, "world");
   }
 
   // add this body
   if (urName[n] != "world") {
-    child = parent->AddBody();
-    child->name = urName[n];
+    child = mjs_addBody(parent, 0);
+    mjs_setString(child->name, urName[n].c_str());
   }
 
   // add children recursively

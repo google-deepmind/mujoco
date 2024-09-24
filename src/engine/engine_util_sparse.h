@@ -25,18 +25,18 @@ extern "C" {
 
 //------------------------------ sparse operations -------------------------------------------------
 
-// dot-product, first vector is sparse
+// dot-product, vec1 is sparse, can be uncompressed
 MJAPI mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                           const int nnz1, const int* ind1);
+                           const int nnz1, const int* ind1, int flg_unc1);
 
-// dot-product, both vectors are sparse
-mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                      const int nnz1, const int* ind1,
-                      const int nnz2, const int* ind2);
+// dot-product, both vectors are sparse, vec2 can be uncompressed
+MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
+                            const int nnz1, const int* ind1,
+                            const int nnz2, const int* ind2, int flg_unc2);
 
 // convert matrix from dense to sparse
-void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      int* rownnz, int* rowadr, int* colind);
+MJAPI void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                            int* rownnz, int* rowadr, int* colind);
 
 // convert matrix from sparse to dense
 void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
@@ -51,14 +51,31 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
                               int* rownnz, int* rowadr, int* colind);
 
+// count the number of non-zeros in the sum of two sparse vectors
+MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
+
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
-int mju_combineSparse(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
+int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
                       mjtNum* buf, int* buf_ind);
 
 // incomplete combine sparse: dst = a*dst + b*src at common indices
 void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
                           int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind);
+
+// dst += src, only at common non-zero indices
+void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
+                        int nnzdst, const int* inddst,
+                        int nnzsrc, const int* indsrc);
+
+// add to sparse matrix: dst = dst + scl*src, return nnz of result
+int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum scl,
+                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
+                       mjtNum* buf, int* buf_ind);
+
+// add(merge) two chains
+int mju_addChains(int* res, int n, int NV1, int NV2,
+                  const int* chain1, const int* chain2);
 
 // transpose sparse matrix
 MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
@@ -82,7 +99,6 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
 MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                                  const mjtNum* mat, const mjtNum* matT,
                                   int nr, int nc,  const int* rownnz,
                                   const int* rowadr, const int* colind,
                                   const int* rownnzT, const int* rowadrT,

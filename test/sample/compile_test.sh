@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MODEL="${CMAKE_SOURCE_DIR}/model/humanoid100/humanoid100.xml"
+MODEL="${CMAKE_SOURCE_DIR}/model/humanoid/humanoid100.xml"
 OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
 
 

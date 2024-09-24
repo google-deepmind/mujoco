@@ -22,9 +22,11 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_io.h"
+#include "engine/engine_name.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -242,8 +244,13 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   // sizes
 #define X( name )                                 \
   if (m->name) {                                  \
+    const char* format = _Generic(                \
+        m->name,                                  \
+        size_t : SIZE_T_FORMAT,                   \
+        default : INT_FORMAT);                    \
     fprintf(fp, NAME_FORMAT, #name);              \
-    fprintf(fp, INT_FORMAT "\n", m->name);        \
+    fprintf(fp, format, m->name);                 \
+    fprintf(fp, "\n");                            \
   }
 
   MJMODEL_INTS
@@ -328,7 +335,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   const int* object_class;
 
 #define X(type, name, num, sz)                                              \
-  if (&m->num == object_class && (strncmp(#name, "name_", 5) != 0) && sz) { \
+  if (&m->num == object_class && (strncmp(#name, "name_", 5) != 0) && sz > 0) { \
     const char* format = _Generic(*m->name,                                 \
                                   double:  float_format,                    \
                                   float:   float_format,                    \
@@ -413,6 +420,16 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     MJMODEL_POINTERS
   }
   if (m->nlight) fprintf(fp, "\n");
+
+  // flexes
+  for (int i=0; i < m->nflex; i++) {
+    fprintf(fp, "\nFLEX %d:\n", i);
+    fprintf(fp, "  " NAME_FORMAT, "name");
+    fprintf(fp, " %s\n", m->names + m->name_flexadr[i]);
+    object_class = &m->nflex;
+    MJMODEL_POINTERS
+  }
+  if (m->nflex) fprintf(fp, "\n");
 
   // meshes
   for (int i=0; i < m->nmesh; i++) {
@@ -507,10 +524,11 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     fprintf(fp, " %s\n", m->names + m->name_tendonadr[i]);
     object_class = &m->ntendon;
     MJMODEL_POINTERS
-    fprintf(fp, "  path         \n");
+    fprintf(fp, "  path\n");
+    fprintf(fp, "    type  objid  prm\n");
     for (int j=0; j < m->tendon_num[i]; j++) {
       int k = m->tendon_adr[i]+j;
-      fprintf(fp, "    %d %d ", m->wrap_type[k], m->wrap_objid[k]);
+      fprintf(fp, "    %d     %d     ", m->wrap_type[k], m->wrap_objid[k]);
       fprintf(fp, float_format, m->wrap_prm[k]);
       fprintf(fp, "\n");
     }
@@ -708,6 +726,15 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
 #undef X
 
+  // BVHs
+  fprintf(fp, "BVH:\n");
+  fprintf(fp, "  %-8s%-8s%-8s%-10s%-s\n","id", "depth", "nodeid", "child[0]" ,"child[1]");
+  for (int i=0; i < m->nbvh; i++) {
+    fprintf(fp, "  %-8d%-8d% -8d% -10d% -d\n",
+            i, m->bvh_depth[i], m->bvh_nodeid[i], m->bvh_child[2*i], m->bvh_child[2*i+1]);
+  }
+  fprintf(fp, "\n");
+
   if (filename) {
     fclose(fp);
   }
@@ -724,18 +751,18 @@ void mj_printModel(const mjModel* m, const char* filename) {
 // valid printf-style format string for a single float value
 void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
                            const char* float_format) {
+  // stack in use, SHOULD NOT OCCUR
+  if (d->pstack) {
+    mjERROR("attempting to print mjData when stack is in use");
+  }
+
   mjtNum *M;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // check format string
   if (!validateFloatFormat(float_format)) {
     mju_warning("WARNING: Received invalid float_format. Using default instead.");
     float_format = FLOAT_FORMAT;
-  }
-
-  // stack in use, SHOULD NOT OCCUR
-  if (d->pstack) {
-    mjERROR("attempting to print mjData when stack is in use");
   }
 
   // get file
@@ -749,12 +776,12 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // check for nullptr
   if (!fp) {
     mju_warning("Could not open file '%s' for writing mjModel", filename);
-    mjFREESTACK;
+    mj_freeStack(d);
     return;
   }
 
   // allocate full inertia
-  M = mj_stackAlloc(d, m->nv*m->nv);
+  M = mj_stackAllocNum(d, m->nv*m->nv);
 
 #ifdef MEMORY_SANITIZER
   // If memory sanitizer is active, d->buffer will be marked as poisoned, even
@@ -770,7 +797,10 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   fprintf(fp, "SIZES\n");
 #define X(type, name)                                                         \
-  if (strcmp(#name, "pstack") != 0 && strcmp(#name, "parena") != 0) {         \
+  if (strcmp(#name, "pstack") != 0 &&                                         \
+      strcmp(#name, "pbase") != 0 &&                                          \
+      strcmp(#name, "parena") != 0 &&                                         \
+      strcmp(#name, "threadpool") != 0) {                                     \
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \
@@ -786,6 +816,16 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   MJDATA_SCALAR
 #undef X
+
+  int threadpool = 0;
+  if (d->threadpool) {
+    threadpool = 1;
+  }
+  fprintf(fp, "  ");
+  fprintf(fp, NAME_FORMAT, "threadpool");
+  fprintf(fp, INT_FORMAT, threadpool);
+  fprintf(fp, "\n");
+
   fprintf(fp, "\n");
 
   // WARNING
@@ -818,24 +858,33 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   // SOLVER STAT
-  if (d->solver_iter) {
+  if (d->nefc) {
     fprintf(fp, "SOLVER STAT\n");
-    fprintf(fp, "  solver_iter = %d\n", d->solver_iter);
-    fprintf(fp, "  solver_nnz = %d\n",  d->solver_nnz);
-    for (int i=0; i < mjMIN(mjNSOLVER, d->solver_iter); i++) {
-      fprintf(fp, "    %d:  improvement = ", i);
-      fprintf(fp, float_format, d->solver[i].improvement);
-      fprintf(fp, "  gradient = ");
-      fprintf(fp, float_format, d->solver[i].gradient);
-      fprintf(fp, "  lineslope = ");
-      fprintf(fp, float_format, d->solver[i].lineslope);
-      fprintf(fp, "\n");
-      fprintf(fp, "        nactive = %d   nchange = %d   neval = %d   nupdate = %d\n",
-              d->solver[i].nactive, d->solver[i].nchange,
-              d->solver[i].neval, d->solver[i].nupdate);
+    fprintf(fp, "  solver_nisland = %d\n", d->solver_nisland);
+    printVector("  solver_fwdinv = ", d->solver_fwdinv, 2, fp, float_format);
+    int nisland_stat = mjMIN(d->solver_nisland, mjNISLAND);
+    for (int island=0; island < nisland_stat; island++) {
+      int niter_stat = mjMIN(mjNSOLVER, d->solver_niter[island]);
+      if (niter_stat) {
+        fprintf(fp, "  ISLAND %d\n", island);
+        fprintf(fp, "    solver_niter = %d\n", d->solver_niter[island]);
+        fprintf(fp, "    solver_nnz = %d\n",  d->solver_nnz[island]);
+        for (int i=0; i < niter_stat; i++) {
+          mjSolverStat* stat = d->solver + island*mjNSOLVER + i;
+          fprintf(fp, "      %d:  improvement = ", i);
+          fprintf(fp, float_format, stat->improvement);
+          fprintf(fp, "    gradient = ");
+          fprintf(fp, float_format, stat->gradient);
+          fprintf(fp, "    lineslope = ");
+          fprintf(fp, float_format, stat->lineslope);
+          fprintf(fp, "\n");
+          fprintf(fp, "          nactive = %d   nchange = %d   neval = %d   nupdate = %d\n",
+                  stat->nactive, stat->nchange,
+                  stat->neval, stat->nupdate);
+        }
+        fprintf(fp, "\n");
+      }
     }
-    printVector("solver_fwdinv = ", d->solver_fwdinv, 2, fp, float_format);
-    fprintf(fp, "\n");
   }
 
   printVector("ENERGY = ", d->energy, 2, fp, float_format);
@@ -852,6 +901,13 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CTRL", m->nu, 1, d->ctrl, fp, float_format);
   printArray("QFRC_APPLIED", m->nv, 1, d->qfrc_applied, fp, float_format);
   printArray("XFRC_APPLIED", m->nbody, 6, d->xfrc_applied, fp, float_format);
+  if (m->neq) {
+    fprintf(fp, NAME_FORMAT, "EQ_ACTIVE");
+    for (int c=0; c < m->neq; c++) {
+      fprintf(fp, " %d", d->eq_active[c]);
+    }
+    fprintf(fp, "\n\n");
+  }
   printArray("MOCAP_POS", m->nmocap, 3, d->mocap_pos, fp, float_format);
   printArray("MOCAP_QUAT", m->nmocap, 4, d->mocap_quat, fp, float_format);
   printArray("QACC", m->nv, 1, d->qacc, fp, float_format);
@@ -878,6 +934,18 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("SUBTREE_COM", m->nbody, 3, d->subtree_com, fp, float_format);
   printArray("CDOF", m->nv, 6, d->cdof, fp, float_format);
   printArray("CINERT", m->nbody, 10, d->cinert, fp, float_format);
+
+  printArray("FLEXVERT_XPOS", m->nflexvert, 3, d->flexvert_xpos, fp, float_format);
+  printArray("FLEXELEM_AABB", m->nflexelem, 6, d->flexelem_aabb, fp, float_format);
+  if (!mj_isSparse(m)) {
+    printArray("FLEXEDGE_J", m->nflexedge, m->nv, d->flexedge_J, fp, float_format);
+  } else {
+    printArrayInt("FLEXEDGE_J_ROWNNZ", m->nflexedge, 1, d->flexedge_J_rownnz, fp);
+    printArrayInt("FLEXEDGE_J_ROWADR", m->nflexedge, 1, d->flexedge_J_rowadr, fp);
+    printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, d->flexedge_J_rownnz,
+                              d->flexedge_J_rowadr, d->flexedge_J_colind, fp, float_format);
+  }
+  printArray("FLEXEDGE_LENGTH", m->nflexedge, 1, d->flexedge_length, fp, float_format);
 
   printArray("TEN_LENGTH", m->ntendon, 1, d->ten_length, fp, float_format);
   if (!mj_isSparse(m)) {
@@ -912,27 +980,6 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
   printArray("QLDIAGSQRTINV", m->nv, 1, d->qLDiagSqrtInv, fp, float_format);
 
-  // D_rownnz
-  fprintf(fp, NAME_FORMAT, "D_rownnz");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->D_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // D_rowadr
-  fprintf(fp, NAME_FORMAT, "D_rowadr");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->D_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // D_colind
-  fprintf(fp, NAME_FORMAT, "D_colind");
-  for (int i = 0; i < m->nD; i++) {
-    fprintf(fp, " %d", d->D_colind[i]);
-  }
-  fprintf(fp, "\n\n");
-
   // B_rownnz
   fprintf(fp, NAME_FORMAT, "B_rownnz");
   for (int i = 0; i < m->nbody; i++) {
@@ -954,6 +1001,69 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
   fprintf(fp, "\n\n");
 
+  // C_rownnz
+  fprintf(fp, NAME_FORMAT, "C_rownnz");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->C_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // C_rowadr
+  fprintf(fp, NAME_FORMAT, "C_rowadr");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->C_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // C_colind
+  fprintf(fp, NAME_FORMAT, "C_colind");
+  for (int i = 0; i < m->nC; i++) {
+    fprintf(fp, " %d", d->C_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // mapM2C
+  fprintf(fp, NAME_FORMAT, "mapM2C");
+  for (int i = 0; i < m->nC; i++) {
+    fprintf(fp, " %d", d->mapM2C[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // D_rownnz
+  fprintf(fp, NAME_FORMAT, "D_rownnz");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->D_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // D_rowadr
+  fprintf(fp, NAME_FORMAT, "D_rowadr");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->D_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // D_colind
+  fprintf(fp, NAME_FORMAT, "D_colind");
+  for (int i = 0; i < m->nD; i++) {
+    fprintf(fp, " %d", d->D_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // mapM2D
+  fprintf(fp, NAME_FORMAT, "mapM2D");
+  for (int i = 0; i < m->nD; i++) {
+    fprintf(fp, " %d", d->mapM2D[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // mapD2M
+  fprintf(fp, NAME_FORMAT, "mapD2M");
+  for (int i = 0; i < m->nM; i++) {
+    fprintf(fp, " %d", d->mapD2M[i]);
+  }
+  fprintf(fp, "\n\n");
+
   // print qDeriv
   mju_sparse2dense(M, d->qDeriv, m->nv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind);
   printArray("QDERIV", m->nv, m->nv, M, fp, float_format);
@@ -966,19 +1076,31 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // contact
   fprintf(fp, "CONTACT\n");
   for (int i=0; i < d->ncon; i++) {
-    fprintf(fp, "  %d:\n     dim           %d\n     geom          ", i, d->contact[i].dim);
-    const char* geom1 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom1);
-    if (geom1) {
-      fprintf(fp, "%s ", geom1);
+    fprintf(fp, "  %d:\n     dim           %d\n", i, d->contact[i].dim);
+    int g1 = d->contact[i].geom[0];
+    int g2 = d->contact[i].geom[1];
+
+    // special case for geom-geom contacts
+    if (g1 > -1 && g2 > -1) {
+      fprintf(fp, "     geoms         ");
+      const char* geom1 = mj_id2name(m, mjOBJ_GEOM, g1);
+      const char* geom2 = mj_id2name(m, mjOBJ_GEOM, g2);
+      if (geom1) {
+        fprintf(fp, "%s : ", geom1);
+      } else {
+        fprintf(fp, "%d : ", g1);
+      }
+      if (geom2) {
+        fprintf(fp, "%s\n", geom2);
+      } else {
+        fprintf(fp, "%d\n", g2);
+      }
     } else {
-      fprintf(fp, "%d ", d->contact[i].geom1);
-    }
-    const char* geom2 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom2);
-    if (geom2) {
-      if (geom1) fprintf(fp, " ");  // two spaces between two names
-      fprintf(fp, "%s\n", geom2);
-    } else {
-      fprintf(fp, "%d\n", d->contact[i].geom2);
+      fprintf(fp, "     gfev          %d %d %d %d : %d %d %d %d\n",
+              d->contact[i].geom[0], d->contact[i].flex[0],
+              d->contact[i].elem[0], d->contact[i].vert[0],
+              d->contact[i].geom[1], d->contact[i].flex[1],
+              d->contact[i].elem[1], d->contact[i].vert[1]);
     }
     fprintf(fp, "     exclude       %d\n     efc_address   %d\n",
             d->contact[i].exclude, d->contact[i].efc_address);
@@ -1019,6 +1141,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("EFC_D", d->nefc, 1, d->efc_D, fp, float_format);
   printArray("EFC_R", d->nefc, 1, d->efc_R, fp, float_format);
 
+  printArray("FLEXEDGE_VELOCITY", m->nflexedge, 1, d->flexedge_velocity, fp, float_format);
   printArray("TEN_VELOCITY", m->ntendon, 1, d->ten_velocity, fp, float_format);
   printArray("ACTUATOR_VELOCITY", m->nu, 1, d->actuator_velocity, fp, float_format);
 
@@ -1027,7 +1150,11 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   printArray("QFRC_BIAS", m->nv, 1, d->qfrc_bias, fp, float_format);
 
-  printArray("QFRC_PASSIVE", m->nv, 1, d->qfrc_passive, fp, float_format);
+  printArray("QFRC_SPRING",   m->nv, 1, d->qfrc_spring,   fp, float_format);
+  printArray("QFRC_DAMPER",   m->nv, 1, d->qfrc_damper,   fp, float_format);
+  printArray("QFRC_GRAVCOMP", m->nv, 1, d->qfrc_gravcomp, fp, float_format);
+  printArray("QFRC_FLUID",    m->nv, 1, d->qfrc_fluid,    fp, float_format);
+  printArray("QFRC_PASSIVE",  m->nv, 1, d->qfrc_passive,  fp, float_format);
 
   printArray("EFC_VEL", d->nefc, 1, d->efc_vel, fp, float_format);
   printArray("EFC_AREF", d->nefc, 1, d->efc_aref, fp, float_format);
@@ -1052,6 +1179,70 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CFRC_INT", m->nbody, 6, d->cfrc_int, fp, float_format);
   printArray("CFRC_EXT", m->nbody, 6, d->cfrc_ext, fp, float_format);
 
+  if (d->nisland) {
+    fprintf(fp, NAME_FORMAT, "DOF_ISLAND");
+    for (int i = 0; i < m->nv; i++) {
+      fprintf(fp, " %d", d->dof_island[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFNUM");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_dofnum[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFADR");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_dofadr[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFIND");
+    for (int i = 0; i < m->nv; i++) {
+      fprintf(fp, " %d", d->island_dofind[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "DOF_ISLANDIND");
+    for (int i = 0; i < m->nv; i++) {
+      fprintf(fp, " %d", d->dof_islandind[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "EFC_ISLAND");
+    for (int i = 0; i < d->nefc; i++) {
+      fprintf(fp, " %d", d->efc_island[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCNUM");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_efcnum[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCADR");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_efcadr[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCIND");
+    for (int i = 0; i < d->nefc; i++) {
+      fprintf(fp, " %d", d->island_efcind[i]);
+    }
+    fprintf(fp, "\n\n");
+  }
+
+  if (m->ntendon) {
+    fprintf(fp, NAME_FORMAT, "TENDON_EFCADR");
+    for (int i = 0; i < m->ntendon; i++) {
+      fprintf(fp, " %d", d->tendon_efcadr[i]);
+    }
+    fprintf(fp, "\n\n");
+  }
+
 #ifdef MEMORY_SANITIZER
   // restore poisoned status
   __msan_copy_shadow(d->buffer, shadow, d->nbuffer);
@@ -1062,7 +1253,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     fclose(fp);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

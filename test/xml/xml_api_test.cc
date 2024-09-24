@@ -24,6 +24,8 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/mjspec.h>
+#include "src/xml/xml_api.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -32,6 +34,21 @@ namespace {
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::StartsWith;
+
+static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size="1"/>
+      </body>
+      <body>
+        <joint/>
+        <geom size="0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
 
 // ---------------------------- test mj_loadXML --------------------------------
 
@@ -64,8 +81,20 @@ TEST_F(LoadXmlTest, InvalidXmlFailsToLoad) {
     mj_deleteModel(model);
   }
 }
-// TODO(nimrod): Add more tests for mj_loadXML.
 
+TEST_F(LoadXmlTest, MultipleBodies) {
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  EXPECT_EQ(model->nbody, 3);
+
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, NotNull());
+  mj_step(model, data);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 using SaveLastXmlTest = MujocoTest;
 
 TEST_F(SaveLastXmlTest, EmptyModel) {
@@ -83,6 +112,52 @@ TEST_F(SaveLastXmlTest, EmptyModel) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, SaveXmlShortString) {
+  std::array<char, 1000> error;
+
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << "Failed to parse spec: " << error.data();
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
+
+  std::array<char, 10> out;
+  EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(),
+                               error.data(), error.size()), 273);
+  EXPECT_STREQ(error.data(), "Output string too short, should be at least 274");
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, SaveXml) {
+  std::array<char, 1000> error;
+
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << "Failed to parse spec: " << error.data();
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
+
+  std::array<char, 274> out;
+  EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                               error.size()), 0) << error.data();
+
+  mjSpec* saved_spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(saved_spec, NotNull()) << "Invalid saved spec: " << error.data();
+  mjModel* saved_model = mj_compile(saved_spec, 0);
+  EXPECT_THAT(saved_model, NotNull()) << "Invalid model: " << error.data();
+
+  mjtNum tol = 0;
+  std::string field = "";
+  EXPECT_LE(CompareModel(model, saved_model, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  mj_deleteSpec(spec);
+  mj_deleteSpec(saved_spec);
+  mj_deleteModel(model);
+  mj_deleteModel(saved_model);
 }
 
 }  // namespace
