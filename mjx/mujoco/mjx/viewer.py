@@ -21,10 +21,13 @@ from typing import Sequence
 from absl import app
 from absl import flags
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 import mujoco.viewer
 
+
+_JIT = flags.DEFINE_bool('jit', True, 'To jit or not to jit.')
 _MODEL_PATH = flags.DEFINE_string('mjcf', None, 'Path to a MuJoCo MJCF file.',
                                   required=True)
 
@@ -54,11 +57,13 @@ def _main(argv: Sequence[str]) -> None:
   dx = mjx.put_data(m, d)
 
   print(f'Default backend: {jax.default_backend()}')
-  print('JIT-compiling the model physics step...')
-  start = time.time()
-  step_fn = jax.jit(mjx.step).lower(mx, dx).compile()
-  elapsed = time.time() - start
-  print(f'Compilation took {elapsed}s.')
+  step_fn = mjx.step
+  if _JIT.value:
+    print('JIT-compiling the model physics step...')
+    start = time.time()
+    step_fn = jax.jit(step_fn).lower(mx, dx).compile()
+    elapsed = time.time() - start
+    print(f'Compilation took {elapsed}s.')
 
   viewer = mujoco.viewer.launch_passive(m, d, key_callback=key_callback)
   with viewer:
@@ -66,8 +71,14 @@ def _main(argv: Sequence[str]) -> None:
       start = time.time()
 
       # TODO(robotics-simulation): recompile when changing disable flags, etc.
-      dx = dx.replace(ctrl=d.ctrl, act=d.act, xfrc_applied=d.xfrc_applied)
-      dx = dx.replace(qpos=d.qpos, qvel=d.qvel, time=d.time)  # handle resets
+      dx = dx.replace(
+          ctrl=jp.array(d.ctrl),
+          act=jp.array(d.act),
+          xfrc_applied=jp.array(d.xfrc_applied),
+      )
+      dx = dx.replace(
+          qpos=jp.array(d.qpos), qvel=jp.array(d.qvel), time=jp.array(d.time)
+      )  # handle resets
       mx = mx.tree_replace({
           'opt.gravity': m.opt.gravity,
           'opt.tolerance': m.opt.tolerance,
