@@ -538,7 +538,10 @@ static constexpr char xml_child[] = R"(
           </body>
         </frame>
       </frame>
-      <body name="ignore"/>
+      <body name="ignore">
+        <geom size=".1"/>
+        <joint type="slide"/>
+      </body>
       <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
     </worldbody>
 
@@ -563,8 +566,8 @@ static constexpr char xml_child[] = R"(
     </contact>
 
     <keyframe>
-      <key name="two" time="2" qpos="2" act="2 2" ctrl="2 2"/>
-      <key name="three" time="3" qpos="3" act="3 3" ctrl="3 3"/>
+      <key name="two" time="2" qpos="2 22" act="2 2" ctrl="2 2"/>
+      <key name="three" time="3" qpos="3 33" act="3 3" ctrl="3 3"/>
     </keyframe>
   </mujoco>)";
 
@@ -594,7 +597,10 @@ TEST_F(MujocoTest, AttachSame) {
         <body name="targetbody"/>
         <body/>
       </body>
-      <body name="ignore"/>
+      <body name="ignore">
+        <geom size=".1"/>
+        <joint type="slide"/>
+      </body>
       <frame name="frame" pos=".1 0 0" euler="0 90 0">
         <body name="attached-body-1">
           <joint type="hinge" name="attached-hinge-1"/>
@@ -634,10 +640,10 @@ TEST_F(MujocoTest, AttachSame) {
     </contact>
 
     <keyframe>
-      <key name="two" time="2" qpos="2 0" act="2 2 0 0" ctrl="2 2 0 0"/>
-      <key name="three" time="3" qpos="3 0" act="3 3 0 0" ctrl="3 3 0 0"/>
-      <key name="attached-two-1" time="2" qpos="0 2" act="0 0 2 2" ctrl="0 0 2 2"/>
-      <key name="attached-three-1" time="3" qpos="0 3" act="0 0 3 3" ctrl="0 0 3 3"/>
+      <key name="two" time="2" qpos="2 22 0" act="2 2 0 0" ctrl="2 2 0 0"/>
+      <key name="three" time="3" qpos="3 33 0" act="3 3 0 0" ctrl="3 3 0 0"/>
+      <key name="attached-two-1" time="2" qpos="0 22 2" act="0 0 2 2" ctrl="0 0 2 2"/>
+      <key name="attached-three-1" time="3" qpos="0 33 3" act="0 0 3 3" ctrl="0 0 3 3"/>
     </keyframe>
   </mujoco>)";
 
@@ -942,7 +948,10 @@ void TestDetachBody(bool compile) {
         <frame name="cframe">
         </frame>
       </frame>
-      <body name="ignore"/>
+      <body name="ignore">
+        <geom size=".1"/>
+        <joint type="slide"/>
+      </body>
       <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
     </worldbody>
 
@@ -951,8 +960,8 @@ void TestDetachBody(bool compile) {
     </sensor>
 
     <keyframe>
-      <key name="two" time="2"/>
-      <key name="three" time="3"/>
+      <key name="two" time="2" qpos="22"/>
+      <key name="three" time="3" qpos="33"/>
     </keyframe>
   </mujoco>)";
 

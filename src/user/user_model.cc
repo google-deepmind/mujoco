@@ -402,20 +402,27 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
     oldmodel.ProcessLists(/*checkrepeat=*/false);
   }
 
+  // create global lists in this model if not compiled
+  if (!IsCompiled()) {
+    MakeLists(bodies_[0]);
+    ProcessLists(/*checkrepeat=*/false);
+  }
+
+  // TODO: carry over pending keyframes
+  key_pending_.clear();
+  StoreKeyframes();
+
+  // all keyframes are now pending and they will be resized
+  DeleteAll(keys_);
+
   // remove body from tree
   mjCBody* world = bodies_[0];
   *world -= subtree;
 
-  // create global lists
-  if (compiled) {
-    ResetTreeLists();
-  }
+  // update global lists
+  ResetTreeLists();
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
-
-  // store keyframes in the old model
-  oldmodel.key_pending_.clear();
-  oldmodel.StoreKeyframes();
 
   // check if we have to remove anything else
   RemoveFromList(pairs_, oldmodel);
@@ -424,12 +431,6 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(equalities_, oldmodel);
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
-
-  // move all keyframes to pending so that they will be resized
-  DeleteAll(keys_);
-  for (const auto& key : oldmodel.key_pending_) {
-    key_pending_.push_back(key);
-  }
 
   // restore to the original state
   if (!compiled) {
@@ -3091,7 +3092,10 @@ void mjCModel::StoreKeyframes() {
     resetlists = true;
   }
 
-  SaveDofOffsets();
+  // do not change the offset computed during compilation in case the user wants to recompile
+  if (!compiled) {
+    SaveDofOffsets();
+  }
 
   for (auto& key : keys_) {
     mjKeyInfo info;
