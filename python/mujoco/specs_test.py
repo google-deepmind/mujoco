@@ -611,6 +611,25 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile({'cube.obj': cube})
     self.assertEqual(model.nmeshvert, 8)
 
+  def test_include(self):
+    included_xml = """
+      <mujoco>
+        <worldbody>
+          <body>
+            <geom type="box" size="1 1 1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """
+    spec = mujoco.MjSpec()
+    spec.from_string(textwrap.dedent("""
+      <mujoco model="MuJoCo Model">
+        <include file="included.xml"/>
+      </mujoco>
+    """), {'included.xml': included_xml.encode('utf-8')})
+    self.assertEqual(spec.worldbody.first_body().first_geom().type,
+                     mujoco.mjtGeom.mjGEOM_BOX)
+
   def test_delete(self):
     filename = '../../test/testdata/model.xml'
 

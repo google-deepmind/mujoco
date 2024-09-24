@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>  // IWYU pragma: keep
+#include <unordered_map>
 #include <vector>       // IWYU pragma: keep
 
 #include <Eigen/Core>
@@ -72,6 +73,37 @@ struct MjSpec {
   ~MjSpec() { mj_deleteSpec(ptr); }
   raw::MjSpec* ptr;
 };
+
+template <typename LoadFunc>
+static raw::MjSpec* LoadSpecFileImpl(
+    const std::string& filename,
+    const std::vector<_impl::VfsAsset>& assets,
+    LoadFunc&& loadfunc) {
+  mjVFS vfs;
+  mjVFS* vfs_ptr = nullptr;
+  if (!assets.empty()) {
+    mj_defaultVFS(&vfs);
+    vfs_ptr = &vfs;
+    for (const auto& asset : assets) {
+      std::string buffer_name = _impl::StripPath(asset.name);
+      const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
+          vfs_ptr, buffer_name.c_str(), asset.content, asset.content_size);
+      if (vfs_error) {
+        mj_deleteVFS(vfs_ptr);
+        if (vfs_error == 2) {
+          throw py::value_error("Repeated file name in assets dict: " +
+                                buffer_name);
+        } else {
+          throw py::value_error("Asset failed to load: " + buffer_name);
+        }
+      }
+    }
+  }
+
+  raw::MjSpec* spec = loadfunc(filename.c_str(), vfs_ptr);
+  mj_deleteVFS(vfs_ptr);
+  return spec;
+}
 
 PYBIND11_MODULE(_specs, m) {
   auto structs_m = py::module::import("mujoco._structs");
@@ -196,27 +228,25 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def(
       "from_file",
       [](MjSpec& self, std::string& filename,
-         std::optional<py::dict>& assets) -> void {
-        mjVFS vfs;
-        mj_defaultVFS(&vfs);
-        if (assets.has_value()) {
-          for (auto item : assets.value()) {
-            std::string buffer = py::cast<std::string>(item.second);
-            mj_addBufferVFS(&vfs, py::cast<std::string>(item.first).c_str(),
-                            buffer.c_str(), buffer.size());
-          };
-        }
-        std::array<char, 1024> err;
-        err[0] = '\0';
-        mj_deleteSpec(self.ptr);
-        self.ptr = mj_parseXML(filename.c_str(), &vfs, err.data(), err.size());
-        mj_deleteVFS(&vfs);
-        if (!self.ptr) {
-          throw FatalError(std::string(err.data()));
+         std::optional<std::unordered_map<std::string, py::bytes>>& assets)
+          -> void {
+        const auto converted_assets = _impl::ConvertAssetsDict(assets);
+        {
+          py::gil_scoped_release no_gil;
+          char error[1024];
+          mj_deleteSpec(self.ptr);
+          self.ptr = LoadSpecFileImpl(
+              filename, converted_assets,
+              [&error](const char* filename, const mjVFS* vfs) {
+                return InterceptMjErrors(mj_parseXML)(
+                    filename, vfs, error, sizeof(error));
+              });
+          if (!self.ptr) {
+            throw py::value_error(error);
+          }
         }
       },
-      py::arg("filename"),
-      py::arg("assets") = py::none(), R"mydelimiter(
+      py::arg("filename"), py::arg("assets") = py::none(), R"mydelimiter(
     Creates a spec from an XML file.
 
     Parameters
@@ -230,27 +260,34 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def(
       "from_string",
       [](MjSpec& self, std::string& xml,
-         std::optional<py::dict>& assets) -> void {
-        mjVFS vfs;
-        mj_defaultVFS(&vfs);
-        if (assets.has_value()) {
-          for (auto item : assets.value()) {
-            std::string buffer = py::cast<std::string>(item.second);
-            mj_addBufferVFS(&vfs, py::cast<std::string>(item.first).c_str(),
-                            buffer.c_str(), buffer.size());
-          };
-        }
-        std::array<char, 1024> err;
-        err[0] = '\0';
-        mj_deleteSpec(self.ptr);
-        self.ptr = mj_parseXMLString(xml.c_str(), &vfs, err.data(), err.size());
-        mj_deleteVFS(&vfs);
-        if (!self.ptr) {
-          throw FatalError(std::string(err.data()));
+         std::optional<std::unordered_map<std::string, py::bytes>>& assets)
+          -> void {
+        auto converted_assets = _impl::ConvertAssetsDict(assets);
+        {
+          py::gil_scoped_release no_gil;
+          std::string model_filename = "model_.xml";
+          if (assets.has_value()) {
+            while (assets->find(model_filename) != assets->end()) {
+              model_filename =
+                  model_filename.substr(0, model_filename.size() - 4) + "_.xml";
+            }
+          }
+          converted_assets.emplace_back(
+              model_filename.c_str(), xml.c_str(), xml.length());
+          char error[1024];
+          mj_deleteSpec(self.ptr);
+          self.ptr = LoadSpecFileImpl(
+              model_filename, converted_assets,
+              [&error](const char* filename, const mjVFS* vfs) {
+                return InterceptMjErrors(mj_parseXML)(
+                    filename, vfs, error, sizeof(error));
+              });
+          if (!self.ptr) {
+            throw py::value_error(error);
+          }
         }
       },
-      py::arg("xml"),
-      py::arg("assets") = py::none(), R"mydelimiter(
+      py::arg("xml"), py::arg("assets") = py::none(), R"mydelimiter(
     Creates a spec from an XML string.
 
     Parameters
