@@ -768,6 +768,7 @@ class Model(PyTreeNode):
     name_meshadr: mesh name pointers                          (nmesh,)
     name_pairadr: geom pair name pointers                     (npair,)
     name_eqadr: equality constraint name pointers             (neq,)
+    name_tendonadr: tendon name pointers                      (ntendon,)
     name_actuatoradr: actuator name pointers                  (nu,)
     name_sensoradr: sensor name pointers                      (nsensor,)
     name_numericadr: numeric name pointers                    (nnumeric,)
@@ -1081,6 +1082,7 @@ class Model(PyTreeNode):
   name_hfieldadr: np.ndarray
   name_pairadr: np.ndarray
   name_eqadr: np.ndarray
+  name_tendonadr: np.ndarray
   name_actuatoradr: np.ndarray
   name_sensoradr: np.ndarray
   name_numericadr: np.ndarray
