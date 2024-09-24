@@ -2507,33 +2507,33 @@ void Simulate::Render() {
   // render scene
 #ifdef mjBUILDSIMULATEXR
 
-  bool xr_ret = simXr.before_render2(&this->scn);
-  mjrRect rectXR = {0, 0, 0, 0};
-  rectXR.width = (int)simXr.width;
-  rectXR.height = (int)simXr.height;
-  //std::cout << xr_ret << " " << simXr.view_count << std::endl;
-  if (xr_ret) {
-    for (uint32_t i_view = 0; i_view < simXr.view_count; i_view++) {
-      simXr.before_render_view(&this->scn, i_view);
-      // render in offscreen buffer
-      mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
-      mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
-      simXr.after_render_view(&this->platform_ui->mjr_context(), i_view);
-    }
-  } else {
-    mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
-  }
-  simXr.after_render2(&this->platform_ui->mjr_context());
-
-  //simXr.before_render(&this->scn, this->m_);
+  //bool xr_ret = simXr.before_render2(&this->scn);
   //mjrRect rectXR = {0, 0, 0, 0};
-  //rectXR.width = (int)simXr.width_render;
+  //rectXR.width = (int)simXr.width;
   //rectXR.height = (int)simXr.height;
-  //// render in offscreen buffer
-  //mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
-  //mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+  ////std::cout << xr_ret << " " << simXr.view_count << std::endl;
+  //if (xr_ret) {
+  //  for (uint32_t i_view = 0; i_view < simXr.view_count; i_view++) {
+  //    simXr.before_render_view(&this->scn, i_view);
+  //    // render in offscreen buffer
+  //    mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
+  //    mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+  //    simXr.after_render_view(&this->platform_ui->mjr_context(), i_view);
+  //  }
+  //} else {
+  //  mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+  //}
+  //simXr.after_render2(&this->platform_ui->mjr_context());
 
-  //simXr.after_render(&this->platform_ui->mjr_context());
+  simXr.before_render(&this->scn, this->m_);
+  mjrRect rectXR = {0, 0, 0, 0};
+  rectXR.width = (int)simXr.width_render;
+  rectXR.height = (int)simXr.height;
+  // render in offscreen buffer
+  mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
+  mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+
+  simXr.after_render(&this->platform_ui->mjr_context());
 #else //mjBUILDSIMULATEXR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
 #endif //mjBUILDSIMULATEXR

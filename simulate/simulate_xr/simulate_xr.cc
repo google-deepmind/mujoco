@@ -196,8 +196,8 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
     renderLayerInfo.layerProjectionViews[i].pose = views[i].pose;
     renderLayerInfo.layerProjectionViews[i].fov = views[i].fov;
     renderLayerInfo.layerProjectionViews[i].subImage.swapchain =
-        colorSwapchainInfo.swapchain;
-    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.x = 0;
+        m_colorSwapchainInfos[0].swapchain;
+    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.x = i * width;
     renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.y = 0;
     renderLayerInfo.layerProjectionViews[i].subImage.imageRect.extent.width =
         static_cast<int32_t>(width);
@@ -210,7 +210,8 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   scn->enabletransform = true;
   scn->rotate[0] = cos(0.25 * mjPI);
   scn->rotate[1] = sin(-0.25 * mjPI);
-  // scn->translate[1] = 0;  // TODO AS not sure about this, give user control?
+  scn->translate[1] = 0;  // TODO AS not sure about this, give user control?
+  scn->translate[2] = -1;  // TODO AS not sure about this, give user control?
 
   // RENDER
   // BeginRendering
@@ -219,6 +220,12 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   glFramebufferTexture2D(
       GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
       (GLuint)GetSwapchainImage(m_colorSwapchainInfos[0].swapchain, 0), 0);
+
+  //glBindFramebuffer(GL_FRAMEBUFFER,
+  //                  (GLuint)m_colorSwapchainInfos[1].imageViews[0]);
+  //glFramebufferTexture2D(
+  //    GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+  //    (GLuint)GetSwapchainImage(m_colorSwapchainInfos[0].swapchain, 0), 0);
 
   rendered = true;
 
@@ -432,6 +439,7 @@ void SimulateXr::after_render2(mjrContext *con) {
   if (xrEndFrame(m_session, &frameEndInfo) < 0)
     std::cerr << "Failed to end the XR Frame." << std::endl;
 }
+
 void SimulateXr::after_render(mjrContext *con) {
   if (!m_sessionRunning) return;
 
@@ -445,7 +453,8 @@ void SimulateXr::after_render(mjrContext *con) {
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
   // TODO: pull window size from the system
-  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2, height / 2,
+  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2,
+                    height / 2,
                     GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
   // here be other things
