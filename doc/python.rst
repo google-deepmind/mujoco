@@ -482,14 +482,16 @@ Below is a simple example of how to use the model editing API. For more examples
 
    import mujoco
    spec = mujoco.MjSpec()
-   body = spec.worldbody.add_body()
-   body.pos = [1, 2, 3]
-   body.quat = [0, 1, 0, 0]
-   geom = body.add_geom()
-   geom.name = 'my_geom'
-   geom.type = mujoco.mjtGeom.mjGEOM_SPHERE
-   geom.size[0] = 1
-   geom.rgba = [1, 0, 0, 1]
+   body = spec.worldbody.add_body(
+       pos=[1, 2, 3],
+       quat=[0, 1, 0, 0],
+   )
+   geom = body.add_geom(
+       name='my_geom',
+       type=mujoco.mjtGeom.mjGEOM_SPHERE,
+       size=[1, 0, 0],
+       rgba=[1, 0, 0, 1],
+   )
    ...
    model = spec.compile()
 
@@ -498,8 +500,6 @@ Below is a simple example of how to use the model editing API. For more examples
 
    We are aware of multiple missing features in the Python API, including:
 
-   - Convenient constructors like:
-     |br| :python:`geom = body.add_geom(name='my_geom', size=[1, 1, 1], rgba=[1, 0, 0, 1])`
    - Better tree traversal utilities like :python:`children = body.children()` etc.
    - PyMJCF's notion of "binding", allowing access to :ref:`mjModel` and :ref:`mjData` values via the associated ``mjs``
      elements.
