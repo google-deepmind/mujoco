@@ -2896,6 +2896,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // compute elasticity
   if (young > 0) {
+    if (poisson < 0 || poisson >= 0.5) {
+      throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
+    }
     stiffness.assign(21*nelem, 0);
     for (unsigned int t = 0; t < nelem; t++) {
       if (dim==2) {

@@ -2694,6 +2694,11 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
   }
 
+  // check errors
+  if (elasticity && fcomp.equality) {
+    throw mjXError(elem, "elasticity and edge constraints cannot both be present");
+  }
+
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
