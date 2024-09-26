@@ -70,6 +70,23 @@ using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
 
 struct MjSpec {
   MjSpec() : ptr(mj_makeSpec()) {}
+  MjSpec(raw::MjSpec* ptr) : ptr(ptr) {}
+
+  // copy constructor and assignment
+  MjSpec(const MjSpec& other) : ptr(mj_copySpec(other.ptr)) {}
+  MjSpec& operator=(const MjSpec& other) {
+    ptr = mj_copySpec(other.ptr);
+    return *this;
+  }
+
+  // move constructor and move assignment
+  MjSpec(MjSpec&& other) : ptr(other.ptr) { other.ptr = nullptr; }
+  MjSpec& operator=(MjSpec&& other) {
+    ptr = other.ptr;
+    other.ptr = nullptr;
+    return *this;
+  }
+
   ~MjSpec() { mj_deleteSpec(ptr); }
   raw::MjSpec* ptr;
 };
@@ -147,6 +164,81 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSPEC =====================================
   mjSpec.def(py::init<>());
+  mjSpec.def_static(
+      "from_file",
+      [](std::string& filename,
+         std::optional<std::unordered_map<std::string, py::bytes>>& assets)
+          -> MjSpec {
+        const auto converted_assets = _impl::ConvertAssetsDict(assets);
+        raw::MjSpec* spec;
+        {
+          py::gil_scoped_release no_gil;
+          char error[1024];
+          spec = LoadSpecFileImpl(
+              filename, converted_assets,
+              [&error](const char* filename, const mjVFS* vfs) {
+                return InterceptMjErrors(mj_parseXML)(
+                    filename, vfs, error, sizeof(error));
+              });
+          if (!spec) {
+            throw py::value_error(error);
+          }
+        }
+        return MjSpec(spec);
+      },
+      py::arg("filename"), py::arg("assets") = py::none(), R"mydelimiter(
+    Creates a spec from an XML file.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the XML file.
+    assets : dict, optional
+        A dictionary of assets to be used by the spec. The keys are asset names
+        and the values are asset contents.
+  )mydelimiter", py::return_value_policy::move);
+  mjSpec.def_static(
+      "from_string",
+      [](std::string& xml,
+         std::optional<std::unordered_map<std::string, py::bytes>>& assets)
+          -> MjSpec {
+        auto converted_assets = _impl::ConvertAssetsDict(assets);
+        raw::MjSpec* spec;
+        {
+          py::gil_scoped_release no_gil;
+          std::string model_filename = "model_.xml";
+          if (assets.has_value()) {
+            while (assets->find(model_filename) != assets->end()) {
+              model_filename =
+                  model_filename.substr(0, model_filename.size() - 4) + "_.xml";
+            }
+          }
+          converted_assets.emplace_back(
+              model_filename.c_str(), xml.c_str(), xml.length());
+          char error[1024];
+          spec = LoadSpecFileImpl(
+              model_filename, converted_assets,
+              [&error](const char* filename, const mjVFS* vfs) {
+                return InterceptMjErrors(mj_parseXML)(
+                    filename, vfs, error, sizeof(error));
+              });
+          if (!spec) {
+            throw py::value_error(error);
+          }
+        }
+        return MjSpec(spec);
+      },
+      py::arg("xml"), py::arg("assets") = py::none(), R"mydelimiter(
+    Creates a spec from an XML string.
+
+    Parameters
+    ----------
+    xml : str
+        XML string.
+    assets : dict, optional
+        A dictionary of assets to be used by the spec. The keys are asset names
+        and the values are asset contents.
+  )mydelimiter", py::return_value_policy::move);
   mjSpec.def("recompile", [mjmodel_mjdata_from_spec_ptr](
                               const MjSpec& self, py::object m, py::object d) {
     return mjmodel_mjdata_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
@@ -225,79 +317,6 @@ PYBIND11_MODULE(_specs, m) {
     }
     return std::string(buf.get());
   });
-  mjSpec.def(
-      "from_file",
-      [](MjSpec& self, std::string& filename,
-         std::optional<std::unordered_map<std::string, py::bytes>>& assets)
-          -> void {
-        const auto converted_assets = _impl::ConvertAssetsDict(assets);
-        {
-          py::gil_scoped_release no_gil;
-          char error[1024];
-          mj_deleteSpec(self.ptr);
-          self.ptr = LoadSpecFileImpl(
-              filename, converted_assets,
-              [&error](const char* filename, const mjVFS* vfs) {
-                return InterceptMjErrors(mj_parseXML)(
-                    filename, vfs, error, sizeof(error));
-              });
-          if (!self.ptr) {
-            throw py::value_error(error);
-          }
-        }
-      },
-      py::arg("filename"), py::arg("assets") = py::none(), R"mydelimiter(
-    Creates a spec from an XML file.
-
-    Parameters
-    ----------
-    filename : str
-        Path to the XML file.
-    assets : dict, optional
-        A dictionary of assets to be used by the spec. The keys are asset names
-        and the values are asset contents.
-  )mydelimiter");
-  mjSpec.def(
-      "from_string",
-      [](MjSpec& self, std::string& xml,
-         std::optional<std::unordered_map<std::string, py::bytes>>& assets)
-          -> void {
-        auto converted_assets = _impl::ConvertAssetsDict(assets);
-        {
-          py::gil_scoped_release no_gil;
-          std::string model_filename = "model_.xml";
-          if (assets.has_value()) {
-            while (assets->find(model_filename) != assets->end()) {
-              model_filename =
-                  model_filename.substr(0, model_filename.size() - 4) + "_.xml";
-            }
-          }
-          converted_assets.emplace_back(
-              model_filename.c_str(), xml.c_str(), xml.length());
-          char error[1024];
-          mj_deleteSpec(self.ptr);
-          self.ptr = LoadSpecFileImpl(
-              model_filename, converted_assets,
-              [&error](const char* filename, const mjVFS* vfs) {
-                return InterceptMjErrors(mj_parseXML)(
-                    filename, vfs, error, sizeof(error));
-              });
-          if (!self.ptr) {
-            throw py::value_error(error);
-          }
-        }
-      },
-      py::arg("xml"), py::arg("assets") = py::none(), R"mydelimiter(
-    Creates a spec from an XML string.
-
-    Parameters
-    ----------
-    xml : str
-        XML string.
-    assets : dict, optional
-        A dictionary of assets to be used by the spec. The keys are asset names
-        and the values are asset contents.
-  )mydelimiter");
   mjSpec.def(
       "add_default",
       [](MjSpec* spec, std::string& classname,

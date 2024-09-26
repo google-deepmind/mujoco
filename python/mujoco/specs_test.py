@@ -417,8 +417,7 @@ class SpecsTest(absltest.TestCase):
     state_type = mujoco.mjtState.mjSTATE_INTEGRATION
 
     # Load from file.
-    spec1 = mujoco.MjSpec()
-    spec1.from_file(filename)
+    spec1 = mujoco.MjSpec.from_file(filename)
     model1 = spec1.compile()
     data1 = mujoco.MjData(model1)
     mujoco.mj_step(model1, data1)
@@ -427,9 +426,8 @@ class SpecsTest(absltest.TestCase):
     mujoco.mj_getState(model1, data1, state1, state_type)
 
     # Load from string.
-    spec2 = mujoco.MjSpec()
     with open(filename, 'r') as file:
-      spec2.from_string(file.read().rstrip())
+      spec2 = mujoco.MjSpec.from_string(file.read().rstrip())
     model2 = spec2.compile()
     data2 = mujoco.MjData(model2)
     mujoco.mj_step(model2, data2)
@@ -621,8 +619,7 @@ class SpecsTest(absltest.TestCase):
         </worldbody>
       </mujoco>
     """
-    spec = mujoco.MjSpec()
-    spec.from_string(textwrap.dedent("""
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""
       <mujoco model="MuJoCo Model">
         <include file="included.xml"/>
       </mujoco>
@@ -633,8 +630,7 @@ class SpecsTest(absltest.TestCase):
   def test_delete(self):
     filename = '../../test/testdata/model.xml'
 
-    spec = mujoco.MjSpec()
-    spec.from_file(filename)
+    spec = mujoco.MjSpec.from_file(filename)
 
     model = spec.compile()
     self.assertIsNotNone(model)
@@ -664,8 +660,7 @@ class SpecsTest(absltest.TestCase):
     </mujoco>
     """
 
-    spec = mujoco.MjSpec()
-    spec.from_string(xml)
+    spec = mujoco.MjSpec.from_string(xml)
     self.assertIsNotNone(spec.worldbody)
 
     body = spec.worldbody.add_body()
@@ -696,8 +691,7 @@ class SpecsTest(absltest.TestCase):
     </mujoco>
     """
 
-    spec = mujoco.MjSpec()
-    spec.from_string(main_xml)
+    spec = mujoco.MjSpec.from_string(main_xml)
     model = spec.compile()
     data = mujoco.MjData(model)
 
@@ -710,8 +704,7 @@ class SpecsTest(absltest.TestCase):
       spec.recompile(model, data)
 
   def test_delete_unused_plugin(self):
-    spec = mujoco.MjSpec()
-    spec.from_string(textwrap.dedent("""
+    spec = mujoco.MjSpec.from_string("""
       <mujoco model="MuJoCo Model">
         <extension>
           <plugin plugin="mujoco.pid">
@@ -727,7 +720,7 @@ class SpecsTest(absltest.TestCase):
           </body>
         </worldbody>
       </mujoco>
-    """))
+    """)
     plugin = spec.plugins[0]
     self.assertIsNotNone(plugin)
     plugin.delete()
@@ -737,8 +730,7 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nplugin, 0)
 
   def test_access_option_stat_visual(self):
-    spec = mujoco.MjSpec()
-    spec.from_string(textwrap.dedent("""
+    spec = mujoco.MjSpec.from_string("""
       <mujoco model="MuJoCo Model">
         <option timestep="0.001"/>
         <statistic meansize="0.05"/>
@@ -746,7 +738,7 @@ class SpecsTest(absltest.TestCase):
           <quality shadowsize="4096"/>
         </visual>
       </mujoco>
-    """))
+    """)
     self.assertEqual(spec.option.timestep, 0.001)
     self.assertEqual(spec.stat.meansize, 0.05)
     self.assertEqual(spec.visual.quality.shadowsize, 4096)

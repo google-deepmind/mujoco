@@ -177,8 +177,10 @@ int mjs_isWarning(mjSpec* s) {
 
 // delete model
 void mj_deleteSpec(mjSpec* s) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  delete model;
+  if (s) {
+    mjCModel* model = static_cast<mjCModel*>(s->element);
+    delete model;
+  }
 }
 
 
