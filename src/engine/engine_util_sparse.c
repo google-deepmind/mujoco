@@ -860,3 +860,43 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
   mj_freeStack(d);
 }
+
+// compute row non-zeros of reverse-Cholesky factor L, return total
+// based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
+int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
+                      const int* rowadr, const int* colind, int n) {
+  // loop over rows in reverse order
+  for (int r = n - 1; r >= 0; r--) {
+    parent[r] = -1;
+    flag[r] = r;
+    L_rownnz[r] = 0;
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    // loop over non-zero columns
+    for (int p = start; p < end; p++) {
+      int i = colind[p];
+      if (i > r) {
+        // follow path from i to root of elimination tree, stop at flagged node
+        while (flag[i] != r) {
+          // find parent of i if not yet determined
+          if (parent[i] == -1) {
+            parent[i] = r;
+          }
+          L_rownnz[i]++;
+          flag[i] = r;
+          i = parent[i];
+        }
+      }
+    }
+  }
+
+  // add 1 for diagonal, accumulate sum
+  int sum = 0;
+  for (int r = 0; r < n; r++) {
+    L_rownnz[r]++;
+    sum += L_rownnz[r];
+  }
+
+  // return total non-zeros
+  return sum;
+}
