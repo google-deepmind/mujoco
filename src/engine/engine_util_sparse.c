@@ -29,8 +29,8 @@
 
 // dot-product, first vector is sparse
 //  flg_unc1: is vec1 memory layout uncompressed
-mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                     const int nnz1, const int* ind1, int flg_unc1) {
+mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                     int flg_unc1) {
 #ifdef mjUSEAVX
   return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
 #else
@@ -80,7 +80,7 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
 // dot-productX3, first vector is sparse; supernode of size 3
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
-                     const mjtNum* vec2, const int nnz1, const int* ind1) {
+                     const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
   mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
 #else
@@ -110,9 +110,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 
 // dot-product, both vectors are sparse
 //  flg_unc2: is vec2 memory layout uncompressed
-mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                      const int nnz1, const int* ind1,
-                      const int nnz2, const int* ind2, int flg_unc2) {
+mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1, int nnz2,
+                      const int* ind2, int flg_unc2) {
   int i1 = 0, i2 = 0;
   mjtNum res = 0;
 

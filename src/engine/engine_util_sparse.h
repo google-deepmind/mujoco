@@ -26,13 +26,12 @@ extern "C" {
 //------------------------------ sparse operations -------------------------------------------------
 
 // dot-product, vec1 is sparse, can be uncompressed
-MJAPI mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                           const int nnz1, const int* ind1, int flg_unc1);
+MJAPI mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                           int flg_unc1);
 
 // dot-product, both vectors are sparse, vec2 can be uncompressed
-MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                            const int nnz1, const int* ind1,
-                            const int nnz2, const int* ind2, int flg_unc2);
+MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                            int nnz2, const int* ind2, int flg_unc2);
 
 // convert matrix from dense to sparse
 MJAPI void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
