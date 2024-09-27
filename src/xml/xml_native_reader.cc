@@ -3236,9 +3236,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
       ReadAttrInt(elem, "width", &texture->width);
       ReadAttrInt(elem, "height", &texture->height);
-      if (!ReadAttrInt(elem, "nchannel", &texture->nchannel)) {
-        texture->nchannel = 3;
-      }
+      ReadAttrInt(elem, "nchannel", &texture->nchannel);
       ReadAttr(elem, "rgb1", 3, texture->rgb1, text);
       ReadAttr(elem, "rgb2", 3, texture->rgb2, text);
       ReadAttr(elem, "markrgb", 3, texture->markrgb, text);

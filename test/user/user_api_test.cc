@@ -1254,5 +1254,35 @@ TEST_F(MujocoTest, AttachUnnamedAssets) {
   mj_deleteModel(model);
 }
 
+TEST_F(MujocoTest, InitTexture) {
+  mjSpec* spec = mj_makeSpec();
+  EXPECT_THAT(spec, NotNull());
+
+  mjsTexture* texture = mjs_addTexture(spec);
+  mjs_setString(texture->name, "checker");
+  texture->type = mjTEXTURE_CUBE;
+  texture->builtin = mjBUILTIN_CHECKER;
+  texture->width = 300;
+  texture->height = 300;
+
+  mjsMaterial* material = mjs_addMaterial(spec, 0);
+  mjs_setString(material->name, "floor");
+  mjs_setInStringVec(material->textures, mjTEXROLE_RGB, "checker");
+
+  mjsGeom* floor = mjs_addGeom(mjs_findBody(spec, "world"), 0);
+  mjs_setString(floor->material, "floor");
+  floor->type = mjGEOM_PLANE;
+  floor->size[0] = 1;
+  floor->size[1] = 1;
+  floor->size[2] = 0.01;
+  mjs_setString(floor->material, "floor");
+
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco
