@@ -67,6 +67,8 @@ static const mjuiThemeColor themeColor0 = {
   {0.12, 0.12, 0.12},   // thumb
   {0.6,  0.2,  0.2},    // secttitle
   {0.1,  0.1,  0.1},    // secttitle2
+  {0.45, 0.17, 0.17},   // secttitleuncheck
+  {0.45, 0.17, 0.17},   // secttitleuncheck2
   {0.45, 0.17, 0.17},   // secttitlecheck
   {0.45, 0.17, 0.17},   // secttitlecheck2
   {1.0,  1.0,  1.0},    // sectfont
@@ -98,6 +100,8 @@ static const mjuiThemeColor themeColor1 = {
   {0.12, 0.12, 0.12},   // thumb
   {0.3,  0.3,  0.3},    // secttitle
   {0.15, 0.15, 0.15},   // secttitle2
+  {0.25, 0.25, 0.25},   // secttitleuncheck
+  {0.25, 0.25, 0.25},   // secttitleuncheck2
   {0.25, 0.25, 0.25},   // secttitlecheck
   {0.25, 0.25, 0.25},   // secttitlecheck2
   {0.8,  0.8,  0.8},    // sectfont
@@ -129,6 +133,8 @@ static const mjuiThemeColor themeColor2 = {
   {0.7,  0.7,  0.7},    // thumb
   {0.8,  0.8,  0.8},    // secttitle
   {1.0,  1.0,  1.0},    // secttitle2
+  {0.95, 0.95, 0.95},   // secttitleuncheck
+  {0.95, 0.95, 0.95},   // secttitleuncheck2
   {0.95, 0.95, 0.95},   // secttitlecheck
   {0.95, 0.95, 0.95},   // secttitlecheck2
   {0.0,  0.0,  0.8},    // sectfont
@@ -160,6 +166,8 @@ static const mjuiThemeColor themeColor3 = {
   {0.3,  0.3,  0.3},    // thumb
   {0.25, 0.25, 0.25},   // secttitle
   {0.0,  0.0,  0.0},    // secttitle2
+  {0.2,  0.2,  0.2},    // secttitleuncheck
+  {0.2,  0.2,  0.2},    // secttitleuncheck2
   {0.2,  0.2,  0.2},    // secttitlecheck
   {0.2,  0.2,  0.2},    // secttitlecheck2
   {1.0,  0.3,  0.3},    // sectfont
@@ -421,7 +429,8 @@ static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
 
 
 // draw open/closed symbol in title
-//  type: 0- section, 1- section with checkbox, 2- separator
+//  type: 0- section, 1- section with unchecked box,
+//        2- section with checked box, 3- separator
 static void drawsymbol(mjrRect rect, int flg_open, int type,
                        const mjUI* ui, const mjrContext* con) {
   // size and center
@@ -431,7 +440,7 @@ static void drawsymbol(mjrRect rect, int flg_open, int type,
   int d = mju_round(con->charHeight*0.33);
 
   // separator size
-  if (type == 2) {
+  if (type == 3) {
     d = mju_round(con->charHeight*0.28);
   }
 
@@ -465,7 +474,15 @@ static void drawsymbol(mjrRect rect, int flg_open, int type,
       );
       break;
 
-    case 1:   // section with checkbox
+    case 1:   // section with unchecked box
+      glColor3f(
+        (ui->color.secttitleuncheck[0] + ui->color.secttitleuncheck2[0]) * 0.5,
+        (ui->color.secttitleuncheck[1] + ui->color.secttitleuncheck2[1]) * 0.5,
+        (ui->color.secttitleuncheck[2] + ui->color.secttitleuncheck2[2]) * 0.5
+      );
+      break;
+
+    case 2:   // section with checked box
       glColor3f(
         (ui->color.secttitlecheck[0] + ui->color.secttitlecheck2[0]) * 0.5,
         (ui->color.secttitlecheck[1] + ui->color.secttitlecheck2[1]) * 0.5,
@@ -473,7 +490,7 @@ static void drawsymbol(mjrRect rect, int flg_open, int type,
       );
       break;
 
-    case 2:   // separator
+    case 3:   // separator
       glColor3f(
         (ui->color.separator[0] + ui->color.separator2[0]) * 0.5,
         (ui->color.separator[1] + ui->color.separator2[1]) * 0.5,
@@ -736,7 +753,7 @@ static int insideoval(int x, int y, mjrRect r) {
 // find mouse location in UI; y already inverted
 // sect: -1: thumb, -2: slider down, -3: slider up, positive: 1+section
 // item: -1: section title or scroll, non-negative: item number
-// item: -2 in checkbox on section title
+// item: -2: in checkbox on section title
 static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* con,
                       int* sect, int* item) {
   // clear
@@ -1969,33 +1986,41 @@ void mjui_update(int section, int item, const mjUI* ui,
 
         // section with checkbox
         else {
+          // select colors depending on check state
+          const float* rgb = (s->checkbox == 1 ? ui->color.secttitleuncheck
+                                               : ui->color.secttitlecheck);
+          const float* rgb2 = (s->checkbox == 1 ? ui->color.secttitleuncheck2
+                                                : ui->color.secttitlecheck2);
+
+          // draw rectangle with gradient
           glBegin(GL_QUADS);
-          glColor3fv(ui->color.secttitlecheck2);
+          glColor3fv(rgb2);
           glVertex2i(r.left, r.bottom);
           glVertex2i(r.left + r.width, r.bottom);
-          glColor3fv(ui->color.secttitlecheck);
+          glColor3fv(rgb);
           glVertex2i(r.left + r.width, r.bottom + r.height);
           glVertex2i(r.left, r.bottom + r.height);
           glEnd();
 
           // symbol and text with offset
-          drawsymbol(r, s->state, 1, ui, con);
+          drawsymbol(r, s->state, s->checkbox, ui, con);
           drawtext(s->name, r.left + r.height,
             r.bottom + g_textver, 2 * maxwidth - r.height,
             ui->color.sectfont, con);
 
           // draw checkmark as specified
-          if (s->checkbox > 1) {
-            int cgap = r.height / 4;
-            mjrRect cr = { r.left + cgap, r.bottom + cgap, r.height - 2 * cgap, r.height - 2 * cgap };
-            float rgb[3] = {
-              0.5f * (ui->color.secttitlecheck[0] + ui->color.secttitlecheck2[0]),
-              0.5f * (ui->color.secttitlecheck[1] + ui->color.secttitlecheck2[1]),
-              0.5f * (ui->color.secttitlecheck[2] + ui->color.secttitlecheck2[2])
-            };
-            drawrectangle(cr, ui->color.sectsymbol,
-              s->checkbox == 2 ? rgb : NULL, con);
-          }
+          int cgap = r.height / 4;
+          mjrRect cr = {r.left + cgap,
+                        r.bottom + cgap,
+                        r.height - 2 * cgap,
+                        r.height - 2 * cgap};
+          float rgbmean[3] = {
+            0.5f * (rgb[0] + rgb2[0]),
+            0.5f * (rgb[1] + rgb2[1]),
+            0.5f * (rgb[2] + rgb2[2]),
+          };
+          drawrectangle(cr, ui->color.sectsymbol,
+            s->checkbox == 1 ? rgbmean : NULL, con);
         }
 
         // shortcut
@@ -2078,7 +2103,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         // symbol and round corners for collapsible
         if (it->state >= mjSEPCLOSED) {
           int flg_open = (it->state == mjSEPCLOSED + 1);
-          drawsymbol(it->rect, flg_open, 2, ui, con);
+          drawsymbol(it->rect, flg_open, 3, ui, con);
           roundcorner(it->rect, flg_open, 1, ui, con);
         }
         break;
