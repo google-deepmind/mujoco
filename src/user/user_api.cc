@@ -117,33 +117,37 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 
 
 // attach body to a frame of the parent
-int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
-                   const char* prefix, const char* suffix) {
+mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
+                        const char* prefix, const char* suffix) {
   mjCFrame* frame_parent = static_cast<mjCFrame*>(parent->element);
   mjCBody* child_body = static_cast<mjCBody*>(child->element);
   try {
     *frame_parent += std::string(prefix) + *child_body + std::string(suffix);
   } catch (mjCError& e) {
     frame_parent->model->SetError(e);
-    return -1;
+    return nullptr;
   }
-  return 0;
+  mjsBody* attached_body = frame_parent->last_attached;
+  frame_parent->last_attached = nullptr;
+  return attached_body;
 }
 
 
 
 // attach frame to a parent body
-int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
-                    const char* prefix, const char* suffix) {
+mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
+                          const char* prefix, const char* suffix) {
   mjCBody* body_parent = static_cast<mjCBody*>(parent->element);
   mjCFrame* child_frame = static_cast<mjCFrame*>(child->element);
   try {
     *body_parent += std::string(prefix) + *child_frame + std::string(suffix);
   } catch (mjCError& e) {
     body_parent->model->SetError(e);
-    return -1;
+    return nullptr;
   }
-  return 0;
+  mjsFrame* attached_frame = body_parent->last_attached;
+  body_parent->last_attached = nullptr;
+  return attached_frame;
 }
 
 

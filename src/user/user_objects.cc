@@ -762,6 +762,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   margin = 0;
   mjuu_zerovec(xpos0, 3);
   mjuu_setvec(xquat0, 1, 0, 0, 0);
+  last_attached = nullptr;
 
   // clear object lists
   bodies.clear();
@@ -860,7 +861,9 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->body = this;
   frames.back()->model = model;
   frames.back()->frame = other.frame;
+  frames.back()->NameSpace(other.model);
   int i = frames.size();
+  last_attached = &frames.back()->spec;
 
   // map input frames to index in this->frames
   std::map<mjCFrame*, int> fmap;
@@ -1723,6 +1726,7 @@ mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
   model = _model;
   body = NULL;
   frame = _frame ? _frame : NULL;
+  last_attached = nullptr;
   PointToLocal();
   CopyFromSpec();
 }
@@ -1771,6 +1775,7 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // add to body children
   body->bodies.push_back(subtree);
+  last_attached = &body->bodies.back()->spec;
 
   // attach referencing elements
   *model += *other.model;

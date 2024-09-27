@@ -3793,7 +3793,7 @@ mjs_attachBody
 
 .. mujoco-include:: mjs_attachBody
 
-Attach child body to a parent frame, return 0 on success.
+Attach child body to a parent frame, return the attached body if success or NULL otherwise.
 
 .. _mjs_attachFrame:
 
@@ -3802,7 +3802,7 @@ mjs_attachFrame
 
 .. mujoco-include:: mjs_attachFrame
 
-Attach child frame to a parent body, return 0 on success.
+Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
 
 .. _mjs_detachBody:
 

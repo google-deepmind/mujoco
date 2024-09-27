@@ -8945,7 +8945,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_attachBody',
      FunctionDecl(
          name='mjs_attachBody',
-         return_type=ValueType(name='int'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsBody'),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='parent',
@@ -8972,12 +8974,14 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Attach child body to a parent frame, return 0 on success.',
+         doc='Attach child body to a parent frame, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
     ('mjs_attachFrame',
      FunctionDecl(
          name='mjs_attachFrame',
-         return_type=ValueType(name='int'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='parent',
@@ -9004,7 +9008,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Attach child frame to a parent body, return 0 on success.',
+         doc='Attach child frame to a parent body, return the attached frame if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
     ('mjs_detachBody',
      FunctionDecl(

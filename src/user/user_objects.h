@@ -331,6 +331,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjtNum* mpos(const std::string& state_name);
   mjtNum* mquat(const std::string& state_name);
 
+  mjsFrame* last_attached;  // last attached frame to this body
+
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment
@@ -397,6 +399,8 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   mjCFrame& operator+=(const mjCBody& other);
 
   bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
+
+  mjsBody* last_attached;  // last attached body to this frame
 
  private:
   void Compile(void);                          // compiler

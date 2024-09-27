@@ -683,11 +683,13 @@ PYBIND11_MODULE(_specs, m) {
       "spec",
       [](raw::MjsBody& self) -> raw::MjSpec* { return mjs_getSpec(&self); },
       py::return_value_policy::reference_internal);
-  mjsBody.def("attach_frame",
-              [](raw::MjsBody& self, raw::MjsFrame& frame, std::string& prefix,
-                 std::string& suffix) -> void {
-                mjs_attachFrame(&self, &frame, prefix.c_str(), suffix.c_str());
-              });
+  mjsBody.def(
+      "attach_frame",
+      [](raw::MjsBody& self, raw::MjsFrame& frame, std::string& prefix,
+         std::string& suffix) -> raw::MjsFrame* {
+        return mjs_attachFrame(&self, &frame, prefix.c_str(), suffix.c_str());
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSFRAME ====================================
   mjsFrame.def_property_readonly(
@@ -696,10 +698,13 @@ PYBIND11_MODULE(_specs, m) {
   mjsFrame.def("set_frame", [](raw::MjsFrame& self, raw::MjsFrame& frame) {
     mjs_setFrame(self.element, &frame);
   });
-  mjsFrame.def("attach_body", [](raw::MjsFrame& self, raw::MjsBody& body,
-                                 std::string& prefix, std::string& suffix) {
-    mjs_attachBody(&self, &body, prefix.c_str(), suffix.c_str());
-  });
+  mjsFrame.def(
+      "attach_body",
+      [](raw::MjsFrame& self, raw::MjsBody& body, std::string& prefix,
+         std::string& suffix) -> raw::MjsBody* {
+        return mjs_attachBody(&self, &body, prefix.c_str(), suffix.c_str());
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSGEOM =====================================
   mjsGeom.def_property_readonly(

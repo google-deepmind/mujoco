@@ -660,8 +660,8 @@ TEST_F(MujocoTest, AttachSame) {
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
-  EXPECT_THAT(
-      mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+  mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
+  EXPECT_THAT(attached, mjs_findBody(parent, "attached-body-1"));
 
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);
@@ -782,8 +782,8 @@ TEST_F(MujocoTest, AttachDifferent) {
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
-  EXPECT_EQ(
-      mjs_attachBody(frame, body, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+  mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
+  EXPECT_THAT(attached, mjs_findBody(parent, "attached-body-1"));
 
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);
@@ -904,8 +904,8 @@ TEST_F(MujocoTest, AttachFrame) {
   EXPECT_THAT(frame, NotNull());
 
   // attach child frame to parent body
-  EXPECT_THAT(
-      mjs_attachFrame(body, frame, /*prefix=*/"attached-", /*suffix=*/"-1"), 0);
+  mjsFrame* attached = mjs_attachFrame(body, frame, "attached-", "-1");
+  EXPECT_THAT(attached, mjs_findFrame(parent, "attached-pframe-1"));
 
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);

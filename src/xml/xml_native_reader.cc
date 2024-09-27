@@ -3627,7 +3627,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         UpdateString(suffix, count, i);
 
         // attach to parent
-        if (mjs_attachFrame(body, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
+        if (!mjs_attachFrame(body, pframe, /*prefix=*/"", suffix.c_str())) {
           throw mjXError(elem, mjs_getError(spec));
         }
       }
@@ -3704,7 +3704,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         if (!child) {
           throw mjXError(0, "could not find body '%s''%s'", body_name.c_str());
         }
-        if (mjs_attachBody(pframe, child, prefix.c_str(), "") != 0) {
+        if (!mjs_attachBody(pframe, child, prefix.c_str(), "")) {
           throw mjXError(elem, mjs_getError(spec));
         }
       } else {
