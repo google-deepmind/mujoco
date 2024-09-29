@@ -119,6 +119,10 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 // attach body to a frame of the parent
 mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                         const char* prefix, const char* suffix) {
+  if (!parent) {
+    mju_error("parent frame is null");
+    return nullptr;
+  }
   mjCFrame* frame_parent = static_cast<mjCFrame*>(parent->element);
   mjCBody* child_body = static_cast<mjCBody*>(child->element);
   try {
@@ -137,6 +141,10 @@ mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
 // attach frame to a parent body
 mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix) {
+  if (!parent) {
+    mju_error("parent body is null");
+    return nullptr;
+  }
   mjCBody* body_parent = static_cast<mjCBody*>(parent->element);
   mjCFrame* child_frame = static_cast<mjCFrame*>(child->element);
   try {

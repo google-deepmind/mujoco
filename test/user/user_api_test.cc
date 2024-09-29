@@ -1284,5 +1284,107 @@ TEST_F(MujocoTest, InitTexture) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, AttachNestedKeyframe) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="frame"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint" type="slide"/>
+        <geom size=".2"/>
+        <frame name="frame"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key2" time="2" qpos="2"/>
+    </keyframe>
+  </mujoco>)";
+
+  static constexpr char gchild_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint" type="slide"/>
+        <geom size=".3"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key1" time="1" qpos="1"/>
+    </keyframe>
+  </mujoco>)";
+
+  static constexpr char expected_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="frame">
+        <body name="child-body">
+          <joint name="child-joint" type="slide"/>
+          <geom size=".2"/>
+          <frame name="child-frame">
+            <body name="child-gchild-body">
+              <joint name="child-gchild-joint" type="slide"/>
+              <geom size=".3"/>
+            </body>
+          </frame>
+        </body>
+      </frame>
+    </worldbody>
+    <keyframe>
+      <key name="child-key2" time="2" qpos="0 2 0"/>
+      <key name="child-gchild-key1" time="1" qpos="0 0 1"/>
+    </keyframe>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(parent_xml, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(child_xml, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+  mjSpec* gchild = mj_parseXMLString(gchild_xml, 0, er.data(), er.size());
+  EXPECT_THAT(gchild, NotNull()) << er.data();
+
+  // attach gchild to child
+  mjs_attachBody(mjs_findFrame(child, "frame"),
+                 mjs_findBody(gchild, "body"), "gchild-", "");
+
+  // compile required before further attachment
+  mjModel* m_child = mj_compile(child, 0);
+
+  // attach child to parent
+  mjs_attachBody(mjs_findFrame(parent, "frame"),
+                 mjs_findBody(child, "body"), "child-", "");
+
+  mjtNum tol = 0;
+  std::string field = "";
+  mjModel* m_attached = mj_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull());
+  mjModel* m_expected = LoadModelFromString(expected_xml, er.data(), er.size());
+  EXPECT_THAT(m_expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';;
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteSpec(gchild);
+  mj_deleteModel(m_expected);
+  mj_deleteModel(m_attached);
+  mj_deleteModel(m_child);
+}
+
 }  // namespace
 }  // namespace mujoco

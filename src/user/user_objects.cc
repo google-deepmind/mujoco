@@ -802,7 +802,8 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     sites.clear();
     cameras.clear();
     lights.clear();
-    id = other.id;
+    id = -1;
+    subtreedofs = 0;
 
     // add elements to lists
     *this += other;
@@ -1039,6 +1040,10 @@ void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
 
   for (auto& light : lights) {
     light->NameSpace(m);
+  }
+
+  for (auto& frame : frames) {
+    frame->NameSpace(m);
   }
 }
 
