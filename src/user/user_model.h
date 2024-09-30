@@ -233,9 +233,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
-  void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
-    active_plugins_ = std::move(active_plugins);
-  }
+  void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }

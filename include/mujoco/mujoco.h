@@ -241,6 +241,9 @@ MJAPI mjSpec* mj_copySpec(const mjSpec* s);
 // Free memory allocation in mjSpec.
 MJAPI void mj_deleteSpec(mjSpec* s);
 
+// Activate plugin, return slot number.
+MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
+
 
 //---------------------------------- Printing ------------------------------------------------------
 
@@ -1606,9 +1609,6 @@ MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
 
 //---------------------------------- Spec utilities ------------------------------------------------
-
-// Set active plugins.
-MJAPI void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 
 // Set element's default.
 MJAPI void mjs_setDefault(mjsElement* element, mjsDefault* def);

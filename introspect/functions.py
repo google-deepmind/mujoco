@@ -1045,6 +1045,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Free memory allocation in mjSpec.',
      )),
+    ('mjs_activatePlugin',
+     FunctionDecl(
+         name='mjs_activatePlugin',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Activate plugin, return slot number.',
+     )),
     ('mj_printFormattedModel',
      FunctionDecl(
          name='mj_printFormattedModel',
@@ -10191,26 +10211,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Get double array contents and optionally its size.',
-     )),
-    ('mjs_setActivePlugins',
-     FunctionDecl(
-         name='mjs_setActivePlugins',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='activeplugins',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-             ),
-         ),
-         doc='Set active plugins.',
      )),
     ('mjs_setDefault',
      FunctionDecl(

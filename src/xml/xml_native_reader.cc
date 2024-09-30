@@ -2882,7 +2882,6 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
 // extension section parser
 void mjXReader::Extension(XMLElement* section) {
   XMLElement* elem = FirstChildElement(section);
-  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
 
   while (elem) {
     // get sub-element name
@@ -2890,23 +2889,8 @@ void mjXReader::Extension(XMLElement* section) {
 
     if (name == "plugin") {
       string plugin_name;
-      int plugin_slot = -1;
       ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
-      const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
-      if (!plugin) {
-        throw mjXError(elem, "unknown plugin '%s'", plugin_name.c_str());
-      }
-
-      bool already_declared = false;
-      for (const auto& [existing_plugin, existing_slot] : active_plugins) {
-        if (plugin == existing_plugin) {
-          already_declared = true;
-          break;
-        }
-      }
-      if (!already_declared) {
-        active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
-      }
+      int plugin_slot = mjs_activatePlugin(spec, plugin_name.c_str());
 
       XMLElement* child = FirstChildElement(elem);
       while (child) {
@@ -2933,8 +2917,6 @@ void mjXReader::Extension(XMLElement* section) {
     // advance to next element
     elem = NextSiblingElement(elem);
   }
-
-  mjs_setActivePlugins(spec, &active_plugins);
 }
 
 

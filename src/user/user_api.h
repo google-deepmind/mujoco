@@ -63,6 +63,9 @@ MJAPI void mj_deleteSpec(mjSpec* s);
 // Add spec (model asset) to spec.
 MJAPI void mjs_addSpec(mjSpec* s, mjSpec* child);
 
+// Activate plugin, return slot number.
+MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
+
 
 //---------------------------------- Attachment ----------------------------------------------------
 
@@ -346,9 +349,6 @@ MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
 
 //---------------------------------- Other utilities -----------------------------------------------
-
-// Set active plugins.
-MJAPI void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 
 // Set element's default.
 MJAPI void mjs_setDefault(mjsElement* element, mjsDefault* def);

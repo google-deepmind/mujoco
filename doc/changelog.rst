@@ -12,6 +12,7 @@ General
   example model <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__ and `2D example model
   <https://github.com/google-deepmind/mujoco/blob/main/src/model/trampoline.xml>`__ for examples of flex objects
   that previously required these plugins.
+- Replaced the function ``mjs_setActivePlugins`` with :ref:`mjs_activatePlugin`.
 
 Bug fixes
 ^^^^^^^^^

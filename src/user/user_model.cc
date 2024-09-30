@@ -29,6 +29,7 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -4449,6 +4450,23 @@ bool mjCModel::CopyBack(const mjModel* m) {
 
   return true;
 }
+
+
+
+void mjCModel::ActivatePlugin(const mjpPlugin* plugin, int slot) {
+  bool already_declared = false;
+  for (const auto& [existing_plugin, existing_slot] : active_plugins_) {
+    if (plugin == existing_plugin) {
+      already_declared = true;
+      break;
+    }
+  }
+  if (!already_declared) {
+    active_plugins_.emplace_back(std::make_pair(plugin, slot));
+  }
+}
+
+
 
 void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
                              const std::string& plugin_instance_name, mjCPlugin** plugin_instance) {

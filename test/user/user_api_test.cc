@@ -131,22 +131,12 @@ TEST_F(MujocoTest, TreeTraversal) {
 }
 
 TEST_F(PluginTest, ActivatePlugin) {
-  std::string plugin_name = "mujoco.elasticity.cable";
   mjSpec* spec = mj_makeSpec();
-
-  // get slot of requested plugin
-  int plugin_slot = -1;
-  const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
-  EXPECT_THAT(plugin, NotNull());
-
-  // activated plugin in the slot
-  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
-  active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
-  mjs_setActivePlugins(spec, &active_plugins);
+  mjs_activatePlugin(spec, "mujoco.elasticity.cable");
 
   // associate plugin to body
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
-  mjs_setString(body->plugin.name, plugin_name.c_str());
+  mjs_setString(body->plugin.name, "mujoco.elasticity.cable");
   body->plugin.element = mjs_addPlugin(spec)->element;
   body->plugin.active = true;
   mjsGeom* geom = mjs_addGeom(body, 0);
@@ -166,18 +156,8 @@ TEST_F(PluginTest, ActivatePlugin) {
 }
 
 TEST_F(PluginTest, DeletePlugin) {
-  std::string plugin_name = "mujoco.pid";
   mjSpec* spec = mj_makeSpec();
-
-  // get slot of requested plugin
-  int plugin_slot = -1;
-  const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
-  ASSERT_THAT(plugin, NotNull());
-
-  // activated plugin in the slot
-  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
-  active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
-  mjs_setActivePlugins(spec, &active_plugins);
+  mjs_activatePlugin(spec, "mujoco.pid");
 
   // create body
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
@@ -190,7 +170,7 @@ TEST_F(PluginTest, DeletePlugin) {
   // add actuator
   mjsActuator* actuator = mjs_addActuator(spec, 0);
   mjs_setString(actuator->target, "j1");
-  mjs_setString(actuator->plugin.name, plugin_name.c_str());
+  mjs_setString(actuator->plugin.name, "mujoco.pid");
   actuator->plugin.element = mjs_addPlugin(spec)->element;
   actuator->plugin.active = true;
   actuator->trntype = mjTRN_JOINT;

@@ -3171,6 +3171,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
 mjSpec* mj_makeSpec(void);
 mjSpec* mj_copySpec(const mjSpec* s);
 void mj_deleteSpec(mjSpec* s);
+int mjs_activatePlugin(mjSpec* s, const char* name);
 void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format);
 void mj_printModel(const mjModel* m, const char* filename);
 void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
@@ -3614,7 +3615,6 @@ void mjs_setDouble(mjDoubleVec* dest, const double* array, int size);
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 const char* mjs_getString(const mjString* source);
 const double* mjs_getDouble(const mjDoubleVec* source, int* size);
-void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 void mjs_setDefault(mjsElement* element, mjsDefault* def);
 void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,

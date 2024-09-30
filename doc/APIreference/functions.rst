@@ -1509,6 +1509,15 @@ mj_deleteSpec
 
 Free memory allocation in mjSpec.
 
+.. _mjs_activatePlugin:
+
+mjs_activatePlugin
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_activatePlugin
+
+Activate plugin, return slot number.
+
 .. _Errorandmemory:
 
 Error and memory
@@ -4354,15 +4363,6 @@ Get double array contents and optionally its size.
 
 Spec utilities
 ^^^^^^^^^^^^^^
-.. _mjs_setActivePlugins:
-
-mjs_setActivePlugins
-~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_setActivePlugins
-
-Set active plugins.
-
 .. _mjs_setDefault:
 
 mjs_setDefault
