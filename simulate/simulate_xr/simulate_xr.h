@@ -60,8 +60,10 @@ class SimulateXr {
   void init_scene_vis(mjvScene *scn, mjModel *m);
 
   bool before_render(mjvScene *scn, mjModel *m);
+  bool before_render_1sc(mjvScene *scn, mjModel *m);
 
   void after_render(mjrContext *con);
+  void after_render_1sc(mjrContext *con);
 
   bool before_render2(mjvScene *scn);
   uint32_t view_count = 0;
@@ -110,8 +112,8 @@ class SimulateXr {
     int64_t swapchainFormat = 0;
     std::vector<void *> imageViews;
   };
-  //SwapchainInfo colorSwapchainInfo;
   std::vector<SwapchainInfo> m_colorSwapchainInfos = {};
+  SwapchainInfo m_colorSwapchainInfo;
   enum class SwapchainType : uint8_t { COLOR, DEPTH };  // only using color
   std::unordered_map<
       XrSwapchain,
@@ -178,6 +180,9 @@ class SimulateXr {
 
   void _create_swapchain();
   void _destroy_swapchain();
+
+  void _create_swapchains();
+  void _destroy_swapchains();
 
   bool m_sessionRunning = false;
   void _poll_events();

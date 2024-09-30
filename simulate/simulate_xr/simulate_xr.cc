@@ -197,7 +197,8 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
     renderLayerInfo.layerProjectionViews[i].fov = views[i].fov;
     renderLayerInfo.layerProjectionViews[i].subImage.swapchain =
         m_colorSwapchainInfos[0].swapchain;
-    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.x = i * width;
+    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.x =
+        i * width;
     renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.y = 0;
     renderLayerInfo.layerProjectionViews[i].subImage.imageRect.extent.width =
         static_cast<int32_t>(width);
@@ -210,22 +211,145 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   scn->enabletransform = true;
   scn->rotate[0] = cos(0.25 * mjPI);
   scn->rotate[1] = sin(-0.25 * mjPI);
-  scn->translate[1] = 0;  // TODO AS not sure about this, give user control?
+  scn->translate[1] = 0;   // TODO AS not sure about this, give user control?
   scn->translate[2] = -1;  // TODO AS not sure about this, give user control?
 
   // RENDER
   // BeginRendering
-  glBindFramebuffer(GL_FRAMEBUFFER,
-                    (GLuint)m_colorSwapchainInfos[0].imageViews[0]);
+  glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)m_colorSwapchainInfo.imageViews[0]);
   glFramebufferTexture2D(
       GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-      (GLuint)GetSwapchainImage(m_colorSwapchainInfos[0].swapchain, 0), 0);
+      (GLuint)GetSwapchainImage(m_colorSwapchainInfo.swapchain, 0), 0);
 
-  //glBindFramebuffer(GL_FRAMEBUFFER,
-  //                  (GLuint)m_colorSwapchainInfos[1].imageViews[0]);
-  //glFramebufferTexture2D(
-  //    GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-  //    (GLuint)GetSwapchainImage(m_colorSwapchainInfos[0].swapchain, 0), 0);
+  rendered = true;
+
+  return true;
+}
+
+bool SimulateXr::before_render_1sc(mjvScene *scn, mjModel *m) {
+  rendered = false;
+
+  // poll events
+  _poll_events();
+  if (!m_sessionRunning) return false;
+
+  if (!_render_frame_start()) {
+    return false;
+  }
+
+  // essentially, first part of RenderLayer
+
+  // Locate the views from the view configuration within the (reference) space
+  // at the display time.
+  std::vector<XrView> views(m_viewConfigurationViews.size(), {XR_TYPE_VIEW});
+
+  XrViewState viewState{XR_TYPE_VIEW_STATE};
+  // Will contain information on whether the position
+  // and/or orientation is valid and/or tracked.
+  XrViewLocateInfo viewLocateInfo{XR_TYPE_VIEW_LOCATE_INFO};
+  viewLocateInfo.viewConfigurationType = m_viewConfiguration;
+  viewLocateInfo.displayTime = renderLayerInfo.predictedDisplayTime;
+  viewLocateInfo.space = m_localSpace;
+  uint32_t viewCount = 0;
+  XrResult result = xrLocateViews(m_session, &viewLocateInfo, &viewState,
+                                  static_cast<uint32_t>(views.size()),
+                                  &viewCount, views.data());
+  if (result != XR_SUCCESS) {
+    std::cerr << ("Failed to locate Views.") << std::endl;
+    return false;
+  }
+
+  // Resize the layer projection views to match the view count. The layer
+  // projection views are used in the layer projection.
+  renderLayerInfo.layerProjectionViews.resize(
+      viewCount, {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW});
+
+  // Acquire and wait for an image from the swapchains.
+  // Get the image index of an image in the swapchains.
+  // The timeout is infinite.
+  uint32_t colorImageIndex = 0;
+  XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+  if (xrAcquireSwapchainImage(m_colorSwapchainInfo.swapchain, &acquireInfo,
+                              &colorImageIndex) < 0)
+    std::cerr << "Failed to acquire Image from the Color Swapchian"
+              << std::endl;
+
+  XrSwapchainImageWaitInfo waitInfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+  waitInfo.timeout = XR_INFINITE_DURATION;
+  if (xrWaitSwapchainImage(m_colorSwapchainInfo.swapchain, &waitInfo) < 0)
+    std::cerr << "Failed to wait for Image from the Color Swapchain"
+              << std::endl;
+
+  // Per view in the view configuration:
+  for (uint32_t i = 0; i < viewCount; i++) {
+    // Get the width and height and construct the viewport and scissors.
+    // GraphicsAPI::Viewport viewport = {0.0f,          0.0f, (float)width,
+    //                                  (float)height, 0.0f, 1.0f};
+    // GraphicsAPI::Rect2D scissor = {{(int32_t)0, (int32_t)0}, {width,
+    // height}};
+    float nearZ = 0.05f;
+    float farZ = 100.0f;  // 50?
+    scn->camera[i].pos[0] = views[i].pose.position.x;
+    scn->camera[i].pos[1] = views[i].pose.position.y;
+    scn->camera[i].pos[2] = views[i].pose.position.z;
+    scn->camera[i].frustum_near = nearZ;
+    scn->camera[i].frustum_far = farZ;
+    scn->camera[i].frustum_bottom = tan(views[i].fov.angleDown) * nearZ;
+    scn->camera[i].frustum_top = tan(views[i].fov.angleUp) * nearZ;
+    scn->camera[i].frustum_center =
+        0.5 * (tan(views[i].fov.angleLeft) + tan(views[i].fov.angleRight)) *
+        nearZ;
+
+    mjtNum rot_quat[4] = {
+        views[i].pose.orientation.w, views[i].pose.orientation.x,
+        views[i].pose.orientation.y, views[i].pose.orientation.z};
+
+    mjtNum forward[3] = {0, 0, 0};
+    const mjtNum forward_vec[3] = {0, 0, -1};
+    mju_rotVecQuat(forward, forward_vec, rot_quat);
+    scn->camera[i].forward[0] = forward[0];
+    scn->camera[i].forward[1] = forward[1];
+    scn->camera[i].forward[2] = forward[2];
+
+    mjtNum up[3] = {0, 0, 0};
+    const mjtNum up_vec[3] = {0, 1, 0};
+    mju_rotVecQuat(up, up_vec, rot_quat);
+    scn->camera[i].up[0] = up[0];
+    scn->camera[i].up[1] = up[1];
+    scn->camera[i].up[2] = up[2];
+
+    // Fill out the XrCompositionLayerProjectionView structure specifying
+    // the pose and fov from the view. This also associates the swapchain
+    // image with this layer projection view.
+    renderLayerInfo.layerProjectionViews[i] = {
+        XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+    renderLayerInfo.layerProjectionViews[i].pose = views[i].pose;
+    renderLayerInfo.layerProjectionViews[i].fov = views[i].fov;
+    renderLayerInfo.layerProjectionViews[i].subImage.swapchain =
+        m_colorSwapchainInfo.swapchain;
+    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.x =
+        i * width;
+    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.y = 0;
+    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.extent.width =
+        static_cast<int32_t>(width);
+    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.extent.height =
+        static_cast<int32_t>(height);
+    renderLayerInfo.layerProjectionViews[i].subImage.imageArrayIndex = 0;
+    // Useful for multiview rendering.
+  }
+
+  scn->enabletransform = true;
+  scn->rotate[0] = cos(0.25 * mjPI);
+  scn->rotate[1] = sin(-0.25 * mjPI);
+  scn->translate[1] = 0;   // TODO AS not sure about this, give user control?
+  scn->translate[2] = -1;  // TODO AS not sure about this, give user control?
+
+  // RENDER
+  // BeginRendering
+  glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)m_colorSwapchainInfo.imageViews[0]);
+  glFramebufferTexture2D(
+      GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+      (GLuint)GetSwapchainImage(m_colorSwapchainInfo.swapchain, 0), 0);
 
   rendered = true;
 
@@ -311,13 +435,12 @@ bool SimulateXr::before_render_view(mjvScene *scn, uint32_t i_view) {
   scn->camera[0].pos[2] = m_views[i_view].pose.position.z;
   scn->camera[0].frustum_near = nearZ;
   scn->camera[0].frustum_far = farZ;
-  scn->camera[0].frustum_bottom =
-      tan(m_views[i_view].fov.angleDown) * nearZ;
+  scn->camera[0].frustum_bottom = tan(m_views[i_view].fov.angleDown) * nearZ;
   scn->camera[0].frustum_top = tan(m_views[i_view].fov.angleUp) * nearZ;
   scn->camera[0].frustum_center = 0.5 *
-                                       (tan(m_views[i_view].fov.angleLeft) +
-                                        tan(m_views[i_view].fov.angleRight)) *
-                                       nearZ;
+                                  (tan(m_views[i_view].fov.angleLeft) +
+                                   tan(m_views[i_view].fov.angleRight)) *
+                                  nearZ;
 
   mjtNum rot_quat[4] = {
       m_views[i_view].pose.orientation.w, m_views[i_view].pose.orientation.x,
@@ -379,8 +502,8 @@ void SimulateXr::after_render_view(mjrContext *con, uint32_t i_view) {
 
   // We copy what MuJoCo rendered on our framebuffer object
   glBindFramebuffer(GL_READ_FRAMEBUFFER, con->offFBO);
-  //for (size_t i = 0; i < length; i++) {
-  //}
+  // for (size_t i = 0; i < length; i++) {
+  // }
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
                     (GLuint)m_colorSwapchainInfos[i_view].imageViews[0]);
   glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
@@ -446,15 +569,14 @@ void SimulateXr::after_render(mjrContext *con) {
   // We copy what MuJoCo rendered on our framebuffer object
   glBindFramebuffer(GL_READ_FRAMEBUFFER, con->offFBO);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
-                    (GLuint)m_colorSwapchainInfos[0].imageViews[0]);
+                    (GLuint)m_colorSwapchainInfo.imageViews[0]);
   glBlitFramebuffer(0, 0, width_render, height, 0, 0, width_render, height,
                     GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
   // TODO: pull window size from the system
-  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2,
-                    height / 2,
+  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2, height / 2,
                     GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
   // here be other things
@@ -467,8 +589,8 @@ void SimulateXr::after_render(mjrContext *con) {
     // the image.
     XrSwapchainImageReleaseInfo releaseInfo{
         XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-    if (xrReleaseSwapchainImage(m_colorSwapchainInfos[i].swapchain,
-                                &releaseInfo) < 0)
+    if (xrReleaseSwapchainImage(m_colorSwapchainInfo.swapchain, &releaseInfo) <
+        0)
       std::cerr << "Failed to release Image back to the Color Swapchain"
                 << std::endl;
   }
@@ -500,6 +622,67 @@ void SimulateXr::after_render(mjrContext *con) {
   frameEndInfo.layers = renderLayerInfo.layers.data();
   if (xrEndFrame(m_session, &frameEndInfo) < 0)
     std::cerr << "Failed to end the XR Frame." << std::endl;
+}
+
+void SimulateXr::after_render_1sc(mjrContext *con) {
+  if (!m_sessionRunning) return;
+
+  // We copy what MuJoCo rendered on our framebuffer object
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, con->offFBO);
+  for (size_t i_imageview = 0; i_imageview < m_colorSwapchainInfo.imageViews.size(); i_imageview++) {
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
+                      (GLuint)m_colorSwapchainInfo.imageViews[i_imageview]);
+    glBlitFramebuffer(0, 0, width_render, height, 0, 0, width_render, height,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  }
+
+  // mirror to mujoco window
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
+  // TODO: pull window size from the system
+  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2, height / 2,
+                    GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+  // here be other things
+  //// EndRendering
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  // glDeleteFramebuffers(1, 0);
+
+  // Give the swapchain image back to OpenXR, allowing the compositor to use
+  // the image.
+  XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+  if (xrReleaseSwapchainImage(m_colorSwapchainInfo.swapchain, &releaseInfo) < 0)
+    std::cerr << "Failed to release Image back to the Color Swapchain"
+              << std::endl;
+
+  // Fill out the XrCompositionLayerProjection structure for usage with
+  // xrEndFrame().
+  renderLayerInfo.layerProjection.layerFlags =
+      XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT |
+      XR_COMPOSITION_LAYER_CORRECT_CHROMATIC_ABERRATION_BIT;
+  renderLayerInfo.layerProjection.space = m_localSpace;
+  renderLayerInfo.layerProjection.viewCount =
+      static_cast<uint32_t>(renderLayerInfo.layerProjectionViews.size());
+  renderLayerInfo.layerProjection.views =
+      renderLayerInfo.layerProjectionViews.data();
+
+  if (rendered) {
+    renderLayerInfo.layers.push_back(
+        reinterpret_cast<XrCompositionLayerBaseHeader *>(
+            &renderLayerInfo.layerProjection));
+  }
+
+  // Tell OpenXR that we are finished with this frame; specifying its display
+  // time, environment blending and layers.
+  XrFrameEndInfo frameEndInfo{XR_TYPE_FRAME_END_INFO};
+  frameEndInfo.displayTime = frameState.predictedDisplayTime;
+  frameEndInfo.environmentBlendMode = m_environmentBlendMode;
+  frameEndInfo.layerCount =
+      static_cast<uint32_t>(renderLayerInfo.layers.size());
+  frameEndInfo.layers = renderLayerInfo.layers.data();
+  int answ = xrEndFrame(m_session, &frameEndInfo);
+  if (answ < 0)
+    std::cerr << "Failed to end the XR Frame. Code: " << answ << "."
+              << std::endl;
 }
 
 void SimulateXr::_create_instance() {
@@ -796,8 +979,111 @@ void SimulateXr::_create_swapchain() {
   // GL_RGBA8 is 0x8058 (unsupported)
   // GL_RGBA16 is 0x805b
 
+  // Making only 1 swapchain
+  // Fill out an XrSwapchainCreateInfo structure and create an XrSwapchain.
+  // Color.
+  XrSwapchainCreateInfo swapchainCI{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+  swapchainCI.createFlags = 0;
+  swapchainCI.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT |
+                           XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT |
+                           XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
+  swapchainCI.format = SelectColorSwapchainFormat(formats);
+  swapchainCI.sampleCount = 1;
+  swapchainCI.width = width_render;
+  swapchainCI.height = height;
+  swapchainCI.faceCount = 1;
+  swapchainCI.arraySize = 1;
+  swapchainCI.mipCount = 1;
+  int ret = xrCreateSwapchain(m_session, &swapchainCI,
+                              &m_colorSwapchainInfo.swapchain);
+  if (ret < 0)
+    std::cerr << "Failed to create Color Swapchain :" << ret << "."
+              << std::endl;
+  else
+    std::cout << "Created Color Swapchain." << std::endl;
+  // Save the swapchain format for later use.
+  m_colorSwapchainInfo.swapchainFormat = swapchainCI.format;
+
+  // Get the number of images in the color/depth swapchain and allocate
+  // Swapchain image data via GraphicsAPI to store the returned array.
+  uint32_t colorSwapchainImageCount = 0;
+  if (xrEnumerateSwapchainImages(m_colorSwapchainInfo.swapchain, 0,
+                                 &colorSwapchainImageCount, nullptr) < 0)
+    std::cerr << "Failed to enumerate Color Swapchain Images." << std::endl;
+  // following could be simplified
+  XrSwapchainImageBaseHeader *colorSwapchainImages = AllocateSwapchainImageData(
+      m_colorSwapchainInfo.swapchain, SwapchainType::COLOR,
+      colorSwapchainImageCount);
+  if (xrEnumerateSwapchainImages(
+          m_colorSwapchainInfo.swapchain, colorSwapchainImageCount,
+          &colorSwapchainImageCount, colorSwapchainImages) < 0)
+    std::cerr << "Failed to enumerate Color Swapchain Images." << std::endl;
+  else
+    std::cout << "Enumerated Color Swapchain Images: "
+              << colorSwapchainImageCount << "." << std::endl;
+
+  // Per image in the swapchains, fill out a GraphicsAPI::ImageViewCreateInfo
+  // structure and create a color/depth image view.
+  for (uint32_t j = 0; j < colorSwapchainImageCount; j++) {
+    ImageViewCreateInfo imageViewCI;
+    imageViewCI.image = GetSwapchainImage(m_colorSwapchainInfo.swapchain, j);
+    imageViewCI.type = ImageViewCreateInfo::Type::RTV;
+    imageViewCI.view = ImageViewCreateInfo::View::TYPE_2D;
+    imageViewCI.format = m_colorSwapchainInfo.swapchainFormat;
+    imageViewCI.aspect = ImageViewCreateInfo::Aspect::COLOR_BIT;
+    imageViewCI.baseMipLevel = 0;
+    imageViewCI.levelCount = 1;
+    imageViewCI.baseArrayLayer = 0;
+    imageViewCI.layerCount = 1;
+    m_colorSwapchainInfo.imageViews.push_back(CreateImageView(imageViewCI));
+  }
+  std::cout << "Created Swapchain." << std::endl;
+}
+
+void SimulateXr::_destroy_swapchain() {
+  // TODO(AS)
+
+  //// Destroy the color and depth image views from GraphicsAPI.
+  // for (void *&imageView : colorSwapchainInfo.imageViews) {
+  //   m_graphicsAPI->DestroyImageView(imageView);
+  // }
+
+  //// Free the Swapchain Image Data.
+  // m_graphicsAPI->FreeSwapchainImageData(colorSwapchainInfo.swapchain);
+
+  //// Destroy the swapchains.
+  // OPENXR_CHECK(xrDestroySwapchain(colorSwapchainInfo.swapchain),
+  //              "Failed to destroy Color Swapchain");
+}
+
+void SimulateXr::_create_swapchains() {
+  // create swapchain and swapchain_images
+  // only a single one, color
+
+  // Get the supported swapchain formats as an array of int64_t and ordered by
+  // runtime preference.
+  uint32_t formatCount = 0;
+  if (xrEnumerateSwapchainFormats(m_session, 0, &formatCount, nullptr) < 0)
+    std::cerr << "Failed to enumerate Swapchain Formats";
+  std::vector<int64_t> formats(formatCount);
+  if (xrEnumerateSwapchainFormats(m_session, formatCount, &formatCount,
+                                  formats.data()) < 0)
+    std::cerr << "Failed to enumerate Swapchain Formats";
+  std::cout << "Found Swapchain Formats:";
+  for (size_t i = 0; i < formatCount; i++) {
+    std::cout << " " << std::hex << formats[i];
+  }
+  std::cout << ". Compatible format: " << std::hex
+            << SelectColorSwapchainFormat(formats) << "." << std::endl;
+  // GL_RGBA16F is 0x881A or 34842
+  // GL_RGBA8 is 0x8058 (unsupported)
+  // GL_RGBA16 is 0x805b
+
   // TODO Making only 1?
+  // ////////////////////////////////////////////////////////////////////////
+  // HERE programmatically
   size_t num_swapchains = m_viewConfigurationViews.size();
+  num_swapchains = 1;
   m_colorSwapchainInfos.resize(num_swapchains);
 
   // Per view, create a color and depth swapchain, and their associated image
@@ -808,9 +1094,9 @@ void SimulateXr::_create_swapchain() {
     // Color.
     XrSwapchainCreateInfo swapchainCI{XR_TYPE_SWAPCHAIN_CREATE_INFO};
     swapchainCI.createFlags = 0;
-    swapchainCI.usageFlags =  // XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT |
-        XR_SWAPCHAIN_USAGE_SAMPLED_BIT |
-        XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCI.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT |
+                             XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT |
+                             XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
     swapchainCI.format = SelectColorSwapchainFormat(formats);
     swapchainCI.sampleCount = 1;
     swapchainCI.width = width_render;
@@ -865,7 +1151,8 @@ void SimulateXr::_create_swapchain() {
   }
   std::cout << "Created Swapchain." << std::endl;
 }
-void SimulateXr::_destroy_swapchain() {
+
+void SimulateXr::_destroy_swapchains() {
   // TODO(AS)
 
   //// Destroy the color and depth image views from GraphicsAPI.

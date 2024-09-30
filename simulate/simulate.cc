@@ -2525,7 +2525,7 @@ void Simulate::Render() {
   //}
   //simXr.after_render2(&this->platform_ui->mjr_context());
 
-  simXr.before_render(&this->scn, this->m_);
+  simXr.before_render_1sc(&this->scn, this->m_);
   mjrRect rectXR = {0, 0, 0, 0};
   rectXR.width = (int)simXr.width_render;
   rectXR.height = (int)simXr.height;
@@ -2533,7 +2533,7 @@ void Simulate::Render() {
   mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
   mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
 
-  simXr.after_render(&this->platform_ui->mjr_context());
+  simXr.after_render_1sc(&this->platform_ui->mjr_context());
 #else //mjBUILDSIMULATEXR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
 #endif //mjBUILDSIMULATEXR
