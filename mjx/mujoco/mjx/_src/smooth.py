@@ -773,7 +773,7 @@ def tendon(m: Model, d: Data) -> Data:
   ten_wrapadr = [0]
   for wn in ten_wrapnum[:-1]:
     ten_wrapadr.append(ten_wrapadr[-1] + wn)
-  ten_wrapadr = np.array(ten_wrapadr).astype(int)
+  ten_wrapadr = np.array(ten_wrapadr)
 
   wrap_obj = np.zeros(m.nwrap * 2, dtype=int)
   wrap_obj[:nwrap_site] = -1
@@ -782,8 +782,8 @@ def tendon(m: Model, d: Data) -> Data:
   return d.replace(
       ten_length=ten_length,
       ten_J=ten_moment,
-      ten_wrapadr=jp.array(ten_wrapadr),
-      ten_wrapnum=jp.array(ten_wrapnum),
+      ten_wrapadr=jp.array(ten_wrapadr, dtype=int),
+      ten_wrapnum=jp.array(ten_wrapnum, dtype=int),
       wrap_xpos=wrap_xpos,
       wrap_obj=jp.array(wrap_obj),
   )
