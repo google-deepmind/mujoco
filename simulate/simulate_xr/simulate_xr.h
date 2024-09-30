@@ -42,9 +42,6 @@
 
 
 class SimulateXr {
- private:
-  struct RenderLayerInfo;
-
  public:
   SimulateXr();
   ~SimulateXr();

@@ -233,9 +233,33 @@ bool SimulateXr::before_render_1sc(mjvScene *scn, mjModel *m) {
   _poll_events();
   if (!m_sessionRunning) return false;
 
-  if (!_render_frame_start()) {
-    return false;
-  }
+  //if (!_render_frame_start()) {
+  //  return false;
+  //}
+
+  // Essentially, _render_frame_start()
+  // Get the XrFrameState for timing and rendering info.
+  XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
+  if (xrWaitFrame(m_session, &frameWaitInfo, &frameState) < 0)
+    std::cerr << "Failed to wait for XR Frame." << std::endl;
+
+  // Tell the OpenXR compositor that the application is beginning the frame.
+  XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
+  if (xrBeginFrame(m_session, &frameBeginInfo) < 0)
+    std::cerr << "Failed to begin the XR Frame." << std::endl;
+
+  // Variables for rendering and layer composition.
+  renderLayerInfo.predictedDisplayTime = frameState.predictedDisplayTime;
+  // has to be cleaned
+  renderLayerInfo.layers.clear();
+  renderLayerInfo.layerProjectionViews.clear();
+
+  // Check that the session is active and that we should render.
+  bool sessionActive = (m_sessionState == XR_SESSION_STATE_SYNCHRONIZED ||
+                        m_sessionState == XR_SESSION_STATE_VISIBLE ||
+                        m_sessionState == XR_SESSION_STATE_FOCUSED);
+
+  if (!(sessionActive && frameState.shouldRender)) return false;
 
   // essentially, first part of RenderLayer
 
@@ -628,8 +652,10 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
   if (!m_sessionRunning) return;
 
   // We copy what MuJoCo rendered on our framebuffer object
+  // for each imageview
   glBindFramebuffer(GL_READ_FRAMEBUFFER, con->offFBO);
-  for (size_t i_imageview = 0; i_imageview < m_colorSwapchainInfo.imageViews.size(); i_imageview++) {
+  for (size_t i_imageview = 0;
+       i_imageview < m_colorSwapchainInfo.imageViews.size(); i_imageview++) {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
                       (GLuint)m_colorSwapchainInfo.imageViews[i_imageview]);
     glBlitFramebuffer(0, 0, width_render, height, 0, 0, width_render, height,
@@ -680,9 +706,11 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
       static_cast<uint32_t>(renderLayerInfo.layers.size());
   frameEndInfo.layers = renderLayerInfo.layers.data();
   int answ = xrEndFrame(m_session, &frameEndInfo);
-  if (answ < 0)
+  if (answ < 0) {
     std::cerr << "Failed to end the XR Frame. Code: " << answ << "."
               << std::endl;
+    std::cerr << "Layer count: " << frameEndInfo.layerCount << "." << std::endl;
+  }
 }
 
 void SimulateXr::_create_instance() {
