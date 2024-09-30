@@ -81,17 +81,23 @@ static void dualFinish(const mjModel* m, mjData* d) {
 
 // compute 1/diag(AR)
 // TODO: b/295296178 - add island support to Dual solvers
-static void ARdiaginv(const mjModel* m, mjData* d, mjtNum* res, int flg_subR) {
+static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_subR) {
   int nefc = d->nefc;
-  const int *rowadr = d->efc_AR_rowadr;
+  const mjtNum *AR = d->efc_AR;
+  const mjtNum *R = d->efc_R;
 
   // sparse
   if (mj_isSparse(m)) {
+    const int *rowadr = d->efc_AR_rowadr;
+    const int *rownnz = d->efc_AR_rownnz;
+    const int *colind = d->efc_AR_colind;
+
     for (int i=0; i < nefc; i++) {
-      for (int j=0; j < d->efc_AR_rownnz[i]; j++) {
-        if (i == d->efc_AR_colind[rowadr[i]+j]) {
-          res[i] = 1/(flg_subR ? mju_max(mjMINVAL, d->efc_AR[rowadr[i]+j]-d->efc_R[i])
-                      : d->efc_AR[rowadr[i]+j]);
+      int nnz = rownnz[i];
+      for (int j=0; j < nnz; j++) {
+        int adr = rowadr[i] + j;
+        if (i == colind[adr]) {
+          res[i] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
           break;
         }
       }
@@ -101,8 +107,8 @@ static void ARdiaginv(const mjModel* m, mjData* d, mjtNum* res, int flg_subR) {
   // dense
   else {
     for (int i=0; i < nefc; i++) {
-      res[i] = 1/(flg_subR ? mju_max(mjMINVAL, d->efc_AR[i*(nefc+1)]-d->efc_R[i])
-                  : d->efc_AR[i*(nefc+1)]);
+      int adr = i * (nefc + 1);
+      res[i] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
     }
   }
 }
@@ -111,14 +117,16 @@ static void ARdiaginv(const mjModel* m, mjData* d, mjtNum* res, int flg_subR) {
 
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
 // TODO: b/295296178 - add island support to Dual solvers
-static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
+static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
                          int start, int n, int flg_subR) {
   int nefc = d->nefc;
   const mjtNum *AR = d->efc_AR;
-  const int *rownnz = d->efc_AR_rownnz, *rowadr = d->efc_AR_rowadr, *colind = d->efc_AR_colind;
 
   // sparse
   if (mj_isSparse(m)) {
+    const int* rownnz = d->efc_AR_rownnz;
+    const int* rowadr = d->efc_AR_rowadr;
+    const int* colind = d->efc_AR_colind;
     /*
             // GENERAL CASE
             mju_zero(Ac, n*n);
@@ -138,7 +146,7 @@ static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
       }
     }
 
-    // sanity check; SHOULD NOT OCCUR
+    // SHOULD NOT OCCUR
     if (k >= rownnz[start]) {
       mjERROR("internal error");
     }
@@ -158,9 +166,10 @@ static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
 
   // subtract R from diagonal, clamp to 1e-10 from below
   if (flg_subR) {
+    const mjtNum *R = d->efc_R;
     for (int j=0; j < n; j++) {
-      Ac[j*(n+1)] -= d->efc_R[start+j];
-      Ac[j*(n+1)] = mjMAX(1e-10, Ac[j*(n+1)]);
+      Ac[j*(n+1)] -= R[start+j];
+      Ac[j*(n+1)] = mju_max(1e-10, Ac[j*(n+1)]);
     }
   }
 }
@@ -169,14 +178,15 @@ static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
 
 // compute residual for one block
 // TODO: b/295296178 - add island support to Dual solvers
-static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
+static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
   int nefc = d->nefc;
 
   // sparse
   if (mj_isSparse(m)) {
     for (int j=0; j < dim; j++) {
       res[j] = d->efc_b[i+j] + mju_dotSparse(d->efc_AR + d->efc_AR_rowadr[i+j],
-                                             d->efc_force, d->efc_AR_rownnz[i+j],
+                                             d->efc_force,
+                                             d->efc_AR_rownnz[i+j],
                                              d->efc_AR_colind + d->efc_AR_rowadr[i+j],
                                              /*flg_unc1=*/0);
     }
@@ -202,18 +212,19 @@ static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, i
 // TODO: b/295296178 - add island support to Dual solvers
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
                          const mjtNum* res, int dim) {
-  mjtNum delta[6], change;
+  mjtNum change;
 
   // compute change
   if (dim == 1) {
-    delta[0] = force[0] - oldforce[0];
-    change = 0.5*delta[0]*delta[0]*A[0] + delta[0]*res[0];
+    mjtNum delta = force[0] - oldforce[0];
+    change = 0.5*delta*delta*A[0] + delta*res[0];
   } else {
+    mjtNum delta[6];
     mju_sub(delta, force, oldforce, dim);
     change = 0.5*mju_mulVecMatVec(delta, A, delta, dim) + mju_dot(delta, res, dim);
   }
 
-  // positive change: restore
+  // positive change: restore force
   if (change > 1e-10) {
     mju_copy(force, oldforce, dim);
     change = 0;
@@ -226,13 +237,13 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 
 // set efc_state to dual constraint state; return nactive
 // TODO: b/295296178 - add island support to Dual solvers
-static int dualState(const mjModel* m, mjData* d) {
-  int nactive, ne = d->ne, nf = d->nf, nefc = d->nefc;
-  const mjtNum *force = d->efc_force, *floss = d->efc_frictionloss;
-  int* state = d->efc_state;
+static int dualState(const mjModel* m, const mjData* d, int* state) {
+  int ne = d->ne, nf = d->nf, nefc = d->nefc;
+  const mjtNum* force = d->efc_force;
+  const mjtNum* floss = d->efc_frictionloss;
 
   // equality and friction always active
-  nactive = ne + nf;
+  int nactive = ne + nf;
 
   // equality
   for (int i=0; i < ne; i++) {
@@ -315,12 +326,9 @@ static int dualState(const mjModel* m, mjData* d) {
 
 // TODO: b/295296178 - add island support to Dual solvers
 void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
-  int dim, iter = 0, ne = d->ne, nf = d->nf, nefc = d->nefc;
+  int ne = d->ne, nf = d->nf, nefc = d->nefc;
   const mjtNum *floss = d->efc_frictionloss;
   mjtNum *force = d->efc_force;
-  mjtNum *mu, x, denom, improvement;
-  mjtNum v[6], v1[6], Athis[36], Ac[25], bc[5], res[6], oldforce[6];
-  mjContact* con;
   mj_markStack(d);
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
@@ -333,25 +341,34 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   ARdiaginv(m, d, ARinv, 0);
 
   // initial constraint state
-  dualState(m, d);
+  dualState(m, d, d->efc_state);
 
   // main iteration
+  int iter = 0;
   while (iter < maxiter) {
     // clear improvement
-    improvement = 0;
+    mjtNum improvement = 0;
 
     // perform one sweep
     for (int i=0; i < nefc; i++) {
       // get constraint dimensionality
+      int dim;
       if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
         dim = d->contact[d->efc_id[i]].dim;
       } else {
         dim = 1;
       }
 
-      // compute residuals for this constraint, save force
+      // compute residual for this constraint
+      mjtNum res[6];
       residual(m, d, res, i, dim, 0);
+
+      // save old force
+      mjtNum oldforce[6];
       mju_copy(oldforce, force+i, dim);
+
+      // allocate AR submatrix, required later for costChage
+      mjtNum Athis[36];
 
       // simple constraint
       if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
@@ -374,10 +391,8 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 
       // elliptic cone constraint
       else {
-        // get contact info
-        con = d->contact + d->efc_id[i];
-        dim = con->dim;
-        mu = con->friction;
+        // get friction
+        mjtNum *mu =  d->contact[d->efc_id[i]].friction;
 
         //-------------------- perform normal or ray update
 
@@ -401,16 +416,18 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
         // ray update
         else {
           // v = ray
+          mjtNum v[6];
           mju_copy(v, force+i, dim);
 
           // denom = v' * AR(this,this) * v
+          mjtNum v1[6];
           mju_mulMatVec(v1, Athis, v, dim, dim);
-          denom = mju_dot(v, v1, dim);
+          mjtNum denom = mju_dot(v, v1, dim);
 
           // avoid division by 0
           if (denom >= mjMINVAL) {
             // x = v' * res / denom
-            x = -mju_dot(v, res, dim) / denom;
+            mjtNum x = -mju_dot(v, res, dim) / denom;
 
             // make sure normal is non-negative
             if (force[i]+x*v[0] < 0) {
@@ -427,6 +444,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
         //-------------------- perform friction update, keep normal fixed
 
         // Ac = AR-submatrix; bc = b-subvector + Ac,rest * f_rest
+        mjtNum bc[5], Ac[25];
         mju_copy(bc, res+1, dim-1);
         for (int j=0; j < dim-1; j++) {
           mju_copy(Ac+j*(dim-1), Athis+(j+1)*dim+1, dim-1);
@@ -442,6 +460,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
         // QCQP
         else {
           int flg_active;
+          mjtNum v[6];
 
           // solve
           if (dim == 3) {
@@ -481,7 +500,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 
     // process state
     mju_copyInt(oldstate, d->efc_state, nefc);
-    int nactive = dualState(m, d);
+    int nactive = dualState(m, d, d->efc_state);
     int nchange = 0;
     for (int i=0; i < nefc; i++) {
       nchange += (oldstate[i] != d->efc_state[i]);
@@ -547,7 +566,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   ARdiaginv(m, d, ARinv, 1);
 
   // initial constraint state
-  dualState(m, d);
+  dualState(m, d, d->efc_state);
 
   // main iteration
   while (iter < maxiter) {
@@ -709,7 +728,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
     // process state
     mju_copyInt(oldstate, d->efc_state, nefc);
-    int nactive = dualState(m, d);
+    int nactive = dualState(m, d, d->efc_state);
     int nchange = 0;
     for (int i=0; i < nefc; i++) {
       nchange += (oldstate[i] != d->efc_state[i]);
