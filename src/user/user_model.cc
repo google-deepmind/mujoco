@@ -24,11 +24,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
-#include <map>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -164,9 +164,6 @@ mjCModel::mjCModel() {
 
   // point to model from spec
   PointToLocal();
-
-  // this class allocated the plugins
-  plugin_owner = true;
 }
 
 
@@ -180,7 +177,6 @@ mjCModel::mjCModel(const mjCModel& other) {
 
 mjCModel& mjCModel::operator=(const mjCModel& other) {
   if (this != &other) {
-    plugin_owner = false;
     this->spec = other.spec;
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
     *static_cast<mjSpec*>(this) = static_cast<const mjSpec&>(other);
@@ -302,6 +298,22 @@ void mjCModel::SaveDofOffsets() {
 
 
 
+template <class T>
+static void mapplugin(
+    const std::unordered_map<mjCPlugin*, mjCPlugin*>& plugin_map, std::vector<T*>& list) {
+  for (const auto& element : list) {
+      if (element->spec.plugin.element) {
+        mjCPlugin* plugin = static_cast<mjCPlugin*>(element->spec.plugin.element);
+        // the referenced plugin might already exist in the source model
+        if (plugin_map.find(plugin) != plugin_map.end()) {
+          element->spec.plugin.element = plugin_map.at(plugin);
+        }
+      }
+    }
+}
+
+
+
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
   mjCBody *world = bodies_[0];
@@ -323,6 +335,21 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     for (const auto& key : other.key_pending_) {
       key_pending_.push_back(key);
     }
+
+    // create new plugins and map them
+    std::unordered_map<mjCPlugin*, mjCPlugin*> plugin_map;
+    for (const auto& plugin : other.plugins_) {
+      plugins_.push_back(new mjCPlugin(*plugin));
+      plugin_map[plugin] = plugins_.back();
+    }
+    mapplugin(plugin_map, bodies_);
+    mapplugin(plugin_map, geoms_);
+    mapplugin(plugin_map, meshes_);
+    mapplugin(plugin_map, actuators_);
+    mapplugin(plugin_map, sensors_);
+    for (const auto& active_plugin : other.active_plugins_) {
+      active_plugins_.emplace_back(active_plugin);
+    }
   }
   CopyList(flexes_, other.flexes_);
   CopyList(pairs_, other.pairs_);
@@ -334,10 +361,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(numerics_, other.numerics_);
   CopyList(texts_, other.texts_);
   CopyList(tuples_, other.tuples_);
-
-  // plugins are global
-  plugins_ = other.plugins_;
-  active_plugins_ = other.active_plugins_;
 
   // restore to the original state
   if (!compiled) {
@@ -613,10 +636,7 @@ mjCModel::~mjCModel() {
   for (int i=0; i<keys_.size(); i++) delete keys_[i];
   for (int i=0; i<defaults_.size(); i++) delete defaults_[i];
   for (int i=0; i<specs_.size(); i++) mj_deleteSpec(specs_[i]);
-
-  if (plugin_owner) {
-    for (int i=0; i<plugins_.size(); i++) delete plugins_[i];
-  }
+  for (int i=0; i<plugins_.size(); i++) delete plugins_[i];
 
   // clear sizes and pointer lists created in Compile
   Clear();

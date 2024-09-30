@@ -216,6 +216,56 @@ TEST_F(PluginTest, DeletePlugin) {
   mj_deleteModel(newmodel);
 }
 
+TEST_F(PluginTest, AttachPlugin) {
+  static constexpr char xml_1[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <body name="body"/>
+      </worldbody>
+    </mujoco>)";
+
+  static constexpr char xml_2[] = R"(
+    <mujoco model="MuJoCo Model">
+      <extension>
+        <plugin plugin="mujoco.pid">
+          <instance name="actuator-1">
+            <config key="ki" value="4.0"/>
+            <config key="slewmax" value="3.14159"/>
+          </instance>
+        </plugin>
+      </extension>
+      <worldbody>
+        <body name="body">
+          <joint name="joint"/>
+          <geom size="0.1"/>
+        </body>
+      </worldbody>
+      <actuator>
+        <plugin name="actuator-1" plugin="mujoco.pid" instance="actuator-1"
+                joint="joint" actdim="2"/>
+      </actuator>
+    </mujoco>)";
+
+  std::array<char, 1000> err;
+  mjSpec* spec_1 = mj_parseXMLString(xml_1, 0, err.data(), err.size());
+  ASSERT_THAT(spec_1, NotNull()) << err.data();
+  mjSpec* spec_2 = mj_parseXMLString(xml_2, 0, err.data(), err.size());
+  ASSERT_THAT(spec_2, NotNull()) << err.data();
+
+  mjsBody* body_1 = mjs_findBody(spec_1, "body");
+  EXPECT_THAT(body_1, NotNull());
+  mjsFrame* attachment_frame = mjs_addFrame(body_1, 0);
+  EXPECT_THAT(attachment_frame, NotNull());
+
+  mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "body"), "child-", "");
+  mjModel* model = mj_compile(spec_1, nullptr);
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec_1);
+  mj_deleteSpec(spec_2);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);

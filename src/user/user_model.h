@@ -386,7 +386,6 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
-  bool plugin_owner;  // this class allocated the plugins
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_
