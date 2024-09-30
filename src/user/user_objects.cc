@@ -899,6 +899,11 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // attach referencing elements
   *model += *other.model;
 
+  // leave the source model in a clean state
+  if (other.model != model) {
+    other.model->key_pending_.clear();
+  }
+
   // clear namespace and return body
   other.model->prefix.clear();
   other.model->suffix.clear();
@@ -1784,6 +1789,11 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // attach referencing elements
   *model += *other.model;
+
+  // leave the source model in a clean state
+  if (other.model != model) {
+    other.model->key_pending_.clear();
+  }
 
   // clear suffixes and return
   other.model->suffix.clear();

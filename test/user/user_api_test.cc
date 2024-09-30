@@ -1386,5 +1386,56 @@ TEST_F(MujocoTest, AttachNestedKeyframe) {
   mj_deleteModel(m_child);
 }
 
+TEST_F(MujocoTest, RepeatedAttachKeyframe) {
+  static constexpr char xml_1[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <body name="body"/>
+      </worldbody>
+    </mujoco>)";
+
+  static constexpr char xml_2[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <body name="b1">
+          <joint/>
+          <geom size="0.1"/>
+        </body>
+        <body name="b2">
+          <joint/>
+          <geom size="0.1"/>
+        </body>
+      </worldbody>
+      <keyframe>
+        <key name="home" qpos="1 2" />
+      </keyframe>
+    </mujoco>)";
+
+    std::array<char, 1000> er;
+    mjSpec* spec_1 = mj_parseXMLString(xml_1, 0, er.data(), er.size());
+    EXPECT_THAT(spec_1, NotNull()) << er.data();
+    mjSpec* spec_2 = mj_parseXMLString(xml_2, 0, er.data(), er.size());
+    EXPECT_THAT(spec_2, NotNull()) << er.data();
+
+    mjsBody* body_1 = mjs_findBody(spec_1, "body");
+    mjsFrame* attachment_frame = mjs_addFrame(body_1, 0);
+    mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "b1"), "b1-", "");
+    mjModel* model_1 = mj_compile(spec_1, 0);
+    EXPECT_THAT(model_1, NotNull());
+    mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "b2"), "b2-", "");
+    mjModel* model_2 = mj_compile(spec_1, 0);
+    EXPECT_THAT(model_2, NotNull());
+
+    EXPECT_EQ(model_1->nkey, 1);
+    EXPECT_EQ(model_2->nkey, 2);
+    EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 0), "b1-home");
+    EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 1), "b2-home");
+
+    mj_deleteSpec(spec_1);
+    mj_deleteSpec(spec_2);
+    mj_deleteModel(model_1);
+    mj_deleteModel(model_2);
+}
+
 }  // namespace
 }  // namespace mujoco
