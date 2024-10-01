@@ -88,20 +88,25 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjs_setString(geom3->name, "geom3");
   mjs_setString(site4->name, "site4");
 
+  bool recursive = false;
+  mjsElement* b_el0 = mjs_firstElement(spec, mjOBJ_BODY);
+  mjsElement* b_el1 = mjs_nextElement(spec, b_el0);
   mjsElement* a_el0 = mjs_firstElement(spec, mjOBJ_ACTUATOR);
   mjsElement* l_el0 = mjs_firstElement(spec, mjOBJ_LIGHT);
-  mjsElement* c_el0 = mjs_firstChild(body, mjOBJ_CAMERA);
-  mjsElement* t_el0 = mjs_firstChild(body, mjOBJ_TENDON);
-  mjsElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE);
-  mjsElement* s_el2 = mjs_nextChild(body, s_el1);
-  mjsElement* s_el3 = mjs_nextChild(body, s_el2);
-  mjsElement* s_el0 = mjs_nextChild(body, s_el3);
-  mjsElement* s_el4 = mjs_firstChild(body1, mjOBJ_SITE);
-  mjsElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM);
-  mjsElement* g_el2 = mjs_nextChild(body, g_el1);
-  mjsElement* g_el3 = mjs_nextChild(body, g_el2);
-  mjsElement* g_el0 = mjs_nextChild(body, g_el3);
+  mjsElement* c_el0 = mjs_firstChild(body, mjOBJ_CAMERA, recursive);
+  mjsElement* t_el0 = mjs_firstChild(body, mjOBJ_TENDON, recursive);
+  mjsElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE, recursive);
+  mjsElement* s_el2 = mjs_nextChild(body, s_el1, recursive);
+  mjsElement* s_el3 = mjs_nextChild(body, s_el2, recursive);
+  mjsElement* s_el0 = mjs_nextChild(body, s_el3, recursive);
+  mjsElement* s_el4 = mjs_firstChild(body1, mjOBJ_SITE, recursive);
+  mjsElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM, recursive);
+  mjsElement* g_el2 = mjs_nextChild(body, g_el1, recursive);
+  mjsElement* g_el3 = mjs_nextChild(body, g_el2, recursive);
+  mjsElement* g_el0 = mjs_nextChild(body, g_el3, recursive);
 
+  EXPECT_EQ(b_el0, world->element);
+  EXPECT_EQ(b_el1, body->element);
   EXPECT_EQ(a_el0, nullptr);
   EXPECT_EQ(l_el0, nullptr);
   EXPECT_EQ(c_el0, nullptr);

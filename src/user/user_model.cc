@@ -921,6 +921,13 @@ mjsElement* mjCModel::NextObject(mjsElement* object, mjtObj type) {
 
   switch (type) {
     case mjOBJ_BODY:
+      if (!object) {
+        return bodies_[0]->spec.element;
+      } else if (object == bodies_[0]->spec.element) {
+        return bodies_[0]->NextChild(NULL, type, /*recursive=*/true);
+      } else {
+        return bodies_[0]->NextChild(object, type, /*recursive=*/true);
+      }
     case mjOBJ_SITE:
     case mjOBJ_GEOM:
     case mjOBJ_JOINT:

@@ -4205,7 +4205,7 @@ mjs_firstChild
 
 .. mujoco-include:: mjs_firstChild
 
-Return body's first child of given type.
+Return body's first child of given type. If recurse is nonzero, also search the body's subtree.
 
 .. _mjs_nextChild:
 
@@ -4215,6 +4215,7 @@ mjs_nextChild
 .. mujoco-include:: mjs_nextChild
 
 Return body's next child of the same type; return NULL if child is last.
+If recurse is nonzero, also search the body's subtree.
 
 .. _mjs_firstElement:
 

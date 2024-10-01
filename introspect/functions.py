@@ -9859,8 +9859,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='type',
                  type=ValueType(name='mjtObj'),
              ),
+             FunctionParameterDecl(
+                 name='recurse',
+                 type=ValueType(name='int'),
+             ),
          ),
-         doc="Return body's first child of given type.",
+         doc="Return body's first child of given type. If recurse is nonzero, also search the body's subtree.",  # pylint: disable=line-too-long
      )),
     ('mjs_nextChild',
      FunctionDecl(
@@ -9881,8 +9885,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjsElement'),
                  ),
              ),
+             FunctionParameterDecl(
+                 name='recurse',
+                 type=ValueType(name='int'),
+             ),
          ),
-         doc="Return body's next child of the same type; return NULL if child is last.",  # pylint: disable=line-too-long
+         doc="Return body's next child of the same type; return NULL if child is last. If recurse is nonzero, also search the body's subtree.",  # pylint: disable=line-too-long
      )),
     ('mjs_firstElement',
      FunctionDecl(

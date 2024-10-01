@@ -386,6 +386,50 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
+      "find_all",
+      [](raw::MjsBody& self, mjtObj objtype) -> py::list {
+        py::list list;
+        raw::MjsElement* el = mjs_firstChild(&self, objtype, true);
+        std::string error = mjs_getError(mjs_getSpec(&self));
+        if (!el && !error.empty()) {
+          throw pybind11::value_error(error);
+        }
+        while (el) {
+          switch (objtype) {
+            case mjOBJ_BODY:
+              list.append(mjs_asBody(el));
+              break;
+            case mjOBJ_CAMERA:
+              list.append(mjs_asCamera(el));
+              break;
+            case mjOBJ_FRAME:
+              list.append(mjs_asFrame(el));
+              break;
+            case mjOBJ_GEOM:
+              list.append(mjs_asGeom(el));
+              break;
+            case mjOBJ_JOINT:
+              list.append(mjs_asJoint(el));
+              break;
+            case mjOBJ_LIGHT:
+              list.append(mjs_asLight(el));
+              break;
+            case mjOBJ_SITE:
+              list.append(mjs_asSite(el));
+              break;
+            default:
+              // this should never happen
+              throw pybind11::value_error(
+                  "body.find_all supports the types: body, frame, geom, site, "
+                  "light, camera.");
+              break;
+          }
+          el = mjs_nextChild(&self, el, true);
+        }
+        return list;
+      },
+      py::return_value_policy::reference_internal);
+  mjsBody.def(
       "find_child",
       [](raw::MjsBody& self, std::string& name) -> raw::MjsBody* {
         return mjs_findChild(&self, name.c_str());
@@ -394,85 +438,85 @@ PYBIND11_MODULE(_specs, m) {
   mjsBody.def(
       "first_body",
       [](raw::MjsBody& self) -> raw::MjsBody* {
-        return mjs_asBody(mjs_firstChild(&self, mjOBJ_BODY));
+        return mjs_asBody(mjs_firstChild(&self, mjOBJ_BODY, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_body",
       [](raw::MjsBody& self, raw::MjsBody& child) -> raw::MjsBody* {
-        return mjs_asBody(mjs_nextChild(&self, child.element));
+        return mjs_asBody(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_camera",
       [](raw::MjsBody& self) -> raw::MjsCamera* {
-        return mjs_asCamera(mjs_firstChild(&self, mjOBJ_CAMERA));
+        return mjs_asCamera(mjs_firstChild(&self, mjOBJ_CAMERA, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_camera",
       [](raw::MjsBody& self, raw::MjsCamera& child) -> raw::MjsCamera* {
-        return mjs_asCamera(mjs_nextChild(&self, child.element));
+        return mjs_asCamera(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_light",
       [](raw::MjsBody& self) -> raw::MjsLight* {
-        return mjs_asLight(mjs_firstChild(&self, mjOBJ_LIGHT));
+        return mjs_asLight(mjs_firstChild(&self, mjOBJ_LIGHT, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_light",
       [](raw::MjsBody& self, raw::MjsLight& child) -> raw::MjsLight* {
-        return mjs_asLight(mjs_nextChild(&self, child.element));
+        return mjs_asLight(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_joint",
       [](raw::MjsBody& self) -> raw::MjsJoint* {
-        return mjs_asJoint(mjs_firstChild(&self, mjOBJ_JOINT));
+        return mjs_asJoint(mjs_firstChild(&self, mjOBJ_JOINT, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_joint",
       [](raw::MjsBody& self, raw::MjsJoint& child) -> raw::MjsJoint* {
-        return mjs_asJoint(mjs_nextChild(&self, child.element));
+        return mjs_asJoint(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_geom",
       [](raw::MjsBody& self) -> raw::MjsGeom* {
-        return mjs_asGeom(mjs_firstChild(&self, mjOBJ_GEOM));
+        return mjs_asGeom(mjs_firstChild(&self, mjOBJ_GEOM, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_geom",
       [](raw::MjsBody& self, raw::MjsGeom& child) -> raw::MjsGeom* {
-        return mjs_asGeom(mjs_nextChild(&self, child.element));
+        return mjs_asGeom(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_site",
       [](raw::MjsBody& self) -> raw::MjsSite* {
-        return mjs_asSite(mjs_firstChild(&self, mjOBJ_SITE));
+        return mjs_asSite(mjs_firstChild(&self, mjOBJ_SITE, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_site",
       [](raw::MjsBody& self, raw::MjsSite& child) -> raw::MjsSite* {
-        return mjs_asSite(mjs_nextChild(&self, child.element));
+        return mjs_asSite(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_frame",
       [](raw::MjsBody& self) -> raw::MjsFrame* {
-        return mjs_asFrame(mjs_firstChild(&self, mjOBJ_FRAME));
+        return mjs_asFrame(mjs_firstChild(&self, mjOBJ_FRAME, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "next_frame",
       [](raw::MjsBody& self, raw::MjsFrame& child) -> raw::MjsFrame* {
-        return mjs_asFrame(mjs_nextChild(&self, child.element));
+        return mjs_asFrame(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(

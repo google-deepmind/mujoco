@@ -1338,6 +1338,9 @@ mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type, bool recursive) {
       candidate = GetNext(frames, child, recursive);
       break;
     default:
+      throw mjCError(this,
+                     "Body.NextChild supports the types: body, frame, geom, "
+                     "site, light, camera");
       break;
   }
 

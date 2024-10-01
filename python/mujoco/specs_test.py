@@ -580,7 +580,9 @@ class SpecsTest(absltest.TestCase):
       <worldbody>
         <body name="body1">
           <body name="body3">
-            <body name="body4"/>
+            <body name="body4">
+              <site name="site"/>
+            </body>
           </body>
         </body>
         <body name="body2"/>
@@ -588,11 +590,33 @@ class SpecsTest(absltest.TestCase):
     </mujoco>
     """
     spec = mujoco.MjSpec.from_string(main_xml)
-    self.assertLen(spec.bodies, 4)
-    self.assertEqual(spec.bodies[0].name, 'body1')
-    self.assertEqual(spec.bodies[1].name, 'body2')
-    self.assertEqual(spec.bodies[2].name, 'body3')
-    self.assertEqual(spec.bodies[3].name, 'body4')
+    bodytype = mujoco.mjtObj.mjOBJ_BODY
+    sitetype = mujoco.mjtObj.mjOBJ_SITE
+    self.assertLen(spec.bodies, 5)
+    self.assertEqual(spec.bodies[1].name, 'body1')
+    self.assertEqual(spec.bodies[2].name, 'body2')
+    self.assertEqual(spec.bodies[3].name, 'body3')
+    self.assertEqual(spec.bodies[4].name, 'body4')
+    self.assertLen(spec.worldbody.find_all(bodytype), 4)
+    self.assertLen(spec.bodies[1].find_all(bodytype), 2)
+    self.assertLen(spec.bodies[3].find_all(bodytype), 1)
+    self.assertEqual(spec.worldbody.find_all(bodytype)[0].name, 'body1')
+    self.assertEqual(spec.worldbody.find_all(bodytype)[1].name, 'body2')
+    self.assertEqual(spec.worldbody.find_all(bodytype)[2].name, 'body3')
+    self.assertEqual(spec.worldbody.find_all(bodytype)[3].name, 'body4')
+    self.assertEqual(spec.bodies[1].find_all(bodytype)[0].name, 'body3')
+    self.assertEqual(spec.bodies[1].find_all(bodytype)[1].name, 'body4')
+    self.assertEqual(spec.bodies[3].find_all(bodytype)[0].name, 'body4')
+    self.assertEmpty(spec.bodies[2].find_all(bodytype))
+    self.assertEmpty(spec.bodies[4].find_all(bodytype))
+    self.assertEqual(spec.worldbody.find_all(sitetype)[0].name, 'site')
+    with self.assertRaises(ValueError) as cm:
+      spec.worldbody.find_all(mujoco.mjtObj.mjOBJ_ACTUATOR)
+    self.assertEqual(
+        str(cm.exception),
+        'Error: Body.NextChild supports the types: body, frame, geom, site,'
+        ' light, camera\nElement name \'world\', id 0',
+    )
 
   def test_iterators(self):
     spec = mujoco.MjSpec()
