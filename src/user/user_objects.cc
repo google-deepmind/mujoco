@@ -1016,6 +1016,9 @@ void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
   if (!classname.empty() && m != model) {
     classname = m->prefix + classname + m->suffix;
   }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
+  }
 
   for (auto& body : bodies) {
     body->prefix = m->prefix;
@@ -2221,6 +2224,9 @@ void mjCGeom::NameSpace(const mjCModel* m) {
   }
   if (!spec_meshname_.empty() && model != m) {
     spec_meshname_ = m->prefix + spec_meshname_ + m->suffix;
+  }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
 }
 
@@ -5649,6 +5655,9 @@ void mjCActuator::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
+  }
   spec_target_ = m->prefix + spec_target_ + m->suffix;
   spec_refsite_ = m->prefix + spec_refsite_ + m->suffix;
   spec_slidersite_ = m->prefix + spec_slidersite_ + m->suffix;
@@ -5978,6 +5987,9 @@ void mjCSensor::PointToLocal() {
 void mjCSensor::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
+  }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
   prefix = m->prefix;
   suffix = m->suffix;
@@ -6919,6 +6931,7 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
 
 mjCPlugin::mjCPlugin(const mjCPlugin& other) {
   *this = other;
+  id = -1;
 }
 
 
@@ -6930,6 +6943,15 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
     parent = this;
   }
   return *this;
+}
+
+
+
+void mjCPlugin::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
+  if (!instance_name.empty()) {
+    instance_name = m->prefix + instance_name + m->suffix;
+  }
 }
 
 

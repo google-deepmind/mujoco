@@ -230,6 +230,9 @@ void mjCMesh::NameSpace(const mjCModel* m) {
   if (meshdir_.empty()) {
     meshdir_ = FilePath(m->spec_meshdir_);
   }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
+  }
 }
 
 

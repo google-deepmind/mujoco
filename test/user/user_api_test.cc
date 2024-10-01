@@ -243,10 +243,16 @@ TEST_F(PluginTest, AttachPlugin) {
   EXPECT_THAT(attachment_frame, NotNull());
 
   mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "body"), "child-", "");
-  mjModel* model = mj_compile(spec_1, nullptr);
-  EXPECT_THAT(model, NotNull());
+  mjModel* model_1 = mj_compile(spec_1, nullptr);
+  EXPECT_THAT(model_1, NotNull());
 
-  mj_deleteModel(model);
+  // attach it a second time to test namespacing
+  mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "body"), "copy-", "");
+  mjModel* model_2 = mj_compile(spec_1, nullptr);
+  EXPECT_THAT(model_2, NotNull());
+
+  mj_deleteModel(model_1);
+  mj_deleteModel(model_2);
   mj_deleteSpec(spec_1);
   mj_deleteSpec(spec_2);
 }

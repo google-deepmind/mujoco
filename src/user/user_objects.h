@@ -1422,6 +1422,7 @@ class mjCPlugin : public mjCPlugin_ {
 
  private:
   void Compile(void);              // compiler
+  void NameSpace(const mjCModel* m);
 };
 
 

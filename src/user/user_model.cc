@@ -341,6 +341,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     std::unordered_map<mjCPlugin*, mjCPlugin*> plugin_map;
     for (const auto& plugin : other.plugins_) {
       plugins_.push_back(new mjCPlugin(*plugin));
+      plugins_.back()->NameSpace(&other);
       plugin_map[plugin] = plugins_.back();
     }
     mapplugin(plugin_map, bodies_);
