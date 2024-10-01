@@ -252,31 +252,31 @@ def generate() -> None:
 
 def generate_add() -> None:
   """Generate add constructors with optional keyword arguments."""
-  for key, parent, default in [
-      ('mjsSite', 'Body', True),
-      ('mjsGeom', 'Body', True),
-      ('mjsJoint', 'Body', True),
-      ('mjsLight', 'Body', True),
-      ('mjsCamera', 'Body', True),
-      ('mjsBody', 'Body', True),
-      ('mjsFrame', 'Body', True),
-      ('mjsMaterial', 'Spec', True),
-      ('mjsMesh', 'Spec', True),
-      ('mjsPair', 'Spec', True),
-      ('mjsEquality', 'Spec', True),
-      ('mjsTendon', 'Spec', True),
-      ('mjsActuator', 'Spec', True),
-      ('mjsSkin', 'Spec', False),
-      ('mjsTexture', 'Spec', False),
-      ('mjsText', 'Spec', False),
-      ('mjsTuple', 'Spec', False),
-      ('mjsFlex', 'Spec', False),
-      ('mjsHField', 'Spec', False),
-      ('mjsKey', 'Spec', False),
-      ('mjsNumeric', 'Spec', False),
-      ('mjsExclude', 'Spec', False),
-      ('mjsSensor', 'Spec', False),
-      ('mjsPlugin', 'Spec', False),
+  for key, parent, default, listname, objtype in [
+      ('mjsSite',     'Body', True,  'sites',      'mjOBJ_SITE'),
+      ('mjsGeom',     'Body', True,  'geoms',      'mjOBJ_GEOM'),
+      ('mjsJoint',    'Body', True,  'joints',     'mjOBJ_JOINT'),
+      ('mjsLight',    'Body', True, 'lights',      'mjOBJ_LIGHT'),
+      ('mjsCamera',   'Body', True,  'cameras',    'mjOBJ_CAMERA'),
+      ('mjsBody',     'Body', True,  'bodies',     'mjOBJ_BODY'),
+      ('mjsFrame',    'Body', True,  'frames',     'mjOBJ_FRAME'),
+      ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
+      ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
+      ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
+      ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),
+      ('mjsTendon',   'Spec', True,  'tendons',    'mjOBJ_TENDON'),
+      ('mjsActuator', 'Spec', True,  'actuators',  'mjOBJ_ACTUATOR'),
+      ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
+      ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
+      ('mjsText',     'Spec', False, 'texts',      'mjOBJ_TEXT'),
+      ('mjsTuple',    'Spec', False, 'tuples',     'mjOBJ_TUPLE'),
+      ('mjsFlex',     'Spec', False, 'flexes',     'mjOBJ_FLEX'),
+      ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
+      ('mjsKey',      'Spec', False, 'keys',       'mjOBJ_KEY'),
+      ('mjsNumeric',  'Spec', False, 'numerics',   'mjOBJ_NUMERIC'),
+      ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
+      ('mjsSensor',   'Spec', False, 'sensors',    'mjOBJ_SENSOR'),
+      ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
   ]:
 
     def _field(f: ast_nodes.StructFieldDecl):
@@ -559,6 +559,21 @@ def generate_add() -> None:
       }},
       {'py::arg_v("default", nullptr),' if default else ''}
       py::return_value_policy::reference_internal);
+    """
+
+    code += f"""\n
+      mjSpec.def_property_readonly(
+        "{listname}",
+        [](MjSpec& self) -> py::list {{
+          py::list list;
+          raw::MjsElement* el = mjs_firstElement(self.ptr, {objtype});
+          while (el) {{
+            list.append(mjs_as{key[3:]}(el));
+            el = mjs_nextElement(self.ptr, el);
+          }}
+          return list;
+        }},
+        py::return_value_policy::reference_internal);
     """
 
     print(code)

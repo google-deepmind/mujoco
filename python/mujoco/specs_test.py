@@ -574,6 +574,26 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.sensors[1].name, 'sensor2')
     self.assertEqual(spec.sensors[2].name, 'sensor3')
 
+  def test_body_list(self):
+    main_xml = """
+    <mujoco>
+      <worldbody>
+        <body name="body1">
+          <body name="body3">
+            <body name="body4"/>
+          </body>
+        </body>
+        <body name="body2"/>
+      </worldbody>
+    </mujoco>
+    """
+    spec = mujoco.MjSpec.from_string(main_xml)
+    self.assertLen(spec.bodies, 4)
+    self.assertEqual(spec.bodies[0].name, 'body1')
+    self.assertEqual(spec.bodies[1].name, 'body2')
+    self.assertEqual(spec.bodies[2].name, 'body3')
+    self.assertEqual(spec.bodies[3].name, 'body4')
+
   def test_iterators(self):
     spec = mujoco.MjSpec()
     geom1 = spec.worldbody.add_geom()
