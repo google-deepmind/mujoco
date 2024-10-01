@@ -1265,8 +1265,8 @@ class Data(PyTreeNode):
   xfrc_applied: jax.Array
   eq_active: jax.Array
   # mocap data:
-  mocap_pos: jax.Array = _restricted_to('mujoco')
-  mocap_quat: jax.Array = _restricted_to('mujoco')
+  mocap_pos: jax.Array
+  mocap_quat: jax.Array
   # dynamics:
   qacc: jax.Array
   act_dot: jax.Array

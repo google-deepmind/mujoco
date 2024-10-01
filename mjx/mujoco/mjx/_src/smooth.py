@@ -98,6 +98,14 @@ def kinematics(m: Model, d: Data) -> Data:
       m.body_quat,
   )
 
+  if m.nmocap:
+    xpos = xpos.at[m.body_mocapid >= 0].set(d.mocap_pos)
+    mocap_quat = jax.vmap(math.normalize)(d.mocap_quat)
+    xquat = xquat.at[m.body_mocapid >= 0].set(mocap_quat)
+    xmat = xmat.at[m.body_mocapid >= 0].set(
+        jax.vmap(math.quat_to_mat)(mocap_quat)
+    )
+
   v_local_to_global = jax.vmap(support.local_to_global)
 
   # TODO(erikfrey): confirm that quats are more performant for mjx than mats

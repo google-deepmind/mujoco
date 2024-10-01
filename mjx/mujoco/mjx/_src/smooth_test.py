@@ -55,6 +55,9 @@ class SmoothTest(absltest.TestCase):
     # give the system a little kick to ensure we have non-identity rotations
     d.qvel = np.random.random(m.nv)
     mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    # randomize mocap
+    d.mocap_pos = np.random.random(d.mocap_pos.shape)
+    d.mocap_quat = np.random.random(d.mocap_quat.shape)
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
 

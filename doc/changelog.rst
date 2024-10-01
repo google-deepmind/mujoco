@@ -14,6 +14,11 @@ General
   that previously required these plugins.
 - Replaced the function ``mjs_setActivePlugins`` with :ref:`mjs_activatePlugin`.
 
+MJX
+^^^
+
+- Added ``mocap_pos`` and ``mocap_quat`` in kinematics.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug where ``actuator_force`` was not set in MJX (:github:issue:`2068`).
