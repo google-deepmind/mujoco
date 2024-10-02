@@ -297,23 +297,36 @@ void mjCModel::SaveDofOffsets() {
   }
 }
 
-
-
 template <class T>
-static void mapplugin(
-    const std::unordered_map<mjCPlugin*, mjCPlugin*>& plugin_map, std::vector<T*>& list) {
+void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
+                          const std::vector<mjCPlugin*>& source,
+                          const std::vector<T*>& list) {
+  // store elements that reference a plugin instance
+  std::unordered_map<std::string, T*> instances;
   for (const auto& element : list) {
-      if (element->spec.plugin.element) {
-        mjCPlugin* plugin = static_cast<mjCPlugin*>(element->spec.plugin.element);
-        // the referenced plugin might already exist in the source model
-        if (plugin_map.find(plugin) != plugin_map.end()) {
-          element->spec.plugin.element = plugin_map.at(plugin);
-        }
-      }
+    if (!element->plugin_instance_name.empty()) {
+      instances[element->plugin_instance_name] = element;
     }
+  }
+
+  // only copy plugins that are referenced
+  for (const auto& plugin : source) {
+    if (plugin->instance_name.empty() && plugin->model == this) {
+      continue;
+    }
+    mjCPlugin* candidate = new mjCPlugin(*plugin);
+    candidate->NameSpace(plugin->model);
+    bool referenced = instances.find(candidate->name) != instances.end();
+    auto same_name = [candidate](const mjCPlugin* dest) { return dest->name == candidate->name; };
+    bool instance_exists = std::find_if(dest.begin(), dest.end(), same_name) != dest.end();
+    if (referenced && !instance_exists) {
+      dest.push_back(candidate);
+      instances.at(candidate->name)->spec.plugin.element = candidate;
+    } else {
+      delete candidate;
+    }
+  }
 }
-
-
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
@@ -336,22 +349,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     for (const auto& key : other.key_pending_) {
       key_pending_.push_back(key);
     }
-
-    // create new plugins and map them
-    std::unordered_map<mjCPlugin*, mjCPlugin*> plugin_map;
-    for (const auto& plugin : other.plugins_) {
-      plugins_.push_back(new mjCPlugin(*plugin));
-      plugins_.back()->NameSpace(&other);
-      plugin_map[plugin] = plugins_.back();
-    }
-    mapplugin(plugin_map, bodies_);
-    mapplugin(plugin_map, geoms_);
-    mapplugin(plugin_map, meshes_);
-    mapplugin(plugin_map, actuators_);
-    mapplugin(plugin_map, sensors_);
-    for (const auto& active_plugin : other.active_plugins_) {
-      active_plugins_.emplace_back(active_plugin);
-    }
   }
   CopyList(flexes_, other.flexes_);
   CopyList(pairs_, other.pairs_);
@@ -363,6 +360,16 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(numerics_, other.numerics_);
   CopyList(texts_, other.texts_);
   CopyList(tuples_, other.tuples_);
+
+  // create new plugins and map them
+  CopyPlugin(plugins_, other.plugins_, bodies_);
+  CopyPlugin(plugins_, other.plugins_, geoms_);
+  CopyPlugin(plugins_, other.plugins_, meshes_);
+  CopyPlugin(plugins_, other.plugins_, actuators_);
+  CopyPlugin(plugins_, other.plugins_, sensors_);
+  for (const auto& active_plugin : other.active_plugins_) {
+    active_plugins_.emplace_back(active_plugin);
+  }
 
   // restore to the original state
   if (!compiled) {

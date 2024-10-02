@@ -824,6 +824,8 @@ class mjCMesh_ : public mjCBase {
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
+  friend class mjCModel;
+
  public:
   mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCMesh(const mjCMesh& other);

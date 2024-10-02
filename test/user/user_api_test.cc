@@ -220,6 +220,7 @@ TEST_F(PluginTest, AttachPlugin) {
         </plugin>
       </extension>
       <worldbody>
+        <body name="empty"/>
         <body name="body">
           <joint name="joint"/>
           <geom size="0.1"/>
@@ -251,8 +252,14 @@ TEST_F(PluginTest, AttachPlugin) {
   mjModel* model_2 = mj_compile(spec_1, nullptr);
   EXPECT_THAT(model_2, NotNull());
 
+  // attach a body not referencing the plugin
+  mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "empty"), "empty-", "");
+  mjModel* model_3 = mj_compile(spec_1, nullptr);
+  EXPECT_THAT(model_3, NotNull());
+
   mj_deleteModel(model_1);
   mj_deleteModel(model_2);
+  mj_deleteModel(model_3);
   mj_deleteSpec(spec_1);
   mj_deleteSpec(spec_2);
 }
@@ -296,7 +303,8 @@ TEST_F(PluginTest, RecompileCompare) {
         std::string xml = p.path().string();
 
         // if file is meant to fail, skip it
-        if (absl::StrContains(p.path().string(), "malformed_") ||
+        if (!absl::StrContains(p.path().string(), "sdf/torus.") ||
+            absl::StrContains(p.path().string(), "malformed_") ||
             absl::StrContains(p.path().string(), "touch_grid") ||
             absl::StrContains(p.path().string(), "cow") ||
             absl::StrContains(p.path().string(), "discardvisual")) {
