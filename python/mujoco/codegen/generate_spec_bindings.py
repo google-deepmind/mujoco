@@ -93,15 +93,15 @@ def _array_binding_code(
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> py::array_t<char> {{
-      return py::array_t<char>({field.extents[0]}, self.{fullvarname});
+    []({rawclassname}& self) -> MjTypeVec<char> {{
+      return MjTypeVec<char>(self.{fullvarname}, {field.extents[0]});
     }},
     []({rawclassname}& self, py::object rhs) {{
       int i = 0;
       for (auto val : rhs) {{
         self.{fullvarname}[i++] = py::cast<char>(val);
       }}
-    }}, py::return_value_policy::reference_internal);"""
+    }}, py::return_value_policy::move);"""
   # all other array types
   return f"""\
   {classname}.def_property(
@@ -158,16 +158,13 @@ def _ptr_binding_code(
           self.{fullvarname}->push_back(py::cast<{vartype}>(val));
       }}
     }}, py::return_value_policy::reference_internal);"""
-  elif vartype == 'mjByteVec':  # C++ buffer -> Python list
+  elif vartype == 'mjByteVec':
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> py::list {{
-        py::list list;
-        for (auto val : *self.{fullvarname}) {{
-          list.append(val);
-        }}
-        return list;
+    []({rawclassname}& self) -> MjTypeVec<std::byte> {{
+        return MjTypeVec<std::byte>(self.{fullvarname}->data(),
+                                    self.{fullvarname}->size());
       }},
     []({rawclassname}& self, py::object rhs) {{
         self.{fullvarname}->clear();
@@ -175,17 +172,14 @@ def _ptr_binding_code(
         for (auto val : rhs) {{
           self.{fullvarname}->push_back(py::cast<const std::byte>(val));
         }}
-    }}, py::return_value_policy::reference_internal);"""
-  elif vartype == 'mjStringVec':  # C++ vector of strings -> Python list
+    }}, py::return_value_policy::move);"""
+  elif vartype == 'mjStringVec':
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> py::list {{
-        py::list list;
-        for (auto val : *self.{fullvarname}) {{
-          list.append(val);
-        }}
-        return list;
+    []({rawclassname}& self) -> MjTypeVec<std::string> {{
+        return MjTypeVec<std::string>(self.{fullvarname}->data(),
+                                      self.{fullvarname}->size());
       }},
     []({rawclassname}& self, py::object rhs) {{
         self.{fullvarname}->clear();
@@ -193,7 +187,7 @@ def _ptr_binding_code(
         for (auto val : rhs) {{
           self.{fullvarname}->push_back(py::cast<std::string>(val));
       }}
-    }}, py::return_value_policy::reference_internal);"""
+    }}, py::return_value_policy::move);"""
   elif 'VecVec' in vartype:  # C++ vector of vectors -> Python list of lists
     vartype = vartype.replace('mj', '').replace('VecVec', '').lower()
     return f"""\

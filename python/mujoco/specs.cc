@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>  // IWYU pragma: keep
 #include <unordered_map>
+#include <utility>
 #include <vector>       // IWYU pragma: keep
 
 #include <Eigen/Core>
@@ -122,6 +123,38 @@ static raw::MjSpec* LoadSpecFileImpl(
   return spec;
 }
 
+template <typename T>
+struct MjTypeVec {
+  MjTypeVec(T* data, int size) : ptr(data), size(size) {}
+  T* ptr;
+  int size;
+};
+
+template <typename T>
+void DefineArray(py::module& m, const std::string& typestr) {
+  using Class = MjTypeVec<T>;
+  py::class_<Class>(m, typestr.c_str())
+      .def(py::init([](T* data, int size) { return Class(data, size); }))
+      .def("__getitem__",
+           [](Class& v, int i) {
+             if (i < 0 || i >= v.size) {
+               throw py::index_error("Index out of range.");
+             }
+             return v.ptr[i];
+           })
+      .def("__setitem__",
+           [](Class& v, int i, T c) {
+             if (i < 0 || i >= v.size) {
+               throw py::index_error("Index out of range.");
+             }
+             v.ptr[i] = std::move(c);
+           })
+      .def("__len__", [](Class& v) { return v.size; })
+      .def("__iter__", [](Class& v) {
+        return py::make_iterator(v.ptr, v.ptr + v.size);
+      }, py::keep_alive<0, 1>(), py::return_value_policy::reference_internal);
+};
+
 PYBIND11_MODULE(_specs, m) {
   auto structs_m = py::module::import("mujoco._structs");
   py::function mjmodel_from_spec_ptr =
@@ -161,6 +194,9 @@ PYBIND11_MODULE(_specs, m) {
   py::class_<raw::MjOption> mjOption(m, "MjOption");
   py::class_<raw::MjStatistic> mjStatistic(m, "MjStatistic");
   py::class_<raw::MjVisual> mjVisual(m, "MjVisual");
+  DefineArray<char>(m, "MjCharVec");
+  DefineArray<std::string>(m, "MjStringVec");
+  DefineArray<std::byte>(m, "MjByteVec");
 
   // ============================= MJSPEC =====================================
   mjSpec.def(py::init<>());
