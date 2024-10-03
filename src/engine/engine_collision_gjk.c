@@ -918,25 +918,17 @@ static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
 
 
 
-// delete face from map
-void deleteFace(Polytope* pt, Face* face) {
+// delete face from map (return non-zero on error)
+static int deleteFace(Polytope* pt, Face* face) {
   // SHOULD NOT OCCUR
-  if (!pt->nmap) {
-    mju_warning("EPA: trying to delete face from empty polytope");
-    return;
+  if (pt->nmap < 2) {
+    pt->nmap = 0;
+    return 1;
   }
-
   face->dist = -1;
-  pt->nmap--;
-
-  // SHOULD NOT OCCUR
-  // last face; nothing to do
-  if (!pt->nmap) {
-    return;  // EPA will flag a warning
-  }
-
-  pt->map[face->index] = pt->map[pt->nmap];
+  pt->map[face->index] = pt->map[--pt->nmap];
   pt->map[face->index]->index = face->index;
+  return 0;
 }
 
 
@@ -1010,7 +1002,7 @@ static int horizonRec(Horizon* h, Face* face, int e) {
 
     // v is visible from w so it is deleted and adjacent faces are checked
     if (mju_dot3(face->v, h->w) >= dist2) {
-      deleteFace(h->pt, face);
+      if (deleteFace(h->pt, face)) return 1;  // escape recursion on error
 
       // recursively search the adjacent faces on the next two edges
       for (int k = 1; k < 3; k++) {
@@ -1032,7 +1024,7 @@ static int horizonRec(Horizon* h, Face* face, int e) {
 
 // creates horizon given the face as starting point
 static void horizon(Horizon* h, Face* face) {
-  deleteFace(h->pt, face);
+  if (deleteFace(h->pt, face)) return;
 
   // first edge
   Face* adjFace = &h->pt->faces[face->adj[0]];
@@ -1133,6 +1125,11 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
     h.w = w;
     horizon(&h, face);
+    if (!pt->nmap) {
+      h.nedges = 0;
+      // next iteration will clean up and error out
+      continue;
+    }
 
     // insert w as new vertex and attach faces along the horizon
     int wi = newVertex(pt, w1, w2), nfaces = pt->nfaces, nedges = h.nedges;
