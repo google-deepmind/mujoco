@@ -38,7 +38,8 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
 static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]);
 
 // helper function to compute the support point in the Minkowski difference
-static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2, const mjtNum d[3]);
+static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                    const mjtNum d[3], mjtNum dnorm);
 
 // support function tweaked for GJK by taking kth iteration point as input and setting both
 // support points to recover witness points
@@ -203,11 +204,22 @@ static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj
 
 // helper function to compute the support point in the Minkowski difference
 static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
-                    const mjtNum d[3]) {
+                    const mjtNum d[3], mjtNum dnorm) {
   mjtNum dir[3], dir_neg[3];
-  mju_copy3(dir, d);
-  mju_normalize3(dir);  // mjc_support assumes a normalized direction
-  mju_scl3(dir_neg, dir, -1);
+
+  // mjc_support assumes a normalized direction
+  if (dnorm < mjMINVAL) {
+    dir[0] = 1, dir_neg[0] = -1;
+    dir[1] = 0, dir_neg[1] = 0;
+    dir[2] = 0, dir_neg[2] = 0;
+  } else {
+    dir[0] = d[0] / dnorm;
+    dir[1] = d[1] / dnorm;
+    dir[2] = d[2] / dnorm;
+    dir_neg[0] = -dir[0];
+    dir_neg[1] = -dir[1];
+    dir_neg[2] = -dir[2];
+  }
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
   obj1->support(s1, obj1, dir);
@@ -675,15 +687,15 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
   mjtNum v3a[3], v3b[3], v3[3];
-  support(v3a, v3b, obj1, obj2, d1);
+  support(v3a, v3b, obj1, obj2, d1, mju_norm3(d1));
   mju_sub3(v3, v3a, v3b);
 
   mjtNum v4a[3], v4b[3], v4[3];
-  support(v4a, v4b, obj1, obj2, d2);
+  support(v4a, v4b, obj1, obj2, d2, mju_norm3(d2));
   mju_sub3(v4, v4a, v4b);
 
   mjtNum v5a[3], v5b[3], v5[3];
-  support(v5a, v5b, obj1, obj2, d3);
+  support(v5a, v5b, obj1, obj2, d3, mju_norm3(d3));
   mju_sub3(v5, v5a, v5b);
 
   // check that all six faces are valid triangles (not collinear)
@@ -796,20 +808,21 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   mju_sub3(v3, status->simplex1 + 6, status->simplex2 + 6);
 
   // get normals in both directions
-  mjtNum diff1[3], diff2[3], n[3], nn[3];
+  mjtNum diff1[3], diff2[3], n[3], n_neg[3];
   mju_sub3(diff1, v2, v1);
   mju_sub3(diff2, v3, v1);
   mju_cross(n, diff1, diff2);
-  if (mju_norm3(n) < mjMINVAL) {
+  mjtNum n_norm = mju_norm3(n);
+  if (n_norm < mjMINVAL) {
     return 0;
   }
 
   // negative of triangle normal n
-  mju_scl3(nn, n, -1);
+  mju_scl3(n_neg, n, -1);
 
   // get 4th vertex in n direction
   mjtNum v4a[3], v4b[3], v4[3];
-  support(v4a, v4b, obj1, obj2, n);
+  support(v4a, v4b, obj1, obj2, n, n_norm);
   mju_sub3(v4, v4a, v4b);
 
   // check that v4 is not contained in the 2-simplex
@@ -819,7 +832,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // get 5th vertex in -n direction
   mjtNum v5a[3], v5b[3], v5[3];
-  support(v5a, v5b, obj1, obj2, nn);
+  support(v5a, v5b, obj1, obj2, n_neg, n_norm);
   mju_sub3(v5, v5a, v5b);
 
   // check that v5 is not contained in the 2-simplex
@@ -1141,7 +1154,7 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
     // compute support point w from the closest face's normal
     mjtNum w1[3], w2[3], w[3];
-    support(w1, w2, obj1, obj2, face->v);
+    support(w1, w2, obj1, obj2, face->v, dist);
     mju_sub3(w, w1, w2);
     mjtNum next_dist = mju_dot3(face->v, w) / dist;
     if (next_dist - dist < tolerance) {
