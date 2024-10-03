@@ -48,6 +48,7 @@ static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj
 
 // linear algebra utility functions
 static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]);
+static void cross(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]);
 static void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n);
 
 // one face in a polytope
@@ -260,11 +261,21 @@ static inline void lincomb3(mjtNum res[3], const mjtNum coef[3], const mjtNum v1
 
 
 
+// fast cross product
+static inline void cross(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
+  res[0] = v1[1]*v2[2] - v1[2]*v2[1];
+  res[1] = v1[2]*v2[0] - v1[0]*v2[2];
+  res[2] = v1[0]*v2[1] - v1[1]*v2[0];
+}
+
+
+
 // returns determinant of the 3x3 matrix with columns v1, v2, v3
 static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
-  mjtNum temp[3];
-  mju_cross(temp, v2, v3);
-  return mju_dot3(v1, temp);
+    // v1 * (v2 x v3)
+  return v1[0]*(v2[1]*v3[2] - v2[2]*v3[1])
+      + v1[1]*(v2[2]*v3[0] - v2[0]*v3[2])
+      + v1[2]*(v2[0]*v3[1] - v2[1]*v3[0]);
 }
 
 
@@ -277,7 +288,7 @@ static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const m
   mju_sub3(diff32, v3, v2);
 
   // n = (v1 - v2) x (v3 - v2)
-  mju_cross(n, diff32, diff21);
+  cross(n, diff32, diff21);
   nv = mju_dot3(n, v2);
   nn = mju_dot3(n, n);
   if (nv != 0 && nn > mjMINVAL) {
@@ -286,7 +297,7 @@ static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const m
   }
 
   // n = (v2 - v1) x (v3 - v1)
-  mju_cross(n, diff21, diff31);
+  cross(n, diff21, diff31);
   nv = mju_dot3(n, v1);
   nn = mju_dot3(n, n);
   if (nv != 0 && nn > mjMINVAL) {
@@ -295,7 +306,7 @@ static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const m
   }
 
   // n = (v1 - v3) x (v2 - v3)
-  mju_cross(n, diff31, diff32);
+  cross(n, diff31, diff32);
   nv = mju_dot3(n, v3);
   nn = mju_dot3(n, n);
   mju_scl3(res, n, nv / nn);
