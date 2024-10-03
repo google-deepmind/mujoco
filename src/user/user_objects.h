@@ -321,8 +321,12 @@ class mjCBody : public mjCBody_, private mjsBody {
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
 
-  // get next child of given type
-  mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN, bool recursive = false);
+  // get next child of given type recursively; if `child` is found while traversing the tree,
+  // then `found` is set to true and the next element encountered is returned;
+  // returns nullptr if the next child is not found or if `child` is the last element, returns
+  // the next child after the input `child` otherwise
+  mjsElement* NextChild(const mjsElement* child, mjtObj type = mjOBJ_UNKNOWN,
+                        bool recursive = false, bool* found = nullptr);
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
@@ -360,7 +364,7 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // gets next child of the same type in this body
   template <class T>
-  mjsElement* GetNext(std::vector<T*>& list, const mjsElement* child, bool recursive = false);
+  mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child, bool* found);
 };
 
 

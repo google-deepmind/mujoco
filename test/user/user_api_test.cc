@@ -66,73 +66,101 @@ TEST_F(MujocoTest, GetSetData) {
 
   mj_deleteSpec(spec);
 }
-
 TEST_F(MujocoTest, TreeTraversal) {
-  mjSpec* spec = mj_makeSpec();
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <body name="body1">
+          <site name="site4"/>
+        </body>
+        <site name="site1"/>
+        <geom name="geom1" size="1"/>
+        <geom name="geom2" size="1"/>
+        <site name="site2"/>
+        <site name="site3"/>
+        <geom name="geom3" size="1"/>
+      </body>
+      <body name="body2">
+        <site name="site5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+
   mjsBody* world = mjs_findBody(spec, "world");
-  mjsBody* body = mjs_addBody(world, 0);
-  mjsBody* body1 = mjs_addBody(body, 0);
+  mjsBody* body = mjs_findBody(spec, "body");
+  mjsBody* body1 = mjs_findBody(spec, "body1");
+  mjsBody* body2 = mjs_findBody(spec, "body2");
+  mjsElement* site1 = mjs_findElement(spec, mjOBJ_SITE, "site1");
+  mjsElement* site2 = mjs_findElement(spec, mjOBJ_SITE, "site2");
+  mjsElement* site3 = mjs_findElement(spec, mjOBJ_SITE, "site3");
+  mjsElement* site4 = mjs_findElement(spec, mjOBJ_SITE, "site4");
+  mjsElement* site5 = mjs_findElement(spec, mjOBJ_SITE, "site5");
+  mjsElement* geom1 = mjs_findElement(spec, mjOBJ_GEOM, "geom1");
+  mjsElement* geom2 = mjs_findElement(spec, mjOBJ_GEOM, "geom2");
+  mjsElement* geom3 = mjs_findElement(spec, mjOBJ_GEOM, "geom3");
 
-  mjsSite* site1 = mjs_addSite(body, 0);
-  mjsGeom* geom1 = mjs_addGeom(body, 0);
-  mjsGeom* geom2 = mjs_addGeom(body, 0);
-  mjsSite* site2 = mjs_addSite(body, 0);
-  mjsSite* site3 = mjs_addSite(body, 0);
-  mjsGeom* geom3 = mjs_addGeom(body, 0);
-  mjsSite* site4 = mjs_addSite(body1, 0);
+  // test nonexistent
+  EXPECT_EQ(mjs_firstElement(spec, mjOBJ_ACTUATOR), nullptr);
+  EXPECT_EQ(mjs_firstElement(spec, mjOBJ_LIGHT), nullptr);
+  EXPECT_EQ(mjs_firstChild(body, mjOBJ_CAMERA, /*recurse=*/true), nullptr);
+  EXPECT_EQ(mjs_firstChild(body, mjOBJ_TENDON, /*recurse=*/true), nullptr);
 
-  mjs_setString(site1->name, "site1");
-  mjs_setString(geom1->name, "geom1");
-  mjs_setString(geom2->name, "geom2");
-  mjs_setString(site2->name, "site2");
-  mjs_setString(site3->name, "site3");
-  mjs_setString(geom3->name, "geom3");
-  mjs_setString(site4->name, "site4");
+  // test first, nonrecursive
+  EXPECT_EQ(mjs_firstElement(spec, mjOBJ_BODY), world->element);
+  EXPECT_EQ(site1, mjs_firstElement(spec, mjOBJ_SITE));
+  EXPECT_EQ(site1, mjs_firstChild(body, mjOBJ_SITE, /*recurse=*/false));
+  EXPECT_EQ(geom1, mjs_firstChild(body, mjOBJ_GEOM, /*recurse=*/false));
+  EXPECT_EQ(site4, mjs_firstChild(body1, mjOBJ_SITE, /*recurse=*/false));
+  EXPECT_EQ(site5, mjs_firstChild(body2, mjOBJ_SITE, /*recurse=*/false));
 
-  bool recursive = false;
-  mjsElement* b_el0 = mjs_firstElement(spec, mjOBJ_BODY);
-  mjsElement* b_el1 = mjs_nextElement(spec, b_el0);
-  mjsElement* a_el0 = mjs_firstElement(spec, mjOBJ_ACTUATOR);
-  mjsElement* l_el0 = mjs_firstElement(spec, mjOBJ_LIGHT);
-  mjsElement* c_el0 = mjs_firstChild(body, mjOBJ_CAMERA, recursive);
-  mjsElement* t_el0 = mjs_firstChild(body, mjOBJ_TENDON, recursive);
-  mjsElement* s_el1 = mjs_firstChild(body, mjOBJ_SITE, recursive);
-  mjsElement* s_el2 = mjs_nextChild(body, s_el1, recursive);
-  mjsElement* s_el3 = mjs_nextChild(body, s_el2, recursive);
-  mjsElement* s_el0 = mjs_nextChild(body, s_el3, recursive);
-  mjsElement* s_el4 = mjs_firstChild(body1, mjOBJ_SITE, recursive);
-  mjsElement* g_el1 = mjs_firstChild(body, mjOBJ_GEOM, recursive);
-  mjsElement* g_el2 = mjs_nextChild(body, g_el1, recursive);
-  mjsElement* g_el3 = mjs_nextChild(body, g_el2, recursive);
-  mjsElement* g_el0 = mjs_nextChild(body, g_el3, recursive);
+  // test first, recursive
+  EXPECT_EQ(site1, mjs_firstChild(world, mjOBJ_SITE, /*recurse=*/true));
+  EXPECT_EQ(geom1, mjs_firstChild(world, mjOBJ_GEOM, /*recurse=*/true));
+  EXPECT_EQ(site4, mjs_firstChild(body1, mjOBJ_SITE, /*recurse=*/true));
+  EXPECT_EQ(site5, mjs_firstChild(body2, mjOBJ_SITE, /*recurse=*/true));
 
-  EXPECT_EQ(b_el0, world->element);
-  EXPECT_EQ(b_el1, body->element);
-  EXPECT_EQ(a_el0, nullptr);
-  EXPECT_EQ(l_el0, nullptr);
-  EXPECT_EQ(c_el0, nullptr);
-  EXPECT_EQ(t_el0, nullptr);
-  EXPECT_EQ(g_el0, nullptr);
-  EXPECT_EQ(s_el0, nullptr);
-  EXPECT_EQ(s_el1, site1->element);
-  EXPECT_EQ(s_el2, site2->element);
-  EXPECT_EQ(s_el3, site3->element);
-  EXPECT_EQ(s_el4, site4->element);
-  EXPECT_EQ(g_el1, geom1->element);
-  EXPECT_EQ(g_el2, geom2->element);
-  EXPECT_EQ(g_el3, geom3->element);
-  EXPECT_EQ(s_el1, mjs_firstElement(spec, mjOBJ_SITE));
-  EXPECT_EQ(s_el2, mjs_nextElement(spec, s_el1));
-  EXPECT_EQ(s_el3, mjs_nextElement(spec, s_el2));
-  EXPECT_EQ(s_el4, mjs_nextElement(spec, s_el3));
-  EXPECT_EQ(nullptr, mjs_nextElement(spec, s_el4));
-  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site1"), site1->element);
-  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site2"), site2->element);
-  EXPECT_EQ(mjs_findElement(spec, mjOBJ_SITE, "site3"), site3->element);
-  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom1"), geom1->element);
-  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom2"), geom2->element);
-  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "geom3"), geom3->element);
+  // text next, nonrecursive
+  EXPECT_EQ(site2, mjs_nextChild(body, site1, /*recursive=*/false));
+  EXPECT_EQ(site3, mjs_nextChild(body, site2, /*recursive=*/false));
+  EXPECT_EQ(nullptr, mjs_nextChild(body, site3, /*recursive=*/false));
+  EXPECT_EQ(geom2, mjs_nextChild(body, geom1, /*recursive=*/false));
+  EXPECT_EQ(geom3, mjs_nextChild(body, geom2, /*recursive=*/false));
+  EXPECT_EQ(nullptr, mjs_nextChild(body, geom3, /*recursive=*/false));
+  EXPECT_EQ(mjs_nextElement(spec, site1), site2);
+  EXPECT_EQ(mjs_nextElement(spec, site2), site3);
+  EXPECT_EQ(mjs_nextElement(spec, site3), site4);
+  EXPECT_EQ(mjs_nextElement(spec, site4), site5);
+  EXPECT_EQ(mjs_nextElement(spec, site5), nullptr);
+  EXPECT_EQ(mjs_nextElement(spec, geom1), geom2);
+  EXPECT_EQ(mjs_nextElement(spec, geom2), geom3);
+  EXPECT_EQ(mjs_nextElement(spec, geom3), nullptr);
 
+  // text next, recursive
+  EXPECT_EQ(site2, mjs_nextChild(body, site1, /*recursive=*/true));
+  EXPECT_EQ(site3, mjs_nextChild(body, site2, /*recursive=*/true));
+  EXPECT_EQ(site4, mjs_nextChild(body, site3, /*recursive=*/true));
+  EXPECT_EQ(site4, mjs_nextChild(world, site3, /*recursive=*/true));
+  EXPECT_EQ(site5, mjs_nextChild(world, site4, /*recursive=*/true));
+  EXPECT_EQ(nullptr, mjs_nextChild(body, site5, /*recursive=*/true));
+  EXPECT_EQ(geom2, mjs_nextChild(body, geom1, /*recursive=*/true));
+  EXPECT_EQ(geom3, mjs_nextChild(body, geom2, /*recursive=*/true));
+  EXPECT_EQ(nullptr, mjs_nextChild(body, geom3, /*recursive=*/true));
+
+  // check compilation ordering of sites
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_EQ(mjs_getId(site1), 0);
+  EXPECT_EQ(mjs_getId(site2), 1);
+  EXPECT_EQ(mjs_getId(site3), 2);
+  EXPECT_EQ(mjs_getId(site4), 3);
+  EXPECT_EQ(mjs_getId(site5), 4);
+  mj_deleteModel(model);
   mj_deleteSpec(spec);
 }
 
