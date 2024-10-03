@@ -57,7 +57,7 @@ typedef struct {
   int adj[3];    // adjacent faces (one for each edge: [v1,v2], [v2,v3], [v3,v1])
   mjtNum v[3];   // the projection of the origin on the face (can be used as face normal)
   mjtNum dist;   // norm of v; negative if deleted
-  int index;     // index in heap
+  int index;     // index in map
 } Face;
 
 // polytope used in the Expanding Polytope Algorithm (EPA)
@@ -69,8 +69,8 @@ typedef struct {
   Face* faces;       // list of faces that make up the polytope
   int nfaces;        // number of faces
   int maxfaces;      // max number of faces that can be stored in polytope
-  Face** heap;       // min heap storing faces
-  int nheap;         // number of faces in heap
+  Face** map;        // linear map storing faces
+  int nmap;         // number of faces in map
 } Polytope;
 
 // generates a polytope from a 1, 2, or 3-simplex respectively; return 1 if successful, 0 otherwise
@@ -918,63 +918,25 @@ static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
 
 
 
-// swap two nodes in heap
-static inline void swap(Polytope* pt, int i, int j) {
-  Face* tmp = pt->heap[i];
-  pt->heap[i] = pt->heap[j];
-  pt->heap[j] = tmp;
-  pt->heap[i]->index = i;
-  pt->heap[j]->index = j;
-}
-
-
-
-// min heapify heap
-void heapify(Polytope* pt, int i) {
-  int l = 2*i + 1;    // left child
-  int r = 2*(i + 1);  // right child
-  int min = i, n = pt->nheap;
-  if (l < n && pt->heap[l]->dist < pt->heap[i]->dist)
-    min = l;
-  if (r < n && pt->heap[r]->dist < pt->heap[min]->dist)
-    min = r;
-  if (min != i) {
-    swap(pt, i, min);
-    heapify(pt, min);
-  }
-}
-
-
-
-// delete face from heap
+// delete face from map
 void deleteFace(Polytope* pt, Face* face) {
   // SHOULD NOT OCCUR
-  if (!pt->nheap) {
+  if (!pt->nmap) {
     mju_warning("EPA: trying to delete face from empty polytope");
     return;
   }
 
   face->dist = -1;
-  pt->nheap--;
+  pt->nmap--;
 
   // SHOULD NOT OCCUR
   // last face; nothing to do
-  if (!pt->nheap) {
+  if (!pt->nmap) {
     return;  // EPA will flag a warning
   }
 
-  // bubble up face to top of heap
-  int i = face->index;
-  while (i != 0) {
-    int parent = (i - 1) >> 1;
-    swap(pt, i, parent);
-    i = parent;
-  }
-
-  // swap in last element and heapify
-  pt->heap[0] = pt->heap[pt->nheap];
-  pt->heap[0]->index = 0;
-  heapify(pt, 0);
+  pt->map[face->index] = pt->map[pt->nmap];
+  pt->map[face->index]->index = face->index;
 }
 
 
@@ -1000,23 +962,15 @@ static int attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, 
   face->dist = mju_norm3(face->v);
 
   // SHOULD NOT OCCUR
-  if (pt->nheap == pt->maxfaces) {
+  if (pt->nmap == pt->maxfaces) {
     mju_warning("EPA: ran out of memory for faces on expanding polytope");
     return 1;
   }
 
-  // store face on heap
-  int i = pt->nheap++;
+  // store face in map
+  int i = pt->nmap++;
   face->index = i;
-  pt->heap[i] = face;
-  while (i != 0) {
-    int parent = (i - 1) >> 1;
-    if (pt->heap[parent]->dist <= pt->heap[i]->dist) {
-      break;
-    }
-    swap(pt, i, parent);
-    i = parent;
-  }
+  pt->map[i] = face;
   return 0;
 }
 
@@ -1149,14 +1103,19 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
   for (k = 0; k < kmax; k++) {
     // find the face closest to the origin
-    if (!pt->nheap) {
+    if (!pt->nmap) {
       mju_warning("EPA: empty polytope");
       mj_freeStack(d);
       return 0;  // assume 0 depth
     }
 
-    face = pt->heap[0];
-    dist = face->dist;
+    dist = mjMAXVAL;
+    for (int i = 0; i < pt->nmap; i++) {
+      if (pt->map[i]->dist < dist) {
+        face = pt->map[i];
+        dist = face->dist;
+      }
+    }
 
     // check if dist is 0
     if (dist <= 0) {
@@ -1240,12 +1199,12 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     mj_markStack((mjData*) obj1->data);
 
     Polytope pt;
-    pt.nfaces = pt.nheap = pt.nverts = 0;
+    pt.nfaces = pt.nmap = pt.nverts = 0;
 
     // allocate memory for faces
     pt.maxfaces = (6*N > 1000) ? 6*N : 1000;  // use 1000 faces as lower bound
     pt.faces = mj_stackAllocByte(d, sizeof(Face) * pt.maxfaces, _Alignof(Face));
-    pt.heap = mj_stackAllocByte(d, sizeof(Face*) * pt.maxfaces, _Alignof(Face*));
+    pt.map = mj_stackAllocByte(d, sizeof(Face*) * pt.maxfaces, _Alignof(Face*));
 
     // allocate memory for vertices
     pt.verts  = mj_stackAllocNum(d, 3*(5 + N));
