@@ -37,6 +37,7 @@ namespace {
 
 using ::testing::HasSubstr;
 using ::testing::NotNull;
+using ::testing::IsNull;
 
 
 // -------------------------- test model manipulation  -------------------------
@@ -1484,6 +1485,25 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
     mj_deleteSpec(spec_2);
     mj_deleteModel(model_1);
     mj_deleteModel(model_2);
+}
+
+TEST_F(MujocoTest, DifferentUnitsNotAllowed) {
+  mjSpec* spec_1 = mj_makeSpec();
+  mjSpec* spec_2 = mj_makeSpec();
+  spec_1->degree = 1;
+  spec_2->degree = 0;
+
+  mjsBody* body = mjs_addBody(mjs_findBody(spec_1, "world"), 0);
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(spec_2, "world"), 0);
+
+  constexpr char msg[] = "mjSpecs with incompatible compiler/angle";
+  EXPECT_THAT(mjs_attachBody(frame, body, "child-", ""), IsNull());
+  EXPECT_THAT(mjs_attachFrame(body, frame, "child-", ""), IsNull());
+  EXPECT_THAT(mjs_getError(spec_1), HasSubstr(msg));
+  EXPECT_THAT(mjs_getError(spec_2), HasSubstr(msg));
+
+  mj_deleteSpec(spec_1);
+  mj_deleteSpec(spec_2);
 }
 
 }  // namespace

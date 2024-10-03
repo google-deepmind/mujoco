@@ -329,6 +329,20 @@ void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
 }
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
+  // TODO: use compiler settings stored in specs_ during compilation
+  std::string msg = "cannot attach mjSpecs with incompatible compiler/";
+  if (other.spec.degree != spec.degree) {
+    throw mjCError(nullptr, (msg + "angle attribute").c_str());
+  }
+  if (other.spec.autolimits != spec.autolimits) {
+    throw mjCError(nullptr, (msg + "autolimits attribute").c_str());
+  }
+  if (other.spec.eulerseq[0] != spec.eulerseq[0] ||
+      other.spec.eulerseq[1] != spec.eulerseq[1] ||
+      other.spec.eulerseq[2] != spec.eulerseq[2]) {
+    throw mjCError(nullptr, (msg + "eulerseq attribute").c_str());
+  }
+
   // create global lists
   mjCBody *world = bodies_[0];
   if (compiled) {
