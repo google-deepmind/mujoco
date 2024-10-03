@@ -238,9 +238,12 @@ class TendonTest(parameterized.TestCase):
 
   @parameterized.parameters(
       'tendon/fixed.xml',
-      'tendon/site.xml',
       'tendon/fixed_site.xml',
+      'tendon/fixed_site_wrap.xml',
       'tendon/no_tendon.xml',
+      'tendon/site.xml',
+      'tendon/site_wrap.xml',
+      'tendon/wrap_sidesite.xml',
   )
   def test_tendon(self, filename):
     """Tests MJX tendon function matches MuJoCo mj_tendon."""
@@ -259,10 +262,8 @@ class TendonTest(parameterized.TestCase):
     _assert_eq(d.ten_J, dx.ten_J, 'ten_J')
     _assert_eq(d.ten_wrapnum, dx.ten_wrapnum, 'ten_wrapnum')
     _assert_eq(d.ten_wrapadr, dx.ten_wrapadr, 'ten_wrapadr')
-    if d.wrap_obj.shape == dx.wrap_obj.shape:
-      _assert_eq(d.wrap_obj, dx.wrap_obj, 'wrap_obj')
-    if d.wrap_xpos.shape == dx.wrap_xpos.shape:
-      _assert_eq(d.wrap_xpos, dx.wrap_xpos, 'wrap_xpos')
+    _assert_eq(d.wrap_obj, dx.wrap_obj, 'wrap_obj')
+    _assert_eq(d.wrap_xpos, dx.wrap_xpos, 'wrap_xpos')
 
 
 if __name__ == '__main__':

@@ -175,6 +175,7 @@ class ModelIOTest(parameterized.TestCase):
               <joint name="arm" axis="0 1 0"/>
               <geom name="shoulder" type="sphere" size=".05"/>
               <site name="arm" pos="-.1 0 .05"/>
+              <site name="sidesite" pos="0 0 0"/>
             </body>
             <body name="slider" pos=".05 0 -.2">
               <joint name="slider" type="slide" damping="1"/>
@@ -186,7 +187,7 @@ class ModelIOTest(parameterized.TestCase):
           <tendon>
             <spatial name="rope" range="0 .35">
               <site site="slider"/>
-              <geom geom="shoulder"/>
+              <geom geom="shoulder" sidesite="sidesite"/>
               <site site="arm"/>
             </spatial>
           </tendon>
