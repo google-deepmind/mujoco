@@ -4126,6 +4126,15 @@ mjs_getSpec
 
 Get spec from body.
 
+.. _mjs_getSpecFromFrame:
+
+mjs_getSpecFromFrame
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getSpecFromFrame
+
+Get spec from frame.
+
 .. _mjs_findBody:
 
 mjs_findBody

@@ -9682,6 +9682,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get spec from body.',
      )),
+    ('mjs_getSpecFromFrame',
+     FunctionDecl(
+         name='mjs_getSpecFromFrame',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='frame',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsFrame'),
+                 ),
+             ),
+         ),
+         doc='Get spec from frame.',
+     )),
     ('mjs_findBody',
      FunctionDecl(
          name='mjs_findBody',

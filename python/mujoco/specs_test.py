@@ -846,5 +846,20 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(IndexError):
       material.textures[-1] = 'x'
 
+  def test_attach_error(self):
+    child = mujoco.MjSpec()
+    parent = mujoco.MjSpec()
+    parent.degree = not child.degree
+    body = parent.worldbody.add_body()
+    frame = child.worldbody.add_frame()
+    with self.assertRaises(ValueError) as cm:
+      body.attach_frame(frame, '', '')
+    self.assertEqual(
+        str(cm.exception),
+        'Error: cannot attach mjSpecs with incompatible compiler/angle'
+        ' attribute',
+    )
+
+
 if __name__ == '__main__':
   absltest.main()

@@ -188,6 +188,9 @@ MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(mjsBody* body);
 
+// Get spec from frame.
+MJAPI mjSpec* mjs_getSpecFromFrame(mjsFrame* frame);
+
 // Find spec (model asset) by name.
 MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 

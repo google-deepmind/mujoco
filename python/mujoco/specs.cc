@@ -563,7 +563,12 @@ PYBIND11_MODULE(_specs, m) {
       "attach_frame",
       [](raw::MjsBody& self, raw::MjsFrame& frame, std::string& prefix,
          std::string& suffix) -> raw::MjsFrame* {
-        return mjs_attachFrame(&self, &frame, prefix.c_str(), suffix.c_str());
+        auto new_frame =
+            mjs_attachFrame(&self, &frame, prefix.c_str(), suffix.c_str());
+        if (!new_frame) {
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(&self)));
+        }
+        return new_frame;
       },
       py::return_value_policy::reference_internal);
 
@@ -578,7 +583,13 @@ PYBIND11_MODULE(_specs, m) {
       "attach_body",
       [](raw::MjsFrame& self, raw::MjsBody& body, std::string& prefix,
          std::string& suffix) -> raw::MjsBody* {
-        return mjs_attachBody(&self, &body, prefix.c_str(), suffix.c_str());
+        auto new_body =
+            mjs_attachBody(&self, &body, prefix.c_str(), suffix.c_str());
+        if (!new_body) {
+          throw pybind11::value_error(
+              mjs_getError(mjs_getSpecFromFrame(&self)));
+        }
+        return new_body;
       },
       py::return_value_policy::reference_internal);
 

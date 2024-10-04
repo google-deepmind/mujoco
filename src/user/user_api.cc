@@ -521,9 +521,16 @@ mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* p
 
 
 
-// get objects
+// get spec from body
 mjSpec* mjs_getSpec(mjsBody* body) {
   return &(static_cast<mjCBody*>(body->element)->model->spec);
+}
+
+
+
+// get spec from frame
+mjSpec* mjs_getSpecFromFrame(mjsFrame* frame) {
+  return &(static_cast<mjCFrame*>(frame->element)->model->spec);
 }
 
 
