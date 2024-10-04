@@ -635,7 +635,156 @@ Quadratic Programs with :ref:`mju_boxQP`. It is documented in the associated not
 .. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.svg
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
+.. _PyUSDexport:
 
+USD exporter
+------------
+
+The `USD exporter <https://github.com/google-deepmind/mujoco/tree/main/python/mujoco/usd>`__ module allows users to save
+scenes and trajectories in the `USD format <https://openusd.org/release/index.html>`__ for rendering in external
+renderers such as NVIDIA Omniverse or Blender. These renderers provide higher quality rendering capabilities not
+provided by the default renderer. Additionally, exporting to USD allows users to include different types of texture maps
+to make objects in the scene look more realistic.
+
+.. _PyUSDInstallation:
+
+Installation
+^^^^^^^^^^^^
+
+The recommended way to install the necessary requirements for the USD exporter is via
+`PyPI <https://pypi.org/project/mujoco/>`__:
+
+.. code-block:: shell
+
+   pip install mujoco[usd]
+
+This installs the optional dependencies ``usd-core`` and ``pillow`` required by the USD exporter.
+
+If you are building from source, please ensure to `build the Python bindings
+<https://mujoco.readthedocs.io/en/stable/python.html#building-from-source>`__. Then, using pip, install the required
+``usd-core`` and ``pillow`` packages.
+
+.. _PyUSDExporter:
+
+USDExporter
+^^^^^^^^^^^
+
+The ``USDExporter`` class in the ``mujoco.usd.exporter`` module allows saving full trajectories in addition to defining
+custom cameras and lights. The constructor arguments of a ``USDExporter`` instance are:
+
+- ``model``: An MjModel instance. The USD exporter reads relevant information from the model including details about
+  cameras, lights, textures, and object geometries.
+
+- ``max_geom``: Maximum number of geoms in a scene, required when instatiating the internal .
+  `mjvScene <https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html#mjvscene>`__.
+
+- ``output_directory``: Name of the directory under which the exported USD file and all relevant
+  assets are stored. When saving a scene/trajectory as a USD file, the exporter creates the following directory
+  structure.
+
+  .. code-block:: text
+
+      output_directory_root/
+      └-output_directory/
+        ├-assets/
+        | ├-texture_0.png
+        | ├-texture_1.png
+        | └-...
+        └─frames/
+          └-frame_301.usd
+
+  Using this file structure allows users to easily archive the ``output_directory``. All paths to assets in the USD file
+  are relative, facilitating the use of the USD archive on another machine.
+
+- ``output_directory_root``: Root directory to add USD trajectory to.
+
+- ``light_intensity``: Intensity of all lights. Note that the units of intensity may be defined differently in
+  different renderers, so this value may need to be adjusted on a render-specific basis.
+
+- ``camera_names``: List of cameras to be stored in the USD file. At each time step, for each camera defined, we
+  calculate its position and orientation and add that value for that given frame in the USD. USD allows us to store
+  multiple cameras.
+
+- ``verbose``: Whether or not to print log messages from the exporter.
+
+If you wish to export a model loaded directly from an MJCF, we provide a `demo
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/usd/demo.py>`__ script that shows how to do so. This
+demo file also serves as an example of the USD export functionality.
+
+.. _PyUSDBasicUsage:
+
+Basic usage
+^^^^^^^^^^^
+
+Once the optional dependencies are installed, the USD exporter can be imported via ``from mujoco.usd import exporter``.
+
+Below, we demonstrate a simple example of using the ``USDExporter``. During initialization, the ``USDExporter`` creates
+an empty USD stage, as well as the assets and frames directories if they do not already exist. Additionally, it
+generates .png files for each texture defined in the model. Every time ``update_scene`` is called, the exporter records
+the position and orientation of all geoms, lights, and cameras in the scene.
+
+The ``USDExporter`` keeps track of frames internally by maintaining a frame counter. Each time ``update_scene`` is
+called, the counter is incremented, and the poses of all geoms, cameras, and lights are saved for the corresponding
+frame. It's important to note that you can step through the simulation multiple times before calling ``update_scene``.
+The final USD file will only store the poses of the geoms, lights, and cameras as they were at the last update_scene
+call.
+
+.. code-block:: python
+
+    import mujoco
+    from mujoco.usd import exporter
+
+    m = mujoco.MjModel.from_xml_path('/path/to/mjcf.xml')
+    d = mujoco.MjData(m)
+
+    # Create the USDExporter
+    exp = exporter.USDExporter(model=m)
+
+    duration = 5
+    framerate = 60
+    while d.time < duration:
+
+      # Step the physics
+      mujoco.mj_step(m, d)
+
+      if exp.frame_count < d.time * framerate:
+        # Update the USD with a new frame
+        exp.update_scene(data=d)
+
+    # Export the USD file
+    exp.save_scene(filetype="usd")
+
+
+
+.. _PyUSDExportAPI:
+
+USD Export API
+^^^^^^^^^^^^^^
+
+- ``update_scene(self, data, scene_option)``: updates the scene with the latest simulation data passed in by the
+  user. This function updates the geom, cameras, and lights in the scene.
+
+- ``add_light(self, pos, intensity, radius, color, obj_name, light_type)``: adds a light to the USD scene with the
+  given properties post hoc.
+
+- ``add_camera(self, pos, rotation_xyz, obj_name)``: adds a camera to the USD scene with the given properties post hoc.
+
+- ``save_scene(self, filetype)``:  exports the USD scene using one of the usd filetype extensions ``.usd``, ``.usda``,
+  or ``.usdc``.
+
+.. _PyUSDTodos:
+
+Missing features
+^^^^^^^^^^^^^^^^
+
+Below, we list remaining action items for the USD exporter. Please feel free to suggest additional requests
+by creating a new `feature request <https://github.com/google-deepmind/mujoco/issues/new/choose>`__ in GitHub.
+
+- Add support for additional texture maps including metallic, occlusion, roughness, bump, etc.
+
+- Add support for online rendering with Isaac.
+
+- Add support for custom cameras.
 
 
 .. _PyUtility:

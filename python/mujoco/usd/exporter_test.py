@@ -43,7 +43,7 @@ class ExporterTest(absltest.TestCase):
     data = mujoco.MjData(model)
     exporter = exporter_module.USDExporter(
         model,
-        output_directory_name=output_dir_name,
+        output_directory=output_dir_name,
         output_directory_root=output_dir_root,
         camera_names=["closeup"],
     )
