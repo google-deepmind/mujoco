@@ -31,3 +31,9 @@ Info.framework.plist
 __pycache__/
 *.py[cod]
 *$py.class
+
+# MuJoCo's default log file
+MUJOCO_LOG.TXT
+
+# Clang cache
+.cache/
