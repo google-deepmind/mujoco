@@ -97,12 +97,10 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
                               mjData* d);
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                                  int nr, int nc,  const int* rownnz,
-                                  const int* rowadr, const int* colind,
-                                  const int* rownnzT, const int* rowadrT,
-                                  const int* colindT, const int* rowsuperT,
-                                  mjData* d);
+MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
+                                  const int* rownnz, const int* rowadr, const int* colind,
+                                  const int* rownnzT, const int* rowadrT, const int* colindT,
+                                  const int* rowsuperT, mjData* d);
 
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);

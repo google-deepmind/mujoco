@@ -637,18 +637,16 @@ void mju_superSparse(int nr, int* rowsuper,
 
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                            int nr, int nc,  const int* rownnz,
-                            const int* rowadr, const int* colind,
-                            const int* rownnzT, const int* rowadrT,
-                            const int* colindT, const int* rowsuperT,
-                            mjData* d) {
+void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
+                            const int* rownnz, const int* rowadr, const int* colind,
+                            const int* rownnzT, const int* rowadrT, const int* colindT,
+                            const int* rowsuperT, mjData* d) {
   mj_markStack(d);
-  int* chain = mj_stackAllocInt(d, 2*nc);
+  int* chain = mj_stackAllocInt(d, 2*nr);
   int nchain = 0;
   int* res_colind = NULL;
 
-  for (int r=0; r < nc; r++) {
+  for (int r=0; r < nr; r++) {
     // supernode; copy everything to next row
     if (rowsuperT && r > 0 && rowsuperT[r-1] > 0) {
       res_rownnz[r] = res_rownnz[r - 1];
@@ -664,7 +662,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         res_rownnz[r]++;
       }
     } else {
-      int inew = 0, iold = nc;
+      int inew = 0, iold = nr;
       nchain = 0;
 
       for (int i=0; i < rownnzT[r]; i++) {
@@ -679,8 +677,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         int end = rowadr[c] + rownnz[c];
         for (int adr1=rowadr[c]; adr1 < end; adr1++) {
           int col_mat = colind[adr1];
-          while (adr < nchain && chain[iold + adr] < col_mat &&
-                 chain[iold + adr] <= r) {
+          while (adr < nchain && chain[iold + adr] < col_mat && chain[iold + adr] <= r) {
             chain[inew + nnewchain++] = chain[iold + adr++];
           }
 
@@ -720,7 +717,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
   }
 
   res_rowadr[0] = 0;
-  for (int r = 1; r < nc; r++) {
+  for (int r = 1; r < nr; r++) {
     res_rowadr[r] = res_rowadr[r-1] + res_rownnz[r-1];
   }
 
