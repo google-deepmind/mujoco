@@ -83,7 +83,7 @@ static int polytope4(Polytope* pt, const mjCCDStatus* status);
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 
 // attaches a face to the polytope with the given vertex indices; returns non-zero on error
-static int attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3);
+static void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3);
 
 // returns 1 if objects are in contact, 0 otherwise; status must have initial tetrahedrons
 static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj* obj2);
@@ -1030,12 +1030,15 @@ static int deleteFace(Polytope* pt, Face* face) {
 
 
 
+// returns max number of faces that can be stored in polytope
+static inline int maxFaces(Polytope* pt) {
+  return pt->maxfaces - pt->nfaces;
+}
+
+
+
 // attaches a face to the polytope with the given vertex indices; returns non-zero on error
-static int attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3) {
-  if (pt->nfaces >= pt->maxfaces) {
-    mju_warning("EPA: out of memory for faces on expanding polytope");
-    return 1;
-  }
+static inline void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3) {
   Face* face = &pt->faces[pt->nfaces++];
   face->verts[0] = v1;
   face->verts[1] = v2;
@@ -1050,17 +1053,10 @@ static int attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, 
   projectOriginPlane(face->v, pt->verts + v1, pt->verts + v2, pt->verts + v3);
   face->dist = mju_norm3(face->v);
 
-  // SHOULD NOT OCCUR
-  if (pt->nmap == pt->maxfaces) {
-    mju_warning("EPA: ran out of memory for faces on expanding polytope");
-    return 1;
-  }
-
   // store face in map
   int i = pt->nmap++;
   face->index = i;
   pt->map[i] = face;
-  return 0;
 }
 
 
@@ -1231,18 +1227,21 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
     // insert w as new vertex and attach faces along the horizon
     int wi = newVertex(pt, w1, w2), nfaces = pt->nfaces, nedges = h.nedges;
 
+    // check if there's enough memory to store new faces
+    if (nedges > maxFaces(pt)) {
+      mju_warning("EPA: out of memory for faces on expanding polytope");
+      break;
+    }
+
     // attach first face
     int horIndex = h.indices[0], horEdge = h.edges[0];
     Face* horFace = &pt->faces[horIndex];
     int v1 = horFace->verts[horEdge],
         v2 = horFace->verts[(horEdge + 1) % 3];
     horFace->adj[horEdge] = nfaces;
-    if (attachFace(pt, wi, v2, v1, nfaces + nedges - 1, horIndex, nfaces + 1)) {
-      break;  // out of memory
-    }
+    attachFace(pt, wi, v2, v1, nfaces + nedges - 1, horIndex, nfaces + 1);
 
     // attach remaining faces
-    int oom = 0;  // set to 1 if out of memory
     for (int i = 1; i < nedges; i++) {
       int cur = nfaces + i;  // index of attached face
       int next = nfaces + (i + 1) % nedges;  // index of next face
@@ -1252,12 +1251,8 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
       v1 = horFace->verts[horEdge];
       v2 = horFace->verts[(horEdge + 1) % 3];
       horFace->adj[horEdge] = cur;
-      if (attachFace(pt, wi, v2, v1, cur - 1, horIndex, next)) {
-        oom = 1;
-        break;
-      }
+      attachFace(pt, wi, v2, v1, cur - 1, horIndex, next);
     }
-    if (oom) break;
     h.nedges = 0;  // clear horizon
   }
 
