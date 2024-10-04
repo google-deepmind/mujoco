@@ -51,7 +51,10 @@ def _main(argv: Sequence[str]) -> None:
   jax.config.update('jax_debug_nans', True)
 
   print(f'Loading model from: {_MODEL_PATH.value}.')
-  m = mujoco.MjModel.from_xml_path(_MODEL_PATH.value)
+  if _MODEL_PATH.value.endswith('.mjb'):
+    m = mujoco.MjModel.from_binary_path(_MODEL_PATH.value)
+  else:
+    m = mujoco.MjModel.from_xml_path(_MODEL_PATH.value)
   d = mujoco.MjData(m)
   mx = mjx.put_model(m)
   dx = mjx.put_data(m, d)
