@@ -218,7 +218,7 @@ class BuildCMakeExtension(build_ext.build_ext):
     src_dir = os.path.join(os.path.dirname(__file__), 'mujoco/mjpython')
     dst_contents_dir = os.path.join(
         os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
-        'MuJoCo (mjpython).app/Contents')
+        'MuJoCo_(mjpython).app/Contents')
     os.makedirs(dst_contents_dir)
     shutil.copyfile(os.path.join(src_dir, 'Info.plist'),
                     os.path.join(dst_contents_dir, 'Info.plist'))

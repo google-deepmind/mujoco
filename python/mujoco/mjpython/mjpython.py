@@ -46,7 +46,7 @@ def get_executable_path():
 def main(argv):
   module_dir = os.path.dirname(importlib.util.find_spec('mujoco').origin)
   os.environ['MJPYTHON_BIN'] = os.path.join(
-      module_dir, 'MuJoCo (mjpython).app/Contents/MacOS/mjpython')
+      module_dir, 'MuJoCo_(mjpython).app/Contents/MacOS/mjpython')
 
   # Conda doesn't create a separate shared library for Python.
   # We instead use the Python binary itself, which can be dlopened just as well.
