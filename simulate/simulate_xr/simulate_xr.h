@@ -158,6 +158,11 @@ class SimulateXr {
   XrSession m_session = XR_NULL_HANDLE;
   XrSessionState m_sessionState = XR_SESSION_STATE_UNKNOWN;
 
+  // static
+  void _view_to_cam(mjvGLCamera &cam, const XrView &view);
+  void _fill_layer_proj_views(XrCompositionLayerProjectionView &xr_lpv,
+                              const XrView &view, const int32_t offset);
+
   void _create_instance();
   void _destroy_instance();
 

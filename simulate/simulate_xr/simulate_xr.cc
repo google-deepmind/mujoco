@@ -233,10 +233,6 @@ bool SimulateXr::before_render_1sc(mjvScene *scn, mjModel *m) {
   _poll_events();
   if (!m_sessionRunning) return false;
 
-  //if (!_render_frame_start()) {
-  //  return false;
-  //}
-
   // Essentially, _render_frame_start()
   // Get the XrFrameState for timing and rendering info.
   XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
@@ -306,67 +302,17 @@ bool SimulateXr::before_render_1sc(mjvScene *scn, mjModel *m) {
 
   // Per view in the view configuration:
   for (uint32_t i = 0; i < viewCount; i++) {
-    // Get the width and height and construct the viewport and scissors.
-    // GraphicsAPI::Viewport viewport = {0.0f,          0.0f, (float)width,
-    //                                  (float)height, 0.0f, 1.0f};
-    // GraphicsAPI::Rect2D scissor = {{(int32_t)0, (int32_t)0}, {width,
-    // height}};
-    float nearZ = 0.05f;
-    float farZ = 100.0f;  // 50?
-    scn->camera[i].pos[0] = views[i].pose.position.x;
-    scn->camera[i].pos[1] = views[i].pose.position.y;
-    scn->camera[i].pos[2] = views[i].pose.position.z;
-    scn->camera[i].frustum_near = nearZ;
-    scn->camera[i].frustum_far = farZ;
-    scn->camera[i].frustum_bottom = tan(views[i].fov.angleDown) * nearZ;
-    scn->camera[i].frustum_top = tan(views[i].fov.angleUp) * nearZ;
-    scn->camera[i].frustum_center =
-        0.5 * (tan(views[i].fov.angleLeft) + tan(views[i].fov.angleRight)) *
-        nearZ;
+    _view_to_cam(scn->camera[i], views[i]);
 
-    mjtNum rot_quat[4] = {
-        views[i].pose.orientation.w, views[i].pose.orientation.x,
-        views[i].pose.orientation.y, views[i].pose.orientation.z};
-
-    mjtNum forward[3] = {0, 0, 0};
-    const mjtNum forward_vec[3] = {0, 0, -1};
-    mju_rotVecQuat(forward, forward_vec, rot_quat);
-    scn->camera[i].forward[0] = forward[0];
-    scn->camera[i].forward[1] = forward[1];
-    scn->camera[i].forward[2] = forward[2];
-
-    mjtNum up[3] = {0, 0, 0};
-    const mjtNum up_vec[3] = {0, 1, 0};
-    mju_rotVecQuat(up, up_vec, rot_quat);
-    scn->camera[i].up[0] = up[0];
-    scn->camera[i].up[1] = up[1];
-    scn->camera[i].up[2] = up[2];
-
-    // Fill out the XrCompositionLayerProjectionView structure specifying
-    // the pose and fov from the view. This also associates the swapchain
-    // image with this layer projection view.
-    renderLayerInfo.layerProjectionViews[i] = {
-        XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
-    renderLayerInfo.layerProjectionViews[i].pose = views[i].pose;
-    renderLayerInfo.layerProjectionViews[i].fov = views[i].fov;
-    renderLayerInfo.layerProjectionViews[i].subImage.swapchain =
-        m_colorSwapchainInfo.swapchain;
-    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.x =
-        i * width;
-    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.offset.y = 0;
-    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.extent.width =
-        static_cast<int32_t>(width);
-    renderLayerInfo.layerProjectionViews[i].subImage.imageRect.extent.height =
-        static_cast<int32_t>(height);
-    renderLayerInfo.layerProjectionViews[i].subImage.imageArrayIndex = 0;
-    // Useful for multiview rendering.
+    _fill_layer_proj_views(renderLayerInfo.layerProjectionViews[i], views[i],
+                           static_cast<int32_t>(i * width));
   }
 
   scn->enabletransform = true;
   scn->rotate[0] = cos(0.25 * mjPI);
   scn->rotate[1] = sin(-0.25 * mjPI);
-  scn->translate[1] = 0;   // TODO AS not sure about this, give user control?
-  scn->translate[2] = -1;  // TODO AS not sure about this, give user control?
+  scn->translate[1] = 0;  // TODO AS give user control?
+  scn->translate[2] = -1;
 
   // RENDER
   // BeginRendering
@@ -600,8 +546,8 @@ void SimulateXr::after_render(mjrContext *con) {
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
   // TODO: pull window size from the system
-  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2, height / 2,
-                    GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
+                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
   // here be other things
   //// EndRendering
@@ -665,7 +611,7 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
   // TODO: pull window size from the system
-  glBlitFramebuffer(0, 0, width, height, 0, 0, width / 2, height / 2,
+  glBlitFramebuffer(0, 0, width_render, height, 0, 0, width / 2, height / 2,
                     GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
   // here be other things
@@ -811,6 +757,55 @@ void SimulateXr::_destroy_instance() {
   // Destroy the XrInstance.
   if (xrDestroyInstance(m_xrInstance) < 0)
     std::cerr << "Failed to destroy Instance." << std::endl;
+}
+
+void SimulateXr::_view_to_cam(mjvGLCamera &cam, const XrView &view) {
+  float nearZ = 0.05f;
+  float farZ = 50.0f;  // todo switch to 100?
+  cam.pos[0] = view.pose.position.x;
+  cam.pos[1] = view.pose.position.y;
+  cam.pos[2] = view.pose.position.z;
+  cam.frustum_near = nearZ;
+  cam.frustum_far = farZ;
+  cam.frustum_bottom = tan(view.fov.angleDown) * nearZ;
+  cam.frustum_top = tan(view.fov.angleUp) * nearZ;
+  cam.frustum_center =
+      0.5 * (tan(view.fov.angleLeft) + tan(view.fov.angleRight)) * nearZ;
+
+  mjtNum rot_quat[4] = {view.pose.orientation.w, view.pose.orientation.x,
+                        view.pose.orientation.y, view.pose.orientation.z};
+
+  mjtNum forward[3] = {0, 0, 0};
+  const mjtNum forward_vec[3] = {0, 0, -1};
+  mju_rotVecQuat(forward, forward_vec, rot_quat);
+  cam.forward[0] = forward[0];
+  cam.forward[1] = forward[1];
+  cam.forward[2] = forward[2];
+
+  mjtNum up[3] = {0, 0, 0};
+  const mjtNum up_vec[3] = {0, 1, 0};
+  mju_rotVecQuat(up, up_vec, rot_quat);
+  cam.up[0] = up[0];
+  cam.up[1] = up[1];
+  cam.up[2] = up[2];
+}
+
+void SimulateXr::_fill_layer_proj_views(
+    XrCompositionLayerProjectionView &xr_lpv, const XrView &view,
+    const int32_t offset) {
+  // Fill out the XrCompositionLayerProjectionView structure specifying
+  // the pose and fov from the view. This also associates the swapchain
+  // image with this layer projection view.
+  xr_lpv = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+  xr_lpv.pose = view.pose;
+  xr_lpv.fov = view.fov;
+  xr_lpv.subImage.swapchain = m_colorSwapchainInfo.swapchain;
+  xr_lpv.subImage.imageRect.offset.x = offset;
+  xr_lpv.subImage.imageRect.offset.y = 0;
+  xr_lpv.subImage.imageRect.extent.width = static_cast<int32_t>(width);
+  xr_lpv.subImage.imageRect.extent.height = static_cast<int32_t>(height);
+  xr_lpv.subImage.imageArrayIndex = 0;
+  // Useful for multiview rendering.
 }
 
 void SimulateXr::_get_instance_properties() {
@@ -1071,7 +1066,7 @@ void SimulateXr::_create_swapchain() {
 void SimulateXr::_destroy_swapchain() {
   // TODO(AS)
 
-  //// Destroy the color and depth image views from GraphicsAPI.
+  //// Destroy the color image view from GraphicsAPI.
   // for (void *&imageView : colorSwapchainInfo.imageViews) {
   //   m_graphicsAPI->DestroyImageView(imageView);
   // }

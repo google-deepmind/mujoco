@@ -2327,7 +2327,8 @@ void Simulate::LoadOnRenderThread() {
   }
 
 #ifdef mjBUILDSIMULATEXR
-  //hmd.update(this->scn);
+  // TODO (AS) should not be duplicated, separate the m from scn changes?
+  simXr.init_scene_vis(&this->scn, this->m_);
 #endif // mjBUILDSIMULATEXR
 
   // set window title to model name
@@ -2387,6 +2388,11 @@ void Simulate::Render() {
 
   // get 3D rectangle and reduced for profiler
   mjrRect rect = this->uistate.rect[3];
+  // #ifdef mjBUILDSIMULATEXR
+  //  rect.width = (int)simXr.width_render;
+  //  rect.height = (int)simXr.height;
+  //  // TODO(AS) fix the UI display locations
+  // #endif  // mjBUILDSIMULATEXR
   mjrRect smallrect = rect;
   if (this->profiler) {
     smallrect.width = rect.width - rect.width/4;
@@ -2506,7 +2512,7 @@ void Simulate::Render() {
 
   // render scene
 #ifdef mjBUILDSIMULATEXR
-
+  // TODO(AS) fix the UI display locations
   //bool xr_ret = simXr.before_render2(&this->scn);
   //mjrRect rectXR = {0, 0, 0, 0};
   //rectXR.width = (int)simXr.width;
@@ -2533,7 +2539,7 @@ void Simulate::Render() {
   mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
   mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
 
-  simXr.after_render_1sc(&this->platform_ui->mjr_context());
+  //simXr.after_render_1sc(&this->platform_ui->mjr_context());
 #else //mjBUILDSIMULATEXR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
 #endif //mjBUILDSIMULATEXR
@@ -2647,6 +2653,12 @@ void Simulate::Render() {
       }
     }
   }
+
+  
+  // render scene
+#ifdef mjBUILDSIMULATEXR
+  simXr.after_render_1sc(&this->platform_ui->mjr_context());
+#endif  // mjBUILDSIMULATEXR
 
   // finalize
   this->platform_ui->SwapBuffers();
