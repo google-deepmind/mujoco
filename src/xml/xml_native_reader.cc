@@ -2694,6 +2694,11 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
   }
 
+  // check errors
+  if (elasticity && fcomp.equality) {
+    throw mjXError(elem, "elasticity and edge constraints cannot both be present");
+  }
+
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
@@ -2877,7 +2882,6 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
 // extension section parser
 void mjXReader::Extension(XMLElement* section) {
   XMLElement* elem = FirstChildElement(section);
-  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;
 
   while (elem) {
     // get sub-element name
@@ -2885,23 +2889,8 @@ void mjXReader::Extension(XMLElement* section) {
 
     if (name == "plugin") {
       string plugin_name;
-      int plugin_slot = -1;
       ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
-      const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
-      if (!plugin) {
-        throw mjXError(elem, "unknown plugin '%s'", plugin_name.c_str());
-      }
-
-      bool already_declared = false;
-      for (const auto& [existing_plugin, existing_slot] : active_plugins) {
-        if (plugin == existing_plugin) {
-          already_declared = true;
-          break;
-        }
-      }
-      if (!already_declared) {
-        active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
-      }
+      int plugin_slot = mjs_activatePlugin(spec, plugin_name.c_str());
 
       XMLElement* child = FirstChildElement(elem);
       while (child) {
@@ -2928,8 +2917,6 @@ void mjXReader::Extension(XMLElement* section) {
     // advance to next element
     elem = NextSiblingElement(elem);
   }
-
-  mjs_setActivePlugins(spec, &active_plugins);
 }
 
 
@@ -3231,9 +3218,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       }
       ReadAttrInt(elem, "width", &texture->width);
       ReadAttrInt(elem, "height", &texture->height);
-      if (!ReadAttrInt(elem, "nchannel", &texture->nchannel)) {
-        texture->nchannel = 3;
-      }
+      ReadAttrInt(elem, "nchannel", &texture->nchannel);
       ReadAttr(elem, "rgb1", 3, texture->rgb1, text);
       ReadAttr(elem, "rgb2", 3, texture->rgb2, text);
       ReadAttr(elem, "markrgb", 3, texture->markrgb, text);
@@ -3624,7 +3609,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         UpdateString(suffix, count, i);
 
         // attach to parent
-        if (mjs_attachFrame(body, pframe, /*prefix=*/"", suffix.c_str()) != 0) {
+        if (!mjs_attachFrame(body, pframe, /*prefix=*/"", suffix.c_str())) {
           throw mjXError(elem, mjs_getError(spec));
         }
       }
@@ -3701,7 +3686,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         if (!child) {
           throw mjXError(0, "could not find body '%s''%s'", body_name.c_str());
         }
-        if (mjs_attachBody(pframe, child, prefix.c_str(), "") != 0) {
+        if (!mjs_attachBody(pframe, child, prefix.c_str(), "")) {
           throw mjXError(elem, mjs_getError(spec));
         }
       } else {

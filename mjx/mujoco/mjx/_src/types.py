@@ -198,10 +198,14 @@ class WrapType(enum.IntEnum):
   Members:
     JOINT: constant moment arm
     SITE: pass through site
+    SPHERE: wrap around sphere
+    CYLINDER: wrap around (infinite) cylinder
   """
   JOINT = mujoco.mjtWrap.mjWRAP_JOINT
   SITE = mujoco.mjtWrap.mjWRAP_SITE
-  # unsupported: NONE, PULLEY, SPHERE, CYLINDER
+  SPHERE = mujoco.mjtWrap.mjWRAP_SPHERE
+  CYLINDER = mujoco.mjtWrap.mjWRAP_CYLINDER
+  # unsupported: NONE, PULLEY
 
 
 class TrnType(enum.IntEnum):
@@ -768,6 +772,7 @@ class Model(PyTreeNode):
     name_meshadr: mesh name pointers                          (nmesh,)
     name_pairadr: geom pair name pointers                     (npair,)
     name_eqadr: equality constraint name pointers             (neq,)
+    name_tendonadr: tendon name pointers                      (ntendon,)
     name_actuatoradr: actuator name pointers                  (nu,)
     name_sensoradr: sensor name pointers                      (nsensor,)
     name_numericadr: numeric name pointers                    (nnumeric,)
@@ -1081,6 +1086,7 @@ class Model(PyTreeNode):
   name_hfieldadr: np.ndarray
   name_pairadr: np.ndarray
   name_eqadr: np.ndarray
+  name_tendonadr: np.ndarray
   name_actuatoradr: np.ndarray
   name_sensoradr: np.ndarray
   name_numericadr: np.ndarray
@@ -1263,8 +1269,8 @@ class Data(PyTreeNode):
   xfrc_applied: jax.Array
   eq_active: jax.Array
   # mocap data:
-  mocap_pos: jax.Array = _restricted_to('mujoco')
-  mocap_quat: jax.Array = _restricted_to('mujoco')
+  mocap_pos: jax.Array
+  mocap_quat: jax.Array
   # dynamics:
   qacc: jax.Array
   act_dot: jax.Array

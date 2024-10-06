@@ -230,6 +230,9 @@ void mjCMesh::NameSpace(const mjCModel* m) {
   if (meshdir_.empty()) {
     meshdir_ = FilePath(m->spec_meshdir_);
   }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
+  }
 }
 
 
@@ -2896,6 +2899,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // compute elasticity
   if (young > 0) {
+    if (poisson < 0 || poisson >= 0.5) {
+      throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
+    }
     stiffness.assign(21*nelem, 0);
     for (unsigned int t = 0; t < nelem; t++) {
       if (dim==2) {

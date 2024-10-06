@@ -63,15 +63,18 @@ MJAPI void mj_deleteSpec(mjSpec* s);
 // Add spec (model asset) to spec.
 MJAPI void mjs_addSpec(mjSpec* s, mjSpec* child);
 
+// Activate plugin, return slot number.
+MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
+
 
 //---------------------------------- Attachment ----------------------------------------------------
 
-// Attach child body to a parent frame, return 0 on success.
-MJAPI int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
+// Attach child body to a parent frame, return the attached body if success or NULL otherwise.
+MJAPI mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                          const char* prefix, const char* suffix);
 
-// Attach child frame to a parent body, return 0 on success.
-MJAPI int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
+// Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
+MJAPI mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix);
 
 // Detach body from mjSpec, remove all references and delete the body, return 0 on success.
@@ -185,6 +188,9 @@ MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(mjsBody* body);
 
+// Get spec from frame.
+MJAPI mjSpec* mjs_getSpecFromFrame(mjsFrame* frame);
+
 // Find spec (model asset) by name.
 MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 
@@ -215,11 +221,12 @@ MJAPI int mjs_getId(mjsElement* element);
 
 //---------------------------------- Tree traversal ------------------------------------------------
 
-// Return body's first child of given type.
-MJAPI mjsElement* mjs_firstChild(mjsBody* body, mjtObj type);
+// Return body's first child of given type. If recurse is nonzero, also search the body's subtree.
+MJAPI mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
 
 // Return body's next child of the same type; return NULL if child is last.
-MJAPI mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child);
+// If recurse is nonzero, also search the body's subtree.
+MJAPI mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
 
 // Return spec's first element of selected type.
 MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
@@ -346,9 +353,6 @@ MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
 
 //---------------------------------- Other utilities -----------------------------------------------
-
-// Set active plugins.
-MJAPI void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 
 // Set element's default.
 MJAPI void mjs_setDefault(mjsElement* element, mjsDefault* def);

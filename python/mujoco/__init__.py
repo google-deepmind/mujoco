@@ -21,6 +21,15 @@ import platform
 import subprocess
 import warnings
 
+# Extend the path to enable multiple directories to contribute to the same
+# package. Without this line, the `mujoco-mjx` package would not be able to
+# be discovered by import. For more information, see: https://packaging.python.org/guides/packaging-namespace-packages/#pkgutil-style-namespace-packages
+# NOTE: As per the Python Packaging User Guide linked above, the preferable way
+# of declaring the namespace package is to use the native namespace packages.
+# This seems non-trivial at the current state of the project, however.
+# For more information, see: https://github.com/google-deepmind/mujoco/issues/2119
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
+
 _SYSTEM = platform.system()
 if _SYSTEM == 'Windows':
   ctypes.WinDLL(os.path.join(os.path.dirname(__file__), 'mujoco.dll'))

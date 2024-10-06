@@ -321,8 +321,12 @@ class mjCBody : public mjCBody_, private mjsBody {
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() { return userdata_; }
 
-  // get next child of given type
-  mjsElement* NextChild(mjsElement* child, mjtObj type = mjOBJ_UNKNOWN, bool recursive = false);
+  // get next child of given type recursively; if `child` is found while traversing the tree,
+  // then `found` is set to true and the next element encountered is returned;
+  // returns nullptr if the next child is not found or if `child` is the last element, returns
+  // the next child after the input `child` otherwise
+  mjsElement* NextChild(const mjsElement* child, mjtObj type = mjOBJ_UNKNOWN,
+                        bool recursive = false, bool* found = nullptr);
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
@@ -330,6 +334,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   // get mocap position and quaternion
   mjtNum* mpos(const std::string& state_name);
   mjtNum* mquat(const std::string& state_name);
+
+  mjsFrame* last_attached;  // last attached frame to this body
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -358,7 +364,7 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // gets next child of the same type in this body
   template <class T>
-  mjsElement* GetNext(std::vector<T*>& list, const mjsElement* child, bool recursive = false);
+  mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child, bool* found);
 };
 
 
@@ -397,6 +403,8 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   mjCFrame& operator+=(const mjCBody& other);
 
   bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
+
+  mjsBody* last_attached;  // last attached body to this frame
 
  private:
   void Compile(void);                          // compiler
@@ -820,6 +828,8 @@ class mjCMesh_ : public mjCBase {
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
+  friend class mjCModel;
+
  public:
   mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCMesh(const mjCMesh& other);
@@ -1418,6 +1428,7 @@ class mjCPlugin : public mjCPlugin_ {
 
  private:
   void Compile(void);              // compiler
+  void NameSpace(const mjCModel* m);
 };
 
 

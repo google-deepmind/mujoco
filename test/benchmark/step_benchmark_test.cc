@@ -17,8 +17,6 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -57,8 +55,9 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     mj_setState(model, data, initial_state.data(), spec);
 
-    for (int i=kNumWarmupSteps; i < nsteps; i++) {
-      mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
+    for (int i=0; i < kNumBenchmarkSteps; i++) {
+      mjtNum* ctrl_data = ctrl.data()+model->nu*(i+kNumWarmupSteps);
+      mju_copy(data->ctrl, ctrl_data, model->nu);
       mj_step(model, data);
     }
   }

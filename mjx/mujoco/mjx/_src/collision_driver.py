@@ -38,6 +38,7 @@ in order to guarantee static shapes for contacts and jacobians.
 """
 
 import itertools
+import os
 from typing import Dict, Iterator, List, Tuple, Union
 
 import jax
@@ -393,8 +394,9 @@ def collision(m: Model, d: Data) -> Data:
 
     # run the collision function specified by the grouping key
     func = _COLLISION_FUNC[key.types]
-    dist, pos, frame = func(m, d, key, contact.geom)
     ncon = func.ncon  # pytype: disable=attribute-error
+
+    dist, pos, frame = func(m, d, key, contact.geom)
     if ncon > 1:
       # repeat contacts to match the number of collisions returned
       repeat_fn = lambda x, r=ncon: jp.repeat(x, r, axis=0)

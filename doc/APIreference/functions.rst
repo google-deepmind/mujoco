@@ -1509,6 +1509,15 @@ mj_deleteSpec
 
 Free memory allocation in mjSpec.
 
+.. _mjs_activatePlugin:
+
+mjs_activatePlugin
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_activatePlugin
+
+Activate plugin, return slot number.
+
 .. _Errorandmemory:
 
 Error and memory
@@ -3793,7 +3802,7 @@ mjs_attachBody
 
 .. mujoco-include:: mjs_attachBody
 
-Attach child body to a parent frame, return 0 on success.
+Attach child body to a parent frame, return the attached body if success or NULL otherwise.
 
 .. _mjs_attachFrame:
 
@@ -3802,7 +3811,7 @@ mjs_attachFrame
 
 .. mujoco-include:: mjs_attachFrame
 
-Attach child frame to a parent body, return 0 on success.
+Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
 
 .. _mjs_detachBody:
 
@@ -4117,6 +4126,15 @@ mjs_getSpec
 
 Get spec from body.
 
+.. _mjs_getSpecFromFrame:
+
+mjs_getSpecFromFrame
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getSpecFromFrame
+
+Get spec from frame.
+
 .. _mjs_findBody:
 
 mjs_findBody
@@ -4196,7 +4214,7 @@ mjs_firstChild
 
 .. mujoco-include:: mjs_firstChild
 
-Return body's first child of given type.
+Return body's first child of given type. If recurse is nonzero, also search the body's subtree.
 
 .. _mjs_nextChild:
 
@@ -4206,6 +4224,7 @@ mjs_nextChild
 .. mujoco-include:: mjs_nextChild
 
 Return body's next child of the same type; return NULL if child is last.
+If recurse is nonzero, also search the body's subtree.
 
 .. _mjs_firstElement:
 
@@ -4354,15 +4373,6 @@ Get double array contents and optionally its size.
 
 Spec utilities
 ^^^^^^^^^^^^^^
-.. _mjs_setActivePlugins:
-
-mjs_setActivePlugins
-~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_setActivePlugins
-
-Set active plugins.
-
 .. _mjs_setDefault:
 
 mjs_setDefault

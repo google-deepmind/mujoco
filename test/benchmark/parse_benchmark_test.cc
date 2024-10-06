@@ -54,11 +54,14 @@ static void run_parse_benchmark(const std::string xml_path,
 
   ASSERT_THAT(vfs_errno, Eq(0)) << "Failed to add file to VFS: " << vfs_errmsg;
 
+  // load once to warm up filesystem and compiler cache
   std::array<char, 1024> error;
-  for (auto s : state) {
-    mjModel* model =
+  mjModel* model =
       mj_loadXML(xml_path.data(), vfs.get(), error.data(), error.size());
-    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  for (auto s : state) {
+    mjModel* model = mj_loadXML(xml_path.data(), vfs.get(), 0, 0);
     mj_deleteModel(model);
   }
   state.SetLabel(xml_path);

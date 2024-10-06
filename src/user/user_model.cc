@@ -24,11 +24,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
-#include <map>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -164,9 +165,6 @@ mjCModel::mjCModel() {
 
   // point to model from spec
   PointToLocal();
-
-  // this class allocated the plugins
-  plugin_owner = true;
 }
 
 
@@ -180,7 +178,6 @@ mjCModel::mjCModel(const mjCModel& other) {
 
 mjCModel& mjCModel::operator=(const mjCModel& other) {
   if (this != &other) {
-    plugin_owner = false;
     this->spec = other.spec;
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
     *static_cast<mjSpec*>(this) = static_cast<const mjSpec&>(other);
@@ -300,9 +297,52 @@ void mjCModel::SaveDofOffsets() {
   }
 }
 
+template <class T>
+void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
+                          const std::vector<mjCPlugin*>& source,
+                          const std::vector<T*>& list) {
+  // store elements that reference a plugin instance
+  std::unordered_map<std::string, T*> instances;
+  for (const auto& element : list) {
+    if (!element->plugin_instance_name.empty()) {
+      instances[element->plugin_instance_name] = element;
+    }
+  }
 
+  // only copy plugins that are referenced
+  for (const auto& plugin : source) {
+    if (plugin->instance_name.empty() && plugin->model == this) {
+      continue;
+    }
+    mjCPlugin* candidate = new mjCPlugin(*plugin);
+    candidate->NameSpace(plugin->model);
+    bool referenced = instances.find(candidate->name) != instances.end();
+    auto same_name = [candidate](const mjCPlugin* dest) { return dest->name == candidate->name; };
+    bool instance_exists = std::find_if(dest.begin(), dest.end(), same_name) != dest.end();
+    if (referenced && !instance_exists) {
+      dest.push_back(candidate);
+      instances.at(candidate->name)->spec.plugin.element = candidate;
+    } else {
+      delete candidate;
+    }
+  }
+}
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
+  // TODO: use compiler settings stored in specs_ during compilation
+  std::string msg = "cannot attach mjSpecs with incompatible compiler/";
+  if (other.spec.degree != spec.degree) {
+    throw mjCError(nullptr, (msg + "angle attribute").c_str());
+  }
+  if (other.spec.autolimits != spec.autolimits) {
+    throw mjCError(nullptr, (msg + "autolimits attribute").c_str());
+  }
+  if (other.spec.eulerseq[0] != spec.eulerseq[0] ||
+      other.spec.eulerseq[1] != spec.eulerseq[1] ||
+      other.spec.eulerseq[2] != spec.eulerseq[2]) {
+    throw mjCError(nullptr, (msg + "eulerseq attribute").c_str());
+  }
+
   // create global lists
   mjCBody *world = bodies_[0];
   if (compiled) {
@@ -335,9 +375,15 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(texts_, other.texts_);
   CopyList(tuples_, other.tuples_);
 
-  // plugins are global
-  plugins_ = other.plugins_;
-  active_plugins_ = other.active_plugins_;
+  // create new plugins and map them
+  CopyPlugin(plugins_, other.plugins_, bodies_);
+  CopyPlugin(plugins_, other.plugins_, geoms_);
+  CopyPlugin(plugins_, other.plugins_, meshes_);
+  CopyPlugin(plugins_, other.plugins_, actuators_);
+  CopyPlugin(plugins_, other.plugins_, sensors_);
+  for (const auto& active_plugin : other.active_plugins_) {
+    active_plugins_.emplace_back(active_plugin);
+  }
 
   // restore to the original state
   if (!compiled) {
@@ -402,20 +448,27 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
     oldmodel.ProcessLists(/*checkrepeat=*/false);
   }
 
+  // create global lists in this model if not compiled
+  if (!IsCompiled()) {
+    MakeLists(bodies_[0]);
+    ProcessLists(/*checkrepeat=*/false);
+  }
+
+  // TODO: carry over pending keyframes
+  key_pending_.clear();
+  StoreKeyframes();
+
+  // all keyframes are now pending and they will be resized
+  DeleteAll(keys_);
+
   // remove body from tree
   mjCBody* world = bodies_[0];
   *world -= subtree;
 
-  // create global lists
-  if (compiled) {
-    ResetTreeLists();
-  }
+  // update global lists
+  ResetTreeLists();
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
-
-  // store keyframes in the old model
-  oldmodel.key_pending_.clear();
-  oldmodel.StoreKeyframes();
 
   // check if we have to remove anything else
   RemoveFromList(pairs_, oldmodel);
@@ -424,12 +477,6 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(equalities_, oldmodel);
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
-
-  // move all keyframes to pending so that they will be resized
-  DeleteAll(keys_);
-  for (const auto& key : oldmodel.key_pending_) {
-    key_pending_.push_back(key);
-  }
 
   // restore to the original state
   if (!compiled) {
@@ -612,10 +659,7 @@ mjCModel::~mjCModel() {
   for (int i=0; i<keys_.size(); i++) delete keys_[i];
   for (int i=0; i<defaults_.size(); i++) delete defaults_[i];
   for (int i=0; i<specs_.size(); i++) mj_deleteSpec(specs_[i]);
-
-  if (plugin_owner) {
-    for (int i=0; i<plugins_.size(); i++) delete plugins_[i];
-  }
+  for (int i=0; i<plugins_.size(); i++) delete plugins_[i];
 
   // clear sizes and pointer lists created in Compile
   Clear();
@@ -899,6 +943,13 @@ mjsElement* mjCModel::NextObject(mjsElement* object, mjtObj type) {
 
   switch (type) {
     case mjOBJ_BODY:
+      if (!object) {
+        return bodies_[0]->spec.element;
+      } else if (object == bodies_[0]->spec.element) {
+        return bodies_[0]->NextChild(NULL, type, /*recursive=*/true);
+      } else {
+        return bodies_[0]->NextChild(object, type, /*recursive=*/true);
+      }
     case mjOBJ_SITE:
     case mjOBJ_GEOM:
     case mjOBJ_JOINT:
@@ -3091,7 +3142,10 @@ void mjCModel::StoreKeyframes() {
     resetlists = true;
   }
 
-  SaveDofOffsets();
+  // do not change the offset computed during compilation in case the user wants to recompile
+  if (!compiled) {
+    SaveDofOffsets();
+  }
 
   for (auto& key : keys_) {
     mjKeyInfo info;
@@ -4425,6 +4479,23 @@ bool mjCModel::CopyBack(const mjModel* m) {
 
   return true;
 }
+
+
+
+void mjCModel::ActivatePlugin(const mjpPlugin* plugin, int slot) {
+  bool already_declared = false;
+  for (const auto& [existing_plugin, existing_slot] : active_plugins_) {
+    if (plugin == existing_plugin) {
+      already_declared = true;
+      break;
+    }
+  }
+  if (!already_declared) {
+    active_plugins_.emplace_back(std::make_pair(plugin, slot));
+  }
+}
+
+
 
 void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
                              const std::string& plugin_instance_name, mjCPlugin** plugin_instance) {

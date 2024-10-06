@@ -233,9 +233,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
-  void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
-    active_plugins_ = std::move(active_plugins);
-  }
+  void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }
@@ -366,6 +364,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void CopyList(std::vector<T*>& dest,
                                    const std::vector<T*>& sources);
 
+  // copy vector of plugins to this model
+  template <class T> void CopyPlugin(std::vector<mjCPlugin*>& dest,
+                                     const std::vector<mjCPlugin*>& sources,
+                                     const std::vector<T*>& list);
+
   // delete from list the elements that cause an error
   template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
@@ -386,7 +389,6 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
-  bool plugin_owner;  // this class allocated the plugins
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

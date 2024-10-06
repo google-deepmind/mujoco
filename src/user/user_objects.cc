@@ -762,6 +762,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   margin = 0;
   mjuu_zerovec(xpos0, 3);
   mjuu_setvec(xquat0, 1, 0, 0, 0);
+  last_attached = nullptr;
 
   // clear object lists
   bodies.clear();
@@ -801,7 +802,8 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     sites.clear();
     cameras.clear();
     lights.clear();
-    id = other.id;
+    id = -1;
+    subtreedofs = 0;
 
     // add elements to lists
     *this += other;
@@ -860,7 +862,9 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->body = this;
   frames.back()->model = model;
   frames.back()->frame = other.frame;
+  frames.back()->NameSpace(other.model);
   int i = frames.size();
+  last_attached = &frames.back()->spec;
 
   // map input frames to index in this->frames
   std::map<mjCFrame*, int> fmap;
@@ -894,6 +898,11 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
 
   // attach referencing elements
   *model += *other.model;
+
+  // leave the source model in a clean state
+  if (other.model != model) {
+    other.model->key_pending_.clear();
+  }
 
   // clear namespace and return body
   other.model->prefix.clear();
@@ -1007,6 +1016,9 @@ void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
   if (!classname.empty() && m != model) {
     classname = m->prefix + classname + m->suffix;
   }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
+  }
 
   for (auto& body : bodies) {
     body->prefix = m->prefix;
@@ -1036,6 +1048,10 @@ void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
 
   for (auto& light : lights) {
     light->NameSpace(m);
+  }
+
+  for (auto& frame : frames) {
+    frame->NameSpace(m);
   }
 }
 
@@ -1258,7 +1274,7 @@ mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
 
 
 template <class T>
-mjsElement* mjCBody::GetNext(std::vector<T*>& list, const mjsElement* child, bool recursive) {
+mjsElement* mjCBody::GetNext(const std::vector<T*>& list, const mjsElement* child, bool* found) {
   if (list.empty()) {
     // no children
     return nullptr;
@@ -1272,15 +1288,14 @@ mjsElement* mjCBody::GetNext(std::vector<T*>& list, const mjsElement* child, boo
   for (unsigned int i = 0; i < list.size()-1; i++) {
     // next child is in this body
     if (list[i]->spec.element == child) {
+      *found = true;
       return list[i+1]->spec.element;
     }
   }
 
-  if (recursive && list.back()->spec.element == child) {
-    // next child is in next body
-    for (int i=0; i<(int)bodies.size(); i++) {
-      return bodies[i]->NextChild(NULL, child->elemtype, true);
-    }
+  if (list.back()->spec.element == child) {
+    // next child is in another body
+    *found = true;
   }
 
   return nullptr;
@@ -1289,7 +1304,7 @@ mjsElement* mjCBody::GetNext(std::vector<T*>& list, const mjsElement* child, boo
 
 
 // get next child of given type
-mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type, bool recursive) {
+mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recursive, bool* found) {
   if (type == mjOBJ_UNKNOWN) {
     if (!child) {
       throw mjCError(this, "child type must be specified if no child element is given");
@@ -1300,37 +1315,45 @@ mjsElement* mjCBody::NextChild(mjsElement* child, mjtObj type, bool recursive) {
     throw mjCError(this, "child element is not of requested type");
   }
 
+  bool found_ = false;
+  if (!found) {
+    found = &found_;
+  }
+
   mjsElement* candidate = nullptr;
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_XBODY:
-      candidate = GetNext(bodies, child, recursive);
+      candidate = GetNext(bodies, child, found);
       break;
     case mjOBJ_JOINT:
-      candidate = GetNext(joints, child, recursive);
+      candidate = GetNext(joints, child, found);
       break;
     case mjOBJ_GEOM:
-      candidate = GetNext(geoms, child, recursive);
+      candidate = GetNext(geoms, child, found);
       break;
     case mjOBJ_SITE:
-      candidate = GetNext(sites, child, recursive);
+      candidate = GetNext(sites, child, found);
       break;
     case mjOBJ_CAMERA:
-      candidate = GetNext(cameras, child, recursive);
+      candidate = GetNext(cameras, child, found);
       break;
     case mjOBJ_LIGHT:
-      candidate = GetNext(lights, child, recursive);
+      candidate = GetNext(lights, child, found);
       break;
     case mjOBJ_FRAME:
-      candidate = GetNext(frames, child, recursive);
+      candidate = GetNext(frames, child, found);
       break;
     default:
+      throw mjCError(this,
+                     "Body.NextChild supports the types: body, frame, geom, "
+                     "site, light, camera");
       break;
   }
 
   if (!candidate && recursive) {
     for (int i=0; i<(int)bodies.size(); i++) {
-      candidate = bodies[i]->NextChild(child, type, true);
+      candidate = bodies[i]->NextChild(*found ? nullptr : child, type, recursive, found);
       if (candidate) {
         return candidate;
       }
@@ -1723,6 +1746,7 @@ mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
   model = _model;
   body = NULL;
   frame = _frame ? _frame : NULL;
+  last_attached = nullptr;
   PointToLocal();
   CopyFromSpec();
 }
@@ -1771,9 +1795,15 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // add to body children
   body->bodies.push_back(subtree);
+  last_attached = &body->bodies.back()->spec;
 
   // attach referencing elements
   *model += *other.model;
+
+  // leave the source model in a clean state
+  if (other.model != model) {
+    other.model->key_pending_.clear();
+  }
 
   // clear suffixes and return
   other.model->suffix.clear();
@@ -2198,6 +2228,9 @@ void mjCGeom::NameSpace(const mjCModel* m) {
   }
   if (!spec_meshname_.empty() && model != m) {
     spec_meshname_ = m->prefix + spec_meshname_ + m->suffix;
+  }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
 }
 
@@ -5626,6 +5659,9 @@ void mjCActuator::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
+  }
   spec_target_ = m->prefix + spec_target_ + m->suffix;
   spec_refsite_ = m->prefix + spec_refsite_ + m->suffix;
   spec_slidersite_ = m->prefix + spec_slidersite_ + m->suffix;
@@ -5955,6 +5991,9 @@ void mjCSensor::PointToLocal() {
 void mjCSensor::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
+  }
+  if (!plugin_instance_name.empty()) {
+    plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
   prefix = m->prefix;
   suffix = m->suffix;
@@ -6896,6 +6935,7 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
 
 mjCPlugin::mjCPlugin(const mjCPlugin& other) {
   *this = other;
+  id = -1;
 }
 
 
@@ -6907,6 +6947,15 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
     parent = this;
   }
   return *this;
+}
+
+
+
+void mjCPlugin::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
+  if (!instance_name.empty()) {
+    instance_name = m->prefix + instance_name + m->suffix;
+  }
 }
 
 

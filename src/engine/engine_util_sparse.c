@@ -29,8 +29,8 @@
 
 // dot-product, first vector is sparse
 //  flg_unc1: is vec1 memory layout uncompressed
-mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                     const int nnz1, const int* ind1, int flg_unc1) {
+mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                     int flg_unc1) {
 #ifdef mjUSEAVX
   return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
 #else
@@ -80,7 +80,7 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
 // dot-productX3, first vector is sparse; supernode of size 3
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
-                     const mjtNum* vec2, const int nnz1, const int* ind1) {
+                     const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
   mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
 #else
@@ -110,9 +110,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 
 // dot-product, both vectors are sparse
 //  flg_unc2: is vec2 memory layout uncompressed
-mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                      const int nnz1, const int* ind1,
-                      const int nnz2, const int* ind2, int flg_unc2) {
+mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1, int nnz2,
+                      const int* ind2, int flg_unc2) {
   int i1 = 0, i2 = 0;
   mjtNum res = 0;
 
@@ -638,18 +637,16 @@ void mju_superSparse(int nr, int* rowsuper,
 
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                            int nr, int nc,  const int* rownnz,
-                            const int* rowadr, const int* colind,
-                            const int* rownnzT, const int* rowadrT,
-                            const int* colindT, const int* rowsuperT,
-                            mjData* d) {
+void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
+                            const int* rownnz, const int* rowadr, const int* colind,
+                            const int* rownnzT, const int* rowadrT, const int* colindT,
+                            const int* rowsuperT, mjData* d) {
   mj_markStack(d);
-  int* chain = mj_stackAllocInt(d, 2*nc);
+  int* chain = mj_stackAllocInt(d, 2*nr);
   int nchain = 0;
   int* res_colind = NULL;
 
-  for (int r=0; r < nc; r++) {
+  for (int r=0; r < nr; r++) {
     // supernode; copy everything to next row
     if (rowsuperT && r > 0 && rowsuperT[r-1] > 0) {
       res_rownnz[r] = res_rownnz[r - 1];
@@ -665,7 +662,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         res_rownnz[r]++;
       }
     } else {
-      int inew = 0, iold = nc;
+      int inew = 0, iold = nr;
       nchain = 0;
 
       for (int i=0; i < rownnzT[r]; i++) {
@@ -680,8 +677,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         int end = rowadr[c] + rownnz[c];
         for (int adr1=rowadr[c]; adr1 < end; adr1++) {
           int col_mat = colind[adr1];
-          while (adr < nchain && chain[iold + adr] < col_mat &&
-                 chain[iold + adr] <= r) {
+          while (adr < nchain && chain[iold + adr] < col_mat && chain[iold + adr] <= r) {
             chain[inew + nnewchain++] = chain[iold + adr++];
           }
 
@@ -721,7 +717,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
   }
 
   res_rowadr[0] = 0;
-  for (int r = 1; r < nc; r++) {
+  for (int r = 1; r < nr; r++) {
     res_rowadr[r] = res_rowadr[r-1] + res_rownnz[r-1];
   }
 
@@ -859,4 +855,44 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   }
 
   mj_freeStack(d);
+}
+
+// compute row non-zeros of reverse-Cholesky factor L, return total
+// based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
+int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
+                      const int* rowadr, const int* colind, int n) {
+  // loop over rows in reverse order
+  for (int r = n - 1; r >= 0; r--) {
+    parent[r] = -1;
+    flag[r] = r;
+    L_rownnz[r] = 0;
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    // loop over non-zero columns
+    for (int p = start; p < end; p++) {
+      int i = colind[p];
+      if (i > r) {
+        // follow path from i to root of elimination tree, stop at flagged node
+        while (flag[i] != r) {
+          // find parent of i if not yet determined
+          if (parent[i] == -1) {
+            parent[i] = r;
+          }
+          L_rownnz[i]++;
+          flag[i] = r;
+          i = parent[i];
+        }
+      }
+    }
+  }
+
+  // add 1 for diagonal, accumulate sum
+  int sum = 0;
+  for (int r = 0; r < n; r++) {
+    L_rownnz[r]++;
+    sum += L_rownnz[r];
+  }
+
+  // return total non-zeros
+  return sum;
 }

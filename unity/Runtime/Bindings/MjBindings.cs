@@ -5785,6 +5785,8 @@ public unsafe struct mjuiThemeColor_ {
   public fixed float thumb[3];
   public fixed float secttitle[3];
   public fixed float secttitle2[3];
+  public fixed float secttitleuncheck[3];
+  public fixed float secttitleuncheck2[3];
   public fixed float secttitlecheck[3];
   public fixed float secttitlecheck2[3];
   public fixed float sectfont[3];

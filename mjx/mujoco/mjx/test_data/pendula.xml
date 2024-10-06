@@ -124,6 +124,13 @@
         </body>
       </body>
     </body>
+
+    <body mocap="true">
+      <geom type="sphere" size="0.05"/>
+    </body>
+    <body mocap="true" pos="1.0 2.0 0.5" quat="1 0 1 0">
+      <geom type="sphere" size="0.05"/>
+    </body>
   </worldbody>
 
   <tendon>

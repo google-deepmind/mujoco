@@ -19,6 +19,7 @@
 build/
 build_cmake/
 python/dist/
+doc/_build
 
 # Exclude macOS folder attributes
 .DS_Store
@@ -30,3 +31,9 @@ Info.framework.plist
 __pycache__/
 *.py[cod]
 *$py.class
+
+# MuJoCo's default log file
+MUJOCO_LOG.TXT
+
+# Clang cache
+.cache/

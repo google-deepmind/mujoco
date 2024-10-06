@@ -8019,7 +8019,7 @@ if omitted.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
-| The only mesh attribute available here is: :ref:`scale <asset-mesh-scale>`.
+| The available attributes are: :ref:`scale <asset-mesh-scale>` and :ref:`scale <asset-mesh-maxhullvert>`.
 
 
 .. _default-material:

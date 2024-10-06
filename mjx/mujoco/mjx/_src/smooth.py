@@ -98,6 +98,14 @@ def kinematics(m: Model, d: Data) -> Data:
       m.body_quat,
   )
 
+  if m.nmocap:
+    xpos = xpos.at[m.body_mocapid >= 0].set(d.mocap_pos)
+    mocap_quat = jax.vmap(math.normalize)(d.mocap_quat)
+    xquat = xquat.at[m.body_mocapid >= 0].set(mocap_quat)
+    xmat = xmat.at[m.body_mocapid >= 0].set(
+        jax.vmap(math.quat_to_mat)(mocap_quat)
+    )
+
   v_local_to_global = jax.vmap(support.local_to_global)
 
   # TODO(erikfrey): confirm that quats are more performant for mjx than mats
@@ -712,15 +720,14 @@ def tendon(m: Model, d: Data) -> Data:
   # find consecutive sites, skipping tendon transitions
   (pair_id,) = np.nonzero(np.diff(wrap_id_site) == 1)
   wrap_id_site_pair = np.setdiff1d(wrap_id_site[pair_id], m.tendon_adr[1:] - 1)
-  (tendon_id_site,) = np.nonzero(np.isin(m.tendon_adr, wrap_id_site_pair))
 
-  id0 = m.wrap_objid[wrap_id_site_pair]
-  id1 = m.wrap_objid[wrap_id_site_pair + 1]
+  wrap_objid_site0 = m.wrap_objid[wrap_id_site_pair]
+  wrap_objid_site1 = m.wrap_objid[wrap_id_site_pair + 1]
 
   @jax.vmap
   def _length_moment(pnt0, pnt1, body0, body1):
     dif = pnt1 - pnt0
-    length = jp.linalg.norm(dif)
+    length = math.norm(dif)
     vec = jp.where(
         length < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dif / length
     )
@@ -733,59 +740,208 @@ def tendon(m: Model, d: Data) -> Data:
     return length, moment
 
   lengths_site, moments_site = _length_moment(
-      d.site_xpos[id0], d.site_xpos[id1], m.site_bodyid[id0], m.site_bodyid[id1]
+      d.site_xpos[wrap_objid_site0],
+      d.site_xpos[wrap_objid_site1],
+      m.site_bodyid[wrap_objid_site0],
+      m.site_bodyid[wrap_objid_site1],
   )
 
   tendon_nsite = np.array([
       sum((wrap_id_site_pair >= adr) & (wrap_id_site_pair < adr + num))
       for adr, num in zip(m.tendon_adr, m.tendon_num)
   ])
-  tendon_nsite = tendon_nsite[tendon_nsite > 0]
-  tendon_wrapnum_site = tendon_nsite + 1
-  tendon_with_site = sum([s > 0 for s in tendon_nsite])
+  tendon_wrapnum_site = np.array([
+      sum((wrap_id_site >= adr) & (wrap_id_site < adr + num))
+      for adr, num in zip(m.tendon_adr, m.tendon_num)
+  ])
+  tendon_has_site = tendon_nsite > 0
+  (tendon_id_site,) = np.nonzero(tendon_has_site)
+  tendon_nsite = tendon_nsite[tendon_has_site]
+  tendon_with_site = tendon_nsite.size
   ten_site_id = np.repeat(np.arange(tendon_with_site), tendon_nsite)
 
   length_site = jax.ops.segment_sum(lengths_site, ten_site_id, tendon_with_site)
   moment_site = jax.ops.segment_sum(moments_site, ten_site_id, tendon_with_site)
 
-  # assemble length and moment
-  ten_length = (
-      jp.zeros_like(d.ten_length)
-      .at[np.concatenate([tendon_id_jnt, tendon_id_site])]
-      .set(jp.concatenate([length_jnt, length_site]))
+  # process spatial sphere/cylinder wrap
+  (wrap_id_geom,) = np.nonzero(
+      (m.wrap_type == WrapType.SPHERE) | (m.wrap_type == WrapType.CYLINDER)
   )
+
+  # get objid for site-geom-site instances
+  wrap_id_sitegeomsite = wrap_id_geom[:, None] + np.array([-1, 0, 1])[None]
+  wrap_objid_site0, wrap_objid_geom, wrap_objid_site1 = m.wrap_objid[
+      wrap_id_sitegeomsite
+  ].T
+
+  # get site positions before and after geom
+  site_pnt0 = d.site_xpos[wrap_objid_site0]
+  site_pnt1 = d.site_xpos[wrap_objid_site1]
+
+  # get geom information
+  geom_xpos = d.geom_xpos[wrap_objid_geom]
+  geom_xmat = d.geom_xmat[wrap_objid_geom]
+  geom_size = m.geom_size[wrap_objid_geom, 0]
+  geom_type = m.wrap_type[wrap_id_geom]
+
+  # get body ids for site-geom-site instances
+  body_id_site0 = m.site_bodyid[wrap_objid_site0]
+  body_id_geom = m.geom_bodyid[wrap_objid_geom]
+  body_id_site1 = m.site_bodyid[wrap_objid_site1]
+
+  # find wrap object sidesites (if any exist)
+  side_id = np.round(m.wrap_prm[wrap_id_geom]).astype(int)
+  side = d.site_xpos[side_id]
+  has_sidesite = np.expand_dims(np.array(side_id >= 0), -1)
+
+  # compute geom wrap length and connect points (if wrap occurs)
+  lengths_geomgeom, geom_pnt0, geom_pnt1 = jax.vmap(support.wrap)(
+      site_pnt0,
+      site_pnt1,
+      geom_xpos,
+      geom_xmat,
+      geom_size,
+      side,
+      has_sidesite,
+      geom_type == WrapType.SPHERE,
+  )
+  lengths_geomgeom = lengths_geomgeom.reshape(-1)
+
+  # identify geoms where wrap does not occur
+  no_geom_wrap = lengths_geomgeom < 0
+  wrap_objid_geom_skip = jp.where(no_geom_wrap, 0, wrap_objid_geom)
+
+  # compute lengths for site-site (no wrap), site-geom, and geom-site segments
+  def _distance(p0, p1):
+    return jax.vmap(lambda x, y: math.norm(x - y))(p0, p1)
+
+  lengths_sitesite = _distance(site_pnt0, site_pnt1)
+  lengths_sitegeom = _distance(site_pnt0, geom_pnt0)
+  lengths_geomsite = _distance(geom_pnt1, site_pnt1)
+
+  # select length segments according to geom wrap
+  lengths_geom = jp.where(
+      no_geom_wrap,
+      lengths_sitesite,
+      lengths_sitegeom + lengths_geomgeom + lengths_geomsite,
+  )
+
+  # compute moments for site-site (no wrap), site-geom, geom-geom, and geom-site
+  # segments
+  _, moments_sitesite = _length_moment(
+      site_pnt0, site_pnt1, body_id_site0, body_id_site1
+  )
+  _, moments_sitegeom = _length_moment(
+      site_pnt0, geom_pnt0, body_id_site0, body_id_geom
+  )
+  _, moments_geomgeom = _length_moment(
+      geom_pnt0, geom_pnt1, body_id_geom, body_id_geom
+  )
+  _, moments_geomsite = _length_moment(
+      geom_pnt1, site_pnt1, body_id_geom, body_id_site1
+  )
+
+  # select moment segments according to geom wrap
+  moments_geom = jp.where(
+      no_geom_wrap[:, None],
+      moments_sitesite,
+      moments_sitegeom + moments_geomgeom + moments_geomsite,
+  )
+
+  # construct number of site-geom-site instances per tendon
+  tendon_ngeom = np.array([
+      sum((wrap_id_geom >= adr) & (wrap_id_geom < adr + num))
+      for adr, num in zip(m.tendon_adr, m.tendon_num)
+  ])
+  tendon_has_geom = tendon_ngeom > 0
+  tendon_ngeom = tendon_ngeom[tendon_has_geom]
+
+  # identify tendons with at least one site-geom-site instance
+  (tendon_id_geom,) = np.nonzero(tendon_has_geom)
+
+  # combine site-geom-site segment lengths and moments for each tendon
+  tendon_with_geom = tendon_ngeom.size
+  ten_geom_id = np.repeat(np.arange(tendon_with_geom), tendon_ngeom)
+
+  length_geom = jax.ops.segment_sum(lengths_geom, ten_geom_id, tendon_with_geom)
+  moment_geom = jax.ops.segment_sum(moments_geom, ten_geom_id, tendon_with_geom)
+
+  # calculate number of wrap objects per tendon, based on geom wrap
+  wrapnums_geom = jp.where(no_geom_wrap, 0, 2)
+  tendon_wrapnum_geom = jax.ops.segment_sum(
+      wrapnums_geom, ten_geom_id, tendon_with_geom
+  )
+
+  # assemble length and moment
+  ten_length = jp.zeros_like(d.ten_length).at[tendon_id_jnt].set(length_jnt)
+  ten_length = ten_length.at[tendon_id_site].add(length_site)
+  ten_length = ten_length.at[tendon_id_geom].add(length_geom)
+
   ten_moment = (
       jp.zeros_like(d.ten_J)
       .at[adr_moment_jnt, dofadr_moment_jnt]
       .set(moment_jnt)
   )
-  ten_moment = ten_moment.at[tendon_id_site].set(moment_site)
+  ten_moment = ten_moment.at[tendon_id_site].add(moment_site)
+  ten_moment = ten_moment.at[tendon_id_geom].add(moment_geom)
 
-  # wrap
-  wrap_xpos = jp.concatenate([
-      d.site_xpos[m.wrap_objid[wrap_id_site]],
-      jp.zeros((2 * m.nwrap - nwrap_site, 3)),
-  ]).reshape((m.nwrap, 6))
+  # construct wrap addresses
+  wrap_adr_site = []
+  wrap_adr_geom = []
 
-  ten_wrapnum = np.zeros(m.ntendon)
-  ten_wrapnum[tendon_id_site] = tendon_wrapnum_site
+  count = 0
+  for wrap_type in m.wrap_type:
+    if wrap_type == WrapType.SITE:
+      wrap_adr_site.append(count)
+      count += 1
+    elif wrap_type in (WrapType.SPHERE, WrapType.CYLINDER):
+      wrap_adr_geom.append(count)
+      wrap_adr_geom.append(count + 1)
+      count += 2
 
-  ten_wrapadr = [0]
-  for wn in ten_wrapnum[:-1]:
-    ten_wrapadr.append(ten_wrapadr[-1] + wn)
-  ten_wrapadr = np.array(ten_wrapadr).astype(int)
+  wrap_adr_site = np.array(wrap_adr_site).astype(int)
+  wrap_adr_geom = np.array(wrap_adr_geom).astype(int)
+  wrap_adr_sitegeom = np.concatenate([wrap_adr_site, wrap_adr_geom])
 
-  wrap_obj = np.zeros(m.nwrap * 2, dtype=int)
-  wrap_obj[:nwrap_site] = -1
-  wrap_obj = wrap_obj.reshape((-1, 2))
+  ten_wrapnum = jp.array(tendon_wrapnum_site)
+  ten_wrapnum = ten_wrapnum.at[tendon_id_geom].add(tendon_wrapnum_geom)
+
+  ten_wrapadr = jp.concatenate([jp.array([0]), jp.cumsum(ten_wrapnum)[:-1]])
+
+  xpos_site = d.site_xpos[m.wrap_objid[wrap_id_site]]
+  xpos_geom = jp.hstack([geom_pnt0, geom_pnt1]).reshape((-1, 3))
+
+  # sort objects, moving no wrap geoms to bottom rows
+  nwrap_sitegeom = wrap_adr_sitegeom.size
+  wrap_adr_sitegeom_sort = np.argsort(wrap_adr_sitegeom)
+
+  skipped = (
+      jp.zeros(count, dtype=bool)
+      .at[wrap_adr_geom]
+      .set(jp.repeat(no_geom_wrap, 2).reshape(-1))
+  )
+  sort = jp.argsort(skipped)
+
+  wrap_xpos = jp.concatenate([xpos_site, xpos_geom])[wrap_adr_sitegeom_sort]
+  wrap_xpos = jp.concatenate(
+      [wrap_xpos[sort], jp.zeros((2 * m.nwrap - nwrap_sitegeom, 3))]
+  ).reshape((m.nwrap, 6))
+
+  wrap_obj = jp.concatenate([
+      -1 * jp.ones(nwrap_site, dtype=int),
+      jp.repeat(wrap_objid_geom_skip, 2).reshape(-1),
+  ])[wrap_adr_sitegeom_sort]
+  wrap_obj = jp.concatenate(
+      [wrap_obj[sort], jp.zeros(2 * m.nwrap - nwrap_sitegeom, dtype=int)]
+  ).reshape((m.nwrap, 2))
 
   return d.replace(
       ten_length=ten_length,
       ten_J=ten_moment,
-      ten_wrapadr=jp.array(ten_wrapadr),
-      ten_wrapnum=jp.array(ten_wrapnum),
+      ten_wrapadr=jp.array(ten_wrapadr, dtype=int),
+      ten_wrapnum=jp.array(ten_wrapnum, dtype=int),
       wrap_xpos=wrap_xpos,
-      wrap_obj=jp.array(wrap_obj),
+      wrap_obj=jp.array(wrap_obj, dtype=int),
   )
 
 

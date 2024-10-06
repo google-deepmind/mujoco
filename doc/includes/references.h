@@ -2388,8 +2388,10 @@ struct mjuiThemeColor_ {          // UI visualization theme color
   float thumb[3];                 // scrollbar thumb
   float secttitle[3];             // section title
   float secttitle2[3];            // section title: bottom color
-  float secttitlecheck[3];        // section title with checkbox
-  float secttitlecheck2[3];       // section title with checkbox: bottom color
+  float secttitleuncheck[3];      // section title with unchecked box
+  float secttitleuncheck2[3];     // section title with unchecked box: bottom color
+  float secttitlecheck[3];        // section title with checked box
+  float secttitlecheck2[3];       // section title with checked box: bottom color
   float sectfont[3];              // section font
   float sectsymbol[3];            // section symbol
   float sectpane[3];              // section pane
@@ -2465,7 +2467,7 @@ struct mjuiSection_ {             // UI section
   int state;                      // section state (mjtSection)
   int modifier;                   // 0: none, 1: control, 2: shift; 4: alt
   int shortcut;                   // shortcut key; 0: undefined
-  int checkbox;                   // 0: none, 1: hidden, 2: unchecked, 2: checked
+  int checkbox;                   // 0: none, 1: unchecked, 2: checked
   int nitem;                      // number of items in use
   mjuiItem item[mjMAXUIITEM];     // preallocated array of items
 
@@ -3169,6 +3171,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
 mjSpec* mj_makeSpec(void);
 mjSpec* mj_copySpec(const mjSpec* s);
 void mj_deleteSpec(mjSpec* s);
+int mjs_activatePlugin(mjSpec* s, const char* name);
 void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format);
 void mj_printModel(const mjModel* m, const char* filename);
 void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
@@ -3550,10 +3553,10 @@ void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 void mju_defaultTask(mjTask* task);
 void mju_taskJoin(mjTask* task);
-int mjs_attachBody(mjsFrame* parent, const mjsBody* child,
-                   const char* prefix, const char* suffix);
-int mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
-                    const char* prefix, const char* suffix);
+mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
+                        const char* prefix, const char* suffix);
+mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
+                          const char* prefix, const char* suffix);
 int mjs_detachBody(mjSpec* s, mjsBody* b);
 mjsBody* mjs_addBody(mjsBody* body, mjsDefault* def);
 mjsSite* mjs_addSite(mjsBody* body, mjsDefault* def);
@@ -3587,6 +3590,7 @@ mjsSkin* mjs_addSkin(mjSpec* s);
 mjsTexture* mjs_addTexture(mjSpec* s);
 mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
 mjSpec* mjs_getSpec(mjsBody* body);
+mjSpec* mjs_getSpecFromFrame(mjsFrame* frame);
 mjsBody* mjs_findBody(mjSpec* s, const char* name);
 mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
 mjsBody* mjs_findChild(mjsBody* body, const char* name);
@@ -3595,8 +3599,8 @@ mjsDefault* mjs_getDefault(mjsElement* element);
 mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
 mjsDefault* mjs_getSpecDefault(mjSpec* s);
 int mjs_getId(mjsElement* element);
-mjsElement* mjs_firstChild(mjsBody* body, mjtObj type);
-mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child);
+mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
+mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
 mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
@@ -3612,7 +3616,6 @@ void mjs_setDouble(mjDoubleVec* dest, const double* array, int size);
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 const char* mjs_getString(const mjString* source);
 const double* mjs_getDouble(const mjDoubleVec* source, int* size);
-void mjs_setActivePlugins(mjSpec* s, void* activeplugins);
 void mjs_setDefault(mjsElement* element, mjsDefault* def);
 void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
