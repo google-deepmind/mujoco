@@ -240,9 +240,14 @@ class TendonTest(parameterized.TestCase):
       'tendon/fixed.xml',
       'tendon/fixed_site.xml',
       'tendon/fixed_site_wrap.xml',
+      'tendon/pulley_fixed_site_wrap.xml',
+      'tendon/pulley_site.xml',
+      'tendon/pulley_site_wrap.xml',
+      'tendon/pulley_wrap.xml',
       'tendon/no_tendon.xml',
       'tendon/site.xml',
       'tendon/site_wrap.xml',
+      'tendon/tendon.xml',
       'tendon/wrap_sidesite.xml',
   )
   def test_tendon(self, filename):
