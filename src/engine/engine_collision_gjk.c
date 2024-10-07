@@ -24,7 +24,6 @@
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
-#include "engine/engine_util_spatial.h"
 
 // subdistance algorithm for GJK that computes the barycentric coordinates of the point in a
 // simplex closest to the origin
@@ -47,9 +46,7 @@ static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
 static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                        const mjtNum x_k[3]);
 
-// linear algebra utility functions
-static mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]);
-static void cross(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]);
+// linear combination of n 3D vectors
 static void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n);
 
 // one face in a polytope
@@ -91,6 +88,51 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
 // returns the penetration depth of two convex objects; witness points are in status->{x1, x2}
 static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
 
+// -------------------------------- inlined  3D vector utils --------------------------------------
+
+// v1 == v2
+static inline int equal3(const mjtNum v1[3], const mjtNum v2[3]) {
+  return mju_abs(v1[0] - v2[0]) < mjMINVAL &&
+         mju_abs(v1[1] - v2[1]) < mjMINVAL &&
+         mju_abs(v1[2] - v2[2]) < mjMINVAL;
+}
+
+// res = v1 - v2
+static inline void sub3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
+  res[0] = v1[0] - v2[0], res[1] = v1[1] - v2[1], res[2] = v1[2] - v2[2];
+}
+
+// dot product
+static inline mjtNum dot3(const mjtNum v1[3], const mjtNum v2[3]) {
+  return v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
+}
+
+// res = v
+static inline void copy3(mjtNum res[3], const mjtNum v[3]) {
+  res[0] = v[0], res[1] = v[1], res[2] = v[2];
+}
+
+// scalar product: res = s*v
+static inline void scl3(mjtNum res[3], const mjtNum v[3], mjtNum s) {
+  res[0] = s*v[0], res[1] = s*v[1], res[2] = s*v[2];
+}
+
+// cross product: res = v1 x v2
+static inline void cross3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
+  res[0] = v1[1]*v2[2] - v1[2]*v2[1];
+  res[1] = v1[2]*v2[0] - v1[0]*v2[2];
+  res[2] = v1[0]*v2[1] - v1[1]*v2[0];
+}
+
+// returns determinant of the 3x3 matrix with columns v1, v2, v3
+static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
+  // v1 * (v2 x v3)
+  return v1[0]*(v2[1]*v3[2] - v2[2]*v3[1])
+       + v1[1]*(v2[2]*v3[0] - v2[0]*v3[2])
+       + v1[2]*(v2[0]*v3[1] - v2[1]*v3[0]);
+}
+
+// ---------------------------------------- GJK ---------------------------------------------------
 
 
 // returns true if both geoms are discrete shapes (i.e. meshes or boxes with no margin)
@@ -124,7 +166,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : status->tolerance * status->tolerance;
 
   // set initial guess
-  mju_sub3(x_k, x1_k, x2_k);
+  sub3(x_k, x1_k, x2_k);
 
   for (; k < kmax; k++) {
     mjtNum *s1_k = simplex1 + 3*n;  // the kth support point in obj1
@@ -133,19 +175,19 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // compute the kth support point
     gjkSupport(s1_k, s2_k, obj1, obj2, x_k);
-    mju_sub3(s_k, s1_k, s2_k);
+    sub3(s_k, s1_k, s2_k);
 
     // stopping criteria using the Frank-Wolfe duality gap given by
     //  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - s_k) >
     mjtNum diff[3];
-    mju_sub3(diff, x_k, s_k);
-    if (2*mju_dot3(x_k, diff) < epsilon) {
+    sub3(diff, x_k, s_k);
+    if (2*dot3(x_k, diff) < epsilon) {
       break;
     }
 
     // if the hyperplane separates the Minkowski difference and origin, the objects don't collide
     // if geom distance isn't requested, return early
-    if (!get_dist && mju_dot3(x_k, s_k) > 0) {
+    if (!get_dist && dot3(x_k, s_k) > 0) {
       return mjMAXVAL;
     }
 
@@ -163,9 +205,9 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     n = 0;
     for (int i = 0; i < 4; i++) {
       if (lambda[i] == 0) continue;
-      mju_copy3(simplex1 + 3*n, simplex1 + 3*i);
-      mju_copy3(simplex2 + 3*n, simplex2 + 3*i);
-      mju_copy3(simplex  + 3*n, simplex  + 3*i);
+      copy3(simplex1 + 3*n, simplex1 + 3*i);
+      copy3(simplex2 + 3*n, simplex2 + 3*i);
+      copy3(simplex  + 3*n, simplex  + 3*i);
       lambda[n++] = lambda[i];
     }
 
@@ -174,12 +216,12 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     lincomb(x_next, lambda, simplex, n);
 
     // x_k has converged to minimum
-    if (mju_equal3(x_next, x_k)) {
+    if (equal3(x_next, x_k)) {
       break;
     }
 
     // copy next iteration into x_k
-    mju_copy3(x_k, x_next);
+    copy3(x_k, x_next);
 
     // we have a tetrahedron containing the origin so return early
     if (n == 4) {
@@ -202,9 +244,9 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                        const mjtNum x_k[3]) {
   mjtNum dir[3], dir_neg[3];
-  mju_copy3(dir_neg, x_k);
+  copy3(dir_neg, x_k);
   mju_normalize3(dir_neg);  // mjc_support assumes a normalized direction
-  mju_scl3(dir, dir_neg, -1);
+  scl3(dir, dir_neg, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
   obj1->support(s1, obj1, dir);
@@ -243,7 +285,7 @@ static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
 // TODO(kylebayes): combine support functions
 void support2(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2, const mjtNum dir[3]) {
   mjtNum dir_neg[3];
-  mju_scl3(dir_neg, dir, -1);
+  scl3(dir_neg, dir, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
   obj1->support(s1, obj1, dir);
@@ -256,16 +298,16 @@ void support2(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2, const 
 static inline mjtNum signedDistance(mjtNum normal[3], const mjtNum v1[3], const mjtNum v2[3],
                                     const mjtNum v3[3]) {
   mjtNum diff1[3], diff2[3];
-  mju_sub3(diff1, v3, v1);
-  mju_sub3(diff2, v2, v1);
-  mju_cross(normal, diff1, diff2);
+  sub3(diff1, v3, v1);
+  sub3(diff2, v2, v1);
+  cross3(normal, diff1, diff2);
   mjtNum norm = mju_norm3(normal);
   if (norm > mjMINVAL && norm < mjMAXVAL) {
     mjtNum invnorm = 1/norm;
     normal[0] *= invnorm;
     normal[1] *= invnorm;
     normal[2] *= invnorm;
-    return mju_dot3(normal, v1);
+    return dot3(normal, v1);
   }
   return mjMAXVAL;  // cannot recover normal (ignore face)
 }
@@ -298,19 +340,19 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
     if (dist[index] > 0) {
       status->nsimplex = 4;
       for (int n = 0; n < 4; n++) {
-        mju_copy3(status->simplex + 3*n, simplex + s[n]);
-        mju_copy3(status->simplex1 + 3*n, simplex1 + s[n]);
-        mju_copy3(status->simplex2 + 3*n, simplex2 + s[n]);
+        copy3(status->simplex + 3*n, simplex + s[n]);
+        copy3(status->simplex1 + 3*n, simplex1 + s[n]);
+        copy3(status->simplex2 + 3*n, simplex2 + s[n]);
       }
       return 1;
     }
 
     // replace worst vertex (farthest from origin) with new candidate
     support2(simplex1 + s[index], simplex2 + s[index], obj1, obj2, normals + 3*index);
-    mju_sub3(simplex + s[index], simplex1 + s[index], simplex2 + s[index]);
+    sub3(simplex + s[index], simplex1 + s[index], simplex2 + s[index]);
 
     // found origin outside the Minkowski difference (return no collision)
-    if (mju_dot3(&normals[3*index], simplex + s[index]) < 0) {
+    if (dot3(&normals[3*index], simplex + s[index]) < 0) {
       return 0;
     }
 
@@ -328,7 +370,7 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
 
 // linear combination of n 3D vectors
 static inline void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n) {
-  mju_zero3(res);
+  res[0] = res[1] = res[2] = 0;
   for (int i = 0; i < n; i++) {
     res[0] += coef[i] * v[3*i + 0];
     res[1] += coef[i] * v[3*i + 1];
@@ -358,55 +400,37 @@ static inline void lincomb3(mjtNum res[3], const mjtNum coef[3], const mjtNum v1
 
 
 
-// fast cross product
-static inline void cross(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
-  res[0] = v1[1]*v2[2] - v1[2]*v2[1];
-  res[1] = v1[2]*v2[0] - v1[0]*v2[2];
-  res[2] = v1[0]*v2[1] - v1[1]*v2[0];
-}
-
-
-
-// returns determinant of the 3x3 matrix with columns v1, v2, v3
-static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
-    // v1 * (v2 x v3)
-  return v1[0]*(v2[1]*v3[2] - v2[2]*v3[1])
-      + v1[1]*(v2[2]*v3[0] - v2[0]*v3[2])
-      + v1[2]*(v2[0]*v3[1] - v2[1]*v3[0]);
-}
-
-
 // res = origin projected onto plane defined by v1, v2, v3
 static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
                                       const mjtNum v3[3]) {
   mjtNum diff21[3], diff31[3], diff32[3], n[3], nv, nn;
-  mju_sub3(diff21, v2, v1);
-  mju_sub3(diff31, v3, v1);
-  mju_sub3(diff32, v3, v2);
+  sub3(diff21, v2, v1);
+  sub3(diff31, v3, v1);
+  sub3(diff32, v3, v2);
 
   // n = (v1 - v2) x (v3 - v2)
-  cross(n, diff32, diff21);
-  nv = mju_dot3(n, v2);
-  nn = mju_dot3(n, n);
+  cross3(n, diff32, diff21);
+  nv = dot3(n, v2);
+  nn = dot3(n, n);
   if (nv != 0 && nn > mjMINVAL) {
-    mju_scl3(res, n, nv / nn);
+    scl3(res, n, nv / nn);
     return;
   }
 
   // n = (v2 - v1) x (v3 - v1)
-  cross(n, diff21, diff31);
-  nv = mju_dot3(n, v1);
-  nn = mju_dot3(n, n);
+  cross3(n, diff21, diff31);
+  nv = dot3(n, v1);
+  nn = dot3(n, n);
   if (nv != 0 && nn > mjMINVAL) {
-    mju_scl3(res, n, nv / nn);
+    scl3(res, n, nv / nn);
     return;
   }
 
   // n = (v1 - v3) x (v2 - v3)
-  cross(n, diff31, diff32);
-  nv = mju_dot3(n, v3);
-  nn = mju_dot3(n, n);
-  mju_scl3(res, n, nv / nn);
+  cross3(n, diff31, diff32);
+  nv = dot3(n, v3);
+  nn = dot3(n, n);
+  scl3(res, n, nv / nn);
 }
 
 
@@ -415,10 +439,11 @@ static inline void projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const m
 static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
   // res = v2 - <v2, v2 - v1> / <v2 - v1, v2 - v1> * (v2 - v1)
   mjtNum diff[3];
-  mju_sub3(diff, v2, v1);
-  mjtNum temp1 = mju_dot3(v2, diff);
-  mjtNum temp2 = mju_dot3(diff, diff);
-  mju_addScl3(res, v2, diff, - temp1 / temp2);
+  sub3(diff, v2, v1);
+  mjtNum scl = -(dot3(v2, diff) / dot3(diff, diff));
+  res[0] = v2[0] + scl*diff[0];
+  res[1] = v2[1] + scl*diff[1];
+  res[2] = v2[2] + scl*diff[2];
 }
 
 
@@ -436,7 +461,7 @@ static inline int sameSign(mjtNum a, mjtNum b) {
 // simplex closest to the origin
 // implementation adapted from Montanari et al, ToG 2017
 static inline void subdistance(mjtNum lambda[4], const mjtNum simplex[12], int n) {
-  mju_zero4(lambda);
+  lambda[0] = lambda[1] = lambda[2] = lambda[3] = 0;
   const mjtNum* s1 = simplex;
   const mjtNum* s2 = simplex + 3;
   const mjtNum* s3 = simplex + 6;
@@ -496,7 +521,7 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s2, s3, s4);
     lincomb3(x, lambda_2d, s2, s3, s4);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     lambda[0] = 0;
     lambda[1] = lambda_2d[0];
     lambda[2] = lambda_2d[1];
@@ -508,7 +533,7 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s3, s4);
     lincomb3(x, lambda_2d, s1, s3, s4);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     if (d < dmin) {
       lambda[0] = lambda_2d[0];
       lambda[1] = 0;
@@ -522,7 +547,7 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s2, s4);
     lincomb3(x, lambda_2d, s1, s2, s4);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     if (d < dmin) {
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
@@ -536,7 +561,7 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_2d[3], x[3];
     S2D(lambda_2d, s1, s2, s3);
     lincomb3(x, lambda_2d, s1, s2, s3);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     if (d < dmin) {
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
@@ -644,7 +669,7 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s2, s3);
     lincomb2(x, lambda_1d, s2, s3);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     lambda[0] = 0;
     lambda[1] = lambda_1d[0];
     lambda[2] = lambda_1d[1];
@@ -655,7 +680,7 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s1, s3);
     lincomb2(x, lambda_1d, s1, s3);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     if (d < dmin) {
       lambda[0] = lambda_1d[0];
       lambda[1] = 0;
@@ -668,7 +693,7 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
     mjtNum lambda_1d[2], x[3];
     S1D(lambda_1d, s1, s2);
     lincomb2(x, lambda_1d, s1, s2);
-    mjtNum d = mju_dot3(x, x);
+    mjtNum d = dot3(x, x);
     if (d < dmin) {
       lambda[0] = lambda_1d[0];
       lambda[1] = lambda_1d[1];
@@ -715,15 +740,15 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
 static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
                     const mjtNum p2[3], const mjtNum p3[3]) {
     mjtNum diff1[3], diff2[3], diff3[3], diff4[3], n[3];
-    mju_sub3(diff1, p1, p0);
-    mju_sub3(diff2, p2, p0);
-    mju_cross(n, diff1, diff2);
+    sub3(diff1, p1, p0);
+    sub3(diff2, p2, p0);
+    cross3(n, diff1, diff2);
 
-    mju_sub3(diff3, p3, p0);
-    mjtNum dot1 = mju_dot3(n, diff3);
+    sub3(diff3, p3, p0);
+    mjtNum dot1 = dot3(n, diff3);
 
-    mju_scl3(diff4, p0, -1);
-    mjtNum dot2 = mju_dot3(n, diff4);
+    scl3(diff4, p0, -1);
+    mjtNum dot2 = dot3(n, diff4);
     if (dot1 > 0 && dot2 > 0) return 1;
     if (dot1 < 0 && dot2 < 0) return 1;
     return 0;
@@ -764,11 +789,11 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 // creates a polytope from a 1-simplex (2 points i.e. line segment)
 static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum v1[3], v2[3];
-  mju_sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
-  mju_sub3(v2, status->simplex1 + 3, status->simplex2 + 3);
+  sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
+  sub3(v2, status->simplex1 + 3, status->simplex2 + 3);
 
   mjtNum diff[3];
-  mju_sub3(diff, v2, v1);
+  sub3(diff, v2, v1);
 
   // find component with smallest magnitude (so cross product is largest)
   mjtNum value = mjMAXVAL;
@@ -784,7 +809,7 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   mjtNum e[3] = {0, 0, 0};
   e[index] = 1;
   mjtNum d1[3], d2[3], d3[3];
-  mju_cross(d1, e, diff);
+  cross3(d1, e, diff);
 
   // rotate around the line segment to get three more points spaced 120 degrees apart
   mjtNum R[9];
@@ -796,15 +821,15 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   mjtNum v3a[3], v3b[3], v3[3];
   support(v3a, v3b, obj1, obj2, d1, mju_norm3(d1));
-  mju_sub3(v3, v3a, v3b);
+  sub3(v3, v3a, v3b);
 
   mjtNum v4a[3], v4b[3], v4[3];
   support(v4a, v4b, obj1, obj2, d2, mju_norm3(d2));
-  mju_sub3(v4, v4a, v4b);
+  sub3(v4, v4a, v4b);
 
   mjtNum v5a[3], v5b[3], v5[3];
   support(v5a, v5b, obj1, obj2, d3, mju_norm3(d3));
-  mju_sub3(v5, v5a, v5b);
+  sub3(v5, v5a, v5b);
 
   // check that all six faces are valid triangles (not collinear)
   if (mju_abs(det3(v1, v3, v4)) < mjMINVAL || mju_abs(det3(v1, v3, v5)) < mjMINVAL ||
@@ -901,7 +926,7 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
   pr[0] = v1[0]*lambda[0] + v2[0]*lambda[1] + v3[0]*lambda[2];
   pr[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
   pr[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
-  mju_sub3(diff, pr, p);
+  sub3(diff, pr, p);
   return mju_norm3(diff) < mjMINVAL;
 }
 
@@ -911,27 +936,27 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
 static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // get vertices of simplex from GJK
   mjtNum v1[3], v2[3], v3[3];
-  mju_sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
-  mju_sub3(v2, status->simplex1 + 3, status->simplex2 + 3);
-  mju_sub3(v3, status->simplex1 + 6, status->simplex2 + 6);
+  sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
+  sub3(v2, status->simplex1 + 3, status->simplex2 + 3);
+  sub3(v3, status->simplex1 + 6, status->simplex2 + 6);
 
   // get normals in both directions
   mjtNum diff1[3], diff2[3], n[3], n_neg[3];
-  mju_sub3(diff1, v2, v1);
-  mju_sub3(diff2, v3, v1);
-  mju_cross(n, diff1, diff2);
+  sub3(diff1, v2, v1);
+  sub3(diff2, v3, v1);
+  cross3(n, diff1, diff2);
   mjtNum n_norm = mju_norm3(n);
   if (n_norm < mjMINVAL) {
     return 0;
   }
 
   // negative of triangle normal n
-  mju_scl3(n_neg, n, -1);
+  scl3(n_neg, n, -1);
 
   // get 4th vertex in n direction
   mjtNum v4a[3], v4b[3], v4[3];
   support(v4a, v4b, obj1, obj2, n, n_norm);
-  mju_sub3(v4, v4a, v4b);
+  sub3(v4, v4a, v4b);
 
   // check that v4 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v4)) {
@@ -941,7 +966,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   // get 5th vertex in -n direction
   mjtNum v5a[3], v5b[3], v5[3];
   support(v5a, v5b, obj1, obj2, n_neg, n_norm);
-  mju_sub3(v5, v5a, v5b);
+  sub3(v5, v5a, v5b);
 
   // check that v5 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v5)) {
@@ -955,7 +980,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   // it but within tolerance from it. In that case the hexahedron could possibly be constructed
   // that doesn't contain the origin, but nonetheless there is penetration depth.
   mjtNum dir[3];
-  mju_sub3(dir, status->x1, status->x2);
+  sub3(dir, status->x1, status->x2);
   if (mju_norm3(dir) > mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
     return 0;
   }
@@ -1007,9 +1032,9 @@ static int polytope4(Polytope* pt, const mjCCDStatus* status) {
 // copies a vertex into the polytope and returns its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
   int n = 3*pt->nverts++;
-  mju_copy3(pt->verts1 + n, v1);
-  mju_copy3(pt->verts2 + n, v2);
-  mju_sub3(pt->verts + n, v1, v2);
+  copy3(pt->verts1 + n, v1);
+  copy3(pt->verts2 + n, v2);
+  sub3(pt->verts + n, v1, v2);
   return n;
 }
 
@@ -1094,7 +1119,7 @@ static int horizonRec(Horizon* h, Face* face, int e) {
     mjtNum dist2 = face->dist * face->dist;
 
     // v is visible from w so it is deleted and adjacent faces are checked
-    if (mju_dot3(face->v, h->w) >= dist2) {
+    if (dot3(face->v, h->w) >= dist2) {
       if (deleteFace(h->pt, face)) return 1;  // escape recursion on error
 
       // recursively search the adjacent faces on the next two edges
@@ -1210,8 +1235,8 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
     // compute support point w from the closest face's normal
     mjtNum w1[3], w2[3], w[3];
     support(w1, w2, obj1, obj2, face->v, dist);
-    mju_sub3(w, w1, w2);
-    mjtNum next_dist = mju_dot3(face->v, w) / dist;
+    sub3(w, w1, w2);
+    mjtNum next_dist = dot3(face->v, w) / dist;
     if (next_dist - dist < tolerance) {
       break;
     }
