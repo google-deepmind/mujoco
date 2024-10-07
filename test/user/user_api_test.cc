@@ -170,7 +170,7 @@ TEST_F(PluginTest, ActivatePlugin) {
 
   // associate plugin to body
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
-  mjs_setString(body->plugin.name, "mujoco.elasticity.cable");
+  mjs_setString(body->plugin.plugin_name, "mujoco.elasticity.cable");
   body->plugin.element = mjs_addPlugin(spec)->element;
   body->plugin.active = true;
   mjsGeom* geom = mjs_addGeom(body, 0);
@@ -204,7 +204,7 @@ TEST_F(PluginTest, DeletePlugin) {
   // add actuator
   mjsActuator* actuator = mjs_addActuator(spec, 0);
   mjs_setString(actuator->target, "j1");
-  mjs_setString(actuator->plugin.name, "mujoco.pid");
+  mjs_setString(actuator->plugin.plugin_name, "mujoco.pid");
   actuator->plugin.element = mjs_addPlugin(spec)->element;
   actuator->plugin.active = true;
   actuator->trntype = mjTRN_JOINT;

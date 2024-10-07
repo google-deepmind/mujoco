@@ -957,8 +957,8 @@ void mjCBody::PointToLocal() {
   spec.name = &name;
   spec.childclass = &classname;
   spec.userdata = &spec_userdata_;
-  spec.plugin.name = &plugin_name;
-  spec.plugin.instance_name = (&plugin_instance_name);
+  spec.plugin.plugin_name = &plugin_name;
+  spec.plugin.name = (&plugin_instance_name);
   spec.info = &info;
   userdata = nullptr;
 }
@@ -969,8 +969,8 @@ void mjCBody::CopyFromSpec() {
   userdata_ = spec_userdata_;
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
+  plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
-  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -994,7 +994,7 @@ mjCBody::~mjCBody() {
   cameras.clear();
   lights.clear();
 
-  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty()) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -2161,7 +2161,7 @@ mjCGeom::mjCGeom(const mjCGeom& other) {
 
 
 mjCGeom::~mjCGeom() {
-  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty()) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -2189,8 +2189,8 @@ void mjCGeom::PointToLocal(void) {
   spec.material = &spec_material_;
   spec.meshname = &spec_meshname_;
   spec.hfieldname = &spec_hfieldname_;
-  spec.plugin.name = &plugin_name;
-  spec.plugin.instance_name = &plugin_instance_name;
+  spec.plugin.plugin_name = &plugin_name;
+  spec.plugin.name = &plugin_instance_name;
   userdata = nullptr;
   hfieldname = nullptr;
   meshname = nullptr;
@@ -2207,8 +2207,8 @@ void mjCGeom::CopyFromSpec() {
   material_ = spec_material_;
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
+  plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
-  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -5586,7 +5586,7 @@ mjCActuator::mjCActuator(const mjCActuator& other) {
 
 
 mjCActuator::~mjCActuator() {
-  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty()) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -5644,8 +5644,8 @@ void mjCActuator::PointToLocal() {
   spec.target = &spec_target_;
   spec.refsite = &spec_refsite_;
   spec.slidersite = &spec_slidersite_;
-  spec.plugin.name = &plugin_name;
-  spec.plugin.instance_name = &plugin_instance_name;
+  spec.plugin.plugin_name = &plugin_name;
+  spec.plugin.name = &plugin_instance_name;
   spec.info = &info;
   userdata = nullptr;
   target = nullptr;
@@ -5677,8 +5677,8 @@ void mjCActuator::CopyFromSpec() {
   slidersite_ = spec_slidersite_;
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
+  plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
-  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -5951,7 +5951,7 @@ mjCSensor::mjCSensor(const mjCSensor& other) {
 
 
 mjCSensor::~mjCSensor() {
-  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty()) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -5978,8 +5978,8 @@ void mjCSensor::PointToLocal() {
   spec.userdata = &spec_userdata_;
   spec.objname = &spec_objname_;
   spec.refname = &spec_refname_;
-  spec.plugin.name = &plugin_name;
-  spec.plugin.instance_name = &plugin_instance_name;
+  spec.plugin.plugin_name = &plugin_name;
+  spec.plugin.name = &plugin_instance_name;
   spec.info = &info;
   userdata = nullptr;
   objname = nullptr;
@@ -6008,8 +6008,8 @@ void mjCSensor::CopyFromSpec() {
   refname_ = spec_refname_;
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
+  plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
-  plugin.instance_name = spec.plugin.instance_name;
 }
 
 
@@ -6921,13 +6921,13 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   parent = this;
   model = _model;
   name.clear();
-  instance_name.clear();
+  plugin_name.clear();
 
   // public interface
   mjs_defaultPlugin(&spec);
   elemtype = mjOBJ_PLUGIN;
+  spec.plugin_name = &plugin_name;
   spec.name = &name;
-  spec.instance_name = &instance_name;
   spec.info = &info;
 }
 
@@ -6947,15 +6947,6 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
     parent = this;
   }
   return *this;
-}
-
-
-
-void mjCPlugin::NameSpace(const mjCModel* m) {
-  mjCBase::NameSpace(m);
-  if (!instance_name.empty()) {
-    instance_name = m->prefix + instance_name + m->suffix;
-  }
 }
 
 

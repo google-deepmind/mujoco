@@ -205,14 +205,14 @@ class SpecsTest(absltest.TestCase):
 
     # Add plugin.
     plugin = spec.add_plugin(
-        name='name',
-        instance_name='instance',
+        name='instance_name',
+        plugin_name='mujoco.plugin',
         plugin_slot=7,
         active=True,
         info='info',
     )
-    self.assertEqual(plugin.name, 'name')
-    self.assertEqual(plugin.instance_name, 'instance')
+    self.assertEqual(plugin.name, 'instance_name')
+    self.assertEqual(plugin.plugin_name, 'mujoco.plugin')
     self.assertEqual(plugin.plugin_slot, 7)
     self.assertEqual(plugin.active, True)
     self.assertEqual(plugin.info, 'info')
@@ -227,8 +227,8 @@ class SpecsTest(absltest.TestCase):
 
     # Add a body with a plugin.
     body_with_plugin = spec.worldbody.add_body(plugin=plugin)
-    self.assertEqual(body_with_plugin.plugin.name, 'name')
-    self.assertEqual(body_with_plugin.plugin.instance_name, 'instance')
+    self.assertEqual(body_with_plugin.plugin.name, 'instance_name')
+    self.assertEqual(body_with_plugin.plugin.plugin_name, 'mujoco.plugin')
     self.assertEqual(body_with_plugin.plugin.plugin_slot, 7)
     self.assertEqual(body_with_plugin.plugin.active, True)
     self.assertEqual(body_with_plugin.plugin.info, 'info')
@@ -731,7 +731,7 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(spec.worldbody)
 
     body = spec.worldbody.add_body()
-    body.plugin.name = 'mujoco.elasticity.cable'
+    body.plugin.plugin_name = 'mujoco.elasticity.cable'
     body.plugin.id = spec.add_plugin()
     body.plugin.active = True
     self.assertEqual(body.plugin.id, 0)

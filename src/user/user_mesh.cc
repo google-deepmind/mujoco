@@ -204,8 +204,8 @@ void mjCMesh::PointToLocal() {
   spec.userface = &spec_face_;
   spec.usertexcoord = &spec_texcoord_;
   spec.userfacetexcoord = &spec_facetexcoord_;
-  spec.plugin.name = &plugin_name;
-  spec.plugin.instance_name = &plugin_instance_name;
+  spec.plugin.plugin_name = &plugin_name;
+  spec.plugin.name = &plugin_instance_name;
   spec.info = &info;
   file = nullptr;
   content_type = nullptr;
@@ -249,8 +249,8 @@ void mjCMesh::CopyFromSpec() {
   maxhullvert_ = spec.maxhullvert;
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
+  plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
-  plugin.instance_name = spec.plugin.instance_name;
 
   // clear precompiled asset. TODO: use asset cache
   if (center_) mju_free(center_);
@@ -271,7 +271,7 @@ void mjCMesh::CopyFromSpec() {
 mjCMesh::~mjCMesh() {
   if (center_) mju_free(center_);
   if (graph_) mju_free(graph_);
-  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty()) {
     model->DeleteElement(spec.plugin.element);
   }
 }

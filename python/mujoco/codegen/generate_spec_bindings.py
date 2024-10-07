@@ -457,7 +457,7 @@ def generate_add() -> None:
                   throw pybind11::value_error("plugin.name should be a string.");
                 }
                 try {
-                  plugin.instance_name = input->instance_name;
+                  plugin.plugin_name = input->plugin_name;
                 } catch (const py::cast_error &e) {
                   throw pybind11::value_error("plugin.instance_name should be a string.");
                 }

@@ -820,8 +820,8 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
 
 // write plugin
 void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
-  const string instance_name = string(mjs_getString(plugin->instance_name));
-  const string plugin_name = string(mjs_getString(plugin->name));
+  const string instance_name = string(mjs_getString(plugin->name));
+  const string plugin_name = string(mjs_getString(plugin->plugin_name));
   if (!instance_name.empty()) {
     WriteAttrTxt(elem, "instance", instance_name);
   } else {

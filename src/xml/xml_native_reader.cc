@@ -2769,8 +2769,8 @@ void mjXReader::OnePlugin(XMLElement* elem, mjsPlugin* plugin) {
   string instance_name = "";
   ReadAttrTxt(elem, "plugin", name);
   ReadAttrTxt(elem, "instance", instance_name);
-  mjs_setString(plugin->name, name.c_str());
-  mjs_setString(plugin->instance_name, instance_name.c_str());
+  mjs_setString(plugin->plugin_name, name.c_str());
+  mjs_setString(plugin->name, instance_name.c_str());
   if (instance_name.empty()) {
     plugin->element = mjs_addPlugin(spec)->element;
     ReadPluginConfigs(elem, plugin);
@@ -2901,6 +2901,7 @@ void mjXReader::Extension(XMLElement* section) {
           }
           string name;
           mjsPlugin* p = mjs_addPlugin(spec);
+          mjs_setString(p->plugin_name, plugin_name.c_str());
           mjs_setString(p->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
           ReadAttrTxt(child, "name", name, /* required = */ true);
           mjs_setString(p->name, name.c_str());

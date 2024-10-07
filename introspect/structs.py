@@ -8579,11 +8579,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='name',
              ),
              StructFieldDecl(
-                 name='instance_name',
+                 name='plugin_name',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),
                  ),
-                 doc='instance name',
+                 doc='plugin name',
              ),
              StructFieldDecl(
                  name='plugin_slot',

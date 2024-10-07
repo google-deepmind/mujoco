@@ -1412,7 +1412,7 @@ class mjCPlugin_ : public mjCBase {
   std::vector<char> flattened_attributes;  // config attributes flattened in plugin-declared order;
 
  protected:
-  std::string instance_name;
+  std::string plugin_name;
 };
 
 class mjCPlugin : public mjCPlugin_ {
@@ -1428,7 +1428,6 @@ class mjCPlugin : public mjCPlugin_ {
 
  private:
   void Compile(void);              // compiler
-  void NameSpace(const mjCModel* m);
 };
 
 

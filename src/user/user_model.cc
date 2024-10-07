@@ -311,7 +311,7 @@ void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
 
   // only copy plugins that are referenced
   for (const auto& plugin : source) {
-    if (plugin->instance_name.empty() && plugin->model == this) {
+    if (plugin->name.empty() && plugin->model == this) {
       continue;
     }
     mjCPlugin* candidate = new mjCPlugin(*plugin);

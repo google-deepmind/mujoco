@@ -67,8 +67,8 @@ mjCComposite::mjCComposite(void) {
   mjs_defaultPlugin(&plugin);
   plugin_name = "";
   plugin_instance_name = "";
-  plugin.name = (mjString*)&plugin_name;
-  plugin.instance_name = (mjString*)&plugin_instance_name;
+  plugin.plugin_name = (mjString*)&plugin_name;
+  plugin.name = (mjString*)&plugin_instance_name;
 
   // cable
   curve[0] = curve[1] = curve[2] = mjCOMPSHAPE_ZERO;
@@ -715,8 +715,8 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
     mjsPlugin* pplugin = &body->plugin;
     pplugin->active = true;
     pplugin->element = plugin.element;
-    mjs_setString(pplugin->name, mjs_getString(plugin.name));
-    mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
+    mjs_setString(pplugin->plugin_name, mjs_getString(plugin.plugin_name));
+    mjs_setString(pplugin->name, plugin_instance_name.c_str());
   }
 
   // update orientation
