@@ -827,7 +827,7 @@ void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
   } else {
     WriteAttrTxt(elem, "plugin", plugin_name);
     const mjpPlugin* pplugin = mjp_getPluginAtSlot(
-        static_cast<mjCPlugin*>(plugin->element)->spec.plugin_slot);
+        static_cast<mjCPlugin*>(plugin->element)->plugin_slot);
     const char* c = &(static_cast<mjCPlugin*>(plugin->element)->flattened_attributes[0]);
     for (int i = 0; i < pplugin->nattribute; ++i) {
       string value(c);
@@ -1338,7 +1338,7 @@ void mjXWriter::Extension(XMLElement* root) {
     }
 
     // check if we need to open a new <plugin> section
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->spec.plugin_slot);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->plugin_slot);
     if (plugin != last_plugin) {
       plugin_elem = InsertEnd(section, "plugin");
       WriteAttrTxt(plugin_elem, "plugin", plugin->name);

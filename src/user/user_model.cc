@@ -315,6 +315,7 @@ void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
       continue;
     }
     mjCPlugin* candidate = new mjCPlugin(*plugin);
+    candidate->model = this;
     candidate->NameSpace(plugin->model);
     bool referenced = instances.find(candidate->name) != instances.end();
     auto same_name = [candidate](const mjCPlugin* dest) { return dest->name == candidate->name; };
@@ -3973,7 +3974,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   {
     int adr = 0;
     for (int i = 0; i < nplugin; ++i) {
-      m->plugin[i] = plugins_[i]->spec.plugin_slot;
+      m->plugin[i] = plugins_[i]->plugin_slot;
       const int size = plugins_[i]->flattened_attributes.size();
       std::memcpy(m->plugin_attr + adr,
                   plugins_[i]->flattened_attributes.data(), size);
@@ -4499,24 +4500,37 @@ void mjCModel::ActivatePlugin(const mjpPlugin* plugin, int slot) {
 
 void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
                              const std::string& plugin_instance_name, mjCPlugin** plugin_instance) {
+  std::string pname = plugin_name;
+
+  // if the plugin name is not specified by the user, infer it from the plugin instance
+  if (plugin_name.empty() && !plugin_instance_name.empty()) {
+    mjCBase* plugin_obj = FindObject(mjOBJ_PLUGIN, plugin_instance_name);
+    if (plugin_obj) {
+      pname = static_cast<mjCPlugin*>(plugin_obj)->plugin_name;
+    } else {
+      throw mjCError(obj, "unrecognized name '%s' for plugin instance",
+                     plugin_instance_name.c_str());
+    }
+  }
+
   // if plugin_name is specified, check if it is in the list of active plugins
   // (in XML, active plugins are those declared as <required>)
   int plugin_slot = -1;
-  if (!plugin_name.empty()) {
+  if (!pname.empty()) {
     for (int i = 0; i < active_plugins_.size(); ++i) {
-      if (active_plugins_[i].first->name == plugin_name) {
+      if (active_plugins_[i].first->name == pname) {
         plugin_slot = active_plugins_[i].second;
         break;
       }
     }
     if (plugin_slot == -1) {
-      throw mjCError(obj, "unrecognized plugin '%s'", plugin_name.c_str());
+      throw mjCError(obj, "unrecognized plugin '%s'", pname.c_str());
     }
   }
 
   // implicit plugin instance
-  if (*plugin_instance && (*plugin_instance)->spec.plugin_slot == -1) {
-      (*plugin_instance)->spec.plugin_slot = plugin_slot;
+  if (*plugin_instance && (*plugin_instance)->plugin_slot == -1) {
+      (*plugin_instance)->plugin_slot = plugin_slot;
       (*plugin_instance)->parent = obj;
   }
 
@@ -4524,14 +4538,15 @@ void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
   else if (!*plugin_instance) {
     *plugin_instance =
         static_cast<mjCPlugin*>(FindObject(mjOBJ_PLUGIN, plugin_instance_name));
+    (*plugin_instance)->plugin_slot = plugin_slot;
     if (!*plugin_instance) {
       throw mjCError(
           obj, "unrecognized name '%s' for plugin instance", plugin_instance_name.c_str());
     }
-    if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->spec.plugin_slot) {
+    if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->plugin_slot) {
       throw mjCError(
           obj, "'plugin' attribute does not match that of the instance");
     }
-    plugin_slot = (*plugin_instance)->spec.plugin_slot;
+    plugin_slot = (*plugin_instance)->plugin_slot;
   }
 }

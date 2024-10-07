@@ -1516,7 +1516,7 @@ mjs_activatePlugin
 
 .. mujoco-include:: mjs_activatePlugin
 
-Activate plugin, return slot number.
+Activate plugin.
 
 .. _Errorandmemory:
 

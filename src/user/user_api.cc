@@ -206,16 +206,14 @@ void mjs_addSpec(mjSpec* s, mjSpec* child) {
 
 
 // activate plugin
-int mjs_activatePlugin(mjSpec* s, const char* name) {
+void mjs_activatePlugin(mjSpec* s, const char* name) {
   int plugin_slot = -1;
   const mjpPlugin* plugin = mjp_getPlugin(name, &plugin_slot);
   if (!plugin) {
     mju_error("unknown plugin '%s'", name);
-    return -1;
   }
   mjCModel* model = static_cast<mjCModel*>(s->element);
   model->ActivatePlugin(plugin, plugin_slot);
-  return plugin_slot;
 }
 
 

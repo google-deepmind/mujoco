@@ -63,8 +63,8 @@ MJAPI void mj_deleteSpec(mjSpec* s);
 // Add spec (model asset) to spec.
 MJAPI void mjs_addSpec(mjSpec* s, mjSpec* child);
 
-// Activate plugin, return slot number.
-MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
+// Activate plugin.
+MJAPI void mjs_activatePlugin(mjSpec* s, const char* name);
 
 
 //---------------------------------- Attachment ----------------------------------------------------

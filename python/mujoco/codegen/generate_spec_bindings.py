@@ -462,11 +462,6 @@ def generate_add() -> None:
                   throw pybind11::value_error("plugin.instance_name should be a string.");
                 }
                 try {
-                  plugin.plugin_slot = input->plugin_slot;
-                } catch (const py::cast_error &e) {
-                  throw pybind11::value_error("plugin.plugin_slot should be an int.");
-                }
-                try {
                   plugin.active = input->active;
                 } catch (const py::cast_error &e) {
                   throw pybind11::value_error("plugin.active should be an mjtByte.");

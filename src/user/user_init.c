@@ -402,6 +402,5 @@ void mjs_defaultKey(mjsKey* key) {
 // default plugin attributes
 void mjs_defaultPlugin(mjsPlugin* plugin) {
   memset(plugin, 0, sizeof(mjsPlugin));
-  plugin->plugin_slot = -1;
 }
 

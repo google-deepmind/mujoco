@@ -1424,7 +1424,8 @@ class mjCPlugin : public mjCPlugin_ {
   mjCPlugin(const mjCPlugin& other);
   mjCPlugin& operator=(const mjCPlugin& other);
   mjsPlugin spec;
-  mjCBase* parent;   // parent object (only used when generating error message)
+  mjCBase* parent;  // parent object (only used when generating error message)
+  int plugin_slot;  // global registered slot number of the plugin
 
  private:
   void Compile(void);              // compiler

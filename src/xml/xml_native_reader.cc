@@ -2890,7 +2890,7 @@ void mjXReader::Extension(XMLElement* section) {
     if (name == "plugin") {
       string plugin_name;
       ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
-      int plugin_slot = mjs_activatePlugin(spec, plugin_name.c_str());
+      mjs_activatePlugin(spec, plugin_name.c_str());
 
       XMLElement* child = FirstChildElement(elem);
       while (child) {
@@ -2909,7 +2909,6 @@ void mjXReader::Extension(XMLElement* section) {
             throw mjXError(child, "plugin instance must have a name");
           }
           ReadPluginConfigs(child, p);
-          p->plugin_slot = plugin_slot;
         }
         child = NextSiblingElement(child);
       }

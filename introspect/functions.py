@@ -1048,7 +1048,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_activatePlugin',
      FunctionDecl(
          name='mjs_activatePlugin',
-         return_type=ValueType(name='int'),
+         return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
                  name='s',
@@ -1063,7 +1063,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Activate plugin, return slot number.',
+         doc='Activate plugin.',
      )),
     ('mj_printFormattedModel',
      FunctionDecl(
