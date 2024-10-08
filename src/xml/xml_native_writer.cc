@@ -1718,11 +1718,6 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
                                : body->classname;
         Body(OneFrame(elem, fframe), body, fframe, childclass);
       }
-
-      // stop if we reached the frame of the current child body, ignore if there are no bodies
-      if (bframe && bframe == fframe) {
-        break;
-      }
     }
 
     // if there are no bodies, we only want to run the loop once

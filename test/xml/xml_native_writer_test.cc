@@ -749,6 +749,9 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
             </frame>
           </frame>
         </frame>
+        <frame>
+          <light pos="0 0 1"/>
+        </frame>
       </body>
     </worldbody>
   </mujoco>
@@ -774,6 +777,9 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
             </body>
           </frame>
         </frame>
+      </frame>
+      <frame>
+        <light pos="0 0 1" dir="0 0 -1"/>
       </frame>
     </body>
     <frame name="f1">
