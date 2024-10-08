@@ -41,6 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "function_traits.h"
+#include "indexer_xmacro.h"
 #include "indexers.h"
 #include "private.h"
 #include "raw.h"
@@ -743,11 +744,12 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(solver);
   X(timer);
   X(warning);
+  X(ncon);
   X(ne);
   X(nf);
   X(nnzJ);
+  X(nnzL);
   X(nefc);
-  X(ncon);
   X(nisland);
   X(time);
   X(energy);
@@ -772,7 +774,8 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
-    MJDATA_ARENA_POINTERS_PRIMAL
+    MJDATA_ARENA_POINTERS_SOLVER
+    // MJDATA_ARENA_POINTERS_NEWTON // TODO: tassa - Add after allocation exists
     if (mj_isDual(this->model_->get())) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -819,11 +822,12 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(solver);
   X(timer);
   X(warning);
+  X(ncon);
   X(ne);
   X(nf);
   X(nnzJ);
+  X(nnzL);
   X(nefc);
-  X(ncon);
   X(nisland);
   X(time);
   X(energy);
@@ -850,7 +854,8 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
-    MJDATA_ARENA_POINTERS_PRIMAL
+    MJDATA_ARENA_POINTERS_SOLVER
+    // MJDATA_ARENA_POINTERS_NEWTON // TODO: tassa - Add after allocation exists
     if (is_dual) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -2009,7 +2014,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     return InitPyArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var, d.owner()); \
   });
 
-  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_SOLVER
+  MJDATA_ARENA_POINTERS_NEWTON
   MJDATA_ARENA_POINTERS_DUAL
   MJDATA_ARENA_POINTERS_ISLAND
 

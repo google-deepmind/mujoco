@@ -1768,12 +1768,13 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->solver_fwdinv, 2);
 
   // clear variable sizes
+  d->ncon = 0;
   d->ne = 0;
   d->nf = 0;
   d->nl = 0;
   d->nefc = 0;
   d->nnzJ = 0;
-  d->ncon = 0;
+  d->nnzL = 0;
   d->nisland = 0;
 
   // clear global properties

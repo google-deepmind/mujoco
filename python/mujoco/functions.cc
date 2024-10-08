@@ -1441,7 +1441,7 @@ PYBIND11_MODULE(_functions, pymodule) {
           data->nefc = 0;
           data->contact = static_cast<raw::MjContact*>(data->arena);
 #define X(type, name, nr, nc) data->name = nullptr;
-          MJDATA_ARENA_POINTERS_PRIMAL
+          MJDATA_ARENA_POINTERS_SOLVER
           MJDATA_ARENA_POINTERS_DUAL
 #undef X
         };
@@ -1469,7 +1469,7 @@ PYBIND11_MODULE(_functions, pymodule) {
     throw FatalError("insufficient arena memory available");              \
   }
 
-        MJDATA_ARENA_POINTERS_PRIMAL
+        MJDATA_ARENA_POINTERS_SOLVER
         if (mj_isDual(d.model().get())) {
           MJDATA_ARENA_POINTERS_DUAL
         }

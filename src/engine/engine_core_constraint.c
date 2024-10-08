@@ -71,11 +71,10 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
     return 0;                                                                 \
   }
 
-  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_SOLVER
   if (mj_isDual(m)) {
     MJDATA_ARENA_POINTERS_DUAL
   }
-
 #undef X
 
 #undef MJ_M
@@ -1918,7 +1917,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nnzJ = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nnzJ = d->nnzL = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {

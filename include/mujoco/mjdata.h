@@ -192,12 +192,13 @@ struct mjData_ {
   mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes
+  int     ncon;              // number of detected contacts
   int     ne;                // number of equality constraints
   int     nf;                // number of friction constraints
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nnzJ;              // number of non-zeros in constraint Jacobian
-  int     ncon;              // number of detected contacts
+  int     nnzL;              // number of non-zeros in Newton Cholesky factor
   int     nisland;           // number of detected constraint islands
 
   // global properties
@@ -413,11 +414,18 @@ struct mjData_ {
   int*    island_efcadr;     // start address in island_efcind                   (nisland x 1)
   int*    island_efcind;     // island constraint indices                        (nefc x 1)
 
-  // computed by mj_projectConstraint (dual solver)
+  // computed by mj_projectConstraint (PGS solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
   int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
   int*    efc_AR_colind;     // column indices in sparse AR                      (nefc x nefc)
   mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nefc x nefc)
+
+  // computed by mj_fwdConstraint (Newton solver)
+  int*    L_rownnz;          // number of non-zeros in Hessian factor L rows     (nv x 1)
+  int*    L_rowadr;          // row start address in colind array                (nv x 1)
+  int*    L_colind;          // column indices in sparse AR                      (nnzL x 1)
+  mjtNum* L;                 // chol(M + J'*diag(efc_D)*J)                       (nnzL x 1)
+  mjtNum* Lcone;             // L with cone contributions                        (nnzL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY dependent
 

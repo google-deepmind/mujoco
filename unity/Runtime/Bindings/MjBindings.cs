@@ -4841,12 +4841,13 @@ public unsafe struct mjData_ {
   public mjTimerStat_ timer12;
   public mjTimerStat_ timer13;
   public mjTimerStat_ timer14;
+  public int ncon;
   public int ne;
   public int nf;
   public int nl;
   public int nefc;
   public int nnzJ;
-  public int ncon;
+  public int nnzL;
   public int nisland;
   public double time;
   public fixed double energy[2];
@@ -4984,6 +4985,11 @@ public unsafe struct mjData_ {
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
   public double* efc_AR;
+  public int* L_rownnz;
+  public int* L_rowadr;
+  public int* L_colind;
+  public double* L;
+  public double* Lcone;
   public double* efc_vel;
   public double* efc_aref;
   public double* efc_b;
