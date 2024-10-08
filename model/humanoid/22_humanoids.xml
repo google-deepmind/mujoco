@@ -36,8 +36,13 @@
     <geom name="floor" size="10 10 .05" type="plane" material="floor" condim="3"/>
     <light directional="true" diffuse=".4 .4 .4" specular="0.1 0.1 0.1" pos="0 0 5" dir="0 0 -1" castshadow="false"/>
     <light name="spotlight" mode="targetbodycom" target="world" diffuse="1 1 1" specular="0.3 0.3 0.3" pos="-6 -6 4" cutoff="60"/>
-    <replicate count="22" euler="0 0 16.36" sep="-" offset="1 0 0">
-      <attach model="humanoid" body="torso" prefix="_"/>
+    <replicate count="22" euler="0 0 16.36" sep="-">
+      <frame pos="0 -4 0">
+        <attach model="humanoid" body="torso" prefix="_"/>
+      </frame>
+    </replicate>
+    <replicate count="5" euler="0 0 72" sep="-">
+      <light pos="0 -4 4"/>
     </replicate>
   </worldbody>
 </mujoco>

@@ -603,7 +603,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
   // prepare info text
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
-                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.1g%% of %s",
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.1f%% of %s",
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
