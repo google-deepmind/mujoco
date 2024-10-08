@@ -242,6 +242,29 @@ class EllipsoidCollisionTest(parameterized.TestCase):
       _assert_attr_eq(
           dx.contact, d.contact, field.name, 'ellipsoid-ellipsoid', 1e-5)
 
+  _ELLIPSOID_SPHERE = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".15 .03 .05" type="ellipsoid"/>
+        </body>
+        <body pos="0 0 0.08">
+          <freejoint/>
+          <geom size=".05" type="sphere"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_sphere_ellipsoid(self):
+    """Tests ellipsoid capsule contact."""
+    d, dx = _collide(self._ELLIPSOID_SPHERE)
+    d.contact.pos[0][2] = 0.03  # MJX finds the point on the surface
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-4)
+
   _ELLIPSOID_CAPSULE = """
     <mujoco>
       <worldbody>
@@ -535,6 +558,29 @@ class CylinderTest(absltest.TestCase):
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(dx.contact, d.contact, field.name, 'cylinder_plane', 1e-5)
 
+  _SPHERE_CYLINDER = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".15 .05" type="cylinder"/>
+        </body>
+        <body pos="0 0 0.12">
+          <freejoint/>
+          <geom size=".15" type="sphere"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_sphere_cylinder(self):
+    """Tests sphere cylinder contact."""
+    d, dx = _collide(self._SPHERE_CYLINDER)
+    d.contact.pos[0][2] = 0.05  # MJX finds the deepest point on the surface
+    self.assertLess(dx.contact.dist[0], 0)
+    for field in dataclasses.fields(Contact):
+      _assert_attr_eq(
+          dx.contact, d.contact, field.name, 'sphere-cylinder', 1e-4)
+
 
 class ConvexTest(absltest.TestCase):
   """Tests the convex contact functions."""
@@ -558,7 +604,9 @@ class ConvexTest(absltest.TestCase):
     np.testing.assert_array_less(dx.contact.dist[:2], 0)
     np.testing.assert_array_less(-dx.contact.dist[2:], 0)
     # extract the contact points with penetration
-    c = jax.tree_util.tree_map(lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact)
+    c = jax.tree_util.tree_map(
+        lambda x: jp.take(x, jp.array([0, 1]), axis=0), dx.contact
+    )
     c = c.replace(dim=c.dim[[0, 1]], efc_address=c.efc_address[[0, 1]])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(c, d.contact, field.name, 'box_plane', 1e-5)

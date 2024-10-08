@@ -18,6 +18,7 @@ MJX
 ^^^
 - Added ``mocap_pos`` and ``mocap_quat`` in kinematics.
 - Added support for :ref:`spatial tendons <tendon-spatial>` with pulleys and external sphere and cylinder wrapping.
+- Add sphere-cylinder and sphere-ellipsoid collision functions (:github:issue:`2126`).
 
 Bug fixes
 ^^^^^^^^^
