@@ -161,7 +161,7 @@ class _LSPoint(PyTreeNode):
       linear_pos = (x >= rf)[:, None]
       qf = linear_neg * jp.array([f * (-0.5 * rf - ctx.Jaref), -f * jv, z]).T
       qf += linear_pos * jp.array([f * (-0.5 * rf + ctx.Jaref), f * jv, z]).T
-      quad = jp.where(f[:, None] > 0, qf, quad)
+      quad = jp.where((linear_neg | linear_pos) & (f[:, None] > 0), qf, quad)
 
     if m.opt.cone == ConeType.ELLIPTIC:
       mu, u0 = ctx.fri[:, 0], ctx.u[:, 0]
