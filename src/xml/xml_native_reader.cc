@@ -2890,7 +2890,9 @@ void mjXReader::Extension(XMLElement* section) {
     if (name == "plugin") {
       string plugin_name;
       ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
-      mjs_activatePlugin(spec, plugin_name.c_str());
+      if (mjs_activatePlugin(spec, plugin_name.c_str())) {
+        throw mjXError(elem, "plugin %s not found", plugin_name.c_str());
+      }
 
       XMLElement* child = FirstChildElement(elem);
       while (child) {

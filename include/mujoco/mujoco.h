@@ -241,8 +241,8 @@ MJAPI mjSpec* mj_copySpec(const mjSpec* s);
 // Free memory allocation in mjSpec.
 MJAPI void mj_deleteSpec(mjSpec* s);
 
-// Activate plugin.
-MJAPI void mjs_activatePlugin(mjSpec* s, const char* name);
+// Activate plugin. Returns 0 on success.
+MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
 
 
 //---------------------------------- Printing ------------------------------------------------------

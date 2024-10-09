@@ -1516,7 +1516,7 @@ mjs_activatePlugin
 
 .. mujoco-include:: mjs_activatePlugin
 
-Activate plugin.
+Activate plugin. Returns 0 on success.
 
 .. _Errorandmemory:
 
