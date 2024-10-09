@@ -1360,12 +1360,20 @@ Euler integrator, semi-implicit in velocity.
     # (e.g. because the internal output buffer is too small)
     self.assertIn('mujoco', mujoco.mj_printSchema(flg_html, flg_pad))
 
+  def test_pickle_mjdata_before_step(self):
+    data2 = pickle.loads(pickle.dumps(self.data))
+    attr_to_compare = (
+        'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
+        'warning', 'energy', 'contact', 'efc_J', 'L'
+    )
+    self._assert_attributes_equal(data2, self.data, attr_to_compare)
+
   def test_pickle_mjdata(self):
     mujoco.mj_step(self.model, self.data)
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = (
         'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
-        'warning', 'energy', 'contact', 'efc_J'
+        'warning', 'energy', 'contact', 'efc_J', 'L'
     )
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
     for _ in range(10):
@@ -1379,7 +1387,7 @@ Euler integrator, semi-implicit in velocity.
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = (
         'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
-        'warning', 'energy', 'contact', 'efc_J'
+        'warning', 'energy', 'contact', 'efc_J', 'L'
     )
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
     for _ in range(10):
