@@ -1365,7 +1365,21 @@ Euler integrator, semi-implicit in velocity.
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = (
         'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
-        'warning', 'energy'
+        'warning', 'energy', 'contact', 'efc_J'
+    )
+    self._assert_attributes_equal(data2, self.data, attr_to_compare)
+    for _ in range(10):
+      mujoco.mj_step(self.model, self.data)
+      mujoco.mj_step(self.model, data2)
+    self._assert_attributes_equal(data2, self.data, attr_to_compare)
+
+  def test_pickle_mjdata_sparse(self):
+    self.model.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
+    mujoco.mj_step(self.model, self.data)
+    data2 = pickle.loads(pickle.dumps(self.data))
+    attr_to_compare = (
+        'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
+        'warning', 'energy', 'contact', 'efc_J'
     )
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
     for _ in range(10):
