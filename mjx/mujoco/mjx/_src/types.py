@@ -170,6 +170,7 @@ class SolverType(enum.IntEnum):
 
   Members:
     CG: Conjugate gradient (primal)
+    NEWTON: Newton (primal)
   """
   # unsupported: PGS
   CG = mujoco.mjtSolver.mjSOL_CG
