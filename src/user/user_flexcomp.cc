@@ -101,7 +101,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   mjCModel* model = (mjCModel*)spec->element;
   mjsFlex* dflex = def.spec.flex;
-  int dim = dflex->dim;
+
   bool radial = (type == mjFCOMPTYPE_BOX ||
                  type == mjFCOMPTYPE_CYLINDER ||
                  type == mjFCOMPTYPE_ELLIPSOID);
@@ -115,13 +115,13 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check dim
-  if (dim < 1 || dim > 3) {
+  if (dflex->dim < 1 || dflex->dim > 3) {
     return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
   }
 
   // check counts
   for (int i=0; i < 3; i++) {
-    if (count[i] < 1 || ((radial && count[i] < 2) && dim == 3)) {
+    if (count[i] < 1 || ((radial && count[i] < 2) && dflex->dim == 3)) {
       return comperr(error, "Count too small", error_sz);
     }
   }
@@ -191,7 +191,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
 
   // force flatskin shading for box, cylinder and 3D grid
   if (type == mjFCOMPTYPE_BOX || type == mjFCOMPTYPE_CYLINDER ||
-      (type == mjFCOMPTYPE_GRID && dim == 3)) {
+      (type == mjFCOMPTYPE_GRID && dflex->dim == 3)) {
     dflex->flatskin = true;
   }
 
@@ -199,16 +199,16 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   if (pinrange.size()%2) {
     return comperr(error, "Pin range number must be multiple of 2", error_sz);
   }
-  if (pingrid.size()%dim) {
+  if (pingrid.size()%dflex->dim) {
     return comperr(error, "Pin grid number must be multiple of dim", error_sz);
   }
-  if (pingridrange.size()%(2*dim)) {
+  if (pingridrange.size()%(2*dflex->dim)) {
     return comperr(error, "Pin grid range number of must be multiple of 2*dim", error_sz);
   }
   if (type != mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) can only be used with grid type", error_sz);
   }
-  if (dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
+  if (dflex->dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) cannot be used with dim=1", error_sz);
   }
 
@@ -223,7 +223,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check element size
-  if (element.size()%(dim+1)) {
+  if (element.size()%(dflex->dim+1)) {
     return comperr(error, "Element size must be a multiple of dim+1", error_sz);
   }
 
@@ -289,41 +289,41 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
     }
 
     // process pingrid
-    for (int i=0; i < (int)pingrid.size(); i+=dim) {
+    for (int i=0; i < (int)pingrid.size(); i+=dflex->dim) {
       // check range
-      for (int k=0; k < dim; k++) {
+      for (int k=0; k < dflex->dim; k++) {
         if (pingrid[i+k] < 0 || pingrid[i+k] >= count[k]) {
           return comperr(error, "pingrid out of range", error_sz);
         }
       }
 
       // set
-      if (dim == 2) {
+      if (dflex->dim == 2) {
         pinned[GridID(pingrid[i], pingrid[i+1])] = true;
       }
-      else if (dim == 3) {
+      else if (dflex->dim == 3) {
         pinned[GridID(pingrid[i], pingrid[i+1], pingrid[i+2])] = true;
       }
     }
 
     // process pingridrange
-    for (int i=0; i < (int)pingridrange.size(); i+=2*dim) {
+    for (int i=0; i < (int)pingridrange.size(); i+=2*dflex->dim) {
       // check range
-      for (int k=0; k < 2*dim; k++) {
-        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dim]) {
+      for (int k=0; k < 2*dflex->dim; k++) {
+        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dflex->dim]) {
           return comperr(error, "pingridrange out of range", error_sz);
         }
       }
 
       // set
-      if (dim == 2) {
+      if (dflex->dim == 2) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+2]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+3]; iy++) {
             pinned[GridID(ix, iy)] = true;
           }
         }
       }
-      else if (dim==3) {
+      else if (dflex->dim==3) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+3]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+4]; iy++) {
             for (int iz=pingridrange[i+2]; iz <= pingridrange[i+5]; iz++) {

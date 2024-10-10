@@ -243,7 +243,7 @@ TEST_F(UserFlexTest, RigidFlex) {
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHBinaryGMSH_41_Success) {
+TEST_F(UserFlexTest, LoadMSHBinary_41_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_41_binary_vol_gmshApp.xml");
   std::array<char, 1024> error;
@@ -252,12 +252,13 @@ TEST_F(UserFlexTest, LoadMSHBinaryGMSH_41_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHBinaryGMSH_22_Success) {
+TEST_F(UserFlexTest, LoadMSHBinary_22_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_22_binary_vol_gmshApp.xml");
   std::array<char, 1024> error;
@@ -266,12 +267,13 @@ TEST_F(UserFlexTest, LoadMSHBinaryGMSH_22_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHSurfaceBinaryGMSH_41_Success) {
+TEST_F(UserFlexTest, LoadMSHSurfaceBinary_41_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_41_binary_surf_gmshApp.xml");
   std::array<char, 1024> error;
@@ -280,6 +282,7 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinaryGMSH_41_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
   EXPECT_EQ(m->flex_xvert0[0], -0.5 );
@@ -296,7 +299,7 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinaryGMSH_41_Success) {
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHSurfaceBinaryGMSH_22_Success) {
+TEST_F(UserFlexTest, LoadMSHSurfaceBinary_22_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_22_binary_surf_gmshApp.xml");
   std::array<char, 1024> error;
@@ -305,6 +308,7 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinaryGMSH_22_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
   EXPECT_EQ(m->flex_xvert0[0], -0.5 );
@@ -323,19 +327,20 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinaryGMSH_22_Success) {
 
 TEST_F(UserFlexTest, LoadMSHBinaryFTETWILD_22_Success) {
   const std::string xml_path =
-      GetTestDataFilePath("user/testdata/shark_22_binary_fTetWild.xml");
+      GetTestDataFilePath("user/testdata/shark_22_binary_vol_fTetWild.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 429);
   EXPECT_EQ(m->nflexelem, 1073);
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHASCIIGMSH_41_Success) {
+TEST_F(UserFlexTest, LoadMSHASCII_41_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_41_ascii_vol_gmshApp.xml");
   std::array<char, 1024> error;
@@ -344,12 +349,13 @@ TEST_F(UserFlexTest, LoadMSHASCIIGMSH_41_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHASCIIGMSH_22_Success) {
+TEST_F(UserFlexTest, LoadMSHASCII_22_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_22_ascii_vol_gmshApp.xml");
   std::array<char, 1024> error;
@@ -358,12 +364,13 @@ TEST_F(UserFlexTest, LoadMSHASCIIGMSH_22_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHSurfaceASCIIGMSH_41_Success) {
+TEST_F(UserFlexTest, LoadMSHSurfaceASCII_41_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_41_ascii_surf_gmshApp.xml");
   std::array<char, 1024> error;
@@ -372,6 +379,7 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCIIGMSH_41_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
   EXPECT_EQ(m->flex_xvert0[0], -0.5 );
@@ -388,7 +396,7 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCIIGMSH_41_Success) {
   mj_deleteData(d);
 }
 
-TEST_F(UserFlexTest, LoadMSHSurfaceASCIIGMSH_22_Success) {
+TEST_F(UserFlexTest, LoadMSHSurfaceASCII_22_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_22_ascii_surf_gmshApp.xml");
   std::array<char, 1024> error;
@@ -397,6 +405,7 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCIIGMSH_22_Success) {
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
   EXPECT_EQ(m->flex_xvert0[0], -0.5 );
@@ -415,13 +424,14 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCIIGMSH_22_Success) {
 
 TEST_F(UserFlexTest, LoadMSHASCIIFTETWILD_22_Success) {
   const std::string xml_path =
-      GetTestDataFilePath("user/testdata/shark_22_ascii_fTetWild.xml");
+      GetTestDataFilePath("user/testdata/shark_22_ascii_vol_fTetWild.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
   EXPECT_EQ(m->nflexvert, 425);
   EXPECT_EQ(m->nflexelem, 1070);
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
@@ -514,6 +524,16 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingElement_Fail) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   EXPECT_THAT(error.data(), HasSubstr(
         "XML Error: Error: Error reading Elements"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/cube_22_ascii_vol_gmshApp_missing_dim.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_EQ(m->flex_dim[0], 3);
   mj_deleteModel(m);
 }
 
