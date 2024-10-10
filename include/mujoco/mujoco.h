@@ -1415,6 +1415,10 @@ MJAPI mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
 MJAPI mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                                 const char* prefix, const char* suffix);
 
+// Attach child body to a parent site, return the attached body if success or NULL otherwise.
+MJAPI mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
+                                const char* prefix, const char* suffix);
+
 // Detach body from mjSpec, remove all references and delete the body, return 0 on success.
 MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
 
@@ -1524,10 +1528,7 @@ MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
 //---------------------------------- Find and get utilities ----------------------------------------
 
 // Get spec from body.
-MJAPI mjSpec* mjs_getSpec(mjsBody* body);
-
-// Get spec from frame.
-MJAPI mjSpec* mjs_getSpecFromFrame(mjsFrame* frame);
+MJAPI mjSpec* mjs_getSpec(mjsElement* element);
 
 // Find body in spec by name.
 MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);

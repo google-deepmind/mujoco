@@ -3813,6 +3813,15 @@ mjs_attachFrame
 
 Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
 
+.. _mjs_attachToSite:
+
+mjs_attachToSite
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_attachToSite
+
+Attach child body to a parent site, return the attached body if success or NULL otherwise.
+
 .. _mjs_detachBody:
 
 mjs_detachBody
@@ -4125,15 +4134,6 @@ mjs_getSpec
 .. mujoco-include:: mjs_getSpec
 
 Get spec from body.
-
-.. _mjs_getSpecFromFrame:
-
-mjs_getSpecFromFrame
-~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_getSpecFromFrame
-
-Get spec from frame.
 
 .. _mjs_findBody:
 

@@ -3564,6 +3564,8 @@ mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
                         const char* prefix, const char* suffix);
 mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix);
+mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
+                          const char* prefix, const char* suffix);
 int mjs_detachBody(mjSpec* s, mjsBody* b);
 mjsBody* mjs_addBody(mjsBody* body, mjsDefault* def);
 mjsSite* mjs_addSite(mjsBody* body, mjsDefault* def);
@@ -3596,8 +3598,7 @@ mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);
 mjsTexture* mjs_addTexture(mjSpec* s);
 mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
-mjSpec* mjs_getSpec(mjsBody* body);
-mjSpec* mjs_getSpecFromFrame(mjsFrame* frame);
+mjSpec* mjs_getSpec(mjsElement* element);
 mjsBody* mjs_findBody(mjSpec* s, const char* name);
 mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
 mjsBody* mjs_findChild(mjsBody* body, const char* name);

@@ -29,6 +29,7 @@
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_cache.h"
+#include "user/user_util.h"
 
 namespace {
 
@@ -156,6 +157,29 @@ mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
   mjsFrame* attached_frame = body_parent->last_attached;
   body_parent->last_attached = nullptr;
   return attached_frame;
+}
+
+
+
+// attach child body to a parent site
+mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
+                           const char* prefix, const char* suffix) {
+  if (!parent) {
+    mju_error("parent site is null");
+    return nullptr;
+  }
+  mjCSite* site = static_cast<mjCSite*>(parent->element);
+  mjCBody* body = site->Body();
+  mjCFrame* frame = body->AddFrame(site->frame);
+  frame->spec.pos[0] = site->spec.pos[0];
+  frame->spec.pos[1] = site->spec.pos[1];
+  frame->spec.pos[2] = site->spec.pos[2];
+  frame->spec.quat[0] = site->spec.quat[0];
+  frame->spec.quat[1] = site->spec.quat[1];
+  frame->spec.quat[2] = site->spec.quat[2];
+  frame->spec.quat[3] = site->spec.quat[3];
+  frame->SetParent(body);
+  return mjs_attachBody(&frame->spec, child, prefix, suffix);
 }
 
 
@@ -521,15 +545,8 @@ mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* p
 
 
 // get spec from body
-mjSpec* mjs_getSpec(mjsBody* body) {
-  return &(static_cast<mjCBody*>(body->element)->model->spec);
-}
-
-
-
-// get spec from frame
-mjSpec* mjs_getSpecFromFrame(mjsFrame* frame) {
-  return &(static_cast<mjCFrame*>(frame->element)->model->spec);
+mjSpec* mjs_getSpec(mjsElement* element) {
+  return &(static_cast<mjCBase*>(element)->model->spec);
 }
 
 

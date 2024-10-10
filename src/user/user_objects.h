@@ -587,6 +587,9 @@ class mjCSite : public mjCSite_, private mjsSite {
 
   mjsSite spec;                   // variables set by user
 
+  // site's body
+  mjCBody* Body() const { return body; }
+
   // use strings from mjCBase rather than mjStrings from mjsSite
   using mjCBase::name;
   using mjCBase::info;

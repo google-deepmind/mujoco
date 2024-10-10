@@ -9030,6 +9030,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Attach child frame to a parent body, return the attached frame if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
+    ('mjs_attachToSite',
+     FunctionDecl(
+         name='mjs_attachToSite',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsBody'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='parent',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSite'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='child',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='prefix',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='suffix',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Attach child body to a parent site, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
+     )),
     ('mjs_detachBody',
      FunctionDecl(
          name='mjs_detachBody',
@@ -9674,29 +9708,13 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          parameters=(
              FunctionParameterDecl(
-                 name='body',
+                 name='element',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsBody'),
+                     inner_type=ValueType(name='mjsElement'),
                  ),
              ),
          ),
          doc='Get spec from body.',
-     )),
-    ('mjs_getSpecFromFrame',
-     FunctionDecl(
-         name='mjs_getSpecFromFrame',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjSpec'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='frame',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsFrame'),
-                 ),
-             ),
-         ),
-         doc='Get spec from frame.',
      )),
     ('mjs_findBody',
      FunctionDecl(

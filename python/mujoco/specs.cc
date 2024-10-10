@@ -426,7 +426,7 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsBody& self, mjtObj objtype) -> py::list {
         py::list list;
         raw::MjsElement* el = mjs_firstChild(&self, objtype, true);
-        std::string error = mjs_getError(mjs_getSpec(&self));
+        std::string error = mjs_getError(mjs_getSpec(self.element));
         if (!el && !error.empty()) {
           throw pybind11::value_error(error);
         }
@@ -557,7 +557,9 @@ PYBIND11_MODULE(_specs, m) {
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "spec",
-      [](raw::MjsBody& self) -> raw::MjSpec* { return mjs_getSpec(&self); },
+      [](raw::MjsBody& self) -> raw::MjSpec* {
+        return mjs_getSpec(self.element);
+      },
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "attach_frame",
@@ -566,7 +568,7 @@ PYBIND11_MODULE(_specs, m) {
         auto new_frame =
             mjs_attachFrame(&self, &frame, prefix.c_str(), suffix.c_str());
         if (!new_frame) {
-          throw pybind11::value_error(mjs_getError(mjs_getSpec(&self)));
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
         }
         return new_frame;
       },
@@ -587,7 +589,7 @@ PYBIND11_MODULE(_specs, m) {
             mjs_attachBody(&self, &body, prefix.c_str(), suffix.c_str());
         if (!new_body) {
           throw pybind11::value_error(
-              mjs_getError(mjs_getSpecFromFrame(&self)));
+              mjs_getError(mjs_getSpec(self.element)));
         }
         return new_body;
       },
@@ -641,6 +643,19 @@ PYBIND11_MODULE(_specs, m) {
       "default",
       [](raw::MjsSite& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
+      },
+      py::return_value_policy::reference_internal);
+  mjsSite.def(
+      "attach",
+      [](raw::MjsSite& self, raw::MjsBody& body, std::string& prefix,
+         std::string& suffix) -> raw::MjsBody* {
+        auto new_body =
+            mjs_attachToSite(&self, &body, prefix.c_str(), suffix.c_str());
+        if (!new_body) {
+          throw pybind11::value_error(
+              mjs_getError(mjs_getSpec(self.element)));
+        }
+        return new_body;
       },
       py::return_value_policy::reference_internal);
 

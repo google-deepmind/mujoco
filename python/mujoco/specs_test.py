@@ -857,6 +857,15 @@ class SpecsTest(absltest.TestCase):
         ' attribute',
     )
 
+  def test_attach_body_to_site(self):
+    child = mujoco.MjSpec()
+    parent = mujoco.MjSpec()
+    site = parent.worldbody.add_site(pos=[1, 2, 3])
+    body = child.worldbody.add_body()
+    self.assertIsNotNone(site.attach(body, '', ''))
+    model = parent.compile()
+    np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
+
 
 if __name__ == '__main__':
   absltest.main()
