@@ -14,7 +14,8 @@
 # ==============================================================================
 """Camera handling for USD exporter."""
 
-import mujoco.usd.utils as utils_module
+# import mujoco.usd.utils as utils_module
+import utils as utils_module
 
 import numpy as np
 
@@ -28,11 +29,11 @@ from pxr import UsdGeom
 class USDCamera:
   """Class that handles the cameras in the USD scene."""
 
-  def __init__(self, stage: Usd.Stage, obj_name: str):
+  def __init__(self, stage: Usd.Stage, camera_name: str):
     self.stage = stage
 
-    xform_path = f"/World/Camera_Xform_{obj_name}"
-    camera_path = f"{xform_path}/Camera_{obj_name}"
+    xform_path = f"/World/Camera_Xform_{camera_name}"
+    camera_path = f"{xform_path}/Camera_{camera_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_camera = UsdGeom.Camera.Define(stage, camera_path)
     self.usd_prim = stage.GetPrimAtPath(camera_path)

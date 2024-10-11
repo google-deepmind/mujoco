@@ -15,13 +15,20 @@
 """USD exporter."""
 
 import os
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import mujoco
-import mujoco.usd.camera as camera_module
-import mujoco.usd.lights as light_module
-import mujoco.usd.objects as object_module
-import mujoco.usd.shapes as shapes_module
+# import mujoco.usd.camera as camera_module
+# import mujoco.usd.lights as light_module
+# import mujoco.usd.objects as object_module
+# import mujoco.usd.shapes as shapes_module
+import camera as camera_module
+import lights as light_module
+import objects as object_module
+import shapes as shapes_module
+from mujoco import _enums
+from mujoco import _functions
+from mujoco import _structs
 import numpy as np
 from PIL import Image as im
 from PIL import ImageOps
@@ -32,6 +39,7 @@ from pxr import Sdf
 from pxr import Usd
 from pxr import UsdGeom
 
+PRIMARY_CAMERA_NAME = "primary_usd_camera"
 
 class USDExporter:
   """MuJoCo to USD exporter for porting scenes to external renderers."""
@@ -110,7 +118,7 @@ class USDExporter:
 
     # initializing list of lights and cameras
     self.usd_lights = []
-    self.usd_cameras = []
+    self.usd_cameras = {}
 
     # initializing rendering requirements
     self._scene = mujoco.MjvScene(model=model, maxgeom=max_geom)
@@ -168,48 +176,48 @@ class USDExporter:
   def _update_scene(
       self,
       data: mujoco.MjData,
-      camera: Union[int, str] = -1,
+      camera: Union[int, str, _structs.MjvCamera] = -1,
       scene_option: Optional[mujoco.MjvOption] = None,
   ):
     """Updates the scene."""
-    camera_id = camera
-    if isinstance(camera_id, str):
-      camera_id = mujoco.mj_name2id(
-          self.model, mujoco.mjtObj.mjOBJ_CAMERA.value, camera_id
-      )
+    if not isinstance(camera, _structs.MjvCamera):
+      camera_id = camera
+      if isinstance(camera_id, str):
+        camera_id = _functions.mj_name2id(
+            self.model, _enums.mjtObj.mjOBJ_CAMERA.value, camera_id
+        )
+        if camera_id == -1:
+          raise ValueError(f'The camera "{camera}" does not exist.')
+      if camera_id < -1 or camera_id >= self.model.ncam:
+        raise ValueError(f'The camera id {camera_id} is out of'
+                         f' range [-1, {self.model.ncam}).')
+
+      # Render camera.
+      camera = _structs.MjvCamera()
+      camera.fixedcamid = camera_id
+
+      # Defaults to mjCAMERA_FREE, otherwise mjCAMERA_FIXED refers to a
+      # camera explicitly defined in the model.
       if camera_id == -1:
-        raise ValueError(f"The camera '{camera}' does not exist.")
-    if camera_id < -1 or camera_id >= self.model.ncam:
-      raise ValueError(
-          f"The camera id {camera_id} is out of range [-1, {self.model.ncam})."
-      )
-
-    # Render camera.
-    camera = mujoco.MjvCamera()
-    camera.fixedcamid = camera_id
-
-    # Defaults to mjCAMERA_FREE, otherwise mjCAMERA_FIXED refers to a
-    # camera explicitly defined in the model.
-    if camera_id == -1:
-      camera.type = mujoco.mjtCamera.mjCAMERA_FREE
-      mujoco.mjv_defaultFreeCamera(self.model, camera)
-    else:
-      camera.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        camera.type = _enums.mjtCamera.mjCAMERA_FREE
+        _functions.mjv_defaultFreeCamera(self.model, camera)
+      else:
+        camera.type = _enums.mjtCamera.mjCAMERA_FIXED
 
     scene_option = scene_option or self._scene_option
-    mujoco.mjv_updateScene(
+    _functions.mjv_updateScene(
         self.model,
         data,
         scene_option,
         None,
-        camera,
-        mujoco.mjtCatBit.mjCAT_ALL.value,
+        camera, _enums.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )
 
   def update_scene(
       self,
       data: mujoco.MjData,
+      camera: Union[int, str, _structs.MjvCamera] = -1,
       scene_option: Optional[mujoco.MjvOption] = None,
   ):
     """Updates the scene with latest sim data.
@@ -224,7 +232,7 @@ class USDExporter:
     scene_option = scene_option or self._scene_option
 
     # update the mujoco renderer
-    self._update_scene(data, scene_option=scene_option)
+    self._update_scene(data, camera=camera, scene_option=scene_option)
 
     if self.updates == 0:
       self._initialize_usd_stage()
@@ -393,10 +401,13 @@ class USDExporter:
       )
 
   def _load_cameras(self):
+    self.usd_cameras[PRIMARY_CAMERA_NAME] = camera_module.USDCamera(
+        stage=self.stage, camera_name=PRIMARY_CAMERA_NAME
+    )
     if self.camera_names is not None:
       for name in self.camera_names:
-        self.usd_cameras.append(
-            camera_module.USDCamera(stage=self.stage, obj_name=name))
+        self.usd_cameras[name] = camera_module.USDCamera(stage=self.stage,
+                                                         camera_name=name)
 
   def _update_cameras(
       self,
@@ -409,28 +420,23 @@ class USDExporter:
       data: An MjData instance.
       scene_option: An optional MjvOption instance.
     """
-    for i in range(len(self.usd_cameras)):
-      camera = self.usd_cameras[i]
-      camera_name = self.camera_names[i]
 
+    # First update the pose of the primary USD camera
+    avg_camera, rotation = self._get_camera_orientation()
+    self.usd_cameras[PRIMARY_CAMERA_NAME].update(cam_pos=avg_camera.pos,
+                                                 cam_mat=rotation,
+                                                 frame=self.updates)
+
+    for name, camera in self.usd_cameras.items():
+      if name == PRIMARY_CAMERA_NAME:
+        continue
+      # Updates the scene for the current fixed camera
       self._update_scene(
           data,
-          camera=camera_name,
+          camera=name,
           scene_option=scene_option,
       )
-
-      avg_camera = mujoco.mjv_averageCamera(
-          self.scene.camera[0], self.scene.camera[1])
-
-      forward = avg_camera.forward
-      up = avg_camera.up
-      right = np.cross(forward, up)
-
-      rotation = np.eye(3)
-      rotation[:, 0] = right
-      rotation[:, 1] = up
-      rotation[:, 2] = -forward
-
+      avg_camera, rotation = self._get_camera_orientation()
       camera.update(
           cam_pos=avg_camera.pos, cam_mat=rotation, frame=self.updates
       )
@@ -470,17 +476,17 @@ class USDExporter:
       self,
       pos: List[float],
       rotation_xyz: List[float],
-      obj_name: Optional[str] = "camera_1",
+      camera_name: Optional[str] = "camera_1",
   ):
     """Adds a user defined, fixed camera.
 
     Args:
         pos: position of the camera in 3D space.
         rotation_xyz: euler rotation of the camera.
-        obj_name: name associated with the camera.
+        camera_name: name associated with the camera.
     """
     new_camera = camera_module.USDCamera(
-        stage=self.stage, obj_name=obj_name)
+        stage=self.stage, camera_name=camera_name)
 
     rotation = np.zeros(9)
     quat = np.zeros(4)
@@ -519,6 +525,20 @@ class USDExporter:
       geom_name += f"_tendon_segid{geom.segid}"
 
     return geom_name
+  
+  def _get_camera_orientation(self) -> Tuple[_structs.MjvGLCamera, np.ndarray]:
+        avg_camera = mujoco.mjv_averageCamera(self._scene.camera[0], self._scene.camera[1])
+
+        forward = avg_camera.forward
+        up = avg_camera.up
+        right = np.cross(forward, up)
+
+        R = np.eye(3)
+        R[:, 0] = right
+        R[:, 1] = up
+        R[:, 2] = -forward
+
+        return avg_camera, R
 
   # for debugging purposes, prints all geoms in scene
   # including those part of tendons

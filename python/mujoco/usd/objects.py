@@ -19,8 +19,10 @@ import collections
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import mujoco
-import mujoco.usd.shapes as shapes_module
-import mujoco.usd.utils as utils_module
+# import mujoco.usd.shapes as shapes_module
+# import mujoco.usd.utils as utils_module
+import shapes as shapes_module
+import utils as utils_module
 import numpy as np
 
 
