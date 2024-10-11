@@ -168,9 +168,11 @@ mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
     mju_error("parent site is null");
     return nullptr;
   }
+  mjSpec* spec = mjs_getSpec(parent->element);
   mjCSite* site = static_cast<mjCSite*>(parent->element);
   mjCBody* body = site->Body();
   mjCFrame* frame = body->AddFrame(site->frame);
+  frame->SetParent(body);
   frame->spec.pos[0] = site->spec.pos[0];
   frame->spec.pos[1] = site->spec.pos[1];
   frame->spec.pos[2] = site->spec.pos[2];
@@ -178,7 +180,7 @@ mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
   frame->spec.quat[1] = site->spec.quat[1];
   frame->spec.quat[2] = site->spec.quat[2];
   frame->spec.quat[3] = site->spec.quat[3];
-  frame->SetParent(body);
+  mjs_resolveOrientation(frame->spec.quat, spec->degree, spec->eulerseq, &site->spec.alt);
   return mjs_attachBody(&frame->spec, child, prefix, suffix);
 }
 
