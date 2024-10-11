@@ -141,28 +141,15 @@ int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus) {
 //---------------------------- sparse Cholesky -----------------------------------------------------
 
 // sparse reverse-order Cholesky decomposition: mat = L'*L; return 'rank'
-//  mat must have uncompressed layout; rownnz is modified to end at diagonal
+//  mat must be lower-triangular, have preallocated space for fill-in
 int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
-                         int* rownnz, int* rowadr, int* colind,
+                         int* rownnz, const int* rowadr, int* colind,
                          mjData* d) {
   int rank = n;
 
   mj_markStack(d);
+  mjtNum* buf = mj_stackAllocNum(d, n);
   int* buf_ind = mj_stackAllocInt(d, n);
-  mjtNum* sparse_buf = mj_stackAllocNum(d, n);
-
-  // shrink rows so that rownnz ends at diagonal
-  for (int r=0; r < n; r++) {
-    // shrink
-    while (rownnz[r] > 0 && colind[rowadr[r]+rownnz[r]-1] > r) {
-      rownnz[r]--;
-    }
-
-    // check
-    if (rownnz[r] == 0 || colind[rowadr[r]+rownnz[r]-1] != r) {
-      mjERROR("matrix must have non-zero diagonal");
-    }
-  }
 
   // backpass over rows
   for (int r=n-1; r >= 0; r--) {
@@ -191,7 +178,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
       // mat(c,0:c) = mat(c,0:c) - mat(r,c) * mat(r,0:c)
       int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], 1, -mat[adr+i],
                                     rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r],
-                                    sparse_buf, buf_ind);
+                                    buf, buf_ind);
 
       // assign new nnz to row c
       rownnz[c] = nnz_c;
@@ -251,7 +238,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
+                         const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d) {
   mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, n);

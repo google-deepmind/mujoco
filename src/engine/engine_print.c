@@ -756,7 +756,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     mjERROR("attempting to print mjData when stack is in use");
   }
 
-  mjtNum *M;
+  mjtNum *M = NULL;
   mj_markStack(d);
 
   // check format string
@@ -780,8 +780,10 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     return;
   }
 
-  // allocate full inertia
-  M = mj_stackAllocNum(d, m->nv*m->nv);
+  // allocate full inertia if it's small
+  if (m->nv <= 200) {
+    M = mj_stackAllocNum(d, m->nv*m->nv);
+  }
 
 #ifdef MEMORY_SANITIZER
   // If memory sanitizer is active, d->buffer will be marked as poisoned, even
@@ -969,13 +971,15 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("ACTUATOR_MOMENT", m->nu, m->nv, d->actuator_moment, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
 
-  // construct and print full M matrix
-  mj_fullM(m, M, d->qM);
-  printArray("QM", m->nv, m->nv, M, fp, float_format);
+  if (M) {
+    // construct and print full M matrix
+    mj_fullM(m, M, d->qM);
+    printArray("QM", m->nv, m->nv, M, fp, float_format);
 
-  // construct and print full LD matrix
-  mj_fullM(m, M, d->qLD);
-  printArray("QLD", m->nv, m->nv, M, fp, float_format);
+    // construct and print full LD matrix
+    mj_fullM(m, M, d->qLD);
+    printArray("QLD", m->nv, m->nv, M, fp, float_format);
+  }
 
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
   printArray("QLDIAGSQRTINV", m->nv, 1, d->qLDiagSqrtInv, fp, float_format);
@@ -1064,14 +1068,16 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
   fprintf(fp, "\n\n");
 
-  // print qDeriv
-  mju_sparse2dense(M, d->qDeriv, m->nv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind);
-  printArray("QDERIV", m->nv, m->nv, M, fp, float_format);
+  if (M) {
+    // print qDeriv
+    mju_sparse2dense(M, d->qDeriv, m->nv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind);
+    printArray("QDERIV", m->nv, m->nv, M, fp, float_format);
 
-  // print qLU
-  mju_sparse2dense(M, d->qLU, m->nv, m->nv, d->D_rownnz, d->D_rowadr,
-                   d->D_colind);
-  printArray("QLU", m->nv, m->nv, M, fp, float_format);
+    // print qLU
+    mju_sparse2dense(M, d->qLU, m->nv, m->nv, d->D_rownnz, d->D_rowadr,
+                    d->D_colind);
+    printArray("QLU", m->nv, m->nv, M, fp, float_format);
+  }
 
   // contact
   fprintf(fp, "CONTACT\n");
