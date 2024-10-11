@@ -37,8 +37,8 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
 static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3]);
 static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]);
 
-// helper function to compute the support point in the Minkowski difference
-static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+// helper function to compute the support point for EPA
+static void epaSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                     const mjtNum d[3], mjtNum dnorm);
 
 // support function tweaked for GJK by taking kth iteration point as input and setting both
@@ -68,7 +68,7 @@ typedef struct {
   int nfaces;        // number of faces
   int maxfaces;      // max number of faces that can be stored in polytope
   Face** map;        // linear map storing faces
-  int nmap;         // number of faces in map
+  int nmap;          // number of faces in map
 } Polytope;
 
 // copies a vertex into the polytope and returns its index
@@ -230,7 +230,32 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
   status->gjk_iterations = k;
   status->nsimplex = n;
-  return mju_norm3(x_k);
+  status->gjk_dist = mju_norm3(x_k);
+  return status->gjk_dist;
+}
+
+
+
+// computes the support point in obj1 and obj2 for Minkowski difference
+static inline void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                           const mjtNum dir[3], const mjtNum dir_neg[3]) {
+  // obj1
+  obj1->support(s1, obj1, dir);
+  if (obj1->margin > 0 && obj1->geom >= 0) {
+    mjtNum margin = 0.5 * obj1->margin;
+    s1[0] += dir[0] * margin;
+    s1[1] += dir[1] * margin;
+    s1[2] += dir[2] * margin;
+  }
+
+  // obj2
+  obj2->support(s2, obj2, dir_neg);
+  if (obj2->margin > 0 && obj2->geom >= 0) {
+    mjtNum margin = 0.5 * obj2->margin;
+    s2[0] += dir_neg[0] * margin;
+    s2[1] += dir_neg[1] * margin;
+    s2[2] += dir_neg[2] * margin;
+  }
 }
 
 
@@ -244,15 +269,14 @@ static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj
   scl3(dir, dir_neg, -1);
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
-  obj1->support(s1, obj1, dir);
-  obj2->support(s2, obj2, dir_neg);
+  support(s1, s2, obj1, obj2, dir, dir_neg);
 }
 
 
 
 // helper function to compute the support point in the Minkowski difference
-static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
-                    const mjtNum d[3], mjtNum dnorm) {
+static void epaSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                       const mjtNum d[3], mjtNum dnorm) {
   mjtNum dir[3], dir_neg[3];
 
   // mjc_support assumes a normalized direction
@@ -270,21 +294,17 @@ static void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
   }
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
-  obj1->support(s1, obj1, dir);
-  obj2->support(s2, obj2, dir_neg);
+  support(s1, s2, obj1, obj2, dir, dir_neg);
 }
 
 
 
 // helper function to compute the support point in the Minkowski difference (without normalization)
-// TODO(kylebayes): combine support functions
-void support2(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2, const mjtNum dir[3]) {
-  mjtNum dir_neg[3];
-  scl3(dir_neg, dir, -1);
-
+static void gjkIntersectSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                                const mjtNum dir[3]) {
+  mjtNum dir_neg[3] = {-dir[0], -dir[1], -dir[2]};
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
-  obj1->support(s1, obj1, dir);
-  obj2->support(s2, obj2, dir_neg);
+  support(s1, s2, obj1, obj2, dir, dir_neg);
 }
 
 
@@ -343,7 +363,7 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
     }
 
     // replace worst vertex (farthest from origin) with new candidate
-    support2(simplex1 + s[index], simplex2 + s[index], obj1, obj2, normals + 3*index);
+    gjkIntersectSupport(simplex1 + s[index], simplex2 + s[index], obj1, obj2, normals + 3*index);
     sub3(simplex + s[index], simplex1 + s[index], simplex2 + s[index]);
 
     // found origin outside the Minkowski difference (return no collision)
@@ -815,15 +835,15 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
   mjtNum v3a[3], v3b[3], v3[3];
-  support(v3a, v3b, obj1, obj2, d1, mju_norm3(d1));
+  epaSupport(v3a, v3b, obj1, obj2, d1, mju_norm3(d1));
   sub3(v3, v3a, v3b);
 
   mjtNum v4a[3], v4b[3], v4[3];
-  support(v4a, v4b, obj1, obj2, d2, mju_norm3(d2));
+  epaSupport(v4a, v4b, obj1, obj2, d2, mju_norm3(d2));
   sub3(v4, v4a, v4b);
 
   mjtNum v5a[3], v5b[3], v5[3];
-  support(v5a, v5b, obj1, obj2, d3, mju_norm3(d3));
+  epaSupport(v5a, v5b, obj1, obj2, d3, mju_norm3(d3));
   sub3(v5, v5a, v5b);
 
   // check that all six faces are valid triangles (not collinear)
@@ -930,10 +950,9 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
 // creates a polytope from a 2-simplex (returns 0 if polytope can be created)
 static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // get vertices of simplex from GJK
-  mjtNum v1[3], v2[3], v3[3];
-  sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
-  sub3(v2, status->simplex1 + 3, status->simplex2 + 3);
-  sub3(v3, status->simplex1 + 6, status->simplex2 + 6);
+  const mjtNum *v1 = status->simplex,
+               *v2 = status->simplex + 3,
+               *v3 = status->simplex + 6;
 
   // get normals in both directions
   mjtNum diff1[3], diff2[3], n[3], n_neg[3];
@@ -950,7 +969,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // get 4th vertex in n direction
   mjtNum v4a[3], v4b[3], v4[3];
-  support(v4a, v4b, obj1, obj2, n, n_norm);
+  epaSupport(v4a, v4b, obj1, obj2, n, n_norm);
   sub3(v4, v4a, v4b);
 
   // check that v4 is not contained in the 2-simplex
@@ -960,7 +979,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // get 5th vertex in -n direction
   mjtNum v5a[3], v5b[3], v5[3];
-  support(v5a, v5b, obj1, obj2, n_neg, n_norm);
+  epaSupport(v5a, v5b, obj1, obj2, n_neg, n_norm);
   sub3(v5, v5a, v5b);
 
   // check that v5 is not contained in the 2-simplex
@@ -974,9 +993,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   // TODO(kylebayes): It's possible for GJK to return a 2-simplex with the origin not contained in
   // it but within tolerance from it. In that case the hexahedron could possibly be constructed
   // that doesn't contain the origin, but nonetheless there is penetration depth.
-  mjtNum dir[3];
-  sub3(dir, status->x1, status->x2);
-  if (mju_norm3(dir) > mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
+  if (status->gjk_dist > 10*mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
     return 7;
   }
 
@@ -1229,7 +1246,7 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
     // compute support point w from the closest face's normal
     mjtNum w1[3], w2[3], w[3];
-    support(w1, w2, obj1, obj2, face->v, dist);
+    epaSupport(w1, w2, obj1, obj2, face->v, dist);
     sub3(w, w1, w2);
     mjtNum next_dist = dot3(face->v, w) / dist;
     if (next_dist - dist < tolerance) {
