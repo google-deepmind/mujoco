@@ -71,11 +71,6 @@ typedef struct {
   int nmap;         // number of faces in map
 } Polytope;
 
-// generates a polytope from a 1, 2, or 3-simplex respectively; return 1 if successful, 0 otherwise
-static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
-static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
-static int polytope4(Polytope* pt, const mjCCDStatus* status);
-
 // copies a vertex into the polytope and returns its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 
@@ -786,7 +781,7 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 
 
 
-// creates a polytope from a 1-simplex (2 points i.e. line segment)
+// creates a polytope from a 1-simplex (returns 0 if polytope can be created)
 static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum v1[3], v2[3];
   sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
@@ -835,7 +830,7 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   if (mju_abs(det3(v1, v3, v4)) < mjMINVAL || mju_abs(det3(v1, v3, v5)) < mjMINVAL ||
       mju_abs(det3(v1, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v3, v4)) < mjMINVAL ||
       mju_abs(det3(v2, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v4, v5)) < mjMINVAL) {
-    return 0;
+    return 2;
   }
 
   // save vertices and get indices for each one
@@ -858,12 +853,12 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   //  hexahedron or the hexahedron is degenerate
   for (int i = 0; i < 6; i++) {
     if (pt->faces[i].dist < mjMINVAL) {
-      return 0;
+      return 3;
     }
   }
 
   // valid hexahedron for EPA
-  return 1;
+  return 0;
 }
 
 
@@ -932,7 +927,7 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
 
 
 
-// creates a polytope from a 2-simplex (3 points i.e. triangle)
+// creates a polytope from a 2-simplex (returns 0 if polytope can be created)
 static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // get vertices of simplex from GJK
   mjtNum v1[3], v2[3], v3[3];
@@ -947,7 +942,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   cross3(n, diff1, diff2);
   mjtNum n_norm = mju_norm3(n);
   if (n_norm < mjMINVAL) {
-    return 0;
+    return 4;
   }
 
   // negative of triangle normal n
@@ -960,7 +955,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // check that v4 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v4)) {
-    return 0;
+    return 5;
   }
 
   // get 5th vertex in -n direction
@@ -970,7 +965,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // check that v5 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v5)) {
-    return 0;
+    return 6;
   }
 
   // if origin does not lie on simplex then we need to check that the hexahedron contains the
@@ -982,7 +977,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   mjtNum dir[3];
   sub3(dir, status->x1, status->x2);
   if (mju_norm3(dir) > mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
-    return 0;
+    return 7;
   }
 
   // save vertices and get indices for each one
@@ -1005,15 +1000,15 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   //  hexahedron or the hexahedron is degenerate
   for (int i = 0; i < 6; i++) {
     if (pt->faces[i].dist < mjMINVAL) {
-      return 0;
+      return 8;
     }
   }
-  return 1;
+  return 0;
 }
 
 
 
-// creates a polytope from a 3-simplex (4 points i.e. tetrahedron)
+// creates a polytope from a 3-simplex  (returns 0 if polytope can be created)
 static int polytope4(Polytope* pt, const mjCCDStatus* status) {
   int v1 = newVertex(pt, status->simplex1 + 0, status->simplex2 + 0);
   int v2 = newVertex(pt, status->simplex1 + 3, status->simplex2 + 3);
@@ -1024,7 +1019,7 @@ static int polytope4(Polytope* pt, const mjCCDStatus* status) {
   attachFace(pt, v1, v4, v2, 2, 3, 0);
   attachFace(pt, v1, v3, v4, 0, 3, 1);
   attachFace(pt, v4, v3, v2, 2, 0, 1);
-  return 1;
+  return 0;
 }
 
 
@@ -1335,9 +1330,10 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     }
 
     // simplex not on boundary (objects are penetrating)
-    if (ret) {
+    if (!ret) {
       dist = -epa(status, &pt, obj1, obj2);
     } else {
+      status->epa_iterations = -ret;
       dist = 0;
     }
     mj_freeStack(d);
