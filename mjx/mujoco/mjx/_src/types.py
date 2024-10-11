@@ -308,6 +308,7 @@ class SensorType(enum.IntEnum):
     CAMPROJECTION: camera projection
     RANGEFINDER: rangefinder
     JOINTPOS: joint position
+    TENDONPOS: scalar tendon position
     ACTUATORPOS: actuator position
     BALLQUAT: ball joint orientation
     FRAMEPOS: frame position
@@ -338,6 +339,7 @@ class SensorType(enum.IntEnum):
   CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
   RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER
   JOINTPOS = mujoco.mjtSensor.mjSENS_JOINTPOS
+  TENDONPOS = mujoco.mjtSensor.mjSENS_TENDONPOS
   ACTUATORPOS = mujoco.mjtSensor.mjSENS_ACTUATORPOS
   BALLQUAT = mujoco.mjtSensor.mjSENS_BALLQUAT
   FRAMEPOS = mujoco.mjtSensor.mjSENS_FRAMEPOS

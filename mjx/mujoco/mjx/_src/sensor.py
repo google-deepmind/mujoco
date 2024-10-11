@@ -166,6 +166,8 @@ def sensor_pos(m: Model, d: Data) -> Data:
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.JOINTPOS:
       sensor = d.qpos[m.jnt_qposadr[objid]]
+    elif sensor_type == SensorType.TENDONPOS:
+      sensor = d.ten_length[objid]
     elif sensor_type == SensorType.ACTUATORPOS:
       sensor = d.actuator_length[objid]
     elif sensor_type == SensorType.BALLQUAT:

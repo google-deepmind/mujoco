@@ -5,6 +5,7 @@
 -camprojection
 -rangefinder
 -jointpos
+-tendonpos
 -actuatorpos
 -ballquat
 -framepos
@@ -107,8 +108,20 @@
       ctrllimited="true"/>
   </actuator>
 
+  <tendon>
+    <fixed name="fixed">
+      <joint joint="hinge0" coef=".1"/>
+      <joint joint="hinge1" coef=".2"/>
+    </fixed>
+    <spatial name="spatial">
+      <site site="site0"/>
+      <site site="site1"/>
+    </spatial>
+  </tendon>
+
   <sensor>
     <torque site="site_torque"/>
+    <tendonpos tendon="fixed"/>
     <magnetometer name="magnetometer0" site="site0"/>
     <velocimeter name="velocimeter0" site="site0"/>
     <velocimeter name="velocimeter0cutoff" site="site0" cutoff="3e-4"/>
@@ -117,6 +130,7 @@
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <accelerometer name="accelerometer1" site="site1"/>
     <force site="site_force"/>
+    <tendonpos tendon="spatial"/>
     <jointpos name="jointpos0" joint="hinge0"/>
     <jointpos name="jointpos0cutoff" joint="hinge0" cutoff="1e-4"/>
     <jointvel name="jointvel0" joint="hinge0"/>
