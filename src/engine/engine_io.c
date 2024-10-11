@@ -1460,6 +1460,40 @@ static void maybe_unlock_alloc_mutex(mjData* d) {
   }
 }
 
+
+
+static inline mjStackInfo get_stack_info_from_data(const mjData* d) {
+  mjStackInfo stack_info;
+  stack_info.bottom = (uintptr_t)d->arena + (uintptr_t)d->narena;
+  stack_info.top = stack_info.bottom - d->pstack;
+  stack_info.limit = (uintptr_t)d->arena + (uintptr_t)d->parena;
+  stack_info.stack_base = d->pbase;
+
+  return stack_info;
+}
+
+
+#ifdef ADDRESS_SANITIZER
+// get stack usage from red-zone (under ASAN)
+static size_t stack_usage_redzone(const mjStackInfo* stack_info) {
+  size_t usage = 0;
+
+  // actual stack usage (without red zone bytes) is stored in the red zone
+  if (stack_info->top != stack_info->bottom) {
+    char* prev_pstack_ptr = (char*)(stack_info->top);
+    size_t prev_misalign = (uintptr_t)prev_pstack_ptr % _Alignof(size_t);
+    size_t* prev_usage_ptr =
+      (size_t*)(prev_pstack_ptr +
+                (prev_misalign ? _Alignof(size_t) - prev_misalign : 0));
+    ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
+    usage = *prev_usage_ptr;
+    ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
+  }
+
+  return usage;
+}
+#endif
+
 // allocate memory from the mjData arena
 void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
   maybe_lock_alloc_mutex(d);
@@ -1473,10 +1507,26 @@ void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
     return NULL;
   }
 
+  size_t stack_usage = d->pstack;
+
+  // under ASAN, get stack usage from red zone
+#ifdef ADDRESS_SANITIZER
+  mjStackInfo stack_info;
+  mjStackInfo* stack_info_ptr;
+  if (!d->threadpool) {
+    stack_info = get_stack_info_from_data(d);
+    stack_info_ptr = &stack_info;
+  } else {
+    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
+    stack_info_ptr = mju_getStackInfoForThread(d, thread_id);
+  }
+  stack_usage = stack_usage_redzone(stack_info_ptr);
+#endif
+
   // allocate, update max, return pointer to buffer
   void* result = (char*)d->arena + d->parena + padding;
   d->parena += padding + bytes;
-  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack + d->parena);
+  d->maxuse_arena = mjMAX(d->maxuse_arena, stack_usage + d->parena);
 
 #ifdef ADDRESS_SANITIZER
   ASAN_UNPOISON_MEMORY_REGION(result, bytes);
@@ -1523,17 +1573,7 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
   }
 
 #ifdef ADDRESS_SANITIZER
-  // actual stack usage (without red zone bytes) is stored in the red zone
-  if (stack_info->top != stack_info->bottom) {
-    char* prev_pstack_ptr = (char*)(stack_info->top);
-    size_t prev_misalign = (uintptr_t)prev_pstack_ptr % _Alignof(size_t);
-    size_t* prev_usage_ptr =
-      (size_t*)(prev_pstack_ptr +
-                (prev_misalign ? _Alignof(size_t) - prev_misalign : 0));
-    ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
-    usage = current_alloc_usage + *prev_usage_ptr;
-    ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
-  }
+  usage = current_alloc_usage + stack_usage_redzone(stack_info);
 
   // store new stack usage in the red zone
   size_t misalign = new_top_ptr % _Alignof(size_t);
@@ -1558,18 +1598,6 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
   }
 
   return (void*)start_ptr;
-}
-
-
-
-static inline mjStackInfo get_stack_info_from_data(mjData* d) {
-  mjStackInfo stack_info;
-  stack_info.bottom = (uintptr_t)d->arena + (uintptr_t)d->narena;
-  stack_info.top = stack_info.bottom - d->pstack;
-  stack_info.limit = (uintptr_t)d->arena + (uintptr_t)d->parena;
-  stack_info.stack_base = d->pbase;
-
-  return stack_info;
 }
 
 
