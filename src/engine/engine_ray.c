@@ -343,7 +343,7 @@ static mjtNum ray_cylinder(const mjtNum* pos, const mjtNum* mat, const mjtNum* s
   int side;
   if (mju_abs(lvec[2]) > mjMINVAL) {
     for (side=-1; side <= 1; side+=2) {
-      // soludion of: lpnt[2] + x*lvec[2] = side*height_size
+      // solution of: lpnt[2] + x*lvec[2] = side*height_size
       sol = (side*size[1]-lpnt[2])/lvec[2];
 
       // process if non-negative
@@ -417,7 +417,7 @@ static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
   for (int i=0; i < 3; i++) {
     if (mju_abs(lvec[i]) > mjMINVAL) {
       for (int side=-1; side <= 1; side+=2) {
-        // soludion of: lpnt[i] + x*lvec[i] = side*size[i]
+        // solution of: lpnt[i] + x*lvec[i] = side*size[i]
         sol = (side*size[i]-lpnt[i])/lvec[i];
 
         // process if non-negative
