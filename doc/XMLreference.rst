@@ -2200,13 +2200,14 @@ rotations as unit quaternions.
 .. _body-joint-armature:
 
 :at:`armature`: :at-val:`real, "0"`
-   Armature inertia (or rotor inertia, or reflected inertia) of all degrees of freedom created by this joint. These are
-   constants added to the diagonal of the inertia matrix in generalized coordinates. They make the simulation more
-   stable, and often increase physical realism. This is because when a motor is attached to the system with a
-   transmission that amplifies the motor force by c, the inertia of the rotor (i.e., the moving part of the motor) is
-   amplified by c*c. The same holds for gears in the early stages of planetary gear boxes. These extra inertias often
-   dominate the inertias of the robot parts that are represented explicitly in the model, and the armature attribute is
-   the way to model them.
+   Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually
+   due to a rotor (a.k.a `armature <https://en.wikipedia.org/wiki/Armature_(electrical)>`__) spinning faster than the
+   joint itself due to a geared transmission; in this case the added inertia is known as "reflected inertia" and its
+   value is the rotational inertia of the spinning element multiplied by the square of the gear ratio. The value applies
+   to all degrees of freedom created by this joint.
+
+   Besides increasing the realism of joints with geared transmission, positive :at:`armature` significantly improves
+   simulation stability, even for small values, and is a recommended possible fix when encountering stability issues.
 
 .. _body-joint-damping:
 
