@@ -198,7 +198,12 @@ const char* mjs_getError(mjSpec* s) {
 int mjs_detachBody(mjSpec* s, mjsBody* b) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   mjCBody* body = static_cast<mjCBody*>(b->element);
-  *model -= *body;
+  try {
+    *model -= *body;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
   delete body;
   return 0;
 }

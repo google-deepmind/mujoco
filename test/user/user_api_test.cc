@@ -783,6 +783,10 @@ TEST_F(MujocoTest, AttachDifferent) {
         <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
       </body>
     </worldbody>
+
+    <keyframe>
+      <key name="one" time="1" qpos="1 1 1 1 0 0 0"/>
+    </keyframe>
   </mujoco>)";
 
   static constexpr char xml_result[] = R"(
@@ -837,6 +841,7 @@ TEST_F(MujocoTest, AttachDifferent) {
     </contact>
 
     <keyframe>
+      <key name="one" time="1" qpos="1 1 1 1 0 0 0 0"/>
       <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
       <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
     </keyframe>
@@ -905,6 +910,10 @@ TEST_F(MujocoTest, AttachFrame) {
         <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
       </body>
     </worldbody>
+
+    <keyframe>
+      <key name="one" time="1" qpos="1 1 1 1 0 0 0"/>
+    </keyframe>
   </mujoco>)";
 
   static constexpr char xml_result[] = R"(
@@ -959,6 +968,7 @@ TEST_F(MujocoTest, AttachFrame) {
     </contact>
 
     <keyframe>
+      <key name="one" time="1" qpos="1 1 1 1 0 0 0 0"/>
       <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
       <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
     </keyframe>
@@ -1354,6 +1364,39 @@ TEST_F(MujocoTest, AttachMocap) {
   mj_deleteSpec(spec);
   mj_deleteModel(model);
   mj_deleteModel(m_expected);
+}
+
+TEST_F(MujocoTest, ReplicateKeyframe) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <replicate count="1" euler="0 0 1.8">
+        <body name="body" pos="0 -1 0">
+          <joint type="slide"/>
+          <geom name="g" size="1"/>
+        </body>
+      </replicate>
+    </worldbody>
+
+    <keyframe>
+      <key name="keyframe" qpos="1"/>
+    </keyframe>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_THAT(m->ngeom, 1);
+  EXPECT_THAT(m->nbody, 2);
+
+  // check that the keyframe is resized
+  EXPECT_THAT(m->nkey, 1);
+  EXPECT_THAT(m->nq, 1);
+  EXPECT_THAT(m->key_qpos[0], 0);
+  EXPECT_STREQ(mj_id2name(m, mjOBJ_KEY, 0), "keyframe");
+
+  mj_deleteModel(m);
 }
 
 TEST_F(MujocoTest, AttachUnnamedAssets) {

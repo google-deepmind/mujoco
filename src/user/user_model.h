@@ -128,6 +128,8 @@ class mjCModel_ : public mjsElement {
 
   // save qpos0, to recognize changed key_qpos in write
   std::vector<mjtNum> qpos0;
+  std::vector<mjtNum> body_pos0;
+  std::vector<mjtNum> body_quat0;
 
   // variable-size attributes
   std::string comment_;           // comment at top of XML
@@ -382,10 +384,18 @@ class mjCModel : public mjCModel_, private mjSpec {
   void ResetTreeLists();
 
   // save dof offsets in joints and actuators
-  void SaveDofOffsets();
+  void SaveDofOffsets(bool computesize = false);
 
   // convert pending keyframes info to actual keyframes
   void ResolveKeyframes(const mjModel* m);
+
+  // resize a keyframe, filling in missing values
+  void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
+
+  // compute qpos0
+  template <class T>
+  void ComputeReference(std::vector<T>& q0, std::vector<T>& bpos,
+                        std::vector<T>& bquat);
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

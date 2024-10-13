@@ -264,11 +264,11 @@ void mjCModel::ResetTreeLists() {
 
 
 // save associated state addresses in related elements
-void mjCModel::SaveDofOffsets() {
+void mjCModel::SaveDofOffsets(bool computesize) {
   int qposadr = 0;
   int dofadr = 0;
   int actadr = 0;
-  int nmocap = 0;
+  int mocapadr = 0;
 
   for (auto joint : joints_) {
     joint->qposadr_ = qposadr;
@@ -289,11 +289,18 @@ void mjCModel::SaveDofOffsets() {
 
   for (mjCBody* body : bodies_) {
     if (body->spec.mocap) {
-      body->mocapid = nmocap;
-      nmocap++;
+      body->mocapid = mocapadr++;
     } else {
       body->mocapid = -1;
     }
+  }
+
+  if (computesize) {
+    nq = qposadr;
+    nv = dofadr;
+    na = actadr;
+    nu = (int)actuators_.size();
+    nmocap = mocapadr;
   }
 }
 
@@ -1556,6 +1563,7 @@ void mjCModel::SetSizes() {
   ntuple = (int)tuples_.size();
   nkey = (int)keys_.size();
   nplugin = (int)plugins_.size();
+  nq = nv = nu = na = nmocap = 0;
 
   // nq, nv
   for (int i=0; i<njnt; i++) {
@@ -3015,7 +3023,11 @@ void mjCModel::CopyObjects(mjModel* m) {
 
   // save qpos0 in user model (to recognize changed key_qpos in write)
   qpos0.resize(nq);
+  body_pos0.resize(3*nbody);
+  body_quat0.resize(4*nbody);
   mjuu_copyvec(qpos0.data(), m->qpos0, nq);
+  mjuu_copyvec(body_pos0.data(), m->body_pos, 3*nbody);
+  mjuu_copyvec(body_quat0.data(), m->body_quat, 4*nbody);
 }
 
 
@@ -3101,7 +3113,7 @@ void mjCModel::RestoreState(const std::string& state_name, const mjtNum* pos0,
 
   for (unsigned int i=0; i<bodies_.size(); i++) {
     auto body = bodies_[i];
-    if (!body->mocap) {
+    if (!body->spec.mocap) {
       continue;
     }
     if (mpos) {
@@ -3143,11 +3155,16 @@ void mjCModel::StoreKeyframes() {
     resetlists = true;
   }
 
-  // do not change the offset computed during compilation in case the user wants to recompile
+  // do not change compilation quantities in case the user wants to recompile preserving the state
   if (!compiled) {
-    SaveDofOffsets();
+    SaveDofOffsets(/*computesize=*/true);
+    qpos0.resize(nq);
+    body_pos0.resize(3*bodies_.size());
+    body_quat0.resize(4*bodies_.size());
+    ComputeReference(qpos0, body_pos0, body_quat0);
   }
 
+  // save keyframe info and resize keyframes
   for (auto& key : keys_) {
     mjKeyInfo info;
     info.name = prefix + key->name + suffix;
@@ -3159,6 +3176,7 @@ void mjCModel::StoreKeyframes() {
     info.mpos = !key->spec_mpos_.empty();
     info.mquat = !key->spec_mquat_.empty();
     key_pending_.push_back(info);
+    ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
     SaveState(info.name, key->spec_qpos_.data(), key->spec_qvel_.data(),
               key->spec_act_.data(), key->spec_ctrl_.data(),
               key->spec_mpos_.data(), key->spec_mquat_.data());
@@ -3166,6 +3184,10 @@ void mjCModel::StoreKeyframes() {
 
   if (resetlists) {
     ResetTreeLists();
+  }
+
+  if (!compiled) {
+    nq = nv = na = nu = nmocap = 0;
   }
 }
 
@@ -3697,6 +3719,87 @@ void mjCModel::CompileMeshes(const mjVFS* vfs) {
 
 
 
+// compute qpos0
+template <class T>
+void mjCModel::ComputeReference(std::vector<T>& q0, std::vector<T>& bpos, std::vector<T>& bquat) {
+  int b = 0;
+  for (auto body : bodies_) {
+    mjuu_copyvec(bpos.data()+3*b, body->spec.pos, 3);
+    mjuu_copyvec(bquat.data()+4*b, body->spec.quat, 4);
+    for (auto joint : body->joints) {
+      switch (joint->type) {
+      case mjJNT_FREE:
+        mjuu_copyvec(q0.data()+joint->qposadr_, body->spec.pos, 3);
+        mjuu_copyvec(q0.data()+joint->qposadr_+3, body->spec.quat, 4);
+        break;
+
+      case mjJNT_BALL:
+        mjuu_setvec(q0.data()+joint->qposadr_, 1, 0, 0, 0);
+        break;
+
+      case mjJNT_SLIDE:
+      case mjJNT_HINGE:
+        q0[joint->qposadr_] = (T)joint->spec.ref;
+        break;
+
+      default:
+        throw mjCError(joint, "unknown joint type");
+      }
+    }
+    b++;
+  }
+}
+
+
+
+// resizes a keyframe, filling in missing values
+void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
+                              const mjtNum* bpos, const mjtNum* bquat) {
+  if (!key->spec_qpos_.empty()) {
+    int nq0 = key->spec_qpos_.size();
+    key->spec_qpos_.resize(nq);
+    for (int i=nq0; i<nq; i++) {
+      key->spec_qpos_[i] = (double)qpos0_[i];
+    }
+  }
+  if (!key->spec_qvel_.empty()) {
+    key->spec_qvel_.resize(nv);
+  }
+  if (!key->spec_act_.empty()) {
+    key->spec_act_.resize(na);
+  }
+  if (!key->spec_ctrl_.empty()) {
+    key->spec_ctrl_.resize(nu);
+  }
+  if (!key->spec_mpos_.empty()) {
+    int nmocap0 = key->spec_mpos_.size() / 3;
+    key->spec_mpos_.resize(3*nmocap);
+    for (unsigned int j = 0; j < bodies_.size(); j++) {
+      if (bodies_[j]->mocapid < nmocap0) {
+        continue;
+      }
+      int i = bodies_[j]->mocapid;
+      key->spec_mpos_[3*i+0] = (double)bpos[3*j+0];
+      key->spec_mpos_[3*i+1] = (double)bpos[3*j+1];
+      key->spec_mpos_[3*i+2] = (double)bpos[3*j+2];
+    }
+  }
+  if (!key->spec_mquat_.empty()) {
+    int nmocap0 = key->spec_mquat_.size() / 4;
+    key->spec_mquat_.resize(4*nmocap);
+    for (unsigned int j = 0; j < bodies_.size(); j++) {
+      if (bodies_[j]->mocapid < nmocap0) {
+        continue;
+      }
+      int i = bodies_[j]->mocapid;
+      key->spec_mquat_[4*i+0] = (double)bquat[4*j+0];
+      key->spec_mquat_[4*i+1] = (double)bquat[4*j+1];
+      key->spec_mquat_[4*i+2] = (double)bquat[4*j+2];
+      key->spec_mquat_[4*i+3] = (double)bquat[4*j+3];
+    }
+  }
+}
+
 // convert pending keyframes info to actual keyframes
 void mjCModel::ResolveKeyframes(const mjModel* m) {
   if (key_pending_.empty()) {
@@ -3707,51 +3810,8 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
   SaveDofOffsets();
 
   // resize existing keyframes to the new state, fill in missing default values
-  for (unsigned int i = 0; i < nkey - key_pending_.size(); i++) {
-    mjCKey* key = keys_[i];
-    if (!key->spec_qpos_.empty()) {
-      int nq0 = key->spec_qpos_.size();
-      key->spec_qpos_.resize(nq);
-      for (int i=nq0; i<m->nq; i++) {
-        key->spec_qpos_[i] = (double)m->qpos0[i];
-      }
-    }
-    if (!key->spec_qvel_.empty()) {
-      key->spec_qvel_.resize(nv);
-    }
-    if (!key->spec_act_.empty()) {
-      key->spec_act_.resize(na);
-    }
-    if (!key->spec_ctrl_.empty()) {
-      key->spec_ctrl_.resize(nu);
-    }
-    if (!key->spec_mpos_.empty()) {
-      int nmocap0 = key->spec_mpos_.size() / 3;
-      key->spec_mpos_.resize(3*nmocap);
-      for (unsigned int j = 0; j < bodies_.size(); j++) {
-        if (bodies_[j]->mocapid < nmocap0) {
-          continue;
-        }
-        int i = bodies_[j]->mocapid;
-        key->spec_mpos_[3*i+0] = (double)m->body_pos[3*j+0];
-        key->spec_mpos_[3*i+1] = (double)m->body_pos[3*j+1];
-        key->spec_mpos_[3*i+2] = (double)m->body_pos[3*j+2];
-      }
-    }
-    if (!key->spec_mquat_.empty()) {
-      int nmocap0 = key->spec_mquat_.size() / 4;
-      key->spec_mquat_.resize(4*nmocap);
-      for (unsigned int j = 0; j < bodies_.size(); j++) {
-        if (bodies_[j]->mocapid < nmocap0) {
-          continue;
-        }
-        int i = bodies_[j]->mocapid;
-        key->spec_mquat_[4*i+0] = (double)m->body_quat[4*j+0];
-        key->spec_mquat_[4*i+1] = (double)m->body_quat[4*j+1];
-        key->spec_mquat_[4*i+2] = (double)m->body_quat[4*j+2];
-        key->spec_mquat_[4*i+3] = (double)m->body_quat[4*j+3];
-      }
-    }
+  for (auto* key : keys_) {
+    ResizeKeyframe(key, m->qpos0, m->body_pos, m->body_quat);
   }
 
   // create new keyframes, fill in missing default values

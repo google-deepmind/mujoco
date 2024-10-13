@@ -3617,7 +3617,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       }
 
       // delete subtree
-      mjs_detachBody(spec, subtree);
+      if (mjs_detachBody(spec, subtree)) {
+        throw mjXError(elem, mjs_getError(spec));
+      }
     }
 
     // body sub-element

@@ -1234,21 +1234,28 @@ TEST_F(XMLReaderTest, ParseReplicate) {
     </asset>
 
     <worldbody>
+      <replicate count="101" euler="0 0 1.8">
+        <body name="body" pos="0 -1 0">
+          <joint type="slide"/>
+          <geom name="g" size="1"/>
+        </body>
+      </replicate>
+
       <replicate count="2" offset="1 0 0">
         <replicate count="2" offset="0 1 0" sep="_">
           <geom name="geom" size="1" pos="0 0 1" material="material"/>
           <site name="site" pos="1 0 0"/>
         </replicate>
       </replicate>
-
-      <replicate count="101" euler="0 0 1.8">
-        <geom name="g" size="1" pos="0 -1 0"/>
-      </replicate>
     </worldbody>
 
     <sensor>
       <framepos name="sensor" objtype="site" objname="site"/>
     </sensor>
+
+    <keyframe>
+      <key name="keyframe" qpos="1"/>
+    </keyframe>
   </mujoco>
 
   )";
@@ -1287,14 +1294,19 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   }
 
   // check that the final pose is correct
-  int n = 104;
-  EXPECT_NEAR(m->geom_pos[3*n+0], 0, 1e-8);
-  EXPECT_NEAR(m->geom_pos[3*n+1], 1, 1e-8);
-  EXPECT_EQ(m->geom_pos[3*n+2], 0);
-  EXPECT_NEAR(m->geom_quat[4*n+0], 0, 1e-8);
-  EXPECT_EQ(m->geom_quat[4*n+1], 0);
-  EXPECT_EQ(m->geom_quat[4*n+2], 0);
-  EXPECT_EQ(m->geom_quat[4*n+3], 1);
+  int n = m->nbody-1;
+  EXPECT_THAT(m->nbody, 102);
+  EXPECT_NEAR(m->body_pos[3*n+0], 0, 1e-8);
+  EXPECT_NEAR(m->body_pos[3*n+1], 1, 1e-8);
+  EXPECT_EQ(m->body_pos[3*n+2], 0);
+  EXPECT_NEAR(m->body_quat[4*n+0], 0, 1e-8);
+  EXPECT_EQ(m->body_quat[4*n+1], 0);
+  EXPECT_EQ(m->body_quat[4*n+2], 0);
+  EXPECT_EQ(m->body_quat[4*n+3], 1);
+
+  // check that the pending keyframes are lost while detaching
+  EXPECT_THAT(m->nkey, 0);
+  EXPECT_THAT(m->nq, 101);
 
   mj_deleteModel(m);
 }
