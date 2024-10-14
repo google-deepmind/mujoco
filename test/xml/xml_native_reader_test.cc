@@ -1304,9 +1304,14 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   EXPECT_EQ(m->body_quat[4*n+2], 0);
   EXPECT_EQ(m->body_quat[4*n+3], 1);
 
-  // check that the pending keyframes are lost while detaching
-  EXPECT_THAT(m->nkey, 0);
+  // check that the keyframe is resized
+  EXPECT_THAT(m->nkey, 102);
   EXPECT_THAT(m->nq, 101);
+  for (int i = 0; i < m->nkey; i++) {
+    for (int j = 0; j < m->nq; j++) {
+      EXPECT_THAT(m->key_qpos[i*m->nq+j], i == j ? 1 : 0) << i << " " << j;
+    }
+  }
 
   mj_deleteModel(m);
 }

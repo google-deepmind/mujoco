@@ -462,11 +462,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
     ProcessLists(/*checkrepeat=*/false);
   }
 
-  // TODO: carry over pending keyframes
-  key_pending_.clear();
-  StoreKeyframes();
-
   // all keyframes are now pending and they will be resized
+  StoreKeyframes();
   DeleteAll(keys_);
 
   // remove body from tree

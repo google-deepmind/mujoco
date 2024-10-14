@@ -1456,10 +1456,12 @@ TEST_F(MujocoTest, ReplicateKeyframe) {
   EXPECT_THAT(m->nbody, 2);
 
   // check that the keyframe is resized
-  EXPECT_THAT(m->nkey, 1);
+  EXPECT_THAT(m->nkey, 2);
   EXPECT_THAT(m->nq, 1);
-  EXPECT_THAT(m->key_qpos[0], 0);
-  EXPECT_STREQ(mj_id2name(m, mjOBJ_KEY, 0), "keyframe");
+  EXPECT_THAT(m->key_qpos[0], 1);
+  EXPECT_THAT(m->key_qpos[1], 0);
+  EXPECT_STREQ(mj_id2name(m, mjOBJ_KEY, 0), "keyframe0");
+  EXPECT_STREQ(mj_id2name(m, mjOBJ_KEY, 1), "keyframe");
 
   mj_deleteModel(m);
 }
