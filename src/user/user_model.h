@@ -297,7 +297,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void MakeData(const mjModel* m, mjData** dest);
 
   // resolve keyframe references
-  void StoreKeyframes();
+  void StoreKeyframes(mjCModel* dest);
 
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;

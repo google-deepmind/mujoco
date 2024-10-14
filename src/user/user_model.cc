@@ -463,7 +463,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   }
 
   // all keyframes are now pending and they will be resized
-  StoreKeyframes();
+  StoreKeyframes(this);
   DeleteAll(keys_);
 
   // remove body from tree
@@ -3142,8 +3142,14 @@ template void mjCModel::RestoreState<mjtNum>(
 
 
 // resolve keyframe references
-void mjCModel::StoreKeyframes() {
+void mjCModel::StoreKeyframes(mjCModel* dest) {
   bool resetlists = false;
+
+  if (this != dest && !key_pending_.empty()) {
+    mju_warning(
+        "Child model has pending keyframes. They will not be namespaced correctly. "
+        "To prevent this, compile the child model before attaching it again.");
+  }
 
   // create tree lists if they are empty, occurs if an uncompiled model is attached
   if (bodies_.size() == 1 && geoms_.empty() && sites_.empty() && joints_.empty() &&
@@ -3172,7 +3178,7 @@ void mjCModel::StoreKeyframes() {
     info.ctrl = !key->spec_ctrl_.empty();
     info.mpos = !key->spec_mpos_.empty();
     info.mquat = !key->spec_mquat_.empty();
-    key_pending_.push_back(info);
+    dest->key_pending_.push_back(info);
     ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
     SaveState(info.name, key->spec_qpos_.data(), key->spec_qvel_.data(),
               key->spec_act_.data(), key->spec_ctrl_.data(),

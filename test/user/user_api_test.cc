@@ -20,12 +20,12 @@
 #include <filesystem>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/strings/match.h>
+#include "src/cc/array_safety.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
 #include "src/xml/xml_api.h"
@@ -1534,7 +1534,7 @@ TEST_F(MujocoTest, InitTexture) {
   mj_deleteSpec(spec);
 }
 
-TEST_F(MujocoTest, AttachNestedKeyframe) {
+void AttachNestedKeyframe(bool compile) {
   static constexpr char parent_xml[] = R"(
   <mujoco>
     <worldbody>
@@ -1599,6 +1599,32 @@ TEST_F(MujocoTest, AttachNestedKeyframe) {
     </keyframe>
   </mujoco>)";
 
+  static constexpr char expected_xml_uncompiled[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="frame">
+        <body name="child-body">
+          <joint name="child-joint" type="slide"/>
+          <geom size=".2"/>
+          <frame name="child-frame">
+            <body name="child-gchild-body">
+              <joint name="child-gchild-joint" type="slide"/>
+              <geom size=".3"/>
+            </body>
+          </frame>
+        </body>
+      </frame>
+    </worldbody>
+    <keyframe>
+      <key name="child-key2" time="2" qpos="0 2 0"/>
+      <key name="gchild-key1" time="1" qpos="0 0 1"/>
+    </keyframe>
+  </mujoco>)";
+
   std::array<char, 1000> er;
   mjSpec* parent = mj_parseXMLString(parent_xml, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
@@ -1612,17 +1638,28 @@ TEST_F(MujocoTest, AttachNestedKeyframe) {
                  mjs_findBody(gchild, "body"), "gchild-", "");
 
   // compile required before further attachment
-  mjModel* m_child = mj_compile(child, 0);
+  mjModel* m_child = compile ? mj_compile(child, 0) : nullptr;
+
+  // check warning is issued, empty for a compiled model
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+      util::strcpy_arr(warning, msg);
+  };
 
   // attach child to parent
   mjs_attachBody(mjs_findFrame(parent, "frame"),
                  mjs_findBody(child, "body"), "child-", "");
 
+  EXPECT_THAT(warning, HasSubstr(compile ? "" : "model has pending keyframes"));
+
+  // compare models
   mjtNum tol = 0;
   std::string field = "";
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
-  mjModel* m_expected = LoadModelFromString(expected_xml, er.data(), er.size());
+  mjModel* m_expected = LoadModelFromString(
+      compile ? expected_xml : expected_xml_uncompiled, er.data(), er.size());
   EXPECT_THAT(m_expected, NotNull()) << er.data();
   EXPECT_LE(CompareModel(m_attached, m_expected, field), tol)
             << "Expected and attached models are different!\n"
@@ -1634,6 +1671,11 @@ TEST_F(MujocoTest, AttachNestedKeyframe) {
   mj_deleteModel(m_expected);
   mj_deleteModel(m_attached);
   mj_deleteModel(m_child);
+}
+
+TEST_F(MujocoTest, TestAttachNestedKeyframe) {
+  AttachNestedKeyframe(/*compile=*/true);
+  AttachNestedKeyframe(/*compile=*/false);
 }
 
 TEST_F(MujocoTest, RepeatedAttachKeyframe) {
