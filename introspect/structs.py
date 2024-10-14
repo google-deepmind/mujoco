@@ -4327,11 +4327,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in constraint Jacobian',
              ),
              StructFieldDecl(
-                 name='nnzL',
-                 type=ValueType(name='int'),
-                 doc='number of non-zeros in Newton Cholesky factor',
-             ),
-             StructFieldDecl(
                  name='nisland',
                  type=ValueType(name='int'),
                  doc='number of detected constraint islands',
@@ -5286,41 +5281,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc="J*inv(M)*J' + R                                  (nefc x nefc)",  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='L_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in Hessian factor L rows     (nv x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='L_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array                (nv x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='L_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in sparse AR                      (nnzL x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='L',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc="chol(M + J'*diag(efc_D)*J)                       (nnzL x 1)",  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='Lcone',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='L with cone contributions                        (nnzL x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_vel',

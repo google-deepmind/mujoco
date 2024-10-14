@@ -708,14 +708,6 @@
     X( int,      efc_state,         MJ_D(nefc),    1 )
 
 // array fields of mjData that are used in the dual problem
-#define MJDATA_ARENA_POINTERS_NEWTON           \
-    X( int,      L_rownnz,     MJ_M(nv),   1 ) \
-    X( int,      L_rowadr,     MJ_M(nv),   1 ) \
-    X( int,      L_colind,     MJ_D(nnzL), 1 ) \
-    X( mjtNum,   L,            MJ_D(nnzL), 1 ) \
-    X( mjtNum,   Lcone,        MJ_D(nnzL), 1 )
-
-// array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                           \
     X( int,      efc_AR_rownnz,     MJ_D(nefc), 1          ) \
     X( int,      efc_AR_rowadr,     MJ_D(nefc), 1          ) \
@@ -738,7 +730,6 @@
 #define MJDATA_ARENA_POINTERS          \
     MJDATA_ARENA_POINTERS_CONTACT      \
     MJDATA_ARENA_POINTERS_SOLVER       \
-    MJDATA_ARENA_POINTERS_NEWTON       \
     MJDATA_ARENA_POINTERS_DUAL         \
     MJDATA_ARENA_POINTERS_ISLAND
 
@@ -762,7 +753,6 @@
     X( int,       nl                 ) \
     X( int,       nefc               ) \
     X( int,       nnzJ               ) \
-    X( int,       nnzL               ) \
     X( int,       nisland            ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )

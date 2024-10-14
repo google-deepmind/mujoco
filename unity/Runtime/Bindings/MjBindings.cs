@@ -4847,7 +4847,6 @@ public unsafe struct mjData_ {
   public int nl;
   public int nefc;
   public int nnzJ;
-  public int nnzL;
   public int nisland;
   public double time;
   public fixed double energy[2];
@@ -4985,11 +4984,6 @@ public unsafe struct mjData_ {
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
   public double* efc_AR;
-  public int* L_rownnz;
-  public int* L_rowadr;
-  public int* L_colind;
-  public double* L;
-  public double* Lcone;
   public double* efc_vel;
   public double* efc_aref;
   public double* efc_b;

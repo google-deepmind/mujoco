@@ -1362,7 +1362,7 @@ Euler integrator, semi-implicit in velocity.
 
   def test_pickle_mjdata_clean(self):
     data2 = pickle.loads(pickle.dumps(self.data))
-    attr_to_compare = ('time', 'qpos', 'qvel', 'mocap_pos', 'L')
+    attr_to_compare = ('time', 'qpos', 'qvel', 'mocap_pos')
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
 
   def test_pickle_mjdata(self):
@@ -1370,7 +1370,7 @@ Euler integrator, semi-implicit in velocity.
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = (
         'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
-        'warning', 'energy', 'contact', 'efc_J', 'L'
+        'warning', 'energy', 'contact', 'efc_J'
     )
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
     for _ in range(10):
@@ -1384,7 +1384,7 @@ Euler integrator, semi-implicit in velocity.
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = (
         'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
-        'warning', 'energy', 'contact', 'efc_J', 'L'
+        'warning', 'energy', 'contact', 'efc_J'
     )
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
     for _ in range(10):

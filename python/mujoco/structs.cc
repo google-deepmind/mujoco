@@ -748,7 +748,6 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(ne);
   X(nf);
   X(nnzJ);
-  X(nnzL);
   X(nefc);
   X(nisland);
   X(time);
@@ -764,9 +763,6 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
     MJDATA_POINTERS
 #undef X
 
-  bool is_sparse_newton = this->model_->get()->opt.solver == mjSOL_NEWTON &&
-                          mj_isSparse(this->model_->get());
-
 #undef MJ_M
 #define MJ_M(x) this->model_->get()->x
 #undef MJ_D
@@ -779,9 +775,6 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 
     MJDATA_ARENA_POINTERS_CONTACT
     MJDATA_ARENA_POINTERS_SOLVER
-    if (is_sparse_newton) {
-      MJDATA_ARENA_POINTERS_NEWTON
-    }
     if (mj_isDual(this->model_->get())) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -811,8 +804,6 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 
   bool is_dual = mj_isDual(&m);
 
-  bool is_sparse_newton = m.opt.solver == mjSOL_NEWTON && mj_isSparse(&m);
-
   raw::MjData* d = mj_makeData(&m);
   if (!d) {
     throw py::value_error("Failed to create mjData.");
@@ -834,7 +825,6 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(ne);
   X(nf);
   X(nnzJ);
-  X(nnzL);
   X(nefc);
   X(nisland);
   X(time);
@@ -873,9 +863,6 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 
     MJDATA_ARENA_POINTERS_CONTACT
     MJDATA_ARENA_POINTERS_SOLVER
-    if (is_sparse_newton) {
-      MJDATA_ARENA_POINTERS_NEWTON
-    }
     if (is_dual) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -2035,7 +2022,6 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   });
 
   MJDATA_ARENA_POINTERS_SOLVER
-  MJDATA_ARENA_POINTERS_NEWTON
   MJDATA_ARENA_POINTERS_DUAL
   MJDATA_ARENA_POINTERS_ISLAND
 

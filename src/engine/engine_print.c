@@ -1180,13 +1180,6 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     printSparse("EFC_J", d->efc_J, d->nefc, d->efc_J_rownnz,
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
 
-    if (d->nnzL) {
-      // L sparse structure
-      printSparsity("L: Newton reverse Cholesky factor", m->nv, m->nv,
-               d->L_rowadr, d->L_rownnz, d->L_colind, fp);
-      printSparse("L", d->L, m->nv, d->L_rownnz, d->L_rowadr, d->L_colind, fp, float_format);
-    }
-
     printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
     printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);
     printSparse("EFC_AR", d->efc_AR, d->nefc, d->efc_AR_rownnz,
