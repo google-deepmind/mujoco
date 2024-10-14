@@ -6399,6 +6399,12 @@ void mjCSensor::Compile(void) {
       throw mjCError(this, "1st body/geom must be different from 2nd body/geom");
     }
 
+    // height fields are not necessarily convex and are not yet supported
+    if (static_cast<mjCGeom*>(obj)->Type() == mjGEOM_HFIELD ||
+        static_cast<mjCGeom*>(ref)->Type() == mjGEOM_HFIELD) {
+      throw mjCError(this, "height fields are not supported in geom distance sensors");
+    }
+
     // set
     needstage = mjSTAGE_POS;
     if (type==mjSENS_GEOMDIST) {
