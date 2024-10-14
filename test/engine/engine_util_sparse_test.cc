@@ -972,6 +972,9 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
 }
 
 TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* d = mj_makeData(model);
+
   // A = [[1, 0],
   //      [0, 1]]
   int nA = 2;
@@ -981,11 +984,9 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrA[2];
   int colindA[4];
   int rownnzA_factor[2];
-  int parentA[2];
-  int workspaceA[2];
   mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA);
-  int nnzA = mju_cholFactorNNZ(rownnzA_factor, parentA, workspaceA, rownnzA,
-                               rowadrA, colindA, nA);
+  int nnzA = mju_cholFactorNNZ(rownnzA_factor,
+                               rownnzA, rowadrA, colindA, nA, d);
 
   EXPECT_EQ(nnzA, 2);
   EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
@@ -1000,11 +1001,9 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrB[3];
   int colindB[9];
   int rownnzB_factor[3];
-  int parentB[3];
-  int workspaceB[3];
   mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB);
-  int nnzB = mju_cholFactorNNZ(rownnzB_factor, parentB, workspaceB, rownnzB,
-                               rowadrB, colindB, nB);
+  int nnzB = mju_cholFactorNNZ(rownnzB_factor,
+                               rownnzB, rowadrB, colindB, nB, d);
 
   EXPECT_EQ(nnzB, 5);
   EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
@@ -1019,11 +1018,9 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrC[3];
   int colindC[9];
   int rownnzC_factor[3];
-  int parentC[3];
-  int workspaceC[3];
   mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC);
-  int nnzC = mju_cholFactorNNZ(rownnzC_factor, parentC, workspaceC, rownnzC,
-                               rowadrC, colindC, nC);
+  int nnzC = mju_cholFactorNNZ(rownnzC_factor,
+                               rownnzC, rowadrC, colindC, nC, d);
 
   EXPECT_EQ(nnzC, 4);
   EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
@@ -1039,14 +1036,15 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrD[4];
   int colindD[16];
   int rownnzD_factor[4];
-  int parentD[4];
-  int workspaceD[4];
   mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD);
-  int nnzD = mju_cholFactorNNZ(rownnzD_factor, parentD, workspaceD, rownnzD,
-                               rowadrD, colindD, nD);
+  int nnzD = mju_cholFactorNNZ(rownnzD_factor,
+                               rownnzD, rowadrD, colindD, nD, d);
 
   EXPECT_EQ(nnzD, 8);
   EXPECT_THAT(AsVector(rownnzD_factor, 4), ElementsAre(1, 2, 2, 3));
+
+  mj_deleteData(d);
+  mj_deleteModel(model);
 }
 
 }  // namespace

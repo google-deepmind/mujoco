@@ -89,7 +89,7 @@ MJAPI void mju_superSparse(int nr, int* rowsuper,
 // res_rowadr is required to be precomputed
 MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                               const mjtNum* diag, int nr, int nc,
-                              int* res_rownnz, int* res_rowadr, int* res_colind,
+                              int* res_rownnz, const int* res_rowadr, int* res_colind,
                               const int* rownnz, const int* rowadr,
                               const int* colind, const int* rowsuper,
                               const int* rownnzT, const int* rowadrT,
@@ -106,8 +106,8 @@ MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
 // compute row non-zeros of reverse-Cholesky factor L, return total
-MJAPI int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
-                            const int* rowadr, const int* colind, int n);
+MJAPI int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
+                            int n, mjData* d);
 
 #ifdef __cplusplus
 }

@@ -738,7 +738,7 @@ void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc) {
 // res_rowadr is required to be precomputed
 void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const mjtNum* diag, int nr, int nc,
-                        int* res_rownnz, int* res_rowadr, int* res_colind,
+                        int* res_rownnz, const int* res_rowadr, int* res_colind,
                         const int* rownnz, const int* rowadr,
                         const int* colind, const int* rowsuper,
                         const int* rownnzT, const int* rowadrT,
@@ -859,13 +859,17 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
 // compute row non-zeros of reverse-Cholesky factor L, return total
 // based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
-int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
-                      const int* rowadr, const int* colind, int n) {
+int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
+                      int n, mjData* d) {
+  mj_markStack(d);
+  int* parent = mj_stackAllocInt(d, n);
+  int* flag = mj_stackAllocInt(d, n);
+
   // loop over rows in reverse order
   for (int r = n - 1; r >= 0; r--) {
     parent[r] = -1;
     flag[r] = r;
-    L_rownnz[r] = 0;
+    L_rownnz[r] = 1;  // start with 1 for diagonal
     int start = rowadr[r];
     int end = start + rownnz[r];
     // loop over non-zero columns
@@ -886,10 +890,11 @@ int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
     }
   }
 
-  // add 1 for diagonal, accumulate sum
+  mj_freeStack(d);
+
+  // accumulate sum
   int sum = 0;
   for (int r = 0; r < n; r++) {
-    L_rownnz[r]++;
     sum += L_rownnz[r];
   }
 

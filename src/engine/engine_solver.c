@@ -774,7 +774,7 @@ struct _mjCGContext {
   int* dofind;            // dof indices of this island, NULL if monolithic
   int* efcind;            // constraint indices of this island, NULL if monolithic
 
-  // arrays
+  // common arrays (CGallocate)
   mjtNum* Jaref;          // Jac*qacc - aref                              (nefc x 1)
   mjtNum* Jv;             // Jac*search                                   (nefc x 1)
   mjtNum* Ma;             // M*qacc                                       (nv x 1)
@@ -783,6 +783,24 @@ struct _mjCGContext {
   mjtNum* Mgrad;          // M\grad or H\grad                             (nv x 1)
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
+
+  // Newton arrays, known-size (CGallocate)
+  mjtNum* D;              // constraint inertia                           (nefc x 1)
+  mjtNum* C;              // reduced sparse inertia matrix                (nC x 1)
+  int* H_rowadr;          // Hessian row addresses                        (nv x 1)
+  int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
+  int* H_lowernnz;        // Hessian lower triangle row nonzeros          (nv x 1)
+  int* L_rownnz;          // Hessian factor row nonzeros                  (nv x 1)
+  int* L_rowadr;          // Hessian factor row addresses                 (nv x 1)
+
+  // Newton arrays, computed-size (HessianMake)
+  int nH;                 // number of nonzeros in Hessian H
+  int* H_colind;          // Hessian column indices                       (nH x 1)
+  mjtNum* H;              // Hessian                                      (nH x 1)
+  int nL;                 // number of nonzeros in Cholesky factor L
+  int* L_colind;          // Cholesky factor column indices               (nL x 1)
+  mjtNum* L;              // Cholesky factor                              (nL x 1)
+  mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
   // globals
   mjtNum cost;            // constraint + Gauss cost
@@ -800,16 +818,16 @@ struct _mjCGContext {
 typedef struct _mjCGContext mjCGContext;
 
 
-
-// allocate mjCGContext: mjMARK/FREE in caller function!
+// allocate fixed-size arrays in mjCGContext
+//  mj_{mark/free}Stack in calling function!
 static void CGallocate(const mjModel* m, mjData* d, mjCGContext* ctx,
                        int island, int flg_Newton) {
+  // clear everything
+  memset(ctx, 0, sizeof(mjCGContext));
+
   // get sizes
   int nv      = island < 0 ? m->nv   : d->island_dofnum[island];
   int nefc    = island < 0 ? d->nefc : d->island_efcnum[island];
-
-  // clear everything
-  memset(ctx, 0, sizeof(mjCGContext));
 
   // island-related
   ctx->island = island;
@@ -828,30 +846,19 @@ static void CGallocate(const mjModel* m, mjData* d, mjCGContext* ctx,
   ctx->search = mj_stackAllocNum(d, nv);
   ctx->quad   = mj_stackAllocNum(d, nefc*3);
 
-  // Hessian (Newton only)
+  // Newton only, known-size arrays
   ctx->flg_Newton = flg_Newton;
   if (flg_Newton) {
-    // sparse: allocate L_rowadr, L_rownnz
+    ctx->D    = mj_stackAllocNum(d, nefc);
+
+    // sparse Newton only
     if (mj_isSparse(m)) {
-      d->L_rowadr = mj_arenaAllocByte(d, sizeof(int) * nv, _Alignof(int));
-      if (!d->L_rowadr) mjERROR("failed to allocate L_rowadr");
-      d->L_rownnz = mj_arenaAllocByte(d, sizeof(int) * nv, _Alignof(int));
-      if (!d->L_rownnz) mjERROR("failed to allocate L_rownnz");
-
-      // zero nnzL, clear pointers (compute and allocate later in HessianDirect)
-      d->nnzL = 0;
-      d->L_colind = NULL;
-      d->L = NULL;
-      d->Lcone = NULL;
-    }
-
-    // dense: allocate L
-    else if (d->nnzL != nv*nv) {
-      d->L = mj_arenaAllocByte(d, sizeof(mjtNum) * nv*nv, _Alignof(mjtNum));
-      if (!d->L) mjERROR("failed to allocate L");
-
-      // set dense nnzL
-      d->nnzL = nv*nv;
+      ctx->C          = mj_stackAllocNum(d, m->nC);
+      ctx->H_rowadr   = mj_stackAllocInt(d, nv);
+      ctx->H_rownnz   = mj_stackAllocInt(d, nv);
+      ctx->H_lowernnz = mj_stackAllocInt(d, nv);
+      ctx->L_rownnz   = mj_stackAllocInt(d, nv);
+      ctx->L_rowadr   = mj_stackAllocInt(d, nv);
     }
   }
 }
@@ -904,10 +911,10 @@ static void CGupdateGradient(const mjModel* m, const mjData* d, mjCGContext* ctx
   // TODO: b/295296178 - add island support to Newton solver
   if (ctx->flg_Newton) {
     if (mj_isSparse(m)) {
-      mju_cholSolveSparse(ctx->Mgrad, (ctx->ncone ? d->Lcone : d->L),
-                          ctx->grad, nv, d->L_rownnz, d->L_rowadr, d->L_colind);
+      mju_cholSolveSparse(ctx->Mgrad, (ctx->ncone ? ctx->Lcone : ctx->L),
+                          ctx->grad, nv, ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind);
     } else {
-      mju_cholSolve(ctx->Mgrad, (ctx->ncone ? d->Lcone : d->L), ctx->grad, nv);
+      mju_cholSolve(ctx->Mgrad, (ctx->ncone ? ctx->Lcone : ctx->L), ctx->grad, nv);
     }
   }
 
@@ -1375,20 +1382,192 @@ static mjtNum CGsearch(const mjModel* m, const mjData* d, mjCGContext* ctx) {
 
 
 
+// allocate and compute Hessian given efc_state
+//  mj_{mark/free}Stack in caller function!
+static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
+  int nv = m->nv, nefc = d->nefc;
+
+  // compute constraint inertia
+  for (int i=0; i < nefc; i++) {
+    ctx->D[i] = d->efc_state[i] == mjCNSTRSTATE_QUADRATIC ? d->efc_D[i] : 0;
+  }
+
+  // sparse
+  if (mj_isSparse(m)) {
+    // copy values of reduced sparse inertia matrix C
+    for (int i=0; i < m->nC; i++) {
+      ctx->C[i] = d->qM[d->mapM2C[i]];
+    }
+
+    // initialize Hessian rowadr, rownnz
+    mju_sqrMatTDSparseInit(ctx->H_rownnz, ctx->H_rowadr, nv,
+                           d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                           d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
+                           d);
+
+    // add nC to Hessian total nonzeros (unavoidable overcounting since H_colind is still unknown)
+    ctx->nH = m->nC + ctx->H_rowadr[nv - 1] + ctx->H_rownnz[nv - 1];
+
+    // shift H row adresses to make room for C
+    int shift = 0;
+    for (int r = 0; r < nv - 1; r++) {
+      shift += d->C_rownnz[r];
+      ctx->H_rowadr[r + 1] += shift;
+    }
+
+    // allocate H_colind and H
+    ctx->H_colind = mj_stackAllocInt(d, ctx->nH);
+    ctx->H = mj_stackAllocNum(d, ctx->nH);
+
+    // compute H = J'*D*J
+    mju_sqrMatTDSparse(ctx->H, d->efc_J, d->efc_JT, ctx->D, nefc, nv,
+                       ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
+                       d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
+                       d);
+
+    // add mass matrix: H = J'*D*J + C
+    mj_addMSparse(m, d, ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+                  ctx->C, d->C_rownnz, d->C_rowadr, d->C_colind);
+
+    // count total and row non-zeros of reverse-Cholesky factor L
+    ctx->nL = mju_cholFactorNNZ(ctx->L_rownnz, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv, d);
+
+    // compute L row adresses: rowadr = cumsum(rownnz)
+    ctx->L_rowadr[0] = 0;
+    for (int r=1; r < nv; r++) {
+      ctx->L_rowadr[r] = ctx->L_rowadr[r-1] + ctx->L_rownnz[r-1];
+    }
+
+    // allocate L_colind, L, Lcone
+    ctx->L_colind = mj_stackAllocInt(d, ctx->nL);
+    ctx->L = mj_stackAllocNum(d, ctx->nL);
+    if (m->opt.cone == mjCONE_ELLIPTIC) {
+      ctx->Lcone = mj_stackAllocNum(d, ctx->nL);
+    }
+
+    // count nonzeros in rows of H lower triangle
+    for (int r = 0; r < nv; r++) {
+      const int* colind = ctx->H_colind + ctx->H_rowadr[r];
+      int rownnz = ctx->H_rownnz[r];
+
+      // count nonzeros up to diagonal (inclusive) for row r
+      int nnz = 1;
+      while (nnz < rownnz && colind[nnz - 1] < r) {
+        nnz++;
+      }
+
+      // last row element is not the diagonal; SHOULD NOT OCCUR
+      if (colind[nnz - 1] != r) {
+        mjERROR("Newton solver Hessian has zero diagonal on row %d", r);
+      }
+
+      // save row nonzeros
+      ctx->H_lowernnz[r] = nnz;
+    }
+  }
+
+  // dense
+  else {
+    // allocate L, Lcone
+    ctx->nL = nv*nv;
+    ctx->L = mj_stackAllocNum(d, ctx->nL);
+    if (m->opt.cone == mjCONE_ELLIPTIC) {
+      ctx->Lcone = mj_stackAllocNum(d, ctx->nL);
+    }
+
+    // compute H = M + J'*D*J
+    mju_sqrMatTD(ctx->L, d->efc_J, ctx->D, nefc, nv);
+    mj_addMDense(m, d, ctx->L);
+  }
+}
+
+
+
+// forward declaration of HessianCone (readability)
+static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx);
+
+// factorize Hessian: L = chol(H), maybe (re)compute H given efc_state
+static void FactorizeHessian(const mjModel* m, mjData* d, mjCGContext* ctx,
+                             int flg_recompute) {
+  int nv = m->nv, nefc = d->nefc;
+
+  // maybe compute constraint inertia
+  if (flg_recompute) {
+    for (int i=0; i < nefc; i++) {
+      ctx->D[i] = d->efc_state[i] == mjCNSTRSTATE_QUADRATIC ? d->efc_D[i] : 0;
+    }
+  }
+
+  // sparse
+  if (mj_isSparse(m)) {
+    // maybe compute H = M + J'*D*J
+    if (flg_recompute) {
+      // compute H = J'*D*J
+      mju_sqrMatTDSparse(ctx->H, d->efc_J, d->efc_JT, ctx->D, nefc, nv,
+                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
+                        d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
+                        d);
+
+      // add mass matrix: H = J'*D*J + C
+      mj_addMSparse(m, d, ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+                    ctx->C, d->C_rownnz, d->C_rowadr, d->C_colind);
+    }
+
+    // copy H lower-triangle into L, fill-in already accounted for
+    for (int r = 0; r < nv; r++) {
+      int nnz = ctx->H_lowernnz[r];
+      mju_copy(ctx->L + ctx->L_rowadr[r], ctx->H + ctx->H_rowadr[r], nnz);
+      mju_copyInt(ctx->L_colind + ctx->L_rowadr[r], ctx->H_colind + ctx->H_rowadr[r], nnz);
+      ctx->L_rownnz[r] = nnz;
+    }
+
+    // in-place sparse factorization: L = chol(H)
+    int rank = mju_cholFactorSparse(ctx->L, nv, mjMINVAL,
+                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, d);
+
+    // rank-deficient; SHOULD NOT OCCUR
+    if (rank != nv) {
+      mjERROR("rank-deficient sparse Hessian");
+    }
+
+    // pre-counted nL does not match post-factorization nL; SHOULD NOT OCCUR
+    if (ctx->nL !=  ctx->L_rowadr[nv-1] + ctx->L_rownnz[nv-1]) {
+      mjERROR("mismatch between pre-counted and post-factorization L nonzeros");
+    }
+  }
+
+  // dense
+  else {
+    // maybe compute H = M + J'*D*J
+    if (flg_recompute) {
+      mju_sqrMatTD(ctx->L, d->efc_J, ctx->D, nefc, nv);
+      mj_addMDense(m, d, ctx->L);
+    }
+
+    // factorize H
+    mju_cholFactor(ctx->L, nv, mjMINVAL);
+  }
+
+  // add cones to factor if present
+  if (ctx->ncone) {
+    HessianCone(m, d, ctx);
+  }
+
+  // mark full update
+  ctx->nupdate = nefc;
+}
+
+
+
 // elliptic case: Hcone = H + cone_contributions
-// TODO: b/295296178 - add island support to Newton solver
 static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = m->nv, nefc = d->nefc;
   mjtNum local[36];
 
-  // allocate Lcone if required
-  if (!d->Lcone) {
-    d->Lcone = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nnzL, _Alignof(mjtNum));
-  }
-  if (!d->Lcone) mjERROR("failed to allocate Lcone");
-
   // start with Hcone = H
-  mju_copy(d->Lcone, d->L, d->nnzL);
+  mju_copy(ctx->Lcone, ctx->L, ctx->nL);
 
   mj_markStack(d);
 
@@ -1427,8 +1606,8 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
           mju_copyInt(LTJ_ind, d->efc_J_colind+d->efc_J_rowadr[i+r], nnz);
 
           // update
-          mju_cholUpdateSparse(d->Lcone, LTJ_row, nv, 1,
-                               d->L_rownnz, d->L_rowadr, d->L_colind, nnz, LTJ_ind, d);
+          mju_cholUpdateSparse(ctx->Lcone, LTJ_row, nv, 1,
+                               ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz, LTJ_ind, d);
         }
       }
 
@@ -1444,7 +1623,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
         // update
         for (int r=0; r < dim; r++) {
-          mju_cholUpdate(d->Lcone, LTJ+r*nv, nv, 1);
+          mju_cholUpdate(ctx->Lcone, LTJ+r*nv, nv, 1);
         }
       }
 
@@ -1461,155 +1640,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
 
 
-// compute and factorize Hessian: direct method
-// TODO: b/295296178 - add island support to Newton solver
-static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
-  int nv = m->nv, nefc = d->nefc;
-  mj_markStack(d);
-
-  // compute D corresponding to quad states
-  mjtNum* D = mj_stackAllocNum(d, nefc);
-  for (int i=0; i < nefc; i++) {
-    if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
-      D[i] = d->efc_D[i];
-    } else {
-      D[i] = 0;
-    }
-  }
-
-  // sparse
-  if (mj_isSparse(m)) {
-    // copy values of reduced sparse inertia matrix C, get nnz
-    int nnz_C = m->nC;
-    mjtNum* C = mj_stackAllocNum(d, nnz_C);
-    for (int i=0; i < nnz_C; i++) {
-      C[i] = d->qM[d->mapM2C[i]];
-    }
-
-    // allocate and initialize Hessian rowadr, rownnz; get nnz for J'*J
-    int* H_rowadr = mj_stackAllocInt(d, nv);
-    int* H_rownnz = mj_stackAllocInt(d, nv);
-    mju_sqrMatTDSparseInit(H_rownnz, H_rowadr, nv,
-                           d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                           d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                           d);
-    int nnz_JTJ = H_rowadr[nv-1] + H_rownnz[nv-1];
-
-    // shift H rowadr to make room for C
-    int shift = 0;
-    for (int r = 0; r < nv - 1; r++) {
-      shift += d->C_rownnz[r];
-      H_rowadr[r + 1] += shift;
-    }
-
-    // allocate Hessian H, colind
-    int nnz_H = nnz_C + nnz_JTJ;
-    mjtNum* H = mj_stackAllocNum(d, nnz_H);
-    int* H_colind = mj_stackAllocInt(d, nnz_H);
-
-    // compute H = J'*D*J
-    mju_sqrMatTDSparse(H, d->efc_J, d->efc_JT, D, nefc, nv,
-                       H_rownnz, H_rowadr, H_colind,
-                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
-                       d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                       d);
-
-    // add mass matrix; H = J'*D*J + C
-    mj_addMSparse(m, d, H, H_rownnz, H_rowadr, H_colind,
-                  C, d->C_rownnz, d->C_rowadr, d->C_colind);
-
-    // count row and total non-zeros of reverse-Cholesky factor L
-    int* parent = mj_stackAllocInt(d, nv);
-    int* flag = mj_stackAllocInt(d, nv);
-    int nnz_L = mju_cholFactorNNZ(d->L_rownnz, parent, flag, H_rownnz, H_rowadr, H_colind, nv);
-
-    // allocate L_colind, L on arena if required
-    if (!d->nnzL) {
-      // nnzL is 0 but pointers are allocated; SHOULD NOT OCCUR
-      if (d->L_colind || d->L) {
-        mjERROR("nnzL is 0 but L_colind or L or Lcone are allocated");
-      }
-
-      // allocate on arena
-      d->L_colind = mj_arenaAllocByte(d, sizeof(int) * nnz_L, _Alignof(int));
-      if (!d->L_colind) mjERROR("failed to allocate L_colind");
-      d->L = mj_arenaAllocByte(d, sizeof(mjtNum) * nnz_L, _Alignof(mjtNum));
-      if (!d->L) mjERROR("failed to allocate L");
-
-      // set nnzL
-      d->nnzL = nnz_L;
-    } else if (d->nnzL != nnz_L) {
-      // nnzL is nonzero but not equal to computed value; SHOULD NOT OCCUR
-      mjERROR("nnzL is nonzero but not equal to computed value");
-    }
-
-    // compute L row adresses: L_rowadr = cumsum(L_rownnz)
-    d->L_rowadr[0] = 0;
-    for (int r=1; r < nv; r++) {
-      d->L_rowadr[r] = d->L_rowadr[r-1] + d->L_rownnz[r-1];
-    }
-
-    // copy H lower-triangle into L
-    for (int r = 0; r < nv; r++) {
-      // count H non-zeros up to diagonal (inclusive) for row r
-      const int* colind = H_colind + H_rowadr[r];
-      int rownnz = 1;
-      while (rownnz < nv && colind[rownnz - 1] < r) {
-        rownnz++;
-      }
-
-      // last row element is not the diagonal; SHOULD NOT OCCUR
-      if (colind[rownnz - 1] != r) {
-        mjERROR("Newton solver Hessian has zero diagonal on row %d", r);
-      }
-
-      // copy values and column indices
-      mju_copy(d->L + d->L_rowadr[r], H + H_rowadr[r], rownnz);
-      mju_copyInt(d->L_colind + d->L_rowadr[r], H_colind + H_rowadr[r], rownnz);
-
-      // set L_rownnz
-      d->L_rownnz[r] = rownnz;
-    }
-
-    // in-place sparse factorization L = chol(H)
-    int rank = mju_cholFactorSparse(d->L, nv, mjMINVAL, d->L_rownnz, d->L_rowadr, d->L_colind, d);
-
-    // rank-deficient; SHOULD NOT OCCUR
-    if (rank != nv) {
-      mjERROR("rank-deficient Hessian");
-    }
-
-    // pre-counted nnzL does not match post-factorization nnzL; SHOULD NOT OCCUR
-    if (d->nnzL !=  d->L_rowadr[nv-1] + d->L_rownnz[nv-1]) {
-      mjERROR("mismatch between pre-counted and post-factorization L nonzeros");
-    }
-  }
-
-  // dense
-  else {
-    // compute H = M + J'*D*J
-    mju_sqrMatTD(d->L, d->efc_J, D, nefc, nv);
-    mj_addMDense(m, d, d->L);
-
-    // factorize H
-    mju_cholFactor(d->L, nv, mjMINVAL);
-  }
-
-  mj_freeStack(d);
-
-  // add cones if present
-  if (ctx->ncone) {
-    HessianCone(m, d, ctx);
-  }
-
-  // mark full update
-  ctx->nupdate = nefc;
-}
-
-
-
-// incremental update to Hessian
-// TODO: b/295296178 - add island support to Newton solver
+// incremental update to Hessian factor due to changes in efc_state
 static void HessianIncremental(const mjModel* m, mjData* d, mjCGContext* ctx, const int* oldstate) {
   int rank, nv = m->nv, nefc = d->nefc;
   mj_markStack(d);
@@ -1646,20 +1677,20 @@ static void HessianIncremental(const mjModel* m, mjData* d, mjCGContext* ctx, co
         mju_scl(vec, d->efc_J+adr, mju_sqrt(d->efc_D[i]), nnz);
         mju_copyInt(vec_ind, d->efc_J_colind+adr, nnz);
 
-        // sparse update
-        rank = mju_cholUpdateSparse(d->L, vec, nv, flag_update,
-                                    d->L_rownnz, d->L_rowadr, d->L_colind, nnz, vec_ind,
+        // sparse update or downdate
+        rank = mju_cholUpdateSparse(ctx->L, vec, nv, flag_update,
+                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz, vec_ind,
                                     d);
       } else {
         mju_scl(vec, d->efc_J+i*nv, mju_sqrt(d->efc_D[i]), nv);
-        rank = mju_cholUpdate(d->L, vec, nv, flag_update);
+        rank = mju_cholUpdate(ctx->L, vec, nv, flag_update);
       }
       ctx->nupdate++;
 
       // recompute H directly if accuracy lost
       if (rank < nv) {
         mj_freeStack(d);
-        HessianDirect(m, d, ctx);
+        FactorizeHessian(m, d, ctx, /*flg_recompute=*/1);
 
         // nothing else to do
         return;
@@ -1718,7 +1749,9 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
   // first update
   CGupdateConstraint(m, d, &ctx);
   if (flg_Newton) {
-    HessianDirect(m, d, &ctx);
+    // compute and factorize Hessian
+    MakeHessian(m, d, &ctx);
+    FactorizeHessian(m, d, &ctx, /*flg_recompute=*/0);
   }
   CGupdateGradient(m, d, &ctx);
 
@@ -1833,7 +1866,9 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
     // set solver_nnz
     if (flg_Newton) {
       if (mj_isSparse(m)) {
-        d->solver_nnz[island_stat] = 2*d->nnzL - nv;
+        // two L factors if Lcone is present
+        int num_factors = 1 + (ctx.Lcone != NULL);
+        d->solver_nnz[island_stat] = num_factors * ctx.nL + ctx.nH;
       } else {
         d->solver_nnz[island_stat] = nv*nv;
       }
