@@ -321,6 +321,7 @@ class SensorType(enum.IntEnum):
     VELOCIMETER: 3D linear velocity, in local frame
     GYRO: 3D angular velocity, in local frame
     JOINTVEL: joint velocity
+    TENDONVEL: scalar tendon velocity
     ACTUATORVEL: actuator velocity
     BALLANGVEL: ball joint angular velocity
     FRAMELINVEL: 3D linear velocity
@@ -352,6 +353,7 @@ class SensorType(enum.IntEnum):
   VELOCIMETER = mujoco.mjtSensor.mjSENS_VELOCIMETER
   GYRO = mujoco.mjtSensor.mjSENS_GYRO
   JOINTVEL = mujoco.mjtSensor.mjSENS_JOINTVEL
+  TENDONVEL = mujoco.mjtSensor.mjSENS_TENDONVEL
   ACTUATORVEL = mujoco.mjtSensor.mjSENS_ACTUATORVEL
   BALLANGVEL = mujoco.mjtSensor.mjSENS_BALLANGVEL
   FRAMELINVEL = mujoco.mjtSensor.mjSENS_FRAMELINVEL

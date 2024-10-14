@@ -330,6 +330,8 @@ def sensor_vel(m: Model, d: Data) -> Data:
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.JOINTVEL:
       sensor = d.qvel[m.jnt_dofadr[objid]]
+    elif sensor_type == SensorType.TENDONVEL:
+      sensor = d.ten_velocity[objid]
     elif sensor_type == SensorType.ACTUATORVEL:
       sensor = d.actuator_velocity[objid]
     elif sensor_type == SensorType.BALLANGVEL:

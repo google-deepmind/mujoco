@@ -24,7 +24,7 @@ MJX
 - Added support for :ref:`spatial tendons <tendon-spatial>` with pulleys and external sphere and cylinder wrapping.
 - Added sphere-cylinder and sphere-ellipsoid collision functions (:github:issue:`2126`).
 - Fixed a bug with frictionloss constraints.
-- Added ``TENDONPOS`` sensor.
+- Added ``TENDONPOS`` and ``TENDONVEL`` sensors.
 - Fixed a bug with the computation of tangential contact forces in ``_decode_pyramid``.
 
 Bug fixes
