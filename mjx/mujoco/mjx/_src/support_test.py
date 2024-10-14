@@ -203,6 +203,11 @@ class SupportTest(parameterized.TestCase):
       force = jax.jit(support.contact_force, static_argnums=(2,))(mx, dx, j)
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
+      # check for zeros after first condim elements
+      condim = dx.contact.dim[j]
+      if condim < 6:
+        np.testing.assert_allclose(force[condim:], 0, rtol=1e-5, atol=1e-5)
+
       # test world conversion
       force = jax.jit(
           support.contact_force,

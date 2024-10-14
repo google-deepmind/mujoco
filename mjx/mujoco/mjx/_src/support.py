@@ -295,7 +295,7 @@ def _decode_pyramid(
   force = force.at[0].set(pyramid[0 : 2 * (condim - 1)].sum())
 
   # force_tangent_i = (pyramid0_i - pyramid1_i) * mu_i
-  i = np.arange(0, condim)
+  i = np.arange(0, condim - 1)
   force = force.at[i + 1].set((pyramid[2 * i] - pyramid[2 * i + 1]) * mu[i])
 
   return force
