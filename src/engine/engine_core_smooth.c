@@ -847,35 +847,37 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
 // compute actuator/transmission lengths and moments
 void mj_transmission(const mjModel* m, mjData* d) {
-  int id, idslider, ok, nv = m->nv, nu = m->nu;
-  mjtNum det, sdet, av, rod, axis[3], vec[3], dlda[3], dldv[3], quat[4];
-  mjtNum wrench[6], gearAxis[3];
-  mjtNum *jac, *jacA, *jacS;
-  mjtNum *length = d->actuator_length, *moment = d->actuator_moment, *gear;
-  mjtNum *jacref = NULL, *moment_tmp = NULL;  // required for site actuators
+  int nv = m->nv, nu = m->nu;
 
+  // nothing to do
   if (!nu) {
     return;
   }
 
-  // allocate space, clear moments
-  mj_markStack(d);
-  jac  = mj_stackAllocNum(d, 3*nv);
-  jacA = mj_stackAllocNum(d, 3*nv);
-  jacS = mj_stackAllocNum(d, 3*nv);
+  // outputs
+  mjtNum* length = d->actuator_length;
+  mjtNum* moment = d->actuator_moment;
 
-  // define variables required for body transmission, don't allocate
+  // allocate Jacbians
+  mj_markStack(d);
+  mjtNum* jac  = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacA = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacS = mj_stackAllocNum(d, 3*nv);
+
+  // define stack variables required for body transmission, don't allocate
   int issparse = mj_isSparse(m);
   mjtNum* efc_force = NULL;  // used as marker for allocation requirement
   mjtNum *moment_exclude, *jacdifp, *jac1p, *jac2p;
   int *chain;
 
+  // define stack variables required for site transmission, don't allocate
+  mjtNum *jacref = NULL, *moment_tmp = NULL;
+
   // compute lengths and moments
   for (int i=0; i < nu; i++) {
     // extract info
-    id = m->actuator_trnid[2*i];
-    idslider = m->actuator_trnid[2*i+1];    // for slider-crank only
-    gear = m->actuator_gear+6*i;
+    int id = m->actuator_trnid[2*i];
+    mjtNum* gear = m->actuator_gear+6*i;
 
     // process according to transmission type
     switch ((mjtTrn) m->actuator_trntype[i]) {
@@ -893,11 +895,13 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int j = m->jnt_qposadr[id];
 
         // axis: expmap representation of quaternion
+        mjtNum axis[3], quat[4];
         mju_copy4(quat, d->qpos+j);
         mju_normalize4(quat);
         mju_quat2Vel(axis, quat, 1);
 
         // gearAxis: rotate to parent frame if necessary
+        mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear);
         } else {
@@ -924,15 +928,18 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int j = m->jnt_qposadr[id];
 
         // vec: translational components
+        mjtNum vec[3];
         mju_copy3(vec, d->qpos+j);
 
         // axis: expmap representation of quaternion
+        mjtNum axis[3], quat[4];
         mju_quat2Vel(axis, d->qpos+j+3, 1);
         mju_copy4(quat, d->qpos+j+3);
         mju_normalize4(quat);
         mju_quat2Vel(axis, quat, 1);
 
         // gearAxis: rotate to world frame if necessary
+        mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear+3);
         } else {
@@ -950,56 +957,61 @@ void mj_transmission(const mjModel* m, mjData* d) {
       break;
 
     case mjTRN_SLIDERCRANK:             // slider-crank
-      // get data
-      rod = m->actuator_cranklength[i];
-      axis[0] = d->site_xmat[9*idslider+2];
-      axis[1] = d->site_xmat[9*idslider+5];
-      axis[2] = d->site_xmat[9*idslider+8];
-      mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*idslider);
+      {
+        // get data
+        int idslider = m->actuator_trnid[2*i+1];
+        mjtNum rod = m->actuator_cranklength[i];
+        mjtNum axis[3] = {d->site_xmat[9 * idslider + 2],
+                          d->site_xmat[9 * idslider + 5],
+                          d->site_xmat[9 * idslider + 8]};
+        mjtNum vec[3];
+        mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*idslider);
 
-      // compute length and determinant
-      //  length = a'*v - sqrt(det);  det = (a'*v)^2 + r^2 - v'*v)
-      av = mju_dot3(vec, axis);
-      det = av*av + rod*rod - mju_dot3(vec, vec);
-      ok = 1;
-      if (det <= 0) {
-        ok = 0;
-        sdet = 0;
-        length[i] = av;
-      } else {
-        sdet = mju_sqrt(det);
-        length[i] = av - sdet;
-      }
-
-      // compute derivatives of length w.r.t. vec and axis
-      if (ok) {
-        mju_scl3(dldv, axis, 1-av/sdet);
-        mju_scl3(dlda, vec, 1/sdet);        // use dlda as temp
-        mju_addTo3(dldv, dlda);
-
-        mju_scl3(dlda, vec, 1-av/sdet);
-      } else {
-        mju_copy3(dlda, vec);
-        mju_copy3(dldv, axis);
-      }
-
-      // get Jacobians of axis(jacA) and vec(jac)
-      mj_jacPointAxis(m, d, jacS, jacA, d->site_xpos+3*idslider,
-                      axis, m->site_bodyid[idslider]);
-      mj_jacSite(m, d, jac, 0, id);
-      mju_subFrom(jac, jacS, 3*nv);
-
-      // apply chain rule
-      for (int j=0; j < nv; j++) {
-        for (int k=0; k < 3; k++) {
-          moment[i*nv+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
+        // compute length and determinant
+        //  length = a'*v - sqrt(det);  det = (a'*v)^2 + r^2 - v'*v)
+        mjtNum av = mju_dot3(vec, axis);
+        mjtNum sdet, det = av*av + rod*rod - mju_dot3(vec, vec);
+        int ok = 1;
+        if (det <= 0) {
+          ok = 0;
+          sdet = 0;
+          length[i] = av;
+        } else {
+          sdet = mju_sqrt(det);
+          length[i] = av - sdet;
         }
-      }
 
-      // scale by gear ratio
-      length[i] *= gear[0];
-      for (int j = 0; j < nv; j++) {
-        moment[i*nv + j] *= gear[0];
+        // compute derivatives of length w.r.t. vec and axis
+        mjtNum dlda[3], dldv[3];
+        if (ok) {
+          mju_scl3(dldv, axis, 1-av/sdet);
+          mju_scl3(dlda, vec, 1/sdet);        // use dlda as temp
+          mju_addTo3(dldv, dlda);
+
+          mju_scl3(dlda, vec, 1-av/sdet);
+        } else {
+          mju_copy3(dlda, vec);
+          mju_copy3(dldv, axis);
+        }
+
+        // get Jacobians of axis(jacA) and vec(jac)
+        mj_jacPointAxis(m, d, jacS, jacA, d->site_xpos+3*idslider,
+                        axis, m->site_bodyid[idslider]);
+        mj_jacSite(m, d, jac, 0, id);
+        mju_subFrom(jac, jacS, 3*nv);
+
+        // apply chain rule
+        for (int j=0; j < nv; j++) {
+          for (int k=0; k < 3; k++) {
+            moment[i*nv+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
+          }
+        }
+
+        // scale by gear ratio
+        length[i] *= gear[0];
+        for (int j = 0; j < nv; j++) {
+          moment[i*nv + j] *= gear[0];
+        }
       }
       break;
 
@@ -1030,6 +1042,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // reference site undefined
       if (m->actuator_trnid[2*i+1] == -1) {
         // wrench: gear expressed in global frame
+        mjtNum wrench[6];
         mju_mulMatVec3(wrench, d->site_xmat+9*id, gear);      // translation
         mju_mulMatVec3(wrench+3, d->site_xmat+9*id, gear+3);  // rotation
 
@@ -1078,6 +1091,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // translational transmission
         if (!mju_isZero(gear, 3)) {
           // vec: site position in reference site frame
+          mjtNum vec[3];
           mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*refid);
           mju_mulMatTVec3(vec, d->site_xmat+9*refid, vec);
 
@@ -1100,6 +1114,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           }
 
           // wrench: translational gear expressed in global frame
+          mjtNum wrench[6];
           mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear);
 
           // moment: global Jacobian projected on wrench
@@ -1111,10 +1126,12 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mjtNum refquat[4];
 
           // get site and refsite quats from parent bodies (avoiding mju_mat2Quat)
+          mjtNum quat[4];
           mju_mulQuat(quat, m->site_quat+4*id, d->xquat+4*m->site_bodyid[id]);
           mju_mulQuat(refquat, m->site_quat+4*refid, d->xquat+4*m->site_bodyid[refid]);
 
           // convert difference to expmap (axis-angle)
+          mjtNum vec[3];
           mju_subQuat(vec, quat, refquat);
 
           // add length: dot product with gear
@@ -1136,6 +1153,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           }
 
           // wrench: rotational gear expressed in global frame
+          mjtNum wrench[6];
           mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear+3);
 
           // moment_tmp: global Jacobian projected on wrench, add to moment
