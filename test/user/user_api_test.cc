@@ -1152,6 +1152,71 @@ TEST_F(MujocoTest, AttachToSite) {
   mj_deleteModel(expected);
 }
 
+TEST_F(MujocoTest, AttachWorld) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame">
+        <frame name="attached-world-1">
+          <body name="attached-sphere-1">
+            <joint type="slide"/>
+            <geom size=".1"/>
+          </body>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  mjsFrame* frame = mjs_findFrame(parent, "frame");
+  EXPECT_THAT(frame, NotNull());
+  mjsBody* world = mjs_findBody(child, "world");
+  EXPECT_THAT(world, NotNull());
+  mjsBody* child_world = mjs_attachBody(frame, world, "attached-", "-1");
+  EXPECT_THAT(child_world, NotNull());
+  mjsFrame* frame_world = mjs_bodyToFrame(&child_world);
+  EXPECT_THAT(frame_world, NotNull());
+  EXPECT_THAT(child_world, IsNull());
+
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model);
+  mj_deleteModel(expected);
+}
+
 TEST_F(MujocoTest, PreserveState) {
   std::array<char, 1000> er;
   std::string field = "";

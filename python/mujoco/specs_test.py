@@ -866,6 +866,13 @@ class SpecsTest(absltest.TestCase):
     model = parent.compile()
     np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
 
+  def test_body_to_frame(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(pos=[1, 2, 3])
+    spec.compile()
+    frame = body.to_frame()
+    np.testing.assert_array_equal(frame.pos, [1, 2, 3])
+
 
 if __name__ == '__main__':
   absltest.main()

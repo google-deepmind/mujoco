@@ -365,6 +365,9 @@ MJAPI void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
 
+// Transform body into a frame.
+MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
+
 
 //---------------------------------- Initialization  -----------------------------------------------
 

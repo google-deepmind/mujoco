@@ -4400,6 +4400,15 @@ mjs_resolveOrientation
 
 Resolve alternative orientations to quat, return error if any.
 
+.. _mjs_bodyToFrame:
+
+mjs_bodyToFrame
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_bodyToFrame
+
+Transform body into a frame.
+
 .. _ElementInitialization:
 
 Element initialization

@@ -573,6 +573,17 @@ PYBIND11_MODULE(_specs, m) {
         return new_frame;
       },
       py::return_value_policy::reference_internal);
+  mjsBody.def(
+    "to_frame",
+      [](raw::MjsBody* self) -> raw::MjsFrame* {
+        raw::MjsFrame* frame = mjs_bodyToFrame(&self);
+        if (!frame) {
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(self->element)));
+        }
+        // TODO: set the body to py::none
+        return frame;
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSFRAME ====================================
   mjsFrame.def_property_readonly(

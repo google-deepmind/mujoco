@@ -3628,6 +3628,7 @@ void mjs_setDefault(mjsElement* element, mjsDefault* def);
 void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                    const mjsOrientation* orientation);
+mjsFrame* mjs_bodyToFrame(mjsBody** body);
 void mjs_defaultSpec(mjSpec* spec);
 void mjs_defaultOrientation(mjsOrientation* orient);
 void mjs_defaultBody(mjsBody* body);

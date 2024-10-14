@@ -331,6 +331,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
 
+  // create a frame and move all contents of this body into it
+  mjCFrame* ToFrame();
+
   // get mocap position and quaternion
   mjtNum* mpos(const std::string& state_name);
   mjtNum* mquat(const std::string& state_name);

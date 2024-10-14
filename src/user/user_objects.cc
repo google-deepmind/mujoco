@@ -1165,6 +1165,39 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
 
 
 
+// create a frame in the parent body and move all contents of this body into it
+mjCFrame* mjCBody::ToFrame() {
+  if (parentid < 0) {
+    // TODO: store the parent pointer instead of using the id
+    throw mjCError(this, "parent body is not defined, please compile the model first");
+  }
+  mjCBody* parent = model->Bodies()[parentid];
+  mjCFrame* newframe = parent->AddFrame(frame);
+  mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
+  mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
+  parent->bodies.insert(parent->bodies.end(), bodies.begin(), bodies.end());
+  parent->geoms.insert(parent->geoms.end(), geoms.begin(), geoms.end());
+  parent->joints.insert(parent->joints.end(), joints.begin(), joints.end());
+  parent->sites.insert(parent->sites.end(), sites.begin(), sites.end());
+  parent->cameras.insert(parent->cameras.end(), cameras.begin(), cameras.end());
+  parent->lights.insert(parent->lights.end(), lights.begin(), lights.end());
+  parent->frames.insert(parent->frames.end(), frames.begin(), frames.end());
+  bodies.clear();
+  geoms.clear();
+  joints.clear();
+  sites.clear();
+  cameras.clear();
+  lights.clear();
+  frames.clear();
+  parent->bodies.erase(
+      std::remove_if(parent->bodies.begin(), parent->bodies.end(),
+                     [this](mjCBody* body) { return body == this; }),
+      parent->bodies.end());
+  return newframe;
+}
+
+
+
 // get number of objects of specified type
 int mjCBody::NumObjects(mjtObj type) {
   switch (type) {

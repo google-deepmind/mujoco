@@ -10327,6 +10327,24 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Resolve alternative orientations to quat, return error if any.',
      )),
+    ('mjs_bodyToFrame',
+     FunctionDecl(
+         name='mjs_bodyToFrame',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjsBody'),
+                     ),
+                 ),
+             ),
+         ),
+         doc='Transform body into a frame.',
+     )),
     ('mjs_defaultSpec',
      FunctionDecl(
          name='mjs_defaultSpec',

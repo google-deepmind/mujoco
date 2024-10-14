@@ -3848,16 +3848,16 @@ defaults and assets) will be copied in to the top-level model. :el:`attach` is a
 all attachments will appear in the saved XML file.
 
 .. admonition:: Known issues
-   :class: attention
+   :class: note
 
-   The :el:`attach` meta-element is new and not well tested. Please report any issues you encounter to the development
-   team. Additionally, the following known limitations exist, to be addressed in a future release:
+   The following known limitations exist, to be addressed in a future release:
 
-   - The world body cannot be attached.
    - An entire model cannot be attached (i.e. including all elements, referenced or not).
    - All assets from the child model will be copied in, whether they are referenced or not.
-   - Self-attach or circular references are not checked for and will lead to infinite loops.
-   - :ref:`Keyframes<keyframe>` are attached once, so they are not replicated in nested attachments.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _body-attach-model:
 

@@ -666,6 +666,17 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 
 
 
+// Transform body into a frame.
+mjsFrame* mjs_bodyToFrame(mjsBody** body) {
+  mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
+  mjCFrame* frameC = bodyC->ToFrame();
+  delete bodyC;
+  *body = nullptr;
+  return &frameC->spec;
+}
+
+
+
 // get id
 int mjs_getId(mjsElement* element) {
   if (!element) {
