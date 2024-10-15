@@ -99,7 +99,7 @@
 
     <!-- falling pendulum -->
     <body pos="4.0 0 0">
-      <freejoint/>
+      <freejoint name="freejoint"/>
       <geom/>
       <body pos="0 0 -0.8">
         <joint name="joint13" axis="0.4 0.5 0.6" type="slide" armature="0.02" range="-0.4 0.6"/>
@@ -154,5 +154,7 @@
     <motor gear="150" joint="joint16" name="act7"/>
     <motor gear="150" joint="joint17" name="act8"/>
     <position tendon="tendon_2" kp="100"/>
+    <motor gear="2 3 4" jointinparent="joint1"/>
+    <motor gear="5 6 7 8 9 10" jointinparent="freejoint"/>
   </actuator>
 </mujoco>

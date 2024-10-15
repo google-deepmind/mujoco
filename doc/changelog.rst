@@ -26,6 +26,7 @@ MJX
 - Fixed a bug with frictionloss constraints.
 - Added ``TENDONPOS`` and ``TENDONVEL`` sensors.
 - Fixed a bug with the computation of tangential contact forces in ``_decode_pyramid``.
+- Added ``JOINTINPARENT`` actuator transmission type.
 
 Python bindings
 ^^^^^^^^^^^^^^^

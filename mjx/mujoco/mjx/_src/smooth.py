@@ -1022,15 +1022,23 @@ def transmission(m: Model, d: Data) -> Data:
       site_xmat,
       site_quat,
   ):
-    if trntype == TrnType.JOINT:
+    if trntype in (TrnType.JOINT, TrnType.JOINTINPARENT):
       if jnt_typ == JointType.FREE:
         length = jp.zeros(1)
         moment = gear
+        if trntype == TrnType.JOINTINPARENT:
+          quat_neg = math.quat_inv(qpos[3:])
+          gearaxis = math.rotate(gear[3:], quat_neg)
+          moment = moment.at[3:].set(gearaxis)
         m_j = m_j + jp.arange(6)
       elif jnt_typ == JointType.BALL:
         axis, angle = math.quat_to_axis_angle(qpos)
-        length = jp.dot(axis * angle, gear[:3])[None]
-        moment = gear[:3]
+        gearaxis = gear[:3]
+        if trntype == TrnType.JOINTINPARENT:
+          quat_neg = math.quat_inv(qpos)
+          gearaxis = math.rotate(gear[:3], quat_neg)
+        length = jp.dot(axis * angle, gearaxis)[None]
+        moment = gearaxis
         m_j = m_j + jp.arange(3)
       elif jnt_typ in (JointType.SLIDE, JointType.HINGE):
         length = qpos * gear[0]

@@ -188,7 +188,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINT``, ``TRN_SITE``, ``TRN_TENDON``
+     - ``JOINT``, ``JOINTINPARENT``, ``SITE``, ``TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
    * - :ref:`Actuator Gain <mjtGain>`
@@ -270,7 +270,7 @@ The following features are **unsupported**:
    * - :ref:`margin<body-geom-margin>` and :ref:`gap<body-geom-gap>`
      - Unimplemented for collisions with ``Mesh`` :ref:`Geom <mjtGeom>`.
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_BODY``
+     - ``SLIDERCRANK``, ``BODY``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``USER``
    * - :ref:`Actuator Gain <mjtGain>`
