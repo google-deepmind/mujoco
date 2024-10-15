@@ -173,7 +173,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  f33af052e0e60d4aa367328e7d9dffc9dedca6d8
+  b396a6fbb2e173f52edb3360485dedf3389ef830
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL

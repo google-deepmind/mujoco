@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.2.4 (Oct 15, 2024)
+----------------------------
 
 General
 ^^^^^^^
@@ -12,36 +12,36 @@ General
    :align: right
    :width: 240px
 
-- The Newton solver no longer requires ``nv*nv`` memory allocation, allowing for much larger models. See e.g.,
-  `100_humanoids.xml  <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/100_humanoids.xml>`__.
-  Two quadratic-memory allocations still remain to be fully sparsified: ``mjData.actuator_moment`` and the matrices used
-  by the PGS solver.
-- Removed the :at:`solid` and :at:`membrane` plugins and moved the associated computations into the engine. See `3D
-  example model <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__ and `2D example model
-  <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trampoline.xml>`__ for examples of flex objects
-  that previously required these plugins.
-- Replaced the function ``mjs_setActivePlugins`` with :ref:`mjs_activatePlugin`.
+1. The Newton solver no longer requires ``nv*nv`` memory allocation, allowing for much larger models. See e.g.,
+   `100_humanoids.xml  <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/100_humanoids.xml>`__.
+   Two quadratic-memory allocations still remain to be fully sparsified: ``mjData.actuator_moment`` and the matrices used
+   by the PGS solver.
+2. Removed the :at:`solid` and :at:`membrane` plugins and moved the associated computations into the engine. See `3D
+   example model <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__ and `2D example model
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trampoline.xml>`__ for examples of flex objects
+   that previously required these plugins.
+3. Replaced the function ``mjs_setActivePlugins`` with :ref:`mjs_activatePlugin`.
 
 MJX
 ^^^
-- Added ``mocap_pos`` and ``mocap_quat`` in kinematics.
-- Added support for :ref:`spatial tendons <tendon-spatial>` with pulleys and external sphere and cylinder wrapping.
-- Added sphere-cylinder and sphere-ellipsoid collision functions (:github:issue:`2126`).
-- Fixed a bug with frictionloss constraints.
-- Added ``TENDONPOS`` and ``TENDONVEL`` sensors.
-- Fixed a bug with the computation of tangential contact forces in ``_decode_pyramid``.
-- Added ``JOINTINPARENT`` actuator transmission type.
+4. Added ``mocap_pos`` and ``mocap_quat`` in kinematics.
+5. Added support for :ref:`spatial tendons <tendon-spatial>` with pulleys and external sphere and cylinder wrapping.
+6. Added sphere-cylinder and sphere-ellipsoid collision functions (:github:issue:`2126`).
+7. Fixed a bug with frictionloss constraints.
+8. Added ``TENDONPOS`` and ``TENDONVEL`` sensors.
+9. Fixed a bug with the computation of tangential contact forces in ``_decode_pyramid``.
+10. Added ``JOINTINPARENT`` actuator transmission type.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-- Removed support for Python 3.8, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.
+11. Removed support for Python 3.8, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a bug where ``actuator_force`` was not set in MJX (:github:issue:`2068`).
-- Fixed bug where MJX data tendon fields were incorrect after calling ``mjx.put_data``.
-- The compiler now returns an error if height fields are used with :ref:`collision sensors<collision-sensors>` as they
-  are not yet supported.
+12. Fixed a bug where ``actuator_force`` was not set in MJX (:github:issue:`2068`).
+13. Fixed bug where MJX data tendon fields were incorrect after calling ``mjx.put_data``.
+14. The compiler now returns an error if height fields are used with :ref:`collision sensors<collision-sensors>` as they
+    are not yet supported.
 
 
 Version 3.2.3 (Sep 16, 2024)
