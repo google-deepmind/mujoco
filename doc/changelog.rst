@@ -8,6 +8,10 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+.. youtube:: e8lUuykQPGs
+   :align: right
+   :width: 240px
+
 - The Newton solver no longer requires ``nv*nv`` memory allocation, allowing for much larger models. See e.g.,
   `100_humanoids.xml  <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/100_humanoids.xml>`__.
   Two quadratic-memory allocations still remain to be fully sparsified: ``mjData.actuator_moment`` and the matrices used
