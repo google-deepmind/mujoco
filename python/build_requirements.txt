@@ -4,8 +4,6 @@ auditwheel==5.4.0; platform_system == 'Linux' \
     --hash=sha256:d8410a17523427ba3f7b60c9701d23de28b8f94fa5dab732aa6c30d160df8127
 build==1.0.3 \
     --hash=sha256:589bf99a67df7c9cf07ec0ac0e5e2ea5d4b37ac63301c4986d1acb126aa83f8f
-etils[epath]==1.3.0; python_version == '3.8' \
-    --hash=sha256:809a92ff72f12149441492cf4d9a26b56a4741dffb4dfb9c4c7b7afe055c2d28
 etils[epath]==1.5.1; python_version >= '3.9' \
     --hash=sha256:2c1bfa2817eb4881cb509097f1e65ac6160126ba74ec47b3bb47ee678628d8c8
 glfw==2.6.2 \
@@ -14,12 +12,6 @@ glfw==2.6.2 \
     --hash=sha256:fb56cd24f9e173cdddc8f6ebaac4f52304a1dfcae1dadd583038355b73c1ae06 \
     --hash=sha256:faa5596aad5490cdd8657931a66636508c1015a8b7b47018318bb72fcd2b9014 \
     --hash=sha256:d8e4f087eba45f7f4815e3e912867ed5ca16d1047b0958c52047f5b53be67059
-numpy==1.24.4; python_version == '3.8' \
-    --hash=sha256:692f2e0f55794943c5bfff12b3f56f99af76f902fc47487bdfe97856de51a706 \
-    --hash=sha256:dd80e219fd4c71fc3699fc1dadac5dcf4fd882bfc6f7ec53d30fa197b8ee22dc \
-    --hash=sha256:a5425b114831d1e77e4b5d812b69d11d962e104095a5b9c3b641a218abcc050e \
-    --hash=sha256:04640dab83f7c6c85abf9cd729c5b65f1ebd0ccf9de90b270cd61935eef0197f \
-    --hash=sha256:1452241c290f3e2a312c137a9999cdbf63f78864d63c79039bda65ee86943f61
 numpy==1.26.0; python_version >= '3.9' \
     --hash=sha256:166b36197e9debc4e384e9c652ba60c0bacc216d0fc89e78f973a9760b503388 \
     --hash=sha256:f042f66d0b4ae6d48e70e28d487376204d3cbf43b84c03bac57e28dac6151581 \

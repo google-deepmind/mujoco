@@ -27,6 +27,10 @@ MJX
 - Added ``TENDONPOS`` and ``TENDONVEL`` sensors.
 - Fixed a bug with the computation of tangential contact forces in ``_decode_pyramid``.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- Removed support for Python 3.8, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug where ``actuator_force`` was not set in MJX (:github:issue:`2068`).
