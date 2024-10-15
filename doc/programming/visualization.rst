@@ -151,7 +151,7 @@ The low-level mjvGLCamera is what determines the actual rendering. There are two
 for each eye. Each has position, forward and up directions. Forward corresponds to the negative Z axis of the camera
 frame, while up corresponds to the positive Y axis. There is also a frustum in the sense of OpenGL, except we store the
 average of the left and right frustum edges and then during rendering compute the actual edges from the viewport aspect
-ratio assuming 1:1 pixel aspect ratio. The distance between the two camera positions corresponds to the inter-pupilary
+ratio assuming 1:1 pixel aspect ratio. The distance between the two camera positions corresponds to the inter-pupillary
 distance (ipd). When the low-level camera parameters are computed automatically from an abstract camera, the ipd as well
 as vertical field of view (fovy) are taken from ``mjModel.vis.global.ipd``/``fovy`` for free and tracking cameras, and
 from the camera-specific ``mjModel.cam_ipd/fovy`` for cameras defined in the model. When stereoscopic mode is not
