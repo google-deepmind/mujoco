@@ -1951,6 +1951,8 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
     this->spec = other.spec;
     *static_cast<mjCJoint_*>(this) = static_cast<const mjCJoint_&>(other);
     *static_cast<mjsJoint*>(this) = static_cast<const mjsJoint&>(other);
+    qposadr_ = -1;
+    dofadr_ = -1;
   }
   PointToLocal();
   return *this;

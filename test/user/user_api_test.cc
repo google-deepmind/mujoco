@@ -1368,6 +1368,54 @@ TEST_F(MujocoTest, PreserveState) {
   mj_deleteModel(m_expected);
 }
 
+TEST_F(MujocoTest, RecompileAttach) {
+  std::array<char, 1000> er;
+  std::string field = "";
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size=".2"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_makeSpec();
+  EXPECT_THAT(parent, NotNull());
+
+  mjSpec* child = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull());
+
+  mjsFrame* frame1 = mjs_addFrame(mjs_findBody(parent, "world"), 0);
+  mjs_attachBody(frame1, mjs_findBody(child, "body"), "child-", "-1");
+
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nq, 1);
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, NotNull());
+
+  for (int i = 0; i < 100; i++) {
+    mj_step(model, data);
+  }
+
+  mjsFrame* frame2 = mjs_addFrame(mjs_findBody(parent, "world"), 0);
+  mjs_attachBody(frame2, mjs_findBody(child, "body"), "child-", "-2");
+
+  EXPECT_EQ(mj_recompile(parent, 0, model, data), 0);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nq, 2);
+  EXPECT_NE(data->qpos[0], data->qpos[1]);
+  EXPECT_EQ(data->qpos[1], 0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
 TEST_F(MujocoTest, AttachMocap) {
   std::array<char, 1000> er;
   mjtNum tol = 0;

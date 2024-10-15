@@ -353,9 +353,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
 
   // create global lists
   mjCBody *world = bodies_[0];
-  if (compiled) {
-    ResetTreeLists();
-  }
+  ResetTreeLists();
   MakeLists(world);
   ProcessLists(/*checkrepeat=*/false);
 
@@ -3034,11 +3032,15 @@ template <class T>
 void mjCModel::SaveState(const std::string& state_name, const T* qpos, const T* qvel, const T* act,
                          const T* ctrl, const T* mpos, const T* mquat) {
   for (auto joint : joints_) {
-    if (joint->qposadr_ == -1 || joint->dofadr_ == -1) {
-      throw mjCError(nullptr, "SaveState: joint %s has no address", joint->name.c_str());
+    if (joint->qposadr_ < -1 || joint->dofadr_ < -1) {
+      throw mjCError(nullptr, "SaveState: joint %s has invalid address", joint->name.c_str());
     }
-    if (qpos) mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, joint->nq());
-    if (qvel) mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, joint->nv());
+    if (qpos && joint->qposadr_ != -1) {
+      mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, joint->nq());
+    }
+    if (qvel && joint->dofadr_ != -1) {
+      mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, joint->nv());
+    }
   }
 
   for (unsigned int i=0; i<actuators_.size(); i++) {

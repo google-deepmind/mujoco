@@ -425,8 +425,6 @@ class mjCJoint_ : public mjCBase {
   mjCBody* body;                   // joint's body
 
   // variable used for temporarily storing the state of the joint
-  int qposadr_;                                        // address of dof in data->qpos
-  int dofadr_;                                         // address of dof in data->qvel
   std::map<std::string, std::array<mjtNum, 7>> qpos_;  // qpos at the previous step
   std::map<std::string, std::array<mjtNum, 6>> qvel_;  // qvel at the previous step
 
@@ -473,6 +471,10 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
  private:
   int Compile(void);               // compiler; return dofnum
   void PointToLocal(void);
+
+  // variables that should not be copied during copy assignment
+  int qposadr_;                                        // address of dof in data->qpos
+  int dofadr_;                                         // address of dof in data->qvel
 };
 
 
