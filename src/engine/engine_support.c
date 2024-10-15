@@ -20,7 +20,10 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_driver.h"
+#include "engine/engine_collision_gjk.h"
+#include "engine/engine_collision_primitive.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -1404,6 +1407,34 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 //-------------------------- miscellaneous ---------------------------------------------------------
 
+// returns the smallest distance between two geoms (using nativeccd)
+static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int g2,
+                                 mjtNum fromto[6]) {
+  mjCCDConfig config;
+  mjCCDStatus status;
+
+  // set config
+  config.max_iterations = m->opt.ccd_iterations;
+  config.tolerance = m->opt.ccd_tolerance;
+  config.contacts = 1;   // want contacts
+  config.distances = 1;  // want geom distances
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj2, m, d, g2, 0);
+
+  mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
+
+  if (fromto) {
+    mju_copy3(fromto, status.x1);
+    mju_copy3(fromto+3, status.x2);
+  }
+
+  return dist;
+}
+
+
+
 // returns the smallest distance between two geoms
 mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, mjtNum distmax,
                        mjtNum fromto[6]) {
@@ -1418,11 +1449,21 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
   int type1 = m->geom_type[g1];
   int type2 = m->geom_type[g2];
 
+  mjfCollision func = mjCOLLISIONFUNC[type1][type2];
+
   // call collision function if it exists
-  if (!mjCOLLISIONFUNC[type1][type2]) {
+  if (!func) {
     return dist;
   }
-  int num = mjCOLLISIONFUNC[type1][type2](m, d, con, g1, g2, distmax);
+
+  // use nativecdd if flag is enabled
+  if (mjENABLED(mjENBL_NATIVECCD)) {
+    if (func == mjc_Convex || func == mjc_BoxBox) {
+      return mj_geomDistanceCCD(m, d, g1, g2, fromto);
+    }
+  }
+
+  int num = func(m, d, con, g1, g2, distmax);
 
   // find smallest distance
   int smallest = -1;
