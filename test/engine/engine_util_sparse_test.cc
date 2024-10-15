@@ -975,10 +975,9 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   mjModel* model = LoadModelFromString(modelStr);
   mjData* d = mj_makeData(model);
 
-  // A = [[1, 0],
-  //      [0, 1]]
   int nA = 2;
-  mjtNum matA[4] = {1, 0, 0, 1};
+  mjtNum matA[4] = {1, 0,
+                    0, 1};
   mjtNum sparseA[4];
   int rownnzA[2];
   int rowadrA[2];
@@ -991,11 +990,10 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   EXPECT_EQ(nnzA, 2);
   EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
 
-  // B = [[10, 1, 0],
-  //      [1, 10, 1],
-  //      [0, 1, 10]]
   int nB = 3;
-  mjtNum matB[9] = {10, 1, 0, 1, 10, 1, 0, 1, 10};
+  mjtNum matB[9] = {10, 1, 0,
+                    0, 10, 1,
+                    0, 0, 10};
   mjtNum sparseB[9];
   int rownnzB[3];
   int rowadrB[3];
@@ -1008,11 +1006,10 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   EXPECT_EQ(nnzB, 5);
   EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
 
-  // C = [[10, 1, 0],
-  //      [1, 10, 0],
-  //      [0, 0, 10]]
   int nC = 3;
-  mjtNum matC[9] = {10, 1, 0, 1, 10, 0, 0, 0, 10};
+  mjtNum matC[9] = {10, 1, 0,
+                    0, 10, 0,
+                    0, 0, 10};
   mjtNum sparseC[9];
   int rownnzC[3];
   int rowadrC[3];
@@ -1025,12 +1022,11 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   EXPECT_EQ(nnzC, 4);
   EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
 
-  // D = [[10, 1, 2, 3],
-  //      [1, 10, 0, 0],
-  //      [2, 0, 10, 1],
-  //      [3, 0, 1, 10]]
   int nD = 4;
-  mjtNum matD[16] = {10, 1, 2, 3, 1, 10, 0, 0, 2, 0, 10, 1, 3, 0, 1, 10};
+  mjtNum matD[16] = {10, 1, 2, 3,
+                     0, 10, 0, 0,
+                     0, 0, 10, 1,
+                     0, 0, 0, 10};
   mjtNum sparseD[16];
   int rownnzD[4];
   int rowadrD[4];
