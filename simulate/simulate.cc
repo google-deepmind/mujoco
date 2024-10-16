@@ -2538,6 +2538,8 @@ void Simulate::Render() {
   // render in offscreen buffer
   mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
   mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+  simXr.after_render_1sc(&this->platform_ui->mjr_context());
+  mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
 
   //simXr.after_render_1sc(&this->platform_ui->mjr_context());
 #else //mjBUILDSIMULATEXR
@@ -2657,7 +2659,7 @@ void Simulate::Render() {
   
   // render scene
 #ifdef mjBUILDSIMULATEXR
-  simXr.after_render_1sc(&this->platform_ui->mjr_context());
+  //simXr.after_render_1sc(&this->platform_ui->mjr_context());
 #endif  // mjBUILDSIMULATEXR
 
   // finalize

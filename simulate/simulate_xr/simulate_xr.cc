@@ -38,12 +38,7 @@ SimulateXr::SimulateXr() {}
 
 SimulateXr::~SimulateXr() {}
 
-void SimulateXr::init(/*void* window*/) {
-  // window_ = (GLFWwindow *)window;
-  // Only needed in _create_session?
-  // but here created in the beginning after spawning the window, so should be
-  // correct
-
+void SimulateXr::init() {
   // Needed for textures
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cerr << "Failed to initialize OpenGL context for OpenXR." << std::endl;
@@ -545,9 +540,7 @@ void SimulateXr::after_render(mjrContext *con) {
 
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
-  // TODO: pull window size from the system
-  glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
-                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  _blit_to_mujoco();
 
   // here be other things
   //// EndRendering
@@ -610,9 +603,10 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
 
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
-  // TODO: pull window size from the system
-  glBlitFramebuffer(0, 0, width_render, height, 0, 0, width / 2, height / 2,
-                    GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  //// TODO: pull window size from the system
+  //glBlitFramebuffer(0, 0, width_render, height, 0, 0, width / 2, height / 2,
+  //                  GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  _blit_to_mujoco();
 
   // here be other things
   //// EndRendering
@@ -1382,4 +1376,17 @@ int64_t SimulateXr::SelectColorSwapchainFormat(
   }
 
   return *swapchainFormatIt;
+}
+
+void SimulateXr::_blit_to_mujoco() {
+  // get window size
+  int dst_width, dst_height;
+  GLFWwindow *window_ = glfwGetCurrentContext();
+  glfwGetWindowSize(window_, &dst_width, &dst_height);
+
+  int src_width = width;
+  int src_heigth = height;
+
+  glBlitFramebuffer(0, 0, src_width, src_heigth, 0, 0, dst_width, dst_height,
+                    GL_COLOR_BUFFER_BIT, GL_LINEAR);
 }

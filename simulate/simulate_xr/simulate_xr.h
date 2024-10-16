@@ -50,8 +50,7 @@ class SimulateXr {
   int32_t height = 0;
   int32_t width_render = 0;
 
-  // actually GLFWwindow
-  void init(/*void* window*/);
+  void init();
   void deinit();
 
   void init_scene_vis(mjvScene *scn, mjModel *m);
@@ -196,7 +195,7 @@ class SimulateXr {
   bool _render_frame_start();
   void _render_frame_end();
 
-
+  void _blit_to_mujoco();
 };
 
 #endif  // SIMULATE_XR_H_
