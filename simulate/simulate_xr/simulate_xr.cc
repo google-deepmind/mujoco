@@ -604,8 +604,8 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
   // mirror to mujoco window
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mjFB_WINDOW);
   //// TODO: pull window size from the system
-  //glBlitFramebuffer(0, 0, width_render, height, 0, 0, width / 2, height / 2,
-  //                  GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  // glBlitFramebuffer(0, 0, width_render, height, 0, 0, width / 2, height / 2,
+  //                   GL_COLOR_BUFFER_BIT, GL_LINEAR);
   _blit_to_mujoco();
 
   // here be other things
@@ -988,10 +988,11 @@ void SimulateXr::_create_swapchain() {
     std::cerr << "Failed to enumerate Swapchain Formats";
   std::cout << "Found Swapchain Formats:";
   for (size_t i = 0; i < formatCount; i++) {
-    std::cout << " " << std::hex << formats[i];
+    std::cout << " " << std::hex << formats[i] << std::dec;
   }
   std::cout << ". Compatible format: " << std::hex
-            << SelectColorSwapchainFormat(formats) << "." << std::endl;
+            << SelectColorSwapchainFormat(formats) << std::dec << "."
+            << std::endl;
   // GL_RGBA16F is 0x881A or 34842
   // GL_RGBA8 is 0x8058 (unsupported)
   // GL_RGBA16 is 0x805b
@@ -1088,10 +1089,11 @@ void SimulateXr::_create_swapchains() {
     std::cerr << "Failed to enumerate Swapchain Formats";
   std::cout << "Found Swapchain Formats:";
   for (size_t i = 0; i < formatCount; i++) {
-    std::cout << " " << std::hex << formats[i];
+    std::cout << " " << std::hex << formats[i] << std::dec;
   }
   std::cout << ". Compatible format: " << std::hex
-            << SelectColorSwapchainFormat(formats) << "." << std::endl;
+            << SelectColorSwapchainFormat(formats) << std::dec << "."
+            << std::endl;
   // GL_RGBA16F is 0x881A or 34842
   // GL_RGBA8 is 0x8058 (unsupported)
   // GL_RGBA16 is 0x805b
@@ -1379,14 +1381,48 @@ int64_t SimulateXr::SelectColorSwapchainFormat(
 }
 
 void SimulateXr::_blit_to_mujoco() {
+  // make the background black
+  glClearColor(0, 0, 0, 1);
+
   // get window size
+  int dst_x = 0, dst_y = 0;
   int dst_width, dst_height;
   GLFWwindow *window_ = glfwGetCurrentContext();
   glfwGetWindowSize(window_, &dst_width, &dst_height);
 
   int src_width = width;
-  int src_heigth = height;
+  int src_height = height / 2;
+  int src_x = 0, src_y = height / 4;
 
-  glBlitFramebuffer(0, 0, src_width, src_heigth, 0, 0, dst_width, dst_height,
-                    GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  float dst_ar = ((float)dst_width) / dst_height;
+  float src_ar = ((float)src_width) / src_height;
+
+  //// bound dst_ar to 4:1 and 1:4, bc otherwise weird visual stuff happens
+  // if (dst_ar < 0.25) dst_ar = 0.25;
+  // if (dst_ar > 4) dst_ar = 4;
+
+  // adjust the widths and height to preserve proportions
+  if (src_ar > dst_ar) {
+    // source is wider than destination, take the middle subsection of src
+    // proportional to the dst
+    src_width = dst_ar * src_height;
+    src_x = 0.5 * ((src_ar * src_height) - src_width);
+  } else {
+    //// source is narrower than destination, blit to the middle part of the dst
+    // does not perform properly
+    //dst_width = src_ar * dst_height;
+    //dst_x = 0.5 * ((dst_ar * dst_height) - dst_width);
+
+    // the other way around
+    src_height = ((float)src_width) / dst_ar;
+    src_y += 0.5 * ((((float)src_width) / src_ar) - src_height);
+  }
+  std::cout << "Src: " << width << " " << height << " " << src_ar << std::endl;
+  std::cout << "Dst: " << dst_width << " " << dst_height << " " << dst_ar
+            << std::endl;
+  std::cout << "Chg: " << src_x << " " << src_y << " " << src_width << " "
+            << src_height << std::endl;
+
+  glBlitFramebuffer(src_x, src_y, src_width, src_height, dst_x, dst_y, dst_width,
+                    dst_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 }
