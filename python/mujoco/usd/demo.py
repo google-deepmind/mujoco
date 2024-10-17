@@ -15,8 +15,7 @@
 """Demo for the USD export with a moving camera."""
 
 import mujoco
-# from mujoco.usd import exporter
-import exporter
+from mujoco.usd import exporter
 import numpy as np
 
 # Dominos model with moving camera

@@ -14,8 +14,7 @@
 # ==============================================================================
 """Camera handling for USD exporter."""
 
-# import mujoco.usd.utils as utils_module
-import utils as utils_module
+import mujoco.usd.utils as utils_module
 
 import numpy as np
 
