@@ -75,14 +75,6 @@ mjSpec* mj_copySpec(const mjSpec* s) {
 
 
 
-// copy back model
-void mj_copyBack(mjSpec* s, const mjModel* m) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  modelC->CopyBack(m);
-}
-
-
-
 // compile model
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);

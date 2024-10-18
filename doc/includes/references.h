@@ -3133,7 +3133,6 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 void mj_freeLastXML(void);
-void mj_copyBack(mjSpec* s, const mjModel* m);
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
 void mj_step(const mjModel* m, mjData* d);

@@ -62,8 +62,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  mj_copyBack(spec_, m);
-  std::string result = WriteXML(spec_, error, error_sz);
+  std::string result = WriteXML(m, spec_, error, error_sz);
   if (result.empty()) {
     return std::nullopt;
   }
@@ -229,7 +228,7 @@ mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int er
 
 // save spec to XML file, return 1 on success, 0 otherwise
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
-  std::string result = WriteXML(s, error, error_sz);
+  std::string result = WriteXML(NULL, s, error, error_sz);
   if (result.empty()) {
     return 0;
   }
@@ -245,7 +244,7 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
 
 // save spec to string, return 1 on success, 0 otherwise
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
-  std::string result = WriteXML(s, error, error_sz);
+  std::string result = WriteXML(NULL, s, error, error_sz);
   if (result.size() >= xml_sz) {
     std::string error_msg = "Output string too short, should be at least " +
                             std::to_string(result.size()+1);

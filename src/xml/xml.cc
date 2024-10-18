@@ -395,7 +395,7 @@ mjSpec* ParseSpecFromString(std::string_view xml, char* error, int nerror) {
 }
 
 // Main writer function - calls mjXWrite
-std::string WriteXML(const mjSpec* spec, char* error, int nerror) {
+std::string WriteXML(const mjModel* m, const mjSpec* spec, char* error, int nerror) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -405,7 +405,7 @@ std::string WriteXML(const mjSpec* spec, char* error, int nerror) {
   }
 
   mjXWriter writer;
-  writer.SetModel(spec);
+  writer.SetModel(spec, m);
 
   try {
     return writer.Write(error, nerror);

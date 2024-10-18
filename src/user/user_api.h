@@ -54,9 +54,6 @@ MJAPI const char* mjs_getError(mjSpec* s);
 // Return 1 if compiler error is a warning.
 MJAPI int mjs_isWarning(mjSpec* s);
 
-// Copy model fields back into spec.
-MJAPI void mj_copyBack(mjSpec* s, const mjModel* m);
-
 // Delete spec.
 MJAPI void mj_deleteSpec(mjSpec* s);
 

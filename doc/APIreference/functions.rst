@@ -87,15 +87,6 @@ mj_freeLastXML
 
 Free last XML model if loaded. Called internally at each load.
 
-.. _mj_copyBack:
-
-mj_copyBack
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_copyBack
-
-Copy (possibly modified) model fields back into spec.
-
 .. _mj_saveXMLString:
 
 mj_saveXMLString

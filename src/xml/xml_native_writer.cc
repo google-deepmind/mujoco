@@ -853,9 +853,12 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(const mjSpec* spec) {
-  if (spec) {
-    model = (mjCModel*)spec->element;
+void mjXWriter::SetModel(const mjSpec* _spec, const mjModel* m) {
+  if (_spec) {
+    model = (mjCModel*)_spec->element;
+  }
+  if (m) {
+    model->CopyBack(m);
   }
 }
 

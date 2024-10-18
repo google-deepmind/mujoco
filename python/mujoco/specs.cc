@@ -335,12 +335,6 @@ PYBIND11_MODULE(_specs, m) {
         A dictionary of assets to be used by the spec. The keys are asset names
         and the values are asset contents.
   )mydelimiter");
-  mjSpec.def(
-      "copy_back",
-      [](MjSpec& self, raw::MjModel& model) {
-        return mj_copyBack(self.ptr, &model);
-      },
-      py::return_value_policy::reference_internal);
   mjSpec.def("to_xml", [](MjSpec& self) -> std::string {
     int size = mj_saveXMLString(self.ptr, nullptr, 0, nullptr, 0);
     std::unique_ptr<char[]> buf(new char[size + 1]);
