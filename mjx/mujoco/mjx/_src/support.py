@@ -348,7 +348,7 @@ def contact_force_dim(
     raise ValueError(f'Unknown cone type: {m.opt.cone}.')
 
 
-def length_circle(
+def _length_circle(
     p0: jax.Array, p1: jax.Array, ind: jax.Array, rad: jax.Array
 ) -> jax.Array:
   """Compute length of circle."""
@@ -366,7 +366,7 @@ def length_circle(
   return rad * angle
 
 
-def is_intersect(
+def _is_intersect(
     p1: jax.Array, p2: jax.Array, p3: jax.Array, p4: jax.Array
 ) -> jax.Array:
   """Check for intersection between two lines defined by their endpoints."""
@@ -429,7 +429,7 @@ def wrap_circle(
     good = jp.where(sidesite, good0, good1)
 
     # penalize for intersection
-    intersect = is_intersect(d[:2], sol[0], d[2:], sol[1])
+    intersect = _is_intersect(d[:2], sol[0], d[2:], sol[1])
     good = jp.where(intersect, -10000, good)
 
     return sol, good
@@ -442,10 +442,10 @@ def wrap_circle(
   pnt = sol.reshape(-1)
 
   # check for intersection
-  intersect = is_intersect(d[:2], pnt[:2], d[2:], pnt[2:])
+  intersect = _is_intersect(d[:2], pnt[:2], d[2:], pnt[2:])
 
   # compute curve length
-  wlen = length_circle(sol[0], sol[1], i, rad)
+  wlen = _length_circle(sol[0], sol[1], i, rad)
 
   # check cases
   invalid = (

@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+
+1. Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
+
 Version 3.2.4 (Oct 15, 2024)
 ----------------------------
 

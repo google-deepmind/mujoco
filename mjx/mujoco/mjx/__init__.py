@@ -48,10 +48,13 @@ from mujoco.mjx._src.smooth import subtree_vel
 from mujoco.mjx._src.smooth import tendon
 from mujoco.mjx._src.smooth import transmission
 from mujoco.mjx._src.solver import solve
+from mujoco.mjx._src.support import apply_ft
 from mujoco.mjx._src.support import full_m
 from mujoco.mjx._src.support import id2name
 from mujoco.mjx._src.support import is_sparse
+from mujoco.mjx._src.support import jac
 from mujoco.mjx._src.support import mul_m
 from mujoco.mjx._src.support import name2id
+from mujoco.mjx._src.support import xfrc_accumulate
 from mujoco.mjx._src.test_util import benchmark
 from mujoco.mjx._src.types import *
