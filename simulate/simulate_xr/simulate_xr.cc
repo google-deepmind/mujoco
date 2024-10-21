@@ -1391,15 +1391,17 @@ void SimulateXr::_blit_to_mujoco() {
   glfwGetWindowSize(window_, &dst_width, &dst_height);
 
   int src_width = width;
-  int src_height = height / 2;
-  int src_x = 0, src_y = height / 4;
+  int src_height = width;  // height / 2;
+  int src_x = 0;
+  int src_y = (height - src_height) / 2;
 
+  // aspect ratio
   float dst_ar = ((float)dst_width) / dst_height;
   float src_ar = ((float)src_width) / src_height;
 
-  //// bound dst_ar to 4:1 and 1:4, bc otherwise weird visual stuff happens
-  // if (dst_ar < 0.25) dst_ar = 0.25;
-  // if (dst_ar > 4) dst_ar = 4;
+  // bound dst_ar to 2.5:1 and 1:2.5, bc otherwise weird visual stuff happens
+   if (dst_ar < 0.4) dst_ar = 0.4;
+   if (dst_ar > 2.5) dst_ar = 2.5;
 
   // adjust the widths and height to preserve proportions
   if (src_ar > dst_ar) {
@@ -1410,19 +1412,20 @@ void SimulateXr::_blit_to_mujoco() {
   } else {
     //// source is narrower than destination, blit to the middle part of the dst
     // does not perform properly
-    //dst_width = src_ar * dst_height;
-    //dst_x = 0.5 * ((dst_ar * dst_height) - dst_width);
+    // dst_width = src_ar * dst_height;
+    // dst_x = 0.5 * ((dst_ar * dst_height) - dst_width);
 
     // the other way around
     src_height = ((float)src_width) / dst_ar;
     src_y += 0.5 * ((((float)src_width) / src_ar) - src_height);
   }
-  std::cout << "Src: " << width << " " << height << " " << src_ar << std::endl;
-  std::cout << "Dst: " << dst_width << " " << dst_height << " " << dst_ar
-            << std::endl;
-  std::cout << "Chg: " << src_x << " " << src_y << " " << src_width << " "
-            << src_height << std::endl;
+  //std::cout << "Src: " << width << " " << height << " " << src_ar << std::endl;
+  //std::cout << "Dst: " << dst_width << " " << dst_height << " " << dst_ar
+  //          << std::endl;
+  //std::cout << "Chg: " << src_x << " " << src_y << " " << src_width << " "
+  //          << src_height << std::endl;
 
-  glBlitFramebuffer(src_x, src_y, src_width, src_height, dst_x, dst_y, dst_width,
-                    dst_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  glBlitFramebuffer(src_x, src_y, src_width, src_height, dst_x, dst_y,
+                    dst_width, dst_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 }
+
