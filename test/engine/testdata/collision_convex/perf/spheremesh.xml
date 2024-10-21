@@ -1,4 +1,4 @@
-<mujoco model="Container">
+<mujoco model="Collide spherical meshes">
   <statistic extent="1.5" meansize=".05"/>
 
   <visual>

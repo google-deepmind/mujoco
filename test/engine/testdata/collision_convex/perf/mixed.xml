@@ -3,7 +3,7 @@
 
   <visual>
     <rgba haze="0.15 0.25 0.35 1"/>
-    <map shadowscale="0.5" zfar="40"/>
+    <map shadowscale="0.5" zfar="40" force="0.01"/>
   </visual>
 
   <asset>

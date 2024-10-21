@@ -1,4 +1,4 @@
-<mujoco  model="collide box-shaped meshes">
+<mujoco  model="collide boxes">
   <option timestep="1e-3" gravity="-1 1 -10" solver="CG" iterations="10">
     <flag multiccd="enable"/>
   </option>
@@ -8,20 +8,13 @@
     <map force="0.01"/>
   </visual>
 
-  <asset>
-    <mesh name="box" scale=".025 .025 .025"
-      vertex="-1 -1 -1    1 -1 -1    1  1 -1    1  1  1    1 -1  1   -1  1 -1   -1  1  1   -1 -1  1"/>
-    <mesh name="wall" scale=".5 .5 .1"
-      vertex="-1 -1 -1    1 -1 -1    1  1 -1    1  1  1    1 -1  1   -1  1 -1   -1  1  1   -1 -1  1"/>
-  </asset>
-
   <default>
-    <geom condim="1" type="mesh" solref="2e-3 1"/>
+    <geom condim="1" type="box" solref="2e-3 1"/>
     <default class="free">
-      <geom mesh="box"/>
+      <geom size=".025 .025 .025"/>
     </default>
     <default class="wall">
-      <geom mesh="wall" rgba=".5 .5 .8 1"/>
+      <geom size=".5 .5 .1" rgba=".5 .5 .8 1"/>
     </default>
   </default>
 
