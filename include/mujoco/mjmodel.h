@@ -1095,8 +1095,8 @@ struct mjModel_ {
   mjtNum*   key_qpos;             // key position                             (nkey x nq)
   mjtNum*   key_qvel;             // key velocity                             (nkey x nv)
   mjtNum*   key_act;              // key activation                           (nkey x na)
-  mjtNum*   key_mpos;             // key mocap position                       (nkey x 3*nmocap)
-  mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x 4*nmocap)
+  mjtNum*   key_mpos;             // key mocap position                       (nkey x nmocap*3)
+  mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x nmocap*4)
   mjtNum*   key_ctrl;             // key control                              (nkey x nu)
 
   // names

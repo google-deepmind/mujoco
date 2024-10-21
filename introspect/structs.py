@@ -4075,7 +4075,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='key mocap position',
-                 array_extent=('nkey', '3*nmocap'),
+                 array_extent=('nkey', 'nmocap*3'),
              ),
              StructFieldDecl(
                  name='key_mquat',
@@ -4083,7 +4083,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='key mocap quaternion',
-                 array_extent=('nkey', '4*nmocap'),
+                 array_extent=('nkey', 'nmocap*4'),
              ),
              StructFieldDecl(
                  name='key_ctrl',
@@ -5126,15 +5126,15 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='geom id; -1: site; -2: pulley',
-                 array_extent=('nwrap*2',),
+                 array_extent=('nwrap', 2),
              ),
              StructFieldDecl(
                  name='wrap_xpos',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='Cartesian 3D points in all path',
-                 array_extent=('nwrap*2', 3),
+                 doc='Cartesian 3D points in all paths',
+                 array_extent=('nwrap', 6),
              ),
              StructFieldDecl(
                  name='actuator_length',

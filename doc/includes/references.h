@@ -256,8 +256,8 @@ struct mjData_ {
   int*    ten_J_colind;      // column indices in sparse Jacobian                (ntendon x nv)
   mjtNum* ten_J;             // tendon Jacobian                                  (ntendon x nv)
   mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
-  int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap*2 x 1)
-  mjtNum* wrap_xpos;         // Cartesian 3D points in all path                  (nwrap*2 x 3)
+  int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap x 2)
+  mjtNum* wrap_xpos;         // Cartesian 3D points in all paths                 (nwrap x 6)
 
   // computed by mj_fwdPosition/mj_transmission
   mjtNum* actuator_length;   // actuator lengths                                 (nu x 1)
@@ -1388,8 +1388,8 @@ struct mjModel_ {
   mjtNum*   key_qpos;             // key position                             (nkey x nq)
   mjtNum*   key_qvel;             // key velocity                             (nkey x nv)
   mjtNum*   key_act;              // key activation                           (nkey x na)
-  mjtNum*   key_mpos;             // key mocap position                       (nkey x 3*nmocap)
-  mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x 4*nmocap)
+  mjtNum*   key_mpos;             // key mocap position                       (nkey x nmocap*3)
+  mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x nmocap*4)
   mjtNum*   key_ctrl;             // key control                              (nkey x nu)
 
   // names
