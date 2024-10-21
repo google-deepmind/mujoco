@@ -7,9 +7,12 @@ Upcoming version (not yet released)
 
 MJX
 ^^^
-
 - Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
 - Added ``TOUCH`` sensor.
+
+Bug fixes
+^^^^^^^^^
+- Fixed a bug in slider-crank ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
 
 Version 3.2.4 (Oct 15, 2024)
 ----------------------------
