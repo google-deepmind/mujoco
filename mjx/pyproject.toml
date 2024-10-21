@@ -33,6 +33,7 @@ dependencies = [
     "mujoco>=3.2.5.dev0",
     "scipy",
     "trimesh",
+    "warp-lang",
 ]
 
 [project.scripts]
