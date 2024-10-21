@@ -1810,6 +1810,13 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
       uistate(this->platform_ui->state()) {
   mjv_defaultScene(&scn);
   mjv_defaultSceneState(&scnstate_);
+
+#ifdef mjBUILDSIMULATEXR
+  simXr.init();
+  if (simXr.is_initialized())
+    simXr.init_scene_vis(&this->scn, this->m_);
+  
+#endif // mjBUILDSIMULATEXR
 }
 
 // synchronize model and data
@@ -2126,6 +2133,12 @@ void Simulate::Sync() {
   } else {
     mjv_applyPerturbPose(m_, d_, &this->pert, 1);  // mocap and dynamic bodies
   }
+
+
+#ifdef mjBUILDSIMULATEXR
+  //hmd.transform(this->scn, this->m_);
+  //hmd.update(this->scn);
+#endif // mjBUILDSIMULATEXR
 }
 
 //------------------------- Tell the render thread to load a file and wait -------------------------
@@ -2256,8 +2269,14 @@ void Simulate::LoadOnRenderThread() {
     }
   }
 
+#ifdef mjBUILDSIMULATEXR
+  if (simXr.is_initialized())
+    simXr.init_scene_vis(&this->scn, this->m_);
+#endif  // mjBUILDSIMULATEXR
+
   // re-create scene and context
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
+
   if (this->is_passive_) {
     mjopt_prev_ = m_->opt;
     opt_prev_ = opt;
@@ -2300,6 +2319,12 @@ void Simulate::LoadOnRenderThread() {
   } else {
     mjv_updateSceneState(this->m_, this->d_, &this->opt, &this->scnstate_);
   }
+
+#ifdef mjBUILDSIMULATEXR
+  // TODO (AS) should not be duplicated, separate the m from scn changes?
+  if (simXr.is_initialized())
+    simXr.init_scene_vis(&this->scn, this->m_);
+#endif // mjBUILDSIMULATEXR
 
   // set window title to model name
   if (this->m_->names) {
@@ -2476,7 +2501,23 @@ void Simulate::Render() {
   }
 
   // render scene
+#ifdef mjBUILDSIMULATEXR
+  if (simXr.is_initialized()) {
+    simXr.before_render_1sc(&this->scn, this->m_);
+    mjrRect rectXR = {0, 0, 0, 0};
+    rectXR.width = (int)simXr.width_render;
+    rectXR.height = (int)simXr.height;
+    // render in offscreen buffer
+    mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
+    mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+    simXr.after_render_1sc(&this->platform_ui->mjr_context());
+    mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
+  } else {
+    mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+  }
+#else //mjBUILDSIMULATEXR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+#endif //mjBUILDSIMULATEXR
 
   // show last loading error
   if (this->load_error[0]) {

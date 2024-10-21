@@ -33,7 +33,14 @@ set(MUJOCO_DEP_VERSION_glfw3
     7482de6071d21db77a7236155da44c172a7f6c9e # 3.3.8
     CACHE STRING "Version of `glfw` to be fetched."
 )
+
+set(MUJOCO_DEP_VERSION_openvr
+    f51d87ecf8f7903e859b0aa4d617ff1e5f33db5a # 2.2.3
+    CACHE STRING "Version of `OpenVR` to be fetched."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)
+mark_as_advanced(MUJOCO_DEP_VERSION_openvr)
 
 find_package(Threads REQUIRED)
 
