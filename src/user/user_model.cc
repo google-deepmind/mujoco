@@ -304,6 +304,8 @@ void mjCModel::SaveDofOffsets(bool computesize) {
   }
 }
 
+
+
 template <class T>
 void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
                           const std::vector<mjCPlugin*>& source,
@@ -335,6 +337,21 @@ void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
     }
   }
 }
+
+
+
+// return true if the plugin is already in the list of active plugins
+static bool IsPluginActive(
+    const mjpPlugin* plugin,
+    const std::vector<std::pair<const mjpPlugin*, int>>& active_plugins) {
+  return std::find_if(
+             active_plugins.begin(), active_plugins.end(),
+             [&plugin](const std::pair<const mjpPlugin*, int>& element) {
+               return element.first == plugin;
+             }) != active_plugins.end();
+}
+
+
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // TODO: use compiler settings stored in specs_ during compilation
@@ -387,8 +404,10 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyPlugin(plugins_, other.plugins_, meshes_);
   CopyPlugin(plugins_, other.plugins_, actuators_);
   CopyPlugin(plugins_, other.plugins_, sensors_);
-  for (const auto& active_plugin : other.active_plugins_) {
-    active_plugins_.emplace_back(active_plugin);
+  for (const auto& [plugin, slot] : other.active_plugins_) {
+    if (!IsPluginActive(plugin, active_plugins_)) {
+      active_plugins_.emplace_back(std::make_pair(plugin, slot));
+    }
   }
 
   // restore to the original state

@@ -293,6 +293,39 @@ TEST_F(PluginTest, AttachPlugin) {
   mj_deleteSpec(spec_2);
 }
 
+TEST_F(PluginTest, ReplicatePlugin) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <extension>
+        <plugin plugin="mujoco.sdf.torus">
+          <instance name="torus" />
+        </plugin>
+      </extension>
+      <asset>
+        <mesh name="torus">
+          <plugin instance="torus" />
+        </mesh>
+      </asset>
+      <worldbody>
+        <geom type="sdf" mesh="torus">
+          <plugin instance="torus" />
+        </geom>
+        <replicate count="100">
+          <body />
+        </replicate>
+      </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1000> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nplugin, 1);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
 TEST_F(MujocoTest, RecompileFails) {
   mjSpec* spec = mj_makeSpec();
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
