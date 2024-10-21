@@ -18,6 +18,7 @@ import inspect
 import textwrap
 
 from absl.testing import absltest
+from etils import epath
 import mujoco
 import numpy as np
 
@@ -433,10 +434,11 @@ class SpecsTest(absltest.TestCase):
     )
 
   def test_load_xml(self):
-    filename = '../../test/testdata/model.xml'
     state_type = mujoco.mjtState.mjSTATE_INTEGRATION
 
     # Load from file.
+    file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"
+    filename = file_path.as_posix()
     spec1 = mujoco.MjSpec.from_file(filename)
     model1 = spec1.compile()
     data1 = mujoco.MjData(model1)
@@ -692,9 +694,8 @@ class SpecsTest(absltest.TestCase):
                      mujoco.mjtGeom.mjGEOM_BOX)
 
   def test_delete(self):
-    filename = '../../test/testdata/model.xml'
-
-    spec = mujoco.MjSpec.from_file(filename)
+    file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"
+    spec = mujoco.MjSpec.from_file(file_path.as_posix())
 
     model = spec.compile()
     self.assertIsNotNone(model)
