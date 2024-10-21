@@ -623,6 +623,9 @@
     XMJV( int,       wrap_obj,          nwrap,       2           ) \
     XMJV( mjtNum,    wrap_xpos,         nwrap,       6           ) \
     X   ( mjtNum,    actuator_length,   nu,          1           ) \
+    X   ( int,       moment_rownnz,     nu,          1           ) \
+    X   ( int,       moment_rowadr,     nu,          1           ) \
+    X   ( int,       moment_colind,     nu,          MJ_M(nv)    ) \
     X   ( mjtNum,    actuator_moment,   nu,          MJ_M(nv)    ) \
     X   ( mjtNum,    crb,               nbody,       10          ) \
     X   ( mjtNum,    qM,                nM,          1           ) \

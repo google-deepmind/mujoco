@@ -5145,6 +5145,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nu',),
              ),
              StructFieldDecl(
+                 name='moment_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in actuator_moment row',
+                 array_extent=('nu',),
+             ),
+             StructFieldDecl(
+                 name='moment_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array',
+                 array_extent=('nu',),
+             ),
+             StructFieldDecl(
+                 name='moment_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in sparse Jacobian',
+                 array_extent=('nu', 'nv'),
+             ),
+             StructFieldDecl(
                  name='actuator_moment',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),

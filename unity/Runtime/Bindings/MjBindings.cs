@@ -4904,6 +4904,9 @@ public unsafe struct mjData_ {
   public int* wrap_obj;
   public double* wrap_xpos;
   public double* actuator_length;
+  public int* moment_rownnz;
+  public int* moment_rowadr;
+  public int* moment_colind;
   public double* actuator_moment;
   public double* crb;
   public double* qM;
