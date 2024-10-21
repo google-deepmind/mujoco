@@ -1,0 +1,29 @@
+<mujoco model="Body-Body collisions fromto">
+  <option>
+    <flag gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos=".5 0 3"/>
+    <light pos="-.5 0 3"/>
+    <geom type="plane" size="2 2 .01"/>
+
+    <body name="1" pos="0 0 .3">
+      <freejoint/>
+      <replicate count="50" offset="0 0 0.01" euler="0 0 25">
+        <geom type="capsule" size=".01 .05" pos="0 -.23 -.2" euler="0 84.5 0" rgba="0 0 1 1"/>
+      </replicate>
+    </body>
+
+    <body name="2" pos=".6 0 .3" euler="0 0 90">
+      <freejoint/>
+      <replicate count="50" offset="0 0 0.01" euler="0 0 15">
+        <geom type="capsule" pos=".025 -.2 -.2" size=".032 .04" euler="-24 -12 2" rgba=".8 0 0 1"/>
+      </replicate>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <fromto body1="1" body2="2" cutoff="1"/>
+  </sensor>
+</mujoco>

@@ -15,16 +15,18 @@
 """Tests for constraint functions."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import solver
 from mujoco.mjx._src import test_util
 import numpy as np
 
 
-# tolerance for difference between MuJoCo and MJX constraint calculations,
+# tolerance for difference between MuJoCo and MJX solver calculations,
 # mostly due to float precision
-_TOLERANCE = 5e-5
+_TOLERANCE = 5e-3
 
 
 def _assert_eq(a, b, name, tol=_TOLERANCE):
@@ -33,71 +35,117 @@ def _assert_eq(a, b, name, tol=_TOLERANCE):
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
 
-def _assert_attr_eq(a, b, attr):
-  _assert_eq(getattr(a, attr), getattr(b, attr), attr)
+def _assert_attr_eq(a, b, attr, tol=_TOLERANCE):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr, tol=tol)
 
 
-class SolverTest(absltest.TestCase):
+class SolverTest(parameterized.TestCase):
 
-  def test_newton(self):
-    """Test newton solver."""
+  @parameterized.parameters(
+      # these scene challenges the solver, with CG you need to crank up
+      # the iterations, otherwise it diverges
+      (mujoco.mjtSolver.mjSOL_CG, mujoco.mjtCone.mjCONE_PYRAMIDAL, 100),
+      (mujoco.mjtSolver.mjSOL_CG, mujoco.mjtCone.mjCONE_ELLIPTIC, 100),
+      # Newton converges much more quickly, lower iterations to demonstrate
+      # mgrad is being calculated optimally
+      (mujoco.mjtSolver.mjSOL_NEWTON, mujoco.mjtCone.mjCONE_PYRAMIDAL, 2),
+      (mujoco.mjtSolver.mjSOL_NEWTON, mujoco.mjtCone.mjCONE_ELLIPTIC, 2),
+  )
+  def test_solver(self, solver_, cone, iterations):
+    """Test newton, CG solver with pyramidal, elliptic cones."""
     m = test_util.load_test_file('constraints.xml')
+    m.opt.solver = solver_
+    m.opt.cone = cone
+    m.opt.iterations = iterations
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    mujoco.mj_forward(m, d)
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
 
-    _assert_attr_eq(d, dx, 'qacc_warmstart')
-    _assert_attr_eq(d, dx, 'qacc')
-    _assert_attr_eq(d, dx, 'qfrc_constraint')
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+    def cost(qacc):
+      jaref = np.zeros(d.nefc, dtype=float)
+      cost = np.zeros(1)
+      mujoco.mj_mulJacVec(m, d, jaref, qacc)
+      mujoco.mj_constraintUpdate(m, d, jaref - d.efc_aref, cost, 0)
+      return cost
 
-  def test_cg(self):
-    """Test CG solver."""
-    m = test_util.load_test_file('constraints.xml')
-    d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    m.opt.solver = mujoco.mjtSolver.mjSOL_CG
-    mujoco.mj_forward(m, d)
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    # sample a mix of active/inactive constraints at different timesteps
+    for key in range(0, 3):
+      mujoco.mj_resetDataKeyframe(m, d, key)
+      mujoco.mj_step(m, d)  # step to generate warmstart
 
-    _assert_attr_eq(d, dx, 'qacc_warmstart')
-    _assert_attr_eq(d, dx, 'qacc')
-    _assert_attr_eq(d, dx, 'qfrc_constraint')
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+      # compare costs
+      mj_cost = cost(d.qacc)
+      ctx = solver._Context.create(mjx.put_model(m), mjx.put_data(m, d))
+      mjx_cost = ctx.cost - ctx.gauss
+      _assert_eq(mj_cost, mjx_cost, 'cost')
+
+      # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+      # before the step so that MJX does not have a trivial solution
+      warmstart = d.qacc_warmstart.copy()
+      mujoco.mj_forward(m, d)
+      d.qacc_warmstart = warmstart
+      dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
+      # MJX finds very similar solutions with the newton solver
+      if solver_ == mujoco.mjtSolver.mjSOL_NEWTON:
+        nnz = dx.efc_J.any(axis=1)
+        _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+        _assert_attr_eq(d, dx, 'qfrc_constraint')
+        _assert_attr_eq(d, dx, 'qacc')
+
+      # both CG and Newton find costs that are nearly the same as MuJoCo, often
+      # lower (due to slight differences in the MJX linsearch algorithm)
+      mj_cost = cost(d.qacc)
+      mjx_cost = cost(dx.qacc)
+      self.assertLess(mjx_cost, mj_cost * 1.015)
 
   def test_no_warmstart(self):
     """Test no warmstart."""
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
+    # significant constraint forces keyframe 2
+    mujoco.mj_resetDataKeyframe(m, d, 2)
     m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_WARMSTART
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
     nnz = dx.efc_J.any(axis=1)
-    # without warmstart, the solution is not as close
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-2)
+    # even without warmstart, newton converges quickly
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-4)
 
-  def test_dense(self):
-    """Test solver works with dense mass matrices."""
+  def test_sparse(self):
+    """Test solver works with sparse mass matrices."""
     m = test_util.load_test_file('constraints.xml')
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    mujoco.mj_forward(m, d)
-    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
+    # significant constraint forces keyframe 2
+    mujoco.mj_resetDataKeyframe(m, d, 2)
 
-    _assert_attr_eq(d, dx, 'qacc_warmstart')
+    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
+    # at the beginning of the step so that MJX does not have a trivial solution
+    warmstart = d.qacc_warmstart.copy()
+    mujoco.mj_forward(m, d)
+    d.qacc_warmstart = warmstart
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
     nnz = dx.efc_J.any(axis=1)
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+
+  def test_quad_frictionloss(self):
+    """Test a case with quadratic frictionloss constraints."""
+    m = test_util.load_test_file('quadratic_frictionloss.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+
 
 if __name__ == '__main__':
   absltest.main()

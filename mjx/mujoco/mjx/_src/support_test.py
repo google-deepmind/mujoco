@@ -116,6 +116,111 @@ class SupportTest(parameterized.TestCase):
 
     np.testing.assert_almost_equal(qfrc, qfrc_expected, 6)
 
+  def test_custom(self):
+    xml = """
+    <mujoco model="right_shadow_hand">
+        <custom>
+          <numeric data="15" name="max_contact_points"/>
+          <numeric data="42" name="max_geom_pairs"/>
+        </custom>
+    </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+
+    def _get_numeric(m, name):
+      id_ = support.name2id(m, mujoco.mjtObj.mjOBJ_NUMERIC, name)
+      return int(m.numeric_data[id_]) if id_ >= 0 else -1
+
+    self.assertEqual(_get_numeric(m, 'something'), -1)
+    self.assertEqual(_get_numeric(m, 'max_contact_points'), 15)
+    self.assertEqual(_get_numeric(m, 'max_geom_pairs'), 42)
+
+    mx = mjx.put_model(m)
+    self.assertEqual(_get_numeric(mx, 'something'), -1)
+    self.assertEqual(_get_numeric(mx, 'max_contact_points'), 15)
+    self.assertEqual(_get_numeric(mx, 'max_geom_pairs'), 42)
+
+  def test_names_and_ids(self):
+    m = test_util.load_test_file('pendula.xml')
+    mx = mjx.put_model(m)
+
+    nums = {
+        mujoco.mjtObj.mjOBJ_JOINT: m.njnt,
+        mujoco.mjtObj.mjOBJ_GEOM: m.ngeom,
+        mujoco.mjtObj.mjOBJ_BODY: m.nbody,
+    }
+
+    for obj in nums:
+      names = [mujoco.mj_id2name(m, obj.value, i) for i in range(nums[obj])]
+      for i, n in enumerate(names):
+        self.assertEqual(support.id2name(mx, obj, i), n)
+        i = i if n is not None else -1
+        self.assertEqual(support.name2id(mx, obj, n), i)
+
+  _CONTACTS = """
+    <mujoco>
+      <worldbody>
+        <body pos="0 0 0.55" euler="1 0 0">
+          <joint axis="1 0 0" type="free"/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule" condim="6"/>
+        </body>
+        <body pos="0 0 0.5" euler="0 1 0">
+          <joint axis="1 0 0" type="free"/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule" condim="3"/>
+        </body>
+        <body pos="0 0 0.445" euler="0 90 0">
+          <joint axis="1 0 0" type="free"/>
+          <geom fromto="-0.4 0 0 0.4 0 0" size="0.05" type="capsule" condim="1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_contact_force(self):
+    m = mujoco.MjModel.from_xml_string(self._CONTACTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d)
+    assert (
+        np.unique(d.contact.geom).shape[0] == 3
+    ), 'This test assumes all capsule are in contact.'
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    mujoco.mj_step(m, d)
+    dx = mjx.step(mx, dx)
+
+    # map MJX contacts to MJ ones
+    def _find(g):
+      val = (g == dx.contact.geom).sum(axis=1)
+      return np.where(val == 2)[0][0]
+
+    contact_id_map = {i: _find(d.contact.geom[i]) for i in range(d.ncon)}
+
+    for i in range(d.ncon):
+      result = np.zeros(6, dtype=float)
+      mujoco.mj_contactForce(m, d, i, result)
+
+      j = contact_id_map[i]
+      force = jax.jit(support.contact_force, static_argnums=(2,))(mx, dx, j)
+      np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
+
+      # check for zeros after first condim elements
+      condim = dx.contact.dim[j]
+      if condim < 6:
+        np.testing.assert_allclose(force[condim:], 0, rtol=1e-5, atol=1e-5)
+
+      # test world conversion
+      force = jax.jit(
+          support.contact_force,
+          static_argnums=(
+              2,
+              3,
+          ),
+      )(mx, dx, j, True)
+      # back to contact frame
+      force = force.at[:3].set(dx.contact.frame[j] @ force[:3])
+      force = force.at[3:].set(dx.contact.frame[j] @ force[3:])
+      np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
+
 
 if __name__ == '__main__':
   absltest.main()

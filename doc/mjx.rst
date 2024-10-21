@@ -66,25 +66,32 @@ directly from the top-level ``mjx`` module.
 Structs
 -------
 
-Before running MJX functions on an accelerator device, structs must be copied onto the device via the ``mjx.device_put``
-function.  Placing an :ref:`mjModel` on device yields an ``mjx.Model``.  Placing an :ref:`mjData` on device yields
+Before running MJX functions on an accelerator device, structs must be copied onto the device via the ``mjx.put_model`` and ``mjx.put_data``
+functions.  Placing an :ref:`mjModel` on device yields an ``mjx.Model``.  Placing an :ref:`mjData` on device yields
 an ``mjx.Data``:
 
 .. code-block:: python
 
    model = mujoco.MjModel.from_xml_string("...")
    data = mujoco.MjData(model)
-   mjx_model = mjx.device_put(model)
-   mjx_data = mjx.device_put(data)
+   mjx_model = mjx.put_model(model)
+   mjx_data = mjx.put_data(model, data)
 
-These MJX variants mirror their MuJoCo counterparts but have three key differences:
+These MJX variants mirror their MuJoCo counterparts but have a few key differences:
 
-#. Fields in ``mjx.Model`` and ``mjx.Data`` are JAX arrays copied onto device, instead of numpy arrays.
+#. ``mjx.Model`` and ``mjx.Data`` contain JAX arrays that are copied onto device.
 #. Some fields are missing from ``mjx.Model`` and ``mjx.Data`` for features that are
    :ref:`unsupported <mjxFeatureParity>` in MJX.
-#. Arrays in ``mjx.Model`` and ``mjx.Data`` support adding batch dimensions. Batch dimensions are a natural way to
+#. JAX arrays in ``mjx.Model`` and ``mjx.Data`` support adding batch dimensions. Batch dimensions are a natural way to
    express domain randomization (in the case of ``mjx.Model``) or high-throughput simulation for reinforcement learning
    (in the case of ``mjx.Data``).
+#. Numpy arrays in ``mjx.Model`` and ``mjx.Data`` are structural fields that control the output of JIT compilation.
+   Modifying these arrays will force JAX to recompile MJX functions. As an example,
+   ``jnt_limited`` is a numpy array passed by reference from :ref:`mjModel`, which determines if joint limit
+   constraints should be applied.  If ``jnt_limited`` is modified, JAX will
+   re-compile MJX functions.
+   On the other hand, ``jnt_range`` is a JAX array that can be modified at runtime, and will only apply to joints with limits
+   as specified by the ``jnt_limited`` field.
 
 
 Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An ``mjx.Data`` may be created by calling
@@ -93,7 +100,7 @@ Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An
 .. code-block:: python
 
    model = mujoco.MjModel.from_xml_string("...")
-   mjx_model = mjx.device_put(model)
+   mjx_model = mjx.put_model(model)
    mjx_data = mjx.make_data(model)
 
 Using ``mjx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
@@ -126,7 +133,7 @@ Minimal example
 
 .. code-block:: python
 
-  # Throw a ball at 100 different velocities.
+   # Throw a ball at 100 different velocities.
 
    import jax
    import mujoco
@@ -144,7 +151,7 @@ Minimal example
    """
 
    model = mujoco.MjModel.from_xml_string(XML)
-   mjx_model = mjx.device_put(model)
+   mjx_model = mjx.put_model(model)
 
    @jax.vmap
    def batched_step(vel):
@@ -181,29 +188,40 @@ The following features are **fully supported** in MJX:
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINT``, ``TRN_SITE``
+     - ``JOINT``, ``JOINTINPARENT``, ``SITE``, ``TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
    * - :ref:`Actuator Gain <mjtGain>`
      - ``FIXED``, ``AFFINE``
    * - :ref:`Actuator Bias <mjtBias>`
      - ``NONE``, ``AFFINE``
+   * - :ref:`Tendon Wrapping <mjtWrap>`
+     - ``JOINT``, ``SITE``, ``PULLEY``
    * - :ref:`Geom <mjtGeom>`
-     - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
+     - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and
+       ``CYLINDER`` are implemented but only collide with other primitives, note that ``BOX`` is implemented as a mesh.
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``, ``FRICTION_TENDON``
    * - :ref:`Equality <mjtEq>`
-     - ``CONNECT``, ``WELD``, ``JOINT``
+     - ``CONNECT``, ``WELD``, ``JOINT``, ``TENDON``
    * - :ref:`Integrator <mjtIntegrator>`
-     - ``EULER``, ``RK4``
+     - ``EULER``, ``RK4``, ``IMPLICITFAST`` (``IMPLICITFAST`` not supported with :doc:`fluid drag <computation/fluid>`)
    * - :ref:`Cone <mjtCone>`
-     - ``PYRAMIDAL``
+     - ``PYRAMIDAL``, ``ELLIPTIC``
    * - :ref:`Condim <coContact>`
-     - 3
+     - 1, 3, 4, 6
    * - :ref:`Solver <mjtSolver>`
      - ``CG``, ``NEWTON``
    * - Fluid Model
      - :ref:`flInertia`
+   * - :ref:`Tendons <tendon>`
+     - :ref:`Fixed <tendon-fixed>`
+   * - :ref:`Sensors <mjtSensor>`
+     - ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``, ``TENDONPOS``, ``ACTUATORPOS``, ``BALLQUAT``,
+       ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``, ``SUBTREECOM``, ``CLOCK``,
+       ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``TENDONVEL``, ``ACTUATORVEL``, ``BALLANGVEL``, ``FRAMELINVEL``,
+       ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``ACCELEROMETER``, ``FORCE``, ``TORQUE``,
+       ``ACTUATORFRC``, ``JOINTACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``.
 
 The following features are **in development** and coming soon:
 
@@ -215,10 +233,13 @@ The following features are **in development** and coming soon:
 
    * - Category
      - Feature
+   * - :ref:`Geom <mjtGeom>`
+     - ``SDF``. Collisions between (``SPHERE``, ``BOX``, ``MESH``, ``HFIELD``) and ``CYLINDER``. Collisions between
+       (``BOX``, ``MESH``, ``HFIELD``) and ``ELLIPSOID``.
+   * - :ref:`Integrator <mjtIntegrator>`
+     - ``IMPLICIT``
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
-   * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``MUSCLE``
    * - :ref:`Actuator Gain <mjtGain>`
@@ -226,25 +247,15 @@ The following features are **in development** and coming soon:
    * - :ref:`Actuator Bias <mjtBias>`
      - ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
-     - ``NONE``, ``JOINT``, ``PULLEY``, ``SITE``, ``SPHERE``, ``CYLINDER``
-   * - :ref:`Geom <mjtGeom>`
-     - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
-   * - :ref:`Constraint <mjtConstraint>`
-     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
-   * - :ref:`Integrator <mjtIntegrator>`
-     - ``IMPLICIT``, ``IMPLICITFAST``
-   * - :ref:`Cone <mjtCone>`
-     - ``ELLIPTIC``
-   * - :ref:`Condim <coContact>`
-     - 1, 4, 6
+     - ``SPHERE``, ``CYLINDER``
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
-     - :ref:`Spatial <tendon-spatial>`, :ref:`Fixed <tendon-fixed>`
-   * - :ref:`Equality <mjtEq>`
-     - ``TENDON``
+     - :ref:`Spatial <tendon-spatial>`
    * - :ref:`Sensors <mjtSensor>`
      - All except ``PLUGIN``, ``USER``
+   * - Lights
+     - Positions and directions of lights
 
 The following features are **unsupported**:
 
@@ -256,8 +267,10 @@ The following features are **unsupported**:
 
    * - Category
      - Feature
+   * - :ref:`margin<body-geom-margin>` and :ref:`gap<body-geom-gap>`
+     - Unimplemented for collisions with ``Mesh`` :ref:`Geom <mjtGeom>`.
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_BODY``
+     - ``SLIDERCRANK``, ``BODY``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``USER``
    * - :ref:`Actuator Gain <mjtGain>`
@@ -268,8 +281,6 @@ The following features are **unsupported**:
      - ``PGS``
    * - :ref:`Sensors <mjtSensor>`
      - ``PLUGIN``, ``USER``
-   * - :ref:`Geom <mjtGeom>`
-     - ``SDF``
 
 .. _MjxSharpBits:
 
@@ -297,11 +308,13 @@ Collisions between large meshes
   SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
 
   For
-  collisions between convex meshes and primitives (spheres, capsules, planes), use **3000 vertices or less** for your convex meshes.
-  For collisions between convex meshes and other convex meshes, use **30 vertices or less**.
+  collisions with convex meshes and primitives, the convex decompositon of the mesh should have
+  roughly **200 vertices or less** for reasonable performance. For convex-convex collisions,
+  the convex mesh should have roughly **fewer than 32 vertices**.  We recommend using
+  :ref:`maxhullvert<asset-mesh-maxhullvert>` in the MuJoCo compiler to achieve desired convex mesh properties.
   With careful
   tuning, MJX can simulate scenes with mesh collisions -- see the MJX
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
   config for an example. Speeding up mesh collision detection is an active area of development for MJX.
 
 Large, complex scenes with many contacts
@@ -333,33 +346,47 @@ Performance tuning
 
 For MJX to perform well, some configuration parameters should be adjusted from their default MuJoCo values:
 
-:ref:`option` element
-  The ``iterations`` and ``ls_iterations`` attributes---which control solver and linesearch iterations, respectively---
-  should be brought down to just low enough that the simulation remains stable.  Accurate solver forces are not so
-  important in reinforcement learning in which domain randomization is often used to add noise to physics for sim-to-real.
-  The ``NEWTON`` :ref:`Solver <mjtSolver>` often delivers reasonable convergence with one solver iteration, and performs
-  well on GPU.  ``CG`` is currently a better choice for TPU.
+:ref:`option/iterations<option-iterations>` and :ref:`option/ls_iterations<option-ls_iterations>`
+  The :ref:`iterations<option-iterations>` and :ref:`ls_iterations<option-ls_iterations>` attributes---which control
+  solver and linesearch iterations, respectively---should be brought down to just low enough that the simulation remains
+  stable. Accurate solver forces are not so important in reinforcement learning in which domain randomization is often
+  used to add noise to physics for sim-to-real. The ``NEWTON`` :ref:`Solver <mjtSolver>` delivers excellent convergence
+  with very few (often just one) solver iterations, and performs well on GPU. ``CG`` is currently a better choice for
+  TPU.
 
-:ref:`contact-pair` element
+:ref:`contact/pair<contact-pair>`
   Consider explicitly marking geoms for collision detection to reduce the number of contacts that MJX must consider
   during each step.  Enabling only an explicit list of valid contacts can have a dramatic effect on simulation
   performance in MJX.  Doing this well often requires an understanding of the task -- for example, the
   `OpenAI Gym Humanoid <https://github.com/openai/gym/blob/master/gym/envs/mujoco/humanoid_v4.py>`__ task resets when
   the humanoid starts to fall, so full contact with the floor is not needed.
 
-:ref:`option-flag` element
-  Disabling ``eulerdamp`` can help performance and is often not needed for stability.
+:ref:`maxhullvert<asset-mesh-maxhullvert>`
+   Set :ref:`maxhullvert<asset-mesh-maxhullvert>` to `64` or less for better convex mesh collision performance.
 
-:ref:`option-jacobian` element
+:ref:`option/flag/eulerdamp<option-flag-eulerdamp>`
+  Disabling ``eulerdamp`` can help performance and is often not needed for stability. Read the
+  :ref:`Numerical Integration<geIntegration>` section for details regarding the semantics of this flag.
+
+:ref:`option/jacobian<option-jacobian>`
   Explicitly setting "dense" or "sparse" may speed up simulation depending on your device. Modern TPUs have specialized
   hardware for rapidly operating over sparse matrices, whereas GPUs tend to be faster with dense matrices as long as
-  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv`` is 60 or
-  greater, or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse" with the
-  Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup of 10%
-  to 20%, as long as the dense matrices can fit on the device.
+  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv >= 60`` (60 or
+  more degrees of freedom), or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse"
+  with the Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup
+  of 10% to 20%, as long as the dense matrices can fit on the device.
 
-GPU performance tuning
-----------------------
+Broadphase
+  While MuJoCo handles broadphase culling out of the box, MJX requires additional parameters. For an approximate version of
+  broadphase, use the experimental custom numeric parameters
+  ``max_contact_points`` and ``max_geom_pairs``. ``max_contact_points`` caps the number of contact points
+  sent to the solver for each condim type. ``max_geom_pairs`` caps the total number of geom-pairs sent to
+  respective collision functions for each geom-type pair. As an example, the
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
+  environment makes use of these parameters.
+
+GPU performance
+---------------
 
 The following environment variables should be set:
 

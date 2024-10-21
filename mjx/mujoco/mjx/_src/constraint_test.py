@@ -15,6 +15,7 @@
 """Tests for constraint functions."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
@@ -38,23 +39,38 @@ def _assert_attr_eq(a, b, attr):
   _assert_eq(getattr(a, attr), getattr(b, attr), attr)
 
 
-class ConstraintTest(absltest.TestCase):
+class ConstraintTest(parameterized.TestCase):
 
-  def test_constraints(self):
+  @parameterized.parameters(
+      mujoco.mjtCone.mjCONE_PYRAMIDAL, mujoco.mjtCone.mjCONE_ELLIPTIC
+  )
+  def test_constraints(self, cone):
     """Test constraints."""
     m = test_util.load_test_file('constraints.xml')
+    m.opt.cone = cone
     d = mujoco.MjData(m)
-    mujoco.mj_step(m, d, 100)  # at 100 steps mix of active/inactive constraints
-    mujoco.mj_forward(m, d)
-    mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d)
 
-    dx = mjx.make_constraint(mx, dx)
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_J, dx.efc_J[nnz].reshape(-1), 'efc_J')
-    _assert_eq(d.efc_D, dx.efc_D[nnz], 'efc_D')
-    _assert_eq(d.efc_aref, dx.efc_aref[nnz], 'efc_aref')
-    _assert_eq(d.efc_frictionloss, dx.efc_frictionloss[nnz], 'efc_frictionloss')
+    # sample a mix of active/inactive constraints at different timesteps
+    for key in range(3):
+      mujoco.mj_resetDataKeyframe(m, d, key)
+      mujoco.mj_forward(m, d)
+      mx = mjx.put_model(m)
+      dx = mjx.put_data(m, d)
+      dx = mjx.make_constraint(mx, dx)
+
+      order = test_util.efc_order(m, d, dx)
+      d_efc_j = d.efc_J.reshape((-1, m.nv))
+      _assert_eq(d_efc_j, dx.efc_J[order][: d.nefc], 'efc_J')
+      _assert_eq(0, dx.efc_J[order][d.nefc :], 'efc_J')
+      _assert_eq(d.efc_aref, dx.efc_aref[order][: d.nefc], 'efc_aref')
+      _assert_eq(0, dx.efc_aref[order][d.nefc :], 'efc_aref')
+      _assert_eq(d.efc_D, dx.efc_D[order][: d.nefc], 'efc_D')
+      _assert_eq(d.efc_pos, dx.efc_pos[order][: d.nefc], 'efc_pos')
+      _assert_eq(
+          d.efc_frictionloss,
+          dx.efc_frictionloss[order][: d.nefc],
+          'efc_frictionloss',
+      )
 
   def test_disable_refsafe(self):
     m = test_util.load_test_file('constraints.xml')
@@ -65,14 +81,14 @@ class ConstraintTest(absltest.TestCase):
     pos = jp.ones(3)
 
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.REFSAFE
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     k, *_ = constraint._kbi(mx, solimp, solref, pos)
     self.assertEqual(k, 1 / (0.99**2 * timeconst**2))
 
   def test_disable_constraint(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONSTRAINT
-    ne, nf, nl, nc = mjx.count_constraints(m)
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
     self.assertEqual(ne, 0)
     self.assertEqual(nf, 0)
     self.assertEqual(nl, 0)
@@ -83,24 +99,62 @@ class ConstraintTest(absltest.TestCase):
   def test_disable_equality(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.EQUALITY
-    ne, nf, nl, nc = mjx.count_constraints(m)
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
     self.assertEqual(ne, 0)
-    self.assertEqual(nf, 0)
-    self.assertEqual(nl, 2)
-    self.assertEqual(nc, 64)
+    self.assertEqual(nf, 2)
+    self.assertEqual(nl, 5)
+    self.assertEqual(nc, 180)
     dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
-    self.assertEqual(dx.efc_J.shape[0], 66)  # only joint range, contact
+    self.assertEqual(dx.efc_J.shape[0], 187)  # only joint/tendon limit, contact
 
   def test_disable_contact(self):
     m = test_util.load_test_file('constraints.xml')
     m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONTACT
-    ne, nf, nl, nc = mjx.count_constraints(m)
-    self.assertEqual(ne, 10)
-    self.assertEqual(nf, 0)
-    self.assertEqual(nl, 2)
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
+    self.assertEqual(ne, 20)
+    self.assertEqual(nf, 2)
+    self.assertEqual(nl, 5)
     self.assertEqual(nc, 0)
     dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
-    self.assertEqual(dx.efc_J.shape[0], 12)  # only joint range, limit
+    self.assertEqual(dx.efc_J.shape[0], 27)  # only equality, joint/tendon limit
+
+  def test_disable_frictionloss(self):
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.FRICTIONLOSS
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
+    self.assertEqual(ne, 20)
+    self.assertEqual(nf, 0)
+    self.assertEqual(nl, 5)
+    self.assertEqual(nc, 180)
+    dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
+    self.assertEqual(dx.efc_J.shape[0], 205)
+
+  def test_margin(self):
+    """Test margin."""
+    m = mujoco.MjModel.from_xml_string("""
+       <mujoco>
+          <worldbody>
+            <geom name="floor" size="0 0 .05" type="plane" condim="3"/>
+            <body pos="0 0 0.1">
+              <freejoint/>
+              <geom size="0.1" margin="0.25"/>
+            </body>
+            <body pos="0 0 1">
+              <joint type="hinge" limited="true" range="-1 1" margin="0.005"/>
+              <geom size="1" margin="0.01"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    dx = mjx.make_constraint(mx, dx)
+
+    order = test_util.efc_order(m, d, dx)
+    _assert_eq(d.efc_pos, dx.efc_pos[order][: d.nefc], 'efc_pos')
+    _assert_eq(d.efc_margin, dx.efc_margin[order][: d.nefc], 'efc_margin')
 
 
 if __name__ == '__main__':

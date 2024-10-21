@@ -1,0 +1,25 @@
+<mujoco>
+  <!--
+  This model replicates the behaviour seen in this video:
+  https://www.youtube.com/watch?v=1n-HMSCDYtM
+  see also
+  https://en.wikipedia.org/wiki/Tennis_racket_theorem
+  -->
+  <option integrator="RK4">
+    <flag energy="enable" gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 0 .3"/>
+    <geom type="plane" size=".2 .2 .01" pos="0 0 -.1"/>
+    <body>
+      <freejoint align="true"/>
+      <geom type="cylinder" rgba="0 .6 1 1" size=".01 .04" pos="-.00085 0 0"/>
+      <geom type="cylinder" rgba="0 .6 1 1" size=".004 .015" zaxis="1 0 0" pos=".01415 0 0"/>
+    </body>
+  </worldbody>
+
+  <keyframe>
+    <key qpos="0 0 0 1 0 0 1" qvel="0 0 0 0 20 .1"/>
+  </keyframe>
+</mujoco>

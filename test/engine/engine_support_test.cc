@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_support.h"
 
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -28,15 +29,136 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
+using ::testing::Eq;
+using ::testing::ContainsRegex;  // NOLINT
+using ::testing::MatchesRegex;
+using ::testing::Pointwise;
+using ::testing::ElementsAreArray;
+using ::testing::Pointwise;
+
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
   return std::vector<mjtNum>(array, array + n);
 }
 
-using ::testing::DoubleNear;
-using ::testing::ContainsRegex;
-using ::testing::MatchesRegex;
-using ::testing::Pointwise;
-using ::testing::ElementsAreArray;
+using AngMomMatTest = MujocoTest;
+
+static constexpr char AngMomTestingModel[] = R"(
+<mujoco>
+  <option>
+    <flag gravity="disable"/>
+  </option>
+  <worldbody>
+    <body name="link1" pos="0 0 0.5">
+      <freejoint/>
+      <geom type="ellipsoid" size="0.15 0.17 0.19" quat="1 .2 .3 .4"/>
+      <body name="link2" >
+        <joint type="hinge" axis="1 0 0" />
+        <geom type="capsule" size="0.05" fromto="0 0 0  0 0.5 0"/>
+        <body pos="0 0.6 0">
+          <joint type="slide" axis="1 0 0"/>
+          <geom type="capsule" size="0.05 0.2" quat="0.707 0 0.707 0"/>
+          <body name="link3">
+            <joint type="ball" pos="0.2 0 0"/>
+            <geom type="capsule" pos="0.2 0 0" size="0.03 0.4"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="0 0 0 .1 .2 .3 .4 .5 .4 .3 .2"/>
+  </keyframe>
+</mujoco>
+)";
+
+// compare subtree angular momentum computed in two ways
+TEST_F(AngMomMatTest, CompareAngMom) {
+  mjModel* model = LoadModelFromString(AngMomTestingModel);
+  int nv = model->nv;
+  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
+
+  mjData* data = mj_makeData(model);
+
+  // reset to the keyframe with some angular velocities
+  mj_resetDataKeyframe(model, data, 0);
+  mj_forward(model, data);
+
+  // get the reference value of angular momentum
+  mj_subtreeVel(model, data);
+  mjtNum angmom_ref[3];
+  mju_copy3(angmom_ref, data->subtree_angmom+3*bodyid);
+
+  // compute angular momentum using the angular momentum matrix
+  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+  mj_angmomMat(model, data, angmom_mat, bodyid);
+  mjtNum angmom_test[3];
+  mju_mulMatVec(angmom_test, angmom_mat, data->qvel, 3, nv);
+
+  // compare the two angular momentum values
+  static const mjtNum tol = 1e-8;
+  for (int i = 0; i < 3; i++) {
+    EXPECT_THAT(angmom_ref[i], DoubleNear(angmom_test[i], tol));
+  }
+
+  mju_free(angmom_mat);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// compare subtree angular momentum matrix: analytical and findiff
+TEST_F(AngMomMatTest, CompareAngMomMats) {
+  mjModel* model = LoadModelFromString(AngMomTestingModel);
+  int nv = model->nv;
+  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
+  mjData* data = mj_makeData(model);
+  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+  mjtNum* angmom_mat_fd = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+
+  // reset to the keyframe with some angular velocities
+  mj_resetDataKeyframe(model, data, 0);
+  mj_forward(model, data);
+
+  // compute the angular momentum matrix using the analytical method
+  mj_angmomMat(model, data, angmom_mat, bodyid);
+
+  // compute the angular momentum matrix using finite differences
+  static const mjtNum eps = 1e-6;
+  for (int i = 0; i < nv; i++) {
+    // reset vel, forward nudge i-th dof, get angmom
+    mju_copy(data->qvel, model->key_qvel, model->nv);
+    data->qvel[i] += eps;
+    mj_forward(model, data);
+    mj_subtreeVel(model, data);
+    mjtNum agmf[3];
+    mju_copy3(agmf, data->subtree_angmom+3*bodyid);
+
+    // reset vel, backward nudge i-th dof, get angmom
+    mju_copy(data->qvel, model->key_qvel, model->nv);
+    data->qvel[i] -= eps;
+    mj_forward(model, data);
+    mj_subtreeVel(model, data);
+    mjtNum agmb[3];
+    mju_copy3(agmb, data->subtree_angmom+3*bodyid);
+
+    // finite-difference the angmom matrix
+    for (int j = 0; j < 3; j++) {
+      angmom_mat_fd[nv*j+i] = (agmf[j] - agmb[j]) / (2 * eps);
+    }
+  }
+
+  // compare the two matrices
+  static const mjtNum tol = 1e-8;
+  for (int i = 0; i < 3*nv; i++) {
+    EXPECT_THAT(angmom_mat_fd[i], DoubleNear(angmom_mat[i], tol));
+  }
+
+  mju_free(angmom_mat_fd);
+  mju_free(angmom_mat);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
@@ -162,6 +284,164 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   mju_free(jac_subtree);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+static constexpr char kQuat[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="query">
+      <joint type="ball"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="2 3 5"/>
+  </keyframe>
+</mujoco>
+)";
+
+static constexpr char kFreeBall[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="distractor1" pos="0 0 .3">
+      <freejoint/>
+      <geom size=".1"/>
+    </body>
+    <body name="main">
+      <freejoint/>
+      <geom size=".1"/>
+      <body pos=".1 0 0">
+        <joint axis="0 1 0"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 .2 0 0"/>
+        <body pos=".2 0 0">
+          <joint type="ball" stiffness="20"/>
+          <geom type="capsule" size=".03" fromto="0 0 0 0 .2 0"/>
+          <body name="query" pos="0 .2 0">
+            <joint type="slide" axis="1 1 1"/>
+            <geom size=".05"/>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="distractor2" pos="0 0 -.3">
+      <freejoint/>
+      <geom size=".1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"/>
+  </keyframe>
+</mujoco>
+)";
+
+static constexpr char kQuatlessPendulum[] = R"(
+<mujoco>
+  <option integrator="implicit">
+    <flag constraint="disable"/>
+  </option>
+  <worldbody>
+    <body pos="0.15 0 0">
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+      <body pos="0.1 0 0">
+        <joint type="slide" axis="1 0 0" stiffness="200"/>
+        <geom type="capsule" size="0.015" fromto="-.1 0 0 .1 0 0"/>
+        <body pos=".1 0 0">
+          <joint axis="1 0 0"/>
+          <joint axis="0 1 0"/>
+          <joint axis="0 0 1"/>
+          <geom type="box" size=".02" fromto="0 0 0 0 .1 0"/>
+          <body name="query" pos="0 .1 0">
+            <joint axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 0 .1 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char kTelescope[] = R"(
+<mujoco>
+  <worldbody>
+    <body>
+      <joint type="ball"/>
+      <geom type="capsule" size="0.02" fromto="0 .02 0 .1 .02 0"/>
+      <body pos=".1 .02 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+        <body pos=".1 .02 0">
+          <joint type="slide" axis="1 0 0"/>
+          <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+          <body pos=".1 .02 0" name="query">
+            <joint type="slide" axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="1 1 1 1 1 1"/>
+  </keyframe>
+</mujoco>
+)";
+
+// compare mj_jacDot with finite-differenced mj_jac
+TEST_F(JacobianTest, JacDot) {
+  for (auto xml : {kQuat, kFreeBall, kQuatlessPendulum, kTelescope}) {
+    mjModel* model = LoadModelFromString(xml);
+    int nv = model->nv;
+    mjtNum point[3] = {.01, .02, .03};
+    mjData* data = mj_makeData(model);
+
+    // load keyframe if present, step for a bit
+    if (model->nkey) mj_resetDataKeyframe(model, data, 0);
+    while (data->time < 0.1) {
+      mj_step(model, data);
+    }
+
+    // minimal call required for mj_jacDot outputs to be valid
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mj_comVel(model, data);
+
+    // get bodyid
+    int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
+    EXPECT_GT(bodyid, 0);
+
+    // jac, jac_dot
+    mj_markStack(data);
+    mjtNum* jac = mj_stackAllocNum(data, 6*nv);
+    mj_jac(model, data, jac, jac+3*nv, point, bodyid);
+    mjtNum* jac_dot =  mj_stackAllocNum(data, 6*nv);
+    mj_jacDot(model, data, jac_dot, jac_dot+3*nv, point, bodyid);
+
+    // jac_h: jacobian after integrating qpos with a timestep of h
+    mjtNum h = 1e-7;
+    mj_integratePos(model, data->qpos, data->qvel, h);
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mjtNum* jac_h =  mj_stackAllocNum(data, 6*nv);;
+    mj_jac(model, data, jac_h, jac_h+3*nv, point, bodyid);
+
+    // jac_dot_h finite-difference approximation
+    mjtNum* jac_dot_h = mj_stackAllocNum(data, 6*nv);;
+    mju_sub(jac_dot_h, jac_h, jac, 6*nv);
+    mju_scl(jac_dot_h, jac_dot_h, 1/h, 6*nv);
+
+    // compare finite-differenced and analytic
+    mjtNum tol = 1e-5;
+    for (int j=0; j < 6; j++) {
+      EXPECT_THAT(AsVector(jac_dot_h + j*nv, nv),
+                  Pointwise(DoubleNear(tol), AsVector(jac_dot + j*nv, nv)));
+    }
+
+    mj_freeStack(data);
+    mj_deleteData(data);
+    mj_deleteModel(model);
+  }
 }
 
 using Name2idTest = MujocoTest;
@@ -412,7 +692,7 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 using AddMTest = MujocoTest;
 
 TEST_F(AddMTest, DenseSameAsSparse) {
-  mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
   mjData* d = mj_makeData(m);
   int nv = m->nv;
 
@@ -425,13 +705,13 @@ TEST_F(AddMTest, DenseSameAsSparse) {
   }
 
   // dense zero matrix
-  std::vector<mjtNum> dst_sparse = std::vector(nv * nv, 0.0);
+  std::vector<mjtNum> dst_sparse(nv * nv, 0.0);
 
   // sparse zero matrix
-  std::vector<mjtNum> dst_dense = std::vector(nv * nv, 0.0);
-  std::vector<int> rownnz = std::vector(nv, nv);
-  std::vector<int> rowadr = std::vector(nv, 0);
-  std::vector<int> colind = std::vector(nv * nv, 0);
+  std::vector<mjtNum> dst_dense(nv * nv, 0.0);
+  std::vector<int> rownnz(nv, nv);
+  std::vector<int> rowadr(nv, 0);
+  std::vector<int> colind(nv * nv, 0);
 
   // set sparse structure
   for (int i = 0; i < nv; i++) {
@@ -446,7 +726,7 @@ TEST_F(AddMTest, DenseSameAsSparse) {
           rowadr.data(), colind.data());
 
   // dense addM
-  mj_addM(m, d, dst_dense.data(), NULL, NULL, NULL);
+  mj_addM(m, d, dst_dense.data(), nullptr, nullptr, nullptr);
 
   // dense comparison, should be same matrix
   EXPECT_THAT(dst_dense, ElementsAreArray(dst_sparse));
@@ -523,6 +803,125 @@ TEST_F(SupportTest, MulMIsland) {
 
   mju_free(Mvec);
   mju_free(vec);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+static constexpr char GeomDistanceTestingModel[] = R"(
+<mujoco>
+  <asset>
+    <mesh name="box" scale=".1 .1 .1" vertex="0 0 0  1 0 0  0 1 0  1 1 0
+                                              0 0 1  1 0 1  0 1 1  1 1 1"/>
+  </asset>
+
+  <worldbody>
+    <geom type="plane" size="1 1 1"/>
+    <geom pos="0 0 1" size="0.2"/>
+    <geom pos="1 0 1" size="0.3"/>
+    <geom type="mesh" mesh="box"/>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(SupportTest, GeomDistance) {
+  mjModel* model = LoadModelFromString(GeomDistanceTestingModel);
+  mjData* data = mj_makeData(model);
+  mj_kinematics(model, data);
+
+  // plane-sphere, distmax too small
+  mjtNum distmax = 0.5;
+  EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, nullptr), 0.5);
+  mjtNum fromto[6];
+  EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, fromto), 0.5);
+  EXPECT_THAT(fromto, Pointwise(Eq(), std::vector<mjtNum>{0, 0, 0, 0, 0, 0}));
+
+  // plane-sphere
+  distmax = 1.0;
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 0, 1, 1.0, fromto), 0.8);
+  mjtNum eps = 1e-12;
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
+
+  // sphere-plane
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 0, 1.0, fromto), 0.8);
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
+
+  // sphere-sphere
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 2, 1.0, fromto), 0.5);
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+
+  // sphere-sphere, flipped order
+  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 2, 1, 1.0, fromto), 0.5);
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
+
+  // TODO: b/339596989 - Improve the bounds below (mjc_Convex).
+
+  // mesh-sphere (close distmax)
+  distmax = 0.701;
+  eps = 1e-5;
+  EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
+              DoubleNear(0.7, eps));
+  eps = 1e-3;
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+
+  // mesh-sphere (far distmax)
+  distmax = 1.0;
+  eps = 1e-3;
+  EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
+              DoubleNear(0.7, eps));
+  eps = 2e-2;
+  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+                                std::vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+static constexpr char kSetKeyframeTestingModel[] = R"(
+<mujoco>
+  <size nkey="2"/>
+
+  <worldbody>
+    <body>
+      <joint name="joint" axis="0 1 0"/>
+      <geom size=".1" pos="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <intvelocity joint="joint" actrange="-1 1" kp="100" dampratio="1"/>
+  </actuator>
+</mujoco>
+)";
+
+TEST_F(SupportTest, SetKeyframe) {
+  mjModel* model = LoadModelFromString(kSetKeyframeTestingModel);
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1;
+  while (data->time < 1) {
+    mj_step(model, data);
+  }
+
+  mj_setKeyframe(model, data, 1);
+  EXPECT_EQ(data->time, model->key_time[1]);
+  EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 1]);
+  EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 1]);
+  EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 1]);
+  EXPECT_EQ(data->act[0], model->key_act[model->na * 1]);
+
+  mj_step(model, data);
+  mj_setKeyframe(model, data, 0);
+  EXPECT_EQ(data->time, model->key_time[0]);
+  EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 0]);
+  EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 0]);
+  EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 0]);
+  EXPECT_EQ(data->act[0], model->key_act[model->na * 0]);
+
   mj_deleteData(data);
   mj_deleteModel(model);
 }

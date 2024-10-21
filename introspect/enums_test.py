@@ -42,9 +42,9 @@ class EnumsTest(absltest.TestCase):
                                           ('mjENBL_ENERGY', 1<<1),
                                           ('mjENBL_FWDINV', 1<<2),
                                           ('mjENBL_INVDISCRETE', 1<<3),
-                                          ('mjENBL_SENSORNOISE', 1<<4),
-                                          ('mjENBL_MULTICCD', 1<<5),
-                                          ('mjENBL_ISLAND', 1<<6),
+                                          ('mjENBL_MULTICCD', 1<<4),
+                                          ('mjENBL_ISLAND', 1<<5),
+                                          ('mjENBL_NATIVECCD', 1<<6),
                                           ('mjNENABLE', 7)))
 
   # values mostly increment by one with occasional overrides

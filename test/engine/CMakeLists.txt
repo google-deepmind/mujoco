@@ -21,6 +21,9 @@ target_link_libraries(engine_collision_convex_test fixture gmock)
 mujoco_test(engine_collision_driver_test)
 target_link_libraries(engine_collision_driver_test fixture gmock)
 
+mujoco_test(engine_collision_gjk_test)
+target_link_libraries(engine_collision_gjk_test fixture gmock ccd)
+
 mujoco_test(engine_core_constraint_test)
 target_link_libraries(engine_core_constraint_test fixture gmock)
 
@@ -69,14 +72,14 @@ target_link_libraries(engine_print_test fixture gmock)
 mujoco_test(engine_ray_test)
 target_link_libraries(engine_ray_test fixture gmock)
 
-mujoco_test(engine_resource_test)
-target_link_libraries(engine_resource_test fixture gmock)
-
 mujoco_test(engine_sensor_test)
 target_link_libraries(engine_sensor_test fixture gmock)
 
 mujoco_test(engine_solver_test)
 target_link_libraries(engine_solver_test fixture gmock)
+
+mujoco_test(engine_sort_test)
+target_link_libraries(engine_sort_test fixture gmock)
 
 mujoco_test(engine_support_test)
 target_link_libraries(engine_support_test fixture gmock)
@@ -95,9 +98,6 @@ target_link_libraries(engine_util_solve_test fixture gmock)
 
 mujoco_test(engine_util_spatial_test)
 target_link_libraries(engine_util_spatial_test fixture gmock)
-
-mujoco_test(engine_vfs_test)
-target_link_libraries(engine_vfs_test fixture gmock)
 
 mujoco_test(
   engine_vis_state_test

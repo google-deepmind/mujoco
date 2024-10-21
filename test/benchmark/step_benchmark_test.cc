@@ -14,11 +14,9 @@
 
 // A benchmark which steps various models without rendering, and measures speed.
 
-#include <array>
+#include <vector>
 
 #include <benchmark/benchmark.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -28,16 +26,11 @@
 namespace mujoco {
 namespace {
 
-// number of steps to roll out before benhmarking
+// number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 500;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
-
-// copy array into vector
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   mjData* data = mj_makeData(model);
@@ -62,8 +55,9 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     mj_setState(model, data, initial_state.data(), spec);
 
-    for (int i=kNumWarmupSteps; i < nsteps; i++) {
-      mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
+    for (int i=0; i < kNumBenchmarkSteps; i++) {
+      mjtNum* ctrl_data = ctrl.data()+model->nu*(i+kNumWarmupSteps);
+      mju_copy(data->ctrl, ctrl_data, model->nu);
       mj_step(model, data);
     }
   }
@@ -79,7 +73,7 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlagPlugin(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("plugin/elasticity/flag.xml");
+  static mjModel* model = LoadModelFromPath("plugin/elasticity/flag_flex.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepFlagPlugin);
@@ -108,7 +102,7 @@ BENCHMARK(BM_StepHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid100(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("humanoid100/humanoid100.xml");
+  static mjModel* model = LoadModelFromPath("humanoid/humanoid100.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid100);

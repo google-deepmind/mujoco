@@ -28,12 +28,20 @@ test_model() {
   local iterations=10
   # for particularly slow models, only run 2 steps under ASAN, or skip.
   if [[ ${TESTSPEED_ASAN:-0} != 0 ]]; then
-    if [[ "$model" == */composite/particle.xml ]]; then
-      # this test can take several minutes under ASAN
+    if [[ "$model" == */humanoid/100_humanoids.xml ||
+          "$model" == */composite/particle.xml ||
+          "$model" == */replicate/bunnies.xml ||
+          "$model" == */replicate/leaves.xml ||
+          "$model" == */replicate/particle.xml ||
+          "$model" == */engine/testdata/collision_convex/perf/*
+    ]]; then
+      # these tests can take several minutes under ASAN
       return 0
     fi
-    if [[ "$model" == */benchmark/testdata/humanoid200.xml
-        || "$model" == */engine/testdata/collision_convex/stacked_boxes.xml
+    if [[ "$model" == */benchmark/testdata/humanoid200.xml ||
+          "$model" == */engine/testdata/collision_convex/stacked_boxes.xml ||
+          "$model" == */user/testdata/shark_22_ascii_fTetWild.xml ||
+          "$model" == */user/testdata/shark_22_binary_fTetWild.xml
     ]]; then
       iterations=2
     fi
@@ -64,6 +72,10 @@ shopt -s globstar
 for model_dir in ${MODEL_DIRS[@]}; do
   echo "Looking in $model_dir"
   for model in $model_dir/**/*.xml; do
+    if [[ $(basename $model) == malformed* ]]; then
+      echo "Skipping $model" >&2
+      continue
+    fi
     if [[ $(basename $model) == malformed* ]]; then
       echo "Skipping $model" >&2
       continue

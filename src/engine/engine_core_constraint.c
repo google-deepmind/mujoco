@@ -20,6 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
@@ -35,9 +36,9 @@
 #endif
 
 #ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && defined(mjUSEDOUBLE)
+  #if defined(__AVX__) && !defined(mjUSESINGLE)
     #define mjUSEAVX
-  #endif  // defined(__AVX__) && defined(mjUSEDOUBLE)
+  #endif  // defined(__AVX__) && !defined(mjUSESINGLE)
 #endif  // mjUSEPLATFORMSIMD
 
 
@@ -70,11 +71,10 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
     return 0;                                                                 \
   }
 
-  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_SOLVER
   if (mj_isDual(m)) {
     MJDATA_ARENA_POINTERS_DUAL
   }
-
 #undef X
 
 #undef MJ_M
@@ -505,21 +505,33 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       size = 0;
       NV = 0;
       NV2 = 0;
+      int body_id[2];
 
       // process according to type
       switch ((mjtEq) m->eq_type[i]) {
       case mjEQ_CONNECT:              // connect bodies with ball joint
-        // find global points
-        for (int j=0; j < 2; j++) {
-          mju_rotVecMat(pos[j], data + 3*j, d->xmat + 9*id[j]);
-          mju_addTo3(pos[j], d->xpos + 3*id[j]);
+        // find global points, body semantic
+        if (m->eq_objtype[i] == mjOBJ_BODY) {
+          for (int j=0; j < 2; j++) {
+            mju_mulMatVec3(pos[j], d->xmat + 9*id[j], data + 3*j);
+            mju_addTo3(pos[j], d->xpos + 3*id[j]);
+            body_id[j] = id[j];
+          }
+        }
+
+        // find global points, site semantic
+        else {
+          for (int j=0; j < 2; j++) {
+            mju_copy3(pos[j], d->site_xpos + 3*id[j]);
+            body_id[j] = m->site_bodyid[id[j]];
+          }
         }
 
         // compute position error
         mju_sub3(cpos, pos[0], pos[1]);
 
         // compute Jacobian difference (opposite of contact: 0 - 1)
-        NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
+        NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                            jac[1], jac[0], jacdif, NULL, NULL, NULL);
 
         // copy difference into jac[0]
@@ -529,11 +541,22 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_WELD:                 // fix relative position and orientation
-        // find global points
-        for (int j=0; j < 2; j++) {
-          mjtNum* anchor = data + 3*(1-j);
-          mju_rotVecMat(pos[j], anchor, d->xmat + 9*id[j]);
-          mju_addTo3(pos[j], d->xpos + 3*id[j]);
+        // find global points, body semantic
+        if (m->eq_objtype[i] == mjOBJ_BODY) {
+          for (int j=0; j < 2; j++) {
+            mjtNum* anchor = data + 3*(1-j);
+            mju_mulMatVec3(pos[j], d->xmat + 9*id[j], anchor);
+            mju_addTo3(pos[j], d->xpos + 3*id[j]);
+            body_id[j] = id[j];
+          }
+        }
+
+        // find global points, site semantic
+        else {
+          for (int j=0; j < 2; j++) {
+            mju_copy3(pos[j], d->site_xpos + 3*id[j]);
+            body_id[j] = m->site_bodyid[id[j]];
+          }
         }
 
         // compute position error
@@ -543,7 +566,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mjtNum torquescale = data[10];
 
         // compute error Jacobian (opposite of contact: 0 - 1)
-        NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
+        NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                            jac[1], jac[0], jacdif,
                            jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv);
 
@@ -551,11 +574,23 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_copy(jac[0], jacdif, 3*NV);
         mju_copy(jac[0]+3*NV, jacdif+3*nv, 3*NV);
 
-        // compute orientation error: neg(q1) * q0 * relpose (axis components only)
-        mjtNum* relpose = data+6;
-        mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
-        mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
-        mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*relpose
+        // orientation, body semantic
+        if (m->eq_objtype[i] == mjOBJ_BODY) {
+          // compute orientation error: neg(q1) * q0 * relpose (axis components only)
+          mjtNum* relpose = data+6;
+          mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
+          mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
+        }
+
+        // orientation, site semantic
+        else {
+          mjtNum quat_site1[4];
+          mju_mulQuat(quat, d->xquat+4*body_id[0], m->site_quat+4*id[0]);
+          mju_mulQuat(quat_site1, d->xquat+4*body_id[1], m->site_quat+4*id[1]);
+          mju_negQuat(quat1, quat_site1);
+        }
+
+        mju_mulQuat(quat2, quat1, quat);
         mju_scl3(cpos+3, quat2+1, torquescale);         // scale axis components by torquescale
 
         // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * relpose
@@ -818,7 +853,10 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
       // BALL joint
       else if (m->jnt_type[i] == mjJNT_BALL) {
         // convert joint quaternion to axis-angle
-        mju_quat2Vel(angleAxis, d->qpos+m->jnt_qposadr[i], 1);
+        int adr = m->jnt_qposadr[i];
+        mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
+        mju_normalize4(quat);
+        mju_quat2Vel(angleAxis, quat, 1);
 
         // get rotation angle, normalize
         value = mju_normalize3(angleAxis);
@@ -1653,7 +1691,6 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
         if (id[1] >= 0) {
           NV = mju_combineSparseCount(NV, NV2, chain, chain2);
-          NV = 2;
         }
         break;
 
@@ -1704,7 +1741,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
 // count frictional constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
-  int nf = 0, nnzf = 0;
+  int nf = 0;
   int nv = m->nv, ntendon = m->ntendon;
 
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
@@ -1714,19 +1751,15 @@ static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
   for (int i=0; i < nv; i++) {
     if (m->dof_frictionloss[i] > 0) {
       nf += mj_addConstraintCount(m, 1, 1);
-      nnzf++;
+      if (nnz) *nnz += 1;
     }
   }
 
   for (int i=0; i < ntendon; i++) {
     if (m->tendon_frictionloss[i] > 0) {
       nf += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-      nnzf += d->ten_J_rownnz[i];
+      if (nnz) *nnz += d->ten_J_rownnz[i];
     }
-  }
-
-  if (nnz) {
-    *nnz += nnzf;
   }
 
   return nf;
@@ -1736,7 +1769,7 @@ static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
 
 // count limit constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
-  int nnzl = 0, nl = 0;
+  int nl = 0;
   int ntendon = m->ntendon;
   int side;
   mjtNum margin, value, dist;
@@ -1761,18 +1794,21 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
         dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
         if (dist < margin) {
           nl += mj_addConstraintCount(m, 1, 1);
-          nnzl++;
+          if (nnz) *nnz += 1;
         }
       }
     }
     else if (m->jnt_type[i] == mjJNT_BALL) {
       mjtNum angleAxis[3];
-      mju_quat2Vel(angleAxis, d->qpos+m->jnt_qposadr[i], 1);
+      int adr = m->jnt_qposadr[i];
+      mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
+      mju_normalize4(quat);
+      mju_quat2Vel(angleAxis, quat, 1);
       value = mju_normalize3(angleAxis);
       dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
       if (dist < margin) {
         nl += mj_addConstraintCount(m, 1, 3);
-        nnzl += 3;
+        if (nnz) *nnz += 3;
       }
     }
   }
@@ -1787,15 +1823,12 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
         dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
         if (dist < margin) {
           nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-          nnzl += d->ten_J_rownnz[i];
+          if (nnz) *nnz += d->ten_J_rownnz[i];
         }
       }
     }
   }
 
-  if (nnz) {
-    *nnz += nnzl;
-  }
   return nl;
 }
 
@@ -2111,7 +2144,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
 
     // AR = JM2 * JM2'
-    mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, nv, nefc, rownnzT,
+    mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc, rownnzT,
                            rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d);
 
     mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,

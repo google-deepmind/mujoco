@@ -98,7 +98,7 @@ function :ref:`mj_step` in a loop such as
 .. code-block:: C
 
    // simulate until t = 10 seconds
-   while( d->time<10 )
+   while (d->time < 10)
      mj_step(m, d);
 
 This by itself will simulate the passive dynamics, because we have not provided any control signals or applied forces.
@@ -107,9 +107,8 @@ The default (and recommended) way to control the system is to implement a contro
 .. code-block:: C
 
    // simple controller applying damping to each dof
-   void mycontroller(const mjModel* m, mjData* d)
-   {
-     if( m->nu==m->nv )
+   void mycontroller(const mjModel* m, mjData* d) {
+     if (m->nu == m->nv)
        mju_scl(d->ctrl, d->qvel, -0.1, m->nv);
    }
 
@@ -138,7 +137,7 @@ control callback) would become
 
 .. code-block:: C
 
-   while( d->time<10 ) {
+   while (d->time < 10) {
      // set d->ctrl or d->qfrc_applied or d->xfrc_applied
      mj_step(m, d);
    }
@@ -150,10 +149,10 @@ continuous time, and then integrate over a time period specified by ``mjModel.op
 the acceleration ``mjData.qacc`` at time ``mjData.time``, given the :ref:`state and control <siStateControl>` at time
 ``mjData.time``. The numerical integrator then advances the state and time to ``mjData.time + mjModel.opt.timestep``.
 Now, the control is required to be a function of the state at time ``mjData.time``. However a general feedback
-controller can be a very complex function, depending on various features of the state - in particular all the features
+controller can be a very complex function, depending on various features of the state -- in particular all the features
 computed by MuJoCo as intermediate results of the simulation. These may include contacts, Jacobians, passive forces.
-None of these quantities are available before ``mj_step`` is called (or rather, they are available but outdated by one
-time step). In contrast, when ``mj_step`` calls our control callback, it does so as late in the computation as possible
+None of these quantities are available before ``mj_step`` is called (or rather, they are available but *outdated by one
+time step*). In contrast, when ``mj_step`` calls our control callback, it does so as late in the computation as possible
 - namely after all the intermediate results dependent on the state but not on the control have been computed.
 
 The same effect can be achieved without using a control callback. This is done by breaking ``mj_step`` in two parts:
@@ -161,7 +160,7 @@ before the control is needed, and after the control is needed. The simulation lo
 
 .. code-block:: C
 
-   while( d->time<10 ) {
+   while (d->time < 10) {
      mj_step1(m, d);
      // set d->ctrl or d->qfrc_applied or d->xfrc_applied
      mj_step2(m, d);
@@ -186,11 +185,11 @@ omitting some code that computes timing diagnostics. The main simulation functio
      mj_checkAcc(m, d);
 
      // compare forward and inverse solutions if enabled
-     if( mjENABLED(mjENBL_FWDINV) )
+     if (mjENABLED(mjENBL_FWDINV))
        mj_compareFwdInv(m, d);
 
      // use selected integrator
-     if( m->opt.integrator==mjINT_RK4 )
+     if (m->opt.integrator == mjINT_RK4)
        mj_RungeKutta(m, d, 4);
      else
        mj_Euler(m, d);
@@ -206,8 +205,7 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
 
 .. code-block:: C
 
-   void mj_step1(const mjModel* m, mjData* d)
-   {
+   void mj_step1(const mjModel* m, mjData* d) {
      mj_checkPos(m, d);
      mj_checkVel(m, d);
      mj_fwdPosition(m, d);
@@ -218,12 +216,11 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
      mj_energyVel(m, d);
 
      // if we had a callback we would be using mj_step, but call it anyway
-     if( mjcb_control )
+     if (mjcb_control)
        mjcb_control(m, d);
    }
 
-   void mj_step2(const mjModel* m, mjData* d)
-   {
+   void mj_step2(const mjModel* m, mjData* d) {
      mj_fwdActuation(m, d);
      mj_fwdAcceleration(m, d);
      mj_fwdConstraint(m, d);
@@ -231,7 +228,7 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
      mj_checkAcc(m, d);
 
      // compare forward and inverse solutions if enabled
-     if( mjENABLED(mjENBL_FWDINV) )
+     if (mjENABLED(mjENBL_FWDINV))
        mj_compareFwdInv(m, d);
 
      // integrate with Euler; ignore integrator option
@@ -248,12 +245,12 @@ notion of state of a dynamical system. Dynamical systems are usually described i
 
 .. code-block:: Text
 
-     dx/dt = f(t,x,u)
+     dx/dt = f(t, x, u)
 
 where ``t`` is the time, ``x`` is the state vector, ``u`` is the control vector, and ``f`` is the function that
 computes the time-derivative of the state. This is a continuous-time formulation, and indeed the physics model
 simulated by MuJoCo is defined in continuous time. Even though the numerical integrator operates in discrete time, the
-main part of the computation - namely the function :ref:`mj_forward` - corresponds to the
+main part of the computation---namely the function :ref:`mj_forward`---corresponds to the
 continuous-time dynamics function ``f(t,x,u)`` above. Here we explain this correspondence.
 
 The state vector in MuJoCo is:
@@ -317,7 +314,7 @@ internal diagnostics which do not affect the simulation). This can be done as
    // copy mocap body pose and userdata
    mju_copy(dst->mocap_pos,  src->mocap_pos,  3*m->nmocap);
    mju_copy(dst->mocap_quat, src->mocap_quat, 4*m->nmocap);
-   mju_copy(dst->userdata, src->userdata, m->nuserdata);
+   mju_copy(dst->userdata,   src->userdata,   m->nuserdata);
 
    // copy warm-start acceleration
    mju_copy(dst->qacc_warmstart, src->qacc_warmstart, m->nv);
@@ -372,32 +369,30 @@ skip arguments (mjSTAGE_NONE, 0), where the latter function is implemented as
 
    void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
      // position-dependent
-     if( skipstage<mjSTAGE_POS )
-     {
+     if (skipstage < mjSTAGE_POS) {
        mj_fwdPosition(m, d);
-       if( !skipsensor )
+       if (!skipsensor)
          mj_sensorPos(m, d);
-       if( mjENABLED(mjENBL_ENERGY) )
+       if (mjENABLED(mjENBL_ENERGY))
          mj_energyPos(m, d);
      }
 
      // velocity-dependent
-     if( skipstage<mjSTAGE_VEL )
-     {
+     if (skipstage < mjSTAGE_VEL) {
        mj_fwdVelocity(m, d);
-       if( !skipsensor )
+       if (!skipsensor)
          mj_sensorVel(m, d);
-       if( mjENABLED(mjENBL_ENERGY) )
+       if (mjENABLED(mjENBL_ENERGY))
          mj_energyVel(m, d);
      }
 
      // acceleration-dependent
-     if( mjcb_control )
+     if (mjcb_control)
        mjcb_control(m, d);
      mj_fwdActuation(m, d);
      mj_fwdAcceleration(m, d);
      mj_fwdConstraint(m, d);
-     if( !skipsensor )
+     if (!skipsensor)
        mj_sensorAcc(m, d);
    }
 
@@ -426,7 +421,7 @@ the first and second sections (position and velocity dependent) have already bee
 When can we use the above machinery and skip some of the computations? In a regular simulation this is not possible.
 However, MuJoCo is designed not only for simulation but also for more advanced applications such as model-based
 optimization, machine learning etc. In such settings one often needs to sample the dynamics at a cloud of nearby
-states, or approximate derivatives via finite differences - which is another form of sampling. If the samples are
+states, or approximate derivatives via finite differences -- which is another form of sampling. If the samples are
 arranged on a grid, where only the position or only the velocity or only the control is different from the center
 point, then the above mechanism can improve performance by about a factor of 2.
 
@@ -510,8 +505,8 @@ management.
 
    // allocate per-thread mjData
    mjData* d[64];
-   for( int n=0; n < nthread; n++ )
-       d[n] = mj_makeData(m);
+   for (int n=0; n < nthread; n++)
+     d[n] = mj_makeData(m);
 
    // ... serial code, perhaps using its own mjData* dmain
 
@@ -527,7 +522,7 @@ management.
    }
 
    // delete per-thread mjData
-   for( int n=0; n<nthread; n++ )
+   for (int n=0; n < nthread; n++)
      mj_deleteData(d[n]);
 
 Since all top-level API functions treat mjModel as ``const``, this multi-threading scheme is safe. Each thread only
@@ -572,7 +567,7 @@ because that may result in incorrect sizes or indexing. This rule does not hold 
 parameters such as inertias are expected to obey certain properties. On the other hand, some structural parameters
 such as object types may be possible to change, but that depends on whether any sizes or indexes depend on them.
 Arrays of type mjtByte can be changed safely, since they are binary indicators that enable and disable certain
-features. The only exception here is ``mjModel.tex_rgb`` which is texture data represented as mjtByte.
+features. The only exception here is ``mjModel.tex_data`` which is texture data represented as mjtByte.
 
 When changing mjModel fields that corresponds to resources uploaded to the GPU, the user must also call the
 corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used
@@ -585,13 +580,13 @@ corresponding to precomputed quantities when the model is in the reference confi
 
 Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The function
 :ref:`mj_saveLastXML` does that in a limited sense: it copies all real-valued parameters from mjModel back to the
-internal mjCModel, and then saves it as XML. This does not cover all possible changes that the user could have made.
-The only way to guarantee that all changes are saved is to save the model as a binary MJB file with the function
+internal :ref:`mjSpec`, and then saves it as XML. This does not cover all possible changes that the user could have
+made. The only way to guarantee that all changes are saved is to save the model as a binary MJB file with the function
 :ref:`mj_saveModel`, or even better, make the changes directly in the XML. Unfortunately there are situations where
 changes need to be made programmatically, as in system identification for example, and this can only be done with the
 compiled model. So in summary, we have reasonable but not perfect mechanisms for saving model changes. The reason for
 this lack of perfection is that we are working with a compiled model, so this is like changing a binary executable and
-asking a "decompiler" to make corresponding changes to the C code - it is just not possible in general.
+asking a "decompiler" to make corresponding changes to the C code -- it is just not possible in general.
 
 .. _siLayout:
 
@@ -642,7 +637,7 @@ spread out the data so that we do not have to perform many memory moves when ins
 layout "uncompressed". It is still a valid layout, but instead of A_rowadr[r] = A_rowadr[r-1] + A_rownnz[r] which is
 the standard convention, we set A_rowadr[r] = r*n. MuJoCo uses sparse matrices internally
 
-To represent 3D orientations and rotations, MuJoCo uses unit quaternions - namely 4D unit vectors arranged as q = (w,
+To represent 3D orientations and rotations, MuJoCo uses unit quaternions -- namely 4D unit vectors arranged as q = (w,
 x, y, z). Here (x, y, z) is the rotation axis unit vector scaled by sin(a/2), where a is the rotation angle in
 radians, and w = cos(a/2). Thus the quaternion corresponding to a null rotation is (1, 0, 0, 0). This is the default
 setting of all quaternions in MJCF.
@@ -841,7 +836,7 @@ Jacobians
 The derivative of any vector function with respect to its vector argument is called Jacobian. When this term is used
 in multi-joint kinematics and dynamics, it refers to the derivative of some spatial quantity as a function of the
 system configuration. In that case the Jacobian is also a linear map that operates on vectors in the (co)tangent space
-to the configuration manifold - such as velocities, momenta, accelerations, forces. One caveat here is that the system
+to the configuration manifold -- such as velocities, momenta, accelerations, forces. One caveat here is that the system
 configuration encoded in ``mjData.qpos`` has dimensionality ``mjModel.nq``, while the tangent space has dimensionality
 ``mjModel.nv``, and the latter is smaller when quaternion joints are present. So the size of the Jacobian matrix is
 N-by-``mjModel.nv`` where N is the dimensionality of the spatial quantity being differentiated.
@@ -861,7 +856,7 @@ Jacobians, which tell us how a spatial frame anchored at the given point will tr
 change to the kinematic configuration. More precisely, the Jacobian maps joint velocities to end-effector velocities,
 while the transpose of the Jacobian maps end-effector forces to joint forces. There are also several other
 ``mj_jacXXX`` functions; these are convenience functions that call the main ``mj_jac`` function with different points
-of interest - such as a body center of mass, geom center etc.
+of interest -- such as a body center of mass, geom center etc.
 
 The ability to compute end-effector Jacobians exactly and efficiently is a key advantage of working in joint
 coordinates. Such Jacobians are the foundation of many control schemes that map end-effector errors to actuator
@@ -950,7 +945,7 @@ this body quaternion, the quaternions of all other objects attached to the body 
 multiplication. The function :ref:`mj_local2Global` converts from local body coordinates to global Cartesian
 coordinates.
 
-:ref:`mju_negPose` and :ref:`mju_trnVecPose`. A pose is a grouping of a 3D position and a unit quaternion orientation.
+A pose is a grouping of a 3D position and a unit quaternion orientation.
 There is no separate data structure; the grouping is in terms of logic. This represents a position and orientation in
 space, or in other words a spatial frame. Note that OpenGL uses 4-by-4 matrices to represent the same information,
 except here we use a quaternion for orientation. The function mju_mulPose multiplies two poses, meaning that it

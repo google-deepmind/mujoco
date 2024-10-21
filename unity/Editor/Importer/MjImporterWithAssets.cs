@@ -50,6 +50,7 @@ public class MjImporterWithAssets : MjcfImporter {
     // mjcfString.
     var name = Path.GetFileNameWithoutExtension(filePath) + $"{UnityEngine.Random.Range(0,999)}";
     string newPath = Path.Combine(Application.temporaryCachePath, $"{name}.xml");
+    MjEngineTool.LoadPlugins();
     _mjModel = MjEngineTool.LoadModelFromFile(filePath);
     MjEngineTool.SaveModelToFile(newPath, _mjModel);
     Debug.Log($"Imported MJCF loaded, saved to {newPath}");

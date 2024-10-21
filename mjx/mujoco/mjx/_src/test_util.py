@@ -14,13 +14,118 @@
 # ==============================================================================
 """Utilities for testing."""
 
+import os
 import sys
-from typing import Dict, Tuple
+import time
+from typing import Dict, Optional, Tuple
 from xml.etree import ElementTree as ET
 
 from etils import epath
+import jax
 import mujoco
+# pylint: disable=g-importing-member
+from mujoco.mjx._src import forward
+from mujoco.mjx._src import io
+from mujoco.mjx._src.types import Data
+# pylint: enable=g-importing-member
 import numpy as np
+
+
+def _measure(fn, *args) -> Tuple[float, float]:
+  """Reports jit time and op time for a function."""
+
+  beg = time.perf_counter()
+  compiled_fn = fn.lower(*args).compile()
+  end = time.perf_counter()
+  jit_time = end - beg
+
+  beg = time.perf_counter()
+  result = compiled_fn(*args)
+  jax.block_until_ready(result)
+  end = time.perf_counter()
+  run_time = end - beg
+
+  return jit_time, run_time
+
+
+def benchmark(
+    m: mujoco.MjModel,
+    nstep: int = 1000,
+    batch_size: int = 1024,
+    unroll_steps: int = 1,
+    solver: str = 'cg',
+    iterations: int = 1,
+    ls_iterations: int = 4,
+) -> Tuple[float, float, int]:
+  """Benchmark a model."""
+
+  xla_flags = os.environ.get('XLA_FLAGS', '')
+  xla_flags += ' --xla_gpu_triton_gemm_any=True'
+  os.environ['XLA_FLAGS'] = xla_flags
+
+  m.opt.solver = {
+      'cg': mujoco.mjtSolver.mjSOL_CG,
+      'newton': mujoco.mjtSolver.mjSOL_NEWTON,
+  }[solver.lower()]
+  m.opt.iterations = iterations
+  m.opt.ls_iterations = ls_iterations
+  m = io.put_model(m)
+
+  @jax.pmap
+  def init(key):
+    key = jax.random.split(key, batch_size // jax.device_count())
+
+    @jax.vmap
+    def random_init(key):
+      d = io.make_data(m)
+      qvel = 0.01 * jax.random.normal(key, shape=(m.nv,))
+      d = d.replace(qvel=qvel)
+      return d
+
+    return random_init(key)
+
+  key = jax.random.split(jax.random.key(0), jax.device_count())
+  d = init(key)
+  jax.block_until_ready(d)
+
+  @jax.pmap
+  def unroll(d):
+    @jax.vmap
+    def step(d, _):
+      d = forward.step(m, d)
+      return d, None
+
+    d, _ = jax.lax.scan(step, d, None, length=nstep, unroll=unroll_steps)
+
+    return d
+
+  jit_time, run_time = _measure(unroll, d)
+  steps = nstep * batch_size
+
+  return jit_time, run_time, steps
+
+
+def efc_order(m: mujoco.MjModel, d: mujoco.MjData, dx: Data) -> np.ndarray:
+  """Returns a sort order such that dx.efc_*[order][:d.nefc] == d.efc_*."""
+  # reorder efc rows to skip inactive constraints and match contact order
+  efl = dx.ne + dx.nf + dx.nl
+  order = np.arange(efl)
+  order[(dx.efc_J[:efl] == 0).all(axis=1)] = 2**16  # move empty rows to end
+  for i in range(dx.ncon):
+    num_rows = dx.contact.dim[i]
+    if dx.contact.dim[i] > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+      num_rows = (dx.contact.dim[i] - 1) * 2
+    if dx.contact.dist[i] > 0:  # move empty contacts to end
+      order = np.append(order, np.repeat(2 ** 16, num_rows))
+      continue
+    contact_match = (d.contact.geom == dx.contact.geom[i]).all(axis=-1)
+    contact_match &= (d.contact.pos == dx.contact.pos[i]).all(axis=-1)
+    assert contact_match.any(), f'contact {i} not found'
+    contact_id = np.nonzero(contact_match)[0][0]
+    order = np.append(order, np.repeat(efl + contact_id, num_rows))
+
+  return np.argsort(order, kind='stable')
+
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']
 _DYN_TYPES = ['none', 'integrator', 'filter', 'filterexact']
@@ -70,6 +175,7 @@ def _make_joint(joint_type: str, name: str) -> Dict[str, str]:
     joint_attr['damping'] = '{:.2f}'.format(np.random.uniform() * 20)
     joint_attr['stiffness'] = '{:.2f}'.format(np.random.uniform() * 20)
 
+  joint_attr['actuatorgravcomp'] = np.random.choice(['true', 'false'])
   return joint_attr
 
 
@@ -119,9 +225,9 @@ def _make_geom(
 
 def _make_actuator(
     actuator_type: str,
-    joint: str | None = None,
-    site: str | None = None,
-    refsite: str | None = None,
+    joint: Optional[str] = None,
+    site: Optional[str] = None,
+    refsite: Optional[str] = None,
 ) -> Dict[str, str]:
   """Returns attributes for an actuator."""
   if joint:
@@ -252,7 +358,16 @@ def create_mjcf(
     z_pos = np.random.uniform(low=-1, high=1) * 0.01  # small jitter
     pos = f'{body_pos[0]:.3f} {body_pos[1]:.3f} {body_pos[2] + z_pos:.3f}'
     n_bodies = len(list(mjcf.iter('body')))
-    child = ET.SubElement(body, 'body', {'pos': pos, 'name': f'body{n_bodies}'})
+    gravcomp = np.random.uniform() * p(50)
+    child = ET.SubElement(
+        body,
+        'body',
+        {
+            'pos': pos,
+            'name': f'body{n_bodies}',
+            'gravcomp': f'{gravcomp:.3f}',
+        },
+    )
     ET.SubElement(child, 'site', {'name': f'site{n_bodies}'})
 
     n_joints = len(list(mjcf.iter('joint')))

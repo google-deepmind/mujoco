@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjthread.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"

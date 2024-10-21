@@ -1,11 +1,7 @@
 -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
-jax[cuda12_local]==0.4.13; python_version == '3.8' \
-    --hash=sha256:03bfe6749dfe647f16f15f6616638adae6c4a7ca7167c75c21961ecfd3a3baaa
 jax[cuda12_local]==0.4.18; python_version >= '3.9' \
     --hash=sha256:c3ab72ea2f1c5d8ccf2561e79f6562fb2964629f3e55b3ac1c11c48b64c20336
-jaxlib==0.4.13+cuda12.cudnn89; python_version == '3.8' \
-    --hash=sha256:31372f41dc28ecb11a5cc5573ae632e8ee9cfb63788edc8ad8a77e8d3279f569
 jaxlib==0.4.18+cuda12.cudnn89; python_version >= '3.9' \
     --hash=sha256:14f74ff081882ea091c121e355051b35932e39cb7ff7242b88a87f3690f3ca90 \
     --hash=sha256:7c87dc2d68257b02e83c04be88a3c447373ee7077d65f43545bcbda5bfe2231d \

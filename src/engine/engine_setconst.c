@@ -15,10 +15,12 @@
 #include "engine/engine_setconst.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_forward.h"
@@ -92,12 +94,21 @@ static void set0(mjModel* m, mjData* d) {
   // compute dof_M0 for CRB algorithm
   mj_setM0(m, d);
 
+  // save flex_rigid, temporarily make all flexes non-rigid
+  mjtByte* rigid = mju_malloc(m->nflex);
+  memcpy(rigid, m->flex_rigid, m->nflex);
+  memset(m->flex_rigid, 0, m->nflex);
+
   // run remaining computations
   mj_crb(m, d);
   mj_factorM(m, d);
   mj_flex(m, d);
   mj_tendon(m, d);
   mj_transmission(m, d);
+
+  // restore flex rigidity
+  memcpy(m->flex_rigid, rigid, m->nflex);
+  mju_free(rigid);
 
   // restore camera and light mode
   for (int i=0; i < m->ncam; i++) {
@@ -276,36 +287,53 @@ static void set0(mjModel* m, mjData* d) {
 
     // connect constraint
     if (m->eq_type[i] == mjEQ_CONNECT) {
-      // pos = anchor position in global frame
-      mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id1, 0);
+      switch ((mjtObj) m->eq_objtype[i]) {
+        case mjOBJ_BODY:
+          // pos = anchor position in global frame
+          mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id1, 0);
 
-      // data[3-5] = anchor position in body2 local frame
-      mju_subFrom3(pos, d->xpos+3*id2);
-      mju_rotVecMatT(m->eq_data+mjNEQDATA*i+3, pos, d->xmat+9*id2);
+          // data[3-5] = anchor position in body2 local frame
+          mju_subFrom3(pos, d->xpos+3*id2);
+          mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
+          break;
+        case mjOBJ_SITE:
+          // site-based connect, eq_data is unused
+          mju_zero(m->eq_data+mjNEQDATA*i, mjNEQDATA);
+          break;
+        default:
+          mjERROR("invalid objtype in connect constraint %d", i);
+      }
     }
 
     // weld constraint
     else if (m->eq_type[i] == mjEQ_WELD) {
-      // skip if user has set any quaternion data
-      if (m->eq_data[mjNEQDATA*i+6] ||
-          m->eq_data[mjNEQDATA*i+7] ||
-          m->eq_data[mjNEQDATA*i+8] ||
-          m->eq_data[mjNEQDATA*i+9]) {
-        // normalize quaternion just in case
-        mju_normalize4(m->eq_data+mjNEQDATA*i+6);
-        continue;
+      switch ((mjtObj) m->eq_objtype[i]) {
+        case mjOBJ_BODY: {
+          // skip if user has set any quaternion data
+          if (!mju_isZero(m->eq_data + mjNEQDATA*i + 6, 4)) {
+            // normalize quaternion just in case
+            mju_normalize4(m->eq_data+mjNEQDATA*i+6);
+            continue;
+          }
+
+          // anchor position is in body2 local frame
+          mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id2, 0);
+
+          // data[3-5] = anchor position in body1 local frame
+          mju_subFrom3(pos, d->xpos+3*id1);
+          mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id1, pos);
+
+          // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
+          mju_negQuat(quat, d->xquat+4*id1);
+          mju_mulQuat(m->eq_data+mjNEQDATA*i+6, quat, d->xquat+4*id2);
+          break;
+        }
+        case mjOBJ_SITE: {
+          break;
+        }
+        default:
+          mjERROR("invalid objtype in weld constraint %d", i);
       }
-
-      // anchor position is in body2 local frame
-      mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id2, 0);
-
-      // data[3-5] = anchor position in body1 local frame
-      mju_subFrom3(pos, d->xpos+3*id1);
-      mju_rotVecMatT(m->eq_data+mjNEQDATA*i+3, pos, d->xmat+9*id1);
-
-      // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
-      mju_negQuat(quat, d->xquat+4*id1);
-      mju_mulQuat(m->eq_data+mjNEQDATA*i+6, quat, d->xquat+4*id2);
     }
   }
 
@@ -331,10 +359,46 @@ static void set0(mjModel* m, mjData* d) {
 
     // compute positional offsets
     mju_sub3(m->light_pos0+3*i, d->light_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->light_poscom0+3*i, d->light_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
+    mju_sub3(m->light_poscom0+3*i, d->light_xpos+3*i, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy dir
     mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
+  }
+
+  // compute actuator damping from dampratio
+  for (int i=0; i < m->nu; i++) {
+    // get bias, gain parameters
+    mjtNum* biasprm = m->actuator_biasprm + i*mjNBIAS;
+    mjtNum* gainprm = m->actuator_gainprm + i*mjNGAIN;
+
+    // not a position-like actuator: skip
+    if (gainprm[0] != -biasprm[1]) {
+      continue;
+    }
+
+    // damping is 0 or negative (interpreted as regular "kv"): skip
+    if (biasprm[2] <= 0) {
+      continue;
+    }
+
+    // === interpret biasprm[2] > 0 as dampratio for position-like actuators
+
+    // "reflected" inertia (inversely scaled by transmission squared)
+    mjtNum* transmission = d->actuator_moment + i*nv;
+    mjtNum mass = 0;
+    for (int j=0; j < nv; j++) {
+      mjtNum trn = mju_abs(transmission[j]);
+      mjtNum trn2 = trn*trn;  // transmission squared
+      if (trn2 > mjMINVAL) {
+        mass += m->dof_M0[j] / trn2;
+      }
+    }
+
+    // damping = dampratio * 2 * sqrt(kp * mass)
+    mjtNum damping = biasprm[2] * 2 * mju_sqrt(gainprm[0] * mass);
+
+    // set biasprm[2] to negative damping
+    biasprm[2] = -damping;
   }
 
   mj_freeStack(d);

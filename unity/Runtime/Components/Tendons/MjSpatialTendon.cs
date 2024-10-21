@@ -14,8 +14,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Xml;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using UnityEngine;
 
 namespace Mujoco {
@@ -38,6 +42,9 @@ public class MjSpatialTendon : MjBaseTendon {
   [Tooltip("In meters.")]
   public float RangeUpper;
 
+  [Tooltip("Scales with UI points. 0.003 is mapped to 1 UI point.")]
+  public float Width = 0.003f;
+
   public List<SpatialTendonEntry> ViapointsList = new List<SpatialTendonEntry>() {};
 
   protected override void FromMjcf(XmlElement mjcf) {
@@ -50,6 +57,7 @@ public class MjSpatialTendon : MjBaseTendon {
       ViapointsList.Add(viapoint);
     }
     var rangeValues = mjcf.GetFloatArrayAttribute("range", defaultValue: new float[] { 0, 0 });
+    Width = mjcf.GetFloatAttribute("width", defaultValue: 0.003f);
     RangeLower = rangeValues[0];
     RangeUpper = rangeValues[1];
   }
@@ -100,34 +108,47 @@ public class MjSpatialTendon : MjBaseTendon {
       throw new ArgumentException("Lower range value can't be bigger than Higher");
     }
     mjcf.SetAttribute("range", MjEngineTool.MakeLocaleInvariant($"{RangeLower} {RangeUpper}"));
+    mjcf.SetAttribute("width", MjEngineTool.MakeLocaleInvariant($"{Width}"));
 
     return mjcf;
   }
 
-  public unsafe void OnDrawGizmos() {
-    if (Application.isPlaying) {
-      var scene = MjScene.Instance;
-      var segmentCount = scene.Model->nwrap - 1;
-      var data = scene.Data;
-      int readHead = 0;
-      for (int i = 0; i < segmentCount; ++i) {
-        // Skip drawing of pulley:
-        if (data->wrap_obj[readHead] == -2 || data->wrap_obj[readHead + 1] == -2) {
-          readHead += 1;
-        } else {
-          Vector3 start = MjEngineTool.UnityVector3(
-              MjEngineTool.MjVector3AtEntry(data->wrap_xpos, readHead));
-          Vector3 end = MjEngineTool.UnityVector3(
-              MjEngineTool.MjVector3AtEntry(data->wrap_xpos, readHead + 1));
-          Gizmos.DrawLine(start, end);
-          if (data->wrap_obj[readHead + 1] >= 0) { // a wrap geom
-            readHead += 2;
-          } else { // site or pulley
-            readHead += 1;
+#if UNITY_EDITOR
+  public unsafe void OnDrawGizmosSelected() {
+    if (Application.isPlaying && MjScene.InstanceExists) {
+      // Lifted from src/engine/engine_vis_visualize.c
+      var d = MjScene.Instance.Data;
+      var m = MjScene.Instance.Model;
+      int i = MujocoId;
+      double sz;
+      for (int j = d->ten_wrapadr[i]; j < d->ten_wrapadr[i] + d->ten_wrapnum[i] - 1; j++) {
+        // Skip drawing of pulley (-2):
+        if (d->wrap_obj[j] != -2 && d->wrap_obj[j + 1] != -2) {
+          // determine width: smaller for segments inside wrapping objects
+          if (d->wrap_obj[j] >= 0 && d->wrap_obj[j + 1] >= 0) {
+            sz = 0.5 * m->tendon_width[i];
+          } else {
+            sz = m->tendon_width[i];
           }
+
+          var startPos = MjEngineTool.UnityVector3(d->wrap_xpos + 3 * j);
+          var endPos = MjEngineTool.UnityVector3(d->wrap_xpos + 3 * j + 3);
+
+          // Construct line
+          // At the moment we use handles instead of Gizmos (to be able to set width).
+          // This means rendering won't be performed outside editor; We could implement a "TendonRenderer" component
+          // (added using a context tool) that uses a LineRenderer. Then we could have nice features such as updating
+          // tendon colors or width based on length or tension. That would also allow in-build rendering.
+          Handles.color = Color.magenta;  // Currently we ignore tendon material.
+          #if UNITY_2020_2_OR_NEWER
+          Handles.DrawLine(startPos, endPos, (float)sz/0.003f);  // Handle width in UI points. We map the default width to 1 pixel.
+          #else
+          Handles.DrawLine(startPos, endPos);
+          #endif
         }
       }
     }
   }
+#endif
 }
 }

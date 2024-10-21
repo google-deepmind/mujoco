@@ -15,6 +15,8 @@
 // A benchmark for parsing and compiling models from XML.
 
 #include <array>
+#include <memory>
+#include <string>
 
 #include <benchmark/benchmark.h>
 #include <gmock/gmock.h>
@@ -27,21 +29,43 @@
 namespace mujoco {
 namespace {
 
+using ::testing::Eq;
 using ::testing::NotNull;
 
-static void run_parse_benchmark(const std::string xml_path, benchmark::State& state) {
+
+static void run_parse_benchmark(const std::string xml_path,
+                                benchmark::State& state) {
   MujocoErrorTestGuard guard;  // Fail test if there are any mujoco errors
 
+  int vfs_errno = 0;
+  std::string vfs_errmsg = "";
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  if ((vfs_errno = mj_addFileVFS(vfs.get(), "", xml_path.data()))) {
+    if (vfs_errno == 1) {
+      vfs_errmsg = "VFS is full";  // should not occur
+    } else if (vfs_errno == 2) {
+      vfs_errmsg = "Repeated name in VFS";  // should not occur
+    } else {
+      vfs_errmsg = "File not found";
+    }
+  }
+
+  ASSERT_THAT(vfs_errno, Eq(0)) << "Failed to add file to VFS: " << vfs_errmsg;
+
+  // load once to warm up filesystem and compiler cache
   std::array<char, 1024> error;
+  mjModel* model =
+      mj_loadXML(xml_path.data(), vfs.get(), error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
   for (auto s : state) {
-    // TODO(nimrod): Load the models from VFS rather than from disk, to
-    // limit the benchmark to the parsing and model compilation speed.
-    mjModel* model =
-      mj_loadXML(xml_path.data(), nullptr, error.data(), error.size());
-    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+    mjModel* model = mj_loadXML(xml_path.data(), vfs.get(), 0, 0);
     mj_deleteModel(model);
   }
   state.SetLabel(xml_path);
+  mj_deleteVFS(vfs.get());
 }
 
 // Use ABSL_ATTRIBUTE_NO_TAIL_CALL to make sure the benchmark functions appear
@@ -49,7 +73,7 @@ static void run_parse_benchmark(const std::string xml_path, benchmark::State& st
 // run_parse_benchmark).
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlagPlugin(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("plugin/elasticity/flag.xml"), state);
+  run_parse_benchmark(GetModelPath("plugin/elasticity/flag_flex.xml"), state);
 }
 BENCHMARK(BM_ParseFlagPlugin);
 
@@ -65,7 +89,7 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid(benchmark::State& state) {
 BENCHMARK(BM_ParseHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid100(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("humanoid100/humanoid100.xml"), state);
+  run_parse_benchmark(GetModelPath("humanoid/humanoid100.xml"), state);
 }
 BENCHMARK(BM_ParseHumanoid100);
 

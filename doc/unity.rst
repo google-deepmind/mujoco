@@ -30,14 +30,14 @@ _____
 
 The MuJoCo app needs to be run at least once before the native library can be used, in order to register the library as
 a trusted binary. Then, copy the dynamic library file from
-``/Applications/MuJoCo.app/Contents/Frameworks/mujoco.framework/Versions/Current/libmujoco.3.1.3.dylib`` (it can be
+``/Applications/MuJoCo.app/Contents/Frameworks/mujoco.framework/Versions/Current/libmujoco.3.2.5.dylib`` (it can be
 found by browsing the contents of ``MuJoCo.app``) and rename it as ``mujoco.dylib``.
 
 Linux
 _____
 
 Expand the ``tar.gz`` archive to ``~/.mujoco``. Then copy the dynamic library from
-``~/.mujoco/mujoco-3.1.3/lib/libmujoco.so.3.1.3`` and rename it as ``libmujoco.so``.
+``~/.mujoco/mujoco-3.2.5/lib/libmujoco.so.3.2.5`` and rename it as ``libmujoco.so``.
 
 Windows
 _______
@@ -328,7 +328,7 @@ ___________________________________
 
 Roboti’s `MuJoCo plug-in for Unity <https://roboti.us/download.html>`_ steps the simulation in an external Python
 process, and uses Unity only for rendering.  In contrast, our plug-in relies on Unity to step the simulation. It should
-be possible to use our plug-in while an external process "drives" the simulation, for example by seting ``qpos``,
+be possible to use our plug-in while an external process "drives" the simulation, for example by setting ``qpos``,
 calling ``mj_kinematics``, synchronizing the transforms, and then using Unity to render or compute game logic. In order
 to establish communication with an external process, you can use Unity's `ML-Agents
 <https://github.com/Unity-Technologies/ml-agents>`_ package.

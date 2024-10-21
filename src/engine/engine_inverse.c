@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
@@ -71,7 +72,7 @@ void mj_invVelocity(const mjModel* m, mjData* d) {
 
 // convert discrete-time qacc to continuous-time qacc
 static void mj_discreteAcc(const mjModel* m, mjData* d) {
-  int nv = m->nv, dof_damping;
+  int nv = m->nv, nM = m->nM, nD = m->nD, dof_damping;
   mjtNum *qacc = d->qacc;
 
   mj_markStack(d);
@@ -114,7 +115,9 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
     // set qLU = qM
-    mj_copyM2DSparse(m, d, d->qLU, d->qM);
+    for (int i=0; i < nD; i++) {
+      d->qLU[i] = d->qM[d->mapM2D[i]];
+    }
 
     // set qLU = qM - dt*qDeriv
     mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
@@ -134,7 +137,9 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 
     // set M = M - dt*qDeriv (reduced to M nonzeros)
     mjtNum* qDerivReduced = mj_stackAllocNum(d, m->nM);
-    mj_copyD2MSparse(m, d, qDerivReduced, d->qDeriv);
+    for (int i=0; i < nM; i++) {
+      qDerivReduced[i] = d->qDeriv[d->mapD2M[i]];
+    }
     mju_addToScl(d->qM, qDerivReduced, -m->opt.timestep, m->nM);
 
     // set qfrc = (M - dt*qDeriv) * qacc

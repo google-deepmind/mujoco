@@ -22,9 +22,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
-#include "plugin/elasticity/membrane.h"
 #include "plugin/elasticity/shell.h"
-#include "plugin/elasticity/solid.h"
 
 namespace mujoco {
 namespace {
@@ -35,19 +33,12 @@ using ElasticityTest = PluginTest;
 TEST_F(ElasticityTest, FlexCompatibility) {
   static constexpr char flex_xml[] = R"(
   <mujoco>
-    <extension>
-        <plugin plugin="mujoco.elasticity.solid"/>
-    </extension>
-
     <worldbody>
       <body name="parent">
         <flexcomp name="soft" type="grid" count="3 3 3"
                   radius="0.01" dim="3"mass="1">
             <pin id="2"/>
-            <plugin plugin="mujoco.elasticity.solid">
-              <config key="poisson" value="0.2"/>
-              <config key="young" value="5e4"/>
-            </plugin>
+            <elasticity young="5e4" poisson="0.2"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -121,18 +112,10 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
 TEST_F(PluginTest, ElasticEnergyMembrane) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
-  <extension>
-    <plugin plugin="mujoco.elasticity.membrane"/>
-  </extension>
-
   <worldbody>
     <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
               radius=".025" name="test" dim="2">
-      <plugin plugin="mujoco.elasticity.membrane">
-        <config key="poisson" value="0"/>
-        <config key="young" value="2"/>
-        <config key="thickness" value="1"/>
-      </plugin>
+      <elasticity young="2" poisson="0" thickness="1"/>
       <edge equality="false"/>
     </flexcomp>
   </worldbody>
@@ -143,28 +126,28 @@ TEST_F(PluginTest, ElasticEnergyMembrane) {
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
-  auto* membrane =
-      reinterpret_cast<plugin::elasticity::Membrane*>(d->plugin_data[0]);
 
   mj_kinematics(m, d);
   mj_flex(m, d);
+  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
 
   // check that if the entire geometry is rescaled by a factor "scale", then
   // trace(strain^2) = 2*scale^2
 
   for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < membrane->nt; t++) {
+    for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
       mjtNum volume = 1./2.;
+      int idx = 0;
       for (int e1 = 0; e1 < 3; e1++) {
-        for (int e2 = 0; e2 < 3; e2++) {
-          int idx1 = membrane->elements[t].edges[e1] + m->flex_edgeadr[0];
-          int idx2 = membrane->elements[t].edges[e2] + m->flex_edgeadr[0];
-          mjtNum elongation1 =
+        for (int e2 = e1; e2 < 3; e2++) {
+          int idx1 = m->flex_elemedge[3*t+e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[3*t+e2 + m->flex_elemedgeadr[0]];
+          mjtNum elong1 =
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
-          mjtNum elongation2 =
+          mjtNum elong2 =
               scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy += membrane->metric[9*t+3*e2+e1] * elongation1 * elongation2;
+          energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
       EXPECT_NEAR(
@@ -184,12 +167,13 @@ TEST_F(ElasticityTest, InvalidThickness) {
   </extension>
 
   <worldbody>
-    <composite type="particle" count="2 2 1" spacing="1">
-      <geom size=".025"/>
+    <flexcomp type="grid" count="2 2 1" spacing="1 1 1"
+              radius=".025" name="test" dim="2">
       <plugin plugin="mujoco.elasticity.shell">
         <config key="thickness" value="hello"/>
       </plugin>
-    </composite>
+      <edge equality="false"/>
+    </flexcomp>
   </worldbody>
   </mujoco>
   )";
@@ -197,23 +181,17 @@ TEST_F(ElasticityTest, InvalidThickness) {
   char error[1024] = {0};
   mjModel* m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error, ::testing::HasSubstr("Invalid parameter"));
 }
 
 // -------------------------------- solid -----------------------------------
 TEST_F(ElasticityTest, ElasticEnergySolid) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
-  <extension>
-    <plugin plugin="mujoco.elasticity.solid"/>
-  </extension>
-
   <worldbody>
     <flexcomp type="grid" count="8 8 8" spacing="1 1 1"
               radius=".025" name="test" dim="3">
-      <plugin plugin="mujoco.elasticity.solid">
-        <config key="poisson" value="0"/>
-        <config key="young" value="2"/>
-      </plugin>
+      <elasticity young="2" poisson="0"/>
       <edge equality="false"/>
     </flexcomp>
   </worldbody>
@@ -224,27 +202,28 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
-  auto* solid = reinterpret_cast<plugin::elasticity::Solid*>(d->plugin_data[0]);
 
   mj_kinematics(m, d);
   mj_flex(m, d);
+  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
 
   // check that if the entire geometry is rescaled by a factor "scale", then
   // trace(strain^2) = 3*scale^2
 
   for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int t = 0; t < solid->nt; t++) {
+    for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
       mjtNum volume = 1./6.;
+      int idx = 0;
       for (int e1 = 0; e1 < 6; e1++) {
-        for (int e2 = 0; e2 < 6; e2++) {
-          int idx1 = solid->elements[t].edges[e1] + m->flex_edgeadr[0];
-          int idx2 = solid->elements[t].edges[e2] + m->flex_edgeadr[0];
-          mjtNum elongation1 =
+        for (int e2 = e1; e2 < 6; e2++) {
+          int idx1 = m->flex_elemedge[6*t+e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[6*t+e2 + m->flex_elemedgeadr[0]];
+          mjtNum elong1 =
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
-          mjtNum elongation2 =
+          mjtNum elong2 =
               scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy += solid->metric[36*t+6*e2+e1] * elongation1 * elongation2;
+          energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
       EXPECT_NEAR(

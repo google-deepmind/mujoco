@@ -47,6 +47,8 @@ _EXCLUDED = (
     'mjResource_',
 )
 
+_ARRAY_COMMENT_PATTERN = re.compile(r'(.+?)\s\s+\((.+) x (.+)\)\Z')
+
 
 def traverse(node, visitor):
   visitor.visit(node)
@@ -112,8 +114,24 @@ class MjStructVisitor:
         doc = self._make_comment(child)
     if 'name' in node:
       field_type = self._normalize_type(node['type']['qualType'])
+      m = _ARRAY_COMMENT_PATTERN.match(doc)
+      if m is None:
+        array_extent = None
+      else:
+        doc = m.group(1)
+        array_extent_0 = m.group(2)
+        array_extent_1 = m.group(3)
+        try:
+          array_extent_1 = int(array_extent_1)
+        except ValueError:
+          pass
+        if array_extent_1 == 1:
+          array_extent = (array_extent_0,)
+        else:
+          array_extent = (array_extent_0, array_extent_1)
       return ast_nodes.StructFieldDecl(
-          name=node['name'], type=field_type, doc=doc)
+          name=node['name'], type=field_type, doc=doc,
+          array_extent=array_extent)
     else:
       return _AnonymousTypePlaceholder(self._make_anonymous_key(node))
 
@@ -123,7 +141,7 @@ class MjStructVisitor:
     """Makes a Decl object from a Clang AST RecordDecl node."""
     name = f"{node['tagUsed']} {node['name']}" if 'name' in node else ''
     fields = []
-    for child in node['inner']:
+    for child in node.get('inner', ()):
       child_kind = child.get('kind')
       if child_kind == 'FieldDecl':
         fields.append(self._make_field(child))
@@ -166,9 +184,15 @@ class MjStructVisitor:
     elif (node.get('kind') == 'TypedefDecl' and
           node['type']['qualType'].startswith('struct mj') and
           node['name'] not in _EXCLUDED):
-      struct = self._structs[node['type']['qualType']]
-      self._typedefs[node['name']] = ast_nodes.StructDecl(
-          name=node['name'], declname=struct.declname, fields=struct.fields)
+      declname = node['type']['qualType']
+      try:
+        struct = self._structs[declname]
+      except KeyError:
+        self._typedefs[node['name']] = ast_nodes.StructDecl(
+            name=node['name'], declname=declname, fields=())
+      else:
+        self._typedefs[node['name']] = ast_nodes.StructDecl(
+            name=node['name'], declname=struct.declname, fields=struct.fields)
 
   def resolve_all_anonymous(self) -> None:
     """Replaces anonymous struct placeholders with corresponding decl."""

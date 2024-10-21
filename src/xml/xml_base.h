@@ -20,8 +20,7 @@
 
 #include "tinyxml2.h"
 #include <mujoco/mjmodel.h>
-#include "user/user_model.h"
-#include "user/user_objects.h"
+#include <mujoco/mjspec.h>
 #include "xml/xml_util.h"
 
 
@@ -81,7 +80,7 @@ class mjXBase : public mjXUtil {
   virtual ~mjXBase() = default;
 
   // parse: implemented in derived parser classes
-  virtual void Parse(tinyxml2::XMLElement* root) {};
+  virtual void Parse(tinyxml2::XMLElement* root, const mjVFS* vfs = nullptr) {};
 
   // write: implemented in derived writer class
   virtual std::string Write(char *error, std::size_t error_sz) {
@@ -89,13 +88,13 @@ class mjXBase : public mjXUtil {
   };
 
   // set the model allocated externally
-  void SetModel(mjCModel*);
+  virtual void SetModel(const mjSpec*, const mjModel* = nullptr);
 
   // read alternative orientation specification
-  static int ReadAlternative(tinyxml2::XMLElement* elem, mjmOrientation& alt);
+  static int ReadAlternative(tinyxml2::XMLElement* elem, mjsOrientation& alt);
 
  protected:
-  mjCModel* model;                    // internally-allocated mjCModel object
+  mjSpec* spec;                    // internally-allocated model
 };
 
 #endif  // MUJOCO_SRC_XML_XML_BASE_H_

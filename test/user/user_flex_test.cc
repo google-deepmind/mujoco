@@ -23,6 +23,8 @@
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
+
+
 namespace mujoco {
 namespace {
 
@@ -30,6 +32,8 @@ using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::HasSubstr;
 using UserFlexTest = MujocoTest;
+
+
 
 
 TEST_F(UserFlexTest, ParentMustHaveName) {
@@ -161,7 +165,7 @@ TEST_F(UserFlexTest, PointAndElementNotInDirect) {
   EXPECT_THAT(error.data(), HasSubstr("Point and element required"));
 }
 
-TEST_F(UserFlexTest, UknownFlexCompType) {
+TEST_F(UserFlexTest, UnknownFlexCompType) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
@@ -220,11 +224,317 @@ TEST_F(UserFlexTest, CreateBVHSuccess) {
       GetTestDataFilePath("user/testdata/robot_arm.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
-  EXPECT_THAT(m, NotNull()) << error.data();
   mj_step(m, d);
   mj_deleteModel(m);
   mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, RigidFlex) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/rigid_flex.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHBinary_41_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_41_binary_vol_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHBinary_22_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_22_binary_vol_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHSurfaceBinary_41_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_41_binary_surf_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
+
+  // first node x y z
+  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[2], 0 );
+
+  // first element
+  EXPECT_EQ(m->flex_elem[0], 9-1 );
+  EXPECT_EQ(m->flex_elem[1], 4-1 );
+  EXPECT_EQ(m->flex_elem[2], 3-1 );
+
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHSurfaceBinary_22_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_22_binary_surf_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
+
+  // first node x y z
+  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[2], 0 );
+
+  // first element
+  EXPECT_EQ(m->flex_elem[0], 9-1 );
+  EXPECT_EQ(m->flex_elem[1], 4-1 );
+  EXPECT_EQ(m->flex_elem[2], 3-1 );
+
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHBinaryFTETWILD_22_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/shark_22_binary_vol_fTetWild.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 429);
+  EXPECT_EQ(m->nflexelem, 1073);
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_41_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_41_ascii_vol_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_22_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_22_ascii_vol_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHSurfaceASCII_41_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_41_ascii_surf_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
+
+  // first node x y z
+  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[2], 0 );
+
+  // first element
+  EXPECT_EQ(m->flex_elem[0], 9-1 );
+  EXPECT_EQ(m->flex_elem[1], 4-1 );
+  EXPECT_EQ(m->flex_elem[2], 3-1 );
+
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHSurfaceASCII_22_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/cube_22_ascii_surf_gmshApp.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  EXPECT_EQ(m->flex_dim[0], 2);
+
+  // first node x y z
+  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
+  EXPECT_EQ(m->flex_xvert0[2], 0 );
+
+  // first element
+  EXPECT_EQ(m->flex_elem[0], 9-1 );
+  EXPECT_EQ(m->flex_elem[1], 4-1 );
+  EXPECT_EQ(m->flex_elem[2], 3-1 );
+
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCIIFTETWILD_22_Success) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/shark_22_ascii_vol_fTetWild.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  EXPECT_EQ(m->nflexvert, 425);
+  EXPECT_EQ(m->nflexelem, 1070);
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_41_MissingNodeHeader_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_41_ascii_missing_node_header.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: All nodes must be in single block"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_41_MissingNodeIndex_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_41_ascii_missing_node_index.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: Node tags must be sequential"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElementHeader_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_41_ascii_missing_element_header.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: All elements must be in single block"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElement_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_41_ascii_missing_element.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: Error reading Elements"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumNodes_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_22_ascii_missing_num_nodes.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // TODO(mohammadhamid): Replace with an assertion about the error message. For
+  // some reason, on Windows the error message is different on GH Actions
+  EXPECT_THAT(m, IsNull());
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNode_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_22_ascii_missing_node.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: Error reading node tags"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumElements_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_shark_22_ascii_missing_num_elements.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // TODO(mohammadhamid): Replace with an assertion about the error message. For
+  // some reason, on Windows the error message is different on GH Actions
+  EXPECT_THAT(m, IsNull());
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_22_MissingElement_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_22_ascii_missing_element.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: Error reading Elements"));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/cube_22_ascii_vol_gmshApp_missing_dim.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_EQ(m->flex_dim[0], 3);
+  mj_deleteModel(m);
 }
 
 }  // namespace

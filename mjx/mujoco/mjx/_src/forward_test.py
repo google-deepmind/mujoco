@@ -27,14 +27,14 @@ import numpy as np
 _TOLERANCE = 1e-5
 
 
-def _assert_eq(a, b, name):
-  tol = _TOLERANCE * 10  # avoid test noise
+def _assert_eq(a, b, name, tol=_TOLERANCE):
+  tol = tol * 10  # avoid test noise
   err_msg = f'mismatch: {name}'
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
 
-def _assert_attr_eq(a, b, attr):
-  _assert_eq(getattr(a, attr), getattr(b, attr), attr)
+def _assert_attr_eq(a, b, attr, tol=_TOLERANCE):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr, tol=tol)
 
 
 class ForwardTest(absltest.TestCase):
@@ -46,15 +46,21 @@ class ForwardTest(absltest.TestCase):
     d.ctrl = np.array([-18, 0.59, 0.47])
     d.xfrc_applied[0, 2] = 0.1  # torque
     d.xfrc_applied[1, 4] = 0.3  # linear force
-    mujoco.mj_step(m, d, 100)  # get some dynamics going
+    mujoco.mj_step(m, d, 20)  # get some dynamics going
     mujoco.mj_forward(m, d)
 
     mx = mjx.put_model(m)
 
     # fwd_actuation
-    dx = jax.jit(mjx.fwd_actuation)(mx, mjx.put_data(m, d))
+    dx = mjx.put_data(m, d).replace(
+        act_dot=np.zeros_like(d.act_dot),
+        qfrc_actuator=np.zeros_like(d.qfrc_actuator),
+        actuator_force=np.zeros_like(d.actuator_force),
+    )
+    dx = jax.jit(mjx.fwd_actuation)(mx, dx)
     _assert_attr_eq(d, dx, 'act_dot')
     _assert_attr_eq(d, dx, 'qfrc_actuator')
+    _assert_attr_eq(d, dx, 'actuator_force')
 
     # fwd_accleration (fwd_position and fwd_velocity already tested elsewhere)
     dx = jax.jit(mjx.fwd_acceleration)(mx, mjx.put_data(m, d))
@@ -68,6 +74,12 @@ class ForwardTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'qpos')
     _assert_attr_eq(d, dx, 'time')
 
+    # implicitfast
+    m.opt.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    dx = jax.jit(mjx.implicit)(mx, mjx.put_data(m, d))
+    mujoco.mj_implicit(m, d)
+    _assert_attr_eq(d, dx, 'qpos')
+
   def test_step(self):
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
@@ -75,14 +87,13 @@ class ForwardTest(absltest.TestCase):
     d.ctrl = np.array([-18, 0.59, 0.47])
     d.xfrc_applied[0, 2] = 0.1  # torque
     d.xfrc_applied[1, 4] = 0.3  # linear force
-    mujoco.mj_step(m, d, 100)  # get some dynamics going
+    mujoco.mj_step(m, d, 20)  # get some dynamics going
 
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.step)(mx, mjx.put_data(m, d))
+    dx = jax.jit(mjx.step)(mjx.put_model(m), mjx.put_data(m, d))
     mujoco.mj_step(m, d)
     _assert_attr_eq(d, dx, 'act')
     _assert_attr_eq(d, dx, 'time')
-    _assert_attr_eq(d, dx, 'qvel')
+    _assert_attr_eq(d, dx, 'qvel', tol=5e-4)
     _assert_attr_eq(d, dx, 'qpos')
 
   def test_rk4(self):
@@ -111,14 +122,37 @@ class ForwardTest(absltest.TestCase):
     mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
     mujoco.mj_forward(m, d)
 
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.rungekutta4)(mx, mjx.put_data(m, d))
+    dx = jax.jit(mjx.rungekutta4)(mjx.put_model(m), mjx.put_data(m, d))
     mujoco.mj_RungeKutta(m, d, 4)
 
     _assert_attr_eq(d, dx, 'qvel')
     _assert_attr_eq(d, dx, 'qpos')
     _assert_attr_eq(d, dx, 'act')
     _assert_attr_eq(d, dx, 'time')
+
+  def test_eulerdamp(self):
+    m = test_util.load_test_file('pendula.xml')
+    self.assertTrue((m.dof_damping > 0).any())
+
+    d = mujoco.MjData(m)
+    d.qvel[:] = 1.0
+    d.qacc[:] = 1.0
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_Euler(m, d)
+
+    _assert_attr_eq(d, dx, 'qpos')
+
+    # also test sparse
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
+    d = mujoco.MjData(m)
+    d.qvel[:] = 1.0
+    d.qacc[:] = 1.0
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
+    mujoco.mj_Euler(m, d)
+
+    _assert_attr_eq(d, dx, 'qpos')
 
   def test_disable_eulerdamp(self):
     m = test_util.load_test_file('pendula.xml')
@@ -128,8 +162,7 @@ class ForwardTest(absltest.TestCase):
     d = mujoco.MjData(m)
     d.qvel[:] = 1.0
     d.qacc[:] = 1.0
-    mx = mjx.put_model(m)
-    dx = jax.jit(mjx.euler)(mx, mjx.put_data(m, d))
+    dx = jax.jit(mjx.euler)(mjx.put_model(m), mjx.put_data(m, d))
 
     np.testing.assert_allclose(dx.qvel, 1 + m.opt.timestep)
 

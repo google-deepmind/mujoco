@@ -9,9 +9,11 @@ MuJoCo defines a large number of types:
 
   - Enums used in :ref:`mjModel<tyModelEnums>`.
   - Enums used in :ref:`mjData<tyDataEnums>`.
-  - Abstract :ref:`visualization enums<tyVisEnums>`.
+  - Enums for abstract :ref:`visualization<tyVisEnums>`.
   - Enums used by the :ref:`openGL renderer<tyRenderEnums>`.
   - Enums used by the :ref:`mjUI<tyUIEnums>` user interface package.
+  - Enums used by :ref:`engine plugins<tyPluginEnums>`.
+  - Enums used for :ref:`procedural model manipulation<tySpecEnums>`.
 
   Note that the API does not use these enum types directly. Instead it uses ints, and the documentation/comments state
   that certain ints correspond to certain enum types. This is because we want the API to be compiler-independent, and
@@ -31,9 +33,10 @@ MuJoCo defines a large number of types:
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
   - Structs used by the :ref:`openGL renderer<tyRenderStructure>`.
   - Structs used by the :ref:`UI framework<tyUIStructure>`.
+  - Structs used for :ref:`procedural model manipulation<tySpecStructure>`.
   - Structs used by :ref:`engine plugins<tyPluginStructure>`.
 
-- Several :ref:`tyFunction` for user-defined callbacks.
+- Several :ref:`function types<tyFunction>` for user-defined callbacks.
 - :ref:`tyNotes` regarding specific data structures that require detailed description.
 
 
@@ -43,7 +46,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__.
 
 
 .. _mjtNum:
@@ -51,24 +54,28 @@ The two types below are defined in `mjtnum.h <https://github.com/google-deepmind
 mjtNum
 ^^^^^^
 
-This is the floating-point type used throughout the simulator. If the symbol ``mjUSEDOUBLE`` is defined in
-``mjmodel.h``, this type is defined as ``double``, otherwise it is defined as ``float``. Currently only the
-double-precision version of MuJoCo is distributed, although the entire code base works with single-precision as well.
-We may release the single-precision version in the future for efficiency reasons, but the double-precision version
-will always be available. Thus it is safe to write user code assuming double precision. However, our preference is to
-write code that works with either single or double precision. To this end we provide math utility functions that are
-always defined with the correct floating-point type.
+This is the floating-point type used throughout the simulator. When using the default build configuration, ``mjtNum`` is
+defined as ``double``. If the symbol ``mjUSESINGLE`` is defined, ``mjtNum`` is defined as ``float``.
 
-Note that changing ``mjUSEDOUBLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
+Currently only the double-precision version of MuJoCo is distributed, although the entire code base works with
+single-precision as well. We may release the single-precision version in the future, but the
+double-precision version will always be available. Thus it is safe to write user code assuming double precision.
+However, our preference is to write code that works with either single or double precision. To this end we provide math
+utility functions that are always defined with the correct floating-point type.
+
+Note that changing ``mjUSESINGLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
 result in numerous link errors. In general, the header files distributed with precompiled MuJoCo should never be
 changed by the user.
 
 .. code-block:: C
 
-   #ifdef mjUSEDOUBLE
-       typedef double mjtNum;
+   // floating point data type and minval
+   #ifndef mjUSESINGLE
+     typedef double mjtNum;
+     #define mjMINVAL    1E-15       // minimum value in any denominator
    #else
-       typedef float mjtNum;
+     typedef float mjtNum;
+     #define mjMINVAL    1E-15f
    #endif
 
 
@@ -89,13 +96,14 @@ Byte type used to represent boolean variables.
 Enum types
 ----------
 
+All enum types use the ``mjt`` prefix.
 
 .. _tyModelEnums:
 
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
+The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__.
 
 
 .. _mjtDisableBit:
@@ -165,6 +173,17 @@ mjtTexture
 Texture types, specifying how the texture will be mapped. These values are used in ``m->tex_type``.
 
 .. mujoco-include:: mjtTexture
+
+
+.. _mjtTextureRole:
+
+mjtTextureRole
+~~~~~~~~~~~~~~
+
+Texture roles, specifying how the renderer should interpret the texture.  Note that the MuJoCo built-in renderer only
+uses RGB textures.  These values are used to store the texture index in the material's array ``m->mat_texid``.
+
+.. mujoco-include:: mjtTextureRole
 
 
 .. _mjtIntegrator:
@@ -327,13 +346,23 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 .. mujoco-include:: mjtDataType
 
 
+.. _mjtSameFrame:
+
+mjtSameFrame
+~~~~~~~~~~~~
+
+Types of frame alignment of elements with their parent bodies. Used as shortcuts during :ref:`mj_kinematics` in the
+last argument to :ref:`mj_local2global`.
+
+.. mujoco-include:: mjtSameFrame
+
 
 .. _tyDataEnums:
 
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
+The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__.
 
 
 
@@ -376,7 +405,7 @@ Timer types. The number of timer types is given by ``mjNTIMER`` which is also th
 Visualization
 ^^^^^^^^^^^^^
 
-The enums below are defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+The enums below are defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__.
 
 
 .. _mjtCatBit:
@@ -480,7 +509,7 @@ These are the possible stereo rendering types. They are used in ``mjvScene.stere
 Rendering
 ^^^^^^^^^
 
-The enums below are defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+The enums below are defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__.
 
 
 .. _mjtGridPos:
@@ -542,7 +571,7 @@ These are the possible font types.
 User Interface
 ^^^^^^^^^^^^^^
 
-The enums below are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+The enums below are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__.
 
 
 .. _mjtButton:
@@ -575,12 +604,94 @@ Item types used in the UI framework.
 .. mujoco-include:: mjtItem
 
 
+.. _mjtSection:
+
+mjtSection
+~~~~~~~~~~
+
+State of a UI section.
+
+.. mujoco-include:: mjtSection
+
+
+
+.. _tySpecEnums:
+
+Spec
+^^^^
+
+The enums below are defined in `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__.
+
+.. _mjtGeomInertia:
+
+mjtGeomInertia
+~~~~~~~~~~~~~~
+
+Type of inertia inference.
+
+.. mujoco-include:: mjtGeomInertia
+
+.. _mjtBuiltin:
+
+mjtBuiltin
+~~~~~~~~~~
+
+Type of built-in procedural texture.
+
+.. mujoco-include:: mjtBuiltin
+
+.. _mjtMark:
+
+mjtMark
+~~~~~~~
+
+Mark type for procedural textures.
+
+.. mujoco-include:: mjtMark
+
+.. _mjtLimited:
+
+mjtLimited
+~~~~~~~~~~
+
+Type of limit specification.
+
+.. mujoco-include:: mjtLimited
+
+.. _mjtAlignFree:
+
+mjtAlignFree
+~~~~~~~~~~~~
+
+Whether to align free joints with the inertial frame.
+
+.. mujoco-include:: mjtAlignFree
+
+.. _mjtInertiaFromGeom:
+
+mjtInertiaFromGeom
+~~~~~~~~~~~~~~~~~~
+
+Whether to infer body inertias from child geoms.
+
+.. mujoco-include:: mjtInertiaFromGeom
+
+.. _mjtOrientation:
+
+mjtOrientation
+~~~~~~~~~~~~~~
+
+Type of orientation specifier.
+
+.. mujoco-include:: mjtOrientation
+
+
 .. _tyPluginEnums:
 
 Plugins
 ^^^^^^^
 
-The enums below are defined in `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
+The enums below are defined in `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__.
 See :ref:`exPlugin` for details.
 
 
@@ -864,7 +975,7 @@ mjvSceneState
 This structure contains the portions of :ref:`mjModel` and :ref:`mjData` that are required for
 various ``mjv_*`` functions.
 
-.. mujoco-include:: mjvScene
+.. mujoco-include:: mjvSceneState
 
 
 .. _mjvFigure:
@@ -994,6 +1105,360 @@ is initialized, others change at runtime.
 .. mujoco-include:: mjUI
 
 
+
+.. _tySpecStructure:
+
+Model Editing
+^^^^^^^^^^^^^
+
+The structs below are defined in
+`mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__ and, with the exception of
+the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix. For more details, see the :doc:`Model Editing
+<../programming/modeledit>` chapter.
+
+.. _mjSpec:
+
+mjSpec
+~~~~~~
+
+Model specification.
+
+.. mujoco-include:: mjSpec
+
+
+.. _mjsElement:
+
+mjsElement
+~~~~~~~~~~
+
+Special type corresponding to any element. This struct is the first member of all other elements; in the low-level C++
+implementation, it is not included as a member but via class inheritance. Inclusion via inheritance allows the compiler
+to ``static_cast`` an ``mjsElement`` to the correct C++ object class. Unlike all other attributes of the structs below,
+which are user-settable by design, modifying the contents of an ``mjsElement`` is not allowed and leads to undefined
+behavior.
+
+.. mujoco-include:: mjsElement
+
+
+.. _mjsBody:
+
+mjsBody
+~~~~~~~
+
+Body specification.
+
+.. mujoco-include:: mjsBody
+
+
+.. _mjsFrame:
+
+mjsFrame
+~~~~~~~~
+
+Frame specification.
+
+.. mujoco-include:: mjsFrame
+
+
+.. _mjsJoint:
+
+mjsJoint
+~~~~~~~~
+
+Joint specification.
+
+.. mujoco-include:: mjsJoint
+
+
+.. _mjsGeom:
+
+mjsGeom
+~~~~~~~
+
+Geom specification.
+
+.. mujoco-include:: mjsGeom
+
+
+.. _mjsSite:
+
+mjsSite
+~~~~~~~
+
+Site specification.
+
+.. mujoco-include:: mjsSite
+
+
+.. _mjsCamera:
+
+mjsCamera
+~~~~~~~~~
+
+Camera specification.
+
+.. mujoco-include:: mjsCamera
+
+
+.. _mjsLight:
+
+mjsLight
+~~~~~~~~
+
+Light specification.
+
+.. mujoco-include:: mjsLight
+
+
+.. _mjsFlex:
+
+mjsFlex
+~~~~~~~
+
+Flex specification.
+
+.. mujoco-include:: mjsFlex
+
+
+.. _mjsMesh:
+
+mjsMesh
+~~~~~~~
+
+Mesh specification.
+
+.. mujoco-include:: mjsMesh
+
+
+.. _mjsHField:
+
+mjsHField
+~~~~~~~~~
+
+Height field specification.
+
+.. mujoco-include:: mjsHField
+
+
+.. _mjsSkin:
+
+mjsSkin
+~~~~~~~
+
+Skin specification.
+
+.. mujoco-include:: mjsSkin
+
+
+.. _mjsTexture:
+
+mjsTexture
+~~~~~~~~~~
+
+Texture specification.
+
+.. mujoco-include:: mjsTexture
+
+
+.. _mjsMaterial:
+
+mjsMaterial
+~~~~~~~~~~~
+
+Material specification.
+
+.. mujoco-include:: mjsMaterial
+
+
+.. _mjsPair:
+
+mjsPair
+~~~~~~~
+
+Pair specification.
+
+.. mujoco-include:: mjsPair
+
+
+.. _mjsExclude:
+
+mjsExclude
+~~~~~~~~~~
+
+Exclude specification.
+
+.. mujoco-include:: mjsExclude
+
+
+.. _mjsEquality:
+
+mjsEquality
+~~~~~~~~~~~
+
+Equality specification.
+
+.. mujoco-include:: mjsEquality
+
+
+.. _mjsTendon:
+
+mjsTendon
+~~~~~~~~~
+
+Tendon specification.
+
+.. mujoco-include:: mjsTendon
+
+
+.. _mjsWrap:
+
+mjsWrap
+~~~~~~~
+
+Wrapping object specification.
+
+.. mujoco-include:: mjsWrap
+
+
+.. _mjsActuator:
+
+mjsActuator
+~~~~~~~~~~~
+
+Actuator specification.
+
+.. mujoco-include:: mjsActuator
+
+
+.. _mjsSensor:
+
+mjsSensor
+~~~~~~~~~
+
+Sensor specification.
+
+.. mujoco-include:: mjsSensor
+
+
+.. _mjsNumeric:
+
+mjsNumeric
+~~~~~~~~~~
+
+Custom numeric field specification.
+
+.. mujoco-include:: mjsNumeric
+
+
+.. _mjsText:
+
+mjsText
+~~~~~~~
+
+Custom text specification.
+
+.. mujoco-include:: mjsText
+
+
+.. _mjsTuple:
+
+mjsTuple
+~~~~~~~~
+
+Tuple specification.
+
+.. mujoco-include:: mjsTuple
+
+
+.. _mjsKey:
+
+mjsKey
+~~~~~~
+
+Keyframe specification.
+
+.. mujoco-include:: mjsKey
+
+
+.. _mjsDefault:
+
+mjsDefault
+~~~~~~~~~~
+
+Default specification.
+
+.. mujoco-include:: mjsDefault
+
+
+.. _mjsPlugin:
+
+mjsPlugin
+~~~~~~~~~
+
+Plugin specification.
+
+.. mujoco-include:: mjsPlugin
+
+
+.. _mjsOrientation:
+
+mjsOrientation
+~~~~~~~~~~~~~~
+
+Alternative orientation specifiers.
+
+.. mujoco-include:: mjsOrientation
+
+
+.. _ArrayHandles:
+
+.. _mjByteVec:
+
+.. _mjString:
+
+.. _mjStringVec:
+
+.. _mjIntVec:
+
+.. _mjIntVecVec:
+
+.. _mjFloatVec:
+
+.. _mjFloatVecVec:
+
+.. _mjDoubleVec:
+
+Array handles
+~~~~~~~~~~~~~
+
+C handles for C++ strings and vector types. When using from C, use the provided :ref:`getters<AttributeGetters>` and
+:ref:`setters<AttributeSetters>`.
+
+.. code-block:: C++
+
+   #ifdef __cplusplus
+     // C++: defined to be compatible with corresponding std types
+     using mjString      = std::string;
+     using mjStringVec   = std::vector<std::string>;
+     using mjIntVec      = std::vector<int>;
+     using mjIntVecVec   = std::vector<std::vector<int>>;
+     using mjFloatVec    = std::vector<float>;
+     using mjFloatVecVec = std::vector<std::vector<float>>;
+     using mjDoubleVec   = std::vector<double>;
+     using mjByteVec     = std::vector<std::byte>;
+   #else
+     // C: opaque types
+     typedef void mjString;
+     typedef void mjStringVec;
+     typedef void mjIntVec;
+     typedef void mjIntVecVec;
+     typedef void mjFloatVec;
+     typedef void mjFloatVecVec;
+     typedef void mjDoubleVec;
+     typedef void mjByteVec;
+   #endif
+
+
 .. _tyPluginStructure:
 
 Plugins
@@ -1028,8 +1493,8 @@ Function types
 --------------
 
 MuJoCo callbacks have corresponding function types. They are defined in `mjdata.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__ and in `mjui.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__. The actual callback functions are documented
 in the :doc:`globals<APIglobals>` page.
 
 

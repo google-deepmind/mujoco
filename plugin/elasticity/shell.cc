@@ -242,7 +242,7 @@ void Shell::RegisterPlugin() {
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
   const char* attributes[] = {"face",    "edge",    "young",
-                              "poisson", "thickness"};
+                              "poisson", "thickness", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

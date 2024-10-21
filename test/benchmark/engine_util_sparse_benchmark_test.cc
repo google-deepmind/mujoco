@@ -348,7 +348,7 @@ void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_8(mjtNum* res,
 // ----------------------------- benchmark ------------------------------------
 
 static void BM_MatVecSparse(benchmark::State& state, int unroll) {
-  static mjModel* m = LoadModelFromPath("plugin/elasticity/flag.xml");
+  static mjModel* m = LoadModelFromPath("plugin/elasticity/flag_flex.xml");
   mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
@@ -501,7 +501,7 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_combineSparse_old(
 BENCHMARK(BM_combineSparse_old);
 
 static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
-  static mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  static mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
 
   // force use of sparse matrices
   m->opt.jacobian = mjJAC_SPARSE;
@@ -547,7 +547,7 @@ BM_transposeSparse_old(benchmark::State& state) {
 BENCHMARK(BM_transposeSparse_old);
 
 static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
-  static mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  static mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
   mjData* d = mj_makeData(m);
 
   // force use of sparse matrices

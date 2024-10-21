@@ -16,6 +16,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -251,7 +252,7 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
 
   // add term linear in K * K
   mjtNum KK[9];
-  mju_mulMatMat(KK, K, K, 3, 3, 3);
+  mju_mulMatMat3(KK, K, K);
   mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
   mju_addToScl(Da_tmp, KK, coef, 9);
 
@@ -320,7 +321,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
   if (Dvel) mju_copy(Dvel, Dvel_, 9);
-  if (Dscale) mju_rotVecMat(Dscale, vel, Dvel_);
+  if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
 }
 
 
@@ -338,7 +339,7 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
   mju_zero(Dcvel, nbody*6*nv);
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // Dcvel = Dcvel_parent
     mju_copy(Dcvel+i*6*nv, Dcvel+m->body_parentid[i]*6*nv, 6*nv);
 
@@ -450,7 +451,7 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*nv);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int i=nbody-1; i > 0; i--) {
     if (m->body_parentid[i]) {
       mju_addTo(Dcfrcbody+m->body_parentid[i]*6*nv, Dcfrcbody+i*6*nv, 6*nv);
     }
@@ -825,7 +826,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv;
+  int nv = m->nv, nu = m->nu;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_ACTUATION)) {
@@ -833,7 +834,12 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
   }
 
   // process actuators
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < nu; i++) {
+    // skip if disabled
+    if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
+
     mjtNum bias_vel = 0, gain_vel = 0;
 
     // affine bias
@@ -862,7 +868,9 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       if (m->actuator_dyntype[i] == mjDYN_NONE) {
         bias_vel += gain_vel * d->ctrl[i];
       } else {
-        bias_vel += gain_vel * d->act[i-(m->nu - m->na)];
+        int act_first = m->actuator_actadr[i];
+        int act_last = act_first + m->actuator_actnum[i] - 1;
+        bias_vel += gain_vel * d->act[act_last];
       }
     }
 

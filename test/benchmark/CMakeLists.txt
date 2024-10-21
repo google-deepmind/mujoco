@@ -40,6 +40,14 @@ macro(mujoco_benchmark_test name)
   endif()
 endmacro()
 
+mujoco_benchmark_test(ccd_benchmark_test)
+target_link_libraries(
+  ccd_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
 mujoco_benchmark_test(step_benchmark_test)
 target_link_libraries(
   step_benchmark_test

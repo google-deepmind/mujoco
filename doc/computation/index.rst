@@ -22,14 +22,14 @@ been described elsewhere.
 
 .. _Motivation:
 
-Motivation for soft contact model
----------------------------------
+Soft contact model
+------------------
 
 Robots as well as humans interact with their environment primarily through physical contact. Given the increasing
 importance of physics modeling in robotics, machine learning, animation, virtual reality, biomechanics and other fields,
 there is need for simulation models of contact dynamics that are both physically accurate and computationally efficient.
 One application of simulation models is to assess candidate estimation and control strategies before deploying them on
-physical systems. Another application is to automate the design of those strategies - usually through numerical
+physical systems. Another application is to automate the design of those strategies -- usually through numerical
 optimization that uses simulation in an inner loop. The latter application imposes an additional constraint: the
 objective function defined with respect to the contact dynamics should be amenable to numerical optimization. The
 contact model underlying MuJoCo has benefits along these and other relevant dimensions. In the following sections we
@@ -50,7 +50,7 @@ for frictional contacts there are differences.
 If one sees convex models as approximations to LCP, the logical question to ask is how good that approximation is.
 However we do not see it that way. Instead, we see both LCP models and convex models as different approximations to
 physical reality, each with its strengths and weaknesses. The immediate consequence of dropping strict complementarity
-and replacing it with a cost is that complementarity can be violated - meaning that force and velocity in the contact
+and replacing it with a cost is that complementarity can be violated -- meaning that force and velocity in the contact
 normal direction can be simultaneously positive, and frictional forces may not be maximally dissipative. A related
 phenomenon is that the only way to initiate slip is to generate some motion in the normal direction. These effects are
 numerically small yet undesirable. This shortcoming however has little practical relevance, because it is premised on
@@ -117,7 +117,7 @@ Inverse dynamics and optimization
 The objective of inverse dynamics is to recover the applied force and contact force given the position, velocity and
 acceleration of the multi-joint system. With hard contacts this computation is impossible. Consider pushing against a
 wall without moving. The contact force cannot be recovered from the kinematics, unless of course we consider the
-material deformations - in which case we need a soft contact model. Inverse dynamics are trivial to compute with
+material deformations -- in which case we need a soft contact model. Inverse dynamics are trivial to compute with
 spring-damper models of contact, because in that case the contact force is only a function of position and velocity and
 does not depend on applied force. But this is also the reason why spring-damper models are undesirable: ignoring the
 applied force means that an error is introduced at each time step, and so the simulator is perpetually in
@@ -125,7 +125,7 @@ error-correction mode, in turn causing instabilities. In contrast, modern contac
 well as all internal forces) into account when computing the contact force/impulse. But this complicates inversion. The
 present contact model has a uniquely-defined inverse. The inverse dynamics are in fact easier to compute than the
 forward dynamics, because the optimization problem becomes diagonal and decomposes into independent optimization
-problems over individual contacts - which can be solved analytically.
+problems over individual contacts -- which can be solved analytically.
 
 Inverse dynamics play a key role in optimization algorithms arising in system identification, estimation and control.
 They make it possible to treat the sequence of positions (or a parametric representation thereof) as the object being
@@ -269,7 +269,7 @@ activation state :math:`w_i` with its own dynamics. The control inputs for all a
 the force outputs are stored in ``mjData.actuator_force``, and the activation states (if any) are stored in
 ``mjData.act``.
 
-These three components of an actuator - transmission, activation dynamics, and force generation - determine how the
+These three components of an actuator -- transmission, activation dynamics, and force generation -- determine how the
 actuator works. The user can set them independently for maximum flexibility, or use :ref:`Actuator shortcuts
 <CActShortcuts>` which instantiate common actuator types.
 
@@ -736,8 +736,8 @@ properties of quaternions, differentiation with respect to :math:`q` produces ve
 
 Among other applications, equality constraints can be used to create "loop joints", i.e., joints that cannot be modeled
 via the kinematic tree. Gaming engines represent all joints in this way. The same can be done in MuJoCo but is not
-recommended - because it leads to both slower and less accurate simulation, effectively turning MuJoCo into a gaming
-engine. The only reason to represent joints with equality constraints would be to model soft joints - which can be done
+recommended -- because it leads to both slower and less accurate simulation, effectively turning MuJoCo into a gaming
+engine. The only reason to represent joints with equality constraints would be to model soft joints -- which can be done
 via the constraint solver but not via the kinematic tree.
 
 There are five types of equality constraints described next. The numbers in the headings correspond to the
@@ -846,7 +846,7 @@ at the limit, and negative if the limit is violated. The constraint becomes acti
 constraint force depends on distance through the solver :ref:`parameters <soParameters>` described later.
 
 It is possible that both the lower and the upper limits for a given joint or tendon become active. In that case they are
-both included in the list of scalar constraints, however this situation should be avoided - by increasing the range or
+both included in the list of scalar constraints, however this situation should be avoided -- by increasing the range or
 decreasing the margin. In particular, avoid using narrow ranges to approximate an equality constraint. Instead use an
 explicit equality constraint, and if some slack is desired make the constraint soft by adjusting the solver parameters.
 This is more efficient computationally, not only because it involves one scalar constraint instead of two, but also
@@ -900,7 +900,8 @@ model definition.
    * - ``condim``
      - Dimensionality of the contact force/torque in the contact frame. |br| It can be 1, 3, 4 or 6.
    * - ``friction``
-     - Vector of friction coefficients with dimensionality ``condim-1``.
+     - Vector of friction coefficients with dimensionality ``condim-1``. See below for semantics of the specific
+       coefficients.
    * - ``margin``
      - The distance margin used to determine if the contact should be included in the global contact array
        ``mjData.contact``.
@@ -921,19 +922,23 @@ as defined later. The ``condim`` parameter determines the contact type, and has 
    similar to a joint or tendon limit, but is applied to the distance between two geoms.
 
 ``condim = 3`` : 3 for elliptic, 4 for pyramidal
-   This is a regular frictional contact, which can generate normal force as well as tangential friction force opposing
-   slip.
+   This is a regular frictional contact, which can generate normal force as well as a tangential friction force opposing
+   slip. An interpertation of this number is the slope of a surface above which a flat object will begin to slip
+   under gravity.
 
 ``condim = 4`` : 4 for elliptic, 6 for pyramidal
    In addition to normal and tangential force, this contact can generate torsional friction torque opposing rotation
-   around the contact normal. This is useful for modeling soft fingers, and can substantially improve the stability of
-   simulated grasping. Keep in mind that the torsional (as well as rolling) friction coefficients have different units
-   from the tangential friction coefficients.
+   around the contact normal, corresponding to a torque generated by a contacting surface patch. This is useful for
+   modeling soft fingers, and can substantially improve the stability of simulated grasping. Torsional friction
+   coefficients have **units of length** which can be interperted as the diameter of the surface contact patch.
 
 ``condim = 6`` : 6 for elliptic, 10 for pyramidal
    This contact can oppose motion in all relative degrees of freedom between the two geoms. In particular it adds
-   rolling friction, which can be used for example to stop a ball from rolling indefinitely on a plane. It can also be
-   used to model rolling friction between tires and a road, and in general to stabilize contacts.
+   rolling friction, which can be used for example to stop a ball from rolling indefinitely on a plane. Rolling friction
+   in the real world results from energy dissipated by local deformations near the contact point. It can be
+   used to model rolling friction between tires and a road, and in general to stabilize contacts. Rolling friction
+   coefficients also have **units of length** which can be interperted as the depth of the local deformation within
+   which energy is dissipated.
 
 Note that condim cannot be 2 or 5. This is because the two tangential directions and the two rolling directions are
 treated as pairs. The friction coefficients within a pair can be different though, which can be used to model skating
@@ -1109,7 +1114,7 @@ and the dual of the dual of a cone is the cone itself. The pyramidal friction co
 self-dual, but the elliptic one is not.
 
 The Huber "norm" is based on the Huber function from robust statistics: it is a quadratic around zero, and transitions
-smoothly to a linear function when the absolute value of the argument crosses a threshold - in this case given by the
+smoothly to a linear function when the absolute value of the argument crosses a threshold -- in this case given by the
 friction loss parameters. Setting :math:`\eta = \infty` recovers the quadratic norm; we use this convention for all
 constraint forces that are not due to friction loss. This is another instance of reverse engineering: we want to obtain
 interval constraints on the friction loss forces, which is non-trivial because Lagrange duality usually yields
@@ -1190,7 +1195,7 @@ the constraints. We are then left with an unconstrained optimization problem ove
 more efficient algorithms.
 
 The reduction is based on the fact that minimization over :math:`y` in :eq:`eq:primal` comes down to finding the nearest
-point on the constraint set - which is either a plane or a cone, and can be done analytically. Substituting the result,
+point on the constraint set -- which is either a plane or a cone, and can be done analytically. Substituting the result,
 we obtain the unconstrained problem
 
 .. math::
@@ -1296,7 +1301,7 @@ because the forward dynamics need all the quantities that enter into the inverse
 the analytical formula. This makes it possible to implement an automatic correctness check in MuJoCo. When the flag
 ``fwdinv`` in ``mjModel.opt.enableflags`` is on, the forward and inverse dynamics are automatically compared at the end
 of each time step, and the difference is recorded in ``mjData.solver_fwdinv``. Discrepancies indicate that the forward
-solver - which is numerical and is usually terminated early - is not converging well. Of course the inverse dynamics are
+solver---which is numerical and is usually terminated early---is not converging well. Of course the inverse dynamics are
 also useful on their own, without computing the forward dynamics first.
 
 .. _soAlgorithms:
@@ -1323,7 +1328,7 @@ representations of the constraint Jacobian and related matrices.
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
    developed the Newton method which appears to be better in every way. PGS uses the dual formulation. Unlike
-   gradient-based method which improve the solution along oblique directions, Gauss-Seidel works on one scalar component
+   gradient-based methods which improve the solution along oblique directions, Gauss-Seidel works on one scalar component
    at a time, and sets it to its optimal value given the current values of all other components. One sweep of PGS has
    the computational complexity of one matrix-vector multiplication (although the constants are larger). It has
    first-order convergence but nevertheless makes rapid progress in a few iterations.
@@ -1348,7 +1353,7 @@ representations of the constraint Jacobian and related matrices.
    can be up to 5-dimensional given our contact model. Now we optimize the quadratic cost within this ellipsoid. This is
    an instance of quadratically constrained quadratic programming (QCQP). Since there is only one scalar constraint
    (however nonlinear it may be), the dual is a scalar optimization problem over the unknown Lagrange multiplier. We
-   solve this problem with Newton's method applied until convergence - which in practice takes less than 10 iterations,
+   solve this problem with Newton's method applied until convergence -- which in practice takes less than 10 iterations,
    and involves small matrices. Overall this algorithm has similar behavior to PGS for pyramidal cones, but it can
    handle elliptic cones without approximating them. It does more work per contact, however the contact dimensionality
    is smaller, and these two factors roughly balance each other.
@@ -1530,7 +1535,7 @@ convex but internally they are treated as unions of triangular prisms (using cus
 described above). Meshes specified by the user can be non-convex, and are rendered as such. For collision purposes
 however they are replaced with their convex hulls. Mesh collisions are based on the Minkowski Portal Refinement (MPR)
 algorithm as implemented in `libccd <https://github.com/danfis/libccd>`__. It has tolerance and maximum iteration
-parameters exposed as ``mjModel.opt.mpt_tolerance`` and ``mjModel.opt.mpr_iterations`` respectively. MPR operates on the
+parameters exposed as ``mjModel.opt.ccd_tolerance`` and ``mjModel.opt.ccd_iterations`` respectively. MPR operates on the
 convex hull implicitly, however pre-computing that hull can substantially improve performance for large meshes. The
 model compiler does that by default, using the `qhull <http://www.qhull.org/>`__ library.
 
@@ -1557,8 +1562,10 @@ Forward dynamics
 ~~~~~~~~~~~~~~~~
 
 The source file `engine_forward.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_forward.c>`__
-contains the high-level forward dynamics pipeline:
+contains the high-level forward dynamics pipeline.
 
+Top level
+^^^^^^^^^
 - The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
 - :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
   acceleration ``mjData.qacc``.
@@ -1566,10 +1573,25 @@ contains the high-level forward dynamics pipeline:
   distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
   velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
   pipeline does not support the Runge Kutta integrator.
+- :ref:`mj_fwdPosition` invokes stages **2-11**, the position-dependent part of the pipeline.
+
+.. _piStages:
+
+Stages
+^^^^^^
+Below we describe the pipeline stages and API functions corresponding to each stage. All functions write their outputs
+into attributes of :ref:`mjData`. It is informative to compare the list below with the :ref:`mjData` struct definition,
+wherein comments above blocks of attributes specify the function that computes them. Note that each stage depends on
+the values computed in some or all of the previous stages.
 
 1. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
    is detected, the state is automatically reset and the corresponding warning is raised:
    :ref:`mj_checkPos`, :ref:`mj_checkVel`
+
+Position
+''''''''
+The stages below compute quantities that depend on the generalized positions ``mjData.qpos``.
+
 2. Compute the forward kinematics. This yields the global positions and orientations of all bodies, geoms, sites,
    cameras and lights. It also normalizes all quaternions: :ref:`mj_kinematics`, :ref:`mj_camLight`
 3. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
@@ -1581,11 +1603,17 @@ contains the high-level forward dynamics pipeline:
 8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
    :ref:`mj_collision`
 9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
-10. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
-11. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
+10. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
     tendons: :ref:`mj_transmission`
+11. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
 12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
     :ref:`mj_energyPos`
+
+Velocity
+''''''''
+The stages below compute quantities that depend on the generalized velocity ``mjData.qvel``. Due to the sequential
+dependence structure of the pipeline, the actual dependence is on both ``qpos`` and ``qvel``.
+
 13. Compute the tendon, flex edge and actuator velocities: :ref:`mj_fwdVelocity`
 14. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at
     the subtree centers of mass: :ref:`mj_comVel`
@@ -1594,6 +1622,12 @@ contains the high-level forward dynamics pipeline:
     (if required by sensors, call :ref:`mj_subtreeVel`): :ref:`mj_sensorVel`
 17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
 18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
+
+Force/acceleration
+''''''''''''''''''
+The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
+of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
+
 19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
 20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
     :ref:`mj_fwdAcceleration`
@@ -1610,12 +1644,53 @@ contains the high-level forward dynamics pipeline:
     repeats the above sequence three more times, except for the optional computations which are performed only once:
     one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 
+.. _piConsistency:
+
+Consistency in ``mjData``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+The MuJoCo computation pipeline is entirely imperative, nothing happens automatically. This leads to behavior which
+can seem unexpected to users more familiar with other paradigms. Here are two examples of intended behaviors which can
+sometimes be surprising:
+
+- After setting :ref:`the state<geState>`, state-derived quantities do not automatically correspond to the new state.
+  The required stage or stages must be manually invoked. For example after setting the generalized positions
+  ``mjData.qpos``, Cartesian positions and orientations will not be consistent with ``qpos`` without first calling
+  :ref:`mj_kinematics`.
+- After an :ref:`mj_step`, which terminates immediately after updating the state, quantities in ``mjData`` correspond
+  to the *previous* state (or more precisely, the *transition* between the previous and current state).
+  In particular, all position-dependent sensor values and position-dependent computations like kinematic
+  :ref:`Jacobians<mj_jac>`, will be with respect to the *previous positions*.
+
+
+
+.. _piReproducibility:
+
+Reproducibility
+~~~~~~~~~~~~~~~
+
+MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a :ref:`state<geState>` in a trajectory is
+saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
+important caveats:
+
+- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
+  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
+  is required.
+- Any numerical difference between states, no matter how small, will become significant upon integration, especially for
+  systems with contact. Contact events have high `Lyapunov exponents
+  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
+  `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
+- Exact reproducibility is only guaranteed within a **single version**, on the **same architecture**. Small numerical
+  differences are quite common between versioned releases, for example due to code optimizations. This means that when
+  saving an initial state and an open-loop control sequence, the resulting rolled-out trajectory will be identical
+  within the same version, but will likely be different between MuJoCo versions or different operating systems.
+
 .. _piInverse:
 
 Inverse dynamics
 ~~~~~~~~~~~~~~~~
 
-The top-level function :ref:`mj_inverse` invokes the following sequence of computations.
+The top-level function :ref:`mj_inverse` invokes the following sequence of computations. The notes above regarding
+:ref:`consistency<piConsistency>` and :ref:`reproducibility<piReproducibility>` apply here as well.
 
 #. Compute the forward kinematics.
 #. Compute the body inertias and joint axes.
@@ -1642,46 +1717,28 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
    equals the sum of external and actuation forces.
 
 
-.. _piReproducibility:
-
-Reproducibility
-~~~~~~~~~~~~~~~
-
-MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a :ref:`state<geState>` in a trajectory is
-saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
-important caveats:
-
-- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
-  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
-  is required.
-- Any numerical difference between states, no matter how small, will become significant upon integration, especially for
-  systems with contact. Contact events have high `Lyapunov exponents
-  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
-  `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
-- Exact reproducibillity is only guaranteed within a **single version**. Small numerical differences are quite common
-  between versioned releases, for example due to code optimizations. This means that when saving an initial state and an
-  open-loop control sequence, the resulting rolled-out trajectory will be identical within the same version but will
-  likely be different between MuJoCo versions.
-
 .. _derivatives:
 
 Derivatives
 -----------
 
-MuJoCo's entire computational pipline including its constraint solver are analytically differentiable. Writing
-efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
-smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
+MuJoCo's entire computational pipline including its constraint solver are analytically differentiable in principle.
+Writing efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives
+of the smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
 :ref:`implicit integrators<geIntegration>`.
+
+Note that the default value of the :ref:`solver impedance<CSolverImpedance>` is such that contacts are *not*
+differentiable by default, and needs to be :ref:`set to 0<solimp0>` in order for contact-force onset to be smooth.
 
 Two functions are currently available which use efficient finite-differencing in order to compute dynamics Jacobians:
 
 :ref:`mjd_transitionFD`:
   Computes state-transition and control-transition Jacobians for the discrete-time forward dynamics (:ref:`mj_step`).
-  See :ref:`API documentation<mjd_transitionFD>`.
+  See :ref:`documentation<mjd_transitionFD>`.
 
 :ref:`mjd_inverseFD`:
-  Computes Jacobians for the continuous-time inverse dynamics (:ref:`mj_inverse`).
-  See :ref:`API documentation<mjd_inverseFD>`.
+  Computes Jacobians for the continuous or discrete-time inverse dynamics (:ref:`mj_inverse`).
+  See :ref:`documentation<mjd_inverseFD>`.
 
 These derivatives are made efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
 recomputed when not required. For example when differencing with respect to controls, quantities which depend only on

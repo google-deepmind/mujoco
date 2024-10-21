@@ -17,6 +17,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +40,17 @@ MJAPI void mj_freeLastXML(void);
 MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                          int flg_html, int flg_pad);
 
+// load model from binary MJB file
+// if vfs is not NULL, look up file in vfs before reading from disk
+MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
+
+// parse spec from file or XML string.
+MJAPI mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
+MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
+
+// Save spec to XML file and/or string, return 1 on success, 0 otherwise.
+MJAPI int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
+MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 
 #ifdef __cplusplus
 }

@@ -82,13 +82,10 @@ public class MjActuator : MjComponent {
       LengthRange = mjcf.GetVector2Attribute("lengthrange", defaultValue: Vector2.zero);
       Gear = mjcf.GetFloatArrayAttribute("gear", defaultValue: new float[] { 1.0f }).ToList();
 
-      bool autolimits = (mjcf.OwnerDocument.GetElementsByTagName("compiler")[0]?["compiler"])
-                            ?.GetBoolAttribute("autolimits", true) ??
-                        false;
-      CtrlLimited = mjcf.GetBoolAttribute("ctrllimited",
-          defaultValue: autolimits ? CtrlRange != Vector2.zero : false);
-      ForceLimited = mjcf.GetBoolAttribute("forcelimited",
-          defaultValue: autolimits ? ForceRange != Vector2.zero : false);
+      CtrlLimited = mjcf.GetLimitedAttribute("ctrllimited",
+          rangeDefined: mjcf.HasAttribute("ctrlrange"));
+      ForceLimited = mjcf.GetLimitedAttribute("forcelimited",
+          rangeDefined: mjcf.HasAttribute("forcerange"));
     }
   }
 
@@ -167,11 +164,16 @@ public class MjActuator : MjComponent {
     [AbsoluteValue]
     public float Kp = 1.0f;
 
+    [AbsoluteValue]
+    public float Kvp;
+
     public void PositionToMjcf(XmlElement mjcf) {
       mjcf.SetAttribute("kp", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kp)}"));
+      mjcf.SetAttribute("kv", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kvp)}"));
     }
     public void PositionFromMjcf(XmlElement mjcf) {
       Kp = mjcf.GetFloatAttribute("kp", defaultValue: 1.0f);
+      Kvp = mjcf.GetFloatAttribute("kv", defaultValue: 0f);
     }
 
     //// Velocity actuator parameters.

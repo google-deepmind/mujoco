@@ -168,7 +168,7 @@
   X( float,   light_, specular,      nlight,  3 )
 
 #define MJMODEL_MATERIAL                   \
-  X( int,     mat_, texid,       nmat, 1 ) \
+  X( int,     mat_, texid,       nmat, mjNTEXROLE ) \
   X( mjtByte, mat_, texuniform,  nmat, 1 ) \
   X( float,   mat_, texrepeat,   nmat, 2 ) \
   X( float,   mat_, emission,    nmat, 1 ) \
@@ -262,11 +262,12 @@
   X( float,   tendon, _rgba,         ntendon, 4                  )
 
 #define MJMODEL_TEXTURE                   \
-  X( int,     tex_, type,   ntex,     1 ) \
-  X( int,     tex_, height, ntex,     1 ) \
-  X( int,     tex_, width,  ntex,     1 ) \
-  X( int,     tex_, adr,    ntex,     1 ) \
-  X( mjtByte, tex_, rgb,    ntexdata, 1 )
+  X( int,     tex_, type,     ntex,     1 ) \
+  X( int,     tex_, height,   ntex,     1 ) \
+  X( int,     tex_, width,    ntex,     1 ) \
+  X( int,     tex_, nchannel, ntex,     1 ) \
+  X( int,     tex_, adr,      ntex,     1 ) \
+  X( mjtByte, tex_, data,     ntexdata, 1 )
 
 #define MJMODEL_TUPLE                         \
   X( int,    tuple_, adr,     ntuple,     1 ) \

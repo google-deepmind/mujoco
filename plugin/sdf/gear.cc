@@ -232,7 +232,7 @@ void Gear::RegisterPlugin() {
     delete reinterpret_cast<Gear*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto sdf = reinterpret_cast<Gear*>(plugin_data);
     sdf->Reset();

@@ -18,11 +18,21 @@ import copy
 import dataclasses
 
 import typing
-from typing import Any, Dict, Optional, Sequence, TypeVar
+from typing import Dict, Optional, Sequence, Tuple, TypeVar, Union
 import jax
 import numpy as np
 
 _T = TypeVar('_T')
+
+
+def _jax_in_args(typ) -> bool:
+  if typ is jax.Array:
+    return True
+  if dataclasses.is_dataclass(typ):
+    return any(_jax_in_args(f.type) for f in dataclasses.fields(typ))
+  if typing.get_origin(typ) in (tuple, list, dict, Union, set):
+    return any(_jax_in_args(t) for t in typing.get_args(typ))
+  return False
 
 
 def dataclass(clz: _T) -> _T:
@@ -41,12 +51,7 @@ def dataclass(clz: _T) -> _T:
   data_clz = dataclasses.dataclass(frozen=True)(clz)
   meta_fields, data_fields = [], []
   for field in dataclasses.fields(data_clz):
-    if any((
-        field.type is jax.Array,
-        dataclasses.is_dataclass(field.type),
-        jax.Array in typing.get_args(field.type),
-        any(dataclasses.is_dataclass(a) for a in typing.get_args(field.type)),
-    )):
+    if _jax_in_args(field.type):
       data_fields.append(field)
     else:
       meta_fields.append(field)
@@ -117,7 +122,7 @@ class PyTreeNode:
     raise NotImplementedError
 
   @classmethod
-  def fields(cls) -> tuple[dataclasses.Field[Any], ...]:
+  def fields(cls) -> Tuple[dataclasses.Field, ...]:  # pylint: disable=g-bare-generic
     return dataclasses.fields(cls)
 
   def tree_replace(

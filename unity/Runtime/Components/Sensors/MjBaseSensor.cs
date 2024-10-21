@@ -38,10 +38,6 @@ namespace Mujoco {
 // supported observation types.
 public abstract class MjBaseSensor : MjComponent {
 
-  [Tooltip("The standard deviation of zero-mean Gaussian noise added to the sensor output.")]
-  [AbsoluteValue]
-  public float Noise = 0.0f;
-
   [Tooltip("When this value is positive, it limits the absolute value of the sensor output.")]
   [AbsoluteValue]
   public float Cutoff = 0.0f;
@@ -53,7 +49,6 @@ public abstract class MjBaseSensor : MjComponent {
 
   // Parse the component settings from an external Mjcf.
   protected override void OnParseMjcf(XmlElement mjcf) {
-    Noise = mjcf.GetFloatAttribute("noise", defaultValue: 0.0f);
     Cutoff = mjcf.GetFloatAttribute("cutoff", defaultValue: 0.0f);
     FromMjcf(mjcf);
   }
@@ -61,7 +56,6 @@ public abstract class MjBaseSensor : MjComponent {
   // Generate implementation specific XML element.
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
     var mjcf = ToMjcf(doc);
-    mjcf.SetAttribute("noise", Noise.ToString());
     mjcf.SetAttribute("cutoff", Cutoff.ToString());
     return mjcf;
   }

@@ -41,7 +41,7 @@ release can be found in the [changelog] in the latest branch.
 There are two easy ways to get started with MuJoCo:
 
 1. **Run `simulate` on your machine.**
-[This video](https://www.youtube.com/watch?v=0ORsj_E17B0) shows a screen capture
+[This video](https://www.youtube.com/watch?v=P83tKA1iz2Y) shows a screen capture
 of `simulate`, MuJoCo's native interactive viewer. Follow the steps described in
 the [Getting Started] section of the documentation to get `simulate` running on
 your machine.
@@ -50,15 +50,17 @@ your machine.
 If you are a Python user, you might want to start with our tutorial notebooks
 running on Google Colab:
 
- - The first tutorial focuses on the basics of MuJoCo:
+ - The **introductory** tutorial teaches MuJoCo basics:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
- - For a more advanced example, see the LQR tutorial which creates an LQR
-   controller to balance a humanoid on one leg using MuJoCo's dynamics
-   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
- - The MJX tutorial provides usage examples of
-   [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in
-   JAX:
+ - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a humanoid on one leg:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
+ - The **least-squares** tutorial explains how to use the Python-based nonlinear least-squares solver:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb)
+ - The **MJX** tutorial provides usage examples of
+   [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in JAX:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb)
+ - The **differentiable physics** tutorial trains locomotion policies with analytical gradients automatically derived from MuJoCo's physics step:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/training_apg.ipynb)
 
 ## Installation
 
@@ -74,7 +76,7 @@ Users who wish to build MuJoCo from source should consult the [build from
 source] section of the documentation. However, please note that the commit at
 the tip of the `main` branch may be unstable.
 
-### Python (>= 3.8)
+### Python (>= 3.9)
 
 The native Python bindings, which come pre-packaged with a copy of MuJoCo, can
 be installed from [PyPI] via:
@@ -97,48 +99,17 @@ and [style guide](STYLEGUIDE.md).
 
 ## Asking Questions
 
-Questions and requests for help are welcome on the GitHub
-[Issues](https://github.com/google-deepmind/mujoco/issues) page and should focus
-on a specific problem or question.
+Questions and requests for help are welcome as a GitHub
+["Asking for Help" Discussion](https://github.com/google-deepmind/mujoco/discussions/categories/asking-for-help)
+and should focus on a specific problem or question.
 
-[Discussions](https://github.com/google-deepmind/mujoco/discussions) should
-address wider concerns that might require input from multiple participants.
+## Bug reports and feature requests
 
-Here are some guidelines for asking good questions:
-
-1. Search for existing questions or issues that touch on the same subject.
-
-   You can add comments to existing threads or start new ones. If you start a
-   new thread and there are existing relevant threads, please link to them.
-
-2. Use a clear and specific title. Try to include keywords that will make your
-   question easy for other to find in the future.
-
-3. Introduce yourself and your project more generally.
-
-   If your level of expertise is exceptional (either high or low), and it might
-   be relevant to what we can assume you know, please state that as well.
-
-4. Take a step back and tell us what you're trying to accomplish, if we
-   understand you goal we might suggest a different type of solution than the
-   one you are having problems with
-
-5. Make it easy for others to reproduce the problem or understand your question.
-
-   If this requires a model, please include it. Try to make the model minimal:
-   remove elements that are unrelated to your question. Pure XML models should
-   be inlined. Models requiring binary assets (meshes, textures), should be
-   attached as a `.zip` file. Please make sure the included model is loadable
-   before you attach it.
-
-6. Include an illustrative screenshot or video, if relevant.
-
-7. Tell us how you are accessing MuJoCo (C API, Python bindings, etc.) and which
-   MuJoCo version and operating system you are using.
+GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved
+for bug reports, feature requests and other development-related subjects.
 
 ## Related software
-MuJoCo forms the backbone of many environment packages, but these are too many
-to list here individually. Below we focus on bindings and converters.
+MuJoCo is the backbone for numerous environment packages. Below we list several bindings and converters.
 
 ### Bindings
 

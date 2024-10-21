@@ -1,0 +1,34 @@
+<!-- Test model for visual debugging of orthographic cameras. -->
+
+<mujoco>
+  <visual>
+    <!-- free camera is orthorgaphic with a 5m vertical field-of-view -->
+    <global orthographic="true" fovy="5"/>
+    <scale camera="1"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".8 .6 .4" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="10 10" texuniform="false" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <camera orthographic="true"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom type="plane" size="10 10 .01" material="grid"/>
+
+    <body pos=".5 .5 .5">
+      <freejoint/>
+      <geom type="box" size=".5 .5 .5" pos="0 0 .5"/>
+    </body>
+
+    <!-- box should pefectly fit within field-of-view -->
+    <camera name="fovy = 1" pos=".5 .5 2" orthographic="true" fovy="1"/>
+
+    <!-- 2 floor squares should pefectly fit within field-of-view -->
+    <camera name="fovy = 2" pos="0 0 2" fovy="2"/>   <!-- inherits orthographic="true" from defaults -->
+  </worldbody>
+</mujoco>

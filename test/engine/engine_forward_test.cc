@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 #include <string>
 
@@ -26,10 +27,15 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/mjxmacro.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_callback.h"
 #include "src/engine/engine_io.h"
 #include "test/fixture.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 namespace mujoco {
 namespace {
@@ -606,6 +612,147 @@ TEST_F(ForwardTest, eq_active) {
   mj_deleteModel(model);
 }
 
+// test that normalized and denormalized quats give the same result
+TEST_F(ForwardTest, NormalizeQuats) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicit">
+      <flag warmstart="disable" energy="enable"/>
+    </option>
+    <worldbody>
+      <body name="free">
+        <freejoint/>
+        <geom size="1" pos=".1 .2 .3"/>
+      </body>
+      <body pos="3 0 0">
+        <joint name="ball" type="ball" stiffness="100" range="0 10"/>
+        <geom size="1" pos=".1 .2 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <ballquat joint="ball"/>
+      <framequat objtype="body" objname="free"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data_u = mj_makeData(model);
+
+  // we'll compare all the memory, so unpoison it first
+  #ifdef MEMORY_SANITIZER
+    __msan_unpoison(data_u->buffer, data_u->nbuffer);
+    __msan_unpoison(data_u->arena, data_u->narena);
+  #endif
+
+  // set quats to denormalized values, non-zero velocities
+  for (int i = 3; i < model->nq; i++) data_u->qpos[i] = i;
+  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1*i;
+
+  // copy data and normalize quats
+  mjData* data_n = mj_copyData(nullptr, model, data_u);
+  mj_normalizeQuat(model, data_n->qpos);
+
+  // call forward, expect quats to be untouched
+  mj_forward(model, data_u);
+  for (int i = 3; i < model->nq; i++) {
+    EXPECT_EQ(data_u->qpos[i], (mjtNum)i);
+  }
+
+  // expect that the ball joint limit is active
+  EXPECT_EQ(data_u->nl, 1);
+
+  // step both models
+  mj_step(model, data_u);
+  mj_step(model, data_n);
+
+  // expect everything to match
+  MJDATA_POINTERS_PREAMBLE(model)
+  #define X(type, name, nr, nc)                                 \
+    for (int i = 0; i < model->nr; i++)                         \
+      for (int j = 0; j < nc; j++)                              \
+        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+  MJDATA_POINTERS;
+  #undef X
+
+  // repeat the above with RK4 integrator
+  model->opt.integrator = mjINT_RK4;
+
+  // reset data, unpoison
+  mj_resetData(model, data_u);
+  #ifdef MEMORY_SANITIZER
+    __msan_unpoison(data_u->buffer, data_u->nbuffer);
+    __msan_unpoison(data_u->arena, data_u->narena);
+  #endif
+
+  // set quats to un-normalized values, non-zero velocities
+  for (int i = 3; i < model->nq; i++) data_u->qpos[i] = i;
+  for (int i = 0; i < model->nv; i++) data_u->qvel[i] = 0.1*i;
+
+  // copy data and normalize quats
+  mj_copyData(data_n, model, data_u);
+  mj_normalizeQuat(model, data_n->qpos);
+
+  // step both models
+  mj_step(model, data_u);
+  mj_step(model, data_n);
+
+  // expect everything to match
+  #define X(type, name, nr, nc)                                 \
+    for (int i = 0; i < model->nr; i++)                         \
+      for (int j = 0; j < nc; j++)                              \
+        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+  MJDATA_POINTERS;
+  #undef X
+
+  mj_deleteData(data_n);
+  mj_deleteData(data_u);
+  mj_deleteModel(model);
+}
+
+// test that normalized and denormalized quats give the same result
+TEST_F(ForwardTest, MocapQuats) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="mocap" mocap="true" quat="1 1 1 1">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framequat objtype="body" objname="mocap"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // expect mocap_quat to be normalized (by the compiler)
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(data->mocap_quat[i], 0.5);
+    EXPECT_EQ(data->xquat[4+i], 0.5);
+  }
+
+  // write denormalized quats to mocap_quat, call forward again
+  for (int i = 0; i < 4; i++) {
+    data->mocap_quat[i] = 1;
+  }
+  mj_forward(model, data);
+
+  // expect mocap_quat to remain denormalized, but xquat to be normalized
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(data->mocap_quat[i], 1);
+    EXPECT_EQ(data->xquat[4+i], 0.5);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // user defined 2nd-order activation dynamics: frequency-controlled oscillator
 //  note that scalar mjcb_act_dyn callbacks are expected to return act_dot, but
 //  since we have a vector output we write into act_dot directly
@@ -760,6 +907,157 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   data->ctrl[1] = 1;
   mj_forward(model, data);
   EXPECT_EQ(data->qfrc_actuator[0], -0.4);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Apply gravity compensation via actuators
+TEST_F(ActuatorTest, ActuatorGravcomp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body gravcomp="1">
+        <joint name="joint" type="slide" axis="0 0 1"
+               actuatorfrcrange="-2 2" actuatorgravcomp="true"/>
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <motor name="actuator" joint="joint"/>
+    </actuator>
+
+    <sensor>
+      <actuatorfrc actuator="actuator"/>
+      <jointactuatorfrc joint="joint"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+
+  // expect force clamping as specified in the model
+  EXPECT_EQ(data->actuator_force[0], 0);
+  EXPECT_EQ(data->qfrc_actuator[0], 2);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 0);
+  EXPECT_EQ(data->sensordata[1], 2);
+
+  // reduce gravity so gravcomp is not clamped
+  model->opt.gravity[2] = -1;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 0);
+  EXPECT_EQ(data->qfrc_actuator[0], 1);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 0);
+  EXPECT_EQ(data->sensordata[1], 1);
+
+  // add control, see that it adds up
+  data->ctrl[0] = 0.5;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 0.5);
+  EXPECT_EQ(data->qfrc_actuator[0], 1.5);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 0.5);
+  EXPECT_EQ(data->sensordata[1], 1.5);
+
+  // add larger control, expect clamping
+  data->ctrl[0] = 1.5;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 1.5);
+  EXPECT_EQ(data->qfrc_actuator[0], 2);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 1.5);
+  EXPECT_EQ(data->sensordata[1], 2);
+
+  // disable actgravcomp, expect gravcomp as a passive force
+  model->jnt_actgravcomp[0] = 0;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 1.5);
+  EXPECT_EQ(data->qfrc_actuator[0], 1.5);
+  EXPECT_EQ(data->qfrc_passive[0], 1);
+  EXPECT_EQ(data->sensordata[0], 1.5);
+  EXPECT_EQ(data->sensordata[1], 1.5);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Check that dampratio works as expected
+TEST_F(ActuatorTest, DampRatio) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="slide1" axis="1 0 0" type="slide"/>
+        <geom size=".05"/>
+      </body>
+
+      <body pos="0 0 -.15">
+        <joint name="slide2" axis="1 0 0" type="slide"/>
+        <geom size=".05"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position name="slightly underdamped" joint="slide1" kp="10" dampratio="0.99"/>
+      <position name="slightly overdamped"  joint="slide2" kp="10" dampratio="1.01"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  data->qpos[0] = data->qpos[1] = -0.1;
+
+  mjtNum under_damped = data->qpos[0];
+  mjtNum over_damped = data->qpos[1];
+  while (data->time < 10) {
+    mj_step(model, data);
+    under_damped = mju_max(under_damped, data->qpos[0]);
+    over_damped = mju_max(over_damped, data->qpos[1]);
+  }
+
+  // expect slightly underdamped to slightly overshoot
+  EXPECT_GT(under_damped, 0);
+  EXPECT_LT(under_damped, 1e-6);
+
+  // expect slightly overdamped to slightly undershoot
+  EXPECT_LT(over_damped, 0);
+  EXPECT_GT(over_damped, -1e-6);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
+// Check dampratio for actuators with nontrivial transmission
+TEST_F(ActuatorTest, DampRatioTendon) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/actuation/tendon_dampratio.xml");
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1;
+  data->ctrl[1] = 4;
+
+  while (data->time < 1) {
+    mj_step(model, data);
+  }
+
+  // expect first and second fingers to move together
+  double tol  = 1e-10;
+  EXPECT_THAT(AsVector(data->qpos, 4),
+              Pointwise(DoubleNear(tol), AsVector(data->qpos + 4, 4)));
+  EXPECT_THAT(AsVector(data->qvel, 4),
+              Pointwise(DoubleNear(tol), AsVector(data->qvel + 4, 4)));
 
   mj_deleteData(data);
   mj_deleteModel(model);

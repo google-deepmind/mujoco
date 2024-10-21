@@ -185,7 +185,7 @@ faithfully restored.
 
 Plugins must declare the number of floating point values required for each instance via the ``nstate`` callback of its
 :ref:`mjpPlugin` struct. Note that this number can depend on the exact configuration of the instance. During
-:ref:`mj_makeData`, MuJoCo allocate the requisite number of slots in the ``plugin_state`` field of :ref:`mjData` for
+:ref:`mj_makeData`, MuJoCo allocates the requisite number of slots in the ``plugin_state`` field of :ref:`mjData` for
 each plugin instance. The ``plugin_stateadr`` field in :ref:`mjModel` indicates the position within the overall
 ``plugin_state`` array at which each plugin instance can find its state values.
 
@@ -274,12 +274,11 @@ There are several first-party plugin directories:
   `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
 * **elasticity:** The plugins in the `elasticity/
   <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are passive forces based on
-  continuum mechanics for 1-dimensional and 3-dimensional bodies. The 1D model is invariant under rotations and captures
-  the large deformation of elastic cables, decoupling twisting and bending strains. The 3D solid is a `Saint
-  Venant-Kirchhoff <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model
-  discretized with piecewise linear finite elements, which is suitable for large deformations with small strains. See
-  also :ref:`composite <CComposite>` and :ref:`deformable <CDeformable>` objects. For more information, please see the
-  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
+  continuum mechanics for 1-dimensional and 2-dimensional bodies. The 1D model is invariant under rotations and captures
+  the large deformation of elastic cables, decoupling twisting and bending strains. The 2D model is a suitable for
+  computing the bending stiffness of thin elastic plates (i.e. shells having a flat stress-free configuration). In this
+  case, the elastic energy is quadratic and therefore the stiffness matrix is constant. For more information, please see
+  the `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
 * **sensor:** The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__
   directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
   `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
@@ -401,7 +400,7 @@ the callbacks:
 
 .. code-block:: C
 
-   int data_open_callback(mjResource* resource) {
+   int str_open_callback(mjResource* resource) {
      // call some util function to validate
      if (!is_valid_data_uri(resource->name)) {
        return 0; // return failure

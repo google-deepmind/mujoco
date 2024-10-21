@@ -65,12 +65,12 @@ TEST_F(MjcConvexTest, CylinderBox) {
 
   // with multiCCD enabled, should find 5 contacts
   mj_forward(model, data);
-  ASSERT_EQ(data->ncon, 5);
+  EXPECT_EQ(data->ncon, 5);
 
   // with multiCCD disabled, should find 1 contact
   model->opt.enableflags &= ~mjENBL_MULTICCD;
   mj_forward(model, data);
-  ASSERT_EQ(data->ncon, 1);
+  EXPECT_EQ(data->ncon, 1);
 
   mj_deleteData(data);
   mj_deleteModel(model);
