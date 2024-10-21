@@ -126,6 +126,7 @@ def _ray_box(
   p1 = pnt[iface[:, 1]] + x * vec[iface[:, 1]]
   valid = jp.abs(p0) <= size[iface[:, 0]]
   valid &= jp.abs(p1) <= size[iface[:, 1]]
+  valid &= x >= 0
 
   return jp.min(jp.where(valid, x, jp.inf))
 
@@ -268,3 +269,20 @@ def ray(
   id_ = jp.where(jp.isinf(dists[min_id]), -1, ids[min_id])
 
   return dist, id_
+
+
+def ray_geom(
+    size: jax.Array, pnt: jax.Array, vec: jax.Array, geomtype: GeomType
+) -> jax.Array:
+  """Returns the distance at which a ray intersects with a primitive geom.
+
+  Args:
+    size: geom size (1,), (2,), or (3,)
+    pnt: ray origin point (3,)
+    vec: ray direction    (3,)
+    geomtype: type of geom
+
+  Returns:
+    dist: distance from ray origin to geom surface
+  """
+  return _RAY_FUNC[geomtype](size, pnt, vec)

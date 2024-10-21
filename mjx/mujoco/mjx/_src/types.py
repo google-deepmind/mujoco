@@ -331,6 +331,7 @@ class SensorType(enum.IntEnum):
     FRAMEANGVEL: 3D angular velocity
     SUBTREELINVEL: subtree linear velocity
     SUBTREEANGMOM: subtree angular momentum
+    TOUCH: scalar contact normal forces summed over the sensor zone
     ACCELEROMETER: accelerometer
     FORCE: force
     TORQUE: torque
@@ -363,6 +364,7 @@ class SensorType(enum.IntEnum):
   FRAMEANGVEL = mujoco.mjtSensor.mjSENS_FRAMEANGVEL
   SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
   SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
+  TOUCH = mujoco.mjtSensor.mjSENS_TOUCH
   ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER
   FORCE = mujoco.mjtSensor.mjSENS_FORCE
   TORQUE = mujoco.mjtSensor.mjSENS_TORQUE

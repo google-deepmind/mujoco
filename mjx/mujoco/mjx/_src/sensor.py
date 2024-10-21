@@ -21,6 +21,7 @@ import mujoco
 from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import smooth
+from mujoco.mjx._src import support
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
@@ -452,7 +453,65 @@ def sensor_acc(m: Model, d: Data) -> Data:
     cutoff = m.sensor_cutoff[idx]
     data_type = m.sensor_datatype[idx]
 
-    if sensor_type == SensorType.ACCELEROMETER:
+    if sensor_type == SensorType.TOUCH:
+      # compute contact forces
+      forces = []
+      condim_ids = []
+      for dim in set(d.contact.dim):
+        force, condim_id = support.contact_force_dim(m, d, dim)
+        forces.append(force)
+        condim_ids.append(condim_id)
+      forces = jp.concatenate(forces)[jp.concatenate(condim_ids)]
+
+      # get bodies of contact geoms
+      conbody = jp.array(m.geom_bodyid)[d.contact.geom]
+
+      # get site information
+      site_bodyid = m.site_bodyid[objid]
+      site_size = m.site_size[objid]
+      site_xpos = d.site_xpos[objid]
+      site_xmat = d.site_xmat[objid]
+      site_type = m.site_type[objid]
+      conbody0 = site_bodyid[:, None] == conbody[:, 0]
+      conbody1 = site_bodyid[:, None] == conbody[:, 1]
+      contacts = (d.contact.efc_address >= 0)[None] & (conbody0 | conbody1)
+
+      # compute conray, flip if second body
+      conray = jax.vmap(
+          lambda frame, force: math.normalize(frame[0] * force[0])
+      )(d.contact.frame, forces)
+      conray = jp.where(conbody1[..., None], -conray, conray)
+
+      # compute distance, mapping over sites and contacts
+      def _distance(
+          site_size, site_xpos, site_xmat, site_type, contact_pos, conray
+      ):
+        return jax.vmap(
+            lambda site_size, site_xpos, site_xmat, conray: jax.vmap(
+                lambda pnt, vec: ray.ray_geom(site_size, pnt, vec, site_type)
+            )((contact_pos - site_xpos) @ site_xmat, conray @ site_xmat)
+        )(site_size, site_xpos, site_xmat, conray)
+
+      dist = []
+      dist_id = []
+      for st in set(site_type):
+        (dist_id_site,) = np.nonzero(st == site_type)
+        dist_site = _distance(
+            site_size[dist_id_site],
+            site_xpos[dist_id_site],
+            site_xmat[dist_id_site],
+            st,
+            d.contact.pos,
+            conray[dist_id_site],
+        )
+        dist.append(jp.where(jp.isinf(dist_site), 0, dist_site))
+        dist_id.append(dist_id_site)
+
+      dist = jp.vstack(dist)[np.concatenate(dist_id)]
+
+      # accumulate normal forces for each site
+      sensor = jp.dot((dist > 0) & contacts, forces[:, 0])
+    elif sensor_type == SensorType.ACCELEROMETER:
 
       @jax.vmap
       def _accelerometer(cvel, cacc, diff, rot):
