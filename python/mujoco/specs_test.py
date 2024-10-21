@@ -15,9 +15,11 @@
 """Tests for mjSpec bindings."""
 
 import inspect
+import os
 import textwrap
 
 from absl.testing import absltest
+from etils import epath
 import mujoco
 import numpy as np
 
@@ -433,7 +435,9 @@ class SpecsTest(absltest.TestCase):
     )
 
   def test_load_xml(self):
-    filename = '../../test/testdata/model.xml'
+    filename = os.path.join(
+      epath.resource_path("mujoco"), "testdata", "model.xml"
+    )
     state_type = mujoco.mjtState.mjSTATE_INTEGRATION
 
     # Load from file.
@@ -692,8 +696,9 @@ class SpecsTest(absltest.TestCase):
                      mujoco.mjtGeom.mjGEOM_BOX)
 
   def test_delete(self):
-    filename = '../../test/testdata/model.xml'
-
+    filename = os.path.join(
+      epath.resource_path("mujoco"), "testdata", "model.xml"
+    )
     spec = mujoco.MjSpec.from_file(filename)
 
     model = spec.compile()
