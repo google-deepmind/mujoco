@@ -55,20 +55,15 @@ class SimulateXr {
 
   void init_scene_vis(mjvScene *scn, mjModel *m);
 
-  bool before_render(mjvScene *scn, mjModel *m);
   bool before_render_1sc(mjvScene *scn, mjModel *m);
 
-  void after_render(mjrContext *con);
   void after_render_1sc(mjrContext *con);
 
-  bool before_render2(mjvScene *scn);
-  uint32_t view_count = 0;
-  bool before_render_view(mjvScene *scn, uint32_t i_view);
-
-  void after_render_view(mjrContext *con, uint32_t i_view);
-  void after_render2(mjrContext *con);
+  bool is_initialized();
 
  private:
+  bool m_initialized = false;
+
   std::vector<XrView> m_views;
 
   XrInstance m_xrInstance = XR_NULL_HANDLE;
@@ -159,17 +154,18 @@ class SimulateXr {
 
   // static
   void _view_to_cam(mjvGLCamera &cam, const XrView &view);
+
   void _fill_layer_proj_views(XrCompositionLayerProjectionView &xr_lpv,
                               const XrView &view, const int32_t offset);
 
-  void _create_instance();
+  int _create_instance();
   void _destroy_instance();
 
   void _get_instance_properties();
 
-  void _get_system_id();
+  int _get_system_id();
 
-  void _get_view_configuration_views();
+  int _get_view_configuration_views();
 
   void _get_environment_blend_modes();
 
@@ -181,9 +177,6 @@ class SimulateXr {
 
   void _create_swapchain();
   void _destroy_swapchain();
-
-  void _create_swapchains();
-  void _destroy_swapchains();
 
   bool m_sessionRunning = false;
   void _poll_events();
