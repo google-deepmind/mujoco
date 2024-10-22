@@ -850,7 +850,7 @@ class SpecsTest(absltest.TestCase):
     body = parent.worldbody.add_body()
     frame = child.worldbody.add_frame()
     with self.assertRaises(ValueError) as cm:
-      body.attach_frame(frame, '', '')
+      body.attach_frame(frame, '_', '')
     self.assertEqual(
         str(cm.exception),
         'Error: cannot attach mjSpecs with incompatible compiler/angle'
@@ -862,7 +862,7 @@ class SpecsTest(absltest.TestCase):
     parent = mujoco.MjSpec()
     site = parent.worldbody.add_site(pos=[1, 2, 3])
     body = child.worldbody.add_body()
-    self.assertIsNotNone(site.attach(body, '', ''))
+    self.assertIsNotNone(site.attach(body, '_', ''))
     model = parent.compile()
     np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
 

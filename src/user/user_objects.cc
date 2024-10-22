@@ -850,6 +850,10 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   other.model->suffix = other.suffix;
   other.model->StoreKeyframes(model);
 
+  if (other.prefix.empty() && other.suffix.empty()) {
+    throw mjCError(this, "either prefix or suffix must be non-empty");
+  }
+
   // attach defaults
   if (other.model != model) {
     mjCDef* subdef = new mjCDef(*other.model->Default());
@@ -1811,6 +1815,10 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   other.model->StoreKeyframes(model);
   other.model->prefix = "";
   other.model->suffix = "";
+
+  if (other.prefix.empty() && other.suffix.empty()) {
+    throw mjCError(this, "either prefix or suffix must be non-empty");
+  }
 
   mjCBody* subtree = new mjCBody(other, model);
   other.ForgetKeyframes();

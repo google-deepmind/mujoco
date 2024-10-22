@@ -1544,12 +1544,12 @@ TEST_F(XMLReaderTest, InvalidAttach) {
       <body name="parent">
         <joint name="joint1"/>
         <geom size="2"/>
-        <attach model="other" body="body"/>
+        <attach model="other" body="body" prefix="_"/>
       </body>
     </worldbody>
 
     <actuator>
-      <motor name="actuator" joint="joint1"/>
+      <motor name="_actuator" joint="joint1"/>
     </actuator>
   </mujoco>
   )";
@@ -1578,7 +1578,7 @@ TEST_F(XMLReaderTest, InvalidAttach) {
       LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
 
   EXPECT_THAT(model, IsNull()) << er.data();
-  EXPECT_THAT(er.data(), HasSubstr("repeated name 'actuator' in actuator"));
+  EXPECT_THAT(er.data(), HasSubstr("repeated name '_actuator' in actuator"));
   EXPECT_THAT(er.data(), HasSubstr("Element 'attach'"));
   mj_deleteVFS(vfs.get());
 }

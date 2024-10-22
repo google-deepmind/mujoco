@@ -3861,19 +3861,19 @@ all attachments will appear in the saved XML file.
 
 .. _body-attach-model:
 
-:at:`model`: :at-val:`string, optional`
+:at:`model`: :at-val:`string, required`
    The sub-model from which to attach a subtree.
 
 .. _body-attach-body:
 
-:at:`body`: :at-val:`string, optional`
+:at:`body`: :at-val:`string, required`
    Name of the body in the sub-model to attach here. The body and its subtree will be attached.
 
 .. _body-attach-prefix:
 
-:at:`prefix`: :at-val:`string, optional`
-   Prefix to prepend to names of elements in the sub-model. If empty, the names are unchanged. This attribute is
-   required to prevent name collisions with the parent or when attaching the same sub-tree multiple times.
+:at:`prefix`: :at-val:`string, required`
+   Prefix to prepend to names of elements in the sub-model. This attribute is required to prevent name collisions with
+   the parent or when attaching the same sub-tree multiple times.
 
 
 .. _body-frame:

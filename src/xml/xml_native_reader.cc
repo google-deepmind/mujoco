@@ -3674,9 +3674,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     // attachment
     else if (name=="attach") {
       string model_name, body_name, prefix;
-      ReadAttrTxt(elem, "model", model_name);
-      ReadAttrTxt(elem, "body", body_name);
-      ReadAttrTxt(elem, "prefix", prefix);
+      ReadAttrTxt(elem, "model", model_name, /*required=*/true);
+      ReadAttrTxt(elem, "body", body_name, /*required=*/true);
+      ReadAttrTxt(elem, "prefix", prefix, /*required=*/true);
 
       mjsBody* child = mjs_findBody(spec, (prefix+body_name).c_str());
       mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
@@ -3684,11 +3684,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       if (!child) {
         mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
         if (!asset) {
-          throw mjXError(0, "could not find model '%s'", model_name.c_str());
+          throw mjXError(elem, "could not find model '%s'", model_name.c_str());
         }
         child = mjs_findBody(asset, body_name.c_str());
         if (!child) {
-          throw mjXError(0, "could not find body '%s''%s'", body_name.c_str());
+          throw mjXError(elem, "could not find body '%s''%s'", body_name.c_str());
         }
         if (!mjs_attachBody(pframe, child, prefix.c_str(), "")) {
           throw mjXError(elem, mjs_getError(spec));
