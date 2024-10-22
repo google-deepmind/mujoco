@@ -386,6 +386,8 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     for (const auto& key : other.key_pending_) {
       key_pending_.push_back(key);
     }
+    CopyList(numerics_, other.numerics_);
+    CopyList(texts_, other.texts_);
   }
   CopyList(flexes_, other.flexes_);
   CopyList(pairs_, other.pairs_);
@@ -394,8 +396,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(equalities_, other.equalities_);
   CopyList(actuators_, other.actuators_);
   CopyList(sensors_, other.sensors_);
-  CopyList(numerics_, other.numerics_);
-  CopyList(texts_, other.texts_);
   CopyList(tuples_, other.tuples_);
 
   // create new plugins and map them

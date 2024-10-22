@@ -631,6 +631,10 @@ static constexpr char xml_child[] = R"(
       </default>
     </default>
 
+    <custom>
+      <numeric data="10" name="constant"/>
+    </custom>
+
     <asset>
       <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
       <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
@@ -693,6 +697,10 @@ TEST_F(MujocoTest, AttachSame) {
         <geom type="cylinder" size=".1 1 0"/>
       </default>
     </default>
+
+    <custom>
+      <numeric data="10" name="constant"/>
+    </custom>
 
     <asset>
       <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
@@ -833,6 +841,10 @@ TEST_F(MujocoTest, AttachDifferent) {
       </default>
     </default>
 
+    <custom>
+      <numeric data="10" name="attached-constant-1"/>
+    </custom>
+
     <asset>
       <texture name="attached-texture-1" type="2d" builtin="checker" width="32" height="32"/>
       <material name="attached-material-1" texture="attached-texture-1" texrepeat="1 1" texuniform="true"/>
@@ -957,6 +969,10 @@ TEST_F(MujocoTest, AttachFrame) {
       </default>
     </default>
 
+    <custom>
+      <numeric data="10" name="attached-constant-1"/>
+    </custom>
+
     <asset>
       <texture name="attached-texture-1" type="2d" builtin="checker" width="32" height="32"/>
       <material name="attached-material-1" texture="attached-texture-1" texrepeat="1 1" texuniform="true"/>
@@ -1062,6 +1078,10 @@ void TestDetachBody(bool compile) {
       <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
       <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
     </asset>
+
+    <custom>
+      <numeric data="10" name="constant"/>
+    </custom>
 
     <worldbody>
       <frame name="pframe">
