@@ -4252,7 +4252,7 @@ void mjXReader::Sensor(XMLElement* section) {
 void mjXReader::Keyframe(XMLElement* section) {
   XMLElement* elem;
   int n;
-  double data[1000];
+  double data[100000];
 
   // iterate over child elements
   elem = FirstChildElement(section);
@@ -4268,37 +4268,37 @@ void mjXReader::Keyframe(XMLElement* section) {
     ReadAttr(elem, "time", 1, &key->time, text);
 
     // read qpos
-    n = ReadAttr(elem, "qpos", 1000, data, text, false, false);
+    n = ReadAttr(elem, "qpos", 100000, data, text, false, false);
     if (n) {
       mjs_setDouble(key->qpos, data, n);
     }
 
     // read qvel
-    n = ReadAttr(elem, "qvel", 1000, data, text, false, false);
+    n = ReadAttr(elem, "qvel", 100000, data, text, false, false);
     if (n) {
       mjs_setDouble(key->qvel, data, n);
     }
 
     // read act
-    n = ReadAttr(elem, "act", 1000, data, text, false, false);
+    n = ReadAttr(elem, "act", 100000, data, text, false, false);
     if (n) {
       mjs_setDouble(key->act, data, n);
     }
 
     // read mpos
-    n = ReadAttr(elem, "mpos", 1000, data, text, false, false);
+    n = ReadAttr(elem, "mpos", 100000, data, text, false, false);
     if (n) {
       mjs_setDouble(key->mpos, data, n);
     }
 
     // read mquat
-    n = ReadAttr(elem, "mquat", 1000, data, text, false, false);
+    n = ReadAttr(elem, "mquat", 100000, data, text, false, false);
     if (n) {
       mjs_setDouble(key->mquat, data, n);
     }
 
     // read ctrl
-    n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
+    n = ReadAttr(elem, "ctrl", 100000, data, text, false, false);
     if (n) {
       mjs_setDouble(key->ctrl, data, n);
     }
