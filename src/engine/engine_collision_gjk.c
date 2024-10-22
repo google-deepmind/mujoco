@@ -1327,15 +1327,26 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     Polytope pt;
     pt.nfaces = pt.nmap = pt.nverts = 0;
 
-    // allocate memory for faces
-    pt.maxfaces = (6*N > 1000) ? 6*N : 1000;  // use 1000 faces as lower bound
-    pt.faces = mj_stackAllocByte(d, sizeof(Face) * pt.maxfaces, _Alignof(Face));
-    pt.map = mj_stackAllocByte(d, sizeof(Face*) * pt.maxfaces, _Alignof(Face*));
-
     // allocate memory for vertices
     pt.verts  = mj_stackAllocNum(d, 3*(5 + N));
     pt.verts1 = mj_stackAllocNum(d, 3*(5 + N));
     pt.verts2 = mj_stackAllocNum(d, 3*(5 + N));
+
+    // allocate memory for faces
+    pt.maxfaces = (6*N > 1000) ? 6*N : 1000;  // use 1000 faces as lower bound
+    size_t size1 = sizeof(Face) * pt.maxfaces;
+    size_t size2 = sizeof(Face*) * pt.maxfaces;
+
+    // since a generous upper bound is used, we need to rescale stack use if not enough
+    // memory is available
+    size_t max_size = mj_stackBytesAvailable(d) - 12*(N * sizeof(int));
+    if (size1 + size2 > max_size) {
+      pt.maxfaces = max_size / (sizeof(Face) + sizeof(Face*));
+      size1 = sizeof(Face) * pt.maxfaces;
+      size2 = sizeof(Face*) * pt.maxfaces;
+    }
+    pt.faces = mj_stackAllocByte(d, size1, _Alignof(Face));
+    pt.map = mj_stackAllocByte(d, size2, _Alignof(Face*));
 
     int ret;
     if (status->nsimplex == 2) {

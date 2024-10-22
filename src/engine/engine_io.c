@@ -1715,6 +1715,20 @@ void mj__freeStack(mjData* d)
 
 
 
+// returns the number of bytes available on the stack
+size_t mj_stackBytesAvailable(mjData* d) {
+  if (!d->threadpool) {
+    mjStackInfo stack_info = get_stack_info_from_data(d);
+    return stack_info.top - stack_info.limit;
+  } else {
+    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
+    mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
+    return stack_info->top - stack_info->limit;
+  }
+}
+
+
+
 // allocate bytes on the stack
 void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment) {
   return stackalloc(d, bytes, alignment);
