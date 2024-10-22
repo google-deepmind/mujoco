@@ -696,7 +696,7 @@ void mjCBase::NameSpace(const mjCModel* m) {
   if (!name.empty()) {
     name = m->prefix + name + m->suffix;
   }
-  if (!classname.empty() && m != model) {
+  if (!classname.empty() && classname != "main" && m != model) {
     classname = m->prefix + classname + m->suffix;
   }
 }
@@ -1014,12 +1014,7 @@ void mjCBody::NameSpace(const mjCModel* m) {
 
 // apply prefix and suffix, propagate to all descendents or only to child bodies
 void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
-  if (!classname.empty() && m != model) {
-    classname = m->prefix + classname + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   if (!plugin_instance_name.empty()) {
     plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
@@ -2257,12 +2252,7 @@ void mjCGeom::CopyFromSpec() {
 
 
 void mjCGeom::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
-  if (!classname.empty() && m != model) {
-    classname = m->prefix + classname + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   if (!spec_material_.empty() && model != m) {
     spec_material_ = m->prefix + spec_material_ + m->suffix;
   }
@@ -3219,12 +3209,7 @@ void mjCCamera::PointToLocal() {
 
 
 void mjCCamera::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
-  if (!classname.empty() && m != model) {
-    classname = m->prefix + classname + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   if (!spec_targetbody_.empty()) {
     spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
   }
@@ -3370,12 +3355,7 @@ void mjCLight::PointToLocal() {
 
 
 void mjCLight::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
-  if (!classname.empty() && m != model) {
-    classname = m->prefix + classname + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   if (!spec_targetbody_.empty()) {
     spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
   }
@@ -4565,9 +4545,7 @@ void mjCMaterial::CopyFromSpec() {
 
 
 void mjCMaterial::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   for (int i=0; i<mjNTEXROLE; i++) {
     if (!spec_textures_[i].empty() && model != m) {
       spec_textures_[i] = m->prefix + spec_textures_[i] + m->suffix;
@@ -4651,9 +4629,7 @@ void mjCPair::PointToLocal() {
 
 
 void mjCPair::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   prefix = m->prefix;
   suffix = m->suffix;
 }
@@ -5009,9 +4985,7 @@ void mjCEquality::PointToLocal() {
 
 
 void mjCEquality::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   spec_name1_ = m->prefix + spec_name1_ + m->suffix;
   spec_name2_ = m->prefix + spec_name2_ + m->suffix;
 }
@@ -5179,9 +5153,7 @@ void mjCTendon::PointToLocal() {
 
 
 void mjCTendon::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   prefix = m->prefix;
   suffix = m->suffix;
 }
@@ -5699,9 +5671,7 @@ void mjCActuator::PointToLocal() {
 
 
 void mjCActuator::NameSpace(const mjCModel* m) {
-  if (!name.empty()) {
-    name = m->prefix + name + m->suffix;
-  }
+  mjCBase::NameSpace(m);
   if (!plugin_instance_name.empty()) {
     plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
