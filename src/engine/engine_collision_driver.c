@@ -224,10 +224,8 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 //----------------------------- collision detection entry point ------------------------------------
 
 // compare contact pairs by their geom/elem/vert IDs
-quicksortfunc(contactcompare, context, el1, el2) {
+static inline int contactcompare(const mjContact* c1, const mjContact* c2, void* context) {
   const mjModel* m = (const mjModel*) context;
-  mjContact* c1 = (mjContact*)el1;
-  mjContact* c2 = (mjContact*)el2;
 
   // get colliding object ids
   int con1_obj1 = c1->geom[0] >= 0 ? c1->geom[0] : (c1->elem[0] >= 0 ? c1->elem[0] : c1->vert[0]);
@@ -257,6 +255,9 @@ quicksortfunc(contactcompare, context, el1, el2) {
   if (con1_obj2 > con2_obj2) return 1;
   return 0;
 }
+
+// define contactSort function for sorting contacts
+mjSORT(contactSort, mjContact, contactcompare)
 
 
 
@@ -364,8 +365,14 @@ void mj_collision(const mjModel* m, mjData* d) {
       int ncon_after = d->ncon;
 
       // sort contacts
-      mjQUICKSORT(d->contact + ncon_before, ncon_after - ncon_before,
-                  sizeof(mjContact), contactcompare, (void*) m);
+      int n = ncon_after - ncon_before;
+      if (n > 1) {
+        mj_markStack(d);
+        mjContact* buf = (mjContact*)mj_stackAllocByte(d, n * sizeof(mjContact),
+                                                       _Alignof(mjContact));
+        contactSort(d->contact + ncon_before, buf, n, (void*)m);
+        mj_freeStack(d);
+      }
     }
 
     // process bodyflex pair: all-to-all
@@ -1006,10 +1013,7 @@ typedef struct _mjtSAP mjtSAP;
 
 
 // comparison function for SAP
-quicksortfunc(SAPcompare, context, el1, el2) {
-  mjtSAP* obj1 = (mjtSAP*)el1;
-  mjtSAP* obj2 = (mjtSAP*)el2;
-
+static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
   if (obj1->value < obj2->value) {
     return -1;
   } else if (obj1->value == obj2->value) {
@@ -1019,6 +1023,8 @@ quicksortfunc(SAPcompare, context, el1, el2) {
   }
 }
 
+// define SAPsort function for sorting SAP sorting
+mjSORT(SAPsort, mjtSAP, SAPcmp)
 
 
 // given list of axis-aligned bounding boxes in AAMM (xmin[3], xmax[3]) format,
@@ -1043,7 +1049,8 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   }
 
   // sort along specified axis
-  mjQUICKSORT(sortbuf, 2*n, sizeof(mjtSAP), SAPcompare, 0);
+  mjtSAP* buf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
+  SAPsort(sortbuf, buf, 2*n, NULL);
 
   // define the other two axes
   int axisA, axisB;
@@ -1133,19 +1140,18 @@ static void updateCov(mjtNum cov[9], const mjtNum vec[3], const mjtNum cen[3]) {
 
 
 // comparison function for unsigned ints
-quicksortfunc(uintcompare, context, el1, el2) {
-  unsigned int n1 = *(unsigned int*)el1;
-  unsigned int n2 = *(unsigned int*)el2;
-
-  if (n1 < n2) {
+static inline int uintcmp(int* i, int* j, void* context) {
+  if ((unsigned) *i < (unsigned) *j) {
     return -1;
-  } else if (n1 == n2) {
+  } else if (*i == *j) {
     return 0;
   } else {
     return 1;
   }
 }
 
+// define bfsort function for sorting bodyflex pairs
+mjSORT(bfsort, int, uintcmp)
 
 
 // broadphase collision detector
@@ -1281,8 +1287,9 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 endbroad:
 
   // sort bodyflex pairs by signature
-  if (npair) {
-    mjQUICKSORT(bfpair, npair, sizeof(int), uintcompare, 0);
+  if (npair > 1) {
+    int* buf = mj_stackAllocInt(d, npair);
+    bfsort(bfpair, buf, npair, NULL);
   }
 
   mj_freeStack(d);
