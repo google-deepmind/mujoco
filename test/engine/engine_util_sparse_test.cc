@@ -30,8 +30,9 @@ namespace {
 using ::testing::ElementsAre;
 using EngineUtilSparseTest = MujocoTest;
 
-std::vector<int> AsVector(const int* array, int n) {
-  return std::vector<int>(array, array + n);
+template <typename T>
+std::vector<T> AsVector(const T* array, int n) {
+  return std::vector<T>(array, array + n);
 }
 
 TEST_F(EngineUtilSparseTest, MjuDot) {
@@ -1041,6 +1042,26 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
 
   mj_deleteData(d);
   mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {
+  int nr = 2;
+  int nc = 3;
+  mjtNum mat[] = {1, 2, 0,
+                  0, 3, 4};
+
+  mjtNum mat_sparse[6];
+  int rownnz[2];
+  int rowadr[2];
+  int colind[4];
+  mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind);
+
+  // multiply: res = mat' * vec
+  mjtNum vec[] = {5, 6};
+  mjtNum res[3];
+  mju_mulMatTVecSparse(res, mat_sparse, vec, nr, nc, rownnz, rowadr, colind);
+
+  EXPECT_THAT(AsVector(res, 3), ElementsAre(5, 28, 24));
 }
 
 }  // namespace

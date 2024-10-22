@@ -46,6 +46,10 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
                                int nr, const int* rownnz, const int* rowadr,
                                const int* colind, const int* rowsuper);
 
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec
+MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                                const int* rownnz, const int* rowadr, const int* colind);
+
 // compress layout of sparse matrix
 MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
                               int* rownnz, int* rowadr, int* colind);

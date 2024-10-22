@@ -206,6 +206,28 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 
 
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec.
+void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                          const int* rownnz, const int* rowadr, const int* colind) {
+  // clear res
+  mju_zero(res, nc);
+
+  for (int i=0; i < nr; i++) {
+    int nnz = rownnz[i];
+    int adr = rowadr[i];
+    const int* ind = colind + adr;
+    const mjtNum* row = mat + adr;
+    mjtNum scl = vec[i];
+
+    // add row scaled by the corresponding vector element
+    for (int j=0; j < nnz; j++) {
+      res[ind[j]] += row[j] * scl;
+    }
+  }
+}
+
+
+
 // res = res*scl1 + vec*scl2
 static void mju_addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum scl2, int n) {
 #ifdef mjUSEAVX
