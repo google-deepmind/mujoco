@@ -1243,48 +1243,43 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
     }
   }
 
-  // nothing collidable
-  if (ncollide < 2) {
-    goto endbroad;
-  }
-
-  // allocate and construct AAMMs for collidable only
-  mjtNum* aamm = mj_stackAllocNum(d, 6*ncollide);
-  for (int i=0; i < ncollide; i++) {
-    makeAAMM(m, d, aamm+6*i, bfid[i], frame);
-  }
-
-  // call SAP
-  int maxsappair = ncollide*(ncollide-1)/2;
-  int* sappair = mj_stackAllocInt(d, maxsappair);
-  int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
-  if (nsappair < 0) {
-    mjERROR("SAP failed");
-  }
-
-  // filter SAP pairs, convert to bodyflex pairs
-  for (int i=0; i < nsappair; i++) {
-    int bf1 = bfid[sappair[i] >> 16];
-    int bf2 = bfid[sappair[i] & 0xFFFF];
-
-    // body pair: prune based on weld filter
-    if (bf1 < nbody && bf2 < nbody) {
-      int weld1 = m->body_weldid[bf1];
-      int weld2 = m->body_weldid[bf2];
-      int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
-      int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
-
-      if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
-                         dsbl_filterparent)) {
-        continue;
-      }
+  if (ncollide > 1) {
+    // allocate and construct AAMMs for collidable only
+    mjtNum* aamm = mj_stackAllocNum(d, 6*ncollide);
+    for (int i=0; i < ncollide; i++) {
+      makeAAMM(m, d, aamm+6*i, bfid[i], frame);
     }
 
-    // add bodyflex pair if there is room in buffer
-    add_pair(m, bf1, bf2, &npair, bfpair, maxpair);
-  }
+    // call SAP
+    int maxsappair = ncollide*(ncollide-1)/2;
+    int* sappair = mj_stackAllocInt(d, maxsappair);
+    int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
+    if (nsappair < 0) {
+      mjERROR("SAP failed");
+    }
 
-endbroad:
+    // filter SAP pairs, convert to bodyflex pairs
+    for (int i=0; i < nsappair; i++) {
+      int bf1 = bfid[sappair[i] >> 16];
+      int bf2 = bfid[sappair[i] & 0xFFFF];
+
+      // body pair: prune based on weld filter
+      if (bf1 < nbody && bf2 < nbody) {
+        int weld1 = m->body_weldid[bf1];
+        int weld2 = m->body_weldid[bf2];
+        int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
+        int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
+
+        if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
+                           dsbl_filterparent)) {
+          continue;
+        }
+      }
+
+      // add bodyflex pair if there is room in buffer
+      add_pair(m, bf1, bf2, &npair, bfpair, maxpair);
+    }
+  }
 
   // sort bodyflex pairs by signature
   if (npair > 1) {
