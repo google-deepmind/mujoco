@@ -5,6 +5,11 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
+  :ref:`inertia<asset-mesh-inertia>` attribute.
+
 MJX
 ^^^
 - Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
@@ -1076,7 +1081,7 @@ Bug fixes
 12. Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator.
 #.  Removed spurious whole-arena copying in `mj_copyData`, which can considerably
     `slow down <https://github.com/google-deepmind/mujoco/issues/568>`__ the copying operation.
-#.  Make :ref:`shellinertia<body-geom-shellinertia>` ignore :ref:`exactmeshinertia<compiler-exactmeshinertia>`, which is
+#. Make :ref:`shellinertia<body-geom-shellinertia>` ignore ``exactmeshinertia``, which is
     only used for legacy volume computations (`#759 <https://github.com/google-deepmind/mujoco/issues/759>`__).
 
 

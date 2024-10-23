@@ -50,6 +50,8 @@ static const char* const kTorusDefaultMaxhullVertPath =
     "user/testdata/torus_maxhullvert_default.xml";
 static const char* const kTorusShellPath =
     "user/testdata/torus_shell.xml";
+static const char* const kCompareInertiaPath =
+    "user/testdata/inertia_compare.xml";
 static const char* const kConvexInertiaPath =
     "user/testdata/inertia_convex.xml";
 static const char* const kConcaveInertiaPath =
@@ -506,21 +508,35 @@ TEST_F(MjCMeshTest, TinyInertiaFails) {
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
 }
 
-TEST_F(MjCMeshTest, FlippedFaceAllowedInexactInertia) {
+TEST_F(MjCMeshTest, FlippedFaceAllowedLegacyInertia) {
   const std::string xml_path = GetTestDataFilePath(kMalformedFaceOBJPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(model, testing::NotNull());
+  EXPECT_THAT(model, testing::NotNull()) << error.data();
   EXPECT_THAT(model->nmeshface, 4);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, MissingFaceAllowedConvexInertia) {
+  const std::string xml_path = GetTestDataFilePath(kCompareInertiaPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull()) << error.data();
+  EXPECT_THAT(model->nmeshface, 10);
+  EXPECT_THAT(model->body_inertia[3], model->body_inertia[9]);
+  EXPECT_THAT(model->body_inertia[4], model->body_inertia[10]);
+  EXPECT_THAT(model->body_inertia[5], model->body_inertia[11]);
+  EXPECT_NE(model->body_inertia[3], model->body_inertia[6]);
+  EXPECT_NE(model->body_inertia[4], model->body_inertia[7]);
+  EXPECT_NE(model->body_inertia[5], model->body_inertia[8]);
   mj_deleteModel(model);
 }
 
 TEST_F(MjCMeshTest, FlippedFaceFailsExactInertia) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler exactmeshinertia="true"/>
     <asset>
-      <mesh name="example_mesh"
+      <mesh name="example_mesh" inertia="exact"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
         face="2 0 3  0 1 3  1 2 3  0 1 2" />
     </asset>
@@ -742,10 +758,9 @@ TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
   mj_deleteModel(model);
 }
 
-TEST_F(MjCMeshTest, VolumeNegativeDefaultsLegacy) {
+TEST_F(MjCMeshTest, VolumeNegativeThrowsError) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler exactmeshinertia="true"/>
     <asset>
       MESH_DEFINITIONS
     </asset>
@@ -758,7 +773,7 @@ TEST_F(MjCMeshTest, VolumeNegativeDefaultsLegacy) {
   )";
 
   static constexpr char bad_mesh[] = R"(
-      <mesh name="bad_mesh%d"
+      <mesh name="bad_mesh%d" inertia="exact"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
         face="3 0 2  0 3 1  1 3 2  0 1 2"/>\n"
   )";
@@ -782,20 +797,8 @@ TEST_F(MjCMeshTest, VolumeNegativeDefaultsLegacy) {
     std::array<char, 1024> error;
     mjModel* model = LoadModelFromString(xml_str.c_str(),
                                          error.data(), error.size());
-    EXPECT_THAT(model, NotNull()) << error.data();
-    EXPECT_LE(mju_abs(model->geom_size[0]), 1);
-    EXPECT_LE(mju_abs(model->geom_size[1]), 1);
-    EXPECT_LE(mju_abs(model->geom_size[2]), 1);
-
-    EXPECT_THAT(error.data(), StartsWith("Malformed mesh 'bad_mesh1'"));
-
-    // first 7 warnings fit in the length-500 warning buffer
-    for (int i = 2; i < mjMIN(nmesh+1, 8); ++i) {
-      std::string msg = "Malformed mesh 'bad_mesh" + std::to_string(i);
-      EXPECT_THAT(error.data(), HasSubstr(msg));
-    }
-
-    mj_deleteModel(model);
+    EXPECT_THAT(model, IsNull());
+    EXPECT_THAT(error.data(), HasSubstr("mesh volume is negative"));
   }
 }
 

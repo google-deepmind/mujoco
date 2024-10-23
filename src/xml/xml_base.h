@@ -69,6 +69,7 @@ extern const mjMap bias_map[];
 extern const mjMap stage_map[];
 extern const mjMap datatype_map[];
 extern const mjMap meshtype_map[];
+extern const mjMap meshinertia_map[];
 extern const mjMap flexself_map[];
 
 

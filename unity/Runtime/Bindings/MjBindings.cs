@@ -451,8 +451,13 @@ public enum mjtFont : int{
   mjFONT_BIG = 2,
 }
 public enum mjtGeomInertia : int{
-  mjINERTIA_VOLUME = 1,
-  mjINERTIA_SHELL = 2,
+  mjINERTIA_VOLUME = 0,
+  mjINERTIA_SHELL = 1,
+}
+public enum mjtMeshInertia : int{
+  mjINERTIA_CONVEX = 0,
+  mjINERTIA_EXACT = 1,
+  mjINERTIA_LEGACY = 2,
 }
 public enum mjtBuiltin : int{
   mjBUILTIN_NONE = 0,

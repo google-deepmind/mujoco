@@ -815,12 +815,6 @@ has any effect. The settings here are global and apply to the entire model.
    to the mass. This results in equivalent inertia boxes which extend far beyond the geometric boundaries of the model.
    Note that the built-in OpenGL visualizer can render equivalent inertia boxes.
 
-.. _compiler-exactmeshinertia:
-
-:at:`exactmeshinertia`: :at-val:`[false, true], "false"`
-   If this attribute is set to false, computes mesh inertia with the legacy algorithm, which is exact only for convex
-   meshes. If set to true, it is exact for any closed mesh geometry.
-
 .. _compiler-alignfree:
 
 :at:`alignfree`: :at-val:`[false, true], "false"`
@@ -1248,6 +1242,24 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 :at:`scale`: :at-val:`real(3), "1 1 1"`
    This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
    values are allowed, resulting in flipping the mesh along the corresponding axis.
+
+.. _asset-mesh-inertia:
+
+:at:`inertia`: :at-val:`[convex, exact, legacy], "legacy"`
+   This attribute controls how the mesh is used when mass and inertia are
+   :ref:`inferred from geometry<_compiler-inertiafromgeom>`. The current default value :at-val:`legacy` will be changed
+   to :at-val:`convex` in a future release.
+
+   :at-val:`convex`
+      Use the mesh's convex hull to compute volume and inertia.
+
+   :at-val:`exact`
+      Use an exact algorithm to compute volume and inertia. This algorithm requires a well-oriented, watertight mesh and
+      will error otherwise.
+
+   :at-val:`legacy`
+      Use the legacy algorithm, which is similar to :at-val:`convex`, but leads to volume overcounting for non-convex
+      meshes.
 
 .. _asset-mesh-smoothnormal:
 
@@ -8015,6 +8027,8 @@ if omitted.
 .. _default-mesh-scale:
 
 .. _default-mesh-maxhullvert:
+
+.. _default-mesh-inertia:
 
 :el-prefix:`default/` |-| **mesh** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

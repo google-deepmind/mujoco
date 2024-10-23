@@ -212,6 +212,9 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     }
     WriteAttrTxt(elem, "content_type", mesh->ContentType());
     WriteAttrTxt(elem, "file", mesh->File());
+    if (mesh->Inertia() != def->Mesh().Inertia()) {
+      WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 3, mesh->Inertia()));
+    }
 
     // write vertex data
     if (!mesh->UserVert().empty()) {
@@ -930,9 +933,7 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (!model->usethread) {
     WriteAttrTxt(section, "usethread", "false");
   }
-  if (model->exactmeshinertia) {
-    WriteAttrTxt(section, "exactmeshinertia", "true");
-  }
+
   if (model->boundmass) {
     WriteAttr(section, "boundmass", 1, &model->boundmass);
   }

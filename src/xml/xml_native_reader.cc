@@ -97,11 +97,10 @@ static void UpdateString(string& psuffix, int count, int i) {
 const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "21", "autolimits", "boundmass", "boundinertia", "settotalmass",
+    {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
         "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
         "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
-        "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia",
-        "assetdir", "alignfree"},
+        "fusestatic", "inertiafromgeom", "inertiagrouprange", "assetdir", "alignfree"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -150,7 +149,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"default", "R", "1", "class"},
     {"<"},
-        {"mesh", "?", "2", "scale", "maxhullvert"},
+        {"mesh", "?", "3", "scale", "maxhullvert", "inertia"},
         {"material", "?", "10", "texture", "emission", "specular", "shininess",
             "reflectance", "metallic", "roughness", "rgba", "texrepeat", "texuniform"},
         {"joint", "?", "22", "type", "group", "pos", "axis", "springdamper",
@@ -226,9 +225,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"mesh", "*", "13", "name", "class", "content_type", "file", "vertex", "normal",
+        {"mesh", "*", "14", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal",
-            "maxhullvert"},
+            "maxhullvert", "inertia"},
         {"<"},
           {"plugin", "*", "2", "plugin", "instance"},
           {"<"},
@@ -790,6 +789,14 @@ const mjMap meshtype_map[2] = {
 };
 
 
+// mesh inertia type
+const mjMap meshinertia_map[3] = {
+  {"convex", mjINERTIA_CONVEX},
+  {"legacy", mjINERTIA_LEGACY},
+  {"exact", mjINERTIA_EXACT}
+};
+
+
 // flexcomp type
 const mjMap fcomp_map[mjNFCOMPTYPES] = {
   {"grid",        mjFCOMPTYPE_GRID},
@@ -1020,9 +1027,6 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
   }
   MapValue(section, "inertiafromgeom", &spec->inertiafromgeom, TFAuto_map, 3);
   ReadAttr(section, "inertiagrouprange", 2, spec->inertiagrouprange, text);
-  if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
-    spec->exactmeshinertia = (n==1);
-  }
   if (MapValue(section, "alignfree", &n, bool_map, 2)) {
     spec->alignfree = (n==1);
   }
@@ -1424,6 +1428,9 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   ReadAttr(elem, "refpos", 3, mesh->refpos, text);
   ReadAttr(elem, "refquat", 4, mesh->refquat, text);
   ReadAttr(elem, "scale", 3, mesh->scale, text);
+  if (MapValue(elem, "inertia", &n, meshinertia_map, 3)) {
+    mesh->inertia = (mjtMeshInertia)n;
+  }
 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {

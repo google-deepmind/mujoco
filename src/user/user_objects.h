@@ -868,6 +868,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const std::vector<float>& UserTexcoord() const { return spec_texcoord_; }
   const std::vector<int>& Face() const { return face_; }
   const std::vector<int>& UserFace() const { return spec_face_; }
+  mjtMeshInertia Inertia() const { return spec.inertia; }
 
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
@@ -945,8 +946,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<unsigned char> num_face_vertices_;
 
   // compute the volume and center-of-mass of the mesh given the face center
-  void ComputeVolume(double CoM[3], mjtGeomInertia type, const double facecen[3],
-                     bool exactmeshinertia);
+  void ComputeVolume(double CoM[3], mjtGeomInertia gtype, const double facecen[3]);
 };
 
 

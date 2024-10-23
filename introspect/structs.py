@@ -8915,11 +8915,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='range of geom groups used to compute inertia',
              ),
              StructFieldDecl(
-                 name='exactmeshinertia',
-                 type=ValueType(name='mjtByte'),
-                 doc='if false, use old formula',
-             ),
-             StructFieldDecl(
                  name='alignfree',
                  type=ValueType(name='int'),
                  doc='align free joints with inertial frame',
@@ -10290,6 +10285,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(3,),
                  ),
                  doc='rescale mesh',
+             ),
+             StructFieldDecl(
+                 name='inertia',
+                 type=ValueType(name='mjtMeshInertia'),
+                 doc='inertia type (convex, legacy, exact)',
              ),
              StructFieldDecl(
                  name='smoothnormal',

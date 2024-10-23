@@ -246,6 +246,7 @@ void mjs_defaultMesh(mjsMesh* mesh) {
   mesh->refquat[0] = 1;
   mesh->scale[0] = mesh->scale[1] = mesh->scale[2] = 1;
   mesh->maxhullvert = -1;
+  mesh->inertia = mjINERTIA_LEGACY;
 }
 
 
