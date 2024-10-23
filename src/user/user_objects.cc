@@ -845,6 +845,12 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 
 // attach frame to body
 mjCBody& mjCBody::operator+=(const mjCFrame& other) {
+  // append a copy of the attached spec
+  if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
+    model->AppendSpec(mj_copySpec(&other.model->spec));
+  }
+
+  // create a copy of the subtree that contains the frame
   mjCBody* subtree = other.body;
   other.model->prefix = other.prefix;
   other.model->suffix = other.suffix;
@@ -1805,6 +1811,12 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 
 // attach body to frame
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
+  // append a copy of the attached spec
+  if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
+    model->AppendSpec(mj_copySpec(&other.model->spec));
+  }
+
+  // apply namespace and store keyframes in the source model
   other.model->prefix = other.prefix;
   other.model->suffix = other.suffix;
   other.model->StoreKeyframes(model);

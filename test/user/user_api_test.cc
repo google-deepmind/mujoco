@@ -624,7 +624,7 @@ TEST_F(PluginTest, TextureFromBuffer) {
 // -------------------------------- test attach --------------------------------
 
 static constexpr char xml_child[] = R"(
-  <mujoco>
+  <mujoco model="child">
     <default>
       <default class="cylinder">
         <geom type="cylinder" size=".1 1 0"/>
@@ -691,7 +691,7 @@ TEST_F(MujocoTest, AttachSame) {
   std::string field = "";
 
   static constexpr char xml_result[] = R"(
-  <mujoco>
+  <mujoco model="child">
     <default>
       <default class="cylinder">
         <geom type="cylinder" size=".1 1 0"/>
@@ -780,6 +780,9 @@ TEST_F(MujocoTest, AttachSame) {
   // attach child to parent frame
   mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
   EXPECT_THAT(attached, mjs_findBody(parent, "attached-body-1"));
+
+  // check that the spec was not copied
+  EXPECT_THAT(mjs_findSpec(parent, "child"), IsNull());
 
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);
@@ -912,6 +915,9 @@ TEST_F(MujocoTest, AttachDifferent) {
   mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
   EXPECT_THAT(attached, mjs_findBody(parent, "attached-body-1"));
 
+  // check that the spec was copied
+  EXPECT_THAT(mjs_findSpec(parent, "child"), NotNull());
+
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
@@ -1043,6 +1049,9 @@ TEST_F(MujocoTest, AttachFrame) {
   mjsFrame* attached = mjs_attachFrame(body, frame, "attached-", "-1");
   EXPECT_THAT(attached, mjs_findFrame(parent, "attached-pframe-1"));
 
+  // check that the spec was copied
+  EXPECT_THAT(mjs_findSpec(parent, "child"), NotNull());
+
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
@@ -1073,7 +1082,7 @@ void TestDetachBody(bool compile) {
   std::string field = "";
 
   static constexpr char xml_result[] = R"(
-  <mujoco>
+  <mujoco model="child">
     <asset>
       <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
       <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
