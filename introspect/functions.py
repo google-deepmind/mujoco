@@ -7062,6 +7062,52 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Coordinate transform of 6D motion or force vector in rotation:translation format. rotnew2old is 3-by-3, NULL means no rotation; flg_force specifies force or motion type.',  # pylint: disable=line-too-long
      )),
+    ('mju_sparse2dense',
+     FunctionDecl(
+         name='mju_sparse2dense',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nr',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nc',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Convert matrix from sparse to dense.',
+     )),
     ('mju_rotVecQuat',
      FunctionDecl(
          name='mju_rotVecQuat',

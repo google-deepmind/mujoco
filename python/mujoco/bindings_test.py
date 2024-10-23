@@ -1337,6 +1337,16 @@ Euler integrator, semi-implicit in velocity.
     mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
     self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
 
+  def test_mju_sparse_to_dense(self):
+    expected = np.array([[0., 1., 0.], [2., 0., 3.]])
+    mat = np.array((1., 2., 3.))
+    rownnz = np.array([1, 2])
+    rowadr = np.array([0, 1])
+    colind = np.array([1, 0, 2])
+    res = np.zeros((2, 3))
+    mujoco.mju_sparse2dense(res, mat, rownnz, rowadr, colind)
+    np.testing.assert_array_equal(res, expected)
+
   def test_mju_euler_to_quat(self):
     quat = np.zeros(4)
     euler = np.array([0, np.pi/2, 0])

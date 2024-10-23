@@ -7221,6 +7221,9 @@ public static unsafe extern void mju_sqrMatTD(double* res, double* mat, double* 
 public static unsafe extern void mju_transformSpatial(double* res, double* vec, int flg_force, double* newpos, double* oldpos, double* rotnew2old);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_sparse2dense(double* res, double* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_rotVecQuat(double* res, double* vec, double* quat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
