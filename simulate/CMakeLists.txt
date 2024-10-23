@@ -41,12 +41,16 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
+if(NOT DEFINED expose_headers)
+    
+endif()
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
 set(_INSTALL_SIMULATE ON)
+set(EXPOSE_HEADERS OFF)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(SIMULATE_STANDALONE ON)
   # If standalone, do not install the samples.
@@ -128,7 +132,11 @@ add_library(mujoco::libsimulate ALIAS libsimulate)
 
 target_sources(
   libsimulate
-  PUBLIC simulate.h
+  PUBLIC 
+    simulate.h
+    platform_ui_adapter.h
+    glfw_adapter.h
+    glfw_dispatch.h
   PRIVATE simulate.cc array_safety.h
 )
 target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -223,6 +231,14 @@ if(SIMULATE_BUILD_EXECUTABLE)
     set(_INSTALL_SIMULATE OFF)
   endif()
 
+  target_link_libraries(libsimulate
+  PUBLIC
+    lodepng
+    mujoco::platform_ui_adapter
+    mujoco::mujoco
+  PRIVATE
+    # Add any private dependencies here
+)
   if(_INSTALL_SIMULATE)
 
     include(TargetAddRpath)
@@ -246,8 +262,20 @@ if(SIMULATE_BUILD_EXECUTABLE)
       LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
       ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
       BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+      PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
     )
+
+    # Specify public headers for libsimulate
+    if(SIMULATE_EXPOSE_HEADERS)
+      set_target_properties(libsimulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h")
+
+      install(
+      TARGETS libsimulate
+      EXPORT ${PROJECT_NAME}
+      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+      PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
+      )
+    endif()
 
     if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
       # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
@@ -260,7 +288,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
           RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
           LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
           ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-          PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+          PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
         )
       endif()
     endif()
