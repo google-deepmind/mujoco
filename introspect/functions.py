@@ -9742,6 +9742,28 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get spec from body.',
      )),
+    ('mjs_findSpec',
+     FunctionDecl(
+         name='mjs_findSpec',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Find spec (model asset) by name.',
+     )),
     ('mjs_findBody',
      FunctionDecl(
          name='mjs_findBody',

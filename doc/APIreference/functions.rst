@@ -4139,6 +4139,15 @@ mjs_getSpec
 
 Get spec from body.
 
+.. _mjs_findSpec:
+
+mjs_findSpec
+~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findSpec
+
+Find spec (model asset) by name.
+
 .. _mjs_findBody:
 
 mjs_findBody

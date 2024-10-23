@@ -388,6 +388,9 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     }
     CopyList(numerics_, other.numerics_);
     CopyList(texts_, other.texts_);
+    for (const auto* s : other.specs_) {
+      specs_.push_back(mj_copySpec(s));
+    }
   }
   CopyList(flexes_, other.flexes_);
   CopyList(pairs_, other.pairs_);
@@ -3647,12 +3650,6 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     _mjPRIVATE__set_tls_warning_fn(save_warning);
     return nullptr;
   }
-
-  // destroy attached specs
-  for (auto spec : specs_) {
-    mj_deleteSpec(spec);
-  }
-  specs_.clear();
 
   // restore error handler, mark as compiled, return mjModel
   _mjPRIVATE__set_tls_error_fn(save_error);

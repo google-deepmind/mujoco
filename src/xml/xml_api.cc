@@ -221,7 +221,7 @@ mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int err
 
 // parse spec from string
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz) {
-  return ParseSpecFromString(xml, error, error_sz);
+  return ParseSpecFromString(xml, vfs, error, error_sz);
 }
 
 

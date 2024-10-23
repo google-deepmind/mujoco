@@ -1849,5 +1849,57 @@ TEST_F(MujocoTest, DifferentUnitsNotAllowed) {
   mj_deleteSpec(spec_2);
 }
 
+TEST_F(MujocoTest, CopyAttachedSpec) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="xml_child.xml"/>
+    </asset>
+    <worldbody>
+      <body name="parent">
+        <geom name="geom" size="2"/>
+        <attach model="child" body="body" prefix="other"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <geom name="geom" size="1" pos="2 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "xml_child.xml", xml_child, sizeof(xml_child));
+
+  std::array<char, 1024> er;
+  mjSpec* spec = mj_parseXMLString(xml_parent, vfs.get(), er.data(), er.size());
+  EXPECT_THAT(spec, NotNull()) << er.data();
+
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull()) << er.data();
+
+  mjSpec* child = mjs_findSpec(spec, "child");
+  EXPECT_THAT(child, NotNull());
+
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_THAT(copy, NotNull());
+
+  mjSpec* child_copy = mjs_findSpec(copy, "child");
+  EXPECT_THAT(child_copy, NotNull());
+  EXPECT_NE(child_copy, child);
+
+  mj_deleteSpec(spec);
+  mj_deleteSpec(copy);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
 }  // namespace
 }  // namespace mujoco
