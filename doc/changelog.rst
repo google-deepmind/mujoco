@@ -17,7 +17,7 @@ MJX
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a bug in slider-crank ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
+- Fixed a bug in slider-crank :ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
 
 Version 3.2.4 (Oct 15, 2024)
 ----------------------------
