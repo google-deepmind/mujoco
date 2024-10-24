@@ -15,6 +15,7 @@ MJX
 ^^^
 - Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
 - Added ``TOUCH`` sensor.
+- Added support for ``eq_active``. Fixes :github:issue:`2173`.
 
 Bug fixes
 ^^^^^^^^^
