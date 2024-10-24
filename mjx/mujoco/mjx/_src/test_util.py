@@ -53,7 +53,7 @@ def benchmark(
     nstep: int = 1000,
     batch_size: int = 1024,
     unroll_steps: int = 1,
-    solver: str = 'cg',
+    solver: str = 'newton',
     iterations: int = 1,
     ls_iterations: int = 4,
 ) -> Tuple[float, float, int]:
