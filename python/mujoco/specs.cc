@@ -155,6 +155,48 @@ void DefineArray(py::module& m, const std::string& typestr) {
       }, py::keep_alive<0, 1>(), py::return_value_policy::reference_internal);
 };
 
+py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype) {
+  py::list list;
+  raw::MjsElement* el = mjs_firstChild(&body, objtype, true);
+  std::string error = mjs_getError(mjs_getSpec(body.element));
+  if (!el && !error.empty()) {
+    throw pybind11::value_error(error);
+  }
+  while (el) {
+    switch (objtype) {
+      case mjOBJ_BODY:
+        list.append(mjs_asBody(el));
+        break;
+      case mjOBJ_CAMERA:
+        list.append(mjs_asCamera(el));
+        break;
+      case mjOBJ_FRAME:
+        list.append(mjs_asFrame(el));
+        break;
+      case mjOBJ_GEOM:
+        list.append(mjs_asGeom(el));
+        break;
+      case mjOBJ_JOINT:
+        list.append(mjs_asJoint(el));
+        break;
+      case mjOBJ_LIGHT:
+        list.append(mjs_asLight(el));
+        break;
+      case mjOBJ_SITE:
+        list.append(mjs_asSite(el));
+        break;
+      default:
+        // this should never happen
+        throw pybind11::value_error(
+            "body.find_all supports the types: body, frame, geom, site, "
+            "light, camera.");
+        break;
+    }
+    el = mjs_nextChild(&body, el, true);
+  }
+  return list;  // list of pointers, so they can be copied
+}
+
 PYBIND11_MODULE(_specs, m) {
   auto structs_m = py::module::import("mujoco._structs");
   py::function mjmodel_from_spec_ptr =
@@ -419,45 +461,31 @@ PYBIND11_MODULE(_specs, m) {
   mjsBody.def(
       "find_all",
       [](raw::MjsBody& self, mjtObj objtype) -> py::list {
-        py::list list;
-        raw::MjsElement* el = mjs_firstChild(&self, objtype, true);
-        std::string error = mjs_getError(mjs_getSpec(self.element));
-        if (!el && !error.empty()) {
-          throw pybind11::value_error(error);
+        return FindAllImpl(self, objtype);
+      },
+      py::return_value_policy::reference_internal);
+  mjsBody.def(
+      "find_all",
+      [](raw::MjsBody& self, std::string& name) -> py::list {
+        mjtObj objtype = mjOBJ_UNKNOWN;
+        if (name == "body") {
+          objtype = mjOBJ_BODY;
+        } else if (name == "frame") {
+          objtype = mjOBJ_FRAME;
+        } else if (name == "geom") {
+          objtype = mjOBJ_GEOM;
+        } else if (name == "site") {
+          objtype = mjOBJ_SITE;
+        } else if (name == "light") {
+          objtype = mjOBJ_LIGHT;
+        } else if (name == "camera") {
+          objtype = mjOBJ_CAMERA;
+        } else {
+          throw pybind11::value_error(
+              "body.find_all supports the types: body, frame, geom, site, "
+              "light, camera.");
         }
-        while (el) {
-          switch (objtype) {
-            case mjOBJ_BODY:
-              list.append(mjs_asBody(el));
-              break;
-            case mjOBJ_CAMERA:
-              list.append(mjs_asCamera(el));
-              break;
-            case mjOBJ_FRAME:
-              list.append(mjs_asFrame(el));
-              break;
-            case mjOBJ_GEOM:
-              list.append(mjs_asGeom(el));
-              break;
-            case mjOBJ_JOINT:
-              list.append(mjs_asJoint(el));
-              break;
-            case mjOBJ_LIGHT:
-              list.append(mjs_asLight(el));
-              break;
-            case mjOBJ_SITE:
-              list.append(mjs_asSite(el));
-              break;
-            default:
-              // this should never happen
-              throw pybind11::value_error(
-                  "body.find_all supports the types: body, frame, geom, site, "
-                  "light, camera.");
-              break;
-          }
-          el = mjs_nextChild(&self, el, true);
-        }
-        return list;
+        return FindAllImpl(self, objtype);
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
