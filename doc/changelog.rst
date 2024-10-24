@@ -9,6 +9,7 @@ General
 ^^^^^^^
 - The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
   :ref:`inertia<asset-mesh-inertia>` attribute.
+- Removed the deprecated ``mju_rotVecMat`` and ``mju_rotVecMatT`` functions.
 
 MJX
 ^^^
@@ -214,7 +215,7 @@ General
    3. Calls to :ref:`mj_defaultVFS` may allocate memory inside VFS, and the corresponding
       :ref:`mj_deleteVFS` must be called to deallocate any internal allocated memory.
 
-   4. Deprecated :ref:`mju_rotVecMat` and :ref:`mju_rotVecMatT` in favor of :ref:`mju_mulMatVec3` and
+   4. Deprecated ``mju_rotVecMat`` and ``mju_rotVecMatT`` in favor of :ref:`mju_mulMatVec3` and
       :ref:`mju_mulMatTVec3`. These function names and argument order are more consistent with the rest of the API.
       The older functions have been removed from the Python bindings and will be removed from the C API in the next
       release.

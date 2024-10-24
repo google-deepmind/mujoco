@@ -3142,24 +3142,6 @@ mju_mulMatTVec3
 
 Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.
 
-.. _mju_rotVecMat:
-
-mju_rotVecMat
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_rotVecMat
-
-Deprecated, use mju_mulMatVec3(res, mat, vec).
-
-.. _mju_rotVecMatT:
-
-mju_rotVecMatT
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_rotVecMatT
-
-Deprecated, use mju_mulMatTVec3(res, mat, vec).
-
 .. _mju_cross:
 
 mju_cross

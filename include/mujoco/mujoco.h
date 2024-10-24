@@ -975,12 +975,6 @@ MJAPI void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3
 // Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.
 MJAPI void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 
-// Deprecated, use mju_mulMatVec3(res, mat, vec).
-MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
-
-// Deprecated, use mju_mulMatTVec3(res, mat, vec).
-MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
-
 // Compute cross-product: res = cross(a, b).
 MJAPI void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]);
 
