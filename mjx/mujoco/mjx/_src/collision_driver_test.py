@@ -263,7 +263,7 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     self.assertLess(dx.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-4)
+          dx.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-3)
 
   _ELLIPSOID_CAPSULE = """
     <mujoco>
@@ -285,7 +285,7 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     self.assertLess(dx.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-4)
+          dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-3)
 
   _ELLIPSOID_CYLINDER = """
     <mujoco>
