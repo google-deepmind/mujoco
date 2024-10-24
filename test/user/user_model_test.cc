@@ -480,8 +480,8 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
               DoubleNear(std::sqrt(5.0), 1e-3));
 
   // recompile without threads
-  ASSERT_EQ(spec->usethread, 1);
-  spec->usethread = 0;
+  ASSERT_EQ(spec->compiler.usethread, 1);
+  spec->compiler.usethread = 0;
   mjModel* model2 = mj_compile(spec, 0);
   EXPECT_THAT(model2, NotNull()) << error;
 

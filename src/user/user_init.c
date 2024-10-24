@@ -33,17 +33,17 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->stat.center[0] = mjNAN;
 
   // compiler settings
-  spec->autolimits = 1;
-  spec->settotalmass = -1;
-  spec->degree = 1;
-  spec->eulerseq[0] = 'x';
-  spec->eulerseq[1] = 'y';
-  spec->eulerseq[2] = 'z';
-  spec->convexhull = 1;
-  spec->usethread = 1;
-  spec->inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
-  spec->inertiagrouprange[1] = mjNGROUP-1;
-  mj_defaultLROpt(&spec->LRopt);
+  spec->compiler.autolimits = 1;
+  spec->compiler.settotalmass = -1;
+  spec->compiler.degree = 1;
+  spec->compiler.eulerseq[0] = 'x';
+  spec->compiler.eulerseq[1] = 'y';
+  spec->compiler.eulerseq[2] = 'z';
+  spec->compiler.convexhull = 1;
+  spec->compiler.usethread = 1;
+  spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+  spec->compiler.inertiagrouprange[1] = mjNGROUP-1;
+  mj_defaultLROpt(&spec->compiler.LRopt);
 
   // engine data
   mj_defaultOption(&spec->option);

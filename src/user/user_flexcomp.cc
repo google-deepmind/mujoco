@@ -98,8 +98,9 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
-  mjCModel* model = (mjCModel*)spec->element;
+bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
+  mjCModel* model = static_cast<mjCBody*>(body->element)->model;
+  mjsCompiler* compiler = static_cast<mjCBody*>(body->element)->compiler;
   mjsFlex* dflex = def.spec.flex;
 
   bool radial = (type == mjFCOMPTYPE_BOX ||
@@ -147,7 +148,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // compute orientation
-  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.eulerseq, &alt);
+  const char* alterr = mjs_resolveOrientation(quat, compiler->degree, compiler->eulerseq, &alt);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }

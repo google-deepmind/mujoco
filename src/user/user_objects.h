@@ -212,7 +212,8 @@ class mjCBase : public mjCBase_ {
   mjCBase& operator=(const mjCBase& other);
 
   mjCFrame* frame;                // pointer to frame transformation
-  mjCModel* model;                // pointer to model that created object
+  mjCModel* model;                // pointer to model that owns object
+  mjsCompiler* compiler;          // pointer to the compiler options
 
   virtual ~mjCBase() = default;   // destructor
 

@@ -227,8 +227,10 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     }
     // copy the element from the other model to this model
     source[i]->ForgetKeyframes();
+    mjSpec* origin = FindSpec(mjs_getString(source[i]->model->spec.modelname));
     dest.push_back(candidate);
     dest.back()->model = this;
+    dest.back()->compiler = origin ? &origin->compiler : &spec.compiler;
     dest.back()->id = -1;
   }
   if (!dest.empty()) {
@@ -354,20 +356,6 @@ static bool IsPluginActive(
 
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
-  // TODO: use compiler settings stored in specs_ during compilation
-  std::string msg = "cannot attach mjSpecs with incompatible compiler/";
-  if (other.spec.degree != spec.degree) {
-    throw mjCError(nullptr, (msg + "angle attribute").c_str());
-  }
-  if (other.spec.autolimits != spec.autolimits) {
-    throw mjCError(nullptr, (msg + "autolimits attribute").c_str());
-  }
-  if (other.spec.eulerseq[0] != spec.eulerseq[0] ||
-      other.spec.eulerseq[1] != spec.eulerseq[1] ||
-      other.spec.eulerseq[2] != spec.eulerseq[2]) {
-    throw mjCError(nullptr, (msg + "eulerseq attribute").c_str());
-  }
-
   // create global lists
   mjCBody *world = bodies_[0];
   ResetTreeLists();
@@ -1784,8 +1772,8 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   mjOption saveopt = m->opt;
   m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_PASSIVE |
                         mjDSBL_GRAVITY | mjDSBL_ACTUATION;
-  if (LRopt.timestep>0) {
-    m->opt.timestep = LRopt.timestep;
+  if (compiler.LRopt.timestep>0) {
+    m->opt.timestep = compiler.LRopt.timestep;
   }
 
   // number of threads available
@@ -1800,14 +1788,14 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
                     m->actuator_biastype[i]==mjBIAS_MUSCLE);
     int isuser = (m->actuator_gaintype[i]==mjGAIN_USER ||
                   m->actuator_biastype[i]==mjBIAS_USER);
-    if ((LRopt.mode==mjLRMODE_NONE) ||
-        (LRopt.mode==mjLRMODE_MUSCLE && !ismuscle) ||
-        (LRopt.mode==mjLRMODE_MUSCLEUSER && !ismuscle && !isuser)) {
+    if ((compiler.LRopt.mode==mjLRMODE_NONE) ||
+        (compiler.LRopt.mode==mjLRMODE_MUSCLE && !ismuscle) ||
+        (compiler.LRopt.mode==mjLRMODE_MUSCLEUSER && !ismuscle && !isuser)) {
       continue;
     }
 
     // use existing length range if available
-    if (LRopt.useexisting &&
+    if (compiler.LRopt.useexisting &&
         (m->actuator_lengthrange[2*i] < m->actuator_lengthrange[2*i+1])) {
       continue;
     }
@@ -1817,10 +1805,10 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   }
 
   // single thread
-  if (!usethread || cnt<2 || nthread<2) {
+  if (!compiler.usethread || cnt<2 || nthread<2) {
     char err[200];
     for (int i=0; i<m->nu; i++) {
-      if (!mj_setLengthRange(m, data, i, &LRopt, err, 200)) {
+      if (!mj_setLengthRange(m, data, i, &compiler.LRopt, err, 200)) {
         throw mjCError(0, "%s", err);
       }
     }
@@ -1844,7 +1832,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     // prepare thread function arguments, clear errors
     LRThreadArg arg[kMaxCompilerThreads];
     for (int i=0; i<nthread; i++) {
-      LRThreadArg temp = {m, pdata[i], i*num, num, &LRopt, err[i], 200};
+      LRThreadArg temp = {m, pdata[i], i*num, num, &compiler.LRopt, err[i], 200};
       arg[i] = temp;
       err[i][0] = 0;
     }
@@ -3914,7 +3902,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   ProcessLists();
 
   // delete visual assets
-  if (discardvisual) {
+  if (compiler.discardvisual) {
     DeleteAll(materials_);
     DeleteTexcoord(flexes_);
     DeleteTexcoord(meshes_);
@@ -3937,7 +3925,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetNuser();
 
   // compile meshes (needed for geom compilation)
-  if (usethread && meshes_.size() > 1) {
+  if (compiler.usethread && meshes_.size() > 1) {
     // multi-threaded mesh compile
     CompileMeshes(vfs);
   } else {
@@ -3981,10 +3969,10 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   reassignid(excludes_);
 
   // resolve asset references, compute sizes
-  IndexAssets(discardvisual);
+  IndexAssets(compiler.discardvisual);
   SetSizes();
   // fuse static if enabled
-  if (fusestatic) {
+  if (compiler.fusestatic) {
     FuseStatic();
   }
 
@@ -4144,8 +4132,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   CopyObjects(m);
 
   // scale mass
-  if (settotalmass>0) {
-    mj_setTotalmass(m, settotalmass);
+  if (compiler.settotalmass>0) {
+    mj_setTotalmass(m, compiler.settotalmass);
   }
 
   // set arena size into m->narena

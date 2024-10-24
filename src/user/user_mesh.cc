@@ -563,7 +563,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // make graph describing convex hull
-  if ((model->convexhull && needhull_) || face_.empty()) {
+  if ((model->compiler.convexhull && needhull_) || face_.empty()) {
     MakeGraph();
   }
 
@@ -739,7 +739,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
   mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
 
   // use inertial box
-  if (!model->fitaabb) {
+  if (!model->compiler.fitaabb) {
     // get inertia box type (shell or volume)
     double* boxsz = GetInertiaBoxPtr(geom->typeinertia);
     switch (geom->type) {

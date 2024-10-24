@@ -8800,25 +8800,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
-    ('mjSpec',
+    ('mjsCompiler',
      StructDecl(
-         name='mjSpec',
-         declname='struct mjSpec_',
+         name='mjsCompiler',
+         declname='struct mjsCompiler_',
          fields=(
-             StructFieldDecl(
-                 name='element',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsElement'),
-                 ),
-                 doc='element type',
-             ),
-             StructFieldDecl(
-                 name='modelname',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='model name',
-             ),
              StructFieldDecl(
                  name='autolimits',
                  type=ValueType(name='mjtByte'),
@@ -8845,11 +8831,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='automatically impose A + B >= C rule',
              ),
              StructFieldDecl(
-                 name='strippath',
-                 type=ValueType(name='mjtByte'),
-                 doc='automatically strip paths from mesh files',
-             ),
-             StructFieldDecl(
                  name='fitaabb',
                  type=ValueType(name='mjtByte'),
                  doc='meshfit to aabb instead of inertia box',
@@ -8866,20 +8847,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(3,),
                  ),
                  doc='sequence for euler rotations',
-             ),
-             StructFieldDecl(
-                 name='meshdir',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='mesh and hfield directory',
-             ),
-             StructFieldDecl(
-                 name='texturedir',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='texture directory',
              ),
              StructFieldDecl(
                  name='discardvisual',
@@ -8923,6 +8890,51 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='LRopt',
                  type=ValueType(name='mjLROpt'),
                  doc='options for lengthrange computation',
+             ),
+         ),
+     )),
+    ('mjSpec',
+     StructDecl(
+         name='mjSpec',
+         declname='struct mjSpec_',
+         fields=(
+             StructFieldDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+                 doc='element type',
+             ),
+             StructFieldDecl(
+                 name='modelname',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='model name',
+             ),
+             StructFieldDecl(
+                 name='compiler',
+                 type=ValueType(name='mjsCompiler'),
+                 doc='compiler options',
+             ),
+             StructFieldDecl(
+                 name='strippath',
+                 type=ValueType(name='mjtByte'),
+                 doc='automatically strip paths from mesh files',
+             ),
+             StructFieldDecl(
+                 name='meshdir',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='mesh and hfield directory',
+             ),
+             StructFieldDecl(
+                 name='texturedir',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='texture directory',
              ),
              StructFieldDecl(
                  name='option',

@@ -34,28 +34,28 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
 
     # Check that euler sequence order is set correctly.
-    self.assertEqual(spec.eulerseq[0], 'x')
-    spec.eulerseq = ['z', 'y', 'x']
-    self.assertEqual(spec.eulerseq[0], 'z')
+    self.assertEqual(spec.compiler.eulerseq[0], 'x')
+    spec.compiler.eulerseq = ['z', 'y', 'x']
+    self.assertEqual(spec.compiler.eulerseq[0], 'z')
 
     # Change single elements of euler sequence.
-    spec.eulerseq[0] = 'y'
-    spec.eulerseq[1] = 'z'
-    self.assertEqual(spec.eulerseq[0], 'y')
-    self.assertEqual(spec.eulerseq[1], 'z')
+    spec.compiler.eulerseq[0] = 'y'
+    spec.compiler.eulerseq[1] = 'z'
+    self.assertEqual(spec.compiler.eulerseq[0], 'y')
+    self.assertEqual(spec.compiler.eulerseq[1], 'z')
 
     # eulerseq is iterable
-    self.assertEqual('yzx', ''.join(spec.eulerseq))
+    self.assertEqual('yzx', ''.join(spec.compiler.eulerseq))
 
     # supports `len`
-    self.assertLen(spec.eulerseq, 3)
+    self.assertLen(spec.compiler.eulerseq, 3)
 
     # field checks for out-of-bound access on read and on write
     with self.assertRaises(IndexError):
-      spec.eulerseq[3] = 'x'
+      spec.compiler.eulerseq[3] = 'x'
 
     with self.assertRaises(IndexError):
-      spec.eulerseq[-1] = 'x'
+      spec.compiler.eulerseq[-1] = 'x'
 
     # Add a body, check that it has default orientation.
     body = spec.worldbody.add_body()
@@ -843,19 +843,15 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(IndexError):
       material.textures[-1] = 'x'
 
-  def test_attach_error(self):
+  def test_attach_units(self):
     child = mujoco.MjSpec()
     parent = mujoco.MjSpec()
-    parent.degree = not child.degree
-    body = parent.worldbody.add_body()
-    frame = child.worldbody.add_frame()
-    with self.assertRaises(ValueError) as cm:
-      body.attach_frame(frame, '_', '')
-    self.assertEqual(
-        str(cm.exception),
-        'Error: cannot attach mjSpecs with incompatible compiler/angle'
-        ' attribute',
-    )
+    parent.compiler.degree = not child.compiler.degree
+    body = child.worldbody.add_body(euler=[90, 0, 0])
+    frame = parent.worldbody.add_frame(euler=[-mujoco.mjPI / 2, 0, 0])
+    frame.attach_body(body, 'child-', '')
+    model = parent.compile()
+    np.testing.assert_almost_equal(model.body_quat[1], [1, 0, 0, 0])
 
   def test_attach_body_to_site(self):
     child = mujoco.MjSpec()

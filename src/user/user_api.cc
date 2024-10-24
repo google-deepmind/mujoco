@@ -69,7 +69,13 @@ mjSpec* mj_makeSpec() {
 
 // copy model
 mjSpec* mj_copySpec(const mjSpec* s) {
-  mjCModel* modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
+  mjCModel* modelC = nullptr;
+  try {
+    modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
+  } catch (mjCError& e) {
+    mju_error("Failed to copy spec: %s", e.message);
+    return nullptr;
+  }
   return &modelC->spec;
 }
 
@@ -177,7 +183,8 @@ mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
   frame->spec.quat[1] = site->spec.quat[1];
   frame->spec.quat[2] = site->spec.quat[2];
   frame->spec.quat[3] = site->spec.quat[3];
-  mjs_resolveOrientation(frame->spec.quat, spec->degree, spec->eulerseq, &site->spec.alt);
+  mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
+                         spec->compiler.eulerseq, &site->spec.alt);
   return mjs_attachBody(&frame->spec, child, prefix, suffix);
 }
 

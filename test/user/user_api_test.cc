@@ -1839,23 +1839,43 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
     mj_deleteModel(model_2);
 }
 
-TEST_F(MujocoTest, DifferentUnitsNotAllowed) {
-  mjSpec* spec_1 = mj_makeSpec();
-  mjSpec* spec_2 = mj_makeSpec();
-  spec_1->degree = 1;
-  spec_2->degree = 0;
+TEST_F(MujocoTest, DifferentUnitsAllowed) {
+  mjSpec* child = mj_makeSpec();
+  child->compiler.degree = 1;
+  mjsBody* body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  body->alt.type = mjORIENTATION_EULER;
+  body->alt.euler[0] = 90;
 
-  mjsBody* body = mjs_addBody(mjs_findBody(spec_1, "world"), 0);
-  mjsFrame* frame = mjs_addFrame(mjs_findBody(spec_2, "world"), 0);
+  mjSpec* parent = mj_makeSpec();
+  parent->compiler.degree = 0;
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), 0);
+  frame->alt.type = mjORIENTATION_EULER;
+  frame->alt.euler[0] = -mjPI / 2;
 
-  constexpr char msg[] = "mjSpecs with incompatible compiler/angle";
-  EXPECT_THAT(mjs_attachBody(frame, body, "child-", ""), IsNull());
-  EXPECT_THAT(mjs_attachFrame(body, frame, "child-", ""), IsNull());
-  EXPECT_THAT(mjs_getError(spec_1), HasSubstr(msg));
-  EXPECT_THAT(mjs_getError(spec_2), HasSubstr(msg));
+  EXPECT_THAT(mjs_attachBody(frame, body, "child-", ""), NotNull());
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_NEAR(model->body_quat[4], 1, 1e-12);
+  EXPECT_NEAR(model->body_quat[5], 0, 1e-12);
+  EXPECT_NEAR(model->body_quat[6], 0, 1e-12);
+  EXPECT_NEAR(model->body_quat[7], 0, 1e-12);
 
-  mj_deleteSpec(spec_1);
-  mj_deleteSpec(spec_2);
+  mjSpec* copy = mj_copySpec(parent);
+  EXPECT_THAT(copy, NotNull());
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+
+  // check that deleting `parent` or `child` does not invalidate the copy
+  mjModel* copy_model = mj_compile(copy, 0);
+  EXPECT_THAT(copy_model, NotNull());
+  EXPECT_NEAR(copy_model->body_quat[0], 1, 1e-12);
+  EXPECT_NEAR(copy_model->body_quat[1], 0, 1e-12);
+  EXPECT_NEAR(copy_model->body_quat[2], 0, 1e-12);
+  EXPECT_NEAR(copy_model->body_quat[3], 0, 1e-12);
+
+  mj_deleteModel(copy_model);
+  mj_deleteSpec(copy);
 }
 
 TEST_F(MujocoTest, CopyAttachedSpec) {

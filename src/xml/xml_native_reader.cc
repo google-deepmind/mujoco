@@ -972,19 +972,19 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
 
   // top-level attributes
   if (MapValue(section, "autolimits", &n, bool_map, 2)) {
-    spec->autolimits = (n==1);
+    spec->compiler.autolimits = (n==1);
   }
-  ReadAttr(section, "boundmass", 1, &spec->boundmass, text);
-  ReadAttr(section, "boundinertia", 1, &spec->boundinertia, text);
-  ReadAttr(section, "settotalmass", 1, &spec->settotalmass, text);
+  ReadAttr(section, "boundmass", 1, &spec->compiler.boundmass, text);
+  ReadAttr(section, "boundinertia", 1, &spec->compiler.boundinertia, text);
+  ReadAttr(section, "settotalmass", 1, &spec->compiler.settotalmass, text);
   if (MapValue(section, "balanceinertia", &n, bool_map, 2)) {
-    spec->balanceinertia = (n==1);
+    spec->compiler.balanceinertia = (n==1);
   }
   if (MapValue(section, "strippath", &n, bool_map, 2)) {
     spec->strippath = (n==1);
   }
   if (MapValue(section, "fitaabb", &n, bool_map, 2)) {
-    spec->fitaabb = (n==1);
+    spec->compiler.fitaabb = (n==1);
   }
   if (MapValue(section, "coordinate", &n, coordinate_map, 2)) {
     if (n==1) {
@@ -993,13 +993,13 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
     }
   }
   if (MapValue(section, "angle", &n, angle_map, 2)) {
-    spec->degree = (n==1);
+    spec->compiler.degree = (n==1);
   }
   if (ReadAttrTxt(section, "eulerseq", text)) {
     if (text.size()!=3) {
       throw mjXError(section, "euler format must have length 3");
     }
-    memcpy(spec->eulerseq, text.c_str(), 3);
+    memcpy(spec->compiler.eulerseq, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
     mjs_setString(spec->meshdir, text.c_str());
@@ -1014,27 +1014,27 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
     mjs_setString(spec->texturedir, texturedir.c_str());
   }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
-    spec->discardvisual = (n==1);
+    spec->compiler.discardvisual = (n==1);
   }
   if (MapValue(section, "convexhull", &n, bool_map, 2)) {
-    spec->convexhull = (n==1);
+    spec->compiler.convexhull = (n==1);
   }
   if (MapValue(section, "usethread", &n, bool_map, 2)) {
-    spec->usethread = (n==1);
+    spec->compiler.usethread = (n==1);
   }
   if (MapValue(section, "fusestatic", &n, bool_map, 2)) {
-    spec->fusestatic = (n==1);
+    spec->compiler.fusestatic = (n==1);
   }
-  MapValue(section, "inertiafromgeom", &spec->inertiafromgeom, TFAuto_map, 3);
-  ReadAttr(section, "inertiagrouprange", 2, spec->inertiagrouprange, text);
+  MapValue(section, "inertiafromgeom", &spec->compiler.inertiafromgeom, TFAuto_map, 3);
+  ReadAttr(section, "inertiagrouprange", 2, spec->compiler.inertiagrouprange, text);
   if (MapValue(section, "alignfree", &n, bool_map, 2)) {
-    spec->alignfree = (n==1);
+    spec->compiler.alignfree = (n==1);
   }
 
   // lengthrange subelement
   XMLElement* elem = FindSubElem(section, "lengthrange");
   if (elem) {
-    mjLROpt* opt = &(spec->LRopt);
+    mjLROpt* opt = &(spec->compiler.LRopt);
 
     // flags
     MapValue(elem, "mode", &opt->mode, lrmode_map, lrmode_sz);
@@ -2759,7 +2759,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make(spec, body, error, 200);
+  bool res = fcomp.Make(body, error, 200);
 
   // throw error
   if (!res) {
@@ -3575,7 +3575,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       alt.type = mjORIENTATION_EULER;
       mjuu_copyvec(alt.euler, euler, 3);
       double rotation[4] = {1, 0, 0, 0};
-      mjs_resolveOrientation(rotation, spec->degree, spec->eulerseq, &alt);
+      mjs_resolveOrientation(rotation, spec->compiler.degree, spec->compiler.eulerseq, &alt);
 
       // read childdef
       mjsDefault* childdef = 0;
@@ -3610,7 +3610,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         alt.euler[0] = i*euler[0];
         alt.euler[1] = i*euler[1];
         alt.euler[2] = i*euler[2];
-        mjs_resolveOrientation(quat, spec->degree, spec->eulerseq, &alt);
+        mjs_resolveOrientation(quat, spec->compiler.degree, spec->compiler.eulerseq, &alt);
         mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
 
         // process suffix

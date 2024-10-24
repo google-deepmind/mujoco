@@ -194,6 +194,7 @@ PYBIND11_MODULE(_specs, m) {
   py::class_<raw::MjOption> mjOption(m, "MjOption");
   py::class_<raw::MjStatistic> mjStatistic(m, "MjStatistic");
   py::class_<raw::MjVisual> mjVisual(m, "MjVisual");
+  py::class_<raw::MjsCompiler> mjsCompiler(m, "MjsCompiler");
   DefineArray<char>(m, "MjCharVec");
   DefineArray<std::string>(m, "MjStringVec");
   DefineArray<std::byte>(m, "MjByteVec");

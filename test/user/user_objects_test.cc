@@ -1176,7 +1176,7 @@ TEST_F(MjCJointTest, AlignFree) {
   std::array<char, 1024> err;
   mjSpec* s = mj_parseXML(xml_path.c_str(), nullptr, err.data(), err.size());
   ASSERT_THAT(s, NotNull()) << err.data();
-  s->alignfree = 1;  // auto-aligned free joint
+  s->compiler.alignfree = 1;  // auto-aligned free joint
   mjModel* m = mj_compile(s, nullptr);
   ASSERT_THAT(m, NotNull());
 
@@ -1186,7 +1186,7 @@ TEST_F(MjCJointTest, AlignFree) {
   EXPECT_EQ(m->dof_simplenum[0], 6);
 
   // make unaligned model
-  s->alignfree = 0;  // unaligned free joint
+  s->compiler.alignfree = 0;  // unaligned free joint
   mjModel* m_u = mj_compile(s, nullptr);
   ASSERT_THAT(m_u, NotNull());
 
