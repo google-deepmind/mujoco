@@ -4258,8 +4258,6 @@ void mjXReader::Sensor(XMLElement* section) {
 // keyframe section parser
 void mjXReader::Keyframe(XMLElement* section) {
   XMLElement* elem;
-  int n;
-  double data[1000];
 
   // iterate over child elements
   elem = FirstChildElement(section);
@@ -4275,39 +4273,39 @@ void mjXReader::Keyframe(XMLElement* section) {
     ReadAttr(elem, "time", 1, &key->time, text);
 
     // read qpos
-    n = ReadAttr(elem, "qpos", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->qpos, data, n);
+    auto maybe_data = ReadAttrVec<double>(elem, "qpos", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->qpos, maybe_data->data(), maybe_data->size());
     }
 
     // read qvel
-    n = ReadAttr(elem, "qvel", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->qvel, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "qvel", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->qvel, maybe_data->data(), maybe_data->size());
     }
 
     // read act
-    n = ReadAttr(elem, "act", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->act, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "act", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->act, maybe_data->data(), maybe_data->size());
     }
 
     // read mpos
-    n = ReadAttr(elem, "mpos", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->mpos, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "mpos", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->mpos, maybe_data->data(), maybe_data->size());
     }
 
     // read mquat
-    n = ReadAttr(elem, "mquat", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->mquat, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "mquat", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->mquat, maybe_data->data(), maybe_data->size());
     }
 
     // read ctrl
-    n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->ctrl, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "ctrl", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->ctrl, maybe_data->data(), maybe_data->size());
     }
 
     // advance to next element
