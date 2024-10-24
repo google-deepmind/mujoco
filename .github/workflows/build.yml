@@ -239,7 +239,6 @@ jobs:
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
-      working-directory: python/dist
       env:
         MUJOCO_GL: disable
       run: >
