@@ -10,6 +10,9 @@ General
 - The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
   :ref:`inertia<asset-mesh-inertia>` attribute.
 - Removed the deprecated ``mju_rotVecMat`` and ``mju_rotVecMatT`` functions.
+- Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
+- The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single
+  :ref:`layer<material-layer>` sub-element.
 
 MJX
 ^^^
@@ -169,7 +172,7 @@ General
 2. Added a new :ref:`autoreset<option-flag-autoreset>` flag to disable automatic reset when NaNs or infinities are
    detected.
 3. Added sub-elements to the MJCF :ref:`material<asset-material>` element, to allow specification of multiple textures
-   for rendering (e.g., :ref:`occlusion-roughness-metallic<material-orm>`). Note that the MuJoCo renderer doesn't
+   for rendering (e.g., ``occlusion, roughness, metallic``). Note that the MuJoCo renderer doesn't
    support these new features, and they are made available for use with external renderers.
 4. Sorting (``mjQUICKSORT``) now calls ``std::sort`` when building with C++ (:github:issue:`1638`).
 

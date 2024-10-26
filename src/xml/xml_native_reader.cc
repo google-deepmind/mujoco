@@ -247,15 +247,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
             "emission", "specular", "shininess", "reflectance", "metallic", "roughness", "rgba"},
         {"<"},
-            {"rgb", "?", "1", "texture"},
-            {"occlusion", "?", "1", "texture"},
-            {"roughness", "?", "1", "texture"},
-            {"metallic", "?", "1", "texture"},
-            {"normal", "?", "1", "texture"},
-            {"opacity", "?", "1", "texture"},
-            {"emissive", "?", "1", "texture"},
-            {"rgba", "?", "1", "texture"},
-            {"orm", "?", "1", "texture"},
+            {"layer", "*", "2", "texture", "role"},
         {">"},
         {"model", "*", "3", "name", "file", "content_type"},
     {">"},
@@ -1590,17 +1582,18 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* material) {
     tex_attributes_found = true;
   }
 
-  XMLElement* tex_elem = FirstChildElement(elem);
-  while (tex_elem) {
+  XMLElement* layer = FirstChildElement(elem);
+  while (layer) {
     if (tex_attributes_found) {
-      throw mjXError(tex_elem, "A material with a texture attribute cannot have texture sub-elements");
+      throw mjXError(layer, "A material with a texture attribute cannot have layer sub-elements");
     }
-    // texture sub-element
-    int role = FindKey(texrole_map, texrole_sz, tex_elem->Name());
-    string texmat;
-    ReadAttrTxt(tex_elem, "texture", texmat, true);
-    mjs_setInStringVec(material->textures, role, texmat.c_str());
-    tex_elem = NextSiblingElement(tex_elem);
+
+    // layer sub-element
+    ReadAttrTxt(layer, "role", text, true);
+    int role = FindKey(texrole_map, texrole_sz, text);
+    ReadAttrTxt(layer, "texture", text, true);
+    mjs_setInStringVec(material->textures, role, text.c_str());
+    layer = NextSiblingElement(layer);
   }
 
   if (MapValue(elem, "texuniform", &n, bool_map, 2)) {

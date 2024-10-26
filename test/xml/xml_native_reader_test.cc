@@ -805,10 +805,10 @@ TEST_F(XMLReaderTest, MaterialTextureTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material">
-        <occlusion texture="tiny0"/>
-        <roughness texture="tiny0"/>
-        <metallic texture="tiny0"/>
-        <rgb texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
+        <layer role="roughness" texture="tiny0"/>
+        <layer role="metallic" texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
       </material>
     </asset>
     <worldbody>
@@ -873,8 +873,8 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material" texture="tiny1">
-        <rgb texture="tiny1"/>
-        <occlusion texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
       </material>
     </asset>
     <worldbody>
@@ -887,7 +887,7 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("A material with a texture attribute "
-                                      "cannot have texture sub-elements"));
+                                      "cannot have layer sub-elements"));
 }
 
 TEST_F(XMLReaderTest, LargeTextureTest) {

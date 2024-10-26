@@ -1247,19 +1247,16 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 :at:`inertia`: :at-val:`[convex, exact, legacy], "legacy"`
    This attribute controls how the mesh is used when mass and inertia are
-   :ref:`inferred from geometry<_compiler-inertiafromgeom>`. The current default value :at-val:`legacy` will be changed
+   :ref:`inferred from geometry<compiler-inertiafromgeom>`. The current default value :at-val:`legacy` will be changed
    to :at-val:`convex` in a future release.
 
-   :at-val:`convex`
-      Use the mesh's convex hull to compute volume and inertia.
+   :at-val:`convex`: Use the mesh's convex hull to compute volume and inertia.
 
-   :at-val:`exact`
-      Use an exact algorithm to compute volume and inertia. This algorithm requires a well-oriented, watertight mesh and
-      will error otherwise.
+   :at-val:`exact`: Use an exact algorithm to compute volume and inertia. This algorithm requires a well-oriented,
+   watertight mesh and will error otherwise.
 
-   :at-val:`legacy`
-      Use the legacy algorithm, which is similar to :at-val:`convex`, but leads to volume overcounting for non-convex
-      meshes.
+   :at-val:`legacy`: Use the legacy algorithm, which is similar to :at-val:`convex`, but leads to volume overcounting
+   for non-convex meshes.
 
 .. _asset-mesh-smoothnormal:
 
@@ -1710,9 +1707,9 @@ properties are grouped together.
    loaded explicitly via the :ref:`texture <asset-texture>` element and then referenced here. The texture referenced
    here is used for specifying the RGB values. For advanced rendering (e.g., Physics-Based Rendering), more texture
    types need to be specified (e.g., roughness, metallic).  In this case, this texture attribute should be omitted, and
-   the texture types should be specified explicitly via the specific role child elements, e.g.,
-   :ref:`texture <material-orm>`.  Note however that the built-in renderer does not support PBR properties, so these
-   advanced rendering features are only available when using an external renderer.
+   the texture types should be specified using :ref:`layer <material-layer>` child elements. Note however that the
+   built-in renderer does not support PBR properties, so these advanced rendering features are only available when using
+   an external renderer.
 
 .. _asset-material-texrepeat:
 
@@ -1784,116 +1781,59 @@ properties are grouped together.
    model element which defines its own local rgba attribute, the local definition has precedence. Note that this "local"
    definition could in fact come from a defaults class. The remaining material properties always apply.
 
-.. _material-rgb:
+.. _material-layer:
 
-:el-prefix:`material/` |-| **rgb** (?)
-''''''''''''''''''''''''''''''''''''''
+:el-prefix:`material/` |-| **layer** (?)
+''''''''''''''''''''''''''''''''''''''''
 
-This element references a texture asset used to specify base color / albedo values.
+If multiple textures are needed to specify the appearance of a material, the :ref:`texture <asset-material-texture>`
+attribute cannot be used, and :el:`layer` child elements must be used instead. Specifying both the :at:`texture`
+attribute and :el:`layer` child elements is an error.
 
-.. _material-rgb-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 3 channels.
-
-.. _material-normal:
-
-:el-prefix:`material/` |-| **normal** (?)
-'''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the bump map (surface normals).
-
-.. _material-normal-texture:
+.. _material-layer-texture:
 
 :at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 3 channels.
+   Name of the texture, like the :ref:`texture <asset-material-texture>` attribute.
 
-.. _material-occlusion:
+.. _material-layer-role:
 
-:el-prefix:`material/` |-| **occlusion** (?)
-''''''''''''''''''''''''''''''''''''''''''''
+:at:`role`: :at-val:`string, required`
+   Role of the texture. The valid values, expected number of channels, and the role semantics are:
 
-This element references a texture asset used to specify ambient occlusion.
+   .. list-table::
+      :widths: 1 1 8
+      :header-rows: 1
 
-.. _material-occlusion-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-roughness:
-
-:el-prefix:`material/` |-| **roughness** (?)
-''''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the roughness map.
-
-.. _material-roughness-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-metallic:
-
-:el-prefix:`material/` |-| **metallic** (?)
-'''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the metallic map.
-
-.. _material-metallic-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-opacity:
-
-:el-prefix:`material/` |-| **opacity** (?)
-''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the opacity map (alpha channel, transparency).
-
-.. _material-opacity-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-emissive:
-
-:el-prefix:`material/` |-| **emissive** (?)
-'''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify light emission.
-
-.. _material-emissive-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 4 channels.
-
-.. _material-orm:
-
-:el-prefix:`material/` |-| **orm** (?)
-''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify a packed ORM map, where occlusion, roughness, and metallic
-are joined into the corresponding RGB values of a single texture.
-
-.. _material-orm-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 3 channels.
-
-.. _material-rgba:
-
-:el-prefix:`material/` |-| **rgba** (?)
-'''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify a packed map where albedo and opacity are joined into the same
-4-channel texture.
-
-.. _material-rgba-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 4 channels.
-
+      * - value
+        - channels
+        - description
+      * - :at:`rgb`
+        - 3
+        - base color / albedo [red, green, blue]
+      * - :at:`normal`
+        - 3
+        - bump map (surface normals)
+      * - :at:`occlusion`
+        - 1
+        - ambient occlusion
+      * - :at:`roughness`
+        - 1
+        - roughness
+      * - :at:`metallic`
+        - 1
+        - metallicity
+      * - :at:`opacity`
+        - 1
+        - opacity (alpha channel)
+      * - :at:`emissive`
+        - 4
+        - RGB light emmision intensity, exposure weight in 4th channel
+      * - :at:`orm`
+        - 3
+        - packed 3 channel [occlusion, roughness, metallic]
+      * - :at:`rgba`
+        - 4
+        - packed 4 channel [red, green, blue, alpha]
 
 .. _asset-model:
 

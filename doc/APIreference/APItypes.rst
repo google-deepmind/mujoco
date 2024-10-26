@@ -1143,7 +1143,7 @@ behavior.
 .. _mjsCompiler:
 
 mjsCompiler
-~~~~~~~~~~
+~~~~~~~~~~~
 
 Compiler options.
 
