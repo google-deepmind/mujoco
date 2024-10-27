@@ -5727,7 +5727,6 @@ public unsafe struct mjsCompiler_ {
   public byte degree;
   public fixed sbyte eulerseq[3];
   public byte discardvisual;
-  public byte convexhull;
   public byte usethread;
   public byte fusestatic;
   public int inertiafromgeom;

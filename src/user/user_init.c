@@ -39,7 +39,6 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->compiler.eulerseq[0] = 'x';
   spec->compiler.eulerseq[1] = 'y';
   spec->compiler.eulerseq[2] = 'z';
-  spec->compiler.convexhull = 1;
   spec->compiler.usethread = 1;
   spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
   spec->compiler.inertiagrouprange[1] = mjNGROUP-1;

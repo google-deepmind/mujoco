@@ -563,7 +563,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // make graph describing convex hull
-  if ((model->compiler.convexhull && needhull_) || face_.empty()) {
+  if (needhull_ || face_.empty()) {
     MakeGraph();
   }
 

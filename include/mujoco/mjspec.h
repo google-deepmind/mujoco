@@ -131,7 +131,6 @@ typedef struct mjsCompiler_ {      // compiler options
   mjtByte degree;                  // angles in radians or degrees
   char eulerseq[3];                // sequence for euler rotations
   mjtByte discardvisual;           // discard visual geoms in parser
-  mjtByte convexhull;              // compute mesh convex hulls
   mjtByte usethread;               // use multiple threads to speed up compiler
   mjtByte fusestatic;              // fuse static bodies with parent
   int inertiafromgeom;             // use geom inertias (mjtInertiaFromGeom)

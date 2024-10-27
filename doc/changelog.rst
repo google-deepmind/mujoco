@@ -9,6 +9,7 @@ General
 ^^^^^^^
 - The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
   :ref:`inertia<asset-mesh-inertia>` attribute.
+- The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
 - Removed the deprecated ``mju_rotVecMat`` and ``mju_rotVecMatT`` functions.
 - Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
 - The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single

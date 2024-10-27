@@ -772,23 +772,11 @@ has any effect. The settings here are global and apply to the entire model.
    models compiled with this flag, it is important to remember that collision geoms are often placed in a
    :ref:`group<body-geom-group>` which is invisible by default.
 
-.. _compiler-convexhull:
-
-:at:`convexhull`: :at-val:`[false, true], "true"`
-   If this attribute is "true", the compiler will automatically generate a convex hull for every mesh that is used in at
-   least one non-visual geom (in the sense of the discardvisual attribute above). This is done to speed up collision
-   detection; recall :ref:`Collision` section in the Computation chapter. Even if the mesh is already convex, the hull
-   contains edge information that is not present in the mesh file, so it needs to be constructed. The only reason to
-   disable this feature is to speed up re-loading of a model with large meshes during model editing (since the convex
-   hull computation is the slowest operation performed by the compiler). However once model design is finished, this
-   feature should be enabled, because the availability of convex hulls substantially speeds up collision detection with
-   large meshes.
-
 .. _compiler-usethread:
 
 :at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is used
-   for computing the length ranges of actuators and for loading meshes.
+   for computing the length ranges of actuators and for parallel loading of meshes.
 
 .. _compiler-fusestatic:
 

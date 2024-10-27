@@ -97,9 +97,9 @@ static void UpdateString(string& psuffix, int count, int i) {
 const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
+    {"compiler", "*", "19", "autolimits", "boundmass", "boundinertia", "settotalmass",
         "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
-        "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
+        "meshdir", "texturedir", "discardvisual", "usethread",
         "fusestatic", "inertiafromgeom", "inertiagrouprange", "assetdir", "alignfree"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
@@ -1007,9 +1007,6 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
   }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
     spec->compiler.discardvisual = (n==1);
-  }
-  if (MapValue(section, "convexhull", &n, bool_map, 2)) {
-    spec->compiler.convexhull = (n==1);
   }
   if (MapValue(section, "usethread", &n, bool_map, 2)) {
     spec->compiler.usethread = (n==1);

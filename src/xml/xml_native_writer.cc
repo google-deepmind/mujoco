@@ -920,9 +920,6 @@ void mjXWriter::Compiler(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "compiler");
 
   // settings
-  if (!model->compiler.convexhull) {
-    WriteAttrTxt(section, "convexhull", FindValue(bool_map, 2, model->compiler.convexhull));
-  }
   WriteAttrTxt(section, "angle", "radian");
   if (!model->get_meshdir().empty()) {
     WriteAttrTxt(section, "meshdir", model->get_meshdir());

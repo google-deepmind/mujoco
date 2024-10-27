@@ -42,7 +42,6 @@ extern const int gain_sz;
 extern const int bias_sz;
 extern const int stage_sz;
 extern const int datatype_sz;
-extern const mjMap coordinate_map[];
 extern const mjMap angle_map[];
 extern const mjMap enable_map[];
 extern const mjMap bool_map[];

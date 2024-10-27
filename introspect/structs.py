@@ -8854,11 +8854,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='discard visual geoms in parser',
              ),
              StructFieldDecl(
-                 name='convexhull',
-                 type=ValueType(name='mjtByte'),
-                 doc='compute mesh convex hulls',
-             ),
-             StructFieldDecl(
                  name='usethread',
                  type=ValueType(name='mjtByte'),
                  doc='use multiple threads to speed up compiler',
