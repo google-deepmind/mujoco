@@ -2107,18 +2107,6 @@ mjv_initGeom
 
 Initialize given geom fields when not NULL, set the rest to their default values.
 
-.. _mjv_makeConnector:
-
-mjv_makeConnector
-~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_makeConnector
-
-Set (type, size, pos, mat) for connector-type geom between given points.
-Assume that mjv_initGeom was already called to set all other properties.
-Width of mjGEOM_LINE is denominated in pixels.
-Deprecated: use mjv_connector.
-
 .. _mjv_connector:
 
 mjv_connector

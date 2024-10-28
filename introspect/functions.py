@@ -4372,52 +4372,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Initialize given geom fields when not NULL, set the rest to their default values.',  # pylint: disable=line-too-long
      )),
-    ('mjv_makeConnector',
-     FunctionDecl(
-         name='mjv_makeConnector',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='geom',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjvGeom'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='type',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='width',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a0',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a1',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a2',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b0',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b1',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b2',
-                 type=ValueType(name='mjtNum'),
-             ),
-         ),
-         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels. Deprecated: use mjv_connector.',  # pylint: disable=line-too-long
-     )),
     ('mjv_connector',
      FunctionDecl(
          name='mjv_connector',

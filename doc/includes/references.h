@@ -3337,9 +3337,6 @@ void mjv_defaultOption(mjvOption* opt);
 void mjv_defaultFigure(mjvFigure* fig);
 void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
                   const mjtNum pos[3], const mjtNum mat[9], const float rgba[4]);
-void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                       mjtNum a0, mjtNum a1, mjtNum a2,
-                       mjtNum b0, mjtNum b1, mjtNum b2);
 void mjv_connector(mjvGeom* geom, int type, mjtNum width,
                    const mjtNum from[3], const mjtNum to[3]);
 void mjv_defaultScene(mjvScene* scn);

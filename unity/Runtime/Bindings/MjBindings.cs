@@ -6922,9 +6922,6 @@ public static unsafe extern void mjv_defaultFigure(mjvFigure_* fig);
 public static unsafe extern void mjv_initGeom(mjvGeom_* geom, int type, double* size, double* pos, double* mat, float* rgba);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjv_makeConnector(mjvGeom_* geom, int type, double width, double a0, double a1, double a2, double b0, double b1, double b2);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_connector(mjvGeom_* geom, int type, double width, double* from, double* to);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

@@ -10,7 +10,7 @@ General
 - The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
   :ref:`inertia<asset-mesh-inertia>` attribute.
 - The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
-- Removed the deprecated ``mju_rotVecMat`` and ``mju_rotVecMatT`` functions.
+- Removed the deprecated ``mju_rotVecMat``, ``mju_rotVecMatT`` and ``mjv_makeConnector`` functions.
 - Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
 - The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single
   :ref:`layer<material-layer>` sub-element.
@@ -892,7 +892,7 @@ General
 #. Added analytic derivatives for quaternion :ref:`subtraction<mjd_subQuat>` and :ref:`integration<mjd_quatIntegrate>`
    (rotation with an angular velocity). Derivatives are in the 3D tangent space.
 #. Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
-   "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
+   "from-to" argument parametrization. ``mjv_makeConnector`` is now deprecated.
 #. Bumped oldest supported MacOS from version 10.12 to 11. MacOS 11 is the oldest version still maintained by Apple.
 
 Python bindings

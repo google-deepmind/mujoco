@@ -126,7 +126,7 @@ attributes:
 - ``user_scn``: an :ref:`mjvScene` object that allows users to add change rendering flags and add custom
   visualization geoms to the rendered scene. This is separate from the ``mjvScene`` that the viewer uses internally to
   render the final scene, and is entirely under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or
-  :ref:`mjv_makeConnector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
+  :ref:`mjv_connector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
   will incorporate these geoms to future rendered images. Similarly, user scripts can make changes to ``user_scn.flags``
   which would be picked up at the next call to ``sync()``. The ``sync()`` call also copies changes to rendering flags
   made via the GUI back into ``user_scn`` to preserve consistency. For example:
