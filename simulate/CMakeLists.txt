@@ -137,7 +137,8 @@ target_sources(
     platform_ui_adapter.h
     glfw_adapter.h
     glfw_dispatch.h
-  PRIVATE simulate.cc array_safety.h
+    array_safety.h
+  PRIVATE simulate.cc 
 )
 target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
@@ -231,14 +232,6 @@ if(SIMULATE_BUILD_EXECUTABLE)
     set(_INSTALL_SIMULATE OFF)
   endif()
 
-  target_link_libraries(libsimulate
-  PUBLIC
-    lodepng
-    mujoco::platform_ui_adapter
-    mujoco::mujoco
-  PRIVATE
-    # Add any private dependencies here
-)
   if(_INSTALL_SIMULATE)
 
     include(TargetAddRpath)
@@ -267,7 +260,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
 
     # Specify public headers for libsimulate
     if(SIMULATE_EXPOSE_HEADERS)
-      set_target_properties(libsimulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h")
+      set_target_properties(libsimulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
 
       install(
       TARGETS libsimulate
