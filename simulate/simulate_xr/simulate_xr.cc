@@ -17,10 +17,10 @@
 // header, glad, glfw3, glfw3native
 // autoformat will try to screw with this
 #include "simulate_xr.h"
-
-#include "glad\glad.h"
+#include "glad/glad.h"
 
 #include <GLFW/glfw3.h>
+
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
 #define GLFW_NATIVE_INCLUDE_NONE
@@ -35,36 +35,55 @@ void SimulateXr::init() {
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cerr << "Failed to initialize OpenGL context for OpenXR." << std::endl;
     return;
-  } else {
+  } else if (verbose > 0)
     std::cout << "Initialized OpenGL context for OpenXR." << std::endl;
-  }
 
   if (_create_instance() < 0) {
     std::cerr << "Failed to create OpenXr instance." << std::endl;
     return;
-  }
+  } else if (verbose > 0)
+    std::cout << "Created OpenXr instance." << std::endl;
 
   _get_instance_properties();
 
   if (_get_system_id() < 0) {
     std::cerr << "Failed to get XR System ID." << std::endl;
     return;
-  }
+  } else if (verbose > 1)
+    std::cout << "Got XR System ID." << std::endl;
 
   if (_get_view_configuration_views() < 0) {
-    std::cerr << "Failed to get view configuration." << std::endl;
+    std::cerr << "Failed to get XR view configuration." << std::endl;
     return;
-  }
+  } else if (verbose > 1)
+    std::cout << "Got XR view configuration." << std::endl;
 
-  _get_environment_blend_modes();
+  if (_get_environment_blend_modes() < 0) {
+    std::cerr << "Failed to get XR blend modes." << std::endl;
+    return;
+  } else if (verbose > 1)
+    std::cout << "Got XR blend modes." << std::endl;
 
-  _create_session();
+  if (_create_session() < 0) {
+    std::cerr << "Failed to create XR session." << std::endl;
+    return;
+  } else if (verbose > 0)
+    std::cout << "Created XR session." << std::endl;
 
-  _create_reference_space();
+  if (_create_reference_space() < 0) {
+    std::cerr << "Failed to create XR reference space." << std::endl;
+    return;
+  } else if (verbose > 1)
+    std::cout << "Created reference space." << std::endl;
 
-  _create_swapchain();
+  if (_create_swapchain() < 0) {
+    std::cerr << "Failed to create XR swapchain." << std::endl;
+    return;
+  } else if (verbose > 1)
+    std::cout << "Created swapchain." << std::endl;
 
   m_initialized = true;
+  if (verbose > 0) std::cout << "Initialized XR." << std::endl;
 }
 
 void SimulateXr::deinit() {
@@ -89,7 +108,7 @@ void SimulateXr::init_scene_vis(mjvScene *scn, mjModel *m) {
   }
 }
 
-bool SimulateXr::before_render_1sc(mjvScene *scn, mjModel *m) {
+bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   rendered = false;
 
   // poll events
@@ -191,8 +210,10 @@ bool SimulateXr::before_render_1sc(mjvScene *scn, mjModel *m) {
 
 bool SimulateXr::is_initialized() { return m_initialized; }
 
-void SimulateXr::after_render_1sc(mjrContext *con) {
+void SimulateXr::after_render(mjrContext *con) {
   if (!m_sessionRunning) return;
+
+  int answ;
 
   // We copy what MuJoCo rendered on our framebuffer object
   // for each imageview
@@ -220,9 +241,13 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
   // Give the swapchain image back to OpenXR, allowing the compositor to use
   // the image.
   XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-  if (xrReleaseSwapchainImage(m_colorSwapchainInfo.swapchain, &releaseInfo) < 0)
-    std::cerr << "Failed to release Image back to the Color Swapchain"
-              << std::endl;
+  answ = xrReleaseSwapchainImage(m_colorSwapchainInfo.swapchain, &releaseInfo);
+  if (answ < 0) {
+    // OpenXR throws one XR_ERROR_CALL_ORDER_INVALID at the end
+    if (answ != -37 || verbose > 2)
+      std::cerr << "Failed to release Image back to the Color Swapchain. Code: "
+                << answ << "." << std::endl;
+  }
 
   // Fill out the XrCompositionLayerProjection structure for usage with
   // xrEndFrame().
@@ -249,7 +274,7 @@ void SimulateXr::after_render_1sc(mjrContext *con) {
   frameEndInfo.layerCount =
       static_cast<uint32_t>(renderLayerInfo.layers.size());
   frameEndInfo.layers = renderLayerInfo.layers.data();
-  int answ = xrEndFrame(m_session, &frameEndInfo);
+  answ = xrEndFrame(m_session, &frameEndInfo);
   if (answ < 0) {
     std::cerr << "Failed to end the XR Frame. Code: " << answ << "."
               << std::endl;
@@ -350,12 +375,8 @@ int SimulateXr::_create_instance() {
       static_cast<uint32_t>(m_activeInstanceExtensions.size());
   instanceCI.enabledExtensionNames = m_activeInstanceExtensions.data();
 
-  if (xrCreateInstance(&instanceCI, &m_xrInstance) < 0) {
-    std::cerr << "Failed to create XR instance." << std::endl;
+  if (xrCreateInstance(&instanceCI, &m_xrInstance) < 0)
     return -3;
-  } else {
-    std::cout << "Created XR instance." << std::endl;
-  }
 
   return 0;
 }
@@ -367,8 +388,6 @@ void SimulateXr::_destroy_instance() {
 }
 
 void SimulateXr::_view_to_cam(mjvGLCamera &cam, const XrView &view) {
-  float nearZ = 0.05f;
-  float farZ = 50.0f;  // todo switch to 100?
   cam.pos[0] = view.pose.position.x;
   cam.pos[1] = view.pose.position.y;
   cam.pos[2] = view.pose.position.z;
@@ -421,10 +440,12 @@ void SimulateXr::_get_instance_properties() {
   if (xrGetInstanceProperties(m_xrInstance, &instanceProperties) < 0)
     std::cerr << "Failed to get InstanceProperties." << std::endl;
 
-  std::cout << "OpenXR Runtime: " << instanceProperties.runtimeName << " - "
-            << XR_VERSION_MAJOR(instanceProperties.runtimeVersion) << "."
-            << XR_VERSION_MINOR(instanceProperties.runtimeVersion) << "."
-            << XR_VERSION_PATCH(instanceProperties.runtimeVersion) << std::endl;
+  if (verbose > 0)
+    std::cout << "OpenXR Runtime: " << instanceProperties.runtimeName << " - "
+              << XR_VERSION_MAJOR(instanceProperties.runtimeVersion) << "."
+              << XR_VERSION_MINOR(instanceProperties.runtimeVersion) << "."
+              << XR_VERSION_PATCH(instanceProperties.runtimeVersion)
+              << std::endl;
 }
 
 int SimulateXr::_get_system_id() {
@@ -438,8 +459,11 @@ int SimulateXr::_get_system_id() {
 
   // Get the System's properties for some general information about the hardware
   // and the vendor.
-  if (xrGetSystemProperties(m_xrInstance, m_systemID, &m_systemProperties) < 0)
+  if (xrGetSystemProperties(m_xrInstance, m_systemID, &m_systemProperties) <
+      0) {
     std::cerr << "Failed to get SystemProperties." << std::endl;
+    return -2;
+  }
 
   return 0;
 }
@@ -507,21 +531,24 @@ int SimulateXr::_get_view_configuration_views() {
   return 0;
 }
 
-void SimulateXr::_get_environment_blend_modes() {
+int SimulateXr::_get_environment_blend_modes() {
   // Retrieves the available blend modes. The first call gets the count of the
   // array that will be returned. The next call fills out the array.
   uint32_t environmentBlendModeCount = 0;
-  if (xrEnumerateEnvironmentBlendModes(m_xrInstance, m_systemID,
-                                       m_viewConfiguration, 0,
-                                       &environmentBlendModeCount, nullptr) < 0)
+  if (xrEnumerateEnvironmentBlendModes(
+          m_xrInstance, m_systemID, m_viewConfiguration, 0,
+          &environmentBlendModeCount, nullptr) < 0) {
     std::cerr << "Failed to enumerate EnvironmentBlend Modes." << std::endl;
+    return -1;
+  }
   m_environmentBlendModes.resize(environmentBlendModeCount);
   if (xrEnumerateEnvironmentBlendModes(
           m_xrInstance, m_systemID, m_viewConfiguration,
           environmentBlendModeCount, &environmentBlendModeCount,
-          m_environmentBlendModes.data()) < 0)
+          m_environmentBlendModes.data()) < 0) {
     std::cerr << "Failed to enumerate EnvironmentBlend Modes." << std::endl;
-
+    return -1;
+  }
   // Pick the first application supported blend mode supported by the hardware.
   for (const XrEnvironmentBlendMode &environmentBlendMode :
        m_applicationEnvironmentBlendModes) {
@@ -533,29 +560,34 @@ void SimulateXr::_get_environment_blend_modes() {
     }
   }
   if (m_environmentBlendMode == XR_ENVIRONMENT_BLEND_MODE_MAX_ENUM) {
-    std::cout << "Failed to find a compatible blend mode. Defaulting to "
+    std::cerr << "Failed to find a compatible blend mode. Defaulting to "
                  "XR_ENVIRONMENT_BLEND_MODE_OPAQUE."
               << std::endl;
     m_environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    return 1;
   }
+  return 0;
 }
 
-void SimulateXr::_create_session() {
+int SimulateXr::_create_session() {
   // Create an XrSessionCreateInfo structure.
   XrSessionCreateInfo sessionCI{XR_TYPE_SESSION_CREATE_INFO};
 
   if (xrGetInstanceProcAddr(
           m_xrInstance, "xrGetOpenGLGraphicsRequirementsKHR",
-          (PFN_xrVoidFunction *)&xrGetOpenGLGraphicsRequirementsKHR) < 0)
-    std::cerr << "Failed to get InstanceProcAddr for "
-                 "xrGetOpenGLGraphicsRequirementsKHR."
+          (PFN_xrVoidFunction *)&xrGetOpenGLGraphicsRequirementsKHR) < 0) {
+    std::cerr << "Failed to get xrGetOpenGLGraphicsRequirementsKHR."
               << std::endl;
+    return -1;
+  }
 
   XrGraphicsRequirementsOpenGLKHR graphicsRequirements{
       XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR};
   if (xrGetOpenGLGraphicsRequirementsKHR(m_xrInstance, m_systemID,
-                                         &graphicsRequirements) < 0)
+                                         &graphicsRequirements) < 0) {
     std::cerr << "Failed to get Graphics Requirements for OpenGL." << std::endl;
+    return -2;
+  }
 
   // get graphics binding
   graphicsBinding = {XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
@@ -569,10 +601,9 @@ void SimulateXr::_create_session() {
   sessionCI.createFlags = 0;
   sessionCI.systemId = m_systemID;
 
-  if (xrCreateSession(m_xrInstance, &sessionCI, &m_session) < 0)
-    std::cerr << "Failed to create XR Session." << std::endl;
-  else
-    std::cout << "Created XR Session." << std::endl;
+  if (xrCreateSession(m_xrInstance, &sessionCI, &m_session) < 0) return -3;
+
+  return 0;
 }
 
 void SimulateXr::_destroy_session() {
@@ -580,7 +611,9 @@ void SimulateXr::_destroy_session() {
     std::cerr << "Failed to destroy Session." << std::endl;
 }
 
-void SimulateXr::_create_reference_space() {
+int SimulateXr::_create_reference_space() {
+  // TODO Fill it here from the model file?
+
   // Fill out an XrReferenceSpaceCreateInfo structure and create a reference
   // XrSpace, specifying a Local space with an identity pose as the origin.
   XrReferenceSpaceCreateInfo referenceSpaceCI{
@@ -589,9 +622,9 @@ void SimulateXr::_create_reference_space() {
   referenceSpaceCI.poseInReferenceSpace = {{0.0f, 0.0f, 0.0f, 1.0f},
                                            {0.0f, 0.0f, 0.0f}};
   if (xrCreateReferenceSpace(m_session, &referenceSpaceCI, &m_localSpace) < 0)
-    std::cerr << "Failed to create ReferenceSpace." << std::endl;
-  else
-    std::cout << "Created ReferenceSpace." << std::endl;
+    return -1;
+
+  return 0;
 }
 
 void SimulateXr::_destroy_reference_space() {
@@ -600,29 +633,36 @@ void SimulateXr::_destroy_reference_space() {
     std::cerr << "Failed to destroy Space." << std::endl;
 }
 
-void SimulateXr::_create_swapchain() {
+int SimulateXr::_create_swapchain() {
   // create swapchain and swapchain_images
   // only a single one, color
 
   // Get the supported swapchain formats as an array of int64_t and ordered by
   // runtime preference.
   uint32_t formatCount = 0;
-  if (xrEnumerateSwapchainFormats(m_session, 0, &formatCount, nullptr) < 0)
+  if (xrEnumerateSwapchainFormats(m_session, 0, &formatCount, nullptr) < 0) {
     std::cerr << "Failed to enumerate Swapchain Formats";
+    return -1;
+  }
   std::vector<int64_t> formats(formatCount);
   if (xrEnumerateSwapchainFormats(m_session, formatCount, &formatCount,
-                                  formats.data()) < 0)
+                                  formats.data()) < 0) {
     std::cerr << "Failed to enumerate Swapchain Formats";
-  std::cout << "Found Swapchain Formats:";
-  for (size_t i = 0; i < formatCount; i++) {
-    std::cout << " " << std::hex << formats[i] << std::dec;
+    return -1;
   }
-  std::cout << ". Compatible format: " << std::hex
-            << SelectColorSwapchainFormat(formats) << std::dec << "."
-            << std::endl;
-  // GL_RGBA16F is 0x881A or 34842
-  // GL_RGBA8 is 0x8058 (unsupported)
-  // GL_RGBA16 is 0x805b
+
+  if (this->verbose > 1) {
+    std::cout << "Found Swapchain Formats:";
+    for (size_t i = 0; i < formatCount; i++) {
+      std::cout << " " << std::hex << formats[i] << std::dec;
+    }
+    std::cout << ". Compatible format: " << std::hex
+              << SelectColorSwapchainFormat(formats) << std::dec << "."
+              << std::endl;
+    // GL_RGBA16F is 0x881A or 34842
+    // GL_RGBA8 is 0x8058 (unsupported)
+    // GL_RGBA16 is 0x805b
+  }
 
   // Making only 1 swapchain
   // Fill out an XrSwapchainCreateInfo structure and create an XrSwapchain.
@@ -641,29 +681,32 @@ void SimulateXr::_create_swapchain() {
   swapchainCI.mipCount = 1;
   int ret = xrCreateSwapchain(m_session, &swapchainCI,
                               &m_colorSwapchainInfo.swapchain);
-  if (ret < 0)
-    std::cerr << "Failed to create Color Swapchain :" << ret << "."
-              << std::endl;
-  else
+  if (ret < 0) {
+    std::cerr << "Failed to create Color Swapchain:" << ret << "." << std::endl;
+    return -2;
+  } else if (this->verbose > 0)
     std::cout << "Created Color Swapchain." << std::endl;
+
   // Save the swapchain format for later use.
   m_colorSwapchainInfo.swapchainFormat = swapchainCI.format;
 
   // Get the number of images in the color/depth swapchain and allocate
-  // Swapchain image data via GraphicsAPI to store the returned array.
+  // Swapchain image data (buffer) to store the returned array.
   uint32_t colorSwapchainImageCount = 0;
   if (xrEnumerateSwapchainImages(m_colorSwapchainInfo.swapchain, 0,
-                                 &colorSwapchainImageCount, nullptr) < 0)
+                                 &colorSwapchainImageCount, nullptr) < 0) {
     std::cerr << "Failed to enumerate Color Swapchain Images." << std::endl;
-  // following could be simplified
+    return -3;
+  }
   XrSwapchainImageBaseHeader *colorSwapchainImages = AllocateSwapchainImageData(
       m_colorSwapchainInfo.swapchain, SwapchainType::COLOR,
       colorSwapchainImageCount);
   if (xrEnumerateSwapchainImages(
           m_colorSwapchainInfo.swapchain, colorSwapchainImageCount,
-          &colorSwapchainImageCount, colorSwapchainImages) < 0)
+          &colorSwapchainImageCount, colorSwapchainImages) < 0) {
     std::cerr << "Failed to enumerate Color Swapchain Images." << std::endl;
-  else
+    return -3;
+  } else if (this->verbose > 1)
     std::cout << "Enumerated Color Swapchain Images: "
               << colorSwapchainImageCount << "." << std::endl;
 
@@ -682,23 +725,25 @@ void SimulateXr::_create_swapchain() {
     imageViewCI.layerCount = 1;
     m_colorSwapchainInfo.imageViews.push_back(CreateImageView(imageViewCI));
   }
-  std::cout << "Created Swapchain." << std::endl;
+
+  return 0;
 }
 
 void SimulateXr::_destroy_swapchain() {
-  // TODO(AS)
+  // Destroy the color image view from GraphicsAPI.
+  for (void *&imageView : m_colorSwapchainInfo.imageViews) {
+    GLuint framebuffer = (GLuint)(uint64_t)imageView;
+    imageViews.erase(framebuffer);
+    glDeleteFramebuffers(1, &framebuffer);
+  }
 
-  //// Destroy the color image view from GraphicsAPI.
-  // for (void *&imageView : colorSwapchainInfo.imageViews) {
-  //   m_graphicsAPI->DestroyImageView(imageView);
-  // }
+  // Free the Swapchain Image Data.
+  swapchainImagesMap[m_colorSwapchainInfo.swapchain].second.clear();
+  swapchainImagesMap.erase(m_colorSwapchainInfo.swapchain);
 
-  //// Free the Swapchain Image Data.
-  // m_graphicsAPI->FreeSwapchainImageData(colorSwapchainInfo.swapchain);
-
-  //// Destroy the swapchains.
-  // OPENXR_CHECK(xrDestroySwapchain(colorSwapchainInfo.swapchain),
-  //              "Failed to destroy Color Swapchain");
+  // Destroy the swapchains.
+  if (xrDestroySwapchain(m_colorSwapchainInfo.swapchain) < 0)
+    std::cerr << "Failed to destroy Color Swapchain." << std::endl;
 }
 
 void SimulateXr::_poll_events() {
@@ -715,7 +760,7 @@ void SimulateXr::_poll_events() {
       case XR_TYPE_EVENT_DATA_EVENTS_LOST: {
         XrEventDataEventsLost *eventsLost =
             reinterpret_cast<XrEventDataEventsLost *>(&eventData);
-        std::cout << "OPENXR: Events Lost: " << eventsLost->lostEventCount
+        std::cerr << "OPENXR: Events Lost: " << eventsLost->lostEventCount
                   << std::endl;
         break;
       }
@@ -780,7 +825,7 @@ void SimulateXr::_poll_events() {
         if (sessionStateChanged->state == XR_SESSION_STATE_STOPPING) {
           // SessionState is stopping. End the XrSession.
           if (xrEndSession(m_session) < 0)
-            std::cout << "Failed to end Session." << std::endl;
+            std::cerr << "Failed to end Session." << std::endl;
           m_sessionRunning = false;
         }
         if (sessionStateChanged->state == XR_SESSION_STATE_EXITING) {
@@ -803,30 +848,6 @@ void SimulateXr::_poll_events() {
     }
   }
 }
-
-bool SimulateXr::_render_frame_start() {
-  // Get the XrFrameState for timing and rendering info.
-  XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
-  if (xrWaitFrame(m_session, &frameWaitInfo, &frameState) < 0)
-    std::cerr << "Failed to wait for XR Frame." << std::endl;
-
-  // Tell the OpenXR compositor that the application is beginning the frame.
-  XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
-  if (xrBeginFrame(m_session, &frameBeginInfo) < 0)
-    std::cerr << "Failed to begin the XR Frame." << std::endl;
-
-  // Variables for rendering and layer composition.
-  renderLayerInfo.predictedDisplayTime = frameState.predictedDisplayTime;
-
-  // Check that the session is active and that we should render.
-  bool sessionActive = (m_sessionState == XR_SESSION_STATE_SYNCHRONIZED ||
-                        m_sessionState == XR_SESSION_STATE_VISIBLE ||
-                        m_sessionState == XR_SESSION_STATE_FOCUSED);
-
-  return (sessionActive && frameState.shouldRender);
-}
-
-void SimulateXr::_render_frame_end() {}
 
 XrSwapchainImageBaseHeader *SimulateXr::AllocateSwapchainImageData(
     XrSwapchain swapchain, SwapchainType type, uint32_t count) {
@@ -934,12 +955,15 @@ void SimulateXr::_blit_to_mujoco() {
     src_height = ((float)src_width) / dst_ar;
     src_y += 0.5 * ((((float)src_width) / src_ar) - src_height);
   }
-  // std::cout << "Src: " << width << " " << height << " " << src_ar <<
-  // std::endl; std::cout << "Dst: " << dst_width << " " << dst_height << " " <<
-  // dst_ar
-  //           << std::endl;
-  // std::cout << "Chg: " << src_x << " " << src_y << " " << src_width << " "
-  //           << src_height << std::endl;
+  if (verbose > 3) {
+    std::cout << "Blit to window information:" << std::endl;
+    std::cout << "Src: " << width << " " << height << " " << src_ar
+              << std::endl;
+    std::cout << "Dst: " << dst_width << " " << dst_height << " " << dst_ar
+              << std::endl;
+    std::cout << "Chg: " << src_x << " " << src_y << " " << src_width << " "
+              << src_height << std::endl;
+  }
 
   glBlitFramebuffer(src_x, src_y, src_width, src_height, dst_x, dst_y,
                     dst_width, dst_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);

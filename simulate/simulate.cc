@@ -1810,13 +1810,6 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
       uistate(this->platform_ui->state()) {
   mjv_defaultScene(&scn);
   mjv_defaultSceneState(&scnstate_);
-
-#ifdef mjBUILDSIMULATEXR
-  simXr.init();
-  if (simXr.is_initialized())
-    simXr.init_scene_vis(&this->scn, this->m_);
-  
-#endif // mjBUILDSIMULATEXR
 }
 
 // synchronize model and data
@@ -2503,14 +2496,14 @@ void Simulate::Render() {
   // render scene
 #ifdef mjBUILDSIMULATEXR
   if (simXr.is_initialized()) {
-    simXr.before_render_1sc(&this->scn, this->m_);
+    simXr.before_render(&this->scn, this->m_);
     mjrRect rectXR = {0, 0, 0, 0};
     rectXR.width = (int)simXr.width_render;
     rectXR.height = (int)simXr.height;
     // render in offscreen buffer
     mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
     mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
-    simXr.after_render_1sc(&this->platform_ui->mjr_context());
+    simXr.after_render(&this->platform_ui->mjr_context());
     mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
   } else {
     mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
@@ -2636,6 +2629,11 @@ void Simulate::Render() {
 
 
 void Simulate::RenderLoop() {
+#ifdef mjBUILDSIMULATEXR
+  simXr.init();
+  if (simXr.is_initialized()) simXr.init_scene_vis(&this->scn, this->m_);
+#endif  // mjBUILDSIMULATEXR
+
   // Set timer callback (milliseconds)
   mjcb_time = Timer;
 
@@ -2773,6 +2771,10 @@ void Simulate::RenderLoop() {
   if (is_passive_) {
     mjv_freeSceneState(&scnstate_);
   }
+
+#ifdef mjBUILDSIMULATEXR
+  simXr.deinit();
+#endif  // mjBUILDSIMULATEXR
 
   this->exitrequest.store(2);
 }

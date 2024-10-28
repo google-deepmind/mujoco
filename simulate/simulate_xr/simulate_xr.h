@@ -27,8 +27,7 @@
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_OPENGL
 
-
-// openxr after all opengl
+// openxr with render by opengl
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
@@ -50,19 +49,28 @@ class SimulateXr {
   int32_t height = 0;
   int32_t width_render = 0;
 
+  // 0 no text except warnings and errors
+  // 1 some success messages
+  // 2 more information
+  // 4 frame-by-frame info
+  int verbose = 2;
+
   void init();
   void deinit();
 
   void init_scene_vis(mjvScene *scn, mjModel *m);
 
-  bool before_render_1sc(mjvScene *scn, mjModel *m);
+  bool before_render(mjvScene *scn, mjModel *m);
 
-  void after_render_1sc(mjrContext *con);
+  void after_render(mjrContext *con);
 
   bool is_initialized();
 
  private:
   bool m_initialized = false;
+
+  const float nearZ = 0.05f;
+  const float farZ = 50.0f;  // todo switch to 100?
 
   std::vector<XrView> m_views;
 
@@ -140,7 +148,7 @@ class SimulateXr {
     uint32_t baseArrayLayer;
     uint32_t layerCount;
   };
-  // GLuint, hack
+  // should be GLuint, hack
   std::unordered_map<unsigned int, ImageViewCreateInfo> imageViews{};
   void *CreateImageView(const ImageViewCreateInfo &imageViewCI);
   int64_t SelectColorSwapchainFormat(const std::vector<int64_t> &formats);
@@ -152,7 +160,6 @@ class SimulateXr {
   XrSession m_session = XR_NULL_HANDLE;
   XrSessionState m_sessionState = XR_SESSION_STATE_UNKNOWN;
 
-  // static
   void _view_to_cam(mjvGLCamera &cam, const XrView &view);
 
   void _fill_layer_proj_views(XrCompositionLayerProjectionView &xr_lpv,
@@ -167,26 +174,25 @@ class SimulateXr {
 
   int _get_view_configuration_views();
 
-  void _get_environment_blend_modes();
+  int _get_environment_blend_modes();
 
-  void _create_session();
+  int _create_session();
   void _destroy_session();
 
-  void _create_reference_space();
+  int _create_reference_space();
   void _destroy_reference_space();
 
-  void _create_swapchain();
+  int _create_swapchain();
   void _destroy_swapchain();
 
   bool m_sessionRunning = false;
   void _poll_events();
 
   // carried b/w calls before and after render
+  // see before_render and after_render functions
   XrFrameState frameState{XR_TYPE_FRAME_STATE};
   RenderLayerInfo renderLayerInfo;
   bool rendered = false;
-  bool _render_frame_start();
-  void _render_frame_end();
 
   void _blit_to_mujoco();
 };
