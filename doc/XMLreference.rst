@@ -1151,10 +1151,34 @@ be created as follows:
 Positioning and orienting is complicated by the fact that vertex data in the source asset are often relative to
 coordinate frames whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to
 coincide with the geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler,
-so that it is centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We save the translation
-and rotation offsets applied to the source asset in :ref:`mjModel.mesh_pos<mjModel>` and
-:ref:`mjModel.mesh_quat<mjModel>`; these are required if one reads vertex data from the source and needs to re-apply the
-transform. These offsets are then composed with the referencing geom's position and orientation; see also the :at:`mesh`
+so that it is centered around (0,0,0) and its principal axes of inertia are the coordinate axes.
+In order to clearly understand this process, let us introduce the four frames involved here. 
+:math:`\mathcal{F}_L` is the local frame in which the vertices are expressed in the mesh file. The body frame (of the 
+body to which the geom referencing the mesh belongs) is noted :math:`\mathcal{F}_B`. The geom's local frame 
+:math:`\mathcal{F}_G` is specified with respect to :math:`\mathcal{F}_B` by the user in the MJCF file as attributes of the
+geom. It corresponds to the geom's position and orientation before compilation. The last frame is derived from the mesh
+file, with respect to :math:`\mathcal{F}_L` the geometric center and principal axes of inertia of the mesh are computed,
+leading  to the inertial frame :math:`\mathcal{F}_I` whose origin is the geometric center and axes are the principal
+axes of inertia. It is this last frame which is superposed to :math:`\mathcal{F}_G`. Let us note :math:`^XT_Y` the
+homogeneous transformation matrix from :math:`\mathcal{F}_X` to :math:`\mathcal{F}_Y` (transform matrices contain the
+same information about the position and orientation as position vectors and quaternions but they allow simpler notations).
+Then :math:`^LT_I` is the transform computed from the mesh file and :math:`^BT_G` is the transform provided by the user.
+Now, if :math:`v_n` is the :math:`n`-th vertex of the mesh and if its position (homogeneous coordinate) in the mesh file
+is :math:`^Lv_n`, the position of this vertex in the body frame :math:`\mathcal{F}_B` is:
+
+.. math::
+   \begin{align*}
+   ^Bv_n &= ^BT_L.^Lv_n \\
+   &= ^BT_I.^IT_L.^Lv_n \\
+   &= ^BT_G.(^LT_I)^{-1}.^Lv_n
+   \end{align*}
+
+And the geom's position and orientation after compilation is represented by :math:`^BT_G.(^LT_I)^{-1}` which is different
+from :math:`^BT_G` if the mesh local frame is not already centered and aligned with the principal axes of inertia. The
+second factor :math:`(^LT_I)^{-1}` corresponds to the translation and rotation offsets applied to the source asset and it
+is stored as a vector and a quaternion in :ref:`mjModel.mesh_pos<mjModel>` and :ref:`mjModel.mesh_quat<mjModel>`; these 
+are required if one reads vertex data from the source and needs to re-apply the transform.
+These offsets are then composed with the referencing geom's position and orientation; see also the :at:`mesh`
 attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in a coordinate
 frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the joint, so
 that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model fragment of
