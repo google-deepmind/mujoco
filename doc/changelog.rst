@@ -891,7 +891,7 @@ General
    used to determine the type of the asset file without resorting to pulling the type from the file extension.
 #. Added analytic derivatives for quaternion :ref:`subtraction<mjd_subQuat>` and :ref:`integration<mjd_quatIntegrate>`
    (rotation with an angular velocity). Derivatives are in the 3D tangent space.
-#. Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
+#. Added :ref:`mjv_connector` which has identical functionality to ``mjv_makeConnector``, but with more convenient
    "from-to" argument parametrization. ``mjv_makeConnector`` is now deprecated.
 #. Bumped oldest supported MacOS from version 10.12 to 11. MacOS 11 is the oldest version still maintained by Apple.
 

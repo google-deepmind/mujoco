@@ -94,8 +94,8 @@ Building from source
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
-#. Clone the ``mujoco`` repository from GitHub.
-#. Create a new build directory somewhere, and ``cd`` into it.
+#. Clone the ``mujoco`` repository: ``git clone https://github.com/deepmind/mujoco.git``
+#. Create a new build directory and ``cd`` into it.
 #. Run :shell:`cmake $PATH_TO_CLONED_REPO` to configure the build.
 #. Run ``cmake --build .`` to build.
 
@@ -119,6 +119,19 @@ installed (see :github:issue:`862` for more details).
    As a reference, a working build configuration can be found in MuJoCo's
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
    GitHub.
+
+.. _inBuildDocs:
+
+Building the docs
+~~~~~~~~~~~~~~~~~
+
+If you wish to build the documentation locally, for example to test pull-requests that improve it, do:
+
+1. Clone the ``mujoco`` repository: ``git clone https://github.com/deepmind/mujoco.git``
+2. Go to the ``doc/`` directory: ``cd mujoco/doc``
+3. Install the dependencies: ``pip install -r requirements.txt``
+4. Build the HTML: ``make html``
+5. Open ``_build/html/index.html`` in your browser of choice.
 
 .. _inHeader:
 
