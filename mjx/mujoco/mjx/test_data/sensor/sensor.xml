@@ -119,6 +119,11 @@
       <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125"/>
       <site name="touch_box" pos="-0.5 0 0" type="box" size="0.025 0.025 0.025"/>
     </body>
+    <body pos="-20 -20.75 -20">
+      <freejoint/>
+      <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125"/>
+      <site name="touch_ellipsoid" type="ellipsoid" pos="0.5 0 0.0" size="0.05 0.01 0.02"/>
+    </body>
   </worldbody>
 
   <actuator>
@@ -178,6 +183,7 @@
     <framepos name="framepos0" objtype="site" objname="site0"/>
     <velocimeter name="velocimeter1" site="site1"/>
     <gyro name="gyro1" site="site1"/>
+    <touch name="touch_ellipsoid" site="touch_ellipsoid"/>
     <frameangvel name="frameangvel3" objtype="site" objname="site3"/>
     <frameangvel name="frameangvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
     <frameangvel name="frameangvel3cutoff" objtype="site" objname="site3" cutoff="1e-3"/>
