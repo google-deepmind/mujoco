@@ -15,7 +15,6 @@
 // Tests for engine/engine_solver.c
 
 #include <string>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -24,10 +23,6 @@
 
 namespace mujoco {
 namespace {
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 using ::testing::DoubleNear;
 using ::testing::NotNull;

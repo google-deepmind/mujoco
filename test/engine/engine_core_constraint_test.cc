@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -33,10 +32,6 @@ namespace {
 using ::testing::DoubleNear;
 using ::testing::Pointwise;
 using CoreConstraintTest = MujocoTest;
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 // compute rotation residual following formula in mj_instantiateEquality
 void RotationResidual(const mjModel *model, mjData *data,

@@ -15,7 +15,6 @@
 // Tests for engine/engine_util_spatial.c
 
 #include <cmath>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -35,10 +34,6 @@ using ::testing::ElementsAre;
 using ::testing::Pointwise;
 
 using Quat2MatTest = MujocoTest;
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 TEST_F(Quat2MatTest, NoRotation) {
   mjtNum result[9] = {0};

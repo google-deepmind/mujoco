@@ -26,7 +26,6 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -42,10 +41,6 @@ using ::testing::Pointwise;
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
   return std::vector<mjtNum>(array + ncolumn * row,
                              array + ncolumn * (row + 1));
-}
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
 }
 
 // ----------------------------- test mjCModel  --------------------------------

@@ -33,10 +33,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::std::string;
 using ::testing::AllOf;
 using ::testing::ElementsAre;

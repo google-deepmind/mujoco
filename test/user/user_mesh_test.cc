@@ -67,10 +67,6 @@ static const char* const kDuplicateOBJPath =
 static const char* const kMalformedFaceOBJPath =
     "user/testdata/malformed_face.xml";
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;

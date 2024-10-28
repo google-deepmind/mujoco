@@ -40,10 +40,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
 static const char* const kDampedActuatorsPath =

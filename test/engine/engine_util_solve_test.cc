@@ -36,10 +36,6 @@ using ::std::string;
 using ::std::setw;
 using QCQP2Test = MujocoTest;
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 TEST_F(QCQP2Test, DegenerateAMatrix) {
   // A 2x2 matrix with determinant zero.
   const mjtNum Ain[9] { 6, -15, 2, -5 };
