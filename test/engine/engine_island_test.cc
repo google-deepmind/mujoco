@@ -55,7 +55,7 @@ TEST_F(IslandTest, FloodFillSingleton) {
   int rowadr[nr];
   int colind[nnz];
   mjtNum res[nnz];  // unused
-  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind, nnz);
 
   // outputs / scratch
   int island[nr];
@@ -82,7 +82,7 @@ TEST_F(IslandTest, FloodFill1) {
   int rowadr[nr];
   int colind[nnz];
   mjtNum res[nnz];  // unused
-  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind, nnz);
 
   // outputs / stack
   int island[nr];
@@ -112,7 +112,7 @@ TEST_F(IslandTest, FloodFill2) {
   int rowadr[nr];
   int colind[nnz];
   mjtNum res[nnz];  // unused
-  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind, nnz);
 
   // outputs / stack
   int island[nr];
@@ -140,7 +140,7 @@ TEST_F(IslandTest, FloodFill3a) {
   int rowadr[nr];
   int colind[nnz];
   mjtNum res[nnz];  // unused
-  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind, nnz);
 
   // outputs / stack
   int island[nr];
@@ -174,7 +174,7 @@ TEST_F(IslandTest, FloodFill3b) {
   int rowadr[nr];
   int colind[nnz];
   mjtNum res[nnz];  // unused
-  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind, nnz);
 
   // outputs / stack
   int island[nr];

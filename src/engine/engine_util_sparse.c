@@ -148,8 +148,13 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const in
 
 
 // convert matrix from dense to sparse
-void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      int* rownnz, int* rowadr, int* colind) {
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise
+int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                     int* rownnz, int* rowadr, int* colind, int nnz) {
+  if (nnz <= 0) {
+    return 1;
+  }
+
   int adr = 0;
 
   // find non-zeros and construct sparse
@@ -161,6 +166,11 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     // find non-zeros
     for (int c=0; c < nc; c++) {
       if (mat[r*nc+c]) {
+        // check for out of bounds
+        if (adr >= nnz) {
+          return 1;
+        }
+
         // record index and count
         colind[adr] = c;
         rownnz[r]++;
@@ -170,6 +180,7 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
       }
     }
   }
+  return 0;
 }
 
 
