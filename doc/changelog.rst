@@ -24,6 +24,11 @@ MJX
 
 Bug fixes
 ^^^^^^^^^
+- Fixed several bugs related to connect and weld constraints with site semantics (fixes :github:issue:`2179`, reported
+  by :github:user:`yinfanyi`). The introduction of site specification to connects and welds in 3.2.3 conditionally
+  changed the semantics of `mjData.eq_obj1id` and `mjData.eq_obj2id`, but these changes were not properly propagated in
+  several places leading to incorrect computations of constraint inertia, readings of affected force/torque sensors and
+  runtime enabling/disabling of such constraints.
 - Fixed a bug in slider-crank :ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
 
 Version 3.2.4 (Oct 15, 2024)

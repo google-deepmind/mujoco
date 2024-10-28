@@ -14,20 +14,15 @@
 
 // Tests for engine/engine_island.c.
 
-#include <array>
-#include <cstring>
 #include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjthread.h>
-#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_island.h"
 #include "src/engine/engine_util_sparse.h"
-#include "src/thread/thread_pool.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -357,10 +352,10 @@ TEST_F(IslandTest, IslandEfc) {
 
   // expect island structure to correspond to comment at top of xml
   EXPECT_EQ(data->nisland, 4);
-  EXPECT_EQ(data->ne, 4);
+  EXPECT_EQ(data->ne, 7);
   EXPECT_EQ(data->nf, 2);
   EXPECT_EQ(data->nl, 1);
-  EXPECT_EQ(data->nefc, 27);
+  EXPECT_EQ(data->nefc, 30);
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -378,10 +373,10 @@ TEST_F(IslandTest, IslandEfcElliptic) {
   mj_forward(model, data);
 
   EXPECT_EQ(data->nisland, 4);
-  EXPECT_EQ(data->ne, 4);
+  EXPECT_EQ(data->ne, 7);
   EXPECT_EQ(data->nf, 2);
   EXPECT_EQ(data->nl, 1);
-  EXPECT_EQ(data->nefc, 22);
+  EXPECT_EQ(data->nefc, 25);
 
   mj_deleteData(data);
   mj_deleteModel(model);

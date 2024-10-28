@@ -1902,7 +1902,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
     }
 
-  // cfrc_ext += connect and weld constraints
+  // cfrc_ext += connect, weld, flex constraints
   int i = 0, ne = d->ne;
   while (i < ne) {
     if (d->efc_type[i] != mjCNSTR_EQUALITY)
@@ -1910,8 +1910,8 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
     int id = d->efc_id[i];
     mjtNum* eq_data = m->eq_data + mjNEQDATA*id;
-    mjtNum pos[3];
-    int k;
+    mjtNum pos[3], *offset;
+    int k, obj1, obj2, body_semantic;
     switch ((mjtEq) m->eq_type[id]) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
@@ -1923,10 +1923,17 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
         mju_zero3(cfrc);  // no torque from connect
       }
 
+      body_semantic = m->eq_objtype[id] == mjOBJ_BODY;
+
       // body 1
-      if ((k = m->eq_obj1id[id])) {
+      obj1 = m->eq_obj1id[id];
+      k = body_semantic ? obj1 : m->site_bodyid[obj1];
+      if (k) {
+        offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_WELD) :
+                                 m->site_pos + 3 * obj1;
+
         // transform point on body1: local -> global
-        mj_local2Global(d, pos, 0, eq_data + 3*(m->eq_type[id] == mjEQ_WELD), 0, k, 0);
+        mj_local2Global(d, pos, 0, offset, 0, k, 0);
 
         // tmp = subtree CoM-based torque_force vector
         mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
@@ -1936,9 +1943,14 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
 
       // body 2
-      if ((k = m->eq_obj2id[id])) {
+      obj2 = m->eq_obj2id[id];
+      k = body_semantic ? obj2 : m->site_bodyid[obj2];
+      if (k) {
+        offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_CONNECT) :
+                                 m->site_pos + 3 * obj2;
+
         // transform point on body2: local -> global
-        mj_local2Global(d, pos, 0, eq_data + 3*(m->eq_type[id] == mjEQ_CONNECT), 0, k, 0);
+        mj_local2Global(d, pos, 0, offset, 0, k, 0);
 
         // tmp = subtree CoM-based torque_force vector
         mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);

@@ -1117,16 +1117,30 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
       // process according to equality-constraint type
       switch (m->eq_type[id]) {
       case mjEQ_CONNECT:
-        // body translation
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
+
+        // get body ids if using site semantics
+        if (m->eq_objtype[id] == mjOBJ_SITE) {
+          b1 = m->site_bodyid[b1];
+          b2 = m->site_bodyid[b2];
+        }
+
+        // body translation
         dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
         break;
 
       case mjEQ_WELD:  // distinguish translation and rotation inertia
-        // body translation or rotation depending on weldcnt
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
+
+        // get body ids if using site semantics
+        if (m->eq_objtype[id] == mjOBJ_SITE) {
+          b1 = m->site_bodyid[b1];
+          b2 = m->site_bodyid[b2];
+        }
+
+        // body translation or rotation depending on weldcnt
         dA[i] = m->body_invweight0[2*b1 + (weldcnt > 2)] +
                 m->body_invweight0[2*b2 + (weldcnt > 2)];
         weldcnt = (weldcnt + 1) % 6;
@@ -1650,6 +1664,12 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           break;
         }
 
+        // get body ids if using site semantics
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
+          id[0] = m->site_bodyid[id[0]];
+          id[1] = m->site_bodyid[id[1]];
+        }
+
         NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
         break;
 
@@ -1657,6 +1677,12 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         size = 6;
         if (!nnz) {
           break;
+        }
+
+        // get body ids if using site semantics
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
+          id[0] = m->site_bodyid[id[0]];
+          id[1] = m->site_bodyid[id[1]];
         }
 
         NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);

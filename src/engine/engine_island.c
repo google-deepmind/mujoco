@@ -257,8 +257,17 @@ static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
   if (efc_type == mjCNSTR_EQUALITY) {
     mjtEq eq_type = m->eq_type[efc_id];
     if (eq_type == mjEQ_CONNECT || eq_type == mjEQ_WELD) {
-      tree[0] = m->body_treeid[m->eq_obj1id[efc_id]];
-      tree[1] = m->body_treeid[m->eq_obj2id[efc_id]];
+      int b1 = m->eq_obj1id[efc_id];
+      int b2 = m->eq_obj2id[efc_id];
+
+      // get body ids if using site semantics
+      if (m->eq_objtype[efc_id] == mjOBJ_SITE) {
+        b1 = m->site_bodyid[b1];
+        b2 = m->site_bodyid[b2];
+      }
+
+      tree[0] = m->body_treeid[b1];
+      tree[1] = m->body_treeid[b2];
 
       // handle static bodies
       if (tree[0] < 0) {
