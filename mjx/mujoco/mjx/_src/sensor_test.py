@@ -101,17 +101,14 @@ class SensorTest(parameterized.TestCase):
           <body>
             <joint type="hinge"/>
             <geom name="geom0" size="0.1"/>
-            <site name="site0"/>
             <body>
               <joint type="hinge"/>
               <geom name="geom1" size="0.25"/>
-              <site name="site1"/>
             </body>
           </body>
         </worldbody>
         <sensor>
           <distance name="distance" geom1="geom0" geom2="geom1"/>
-          <touch name="touch" site="site0"/>
         </sensor>
       </mujoco>
     """)
