@@ -323,10 +323,9 @@ PYBIND11_MODULE(_specs, m) {
     return mjmodel_mjdata_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
                                         m, d);
   });
-  mjSpec.def(
-      "copy",
-      [](const MjSpec& self) -> raw::MjSpec* { return mj_copySpec(self.ptr); },
-      py::return_value_policy::reference_internal);
+  mjSpec.def("copy", [](const MjSpec& self) -> MjSpec {
+    return MjSpec(mj_copySpec(self.ptr));
+  });
   mjSpec.def_property_readonly(
       "worldbody",
       [](MjSpec& self) -> raw::MjsBody* {
