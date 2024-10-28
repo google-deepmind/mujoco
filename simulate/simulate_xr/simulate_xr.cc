@@ -98,15 +98,19 @@ void SimulateXr::deinit() {
   _destroy_instance();
 }
 
-void SimulateXr::init_scene_vis(mjvScene *scn, mjModel *m) {
-  if (scn) scn->stereo = mjSTEREO_SIDEBYSIDE;
 
+void SimulateXr::set_scn_params(mjvScene *scn) {
+  if (scn) scn->stereo = mjSTEREO_SIDEBYSIDE;
+}
+
+void SimulateXr::set_vis_params(mjModel *m) {
   if (m) {
     m->vis.global.offwidth = width_render;
     m->vis.global.offheight = height;
     m->vis.quality.offsamples = 0;
   }
 }
+
 
 bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   rendered = false;

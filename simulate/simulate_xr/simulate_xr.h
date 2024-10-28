@@ -58,7 +58,8 @@ class SimulateXr {
   void init();
   void deinit();
 
-  void init_scene_vis(mjvScene *scn, mjModel *m);
+  void set_scn_params(mjvScene *scn);
+  void set_vis_params(mjModel *m);
 
   bool before_render(mjvScene *scn, mjModel *m);
 

@@ -2263,8 +2263,7 @@ void Simulate::LoadOnRenderThread() {
   }
 
 #ifdef mjBUILDSIMULATEXR
-  if (simXr.is_initialized())
-    simXr.init_scene_vis(&this->scn, this->m_);
+  if (simXr.is_initialized()) simXr.set_vis_params(this->m_);
 #endif  // mjBUILDSIMULATEXR
 
   // re-create scene and context
@@ -2314,9 +2313,8 @@ void Simulate::LoadOnRenderThread() {
   }
 
 #ifdef mjBUILDSIMULATEXR
-  // TODO (AS) should not be duplicated, separate the m from scn changes?
   if (simXr.is_initialized())
-    simXr.init_scene_vis(&this->scn, this->m_);
+    simXr.set_scn_params(&this->scn);
 #endif // mjBUILDSIMULATEXR
 
   // set window title to model name
@@ -2631,7 +2629,10 @@ void Simulate::Render() {
 void Simulate::RenderLoop() {
 #ifdef mjBUILDSIMULATEXR
   simXr.init();
-  if (simXr.is_initialized()) simXr.init_scene_vis(&this->scn, this->m_);
+  if (simXr.is_initialized()) {
+    simXr.set_scn_params(&this->scn);
+    simXr.set_vis_params(this->m_);
+  }
 #endif  // mjBUILDSIMULATEXR
 
   // Set timer callback (milliseconds)
