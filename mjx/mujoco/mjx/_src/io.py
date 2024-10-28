@@ -233,7 +233,6 @@ def make_data(
         'ctrl': (m.nu, float),
         'qfrc_applied': (m.nv, float),
         'xfrc_applied': (m.nbody, 6, float),
-        'eq_active': (m.neq, jp.uint8),
         'mocap_pos': (m.nmocap, 3, float),
         'mocap_quat': (m.nmocap, 4, float),
         'qacc': (m.nv, float),
@@ -345,6 +344,7 @@ def make_data(
       qpos=jp.array(m.qpos0),
       contact=contact,
       efc_type=efc_type,
+      eq_active=m.eq_active0,
       **zero_fields
   )
 
