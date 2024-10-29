@@ -1337,6 +1337,23 @@ Euler integrator, semi-implicit in velocity.
     mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
     self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
 
+  def test_mju_dense_to_sparse(self):
+    mat = np.array([[0., 1., 0.], [2., 0., 3.]])
+    expected_vals = np.array([1., 2., 3.])
+    expected_rownnz = np.array([1, 2])
+    expected_rowadr = np.array([0, 1])
+    expected_colind = np.array([1, 0, 2])
+    vals = np.zeros(3)
+    row_nnz = np.zeros(2, np.int32)
+    row_adr = np.zeros(2, np.int32)
+    col_ind = np.zeros(3, np.int32)
+    status = mujoco.mju_dense2sparse(vals, mat, row_nnz, row_adr, col_ind)
+    np.testing.assert_equal(status, 0)
+    np.testing.assert_array_equal(vals, expected_vals)
+    np.testing.assert_array_equal(row_nnz, expected_rownnz)
+    np.testing.assert_array_equal(row_adr, expected_rowadr)
+    np.testing.assert_array_equal(col_ind, expected_colind)
+
   def test_mju_sparse_to_dense(self):
     expected = np.array([[0., 1., 0.], [2., 0., 3.]])
     mat = np.array((1., 2., 3.))

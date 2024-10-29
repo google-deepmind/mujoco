@@ -3414,6 +3414,16 @@ rotnew2old is 3-by-3, NULL means no rotation; flg_force specifies force or motio
 
 Sparse math
 ^^^^^^^^^^^
+.. _mju_dense2sparse:
+
+mju_dense2sparse
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_dense2sparse
+
+Convert matrix from dense to sparse.
+ nnz is size of res and colind, return 1 if too small, 0 otherwise.
+
 .. _mju_sparse2dense:
 
 mju_sparse2dense
@@ -4372,7 +4382,7 @@ mjs_setFrame
 
 .. mujoco-include:: mjs_setFrame
 
-Set element's enlcosing frame.
+Set element's enclosing frame.
 
 .. _mjs_resolveOrientation:
 

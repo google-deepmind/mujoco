@@ -1069,6 +1069,11 @@ MJAPI void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_forc
 
 //---------------------------------- Sparse math ---------------------------------------------------
 
+// Convert matrix from dense to sparse.
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise.
+MJAPI int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                           int* rownnz, int* rowadr, int* colind, int nnz);
+
 // Convert matrix from sparse to dense.
 MJAPI void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
                             const int* rownnz, const int* rowadr, const int* colind);
@@ -1611,7 +1616,7 @@ MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 // Set element's default.
 MJAPI void mjs_setDefault(mjsElement* element, mjsDefault* def);
 
-// Set element's enlcosing frame.
+// Set element's enclosing frame.
 MJAPI void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 
 // Resolve alternative orientations to quat, return error if any.

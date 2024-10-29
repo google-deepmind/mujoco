@@ -1019,6 +1019,25 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_transformSpatial>(pymodule);
 
   // Sparse math
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_dense2sparse, "nr", "nc", "nnz")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<EigenVectorI> rownnz, Eigen::Ref<EigenVectorI> rowadr,
+         Eigen::Ref<EigenVectorI> colind) {
+        if (mat.rows() != rownnz.size()) {
+          throw py::type_error("#rows in mat should equal size of rownnz");
+        }
+        if (mat.rows() != rowadr.size()) {
+          throw py::type_error("#rows in mat should equal size of rowadr");
+        }
+        if (res.size() != colind.size()) {
+          throw py::type_error("#size of res should equal size of colind");
+        }
+        return ::mju_dense2sparse(res.data(), mat.data(), mat.rows(),
+                                  mat.cols(), rownnz.data(), rowadr.data(),
+                                  colind.data(), res.size());
+      });
+
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_sparse2dense, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res,
