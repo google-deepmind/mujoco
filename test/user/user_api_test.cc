@@ -1489,7 +1489,7 @@ TEST_F(MujocoTest, AttachMocap) {
       <body pos="1 1 1" quat="0 1 0 0" name="mocap" mocap="true"/>
     </worldbody>
     <keyframe>
-      <key name="key" time="1" mpos="2 2 2" mquat="1 0 0 0"/>
+      <key name="key" time="1" mpos="2 2 2" mquat="0 0 0 1"/>
     </keyframe>
   </mujoco>)";
 
@@ -1497,11 +1497,11 @@ TEST_F(MujocoTest, AttachMocap) {
   <mujoco>
     <worldbody>
       <body pos="1 1 1" quat="0 1 0 0" name="mocap" mocap="true"/>
-      <body pos="3 3 3" quat="0 0 1 0" name="attached-mocap-1" mocap="true"/>
+      <body pos="1 1 1" quat="0 1 0 0" name="attached-mocap-1" mocap="true"/>
     </worldbody>
     <keyframe>
-      <key name="key" time="1" mpos="2 2 2 3 3 3" mquat="1 0 0 0 0 0 1 0"/>
-      <key name="attached-key-1" time="1" mpos="1 1 1 2 2 2" mquat="0 1 0 0 1 0 0 0"/>
+      <key name="key" time="1" mpos="2 2 2 1 1 1" mquat="0 0 0 1 0 1 0 0"/>
+      <key name="attached-key-1" time="1" mpos="1 1 1 2 2 2" mquat="0 1 0 0 0 0 0 1"/>
     </keyframe>
   </mujoco>)";
 
@@ -1519,13 +1519,6 @@ TEST_F(MujocoTest, AttachMocap) {
 
   mjsBody* attached_body = mjs_findBody(spec, "attached-mocap-1");
   EXPECT_THAT(attached_body, NotNull());
-  attached_body->pos[0] = 3;
-  attached_body->pos[1] = 3;
-  attached_body->pos[2] = 3;
-  attached_body->quat[0] = 0;
-  attached_body->quat[1] = 0;
-  attached_body->quat[2] = 1;
-  attached_body->quat[3] = 0;
 
   mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull());
@@ -1837,6 +1830,76 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
     mj_deleteSpec(spec_2);
     mj_deleteModel(model_1);
     mj_deleteModel(model_2);
+}
+
+TEST_F(MujocoTest, ResizeParentKeyframe) {
+  static constexpr char xml_parent[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <frame name="frame"/>
+        <body name="body">
+          <joint/>
+          <geom size="0.1"/>
+        </body>
+      </worldbody>
+      <keyframe>
+        <key name="home" qpos="1"/>
+      </keyframe>
+    </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <body name="body">
+          <joint/>
+          <geom size="0.1"/>
+        </body>
+      </worldbody>
+    </mujoco>)";
+
+  static constexpr char xml_expected[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <body name="body">
+          <joint/>
+          <geom size="0.1"/>
+        </body>
+        <frame name="frame">
+          <body name="child-body">
+            <joint/>
+            <geom size="0.1"/>
+          </body>
+        </frame>
+      </worldbody>
+      <keyframe>
+        <key name="home" qpos="1 0"/>
+      </keyframe>
+    </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  mjs_attachBody(mjs_findFrame(parent, "frame"), mjs_findBody(child, "body"),
+                 "child-", "");
+
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+
+  mjtNum tol = 0;
+  std::string field = "";
+  mjModel* expected = LoadModelFromString(xml_expected, er.data(), er.size());
+  EXPECT_THAT(expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model);
+  mj_deleteModel(expected);
 }
 
 TEST_F(MujocoTest, DifferentUnitsAllowed) {

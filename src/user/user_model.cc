@@ -401,6 +401,16 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     }
   }
 
+  // resize keyframes in the parent model
+  if (!keys_.empty()) {
+    SaveDofOffsets(/*computesize=*/true);
+    ComputeReference();
+    for (auto* key : keys_) {
+      ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
+    }
+    nq = nv = na = nu = nmocap = 0;
+  }
+
   // restore to the original state
   if (!compiled) {
     ResetTreeLists();
@@ -3173,10 +3183,7 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
   // do not change compilation quantities in case the user wants to recompile preserving the state
   if (!compiled) {
     SaveDofOffsets(/*computesize=*/true);
-    qpos0.resize(nq);
-    body_pos0.resize(3*bodies_.size());
-    body_quat0.resize(4*bodies_.size());
-    ComputeReference(qpos0, body_pos0, body_quat0);
+    ComputeReference();
   }
 
   // save keyframe info and resize keyframes
@@ -3729,26 +3736,28 @@ void mjCModel::CompileMeshes(const mjVFS* vfs) {
 
 
 // compute qpos0
-template <class T>
-void mjCModel::ComputeReference(std::vector<T>& q0, std::vector<T>& bpos, std::vector<T>& bquat) {
+void mjCModel::ComputeReference() {
   int b = 0;
+  qpos0.resize(nq);
+  body_pos0.resize(3*bodies_.size());
+  body_quat0.resize(4*bodies_.size());
   for (auto body : bodies_) {
-    mjuu_copyvec(bpos.data()+3*b, body->spec.pos, 3);
-    mjuu_copyvec(bquat.data()+4*b, body->spec.quat, 4);
+    mjuu_copyvec(body_pos0.data()+3*b, body->spec.pos, 3);
+    mjuu_copyvec(body_quat0.data()+4*b, body->spec.quat, 4);
     for (auto joint : body->joints) {
       switch (joint->type) {
       case mjJNT_FREE:
-        mjuu_copyvec(q0.data()+joint->qposadr_, body->spec.pos, 3);
-        mjuu_copyvec(q0.data()+joint->qposadr_+3, body->spec.quat, 4);
+        mjuu_copyvec(qpos0.data()+joint->qposadr_, body->spec.pos, 3);
+        mjuu_copyvec(qpos0.data()+joint->qposadr_+3, body->spec.quat, 4);
         break;
 
       case mjJNT_BALL:
-        mjuu_setvec(q0.data()+joint->qposadr_, 1, 0, 0, 0);
+        mjuu_setvec(qpos0.data()+joint->qposadr_, 1, 0, 0, 0);
         break;
 
       case mjJNT_SLIDE:
       case mjJNT_HINGE:
-        q0[joint->qposadr_] = (T)joint->spec.ref;
+        qpos0[joint->qposadr_] = (mjtNum)joint->spec.ref;
         break;
 
       default:
@@ -3811,17 +3820,8 @@ void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
 
 // convert pending keyframes info to actual keyframes
 void mjCModel::ResolveKeyframes(const mjModel* m) {
-  if (key_pending_.empty()) {
-    return;
-  }
-
   // store dof offsets in joints and actuators
   SaveDofOffsets();
-
-  // resize existing keyframes to the new state, fill in missing default values
-  for (auto* key : keys_) {
-    ResizeKeyframe(key, m->qpos0, m->body_pos, m->body_quat);
-  }
 
   // create new keyframes, fill in missing default values
   for (const auto& info : key_pending_) {
