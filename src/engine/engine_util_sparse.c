@@ -224,13 +224,16 @@ void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int
   mju_zero(res, nc);
 
   for (int i=0; i < nr; i++) {
+    mjtNum scl = vec[i];
+
+    // skip if 0
+    if (!scl) continue;
+
+    // add row scaled by the corresponding vector element
     int nnz = rownnz[i];
     int adr = rowadr[i];
     const int* ind = colind + adr;
     const mjtNum* row = mat + adr;
-    mjtNum scl = vec[i];
-
-    // add row scaled by the corresponding vector element
     for (int j=0; j < nnz; j++) {
       res[ind[j]] += row[j] * scl;
     }
