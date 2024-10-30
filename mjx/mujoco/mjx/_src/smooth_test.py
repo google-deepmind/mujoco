@@ -87,10 +87,13 @@ class SmoothTest(absltest.TestCase):
     dx = jax.jit(mjx.crb)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'crb')
     _assert_attr_eq(d, dx, 'qM')
+    _assert_eq(dx._qM_sparse, np.zeros(0), '_qM_sparse')
     # factor_m
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qLD')
     _assert_attr_eq(d, dx, 'qLDiagInv')
+    _assert_eq(dx._qLD_sparse, np.zeros(0), '_qLD_sparse')
+    _assert_eq(dx._qLDiagInv_sparse, np.zeros(0), '_qLDiagInv_sparse')
     # com_vel
     dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cvel')

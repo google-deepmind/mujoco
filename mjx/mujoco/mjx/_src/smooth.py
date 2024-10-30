@@ -291,7 +291,7 @@ def crb(m: Model, d: Data) -> Data:
   crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
   qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
   d = d.replace(qM=qm)
-  if support.is_sparse(m):
+  if support.is_sparse(m) and d._qM_sparse.size > 0:  # pylint: disable=protected-access
     d = d.replace(_qM_sparse=qm)
 
   return d
@@ -353,7 +353,10 @@ def factor_m(m: Model, d: Data) -> Data:
   qld = (qld / qld[jp.array(madr_ds)]).at[m.dof_Madr].set(qld_diag)
 
   d = d.replace(qLD=qld, qLDiagInv=1 / qld_diag)
-  d = d.replace(_qLD_sparse=d.qLD, _qLDiagInv_sparse=d.qLDiagInv)
+  if d._qLD_sparse.size > 0:  # pylint: disable=protected-access
+    d = d.replace(_qLD_sparse=d.qLD)
+  if d._qLDiagInv_sparse.size > 0:  # pylint: disable=protected-access
+    d = d.replace(_qLDiagInv_sparse=d.qLDiagInv)
 
   return d
 
