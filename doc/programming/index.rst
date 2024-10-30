@@ -143,7 +143,7 @@ links below, to make this documentation self-contained.
 
 `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes the all other header files except mjxmacro.h.
+   global variables, and includes all other header files except mjxmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.

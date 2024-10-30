@@ -312,7 +312,7 @@ gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterati
 
 While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
 any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
-interior. For such functions, it is still possible to find collisons, albeit with a possibly
+interior. For such functions, it is still possible to find collisions, albeit with a possibly
 increased number of starting points.
 
 The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
@@ -331,7 +331,7 @@ For the sdf plugin, the following methods need to be specified
   required because mesh creation occurs during model compilation before the plugin object has been instantiated.
 
 ``sdf_gradient``:
-  Computes the gradient in local coodinates of the SDF at the query point.
+  Computes the gradient in local coordinates of the SDF at the query point.
 
 ``sdf_aabb``:
   Computes the axis-aligned bounding box in local coordinates. This volume is voxelized uniformly before the call to
@@ -392,7 +392,7 @@ Resource providers work via callbacks:
   resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
   ``http://www.example.com/`` as its directory.
 - :ref:`mjfResourceModified<mjfResourceModified>`: This callback is optional and is used to check if an existing
-  opened resource has been modifed from its orginal source.
+  opened resource has been modified from its original source.
 
 .. _exProviderUsage:
 

@@ -18,7 +18,7 @@ Overview
 ~~~~~~~~
 
 The new API augments the traditional workflow of creating and editing models using XML files, breaking up the *parse* and
-*compile* steps. As summarized in the the :ref:`Overview chapter<Instance>`, the traditional workflow is:
+*compile* steps. As summarized in the :ref:`Overview chapter<Instance>`, the traditional workflow is:
 
  1. Create an XML model description file (MJCF or URDF) and associated assets. |br|
  2. Call :ref:`mj_loadXML`, obtain an :ref:`mjModel` instance.
@@ -29,7 +29,7 @@ The new workflow is:
     :ref:`mjSpec`.
  2. Edit the mutable :ref:`mjSpec` datastructure adding, changing and removing elements.
  3. Compile the :ref:`mjSpec` at any point, obtaining an updated :ref:`mjModel` instance. After compilation, the
-    :ref:`mjSpec` remains editable, so steps 2 and 3 are interchangable.
+    :ref:`mjSpec` remains editable, so steps 2 and 3 are interchangeable.
 
 
 .. _meUsage:
