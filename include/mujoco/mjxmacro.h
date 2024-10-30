@@ -766,7 +766,7 @@
     X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
     X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
     X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
-    X( mjSolverStat,   solver,             mjNILSAND,    mjNSOLVER ) \
+    X( mjSolverStat,   solver,             mjNISLAND,    mjNSOLVER ) \
     X( int,            solver_niter,       mjNISLAND,    1         ) \
     X( int,            solver_nnz,         mjNISLAND,    1         ) \
     X( mjtNum,         solver_fwdinv,      2,            1         ) \
