@@ -440,7 +440,7 @@ mjsTendon* mjs_addTendon(mjSpec* s, mjsDefault* defspec) {
 
 
 // wrap site using tendon
-MJAPI mjsWrap* mjs_wrapSite(mjsTendon* tendonspec, const char* name) {
+mjsWrap* mjs_wrapSite(mjsTendon* tendonspec, const char* name) {
   mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
   tendon->WrapSite(name);
   return &tendon->path.back()->spec;
