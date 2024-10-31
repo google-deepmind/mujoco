@@ -242,6 +242,45 @@ TEST_F(UserFlexTest, RigidFlex) {
   mj_deleteModel(m);
   mj_deleteData(d);
 }
+TEST_F(UserFlexTest, BoundingBoxCoordinates) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" pos="1 0 -1" type="grid"
+              count="5 5 5" spacing="1 1 1" dim="3"/>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
+
+  EXPECT_EQ(m->nflexvert, 5*5*5);
+  EXPECT_EQ(m->nflexelem, 4*4*4*6);
+  EXPECT_EQ(m->flex_dim[0], 3);
+
+  // Cartesian coordinates
+  EXPECT_EQ(d->flexvert_xpos[0], -1);
+  EXPECT_EQ(d->flexvert_xpos[1], -2);
+  EXPECT_EQ(d->flexvert_xpos[2], -3);
+  EXPECT_EQ(d->flexvert_xpos[3*m->nflexvert-3], 3);
+  EXPECT_EQ(d->flexvert_xpos[3*m->nflexvert-2], 2);
+  EXPECT_EQ(d->flexvert_xpos[3*m->nflexvert-1], 1);
+
+  // bounding box coordinates
+  EXPECT_EQ(m->flex_vert0[0], 0);
+  EXPECT_EQ(m->flex_vert0[1], 0);
+  EXPECT_EQ(m->flex_vert0[2], 0);
+  EXPECT_EQ(m->flex_vert0[3*m->nflexvert-3], 1);
+  EXPECT_EQ(m->flex_vert0[3*m->nflexvert-2], 1);
+  EXPECT_EQ(m->flex_vert0[3*m->nflexvert-1], 1);
+
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
 
 TEST_F(UserFlexTest, LoadMSHBinary_41_Success) {
   const std::string xml_path =
@@ -280,14 +319,16 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinary_41_Success) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[2], 0 );
 
   // first element
   EXPECT_EQ(m->flex_elem[0], 9-1 );
@@ -306,14 +347,16 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinary_22_Success) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[2], 0 );
 
   // first element
   EXPECT_EQ(m->flex_elem[0], 9-1 );
@@ -377,14 +420,16 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCII_41_Success) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[2], 0 );
 
   // first element
   EXPECT_EQ(m->flex_elem[0], 9-1 );
@@ -403,14 +448,16 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCII_22_Success) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
   EXPECT_EQ(m->nflexvert, 14);
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(m->flex_xvert0[0], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[1], -0.5 );
-  EXPECT_EQ(m->flex_xvert0[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
+  EXPECT_EQ(d->flexvert_xpos[2], 0 );
 
   // first element
   EXPECT_EQ(m->flex_elem[0], 9-1 );

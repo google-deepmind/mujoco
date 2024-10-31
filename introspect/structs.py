@@ -2603,11 +2603,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexvert', 3),
              ),
              StructFieldDecl(
-                 name='flex_xvert0',
+                 name='flex_vert0',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='Cartesian vertex positions in qpos0',
+                 doc='vertex positions in qpos0 on [0, 1]^d',
                  array_extent=('nflexvert', 3),
              ),
              StructFieldDecl(
