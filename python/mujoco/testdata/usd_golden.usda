@@ -28,6 +28,22 @@ def Xform "World"
         }
     }
 
+    def Xform "Camera_Xform_primary_usd_camera"
+    {
+        matrix4d xformOp:transform.timeSamples = {
+            0: ( (0.9999999403953552, -6.123233601181349e-17, 0, 0), (4.329780301713277e-17, 0.7071067690849304, 0.7071067690849304, 0), (-4.329780301713277e-17, -0.7071067690849304, 0.7071067690849304, 0), (0, -3.674234628677368, 3.674234628677368, 1) ),
+        }
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def Camera "Camera_primary_usd_camera"
+        {
+            float2 clippingRange = (0.0001, 1000000)
+            float focalLength = 12
+            float focusDistance = 400
+            float horizontalAperture = 12
+        }
+    }
+
     def Xform "Camera_Xform_closeup"
     {
         matrix4d xformOp:transform.timeSamples = {
