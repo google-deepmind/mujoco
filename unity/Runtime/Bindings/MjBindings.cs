@@ -4851,7 +4851,7 @@ public unsafe struct mjData_ {
   public int nf;
   public int nl;
   public int nefc;
-  public int nnzJ;
+  public int nJ;
   public int nisland;
   public double time;
   public fixed double energy[2];

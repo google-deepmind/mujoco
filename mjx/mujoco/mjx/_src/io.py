@@ -408,7 +408,7 @@ def get_data_into(
     ncon = (d_i.contact.dist <= 0).sum()
     efc_active = (d_i.efc_J != 0).any(axis=1)
     nefc = int(efc_active.sum())
-    result_i.nnzJ = nefc * m.nv
+    result_i.nJ = nefc * m.nv
     if ncon != result_i.ncon or nefc != result_i.nefc:
       mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
     result_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)

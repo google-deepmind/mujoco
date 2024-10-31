@@ -1943,7 +1943,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nnzJ = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nJ = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -1951,13 +1951,13 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   }
 
   // precount sizes for constraint Jacobian matrices
-  int *nnz = mj_isSparse(m) ? &(d->nnzJ) : NULL;
+  int *nnz = mj_isSparse(m) ? &(d->nJ) : NULL;
   int ne_allocated = mj_ne(m, d, nnz);
   int nf_allocated = mj_nf(m, d, nnz);
   int nl_allocated = mj_nl(m, d, nnz);
   int nefc_allocated = ne_allocated + nf_allocated + nl_allocated + mj_nc(m, d, nnz);
   if (!mj_isSparse(m)) {
-    d->nnzJ = nefc_allocated * m->nv;
+    d->nJ = nefc_allocated * m->nv;
   }
   d->nefc = nefc_allocated;
 
@@ -1998,12 +1998,11 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
       mjERROR("nefc mis-allocation: found nefc=%d but allocated %d", d->nefc, nefc_allocated);
     }
 
-    // check that nnzJ was computed correctly
+    // check that nJ was computed correctly
     if (d->nefc > 0) {
-      int nnzJ = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
-      if (d->nnzJ != nnzJ) {
-        mjERROR("constraint Jacobian mis-allocation: found nnzJ=%d but allocated %d",
-                nnzJ, d->nnzJ);
+      int nJ = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
+      if (d->nJ != nJ) {
+        mjERROR("constraint Jacobian mis-allocation: found nJ=%d but allocated %d", nJ, d->nJ);
       }
     }
   } else if (d->nefc > nefc_allocated) {

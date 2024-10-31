@@ -689,13 +689,13 @@
     X( int,      efc_J_rownnz,      MJ_D(nefc),    1 ) \
     X( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
     X( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
-    X( int,      efc_J_colind,      MJ_D(nnzJ),    1 ) \
+    X( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
     X( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
     X( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
     X( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
-    X( int,      efc_JT_colind,     MJ_D(nnzJ),    1 ) \
-    X( mjtNum,   efc_J,             MJ_D(nnzJ),    1 ) \
-    X( mjtNum,   efc_JT,            MJ_D(nnzJ),    1 ) \
+    X( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
+    X( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
+    X( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
     X( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
@@ -755,7 +755,7 @@
     X( int,       nf                 ) \
     X( int,       nl                 ) \
     X( int,       nefc               ) \
-    X( int,       nnzJ               ) \
+    X( int,       nJ                 ) \
     X( int,       nisland            ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )

@@ -4692,7 +4692,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of constraints',
              ),
              StructFieldDecl(
-                 name='nnzJ',
+                 name='nJ',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in constraint Jacobian',
              ),
@@ -5588,7 +5588,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='column indices in constraint Jacobian',
-                 array_extent=('nnzJ',),
+                 array_extent=('nJ',),
              ),
              StructFieldDecl(
                  name='efc_JT_rownnz',
@@ -5616,7 +5616,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='column indices in constraint Jacobian          T (nnzJ x 1)',  # pylint: disable=line-too-long
+                 doc='column indices in constraint Jacobian          T (nJ x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_J',
@@ -5624,7 +5624,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='constraint Jacobian',
-                 array_extent=('nnzJ',),
+                 array_extent=('nJ',),
              ),
              StructFieldDecl(
                  name='efc_JT',
@@ -5632,7 +5632,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='constraint Jacobian transposed',
-                 array_extent=('nnzJ',),
+                 array_extent=('nJ',),
              ),
              StructFieldDecl(
                  name='efc_pos',
