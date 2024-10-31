@@ -20,6 +20,7 @@ import jax
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
+from mujoco.mjx._src.types import ConeType
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX smooth calculations - mostly
@@ -198,27 +199,42 @@ class SmoothTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'subtree_linvel')
     _assert_attr_eq(d, dx, 'subtree_angmom')
 
-  def test_rnepostconstraint(self):
+
+class RnePostConstraintTest(parameterized.TestCase):
+
+  @parameterized.parameters(ConeType)
+  def test_rnepostconstraint(self, cone_type):
     """Tests MJX rne_postconstraint function to match MuJoCo mj_rnePostConstraint."""
 
     m = mujoco.MjModel.from_xml_string("""
         <mujoco>
           <worldbody>
-            <geom name="floor" size="0 0 .05" type="plane"/>
+            <geom name="floor" size="10 10 .05" type="plane"/>
             <body pos="0 0 1">
               <joint type="ball" damping="1"/>
-              <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"/>
+              <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="1"/>
               <body pos="0.5 0 0">
                 <joint type="ball" damping="1"/>
-                <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"/>
+                <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
+              </body>
+            </body>
+            <body pos="0 1 1">
+              <joint type="ball" damping="1"/>
+              <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="6"/>
+              <body pos="0.5 0 0">
+                <joint type="ball" damping="1"/>
+                <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
               </body>
             </body>
           </worldbody>
           <keyframe>
-            <key qpos='0.424577 0.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697'/>
+            <key qpos='0.424577 0.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697 0.424577 1.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697'/>
           </keyframe>
         </mujoco>
     """)
+    # set cone type
+    m.opt.cone = cone_type
+    # create data and set to keyframe
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
     # apply external forces

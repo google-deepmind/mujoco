@@ -21,6 +21,7 @@ import mujoco
 from mujoco.mjx._src import math
 from mujoco.mjx._src import scan
 # pylint: disable=g-importing-member
+from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import JacobianType
 from mujoco.mjx._src.types import Model
@@ -307,12 +308,13 @@ def contact_force(
   """Extract 6D force:torque for one contact, in contact frame by default."""
   efc_address = d.contact.efc_address[contact_id]
   condim = d.contact.dim[contact_id]
-  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+  if m.opt.cone == ConeType.PYRAMIDAL:
     force = _decode_pyramid(
         d.efc_force[efc_address:], d.contact.friction[contact_id], condim
     )
-  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
-    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  elif m.opt.cone == ConeType.ELLIPTIC:
+    force = d.efc_force[efc_address : efc_address + condim]
+    force = jp.concatenate([force, jp.zeros((6 - condim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}')
 
@@ -331,7 +333,7 @@ def contact_force_dim(
   idx_dim = (d.contact.efc_address >= 0) & (d.contact.dim == dim)
 
   # contact force from efc
-  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+  if m.opt.cone == ConeType.PYRAMIDAL:
     efc_address = (
         d.contact.efc_address[idx_dim, None]
         + np.arange(np.where(dim == 1, 1, 2 * (dim - 1)))[None]
@@ -340,12 +342,13 @@ def contact_force_dim(
     force = jax.vmap(_decode_pyramid, in_axes=(0, 0, None))(
         efc_force, d.contact.friction[idx_dim], dim
     )
-    return force, np.where(idx_dim)[0]
-  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
-    # TODO(taylorhowell): add support for elliptic cone
-    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  elif m.opt.cone == ConeType.ELLIPTIC:
+    efc_address = d.contact.efc_address[idx_dim, None] + np.arange(dim)[None]
+    force = d.efc_force[efc_address]
+    force = jp.hstack([force, jp.zeros((force.shape[0], 6 - dim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}.')
+  return force, np.where(idx_dim)[0]
 
 
 def _length_circle(
