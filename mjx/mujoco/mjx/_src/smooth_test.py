@@ -117,7 +117,17 @@ class SmoothTest(absltest.TestCase):
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
     _assert_attr_eq(d, dx, 'actuator_length')
-    _assert_attr_eq(d, dx, 'actuator_moment')
+
+    # convert sparse actuator_moment to dense representation
+    moment = np.zeros((m.nu, m.nv))
+    mujoco.mju_sparse2dense(
+        moment,
+        d.actuator_moment.reshape(-1),
+        d.moment_rownnz,
+        d.moment_rowadr,
+        d.moment_colind.reshape(-1),
+    )
+    _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
 
   def test_disable_gravity(self):
     m = mujoco.MjModel.from_xml_string("""
@@ -178,7 +188,17 @@ class SmoothTest(absltest.TestCase):
     mujoco.mj_transmission(m, d)
     dx = jax.jit(mjx.transmission)(mx, dx)
     _assert_attr_eq(d, dx, 'actuator_length')
-    _assert_attr_eq(d, dx, 'actuator_moment')
+
+    # convert sparse actuator_moment to dense representation
+    moment = np.zeros((m.nu, m.nv))
+    mujoco.mju_sparse2dense(
+        moment,
+        d.actuator_moment.reshape(-1),
+        d.moment_rownnz,
+        d.moment_rowadr,
+        d.moment_colind.reshape(-1),
+    )
+    _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
 
   def test_subtree_vel(self):
     """Tests MJX subtree_vel function matches MuJoCo mj_subtreeVel."""

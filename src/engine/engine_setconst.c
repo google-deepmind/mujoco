@@ -29,6 +29,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
 
@@ -66,6 +67,7 @@ static void set0(mjModel* m, mjData* d) {
   mj_markStack(d);
   mjtNum* jac = mj_stackAllocNum(d, 6*nv);
   mjtNum* tmp = mj_stackAllocNum(d, 6*nv);
+  mjtNum* moment = mj_stackAllocNum(d, nv);
   int* cammode = 0;
   int* lightmode = 0;
 
@@ -278,7 +280,9 @@ static void set0(mjModel* m, mjData* d) {
 
     // compute actuator_acc0
     for (int i=0; i < m->nu; i++) {
-      mj_solveM(m, d, tmp, d->actuator_moment+i*nv, 1);
+      mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
+                       d->moment_rowadr + i, d->moment_colind);
+      mj_solveM(m, d, tmp, moment, 1);
       m->actuator_acc0[i] = mju_norm(tmp, nv);
     }
   } else {
@@ -395,13 +399,16 @@ static void set0(mjModel* m, mjData* d) {
     // === interpret biasprm[2] > 0 as dampratio for position-like actuators
 
     // "reflected" inertia (inversely scaled by transmission squared)
-    mjtNum* transmission = d->actuator_moment + i*nv;
+    int rownnz = d->moment_rownnz[i];
+    int rowadr = d->moment_rowadr[i];
+    mjtNum* transmission = d->actuator_moment + rowadr;
     mjtNum mass = 0;
-    for (int j=0; j < nv; j++) {
+    for (int j=0; j < rownnz; j++) {
       mjtNum trn = mju_abs(transmission[j]);
       mjtNum trn2 = trn*trn;  // transmission squared
       if (trn2 > mjMINVAL) {
-        mass += m->dof_M0[j] / trn2;
+        int dof = d->moment_colind[rowadr + j];
+        mass += m->dof_M0[dof] / trn2;
       }
     }
 
@@ -598,11 +605,16 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   // step1: compute inertia and actuator moments
   mj_step1(m, d);
 
+  // dense actuator_moment row
+  mj_markStack(d);
+  mjtNum* moment = mj_stackAllocNum(d, nv);
+  mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + index,
+                   d->moment_rowadr + index, d->moment_colind);
+
   // set force to generate desired acceleration
-  mj_solveM(m, d, d->qfrc_applied, d->actuator_moment+index*nv, 1);
+  mj_solveM(m, d, d->qfrc_applied, moment, 1);
   mjtNum nrm = mju_norm(d->qfrc_applied, nv);
-  mju_scl(d->qfrc_applied, d->actuator_moment+index*nv,
-          (2*side-1)*opt->accel/mjMAX(mjMINVAL, nrm), nv);
+  mju_scl(d->qfrc_applied, moment, (2*side-1)*opt->accel/mjMAX(mjMINVAL, nrm), nv);
 
   // impose maxforce
   nrm = mju_norm(d->qfrc_applied, nv);
@@ -612,6 +624,8 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
 
   // step2: apply force
   mj_step2(m, d);
+
+  mj_freeStack(d);
 
   // return actuator length
   return d->actuator_length[index];

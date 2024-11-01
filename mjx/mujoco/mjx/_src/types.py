@@ -1228,6 +1228,9 @@ class Data(PyTreeNode):
     wrap_obj: geom id; -1: site; -2: pulley                     (nwrap*2,)
     wrap_xpos: Cartesian 3D points in all path                  (nwrap*2, 3)
     actuator_length: actuator lengths                           (nu,)
+    moment_rownnz: number of non-zeros in actuator_moment row   (nu,)
+    moment_rowadr: row start address in colind array            (nu,)
+    moment_colind: column indices in sparse Jacobian            (nu, nv)
     actuator_moment: actuator moments                           (nu, nv)
     crb: com-based composite inertia and mass                   (nbody, 10)
     qM: total inertia                                if sparse: (nM,)
@@ -1350,6 +1353,9 @@ class Data(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   actuator_length: jax.Array
+  moment_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  moment_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  moment_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   actuator_moment: jax.Array
   crb: jax.Array
   qM: jax.Array  # pylint:disable=invalid-name

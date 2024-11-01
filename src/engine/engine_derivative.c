@@ -827,6 +827,10 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     return;
   }
 
+  // allocate dense actuator_moment row
+  mj_markStack(d);
+  mjtNum* moment = mj_stackAllocNum(d, nv);
+
   // process actuators
   for (int i=0; i < nu; i++) {
     // skip if disabled
@@ -870,9 +874,14 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // add
     if (bias_vel != 0) {
-      addJTBJ(m, d, d->actuator_moment+i*nv, &bias_vel, 1);
+      mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
+                       d->moment_rowadr + i, d->moment_colind);
+      addJTBJ(m, d, moment, &bias_vel, 1);
     }
   }
+
+  // free space
+  mj_freeStack(d);
 }
 
 

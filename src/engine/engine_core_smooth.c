@@ -857,6 +857,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
   // outputs
   mjtNum* length = d->actuator_length;
   mjtNum* moment = d->actuator_moment;
+  int *rownnz = d->moment_rownnz;
+  int *rowadr = d->moment_rowadr;
+  int *colind = d->moment_colind;
 
   // allocate Jacbians
   mj_markStack(d);
@@ -875,6 +878,10 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
   // compute lengths and moments
   for (int i=0; i < nu; i++) {
+    rownnz[i] = 0;
+    rowadr[i] = i == 0 ? 0 : rowadr[i-1] + rownnz[i-1];
+    int adr = rowadr[i];
+
     // extract info
     int id = m->actuator_trnid[2*i];
     mjtNum* gear = m->actuator_gear+6*i;
@@ -885,18 +892,19 @@ void mj_transmission(const mjModel* m, mjData* d) {
     case mjTRN_JOINTINPARENT:           // joint, force in parent frame
       // slide and hinge joint: scalar gear
       if (m->jnt_type[id] == mjJNT_SLIDE || m->jnt_type[id] == mjJNT_HINGE) {
+        // sparsity
+        rownnz[i]++;
+        colind[adr] = m->jnt_dofadr[id];
+
         length[i] = d->qpos[m->jnt_qposadr[id]]*gear[0];
-        moment[i*nv + m->jnt_dofadr[id]] = gear[0];
+        moment[adr] = gear[0];
       }
 
       // ball joint: 3D wrench gear
       else if (m->jnt_type[id] == mjJNT_BALL) {
-        // j: qpos start address
-        int j = m->jnt_qposadr[id];
-
         // axis: expmap representation of quaternion
         mjtNum axis[3], quat[4];
-        mju_copy4(quat, d->qpos+j);
+        mju_copy4(quat, d->qpos+m->jnt_qposadr[id]);
         mju_normalize4(quat);
         mju_quat2Vel(axis, quat, 1);
 
@@ -912,11 +920,17 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // length: axis*gearAxis
         length[i] = mju_dot3(axis, gearAxis);
 
-        // j: dof start address
-        j = m->jnt_dofadr[id];
+        // dof start address
+        int jnt_dofadr = m->jnt_dofadr[id];
+
+        // sparsity
+        for (int j = 0; j < 3; j++) {
+          colind[adr+j] = jnt_dofadr + j;
+        }
+        rownnz[i] += 3;
 
         // moment: gearAxis
-        mju_copy3(moment+i*nv+j, gearAxis);
+        mju_copy3(moment+adr, gearAxis);
       }
 
       // free joint: 6D wrench gear
@@ -924,35 +938,30 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // cannot compute meaningful length, set to 0
         length[i] = 0;
 
-        // j: qpos start address
-        int j = m->jnt_qposadr[id];
-
-        // vec: translational components
-        mjtNum vec[3];
-        mju_copy3(vec, d->qpos+j);
-
-        // axis: expmap representation of quaternion
-        mjtNum axis[3], quat[4];
-        mju_quat2Vel(axis, d->qpos+j+3, 1);
-        mju_copy4(quat, d->qpos+j+3);
-        mju_normalize4(quat);
-        mju_quat2Vel(axis, quat, 1);
-
         // gearAxis: rotate to world frame if necessary
         mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear+3);
         } else {
+          mjtNum quat[4];
+          mju_copy4(quat, d->qpos+m->jnt_qposadr[id]+3);
+          mju_normalize4(quat);
           mju_negQuat(quat, quat);
           mju_rotVecQuat(gearAxis, gear+3, quat);
         }
 
-        // j: dof start address
-        j = m->jnt_dofadr[id];
+        // dof start address
+        int jnt_dofadr = m->jnt_dofadr[id];
+
+        // sparsity
+        for (int j = 0; j < 6; j++) {
+          colind[adr+j] = jnt_dofadr + j;
+        }
+        rownnz[i] += 6;
 
         // moment: gear(tran), gearAxis
-        mju_copy3(moment+i*nv+j, gear);
-        mju_copy3(moment+i*nv+j+3, gearAxis);
+        mju_copy3(moment+adr, gear);
+        mju_copy3(moment+adr+3, gearAxis);
       }
       break;
 
@@ -1000,20 +1009,26 @@ void mj_transmission(const mjModel* m, mjData* d) {
         mj_jacSite(m, d, jac, 0, id);
         mju_subFrom(jac, jacS, 3*nv);
 
+        // sparsity
+        for (int j = 0; j < nv; j++) {
+          colind[adr+j] = j;
+        }
+        rownnz[i] += nv;
+
         // clear moment
-        mju_zero(moment+i*nv, nv);
+        mju_zero(moment + adr, nv);
 
         // apply chain rule
         for (int j=0; j < nv; j++) {
           for (int k=0; k < 3; k++) {
-            moment[i*nv+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
+            moment[adr+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
           }
         }
 
         // scale by gear ratio
         length[i] *= gear[0];
         for (int j = 0; j < nv; j++) {
-          moment[i*nv + j] *= gear[0];
+          moment[adr+j] *= gear[0];
         }
       }
       break;
@@ -1022,20 +1037,32 @@ void mj_transmission(const mjModel* m, mjData* d) {
       length[i] = d->ten_length[id]*gear[0];
 
       // moment: sparse or dense
-      if (mj_isSparse(m)) {
-        // clear moment
-        mju_zero(moment+i*nv, nv);
+      if (issparse) {
+        // sparsity
+        int ten_J_rownnz = d->ten_J_rownnz[id];
+        int ten_J_rowadr = d->ten_J_rowadr[id];
+        rownnz[i] += ten_J_rownnz;
+        mju_copyInt(colind + adr, d->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
 
-        int end = d->ten_J_rowadr[id] + d->ten_J_rownnz[id];
-        for (int j=d->ten_J_rowadr[id]; j < end; j++) {
-          moment[i*nv + d->ten_J_colind[j]] = d->ten_J[j] * gear[0];
-        }
+        mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
       } else {
-        mju_scl(moment + i*nv, d->ten_J + id*nv, gear[0], nv);
+        // sparsity
+        for (int j = 0; j < nv; j++) {
+          colind[adr+j] = j;
+        }
+        rownnz[i] += nv;
+
+        mju_scl(moment+adr, d->ten_J + id*nv, gear[0], nv);
       }
       break;
 
     case mjTRN_SITE:                    // site
+      // sparsity
+      for (int j = 0; j < nv; j++) {
+        colind[adr+j] = j;
+      }
+      rownnz[i] += nv;
+
       // get site translation (jac) and rotation (jacS) Jacobians in global frame
       mj_jacSite(m, d, jac, jacS, id);
 
@@ -1050,9 +1077,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
         mju_mulMatVec3(wrench+3, d->site_xmat+9*id, gear+3);  // rotation
 
         // moment: global Jacobian projected on wrench
-        mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);     // translation
-        mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);          // rotation
-        mju_addTo(moment+i*nv, jac, nv);                     // add the two
+        mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);       // translation
+        mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);           // rotation
+        mju_addTo(moment+adr, jac, nv);                       // add the two
       }
 
       // reference site defined
@@ -1089,7 +1116,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         }
 
         // clear moment
-        mju_zero(moment+i*nv, nv);
+        mju_zero(moment+adr, nv);
 
         // translational transmission
         if (!mju_isZero(gear, 3)) {
@@ -1121,7 +1148,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear);
 
           // moment: global Jacobian projected on wrench
-          mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);
+          mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);
         }
 
         // rotational transmission
@@ -1162,18 +1189,24 @@ void mj_transmission(const mjModel* m, mjData* d) {
           // moment_tmp: global Jacobian projected on wrench, add to moment
           if (!moment_tmp) moment_tmp = mj_stackAllocNum(d, nv);
           mju_mulMatTVec(moment_tmp, jacS, wrench, 3, nv);
-          mju_addTo(moment+i*nv, moment_tmp, nv);
+          mju_addTo(moment+adr, moment_tmp, nv);
         }
       }
 
       break;
 
     case mjTRN_BODY:                  // body (adhesive contacts)
+      // sparsity
+      for (int j = 0; j < nv; j++) {
+        colind[adr+j] = j;
+      }
+      rownnz[i] += nv;
+
       // cannot compute meaningful length, set to 0
       length[i] = 0;
 
       // clear moment
-      mju_zero(moment+i*nv, nv);
+      mju_zero(moment+adr, nv);
 
       // moment is average of all contact normal Jacobians
       {
@@ -1257,15 +1290,16 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // moment is average over contact normal Jacobians, make negative for adhesion
         if (counter) {
           // accumulate active contact Jacobians into moment
-          mj_mulJacTVec(m, d, moment+i*nv, efc_force);
+          mj_mulJacTVec(m, d, moment+adr, efc_force);
 
           // add Jacobians from excluded contacts
-          mju_addTo(moment+i*nv, moment_exclude, nv);
+          mju_addTo(moment+adr, moment_exclude, nv);
 
           // normalize by total contacts, flip sign
-          mju_scl(moment+i*nv, moment+i*nv, -1.0/counter, nv);
+          mju_scl(moment+adr, moment+adr, -1.0/counter, nv);
         }
       }
+
       break;
 
     default:

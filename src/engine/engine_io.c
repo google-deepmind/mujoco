@@ -1857,9 +1857,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
 
-  // zero out actuator_moment, mj_transmission touches it selectively
-  mju_zero(d->actuator_moment, m->nv*m->nu);
-
   // copy qpos0 from model
   if (m->qpos0) {
     memcpy(d->qpos, m->qpos0, m->nq*sizeof(mjtNum));
