@@ -136,21 +136,21 @@ the model. We start with an example.
 .. code-block:: xml
 
    <mujoco>
-       <default class="main">
-           <geom rgba="1 0 0 1"/>
-           <default class="sub">
-               <geom rgba="0 1 0 1"/>
-           </default>
+     <default class="main">
+       <geom rgba="1 0 0 1"/>
+       <default class="sub">
+         <geom rgba="0 1 0 1"/>
        </default>
+     </default>
 
-       <worldbody>
-           <geom type="box"/>
-           <body childclass="sub">
-               <geom type="ellipsoid"/>
-               <geom type="sphere" rgba="0 0 1 1"/>
-               <geom type="cylinder" class="main"/>
-           </body>
-       </worldbody>
+     <worldbody>
+       <geom type="box"/>
+       <body childclass="sub">
+         <geom type="ellipsoid"/>
+         <geom type="sphere" rgba="0 0 1 1"/>
+         <geom type="cylinder" class="main"/>
+       </body>
+     </worldbody>
    </mujoco>
 
 This example will not actually compile because some required information is missing, but here we are only interested

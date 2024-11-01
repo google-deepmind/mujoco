@@ -7,6 +7,9 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+
+- The :doc:`Model Editing<programming/modeledit>` framework afforded by :ref:`mjSpec`, introduced in 3.2.0 as an
+  in-development feature, is now stable and recommended for general use.
 - The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
   :ref:`inertia<asset-mesh-inertia>` attribute.
 - The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
