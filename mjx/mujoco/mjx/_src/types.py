@@ -963,8 +963,8 @@ class Model(PyTreeNode):
   light_bodyid: np.ndarray = _restricted_to('mujoco')
   light_targetbodyid: np.ndarray = _restricted_to('mujoco')
   light_directional: np.ndarray
-  light_pos: np.ndarray = _restricted_to('mujoco')
-  light_dir: np.ndarray = _restricted_to('mujoco')
+  light_pos: jax.Array
+  light_dir: jax.Array
   light_poscom0: np.ndarray = _restricted_to('mujoco')
   light_pos0: np.ndarray
   light_dir0: np.ndarray
