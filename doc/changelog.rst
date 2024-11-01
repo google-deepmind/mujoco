@@ -31,6 +31,12 @@ Bug fixes
   runtime enabling/disabling of such constraints.
 - Fixed a bug in slider-crank :ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
 
+
+Documentation
+^^^^^^^^^^^^^
+- Function headers in the :doc:`API reference <../APIreference/APIfunctions>` now link to their source definitions
+  in GitHub.
+
 Version 3.2.4 (Oct 15, 2024)
 ----------------------------
 
