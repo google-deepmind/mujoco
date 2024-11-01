@@ -20,6 +20,9 @@ import jax
 from jax import numpy as jp
 
 
+
+
+
 def matmul_unroll(a: jax.Array, b: jax.Array) -> jax.Array:
   """Calculates a @ b via explicit cell value operations.
 
@@ -136,6 +139,28 @@ def quat_sub(u: jax.Array, v: jax.Array) -> jax.Array:
   return axis * angle
 
 
+QUAT_MULTIPLY = np.zeros((4, 4, 4), dtype=np.float32)
+QUAT_MULTIPLY[:, :, 0] = [[ 1, 0, 0, 0],
+                          [ 0,-1, 0, 0],
+                          [ 0, 0,-1, 0],
+                          [ 0, 0, 0,-1]]
+
+QUAT_MULTIPLY[:, :, 1] = [[ 0, 1, 0, 0],
+                          [ 1, 0, 0, 0],
+                          [ 0, 0, 0, 1],
+                          [ 0, 0,-1, 0]]
+
+QUAT_MULTIPLY[:, :, 2] = [[ 0, 0, 1, 0],
+                          [ 0, 0, 0,-1],
+                          [ 1, 0, 0, 0],
+                          [ 0, 1, 0, 0]]
+
+QUAT_MULTIPLY[:, :, 3] = [[ 0, 0, 0, 1],
+                          [ 0, 0, 1, 0],
+                          [ 0,-1, 0, 0],
+                          [ 1, 0, 0, 0]]
+
+
 def quat_mul(u: jax.Array, v: jax.Array) -> jax.Array:
   """Multiplies two quaternions.
 
@@ -146,12 +171,11 @@ def quat_mul(u: jax.Array, v: jax.Array) -> jax.Array:
   Returns:
     A quaternion u * v.
   """
-  return jp.array([
-      u[0] * v[0] - u[1] * v[1] - u[2] * v[2] - u[3] * v[3],
-      u[0] * v[1] + u[1] * v[0] + u[2] * v[3] - u[3] * v[2],
-      u[0] * v[2] - u[1] * v[3] + u[2] * v[0] + u[3] * v[1],
-      u[0] * v[3] + u[1] * v[2] - u[2] * v[1] + u[3] * v[0],
-  ])
+  return jp.sum(
+    QUAT_MULTIPLY *
+    u[..., :, None, None] *
+    v[..., None, :, None],
+    axis=(-3, -2))
 
 
 def quat_mul_axis(q: jax.Array, axis: jax.Array) -> jax.Array:
