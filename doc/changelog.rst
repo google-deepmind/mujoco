@@ -17,6 +17,8 @@ General
 - Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
 - The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single
   :ref:`layer<material-layer>` sub-element.
+- The composite types box, cylinder, and sphere have been removed. Users should instead use the equivalent types
+  available in :ref:`flexcomp<body-flexcomp>`.
 
 MJX
 ^^^
@@ -33,6 +35,7 @@ Bug fixes
   several places leading to incorrect computations of constraint inertia, readings of affected force/torque sensors and
   runtime enabling/disabling of such constraints.
 - Fixed a bug in slider-crank :ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
+- Fixed a bug in flex texture coordinates that prevented the correct allocation of textures in mjModel.
 
 
 Documentation

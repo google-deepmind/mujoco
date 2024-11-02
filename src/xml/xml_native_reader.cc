@@ -742,10 +742,7 @@ const mjMap comp_map[mjNCOMPTYPES] = {
   {"rope",        mjCOMPTYPE_ROPE},
   {"loop",        mjCOMPTYPE_LOOP},
   {"cable",       mjCOMPTYPE_CABLE},
-  {"cloth",       mjCOMPTYPE_CLOTH},
-  {"box",         mjCOMPTYPE_BOX},
-  {"cylinder",    mjCOMPTYPE_CYLINDER},
-  {"ellipsoid",   mjCOMPTYPE_ELLIPSOID}
+  {"cloth",       mjCOMPTYPE_CLOTH}
 };
 
 

@@ -3566,9 +3566,10 @@ saving the XML:
 
 :at:`texcoord`: :at-val:`real(2*npoint), optional`
    Texture coordinates of each point, passed through to the automatically-generated flex. Note that flexcomp does not
-   generate texture coordinates automatically, except for 2D grids. For all other types, the user can specify explicit
-   texture coordinates here, even if the points themselves were generated automatically. This requires understanding of
-   the layout of the automatically-generated points and how they correspond to the texture referenced by the material.
+   generate texture coordinates automatically, except for 2D grids, box, cylinder and ellipsoid. For all other types,
+   the user can specify explicit texture coordinates here, even if the points themselves were generated automatically.
+   This requires understanding of the layout of the automatically-generated points and how they correspond to the
+   texture referenced by the material.
 
 .. _body-flexcomp-mass:
 

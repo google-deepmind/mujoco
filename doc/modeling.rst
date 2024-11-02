@@ -1280,62 +1280,11 @@ scenario (e.g. a stretched rubber band).
 The cloth is deprecated. It is recommended to use 2D flex :ref:`deformable objects <CDeformable>` for simulating thin
 elastic structures.
 
-**Box**.
+**Box, cylinder and ellipsoid**.
 
-|image14| |image15|
 
-.. code-block:: xml
-
-   <body pos="0 0 1">
-     <freejoint/>
-     <composite type="box" count="7 7 7" spacing="0.04">
-       <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-       <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
-
-The box type, as well as the cylinder and ellipsoid types below, are used to model soft 3D objects. The element bodies
-form a grid along the outer shell, thus the number of element bodies scales with the square of the linear dimension.
-This is much more efficient than simulating a 3D grid. The parent body within which :el:`composite` appears is at the
-center of the soft object. All element bodies are children of the parent. Each element body has a single sliding joint
-pointing away from the parent. These joints allow the surface of the soft object to compress and expand at any point.
-The joints are equality-constrained to their initial position, so as to maintain the shape. In addition each joint is
-equality-constrained to its neighbor joints, so that when the soft objects deforms, the deformation is smooth.
-Finally, there is a tendon equality constraint specifying that the sum of all joints should remain constant. This
-attempts to preserve the volume of the soft object approximately. If the object is squeezed from all sides it will
-compress and the volume will decrease, but otherwise some element bodies will stick out to compensate for squeezing
-elsewhere. The plot on the left shows this effect; we are using the capsule probe to compress one corner, and the
-opposite sides of the cube expand a bit, while the deformations remain smooth. The :at:`count` attribute determines
-the number of element bodies in each dimension, so if the counts are different the resulting object will be a
-rectangular box and not a cube. The geoms attached to the element bodies can be spheres, capsules or ellipsoids.
-Spheres are faster for collision detection, but they result in a thin shell, allowing other bodies to "get under the
-skin" of the soft object. When capsules or ellipsoids are used, they are automatically oriented so that the long axis
-points to the outside, thus creating a thicker shell which is harder to penetrate.
-
-**Cylinder and ellipsoid**.
-
-|image16| |image17|
-
-.. code-block:: xml
-
-   <body pos="0 0 1">
-     <freejoint/>
-     <composite type="ellipsoid" count="5 7 9" spacing="0.05">
-       <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-       <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
-
-Cylinders and ellipsoids are created in the same way as boxes. The only difference is that the reference positions of
-the element bodies (relative to the parent) are projected on a cylinder or ellipsoid, with size implied by the
-:at:`count` attribute. The automatic skin generator is aware of the smooth surfaces, and adjusts the skin normals
-accordingly. In the plots we have used the capsule probe to press on each body, then paused the simulation and moved the
-probe away (which is possible because the probe is a mocap body which can move independent of the physics). In this way
-we can see the indentation made by the probe, and the resulting deformation in the rest of the body. By changing the
-solref and solimp attributes of the equality constraints that hold the soft object together, one can adjust the behavior
-of the system making it softer or harder, damped or springy, etc. Note that box, cylinder and ellipsoid objects do not
-involve long kinematic chains, and can be simulated at large timesteps -- similar to particle and grid, and unlike rope
-and cloth.
+The box type, as well as the cylinder and ellipsoid types, are now deprecated in favor of 3D flex :ref:`deformable
+objects <CDeformable>``. element.
 
 .. _CDeformable:
 

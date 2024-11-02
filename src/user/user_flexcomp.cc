@@ -763,6 +763,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
 // make 3d box, ellipsoid or cylinder
 bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   double pos[3];
+  bool needtex = texcoord.empty() && !std::string(mjs_getString(def.spec.flex->material)).empty();
 
   // set 3D
   def.spec.flex->dim = 3;
@@ -771,6 +772,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   point.push_back(0);
   point.push_back(0);
   point.push_back(0);
+
+  // add texture coordinates, if not specified explicitly
+  if (needtex) {
+    texcoord.push_back(0);
+    texcoord.push_back(0);
+  }
 
   // iz=0/max
   for (int iz=0; iz < count[2]; iz+=count[2]-1) {
@@ -781,6 +788,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
         point.push_back(pos[0]);
         point.push_back(pos[1]);
         point.push_back(pos[2]);
+
+        // add texture coordinates, if not specified explicitly
+        if (needtex) {
+          texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+          texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+        }
 
         // add elements
         if (ix < count[0]-1 && iy < count[1]-1) {
@@ -808,6 +821,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+
+          // add texture coordinates
+          if (needtex) {
+            texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+            texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
+          }
         }
 
         // add elements
@@ -836,6 +855,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+
+          // add texture coordinates
+          if (needtex) {
+            texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+            texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
+          }
         }
 
         // add elements
