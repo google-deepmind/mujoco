@@ -85,25 +85,25 @@ MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
 //---------------------------------- Add tree elements ---------------------------------------------
 
 // Add child body to body, return child.
-MJAPI mjsBody* mjs_addBody(mjsBody* body, mjsDefault* def);
+MJAPI mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
 
 // Add site to body, return site spec.
-MJAPI mjsSite* mjs_addSite(mjsBody* body, mjsDefault* def);
+MJAPI mjsSite* mjs_addSite(mjsBody* body, const mjsDefault* def);
 
 // Add joint to body.
-MJAPI mjsJoint* mjs_addJoint(mjsBody* body, mjsDefault* def);
+MJAPI mjsJoint* mjs_addJoint(mjsBody* body, const mjsDefault* def);
 
 // Add freejoint to body.
 MJAPI mjsJoint* mjs_addFreeJoint(mjsBody* body);
 
 // Add geom to body.
-MJAPI mjsGeom* mjs_addGeom(mjsBody* body, mjsDefault* def);
+MJAPI mjsGeom* mjs_addGeom(mjsBody* body, const mjsDefault* def);
 
 // Add camera to body.
-MJAPI mjsCamera* mjs_addCamera(mjsBody* body, mjsDefault* def);
+MJAPI mjsCamera* mjs_addCamera(mjsBody* body, const mjsDefault* def);
 
 // Add light to body.
-MJAPI mjsLight* mjs_addLight(mjsBody* body, mjsDefault* def);
+MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
@@ -115,7 +115,7 @@ MJAPI void mjs_delete(mjsElement* element);
 //---------------------------------- Add non-tree elements -----------------------------------------
 
 // Add actuator.
-MJAPI mjsActuator* mjs_addActuator(mjSpec* s, mjsDefault* def);
+MJAPI mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* def);
 
 // Add sensor.
 MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
@@ -124,16 +124,16 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
 
 // Add contact pair.
-MJAPI mjsPair* mjs_addPair(mjSpec* s, mjsDefault* def);
+MJAPI mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* def);
 
 // Add excluded body pair.
 MJAPI mjsExclude* mjs_addExclude(mjSpec* s);
 
 // Add equality.
-MJAPI mjsEquality* mjs_addEquality(mjSpec* s, mjsDefault* def);
+MJAPI mjsEquality* mjs_addEquality(mjSpec* s, const mjsDefault* def);
 
 // Add tendon.
-MJAPI mjsTendon* mjs_addTendon(mjSpec* s, mjsDefault* def);
+MJAPI mjsTendon* mjs_addTendon(mjSpec* s, const mjsDefault* def);
 
 // Wrap site using tendon.
 MJAPI mjsWrap* mjs_wrapSite(mjsTendon* tendon, const char* name);
@@ -169,7 +169,7 @@ MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefa
 //---------------------------------- Add assets ----------------------------------------------------
 
 // Add mesh.
-MJAPI mjsMesh* mjs_addMesh(mjSpec* s, mjsDefault* def);
+MJAPI mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 
 // Add height field.
 MJAPI mjsHField* mjs_addHField(mjSpec* s);
@@ -181,7 +181,7 @@ MJAPI mjsSkin* mjs_addSkin(mjSpec* s);
 MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
 
 // Add material.
-MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, mjsDefault* def);
+MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 
 
 //---------------------------------- Find/get utilities --------------------------------------------
@@ -208,7 +208,7 @@ MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
 MJAPI mjsDefault* mjs_getDefault(mjsElement* element);
 
 // Find default in model by class name.
-MJAPI mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
+MJAPI const mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
 
 // Get global default from model.
 MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
@@ -353,7 +353,7 @@ MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 //---------------------------------- Other utilities -----------------------------------------------
 
 // Set element's default.
-MJAPI void mjs_setDefault(mjsElement* element, mjsDefault* def);
+MJAPI void mjs_setDefault(mjsElement* element, const mjsDefault* def);
 
 // Set element's enlcosing frame.
 MJAPI void mjs_setFrame(mjsElement* dest, mjsFrame* frame);

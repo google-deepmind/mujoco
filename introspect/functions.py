@@ -9072,7 +9072,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9094,7 +9094,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9116,7 +9116,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9154,7 +9154,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9176,7 +9176,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9198,7 +9198,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9256,7 +9256,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9310,7 +9310,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9348,7 +9348,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9370,7 +9370,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9596,7 +9596,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9666,7 +9666,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9822,7 +9822,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
      FunctionDecl(
          name='mjs_findDefault',
          return_type=PointerType(
-             inner_type=ValueType(name='mjsDefault'),
+             inner_type=ValueType(name='mjsDefault', is_const=True),
          ),
          parameters=(
              FunctionParameterDecl(
@@ -10262,7 +10262,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
