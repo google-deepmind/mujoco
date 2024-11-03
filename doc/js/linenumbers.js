@@ -97,6 +97,26 @@ class LineNumbers {
         this.map.set(key, `https://github.com/google-deepmind/mujoco/blob/main/src/${src}#L${i+1}`);
       }
     }
+
+    // edge cases
+    if (src == 'user/user_api.cc') {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('[[nodiscard]] int mj_recompile(')) {
+          const key = 'mj_recompile';
+          this.map.set(key, `https://github.com/google-deepmind/mujoco/blob/main/src/${src}#L${i+1}`);
+        }
+      }
+    } else if (src == 'engine/engine_io.c') {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('void mj_freeStack(')) {
+          const key = 'mj_freeStack';
+          this.map.set(key, `https://github.com/google-deepmind/mujoco/blob/main/src/${src}#L${i+1}`);
+        } else if (lines[i].startsWith('void mj_markStack(')) {
+          const key = 'mj_markStack';
+          this.map.set(key, `https://github.com/google-deepmind/mujoco/blob/main/src/${src}#L${i+1}`);
+        }
+      }
+    }
   }
 }
 
