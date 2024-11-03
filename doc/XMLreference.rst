@@ -6184,13 +6184,12 @@ excluded; this is because sensor calculations are independent of the visualizer.
 :el-prefix:`sensor/` |-| **camprojection** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a camprojection sensor, which returns the location of a target site, projected onto a camera image
-in pixel coordinates. The origin of this system is located at the top-left corner of the first pixel, so a target
-which projects exactly onto the corner of the image, will have value (0, 0). Values are not clipped, so targets which
-fall outside the camera image will take values above or below the pixel limits. Moreover, points behind the camera
-are also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using
-a `framepos<sensor-framepos>` sensor with the camera as reference frame, then a negative/positive value in the
-z-coordinate indicates (respectively) a location in the front/back of the camera.
+This element creates a camera projection sensor: the location of a target site, projected onto a camera image in pixel
+coordinates. The pixel origin (0, 0) is located at the top-left corner. Values are not clipped, so targets which fall
+outside the camera image will take values above or below the pixel range limits. Moreover, points behind the camera are
+also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using a
+:ref:`framepos<sensor-framepos>` sensor with the camera as a reference frame: a negative/positive value in the
+z-coordinate indicates a location in front of/behind the camera plane, respectively.
 
 .. _sensor-camprojection-site:
 
