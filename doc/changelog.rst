@@ -2,52 +2,52 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.2.5 (Nov 4, 2024)
+---------------------------
 
 Feature promotion
 ^^^^^^^^^^^^^^^^^
-- The :doc:`Model Editing<programming/modeledit>` framework afforded by :ref:`mjSpec`, introduced in 3.2.0 as an
-  in-development feature, is now stable and recommended for general use.
-- The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
-  :ref:`nativeccd<option-flag-nativeccd>` flag, is not yet the default but is already recommended for general use.
-  Please try it when encountering collision-related problems and report any issues you encounter.
+1. The :doc:`Model Editing<programming/modeledit>` framework afforded by :ref:`mjSpec`, introduced in 3.2.0 as an
+   in-development feature, is now stable and recommended for general use.
+2. The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
+   :ref:`nativeccd<option-flag-nativeccd>` flag, is not yet the default but is already recommended for general use.
+   Please try it when encountering collision-related problems and report any issues you encounter.
 
 General
 ^^^^^^^
 
-- The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
-  :ref:`inertia<asset-mesh-inertia>` attribute.
-- The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
-- Removed the deprecated ``mju_rotVecMat``, ``mju_rotVecMatT`` and ``mjv_makeConnector`` functions.
-- Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
-- The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single
-  :ref:`layer<material-layer>` sub-element.
-- The composite types box, cylinder, and sphere have been removed. Users should instead use the equivalent types
-  available in :ref:`flexcomp<body-flexcomp>`.
+3. The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
+   :ref:`inertia<asset-mesh-inertia>` attribute.
+4. The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
+5. Removed the deprecated ``mju_rotVecMat``, ``mju_rotVecMatT`` and ``mjv_makeConnector`` functions.
+6. Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
+7. The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single
+   :ref:`layer<material-layer>` sub-element.
+8. The composite types box, cylinder, and sphere have been removed. Users should instead use the equivalent types
+   available in :ref:`flexcomp<body-flexcomp>`.
 
 MJX
 ^^^
-- Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
-- Added ``TOUCH`` sensor.
-- Added support for ``eq_active``. Fixes :github:issue:`2173`.
-- Added ray intersection with ellipsoid.
+9. Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
+10. Added ``TOUCH`` sensor.
+11. Added support for ``eq_active``. Fixes :github:issue:`2173`.
+12. Added ray intersection with ellipsoid.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed several bugs related to connect and weld constraints with site semantics (fixes :github:issue:`2179`, reported
-  by :github:user:`yinfanyi`). The introduction of site specification to connects and welds in 3.2.3 conditionally
-  changed the semantics of `mjData.eq_obj1id` and `mjData.eq_obj2id`, but these changes were not properly propagated in
-  several places leading to incorrect computations of constraint inertia, readings of affected force/torque sensors and
-  runtime enabling/disabling of such constraints.
-- Fixed a bug in slider-crank :ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
-- Fixed a bug in flex texture coordinates that prevented the correct allocation of textures in mjModel.
+13. Fixed several bugs related to connect and weld constraints with site semantics (fixes :github:issue:`2179`, reported
+    by :github:user:`yinfanyi`). The introduction of site specification to connects and welds in 3.2.3 conditionally
+    changed the semantics of `mjData.eq_obj1id` and `mjData.eq_obj2id`, but these changes were not properly propagated in
+    several places leading to incorrect computations of constraint inertia, readings of affected force/torque sensors and
+    runtime enabling/disabling of such constraints.
+14. Fixed a bug in slider-crank :ref:`transmission<geTransmission>`. The bug was introduced in 3.0.0.
+15. Fixed a bug in flex texture coordinates that prevented the correct allocation of textures in mjModel.
 
 
 Documentation
 ^^^^^^^^^^^^^
-- Function headers in the :doc:`API reference <../APIreference/APIfunctions>` now link to their source definitions
-  in GitHub.
+16. Function headers in the :doc:`API reference <../APIreference/APIfunctions>` now link to their source definitions
+    in GitHub.
 
 Version 3.2.4 (Oct 15, 2024)
 ----------------------------
