@@ -5,11 +5,17 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+Feature promotion
+^^^^^^^^^^^^^^^^^
+- The :doc:`Model Editing<programming/modeledit>` framework afforded by :ref:`mjSpec`, introduced in 3.2.0 as an
+  in-development feature, is now stable and recommended for general use.
+- The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
+  :ref:`nativeccd<option-flag-nativeccd>` flag, is not yet the default but is already recommended for general use.
+  Please try it when encountering collision-related problems and report any issues you encounter.
+
 General
 ^^^^^^^
 
-- The :doc:`Model Editing<programming/modeledit>` framework afforded by :ref:`mjSpec`, introduced in 3.2.0 as an
-  in-development feature, is now stable and recommended for general use.
 - The global compiler flag ``exactmeshinertia`` has been removed and replaced with the mesh-specific
   :ref:`inertia<asset-mesh-inertia>` attribute.
 - The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
