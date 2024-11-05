@@ -2126,12 +2126,6 @@ void Simulate::Sync() {
   } else {
     mjv_applyPerturbPose(m_, d_, &this->pert, 1);  // mocap and dynamic bodies
   }
-
-
-#ifdef mjBUILDSIMULATEXR
-  //hmd.transform(this->scn, this->m_);
-  //hmd.update(this->scn);
-#endif // mjBUILDSIMULATEXR
 }
 
 //------------------------- Tell the render thread to load a file and wait -------------------------
@@ -2268,7 +2262,6 @@ void Simulate::LoadOnRenderThread() {
 
   // re-create scene and context
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
-
   if (this->is_passive_) {
     mjopt_prev_ = m_->opt;
     opt_prev_ = opt;

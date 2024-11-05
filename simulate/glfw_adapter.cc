@@ -64,7 +64,6 @@ GlfwAdapter::GlfwAdapter() {
   vidmode_ = *Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
 
   // create window
-  // TODO(AS) needs to pull the size from the HMD?
   window_ = Glfw().glfwCreateWindow((2 * vidmode_.width) / 3,
                                     (2 * vidmode_.height) / 3,
                                     "MuJoCo", nullptr, nullptr);
@@ -171,11 +170,11 @@ void GlfwAdapter::SetVSync(bool enabled){
 #else
 #ifdef mjBUILDSIMULATEXR
   // might interfere with frame loop timing
-  // TODO(AS) consider disabling it somewhere else
+  // TODO(AS) consider disabling it somewhere else?
   Glfw().glfwSwapInterval(0);
-#else
+#else // mjBUILDSIMULATEXR
   Glfw().glfwSwapInterval(enabled);
-#endif mjBUILDSIMULATEXR
+#endif // mjBUILDSIMULATEXR
 #endif
 }
 
