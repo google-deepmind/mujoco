@@ -514,6 +514,8 @@ class Model(PyTreeNode):
     nmeshgraph: number of ints in mesh auxiliary data
     nhfield: number of heightfields
     nhfielddata: number of data points in all heightfields
+    ntex: number of textures
+    ntexdata: number of bytes in texture rgb data
     nmat: number of materials
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
@@ -635,6 +637,7 @@ class Model(PyTreeNode):
     light_mode: light tracking mode (mjtCamLight)             (nlight,)
     light_bodyid: id of light's body                          (nlight,)
     light_targetbodyid: id of targeted body; -1: none         (nlight,)
+    light_directional: directional light                      (nlight,)
     light_pos: position rel. to body frame                    (nlight, 3)
     light_dir: direction rel. to body frame                   (nlight, 3)
     light_poscom0: global position rel. to sub-com in qpos0   (nlight, 3)
@@ -692,12 +695,22 @@ class Model(PyTreeNode):
     mesh_pos: translation applied to asset vertices           (nmesh, 3)
     mesh_quat: rotation applied to asset vertices             (nmesh, 4)
     mesh_convex: pre-compiled convex mesh info for MJX        (nmesh,)
+    mesh_texcoordadr: texcoord data address; -1: no texcoord  (nmesh,)
+    mesh_texcoordnum: number of texcoord                      (nmesh,)
+    mesh_texcoord: vertex texcoords for all meshes            (nmeshtexcoord, 2)
     hfield_size: (x, y, z_top, z_bottom)                      (nhfield,)
     hfield_nrow: number of rows in grid                       (nhfield,)
     hfield_ncol: number of columns in grid                    (nhfield,)
     hfield_adr: address in hfield_data                        (nhfield,)
     hfield_data: elevation data                               (nhfielddata,)
+    tex_type: texture type (mjtTexture)                       (ntex,)
+    tex_height: number of rows in texture image               (ntex,)
+    tex_width: number of columns in texture image             (ntex,)
+    tex_nchannel: number of channels in texture image         (ntex,)
+    tex_adr: start address in tex_data                        (ntex,)
+    tex_data: pixel values                                    (ntexdata,)
     mat_rgba: rgba                                            (nmat, 4)
+    mat_texid: indices of textures; -1: none                  (nmat, mjNTEXROLE)
     pair_dim: contact dimensionality                          (npair,)
     pair_geom1: id of geom1                                   (npair,)
     pair_geom2: id of geom2                                   (npair,)
@@ -820,6 +833,8 @@ class Model(PyTreeNode):
   nmeshgraph: int
   nhfield: int
   nhfielddata: int
+  ntex: int
+  ntexdata: int
   nmat: int
   npair: int
   nexclude: int
@@ -944,14 +959,15 @@ class Model(PyTreeNode):
   cam_resolution: np.ndarray
   cam_sensorsize: np.ndarray
   cam_intrinsic: np.ndarray
-  light_mode: np.ndarray = _restricted_to('mujoco')
+  light_mode: np.ndarray
   light_bodyid: np.ndarray = _restricted_to('mujoco')
   light_targetbodyid: np.ndarray = _restricted_to('mujoco')
-  light_pos: np.ndarray = _restricted_to('mujoco')
-  light_dir: np.ndarray = _restricted_to('mujoco')
+  light_directional: np.ndarray
+  light_pos: jax.Array
+  light_dir: jax.Array
   light_poscom0: np.ndarray = _restricted_to('mujoco')
-  light_pos0: np.ndarray = _restricted_to('mujoco')
-  light_dir0: np.ndarray = _restricted_to('mujoco')
+  light_pos0: np.ndarray
+  light_dir0: np.ndarray
   flex_contype: np.ndarray = _restricted_to('mujoco')
   flex_conaffinity: np.ndarray = _restricted_to('mujoco')
   flex_condim: np.ndarray = _restricted_to('mujoco')
@@ -1004,12 +1020,22 @@ class Model(PyTreeNode):
   mesh_pos: np.ndarray
   mesh_quat: np.ndarray
   mesh_convex: Tuple[ConvexMesh, ...] = _restricted_to('mjx')
+  mesh_texcoordadr: np.ndarray
+  mesh_texcoordnum: np.ndarray
+  mesh_texcoord: np.ndarray
   hfield_size: np.ndarray
   hfield_nrow: np.ndarray
   hfield_ncol: np.ndarray
   hfield_adr: np.ndarray
   hfield_data: jax.Array
+  tex_type: np.ndarray
+  tex_height: np.ndarray
+  tex_width: np.ndarray
+  tex_nchannel: np.ndarray
+  tex_adr: np.ndarray
+  tex_data: jax.Array
   mat_rgba: np.ndarray
+  mat_texid: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
@@ -1202,6 +1228,9 @@ class Data(PyTreeNode):
     wrap_obj: geom id; -1: site; -2: pulley                     (nwrap*2,)
     wrap_xpos: Cartesian 3D points in all path                  (nwrap*2, 3)
     actuator_length: actuator lengths                           (nu,)
+    moment_rownnz: number of non-zeros in actuator_moment row   (nu,)
+    moment_rowadr: row start address in colind array            (nu,)
+    moment_colind: column indices in sparse Jacobian            (nu, nv)
     actuator_moment: actuator moments                           (nu, nv)
     crb: com-based composite inertia and mass                   (nbody, 10)
     qM: total inertia                                if sparse: (nM,)
@@ -1324,6 +1353,9 @@ class Data(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   actuator_length: jax.Array
+  moment_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  moment_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  moment_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   actuator_moment: jax.Array
   crb: jax.Array
   qM: jax.Array  # pylint:disable=invalid-name

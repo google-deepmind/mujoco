@@ -93,7 +93,7 @@ static void printSparse(const char* str, const mjtNum* mat, int nr,
                         const int* rownnz, const int* rowadr,
                         const int* colind, FILE* fp, const char* float_format) {
   // if no data, or too many rows to be visually useful, return
-  if (!mat || nr > 300) {
+  if (!mat || !nr || nr > 300) {
     return;
   }
   fprintf(fp, "%s\n", str);
@@ -147,7 +147,7 @@ static void printSparsity(const char* str, int nr, int nc,
 // print vector
 static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
                         const char* float_format) {
-  if (!data) {
+  if (!data || !n) {
     return;
   }
   // print str
@@ -1005,7 +1005,10 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   printArray("ACTUATOR_LENGTH", m->nu, 1, d->actuator_length, fp, float_format);
-  printArray("ACTUATOR_MOMENT", m->nu, m->nv, d->actuator_moment, fp, float_format);
+  printSparsity("actuator_moments", m->nu, m->nv,
+                d->moment_rowadr, d->moment_rownnz, d->moment_colind, fp);
+  printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
+              d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
 
   if (M) {

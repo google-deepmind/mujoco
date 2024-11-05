@@ -15,46 +15,60 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_SORT_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_SORT_H_
 
-#if !defined(__cplusplus)
-#include <stddef.h>
-#include <stdlib.h>
+// threshold size of a run to do insertion sort on
+#define _mjRUNSIZE 32
 
-// sorting functions using q_sort_s/r
-#ifdef _WIN32
-#define mjQUICKSORT(buf, elnum, elsz, func, context) \
-  qsort_s(buf, elnum, elsz, func, context)
-#define quicksortfunc(name, context, el1, el2) \
-  static int name(void* context, const void* el1, const void* el2)
-#else  // assumes POSIX
-#ifdef __APPLE__
-#define mjQUICKSORT(buf, elnum, elsz, func, context) \
-  qsort_r(buf, elnum, elsz, context, func)
-#define quicksortfunc(name, context, el1, el2) \
-  static int name(void* context, const void* el1, const void* el2)
-#else  // non-Apple
-#define mjQUICKSORT(buf, elnum, elsz, func, context) \
-  qsort_r(buf, elnum, elsz, func, context)
-#define quicksortfunc(name, context, el1, el2) \
-  static int name(const void* el1, const void* el2, void* context)
-#endif
-#endif
-#else
-#include <algorithm>
-#include <cstddef>
-#include <cstdlib>
-
-// sorting function using std::sort
-template <typename T>
-void mjQUICKSORT(T* buf, size_t elnum, size_t elsz,
-                 int (*compare)(const void* a, const void* b, void* c),
-                 void* context) {
-  std::sort(buf, buf + elnum, [compare, context](const T& a, const T& b) {
-    return compare(&a, &b, context) < 0;
-  });
+// insertion sort sub-macro that runs on a sub-array [start, ..., end)
+#define _mjINSERTION_SORT(type, arr, start, end, cmp, context)                                     \
+{                                                                                                  \
+  for (int j = start + 1; j < end; j++) {                                                          \
+    type tmp = arr[j];                                                                             \
+    int k = j - 1;                                                                                 \
+    for (; k >= start && cmp(arr + k, &tmp, context) > 0; k--) {                                   \
+      arr[k + 1] = arr[k];                                                                         \
+    }                                                                                              \
+    arr[k + 1] = tmp;                                                                              \
+  }                                                                                                \
 }
 
-#define quicksortfunc(name, context, el1, el2) \
-  static int name(const void* el1, const void* el2, void* context)
-#endif
+// sub-macro that merges two sub-sorted arrays [start, ..., mid), [mid, ..., end) together
+#define _mjMERGE(type, arr, buf, start, mid, end, cmp, context)                                    \
+{                                                                                                  \
+  int len1 = mid - start, len2 = end - mid;                                                        \
+  type* left = buf, *right = buf + len1;                                                           \
+  for (int i = 0; i < len1; i++) left[i] = arr[start + i];                                         \
+  for (int i = 0; i < len2; i++) right[i] = arr[mid + i];                                          \
+  int i = 0, j = 0, k = start;                                                                     \
+  while (i < len1 && j < len2) {                                                                   \
+    if (cmp(left + i, right + j, context) <= 0) {                                                  \
+       arr[k++] = left[i++];                                                                       \
+    } else {                                                                                       \
+      arr[k++] = right[j++];                                                                       \
+    }                                                                                              \
+  }                                                                                                \
+  while (i < len1) arr[k++] = left[i++];                                                           \
+  while (j < len2) arr[k++] = right[j++];                                                          \
+}
+
+// defines an inline stable sorting function via tiled merge sorting (timsort)
+// function is of form:
+// void name(type* arr, type* buf, int n, void* context)
+// where arr is the array of size n to be sorted inplace and buf is a buffer of size n.
+#define mjSORT(name, type, cmp)                                                                    \
+  static inline void name(type* arr, type* buf, int n, void* context) {                            \
+    for (int start = 0; start < n; start += _mjRUNSIZE) {                                          \
+      int end = (start + _mjRUNSIZE < n) ? start + _mjRUNSIZE : n;                                 \
+      _mjINSERTION_SORT(type, arr, start, end, cmp, context);                                      \
+    }                                                                                              \
+    for (int len = _mjRUNSIZE; len < n; len *= 2) {                                                \
+      for (int start = 0; start < n; start += 2*len) {                                             \
+        int mid = start + len;                                                                     \
+        int end = (start + 2*len < n) ? start + 2*len : n;                                         \
+        if (mid < end) {                                                                           \
+          _mjMERGE(type, arr, buf, start, mid, end, cmp, context);                                 \
+        }                                                                                          \
+      }                                                                                            \
+    }                                                                                              \
+  }
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SORT_H_

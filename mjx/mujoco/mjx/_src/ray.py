@@ -108,6 +108,29 @@ def _ray_capsule(
   return x
 
 
+def _ray_ellipsoid(
+    size: jax.Array,
+    pnt: jax.Array,
+    vec: jax.Array,
+) -> jax.Array:
+  """Returns the distance at which a ray intersects with an ellipsoid."""
+
+  # invert size^2
+  s = 1 / jp.square(size)
+
+  # (x*lvec+lpnt)' * diag(1/size^2) * (x*lvec+lpnt) = 1
+  svec = s * vec
+  a = svec @ vec
+  b = svec @ pnt
+  c = (s * pnt) @ pnt - 1
+
+  # solve a*x^2 + 2*b*x + c = 0
+  x0, x1 = _ray_quad(a, b, c)
+  x = jp.where(jp.isinf(x0), x1, x0)
+
+  return x
+
+
 def _ray_box(
     size: jax.Array,
     pnt: jax.Array,
@@ -201,6 +224,7 @@ _RAY_FUNC = {
     GeomType.PLANE: _ray_plane,
     GeomType.SPHERE: _ray_sphere,
     GeomType.CAPSULE: _ray_capsule,
+    GeomType.ELLIPSOID: _ray_ellipsoid,
     GeomType.BOX: _ray_box,
     GeomType.MESH: _ray_mesh,
 }

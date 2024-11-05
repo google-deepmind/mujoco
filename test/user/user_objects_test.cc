@@ -20,7 +20,6 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -33,10 +32,6 @@ namespace mujoco {
 namespace {
 
 constexpr double kInertiaTol = 1e-6;
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 using std::string;
 using ::testing::DoubleNear;
@@ -1176,7 +1171,7 @@ TEST_F(MjCJointTest, AlignFree) {
   std::array<char, 1024> err;
   mjSpec* s = mj_parseXML(xml_path.c_str(), nullptr, err.data(), err.size());
   ASSERT_THAT(s, NotNull()) << err.data();
-  s->alignfree = 1;  // auto-aligned free joint
+  s->compiler.alignfree = 1;  // auto-aligned free joint
   mjModel* m = mj_compile(s, nullptr);
   ASSERT_THAT(m, NotNull());
 
@@ -1186,7 +1181,7 @@ TEST_F(MjCJointTest, AlignFree) {
   EXPECT_EQ(m->dof_simplenum[0], 6);
 
   // make unaligned model
-  s->alignfree = 0;  // unaligned free joint
+  s->compiler.alignfree = 0;  // unaligned free joint
   mjModel* m_u = mj_compile(s, nullptr);
   ASSERT_THAT(m_u, NotNull());
 
@@ -2402,7 +2397,8 @@ TEST_F(UserObjectsTest, BadWeld) {
   int len = 4;
 
   // good model using body semantic
-  string xml = base.replace(pos, len, "<weld body1='1' anchor='0 0 1' torquescale='2'/>");
+  string xml = base.replace(pos, len,
+                            "<weld body1='1' anchor='0 0 1' torquescale='2'/>");
   char error[1024];
   mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
   ASSERT_THAT(m, NotNull()) << error;

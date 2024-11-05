@@ -346,7 +346,7 @@
     XMJV( int,     flex_shell,            nflexshelldata,1                    ) \
     X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
-    X   ( mjtNum,  flex_xvert0,           nflexvert,     3                    ) \
+    X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
     X   ( mjtNum,  flexedge_length0,      nflexedge,     1                    ) \
     X   ( mjtNum,  flexedge_invweight0,   nflexedge,     1                    ) \
     XMJV( mjtNum,  flex_radius,           nflex,         1                    ) \
@@ -689,13 +689,13 @@
     X( int,      efc_J_rownnz,      MJ_D(nefc),    1 ) \
     X( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
     X( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
-    X( int,      efc_J_colind,      MJ_D(nnzJ),    1 ) \
+    X( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
     X( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
     X( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
     X( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
-    X( int,      efc_JT_colind,     MJ_D(nnzJ),    1 ) \
-    X( mjtNum,   efc_J,             MJ_D(nnzJ),    1 ) \
-    X( mjtNum,   efc_JT,            MJ_D(nnzJ),    1 ) \
+    X( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
+    X( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
+    X( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
     X( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
@@ -755,7 +755,7 @@
     X( int,       nf                 ) \
     X( int,       nl                 ) \
     X( int,       nefc               ) \
-    X( int,       nnzJ               ) \
+    X( int,       nJ                 ) \
     X( int,       nisland            ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )
@@ -766,7 +766,7 @@
     X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
     X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
     X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
-    X( mjSolverStat,   solver,             mjNILSAND,    mjNSOLVER ) \
+    X( mjSolverStat,   solver,             mjNISLAND,    mjNSOLVER ) \
     X( int,            solver_niter,       mjNISLAND,    1         ) \
     X( int,            solver_nnz,         mjNISLAND,    1         ) \
     X( mjtNum,         solver_fwdinv,      2,            1         ) \

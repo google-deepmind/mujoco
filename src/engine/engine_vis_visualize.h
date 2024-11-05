@@ -26,12 +26,6 @@ extern "C" {
 
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
-MJAPI void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                             mjtNum a0, mjtNum a1, mjtNum a2,
-                             mjtNum b0, mjtNum b1, mjtNum b2);
-
-// set (type, size, pos, mat) connector-type geom between given points
-//  assume that mjv_initGeom was already called to set all other properties
 MJAPI void mjv_connector(mjvGeom* geom, int type, mjtNum width,
                          const mjtNum from[3], const mjtNum to[3]);
 

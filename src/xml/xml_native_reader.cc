@@ -97,11 +97,10 @@ static void UpdateString(string& psuffix, int count, int i) {
 const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "21", "autolimits", "boundmass", "boundinertia", "settotalmass",
+    {"compiler", "*", "19", "autolimits", "boundmass", "boundinertia", "settotalmass",
         "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
-        "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
-        "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia",
-        "assetdir", "alignfree"},
+        "meshdir", "texturedir", "discardvisual", "usethread",
+        "fusestatic", "inertiafromgeom", "inertiagrouprange", "assetdir", "alignfree"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -150,7 +149,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"default", "R", "1", "class"},
     {"<"},
-        {"mesh", "?", "2", "scale", "maxhullvert"},
+        {"mesh", "?", "3", "scale", "maxhullvert", "inertia"},
         {"material", "?", "10", "texture", "emission", "specular", "shininess",
             "reflectance", "metallic", "roughness", "rgba", "texrepeat", "texuniform"},
         {"joint", "?", "22", "type", "group", "pos", "axis", "springdamper",
@@ -226,9 +225,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"mesh", "*", "13", "name", "class", "content_type", "file", "vertex", "normal",
+        {"mesh", "*", "14", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal",
-            "maxhullvert"},
+            "maxhullvert", "inertia"},
         {"<"},
           {"plugin", "*", "2", "plugin", "instance"},
           {"<"},
@@ -248,15 +247,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
             "emission", "specular", "shininess", "reflectance", "metallic", "roughness", "rgba"},
         {"<"},
-            {"rgb", "?", "1", "texture"},
-            {"occlusion", "?", "1", "texture"},
-            {"roughness", "?", "1", "texture"},
-            {"metallic", "?", "1", "texture"},
-            {"normal", "?", "1", "texture"},
-            {"opacity", "?", "1", "texture"},
-            {"emissive", "?", "1", "texture"},
-            {"rgba", "?", "1", "texture"},
-            {"orm", "?", "1", "texture"},
+            {"layer", "*", "2", "texture", "role"},
         {">"},
         {"model", "*", "3", "name", "file", "content_type"},
     {">"},
@@ -751,10 +742,7 @@ const mjMap comp_map[mjNCOMPTYPES] = {
   {"rope",        mjCOMPTYPE_ROPE},
   {"loop",        mjCOMPTYPE_LOOP},
   {"cable",       mjCOMPTYPE_CABLE},
-  {"cloth",       mjCOMPTYPE_CLOTH},
-  {"box",         mjCOMPTYPE_BOX},
-  {"cylinder",    mjCOMPTYPE_CYLINDER},
-  {"ellipsoid",   mjCOMPTYPE_ELLIPSOID}
+  {"cloth",       mjCOMPTYPE_CLOTH}
 };
 
 
@@ -787,6 +775,14 @@ const mjMap tkind_map[2] = {
 const mjMap meshtype_map[2] = {
   {"false", mjINERTIA_VOLUME},
   {"true",  mjINERTIA_SHELL},
+};
+
+
+// mesh inertia type
+const mjMap meshinertia_map[3] = {
+  {"convex", mjINERTIA_CONVEX},
+  {"legacy", mjINERTIA_LEGACY},
+  {"exact", mjINERTIA_EXACT}
 };
 
 
@@ -965,19 +961,19 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
 
   // top-level attributes
   if (MapValue(section, "autolimits", &n, bool_map, 2)) {
-    spec->autolimits = (n==1);
+    spec->compiler.autolimits = (n==1);
   }
-  ReadAttr(section, "boundmass", 1, &spec->boundmass, text);
-  ReadAttr(section, "boundinertia", 1, &spec->boundinertia, text);
-  ReadAttr(section, "settotalmass", 1, &spec->settotalmass, text);
+  ReadAttr(section, "boundmass", 1, &spec->compiler.boundmass, text);
+  ReadAttr(section, "boundinertia", 1, &spec->compiler.boundinertia, text);
+  ReadAttr(section, "settotalmass", 1, &spec->compiler.settotalmass, text);
   if (MapValue(section, "balanceinertia", &n, bool_map, 2)) {
-    spec->balanceinertia = (n==1);
+    spec->compiler.balanceinertia = (n==1);
   }
   if (MapValue(section, "strippath", &n, bool_map, 2)) {
     spec->strippath = (n==1);
   }
   if (MapValue(section, "fitaabb", &n, bool_map, 2)) {
-    spec->fitaabb = (n==1);
+    spec->compiler.fitaabb = (n==1);
   }
   if (MapValue(section, "coordinate", &n, coordinate_map, 2)) {
     if (n==1) {
@@ -986,13 +982,13 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
     }
   }
   if (MapValue(section, "angle", &n, angle_map, 2)) {
-    spec->degree = (n==1);
+    spec->compiler.degree = (n==1);
   }
   if (ReadAttrTxt(section, "eulerseq", text)) {
     if (text.size()!=3) {
       throw mjXError(section, "euler format must have length 3");
     }
-    memcpy(spec->eulerseq, text.c_str(), 3);
+    memcpy(spec->compiler.eulerseq, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
     mjs_setString(spec->meshdir, text.c_str());
@@ -1007,30 +1003,24 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
     mjs_setString(spec->texturedir, texturedir.c_str());
   }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
-    spec->discardvisual = (n==1);
-  }
-  if (MapValue(section, "convexhull", &n, bool_map, 2)) {
-    spec->convexhull = (n==1);
+    spec->compiler.discardvisual = (n==1);
   }
   if (MapValue(section, "usethread", &n, bool_map, 2)) {
-    spec->usethread = (n==1);
+    spec->compiler.usethread = (n==1);
   }
   if (MapValue(section, "fusestatic", &n, bool_map, 2)) {
-    spec->fusestatic = (n==1);
+    spec->compiler.fusestatic = (n==1);
   }
-  MapValue(section, "inertiafromgeom", &spec->inertiafromgeom, TFAuto_map, 3);
-  ReadAttr(section, "inertiagrouprange", 2, spec->inertiagrouprange, text);
-  if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
-    spec->exactmeshinertia = (n==1);
-  }
+  MapValue(section, "inertiafromgeom", &spec->compiler.inertiafromgeom, TFAuto_map, 3);
+  ReadAttr(section, "inertiagrouprange", 2, spec->compiler.inertiagrouprange, text);
   if (MapValue(section, "alignfree", &n, bool_map, 2)) {
-    spec->alignfree = (n==1);
+    spec->compiler.alignfree = (n==1);
   }
 
   // lengthrange subelement
   XMLElement* elem = FindSubElem(section, "lengthrange");
   if (elem) {
-    mjLROpt* opt = &(spec->LRopt);
+    mjLROpt* opt = &(spec->compiler.LRopt);
 
     // flags
     MapValue(elem, "mode", &opt->mode, lrmode_map, lrmode_sz);
@@ -1424,6 +1414,9 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   ReadAttr(elem, "refpos", 3, mesh->refpos, text);
   ReadAttr(elem, "refquat", 4, mesh->refquat, text);
   ReadAttr(elem, "scale", 3, mesh->scale, text);
+  if (MapValue(elem, "inertia", &n, meshinertia_map, 3)) {
+    mesh->inertia = (mjtMeshInertia)n;
+  }
 
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
   if (eplugin) {
@@ -1583,17 +1576,18 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* material) {
     tex_attributes_found = true;
   }
 
-  XMLElement* tex_elem = FirstChildElement(elem);
-  while (tex_elem) {
+  XMLElement* layer = FirstChildElement(elem);
+  while (layer) {
     if (tex_attributes_found) {
-      throw mjXError(tex_elem, "A material with a texture attribute cannot have texture sub-elements");
+      throw mjXError(layer, "A material with a texture attribute cannot have layer sub-elements");
     }
-    // texture sub-element
-    int role = FindKey(texrole_map, texrole_sz, tex_elem->Name());
-    string texmat;
-    ReadAttrTxt(tex_elem, "texture", texmat, true);
-    mjs_setInStringVec(material->textures, role, texmat.c_str());
-    tex_elem = NextSiblingElement(tex_elem);
+
+    // layer sub-element
+    ReadAttrTxt(layer, "role", text, true);
+    int role = FindKey(texrole_map, texrole_sz, text);
+    ReadAttrTxt(layer, "texture", text, true);
+    mjs_setInStringVec(material->textures, role, text.c_str());
+    layer = NextSiblingElement(layer);
   }
 
   if (MapValue(elem, "texuniform", &n, bool_map, 2)) {
@@ -2386,7 +2380,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsDefault* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* def) {
   string text;
   int n;
 
@@ -2752,7 +2746,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make(spec, body, error, 200);
+  bool res = fcomp.Make(body, error, 200);
 
   // throw error
   if (!res) {
@@ -3191,7 +3185,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(spec);
     }
@@ -3411,7 +3405,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     name = elem->Value();
 
     // get class if specified, otherwise use body
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getDefault(frame ? frame->element : body->element);
     }
@@ -3522,13 +3516,10 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     // frame sub-element
     else if (name=="frame") {
       // read childdef
-      mjsDefault* childdef = 0;
-      if (ReadAttrTxt(elem, "childclass", text)) {
-        childdef = mjs_findDefault(spec, text.c_str());
-        mjs_findDefault(spec, text.c_str());
-        if (!childdef) {
-          throw mjXError(elem, "unknown default childclass");
-        }
+      bool has_childclass = ReadAttrTxt(elem, "childclass", text);
+      const mjsDefault* childdef = has_childclass ? mjs_findDefault(spec, text.c_str()) : nullptr;
+      if (has_childclass && !childdef) {
+        throw mjXError(elem, "unknown default childclass");
       }
 
       // create frame
@@ -3568,16 +3559,13 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       alt.type = mjORIENTATION_EULER;
       mjuu_copyvec(alt.euler, euler, 3);
       double rotation[4] = {1, 0, 0, 0};
-      mjs_resolveOrientation(rotation, spec->degree, spec->eulerseq, &alt);
+      mjs_resolveOrientation(rotation, spec->compiler.degree, spec->compiler.eulerseq, &alt);
 
       // read childdef
-      mjsDefault* childdef = 0;
-      if (ReadAttrTxt(elem, "childclass", text)) {
-        childdef = mjs_findDefault(spec, text.c_str());
-        mjs_findDefault(spec, text.c_str());
-        if (!childdef) {
-          throw mjXError(elem, "unknown default childclass");
-        }
+      bool has_childclass = ReadAttrTxt(elem, "childclass", text);
+      const mjsDefault* childdef = has_childclass ? mjs_findDefault(spec, text.c_str()) : nullptr;
+      if (has_childclass && !childdef) {
+        throw mjXError(elem, "unknown default childclass");
       }
 
       // create subtree
@@ -3603,7 +3591,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         alt.euler[0] = i*euler[0];
         alt.euler[1] = i*euler[1];
         alt.euler[2] = i*euler[2];
-        mjs_resolveOrientation(quat, spec->degree, spec->eulerseq, &alt);
+        mjs_resolveOrientation(quat, spec->compiler.degree, spec->compiler.eulerseq, &alt);
         mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
 
         // process suffix
@@ -3625,13 +3613,10 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     // body sub-element
     else if (name=="body") {
       // read childdef
-      mjsDefault* childdef = 0;
-      if (ReadAttrTxt(elem, "childclass", text)) {
-        childdef = mjs_findDefault(spec, text.c_str());
-        mjs_findDefault(spec, text.c_str());
-        if (!childdef) {
-          throw mjXError(elem, "unknown default childclass");
-        }
+      bool has_childclass = ReadAttrTxt(elem, "childclass", text);
+      const mjsDefault* childdef = has_childclass ? mjs_findDefault(spec, text.c_str()) : nullptr;
+      if (has_childclass && !childdef) {
+        throw mjXError(elem, "unknown default childclass");
       }
 
       // create child body
@@ -3674,9 +3659,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     // attachment
     else if (name=="attach") {
       string model_name, body_name, prefix;
-      ReadAttrTxt(elem, "model", model_name);
-      ReadAttrTxt(elem, "body", body_name);
-      ReadAttrTxt(elem, "prefix", prefix);
+      ReadAttrTxt(elem, "model", model_name, /*required=*/true);
+      ReadAttrTxt(elem, "body", body_name, /*required=*/true);
+      ReadAttrTxt(elem, "prefix", prefix, /*required=*/true);
 
       mjsBody* child = mjs_findBody(spec, (prefix+body_name).c_str());
       mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
@@ -3684,11 +3669,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       if (!child) {
         mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
         if (!asset) {
-          throw mjXError(0, "could not find model '%s'", model_name.c_str());
+          throw mjXError(elem, "could not find model '%s'", model_name.c_str());
         }
         child = mjs_findBody(asset, body_name.c_str());
         if (!child) {
-          throw mjXError(0, "could not find body '%s''%s'", body_name.c_str());
+          throw mjXError(elem, "could not find body '%s''%s'", body_name.c_str());
         }
         if (!mjs_attachBody(pframe, child, prefix.c_str(), "")) {
           throw mjXError(elem, mjs_getError(spec));
@@ -3723,7 +3708,7 @@ void mjXReader::Contact(XMLElement* section) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(spec);
     }
@@ -3768,7 +3753,7 @@ void mjXReader::Equality(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(spec);
     }
@@ -3796,7 +3781,7 @@ void mjXReader::Deformable(XMLElement* section, const mjVFS* vfs) {
     name = elem->Value();
 
     // get class if specified, otherwise use default0
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(spec);
     }
@@ -3832,7 +3817,7 @@ void mjXReader::Tendon(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(spec);
     }
@@ -3898,7 +3883,7 @@ void mjXReader::Actuator(XMLElement* section) {
   elem = FirstChildElement(section);
   while (elem) {
     // get class if specified, otherwise use default0
-    mjsDefault* def = GetClass(elem);
+    const mjsDefault* def = GetClass(elem);
     if (!def) {
       def = mjs_getSpecDefault(spec);
     }
@@ -4251,8 +4236,6 @@ void mjXReader::Sensor(XMLElement* section) {
 // keyframe section parser
 void mjXReader::Keyframe(XMLElement* section) {
   XMLElement* elem;
-  int n;
-  double data[1000];
 
   // iterate over child elements
   elem = FirstChildElement(section);
@@ -4268,39 +4251,39 @@ void mjXReader::Keyframe(XMLElement* section) {
     ReadAttr(elem, "time", 1, &key->time, text);
 
     // read qpos
-    n = ReadAttr(elem, "qpos", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->qpos, data, n);
+    auto maybe_data = ReadAttrVec<double>(elem, "qpos", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->qpos, maybe_data->data(), maybe_data->size());
     }
 
     // read qvel
-    n = ReadAttr(elem, "qvel", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->qvel, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "qvel", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->qvel, maybe_data->data(), maybe_data->size());
     }
 
     // read act
-    n = ReadAttr(elem, "act", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->act, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "act", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->act, maybe_data->data(), maybe_data->size());
     }
 
     // read mpos
-    n = ReadAttr(elem, "mpos", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->mpos, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "mpos", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->mpos, maybe_data->data(), maybe_data->size());
     }
 
     // read mquat
-    n = ReadAttr(elem, "mquat", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->mquat, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "mquat", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->mquat, maybe_data->data(), maybe_data->size());
     }
 
     // read ctrl
-    n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
-    if (n) {
-      mjs_setDouble(key->ctrl, data, n);
+    maybe_data = ReadAttrVec<double>(elem, "ctrl", false);
+    if (maybe_data.has_value()) {
+      mjs_setDouble(key->ctrl, maybe_data->data(), maybe_data->size());
     }
 
     // advance to next element
@@ -4311,19 +4294,19 @@ void mjXReader::Keyframe(XMLElement* section) {
 
 
 // get defaults class
-mjsDefault* mjXReader::GetClass(XMLElement* section) {
+const mjsDefault* mjXReader::GetClass(XMLElement* section) {
   string text;
-  mjsDefault* def = nullptr;
 
-  if (ReadAttrTxt(section, "class", text)) {
-    def = mjs_findDefault(spec, text.c_str());
-    if (!def) {
-      throw mjXError(
-          section,
-          string("unknown default class name '" + text + "'").c_str());
-    }
+  if (!ReadAttrTxt(section, "class", text)) {
+    return nullptr;
   }
 
+  const mjsDefault* def = mjs_findDefault(spec, text.c_str());
+  if (!def) {
+    throw mjXError(
+        section,
+        string("unknown default class name '" + text + "'").c_str());
+  }
   return def;
 }
 

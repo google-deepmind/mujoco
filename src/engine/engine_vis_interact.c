@@ -254,7 +254,7 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 
 
 // rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y)
-MJAPI void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
+void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
 
   // forward-aligned y-axis

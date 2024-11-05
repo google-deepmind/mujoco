@@ -393,9 +393,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
   // compute qpos0
-  template <class T>
-  void ComputeReference(std::vector<T>& q0, std::vector<T>& bpos,
-                        std::vector<T>& bquat);
+  void ComputeReference();
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

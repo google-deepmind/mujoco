@@ -33,10 +33,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::std::string;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
@@ -805,10 +801,10 @@ TEST_F(XMLReaderTest, MaterialTextureTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material">
-        <occlusion texture="tiny0"/>
-        <roughness texture="tiny0"/>
-        <metallic texture="tiny0"/>
-        <rgb texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
+        <layer role="roughness" texture="tiny0"/>
+        <layer role="metallic" texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
       </material>
     </asset>
     <worldbody>
@@ -873,8 +869,8 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material" texture="tiny1">
-        <rgb texture="tiny1"/>
-        <occlusion texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
       </material>
     </asset>
     <worldbody>
@@ -887,7 +883,7 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("A material with a texture attribute "
-                                      "cannot have texture sub-elements"));
+                                      "cannot have layer sub-elements"));
 }
 
 TEST_F(XMLReaderTest, LargeTextureTest) {
@@ -1544,12 +1540,12 @@ TEST_F(XMLReaderTest, InvalidAttach) {
       <body name="parent">
         <joint name="joint1"/>
         <geom size="2"/>
-        <attach model="other" body="body"/>
+        <attach model="other" body="body" prefix="_"/>
       </body>
     </worldbody>
 
     <actuator>
-      <motor name="actuator" joint="joint1"/>
+      <motor name="_actuator" joint="joint1"/>
     </actuator>
   </mujoco>
   )";
@@ -1578,7 +1574,7 @@ TEST_F(XMLReaderTest, InvalidAttach) {
       LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
 
   EXPECT_THAT(model, IsNull()) << er.data();
-  EXPECT_THAT(er.data(), HasSubstr("repeated name 'actuator' in actuator"));
+  EXPECT_THAT(er.data(), HasSubstr("repeated name '_actuator' in actuator"));
   EXPECT_THAT(er.data(), HasSubstr("Element 'attach'"));
   mj_deleteVFS(vfs.get());
 }
@@ -1685,13 +1681,13 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
   <mujoco>
     <worldbody>
       <body>
-        <composite prefix="B0" type="box" count="4 4 4" spacing=".2">
+        <composite prefix="B0" type="grid" count="4 4 1" spacing=".2">
           <geom size=".1" group="2"/>
           <skin group="4"/>
         </composite>
       </body>
       <body>
-        <composite prefix="B1" type="box" count="4 4 4" spacing=".2">
+        <composite prefix="B1" type="grid" count="4 4 1" spacing=".2">
           <geom size=".1" group="4"/>
           <skin group="2"/>
         </composite>
@@ -1702,8 +1698,8 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull());
-  int geomid1 = mj_name2id(model, mjOBJ_GEOM, "B0G0_0_0");
-  int geomid2 = mj_name2id(model, mjOBJ_GEOM, "B1G0_0_0");
+  int geomid1 = mj_name2id(model, mjOBJ_GEOM, "B0G0_0");
+  int geomid2 = mj_name2id(model, mjOBJ_GEOM, "B1G0_0");
   EXPECT_THAT(model->geom_group[geomid1], 2);
   EXPECT_THAT(model->skin_group[0], 4);
   EXPECT_THAT(model->geom_group[geomid2], 4);
@@ -1716,7 +1712,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   <mujoco>
     <worldbody>
       <body>
-        <composite prefix="B0" type="box" count="6 6 6" spacing=".2">
+        <composite prefix="B0" type="grid" count="6 6 1" spacing=".2">
           <geom size=".1"/>
           <skin group="6"/>
         </composite>

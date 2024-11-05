@@ -112,12 +112,6 @@ MJAPI void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3
 // multiply transposed 3-by-3 matrix by vector
 MJAPI void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 
-// multiply vector by 3D rotation matrix (deprecated)
-MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
-
-// multiply vector by transposed 3D rotation matrix (deprecated)
-MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
-
 // multiply 3x3 matrices
 MJAPI void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 

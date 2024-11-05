@@ -32,7 +32,7 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
+    self.assertIn('norm(dx) < tol', out.getvalue())
 
   def test_start_at_minimum(self) -> None:
     def residual(x):
@@ -43,8 +43,8 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
-    self.assertContainsSubsequence(out.getvalue(), 'exact minimum found')
+    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('exact minimum found', out.getvalue())
 
   def test_jac_callback(self) -> None:
     def residual(x):
@@ -60,8 +60,8 @@ class MinimizeTest(absltest.TestCase):
                                   check_derivatives=True)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
-    self.assertContainsSubsequence(out.getvalue(), 'Jacobian matches')
+    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('Jacobian matches', out.getvalue())
 
     # Try with bad Jacobian, ask least_squares to check it.
     def bad_jacobian(x, r):
@@ -83,7 +83,7 @@ class MinimizeTest(absltest.TestCase):
     x0 = np.zeros(dim)
     out = io.StringIO()
     minimize.least_squares(x0, residual, max_iter=20, output=out)
-    self.assertContainsSubsequence(out.getvalue(), 'maximum iterations')
+    self.assertIn('maximum iterations', out.getvalue())
 
     # Succeed after 100 iterations (default).
     x, _ = minimize.least_squares(x0, residual)
@@ -106,7 +106,7 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, bounds=bounds_types['inbounds'],
                                   output=out)
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
+    self.assertIn('norm(dx) < tol', out.getvalue())
 
     # Test different bounds conditions.
     for bounds in bounds_types.values():
@@ -118,7 +118,7 @@ class MinimizeTest(absltest.TestCase):
           output=out,
           verbose=minimize.Verbosity.FULLITER,
       )
-      self.assertContainsSubsequence(out.getvalue(), ' < tol')
+      self.assertIn(' < tol', out.getvalue())
       grad = trace[-2].jacobian.T @ trace[-2].residual
       # If x_i is on the boundary, gradient points out, otherwise it is 0.
       for i, xi in enumerate(x):
@@ -161,7 +161,7 @@ class MinimizeTest(absltest.TestCase):
                                   iter_callback=iter_callback)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'Hello iteration 3!')
+    self.assertIn('Hello iteration 3!', out.getvalue())
 
   def test_norm(self) -> None:
     def residual(x):
@@ -187,11 +187,9 @@ class MinimizeTest(absltest.TestCase):
                                   check_derivatives=True)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
-    self.assertContainsSubsequence(out.getvalue(),
-                                   'User-provided norm gradient matches')
-    self.assertContainsSubsequence(out.getvalue(),
-                                   'User-provided norm Hessian matches')
+    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('User-provided norm gradient matches', out.getvalue())
+    self.assertIn('User-provided norm Hessian matches', out.getvalue())
 
     class SmoothL2BadGrad(minimize.Norm):
       def value(self, r):

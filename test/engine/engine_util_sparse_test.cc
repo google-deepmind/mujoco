@@ -30,8 +30,9 @@ namespace {
 using ::testing::ElementsAre;
 using EngineUtilSparseTest = MujocoTest;
 
-std::vector<int> AsVector(const int* array, int n) {
-  return std::vector<int>(array, array + n);
+template <typename T>
+std::vector<T> AsVector(const T* array, int n) {
+  return std::vector<T>(array, array + n);
 }
 
 TEST_F(EngineUtilSparseTest, MjuDot) {
@@ -983,7 +984,7 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrA[2];
   int colindA[4];
   int rownnzA_factor[2];
-  mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA);
+  mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA, 4);
   int nnzA = mju_cholFactorNNZ(rownnzA_factor,
                                rownnzA, rowadrA, colindA, nA, d);
 
@@ -999,7 +1000,7 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrB[3];
   int colindB[9];
   int rownnzB_factor[3];
-  mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB);
+  mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB, 9);
   int nnzB = mju_cholFactorNNZ(rownnzB_factor,
                                rownnzB, rowadrB, colindB, nB, d);
 
@@ -1015,7 +1016,7 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrC[3];
   int colindC[9];
   int rownnzC_factor[3];
-  mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC);
+  mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC, 9);
   int nnzC = mju_cholFactorNNZ(rownnzC_factor,
                                rownnzC, rowadrC, colindC, nC, d);
 
@@ -1032,7 +1033,7 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int rowadrD[4];
   int colindD[16];
   int rownnzD_factor[4];
-  mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD);
+  mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD, 16);
   int nnzD = mju_cholFactorNNZ(rownnzD_factor,
                                rownnzD, rowadrD, colindD, nD, d);
 
@@ -1041,6 +1042,62 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
 
   mj_deleteData(d);
   mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {
+  int nr = 2;
+  int nc = 3;
+  mjtNum mat[] = {1, 2, 0,
+                  0, 3, 4};
+
+  mjtNum mat_sparse[4];
+  int rownnz[2];
+  int rowadr[2];
+  int colind[4];
+  mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, 4);
+
+  // multiply: res = mat' * vec
+  mjtNum vec[] = {5, 6};
+  mjtNum res[3];
+  mju_mulMatTVecSparse(res, mat_sparse, vec, nr, nc, rownnz, rowadr, colind);
+
+  EXPECT_THAT(AsVector(res, 3), ElementsAre(5, 28, 24));
+}
+
+TEST_F(EngineUtilSparseTest, MjuDenseToSparse) {
+  int nr = 2;
+  int nc = 2;
+  mjtNum mat[] = {1, 2,
+                  0, 3};
+
+  mjtNum mat_sparse[4];
+  int rownnz[2];
+  int rowadr[2];
+  int colind[4];
+
+  // nnz == number of non-zeros
+  int status3 =
+      mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, 3);
+
+  EXPECT_EQ(status3, 0);
+
+  // nnz > number of non-zeros
+  int status4 =
+      mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, 4);
+
+  EXPECT_EQ(status4, 0);
+
+  // nnz < number of non-zeros
+  int status2 =
+      mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, 2);
+
+  EXPECT_EQ(status2, 1);
+
+  // nnz == 0
+  int status0 =
+      mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, 0);
+
+  EXPECT_EQ(status0, 1);
 }
 
 }  // namespace

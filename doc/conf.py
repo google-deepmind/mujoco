@@ -159,9 +159,13 @@ pygments_dark_style = 'monokai'
 html_static_path = [
     '_static',
     'css',
+    'js',
 ]
 html_css_files = [
     'theme_overrides.css',
+]
+html_js_files = [
+    'linenumbers.js',
 ]
 
 favicons = [

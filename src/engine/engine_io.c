@@ -1715,6 +1715,20 @@ void mj__freeStack(mjData* d)
 
 
 
+// returns the number of bytes available on the stack
+size_t mj_stackBytesAvailable(mjData* d) {
+  if (!d->threadpool) {
+    mjStackInfo stack_info = get_stack_info_from_data(d);
+    return stack_info.top - stack_info.limit;
+  } else {
+    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
+    mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
+    return stack_info->top - stack_info->limit;
+  }
+}
+
+
+
 // allocate bytes on the stack
 void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment) {
   return stackalloc(d, bytes, alignment);
@@ -1801,7 +1815,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nf = 0;
   d->nl = 0;
   d->nefc = 0;
-  d->nnzJ = 0;
+  d->nJ = 0;
   d->nisland = 0;
 
   // clear global properties
@@ -1842,9 +1856,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->sensordata, m->nsensordata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
-
-  // zero out actuator_moment, mj_transmission touches it selectively
-  mju_zero(d->actuator_moment, m->nv*m->nu);
 
   // copy qpos0 from model
   if (m->qpos0) {

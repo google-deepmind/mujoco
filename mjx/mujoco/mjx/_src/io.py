@@ -233,7 +233,6 @@ def make_data(
         'ctrl': (m.nu, float),
         'qfrc_applied': (m.nv, float),
         'xfrc_applied': (m.nbody, 6, float),
-        'eq_active': (m.neq, jp.uint8),
         'mocap_pos': (m.nmocap, 3, float),
         'mocap_quat': (m.nmocap, 4, float),
         'qacc': (m.nv, float),
@@ -275,6 +274,9 @@ def make_data(
         'wrap_obj': (m.nwrap, 2, jp.int32),
         'wrap_xpos': (m.nwrap, 6, float),
         'actuator_length': (m.nu, float),
+        'moment_rownnz': (m.nu, jp.int32),
+        'moment_rowadr': (m.nu, jp.int32),
+        'moment_colind': (m.nu, m.nv, jp.int32),
         'actuator_moment': (m.nu, m.nv, float),
         'crb': (m.nbody, 10, float),
         'qM': (m.nM, float) if support.is_sparse(m) else (m.nv, m.nv, float),
@@ -345,6 +347,7 @@ def make_data(
       qpos=jp.array(m.qpos0),
       contact=contact,
       efc_type=efc_type,
+      eq_active=m.eq_active0,
       **zero_fields
   )
 
@@ -408,7 +411,7 @@ def get_data_into(
     ncon = (d_i.contact.dist <= 0).sum()
     efc_active = (d_i.efc_J != 0).any(axis=1)
     nefc = int(efc_active.sum())
-    result_i.nnzJ = nefc * m.nv
+    result_i.nJ = nefc * m.nv
     if ncon != result_i.ncon or nefc != result_i.nefc:
       mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
     result_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)
@@ -425,6 +428,25 @@ def get_data_into(
         # efc_address must be updated because rows were deleted above:
         efc_map = np.cumsum(efc_active) - 1
         result_i.contact.efc_address[:] = efc_map[result_i.contact.efc_address]
+        continue
+
+      # MuJoCo actuator_moment is sparse, MJX uses a dense representation.
+      if field.name == 'actuator_moment' and m.nu:
+        moment_rownnz = np.zeros(m.nu, dtype=np.int32)
+        moment_rowadr = np.zeros(m.nu, dtype=np.int32)
+        moment_colind = np.zeros(m.nu * m.nv, dtype=np.int32)
+        actuator_moment = np.zeros(m.nu * m.nv)
+        mujoco.mju_dense2sparse(
+            actuator_moment,
+            d.actuator_moment,
+            moment_rownnz,
+            moment_rowadr,
+            moment_colind,
+        )
+        result_i.moment_rownnz[:] = moment_rownnz
+        result_i.moment_rowadr[:] = moment_rowadr
+        result_i.moment_colind[:] = moment_colind.reshape((m.nu, m.nv))
+        result_i.actuator_moment[:] = actuator_moment.reshape((m.nu, m.nv))
         continue
 
       value = getattr(d_i, field.name)
@@ -532,6 +554,17 @@ def put_data(
   # MJX does not support islanding, so only transfer the first solver_niter
   fields['solver_niter'] = fields['solver_niter'][0]
 
+  # convert sparse representation of actuator_moment to dense matrix
+  moment = np.zeros((m.nu, m.nv))
+  mujoco.mju_sparse2dense(
+      moment,
+      d.actuator_moment.reshape(-1),
+      d.moment_rownnz,
+      d.moment_rowadr,
+      d.moment_colind.reshape(-1),
+  )
+  fields['actuator_moment'] = moment
+
   contact, contact_map = _make_contact(d.contact, dim, efc_address)
 
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.
@@ -539,12 +572,14 @@ def put_data(
   # neither: it contains zeros for inactive constraints, and efc_J is always
   # (nefc, nv).  this may change in the future.
   if mujoco.mj_isSparse(m):
-    nr = d.efc_J_rownnz.shape[0]
-    efc_j = np.zeros((nr, m.nv))
-    for i in range(nr):
-      rowadr = d.efc_J_rowadr[i]
-      for j in range(d.efc_J_rownnz[i]):
-        efc_j[i, d.efc_J_colind[rowadr + j]] = fields['efc_J'][rowadr + j]
+    efc_j = np.zeros((d.efc_J_rownnz.shape[0], m.nv))
+    mujoco.mju_sparse2dense(
+        efc_j,
+        fields['efc_J'],
+        d.efc_J_rownnz,
+        d.efc_J_rowadr,
+        d.efc_J_colind,
+    )
     fields['efc_J'] = efc_j
   else:
     fields['efc_J'] = fields['efc_J'].reshape((-1 if m.nv else 0, m.nv))

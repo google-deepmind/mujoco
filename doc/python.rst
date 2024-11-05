@@ -126,7 +126,7 @@ attributes:
 - ``user_scn``: an :ref:`mjvScene` object that allows users to add change rendering flags and add custom
   visualization geoms to the rendered scene. This is separate from the ``mjvScene`` that the viewer uses internally to
   render the final scene, and is entirely under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or
-  :ref:`mjv_makeConnector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
+  :ref:`mjv_connector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
   will incorporate these geoms to future rendered images. Similarly, user scripts can make changes to ``user_scn.flags``
   which would be picked up at the next call to ``sync()``. The ``sync()`` call also copies changes to rendering flags
   made via the GUI back into ``user_scn`` to preserve consistency. For example:
@@ -469,14 +469,11 @@ the raw callback pointer, and the GIL will **not** be acquired each time the cal
 
 Model editing
 =============
-The :doc:`Model Editing<programming/modeledit>` framework which allows for procedural model manipulation is exposed
-via Python. In many ways this API is conceptually similar to ``dm_control``'s
-`PyMJCF module <https://github.com/google-deepmind/dm_control/tree/main/dm_control/mjcf#readme>`__, where ``MjSpec``
-plays the role of ``mjcf_model``. The largest difference between these two APIs is speed. Native model manipulation via
-``MjSpec`` is around ~100x faster than PyMJCF.
+The C API for model editing is documented in the :doc:`Programming<../programming/modeledit>` chapter.
+This functionality is mirrored in the Python API, with the addition of several convenience methods.
+Below is a minimal usage example, more examples can be found in the Model Editing
+`colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__.
 
-Below is a simple example of how to use the model editing API. For more examples, please refer to
-`specs_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/specs_test.py>`__.
 
 .. code-block:: python
 
@@ -495,18 +492,79 @@ Below is a simple example of how to use the model editing API. For more examples
    ...
    model = spec.compile()
 
-.. admonition:: Missing features
-   :class: attention
+Construction
+------------
 
-   We are aware of multiple missing features in the Python API, including:
+The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in three ways:
 
-   - Better tree traversal utilities like :python:`children = body.children()` etc.
-   - PyMJCF's notion of "binding", allowing access to :ref:`mjModel` and :ref:`mjData` values via the associated ``mjs``
-     elements.
+1. Create an empty spec: ``spec = mujoco.MjSpec()``
+2. Load the spec from XML string: ``spec = mujoco.MjSpec.from_string(xml_string)``
+3. Load the spec from XML file: ``spec = mujoco.MjSpec.from_file(file_path)``
 
-   There are certainly other missing features that we are not aware of. Please contact us on GitHub with feature
-   requests or bug reports and we will prioritize accordingly.
+Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
+Convenience methods
+-------------------
+
+The Python bindings provide a number of convenience methods and attributes not directly available in the C API in order
+to make model editing easier:
+
+Element lists
+^^^^^^^^^^^^^
+Lists of all elements in a spec can be accessed using named properties, using the plural form. For example,
+``spec.meshes`` returns a list of all meshes in the spec.
+
+The following properties are implemented: ``sites``, ``geoms``, ``joints``, ``lights``, ``cameras``, ``bodies``,
+``frames``, ``materials``, ``meshes``, ``pairs``, ``equalities``, ``tendons``, ``actuators``, ``skins``, ``textures``,
+``texts``, ``tuples``, ``flexes``, ``hfields``, ``keys``, ``numerics``, ``excludes``, ``sensors``, ``plugins``.
+
+Tree traversal
+^^^^^^^^^^^^^^
+Traversal of the kinematic tree is aided by the following methods which return tree-related lists of elements:
+
+Direct children:
+  Like the spec-level element lists described above, bodies have properties which return lists of all direct children.
+  For example, ``body.geoms`` returns a list of all geoms that are direct children of the body. This works for all
+  in tree elements namely ``bodies``, ``joints``, ``geoms``, ``sites``, ``cameras``, ``lights`` and ``frames``.
+
+Recursive search:
+  ``body.find_all()`` returns a list of all elements of the given type which are in the subtree of the given body.
+  Element types can be specified with the :ref:`mjtObj` enum, or with the corresponding string. For example either
+  ``body.find_all(mujoco.mjtObj.mjOBJ_SITE)`` or ``body.find_all('site')`` will return a list of all sites under the
+  body.
+
+
+Relationship to ``PyMJCF``
+--------------------------
+
+`dm_control <https://github.com/google-deepmind/dm_control/tree/main>`__'s
+`PyMJCF <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md>`__ module provides similar
+functionality to the native model editing API described here, but is roughly two orders of magnitude slower due to its
+reliance on Python manipulation of strings.
+
+For users familiar with ``PyMJCF``, the ``MjSpec`` object is conceptually similar to ``dm_control``'s
+``mjcf_model``. A more detailed migration guide could be added here in the future; in the meantime, note that the
+Model Editing
+`colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__
+includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
+`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
+
+``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via the constructing
+elements. In the native API, this is done with object ids. For example, say we have multiple geoms containing the string
+"torso" in their name. We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as
+follows:
+
+.. code-block:: python
+
+   torsos = [geom.id for geom in spec.geoms if 'torso' in geom.name]
+   pos_x = data.geom_xpos[torsos, 0]
+   pos_y = data.geom_xpos[torsos, 1]
+
+Notes
+-----
+
+- :ref:`mj_recompile` works differently than in the C API. In the C API, it modifies the model and the data in place,
+  while in the Python API it returns new :ref:`MjModel` and :ref:`MjData` objects. This is to avoid dangling references.
 
 .. _PyBuild:
 

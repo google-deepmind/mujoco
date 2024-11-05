@@ -461,7 +461,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
         force, condim_id = support.contact_force_dim(m, d, dim)
         forces.append(force)
         condim_ids.append(condim_id)
-      forces = jp.concatenate(forces)[jp.concatenate(condim_ids)]
+      forces = jp.concatenate(forces)[np.argsort(np.concatenate(condim_ids))]
 
       # get bodies of contact geoms
       conbody = jp.array(m.geom_bodyid)[d.contact.geom]
@@ -483,14 +483,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
       conray = jp.where(conbody1[..., None], -conray, conray)
 
       # compute distance, mapping over sites and contacts
-      def _distance(
-          site_size, site_xpos, site_xmat, site_type, contact_pos, conray
-      ):
-        return jax.vmap(
-            lambda site_size, site_xpos, site_xmat, conray: jax.vmap(
-                lambda pnt, vec: ray.ray_geom(site_size, pnt, vec, site_type)
-            )((contact_pos - site_xpos) @ site_xmat, conray @ site_xmat)
-        )(site_size, site_xpos, site_xmat, conray)
+      def _distance(site_size, site_xpos, site_xmat, site_type, pos, conray):
+        def dist(size, xpos, xmat, conray):
+          pnt = (pos - xpos) @ xmat
+          vec = conray @ xmat
+          ray_geom_ = lambda pnt, vec: ray.ray_geom(size, pnt, vec, site_type)
+          return jax.vmap(ray_geom_)(pnt, vec)
+
+        return jax.vmap(dist)(site_size, site_xpos, site_xmat, conray)
 
       dist = []
       dist_id = []
@@ -506,8 +506,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
         )
         dist.append(jp.where(jp.isinf(dist_site), 0, dist_site))
         dist_id.append(dist_id_site)
-
-      dist = jp.vstack(dist)[np.concatenate(dist_id)]
+      dist = jp.vstack(dist)[np.argsort(np.concatenate(dist_id))]
 
       # accumulate normal forces for each site
       sensor = jp.dot((dist > 0) & contacts, forces[:, 0])

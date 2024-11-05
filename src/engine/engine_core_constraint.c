@@ -1117,16 +1117,30 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
       // process according to equality-constraint type
       switch (m->eq_type[id]) {
       case mjEQ_CONNECT:
-        // body translation
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
+
+        // get body ids if using site semantics
+        if (m->eq_objtype[id] == mjOBJ_SITE) {
+          b1 = m->site_bodyid[b1];
+          b2 = m->site_bodyid[b2];
+        }
+
+        // body translation
         dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
         break;
 
       case mjEQ_WELD:  // distinguish translation and rotation inertia
-        // body translation or rotation depending on weldcnt
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
+
+        // get body ids if using site semantics
+        if (m->eq_objtype[id] == mjOBJ_SITE) {
+          b1 = m->site_bodyid[b1];
+          b2 = m->site_bodyid[b2];
+        }
+
+        // body translation or rotation depending on weldcnt
         dA[i] = m->body_invweight0[2*b1 + (weldcnt > 2)] +
                 m->body_invweight0[2*b2 + (weldcnt > 2)];
         weldcnt = (weldcnt + 1) % 6;
@@ -1650,6 +1664,12 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           break;
         }
 
+        // get body ids if using site semantics
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
+          id[0] = m->site_bodyid[id[0]];
+          id[1] = m->site_bodyid[id[1]];
+        }
+
         NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
         break;
 
@@ -1657,6 +1677,12 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         size = 6;
         if (!nnz) {
           break;
+        }
+
+        // get body ids if using site semantics
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
+          id[0] = m->site_bodyid[id[0]];
+          id[1] = m->site_bodyid[id[1]];
         }
 
         NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
@@ -1917,7 +1943,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nnzJ = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nJ = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -1925,13 +1951,13 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   }
 
   // precount sizes for constraint Jacobian matrices
-  int *nnz = mj_isSparse(m) ? &(d->nnzJ) : NULL;
+  int *nnz = mj_isSparse(m) ? &(d->nJ) : NULL;
   int ne_allocated = mj_ne(m, d, nnz);
   int nf_allocated = mj_nf(m, d, nnz);
   int nl_allocated = mj_nl(m, d, nnz);
   int nefc_allocated = ne_allocated + nf_allocated + nl_allocated + mj_nc(m, d, nnz);
   if (!mj_isSparse(m)) {
-    d->nnzJ = nefc_allocated * m->nv;
+    d->nJ = nefc_allocated * m->nv;
   }
   d->nefc = nefc_allocated;
 
@@ -1972,12 +1998,11 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
       mjERROR("nefc mis-allocation: found nefc=%d but allocated %d", d->nefc, nefc_allocated);
     }
 
-    // check that nnzJ was computed correctly
+    // check that nJ was computed correctly
     if (d->nefc > 0) {
-      int nnzJ = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
-      if (d->nnzJ != nnzJ) {
-        mjERROR("constraint Jacobian mis-allocation: found nnzJ=%d but allocated %d",
-                nnzJ, d->nnzJ);
+      int nJ = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
+      if (d->nJ != nJ) {
+        mjERROR("constraint Jacobian mis-allocation: found nJ=%d but allocated %d", nJ, d->nJ);
       }
     }
   } else if (d->nefc > nefc_allocated) {

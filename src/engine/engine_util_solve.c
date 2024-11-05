@@ -1046,10 +1046,9 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 //     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
 //     index (if given) must have allocated size n, but only nfree values are used in output
 //     only lower triangles of H and R and read from and written to, respectively
-int mju_boxQP(mjtNum* res, mjtNum* R, int* index,        // outputs
-              const mjtNum* H, const mjtNum* g, int n,   // QP definition
-              const mjtNum* lower, const mjtNum* upper)  // bounds
-{
+int mju_boxQP(mjtNum* res, mjtNum* R, int* index,
+              const mjtNum* H, const mjtNum* g, int n,
+              const mjtNum* lower, const mjtNum* upper) {
   // algorithm options
   int    maxiter    = 100;    // maximum number of iterations
   mjtNum mingrad    = 1E-16;  // minimum squared norm of (unclamped) gradient

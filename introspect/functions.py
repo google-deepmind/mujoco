@@ -4372,52 +4372,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Initialize given geom fields when not NULL, set the rest to their default values.',  # pylint: disable=line-too-long
      )),
-    ('mjv_makeConnector',
-     FunctionDecl(
-         name='mjv_makeConnector',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='geom',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjvGeom'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='type',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='width',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a0',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a1',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a2',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b0',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b1',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b2',
-                 type=ValueType(name='mjtNum'),
-             ),
-         ),
-         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels. Deprecated: use mjv_connector.',  # pylint: disable=line-too-long
-     )),
     ('mjv_connector',
      FunctionDecl(
          name='mjv_connector',
@@ -6187,64 +6141,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.",
      )),
-    ('mju_rotVecMat',
-     FunctionDecl(
-         name='mju_rotVecMat',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='res',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='vec',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='mat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(9,),
-                 ),
-             ),
-         ),
-         doc='Deprecated, use mju_mulMatVec3(res, mat, vec).',
-     )),
-    ('mju_rotVecMatT',
-     FunctionDecl(
-         name='mju_rotVecMatT',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='res',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='vec',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='mat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(9,),
-                 ),
-             ),
-         ),
-         doc='Deprecated, use mju_mulMatTVec3(res, mat, vec).',
-     )),
     ('mju_cross',
      FunctionDecl(
          name='mju_cross',
@@ -7061,6 +6957,102 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Coordinate transform of 6D motion or force vector in rotation:translation format. rotnew2old is 3-by-3, NULL means no rotation; flg_force specifies force or motion type.',  # pylint: disable=line-too-long
+     )),
+    ('mju_dense2sparse',
+     FunctionDecl(
+         name='mju_dense2sparse',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nr',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nc',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nnz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Convert matrix from dense to sparse.  nnz is size of res and colind, return 1 if too small, 0 otherwise.',  # pylint: disable=line-too-long
+     )),
+    ('mju_sparse2dense',
+     FunctionDecl(
+         name='mju_sparse2dense',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nr',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nc',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Convert matrix from sparse to dense.',
      )),
     ('mju_rotVecQuat',
      FunctionDecl(
@@ -9080,7 +9072,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9102,7 +9094,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9124,7 +9116,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9162,7 +9154,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9184,7 +9176,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9206,7 +9198,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9264,7 +9256,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9318,7 +9310,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9356,7 +9348,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9378,7 +9370,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9604,7 +9596,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9674,7 +9666,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9695,6 +9687,28 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Get spec from body.',
+     )),
+    ('mjs_findSpec',
+     FunctionDecl(
+         name='mjs_findSpec',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Find spec (model asset) by name.',
      )),
     ('mjs_findBody',
      FunctionDecl(
@@ -9808,7 +9822,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
      FunctionDecl(
          name='mjs_findDefault',
          return_type=PointerType(
-             inner_type=ValueType(name='mjsDefault'),
+             inner_type=ValueType(name='mjsDefault', is_const=True),
          ),
          parameters=(
              FunctionParameterDecl(
@@ -10248,7 +10262,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -10272,7 +10286,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Set element's enlcosing frame.",
+         doc="Set element's enclosing frame.",
      )),
     ('mjs_resolveOrientation',
      FunctionDecl(

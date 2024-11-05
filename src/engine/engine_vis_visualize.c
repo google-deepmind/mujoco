@@ -346,10 +346,9 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
 
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
-void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                       mjtNum a0, mjtNum a1, mjtNum a2,
-                       mjtNum b0, mjtNum b1, mjtNum b2) {
-  mjtNum quat[4], mat[9], dif[3] = {b0-a0, b1-a1, b2-a2};
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]) {
+  mjtNum quat[4], mat[9], dif[3] = {to[0]-from[0], to[1]-from[1], to[2]-from[2]};
 
   // require connector-compatible type
   if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
@@ -367,17 +366,17 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
 
   // cylinder and capsule are centered, and size[0] is "radius"
   if (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER) {
-    geom->pos[0] = 0.5*(a0 + b0);
-    geom->pos[1] = 0.5*(a1 + b1);
-    geom->pos[2] = 0.5*(a2 + b2);
+    geom->pos[0] = 0.5*(from[0] + to[0]);
+    geom->pos[1] = 0.5*(from[1] + to[1]);
+    geom->pos[2] = 0.5*(from[2] + to[2]);
     geom->size[2] *= 0.5;
   }
 
   // arrow is not centered
   else {
-    geom->pos[0] = a0;
-    geom->pos[1] = a1;
-    geom->pos[2] = a2;
+    geom->pos[0] = from[0];
+    geom->pos[1] = from[1];
+    geom->pos[2] = from[2];
   }
 
   // set mat to minimal rotation aligning b-a with z axis
@@ -386,12 +385,7 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   mju_n2f(geom->mat, mat, 9);
 }
 
-// set (type, size, pos, mat) connector-type geom between given points
-//  assume that mjv_initGeom was already called to set all other properties
-void mjv_connector(mjvGeom* geom, int type, mjtNum width,
-                   const mjtNum from[3], const mjtNum to[3]) {
-  mjv_makeConnector(geom, type, width, from[0], from[1], from[2], to[0], to[1], to[2]);
-}
+
 
 // initialize given fields when not NULL, set the rest to their default values
 void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,

@@ -227,8 +227,10 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     }
     // copy the element from the other model to this model
     source[i]->ForgetKeyframes();
+    mjSpec* origin = FindSpec(mjs_getString(source[i]->model->spec.modelname));
     dest.push_back(candidate);
     dest.back()->model = this;
+    dest.back()->compiler = origin ? &origin->compiler : &spec.compiler;
     dest.back()->id = -1;
   }
   if (!dest.empty()) {
@@ -304,6 +306,8 @@ void mjCModel::SaveDofOffsets(bool computesize) {
   }
 }
 
+
+
 template <class T>
 void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
                           const std::vector<mjCPlugin*>& source,
@@ -336,21 +340,22 @@ void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
   }
 }
 
-mjCModel& mjCModel::operator+=(const mjCModel& other) {
-  // TODO: use compiler settings stored in specs_ during compilation
-  std::string msg = "cannot attach mjSpecs with incompatible compiler/";
-  if (other.spec.degree != spec.degree) {
-    throw mjCError(nullptr, (msg + "angle attribute").c_str());
-  }
-  if (other.spec.autolimits != spec.autolimits) {
-    throw mjCError(nullptr, (msg + "autolimits attribute").c_str());
-  }
-  if (other.spec.eulerseq[0] != spec.eulerseq[0] ||
-      other.spec.eulerseq[1] != spec.eulerseq[1] ||
-      other.spec.eulerseq[2] != spec.eulerseq[2]) {
-    throw mjCError(nullptr, (msg + "eulerseq attribute").c_str());
-  }
 
+
+// return true if the plugin is already in the list of active plugins
+static bool IsPluginActive(
+    const mjpPlugin* plugin,
+    const std::vector<std::pair<const mjpPlugin*, int>>& active_plugins) {
+  return std::find_if(
+             active_plugins.begin(), active_plugins.end(),
+             [&plugin](const std::pair<const mjpPlugin*, int>& element) {
+               return element.first == plugin;
+             }) != active_plugins.end();
+}
+
+
+
+mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
   mjCBody *world = bodies_[0];
   ResetTreeLists();
@@ -369,6 +374,11 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     for (const auto& key : other.key_pending_) {
       key_pending_.push_back(key);
     }
+    CopyList(numerics_, other.numerics_);
+    CopyList(texts_, other.texts_);
+    for (const auto* s : other.specs_) {
+      specs_.push_back(mj_copySpec(s));
+    }
   }
   CopyList(flexes_, other.flexes_);
   CopyList(pairs_, other.pairs_);
@@ -377,8 +387,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(equalities_, other.equalities_);
   CopyList(actuators_, other.actuators_);
   CopyList(sensors_, other.sensors_);
-  CopyList(numerics_, other.numerics_);
-  CopyList(texts_, other.texts_);
   CopyList(tuples_, other.tuples_);
 
   // create new plugins and map them
@@ -387,8 +395,20 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyPlugin(plugins_, other.plugins_, meshes_);
   CopyPlugin(plugins_, other.plugins_, actuators_);
   CopyPlugin(plugins_, other.plugins_, sensors_);
-  for (const auto& active_plugin : other.active_plugins_) {
-    active_plugins_.emplace_back(active_plugin);
+  for (const auto& [plugin, slot] : other.active_plugins_) {
+    if (!IsPluginActive(plugin, active_plugins_)) {
+      active_plugins_.emplace_back(std::make_pair(plugin, slot));
+    }
+  }
+
+  // resize keyframes in the parent model
+  if (!keys_.empty()) {
+    SaveDofOffsets(/*computesize=*/true);
+    ComputeReference();
+    for (auto* key : keys_) {
+      ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
+    }
+    nq = nv = na = nu = nmocap = 0;
   }
 
   // restore to the original state
@@ -1593,6 +1613,7 @@ void mjCModel::SetSizes() {
     nflexelemedge += flexes_[i]->nelem * mjCFlex::kNumEdges[flexes_[i]->dim - 1];
     nflexshelldata += (int)flexes_[i]->shell.size();
     nflexevpair += (int)flexes_[i]->evpair.size()/2;
+    nflextexcoord += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size()/2 : 0);
   }
 
   // mesh counts
@@ -1762,8 +1783,8 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   mjOption saveopt = m->opt;
   m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_PASSIVE |
                         mjDSBL_GRAVITY | mjDSBL_ACTUATION;
-  if (LRopt.timestep>0) {
-    m->opt.timestep = LRopt.timestep;
+  if (compiler.LRopt.timestep>0) {
+    m->opt.timestep = compiler.LRopt.timestep;
   }
 
   // number of threads available
@@ -1778,14 +1799,14 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
                     m->actuator_biastype[i]==mjBIAS_MUSCLE);
     int isuser = (m->actuator_gaintype[i]==mjGAIN_USER ||
                   m->actuator_biastype[i]==mjBIAS_USER);
-    if ((LRopt.mode==mjLRMODE_NONE) ||
-        (LRopt.mode==mjLRMODE_MUSCLE && !ismuscle) ||
-        (LRopt.mode==mjLRMODE_MUSCLEUSER && !ismuscle && !isuser)) {
+    if ((compiler.LRopt.mode==mjLRMODE_NONE) ||
+        (compiler.LRopt.mode==mjLRMODE_MUSCLE && !ismuscle) ||
+        (compiler.LRopt.mode==mjLRMODE_MUSCLEUSER && !ismuscle && !isuser)) {
       continue;
     }
 
     // use existing length range if available
-    if (LRopt.useexisting &&
+    if (compiler.LRopt.useexisting &&
         (m->actuator_lengthrange[2*i] < m->actuator_lengthrange[2*i+1])) {
       continue;
     }
@@ -1795,10 +1816,10 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   }
 
   // single thread
-  if (!usethread || cnt<2 || nthread<2) {
+  if (!compiler.usethread || cnt<2 || nthread<2) {
     char err[200];
     for (int i=0; i<m->nu; i++) {
-      if (!mj_setLengthRange(m, data, i, &LRopt, err, 200)) {
+      if (!mj_setLengthRange(m, data, i, &compiler.LRopt, err, 200)) {
         throw mjCError(0, "%s", err);
       }
     }
@@ -1822,7 +1843,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     // prepare thread function arguments, clear errors
     LRThreadArg arg[kMaxCompilerThreads];
     for (int i=0; i<nthread; i++) {
-      LRThreadArg temp = {m, pdata[i], i*num, num, &LRopt, err[i], 200};
+      LRThreadArg temp = {m, pdata[i], i*num, num, &compiler.LRopt, err[i], 200};
       arg[i] = temp;
       err[i][0] = 0;
     }
@@ -3163,10 +3184,7 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
   // do not change compilation quantities in case the user wants to recompile preserving the state
   if (!compiled) {
     SaveDofOffsets(/*computesize=*/true);
-    qpos0.resize(nq);
-    body_pos0.resize(3*bodies_.size());
-    body_quat0.resize(4*bodies_.size());
-    ComputeReference(qpos0, body_pos0, body_quat0);
+    ComputeReference();
   }
 
   // save keyframe info and resize keyframes
@@ -3629,12 +3647,6 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     return nullptr;
   }
 
-  // destroy attached specs
-  for (auto spec : specs_) {
-    mj_deleteSpec(spec);
-  }
-  specs_.clear();
-
   // restore error handler, mark as compiled, return mjModel
   _mjPRIVATE__set_tls_error_fn(save_error);
   _mjPRIVATE__set_tls_warning_fn(save_warning);
@@ -3725,26 +3737,28 @@ void mjCModel::CompileMeshes(const mjVFS* vfs) {
 
 
 // compute qpos0
-template <class T>
-void mjCModel::ComputeReference(std::vector<T>& q0, std::vector<T>& bpos, std::vector<T>& bquat) {
+void mjCModel::ComputeReference() {
   int b = 0;
+  qpos0.resize(nq);
+  body_pos0.resize(3*bodies_.size());
+  body_quat0.resize(4*bodies_.size());
   for (auto body : bodies_) {
-    mjuu_copyvec(bpos.data()+3*b, body->spec.pos, 3);
-    mjuu_copyvec(bquat.data()+4*b, body->spec.quat, 4);
+    mjuu_copyvec(body_pos0.data()+3*b, body->spec.pos, 3);
+    mjuu_copyvec(body_quat0.data()+4*b, body->spec.quat, 4);
     for (auto joint : body->joints) {
       switch (joint->type) {
       case mjJNT_FREE:
-        mjuu_copyvec(q0.data()+joint->qposadr_, body->spec.pos, 3);
-        mjuu_copyvec(q0.data()+joint->qposadr_+3, body->spec.quat, 4);
+        mjuu_copyvec(qpos0.data()+joint->qposadr_, body->spec.pos, 3);
+        mjuu_copyvec(qpos0.data()+joint->qposadr_+3, body->spec.quat, 4);
         break;
 
       case mjJNT_BALL:
-        mjuu_setvec(q0.data()+joint->qposadr_, 1, 0, 0, 0);
+        mjuu_setvec(qpos0.data()+joint->qposadr_, 1, 0, 0, 0);
         break;
 
       case mjJNT_SLIDE:
       case mjJNT_HINGE:
-        q0[joint->qposadr_] = (T)joint->spec.ref;
+        qpos0[joint->qposadr_] = (mjtNum)joint->spec.ref;
         break;
 
       default:
@@ -3807,17 +3821,8 @@ void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
 
 // convert pending keyframes info to actual keyframes
 void mjCModel::ResolveKeyframes(const mjModel* m) {
-  if (key_pending_.empty()) {
-    return;
-  }
-
   // store dof offsets in joints and actuators
   SaveDofOffsets();
-
-  // resize existing keyframes to the new state, fill in missing default values
-  for (auto* key : keys_) {
-    ResizeKeyframe(key, m->qpos0, m->body_pos, m->body_quat);
-  }
 
   // create new keyframes, fill in missing default values
   for (const auto& info : key_pending_) {
@@ -3898,7 +3903,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   ProcessLists();
 
   // delete visual assets
-  if (discardvisual) {
+  if (compiler.discardvisual) {
     DeleteAll(materials_);
     DeleteTexcoord(flexes_);
     DeleteTexcoord(meshes_);
@@ -3921,7 +3926,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetNuser();
 
   // compile meshes (needed for geom compilation)
-  if (usethread && meshes_.size() > 1) {
+  if (compiler.usethread && meshes_.size() > 1) {
     // multi-threaded mesh compile
     CompileMeshes(vfs);
   } else {
@@ -3965,10 +3970,10 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   reassignid(excludes_);
 
   // resolve asset references, compute sizes
-  IndexAssets(discardvisual);
+  IndexAssets(compiler.discardvisual);
   SetSizes();
   // fuse static if enabled
-  if (fusestatic) {
+  if (compiler.fusestatic) {
     FuseStatic();
   }
 
@@ -4128,8 +4133,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   CopyObjects(m);
 
   // scale mass
-  if (settotalmass>0) {
-    mj_setTotalmass(m, settotalmass);
+  if (compiler.settotalmass>0) {
+    mj_setTotalmass(m, compiler.settotalmass);
   }
 
   // set arena size into m->narena

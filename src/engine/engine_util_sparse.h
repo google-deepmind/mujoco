@@ -34,17 +34,22 @@ MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, co
                             int nnz2, const int* ind2, int flg_unc2);
 
 // convert matrix from dense to sparse
-MJAPI void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                            int* rownnz, int* rowadr, int* colind);
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise
+MJAPI int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                           int* rownnz, int* rowadr, int* colind, int nnz);
 
 // convert matrix from sparse to dense
-void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      const int* rownnz, const int* rowadr, const int* colind);
+MJAPI void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc, const int* rownnz,
+                            const int* rowadr, const int* colind);
 
 // multiply sparse matrix and dense vector:  res = mat * vec
 MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                                int nr, const int* rownnz, const int* rowadr,
                                const int* colind, const int* rowsuper);
+
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec
+MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                                const int* rownnz, const int* rowadr, const int* colind);
 
 // compress layout of sparse matrix
 MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,

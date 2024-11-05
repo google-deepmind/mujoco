@@ -155,6 +155,48 @@ void DefineArray(py::module& m, const std::string& typestr) {
       }, py::keep_alive<0, 1>(), py::return_value_policy::reference_internal);
 };
 
+py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
+  py::list list;
+  raw::MjsElement* el = mjs_firstChild(&body, objtype, recursive);
+  std::string error = mjs_getError(mjs_getSpec(body.element));
+  if (!el && !error.empty()) {
+    throw pybind11::value_error(error);
+  }
+  while (el) {
+    switch (objtype) {
+      case mjOBJ_BODY:
+        list.append(mjs_asBody(el));
+        break;
+      case mjOBJ_CAMERA:
+        list.append(mjs_asCamera(el));
+        break;
+      case mjOBJ_FRAME:
+        list.append(mjs_asFrame(el));
+        break;
+      case mjOBJ_GEOM:
+        list.append(mjs_asGeom(el));
+        break;
+      case mjOBJ_JOINT:
+        list.append(mjs_asJoint(el));
+        break;
+      case mjOBJ_LIGHT:
+        list.append(mjs_asLight(el));
+        break;
+      case mjOBJ_SITE:
+        list.append(mjs_asSite(el));
+        break;
+      default:
+        // this should never happen
+        throw pybind11::value_error(
+            "body.find_all supports the types: body, frame, geom, site, "
+            "light, camera.");
+        break;
+    }
+    el = mjs_nextChild(&body, el, recursive);
+  }
+  return list;  // list of pointers, so they can be copied
+}
+
 PYBIND11_MODULE(_specs, m) {
   auto structs_m = py::module::import("mujoco._structs");
   py::function mjmodel_from_spec_ptr =
@@ -194,6 +236,7 @@ PYBIND11_MODULE(_specs, m) {
   py::class_<raw::MjOption> mjOption(m, "MjOption");
   py::class_<raw::MjStatistic> mjStatistic(m, "MjStatistic");
   py::class_<raw::MjVisual> mjVisual(m, "MjVisual");
+  py::class_<raw::MjsCompiler> mjsCompiler(m, "MjsCompiler");
   DefineArray<char>(m, "MjCharVec");
   DefineArray<std::string>(m, "MjStringVec");
   DefineArray<std::byte>(m, "MjByteVec");
@@ -280,10 +323,9 @@ PYBIND11_MODULE(_specs, m) {
     return mjmodel_mjdata_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
                                         m, d);
   });
-  mjSpec.def(
-      "copy",
-      [](const MjSpec& self) -> raw::MjSpec* { return mj_copySpec(self.ptr); },
-      py::return_value_policy::reference_internal);
+  mjSpec.def("copy", [](const MjSpec& self) -> MjSpec {
+    return MjSpec(mj_copySpec(self.ptr));
+  });
   mjSpec.def_property_readonly(
       "worldbody",
       [](MjSpec& self) -> raw::MjsBody* {
@@ -304,7 +346,7 @@ PYBIND11_MODULE(_specs, m) {
       py::return_value_policy::reference_internal);
   mjSpec.def(
       "find_default",
-      [](MjSpec& self, std::string& classname) -> raw::MjsDefault* {
+      [](MjSpec& self, std::string& classname) -> const raw::MjsDefault* {
         return mjs_findDefault(self.ptr, classname.c_str());
       },
       py::return_value_policy::reference_internal);
@@ -418,45 +460,31 @@ PYBIND11_MODULE(_specs, m) {
   mjsBody.def(
       "find_all",
       [](raw::MjsBody& self, mjtObj objtype) -> py::list {
-        py::list list;
-        raw::MjsElement* el = mjs_firstChild(&self, objtype, true);
-        std::string error = mjs_getError(mjs_getSpec(self.element));
-        if (!el && !error.empty()) {
-          throw pybind11::value_error(error);
+        return FindAllImpl(self, objtype, true);
+      },
+      py::return_value_policy::reference_internal);
+  mjsBody.def(
+      "find_all",
+      [](raw::MjsBody& self, std::string& name) -> py::list {
+        mjtObj objtype = mjOBJ_UNKNOWN;
+        if (name == "body") {
+          objtype = mjOBJ_BODY;
+        } else if (name == "frame") {
+          objtype = mjOBJ_FRAME;
+        } else if (name == "geom") {
+          objtype = mjOBJ_GEOM;
+        } else if (name == "site") {
+          objtype = mjOBJ_SITE;
+        } else if (name == "light") {
+          objtype = mjOBJ_LIGHT;
+        } else if (name == "camera") {
+          objtype = mjOBJ_CAMERA;
+        } else {
+          throw pybind11::value_error(
+              "body.find_all supports the types: body, frame, geom, site, "
+              "light, camera.");
         }
-        while (el) {
-          switch (objtype) {
-            case mjOBJ_BODY:
-              list.append(mjs_asBody(el));
-              break;
-            case mjOBJ_CAMERA:
-              list.append(mjs_asCamera(el));
-              break;
-            case mjOBJ_FRAME:
-              list.append(mjs_asFrame(el));
-              break;
-            case mjOBJ_GEOM:
-              list.append(mjs_asGeom(el));
-              break;
-            case mjOBJ_JOINT:
-              list.append(mjs_asJoint(el));
-              break;
-            case mjOBJ_LIGHT:
-              list.append(mjs_asLight(el));
-              break;
-            case mjOBJ_SITE:
-              list.append(mjs_asSite(el));
-              break;
-            default:
-              // this should never happen
-              throw pybind11::value_error(
-                  "body.find_all supports the types: body, frame, geom, site, "
-                  "light, camera.");
-              break;
-          }
-          el = mjs_nextChild(&self, el, true);
-        }
-        return list;
+        return FindAllImpl(self, objtype, true);
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
@@ -477,6 +505,12 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_asBody(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "bodies",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_BODY, false);
+      },
+      py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_camera",
       [](raw::MjsBody& self) -> raw::MjsCamera* {
@@ -487,6 +521,12 @@ PYBIND11_MODULE(_specs, m) {
       "next_camera",
       [](raw::MjsBody& self, raw::MjsCamera& child) -> raw::MjsCamera* {
         return mjs_asCamera(mjs_nextChild(&self, child.element, false));
+      },
+      py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "cameras",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_CAMERA, false);
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
@@ -501,6 +541,12 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_asLight(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "lights",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_LIGHT, false);
+      },
+      py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_joint",
       [](raw::MjsBody& self) -> raw::MjsJoint* {
@@ -511,6 +557,12 @@ PYBIND11_MODULE(_specs, m) {
       "next_joint",
       [](raw::MjsBody& self, raw::MjsJoint& child) -> raw::MjsJoint* {
         return mjs_asJoint(mjs_nextChild(&self, child.element, false));
+      },
+      py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "joints",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_JOINT, false);
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
@@ -525,6 +577,12 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_asGeom(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "geoms",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_GEOM, false);
+      },
+      py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_site",
       [](raw::MjsBody& self) -> raw::MjsSite* {
@@ -537,6 +595,12 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_asSite(mjs_nextChild(&self, child.element, false));
       },
       py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "sites",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_SITE, false);
+      },
+      py::return_value_policy::reference_internal);
   mjsBody.def(
       "first_frame",
       [](raw::MjsBody& self) -> raw::MjsFrame* {
@@ -547,6 +611,12 @@ PYBIND11_MODULE(_specs, m) {
       "next_frame",
       [](raw::MjsBody& self, raw::MjsFrame& child) -> raw::MjsFrame* {
         return mjs_asFrame(mjs_nextChild(&self, child.element, false));
+      },
+      py::return_value_policy::reference_internal);
+  mjsBody.def_property_readonly(
+      "frames",
+      [](raw::MjsBody& self) -> py::list {
+        return FindAllImpl(self, mjOBJ_FRAME, false);
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(

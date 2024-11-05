@@ -1140,6 +1140,16 @@ behavior.
 .. mujoco-include:: mjsElement
 
 
+.. _mjsCompiler:
+
+mjsCompiler
+~~~~~~~~~~~
+
+Compiler options.
+
+.. mujoco-include:: mjsCompiler
+
+
 .. _mjsBody:
 
 mjsBody

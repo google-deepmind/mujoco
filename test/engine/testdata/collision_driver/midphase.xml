@@ -1,6 +1,6 @@
 <mujoco model="midphase">
   <include file="humanoid.xml"/>
-  <compiler autolimits="true" boundmass="1e-05" boundinertia="1e-11" coordinate="local" angle="radian" eulerseq="xyz"/>
+  <compiler autolimits="true" boundmass="1e-05" boundinertia="1e-11" angle="radian" eulerseq="xyz"/>
   <option timestep="0.001" cone="elliptic" noslip_iterations="5" noslip_tolerance="0"/>
   <size njmax="1000" nconmax="500"/>
   <visual>

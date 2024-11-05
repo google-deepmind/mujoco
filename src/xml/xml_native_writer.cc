@@ -212,6 +212,9 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     }
     WriteAttrTxt(elem, "content_type", mesh->ContentType());
     WriteAttrTxt(elem, "file", mesh->File());
+    if (mesh->Inertia() != def->Mesh().Inertia()) {
+      WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 3, mesh->Inertia()));
+    }
 
     // write vertex data
     if (!mesh->UserVert().empty()) {
@@ -917,9 +920,6 @@ void mjXWriter::Compiler(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "compiler");
 
   // settings
-  if (!model->convexhull) {
-    WriteAttrTxt(section, "convexhull", FindValue(bool_map, 2, model->convexhull));
-  }
   WriteAttrTxt(section, "angle", "radian");
   if (!model->get_meshdir().empty()) {
     WriteAttrTxt(section, "meshdir", model->get_meshdir());
@@ -927,22 +927,20 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (!model->get_texturedir().empty()) {
     WriteAttrTxt(section, "texturedir", model->get_texturedir());
   }
-  if (!model->usethread) {
+  if (!model->compiler.usethread) {
     WriteAttrTxt(section, "usethread", "false");
   }
-  if (model->exactmeshinertia) {
-    WriteAttrTxt(section, "exactmeshinertia", "true");
+
+  if (model->compiler.boundmass) {
+    WriteAttr(section, "boundmass", 1, &model->compiler.boundmass);
   }
-  if (model->boundmass) {
-    WriteAttr(section, "boundmass", 1, &model->boundmass);
+  if (model->compiler.boundinertia) {
+    WriteAttr(section, "boundinertia", 1, &model->compiler.boundinertia);
   }
-  if (model->boundinertia) {
-    WriteAttr(section, "boundinertia", 1, &model->boundinertia);
-  }
-  if (model->alignfree) {
+  if (model->compiler.alignfree) {
     WriteAttrTxt(section, "alignfree", "true");
   }
-  if (!model->autolimits) {
+  if (!model->compiler.autolimits) {
     WriteAttrTxt(section, "autolimits", "false");
   }
 }
@@ -1610,7 +1608,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     WriteVector(elem, "user", body->get_userdata());
 
     // write inertial
-    if (body->explicitinertial && model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
+    if (body->explicitinertial && model->compiler.inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);
       WriteAttr(inertial, "quat", 4, body->iquat, unitq);

@@ -165,6 +165,30 @@ Minimal example
    pos = jax.jit(batched_step)(vel)
    print(pos)
 
+.. _MjxCli:
+
+Helpful Command Line Scripts
+----------------------------
+
+We provide two command line scripts with the ``mujoco-mjx`` package:
+
+.. code-block:: shell
+
+   mjx-testspeed --mjcf=/PATH/TO/MJCF/ --base_path=.
+
+This command takes in a path to an MJCF file along with optional arguments (use ``--help`` for more information)
+and computes helpful metrics for performance tuning. The command will output, among other things, the total
+simulation time, the total steps per second and the total realtime factor (here total is across all available
+devices).
+
+.. code-block:: shell
+
+   mjx-viewer --help
+
+This command launches the MJX model in the simulate viewer, allowing you to visualize and interact with the model.
+Note this steps the simulation using MJX physics (not C MuJoCo) so it can be helpful for example for debugging
+solver parameters.
+
 .. _MjxFeatureParity:
 
 Feature Parity

@@ -14,11 +14,12 @@
 
 #include "src/engine/engine_sort.h"
 
-#include <cstddef>
+#include <algorithm>
+#include <array>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
-#include "src/engine/engine_sort.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -26,23 +27,57 @@ namespace {
 
 using EngineSortTest = MujocoTest;
 
+constexpr int kPermutationSize = 5;  // 5! = 120 checks
+
+constexpr int factorial() {
+  int n = 1;
+  for (int i = 1; i <= kPermutationSize; ++i) {
+    n *= i;
+  }
+  return n;
+}
+
 struct IntStruct {
   int value;
 };
 
-quicksortfunc(int_compare, context, x, y) {
-  int a = *(int*)x;
-  int b = *(int*)y;
-  if (a < b) {
+// computes next permutation in lexicographical order in place
+// returns false if there is no next permutation
+bool NextPermutation(std::array<int, kPermutationSize>& arr) {
+  int j;
+  for (j = arr.size() - 2; j >= 0; --j) {
+    if (arr[j] < arr[j + 1]) {
+      break;
+    }
+  }
+
+  // last permutation i.e. [n, n - 1, ..., 3, 2, 1]
+  if (j < 0) {
+    return false;
+  }
+
+  for (int l = arr.size() - 1; l > -1; --l) {
+    if (arr[j] < arr[l]) {
+      std::swap(arr[j], arr[l]);
+      std::reverse(arr.begin() + j + 1, arr.end());
+      return true;
+    }
+  }
+  return true;
+}
+
+int IntCompare(int* i, int* j, void* context) {
+  if (*i < *j) {
     return -1;
-  } else if (a == b) {
+  } else if (*i == *j) {
     return 0;
   } else {
     return 1;
   }
 }
+mjSORT(IntSort, int, IntCompare)
 
-quicksortfunc(intstruct_compare, context, x, y) {
+int IntStructCompare(const IntStruct* x, const IntStruct* y, void* context) {
   IntStruct* a = (IntStruct*)x;
   IntStruct* b = (IntStruct*)y;
   if (a->value < b->value) {
@@ -53,18 +88,40 @@ quicksortfunc(intstruct_compare, context, x, y) {
     return 1;
   }
 }
+mjSORT(IntStructSort, IntStruct, IntStructCompare)
 
 TEST_F(EngineSortTest, Sort) {
-  // test int
-  std::vector<int> x = {1, 3, 2};
-  mjQUICKSORT(x.data(), x.size(), sizeof(int), int_compare, x.data());
-  EXPECT_EQ(x[0], 1);
-  EXPECT_EQ(x[1], 2);
-  EXPECT_EQ(x[2], 3);
+  int total = 0;
+  std::array<int, kPermutationSize> initial, buf;
+  for (int i = 0; i < kPermutationSize; ++i) {
+    initial[i] = i + 1;
+  }
+  std::array<int, kPermutationSize> arr = initial;
+  do {
+    ++total;
+    std::array<int, kPermutationSize> sorted_arr = arr;
+    IntSort(sorted_arr.data(), buf.data(), sorted_arr.size(), nullptr);
+    EXPECT_EQ(sorted_arr, initial);
+  } while (NextPermutation(arr));
+  ASSERT_EQ(total, factorial());
+}
 
-  // test custom struct with mjQUICKSORT
+TEST_F(EngineSortTest, LargeSort) {
+  std::array<int, 2500> arr, buf;
+  int n = 1;
+  for (int i = arr.size() - 1; i >= 0; --i) {
+    arr[i] = n++;
+  }
+  IntSort(arr.data(), buf.data(), arr.size(), nullptr);
+  for (int i = 0; i < arr.size(); ++i) {
+    EXPECT_EQ(arr[i], i + 1);
+  }
+}
+
+TEST_F(EngineSortTest, SortStruct) {
   std::vector<IntStruct> y = {{1}, {3}, {2}};
-  mjQUICKSORT(y.data(), y.size(), sizeof(IntStruct), intstruct_compare, NULL);
+  std::vector<IntStruct> buf(3);
+  IntStructSort(y.data(), buf.data(), y.size(), nullptr);
   EXPECT_EQ(y[0].value, 1);
   EXPECT_EQ(y[1].value, 2);
   EXPECT_EQ(y[2].value, 3);
