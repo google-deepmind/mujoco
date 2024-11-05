@@ -24,7 +24,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco_samples
-  VERSION 3.2.5
+  VERSION 3.2.6
   DESCRIPTION "MuJoCo samples binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )

@@ -1,8 +1,8 @@
 MUJOCO ICON "mujoco.ico"
 
 1 VERSIONINFO
-FILEVERSION 3,2,5,0
-PRODUCTVERSION 3,2,5,0
+FILEVERSION 3,2,6,0
+PRODUCTVERSION 3,2,6,0
 FILEOS 0x4
 FILETYPE 0x1
 {
@@ -11,9 +11,9 @@ FILETYPE 0x1
     BLOCK "040904b0"
     {
       VALUE "ProductName", "MuJoCo"
-      VALUE "ProductVersion", "3.2.5"
+      VALUE "ProductVersion", "3.2.6"
       VALUE "FileDescription", "MuJoCo"
-      VALUE "FileVersion", "3.2.5"
+      VALUE "FileVersion", "3.2.6"
       VALUE "InternalName", "simulate.exe"
       VALUE "OriginalFilename", "simulate.exe"
       VALUE "CompanyName", "Google DeepMind"
