@@ -432,9 +432,9 @@ def get_data_into(
 
       # MuJoCo actuator_moment is sparse, MJX uses a dense representation.
       if field.name == 'actuator_moment' and m.nu:
-        moment_rownnz = np.zeros(m.nu, dtype=int)
-        moment_rowadr = np.zeros(m.nu, dtype=int)
-        moment_colind = np.zeros(m.nu * m.nv, dtype=int)
+        moment_rownnz = np.zeros(m.nu, dtype=np.int32)
+        moment_rowadr = np.zeros(m.nu, dtype=np.int32)
+        moment_colind = np.zeros(m.nu * m.nv, dtype=np.int32)
         actuator_moment = np.zeros(m.nu * m.nv)
         mujoco.mju_dense2sparse(
             actuator_moment,

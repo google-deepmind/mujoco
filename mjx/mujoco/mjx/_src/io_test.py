@@ -422,6 +422,26 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.efc_aref, d.efc_aref)
     np.testing.assert_allclose(d_2.contact.efc_address, d.contact.efc_address)
 
+  def test_get_data_runs(self):
+    xml = """
+      <mujoco>
+        <compiler autolimits="true"/>
+        <worldbody>
+          <body name="box">
+            <joint name="slide1" type="slide" axis="1 0 0" />
+            <geom type="box" size=".05 .05 .05" mass="1"/>
+          </body>
+        </worldbody>
+        <actuator>
+          <motor joint="slide1"/>
+        </actuator>
+      </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+    d = mujoco.MjData(m)
+    dx = mjx.put_data(m, d)
+    mjx.get_data(m, dx)
+
   def test_get_data_batched(self):
     """Test that get_data makes correct List[MjData] for batched Data."""
 

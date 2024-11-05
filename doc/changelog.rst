@@ -2,6 +2,14 @@
 Changelog
 =========
 
+
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+1. Fixed :github:issue:`2212`, type error in ```mjx.get_data``.
+
 Version 3.2.5 (Nov 4, 2024)
 ---------------------------
 
