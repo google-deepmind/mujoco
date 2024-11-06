@@ -186,13 +186,19 @@ int main(int argc, char** argv) {
   mjcb_time = gettm;
 
   // print start
-  std::printf("\nRolling out %d steps%s, at dt = %g",
+  std::printf("\nRolling out %d steps%s at dt = %g",
               nstep,
               nthread > 1 ? " per thread" : "",
               m->opt.timestep);
+
+  // print precision
   if (sizeof(mjtNum) == 4) {
-    std::printf(", using single-precision");
+    std::printf(", using single precision");
+  } else {
+    std::printf(", using double precision");
   }
+
+  // print threadpool size
   if (npoolthread > 1) {
     std::printf(", using %d threads", npoolthread);
   }
@@ -231,7 +237,10 @@ int main(int argc, char** argv) {
   std::printf(" Time per step        : %.1f %ss\n\n", 1e6*simtime[0]/nstep, mu_str);
   std::printf(" Contacts per step    : %.2f\n", static_cast<float>(contacts[0])/nstep);
   std::printf(" Constraints per step : %.2f\n", static_cast<float>(constraints[0])/nstep);
-  std::printf(" Degrees of freedom   : %d\n\n", m->nv);
+  std::printf(" Degrees of freedom   : %d\n", m->nv);
+  std::printf(" Memory usage         : %.1f%% of %s\n\n",
+              100 * d[0]->maxuse_arena / (double)(d[0]->narena),
+              mju_writeNumBytes(d[0]->narena));
 
   // profiler, top-level
   printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);
