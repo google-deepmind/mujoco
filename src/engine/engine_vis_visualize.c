@@ -141,7 +141,9 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       START
       thisgeom->type = mjGEOM_CYLINDER;
       thisgeom->size[0] = thisgeom->size[1] = m->vis.scale.contactwidth * scl;
-      thisgeom->size[2] = m->vis.scale.contactheight * scl;
+      float halfheight = m->vis.scale.contactheight * scl;
+      float halfdepth = -con->dist / 2;
+      thisgeom->size[2] = mjMAX(halfheight, halfdepth);
       mju_n2f(thisgeom->pos, con->pos, 3);
       mju_n2f(thisgeom->mat, mat, 9);
 
