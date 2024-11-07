@@ -27,6 +27,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_io.h"
 #include "engine/engine_name.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -163,7 +164,58 @@ static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
 
 
 
-//------------------------------ printing functions ------------------------------------------------
+// print human readable memory size
+static const char* memorySize(size_t nbytes) {
+  static mjTHREADLOCAL char message[20];
+  int k = 1024;
+
+  if (nbytes < k) {
+    snprintf(message, sizeof(message), "%5zu bytes", nbytes);
+  } else if (nbytes < k*k) {
+    snprintf(message, sizeof(message), "%5.1f KB", (double)nbytes / k);
+  } else if (nbytes < k*k*k) {
+    snprintf(message, sizeof(message), "%5.1f MB", (double)nbytes / (k*k));
+  } else {
+    snprintf(message, sizeof(message), "%5.1f GB", (double)nbytes / (k*k*k));
+  }
+
+  return message;
+}
+
+
+
+// return memory footprint of all significant mesh-related arrays
+static size_t sizeMesh(const mjModel* m) {
+  size_t nbytes = 0;
+  nbytes += sizeof(float) * 3*m->nmeshvert;        // mesh_vert
+  nbytes += sizeof(float) * 3*m->nmeshnormal;      // mesh_normal
+  nbytes += sizeof(float) * 2*m->nmeshtexcoord;    // mesh_texcoord
+  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_face
+  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_facenormal
+  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_facetexcoord
+  nbytes += sizeof(int)   * m->nmeshgraph;         // mesh_graph
+  return nbytes;
+}
+
+
+
+// return memory footprint of all significant skin-related arrays
+static size_t sizeSkin(const mjModel* m) {
+  size_t nbytes = 0;
+  nbytes += sizeof(float) * 3*m->nskinvert;        // skin_vert
+  nbytes += sizeof(float) * 2*m->nskintexvert;     // skin_texcoord
+  nbytes += sizeof(int)   * 3*m->nskinface;        // skin_face
+  nbytes += sizeof(int)   * m->nskinbone;          // skin_bonevertadr
+  nbytes += sizeof(int)   * m->nskinbone;          // skin_bonevertnum
+  nbytes += sizeof(float) * 3*m->nskinbone;        // skin_bonebindpos
+  nbytes += sizeof(float) * 4*m->nskinbone;        // skin_bonebindquat
+  nbytes += sizeof(int)   * m->nskinbone;          // skin_bonebodyid
+  nbytes += sizeof(int)   * m->nskinbonevert;      // skin_bonevertid
+  nbytes += sizeof(float) * m->nskinbonevert;      // skin_bonevertweight
+  return nbytes;
+}
+
+
 
 // return whether float_format is a valid format string for a single float
 static bool validateFloatFormat(const char* float_format) {
@@ -240,6 +292,7 @@ static bool validateFloatFormat(const char* float_format) {
  #pragma clang diagnostic ignored "-Wuninitialized"
  #endif
 
+//------------------------------ printing functions ------------------------------------------------
 
 // print mjModel to text file, specifying format. float_format must be a
 // valid printf-style format string for a single float value
@@ -274,14 +327,30 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   fprintf(fp, "MuJoCo version %s\n", mj_versionString());
   fprintf(fp, "model name     %s\n\n", m->names);
 
+  // memory footprint
+  fprintf(fp, "MEMORY\n");
+  fprintf(fp, "  total         %s\n", memorySize(mj_sizeModel(m)));
+  if (m->nmesh) {
+    fprintf(fp, "  meshes        %s\n", memorySize(sizeMesh(m)));
+  }
+  if (m->ntex) {
+    fprintf(fp, "  textures      %s\n", memorySize(m->ntexdata));
+  }
+  if (m->nskin) {
+    fprintf(fp, "  skins         %s\n", memorySize(sizeSkin(m)));
+  }
+  fprintf(fp, "\n");
+
+
   // sizes
+  fprintf(fp, "SIZES\n");
 #define X( name )                                 \
   if (m->name) {                                  \
     const char* format = _Generic(                \
         m->name,                                  \
         size_t : SIZE_T_FORMAT,                   \
         default : INT_FORMAT);                    \
-    fprintf(fp, NAME_FORMAT, #name);              \
+    fprintf(fp, NAME_FORMAT, "  " #name);         \
     fprintf(fp, format, m->name);                 \
     fprintf(fp, "\n");                            \
   }
@@ -291,8 +360,9 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   fprintf(fp, "\n");
 
   // scalar options
+  fprintf(fp, "OPTION\n");
 #define X( type, name )                           \
-  fprintf(fp, NAME_FORMAT, #name);                \
+  fprintf(fp, NAME_FORMAT, "  " #name);           \
   fprintf(fp, float_format, m->opt.name);         \
   fprintf(fp, "\n");
 
@@ -300,7 +370,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
 
 #define X( type, name )                           \
-  fprintf(fp, NAME_FORMAT, #name);                \
+  fprintf(fp, NAME_FORMAT, "  " #name);           \
   fprintf(fp, INT_FORMAT "\n", m->opt.name);
 
   MJOPTION_INTS
@@ -308,7 +378,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // vector options
 #define X( name, sz )                             \
-  fprintf(fp, NAME_FORMAT, #name);                \
+  fprintf(fp, NAME_FORMAT, "  " #name);           \
   for (int i=0; i < sz; i++) {                    \
     fprintf(fp, float_format, m->opt.name[i]);    \
     fprintf(fp, " ");                             \
@@ -325,19 +395,20 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   fprintf(fp, "\n\n");
 
   // statistics
-  fprintf(fp, NAME_FORMAT, "meaninertia");
+  fprintf(fp, "STATISTIC\n");
+  fprintf(fp, NAME_FORMAT, "  meaninertia");
   fprintf(fp, float_format, m->stat.meaninertia);
   fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "meanmass");
+  fprintf(fp, NAME_FORMAT, "  meanmass");
   fprintf(fp, float_format, m->stat.meanmass);
   fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "meansize");
+  fprintf(fp, NAME_FORMAT, "  meansize");
   fprintf(fp, float_format, m->stat.meansize);
   fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "extent");
+  fprintf(fp, NAME_FORMAT, "  extent");
   fprintf(fp, float_format, m->stat.extent);
   fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "center");
+  fprintf(fp, NAME_FORMAT, "  center");
   fprintf(fp, float_format, m->stat.center[0]);
   fprintf(fp, float_format, m->stat.center[1]);
   fprintf(fp, float_format, m->stat.center[2]);
@@ -828,6 +899,13 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   __msan_copy_shadow(shadow, d->buffer, d->nbuffer);
   __msan_unpoison(d->buffer, d->nbuffer);
 #endif
+
+  fprintf(fp, "MEMORY\n");
+  fprintf(fp, "  total           %s\n",   memorySize(sizeof(mjData) + d->nbuffer + d->narena));
+  fprintf(fp, "  struct          %s\n",   memorySize(sizeof(mjData)));
+  fprintf(fp, "  buffer          %s\n",   memorySize(d->nbuffer));
+  fprintf(fp, "  arena           %s\n\n", memorySize(d->narena));
+
   // ---------------------------------- print mjData fields
 
   fprintf(fp, "SIZES\n");
