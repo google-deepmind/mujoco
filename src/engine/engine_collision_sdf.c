@@ -334,9 +334,9 @@ static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
 // adds candidate point to result
 static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
                       const mjtNum pos2[3], const mjtNum quat2[4], mjtNum dist,
-                      int cnt, const mjModel* m, const mjSDF* s, mjData* d) {
+                      int cnt, const mjModel* m, const mjSDF* s, mjData* d, mjtNum margin) {
   // check if there is a collision
-  if (dist > 0 || isknown(points, x, cnt)) {
+  if (dist > margin || isknown(points, x, cnt)) {
     return cnt;
   } else {
     mju_copy3(points+3*cnt, x);
@@ -652,7 +652,7 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   // add only the first mjMAXCONPAIR pairs
   for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {
     cnt = addContact(points, con, candidate + 3*index[i], pos2true, sdf_quat,
-                     dist[index[i]], cnt, m, &sdf, (mjData*)d);
+                     dist[index[i]], cnt, m, &sdf, (mjData*)d, margin);
   }
 
   return cnt;
@@ -717,7 +717,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   }
 
   // no intersection if max < min
-  if (aabb[3] < aabb[0] || aabb[4] < aabb[1] || aabb[5] < aabb[2]) {
+  if (aabb[3] + margin < aabb[0] || aabb[4] + margin < aabb[1] || aabb[5] + margin < aabb[2]) {
     return cnt;
   }
 
@@ -783,7 +783,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
 
     // contact point and normal - we use the midsurface where SDF1=SDF2 as zero level set
     sdf.type = mjSDFTYPE_MIDSURFACE;
-    cnt = addContact(contacts, con, x, pos2true, squat2, dist, cnt, m, &sdf, (mjData*)d);
+    cnt = addContact(contacts, con, x, pos2true, squat2, dist, cnt, m, &sdf, (mjData*)d, margin);
 
     // SHOULD NOT OCCUR
     if (cnt > mjMAXCONPAIR) {
