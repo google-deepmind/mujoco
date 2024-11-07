@@ -36,6 +36,9 @@
           mjtNum* mat2  = d->geom_xmat + 9*g2;
 // mjc_ConvexHField modifies and then restores pos2 and mat2
 
+// minimum number of vertices to use hill-climbing in mesh support
+#define mjMESH_HILLCLIMB_MIN 10
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,14 +61,17 @@ struct _mjCCDObj {
 };
 typedef struct _mjCCDObj mjCCDObj;
 
-// support function for convex collision algorithms
-MJAPI void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+// initialize a CCD object
+MJAPI void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjtNum margin);
 
 // center function for convex collision algorithms
 MJAPI void mjc_center(mjtNum res[3], const mjCCDObj *obj);
 
-// ccd support function
-void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
+// libccd center function
+MJAPI void mjccd_center(const void *obj, ccd_vec3_t *center);
+
+// libccd support function
+MJAPI void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
 
 // pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,

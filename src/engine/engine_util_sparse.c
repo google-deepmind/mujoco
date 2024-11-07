@@ -148,8 +148,13 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const in
 
 
 // convert matrix from dense to sparse
-void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      int* rownnz, int* rowadr, int* colind) {
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise
+int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                     int* rownnz, int* rowadr, int* colind, int nnz) {
+  if (nnz <= 0) {
+    return 1;
+  }
+
   int adr = 0;
 
   // find non-zeros and construct sparse
@@ -161,6 +166,11 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     // find non-zeros
     for (int c=0; c < nc; c++) {
       if (mat[r*nc+c]) {
+        // check for out of bounds
+        if (adr >= nnz) {
+          return 1;
+        }
+
         // record index and count
         colind[adr] = c;
         rownnz[r]++;
@@ -170,6 +180,7 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
       }
     }
   }
+  return 0;
 }
 
 
@@ -202,6 +213,31 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
     res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
   }
 #endif  // mjUSEAVX
+}
+
+
+
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec.
+void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                          const int* rownnz, const int* rowadr, const int* colind) {
+  // clear res
+  mju_zero(res, nc);
+
+  for (int i=0; i < nr; i++) {
+    mjtNum scl = vec[i];
+
+    // skip if 0
+    if (!scl) continue;
+
+    // add row scaled by the corresponding vector element
+    int nnz = rownnz[i];
+    int adr = rowadr[i];
+    const int* ind = colind + adr;
+    const mjtNum* row = mat + adr;
+    for (int j=0; j < nnz; j++) {
+      res[ind[j]] += row[j] * scl;
+    }
+  }
 }
 
 
@@ -738,7 +774,7 @@ void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc) {
 // res_rowadr is required to be precomputed
 void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const mjtNum* diag, int nr, int nc,
-                        int* res_rownnz, int* res_rowadr, int* res_colind,
+                        int* res_rownnz, const int* res_rowadr, int* res_colind,
                         const int* rownnz, const int* rowadr,
                         const int* colind, const int* rowsuper,
                         const int* rownnzT, const int* rowadrT,
@@ -857,27 +893,35 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   mj_freeStack(d);
 }
 
-// compute row non-zeros of reverse-Cholesky factor L, return total
+// compute row non-zeros of reverse-Cholesky factor L, return total non-zeros
 // based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
-int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
-                      const int* rowadr, const int* colind, int n) {
+// note: reads pattern from upper triangle
+int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
+                      int n, mjData* d) {
+  mj_markStack(d);
+  int* parent = mj_stackAllocInt(d, n);
+  int* flag = mj_stackAllocInt(d, n);
+
   // loop over rows in reverse order
   for (int r = n - 1; r >= 0; r--) {
     parent[r] = -1;
     flag[r] = r;
-    L_rownnz[r] = 0;
+    L_rownnz[r] = 1;  // start with 1 for diagonal
+
+    // loop over non-zero columns
     int start = rowadr[r];
     int end = start + rownnz[r];
-    // loop over non-zero columns
-    for (int p = start; p < end; p++) {
-      int i = colind[p];
+    for (int c = start; c < end; c++) {
+      int i = colind[c];
       if (i > r) {
-        // follow path from i to root of elimination tree, stop at flagged node
+        // traverse from i to ancestor, stop when row is flagged
         while (flag[i] != r) {
-          // find parent of i if not yet determined
+          // if not yet set, set parent to current row
           if (parent[i] == -1) {
             parent[i] = r;
           }
+
+          // increment non-zeros, flag row i, advance to parent
           L_rownnz[i]++;
           flag[i] = r;
           i = parent[i];
@@ -886,13 +930,13 @@ int mju_cholFactorNNZ(int* L_rownnz, int* parent, int* flag, const int* rownnz,
     }
   }
 
-  // add 1 for diagonal, accumulate sum
-  int sum = 0;
+  mj_freeStack(d);
+
+  // sum up all row non-zeros
+  int nnz = 0;
   for (int r = 0; r < n; r++) {
-    L_rownnz[r]++;
-    sum += L_rownnz[r];
+    nnz += L_rownnz[r];
   }
 
-  // return total non-zeros
-  return sum;
+  return nnz;
 }

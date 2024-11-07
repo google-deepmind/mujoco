@@ -1,11 +1,11 @@
-<mujoco>
+<mujoco  model="collide box-shaped meshes">
   <option timestep="1e-3" gravity="-1 1 -10" solver="CG" iterations="10">
     <flag multiccd="enable"/>
   </option>
 
   <visual>
-    <scale forcewidth="0.01" contactwidth="0.05" contactheight="0.05"/>
-    <map force="0.1"/>
+    <scale forcewidth="0.02" contactwidth="0.05" contactheight="0.05"/>
+    <map force="0.01"/>
   </visual>
 
   <asset>

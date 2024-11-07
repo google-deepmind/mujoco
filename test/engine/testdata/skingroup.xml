@@ -27,17 +27,15 @@
       <geom type="box" size=".5 .5 .1"/>
     </body>
     <body pos="1 -1 .6">
-      <freejoint/>
-      <composite prefix="B0" type="box" count="4 4 4" spacing=".2">
+      <composite prefix="B0" type="grid" count="4 4 1" spacing=".2">
         <geom group="4" size=".1"/>
-        <skin rgba="1 1 0 1" group="2"/>
+        <skin rgba="1 1 0 1" group="2" inflate=".1"/>
       </composite>
     </body>
     <body pos="-1 1 .6">
-      <freejoint/>
-      <composite prefix="B1" type="box" count="4 4 4" spacing=".2">
+      <composite prefix="B1" type="grid" count="4 4 1" spacing=".2">
         <geom group="2" size=".1"/>
-        <skin rgba="0 1 1 1" group="4"/>
+        <skin rgba="0 1 1 1" group="4" inflate=".1"/>
       </composite>
     </body>
   </worldbody>

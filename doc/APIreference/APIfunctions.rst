@@ -1,3 +1,8 @@
+.. raw:: html
+
+    <div id="fetchlines"/>
+
+
 .. _API:
 
 =========
@@ -38,6 +43,7 @@ API function can be classified as:
 - **Math**
    - Aliases for C :ref:`standard math<Standardmath>` functions.
    - :ref:`Vector math<Vectormath>`.
+   - :ref:`Sparse math<Sparsemath>`.
    - :ref:`Quaternions<Quaternions>`.
    - :ref:`Pose transformations<Poses>`.
    - :ref:`Matrix decompositions and solvers<Decompositions>`.

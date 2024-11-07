@@ -104,8 +104,8 @@
   <worldbody>
     <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3"/>
     <light name="spotlight" mode="targetbodycom" target="torso" diffuse=".8 .8 .8" specular="0.3 0.3 0.3" pos="0 -6 4" cutoff="30"/>
+    <light name="top" pos="0 0 2" mode="trackcom"/>
     <body name="torso" pos="0 0 1.282" childclass="body">
-      <light name="top" pos="0 0 2" mode="trackcom"/>
       <camera name="back" pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
       <freejoint name="root"/>

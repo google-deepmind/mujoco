@@ -603,7 +603,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
   // prepare info text
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
-                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.2g of %s",
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.1f%% of %s",
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
@@ -611,7 +611,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
                    d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
                    solerr, solver_niter,
                    fps,
-                   d->maxuse_arena/(double)(d->narena),
+                   100*d->maxuse_arena/(double)(d->narena),
                    mju_writeNumBytes(d->narena));
 
   // add Energy if enabled

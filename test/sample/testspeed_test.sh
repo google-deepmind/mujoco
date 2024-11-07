@@ -28,7 +28,8 @@ test_model() {
   local iterations=10
   # for particularly slow models, only run 2 steps under ASAN, or skip.
   if [[ ${TESTSPEED_ASAN:-0} != 0 ]]; then
-    if [[ "$model" == */composite/particle.xml ||
+    if [[ "$model" == */humanoid/100_humanoids.xml ||
+          "$model" == */composite/particle.xml ||
           "$model" == */replicate/bunnies.xml ||
           "$model" == */replicate/leaves.xml ||
           "$model" == */replicate/particle.xml ||

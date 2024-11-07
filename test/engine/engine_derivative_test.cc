@@ -31,6 +31,7 @@
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_errmem.h"
+#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -84,11 +85,6 @@ static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
     }
     std::cerr << "\n";
   }
-}
-
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
 }
 
 static const char* const kEnergyConservingPendulumPath =
@@ -480,7 +476,8 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   if (B) {
     mjtNum *Bc = mj_stackAllocNum(d, nu*nv);
     mjtNum *BcT = mj_stackAllocNum(d, nv*nu);
-    mju_copy(Bc, d->actuator_moment, nv*nu);
+    mju_sparse2dense(Bc, d->actuator_moment, nu, nv, d->moment_rownnz,
+                     d->moment_rowadr, d->moment_colind);
     mj_solveLD(m, Bc, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);
     mju_scl(B, BcT, dt*dt, nu*nv);

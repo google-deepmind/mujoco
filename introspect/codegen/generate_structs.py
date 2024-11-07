@@ -47,6 +47,8 @@ _EXCLUDED = (
     'mjResource_',
 )
 
+_ARRAY_COMMENT_PATTERN = re.compile(r'(.+?)\s\s+\((.+) x (.+)\)\Z')
+
 
 def traverse(node, visitor):
   visitor.visit(node)
@@ -112,8 +114,24 @@ class MjStructVisitor:
         doc = self._make_comment(child)
     if 'name' in node:
       field_type = self._normalize_type(node['type']['qualType'])
+      m = _ARRAY_COMMENT_PATTERN.match(doc)
+      if m is None:
+        array_extent = None
+      else:
+        doc = m.group(1)
+        array_extent_0 = m.group(2)
+        array_extent_1 = m.group(3)
+        try:
+          array_extent_1 = int(array_extent_1)
+        except ValueError:
+          pass
+        if array_extent_1 == 1:
+          array_extent = (array_extent_0,)
+        else:
+          array_extent = (array_extent_0, array_extent_1)
       return ast_nodes.StructFieldDecl(
-          name=node['name'], type=field_type, doc=doc)
+          name=node['name'], type=field_type, doc=doc,
+          array_extent=array_extent)
     else:
       return _AnonymousTypePlaceholder(self._make_anonymous_key(node))
 

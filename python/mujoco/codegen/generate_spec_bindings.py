@@ -39,8 +39,12 @@ def _value_binding_code(
     fullvarname = 'ptr->' + varname
   if field.name.startswith('mjs'):  # all other mjs are raw structs
     fulltype = field.name.replace('mjs', 'raw::Mjs')
-    if field.name == 'mjsPlugin' or field.name == 'mjsOrientation':
-      fulltype = fulltype + '&'  # plugin and orientation are not pointers
+    if (
+        field.name == 'mjsPlugin'
+        or field.name == 'mjsOrientation'
+        or field.name == 'mjsCompiler'
+    ):
+      fulltype = fulltype + '&'  # plugin, orientation, compiler are not pointers
     else:
       fulltype = fulltype + '*'
   # non-mjs structs
@@ -457,14 +461,9 @@ def generate_add() -> None:
                   throw pybind11::value_error("plugin.name should be a string.");
                 }
                 try {
-                  plugin.instance_name = input->instance_name;
+                  plugin.plugin_name = input->plugin_name;
                 } catch (const py::cast_error &e) {
                   throw pybind11::value_error("plugin.instance_name should be a string.");
-                }
-                try {
-                  plugin.plugin_slot = input->plugin_slot;
-                } catch (const py::cast_error &e) {
-                  throw pybind11::value_error("plugin.plugin_slot should be an int.");
                 }
                 try {
                   plugin.active = input->active;

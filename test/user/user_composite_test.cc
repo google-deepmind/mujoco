@@ -43,7 +43,7 @@ TEST_F(UserCompositeTest, MultipleJointsNotAllowedUnlessParticle) {
   <worldbody>
     <body>
       <freejoint/>
-      <composite type="box" count="7 7 7" spacing="0.04">
+      <composite type="grid" count="7 7 1" spacing="0.04">
         <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
         <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
       </composite>

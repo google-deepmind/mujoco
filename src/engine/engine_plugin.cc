@@ -387,7 +387,15 @@ void mj_loadPluginLibrary(const char* path) {
 #if defined(_WIN32) || defined(__CYGWIN__)
   LoadLibraryA(path);
 #else
-  dlopen(path, RTLD_NOW | RTLD_LOCAL);
+  void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+  if (!handle) {
+    const char* error = dlerror();
+    if (error) {
+      mju_error("Error loading plugin library '%s': %s\n", path, error);
+    } else {
+      mju_error("Unknown error loading plugin library '%s'\n", path);
+    }
+  }
 #endif
 }
 

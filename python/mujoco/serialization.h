@@ -15,6 +15,7 @@
 #ifndef MUJOCO_PYTHON_SERIALIZATION_H_
 #define MUJOCO_PYTHON_SERIALIZATION_H_
 
+#include <cstddef>
 #include <iostream>
 
 #include <mujoco/mjtnum.h>
@@ -56,7 +57,9 @@ inline void WriteBytes(std::ostream& output, const void* src,
   // Start by writing nbytes itself, so it can be validated at the time of
   // reading.
   WriteInt(output, nbytes);
-  output.write(reinterpret_cast<const char*>(src), nbytes);
+  if (src) {
+    output.write(reinterpret_cast<const char*>(src), nbytes);
+  }
 }
 
 inline void ReadBytes(std::istream& input, void* dest, std::size_t nbytes) {

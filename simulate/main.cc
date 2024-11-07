@@ -247,6 +247,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 
   if (!mnew) {
     std::printf("%s\n", loadError);
+    mju::strcpy_arr(sim.load_error, loadError);
     return nullptr;
   }
 
@@ -258,7 +259,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   }
 
   // if no error and load took more than 1/4 seconds, report load time
-  if (!loadError[0] && load_seconds > 0.25) {
+  else if (load_seconds > 0.25) {
     mju::sprintf_arr(loadError, "Model loaded in %.2g seconds", load_seconds);
   }
 

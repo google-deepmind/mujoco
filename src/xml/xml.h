@@ -26,9 +26,10 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs, char* error, int nerror
 
 // Returns a newly-allocated mjSpec, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.
-mjSpec* ParseSpecFromString(std::string_view xml, char* error = nullptr, int nerror = 0);
+mjSpec* ParseSpecFromString(std::string_view xml, const mjVFS* vfs = nullptr,
+                            char* error = nullptr, int nerror = 0);
 
 // Main writer function
-std::string WriteXML(const mjSpec* spec, char* error, int nerror);
+std::string WriteXML(const mjModel* m, const mjSpec* spec, char* error, int nerror);
 
 #endif  // MUJOCO_SRC_XML_XML_H_

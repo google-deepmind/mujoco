@@ -109,7 +109,7 @@ void mjXURDF::Parse(
   }
 
   // enforce required compiler defaults for URDF
-  spec->degree = false;
+  spec->compiler.degree = false;
 
   // get model name
   std::string modelname;
@@ -316,7 +316,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         }
       }
       // create geom if not discarded
-      if (!spec->discardvisual) {
+      if (!spec->compiler.discardvisual) {
         pgeom = Geom(elem, pbody, false);
 
         // save color

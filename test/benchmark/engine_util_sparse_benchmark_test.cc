@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
-#include <gtest/gtest.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
@@ -36,11 +35,6 @@ using SqrMatTDFuncPtr = decltype(&mju_sqrMatTDSparse);
 
 // number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 500;
-
-// copy array into vector
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 // ----------------------------- old functions --------------------------------
 

@@ -91,17 +91,18 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjs_defaultOrientation(&alt);
   plugin_name = "";
   plugin_instance_name = "";
-  plugin.name = (mjString*)&plugin_name;
-  plugin.instance_name = (mjString*)&plugin_instance_name;
+  plugin.plugin_name = (mjString*)&plugin_name;
+  plugin.name = (mjString*)&plugin_instance_name;
 }
 
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
-  mjCModel* model = (mjCModel*)spec->element;
+bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
+  mjCModel* model = static_cast<mjCBody*>(body->element)->model;
+  mjsCompiler* compiler = static_cast<mjCBody*>(body->element)->compiler;
   mjsFlex* dflex = def.spec.flex;
-  int dim = dflex->dim;
+
   bool radial = (type == mjFCOMPTYPE_BOX ||
                  type == mjFCOMPTYPE_CYLINDER ||
                  type == mjFCOMPTYPE_ELLIPSOID);
@@ -115,13 +116,13 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check dim
-  if (dim < 1 || dim > 3) {
+  if (dflex->dim < 1 || dflex->dim > 3) {
     return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
   }
 
   // check counts
   for (int i=0; i < 3; i++) {
-    if (count[i] < 1 || ((radial && count[i] < 2) && dim == 3)) {
+    if (count[i] < 1 || ((radial && count[i] < 2) && dflex->dim == 3)) {
       return comperr(error, "Count too small", error_sz);
     }
   }
@@ -147,7 +148,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // compute orientation
-  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.eulerseq, &alt);
+  const char* alterr = mjs_resolveOrientation(quat, compiler->degree, compiler->eulerseq, &alt);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
@@ -191,7 +192,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
 
   // force flatskin shading for box, cylinder and 3D grid
   if (type == mjFCOMPTYPE_BOX || type == mjFCOMPTYPE_CYLINDER ||
-      (type == mjFCOMPTYPE_GRID && dim == 3)) {
+      (type == mjFCOMPTYPE_GRID && dflex->dim == 3)) {
     dflex->flatskin = true;
   }
 
@@ -199,16 +200,16 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   if (pinrange.size()%2) {
     return comperr(error, "Pin range number must be multiple of 2", error_sz);
   }
-  if (pingrid.size()%dim) {
+  if (pingrid.size()%dflex->dim) {
     return comperr(error, "Pin grid number must be multiple of dim", error_sz);
   }
-  if (pingridrange.size()%(2*dim)) {
+  if (pingridrange.size()%(2*dflex->dim)) {
     return comperr(error, "Pin grid range number of must be multiple of 2*dim", error_sz);
   }
   if (type != mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) can only be used with grid type", error_sz);
   }
-  if (dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
+  if (dflex->dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) cannot be used with dim=1", error_sz);
   }
 
@@ -223,7 +224,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check element size
-  if (element.size()%(dim+1)) {
+  if (element.size()%(dflex->dim+1)) {
     return comperr(error, "Element size must be a multiple of dim+1", error_sz);
   }
 
@@ -289,41 +290,41 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
     }
 
     // process pingrid
-    for (int i=0; i < (int)pingrid.size(); i+=dim) {
+    for (int i=0; i < (int)pingrid.size(); i+=dflex->dim) {
       // check range
-      for (int k=0; k < dim; k++) {
+      for (int k=0; k < dflex->dim; k++) {
         if (pingrid[i+k] < 0 || pingrid[i+k] >= count[k]) {
           return comperr(error, "pingrid out of range", error_sz);
         }
       }
 
       // set
-      if (dim == 2) {
+      if (dflex->dim == 2) {
         pinned[GridID(pingrid[i], pingrid[i+1])] = true;
       }
-      else if (dim == 3) {
+      else if (dflex->dim == 3) {
         pinned[GridID(pingrid[i], pingrid[i+1], pingrid[i+2])] = true;
       }
     }
 
     // process pingridrange
-    for (int i=0; i < (int)pingridrange.size(); i+=2*dim) {
+    for (int i=0; i < (int)pingridrange.size(); i+=2*dflex->dim) {
       // check range
-      for (int k=0; k < 2*dim; k++) {
-        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dim]) {
+      for (int k=0; k < 2*dflex->dim; k++) {
+        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dflex->dim]) {
           return comperr(error, "pingridrange out of range", error_sz);
         }
       }
 
       // set
-      if (dim == 2) {
+      if (dflex->dim == 2) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+2]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+3]; iy++) {
             pinned[GridID(ix, iy)] = true;
           }
         }
       }
-      else if (dim==3) {
+      else if (dflex->dim==3) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+3]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+4]; iy++) {
             for (int iz=pingridrange[i+2]; iz <= pingridrange[i+5]; iz++) {
@@ -441,8 +442,8 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
         mjsPlugin* pplugin = &body->plugin;
         pplugin->active = true;
         pplugin->element = static_cast<mjsElement*>(plugin.element);
-        mjs_setString(pplugin->name, mjs_getString(plugin.name));
-        mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
+        mjs_setString(pplugin->plugin_name, mjs_getString(plugin.plugin_name));
+        mjs_setString(pplugin->name, plugin_instance_name.c_str());
       }
     }
 
@@ -505,8 +506,8 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
         mjsPlugin* pplugin = &pb->plugin;
         pplugin->active = true;
         pplugin->element = static_cast<mjsElement*>(plugin.element);
-        mjs_setString(pplugin->name, mjs_getString(plugin.name));
-        mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
+        mjs_setString(pplugin->plugin_name, mjs_getString(plugin.plugin_name));
+        mjs_setString(pplugin->name, plugin_instance_name.c_str());
       }
     }
   }
@@ -762,6 +763,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
 // make 3d box, ellipsoid or cylinder
 bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   double pos[3];
+  bool needtex = texcoord.empty() && !std::string(mjs_getString(def.spec.flex->material)).empty();
 
   // set 3D
   def.spec.flex->dim = 3;
@@ -770,6 +772,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   point.push_back(0);
   point.push_back(0);
   point.push_back(0);
+
+  // add texture coordinates, if not specified explicitly
+  if (needtex) {
+    texcoord.push_back(0);
+    texcoord.push_back(0);
+  }
 
   // iz=0/max
   for (int iz=0; iz < count[2]; iz+=count[2]-1) {
@@ -780,6 +788,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
         point.push_back(pos[0]);
         point.push_back(pos[1]);
         point.push_back(pos[2]);
+
+        // add texture coordinates, if not specified explicitly
+        if (needtex) {
+          texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+          texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+        }
 
         // add elements
         if (ix < count[0]-1 && iy < count[1]-1) {
@@ -807,6 +821,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+
+          // add texture coordinates
+          if (needtex) {
+            texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+            texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
+          }
         }
 
         // add elements
@@ -835,6 +855,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+
+          // add texture coordinates
+          if (needtex) {
+            texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+            texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
+          }
         }
 
         // add elements

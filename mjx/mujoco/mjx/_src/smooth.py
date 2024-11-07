@@ -291,7 +291,7 @@ def crb(m: Model, d: Data) -> Data:
   crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
   qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
   d = d.replace(qM=qm)
-  if support.is_sparse(m):
+  if support.is_sparse(m) and d._qM_sparse.size > 0:  # pylint: disable=protected-access
     d = d.replace(_qM_sparse=qm)
 
   return d
@@ -353,7 +353,10 @@ def factor_m(m: Model, d: Data) -> Data:
   qld = (qld / qld[jp.array(madr_ds)]).at[m.dof_Madr].set(qld_diag)
 
   d = d.replace(qLD=qld, qLDiagInv=1 / qld_diag)
-  d = d.replace(_qLD_sparse=d.qLD, _qLDiagInv_sparse=d.qLDiagInv)
+  if d._qLD_sparse.size > 0:  # pylint: disable=protected-access
+    d = d.replace(_qLD_sparse=d.qLD)
+  if d._qLDiagInv_sparse.size > 0:  # pylint: disable=protected-access
+    d = d.replace(_qLDiagInv_sparse=d.qLDiagInv)
 
   return d
 
@@ -713,6 +716,21 @@ def tendon(m: Model, d: Data) -> Data:
   adr_moment_jnt = np.repeat(tendon_id_jnt, tendon_num_jnt)
   dofadr_moment_jnt = m.jnt_dofadr[wrap_objid_jnt]
 
+  # process pulleys
+  (wrap_id_pulley,) = np.nonzero(m.wrap_type == WrapType.PULLEY)
+  nwrap_pulley = wrap_id_pulley.size
+
+  tendon_wrapnum_pulley = np.array([
+      sum((wrap_id_pulley >= adr) & (wrap_id_pulley < adr + num))
+      for adr, num in zip(m.tendon_adr, m.tendon_num)
+  ])
+
+  divisor = np.ones(m.nwrap)
+  for adr, num in zip(m.tendon_adr, m.tendon_num):
+    for id_pulley in wrap_id_pulley:
+      if adr <= id_pulley < adr + num:
+        divisor[id_pulley : adr + num] = m.wrap_prm[id_pulley]
+
   # process spatial tendon sites
   (wrap_id_site,) = np.nonzero(m.wrap_type == WrapType.SITE)
   nwrap_site = wrap_id_site.size
@@ -720,7 +738,6 @@ def tendon(m: Model, d: Data) -> Data:
   # find consecutive sites, skipping tendon transitions
   (pair_id,) = np.nonzero(np.diff(wrap_id_site) == 1)
   wrap_id_site_pair = np.setdiff1d(wrap_id_site[pair_id], m.tendon_adr[1:] - 1)
-
   wrap_objid_site0 = m.wrap_objid[wrap_id_site_pair]
   wrap_objid_site1 = m.wrap_objid[wrap_id_site_pair + 1]
 
@@ -745,6 +762,11 @@ def tendon(m: Model, d: Data) -> Data:
       m.site_bodyid[wrap_objid_site0],
       m.site_bodyid[wrap_objid_site1],
   )
+
+  if wrap_id_site_pair.size:
+    divisor_site_pair = divisor[wrap_id_site_pair]
+    lengths_site /= divisor_site_pair
+    moments_site /= divisor_site_pair[:, None]
 
   tendon_nsite = np.array([
       sum((wrap_id_site_pair >= adr) & (wrap_id_site_pair < adr + num))
@@ -848,6 +870,11 @@ def tendon(m: Model, d: Data) -> Data:
       moments_sitegeom + moments_geomgeom + moments_geomsite,
   )
 
+  if wrap_id_geom.size:
+    divisor_geom = divisor[wrap_id_geom]
+    lengths_geom /= divisor_geom
+    moments_geom /= divisor_geom[:, None]
+
   # construct number of site-geom-site instances per tendon
   tendon_ngeom = np.array([
       sum((wrap_id_geom >= adr) & (wrap_id_geom < adr + num))
@@ -886,12 +913,16 @@ def tendon(m: Model, d: Data) -> Data:
   ten_moment = ten_moment.at[tendon_id_geom].add(moment_geom)
 
   # construct wrap addresses
+  wrap_adr_pulley = []
   wrap_adr_site = []
   wrap_adr_geom = []
 
   count = 0
   for wrap_type in m.wrap_type:
-    if wrap_type == WrapType.SITE:
+    if wrap_type == WrapType.PULLEY:
+      wrap_adr_pulley.append(count)
+      count += 1
+    elif wrap_type == WrapType.SITE:
       wrap_adr_site.append(count)
       count += 1
     elif wrap_type in (WrapType.SPHERE, WrapType.CYLINDER):
@@ -899,11 +930,12 @@ def tendon(m: Model, d: Data) -> Data:
       wrap_adr_geom.append(count + 1)
       count += 2
 
+  wrap_adr_pulley = np.array(wrap_adr_pulley).astype(int)
   wrap_adr_site = np.array(wrap_adr_site).astype(int)
   wrap_adr_geom = np.array(wrap_adr_geom).astype(int)
-  wrap_adr_sitegeom = np.concatenate([wrap_adr_site, wrap_adr_geom])
+  wrap_adr = np.concatenate([wrap_adr_pulley, wrap_adr_site, wrap_adr_geom])
 
-  ten_wrapnum = jp.array(tendon_wrapnum_site)
+  ten_wrapnum = jp.array(tendon_wrapnum_pulley + tendon_wrapnum_site)
   ten_wrapnum = ten_wrapnum.at[tendon_id_geom].add(tendon_wrapnum_geom)
 
   ten_wrapadr = jp.concatenate([jp.array([0]), jp.cumsum(ten_wrapnum)[:-1]])
@@ -912,9 +944,7 @@ def tendon(m: Model, d: Data) -> Data:
   xpos_geom = jp.hstack([geom_pnt0, geom_pnt1]).reshape((-1, 3))
 
   # sort objects, moving no wrap geoms to bottom rows
-  nwrap_sitegeom = wrap_adr_sitegeom.size
-  wrap_adr_sitegeom_sort = np.argsort(wrap_adr_sitegeom)
-
+  wrap_adr_sort = np.argsort(wrap_adr)
   skipped = (
       jp.zeros(count, dtype=bool)
       .at[wrap_adr_geom]
@@ -922,17 +952,20 @@ def tendon(m: Model, d: Data) -> Data:
   )
   sort = jp.argsort(skipped)
 
-  wrap_xpos = jp.concatenate([xpos_site, xpos_geom])[wrap_adr_sitegeom_sort]
   wrap_xpos = jp.concatenate(
-      [wrap_xpos[sort], jp.zeros((2 * m.nwrap - nwrap_sitegeom, 3))]
+      [jp.zeros((nwrap_pulley, 3)), xpos_site, xpos_geom]
+  )[wrap_adr_sort]
+  wrap_xpos = jp.concatenate(
+      [wrap_xpos[sort], jp.zeros((2 * m.nwrap - count, 3))]
   ).reshape((m.nwrap, 6))
 
   wrap_obj = jp.concatenate([
+      -2 * jp.ones(nwrap_pulley, dtype=int),
       -1 * jp.ones(nwrap_site, dtype=int),
       jp.repeat(wrap_objid_geom_skip, 2).reshape(-1),
-  ])[wrap_adr_sitegeom_sort]
+  ])[wrap_adr_sort]
   wrap_obj = jp.concatenate(
-      [wrap_obj[sort], jp.zeros(2 * m.nwrap - nwrap_sitegeom, dtype=int)]
+      [wrap_obj[sort], jp.zeros(2 * m.nwrap - count, dtype=int)]
   ).reshape((m.nwrap, 2))
 
   return d.replace(
@@ -992,15 +1025,23 @@ def transmission(m: Model, d: Data) -> Data:
       site_xmat,
       site_quat,
   ):
-    if trntype == TrnType.JOINT:
+    if trntype in (TrnType.JOINT, TrnType.JOINTINPARENT):
       if jnt_typ == JointType.FREE:
         length = jp.zeros(1)
         moment = gear
+        if trntype == TrnType.JOINTINPARENT:
+          quat_neg = math.quat_inv(qpos[3:])
+          gearaxis = math.rotate(gear[3:], quat_neg)
+          moment = moment.at[3:].set(gearaxis)
         m_j = m_j + jp.arange(6)
       elif jnt_typ == JointType.BALL:
         axis, angle = math.quat_to_axis_angle(qpos)
-        length = jp.dot(axis * angle, gear[:3])[None]
-        moment = gear[:3]
+        gearaxis = gear[:3]
+        if trntype == TrnType.JOINTINPARENT:
+          quat_neg = math.quat_inv(qpos)
+          gearaxis = math.rotate(gear[:3], quat_neg)
+        length = jp.dot(axis * angle, gearaxis)[None]
+        moment = gearaxis
         m_j = m_j + jp.arange(3)
       elif jnt_typ in (JointType.SLIDE, JointType.HINGE):
         length = qpos * gear[0]

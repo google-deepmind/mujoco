@@ -94,8 +94,8 @@ Building from source
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
-#. Clone the ``mujoco`` repository from GitHub.
-#. Create a new build directory somewhere, and ``cd`` into it.
+#. Clone the ``mujoco`` repository: ``git clone https://github.com/deepmind/mujoco.git``
+#. Create a new build directory and ``cd`` into it.
 #. Run :shell:`cmake $PATH_TO_CLONED_REPO` to configure the build.
 #. Run ``cmake --build .`` to build.
 
@@ -120,6 +120,19 @@ installed (see :github:issue:`862` for more details).
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
    GitHub.
 
+.. _inBuildDocs:
+
+Building the docs
+~~~~~~~~~~~~~~~~~
+
+If you wish to build the documentation locally, for example to test pull-requests that improve it, do:
+
+1. Clone the ``mujoco`` repository: ``git clone https://github.com/deepmind/mujoco.git``
+2. Go to the ``doc/`` directory: ``cd mujoco/doc``
+3. Install the dependencies: ``pip install -r requirements.txt``
+4. Build the HTML: ``make html``
+5. Open ``_build/html/index.html`` in your browser of choice.
+
 .. _inHeader:
 
 Header files
@@ -130,7 +143,7 @@ links below, to make this documentation self-contained.
 
 `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes the all other header files except mjxmacro.h.
+   global variables, and includes all other header files except mjxmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.

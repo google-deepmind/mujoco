@@ -212,6 +212,9 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     }
     WriteAttrTxt(elem, "content_type", mesh->ContentType());
     WriteAttrTxt(elem, "file", mesh->File());
+    if (mesh->Inertia() != def->Mesh().Inertia()) {
+      WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 3, mesh->Inertia()));
+    }
 
     // write vertex data
     if (!mesh->UserVert().empty()) {
@@ -820,14 +823,14 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
 
 // write plugin
 void mjXWriter::OnePlugin(XMLElement* elem, const mjsPlugin* plugin) {
-  const string instance_name = string(mjs_getString(plugin->instance_name));
-  const string plugin_name = string(mjs_getString(plugin->name));
+  const string instance_name = string(mjs_getString(plugin->name));
+  const string plugin_name = string(mjs_getString(plugin->plugin_name));
   if (!instance_name.empty()) {
     WriteAttrTxt(elem, "instance", instance_name);
   } else {
     WriteAttrTxt(elem, "plugin", plugin_name);
     const mjpPlugin* pplugin = mjp_getPluginAtSlot(
-        static_cast<mjCPlugin*>(plugin->element)->spec.plugin_slot);
+        static_cast<mjCPlugin*>(plugin->element)->plugin_slot);
     const char* c = &(static_cast<mjCPlugin*>(plugin->element)->flattened_attributes[0]);
     for (int i = 0; i < pplugin->nattribute; ++i) {
       string value(c);
@@ -853,9 +856,12 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(const mjSpec* spec) {
-  if (spec) {
-    model = (mjCModel*)spec->element;
+void mjXWriter::SetModel(const mjSpec* _spec, const mjModel* m) {
+  if (_spec) {
+    model = (mjCModel*)_spec->element;
+  }
+  if (m) {
+    model->CopyBack(m);
   }
 }
 
@@ -914,9 +920,6 @@ void mjXWriter::Compiler(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "compiler");
 
   // settings
-  if (!model->convexhull) {
-    WriteAttrTxt(section, "convexhull", FindValue(bool_map, 2, model->convexhull));
-  }
   WriteAttrTxt(section, "angle", "radian");
   if (!model->get_meshdir().empty()) {
     WriteAttrTxt(section, "meshdir", model->get_meshdir());
@@ -924,22 +927,20 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (!model->get_texturedir().empty()) {
     WriteAttrTxt(section, "texturedir", model->get_texturedir());
   }
-  if (!model->usethread) {
+  if (!model->compiler.usethread) {
     WriteAttrTxt(section, "usethread", "false");
   }
-  if (model->exactmeshinertia) {
-    WriteAttrTxt(section, "exactmeshinertia", "true");
+
+  if (model->compiler.boundmass) {
+    WriteAttr(section, "boundmass", 1, &model->compiler.boundmass);
   }
-  if (model->boundmass) {
-    WriteAttr(section, "boundmass", 1, &model->boundmass);
+  if (model->compiler.boundinertia) {
+    WriteAttr(section, "boundinertia", 1, &model->compiler.boundinertia);
   }
-  if (model->boundinertia) {
-    WriteAttr(section, "boundinertia", 1, &model->boundinertia);
-  }
-  if (model->alignfree) {
+  if (model->compiler.alignfree) {
     WriteAttrTxt(section, "alignfree", "true");
   }
-  if (!model->autolimits) {
+  if (!model->compiler.autolimits) {
     WriteAttrTxt(section, "autolimits", "false");
   }
 }
@@ -1338,7 +1339,7 @@ void mjXWriter::Extension(XMLElement* root) {
     }
 
     // check if we need to open a new <plugin> section
-    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->spec.plugin_slot);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->plugin_slot);
     if (plugin != last_plugin) {
       plugin_elem = InsertEnd(section, "plugin");
       WriteAttrTxt(plugin_elem, "plugin", plugin->name);
@@ -1607,7 +1608,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     WriteVector(elem, "user", body->get_userdata());
 
     // write inertial
-    if (body->explicitinertial && model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
+    if (body->explicitinertial && model->compiler.inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);
       WriteAttr(inertial, "quat", 4, body->iquat, unitq);
@@ -1717,11 +1718,6 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
                                ? fframe->classname
                                : body->classname;
         Body(OneFrame(elem, fframe), body, fframe, childclass);
-      }
-
-      // stop if we reached the frame of the current child body, ignore if there are no bodies
-      if (bframe && bframe == fframe) {
-        break;
       }
     }
 

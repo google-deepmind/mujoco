@@ -1864,7 +1864,7 @@ void mjr_freeContext(mjrContext* con) {
 
 
 // resize offscreen buffers
-MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
+void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
   if (con->offWidth == width && con->offHeight == height) {
     return;
   }

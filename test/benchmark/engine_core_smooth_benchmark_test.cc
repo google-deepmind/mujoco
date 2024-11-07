@@ -14,8 +14,8 @@
 
 // A benchmark for comparing different implementations of mj_solveLD.
 
+#include <vector>
 #include <benchmark/benchmark.h>
-#include <gtest/gtest.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
@@ -29,11 +29,6 @@ static const int kNumWarmupSteps = 200;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
-
-// copy array into vector
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 // ----------------------------- old functions --------------------------------
 

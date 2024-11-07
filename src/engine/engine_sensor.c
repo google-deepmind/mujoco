@@ -731,7 +731,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       case mjSENS_TOUCH:                                  // touch
         // extract body data
         bodyid = m->site_bodyid[objid];
-        rootid = m->body_rootid[bodyid];
 
         // clear result
         d->sensordata[adr] = 0;

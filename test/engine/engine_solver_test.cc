@@ -14,6 +14,8 @@
 
 // Tests for engine/engine_solver.c
 
+#include <algorithm>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -25,13 +27,31 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::testing::DoubleNear;
 using ::testing::NotNull;
 using ::testing::Pointwise;
+using ::std::vector;
+using ::std::abs;
+using ::std::max;
+
+// compare two vectors, relative error (reduces size of large vector elements)
+inline void ExpectEqRel(vector<mjtNum> v1, vector<mjtNum> v2, mjtNum rtol) {
+  ASSERT_TRUE(v1.size() == v2.size());
+
+  // make scale vector
+  int n = v1.size();
+  vector<mjtNum> scale(n);
+  for (int i = 0; i < n; i++) {
+    scale[i] = max(1.0, abs(v1[i]) + abs(v2[i]));
+  }
+
+  // scale and compare
+  for (int i = 0; i < n; i++) {
+    v1[i] /= scale[i];
+    v2[i] /= scale[i];
+  }
+  EXPECT_THAT(v1, Pointwise(DoubleNear(rtol), v2));
+}
 
 using SolverTest = MujocoTest;
 
@@ -56,7 +76,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
   mjData* data_island = mj_makeData(model);
   mjData* data_noisland = mj_makeData(model);
 
-  mjtNum tol = 2e-4;
+  mjtNum rtol = 1e-5;
 
   for (bool warmstart : {true, false}) {
     if (warmstart) {
@@ -78,8 +98,8 @@ TEST_F(SolverTest, IslandsEquivalent) {
       mj_forward(model, data_island);
       model->opt.enableflags &= ~mjENBL_ISLAND;  // disable islands
 
-      EXPECT_THAT(AsVector(data_noisland->qacc, nv),
-                  Pointwise(DoubleNear(tol), AsVector(data_island->qacc, nv)));
+      ExpectEqRel(AsVector(data_noisland->qacc, nv),
+                  AsVector(data_island->qacc, nv), rtol);
     }
   }
 
@@ -107,7 +127,7 @@ TEST_F(SolverTest, OneBigIsland) {
   mjData* data_noisland = mj_makeData(model);
 
   int nv = model->nv;
-  mjtNum tol = 1e-8;
+  mjtNum rtol = 1e-7;
 
   // save current (default) iterations
   int iterations_default = model->opt.iterations;
@@ -149,9 +169,9 @@ TEST_F(SolverTest, OneBigIsland) {
     model->opt.enableflags &= ~mjENBL_ISLAND;
     model->opt.iterations = iterations_default;
 
-    // compare accelerations
-    EXPECT_THAT(AsVector(data_noisland->qacc, nv),
-                Pointwise(DoubleNear(tol), AsVector(data_island->qacc, nv)));
+    // compare accelerations (relative error)
+    ExpectEqRel(AsVector(data_noisland->qacc, nv),
+                AsVector(data_island->qacc, nv), rtol);
   }
 
   mj_deleteData(data_noisland);

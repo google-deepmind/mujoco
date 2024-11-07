@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 #include "xml/xml_base.h"
@@ -28,7 +29,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(const mjSpec* spec);
+  void SetModel(const mjSpec* _spec, const mjModel* m = nullptr);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);

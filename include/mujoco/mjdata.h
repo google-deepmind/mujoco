@@ -192,12 +192,12 @@ struct mjData_ {
   mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes
+  int     ncon;              // number of detected contacts
   int     ne;                // number of equality constraints
   int     nf;                // number of friction constraints
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
-  int     nnzJ;              // number of non-zeros in constraint Jacobian
-  int     ncon;              // number of detected contacts
+  int     nJ;                // number of non-zeros in constraint Jacobian
   int     nisland;           // number of detected constraint islands
 
   // global properties
@@ -284,11 +284,14 @@ struct mjData_ {
   int*    ten_J_colind;      // column indices in sparse Jacobian                (ntendon x nv)
   mjtNum* ten_J;             // tendon Jacobian                                  (ntendon x nv)
   mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
-  int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap*2 x 1)
-  mjtNum* wrap_xpos;         // Cartesian 3D points in all path                  (nwrap*2 x 3)
+  int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap x 2)
+  mjtNum* wrap_xpos;         // Cartesian 3D points in all paths                 (nwrap x 6)
 
   // computed by mj_fwdPosition/mj_transmission
   mjtNum* actuator_length;   // actuator lengths                                 (nu x 1)
+  int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nu x 1)
+  int*    moment_rowadr;     // row start address in colind array                (nu x 1)
+  int*    moment_colind;     // column indices in sparse Jacobian                (nu x nv)
   mjtNum* actuator_moment;   // actuator moments                                 (nu x nv)
 
   // computed by mj_fwdPosition/mj_crb
@@ -386,13 +389,13 @@ struct mjData_ {
   int*    efc_J_rownnz;      // number of non-zeros in constraint Jacobian row   (nefc x 1)
   int*    efc_J_rowadr;      // row start address in colind array                (nefc x 1)
   int*    efc_J_rowsuper;    // number of subsequent rows in supernode           (nefc x 1)
-  int*    efc_J_colind;      // column indices in constraint Jacobian            (nnzJ x 1)
+  int*    efc_J_colind;      // column indices in constraint Jacobian            (nJ x 1)
   int*    efc_JT_rownnz;     // number of non-zeros in constraint Jacobian row T (nv x 1)
   int*    efc_JT_rowadr;     // row start address in colind array              T (nv x 1)
   int*    efc_JT_rowsuper;   // number of subsequent rows in supernode         T (nv x 1)
-  int*    efc_JT_colind;     // column indices in constraint Jacobian          T (nnzJ x 1)
-  mjtNum* efc_J;             // constraint Jacobian                              (nnzJ x 1)
-  mjtNum* efc_JT;            // constraint Jacobian transposed                   (nnzJ x 1)
+  int*    efc_JT_colind;     // column indices in constraint Jacobian          T (nJ x 1)
+  mjtNum* efc_J;             // constraint Jacobian                              (nJ x 1)
+  mjtNum* efc_JT;            // constraint Jacobian transposed                   (nJ x 1)
   mjtNum* efc_pos;           // constraint position (equality, contact)          (nefc x 1)
   mjtNum* efc_margin;        // inclusion margin (contact)                       (nefc x 1)
   mjtNum* efc_frictionloss;  // frictionloss (friction)                          (nefc x 1)
@@ -413,7 +416,7 @@ struct mjData_ {
   int*    island_efcadr;     // start address in island_efcind                   (nisland x 1)
   int*    island_efcind;     // island constraint indices                        (nefc x 1)
 
-  // computed by mj_projectConstraint (dual solver)
+  // computed by mj_projectConstraint (PGS solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
   int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
   int*    efc_AR_colind;     // column indices in sparse AR                      (nefc x nefc)

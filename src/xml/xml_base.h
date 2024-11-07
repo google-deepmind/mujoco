@@ -42,7 +42,6 @@ extern const int gain_sz;
 extern const int bias_sz;
 extern const int stage_sz;
 extern const int datatype_sz;
-extern const mjMap coordinate_map[];
 extern const mjMap angle_map[];
 extern const mjMap enable_map[];
 extern const mjMap bool_map[];
@@ -69,6 +68,7 @@ extern const mjMap bias_map[];
 extern const mjMap stage_map[];
 extern const mjMap datatype_map[];
 extern const mjMap meshtype_map[];
+extern const mjMap meshinertia_map[];
 extern const mjMap flexself_map[];
 
 
@@ -88,7 +88,7 @@ class mjXBase : public mjXUtil {
   };
 
   // set the model allocated externally
-  virtual void SetModel(const mjSpec*);
+  virtual void SetModel(const mjSpec*, const mjModel* = nullptr);
 
   // read alternative orientation specification
   static int ReadAlternative(tinyxml2::XMLElement* elem, mjsOrientation& alt);

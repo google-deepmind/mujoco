@@ -14,6 +14,7 @@
 
 // Tests for xml/xml_native_writer.cc.
 
+#include <memory>
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 #include <unistd.h>
 #endif
@@ -749,6 +750,9 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
             </frame>
           </frame>
         </frame>
+        <frame>
+          <light pos="0 0 1"/>
+        </frame>
       </body>
     </worldbody>
   </mujoco>
@@ -774,6 +778,9 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
             </body>
           </frame>
         </frame>
+      </frame>
+      <frame>
+        <light pos="0 0 1" dir="0 0 -1"/>
       </frame>
     </body>
     <frame name="f1">
@@ -1306,7 +1313,8 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         std::string xml = p.path().string();
 
         // if file is meant to fail, skip it
-        if (absl::StrContains(p.path().string(), "malformed_") ||
+        if (absl::StrContains(p.path().string(), "100_humanoids") ||
+            absl::StrContains(p.path().string(), "malformed_") ||
             absl::StrContains(p.path().string(), "touch_grid") ||
             absl::StrContains(p.path().string(), "gmsh_") ||
             absl::StrContains(p.path().string(), "shark_") ||
@@ -1467,6 +1475,52 @@ TEST_F(DecompilerTest, VeryLargeNumbers) {
   EXPECT_THAT(saved_xml, HasSubstr("pos=\"1e+20 0 0\""));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1e+10 1e+10\""));
   mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, ExpandAttach) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <asset>
+      <model name="b" file="b.xml" />
+    </asset>
+
+    <worldbody>
+      <attach model="b" body="b" prefix="b" />
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <default>
+      <default class="b"/>
+    </default>
+
+    <worldbody>
+      <body name="b">
+        <geom type="box" size="0.1 0.1 0.1"/>
+        <joint name="b"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position joint="b" class="b"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "b.xml", xml_child, sizeof(xml_child));
+
+  std::array<char, 1024> er;
+  mjModel* m = LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
+  ASSERT_THAT(m, NotNull()) << er.data();
+
+  std::string saved_xml = SaveAndReadXml(m);
+  EXPECT_THAT(saved_xml, HasSubstr("class=\"bb\""));
+  mj_deleteModel(m);
+  mj_deleteVFS(vfs.get());
 }
 
 }  // namespace

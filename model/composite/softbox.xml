@@ -14,10 +14,6 @@
 -->
 
 <mujoco model="Soft box">
-<!-- Degree of Freedom: 224
-     Actuators: 0
-     Equality constraints: 651
--->
   <include file="scene.xml"/>
 
   <option solver="CG" tolerance="1e-6"/>
@@ -25,13 +21,14 @@
   <size memory="30M"/>
 
   <worldbody>
-    <body pos="0 0 1">
+    <body pos="0 0 1" name="body">
       <freejoint/>
-      <composite type="box" count="7 7 7" spacing="0.04">
-        <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-        <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-        <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
-      </composite>
+      <geom size=".1" contype="0" conaffinity="0" group="4"/>
+      <flexcomp name="softbox" type="box" count="7 7 7" spacing=".04 .04 .04"
+                radius="0.01" dim="3" material="matsponge">
+        <contact internal="false" selfcollide="none"/>
+        <edge equality="true"/>
+      </flexcomp>
     </body>
   </worldbody>
 </mujoco>

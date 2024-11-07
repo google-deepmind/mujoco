@@ -766,10 +766,10 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
 
 
 // comparison function for geom sorting
-quicksortfunc(geomcompare, context, el1, el2) {
+static inline int geomcmp(int* i, int* j, void* context) {
   mjvGeom* geom = (mjvGeom*) context;
-  float d1 = geom[*(int*)el1].camdist;
-  float d2 = geom[*(int*)el2].camdist;
+  float d1 = geom[*i].camdist;
+  float d2 = geom[*j].camdist;
 
   if (d1 < d2) {
     return -1;
@@ -779,6 +779,9 @@ quicksortfunc(geomcompare, context, el1, el2) {
     return 1;
   }
 }
+
+// define geomSort function for sorting geoms
+mjSORT(geomSort, int, geomcmp)
 
 
 
@@ -907,7 +910,11 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // sort transparent geoms according to distance to camera
-  mjQUICKSORT(scn->geomorder, nt, sizeof(int), geomcompare, scn->geoms);
+  if (nt > 1) {
+    int *buf = (int*) mju_malloc(nt * sizeof(int));
+    geomSort(scn->geomorder, buf, nt, scn->geoms);
+    mju_free(buf);
+  }
 
   // allow only one reflective geom
   int j = 0;

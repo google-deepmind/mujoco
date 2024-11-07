@@ -212,7 +212,8 @@ class mjCBase : public mjCBase_ {
   mjCBase& operator=(const mjCBase& other);
 
   mjCFrame* frame;                // pointer to frame transformation
-  mjCModel* model;                // pointer to model that created object
+  mjCModel* model;                // pointer to model that owns object
+  mjsCompiler* compiler;          // pointer to the compiler options
 
   virtual ~mjCBase() = default;   // destructor
 
@@ -331,6 +332,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
 
+  // create a frame and move all contents of this body into it
+  mjCFrame* ToFrame();
+
   // get mocap position and quaternion
   mjtNum* mpos(const std::string& state_name);
   mjtNum* mquat(const std::string& state_name);
@@ -422,8 +426,6 @@ class mjCJoint_ : public mjCBase {
   mjCBody* body;                   // joint's body
 
   // variable used for temporarily storing the state of the joint
-  int qposadr_;                                        // address of dof in data->qpos
-  int dofadr_;                                         // address of dof in data->qvel
   std::map<std::string, std::array<mjtNum, 7>> qpos_;  // qpos at the previous step
   std::map<std::string, std::array<mjtNum, 6>> qvel_;  // qvel at the previous step
 
@@ -470,6 +472,10 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
  private:
   int Compile(void);               // compiler; return dofnum
   void PointToLocal(void);
+
+  // variables that should not be copied during copy assignment
+  int qposadr_;                                        // address of dof in data->qpos
+  int dofadr_;                                         // address of dof in data->qvel
 };
 
 
@@ -527,6 +533,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void SetInertia(void);              // compute and set geom inertia
   bool IsVisual(void) const { return visual_; }
   void SetNotVisual(void) { visual_ = false; }
+  mjtGeom Type() const { return type; }
 
   // Compute all coefs modeling the interaction with the surrounding fluid.
   void SetFluidCoefs(void);
@@ -586,6 +593,9 @@ class mjCSite : public mjCSite_, private mjsSite {
   mjCSite& operator=(const mjCSite& other);
 
   mjsSite spec;                   // variables set by user
+
+  // site's body
+  mjCBody* Body() const { return body; }
 
   // use strings from mjCBase rather than mjStrings from mjsSite
   using mjCBase::name;
@@ -859,6 +869,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const std::vector<float>& UserTexcoord() const { return spec_texcoord_; }
   const std::vector<int>& Face() const { return face_; }
   const std::vector<int>& UserFace() const { return spec_face_; }
+  mjtMeshInertia Inertia() const { return spec.inertia; }
 
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
@@ -936,8 +947,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<unsigned char> num_face_vertices_;
 
   // compute the volume and center-of-mass of the mesh given the face center
-  void ComputeVolume(double CoM[3], mjtGeomInertia type, const double facecen[3],
-                     bool exactmeshinertia);
+  void ComputeVolume(double CoM[3], mjtGeomInertia gtype, const double facecen[3]);
 };
 
 
@@ -1412,7 +1422,7 @@ class mjCPlugin_ : public mjCBase {
   std::vector<char> flattened_attributes;  // config attributes flattened in plugin-declared order;
 
  protected:
-  std::string instance_name;
+  std::string plugin_name;
 };
 
 class mjCPlugin : public mjCPlugin_ {
@@ -1424,11 +1434,11 @@ class mjCPlugin : public mjCPlugin_ {
   mjCPlugin(const mjCPlugin& other);
   mjCPlugin& operator=(const mjCPlugin& other);
   mjsPlugin spec;
-  mjCBase* parent;   // parent object (only used when generating error message)
+  mjCBase* parent;  // parent object (only used when generating error message)
+  int plugin_slot;  // global registered slot number of the plugin
 
  private:
   void Compile(void);              // compiler
-  void NameSpace(const mjCModel* m);
 };
 
 

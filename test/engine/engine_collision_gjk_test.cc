@@ -55,16 +55,6 @@ constexpr char kEllipoid[] = R"(
   </keyframe>
 </mujoco>)";
 
-// ccd center function
-void mjccd_center(const void *obj, ccd_vec3_t *center) {
-  mjc_center(center->v, (const mjCCDObj*) obj);
-}
-
-// ccd support function
-void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
-  mjc_support(vec->v, (mjCCDObj*) obj, _dir->v);
-}
-
 mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
                 mjtNum x2[3]) {
   mjCCDConfig config;
@@ -76,10 +66,10 @@ mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
   config.contacts = 0;   // no geom contacts needed
   config.distances = 1;
 
-  mjCCDObj obj1 = {m, d, g1, m->geom_type[g1], -1, -1, -1, -1, 0, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, 0, {1, 0, 0, 0},
-                   mjc_center, mjc_support};
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj2, m, d, g2, 0);
+
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
   if (x1 != nullptr) mju_copy3(x1, status.x1);
   if (x2 != nullptr) mju_copy3(x2, status.x2);
@@ -121,10 +111,10 @@ int PenetrationWrapper(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
 mjtNum Penetration(mjModel* m, mjData* d, int g1, int g2,
                    mjtNum dir[3] = nullptr, mjtNum pos[3] = nullptr,
                    mjtNum margin = 0) {
-  mjCCDObj obj1 = {m, d, g1, m->geom_type[g1], -1, -1, -1, -1, margin,
-                   {1, 0, 0, 0}, mjc_center, mjc_support};
-  mjCCDObj obj2 = {m, d, g2, m->geom_type[g2], -1, -1, -1, -1, margin,
-                   {1, 0, 0, 0}, mjc_center, mjc_support};
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, margin);
+  mjc_initCCDObj(&obj2, m, d, g2, margin);
+
   ccd_t ccd;
   // CCD_INIT(&ccd);  // uncomment to run ccdMPRPenetration
   ccd.mpr_tolerance = kTolerance;
@@ -423,7 +413,7 @@ TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
   mjtNum dist = Penetration(model, data, geom1, geom2, nullptr, nullptr, 15);
 
-  EXPECT_LT(dist, 0);
+  EXPECT_NEAR(dist, -14.245732934582151, kTolerance);
   mj_deleteData(data);
   mj_deleteModel(model);
 }

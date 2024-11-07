@@ -208,8 +208,11 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
     mju_mulMatVec(d->ten_velocity, d->ten_J, d->qvel, m->ntendon, m->nv);
   }
 
-  // actuator velocity: always dense
-  mju_mulMatVec(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu, m->nv);
+  // actuator velocity: always sparse
+  if (!mjDISABLED(mjDSBL_ACTUATION)) {
+    mju_mulMatVecSparse(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu,
+                        d->moment_rownnz, d->moment_rowadr, d->moment_colind, NULL);
+  }
 
   // com-based velocities, passive forces, constraint references
   mj_comVel(m, d);
@@ -270,7 +273,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
   int nv = m->nv, nu = m->nu;
   mjtNum gain, bias, tau;
-  mjtNum *prm, *moment = d->actuator_moment, *force = d->actuator_force;
+  mjtNum *prm, *force = d->actuator_force;
 
   // clear actuator_force
   mju_zero(force, nu);
@@ -475,7 +478,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
 
   // qfrc_actuator = moment' * force
-  mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
+  mju_mulMatTVecSparse(d->qfrc_actuator, d->actuator_moment, force, nu, nv,
+                       d->moment_rownnz, d->moment_rowadr, d->moment_colind);
 
   // actuator-level gravity compensation
   if (m->ngravcomp && !mjDISABLED(mjDSBL_GRAVITY) && mju_norm3(m->opt.gravity)) {

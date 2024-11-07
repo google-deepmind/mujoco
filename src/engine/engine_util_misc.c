@@ -592,8 +592,8 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
   mjtNum actclamp = mju_clip(act, 0, 1);
 
   // compute timescales as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
-  mjtNum tau_act = prm[0] * (0.5 + 1.5*actclamp);    // activation timscale
-  mjtNum tau_deact = prm[1] / (0.5 + 1.5*actclamp);  // deactivation timscale
+  mjtNum tau_act = prm[0] * (0.5 + 1.5*actclamp);    // activation timescale
+  mjtNum tau_deact = prm[1] / (0.5 + 1.5*actclamp);  // deactivation timescale
   mjtNum smoothing_width = prm[2];                   // width of smoothing sigmoid
   mjtNum dctrl = ctrlclamp - act;                    // excess excitation
 

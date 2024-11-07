@@ -18,6 +18,7 @@ import inspect
 import textwrap
 
 from absl.testing import absltest
+from etils import epath
 import mujoco
 import numpy as np
 
@@ -34,28 +35,28 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
 
     # Check that euler sequence order is set correctly.
-    self.assertEqual(spec.eulerseq[0], 'x')
-    spec.eulerseq = ['z', 'y', 'x']
-    self.assertEqual(spec.eulerseq[0], 'z')
+    self.assertEqual(spec.compiler.eulerseq[0], 'x')
+    spec.compiler.eulerseq = ['z', 'y', 'x']
+    self.assertEqual(spec.compiler.eulerseq[0], 'z')
 
     # Change single elements of euler sequence.
-    spec.eulerseq[0] = 'y'
-    spec.eulerseq[1] = 'z'
-    self.assertEqual(spec.eulerseq[0], 'y')
-    self.assertEqual(spec.eulerseq[1], 'z')
+    spec.compiler.eulerseq[0] = 'y'
+    spec.compiler.eulerseq[1] = 'z'
+    self.assertEqual(spec.compiler.eulerseq[0], 'y')
+    self.assertEqual(spec.compiler.eulerseq[1], 'z')
 
     # eulerseq is iterable
-    self.assertEqual('yzx', ''.join(spec.eulerseq))
+    self.assertEqual('yzx', ''.join(spec.compiler.eulerseq))
 
     # supports `len`
-    self.assertLen(spec.eulerseq, 3)
+    self.assertLen(spec.compiler.eulerseq, 3)
 
     # field checks for out-of-bound access on read and on write
     with self.assertRaises(IndexError):
-      spec.eulerseq[3] = 'x'
+      spec.compiler.eulerseq[3] = 'x'
 
     with self.assertRaises(IndexError):
-      spec.eulerseq[-1] = 'x'
+      spec.compiler.eulerseq[-1] = 'x'
 
     # Add a body, check that it has default orientation.
     body = spec.worldbody.add_body()
@@ -205,15 +206,13 @@ class SpecsTest(absltest.TestCase):
 
     # Add plugin.
     plugin = spec.add_plugin(
-        name='name',
-        instance_name='instance',
-        plugin_slot=7,
+        name='instance_name',
+        plugin_name='mujoco.plugin',
         active=True,
         info='info',
     )
-    self.assertEqual(plugin.name, 'name')
-    self.assertEqual(plugin.instance_name, 'instance')
-    self.assertEqual(plugin.plugin_slot, 7)
+    self.assertEqual(plugin.name, 'instance_name')
+    self.assertEqual(plugin.plugin_name, 'mujoco.plugin')
     self.assertEqual(plugin.active, True)
     self.assertEqual(plugin.info, 'info')
 
@@ -227,9 +226,8 @@ class SpecsTest(absltest.TestCase):
 
     # Add a body with a plugin.
     body_with_plugin = spec.worldbody.add_body(plugin=plugin)
-    self.assertEqual(body_with_plugin.plugin.name, 'name')
-    self.assertEqual(body_with_plugin.plugin.instance_name, 'instance')
-    self.assertEqual(body_with_plugin.plugin.plugin_slot, 7)
+    self.assertEqual(body_with_plugin.plugin.name, 'instance_name')
+    self.assertEqual(body_with_plugin.plugin.plugin_name, 'mujoco.plugin')
     self.assertEqual(body_with_plugin.plugin.active, True)
     self.assertEqual(body_with_plugin.plugin.info, 'info')
 
@@ -436,7 +434,8 @@ class SpecsTest(absltest.TestCase):
     )
 
   def test_load_xml(self):
-    filename = '../../test/testdata/model.xml'
+    file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"
+    filename = file_path.as_posix()
     state_type = mujoco.mjtState.mjSTATE_INTEGRATION
 
     # Load from file.
@@ -603,8 +602,12 @@ class SpecsTest(absltest.TestCase):
       <worldbody>
         <body name="body1">
           <body name="body3">
+            <site name="site1"/>
+            <site name="site2"/>
+            <site name="site3"/>
+            <site name="site4"/>
             <body name="body4">
-              <site name="site"/>
+              <site name="site5"/>
             </body>
           </body>
         </body>
@@ -614,8 +617,10 @@ class SpecsTest(absltest.TestCase):
     """
     spec = mujoco.MjSpec.from_string(main_xml)
     bodytype = mujoco.mjtObj.mjOBJ_BODY
-    sitetype = mujoco.mjtObj.mjOBJ_SITE
     self.assertLen(spec.bodies, 5)
+    self.assertLen(spec.sites, 5)
+    self.assertLen(spec.worldbody.find_all('body'), 4)
+    self.assertLen(spec.worldbody.find_all('site'), 5)
     self.assertEqual(spec.bodies[1].name, 'body1')
     self.assertEqual(spec.bodies[2].name, 'body2')
     self.assertEqual(spec.bodies[3].name, 'body3')
@@ -623,23 +628,38 @@ class SpecsTest(absltest.TestCase):
     self.assertLen(spec.worldbody.find_all(bodytype), 4)
     self.assertLen(spec.bodies[1].find_all(bodytype), 2)
     self.assertLen(spec.bodies[3].find_all(bodytype), 1)
-    self.assertEqual(spec.worldbody.find_all(bodytype)[0].name, 'body1')
-    self.assertEqual(spec.worldbody.find_all(bodytype)[1].name, 'body2')
-    self.assertEqual(spec.worldbody.find_all(bodytype)[2].name, 'body3')
-    self.assertEqual(spec.worldbody.find_all(bodytype)[3].name, 'body4')
-    self.assertEqual(spec.bodies[1].find_all(bodytype)[0].name, 'body3')
-    self.assertEqual(spec.bodies[1].find_all(bodytype)[1].name, 'body4')
-    self.assertEqual(spec.bodies[3].find_all(bodytype)[0].name, 'body4')
-    self.assertEmpty(spec.bodies[2].find_all(bodytype))
-    self.assertEmpty(spec.bodies[4].find_all(bodytype))
-    self.assertEqual(spec.worldbody.find_all(sitetype)[0].name, 'site')
+    self.assertEqual(spec.worldbody.find_all('body')[0].name, 'body1')
+    self.assertEqual(spec.worldbody.find_all('body')[1].name, 'body2')
+    self.assertEqual(spec.worldbody.find_all('body')[2].name, 'body3')
+    self.assertEqual(spec.worldbody.find_all('body')[3].name, 'body4')
+    self.assertEqual(spec.bodies[1].find_all('body')[0].name, 'body3')
+    self.assertEqual(spec.bodies[1].find_all('body')[1].name, 'body4')
+    self.assertEqual(spec.bodies[3].find_all('body')[0].name, 'body4')
+    self.assertEmpty(spec.bodies[2].find_all('body'))
+    self.assertEmpty(spec.bodies[4].find_all('body'))
+    self.assertEqual(spec.worldbody.find_all('site')[0].name, 'site1')
+    self.assertEqual(spec.worldbody.find_all('site')[1].name, 'site2')
+    self.assertEqual(spec.worldbody.find_all('site')[2].name, 'site3')
+    self.assertEqual(spec.worldbody.find_all('site')[3].name, 'site4')
+    self.assertEqual(spec.worldbody.find_all('site')[4].name, 'site5')
+    self.assertEmpty(spec.bodies[2].sites)
+    self.assertLen(spec.bodies[3].sites, 4)
+    self.assertLen(spec.bodies[4].sites, 1)
+    self.assertEqual(spec.bodies[3].sites[0].name, 'site1')
+    self.assertEqual(spec.bodies[3].sites[1].name, 'site2')
+    self.assertEqual(spec.bodies[3].sites[2].name, 'site3')
+    self.assertEqual(spec.bodies[3].sites[3].name, 'site4')
+    self.assertEqual(spec.bodies[4].sites[0].name, 'site5')
     with self.assertRaises(ValueError) as cm:
-      spec.worldbody.find_all(mujoco.mjtObj.mjOBJ_ACTUATOR)
+      spec.worldbody.find_all('actuator')
     self.assertEqual(
         str(cm.exception),
-        'Error: Body.NextChild supports the types: body, frame, geom, site,'
-        ' light, camera\nElement name \'world\', id 0',
+        'body.find_all supports the types: body, frame, geom, site,'
+        ' light, camera.',
     )
+    body4 = spec.worldbody.find_all('body')[3]
+    body4.name = 'body4_new'
+    self.assertEqual(spec.bodies[4].name, 'body4_new')
 
   def test_iterators(self):
     spec = mujoco.MjSpec()
@@ -695,9 +715,8 @@ class SpecsTest(absltest.TestCase):
                      mujoco.mjtGeom.mjGEOM_BOX)
 
   def test_delete(self):
-    filename = '../../test/testdata/model.xml'
-
-    spec = mujoco.MjSpec.from_file(filename)
+    file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"
+    spec = mujoco.MjSpec.from_file(file_path.as_posix())
 
     model = spec.compile()
     self.assertIsNotNone(model)
@@ -731,7 +750,7 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(spec.worldbody)
 
     body = spec.worldbody.add_body()
-    body.plugin.name = 'mujoco.elasticity.cable'
+    body.plugin.plugin_name = 'mujoco.elasticity.cable'
     body.plugin.id = spec.add_plugin()
     body.plugin.active = True
     self.assertEqual(body.plugin.id, 0)
@@ -846,19 +865,31 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(IndexError):
       material.textures[-1] = 'x'
 
-  def test_attach_error(self):
+  def test_attach_units(self):
     child = mujoco.MjSpec()
     parent = mujoco.MjSpec()
-    parent.degree = not child.degree
-    body = parent.worldbody.add_body()
-    frame = child.worldbody.add_frame()
-    with self.assertRaises(ValueError) as cm:
-      body.attach_frame(frame, '', '')
-    self.assertEqual(
-        str(cm.exception),
-        'Error: cannot attach mjSpecs with incompatible compiler/angle'
-        ' attribute',
-    )
+    parent.compiler.degree = not child.compiler.degree
+    body = child.worldbody.add_body(euler=[90, 0, 0])
+    frame = parent.worldbody.add_frame(euler=[-mujoco.mjPI / 2, 0, 0])
+    frame.attach_body(body, 'child-', '')
+    model = parent.compile()
+    np.testing.assert_almost_equal(model.body_quat[1], [1, 0, 0, 0])
+
+  def test_attach_body_to_site(self):
+    child = mujoco.MjSpec()
+    parent = mujoco.MjSpec()
+    site = parent.worldbody.add_site(pos=[1, 2, 3])
+    body = child.worldbody.add_body()
+    self.assertIsNotNone(site.attach(body, '_', ''))
+    model = parent.compile()
+    np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
+
+  def test_body_to_frame(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(pos=[1, 2, 3])
+    spec.compile()
+    frame = body.to_frame()
+    np.testing.assert_array_equal(frame.pos, [1, 2, 3])
 
 
 if __name__ == '__main__':

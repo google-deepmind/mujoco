@@ -365,8 +365,8 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
       // set reasonable default for parsing a URDF
       // this is separate from the Parser to allow multiple URDFs to be loaded.
       spec->strippath = true;
-      spec->fusestatic = true;
-      spec->discardvisual = true;
+      spec->compiler.fusestatic = true;
+      spec->compiler.discardvisual = true;
 
       parser.SetModel(spec);
       parser.Parse(root);
@@ -387,15 +387,15 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
   return spec;
 }
 
-mjSpec* ParseSpecFromString(std::string_view xml, char* error, int nerror) {
+mjSpec* ParseSpecFromString(std::string_view xml, const mjVFS* vfs, char* error, int nerror) {
   RegisterResourceProvider();
   std::string xml2 = {xml.begin(), xml.end()};
   std::string str = "LoadModelFromString:" +  xml2;
-  return ParseXML(str.c_str(), nullptr, error, nerror);
+  return ParseXML(str.c_str(), vfs, error, nerror);
 }
 
 // Main writer function - calls mjXWrite
-std::string WriteXML(const mjSpec* spec, char* error, int nerror) {
+std::string WriteXML(const mjModel* m, const mjSpec* spec, char* error, int nerror) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -405,7 +405,7 @@ std::string WriteXML(const mjSpec* spec, char* error, int nerror) {
   }
 
   mjXWriter writer;
-  writer.SetModel(spec);
+  writer.SetModel(spec, m);
 
   try {
     return writer.Write(error, nerror);

@@ -201,22 +201,22 @@ the ``copy`` callback from :ref:`mjpPlugin` for each plugin instance present.
 
 .. _exActuatorAct:
 
-Actuator activations
-""""""""""""""""""""
+Actuator states
+"""""""""""""""
 
 When writing stateful actuator plugins, there are two choices for where to save the actuator state. One option is using
-``plugin_state`` as described above, and the other is to use ``mjData.act`` by implementing the ``actuator_actdim`` and
-``actuator_act_dot`` callbacks on :ref:`mjpPlugin`.
+``plugin_state`` as described above, and the other is to use ``mjData.act`` by implementing the callback on
+:ref:`mjpPlugin`.
 
 When using the latter option, the actuator plugin's state will be added to ``mjData.act``, and MuJoCo will
 automatically integrate ``mjData.act_dot`` values between timesteps. One advantage of this approach is that
 finite-differencing functions like :ref:`mjd_transitionFD` will work as they do for native actuators. The
 ``mjpPlugin.advance`` callback will be called after ``act_dot`` is integrated, and actuator plugins may overwrite
-the ``act`` values at that point, if Euler integration isn't appropriate.
+the ``act`` values at that point, if the built-in integrator is not appropriate.
 
 Users may specify the :ref:`dyntype<actuator-plugin-dyntype>` attribute on actuator plugins, to introduce a filter or
-an integrator between user inputs and actuator activations. When they do, the activation variable introduced by
-``dyntype`` will be placed *after* the plugin's activation variables in the ``act`` array.
+an integrator between user inputs and actuator states. When they do, the state variable introduced by
+``dyntype`` will be placed *after* the plugin's state variables in the ``act`` array.
 
 .. _exRegistration:
 
@@ -269,43 +269,57 @@ A future version of this section will include:
 
 There are several first-party plugin directories:
 
-* **actuator:** The plugins in the `actuator/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/actuator>`__
-  directory implement custom actuators, so far only a PID controller. See the
-  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
-* **elasticity:** The plugins in the `elasticity/
-  <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are passive forces based on
-  continuum mechanics for 1-dimensional and 2-dimensional bodies. The 1D model is invariant under rotations and captures
-  the large deformation of elastic cables, decoupling twisting and bending strains. The 2D model is a suitable for
-  computing the bending stiffness of thin elastic plates (i.e. shells having a flat stress-free configuration). In this
-  case, the elastic energy is quadratic and therefore the stiffness matrix is constant. For more information, please see
-  the `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
-* **sensor:** The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__
-  directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
-  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
-* **sdf:** The plugins in the `sdf/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sdf>`__ directory
-  specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its gradient at
-  query points. This shape then acts as a new geom type in the collision table at the top of `engine_collision_driver.c
-  <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__. For more information
-  concerning the available SDFs and how to write your own implicit geometry, please see the `README
-  <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md>`__. The rest of this section will give more
-  detail concerning the collision algorithm and the plugin engine interface.
+actuator
+""""""""
+The plugins in the `actuator/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/actuator>`__ directory
+implement custom actuators, so far only a PID controller. See the `README
+<https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
 
-  Collision points are found by minimizing the function A + B + abs(max(A, B)), where A and B are the two colliding
-  SDFs, via gradient descent. Because SDFs are non-convex, multiple starting points are required in order to converge to
-  multiple local minima. The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and
-  are initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes. The number of
-  gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
 
-  While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
-  any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
-  interior. For such functions, it is still possible to find collisons, albeit with a possibly
-  increased number of starting points.
+elasticity
+""""""""""
+The plugins in the `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are
+passive forces based on continuum mechanics for 1-dimensional and 2-dimensional bodies. The 1D model is invariant under
+rotations and captures the large deformation of elastic cables, decoupling twisting and bending strains. The 2D model is
+a suitable for computing the bending stiffness of thin elastic plates (i.e. shells having a flat stress-free
+configuration). In this case, the elastic energy is quadratic and therefore the stiffness matrix is constant. For more
+information, please see the `README
+<https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
 
-  The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
-  algorithm implemented by `MarchingCubeCpp <https://github.com/aparis69/MarchingCubeCpp>`__.
 
-  Future improvement to the gradient descent algorithm, such as a line search which takes advantage of the properties of
-  SDFs, might reduce the number of iterations and/or starting points.
+sensor
+""""""
+The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__ directory implement
+custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the `README
+<https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
+
+
+sdf
+"""
+The plugins in the `sdf/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sdf>`__ directory
+specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its gradient at
+query points. This shape then acts as a new geom type in the collision table at the top of `engine_collision_driver.c
+<https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__. For more information
+concerning the available SDFs and how to write your own implicit geometry, please see the `README
+<https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md>`__. The rest of this section will give more
+detail concerning the collision algorithm and the plugin engine interface.
+
+Collision points are found by minimizing the function A + B + abs(max(A, B)), where A and B are the two colliding
+SDFs, via gradient descent. Because SDFs are non-convex, multiple starting points are required in order to converge to
+multiple local minima. The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and
+are initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes. The number of
+gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
+
+While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
+any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
+interior. For such functions, it is still possible to find collisions, albeit with a possibly
+increased number of starting points.
+
+The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
+algorithm implemented by `MarchingCubeCpp <https://github.com/aparis69/MarchingCubeCpp>`__.
+
+Future improvement to the gradient descent algorithm, such as a line search which takes advantage of the properties of
+SDFs, might reduce the number of iterations and/or starting points.
 
 For the sdf plugin, the following methods need to be specified
 
@@ -317,7 +331,7 @@ For the sdf plugin, the following methods need to be specified
   required because mesh creation occurs during model compilation before the plugin object has been instantiated.
 
 ``sdf_gradient``:
-  Computes the gradient in local coodinates of the SDF at the query point.
+  Computes the gradient in local coordinates of the SDF at the query point.
 
 ``sdf_aabb``:
   Computes the axis-aligned bounding box in local coordinates. This volume is voxelized uniformly before the call to
@@ -378,7 +392,7 @@ Resource providers work via callbacks:
   resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
   ``http://www.example.com/`` as its directory.
 - :ref:`mjfResourceModified<mjfResourceModified>`: This callback is optional and is used to check if an existing
-  opened resource has been modifed from its orginal source.
+  opened resource has been modified from its original source.
 
 .. _exProviderUsage:
 

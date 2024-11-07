@@ -41,6 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "function_traits.h"
+#include "indexer_xmacro.h"
 #include "indexers.h"
 #include "private.h"
 #include "raw.h"
@@ -743,17 +744,17 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(solver);
   X(timer);
   X(warning);
+  X(ncon);
   X(ne);
   X(nf);
-  X(nnzJ);
+  X(nJ);
   X(nefc);
-  X(ncon);
   X(nisland);
   X(time);
   X(energy);
 #undef X
 
-  // Write buffer contents
+  // Write buffer and arena contents
   {
     MJDATA_POINTERS_PREAMBLE((this->model_->get()))
 
@@ -766,13 +767,14 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 #define MJ_M(x) this->model_->get()->x
 #undef MJ_D
 #define MJ_D(x) this->ptr_->x
-#define X(type, name, nr, nc)                                   \
-  if ((nr) * (nc)) {                                            \
-    WriteBytes(output, ptr_->name, sizeof(type) * (nr) * (nc)); \
+#define X(type, name, nr, nc)                     \
+  if ((nr) * (nc)) {                              \
+    WriteBytes(output, ptr_->name,                \
+    ptr_->name ? sizeof(type) * (nr) * (nc) : 0); \
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
-    MJDATA_ARENA_POINTERS_PRIMAL
+    MJDATA_ARENA_POINTERS_SOLVER
     if (mj_isDual(this->model_->get())) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -819,17 +821,17 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(solver);
   X(timer);
   X(warning);
+  X(ncon);
   X(ne);
   X(nf);
-  X(nnzJ);
+  X(nJ);
   X(nefc);
-  X(ncon);
   X(nisland);
   X(time);
   X(energy);
 #undef X
 
-  // Read buffer contents
+  // Read buffer and arena contents
   {
     MJDATA_POINTERS_PREAMBLE((&m))
 
@@ -842,15 +844,25 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 #define MJ_M(x) m.x
 #undef MJ_D
 #define MJ_D(x) d->x
-#define X(type, name, nr, nc)                                              \
-  if ((nr) * (nc)) {                                                       \
-    d->name = static_cast<decltype(d->name)>(                              \
-        mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), alignof(type)));  \
-    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc));                 \
+// arena pointers might be null, so we need to check the size before allocating.
+#define X(type, name, nr, nc)                                                 \
+  if ((nr) * (nc)) {                                                          \
+    std::size_t actual_nbytes = ReadInt(input);                               \
+    if (actual_nbytes) {                                                      \
+      if (actual_nbytes != sizeof(type) * (nr) * (nc)) {                      \
+        input.setstate(input.rdstate() | std::ios_base::failbit);             \
+      } else {                                                                \
+        d->name = static_cast<decltype(d->name)>(                             \
+            mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), alignof(type))); \
+        input.read(reinterpret_cast<char*>(d->name), actual_nbytes);          \
+      }                                                                       \
+    } else {                                                                  \
+      d->name = nullptr;                                                      \
+    }                                                                         \
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
-    MJDATA_ARENA_POINTERS_PRIMAL
+    MJDATA_ARENA_POINTERS_SOLVER
     if (is_dual) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -2009,7 +2021,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     return InitPyArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var, d.owner()); \
   });
 
-  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_SOLVER
   MJDATA_ARENA_POINTERS_DUAL
   MJDATA_ARENA_POINTERS_ISLAND
 

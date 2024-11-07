@@ -234,6 +234,7 @@ class StructFieldDecl:
       'AnonymousUnionDecl',
   ]
   doc: str
+  array_extent: Optional[Tuple[Union[str, int], ...]] = None
 
   def __str__(self):
     return self.type.decl(self.name)

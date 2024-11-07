@@ -132,5 +132,20 @@ class SolverTest(parameterized.TestCase):
     nnz = dx.efc_J.any(axis=1)
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
 
+  def test_quad_frictionloss(self):
+    """Test a case with quadratic frictionloss constraints."""
+    m = test_util.load_test_file('quadratic_frictionloss.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+
+
 if __name__ == '__main__':
   absltest.main()

@@ -204,8 +204,8 @@ void mjCMesh::PointToLocal() {
   spec.userface = &spec_face_;
   spec.usertexcoord = &spec_texcoord_;
   spec.userfacetexcoord = &spec_facetexcoord_;
-  spec.plugin.name = &plugin_name;
-  spec.plugin.instance_name = &plugin_instance_name;
+  spec.plugin.plugin_name = &plugin_name;
+  spec.plugin.name = &plugin_instance_name;
   spec.info = &info;
   file = nullptr;
   content_type = nullptr;
@@ -249,8 +249,8 @@ void mjCMesh::CopyFromSpec() {
   maxhullvert_ = spec.maxhullvert;
   plugin.active = spec.plugin.active;
   plugin.element = spec.plugin.element;
+  plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
-  plugin.instance_name = spec.plugin.instance_name;
 
   // clear precompiled asset. TODO: use asset cache
   if (center_) mju_free(center_);
@@ -271,7 +271,7 @@ void mjCMesh::CopyFromSpec() {
 mjCMesh::~mjCMesh() {
   if (center_) mju_free(center_);
   if (graph_) mju_free(graph_);
-  if (spec.plugin.active && spec.plugin.instance_name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty()) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -294,7 +294,7 @@ void mjCMesh::LoadSDF() {
   mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.element);
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
   plugin.element = plugin_instance;
-  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
+  const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
   if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
   }
@@ -563,7 +563,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // make graph describing convex hull
-  if ((model->convexhull && needhull_) || face_.empty()) {
+  if (needhull_ || face_.empty()) {
     MakeGraph();
   }
 
@@ -739,7 +739,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
   mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
 
   // use inertial box
-  if (!model->fitaabb) {
+  if (!model->compiler.fitaabb) {
     // get inertia box type (shell or volume)
     double* boxsz = GetInertiaBoxPtr(geom->typeinertia);
     switch (geom->type) {
@@ -1250,22 +1250,24 @@ void mjCMesh::LoadMSH(mjResource* resource) {
 
 
 void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
-                              const double facecen[3], bool exactmeshinertia) {
+                              const double facecen[3]) {
   double nrm[3];
   double cen[3];
   GetVolumeRef(type) = 0;
   mjuu_zerovec(CoM, 3);
-  for (int i=0; i < nface(); i++) {
+  int nf = (inertia == mjINERTIA_CONVEX) ? graph_[1] : nface();
+  int* f = (inertia == mjINERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
+  float* vv = vert_.data();
+  for (int i=0; i < nf; i++) {
     // get area, normal and center
-    float* vv = vert_.data();
-    double a = _triangle(nrm, cen, vv+3*face_[3*i], vv+3*face_[3*i+1], vv+3*face_[3*i+2]);
+    double a = _triangle(nrm, cen, vv+3*f[3*i], vv+3*f[3*i+1], vv+3*f[3*i+2]);
 
     // compute and add volume
     const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
     double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(vec, nrm) * a / 3;
 
     // if legacy computation requested, then always positive
-    if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
+    if (inertia == mjINERTIA_LEGACY) {
       vol = abs(vol);
     }
 
@@ -1410,21 +1412,17 @@ void mjCMesh::Process() {
   for ( const auto type : { mjtGeomInertia::mjINERTIA_VOLUME, mjtGeomInertia::mjINERTIA_SHELL } ) {
     double CoM[3] = {0, 0, 0};
     double inert[6] = {0, 0, 0, 0, 0, 0};
-    bool exactmeshinertia = model->exactmeshinertia;
 
     // compute CoM and volume from pyramid volumes
-    ComputeVolume(CoM, type, facecen, model->exactmeshinertia);
+    ComputeVolume(CoM, type, facecen);
 
-    // perform computation with convex mesh if volume is negative
-    if (GetVolumeRef(type) <= 0 && exactmeshinertia) {
-      mju_warning("Malformed mesh '%s', computing mesh inertia from convex hull", name.c_str());
-      exactmeshinertia = false;
-      ComputeVolume(CoM, type, facecen, exactmeshinertia);
-    }
-
-    // if volume is still invalid, skip the rest of the computations
+    // if volume is invalid, skip the rest of the computations
     if (GetVolumeRef(type) < mjMINVAL) {
-      validvolume_ = GetVolumeRef(type) < 0 ? -1 : 0;
+      if (type == mjINERTIA_SHELL) {
+        validarea_ = 0;
+      } else {
+        validvolume_ = GetVolumeRef(type) < 0 ? -1 : 0;
+      }
       continue;
     }
 
@@ -1447,17 +1445,19 @@ void mjCMesh::Process() {
     const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
     double P[6] = {0, 0, 0, 0, 0, 0};
     GetVolumeRef(type) = 0;
-    for (int i=0; i < nface(); i++) {
-      float* D = vert_.data()+3*face_[3*i];
-      float* E = vert_.data()+3*face_[3*i+1];
-      float* F = vert_.data()+3*face_[3*i+2];
+    int nf = (inertia == mjINERTIA_CONVEX) ? graph_[1] : nface();
+    int* f = (inertia == mjINERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
+    for (int i=0; i < nf; i++) {
+      float* D = vert_.data()+3*f[3*i];
+      float* E = vert_.data()+3*f[3*i+1];
+      float* F = vert_.data()+3*f[3*i+2];
 
       // get area, normal and center; update volume
       double a = _triangle(nrm, cen, D, E, F);
       double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!exactmeshinertia && type==mjINERTIA_VOLUME) {
+      if (inertia == mjINERTIA_LEGACY) {
         vol = abs(vol);
       }
 
@@ -1554,7 +1554,7 @@ void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
-  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && model->exactmeshinertia)
+  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && inertia == mjINERTIA_EXACT)
     throw mjCError(this,
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",

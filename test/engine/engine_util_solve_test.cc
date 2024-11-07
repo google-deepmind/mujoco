@@ -16,8 +16,12 @@
 
 #include "src/engine/engine_util_solve.h"
 
+#include <cstddef>
+#include <iostream>
 #include <random>
 #include <iomanip>
+#include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -35,10 +39,6 @@ using ::testing::DoubleNear;
 using ::std::string;
 using ::std::setw;
 using QCQP2Test = MujocoTest;
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 TEST_F(QCQP2Test, DegenerateAMatrix) {
   // A 2x2 matrix with determinant zero.
@@ -336,12 +336,21 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
           string slog(log);
           string factorstr = "factorizations=";
           std::size_t index = slog.find(factorstr) + factorstr.length();
-          factorizations += std::stoi(slog.substr(index, 3));
+          int num_factor = std::stoi(slog.substr(index, 3));
+
+          // never more than 6 factorizations
+          EXPECT_LE(num_factor, 6);
+
+          factorizations += num_factor;
           count++;
         }
       }
     }
     double meanfactor = ((double)factorizations) / count;
+
+    // average of 4.5 factorizations is expected
+    EXPECT_LE(meanfactor, 5.0);
+
     std::cerr << "n=" << setw(3) << n
               << ": average of " << meanfactor << " factorizations\n";
   }

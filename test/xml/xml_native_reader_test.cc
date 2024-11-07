@@ -33,10 +33,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::std::string;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
@@ -805,10 +801,10 @@ TEST_F(XMLReaderTest, MaterialTextureTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material">
-        <occlusion texture="tiny0"/>
-        <roughness texture="tiny0"/>
-        <metallic texture="tiny0"/>
-        <rgb texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
+        <layer role="roughness" texture="tiny0"/>
+        <layer role="metallic" texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
       </material>
     </asset>
     <worldbody>
@@ -873,8 +869,8 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material" texture="tiny1">
-        <rgb texture="tiny1"/>
-        <occlusion texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
       </material>
     </asset>
     <worldbody>
@@ -887,7 +883,7 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("A material with a texture attribute "
-                                      "cannot have texture sub-elements"));
+                                      "cannot have layer sub-elements"));
 }
 
 TEST_F(XMLReaderTest, LargeTextureTest) {
@@ -1234,21 +1230,28 @@ TEST_F(XMLReaderTest, ParseReplicate) {
     </asset>
 
     <worldbody>
+      <replicate count="101" euler="0 0 1.8">
+        <body name="body" pos="0 -1 0">
+          <joint type="slide"/>
+          <geom name="g" size="1"/>
+        </body>
+      </replicate>
+
       <replicate count="2" offset="1 0 0">
         <replicate count="2" offset="0 1 0" sep="_">
           <geom name="geom" size="1" pos="0 0 1" material="material"/>
           <site name="site" pos="1 0 0"/>
         </replicate>
       </replicate>
-
-      <replicate count="101" euler="0 0 1.8">
-        <geom name="g" size="1" pos="0 -1 0"/>
-      </replicate>
     </worldbody>
 
     <sensor>
       <framepos name="sensor" objtype="site" objname="site"/>
     </sensor>
+
+    <keyframe>
+      <key name="keyframe" qpos="1"/>
+    </keyframe>
   </mujoco>
 
   )";
@@ -1287,14 +1290,24 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   }
 
   // check that the final pose is correct
-  int n = 104;
-  EXPECT_NEAR(m->geom_pos[3*n+0], 0, 1e-8);
-  EXPECT_NEAR(m->geom_pos[3*n+1], 1, 1e-8);
-  EXPECT_EQ(m->geom_pos[3*n+2], 0);
-  EXPECT_NEAR(m->geom_quat[4*n+0], 0, 1e-8);
-  EXPECT_EQ(m->geom_quat[4*n+1], 0);
-  EXPECT_EQ(m->geom_quat[4*n+2], 0);
-  EXPECT_EQ(m->geom_quat[4*n+3], 1);
+  int n = m->nbody-1;
+  EXPECT_THAT(m->nbody, 102);
+  EXPECT_NEAR(m->body_pos[3*n+0], 0, 1e-8);
+  EXPECT_NEAR(m->body_pos[3*n+1], 1, 1e-8);
+  EXPECT_EQ(m->body_pos[3*n+2], 0);
+  EXPECT_NEAR(m->body_quat[4*n+0], 0, 1e-8);
+  EXPECT_EQ(m->body_quat[4*n+1], 0);
+  EXPECT_EQ(m->body_quat[4*n+2], 0);
+  EXPECT_EQ(m->body_quat[4*n+3], 1);
+
+  // check that the keyframe is resized
+  EXPECT_THAT(m->nkey, 102);
+  EXPECT_THAT(m->nq, 101);
+  for (int i = 0; i < m->nkey; i++) {
+    for (int j = 0; j < m->nq; j++) {
+      EXPECT_THAT(m->key_qpos[i*m->nq+j], i == j ? 1 : 0) << i << " " << j;
+    }
+  }
 
   mj_deleteModel(m);
 }
@@ -1527,12 +1540,12 @@ TEST_F(XMLReaderTest, InvalidAttach) {
       <body name="parent">
         <joint name="joint1"/>
         <geom size="2"/>
-        <attach model="other" body="body"/>
+        <attach model="other" body="body" prefix="_"/>
       </body>
     </worldbody>
 
     <actuator>
-      <motor name="actuator" joint="joint1"/>
+      <motor name="_actuator" joint="joint1"/>
     </actuator>
   </mujoco>
   )";
@@ -1561,7 +1574,7 @@ TEST_F(XMLReaderTest, InvalidAttach) {
       LoadModelFromString(xml_parent, er.data(), er.size(), vfs.get());
 
   EXPECT_THAT(model, IsNull()) << er.data();
-  EXPECT_THAT(er.data(), HasSubstr("repeated name 'actuator' in actuator"));
+  EXPECT_THAT(er.data(), HasSubstr("repeated name '_actuator' in actuator"));
   EXPECT_THAT(er.data(), HasSubstr("Element 'attach'"));
   mj_deleteVFS(vfs.get());
 }
@@ -1668,13 +1681,13 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
   <mujoco>
     <worldbody>
       <body>
-        <composite prefix="B0" type="box" count="4 4 4" spacing=".2">
+        <composite prefix="B0" type="grid" count="4 4 1" spacing=".2">
           <geom size=".1" group="2"/>
           <skin group="4"/>
         </composite>
       </body>
       <body>
-        <composite prefix="B1" type="box" count="4 4 4" spacing=".2">
+        <composite prefix="B1" type="grid" count="4 4 1" spacing=".2">
           <geom size=".1" group="4"/>
           <skin group="2"/>
         </composite>
@@ -1685,8 +1698,8 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull());
-  int geomid1 = mj_name2id(model, mjOBJ_GEOM, "B0G0_0_0");
-  int geomid2 = mj_name2id(model, mjOBJ_GEOM, "B1G0_0_0");
+  int geomid1 = mj_name2id(model, mjOBJ_GEOM, "B0G0_0");
+  int geomid2 = mj_name2id(model, mjOBJ_GEOM, "B1G0_0");
   EXPECT_THAT(model->geom_group[geomid1], 2);
   EXPECT_THAT(model->skin_group[0], 4);
   EXPECT_THAT(model->geom_group[geomid2], 4);
@@ -1699,7 +1712,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   <mujoco>
     <worldbody>
       <body>
-        <composite prefix="B0" type="box" count="6 6 6" spacing=".2">
+        <composite prefix="B0" type="grid" count="6 6 1" spacing=".2">
           <geom size=".1"/>
           <skin group="6"/>
         </composite>

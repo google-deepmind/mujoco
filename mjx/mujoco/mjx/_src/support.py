@@ -21,6 +21,7 @@ import mujoco
 from mujoco.mjx._src import math
 from mujoco.mjx._src import scan
 # pylint: disable=g-importing-member
+from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import JacobianType
 from mujoco.mjx._src.types import Model
@@ -295,7 +296,7 @@ def _decode_pyramid(
   force = force.at[0].set(pyramid[0 : 2 * (condim - 1)].sum())
 
   # force_tangent_i = (pyramid0_i - pyramid1_i) * mu_i
-  i = np.arange(0, condim)
+  i = np.arange(0, condim - 1)
   force = force.at[i + 1].set((pyramid[2 * i] - pyramid[2 * i + 1]) * mu[i])
 
   return force
@@ -307,12 +308,13 @@ def contact_force(
   """Extract 6D force:torque for one contact, in contact frame by default."""
   efc_address = d.contact.efc_address[contact_id]
   condim = d.contact.dim[contact_id]
-  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+  if m.opt.cone == ConeType.PYRAMIDAL:
     force = _decode_pyramid(
         d.efc_force[efc_address:], d.contact.friction[contact_id], condim
     )
-  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
-    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  elif m.opt.cone == ConeType.ELLIPTIC:
+    force = d.efc_force[efc_address : efc_address + condim]
+    force = jp.concatenate([force, jp.zeros((6 - condim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}')
 
@@ -331,7 +333,7 @@ def contact_force_dim(
   idx_dim = (d.contact.efc_address >= 0) & (d.contact.dim == dim)
 
   # contact force from efc
-  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+  if m.opt.cone == ConeType.PYRAMIDAL:
     efc_address = (
         d.contact.efc_address[idx_dim, None]
         + np.arange(np.where(dim == 1, 1, 2 * (dim - 1)))[None]
@@ -340,15 +342,16 @@ def contact_force_dim(
     force = jax.vmap(_decode_pyramid, in_axes=(0, 0, None))(
         efc_force, d.contact.friction[idx_dim], dim
     )
-    return force, np.where(idx_dim)[0]
-  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
-    # TODO(taylorhowell): add support for elliptic cone
-    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  elif m.opt.cone == ConeType.ELLIPTIC:
+    efc_address = d.contact.efc_address[idx_dim, None] + np.arange(dim)[None]
+    force = d.efc_force[efc_address]
+    force = jp.hstack([force, jp.zeros((force.shape[0], 6 - dim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}.')
+  return force, np.where(idx_dim)[0]
 
 
-def length_circle(
+def _length_circle(
     p0: jax.Array, p1: jax.Array, ind: jax.Array, rad: jax.Array
 ) -> jax.Array:
   """Compute length of circle."""
@@ -366,7 +369,7 @@ def length_circle(
   return rad * angle
 
 
-def is_intersect(
+def _is_intersect(
     p1: jax.Array, p2: jax.Array, p3: jax.Array, p4: jax.Array
 ) -> jax.Array:
   """Check for intersection between two lines defined by their endpoints."""
@@ -429,7 +432,7 @@ def wrap_circle(
     good = jp.where(sidesite, good0, good1)
 
     # penalize for intersection
-    intersect = is_intersect(d[:2], sol[0], d[2:], sol[1])
+    intersect = _is_intersect(d[:2], sol[0], d[2:], sol[1])
     good = jp.where(intersect, -10000, good)
 
     return sol, good
@@ -442,10 +445,10 @@ def wrap_circle(
   pnt = sol.reshape(-1)
 
   # check for intersection
-  intersect = is_intersect(d[:2], pnt[:2], d[2:], pnt[2:])
+  intersect = _is_intersect(d[:2], pnt[:2], d[2:], pnt[2:])
 
   # compute curve length
-  wlen = length_circle(sol[0], sol[1], i, rad)
+  wlen = _length_circle(sol[0], sol[1], i, rad)
 
   # check cases
   invalid = (

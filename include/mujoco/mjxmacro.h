@@ -346,7 +346,7 @@
     XMJV( int,     flex_shell,            nflexshelldata,1                    ) \
     X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
-    X   ( mjtNum,  flex_xvert0,           nflexvert,     3                    ) \
+    X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
     X   ( mjtNum,  flexedge_length0,      nflexedge,     1                    ) \
     X   ( mjtNum,  flexedge_invweight0,   nflexedge,     1                    ) \
     XMJV( mjtNum,  flex_radius,           nflex,         1                    ) \
@@ -623,6 +623,9 @@
     XMJV( int,       wrap_obj,          nwrap,       2           ) \
     XMJV( mjtNum,    wrap_xpos,         nwrap,       6           ) \
     X   ( mjtNum,    actuator_length,   nu,          1           ) \
+    X   ( int,       moment_rownnz,     nu,          1           ) \
+    X   ( int,       moment_rowadr,     nu,          1           ) \
+    X   ( int,       moment_colind,     nu,          MJ_M(nv)    ) \
     X   ( mjtNum,    actuator_moment,   nu,          MJ_M(nv)    ) \
     X   ( mjtNum,    crb,               nbody,       10          ) \
     X   ( mjtNum,    qM,                nM,          1           ) \
@@ -680,19 +683,19 @@
     X( mjContact, contact, MJ_D(ncon), 1 )
 
 // array fields of mjData that are used in the primal problem
-#define MJDATA_ARENA_POINTERS_PRIMAL                   \
+#define MJDATA_ARENA_POINTERS_SOLVER                   \
     X( int,      efc_type,          MJ_D(nefc),    1 ) \
     X( int,      efc_id,            MJ_D(nefc),    1 ) \
     X( int,      efc_J_rownnz,      MJ_D(nefc),    1 ) \
     X( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
     X( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
-    X( int,      efc_J_colind,      MJ_D(nnzJ),    1 ) \
+    X( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
     X( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
     X( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
     X( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
-    X( int,      efc_JT_colind,     MJ_D(nnzJ),    1 ) \
-    X( mjtNum,   efc_J,             MJ_D(nnzJ),    1 ) \
-    X( mjtNum,   efc_JT,            MJ_D(nnzJ),    1 ) \
+    X( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
+    X( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
+    X( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
     X( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
@@ -729,7 +732,7 @@
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS          \
     MJDATA_ARENA_POINTERS_CONTACT      \
-    MJDATA_ARENA_POINTERS_PRIMAL       \
+    MJDATA_ARENA_POINTERS_SOLVER       \
     MJDATA_ARENA_POINTERS_DUAL         \
     MJDATA_ARENA_POINTERS_ISLAND
 
@@ -747,12 +750,12 @@
     X( int,       maxuse_con         ) \
     X( int,       maxuse_efc         ) \
     X( int,       solver_nisland     ) \
+    X( int,       ncon               ) \
     X( int,       ne                 ) \
     X( int,       nf                 ) \
     X( int,       nl                 ) \
     X( int,       nefc               ) \
-    X( int,       nnzJ               ) \
-    X( int,       ncon               ) \
+    X( int,       nJ                 ) \
     X( int,       nisland            ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )
@@ -763,7 +766,7 @@
     X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
     X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
     X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
-    X( mjSolverStat,   solver,             mjNILSAND,    mjNSOLVER ) \
+    X( mjSolverStat,   solver,             mjNISLAND,    mjNSOLVER ) \
     X( int,            solver_niter,       mjNISLAND,    1         ) \
     X( int,            solver_nnz,         mjNISLAND,    1         ) \
     X( mjtNum,         solver_fwdinv,      2,            1         ) \

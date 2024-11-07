@@ -105,6 +105,11 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
 // Returns the name of the different field and the max difference.
 mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field);
 
+// Returns a vector containing the elements of the array.
+inline std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
+
 // Installs a mock filesystem via a resource provider. To obtain thread safety,
 // each filesystem is scoped for individual unit tests with destructive
 // operations not permitted.

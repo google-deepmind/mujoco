@@ -197,6 +197,21 @@ def _optim(
 
 
 @collider(ncon=1)
+def sphere_ellipsoid(s: GeomInfo, e: GeomInfo) -> Collision:
+  """"Calculates contact between a sphere and an ellipsoid."""
+  x0 = 0.5 * (s.pos + e.pos)
+  return _optim(_sphere, _ellipsoid, s, e, x0)
+
+
+@collider(ncon=1)
+def sphere_cylinder(s: GeomInfo, c: GeomInfo) -> Collision:
+  """"Calculates contact between a sphere and a cylinder."""
+  # TODO: implement analytical version.
+  x0 = 0.5 * (s.pos + c.pos)
+  return _optim(_sphere, _cylinder, s, c, x0)
+
+
+@collider(ncon=1)
 def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Collision:
   """"Calculates contact between a capsule and an ellipsoid."""
   x0 = 0.5 * (c.pos + e.pos)

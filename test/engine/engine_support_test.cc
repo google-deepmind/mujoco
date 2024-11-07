@@ -37,10 +37,6 @@ using ::testing::Pointwise;
 using ::testing::ElementsAreArray;
 using ::testing::Pointwise;
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using AngMomMatTest = MujocoTest;
 
 static constexpr char AngMomTestingModel[] = R"(

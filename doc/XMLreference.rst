@@ -772,23 +772,11 @@ has any effect. The settings here are global and apply to the entire model.
    models compiled with this flag, it is important to remember that collision geoms are often placed in a
    :ref:`group<body-geom-group>` which is invisible by default.
 
-.. _compiler-convexhull:
-
-:at:`convexhull`: :at-val:`[false, true], "true"`
-   If this attribute is "true", the compiler will automatically generate a convex hull for every mesh that is used in at
-   least one non-visual geom (in the sense of the discardvisual attribute above). This is done to speed up collision
-   detection; recall :ref:`Collision` section in the Computation chapter. Even if the mesh is already convex, the hull
-   contains edge information that is not present in the mesh file, so it needs to be constructed. The only reason to
-   disable this feature is to speed up re-loading of a model with large meshes during model editing (since the convex
-   hull computation is the slowest operation performed by the compiler). However once model design is finished, this
-   feature should be enabled, because the availability of convex hulls substantially speeds up collision detection with
-   large meshes.
-
 .. _compiler-usethread:
 
 :at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is used
-   for computing the length ranges of actuators and for loading meshes.
+   for computing the length ranges of actuators and for parallel loading of meshes.
 
 .. _compiler-fusestatic:
 
@@ -814,12 +802,6 @@ has any effect. The settings here are global and apply to the entire model.
    particular, a number of publicly available URDF models have seemingly arbitrary inertias which are too large compared
    to the mass. This results in equivalent inertia boxes which extend far beyond the geometric boundaries of the model.
    Note that the built-in OpenGL visualizer can render equivalent inertia boxes.
-
-.. _compiler-exactmeshinertia:
-
-:at:`exactmeshinertia`: :at-val:`[false, true], "false"`
-   If this attribute is set to false, computes mesh inertia with the legacy algorithm, which is exact only for convex
-   meshes. If set to true, it is exact for any closed mesh geometry.
 
 .. _compiler-alignfree:
 
@@ -1248,6 +1230,21 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 :at:`scale`: :at-val:`real(3), "1 1 1"`
    This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
    values are allowed, resulting in flipping the mesh along the corresponding axis.
+
+.. _asset-mesh-inertia:
+
+:at:`inertia`: :at-val:`[convex, exact, legacy], "legacy"`
+   This attribute controls how the mesh is used when mass and inertia are
+   :ref:`inferred from geometry<compiler-inertiafromgeom>`. The current default value :at-val:`legacy` will be changed
+   to :at-val:`convex` in a future release.
+
+   :at-val:`convex`: Use the mesh's convex hull to compute volume and inertia.
+
+   :at-val:`exact`: Use an exact algorithm to compute volume and inertia. This algorithm requires a well-oriented,
+   watertight mesh and will error otherwise.
+
+   :at-val:`legacy`: Use the legacy algorithm, which is similar to :at-val:`convex`, but leads to volume overcounting
+   for non-convex meshes.
 
 .. _asset-mesh-smoothnormal:
 
@@ -1698,9 +1695,9 @@ properties are grouped together.
    loaded explicitly via the :ref:`texture <asset-texture>` element and then referenced here. The texture referenced
    here is used for specifying the RGB values. For advanced rendering (e.g., Physics-Based Rendering), more texture
    types need to be specified (e.g., roughness, metallic).  In this case, this texture attribute should be omitted, and
-   the texture types should be specified explicitly via the specific role child elements, e.g.,
-   :ref:`texture <material-orm>`.  Note however that the built-in renderer does not support PBR properties, so these
-   advanced rendering features are only available when using an external renderer.
+   the texture types should be specified using :ref:`layer <material-layer>` child elements. Note however that the
+   built-in renderer does not support PBR properties, so these advanced rendering features are only available when using
+   an external renderer.
 
 .. _asset-material-texrepeat:
 
@@ -1772,116 +1769,59 @@ properties are grouped together.
    model element which defines its own local rgba attribute, the local definition has precedence. Note that this "local"
    definition could in fact come from a defaults class. The remaining material properties always apply.
 
-.. _material-rgb:
+.. _material-layer:
 
-:el-prefix:`material/` |-| **rgb** (?)
-''''''''''''''''''''''''''''''''''''''
+:el-prefix:`material/` |-| **layer** (?)
+''''''''''''''''''''''''''''''''''''''''
 
-This element references a texture asset used to specify base color / albedo values.
+If multiple textures are needed to specify the appearance of a material, the :ref:`texture <asset-material-texture>`
+attribute cannot be used, and :el:`layer` child elements must be used instead. Specifying both the :at:`texture`
+attribute and :el:`layer` child elements is an error.
 
-.. _material-rgb-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 3 channels.
-
-.. _material-normal:
-
-:el-prefix:`material/` |-| **normal** (?)
-'''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the bump map (surface normals).
-
-.. _material-normal-texture:
+.. _material-layer-texture:
 
 :at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 3 channels.
+   Name of the texture, like the :ref:`texture <asset-material-texture>` attribute.
 
-.. _material-occlusion:
+.. _material-layer-role:
 
-:el-prefix:`material/` |-| **occlusion** (?)
-''''''''''''''''''''''''''''''''''''''''''''
+:at:`role`: :at-val:`string, required`
+   Role of the texture. The valid values, expected number of channels, and the role semantics are:
 
-This element references a texture asset used to specify ambient occlusion.
+   .. list-table::
+      :widths: 1 1 8
+      :header-rows: 1
 
-.. _material-occlusion-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-roughness:
-
-:el-prefix:`material/` |-| **roughness** (?)
-''''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the roughness map.
-
-.. _material-roughness-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-metallic:
-
-:el-prefix:`material/` |-| **metallic** (?)
-'''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the metallic map.
-
-.. _material-metallic-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-opacity:
-
-:el-prefix:`material/` |-| **opacity** (?)
-''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify the opacity map (alpha channel, transparency).
-
-.. _material-opacity-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly one channel.
-
-.. _material-emissive:
-
-:el-prefix:`material/` |-| **emissive** (?)
-'''''''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify light emission.
-
-.. _material-emissive-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 4 channels.
-
-.. _material-orm:
-
-:el-prefix:`material/` |-| **orm** (?)
-''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify a packed ORM map, where occlusion, roughness, and metallic
-are joined into the corresponding RGB values of a single texture.
-
-.. _material-orm-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 3 channels.
-
-.. _material-rgba:
-
-:el-prefix:`material/` |-| **rgba** (?)
-'''''''''''''''''''''''''''''''''''''''
-
-This element references a texture asset used to specify a packed map where albedo and opacity are joined into the same
-4-channel texture.
-
-.. _material-rgba-texture:
-
-:at:`texture`: :at-val:`string, required`
-   Name of the texture, expected to have exactly 4 channels.
-
+      * - value
+        - channels
+        - description
+      * - :at:`rgb`
+        - 3
+        - base color / albedo [red, green, blue]
+      * - :at:`normal`
+        - 3
+        - bump map (surface normals)
+      * - :at:`occlusion`
+        - 1
+        - ambient occlusion
+      * - :at:`roughness`
+        - 1
+        - roughness
+      * - :at:`metallic`
+        - 1
+        - metallicity
+      * - :at:`opacity`
+        - 1
+        - opacity (alpha channel)
+      * - :at:`emissive`
+        - 4
+        - RGB light emmision intensity, exposure weight in 4th channel
+      * - :at:`orm`
+        - 3
+        - packed 3 channel [occlusion, roughness, metallic]
+      * - :at:`rgba`
+        - 4
+        - packed 4 channel [red, green, blue, alpha]
 
 .. _asset-model:
 
@@ -2200,13 +2140,14 @@ rotations as unit quaternions.
 .. _body-joint-armature:
 
 :at:`armature`: :at-val:`real, "0"`
-   Armature inertia (or rotor inertia, or reflected inertia) of all degrees of freedom created by this joint. These are
-   constants added to the diagonal of the inertia matrix in generalized coordinates. They make the simulation more
-   stable, and often increase physical realism. This is because when a motor is attached to the system with a
-   transmission that amplifies the motor force by c, the inertia of the rotor (i.e., the moving part of the motor) is
-   amplified by c*c. The same holds for gears in the early stages of planetary gear boxes. These extra inertias often
-   dominate the inertias of the robot parts that are represented explicitly in the model, and the armature attribute is
-   the way to model them.
+   Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually
+   due to a rotor (a.k.a `armature <https://en.wikipedia.org/wiki/Armature_(electrical)>`__) spinning faster than the
+   joint itself due to a geared transmission; in this case the added inertia is known as "reflected inertia" and its
+   value is the rotational inertia of the spinning element multiplied by the square of the gear ratio. The value applies
+   to all degrees of freedom created by this joint.
+
+   Besides increasing the realism of joints with geared transmission, positive :at:`armature` significantly improves
+   simulation stability, even for small values, and is a recommended possible fix when encountering stability issues.
 
 .. _body-joint-damping:
 
@@ -3625,9 +3566,10 @@ saving the XML:
 
 :at:`texcoord`: :at-val:`real(2*npoint), optional`
    Texture coordinates of each point, passed through to the automatically-generated flex. Note that flexcomp does not
-   generate texture coordinates automatically, except for 2D grids. For all other types, the user can specify explicit
-   texture coordinates here, even if the points themselves were generated automatically. This requires understanding of
-   the layout of the automatically-generated points and how they correspond to the texture referenced by the material.
+   generate texture coordinates automatically, except for 2D grids, box, cylinder and ellipsoid. For all other types,
+   the user can specify explicit texture coordinates here, even if the points themselves were generated automatically.
+   This requires understanding of the layout of the automatically-generated points and how they correspond to the
+   texture referenced by the material.
 
 .. _body-flexcomp-mass:
 
@@ -3847,32 +3789,32 @@ defaults and assets) will be copied in to the top-level model. :el:`attach` is a
 all attachments will appear in the saved XML file.
 
 .. admonition:: Known issues
-   :class: attention
+   :class: note
 
-   The :el:`attach` meta-element is new and not well tested. Please report any issues you encounter to the development
-   team. Additionally, the following known limitations exist, to be addressed in a future release:
+   The following known limitations exist, to be addressed in a future release:
 
-   - The world body cannot be attached.
    - An entire model cannot be attached (i.e. including all elements, referenced or not).
    - All assets from the child model will be copied in, whether they are referenced or not.
-   - Self-attach or circular references are not checked for and will lead to infinite loops.
-   - :ref:`Keyframes<keyframe>` are attached once, so they are not replicated in nested attachments.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _body-attach-model:
 
-:at:`model`: :at-val:`string, optional`
+:at:`model`: :at-val:`string, required`
    The sub-model from which to attach a subtree.
 
 .. _body-attach-body:
 
-:at:`body`: :at-val:`string, optional`
+:at:`body`: :at-val:`string, required`
    Name of the body in the sub-model to attach here. The body and its subtree will be attached.
 
 .. _body-attach-prefix:
 
-:at:`prefix`: :at-val:`string, optional`
-   Prefix to prepend to names of elements in the sub-model. If empty, the names are unchanged. This attribute is
-   required to prevent name collisions with the parent or when attaching the same sub-tree multiple times.
+:at:`prefix`: :at-val:`string, required`
+   Prefix to prepend to names of elements in the sub-model. This attribute is required to prevent name collisions with
+   the parent or when attaching the same sub-tree multiple times.
 
 
 .. _body-frame:
@@ -6242,13 +6184,12 @@ excluded; this is because sensor calculations are independent of the visualizer.
 :el-prefix:`sensor/` |-| **camprojection** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a camprojection sensor, which returns the location of a target site, projected onto a camera image
-in pixel coordinates. The origin of this system is located at the top-left corner of the first pixel, so a target
-which projects exactly onto the corner of the image, will have value (0, 0). Values are not clipped, so targets which
-fall outside the camera image will take values above or below the pixel limits. Moreover, points behind the camera
-are also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using
-a `framepos<sensor-framepos>` sensor with the camera as reference frame, then a negative/positive value in the
-z-coordinate indicates (respectively) a location in the front/back of the camera.
+This element creates a camera projection sensor: the location of a target site, projected onto a camera image in pixel
+coordinates. The pixel origin (0, 0) is located at the top-left corner. Values are not clipped, so targets which fall
+outside the camera image will take values above or below the pixel range limits. Moreover, points behind the camera are
+also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using a
+:ref:`framepos<sensor-framepos>` sensor with the camera as a reference frame: a negative/positive value in the
+z-coordinate indicates a location in front of/behind the camera plane, respectively.
 
 .. _sensor-camprojection-site:
 
@@ -8014,6 +7955,8 @@ if omitted.
 .. _default-mesh-scale:
 
 .. _default-mesh-maxhullvert:
+
+.. _default-mesh-inertia:
 
 :el-prefix:`default/` |-| **mesh** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
