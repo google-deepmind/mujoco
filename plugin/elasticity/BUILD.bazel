@@ -1,0 +1,118 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "elasticity_impl",
+    srcs = [
+        "elasticity.cc",
+    ],
+    hdrs = [
+        "elasticity.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "cable",
+    srcs = [
+        "cable.cc",
+    ],
+    hdrs = [
+        "cable.h",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":elasticity_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "solid",
+    srcs = [
+        "solid.cc",
+    ],
+    hdrs = [
+        "solid.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":elasticity_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "shell",
+    srcs = [
+        "shell.cc",
+    ],
+    hdrs = [
+        "shell.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":elasticity_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "membrane",
+    srcs = [
+        "membrane.cc",
+    ],
+    hdrs = [
+        "membrane.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":elasticity_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "register",
+    srcs = [
+        "register.cc",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":cable",
+        ":membrane",
+        ":shell",
+        ":solid",
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+cc_shared_library(
+    name = "elasticity",
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "register",
+    ],
+)

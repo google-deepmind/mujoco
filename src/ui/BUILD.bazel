@@ -1,0 +1,16 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "ui_main",
+    srcs = ["ui_main.c"],
+    hdrs = ["ui_main.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+        "//src/engine:engine_array_safety",
+        "//src/render:glad",
+    ],
+)

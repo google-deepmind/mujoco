@@ -1,0 +1,461 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+load("//devtools/bbcp/builddefs:build_defs.bzl", "generated_file")
+load("//devtools/python/blaze:pybind.bzl", "pybind_extension", "pybind_library")
+load("@pip_deps//:requirements.bzl", "requirement")
+load("@mujoco//tools:symlink_files.bzl", "symlink_files")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+py_library(
+    name = "mujoco-py",
+    srcs = [
+        "__init__.py",
+        "gl_context.py",
+        "minimize.py",
+        "renderer.py",
+        "rollout.py",
+        "viewer.py",
+    ],
+    data = [
+        "//:license_filegroup",
+        "//:mujoco_shared",
+    ],
+    imports = [".."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_callbacks.so",
+        ":_constants.so",
+        ":_enums.so",
+        ":_errors.so",
+        ":_functions.so",
+        ":_render.so",
+        ":_rollout.so",
+        ":_simulate.so",
+        ":_specs.so",
+        ":_structs.so",
+        "//python/mujoco/glfw",
+        requirement("numpy"),
+    ],
+)
+
+genrule(
+    name = "_genrule_enum_traits.h",
+    outs = ["enum_traits.h"],
+    cmd = "$(location //python/mujoco/codegen:generate_enum_traits) > $@",
+    tools = ["//python/mujoco/codegen:generate_enum_traits"],
+)
+
+generated_file(
+    tags = ["mujoco_codegen"],
+    wrapped_target = ":_genrule_enum_traits.h",
+)
+
+cc_library(
+    name = "mujoco_private_api_header",
+    hdrs = ["private.h"],
+    deps = ["//:mujoco_hdrs"],
+)
+
+pybind_extension(
+    name = "_callbacks",
+    srcs = ["callbacks.cc"],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        ":errors_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco_hdrs",
+    ],
+)
+
+pybind_extension(
+    name = "_constants",
+    srcs = ["constants.cc"],
+    copts = [
+        "-Werror=redundant-move",
+        "-Wno-redundant-move",
+    ],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "enum_traits",
+    hdrs = ["enum_traits.h"],
+    deps = ["//:mujoco_hdrs"],
+)
+
+pybind_extension(
+    name = "_enums",
+    srcs = ["enums.cc"],
+    copts = [
+        "-Wno-deprecated-enum-float-conversion",
+    ],
+    deps = [
+        ":enum_traits",
+        "//:mujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+        "//python/mujoco/util:tuple_tools",
+    ],
+)
+
+genrule(
+    name = "_genrule_function_traits.h",
+    outs = ["function_traits.h"],
+    cmd = "$(location //python/mujoco/codegen:generate_function_traits) > $@",
+    tools = ["//python/mujoco/codegen:generate_function_traits"],
+)
+
+generated_file(
+    tags = ["mujoco_codegen"],
+    wrapped_target = ":_genrule_function_traits.h",
+)
+
+cc_library(
+    name = "function_traits",
+    hdrs = ["function_traits.h"],
+    deps = [
+        "//:mujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+    ],
+)
+
+pybind_library(
+    name = "errors_header",
+    hdrs = ["errors.h"],
+    deps = [
+        ":mujoco_private_api_header",
+        "//:mujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+        "//python/mujoco/util:func_wrap",
+    ],
+)
+
+pybind_extension(
+    name = "_errors",
+    srcs = ["errors.cc"],
+    deps = [":errors_header"],
+)
+
+pybind_library(
+    name = "functions_header",
+    hdrs = ["functions.h"],
+    deps = [
+        ":errors_header",
+        ":structs_header",
+        "//:mujoco_hdrs",
+        "//python/mujoco/util:array_traits",
+        "//python/mujoco/util:crossplatform",
+        "//python/mujoco/util:func_wrap",
+        "//python/mujoco/util:tuple_tools",
+        "@eigen",
+    ],
+)
+
+pybind_extension(
+    name = "_functions",
+    srcs = ["functions.cc"],
+    copts = [
+        "-Ipython/mujoco",
+    ],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        ":errors_header",
+        ":function_traits",
+        ":functions_header",
+        ":mujoco_private_api_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco_hdrs",
+        "@eigen",
+    ],
+)
+
+cc_library(
+    name = "raw",
+    hdrs = ["raw.h"],
+    deps = ["//:mujoco_hdrs"],
+)
+
+pybind_extension(
+    name = "_render",
+    srcs = ["render.cc"],
+    copts = [
+        "-Ipython/mujoco",
+    ],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        ":errors_header",
+        ":function_traits",
+        ":functions_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco_hdrs",
+        "@eigen",
+    ],
+)
+
+pybind_library(
+    name = "structs_header",
+    hdrs = [
+        "indexer_xmacro.h",
+        "indexers.h",
+        "structs.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        ":raw",
+        "//:mujoco_hdrs",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+pybind_extension(
+    name = "_structs",
+    srcs = [
+        "indexers.cc",
+        "serialization.h",
+        "structs.cc",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+        "-Werror=redundant-move",
+        "-Wno-redundant-move",
+        "-Wno-type-limits",
+        "-Wno-error",
+        "-Wno-int-in-bool-context",
+        "-Ipython/mujoco",
+    ],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        ":errors_header",
+        ":function_traits",
+        ":mujoco_private_api_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+pybind_extension(
+    name = "_rollout",
+    srcs = ["rollout.cc"],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        ":errors_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco_hdrs",
+    ],
+)
+
+# This genrule is non-hermetic and uses the system-installed clang-format.
+genrule(
+    name = "_genrule_specs.cc.inc",
+    outs = ["specs.cc.inc"],
+    cmd = """
+    GENERATE_SPEC_BINDING=$(location //python/mujoco/codegen:generate_spec_bindings)
+    CLANG_FORMAT=$$(which clang-format)
+    $${GENERATE_SPEC_BINDING} | $${CLANG_FORMAT} - > $@
+    """,
+    tools = [
+        "//python/mujoco/codegen:generate_spec_bindings",
+    ],
+)
+
+pybind_extension(
+    name = "_simulate",
+    srcs = [
+        "simulate.cc",
+    ],
+    copts = [
+        "-Werror=redundant-move",
+        "-Wno-redundant-move",
+        "-Wno-type-limits",
+        "-Wno-error",
+        "-Ipython/mujoco",
+        "-Isimulate",
+    ],
+    deps = [
+        ":errors_header",
+        ":structs_header",
+        "//simulate:simulate_lib",
+        "@libglfw3//:lib",
+    ],
+)
+
+pybind_extension(
+    name = "_specs",
+    srcs = [
+        "specs.cc",
+        "specs.cc.inc",
+    ],
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    deps = [
+        ":errors_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco_hdrs",
+        "@eigen",
+    ],
+)
+
+exports_files(
+    srcs = [
+        "mjpython/mjpython.mm",
+        "mjpython/mjpython.py",
+    ],
+)
+
+# symlink plugins for test
+symlink_files(
+    name = "symlinked_plugins",
+    srcs = [
+        "//plugin/actuator",
+        "//plugin/elasticity",
+        "//plugin/sdf",
+        "//plugin/sensor",
+    ],
+)
+
+# symlink plugins for test
+symlink_files(
+    name = "symlinked_mujoco_so",
+    srcs = [
+        "//:mujoco_shared",
+    ],
+)
+
+py_test(
+    name = "bindings_test",
+    size = "small",
+    srcs = ["bindings_test.py"],
+    data = [
+        ":symlinked_mujoco_so",
+        ":symlinked_plugins",
+    ],
+    deps = [
+        ":mujoco-py",
+        requirement("absl-py"),
+        requirement("numpy"),
+    ],
+)
+
+# This test should be running with xvfb. (e.g., xvfb-run -s "-screen 0 1024x768x24" bazel run //python/mujoco:renderer_test)
+py_binary(
+    name = "renderer_test",
+    srcs = ["renderer_test.py"],
+    deps = [
+        ":mujoco-py",
+        requirement("absl-py"),
+        requirement("numpy"),
+    ],
+)
+
+# This test should be running with xvfb. (e.g., xvfb-run -s "-screen 0 1024x768x24" bazel run //python/mujoco:render_test)
+py_binary(
+    name = "render_test",
+    srcs = ["render_test.py"],
+    main = "render_test.py",
+    deps = [
+        ":mujoco-py",
+        "//python/mujoco/glfw",
+        requirement("absl-py"),
+        requirement("numpy"),
+    ],
+)
+
+py_test(
+    name = "rollout_test",
+    size = "small",
+    srcs = ["rollout_test.py"],
+    deps = [
+        ":mujoco-py",
+        requirement("absl-py"),
+        requirement("numpy"),
+    ],
+)
+
+# This fails due to the missing pystub
+# py_test(
+#     name = "specs_test",
+#     srcs = ["specs_test.py"],
+#     data = [
+#         "//:test_data",
+#     ],
+#     deps = [
+#         ":mujoco-py",
+#         requirement("absl-py"),
+#         requirement("numpy"),
+#     ],
+# )
+
+py_test(
+    name = "minimize_test",
+    size = "small",
+    srcs = ["minimize_test.py"],
+    deps = [
+        ":mujoco-py",
+        requirement("absl-py"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "msh2obj",
+    srcs = [
+        "msh2obj.py",
+    ],
+    deps = [
+        requirement("numpy"),
+    ],
+)
+
+py_test(
+    name = "msh2obj_test",
+    size = "small",
+    srcs = ["msh2obj_test.py"],
+    data = [
+        "//python/mujoco/testdata:model",
+    ],
+    deps = [
+        ":msh2obj",
+        ":mujoco-py",
+        requirement("absl-py"),
+        requirement("numpy"),
+        requirement("etils"),
+        requirement("typing-extensions"),
+        requirement("importlib-resources"),
+    ],
+)
+
+py_test(
+    name = "memory_leak_test",
+    size = "small",
+    srcs = ["memory_leak_test.py"],
+    deps = [
+        ":mujoco-py",
+        requirement("absl-py"),
+    ],
+)

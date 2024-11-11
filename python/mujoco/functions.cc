@@ -24,7 +24,7 @@
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "errors.h"
-#include "function_traits.h"
+#include "python/mujoco/function_traits.h"
 #include "functions.h"
 #include "private.h"
 #include "raw.h"

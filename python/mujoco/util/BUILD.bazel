@@ -1,0 +1,39 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "array_traits",
+    hdrs = ["array_traits.h"],
+    deps = [
+        ":crossplatform",
+        "@eigen",
+    ],
+)
+
+cc_library(
+    name = "crossplatform",
+    hdrs = ["crossplatform.h"],
+)
+
+cc_library(
+    name = "func_traits",
+    hdrs = ["func_traits.h"],
+)
+
+cc_library(
+    name = "func_wrap",
+    hdrs = ["func_wrap.h"],
+    deps = [
+        ":array_traits",
+        ":crossplatform",
+        ":func_traits",
+        "@eigen",
+    ],
+)
+
+cc_library(
+    name = "tuple_tools",
+    hdrs = ["tuple_tools.h"],
+    deps = [
+        ":crossplatform",
+    ],
+)

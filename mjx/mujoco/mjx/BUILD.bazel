@@ -1,0 +1,617 @@
+load("@pip_deps//:requirements.bzl", "requirement")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+py_library(
+    name = "collision_convex",
+    srcs = [
+        "_src/collision_convex.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_types",
+        ":math",
+        ":mesh",
+        ":types",
+        requirement("jax"),
+    ],
+)
+
+py_library(
+    name = "collision_driver",
+    srcs = [
+        "_src/collision_driver.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_convex",
+        ":collision_primitive",
+        ":collision_sdf",
+        ":collision_types",
+        ":support",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "collision_sdf",
+    srcs = [
+        "_src/collision_sdf.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_types",
+        ":dataclasses",
+        ":math",
+        ":types",
+        requirement("jax"),
+    ],
+)
+
+py_library(
+    name = "collision_primitive",
+    srcs = [
+        "_src/collision_primitive.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_types",
+        ":math",
+        ":types",
+        requirement("jax"),
+    ],
+)
+
+py_library(
+    name = "collision_types",
+    srcs = [
+        "_src/collision_types.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":dataclasses",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "constraint",
+    srcs = [
+        "_src/constraint.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_driver",
+        ":dataclasses",
+        ":math",
+        ":support",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "dataclasses",
+    srcs = [
+        "_src/dataclasses.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "forward",
+    srcs = [
+        "_src/forward.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_driver",
+        ":constraint",
+        ":math",
+        ":passive",
+        ":scan",
+        ":smooth",
+        ":solver",
+        ":support",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "io",
+    srcs = [
+        "_src/io.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_driver",
+        ":constraint",
+        ":mesh",
+        ":support",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)
+
+py_library(
+    name = "math",
+    srcs = [
+        "_src/math.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        requirement("jax"),
+    ],
+)
+
+py_library(
+    name = "mesh",
+    srcs = [
+        "_src/mesh.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":collision_types",
+        ":math",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("scipy"),
+        requirement("trimesh"),
+    ],
+)
+
+py_library(
+    name = "passive",
+    srcs = [
+        "_src/passive.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":math",
+        ":scan",
+        ":support",
+        ":types",
+        requirement("jax"),
+    ],
+)
+
+py_library(
+    name = "ray",
+    srcs = [
+        "_src/ray.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":math",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "scan",
+    srcs = [
+        "_src/scan.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":types",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "smooth",
+    srcs = [
+        "_src/smooth.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":math",
+        ":scan",
+        ":support",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "solver",
+    srcs = [
+        "_src/solver.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":dataclasses",
+        ":math",
+        ":smooth",
+        ":support",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+    ],
+)
+
+py_library(
+    name = "support",
+    srcs = [
+        "_src/support.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":math",
+        ":scan",
+        ":types",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "types",
+    srcs = [
+        "_src/types.py",
+    ],
+    imports = ["../.."],
+    deps = [
+        ":dataclasses",
+        "//:mujoco-py",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "mjx",
+    srcs = [
+        "__init__.py",
+    ],
+    data = [
+        "//:license_filegroup",
+    ],
+    imports = ["../.."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":collision_driver",
+        ":constraint",
+        ":forward",
+        ":io",
+        ":passive",
+        ":ray",
+        ":smooth",
+        ":solver",
+        ":support",
+        ":test_util",
+        ":types",
+    ],
+)
+
+py_library(
+    name = "test_util",
+    srcs = [
+        "_src/test_util.py",
+    ],
+    deps = [
+        ":forward",
+        ":io",
+        ":types",
+        "//:mujoco-py",
+        requirement("etils"),
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_test(
+    name = "collision_driver_test",
+    size = "medium",
+    srcs = [
+        "_src/collision_driver_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    deps = [
+        ":collision_driver",
+        ":mjx",
+        ":test_util",
+        ":types",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("etils"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "constraint_test",
+    size = "small",
+    srcs = [
+        "_src/constraint_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    shard_count = 5,
+    deps = [
+        ":constraint",
+        ":mjx",
+        ":test_util",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "io_test",
+    size = "small",
+    srcs = [
+        "_src/io_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    shard_count = 5,
+    deps = [
+        ":mjx",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "forward_test",
+    size = "small",
+    srcs = [
+        "_src/forward_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    shard_count = 4,
+    deps = [
+        ":mjx",
+        ":test_util",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "math_test",
+    size = "small",
+    srcs = [
+        "_src/math_test.py",
+    ],
+    shard_count = 20,
+    deps = [
+        ":math",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "mesh_test",
+    size = "small",
+    srcs = [
+        "_src/mesh_test.py",
+    ],
+    deps = [
+        ":mesh",
+        requirement("absl-py"),
+        requirement("numpy"),
+        requirement("trimesh"),
+    ],
+)
+
+py_test(
+    name = "passive_test",
+    size = "small",
+    srcs = [
+        "_src/passive_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    deps = [
+        ":mjx",
+        ":test_util",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "ray_test",
+    size = "small",
+    srcs = [
+        "_src/ray_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    deps = [
+        ":mjx",
+        ":test_util",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "scan_test",
+    size = "small",
+    srcs = [
+        "_src/scan_test.py",
+    ],
+    deps = [
+        ":mjx",
+        ":scan",
+        ":types",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "smooth_test",
+    size = "small",
+    srcs = [
+        "_src/smooth_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    shard_count = 3,
+    deps = [
+        ":mjx",
+        ":test_util",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "solver_test",
+    size = "small",
+    srcs = [
+        "_src/solver_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    deps = [
+        ":mjx",
+        ":solver",
+        ":test_util",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+py_test(
+    name = "support_test",
+    size = "small",
+    srcs = [
+        "_src/support_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    deps = [
+        ":mjx",
+        ":support",
+        ":test_util",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+    ],
+)
+
+BENCHMARKS = (
+    ("barkour", "barkour_v0/assets/barkour_v0_mjx.xml", "4", "cg", "4", "6"),
+    ("barkour", "barkour_v0/assets/barkour_v0_mjx.xml", "4", "newton", "1", "4"),
+)
+
+[py_test(
+    name = "testspeed_%s_%s" % (model, solver),
+    size = "large",
+    srcs = [
+        "testspeed.py",
+    ],
+    args = [
+        "--mjcf=%s" % mjcf,
+        "--nstep=4",
+        "--batch_size=2",
+        "--unroll=%s" % unroll,
+        "--solver=%s" % solver,
+        "--iterations=%s" % iterations,
+        "--ls_iterations=%s" % ls_iterations,
+        "--output=tsv",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    main = "testspeed.py",
+    tags = ["manual"],
+    deps = [
+        ":mjx",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
+        requirement("etils"),
+    ],
+) for model, mjcf, unroll, solver, iterations, ls_iterations in BENCHMARKS]
+
+test_suite(
+    name = "benchmark_tests",
+    tags = ["manual"],
+    tests = ["testspeed_%s_%s" % (model, solver) for model, mjcf, unroll, solver, iterations, ls_iterations in BENCHMARKS],
+)

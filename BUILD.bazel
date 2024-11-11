@@ -1,0 +1,174 @@
+load("@mujoco//tools:symlink_files.bzl", "symlink_files")
+load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        "LICENSE",
+    ],
+    tags = ["license_filegroup"],
+)
+
+cc_library(
+    name = "mujoco_hdrs",
+    hdrs = [":mujoco_headers"],
+    includes = [
+        "include",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "_core",
+    linkopts = ["-Wl,--gc-sections"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//src/engine",
+        "//src/thread:thread_pool",
+        "//src/xml:xml_api",
+    ],
+)
+
+cc_library(
+    name = "_graphics_native",
+    linkopts = ["-Wl,--gc-sections"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//src/render",
+        "//src/ui:ui_main",
+    ],
+)
+
+# The headers are needed to generate ctypes Python bindings.
+filegroup(
+    name = "mujoco_headers",
+    srcs = [
+        "include/mujoco/mjdata.h",
+        "include/mujoco/mjexport.h",
+        "include/mujoco/mjmacro.h",
+        "include/mujoco/mjmodel.h",
+        "include/mujoco/mjplugin.h",
+        "include/mujoco/mjrender.h",
+        "include/mujoco/mjspec.h",
+        "include/mujoco/mjthread.h",
+        "include/mujoco/mjtnum.h",
+        "include/mujoco/mjui.h",
+        "include/mujoco/mjvisualize.h",
+        "include/mujoco/mjxmacro.h",
+        "include/mujoco/mujoco.h",
+    ],
+)
+
+cc_library(
+    name = "mujoco",
+    hdrs = [":mujoco_headers"],
+    data = [
+        ":license_filegroup",
+    ],
+    includes = [
+        "include",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_core",
+        ":_graphics_native",
+    ],
+)
+
+cc_shared_library(
+    name = "mujoco_shared",
+    shared_lib_name = "libmujoco.so.3.2.2",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mujoco",
+    ],
+)
+
+alias(
+    name = "simulate",
+    actual = "//simulate:main",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "mujoco-py",
+    actual = "//python/mujoco:mujoco-py",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "mujoco-mjx",
+    actual = "//mjx/mujoco/mjx:mjx",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# Symlink data for the test. Note that Bazel tests look for data in the `TEST.runfiles/mujoco`
+# directory, so we create proper symlinks for the files instead of altering paths within the test.
+symlink_files(
+    name = "model_data",
+    srcs = ["//model"],
+)
+
+# The reason we have `test_data` and `test_data_stripped` is that some tests (e.g., `spec_test.py`)
+# reads `test/testdata/model.xml` while `pipeline_test.cc` reads `testdata/model.xml`.
+symlink_files(
+    name = "test_data",
+    srcs = ["//test/testdata:model"],
+)
+
+symlink_files(
+    name = "test_data_stripped",
+    srcs = ["//test/testdata:model"],
+    strip_prefix = "test/",
+)
+
+symlink_files(
+    name = "test_engine_data",
+    srcs = ["//test/engine/testdata:model"],
+)
+
+symlink_files(
+    name = "test_engine_data_stripped",
+    srcs = ["//test/engine/testdata:model"],
+    strip_prefix = "test/",
+)
+
+symlink_files(
+    name = "test_plugin_data",
+    srcs = ["//test/plugin/sensor/testdata:model"],
+    strip_prefix = "test/",
+)
+
+symlink_files(
+    name = "test_user_data",
+    srcs = ["//test/user/testdata:model"],
+    strip_prefix = "test/",
+)
+
+symlink_files(
+    name = "test_xml_data",
+    srcs = ["//test/xml/testdata:model"],
+    strip_prefix = "test/",
+)
+
+symlink_files(
+    name = "test_benchmark_data",
+    srcs = ["//test/benchmark/testdata:model"],
+)
+
+symlink_files(
+    name = "test_benchmark_data_stripped",
+    srcs = ["//test/benchmark/testdata:model"],
+    strip_prefix = "test/",
+)
+
+buildifier(
+    name = "buildifier",
+)

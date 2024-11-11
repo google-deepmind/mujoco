@@ -1,0 +1,14 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "tinyobjloader",
+    hdrs = ["tiny_obj_loader.h"],
+    data = [":license_filegroup"],
+    includes = ["."],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = ["LICENSE"],
+    tags = ["license_filegroup"],
+)
