@@ -6,6 +6,10 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+MJX
+^^^
+- Added muscle actuators.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed :github:issue:`2212`, type error in ``mjx.get_data``.

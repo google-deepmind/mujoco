@@ -560,3 +560,150 @@ def wrap(
   wpnt1 = jp.where(invalid, jp.zeros(3), wpnt1)
 
   return wlen, wpnt0, wpnt1
+
+
+def muscle_gain_length(
+    length: jax.Array, lmin: jax.Array, lmax: jax.Array
+) -> jax.Array:
+  """Normalized muscle length-gain curve."""
+  # mid-ranges (maximum is at 1.0)
+  a = 0.5 * (lmin + 1)
+  b = 0.5 * (1 + lmax)
+
+  out0 = 0.5 * jp.square(
+      (length - lmin) / jp.maximum(mujoco.mjMINVAL, a - lmin)
+  )
+  out1 = 1 - 0.5 * jp.square((1 - length) / jp.maximum(mujoco.mjMINVAL, 1 - a))
+  out2 = 1 - 0.5 * jp.square((length - 1) / jp.maximum(mujoco.mjMINVAL, b - 1))
+  out3 = 0.5 * jp.square(
+      (lmax - length) / jp.maximum(mujoco.mjMINVAL, lmax - b)
+  )
+
+  out = jp.where(length <= b, out2, out3)
+  out = jp.where(length <= 1, out1, out)
+  out = jp.where(length <= a, out0, out)
+  out = jp.where((lmin <= length) & (length <= lmax), out, 0.0)
+
+  return out
+
+
+def muscle_gain(
+    length: jax.Array,
+    vel: jax.Array,
+    lengthrange: jax.Array,
+    acc0: jax.Array,
+    prm: jax.Array,
+) -> jax.Array:
+  """Muscle active force."""
+  # unpack parameters
+  lrange = prm[:2]
+  force, scale, lmin, lmax, vmax, _, fvmax = prm[2:9]
+
+  force = jp.where(force < 0, scale / jp.maximum(mujoco.mjMINVAL, acc0), force)
+
+  # optimum length
+  L0 = (lengthrange[1] - lengthrange[0]) / jp.maximum(  # pylint:disable=invalid-name
+      mujoco.mjMINVAL, lrange[1] - lrange[0]
+  )
+
+  # normalized length and velocity
+  L = lrange[0] + (length - lengthrange[0]) / jp.maximum(mujoco.mjMINVAL, L0)  # pylint:disable=invalid-name
+  V = vel / jp.maximum(mujoco.mjMINVAL, L0 * vmax)  # pylint:disable=invalid-name
+
+  # length curve
+  FL = muscle_gain_length(L, lmin, lmax)  # pylint:disable=invalid-name
+
+  # velocity curve
+  y = fvmax - 1
+  FV = fvmax  # pylint:disable=invalid-name
+  FV = jp.where(  # pylint:disable=invalid-name
+      V <= y, fvmax - jp.square(y - V) / jp.maximum(mujoco.mjMINVAL, y), FV
+  )
+  FV = jp.where(V <= 0, jp.square(V + 1), FV)  # pylint:disable=invalid-name
+  FV = jp.where(V <= -1, 0, FV)  # pylint:disable=invalid-name
+
+  # compute FVL and scale, make it negative
+  return -force * FL * FV
+
+
+def muscle_bias(
+    length: jax.Array, lengthrange: jax.Array, acc0: jax.Array, prm: jax.Array
+) -> jax.Array:
+  """Muscle passive force."""
+  # unpack parameters
+  lrange = prm[:2]
+  force, scale, _, lmax, _, fpmax = prm[2:8]
+
+  force = jp.where(force < 0, scale / jp.maximum(mujoco.mjMINVAL, acc0), force)
+
+  # optimum length
+  L0 = (lengthrange[1] - lengthrange[0]) / jp.maximum(  # pylint:disable=invalid-name
+      mujoco.mjMINVAL, lrange[1] - lrange[0]
+  )
+
+  # normalized length
+  L = lrange[0] + (length - lengthrange[0]) / jp.maximum(mujoco.mjMINVAL, L0)  # pylint:disable=invalid-name
+
+  # half-quadratic to (L0 + lmax) / 2, linear beyond
+  b = 0.5 * (1 + lmax)
+
+  out1 = (
+      -force
+      * fpmax
+      * 0.5
+      * jp.square((L - 1) / jp.maximum(mujoco.mjMINVAL, b - 1))
+  )
+  out2 = -force * fpmax * (0.5 + (L - b) / jp.maximum(mujoco.mjMINVAL, b - 1))
+
+  out = jp.where(L <= b, out1, out2)
+  out = jp.where(L <= 1, 0.0, out)
+
+  return out
+
+
+def muscle_dynamics_timescale(
+    dctrl: jax.Array,
+    tau_act: jax.Array,
+    tau_deact: jax.Array,
+    smoothing_width: jax.Array,
+) -> jax.Array:
+  """Muscle time constant with optional smoothing."""
+  # hard switching
+  tau_hard = jp.where(dctrl > 0, tau_act, tau_deact)
+
+  def _sigmoid(x):
+    # sigmoid function over 0 <= x <= 1 using quintic polynomial
+    # sigmoid: f(x) = 6 * x^5 - 15 * x^4 + 10 * x^3
+    # solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
+    return jp.clip(x**3 * (3 * x * (2 * x - 5) + 10), 0, 1)
+
+  # smooth switching
+  # scale by width, center around 0.5 midpoint, rescale to bounds
+  tau_smooth = tau_deact + (tau_act - tau_deact) * _sigmoid(
+      dctrl / smoothing_width + 0.5
+  )
+
+  return jp.where(smoothing_width < mujoco.mjMINVAL, tau_hard, tau_smooth)
+
+
+def muscle_dynamics(
+    ctrl: jax.Array, act: jax.Array, prm: jax.Array
+) -> jax.Array:
+  """Muscle activation dynamics."""
+  # clamp control
+  ctrlclamp = jp.clip(ctrl, 0, 1)
+
+  # clamp activation
+  actclamp = jp.clip(act, 0, 1)
+
+  # compute timescales as in Millard et at. (2013)
+  # https://doi.org/10.1115/1.4023390
+  tau_act = prm[0] * (0.5 + 1.5 * actclamp)  # activation timescale
+  tau_deact = prm[1] / (0.5 + 1.5 * actclamp)  # deactivation timescale
+  smoothing_width = prm[2]  # width of smoothing sigmoid
+  dctrl = ctrlclamp - act  # excess excitation
+
+  tau = muscle_dynamics_timescale(dctrl, tau_act, tau_deact, smoothing_width)
+
+  # filter output
+  return dctrl / jp.maximum(mujoco.mjMINVAL, tau)

@@ -214,11 +214,11 @@ The following features are **fully supported** in MJX:
    * - :ref:`Transmission <mjtTrn>`
      - ``JOINT``, ``JOINTINPARENT``, ``SITE``, ``TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
-     - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
+     - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``, ``MUSCLE``
    * - :ref:`Actuator Gain <mjtGain>`
-     - ``FIXED``, ``AFFINE``
+     - ``FIXED``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Actuator Bias <mjtBias>`
-     - ``NONE``, ``AFFINE``
+     - ``NONE``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
      - ``JOINT``, ``SITE``, ``PULLEY``
    * - :ref:`Geom <mjtGeom>`
@@ -264,12 +264,6 @@ The following features are **in development** and coming soon:
      - ``IMPLICIT``
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
-   * - :ref:`Actuator Dynamics <mjtDyn>`
-     - ``MUSCLE``
-   * - :ref:`Actuator Gain <mjtGain>`
-     - ``MUSCLE``
-   * - :ref:`Actuator Bias <mjtBias>`
-     - ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
      - ``SPHERE``, ``CYLINDER``
    * - Fluid Model

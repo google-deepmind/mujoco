@@ -1,0 +1,18 @@
+<mujoco>
+  <compiler autolimits="true"/>
+  <worldbody>
+    <body name="box">
+      <joint name="slide1" type="slide" axis="1 0 0" />
+      <joint name="slide2" type="slide" axis="0 1 0" />
+      <joint name="slide3" type="slide" axis="0 0 1" />
+      <joint name="slide4" type="slide" axis="1 1 0" />
+      <geom type="box" size=".05 .05 .05" mass="1"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <general joint="slide1" dynprm="0.1" gainprm="1.1" />
+    <general joint="slide2" dyntype="integrator" dynprm="0.1" gainprm="1.1" />
+    <general joint="slide3" dyntype="filter" dynprm="0.1" gainprm="1.1" />
+    <general joint="slide4" dyntype="filterexact" dynprm="0.1" gainprm="1.1" />
+  </actuator>
+</mujoco>
