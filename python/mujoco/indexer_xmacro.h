@@ -140,8 +140,8 @@
   X( int,     dof_, parentid,     nv,   1               ) \
   X( int,     dof_, Madr,         nv,   1               ) \
   X( int,     dof_, simplenum,    nv,   1               ) \
-  X( mjtNum,  dof_, solref,       nv,   mjNREF          ) \
-  X( mjtNum,  dof_, solimp,       nv,   mjNIMP          ) \
+  X( mjtNum,  jnt_, solref,       njnt, mjNREF          ) \
+  X( mjtNum,  jnt_, solimp,       njnt, mjNIMP          ) \
   X( mjtNum,  dof_, frictionloss, nv,   1               ) \
   X( mjtNum,  dof_, armature,     nv,   1               ) \
   X( mjtNum,  dof_, damping,      nv,   1               ) \
