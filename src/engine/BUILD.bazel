@@ -1,0 +1,556 @@
+load("//src/engine:helper.bzl", "THIN_LTO_FEATURE_IF_CLANG", "THIN_LTO_LINKOPTS_IF_CLANG")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "engine",
+    srcs = [
+        "engine_collision_driver.c",
+        "engine_collision_sdf.c",
+        "engine_core_constraint.c",
+        "engine_core_smooth.c",
+        "engine_derivative.c",
+        "engine_derivative_fd.c",
+        "engine_forward.c",
+        "engine_inverse.c",
+        "engine_island.c",
+        "engine_passive.c",
+        "engine_print.c",
+        "engine_sensor.c",
+        "engine_setconst.c",
+        "engine_solver.c",
+        "engine_support.c",
+        "engine_vis_interact.c",
+        "engine_vis_state.c",
+        "engine_vis_visualize.c",
+    ],
+    hdrs = [
+        "engine_collision_driver.h",
+        "engine_collision_sdf.h",
+        "engine_core_constraint.h",
+        "engine_core_smooth.h",
+        "engine_derivative.h",
+        "engine_derivative_fd.h",
+        "engine_forward.h",
+        "engine_inverse.h",
+        "engine_island.h",
+        "engine_passive.h",
+        "engine_print.h",
+        "engine_sensor.h",
+        "engine_setconst.h",
+        "engine_solver.h",
+        "engine_support.h",
+        "engine_vis_interact.h",
+        "engine_vis_state.h",
+        "engine_vis_visualize.h",
+    ],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//tools:gcc": [
+            "-Wno-format-overflow",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    local_defines = [
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_array_safety",
+        ":engine_callback",
+        ":engine_collision_box",
+        ":engine_collision_convex",
+        ":engine_collision_primitive",
+        ":engine_crossplatform",
+        ":engine_io",
+        ":engine_macro",
+        ":engine_name",
+        ":engine_plugin",
+        ":engine_ray",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        ":engine_vis_init",
+        "//:mujoco_hdrs",
+        "//src/thread:thread_pool",
+        "//src/thread:thread_task",
+        "@libccd",
+    ],
+)
+
+cc_library(
+    name = "engine_array_safety",
+    copts = ["-Wshadow"],
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    textual_hdrs = ["engine_array_safety.h"],
+)
+
+cc_library(
+    name = "engine_callback",
+    srcs = ["engine_callback.c"],
+    hdrs = ["engine_callback.h"],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_box",
+    srcs = [
+        "engine_collision_box.c",
+    ],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_collision_primitive",
+        ":engine_util_blas",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_convex",
+    srcs = [
+        "engine_collision_convex.c",
+        "engine_collision_gjk.c",
+    ],
+    hdrs = [
+        "engine_collision_convex.h",
+        "engine_collision_gjk.h",
+    ],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_collision_primitive",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:mujoco_hdrs",
+        "@libccd",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_primitive",
+    srcs = ["engine_collision_primitive.c"],
+    hdrs = ["engine_collision_primitive.h"],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_util_blas",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_crossplatform",
+    srcs = ["engine_crossplatform.cc"],
+    hdrs = ["engine_crossplatform.h"],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "engine_io",
+    srcs = ["engine_io.c"],
+    hdrs = ["engine_io.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wno-type-limits",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_crossplatform",
+        ":engine_macro",
+        ":engine_plugin",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        "//:mujoco_hdrs",
+        "//src/thread:thread_pool",
+    ],
+)
+
+cc_library(
+    name = "engine_macro",
+    hdrs = ["engine_macro.h"],
+    copts = ["-Wshadow"],
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_callback",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_name",
+    srcs = ["engine_name.c"],
+    hdrs = ["engine_name.h"],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_crossplatform",
+        ":engine_io",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_plugin",
+    srcs = ["engine_plugin.cc"],
+    hdrs = [
+        "engine_global_table.h",
+        "engine_plugin.h",
+    ],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = ["-ldl"] + THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_util_errmem",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_ray",
+    srcs = ["engine_ray.c"],
+    hdrs = ["engine_ray.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_io",
+        ":engine_plugin",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_blas",
+    srcs = ["engine_util_blas.c"],
+    hdrs = ["engine_util_blas.h"],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    local_defines = [
+        "mjUSEPLATFORMSIMD",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_container",
+    srcs = ["engine_util_container.c"],
+    hdrs = ["engine_util_container.h"],
+    copts = [
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_crossplatform",
+        ":engine_io",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_errmem",
+    srcs = ["engine_util_errmem.c"],
+    hdrs = ["engine_util_errmem.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_array_safety",
+        ":engine_macro",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_misc",
+    srcs = ["engine_util_misc.c"],
+    hdrs = ["engine_util_misc.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_array_safety",
+        ":engine_macro",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_spatial",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_sparse",
+    srcs = [
+        "engine_util_sparse.c",
+    ],
+    hdrs = [
+        "engine_util_sparse.h",
+        "engine_util_sparse_avx.h",
+    ],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    local_defines = [
+        "mjUSEPLATFORMSIMD",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_io",
+        ":engine_macro",
+        ":engine_util_blas",
+        ":engine_util_misc",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_spatial",
+    srcs = ["engine_util_spatial.c"],
+    hdrs = ["engine_util_spatial.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_solve",
+    srcs = ["engine_util_solve.c"],
+    hdrs = ["engine_util_solve.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_io",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_vis_init",
+    srcs = ["engine_vis_init.c"],
+    hdrs = ["engine_vis_init.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wshadow",
+        "-Isrc",
+    ] + select({
+        "//tools:clang": [
+            "-Wno-unused-command-line-argument",
+        ],
+        "//conditions:default": [],
+    }),
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":engine_array_safety",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        "//:mujoco_hdrs",
+    ],
+)

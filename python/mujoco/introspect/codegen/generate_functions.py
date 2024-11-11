@@ -26,7 +26,7 @@ from absl import flags
 
 from introspect import ast_nodes
 from introspect import type_parsing
-from . import formatter
+from introspect.codegen import formatter
 
 _HEADER_PATH = flags.DEFINE_string(
     'header_path', None, 'Path to the original mujoco.h')

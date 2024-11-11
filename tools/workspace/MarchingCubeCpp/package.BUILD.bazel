@@ -1,0 +1,19 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "MarchingCubeCpp",
+    hdrs = ["MC.h"],
+    includes = ["."],
+    data = [":license_filegroup"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        # The MarchingCubeCpp repository is MIT-licensed but does not provide an official LICENSE
+        # file. Therefore, we include the `LICENSE` file here in the MuJoCo repository and
+        # reference it accordingly. See https://github.com/aparis69/MarchingCubeCpp#licence.
+        "@mujoco//tools/workspace/MarchingCubeCpp:LICENSE",
+    ],
+    tags = ["license_filegroup"],
+)

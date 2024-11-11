@@ -14,6 +14,8 @@
 # ==============================================================================
 """Python bindings for MuJoCo."""
 
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
+
 import ctypes
 import ctypes.util
 import os

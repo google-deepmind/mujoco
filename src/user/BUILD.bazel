@@ -1,0 +1,166 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "user_flexcomp",
+    srcs = ["user_flexcomp.cc"],
+    hdrs = ["user_flexcomp.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wno-type-limits",
+        "-Wno-sign-compare",
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":user_model",
+        ":user_util",
+        "//:mujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_util_errmem",
+        "//src/user:user_resource",
+    ],
+)
+
+cc_library(
+    name = "user_composite",
+    srcs = ["user_composite.cc"],
+    hdrs = ["user_composite.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wno-sign-compare",
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":user_model",
+        ":user_util",
+        "//:mujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine:engine_io",
+        "//src/engine:engine_util_errmem",
+        "//src/engine:engine_util_misc",
+    ],
+)
+
+cc_library(
+    name = "user_model",
+    srcs = [
+        "user_api.cc",
+        "user_init.c",
+        "user_mesh.cc",
+        "user_model.cc",
+        "user_objects.cc",
+    ],
+    hdrs = [
+        "user_api.h",
+        "user_model.h",
+        "user_objects.h",
+    ],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Wno-sign-compare",
+        "-fexceptions",
+        "-Isrc",
+        "-Iexternal/qhull/src/libqhull_r",
+    ] + select({
+        "//tools:gcc": [
+            "-Wno-maybe-uninitialized",
+        ],
+        "//conditions:default": [],
+    }),
+    features = ["-use_header_modules"],
+    local_defines = [
+        "_GNU_SOURCE",
+        "MUJOCO_TINYOBJLOADER_IMPL",
+        "MC_IMPLEM_ENABLE",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":user_cache",
+        ":user_resource",
+        ":user_util",
+        "//:mujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_io",
+        "//src/engine:engine_name",
+        "//src/engine:engine_plugin",
+        "//src/engine:engine_util_errmem",
+        "//src/engine:engine_util_misc",
+        "@MarchingCubeCpp",
+        "@lodepng",
+        "@qhull//:libqhull_r",
+        "@tinyobjloader",
+    ],
+)
+
+cc_library(
+    name = "user_util",
+    srcs = ["user_util.cc"],
+    hdrs = ["user_util.h"],
+    copts = [
+        "-Wno-sign-compare",
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+        "//src/engine:engine_crossplatform",
+    ],
+)
+
+cc_library(
+    name = "user_cache",
+    srcs = ["user_cache.cc"],
+    hdrs = ["user_cache.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":user_resource",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "user_resource",
+    srcs = ["user_resource.cc"],
+    hdrs = ["user_resource.h"],
+    copts = [
+        "-Wshadow",
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":user_util",
+        ":user_vfs",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_plugin",
+        "//src/engine:engine_util_misc",
+    ],
+)
+
+cc_library(
+    name = "user_vfs",
+    srcs = ["user_vfs.cc"],
+    hdrs = ["user_vfs.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":user_util",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_util_misc",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@pip_deps//:requirements.bzl", "requirement")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+py_library(
+    name = "glfw",
+    srcs = ["__init__.py"],
+    tags = ["keep_dep"],
+    deps = [
+        requirement("glfw"),
+    ],
+)

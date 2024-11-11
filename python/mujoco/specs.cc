@@ -1092,6 +1092,6 @@ PYBIND11_MODULE(_specs, m) {
         self.global = value;
       });
 
-#include "specs.cc.inc"
+#include "python/mujoco/specs.cc.inc"
 }  // PYBIND11_MODULE // NOLINT
 }  // namespace mujoco::python

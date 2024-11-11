@@ -1,0 +1,34 @@
+names = [
+    "step_benchmark_test",
+    "parse_benchmark_test",
+    "engine_util_spatial_benchmark_test",
+    "engine_core_smooth_benchmark_test",
+    "engine_util_sparse_benchmark_test",
+]
+
+[
+    cc_test(
+        name = name,
+        srcs = ["{}.cc".format(name)],
+        data = [
+            "//:model_data",
+            "//:test_benchmark_data",
+            "//:test_benchmark_data_stripped",
+            "//:test_plugin_data",
+        ],
+        tags = ["manual"],
+        deps = [
+            "//plugin/elasticity:register",
+            "//test:fixture",
+            "@abseil-cpp//absl/base:core_headers",
+            "@google_benchmark//:benchmark_main",
+        ],
+    )
+    for name in names
+]
+
+test_suite(
+    name = "benchmark_tests",
+    tags = ["manual"],
+    tests = [name for name in names],
+)

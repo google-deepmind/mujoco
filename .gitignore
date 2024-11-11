@@ -32,8 +32,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+<<<<<<< HEAD
 # MuJoCo's default log file
 MUJOCO_LOG.TXT
 
 # Clang cache
 .cache/
+=======
+# Bazel build artifacts (symlinks)
+/bazel-*
+
+.cache
+>>>>>>> 3dabc6bf (Bazel Build for v3.2.2)

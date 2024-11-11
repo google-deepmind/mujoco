@@ -1,0 +1,155 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "sdf_impl",
+    srcs = [
+        "sdf.cc",
+    ],
+    hdrs = [
+        "sdf.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "torus",
+    srcs = [
+        "torus.cc",
+    ],
+    hdrs = [
+        "torus.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        ":sdf_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "bolt",
+    srcs = [
+        "bolt.cc",
+    ],
+    hdrs = [
+        "bolt.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        ":sdf_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "bowl",
+    srcs = [
+        "bowl.cc",
+    ],
+    hdrs = [
+        "bowl.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        ":sdf_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "nut",
+    srcs = [
+        "nut.cc",
+    ],
+    hdrs = [
+        "nut.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        ":sdf_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "gear",
+    srcs = [
+        "gear.cc",
+    ],
+    hdrs = [
+        "gear.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        ":sdf_impl",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "sdflib",
+    srcs = [
+        "sdflib.cc",
+    ],
+    hdrs = [
+        "sdflib.h",
+    ],
+    deps = [
+        ":sdf_impl",
+        "//:mujoco_hdrs",
+        "@SdfLib",
+    ],
+)
+
+cc_library(
+    name = "register",
+    srcs = [
+        "register.cc",
+    ],
+    hdrs = [
+        "bolt.h",
+        "bowl.h",
+        "gear.h",
+        "nut.h",
+        "sdf.h",
+        "sdflib.h",
+        "torus.h",
+    ],
+    deps = [
+        ":bolt",
+        ":bowl",
+        ":gear",
+        ":nut",
+        ":sdflib",
+        ":torus",
+        "//:mujoco_hdrs",
+        "@SdfLib",
+    ],
+    alwayslink = True,
+)
+
+cc_shared_library(
+    name = "sdf",
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "register",
+    ],
+)

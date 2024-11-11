@@ -1,0 +1,67 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "platform_ui_adapter",
+    srcs = [
+        "glfw_adapter.cc",
+        "glfw_dispatch.cc",
+        "platform_ui_adapter.cc",
+    ],
+    hdrs = [
+        "glfw_adapter.h",
+        "glfw_dispatch.h",
+        "platform_ui_adapter.h",
+    ],
+    data = [
+        "//:license_filegroup",
+    ],
+    linkstatic = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco",
+        "@libglfw3//:lib",
+    ],
+)
+
+cc_library(
+    name = "simulate_lib",
+    srcs = [
+        "array_safety.h",
+        "simulate.cc",
+    ],
+    hdrs = [
+        "simulate.h",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    data = [
+        "//:license_filegroup",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":platform_ui_adapter",
+        "@lodepng",
+    ],
+)
+
+cc_binary(
+    name = "main",
+    srcs = [
+        "main.cc",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    data = [
+        "//:license_filegroup",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":simulate_lib",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:touch_grid",
+    ],
+)

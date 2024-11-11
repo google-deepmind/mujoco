@@ -1,0 +1,103 @@
+licenses(["notice"])
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "glad",
+    srcs = [
+        "glad/glad.c",
+        "glad/loader.cc",
+    ],
+    hdrs = ["glad/glad.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Isrc",
+    ],
+    linkopts = ["-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//src/engine:engine_util_errmem"],
+)
+
+cc_library(
+    name = "render",
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":render_context",
+        ":render_gl2",
+        ":render_gl3",
+        ":render_util",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "render_context",
+    srcs = ["render_context.c"],
+    hdrs = ["render_context.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    textual_hdrs = glob([
+        "font/*.inc",
+    ]),
+    deps = [
+        ":glad",
+        ":render_util",
+        "//:mujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "render_gl2",
+    srcs = ["render_gl2.c"],
+    hdrs = ["render_gl2.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+        "//src/engine:engine_array_safety",
+        "//src/render:glad",
+    ],
+)
+
+cc_library(
+    name = "render_gl3",
+    srcs = ["render_gl3.c"],
+    hdrs = ["render_gl3.h"],
+    copts = [
+        "-Isrc",
+    ],
+    local_defines = [
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":glad",
+        ":render_context",
+        ":render_gl2",
+        ":render_util",
+        "//:mujoco_hdrs",
+        "//src/engine",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_vis_init",
+    ],
+)
+
+cc_library(
+    name = "render_util",
+    srcs = ["render_util.c"],
+    hdrs = ["render_util.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+        "//src/render:glad",
+    ],
+)

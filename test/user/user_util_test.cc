@@ -147,7 +147,7 @@ TEST_F(UserUtilTest, StringToVectorInt) {
 }
 
 TEST_F(UserUtilTest, StringToVectorString) {
-  auto v = StringToVector<std::string>(" abc  def ");
+  auto v = StringToVector<std::string>(std::string(" abc  def "));
   EXPECT_THAT(v, ElementsAre("abc", "def"));
 }
 

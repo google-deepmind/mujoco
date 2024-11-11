@@ -1,0 +1,42 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "SdfLib",
+    srcs = glob([
+        "src/sdf/*.cpp",
+        "src/utils/*.cpp",
+    ]),
+    hdrs = glob([
+        "src/sdf/*.h",
+        "include/SdfLib/*.h",
+        "include/SdfLib/utils/*.h",
+        "libs/InteractiveComputerGraphics/InteractiveComputerGraphics/TriangleMeshDistance.h",
+    ]),
+    deps = [
+        "@glm",
+        "@cereal",
+        "@spdlog",
+    ],
+    includes = [
+        "include",
+        "libs/InteractiveComputerGraphics",
+        "src",
+    ],
+    copts = [
+        "-Wno-error=switch",
+        "-Wno-switch",
+        "-Wno-sign-compare",
+        "-Wno-unused-variable",
+        "-Wno-unused-lambda-capture",
+        "-Wno-pessimizing-move",
+    ],
+    data = [":license_filegroup"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        "LICENSE",
+    ],
+    tags = ["license_filegroup"],
+)

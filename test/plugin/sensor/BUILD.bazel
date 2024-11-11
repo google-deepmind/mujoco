@@ -1,0 +1,13 @@
+cc_test(
+    name = "sensor_test",
+    size = "small",
+    srcs = ["sensor_test.cc"],
+    data = [
+        "//:test_plugin_data",
+    ],
+    deps = [
+        "//plugin/sensor:touch_grid",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)

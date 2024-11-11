@@ -1,0 +1,15 @@
+load("//test:helper.bzl", "PLUGIN_DIR")
+
+cc_test(
+    name = "pid_test",
+    size = "small",
+    srcs = ["pid_test.cc"],
+    env = PLUGIN_DIR,
+    deps = [
+        "//test:fixture",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+        "@googletest//:gtest_main",
+    ],
+)

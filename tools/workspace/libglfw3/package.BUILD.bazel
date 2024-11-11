@@ -1,0 +1,24 @@
+cc_library(
+    name = "lib",
+    hdrs = glob(["usr/include/**/*.h*"]),
+    srcs = [],
+    includes = ["usr/include"],
+    deps = ["@libglvnd//:lib", ":libglfw.so-import", ":libglfw.so.3-import"],
+    data = [":license_filegroup"],
+    target_compatible_with = ["@platforms//os:linux", "@platforms//cpu:x86_64"],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "libglfw.so-import",
+    shared_library = "usr/lib/x86_64-linux-gnu/libglfw.so",
+)
+cc_import(
+    name = "libglfw.so.3-import",
+    shared_library = "usr/lib/x86_64-linux-gnu/libglfw.so.3",
+)
+filegroup(
+    name = "license_filegroup",
+    tags = ["license_filegroup"],
+    srcs = glob(["usr/share/doc/*/copyright"]),
+)

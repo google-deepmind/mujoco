@@ -1,0 +1,37 @@
+load("//test:helper.bzl", "PLUGIN_DIR")
+
+cc_test(
+    name = "xml_test",
+    size = "medium",  # xml_native_writer_test.cc takes a long time.
+    srcs = [
+        "xml_api_test.cc",
+        "xml_native_reader_test.cc",
+        "xml_native_writer_test.cc",
+        "xml_schema_test.cc",
+        "xml_urdf_test.cc",
+    ],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-sign-compare",
+        "-Isrc",
+    ] + select({
+        "//tools:gcc": [
+            "-Wno-maybe-uninitialized",
+        ],
+        "//conditions:default": [],
+    }),
+    data = [
+        "//:model_data",
+        "//:test_xml_data",
+    ],
+    env = PLUGIN_DIR,
+    deps = [
+        "//src/xml:xml_api",
+        "//src/xml:xml_native_reader",
+        "//src/xml:xml_util",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)

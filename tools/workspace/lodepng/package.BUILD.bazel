@@ -1,0 +1,19 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+filegroup(
+    name = "license_filegroup",
+    srcs = ["LICENSE"],
+    tags = ["license_filegroup"],
+)
+
+cc_library(
+    name = "lodepng",
+    srcs = [
+        "lodepng.cpp",
+    ],
+    hdrs = [
+        "lodepng.h",
+    ],
+    data = [":license_filegroup"],
+    includes = ["."],
+)

@@ -25,7 +25,7 @@ from absl import app
 from absl import flags
 
 from introspect import ast_nodes
-from . import formatter
+from introspect.codegen import formatter
 
 _JSON_PATH = flags.DEFINE_string(
     'json_path', None,

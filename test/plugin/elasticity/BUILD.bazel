@@ -1,0 +1,20 @@
+load("//test:helper.bzl", "PLUGIN_DIR")
+
+cc_test(
+    name = "elasticity_test",
+    size = "small",
+    srcs = ["elasticity_test.cc"],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    env = PLUGIN_DIR,
+    deps = [
+        "//plugin/elasticity:register",
+        "//plugin/elasticity:shell",
+        "//test:fixture",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+        "@googletest//:gtest_main",
+    ],
+)

@@ -1,0 +1,27 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "touch_grid",
+    srcs = [
+        "sensor.cc",
+        "touch_grid.cc",
+    ],
+    hdrs = [
+        "touch_grid.h",
+    ],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+cc_shared_library(
+    name = "sensor",
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "touch_grid",
+    ],
+)

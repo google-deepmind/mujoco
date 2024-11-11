@@ -1,0 +1,186 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+exports_files(["xml_native_reader.cc"])
+
+cc_library(
+    name = "xml",
+    srcs = ["xml.cc"],
+    hdrs = ["xml.h"],
+    copts = [
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml_native_reader",
+        ":xml_native_writer",
+        ":xml_urdf",
+        ":xml_util",
+        "//:mujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine:engine_crossplatform",
+        "//src/user:user_resource",
+        "//src/user:user_util",
+        "//src/user:user_vfs",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "xml_api",
+    srcs = ["xml_api.cc"],
+    hdrs = ["xml_api.h"],
+    copts = [
+        "-Wno-sign-compare",
+        "-Isrc",
+    ] + select({
+        "//tools:gcc": [
+            "-Wno-maybe-uninitialized",
+        ],
+        "//conditions:default": [],
+    }),
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml",
+        ":xml_native_reader",
+        ":xml_util",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_io",
+        "//src/user:user_resource",
+        "//src/user:user_vfs",
+    ],
+)
+
+cc_library(
+    name = "xml_base",
+    srcs = ["xml_base.cc"],
+    hdrs = ["xml_base.h"],
+    copts = [
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml_util",
+        "//:mujoco_hdrs",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "xml_native_reader",
+    srcs = ["xml_native_reader.cc"],
+    hdrs = ["xml_native_reader.h"],
+    copts = [
+        "-Wno-sign-compare",
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml_base",
+        ":xml_util",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_plugin",
+        "//src/engine:engine_util_errmem",
+        "//src/engine:engine_util_misc",
+        "//src/user:user_composite",
+        "//src/user:user_flexcomp",
+        "//src/user:user_model",
+        "//src/user:user_util",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "xml_native_writer",
+    srcs = ["xml_native_writer.cc"],
+    hdrs = ["xml_native_writer.h"],
+    copts = [
+        "-Wno-sign-compare",
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml_base",
+        ":xml_util",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_io",
+        "//src/engine:engine_plugin",
+        "//src/engine:engine_util_errmem",
+        "//src/engine:engine_util_misc",
+        "//src/user:user_model",
+        "//src/user:user_util",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "xml_urdf",
+    srcs = ["xml_urdf.cc"],
+    hdrs = ["xml_urdf.h"],
+    copts = [
+        "-Wno-sign-compare",
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml_base",
+        ":xml_native_reader",
+        ":xml_util",
+        "//:mujoco_hdrs",
+        "//src/user:user_model",
+        "//src/user:user_util",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "xml_util",
+    srcs = ["xml_util.cc"],
+    hdrs = ["xml_util.h"],
+    copts = [
+        "-Wno-sign-compare",
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-fexceptions",
+        "-Isrc",
+    ],
+    features = ["-use_header_modules"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":xml_numeric_format",
+        "//:mujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine:engine_util_errmem",
+        "//src/user:user_resource",
+        "//src/user:user_util",
+        "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "xml_numeric_format",
+    srcs = ["xml_numeric_format.cc"],
+    hdrs = ["xml_numeric_format.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+        "@tinyxml2",
+    ],
+)
