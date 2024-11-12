@@ -34,7 +34,6 @@
 // to link to windows?
 #include <mujoco/mujoco.h>
 
-#include <iostream>
 #include <vector>
 #include <unordered_map>
 #include <algorithm>

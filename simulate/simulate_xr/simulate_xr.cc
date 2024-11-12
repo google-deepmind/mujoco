@@ -33,57 +33,57 @@ SimulateXr::~SimulateXr() {}
 void SimulateXr::init() {
   // Needed for textures
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    std::cerr << "Failed to initialize OpenGL context for OpenXR." << std::endl;
+    mju_warning("Failed to initialize OpenGL context for OpenXR.");
     return;
   } else if (verbose > 0)
-    std::cout << "Initialized OpenGL context for OpenXR." << std::endl;
+    std::printf("Initialized OpenGL context for OpenXR.\n");
 
   if (_create_instance() < 0) {
-    std::cerr << "Failed to create OpenXr instance." << std::endl;
+    mju_warning("Failed to create OpenXr instance.");
     return;
   } else if (verbose > 0)
-    std::cout << "Created OpenXr instance." << std::endl;
+    std::printf("Created OpenXr instance.\n");
 
   _get_instance_properties();
 
   if (_get_system_id() < 0) {
-    std::cerr << "Failed to get XR System ID." << std::endl;
+    mju_warning("Failed to get XR System ID.");
     return;
   } else if (verbose > 1)
-    std::cout << "Got XR System ID." << std::endl;
+    std::printf("Got XR System ID.\n");
 
   if (_get_view_configuration_views() < 0) {
-    std::cerr << "Failed to get XR view configuration." << std::endl;
+    mju_warning("Failed to get XR view configuration.");
     return;
   } else if (verbose > 1)
-    std::cout << "Got XR view configuration." << std::endl;
+    std::printf("Got XR view configuration.\n");
 
   if (_get_environment_blend_modes() < 0) {
-    std::cerr << "Failed to get XR blend modes." << std::endl;
+    mju_warning("Failed to get XR blend modes.");
     return;
   } else if (verbose > 1)
-    std::cout << "Got XR blend modes." << std::endl;
+    std::printf("Got XR blend modes.\n");
 
   if (_create_session() < 0) {
-    std::cerr << "Failed to create XR session." << std::endl;
+    mju_warning("Failed to create XR session.");
     return;
   } else if (verbose > 0)
-    std::cout << "Created XR session." << std::endl;
+    std::printf("Created XR session.\n");
 
   if (_create_reference_space() < 0) {
-    std::cerr << "Failed to create XR reference space." << std::endl;
+    mju_warning("Failed to create XR reference space.");
     return;
   } else if (verbose > 1)
-    std::cout << "Created reference space." << std::endl;
+    std::printf("Created reference space.\n");
 
   if (_create_swapchain() < 0) {
-    std::cerr << "Failed to create XR swapchain." << std::endl;
+    mju_warning("Failed to create XR swapchain.");
     return;
   } else if (verbose > 1)
-    std::cout << "Created swapchain." << std::endl;
+    std::printf("Created swapchain.\n");
 
   m_initialized = true;
-  if (verbose > 0) std::cout << "Initialized XR." << std::endl;
+  if (verbose > 0) std::printf("Initialized XR.\n");
 }
 
 void SimulateXr::deinit() {
@@ -102,7 +102,8 @@ void SimulateXr::deinit() {
 void SimulateXr::set_scn_params(mjvScene *scn) {
   if (scn) scn->stereo = mjSTEREO_SIDEBYSIDE;
 }
-
+
+
 void SimulateXr::set_vis_params(mjModel *m) {
   if (m) {
     m->vis.global.offwidth = width_render;
@@ -123,12 +124,12 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   // Get the XrFrameState for timing and rendering info.
   XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
   if (xrWaitFrame(m_session, &frameWaitInfo, &frameState) < 0)
-    std::cerr << "Failed to wait for XR Frame." << std::endl;
+    mju_warning("Failed to wait for XR Frame.");
 
   // Tell the OpenXR compositor that the application is beginning the frame.
   XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
   if (xrBeginFrame(m_session, &frameBeginInfo) < 0)
-    std::cerr << "Failed to begin the XR Frame." << std::endl;
+    mju_warning("Failed to begin the XR Frame.");
 
   // Variables for rendering and layer composition.
   renderLayerInfo.predictedDisplayTime = frameState.predictedDisplayTime;
@@ -161,7 +162,7 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
                                   static_cast<uint32_t>(views.size()),
                                   &viewCount, views.data());
   if (result != XR_SUCCESS) {
-    std::cerr << ("Failed to locate Views.") << std::endl;
+    mju_warning("Failed to locate Views.");
     return false;
   }
 
@@ -177,14 +178,12 @@ bool SimulateXr::before_render(mjvScene *scn, mjModel *m) {
   XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
   if (xrAcquireSwapchainImage(m_colorSwapchainInfo.swapchain, &acquireInfo,
                               &colorImageIndex) < 0)
-    std::cerr << "Failed to acquire Image from the Color Swapchian"
-              << std::endl;
+    mju_warning("Failed to acquire Image from the Color Swapchian.");
 
   XrSwapchainImageWaitInfo waitInfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
   waitInfo.timeout = XR_INFINITE_DURATION;
   if (xrWaitSwapchainImage(m_colorSwapchainInfo.swapchain, &waitInfo) < 0)
-    std::cerr << "Failed to wait for Image from the Color Swapchain"
-              << std::endl;
+    mju_warning("Failed to wait for Image from the Color Swapchain.");
 
   // Per view in the view configuration:
   for (uint32_t i = 0; i < viewCount; i++) {
@@ -249,8 +248,7 @@ void SimulateXr::after_render(mjrContext *con) {
   if (answ < 0) {
     // OpenXR throws one XR_ERROR_CALL_ORDER_INVALID at the end
     if (answ != -37 || verbose > 2)
-      std::cerr << "Failed to release Image back to the Color Swapchain. Code: "
-                << answ << "." << std::endl;
+      mju_warning("Failed to release Image back to the Color Swapchain. Code: %d.", answ);
   }
 
   // Fill out the XrCompositionLayerProjection structure for usage with
@@ -280,9 +278,8 @@ void SimulateXr::after_render(mjrContext *con) {
   frameEndInfo.layers = renderLayerInfo.layers.data();
   answ = xrEndFrame(m_session, &frameEndInfo);
   if (answ < 0) {
-    std::cerr << "Failed to end the XR Frame. Code: " << answ << "."
-              << std::endl;
-    std::cerr << "Layer count: " << frameEndInfo.layerCount << "." << std::endl;
+    mju_warning("Failed to end the XR Frame. Code: %d.", answ);
+    mju_warning("Layer count: %d.", frameEndInfo.layerCount);
   }
 }
 
@@ -305,13 +302,13 @@ int SimulateXr::_create_instance() {
   uint32_t apiLayerCount = 0;
   std::vector<XrApiLayerProperties> apiLayerProperties;
   if (xrEnumerateApiLayerProperties(0, &apiLayerCount, nullptr) < 0) {
-    std::cerr << "Failed to enumerate ApiLayerProperties." << std::endl;
+    mju_warning("Failed to enumerate ApiLayerProperties.");
     return -1;
   }
   apiLayerProperties.resize(apiLayerCount, {XR_TYPE_API_LAYER_PROPERTIES});
   if (xrEnumerateApiLayerProperties(apiLayerCount, &apiLayerCount,
                                     apiLayerProperties.data()) < 0) {
-    std::cerr << "Failed to enumerate ApiLayerProperties." << std::endl;
+    mju_warning("Failed to enumerate ApiLayerProperties.");
     return -1;
   }
   // Check the requested API layers against the ones from the OpenXR. If found
@@ -333,16 +330,14 @@ int SimulateXr::_create_instance() {
   std::vector<XrExtensionProperties> extensionProperties;
   if (xrEnumerateInstanceExtensionProperties(nullptr, 0, &extensionCount,
                                              nullptr) < 0) {
-    std::cerr << "Failed to enumerate InstanceExtensionProperties."
-              << std::endl;
+    mju_warning("Failed to enumerate InstanceExtensionProperties.");
     return -2;
   }
   extensionProperties.resize(extensionCount, {XR_TYPE_EXTENSION_PROPERTIES});
   if (xrEnumerateInstanceExtensionProperties(nullptr, extensionCount,
                                              &extensionCount,
                                              extensionProperties.data()) < 0) {
-    std::cerr << "Failed to enumerate InstanceExtensionProperties."
-              << std::endl;
+    mju_warning("Failed to enumerate InstanceExtensionProperties.");
     return -2;
   }
   // Check the requested Instance Extensions against the ones from the OpenXR
@@ -363,8 +358,7 @@ int SimulateXr::_create_instance() {
       }
     }
     if (!found) {
-      std::cerr << "Failed to find OpenXR instance extension: "
-                << requestedInstanceExtension;
+      mju_warning("Failed to find OpenXR instance extension: %s.", requestedInstanceExtension.c_str());
     }
   }
 
@@ -388,7 +382,7 @@ int SimulateXr::_create_instance() {
 void SimulateXr::_destroy_instance() {
   // Destroy the XrInstance.
   if (xrDestroyInstance(m_xrInstance) < 0)
-    std::cerr << "Failed to destroy Instance." << std::endl;
+    mju_warning("Failed to destroy Instance.");
 }
 
 void SimulateXr::_view_to_cam(mjvGLCamera &cam, const XrView &view) {
@@ -442,14 +436,14 @@ void SimulateXr::_get_instance_properties() {
   // Get the instance's properties and log the runtime name and version.
   XrInstanceProperties instanceProperties{XR_TYPE_INSTANCE_PROPERTIES};
   if (xrGetInstanceProperties(m_xrInstance, &instanceProperties) < 0)
-    std::cerr << "Failed to get InstanceProperties." << std::endl;
+    mju_warning("Failed to get InstanceProperties.");
 
   if (verbose > 0)
-    std::cout << "OpenXR Runtime: " << instanceProperties.runtimeName << " - "
-              << XR_VERSION_MAJOR(instanceProperties.runtimeVersion) << "."
-              << XR_VERSION_MINOR(instanceProperties.runtimeVersion) << "."
-              << XR_VERSION_PATCH(instanceProperties.runtimeVersion)
-              << std::endl;
+    std::printf("OpenXR Runtime: %s - %d.%d.%d\n",
+                instanceProperties.runtimeName,
+                XR_VERSION_MAJOR(instanceProperties.runtimeVersion),
+                XR_VERSION_MINOR(instanceProperties.runtimeVersion),
+                XR_VERSION_PATCH(instanceProperties.runtimeVersion));
 }
 
 int SimulateXr::_get_system_id() {
@@ -457,7 +451,7 @@ int SimulateXr::_get_system_id() {
   XrSystemGetInfo systemGI{XR_TYPE_SYSTEM_GET_INFO};
   systemGI.formFactor = m_formFactor;
   if (xrGetSystem(m_xrInstance, &systemGI, &m_systemID) < 0) {
-    std::cerr << "Failed to get SystemID." << std::endl;
+    mju_warning("Failed to get SystemID.");
     return -1;
   }
 
@@ -465,7 +459,7 @@ int SimulateXr::_get_system_id() {
   // and the vendor.
   if (xrGetSystemProperties(m_xrInstance, m_systemID, &m_systemProperties) <
       0) {
-    std::cerr << "Failed to get SystemProperties." << std::endl;
+    mju_warning("Failed to get SystemProperties.");
     return -2;
   }
 
@@ -478,14 +472,14 @@ int SimulateXr::_get_view_configuration_views() {
   uint32_t viewConfigurationCount = 0;
   if (xrEnumerateViewConfigurations(m_xrInstance, m_systemID, 0,
                                     &viewConfigurationCount, nullptr) < 0) {
-    std::cerr << "Failed to enumerate View Configurations." << std::endl;
+    mju_warning("Failed to enumerate View Configurations.");
     return -1;
   }
   m_viewConfigurations.resize(viewConfigurationCount);
   if (xrEnumerateViewConfigurations(
           m_xrInstance, m_systemID, viewConfigurationCount,
           &viewConfigurationCount, m_viewConfigurations.data()) < 0) {
-    std::cerr << "Failed to enumerate View Configurations." << std::endl;
+    mju_warning("Failed to enumerate View Configurations.");
     return -1;
   }
 
@@ -500,9 +494,8 @@ int SimulateXr::_get_view_configuration_views() {
     }
   }
   if (m_viewConfiguration == XR_VIEW_CONFIGURATION_TYPE_MAX_ENUM) {
-    std::cerr << "Failed to find a view configuration type. Defaulting to "
-                 "XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO."
-              << std::endl;
+    mju_warning("Failed to find a view configuration type. Defaulting to "
+                 "XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO.");
     m_viewConfiguration = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
   }
 
@@ -512,7 +505,7 @@ int SimulateXr::_get_view_configuration_views() {
   if (xrEnumerateViewConfigurationViews(
           m_xrInstance, m_systemID, m_viewConfiguration, 0,
           &viewConfigurationViewCount, nullptr) < 0) {
-    std::cerr << "Failed to enumerate ViewConfiguration Views." << std::endl;
+    mju_warning("Failed to enumerate ViewConfiguration Views.");
     return -2;
   }
 
@@ -522,7 +515,7 @@ int SimulateXr::_get_view_configuration_views() {
           m_xrInstance, m_systemID, m_viewConfiguration,
           viewConfigurationViewCount, &viewConfigurationViewCount,
           m_viewConfigurationViews.data()) < 0) {
-    std::cerr << "Failed to enumerate ViewConfiguration Views." << std::endl;
+    mju_warning("Failed to enumerate ViewConfiguration Views.");
     return -2;
   }
 
@@ -542,7 +535,7 @@ int SimulateXr::_get_environment_blend_modes() {
   if (xrEnumerateEnvironmentBlendModes(
           m_xrInstance, m_systemID, m_viewConfiguration, 0,
           &environmentBlendModeCount, nullptr) < 0) {
-    std::cerr << "Failed to enumerate EnvironmentBlend Modes." << std::endl;
+    mju_warning("Failed to enumerate EnvironmentBlend Modes.");
     return -1;
   }
   m_environmentBlendModes.resize(environmentBlendModeCount);
@@ -550,7 +543,7 @@ int SimulateXr::_get_environment_blend_modes() {
           m_xrInstance, m_systemID, m_viewConfiguration,
           environmentBlendModeCount, &environmentBlendModeCount,
           m_environmentBlendModes.data()) < 0) {
-    std::cerr << "Failed to enumerate EnvironmentBlend Modes." << std::endl;
+    mju_warning("Failed to enumerate EnvironmentBlend Modes.");
     return -1;
   }
   // Pick the first application supported blend mode supported by the hardware.
@@ -564,9 +557,8 @@ int SimulateXr::_get_environment_blend_modes() {
     }
   }
   if (m_environmentBlendMode == XR_ENVIRONMENT_BLEND_MODE_MAX_ENUM) {
-    std::cerr << "Failed to find a compatible blend mode. Defaulting to "
-                 "XR_ENVIRONMENT_BLEND_MODE_OPAQUE."
-              << std::endl;
+    mju_warning("Failed to find a compatible blend mode. Defaulting to "
+                 "XR_ENVIRONMENT_BLEND_MODE_OPAQUE.");
     m_environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
     return 1;
   }
@@ -580,8 +572,7 @@ int SimulateXr::_create_session() {
   if (xrGetInstanceProcAddr(
           m_xrInstance, "xrGetOpenGLGraphicsRequirementsKHR",
           (PFN_xrVoidFunction *)&xrGetOpenGLGraphicsRequirementsKHR) < 0) {
-    std::cerr << "Failed to get xrGetOpenGLGraphicsRequirementsKHR."
-              << std::endl;
+    mju_warning("Failed to get xrGetOpenGLGraphicsRequirementsKHR.");
     return -1;
   }
 
@@ -589,7 +580,7 @@ int SimulateXr::_create_session() {
       XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR};
   if (xrGetOpenGLGraphicsRequirementsKHR(m_xrInstance, m_systemID,
                                          &graphicsRequirements) < 0) {
-    std::cerr << "Failed to get Graphics Requirements for OpenGL." << std::endl;
+    mju_warning("Failed to get Graphics Requirements for OpenGL.");
     return -2;
   }
 
@@ -612,7 +603,7 @@ int SimulateXr::_create_session() {
 
 void SimulateXr::_destroy_session() {
   if (xrDestroySession(m_session) < 0)
-    std::cerr << "Failed to destroy Session." << std::endl;
+    mju_warning("Failed to destroy Session.");
 }
 
 int SimulateXr::_create_reference_space() {
@@ -634,7 +625,7 @@ int SimulateXr::_create_reference_space() {
 void SimulateXr::_destroy_reference_space() {
   // Destroy the reference XrSpace.
   if (xrDestroySpace(m_localSpace) < 0)
-    std::cerr << "Failed to destroy Space." << std::endl;
+    mju_warning("Failed to destroy Space.");
 }
 
 int SimulateXr::_create_swapchain() {
@@ -645,24 +636,23 @@ int SimulateXr::_create_swapchain() {
   // runtime preference.
   uint32_t formatCount = 0;
   if (xrEnumerateSwapchainFormats(m_session, 0, &formatCount, nullptr) < 0) {
-    std::cerr << "Failed to enumerate Swapchain Formats";
+    mju_warning("Failed to enumerate Swapchain Formats");
     return -1;
   }
   std::vector<int64_t> formats(formatCount);
   if (xrEnumerateSwapchainFormats(m_session, formatCount, &formatCount,
                                   formats.data()) < 0) {
-    std::cerr << "Failed to enumerate Swapchain Formats";
+    mju_warning("Failed to enumerate Swapchain Formats");
     return -1;
   }
 
   if (this->verbose > 1) {
-    std::cout << "Found Swapchain Formats:";
+    std::printf("Found Swapchain Formats:");
     for (size_t i = 0; i < formatCount; i++) {
-      std::cout << " " << std::hex << formats[i] << std::dec;
+      std::printf(" %0Ix", formats[i]);
     }
-    std::cout << ". Compatible format: " << std::hex
-              << SelectColorSwapchainFormat(formats) << std::dec << "."
-              << std::endl;
+    std::printf(". Compatible format: %0Ix.\n",
+                SelectColorSwapchainFormat(formats));
     // GL_RGBA16F is 0x881A or 34842
     // GL_RGBA8 is 0x8058 (unsupported)
     // GL_RGBA16 is 0x805b
@@ -686,10 +676,10 @@ int SimulateXr::_create_swapchain() {
   int ret = xrCreateSwapchain(m_session, &swapchainCI,
                               &m_colorSwapchainInfo.swapchain);
   if (ret < 0) {
-    std::cerr << "Failed to create Color Swapchain:" << ret << "." << std::endl;
+    mju_warning("Failed to create Color Swapchain: %d.", ret);
     return -2;
   } else if (this->verbose > 0)
-    std::cout << "Created Color Swapchain." << std::endl;
+    std::printf("Created Color Swapchain.\n");
 
   // Save the swapchain format for later use.
   m_colorSwapchainInfo.swapchainFormat = swapchainCI.format;
@@ -699,7 +689,7 @@ int SimulateXr::_create_swapchain() {
   uint32_t colorSwapchainImageCount = 0;
   if (xrEnumerateSwapchainImages(m_colorSwapchainInfo.swapchain, 0,
                                  &colorSwapchainImageCount, nullptr) < 0) {
-    std::cerr << "Failed to enumerate Color Swapchain Images." << std::endl;
+    mju_warning("Failed to enumerate Color Swapchain Images.");
     return -3;
   }
   XrSwapchainImageBaseHeader *colorSwapchainImages = AllocateSwapchainImageData(
@@ -708,11 +698,11 @@ int SimulateXr::_create_swapchain() {
   if (xrEnumerateSwapchainImages(
           m_colorSwapchainInfo.swapchain, colorSwapchainImageCount,
           &colorSwapchainImageCount, colorSwapchainImages) < 0) {
-    std::cerr << "Failed to enumerate Color Swapchain Images." << std::endl;
+    mju_warning("Failed to enumerate Color Swapchain Images.");
     return -3;
   } else if (this->verbose > 1)
-    std::cout << "Enumerated Color Swapchain Images: "
-              << colorSwapchainImageCount << "." << std::endl;
+    std::printf("Enumerated Color Swapchain Images: %d.\n",
+                colorSwapchainImageCount);
 
   // Per image in the swapchains, fill out a GraphicsAPI::ImageViewCreateInfo
   // structure and create a color/depth image view.
@@ -747,7 +737,7 @@ void SimulateXr::_destroy_swapchain() {
 
   // Destroy the swapchains.
   if (xrDestroySwapchain(m_colorSwapchainInfo.swapchain) < 0)
-    std::cerr << "Failed to destroy Color Swapchain." << std::endl;
+    mju_warning("Failed to destroy Color Swapchain.");
 }
 
 void SimulateXr::_poll_events() {
@@ -764,16 +754,15 @@ void SimulateXr::_poll_events() {
       case XR_TYPE_EVENT_DATA_EVENTS_LOST: {
         XrEventDataEventsLost *eventsLost =
             reinterpret_cast<XrEventDataEventsLost *>(&eventData);
-        std::cerr << "OPENXR: Events Lost: " << eventsLost->lostEventCount
-                  << std::endl;
+        mju_warning("OPENXR: Events Lost: %d.", eventsLost->lostEventCount);
         break;
       }
       // Log that an instance loss is pending and shutdown the application.
       case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING: {
         XrEventDataInstanceLossPending *instanceLossPending =
             reinterpret_cast<XrEventDataInstanceLossPending *>(&eventData);
-        std::cout << "OPENXR: Instance Loss Pending at: "
-                  << instanceLossPending->lossTime << std::endl;
+        std::printf("OPENXR: Instance Loss Pending at: lld.\n",
+                    instanceLossPending->lossTime);
         m_sessionRunning = false;
         break;
       }
@@ -782,12 +771,11 @@ void SimulateXr::_poll_events() {
         XrEventDataInteractionProfileChanged *interactionProfileChanged =
             reinterpret_cast<XrEventDataInteractionProfileChanged *>(
                 &eventData);
-        std::cout << "OPENXR: Interaction Profile changed for Session: "
-                  << interactionProfileChanged->session << std::endl;
+        std::printf("OPENXR: Interaction Profile changed for Session: %lld.\n",
+                    (unsigned __int64)interactionProfileChanged->session);
         if (interactionProfileChanged->session != m_session) {
-          std::cout
-              << "XrEventDataInteractionProfileChanged for unknown Session"
-              << std::endl;
+          std::printf(
+              "XrEventDataInteractionProfileChanged for unknown Session");
           break;
         }
         break;
@@ -797,12 +785,12 @@ void SimulateXr::_poll_events() {
         XrEventDataReferenceSpaceChangePending *referenceSpaceChangePending =
             reinterpret_cast<XrEventDataReferenceSpaceChangePending *>(
                 &eventData);
-        std::cout << "OPENXR: Reference Space Change pending for Session: "
-                  << referenceSpaceChangePending->session << std::endl;
+        std::printf(
+            "OPENXR: Reference Space Change pending for Session: %lld\n",
+            (unsigned __int64)referenceSpaceChangePending->session);
         if (referenceSpaceChangePending->session != m_session) {
-          std::cout
-              << "XrEventDataReferenceSpaceChangePending for unknown Session"
-              << std::endl;
+          std::printf(
+              "XrEventDataReferenceSpaceChangePending for unknown Session\n");
           break;
         }
         break;
@@ -812,8 +800,7 @@ void SimulateXr::_poll_events() {
         XrEventDataSessionStateChanged *sessionStateChanged =
             reinterpret_cast<XrEventDataSessionStateChanged *>(&eventData);
         if (sessionStateChanged->session != m_session) {
-          std::cout << "XrEventDataSessionStateChanged for unknown Session"
-                    << std::endl;
+          std::printf("XrEventDataSessionStateChanged for unknown Session\n");
           break;
         }
 
@@ -823,13 +810,13 @@ void SimulateXr::_poll_events() {
           XrSessionBeginInfo sessionBeginInfo{XR_TYPE_SESSION_BEGIN_INFO};
           sessionBeginInfo.primaryViewConfigurationType = m_viewConfiguration;
           if (xrBeginSession(m_session, &sessionBeginInfo) < 0)
-            std::cerr << "Failed to begin Session." << std::endl;
+            mju_warning("Failed to begin Session.");
           m_sessionRunning = true;
         }
         if (sessionStateChanged->state == XR_SESSION_STATE_STOPPING) {
           // SessionState is stopping. End the XrSession.
           if (xrEndSession(m_session) < 0)
-            std::cerr << "Failed to end Session." << std::endl;
+            mju_warning("Failed to end Session.");
           m_sessionRunning = false;
         }
         if (sessionStateChanged->state == XR_SESSION_STATE_EXITING) {
@@ -882,12 +869,12 @@ void *SimulateXr::CreateImageView(const ImageViewCreateInfo &imageViewCI) {
                            (GLuint)(uint64_t)imageViewCI.image,
                            imageViewCI.baseMipLevel);
   } else {
-    std::cerr << "ERROR: OPENGL: Unknown ImageView View type." << std::endl;
+    mju_warning("ERROR: OPENGL: Unknown ImageView View type.");
   }
 
   GLenum result = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
   if (result != GL_FRAMEBUFFER_COMPLETE) {
-    std::cerr << "ERROR: OPENGL: Framebuffer is not complete." << std::endl;
+    mju_warning("ERROR: OPENGL: Framebuffer is not complete.");
   }
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -912,8 +899,7 @@ int64_t SimulateXr::SelectColorSwapchainFormat(
                          std::begin(supportSwapchainFormats),
                          std::end(supportSwapchainFormats));
   if (swapchainFormatIt == formats.end()) {
-    std::cerr << "ERROR: Unable to find supported Color Swapchain Format"
-              << std::endl;
+    mju_warning("ERROR: Unable to find supported Color Swapchain Format");
     return 0;
   }
 
@@ -960,13 +946,10 @@ void SimulateXr::_blit_to_mujoco() {
     src_y += 0.5 * ((((float)src_width) / src_ar) - src_height);
   }
   if (verbose > 3) {
-    std::cout << "Blit to window information:" << std::endl;
-    std::cout << "Src: " << width << " " << height << " " << src_ar
-              << std::endl;
-    std::cout << "Dst: " << dst_width << " " << dst_height << " " << dst_ar
-              << std::endl;
-    std::cout << "Chg: " << src_x << " " << src_y << " " << src_width << " "
-              << src_height << std::endl;
+    std::printf("Blit to window information:\n");
+    std::printf("\tSrc: %d %d %f\n", width, height, src_ar);
+    std::printf("\tDst: %d %d %f\n", dst_width, dst_height, dst_ar);
+    std::printf("\tChg: %d %d %d %d\n", src_x, src_y, src_width, src_height);
   }
 
   glBlitFramebuffer(src_x, src_y, src_width, src_height, dst_x, dst_y,

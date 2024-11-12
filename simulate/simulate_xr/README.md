@@ -60,4 +60,4 @@ To expand or integrate the XR code, you will need a copy of the files located in
 * Adding controllers.
 * Controller maps to keys.
 * Compile MuJoCo on the XR headsets themselves.
-
+* Expose the XR rendering parameters, like the projected region for the user.
