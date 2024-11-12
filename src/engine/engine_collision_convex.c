@@ -14,6 +14,7 @@
 
 #include "engine/engine_collision_convex.h"
 
+#include <float.h>
 #include <stddef.h>
 
 #include <ccd/ccd.h>
@@ -284,6 +285,13 @@ static void mjc_boxSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
 
 
+// dot product between mjtNum and float
+static inline mjtNum dot3f(const mjtNum a[3], const float b[3]) {
+  return a[0]*(mjtNum)b[0] + a[1]*(mjtNum)b[1] + a[2]*(mjtNum)b[2];
+}
+
+
+
 // mesh support function via exhaustive search
 static void mjc_meshSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjModel* m = obj->model;
@@ -299,34 +307,32 @@ static void mjc_meshSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   mjtNum local_dir[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  mjtNum tmp = -1E+10;
-  int ibest = -1;
+  mjtNum max = -FLT_MAX;
+  int imax = 0;
+
+  // used cached results from previous search
   if (obj->meshindex >= 0) {
-    ibest = obj->meshindex;
-    tmp = local_dir[0] * (mjtNum)verts[3*ibest + 0] +
-          local_dir[1] * (mjtNum)verts[3*ibest + 1] +
-          local_dir[2] * (mjtNum)verts[3*ibest + 2];
+    imax = obj->meshindex;
+    max = dot3f(local_dir, verts + 3*imax);
   }
 
-  // search all vertices, find best
+  // search all vertices, find maximum dot product
   for (int i=0; i < nverts; i++) {
-    mjtNum vdot = local_dir[0] * (mjtNum)verts[3*i + 0] +
-                  local_dir[1] * (mjtNum)verts[3*i + 1] +
-                  local_dir[2] * (mjtNum)verts[3*i + 2];
+    mjtNum vdot = dot3f(local_dir, verts + 3*i);
 
-    // update best
-    if (vdot > tmp) {
-      tmp = vdot;
-      ibest = i;
+    // update max
+    if (vdot > max) {
+      max = vdot;
+      imax = i;
     }
   }
 
-  // record best vertex index
-  obj->meshindex = ibest;
+  // record vertex index of maximum
+  obj->meshindex = imax;
 
-  local_dir[0] = (mjtNum)verts[3*ibest + 0];
-  local_dir[1] = (mjtNum)verts[3*ibest + 1];
-  local_dir[2] = (mjtNum)verts[3*ibest + 2];
+  local_dir[0] = (mjtNum)verts[3*imax + 0];
+  local_dir[1] = (mjtNum)verts[3*imax + 1];
+  local_dir[2] = (mjtNum)verts[3*imax + 2];
 
   // transform result to global frame
   localToGlobal(res, mat, local_dir, pos);
@@ -354,38 +360,29 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
   mjtNum local_dir[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  mjtNum tmp = -1E+10;
-  int ibest= -1, prev = -1;
-  // hill-climb until no change
+  // hillclimb until no change
+  mjtNum max = -FLT_MAX;
+  int prev = -1, imax = obj->meshindex < 0 ? 0 : obj->meshindex;
   do {
-    prev = ibest;
-    for (int i = vert_edgeadr[ibest]; edge_localid[i] >= 0; i++) {
+    prev = imax;
+    for (int i = vert_edgeadr[imax]; edge_localid[i] >= 0; i++) {
       int idx = 3*vert_globalid[edge_localid[i]];
-      mjtNum vdot = local_dir[0] * (mjtNum)verts[idx + 0] +
-                    local_dir[1] * (mjtNum)verts[idx + 1] +
-                    local_dir[2] * (mjtNum)verts[idx + 2];
-      if (vdot > tmp) {
-        tmp = vdot;
-        ibest = edge_localid[i];  // update best
+      mjtNum vdot = dot3f(local_dir, verts + idx);
+      if (vdot > max) {
+        max = vdot;
+        imax = edge_localid[i];  // update maximum vertex index
       }
     }
-  } while (ibest != prev);
+  } while (imax != prev);
 
-  // record best vertex index (local id)
-  obj->meshindex = ibest;
+  // record vertex index of maximum (local id)
+  obj->meshindex = imax;
 
-  // map best index to globalid
-  ibest = vert_globalid[ibest];
-
-  // sanity check, SHOULD NOT OCCUR
-  if (ibest < 0) {
-    mju_warning("mesh_support could not find support vertex");
-    mju_zero3(res);
-  } else {
-    local_dir[0] = (mjtNum)verts[3*ibest + 0];
-    local_dir[1] = (mjtNum)verts[3*ibest + 1];
-    local_dir[2] = (mjtNum)verts[3*ibest + 2];
-  }
+  // get resulting support vertex
+  imax = 3*vert_globalid[imax];
+  local_dir[0] = (mjtNum)verts[imax + 0];
+  local_dir[1] = (mjtNum)verts[imax + 1];
+  local_dir[2] = (mjtNum)verts[imax + 2];
 
   // transform result to global frame
   localToGlobal(res, mat, local_dir, pos);
