@@ -309,6 +309,9 @@ pybind_extension(
         "specs.cc",
         "specs.cc.inc",
     ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
     dynamic_deps = [
         "//:mujoco_shared",
     ],

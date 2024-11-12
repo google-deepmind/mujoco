@@ -33,48 +33,12 @@ cc_library(
 )
 
 cc_library(
-    name = "solid",
-    srcs = [
-        "solid.cc",
-    ],
-    hdrs = [
-        "solid.h",
-    ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
-    deps = [
-        ":elasticity_impl",
-        "//:mujoco_hdrs",
-    ],
-)
-
-cc_library(
     name = "shell",
     srcs = [
         "shell.cc",
     ],
     hdrs = [
         "shell.h",
-    ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
-    deps = [
-        ":elasticity_impl",
-        "//:mujoco_hdrs",
-    ],
-)
-
-cc_library(
-    name = "membrane",
-    srcs = [
-        "membrane.cc",
-    ],
-    hdrs = [
-        "membrane.h",
     ],
     copts = [
         "-Wno-sign-compare",
@@ -97,9 +61,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":cable",
-        ":membrane",
         ":shell",
-        ":solid",
         "//:mujoco_hdrs",
     ],
     alwayslink = True,
