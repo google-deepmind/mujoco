@@ -268,10 +268,16 @@ void mjCMesh::CopyFromSpec() {
 
 
 
+void mjCMesh::CopyPlugin() {
+  model->CopyExplicitPlugin(this);
+}
+
+
+
 mjCMesh::~mjCMesh() {
   if (center_) mju_free(center_);
   if (graph_) mju_free(graph_);
-  if (spec.plugin.active && spec.plugin.name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty() && model) {
     model->DeleteElement(spec.plugin.element);
   }
 }

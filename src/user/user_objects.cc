@@ -789,6 +789,7 @@ mjCBody::mjCBody(const mjCBody& other, mjCModel* _model) {
   mjSpec* origin = model->FindSpec(mjs_getString(other.model->spec.modelname));
   compiler = origin ? &origin->compiler : &model->spec.compiler;
   *this = other;
+  CopyPlugin();
 }
 
 
@@ -942,6 +943,7 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
     dst.back()->model = model;
     dst.back()->compiler = origin ? &origin->compiler : &model->spec.compiler;
     dst.back()->id = -1;
+    dst.back()->CopyPlugin();
     dst.back()->classname = src[i]->classname;
 
     // assign dst frame to src frame
@@ -992,6 +994,12 @@ void mjCBody::CopyFromSpec() {
 
 
 
+void mjCBody::CopyPlugin() {
+  model->CopyExplicitPlugin(this);
+}
+
+
+
 // destructor
 mjCBody::~mjCBody() {
   // delete objects allocated here
@@ -1011,7 +1019,7 @@ mjCBody::~mjCBody() {
   cameras.clear();
   lights.clear();
 
-  if (spec.plugin.active && spec.plugin.name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty() && model) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -2221,7 +2229,7 @@ mjCGeom::mjCGeom(const mjCGeom& other) {
 
 
 mjCGeom::~mjCGeom() {
-  if (spec.plugin.active && spec.plugin.name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty() && model) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -2269,6 +2277,12 @@ void mjCGeom::CopyFromSpec() {
   plugin.element = spec.plugin.element;
   plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
+}
+
+
+
+void mjCGeom::CopyPlugin() {
+  model->CopyExplicitPlugin(this);
 }
 
 
@@ -5636,7 +5650,7 @@ mjCActuator::mjCActuator(const mjCActuator& other) {
 
 
 mjCActuator::~mjCActuator() {
-  if (spec.plugin.active && spec.plugin.name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty() && model) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -5727,6 +5741,12 @@ void mjCActuator::CopyFromSpec() {
   plugin.element = spec.plugin.element;
   plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
+}
+
+
+
+void mjCActuator::CopyPlugin() {
+  model->CopyExplicitPlugin(this);
 }
 
 
@@ -6000,7 +6020,7 @@ mjCSensor::mjCSensor(const mjCSensor& other) {
 
 
 mjCSensor::~mjCSensor() {
-  if (spec.plugin.active && spec.plugin.name->empty()) {
+  if (spec.plugin.active && spec.plugin.name->empty() && model) {
     model->DeleteElement(spec.plugin.element);
   }
 }
@@ -6059,6 +6079,12 @@ void mjCSensor::CopyFromSpec() {
   plugin.element = spec.plugin.element;
   plugin.plugin_name = spec.plugin.plugin_name;
   plugin.name = spec.plugin.name;
+}
+
+
+
+void mjCSensor::CopyPlugin() {
+  model->CopyExplicitPlugin(this);
 }
 
 

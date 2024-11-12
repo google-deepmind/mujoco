@@ -208,6 +208,9 @@ class mjCBase : public mjCBase_ {
   // Appends prefix and suffix to reference
   virtual void NameSpace(const mjCModel* m);
 
+  // Copy plugins instantiated in this object
+  virtual void CopyPlugin() {}
+
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 
@@ -360,6 +363,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   void CopyFromSpec();                 // copy spec into attributes
   void PointToLocal(void);
   void NameSpace_(const mjCModel* m, bool propagate = true);
+  void CopyPlugin();
 
   // copy src list of elements into dst; set body, model and frame
   template <typename T>
@@ -557,6 +561,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+  void CopyPlugin();
 
   // inherited
   using mjCBase::info;
@@ -935,6 +940,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void ApplyTransformations();                // apply user transformations
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
+  void CopyPlugin();
 
   // mesh data to be copied into mjModel
   double* center_;                    // face circumcenter data (3*nface)
@@ -1503,6 +1509,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
+  void CopyPlugin();
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes();
@@ -1556,6 +1563,7 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
+  void CopyPlugin();
 
   mjCBase* obj;                   // sensorized object
   mjCBase* ref;                   // sensorized reference

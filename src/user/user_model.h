@@ -366,9 +366,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void CopyList(std::vector<T*>& dest,
                                    const std::vector<T*>& sources);
 
+  // copy plugins that are explicitly instantiated by the argument object to this model
+  template <class T> void CopyExplicitPlugin(T* obj);
+
   // copy vector of plugins to this model
-  template <class T> void CopyPlugin(std::vector<mjCPlugin*>& dest,
-                                     const std::vector<mjCPlugin*>& sources,
+  template <class T> void CopyPlugin(const std::vector<mjCPlugin*>& sources,
                                      const std::vector<T*>& list);
 
   // delete from list the elements that cause an error

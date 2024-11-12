@@ -293,6 +293,56 @@ TEST_F(PluginTest, AttachPlugin) {
   mj_deleteSpec(spec_2);
 }
 
+TEST_F(PluginTest, AttachExplicitPlugin) {
+  static constexpr char xml_parent[] = R"(
+    <mujoco model="MuJoCo Model">
+      <worldbody>
+        <body name="body"/>
+      </worldbody>
+    </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+    <mujoco>
+      <extension>
+        <plugin plugin="mujoco.sensor.touch_grid"/>
+      </extension>
+      <worldbody>
+        <body name="body">
+          <geom type="sphere" size=".1" />
+          <site name="touch2" size="0.001"/>
+        </body>
+      </worldbody>
+      <sensor>
+        <plugin name="touch2" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch2">
+          <config key="size" value="8 12"/>
+          <config key="fov" value="10 13"/>
+          <config key="gamma" value="0"/>
+          <config key="nchannel" value="1"/>
+        </plugin>
+      </sensor>
+    </mujoco>)";
+
+  std::array<char, 1000> err;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, err.data(), err.size());
+  ASSERT_THAT(parent, NotNull()) << err.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, err.data(), err.size());
+  ASSERT_THAT(child, NotNull()) << err.data();
+
+  mjsBody* body_parent = mjs_findBody(parent, "body");
+  EXPECT_THAT(body_parent, NotNull());
+  mjsFrame* attachment_frame = mjs_addFrame(body_parent, 0);
+  EXPECT_THAT(attachment_frame, NotNull());
+
+  mjs_attachBody(attachment_frame, mjs_findBody(child, "body"), "child-", "");
+  mjModel* model = mj_compile(parent, nullptr);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nplugin, 1);
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model);
+}
+
 TEST_F(PluginTest, ReplicatePlugin) {
   static constexpr char xml[] = R"(
     <mujoco>
@@ -314,6 +364,40 @@ TEST_F(PluginTest, ReplicatePlugin) {
           <body />
         </replicate>
       </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1000> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nplugin, 1);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
+TEST_F(PluginTest, ReplicateExplicitPlugin) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <extension>
+        <plugin plugin="mujoco.sensor.touch_grid"/>
+      </extension>
+      <worldbody>
+        <body name="tactile_sensor_2">
+          <replicate count="2" offset="0 0.1 0">
+            <geom type="sphere" size=".0008" />
+          </replicate>
+          <site name="touch2" size="0.001"/>
+        </body>
+      </worldbody>
+      <sensor>
+        <plugin name="touch2" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch2">
+          <config key="size" value="8 12"/>
+          <config key="fov" value="10 13"/>
+          <config key="gamma" value="0"/>
+          <config key="nchannel" value="1"/>
+        </plugin>
+      </sensor>
     </mujoco>)";
 
   std::array<char, 1000> err;

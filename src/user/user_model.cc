@@ -232,6 +232,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     dest.back()->model = this;
     dest.back()->compiler = origin ? &origin->compiler : &spec.compiler;
     dest.back()->id = -1;
+    dest.back()->CopyPlugin();
   }
   if (!dest.empty()) {
     processlist(ids, dest, dest[0]->elemtype);
@@ -309,8 +310,28 @@ void mjCModel::SaveDofOffsets(bool computesize) {
 
 
 template <class T>
-void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
-                          const std::vector<mjCPlugin*>& source,
+void mjCModel::CopyExplicitPlugin(T* obj) {
+  if (!obj->plugin.active || !obj->plugin_instance_name.empty() || !obj->spec.plugin.element) {
+    return;
+  }
+  mjCPlugin* origin = static_cast<mjCPlugin*>(obj->spec.plugin.element);
+  mjCPlugin* candidate = new mjCPlugin(*origin);
+  candidate->id = plugins_.size();
+  candidate->model = this;
+  plugins_.push_back(candidate);
+  obj->spec.plugin.element = candidate;
+}
+
+template void mjCModel::CopyExplicitPlugin<mjCBody>(mjCBody* obj);
+template void mjCModel::CopyExplicitPlugin<mjCGeom>(mjCGeom* obj);
+template void mjCModel::CopyExplicitPlugin<mjCMesh>(mjCMesh* obj);
+template void mjCModel::CopyExplicitPlugin<mjCActuator>(mjCActuator* obj);
+template void mjCModel::CopyExplicitPlugin<mjCSensor>(mjCSensor* obj);
+
+
+
+template <class T>
+void mjCModel::CopyPlugin(const std::vector<mjCPlugin*>& source,
                           const std::vector<T*>& list) {
   // store elements that reference a plugin instance
   std::unordered_map<std::string, T*> instances;
@@ -330,9 +351,10 @@ void mjCModel::CopyPlugin(std::vector<mjCPlugin*>& dest,
     candidate->NameSpace(plugin->model);
     bool referenced = instances.find(candidate->name) != instances.end();
     auto same_name = [candidate](const mjCPlugin* dest) { return dest->name == candidate->name; };
-    bool instance_exists = std::find_if(dest.begin(), dest.end(), same_name) != dest.end();
+    bool instance_exists = std::find_if(plugins_.begin(), plugins_.end(),
+                                        same_name) != plugins_.end();
     if (referenced && !instance_exists) {
-      dest.push_back(candidate);
+      plugins_.push_back(candidate);
       instances.at(candidate->name)->spec.plugin.element = candidate;
     } else {
       delete candidate;
@@ -390,11 +412,11 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   CopyList(tuples_, other.tuples_);
 
   // create new plugins and map them
-  CopyPlugin(plugins_, other.plugins_, bodies_);
-  CopyPlugin(plugins_, other.plugins_, geoms_);
-  CopyPlugin(plugins_, other.plugins_, meshes_);
-  CopyPlugin(plugins_, other.plugins_, actuators_);
-  CopyPlugin(plugins_, other.plugins_, sensors_);
+  CopyPlugin(other.plugins_, bodies_);
+  CopyPlugin(other.plugins_, geoms_);
+  CopyPlugin(other.plugins_, meshes_);
+  CopyPlugin(other.plugins_, actuators_);
+  CopyPlugin(other.plugins_, sensors_);
   for (const auto& [plugin, slot] : other.active_plugins_) {
     if (!IsPluginActive(plugin, active_plugins_)) {
       active_plugins_.emplace_back(std::make_pair(plugin, slot));
