@@ -121,6 +121,7 @@ py_library(
         ":math",
         ":passive",
         ":scan",
+        ":sensor",
         ":smooth",
         ":solver",
         ":support",
@@ -303,6 +304,7 @@ py_library(
         ":io",
         ":passive",
         ":ray",
+        ":sensor",
         ":smooth",
         ":solver",
         ":support",
@@ -324,6 +326,40 @@ py_library(
         requirement("etils"),
         requirement("jax"),
         requirement("numpy"),
+    ],
+)
+
+py_library(
+    name = "sensor",
+    srcs = [
+        "_src/sensor.py",
+    ],
+    deps = [
+        ":types",
+        requirement("jax"),
+        requirement("numpy"),
+    ],
+)
+
+py_test(
+    name = "sensor_test",
+    size = "small",
+    srcs = [
+        "_src/sensor_test.py",
+    ],
+    data = [
+        "//mjx/mujoco/mjx/test_data:model",
+    ],
+    shard_count = 3,
+    deps = [
+        ":mjx",
+        ":test_util",
+        "//:mujoco-py",
+        requirement("absl-py"),
+        requirement("jax"),
+        requirement("numpy"),
+        requirement("typing_extensions"),
+        requirement("importlib_resources"),
     ],
 )
 

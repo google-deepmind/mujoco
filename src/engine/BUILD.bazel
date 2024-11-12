@@ -77,6 +77,7 @@ cc_library(
         ":engine_name",
         ":engine_plugin",
         ":engine_ray",
+        ":engine_sort",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
@@ -171,6 +172,7 @@ cc_library(
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":engine_collision_primitive",
+        ":engine_io",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
@@ -343,6 +345,15 @@ cc_library(
         ":engine_util_spatial",
         "//:mujoco_hdrs",
     ],
+)
+
+cc_library(
+    name = "engine_sort",
+    hdrs = ["engine_sort.h"],
+    copts = ["-Wshadow"],
+    features = THIN_LTO_FEATURE_IF_CLANG,
+    linkopts = THIN_LTO_LINKOPTS_IF_CLANG,
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
