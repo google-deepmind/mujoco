@@ -77,8 +77,9 @@ static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 // attaches a face to the polytope with the given vertex indices; returns non-zero on error
 static void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3);
 
-// returns 1 if objects are in contact, 0 otherwise; status must have initial tetrahedrons
-static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj* obj2);
+// returns 1 if objects are in contact; 0 if not; -1 if inconclusive
+// status must have initial tetrahedrons
+static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 
 // returns the penetration depth of two convex objects; witness points are in status->{x1, x2}
 static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
@@ -145,17 +146,18 @@ static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
 
 // GJK algorithm
 static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
-  int get_dist = status->has_distances;  // need to recover geom distances if not in contact
-  mjtNum *simplex1 = status->simplex1;   // simplex for obj1
-  mjtNum *simplex2 = status->simplex2;   // simplex for obj2
-  mjtNum *simplex  = status->simplex;    // simplex in Minkowski difference
-  int n = 0;                             // number of vertices in the simplex
-  int k = 0;                             // current iteration
-  int kmax = status->max_iterations;     // max number of iterations
-  mjtNum* x1_k = status->x1;             // the kth approximation point for obj1
-  mjtNum* x2_k = status->x2;             // the kth approximation point for obj2
-  mjtNum x_k[3];                         // the kth approximation point in Minkowski difference
-  mjtNum lambda[4];                      // barycentric coordinates for x_k
+  int get_dist = status->dist_cutoff > 0;  // need to recover geom distances if not in contact
+  mjtNum *simplex1 = status->simplex1;     // simplex for obj1
+  mjtNum *simplex2 = status->simplex2;     // simplex for obj2
+  mjtNum *simplex  = status->simplex;      // simplex in Minkowski difference
+  int n = 0;                               // number of vertices in the simplex
+  int k = 0;                               // current iteration
+  int kmax = status->max_iterations;       // max number of iterations
+  mjtNum* x1_k = status->x1;               // the kth approximation point for obj1
+  mjtNum* x2_k = status->x2;               // the kth approximation point for obj2
+  mjtNum x_k[3];                           // the kth approximation point in Minkowski difference
+  mjtNum lambda[4];                        // barycentric coordinates for x_k
+  mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
 
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
   mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : status->tolerance * status->tolerance;
@@ -182,14 +184,29 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // if the hyperplane separates the Minkowski difference and origin, the objects don't collide
     // if geom distance isn't requested, return early
-    if (!get_dist && dot3(x_k, s_k) > 0) {
-      return mjMAXVAL;
+    if (!get_dist) {
+      if (dot3(x_k, s_k) > 0) {
+        status->gjk_iterations = k;
+        status->nsimplex = 0;
+        status->nx = 0;
+        return mjMAXVAL;
+      }
+    } else if (status->dist_cutoff < mjMAXVAL) {
+      mjtNum vs = mju_dot3(x_k, s_k), vv = mju_dot3(x_k, x_k);
+      if (mju_dot3(x_k, s_k) > 0 && (vs*vs / vv) >= cutoff2) {
+        status->gjk_iterations = k;
+        status->nsimplex = 0;
+        status->nx = 0;
+        return mjMAXVAL;
+      }
     }
 
     // tetrahedron is generated and only need contact info; fallback to gjkIntersect to
     // determine contact
     if (!get_dist && n == 3) {
-      return gjkIntersect(status, k, obj1, obj2) ? 0 : mjMAXVAL;
+      status->gjk_iterations = k;
+      status->nx = 0;
+      return gjkIntersect(status, obj1, obj2) > 0 ? 0 : mjMAXVAL;
     }
 
     // run the distance subalgorithm to compute the barycentric coordinates
@@ -228,10 +245,11 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   lincomb(x1_k, lambda, simplex1, n);
   lincomb(x2_k, lambda, simplex2, n);
 
+  status->nx = 1;
   status->gjk_iterations = k;
   status->nsimplex = n;
-  status->gjk_dist = mju_norm3(x_k);
-  return status->gjk_dist;
+  status->dist = mju_norm3(x_k);
+  return status->dist;
 }
 
 
@@ -329,16 +347,16 @@ static inline mjtNum signedDistance(mjtNum normal[3], const mjtNum v1[3], const 
 
 
 
-// returns 0 if objects are in contact, mjMAXVAL otherwise; status must have initial tetrahedrons
-static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj* obj2) {
+// returns 1 if objects are in contact; 0 if not; -1 if inconclusive
+static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum simplex1[12], simplex2[12], simplex[12];
   memcpy(simplex1, status->simplex1, sizeof(mjtNum) * 12);
   memcpy(simplex2, status->simplex2, sizeof(mjtNum) * 12);
   memcpy(simplex, status->simplex, sizeof(mjtNum) * 12);
   int s[4] = {0, 3, 6, 9};
 
-  int kmax = status->max_iterations;
-  for (int k = start; k < kmax; k++) {
+  int k = status->gjk_iterations, kmax = status->max_iterations;
+  for (; k < kmax; k++) {
     // compute the signed distance to each face in the simplex along with normals
     mjtNum dist[4], normals[12];
     dist[0] = signedDistance(&normals[0], simplex + s[2], simplex + s[1], simplex + s[3]);
@@ -359,6 +377,7 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
         copy3(status->simplex1 + 3*n, simplex1 + s[n]);
         copy3(status->simplex2 + 3*n, simplex2 + s[n]);
       }
+      status->gjk_iterations = k;
       return 1;
     }
 
@@ -368,6 +387,7 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
 
     // found origin outside the Minkowski difference (return no collision)
     if (dot3(&normals[3*index], simplex + s[index]) < 0) {
+      status->gjk_iterations = k;
       return 0;
     }
 
@@ -378,7 +398,8 @@ static int gjkIntersect(mjCCDStatus* status, int start, mjCCDObj* obj1, mjCCDObj
     s[i] = s[j];
     s[j] = swap;
   }
-  return 0;  // never found origin
+  status->gjk_iterations = k;
+  return -1;  // never found origin
 }
 
 
@@ -993,7 +1014,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   // TODO(kylebayes): It's possible for GJK to return a 2-simplex with the origin not contained in
   // it but within tolerance from it. In that case the hexahedron could possibly be constructed
   // that doesn't contain the origin, but nonetheless there is penetration depth.
-  if (status->gjk_dist > 10*mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
+  if (status->dist > 10*mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
     return 7;
   }
 
@@ -1296,6 +1317,7 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
   mj_freeStack(d);
   epaWitness(pt, face, status->x1, status->x2);
   status->epa_iterations = k;
+  status->nx = 1;
   return dist;
 }
 
@@ -1306,16 +1328,17 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   // set up
   obj1->center(status->x1, obj1);
   obj2->center(status->x2, obj2);
+  status->gjk_iterations = 0;
   status->epa_iterations = -1;
   status->tolerance = config->tolerance;
   status->max_iterations = config->max_iterations;
-  status->has_contacts = config->contacts;
-  status->has_distances = config->distances;
+  status->max_contacts = config->max_contacts;
+  status->dist_cutoff = config->dist_cutoff;
 
   mjtNum dist = gjk(status, obj1, obj2);
 
   // penetration recovery for contacts not needed
-  if (!config->contacts) {
+  if (!config->max_contacts) {
     return dist;
   }
 

@@ -1409,15 +1409,15 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 // returns the smallest distance between two geoms (using nativeccd)
 static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int g2,
-                                 mjtNum fromto[6]) {
+                                 mjtNum distmax, mjtNum fromto[6]) {
   mjCCDConfig config;
   mjCCDStatus status;
 
   // set config
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
-  config.contacts = 1;   // want contacts
-  config.distances = 1;  // want geom distances
+  config.max_contacts = 1;        // want contacts
+  config.dist_cutoff = distmax;   // want geom distances
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
@@ -1425,7 +1425,7 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int 
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
 
-  if (fromto) {
+  if (fromto && status.nx > 0) {
     mju_copy3(fromto, status.x1);
     mju_copy3(fromto+3, status.x2);
   }
@@ -1459,7 +1459,7 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
   // use nativecdd if flag is enabled
   if (mjENABLED(mjENBL_NATIVECCD)) {
     if (func == mjc_Convex || func == mjc_BoxBox) {
-      return mj_geomDistanceCCD(m, d, g1, g2, fromto);
+      return mj_geomDistanceCCD(m, d, g1, g2, distmax, fromto);
     }
   }
 

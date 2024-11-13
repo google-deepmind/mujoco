@@ -85,7 +85,7 @@ int mjc_Convex        (const mjModel* m, const mjData* d,
 int mjc_ConvexElem    (const mjModel* m, const mjData* d, mjContact* con,
                        int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin);
 
-// heighfield-elem collision function using ccd
+// heightfield-elem collision function using ccd
 int mjc_HFieldElem    (const mjModel* m, const mjData* d, mjContact* con,
                        int g, int f, int e, mjtNum margin);
 

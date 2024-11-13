@@ -56,23 +56,25 @@ constexpr char kEllipoid[] = R"(
 </mujoco>)";
 
 mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
-                mjtNum x2[3]) {
+                mjtNum x2[3], mjtNum cutoff = mjMAXVAL) {
   mjCCDConfig config;
   mjCCDStatus status;
 
   // set config
   config.max_iterations = kMaxIterations,
   config.tolerance = kTolerance,
-  config.contacts = 0;   // no geom contacts needed
-  config.distances = 1;
+  config.max_contacts = 0;   // no geom contacts needed
+  config.dist_cutoff = cutoff;
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
   mjc_initCCDObj(&obj2, m, d, g2, 0);
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
-  if (x1 != nullptr) mju_copy3(x1, status.x1);
-  if (x2 != nullptr) mju_copy3(x2, status.x2);
+  if (status.nx > 0) {
+    if (x1 != nullptr) mju_copy3(x1, status.x1);
+    if (x2 != nullptr) mju_copy3(x2, status.x2);
+  }
   return dist;
 }
 
@@ -85,8 +87,8 @@ int PenetrationWrapper(mjCCDObj* obj1, mjCCDObj* obj2, const ccd_t* ccd,
   // set config
   config.max_iterations = ccd->max_iterations,
   config.tolerance = ccd->mpr_tolerance,
-  config.contacts = 1;
-  config.distances = 0;  // no geom distances needed
+  config.max_contacts = 1;
+  config.dist_cutoff = 0;  // no geom distances needed
 
   mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
   if (dist < 0) {
@@ -141,16 +143,10 @@ using MjGjkTest = MujocoTest;
 TEST_F(MjGjkTest, SphereSphereDist) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <worldbody>
-    <body pos="-1.5 0 0">
-      <freejoint/>
-      <geom name="geom1" type="sphere" size="1"/>
-    </body>
-    <body pos="1.5 0 0">
-      <freejoint/>
-      <geom name="geom2" type="sphere" size="1"/>
-    </body>
-  </worldbody>
+    <worldbody>
+      <geom name="geom1" type="sphere" pos="-1.5 0 0" size="1"/>
+      <geom name="geom2" type="sphere" pos="1.5 0 0" size="1"/>
+    </worldbody>
   </mujoco>)";
 
   std::array<char, 1000> error;
@@ -172,19 +168,38 @@ TEST_F(MjGjkTest, SphereSphereDist) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, SphereSphereDistCutoff) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="sphere" pos="-1.5 0 0" size="1"/>
+      <geom name="geom2" type="sphere" pos="1.5 0 0" size="1"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dist = GeomDist(model, data, geom1, geom2, nullptr, nullptr, .999999);
+
+  EXPECT_EQ(dist, mjMAXVAL);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, SphereSphereNoDist) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <worldbody>
-    <body pos="-1.5 0 0">
-      <freejoint/>
-      <geom name="geom1" type="sphere" size="1"/>
-    </body>
-    <body pos="1.5 0 0">
-      <freejoint/>
-      <geom name="geom2" type="sphere" size="1"/>
-    </body>
-  </worldbody>
+    <worldbody>
+      <geom name="geom1" type="sphere" pos="-1.5 0 0" size="1"/>
+      <geom name="geom2" type="sphere" pos="1.5 0 0" size="1"/>
+    </worldbody>
   </mujoco>)";
 
   std::array<char, 1000> error;
