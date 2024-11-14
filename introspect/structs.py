@@ -1149,14 +1149,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of chars in all names',
              ),
              StructFieldDecl(
-                 name='nnames_map',
-                 type=ValueType(name='int'),
-                 doc='number of slots in the names hash map',
-             ),
-             StructFieldDecl(
                  name='npaths',
                  type=ValueType(name='int'),
                  doc='number of chars in all paths',
+             ),
+             StructFieldDecl(
+                 name='nnames_map',
+                 type=ValueType(name='int'),
+                 doc='number of slots in the names hash map',
              ),
              StructFieldDecl(
                  name='nM',
@@ -1196,12 +1196,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='njmax',
                  type=ValueType(name='int'),
-                 doc='number of available rows in constraint Jacobian',
+                 doc='number of available rows in constraint Jacobian (legacy)',
              ),
              StructFieldDecl(
                  name='nconmax',
                  type=ValueType(name='int'),
-                 doc='number of potential contacts in contact list',
+                 doc='number of potential contacts in contact list (legacy)',
              ),
              StructFieldDecl(
                  name='nuserdata',

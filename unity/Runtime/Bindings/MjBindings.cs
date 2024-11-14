@@ -5238,8 +5238,8 @@ public unsafe struct mjModel_ {
   public int nuser_actuator;
   public int nuser_sensor;
   public int nnames;
-  public int nnames_map;
   public int npaths;
+  public int nnames_map;
   public int nM;
   public int nB;
   public int nC;
