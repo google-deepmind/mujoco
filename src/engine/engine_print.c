@@ -904,7 +904,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "  total           %s\n",   memorySize(sizeof(mjData) + d->nbuffer + d->narena));
   fprintf(fp, "  struct          %s\n",   memorySize(sizeof(mjData)));
   fprintf(fp, "  buffer          %s\n",   memorySize(d->nbuffer));
-  fprintf(fp, "  arena           %s\n\n", memorySize(d->narena));
+  double arena_percent = 100 * d->maxuse_arena/(double)(d->narena);
+  fprintf(fp, "  arena           %s, used %.1f%%\n\n", memorySize(d->narena), arena_percent);
 
   // ---------------------------------- print mjData fields
 
