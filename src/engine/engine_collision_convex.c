@@ -276,9 +276,9 @@ static void mjc_boxSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   mjtNum local_dir[3], tmp[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  tmp[0] = mju_sign(local_dir[0]) * size[0];
-  tmp[1] = mju_sign(local_dir[1]) * size[1];
-  tmp[2] = mju_sign(local_dir[2]) * size[2];
+  tmp[0] = (local_dir[0] >= 0 ? 1 : -1) * size[0];
+  tmp[1] = (local_dir[1] >= 0 ? 1 : -1) * size[1];
+  tmp[2] = (local_dir[2] >= 0 ? 1 : -1) * size[2];
 
   // transform result to global frame
   localToGlobal(res, mat, tmp, pos);

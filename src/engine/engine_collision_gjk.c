@@ -147,6 +147,7 @@ static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
 // GJK algorithm
 static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   int get_dist = status->dist_cutoff > 0;  // need to recover geom distances if not in contact
+  int backup_gjk = !get_dist;              // use gjkIntersect if no geom distances needed
   mjtNum *simplex1 = status->simplex1;     // simplex for obj1
   mjtNum *simplex2 = status->simplex2;     // simplex for obj2
   mjtNum *simplex  = status->simplex;      // simplex in Minkowski difference
@@ -203,10 +204,15 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // tetrahedron is generated and only need contact info; fallback to gjkIntersect to
     // determine contact
-    if (!get_dist && n == 3) {
+    if (n == 3 && backup_gjk) {
       status->gjk_iterations = k;
-      status->nx = 0;
-      return gjkIntersect(status, obj1, obj2) > 0 ? 0 : mjMAXVAL;
+      int ret = gjkIntersect(status, obj1, obj2);
+      if (ret != -1) {
+        status->nx = 0;
+        return ret > 0 ? 0 : mjMAXVAL;
+      }
+      k = status->gjk_iterations;
+      backup_gjk = 0;
     }
 
     // run the distance subalgorithm to compute the barycentric coordinates
@@ -363,6 +369,12 @@ static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     dist[1] = signedDistance(&normals[3], simplex + s[0], simplex + s[2], simplex + s[3]);
     dist[2] = signedDistance(&normals[6], simplex + s[1], simplex + s[0], simplex + s[3]);
     dist[3] = signedDistance(&normals[9], simplex + s[0], simplex + s[1], simplex + s[2]);
+
+    // if origin is on any affine hull, convergence will fail
+    if (!dist[3] || !dist[2] || !dist[1] || !dist[0]) {
+      status->gjk_iterations = k;
+      return -1;
+    }
 
     // find the face with the smallest distance to the origin
     int i = (dist[0] < dist[1]) ? 0 : 1;
