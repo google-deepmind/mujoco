@@ -189,7 +189,8 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
-        return mjMAXVAL;
+        status->dist = mjMAXVAL;
+        return status->dist;
       }
     } else if (status->dist_cutoff < mjMAXVAL) {
       mjtNum vs = mju_dot3(x_k, s_k), vv = mju_dot3(x_k, x_k);
@@ -197,7 +198,8 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
-        return mjMAXVAL;
+        status->dist = mjMAXVAL;
+        return status->dist;
       }
     }
 
@@ -208,7 +210,8 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       int ret = gjkIntersect(status, obj1, obj2);
       if (ret != -1) {
         status->nx = 0;
-        return ret > 0 ? 0 : mjMAXVAL;
+        status->dist = ret > 0 ? 0 : mjMAXVAL;
+        return status->dist;
       }
       k = status->gjk_iterations;
       backup_gjk = 0;
@@ -398,6 +401,7 @@ static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // found origin outside the Minkowski difference (return no collision)
     if (dot3(&normals[3*index], simplex + s[index]) < 0) {
+      status->nsimplex = 0;
       status->gjk_iterations = k;
       return 0;
     }
