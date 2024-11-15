@@ -30,23 +30,22 @@
 // implementation adapted from Montanari et al, ToG 2017
 static void subdistance(mjtNum lambda[4], const mjtNum simplex[12], int n);
 
-// these internal functions compute the barycentric coordinates of the closest point
-// to the origin in the n-simplex, where n = 3, 2, 1 respectively
+// compute the barycentric coordinates of the closest point to the origin in the n-simplex,
+// where n = 3, 2, 1 respectively
 static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3],
                 const mjtNum s4[3]);
 static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3]);
 static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]);
 
-// helper function to compute the support point for EPA
-static void epaSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
-                    const mjtNum d[3], mjtNum dnorm);
-
-// support function tweaked for GJK by taking kth iteration point as input and setting both
-// support points to recover witness points
+// compute the support point for GJK
 static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                        const mjtNum x_k[3]);
 
-// linear combination of n 3D vectors
+// compute the support point for EPA
+static void epaSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
+                    const mjtNum d[3], mjtNum dnorm);
+
+// compute the linear combination of n 3D vectors
 static void lincomb(mjtNum res[3], const mjtNum* coef, const mjtNum* v, int n);
 
 // one face in a polytope
@@ -71,17 +70,17 @@ typedef struct {
   int nmap;          // number of faces in map
 } Polytope;
 
-// copies a vertex into the polytope and returns its index
+// make copy of vertex in polytope and return its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]);
 
-// attaches a face to the polytope with the given vertex indices; returns non-zero on error
-static void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3);
+// attach a face to the polytope with the given vertex indices; return distance to origin
+static mjtNum attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3);
 
-// returns 1 if objects are in contact; 0 if not; -1 if inconclusive
+// return 1 if objects are in contact; 0 if not; -1 if inconclusive
 // status must have initial tetrahedrons
 static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 
-// returns the penetration depth of two convex objects; witness points are in status->{x1, x2}
+// return the penetration depth of two convex objects; witness points are in status->{x1, x2}
 static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
 
 // -------------------------------- inlined  3D vector utils --------------------------------------
@@ -120,7 +119,7 @@ static inline void cross3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3])
   res[2] = v1[0]*v2[1] - v1[1]*v2[0];
 }
 
-// returns determinant of the 3x3 matrix with columns v1, v2, v3
+// return determinant of the 3x3 matrix with columns v1, v2, v3
 static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
   // v1 * (v2 x v3)
   return v1[0]*(v2[1]*v3[2] - v2[2]*v3[1])
@@ -131,7 +130,7 @@ static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v
 // ---------------------------------------- GJK ---------------------------------------------------
 
 
-// returns true if both geoms are discrete shapes (i.e. meshes or boxes with no margin)
+// return true if both geoms are discrete shapes (i.e. meshes or boxes with no margin)
 static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
   // non-zero margin makes geoms smooth
   if (obj1->margin != 0 || obj2->margin != 0) return 0;
@@ -260,7 +259,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
 
 
-// computes the support point in obj1 and obj2 for Minkowski difference
+// compute the support point in obj1 and obj2 for Minkowski difference
 static inline void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                            const mjtNum dir[3], const mjtNum dir_neg[3]) {
   // obj1
@@ -284,7 +283,7 @@ static inline void support(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj*
 
 
 
-// computes the support points in obj1 and obj2 for the kth approximation point
+// compute the support points in obj1 and obj2 for the kth approximation point
 static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                        const mjtNum x_k[3]) {
   mjtNum dir[3], dir_neg[3];
@@ -298,7 +297,7 @@ static void gjkSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj
 
 
 
-// helper function to compute the support point in the Minkowski difference
+// compute the support point in the Minkowski difference for EPA
 static void epaSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                        const mjtNum d[3], mjtNum dnorm) {
   mjtNum dir[3], dir_neg[3];
@@ -323,7 +322,7 @@ static void epaSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj
 
 
 
-// helper function to compute the support point in the Minkowski difference (without normalization)
+// compute the support point in the Minkowski difference for gjkIntersect (without normalization)
 static void gjkIntersectSupport(mjtNum s1[3], mjtNum s2[3], mjCCDObj* obj1, mjCCDObj* obj2,
                                 const mjtNum dir[3]) {
   mjtNum dir_neg[3] = {-dir[0], -dir[1], -dir[2]};
@@ -353,7 +352,7 @@ static inline mjtNum signedDistance(mjtNum normal[3], const mjtNum v1[3], const 
 
 
 
-// returns 1 if objects are in contact; 0 if not; -1 if inconclusive
+// return 1 if objects are in contact; 0 if not; -1 if inconclusive
 static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum simplex1[12], simplex2[12], simplex[12];
   memcpy(simplex1, status->simplex1, sizeof(mjtNum) * 12);
@@ -496,7 +495,7 @@ static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mj
 
 
 
-// returns true only when a and b are both strictly positive or both strictly negative
+// return true only when a and b are both strictly positive or both strictly negative
 static inline int sameSign(mjtNum a, mjtNum b) {
   if (a > 0 && b > 0) return 1;
   if (a < 0 && b < 0) return 1;
@@ -784,7 +783,7 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
 
 // ---------------------------------------- EPA ---------------------------------------------------
 
-// returns 1 if the origin and p3 are on the same side of the plane defined by p0, p1, p2
+// return 1 if the origin and p3 are on the same side of the plane defined by p0, p1, p2
 static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
                     const mjtNum p2[3], const mjtNum p3[3]) {
     mjtNum diff1[3], diff2[3], diff3[3], diff4[3], n[3];
@@ -804,7 +803,7 @@ static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
 
 
 
-// returns 1 if the origin is contained in the tetrahedron, 0 otherwise
+// return 1 if the origin is contained in the tetrahedron, 0 otherwise
 static int testTetra(const mjtNum p0[3], const mjtNum p1[3],
                      const mjtNum p2[3], const mjtNum p3[3]) {
   return sameSide(p0, p1, p2, p3)
@@ -834,7 +833,7 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 
 
 
-// creates a polytope from a 1-simplex (returns 0 if polytope can be created)
+// create a polytope from a 1-simplex (returns 0 on success)
 static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum v1[3], v2[3];
   sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
@@ -916,7 +915,7 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
 
-// computes the affine coordinates of p on the triangle v1v2v3
+// compute the affine coordinates of p on the triangle v1v2v3
 static void triAffineCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2[3],
                            const mjtNum v3[3], const mjtNum p[3]) {
   // compute minors as in S2D
@@ -962,7 +961,7 @@ static void triAffineCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2
 
 
 
-// returns true if point p and triangle v1v2v3 intersect
+// return true if point p and triangle v1v2v3 intersect
 static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3],
                              const mjtNum p[3]) {
   mjtNum lambda[3];
@@ -980,7 +979,7 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
 
 
 
-// creates a polytope from a 2-simplex (returns 0 if polytope can be created)
+// create a polytope from a 2-simplex (returns 0 on success)
 static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // get vertices of simplex from GJK
   const mjtNum *v1 = status->simplex,
@@ -1058,23 +1057,58 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
 
-// creates a polytope from a 3-simplex  (returns 0 if polytope can be created)
-static int polytope4(Polytope* pt, const mjCCDStatus* status) {
+// replace a 3-simplex with one of its faces
+static inline void replaceSimplex3(Polytope* pt, mjCCDStatus* status, int v1, int v2, int v3) {
+  status->nsimplex = 3;
+  copy3(status->simplex1 + 0, pt->verts1 + v1);
+  copy3(status->simplex1 + 3, pt->verts1 + v2);
+  copy3(status->simplex1 + 6, pt->verts1 + v3);
+
+  copy3(status->simplex2 + 0, pt->verts2 + v1);
+  copy3(status->simplex2 + 3, pt->verts2 + v2);
+  copy3(status->simplex2 + 6, pt->verts2 + v3);
+
+  copy3(status->simplex + 0, pt->verts + v1);
+  copy3(status->simplex + 3, pt->verts + v2);
+  copy3(status->simplex + 6, pt->verts + v3);
+
+  pt->nfaces = 0;
+  pt->nmap = 0;
+  pt->nverts = 0;
+}
+
+
+
+// create a polytope from a 3-simplex (returns 0 on success)
+static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   int v1 = newVertex(pt, status->simplex1 + 0, status->simplex2 + 0);
   int v2 = newVertex(pt, status->simplex1 + 3, status->simplex2 + 3);
   int v3 = newVertex(pt, status->simplex1 + 6, status->simplex2 + 6);
   int v4 = newVertex(pt, status->simplex1 + 9, status->simplex2 + 9);
 
-  attachFace(pt, v1, v2, v3, 1, 3, 2);
-  attachFace(pt, v1, v4, v2, 2, 3, 0);
-  attachFace(pt, v1, v3, v4, 0, 3, 1);
-  attachFace(pt, v4, v3, v2, 2, 0, 1);
+  // if the origin is on a face, replace the 3-simplex with a 2-simplex
+  if (attachFace(pt, v1, v2, v3, 1, 3, 2) == 0.0) {
+    replaceSimplex3(pt, status, v1, v2, v3);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v1, v4, v2, 2, 3, 0) == 0.0) {
+    replaceSimplex3(pt, status, v1, v4, v2);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v1, v3, v4, 0, 3, 1) == 0.0) {
+    replaceSimplex3(pt, status, v1, v3, v4);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v4, v3, v2, 2, 0, 1) == 0.0) {
+    replaceSimplex3(pt, status, v4, v3, v2);
+    return polytope3(pt, status, obj1, obj2);
+  }
   return 0;
 }
 
 
 
-// copies a vertex into the polytope and returns its index
+// make a copy of vertex in polytope and return its index
 static int newVertex(Polytope* pt, const mjtNum v1[3], const mjtNum v2[3]) {
   int n = 3*pt->nverts++;
   copy3(pt->verts1 + n, v1);
@@ -1100,15 +1134,15 @@ static int deleteFace(Polytope* pt, Face* face) {
 
 
 
-// returns max number of faces that can be stored in polytope
+// return max number of faces that can be stored in polytope
 static inline int maxFaces(Polytope* pt) {
   return pt->maxfaces - pt->nfaces;
 }
 
 
 
-// attaches a face to the polytope with the given vertex indices; returns non-zero on error
-static inline void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3) {
+// attach a face to the polytope with the given vertex indices; return distance to origin
+static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj2, int adj3) {
   Face* face = &pt->faces[pt->nfaces++];
   face->verts[0] = v1;
   face->verts[1] = v2;
@@ -1127,6 +1161,7 @@ static inline void attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, in
   int i = pt->nmap++;
   face->index = i;
   pt->map[i] = face;
+  return face->dist;
 }
 
 
@@ -1142,7 +1177,7 @@ typedef struct {
 
 
 
-// adds an edge to the horizon
+// add an edge to the horizon
 static inline void addEdge(Horizon* h, int index, int edge) {
   h->edges[h->nedges] = edge;
   h->indices[h->nedges++] = index;
@@ -1185,7 +1220,7 @@ static int horizonRec(Horizon* h, Face* face, int e) {
 
 
 
-// creates horizon given the face as starting point
+// create horizon given the face as starting point
 static void horizon(Horizon* h, Face* face) {
   if (deleteFace(h->pt, face)) return;
 
@@ -1241,7 +1276,7 @@ static void epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNu
 
 
 
-// returns the penetration depth of two convex objects; witness points are in status->{x1, x2}
+// return the penetration depth of two convex objects; witness points are in status->{x1, x2}
 static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum dist, tolerance = status->tolerance;
   int k, kmax = status->max_iterations;
@@ -1389,7 +1424,7 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     } else if (status->nsimplex == 3) {
       ret = polytope3(&pt, status, obj1, obj2);
     } else {
-      ret = polytope4(&pt, status);
+      ret = polytope4(&pt, status, obj1, obj2);
     }
 
     // simplex not on boundary (objects are penetrating)

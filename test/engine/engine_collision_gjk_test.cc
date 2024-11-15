@@ -408,6 +408,46 @@ TEST_F(MjGjkTest, BoxBox) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, LongBox) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <asset>
+    <mesh name="long_box"
+          vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"
+          scale=".6 .03 .03"/>
+  </asset>
+  <worldbody>
+    <geom name="geom1" type="box" size="1 1 .3" pos="0 0 -.3"/>
+    <geom name="geom2" type="mesh" mesh="long_box" pos="0 0 .02" euler="0 0 40"/>
+  </worldbody>
+</mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dir[3], pos[3];
+  mjtNum dist = Penetration(model, data, geom1, geom2, dir, pos);
+
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+
+  EXPECT_NEAR(dir[0], 0, kTolerance);
+  EXPECT_NEAR(dir[1], 0, kTolerance);
+  EXPECT_NEAR(dir[2], 1, kTolerance);
+
+  EXPECT_NEAR(pos[0], 0, kTolerance);
+  EXPECT_NEAR(pos[1], 0, kTolerance);
+  EXPECT_NEAR(pos[2], -0.005, kTolerance);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
   static constexpr char xml[] = R"(
   <mujoco>
