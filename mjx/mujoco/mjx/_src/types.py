@@ -946,7 +946,7 @@ class Model(PyTreeNode):
   geom_margin: jax.Array
   geom_gap: jax.Array
   geom_fluid: np.ndarray
-  geom_rgba: np.ndarray
+  geom_rgba: jax.Array
   site_type: np.ndarray
   site_bodyid: np.ndarray
   site_sameframe: np.ndarray
@@ -1040,7 +1040,7 @@ class Model(PyTreeNode):
   tex_nchannel: np.ndarray
   tex_adr: np.ndarray
   tex_data: jax.Array
-  mat_rgba: np.ndarray
+  mat_rgba: jax.Array
   mat_texid: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
