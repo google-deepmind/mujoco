@@ -731,6 +731,7 @@ static constexpr char xml_child[] = R"(
             <joint type="hinge" name="hinge"/>
             <geom class="cylinder" material="material"/>
             <light mode="targetbody" target="targetbody"/>
+            <site name="site"/>
             <body name="targetbody"/>
             <body/>
           </body>
@@ -757,6 +758,7 @@ static constexpr char xml_child[] = R"(
     <actuator>
       <position name="hinge" joint="hinge" timeconst=".01"/>
       <position name="fixed" tendon="fixed" timeconst=".01"/>
+      <position name="site" site="site" timeconst=".01"/>
     </actuator>
 
     <contact>
@@ -764,8 +766,8 @@ static constexpr char xml_child[] = R"(
     </contact>
 
     <keyframe>
-      <key name="two" time="2" qpos="2 22" act="2 2" ctrl="2 2"/>
-      <key name="three" time="3" qpos="3 33" act="3 3" ctrl="3 3"/>
+      <key name="two" time="2" qpos="2 22" act="1 2 3" ctrl="1 2 3"/>
+      <key name="three" time="3" qpos="3 33" act="4 5 6" ctrl="4 5 6"/>
     </keyframe>
   </mujoco>)";
 
@@ -796,6 +798,7 @@ TEST_F(MujocoTest, AttachSame) {
         <joint type="hinge" name="hinge"/>
         <geom class="cylinder" material="material"/>
         <light mode="targetbody" target="targetbody"/>
+        <site name="site"/>
         <body name="targetbody"/>
         <body/>
       </body>
@@ -808,6 +811,7 @@ TEST_F(MujocoTest, AttachSame) {
           <joint type="hinge" name="attached-hinge-1"/>
           <geom class="cylinder" material="material"/>
           <light mode="targetbody" target="attached-targetbody-1"/>
+          <site name="attached-site-1"/>
           <body name="attached-targetbody-1"/>
           <body/>
         </body>
@@ -832,8 +836,10 @@ TEST_F(MujocoTest, AttachSame) {
     <actuator>
       <position name="hinge" joint="hinge" timeconst=".01"/>
       <position name="fixed" tendon="fixed" timeconst=".01"/>
+      <position name="site" site="site" timeconst=".01"/>
       <position name="attached-hinge-1" joint="attached-hinge-1" timeconst=".01"/>
       <position name="attached-fixed-1" tendon="attached-fixed-1" timeconst=".01"/>
+      <position name="attached-site-1" site="attached-site-1" timeconst=".01"/>
     </actuator>
 
     <contact>
@@ -842,10 +848,10 @@ TEST_F(MujocoTest, AttachSame) {
     </contact>
 
     <keyframe>
-      <key name="two" time="2" qpos="2 22 0" act="2 2 0 0" ctrl="2 2 0 0"/>
-      <key name="three" time="3" qpos="3 33 0" act="3 3 0 0" ctrl="3 3 0 0"/>
-      <key name="attached-two-1" time="2" qpos="0 22 2" act="0 0 2 2" ctrl="0 0 2 2"/>
-      <key name="attached-three-1" time="3" qpos="0 33 3" act="0 0 3 3" ctrl="0 0 3 3"/>
+      <key name="two" time="2" qpos="2 22 0" act="1 2 3 0 0 0" ctrl="1 2 3 0 0 0"/>
+      <key name="three" time="3" qpos="3 33 0" act="4 5 6 0 0 0" ctrl="4 5 6 0 0 0"/>
+      <key name="attached-two-1" time="2" qpos="0 22 2" act="0 0 0 1 2 3" ctrl="0 0 0 1 2 3"/>
+      <key name="attached-three-1" time="3" qpos="0 33 3" act="0 0 0 4 5 6" ctrl="0 0 0 4 5 6"/>
     </keyframe>
   </mujoco>)";
 
@@ -946,6 +952,7 @@ TEST_F(MujocoTest, AttachDifferent) {
             <joint type="hinge" name="attached-hinge-1"/>
             <geom class="attached-cylinder-1" material="attached-material-1"/>
             <light mode="targetbody" target="attached-targetbody-1"/>
+            <site name="attached-site-1"/>
             <body name="attached-targetbody-1"/>
             <body/>
           </body>
@@ -966,6 +973,7 @@ TEST_F(MujocoTest, AttachDifferent) {
     <actuator>
       <position name="attached-hinge-1" joint="attached-hinge-1" timeconst=".01"/>
       <position name="attached-fixed-1" tendon="attached-fixed-1" timeconst=".01"/>
+      <position name="attached-site-1" site="attached-site-1" timeconst=".01"/>
     </actuator>
 
     <contact>
@@ -974,8 +982,8 @@ TEST_F(MujocoTest, AttachDifferent) {
 
     <keyframe>
       <key name="one" time="1" qpos="1 1 1 1 0 0 0 0"/>
-      <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
-      <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
+      <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="1 2 3" ctrl="1 2 3"/>
+      <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="4 5 6" ctrl="4 5 6"/>
     </keyframe>
   </mujoco>)";
 
@@ -1079,6 +1087,7 @@ TEST_F(MujocoTest, AttachFrame) {
               <joint type="hinge" name="attached-hinge-1"/>
               <geom class="attached-cylinder-1" material="attached-material-1"/>
               <light mode="targetbody" target="attached-targetbody-1"/>
+              <site name="attached-site-1"/>
               <body name="attached-targetbody-1"/>
               <body/>
             </body>
@@ -1100,6 +1109,7 @@ TEST_F(MujocoTest, AttachFrame) {
     <actuator>
       <position name="attached-hinge-1" joint="attached-hinge-1" timeconst=".01"/>
       <position name="attached-fixed-1" tendon="attached-fixed-1" timeconst=".01"/>
+      <position name="attached-site-1" site="attached-site-1" timeconst=".01"/>
     </actuator>
 
     <contact>
@@ -1108,8 +1118,8 @@ TEST_F(MujocoTest, AttachFrame) {
 
     <keyframe>
       <key name="one" time="1" qpos="1 1 1 1 0 0 0 0"/>
-      <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="2 2" ctrl="2 2"/>
-      <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="3 3" ctrl="3 3"/>
+      <key name="attached-two-1" time="2" qpos="0 0 0 1 0 0 0 2" act="1 2 3" ctrl="1 2 3"/>
+      <key name="attached-three-1" time="3" qpos="0 0 0 1 0 0 0 3" act="4 5 6" ctrl="4 5 6"/>
     </keyframe>
   </mujoco>)";
 

@@ -5031,8 +5031,12 @@ void mjCEquality::PointToLocal() {
 
 void mjCEquality::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
-  spec_name1_ = m->prefix + spec_name1_ + m->suffix;
-  spec_name2_ = m->prefix + spec_name2_ + m->suffix;
+  if (!spec_name1_.empty()) {
+    spec_name1_ = m->prefix + spec_name1_ + m->suffix;
+  }
+  if (!spec_name2_.empty()) {
+    spec_name2_ = m->prefix + spec_name2_ + m->suffix;
+  }
 }
 
 
@@ -5526,7 +5530,9 @@ void mjCWrap::PointToLocal() {
 
 void mjCWrap::NameSpace(const mjCModel* m) {
   name = m->prefix + name + m->suffix;
-  sidesite = m->prefix + sidesite + m->suffix;
+  if (!sidesite.empty()) {
+    sidesite = m->prefix + sidesite + m->suffix;
+  }
 }
 
 
@@ -5724,9 +5730,15 @@ void mjCActuator::NameSpace(const mjCModel* m) {
   if (!plugin_instance_name.empty()) {
     plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
-  spec_target_ = m->prefix + spec_target_ + m->suffix;
-  spec_refsite_ = m->prefix + spec_refsite_ + m->suffix;
-  spec_slidersite_ = m->prefix + spec_slidersite_ + m->suffix;
+  if (!spec_target_.empty()) {
+    spec_target_ = m->prefix + spec_target_ + m->suffix;
+  }
+  if (!spec_refsite_.empty()) {
+    spec_refsite_ = m->prefix + spec_refsite_ + m->suffix;
+  }
+  if (!spec_slidersite_.empty()) {
+    spec_slidersite_ = m->prefix + spec_slidersite_ + m->suffix;
+  }
 }
 
 
