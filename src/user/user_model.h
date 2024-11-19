@@ -322,6 +322,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyPaths(mjModel*);             // copy paths, compute path addresses
   void CopyObjects(mjModel*);           // copy objects outside kinematic tree
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
+  void CopyPlugins(mjModel*);           // copy plugin data
 
   // objects created here
   std::vector<mjCFlex*>     flexes_;      // list of flexes
