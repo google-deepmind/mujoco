@@ -5681,7 +5681,7 @@ public unsafe struct mjrContext_ {
   public fixed uint auxColor_r[10];
   public fixed int mat_texid[10000];
   public fixed int mat_texuniform[1000];
-  public fixed int mat_texrepeat[2000];
+  public fixed float mat_texrepeat[2000];
   public int ntexture;
   public fixed int textureType[1000];
   public fixed uint texture[1000];

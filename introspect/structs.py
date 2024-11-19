@@ -8596,12 +8596,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                      extents=(1000,),
                  ),
-                 doc='texture repetition for 2d mapping',
+                 doc='uniform cube mapping',
              ),
              StructFieldDecl(
                  name='mat_texrepeat',
                  type=ArrayType(
-                     inner_type=ValueType(name='int'),
+                     inner_type=ValueType(name='float'),
                      extents=(2000,),
                  ),
                  doc='texture repetition for 2d mapping',

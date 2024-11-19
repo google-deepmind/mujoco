@@ -13,6 +13,8 @@ MJX
 Bug fixes
 ^^^^^^^^^
 - Fixed :github:issue:`2212`, type error in ``mjx.get_data``.
+- Fixed bug introduced in 3.2.0 in handling of :ref:`texrepeat<asset-material-texrepeat>` attribute, was mistakenly cast
+  from ``float`` to ``int``, (fixed :github:issue:`2223`).
 
 Version 3.2.5 (Nov 4, 2024)
 ---------------------------
