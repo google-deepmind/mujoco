@@ -20,11 +20,16 @@ import tempfile
 from absl.testing import absltest
 from etils import epath
 import mujoco
-from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
+
+try:
+  from mujoco.usd import exporter as exporter_module  # pylint: disable=g-import-not-at-top
+except ModuleNotFoundError:
+  exporter_module = None
 
 
 class ExporterTest(absltest.TestCase):
 
+  @absltest.skipIf(exporter_module is None, "USD library is not available.")
   def test_usd_export(self):
 
     output_dir_root = os.getenv(
