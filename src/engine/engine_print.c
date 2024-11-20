@@ -1084,7 +1084,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   printArray("ACTUATOR_LENGTH", m->nu, 1, d->actuator_length, fp, float_format);
-  printSparsity("actuator_moments", m->nu, m->nv,
+  printSparsity("actuator_moment", m->nu, m->nv,
                 d->moment_rowadr, d->moment_rownnz, d->moment_colind, fp);
   printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);

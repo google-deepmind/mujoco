@@ -879,7 +879,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
   // compute lengths and moments
   for (int i=0; i < nu; i++) {
     rowadr[i] = i == 0 ? 0 : rowadr[i-1] + rownnz[i-1];
-    int adr = rowadr[i];
+    int nnz, adr = rowadr[i];
 
     // extract info
     int id = m->actuator_trnid[2*i];
@@ -1008,12 +1008,6 @@ void mj_transmission(const mjModel* m, mjData* d) {
         mj_jacSite(m, d, jac, 0, id);
         mju_subFrom(jac, jacS, 3*nv);
 
-        // sparsity
-        for (int j = 0; j < nv; j++) {
-          colind[adr+j] = j;
-        }
-        rownnz[i] = nv;
-
         // clear moment
         mju_zero(moment + adr, nv);
 
@@ -1029,6 +1023,17 @@ void mj_transmission(const mjModel* m, mjData* d) {
         for (int j = 0; j < nv; j++) {
           moment[adr+j] *= gear[0];
         }
+
+        // sparsity (compress)
+        nnz = 0;
+        for (int j = 0; j < nv; j++) {
+          if (moment[adr+j]) {
+            moment[adr+nnz] = moment[adr+j];
+            colind[adr+nnz] = j;
+            nnz++;
+          }
+        }
+        rownnz[i] = nnz;
       }
       break;
 
@@ -1045,23 +1050,22 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
         mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
       } else {
-        // sparsity
-        for (int j = 0; j < nv; j++) {
-          colind[adr+j] = j;
-        }
-        rownnz[i] = nv;
-
         mju_scl(moment+adr, d->ten_J + id*nv, gear[0], nv);
+
+        // sparsity (compress)
+        nnz = 0;
+        for (int j = 0; j < nv; j++) {
+          if (moment[adr+j]) {
+            moment[adr+nnz] = moment[adr+j];
+            colind[adr+nnz] = j;
+            nnz++;
+          }
+        }
+        rownnz[i] = nnz;
       }
       break;
 
     case mjTRN_SITE:                    // site
-      // sparsity
-      for (int j = 0; j < nv; j++) {
-        colind[adr+j] = j;
-      }
-      rownnz[i] = nv;
-
       // get site translation (jac) and rotation (jacS) Jacobians in global frame
       mj_jacSite(m, d, jac, jacS, id);
 
@@ -1192,15 +1196,20 @@ void mj_transmission(const mjModel* m, mjData* d) {
         }
       }
 
+      // sparsity (compress)
+      nnz = 0;
+      for (int j = 0; j < nv; j++) {
+        if (moment[adr+j]) {
+          moment[adr+nnz] = moment[adr+j];
+          colind[adr+nnz] = j;
+          nnz++;
+        }
+      }
+      rownnz[i] = nnz;
+
       break;
 
     case mjTRN_BODY:                  // body (adhesive contacts)
-      // sparsity
-      for (int j = 0; j < nv; j++) {
-        colind[adr+j] = j;
-      }
-      rownnz[i] = nv;
-
       // cannot compute meaningful length, set to 0
       length[i] = 0;
 
@@ -1298,6 +1307,17 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mju_scl(moment+adr, moment+adr, -1.0/counter, nv);
         }
       }
+
+      // sparsity (compress)
+      nnz = 0;
+      for (int j = 0; j < nv; j++) {
+        if (moment[adr+j]) {
+          moment[adr+nnz] = moment[adr+j];
+          colind[adr+nnz] = j;
+          nnz++;
+        }
+      }
+      rownnz[i] = nnz;
 
       break;
 
