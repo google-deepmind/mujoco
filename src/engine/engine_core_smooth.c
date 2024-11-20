@@ -1087,7 +1087,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int refid = m->actuator_trnid[2*i+1];
         if (!jacref) jacref = mj_stackAllocNum(d, 3*nv);
 
-        // intialize last dof address for each body
+        // initialize last dof address for each body
         int b0 = m->body_weldid[m->site_bodyid[id]];
         int b1 = m->body_weldid[m->site_bodyid[refid]];
         int dofadr0 = m->body_dofadr[b0] + m->body_dofnum[b0] - 1;

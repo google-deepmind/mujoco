@@ -324,6 +324,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyObjects(mjModel*);           // copy objects outside kinematic tree
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
   void CopyPlugins(mjModel*);           // copy plugin data
+  int CountNJmom(const mjModel* m);     // compute number of non-zeros in actuator_moment matrix
 
   // objects created here
   std::vector<mjCFlex*>     flexes_;      // list of flexes

@@ -2579,6 +2579,65 @@ void mjCModel::CopyPlugins(mjModel* m) {
   }
 }
 
+
+
+// compute non-zeros in actuator_moment matrix
+int mjCModel::CountNJmom(const mjModel* m) {
+  int nu = m->nu;
+  int nv = m->nv;
+
+  int count = 0;
+  for (int i = 0; i < nu; i++) {
+    // extract info
+    int id = m->actuator_trnid[2 * i];
+
+    // process according to transmission type
+    switch ((mjtTrn)m->actuator_trntype[i]) {
+      case mjTRN_JOINT:
+      case mjTRN_JOINTINPARENT:
+        switch ((mjtJoint)m->jnt_type[id]) {
+          case mjJNT_SLIDE:
+          case mjJNT_HINGE:
+            count += 1;
+            break;
+
+          case mjJNT_BALL:
+            count += 3;
+            break;
+
+          case mjJNT_FREE:
+            count += 6;
+            break;
+        }
+        break;
+      // TODO(taylorhowell): improve upper bounds
+      case mjTRN_SLIDERCRANK:
+        count += nv;
+        break;
+
+      case mjTRN_TENDON:
+        count += nv;
+        break;
+
+      case mjTRN_SITE:
+        count += nv;
+        break;
+
+      case mjTRN_BODY:
+        count += nv;
+        break;
+
+      default:
+        // SHOULD NOT OCCUR
+        throw mjCError(0, "unknown transmission type");
+        break;
+    }
+  }
+  return count;
+}
+
+
+
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
   int adr, bone_adr, vert_adr, normal_adr, face_adr, texcoord_adr;
@@ -4157,12 +4216,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // copy objects outsite kinematic tree (including keyframes)
   CopyObjects(m);
 
-  // compute nJmom
-  for (int i = 0; i < nu; i++) {
-    // dense rows
-    nJmom += nv;
-  }
-  m->nJmom = nJmom;
+  // compute non-zeros in actuator_moment
+  m->nJmom = nJmom = CountNJmom(m);
 
   // scale mass
   if (compiler.settotalmass>0) {

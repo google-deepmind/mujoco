@@ -136,7 +136,7 @@ TEST_F(UserCModelTest, ActuatorSparsity) {
   </mujoco>
   )";
   mjModel* m = LoadModelFromString(xml);
-  ASSERT_EQ(m->nJmom, 4);
+  ASSERT_EQ(m->nJmom, 2);
   mj_deleteModel(m);
 }
 
