@@ -1179,6 +1179,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in sparse dof-dof matrix',
              ),
              StructFieldDecl(
+                 name='nJmom',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in sparse actuator_moment matrix',
+             ),
+             StructFieldDecl(
                  name='ntree',
                  type=ValueType(name='int'),
                  doc='number of kinematic trees under world body',
@@ -5166,7 +5171,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='column indices in sparse Jacobian',
-                 array_extent=('nu', 'nv'),
+                 array_extent=('nJmom',),
              ),
              StructFieldDecl(
                  name='actuator_moment',
@@ -5174,7 +5179,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='actuator moments',
-                 array_extent=('nu', 'nv'),
+                 array_extent=('nJmom',),
              ),
              StructFieldDecl(
                  name='crb',

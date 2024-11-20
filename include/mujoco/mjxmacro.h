@@ -137,6 +137,7 @@
     X   ( nB )                 \
     X   ( nC )                 \
     X   ( nD )                 \
+    X   ( nJmom )              \
     XMJV( ntree )              \
     X   ( ngravcomp )          \
     X   ( nemax )              \
@@ -625,8 +626,8 @@
     X   ( mjtNum,    actuator_length,   nu,          1           ) \
     X   ( int,       moment_rownnz,     nu,          1           ) \
     X   ( int,       moment_rowadr,     nu,          1           ) \
-    X   ( int,       moment_colind,     nu,          MJ_M(nv)    ) \
-    X   ( mjtNum,    actuator_moment,   nu,          MJ_M(nv)    ) \
+    X   ( int,       moment_colind,     nJmom,       1           ) \
+    X   ( mjtNum,    actuator_moment,   nJmom,       1           ) \
     X   ( mjtNum,    crb,               nbody,       10          ) \
     X   ( mjtNum,    qM,                nM,          1           ) \
     X   ( mjtNum,    qLD,               nM,          1           ) \

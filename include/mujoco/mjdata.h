@@ -291,8 +291,8 @@ struct mjData_ {
   mjtNum* actuator_length;   // actuator lengths                                 (nu x 1)
   int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nu x 1)
   int*    moment_rowadr;     // row start address in colind array                (nu x 1)
-  int*    moment_colind;     // column indices in sparse Jacobian                (nu x nv)
-  mjtNum* actuator_moment;   // actuator moments                                 (nu x nv)
+  int*    moment_colind;     // column indices in sparse Jacobian                (nJmom x 1)
+  mjtNum* actuator_moment;   // actuator moments                                 (nJmom x 1)
 
   // computed by mj_fwdPosition/mj_crb
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)

@@ -118,6 +118,7 @@ class mjCModel_ : public mjsElement {
   int nB;              // number of non-zeros in sparse body-dof matrix
   int nC;              // number of non-zeros in reduced sparse dof-dof matrix
   int nD;              // number of non-zeros in sparse dof-dof matrix
+  int nJmom;           // number of non-zeros in sparse actuator_moment matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst

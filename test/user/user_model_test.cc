@@ -116,6 +116,30 @@ TEST_F(UserCModelTest, SameFrame) {
   mj_deleteModel(model);
 }
 
+TEST_F(UserCModelTest, ActuatorSparsity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="a"/>
+        <body>
+          <geom size="1"/>
+          <joint name="b"/>
+        </body>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="a"/>
+      <motor joint="b"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nJmom, 4);
+  mj_deleteModel(m);
+}
+
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 

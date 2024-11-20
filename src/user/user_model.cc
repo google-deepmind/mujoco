@@ -777,6 +777,7 @@ void mjCModel::Clear() {
   nM = 0;
   nD = 0;
   nB = 0;
+  nJmom = 0;
   njmax = -1;
   nconmax = -1;
   nmocap = 0;
@@ -2490,7 +2491,7 @@ void mjCModel::CopyTree(mjModel* m) {
       }
     }
   }
-   m->nC = nC = 2 * nOD + nv;
+  m->nC = nC = 2 * nOD + nv;
 }
 
 // copy plugin data
@@ -4156,6 +4157,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // copy objects outsite kinematic tree (including keyframes)
   CopyObjects(m);
 
+  // compute nJmom
+  for (int i = 0; i < nu; i++) {
+    // dense rows
+    nJmom += nv;
+  }
+  m->nJmom = nJmom;
+
   // scale mass
   if (compiler.settotalmass>0) {
     mj_setTotalmass(m, compiler.settotalmass);
@@ -4292,7 +4300,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
       neq!=m->neq || ntendon!=m->ntendon || nwrap!=m->nwrap || nsensor!=m->nsensor ||
       nnumeric!=m->nnumeric || nnumericdata!=m->nnumericdata || ntext!=m->ntext ||
       ntextdata!=m->ntextdata || nnames!=m->nnames || nM!=m->nM || nD!=m->nD || nC!=m->nC ||
-      nB!=m->nB || nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax ||
+      nB!=m->nB || nJmom!=m->nJmom ||nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax ||
       npaths!=m->npaths) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
     return false;

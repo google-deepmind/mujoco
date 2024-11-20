@@ -122,10 +122,10 @@ class SmoothTest(absltest.TestCase):
     moment = np.zeros((m.nu, m.nv))
     mujoco.mju_sparse2dense(
         moment,
-        d.actuator_moment.reshape(-1),
+        d.actuator_moment,
         d.moment_rownnz,
         d.moment_rowadr,
-        d.moment_colind.reshape(-1),
+        d.moment_colind,
     )
     _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
 
@@ -193,10 +193,10 @@ class SmoothTest(absltest.TestCase):
     moment = np.zeros((m.nu, m.nv))
     mujoco.mju_sparse2dense(
         moment,
-        d.actuator_moment.reshape(-1),
+        d.actuator_moment,
         d.moment_rownnz,
         d.moment_rowadr,
-        d.moment_colind.reshape(-1),
+        d.moment_colind,
     )
     _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
 

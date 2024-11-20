@@ -663,6 +663,7 @@ struct mjModel_ {
   int nB;                         // number of non-zeros in sparse body-dof matrix
   int nC;                         // number of non-zeros in sparse reduced dof-dof matrix
   int nD;                         // number of non-zeros in sparse dof-dof matrix
+  int nJmom;                      // number of non-zeros in sparse actuator_moment matrix
   int ntree;                      // number of kinematic trees under world body
   int ngravcomp;                  // number of bodies with nonzero gravcomp
   int nemax;                      // number of potential equality-constraint rows
