@@ -464,7 +464,6 @@ typedef struct mjsMesh_ {          // mesh specification
   mjFloatVec* usernormal;          // user normal data
   mjFloatVec* usertexcoord;        // user texcoord data
   mjIntVec* userface;              // user vertex indices
-  mjIntVec* userfacenormal;        // user normal indices
   mjIntVec* userfacetexcoord;      // user texcoord indices
   mjsPlugin plugin;                // sdf plugin
   mjString* info;                  // message appended to compiler errors
