@@ -1977,7 +1977,7 @@ between the body where it is defined and the body's parent. If multiple joints a
 corresponding spatial transformations (of the body frame relative to the parent frame) are applied in order. If no
 joints are defined, the body is welded to its parent. Joints cannot be defined in the world body. At runtime the
 positions and orientations of all joints defined in the model are stored in the vector ``mjData.qpos``, in the order in
-which the appear in the kinematic tree. The linear and angular velocities are stored in the vector ``mjData.qvel``.
+which they appear in the kinematic tree. The linear and angular velocities are stored in the vector ``mjData.qvel``.
 These two vectors have different dimensionality when free or ball joints are used, because such joints represent
 rotations as unit quaternions.
 
