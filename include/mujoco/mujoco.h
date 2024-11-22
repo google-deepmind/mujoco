@@ -692,6 +692,9 @@ MJAPI int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOptio
                                    const mjvPerturb* pert, mjvCamera* cam, int catmask,
                                    mjvScene* scn);
 
+// Copy mjModel, skip large arrays not required for abstract visualization.
+MJAPI void mjv_copyModel(mjModel* dest, const mjModel* src);
+
 // Set default scene state.
 MJAPI void mjv_defaultSceneState(mjvSceneState* scnstate);
 

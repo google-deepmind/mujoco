@@ -2163,6 +2163,15 @@ Update entire scene given model state.
 
 Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
 
+.. _mjv_copyModel:
+
+`mjv_copyModel <#mjv_copyModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_copyModel
+
+Copy mjModel, skip large arrays not required for abstract visualization.
+
 .. _mjv_defaultSceneState:
 
 `mjv_defaultSceneState <#mjv_defaultSceneState>`__

@@ -6941,6 +6941,9 @@ public static unsafe extern void mjv_updateScene(mjModel_* m, mjData_* d, mjvOpt
 public static unsafe extern int mjv_updateSceneFromState(mjvSceneState_* scnstate, mjvOption_* opt, mjvPerturb_* pert, mjvCamera_* cam, int catmask, mjvScene_* scn);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_copyModel(mjModel_* dest, mjModel_* src);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultSceneState(mjvSceneState_* scnstate);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

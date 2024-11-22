@@ -4550,6 +4550,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.',  # pylint: disable=line-too-long
      )),
+    ('mjv_copyModel',
+     FunctionDecl(
+         name='mjv_copyModel',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Copy mjModel, skip large arrays not required for abstract visualization.',  # pylint: disable=line-too-long
+     )),
     ('mjv_defaultSceneState',
      FunctionDecl(
          name='mjv_defaultSceneState',

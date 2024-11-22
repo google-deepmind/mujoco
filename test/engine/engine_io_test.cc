@@ -193,6 +193,43 @@ TEST_F(EngineIoTest, MakeDataResetsAllArenaPointerSizes) {
   mj_deleteModel(model);
 }
 
+TEST_F(EngineIoTest, MjvCopyModel) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tet"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model1 = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model1, NotNull()) << error;
+
+  mjModel* model2 = mj_copyModel(nullptr, model1);
+  ASSERT_THAT(model2, NotNull()) << error;
+
+  model1->mesh_vert[0] = 0.1;
+  model1->geom_rgba[0] = 0.2;
+  mj_copyModel(model2, model1);
+
+  EXPECT_FLOAT_EQ(model2->mesh_vert[0], 0.1);
+  EXPECT_FLOAT_EQ(model2->geom_rgba[0], 0.2);
+
+  model1->mesh_vert[0] = 0.3;
+  model1->geom_rgba[0] = 0.4;
+  mjv_copyModel(model2, model1);
+
+  EXPECT_FLOAT_EQ(model2->mesh_vert[0], 0.1);  // unchanged
+  EXPECT_FLOAT_EQ(model2->geom_rgba[0], 0.4);
+
+  // mj_deleteData(data);
+  mj_deleteModel(model2);
+  mj_deleteModel(model1);
+}
+
 using ValidateReferencesTest = MujocoTest;
 
 TEST_F(ValidateReferencesTest, BodyReferences) {

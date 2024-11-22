@@ -69,6 +69,9 @@ void mj_makeModel(mjModel** dest,
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
+// copy mjModel, skip large arrays not required for abstract visualization
+MJAPI void mjv_copyModel(mjModel* dest, const mjModel* src);
+
 // save model to binary file
 MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
 

@@ -625,10 +625,10 @@ void mj_makeModel(mjModel** dest,
   }
 }
 
+
+
 // copy mjModel, if dest==NULL create new model
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
-  void* save_bufptr;
-
   // allocate new model if needed
   if (!dest) {
     mj_makeModel(&dest,
@@ -658,13 +658,13 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
     mjERROR("dest and src models have different buffer size");
   }
 
-  // save buffer ptr, copy everything, restore buffer and other pointers
-  save_bufptr = dest->buffer;
+  // save buffer ptr, copy struct, restore buffer and other pointers
+  void* save_bufptr = dest->buffer;
   *dest = *src;
   dest->buffer = save_bufptr;
   mj_setPtrModel(dest);
 
-  // copy buffer
+  // copy buffer contents
   {
     MJMODEL_POINTERS_PREAMBLE(src)
     #define X(type, name, nr, nc)  \
@@ -674,6 +674,38 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   }
 
   return dest;
+}
+
+
+
+// copy mjModel, skip large arrays not required for abstract visualization
+void mjv_copyModel(mjModel* dest, const mjModel* src) {
+  // check sizes
+  if (dest->nbuffer != src->nbuffer) {
+    mjERROR("dest and src models have different buffer size");
+  }
+
+  // save buffer ptr, copy struct, restore buffer and other pointers
+  void* save_bufptr = dest->buffer;
+  *dest = *src;
+  dest->buffer = save_bufptr;
+  mj_setPtrModel(dest);
+
+  // redefine XNV to do nothing
+  #undef XNV
+  #define XNV(type, name, nr, nc)
+
+  // copy buffer contents, skipping arrays marked XNV
+  {
+    MJMODEL_POINTERS_PREAMBLE(src)
+    #define X(type, name, nr, nc)    \
+      memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(src->nr)*nc);
+    MJMODEL_POINTERS
+    #undef X
+  }
+  // redefine XNV to be the same as X
+  #undef XNV
+  #define XNV X
 }
 
 
@@ -1401,26 +1433,28 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
     #undef X
   }
 
-  // copy arena memory
-#undef MJ_D
-#define MJ_D(n) (src->n)
-#undef MJ_M
-#define MJ_M(n) (m->n)
-#define X(type, name, nr, nc)  \
-  if (src->name) { \
-    dest->name = (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)); \
-    ASAN_UNPOISON_MEMORY_REGION(dest->name, sizeof(type)*nr*nc); \
-    memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*nr*nc); \
-  } else { \
-    dest->name = NULL; \
-  }
 
+  // copy arena memory
+  #undef MJ_D
+  #define MJ_D(n) (src->n)
+  #undef MJ_M
+  #define MJ_M(n) (m->n)
+
+  #define X(type, name, nr, nc)                                                  \
+    if (src->name) {                                                             \
+      dest->name = (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)); \
+      ASAN_UNPOISON_MEMORY_REGION(dest->name, sizeof(type) * nr * nc);           \
+      memcpy((char*)dest->name, (const char*)src->name, sizeof(type) * nr * nc); \
+    } else {                                                                     \
+      dest->name = NULL;                                                         \
+    }
   MJDATA_ARENA_POINTERS
-#undef X
-#undef MJ_M
-#define MJ_M(n) n
-#undef MJ_D
-#define MJ_D(n) n
+  #undef X
+
+  #undef MJ_M
+  #define MJ_M(n) n
+  #undef MJ_D
+  #define MJ_D(n) n
 
   // restore contact pointer
   dest->contact = dest->arena;

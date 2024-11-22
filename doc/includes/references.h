@@ -3347,6 +3347,7 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
 int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt,
                              const mjvPerturb* pert, mjvCamera* cam, int catmask,
                              mjvScene* scn);
+void mjv_copyModel(mjModel* dest, const mjModel* src);
 void mjv_defaultSceneState(mjvSceneState* scnstate);
 void mjv_makeSceneState(const mjModel* m, const mjData* d,
                         mjvSceneState* scnstate, int maxgeom);
