@@ -10,6 +10,10 @@ MJX
 ^^^
 - Added muscle actuators.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- Provide prebuilt wheels for Python 3.13.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed :github:issue:`2212`, type error in ``mjx.get_data``.
