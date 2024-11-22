@@ -92,18 +92,11 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(site.type, mujoco.mjtGeom.mjGEOM_BOX)
     np.testing.assert_array_equal(site.userdata, [1, 2, 3, 4, 5, 6])
 
-    # Check that the site and body have no id before compilation.
-    self.assertEqual(body.id, -1)
-    self.assertEqual(site.id, -1)
-
     # Compile the spec and check for expected values in the model.
     model = spec.compile()
-    self.assertEqual(spec.worldbody.id, 0)
-    self.assertEqual(body.id, 1)
-    self.assertEqual(site.id, 0)
     self.assertEqual(model.nbody, 2)  # 2 bodies, including the world body
-    np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
-    np.testing.assert_array_equal(model.body_quat[1], [0, 1, 0, 0])
+    np.testing.assert_array_equal(model.body('baz').pos, [1, 2, 3])
+    np.testing.assert_array_equal(model.body('baz').quat, [0, 1, 0, 0])
     self.assertEqual(model.nsite, 1)
     self.assertEqual(model.nuser_site, 6)
     np.testing.assert_array_equal(model.site_user[0], [1, 2, 3, 4, 5, 6])
