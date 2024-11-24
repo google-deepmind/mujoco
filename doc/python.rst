@@ -503,6 +503,42 @@ The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in t
 
 Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
+Attachments
+-----------
+
+It is possible to combine multiple specs by using attachments. The following options are possible:
+
+-   Attach a body from the child spec to a frame in the parent spec: ``body.attach_body(body, prefix, suffix)``, returns
+    the newly createdbody in the parent spec.
+-   Attach a frame from the child spec to a body in the parent spec: ``body.attach_frame(frame, prefix, suffix)``,
+    returns the newly created frame in the parent spec.
+-   Attach a body from the child spec to a site in the parent spec: ``site.attach(body, prefix, suffix)``, returns the
+    newly created body in the parent spec.
+-   Attach the worldbody from the child spec to a frame in the parent spec and transform it to a frame:
+    ``body.attach(spec, prefix, suffix)``, returns the newly created frame that the child worldbody was transformed
+    into.
+
+.. code-block:: python
+
+   import mujoco
+
+   # Create the parent spec.
+   parent = mujoco.MjSpec()
+   body = parent.worldbody.add_body()
+   frame = parent.worldbody.add_frame()
+   site = parent.worldbody.add_site()
+
+   # Create the child spec.
+   child = mujoco.MjSpec()
+   child_body = child.worldbody.add_body()
+   child_frame = child.worldbody.add_frame()
+
+   # Attach the child to the parent in different ways.
+   body_in_frame = frame.attach_body(child_body, 'child-', '')
+   frame_in_body = body.attach_frame(child_frame, 'child-', '')
+   body_in_site = site.attach(child_body, 'child-', '')
+   worldframe_in_frame = frame.attach(child, 'child-', '')
+
 Convenience methods
 -------------------
 

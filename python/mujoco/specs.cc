@@ -665,6 +665,24 @@ PYBIND11_MODULE(_specs, m) {
         return new_body;
       },
       py::return_value_policy::reference_internal);
+  mjsFrame.def(
+      "attach",
+      [](raw::MjsFrame& self, MjSpec& spec, std::string& prefix,
+         std::string& suffix) -> raw::MjsFrame* {
+        auto world = mjs_findBody(spec.ptr, "world");
+        if (!world) {
+          throw pybind11::value_error(
+              mjs_getError(mjs_getSpec(self.element)));
+        }
+        auto attached_world =
+            mjs_attachBody(&self, world, prefix.c_str(), suffix.c_str());
+        if (!attached_world) {
+          throw pybind11::value_error(
+              mjs_getError(mjs_getSpec(self.element)));
+        }
+        return mjs_bodyToFrame(&attached_world);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSGEOM =====================================
   mjsGeom.def("delete", [](raw::MjsGeom& self) { mjs_delete(self.element); });

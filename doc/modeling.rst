@@ -1284,7 +1284,7 @@ elastic structures.
 
 
 The box type, as well as the cylinder and ellipsoid types, are now deprecated in favor of 3D flex :ref:`deformable
-objects <CDeformable>``. element.
+objects <CDeformable>`. element.
 
 .. _CDeformable:
 
