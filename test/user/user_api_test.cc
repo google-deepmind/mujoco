@@ -731,7 +731,7 @@ static constexpr char xml_child[] = R"(
             <joint type="hinge" name="hinge"/>
             <geom class="cylinder" material="material"/>
             <light mode="targetbody" target="targetbody"/>
-            <site name="site"/>
+            <site name="site" material="material"/>
             <body name="targetbody"/>
             <body/>
           </body>
@@ -798,7 +798,7 @@ TEST_F(MujocoTest, AttachSame) {
         <joint type="hinge" name="hinge"/>
         <geom class="cylinder" material="material"/>
         <light mode="targetbody" target="targetbody"/>
-        <site name="site"/>
+        <site name="site" material="material"/>
         <body name="targetbody"/>
         <body/>
       </body>
@@ -811,7 +811,7 @@ TEST_F(MujocoTest, AttachSame) {
           <joint type="hinge" name="attached-hinge-1"/>
           <geom class="cylinder" material="material"/>
           <light mode="targetbody" target="attached-targetbody-1"/>
-          <site name="attached-site-1"/>
+          <site name="attached-site-1" material="material"/>
           <body name="attached-targetbody-1"/>
           <body/>
         </body>
@@ -952,7 +952,7 @@ TEST_F(MujocoTest, AttachDifferent) {
             <joint type="hinge" name="attached-hinge-1"/>
             <geom class="attached-cylinder-1" material="attached-material-1"/>
             <light mode="targetbody" target="attached-targetbody-1"/>
-            <site name="attached-site-1"/>
+            <site name="attached-site-1" material="attached-material-1"/>
             <body name="attached-targetbody-1"/>
             <body/>
           </body>
@@ -1087,7 +1087,7 @@ TEST_F(MujocoTest, AttachFrame) {
               <joint type="hinge" name="attached-hinge-1"/>
               <geom class="attached-cylinder-1" material="attached-material-1"/>
               <light mode="targetbody" target="attached-targetbody-1"/>
-              <site name="attached-site-1"/>
+              <site name="attached-site-1" material="attached-material-1"/>
               <body name="attached-targetbody-1"/>
               <body/>
             </body>

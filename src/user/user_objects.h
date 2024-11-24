@@ -615,6 +615,7 @@ class mjCSite : public mjCSite_, private mjsSite {
   void Compile(void);                     // compiler
   void CopyFromSpec();                    // copy spec into attributes
   void PointToLocal(void);
+  void NameSpace(const mjCModel* m);
 };
 
 

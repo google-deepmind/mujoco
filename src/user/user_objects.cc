@@ -3102,6 +3102,15 @@ void mjCSite::CopyFromSpec() {
 
 
 
+void mjCSite::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
+}
+
+
+
 // compiler
 void mjCSite::Compile(void) {
   CopyFromSpec();
