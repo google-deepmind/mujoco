@@ -141,7 +141,7 @@ TEST_F(MujocoTest, SaveXml) {
 
   std::array<char, 274> out;
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
-                               error.size()), 0) << error.data();
+                               error.size()), 1) << error.data();
 
   mjSpec* saved_spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(saved_spec, NotNull()) << "Invalid saved spec: " << error.data();

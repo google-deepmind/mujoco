@@ -257,6 +257,6 @@ int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int er
 
   result.copy(xml, xml_sz);
   xml[result.size()] = 0;
-  return 0;
+  return 1;
 }
 
