@@ -307,6 +307,28 @@
   XGROUP( MjModelTupleViews,    tuple,    ntuple,   MJMODEL_TUPLE    ) \
   XGROUP( MjModelKeyframeViews, key,      nkey,     MJMODEL_KEYFRAME )
 
+#define MJMODEL_BIND_GROUPS      \
+  XGROUP( mjsActuator, actuator) \
+  XGROUP( mjsBody,     body    ) \
+  XGROUP( mjsCamera,   cam     ) \
+  XGROUP( mjsEquality, eq      ) \
+  XGROUP( mjsExclude,  exclude ) \
+  XGROUP( mjsGeom,     geom    ) \
+  XGROUP( mjsHField,   hfield  ) \
+  XGROUP( mjsJoint,    jnt     ) \
+  XGROUP( mjsLight,    light   ) \
+  XGROUP( mjsMaterial, mat     ) \
+  XGROUP( mjsMesh,     mesh    ) \
+  XGROUP( mjsNumeric,  numeric ) \
+  XGROUP( mjsPair,     pair    ) \
+  XGROUP( mjsSensor,   sensor  ) \
+  XGROUP( mjsSite,     site    ) \
+  XGROUP( mjsSkin,     skin    ) \
+  XGROUP( mjsTendon,   tendon  ) \
+  XGROUP( mjsTexture,  tex     ) \
+  XGROUP( mjsTuple,    tuple   ) \
+  XGROUP( mjsKey,      key     )
+
 #define MJMODEL_VIEW_GROUPS_ALTNAMES        \
   XGROUP( cam, camera,   MJMODEL_CAMERA   ) \
   XGROUP( eq,  equality, MJMODEL_EQUALITY ) \
@@ -398,6 +420,17 @@
   XGROUP( MjDataSensorViews,   sensor,   nsensor,  MJDATA_SENSOR   ) \
   XGROUP( MjDataSiteViews,     site,     nsite,    MJDATA_SITE     ) \
   XGROUP( MjDataTendonViews,   tendon,   ntendon,  MJDATA_TENDON   )
+
+#define MJDATA_BIND_GROUPS       \
+  XGROUP( mjsActuator, actuator) \
+  XGROUP( mjsBody,     body    ) \
+  XGROUP( mjsCamera,   cam     ) \
+  XGROUP( mjsGeom,     geom    ) \
+  XGROUP( mjsJoint,    jnt     ) \
+  XGROUP( mjsLight,    light   ) \
+  XGROUP( mjsSensor,   sensor  ) \
+  XGROUP( mjsSite,     site    ) \
+  XGROUP( mjsTendon,   tendon  )
 
 #define MJDATA_VIEW_GROUPS_ALTNAMES       \
   XGROUP( cam,    camera, MJDATA_CAMERA ) \

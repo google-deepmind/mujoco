@@ -94,9 +94,12 @@ class SpecsTest(absltest.TestCase):
 
     # Compile the spec and check for expected values in the model.
     model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
     self.assertEqual(model.nbody, 2)  # 2 bodies, including the world body
-    np.testing.assert_array_equal(model.body('baz').pos, [1, 2, 3])
-    np.testing.assert_array_equal(model.body('baz').quat, [0, 1, 0, 0])
+    np.testing.assert_array_equal(model.bind(body).pos, [1, 2, 3])
+    np.testing.assert_array_equal(model.bind(body).quat, [0, 1, 0, 0])
+    np.testing.assert_array_equal(data.bind(body).xpos, [1, 2, 3])
     self.assertEqual(model.nsite, 1)
     self.assertEqual(model.nuser_site, 6)
     np.testing.assert_array_equal(model.site_user[0], [1, 2, 3, 4, 5, 6])

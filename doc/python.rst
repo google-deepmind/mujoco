@@ -585,16 +585,17 @@ Model Editing
 includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
 `tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
 
-``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via the constructing
-elements. In the native API, this is done with object ids. For example, say we have multiple geoms containing the string
-"torso" in their name. We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as
-follows:
+``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
+In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to
+:ref:`mjModel` and :ref:`mjData`. This requires the objects to have a non-empty name. For example, say we have multiple
+geoms containing the string "torso" in their name. We want to get their Cartesian positions in the XY plane from
+``mjData``. This can be done as follows:
 
 .. code-block:: python
 
-   torsos = [geom.id for geom in spec.geoms if 'torso' in geom.name]
-   pos_x = data.geom_xpos[torsos, 0]
-   pos_y = data.geom_xpos[torsos, 1]
+   torsos = [data.bind(geom) for geom in spec.geoms if 'torso' in geom.name]
+   pos_x = [torso.xpos[0] for torso in torsos]
+   pos_y = [torso.xpos[1] for torso in torsos]
 
 Notes
 -----
