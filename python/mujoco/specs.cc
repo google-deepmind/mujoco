@@ -960,6 +960,6 @@ PYBIND11_MODULE(_specs, m) {
   mjsPlugin.def("delete",
                 [](raw::MjsPlugin& self) { mjs_delete(self.element); });
 
-#include "python/mujoco/specs.cc.inc"
+#include "specs.cc.inc"
 }  // PYBIND11_MODULE // NOLINT
 }  // namespace mujoco::python
