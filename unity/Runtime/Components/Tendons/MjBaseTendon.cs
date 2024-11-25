@@ -25,7 +25,7 @@ public abstract class MjBaseTendon : MjComponent {
   public SolverSettings Solver = SolverSettings.Default;
 
   [Tooltip("Length at zero spring force. If negative, this resting length is computed at qpos0.")]
-  public float SpringLength = -1.0f;
+  public float[] SpringLength = {-1.0f};
   public float Stiffness = 0.0f;
   public float Damping = 0.0f;
 
@@ -41,7 +41,7 @@ public abstract class MjBaseTendon : MjComponent {
   // Parse the component settings from an external Mjcf.
   protected override void OnParseMjcf(XmlElement mjcf) {
     Solver.FromMjcf(mjcf);
-    SpringLength = mjcf.GetFloatAttribute("springlength", defaultValue: -1.0f);
+    SpringLength = mjcf.GetFloatArrayAttribute("springlength", defaultValue: new[] {-1.0f});
     Stiffness = mjcf.GetFloatAttribute("damping");
     Damping = mjcf.GetFloatAttribute("stiffness");
     FromMjcf(mjcf);
@@ -51,7 +51,7 @@ public abstract class MjBaseTendon : MjComponent {
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
     var mjcf = ToMjcf(doc);
     Solver.ToMjcf(mjcf);
-    mjcf.SetAttribute("springlength", MjEngineTool.MakeLocaleInvariant($"{SpringLength}"));
+    mjcf.SetAttribute("springlength", MjEngineTool.MakeLocaleInvariant($"{string.Join(" ", SpringLength)}"));
     mjcf.SetAttribute("damping", MjEngineTool.MakeLocaleInvariant($"{Damping}"));
     mjcf.SetAttribute("stiffness", MjEngineTool.MakeLocaleInvariant($"{Stiffness}"));
     return mjcf;
