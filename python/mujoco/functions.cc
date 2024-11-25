@@ -1069,6 +1069,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_derivQuat>(pymodule);
   Def<traits::mju_quatIntegrate>(pymodule);
   Def<traits::mju_quatZ2Vec>(pymodule);
+  Def<traits::mju_mat2Rot>(pymodule);
   Def<traits::mju_euler2Quat>(pymodule);
 
   // Poses

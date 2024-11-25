@@ -7385,6 +7385,28 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Construct quaternion performing rotation from z-axis to given vector.',  # pylint: disable=line-too-long
      )),
+    ('mju_mat2Rot',
+     FunctionDecl(
+         name='mju_mat2Rot',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='quat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(9,),
+                 ),
+             ),
+         ),
+         doc='extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion returns the number of iterations required to converge',  # pylint: disable=line-too-long
+     )),
     ('mju_euler2Quat',
      FunctionDecl(
          name='mju_euler2Quat',

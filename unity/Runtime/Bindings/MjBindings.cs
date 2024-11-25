@@ -7277,6 +7277,9 @@ public static unsafe extern void mju_quatIntegrate(double* quat, double* vel, do
 public static unsafe extern void mju_quatZ2Vec(double* quat, double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mju_mat2Rot(double* quat, double* mat);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_euler2Quat(double* quat, double* euler, [MarshalAs(UnmanagedType.LPStr)]string seq);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

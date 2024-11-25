@@ -3481,6 +3481,7 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
 void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]);
 void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
+int mju_mat2Rot(mjtNum quat[4], const mjtNum mat[9]);
 void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq);
 void mju_mulPose(mjtNum posres[3], mjtNum quatres[4],
                  const mjtNum pos1[3], const mjtNum quat1[4],
