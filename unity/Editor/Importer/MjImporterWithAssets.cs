@@ -152,6 +152,13 @@ public class MjImporterWithAssets : MjcfImporter {
       parentNode.GetStringAttribute("name", defaultValue: string.Empty);
     var assetReferenceName = MjEngineTool.Sanitize(unsanitizedAssetReferenceName);
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
+
+    if (Path.GetExtension(sourceFilePath) == ".obj") {
+      throw new NotImplementedException("OBJ mesh file loading is not yet implemented. " +
+                                        "Please convert to binary STL. " +
+                                        $"Attempted to load: {sourceFilePath}");
+    }
+
     var targetFilePath = Path.Combine(_targetMeshesDir, assetReferenceName + ".stl");
     if (File.Exists(targetFilePath)) {
       File.Delete(targetFilePath);
