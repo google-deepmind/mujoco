@@ -176,8 +176,7 @@ Scene recreation maintains continuity of physics and state in the following way:
    persisted.
 4. The MuJoCo state (for the joints that persisted) is set from the cache, and Unity transforms are synchronized.
 
-MuJoCo library has functionality for dynamic scene editing (through `mjSpec
-<https://mujoco.readthedocs.io/en/stable/programming/modeledit.html#model-editing>`_), however, this is not yet
+MuJoCo has functionality for dynamic scene editing (through :ref:`mjSpec`), however, this is not yet
 supported in the Unity plugin. Therefore, adding and removing MuJoCo components causes complete scene recreation.  This
 can be expensive for large models or if it happens frequently.  We intend to lift this performance limitation to be in a
 future versions of the plugin.
