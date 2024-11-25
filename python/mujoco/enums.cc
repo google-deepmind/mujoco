@@ -20,7 +20,7 @@
 #include <Python.h>
 
 #include "util/crossplatform.h"
-#include "python/mujoco/enum_traits.h"
+#include "enum_traits.h"
 #include "util/tuple_tools.h"
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>

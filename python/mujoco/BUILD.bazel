@@ -88,6 +88,7 @@ pybind_extension(
 cc_library(
     name = "enum_traits",
     hdrs = ["enum_traits.h"],
+    includes = ["."],
     deps = ["//:mujoco_hdrs"],
 )
 
@@ -120,6 +121,7 @@ generated_file(
 cc_library(
     name = "function_traits",
     hdrs = ["function_traits.h"],
+    includes = ["."],
     deps = [
         "//:mujoco_hdrs",
         "//python/mujoco/util:crossplatform",
@@ -161,9 +163,6 @@ pybind_library(
 pybind_extension(
     name = "_functions",
     srcs = ["functions.cc"],
-    copts = [
-        "-Ipython/mujoco",
-    ],
     dynamic_deps = [
         "//:mujoco_shared",
     ],
@@ -188,9 +187,6 @@ cc_library(
 pybind_extension(
     name = "_render",
     srcs = ["render.cc"],
-    copts = [
-        "-Ipython/mujoco",
-    ],
     dynamic_deps = [
         "//:mujoco_shared",
     ],
@@ -237,7 +233,6 @@ pybind_extension(
         "-Wno-type-limits",
         "-Wno-error",
         "-Wno-int-in-bool-context",
-        "-Ipython/mujoco",
     ],
     dynamic_deps = [
         "//:mujoco_shared",
@@ -312,6 +307,7 @@ pybind_extension(
     copts = [
         "-Wno-sign-compare",
     ],
+    includes = ["."],
     dynamic_deps = [
         "//:mujoco_shared",
     ],
