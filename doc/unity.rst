@@ -10,6 +10,9 @@ runtime to use the MuJoCo physics engine.  Users can import MJCF files and edit 
 relies on Unity for most aspects -- assets, game logic, simulation time -- but uses MuJoCo to determine how objects
 move, giving the designer access to MuJoCo's full API.
 
+An example project using MuJoCo's Unity plugin in a set of introductory tutorials is available at
+https://github.com/Balint-H/mj-unity-tutorial.
+
 .. _UInstallation:
 
 Installation instructions
@@ -145,10 +148,6 @@ effects:
   material assets for geom RGBA specification.
 - It allows the importer to handle :ref:`\<include\> <include>` elements without replicating MuJoCo’s file-system
   workflow.
-- The current version of MuJoCo generates MJCF files with explicit :ref:`\<inertial\> <body-inertial>` elements, even when
-  the original model uses geoms for implicit definition of the body inertia.  If you plan to change geom properties of
-  an imported model, remove these auto-generated ``MjInertial`` components manually.  We plan to address this in a
-  future release of MuJoCo.
 
 In Unity, there is no equivalent to MJCF’s “cascading” :ref:`\<default\> <default>` clauses.  Therefore, components in
 Unity reflect the corresponding elements’ state after applying all the relevant default classes, and the class structure
@@ -177,9 +176,11 @@ Scene recreation maintains continuity of physics and state in the following way:
    persisted.
 4. The MuJoCo state (for the joints that persisted) is set from the cache, and Unity transforms are synchronized.
 
-Because the MuJoCo library doesn’t (yet) expose an API for scene editing, adding and removing MuJoCo components causes
-complete scene recreation.  This can be expensive for large models or if it happens frequently.  We expect this
-performance limitation to be lifted in future versions of MuJoCo.
+MuJoCo library has functionality for dynamic scene editing (through `mjSpec
+<https://mujoco.readthedocs.io/en/stable/programming/modeledit.html#model-editing>`_), however, this is not yet
+supported in the Unity plugin. Therefore, adding and removing MuJoCo components causes complete scene recreation.  This
+can be expensive for large models or if it happens frequently.  We intend to lift this performance limitation to be in a
+future versions of the plugin.
 
 Global Settings
 _______________
@@ -322,6 +323,20 @@ ___________
 The plug-in allows using arbitrary Unity meshes for MuJoCo collision.  At model compilation, MuJoCo calls `qhull
 <http://www.qhull.org/>`__ to create a convex hull of the mesh, and uses that for collisions.  Currently the computed
 convex hull is not visible in Unity, but we intend to expose it in future versions.
+
+Height fields
+_____________
+
+MuJoCo hfields are represented in Unity through terrain gameobjects. This allows the use of the terrain editing tools
+available in Unity to generate shapes for collisions with MuJoCo. When selecting hfield type in the Unity geom
+component, the right click context menu provides utility to add the corresponding Unity terrain to the scene. The data
+from the terrain is dynamically kept in sync with the simulation.
+
+MuJoCo plugins
+______________
+
+The current version of the Unity package does not support loading MJCF scenes that use MuJoCo plugins such as
+``elasticity``. Adding basic functionality to do this will be part of an upcoming release.
 
 Interaction with External Processes
 ___________________________________
