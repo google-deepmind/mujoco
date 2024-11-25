@@ -154,7 +154,9 @@ public class MjImporterWithAssets : MjcfImporter {
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
 
     if (Path.GetExtension(sourceFilePath) == ".obj") {
-      throw new NotImplementedException($"OBJ mesh file loading is not yet implemented. Please convert to binary STL. Attempted to load: {sourceFilePath}");
+      throw new NotImplementedException("OBJ mesh file loading is not yet implemented. " +
+                                        "Please convert to binary STL. " +
+                                        $"Attempted to load: {sourceFilePath}");
     }
 
     var targetFilePath = Path.Combine(_targetMeshesDir, assetReferenceName + ".stl");
