@@ -242,7 +242,7 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
 
 
 
-// save spec to string, return 1 on success, 0 otherwise
+// save spec to string, return 1 on success, 0 on failure, or required buffer size if too small
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
   std::string result = WriteXML(NULL, s, error, error_sz);
   if (result.size() >= xml_sz) {

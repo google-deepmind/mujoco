@@ -117,7 +117,7 @@ MJAPI int mj_saveLastXML(const char* filename, const mjModel* m, char* error, in
 // Free last XML model if loaded. Called internally at each load.
 MJAPI void mj_freeLastXML(void);
 
-// Save spec to XML string, return 1 on success, 0 otherwise.
+// Save spec to XML string, return 1 on success, 0 on failure, or required buffer size if too small
 MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 
 // Save spec to XML file, return 1 on success, 0 otherwise.
