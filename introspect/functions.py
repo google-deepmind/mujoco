@@ -349,7 +349,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Save spec to XML string, return 1 on success, 0 otherwise.',
+         doc='Save spec to XML string, return 0 on success, -1 on failure. If length of the output buffer is too small, returns the required size.',  # pylint: disable=line-too-long
      )),
     ('mj_saveXML',
      FunctionDecl(

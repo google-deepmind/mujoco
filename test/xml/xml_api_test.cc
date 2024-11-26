@@ -140,6 +140,9 @@ TEST_F(MujocoTest, SaveXml) {
   EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
 
   std::array<char, 274> out;
+  EXPECT_THAT(mj_saveXMLString(NULL, out.data(), out.size(), error.data(),
+                               error.size()), -1);
+  EXPECT_STREQ(error.data(), "Cannot write empty model");
   EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
                                error.size()), 0) << error.data();
 

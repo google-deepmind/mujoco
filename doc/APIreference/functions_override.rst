@@ -49,11 +49,12 @@ instances will be deleted; as in :ref:`mj_compile`, the compilation error can be
 
 .. _mj_saveXMLString:
 
-Save spec to XML string, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
+Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
+the required size. XML saving requires that the spec first be compiled.
 
 .. _mj_saveXML:
 
-Save spec to XML file, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
+Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
 .. _Mainsimulation:
 
