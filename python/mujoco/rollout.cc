@@ -54,7 +54,7 @@ Roll out open-loop trajectories from initial states, get resulting states and se
 // C-style rollout function, assumes all arguments are valid
 // all input fields of d are initialised, contents at call time do not matter
 // after returning, d will contain the last step of the last rollout
-void _unsafe_rollout(const mjModel** m, mjData* d, int nroll, int nstep, unsigned int control_spec,
+void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int nroll, int nstep, unsigned int control_spec,
                      const mjtNum* state0, const mjtNum* warmstart0, const mjtNum* control,
                      mjtNum* state, mjtNum* sensordata) {
   // sizes
@@ -198,7 +198,8 @@ PYBIND11_MODULE(_rollout, pymodule) {
          ) {
         // get raw pointers
         int nroll = state0.shape(0);
-        const raw::MjModel* model_ptrs[nroll];
+        std::vector<const raw::MjModel*> model_ptrs;
+        model_ptrs.reserve(nroll);
         for (int r = 0; r < nroll; r++) {
           model_ptrs[r] = m[r].cast<const MjModelWrapper*>()->get();
         }
