@@ -2825,6 +2825,9 @@ void mjCModel::CopyObjects(mjModel* m) {
       mjuu_copyvec(m->flex_vert + 3*vert_adr, pfl->vert_.data(), 3*pfl->nvert);
     }
 
+    // copy vert0
+    mjuu_copyvec(m->flex_vert0 + 3*vert_adr, pfl->vert0_.data(), 3*pfl->nvert);
+
     // copy or set vertbodyid
     if (pfl->rigid) {
       for (int k=0; k<pfl->nvert; k++) {

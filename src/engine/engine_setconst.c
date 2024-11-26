@@ -120,18 +120,6 @@ static void set0(mjModel* m, mjData* d) {
     m->light_mode[i] = lightmode[i];
   }
 
-  // compute bounding box coordinates
-  for (int i=0; i < m->nflex; i++) {
-    int bvhadr = m->flex_bvhadr[i];
-    const mjtNum* bvh = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic);
-    for (int j=0; j < m->nflexvert; j++) {
-      for (int k=0; k < 3; k++) {
-        mjtNum size = 2*(bvh[3+k] - m->flex_radius[i]);
-        m->flex_vert0[3*j+k] = (d->flexvert_xpos[3*j+k] - bvh[k]) / size + 0.5;
-      }
-    }
-  }
-
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
   mju_copy(m->tendon_length0, d->ten_length, m->ntendon);
