@@ -224,6 +224,11 @@ def make_data(
         efc_address=efc_address,
     )
 
+    if m.opt.cone == types.ConeType.ELLIPTIC and np.any(contact.dim == 1):
+      raise NotImplementedError(
+          'condim=1 with ConeType.ELLIPTIC not implemented.'
+      )
+
     zero_fields = {
         'solver_niter': (int,),
         'time': (float,),

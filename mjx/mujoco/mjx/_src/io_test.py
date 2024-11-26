@@ -20,6 +20,7 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src.types import ConeType
 import numpy as np
 
 
@@ -494,6 +495,24 @@ class DataIOTest(parameterized.TestCase):
     # placing an MjData onto device should yield the same treedef mjx.Data as
     # calling make_data.  they should be interchangeable for jax functions:
     step_fn_jit(mjx.make_data(m))
+
+  def test_contact_elliptic_condim1(self):
+    """Test that condim=1 with ConeType.ELLIPTIC is not implemented."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <geom size="0 0 1e-5" type="plane" condim="1"/>
+          <body>
+            <freejoint/>
+            <geom size="0.1" condim="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    m.opt.cone = ConeType.ELLIPTIC
+    with self.assertRaises(NotImplementedError):
+      mjx.make_data(m)
+
 
 if __name__ == '__main__':
   absltest.main()

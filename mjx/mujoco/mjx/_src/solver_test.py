@@ -21,6 +21,7 @@ import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import solver
 from mujoco.mjx._src import test_util
+from mujoco.mjx._src.types import ConeType
 import numpy as np
 
 
@@ -145,6 +146,24 @@ class SolverTest(parameterized.TestCase):
     _assert_attr_eq(d, dx, 'qfrc_constraint')
     nnz = dx.efc_J.any(axis=1)
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+
+  # TODO(taylorhowell): condim=1 with ConeType.ELLIPTIC
+  @parameterized.product(condim=(3, 4, 6), cone=tuple(ConeType))
+  def test_condim(self, condim, cone):
+    """Test contact dimension."""
+    m = mujoco.MjModel.from_xml_string(f"""
+       <mujoco>
+          <worldbody>
+            <geom size="0 0 1e-5" type="plane" condim="1"/>
+            <body pos="0 0 0.09">
+              <freejoint/>
+              <geom size="0.1" condim="{condim}"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """)
+    m.opt.cone = cone
+    solver.solve(mjx.put_model(m), mjx.put_data(m, mujoco.MjData(m)))
 
 
 if __name__ == '__main__':
