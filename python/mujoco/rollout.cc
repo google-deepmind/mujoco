@@ -198,8 +198,7 @@ PYBIND11_MODULE(_rollout, pymodule) {
          ) {
         // get raw pointers
         int nroll = state0.shape(0);
-        std::vector<const raw::MjModel*> model_ptrs;
-        model_ptrs.reserve(nroll);
+        std::vector<const raw::MjModel*> model_ptrs(nroll);
         for (int r = 0; r < nroll; r++) {
           model_ptrs[r] = m[r].cast<const MjModelWrapper*>()->get();
         }
