@@ -29,7 +29,6 @@ def rollout(model: mujoco.MjModel,
             *,  # require subsequent arguments to be named
             control_spec: int = mujoco.mjtState.mjSTATE_CTRL.value,
             skip_checks: bool = False,
-            nroll: Optional[int] = None,
             nstep: Optional[int] = None,
             initial_warmstart: Optional[npt.ArrayLike] = None,
             state: Optional[npt.ArrayLike] = None,
@@ -50,7 +49,6 @@ def rollout(model: mujoco.MjModel,
       ([nroll or 1] x [nstep or 1] x ncontrol)
     control_spec: mjtState specification of control vectors.
     skip_checks: Whether to skip internal shape and type checks.
-    nroll: Number of rollouts (inferred if unspecified).
     nstep: Number of steps in rollouts (inferred if unspecified).
     initial_warmstart: Initial qfrc_warmstart array (optional).
       ([nroll or 1] x nv)
@@ -74,7 +72,7 @@ def rollout(model: mujoco.MjModel,
   #   don't allocate output arrays
   #   just call rollout and return
   if skip_checks:
-    _rollout.rollout(model, data, nroll, nstep, control_spec, initial_state,
+    _rollout.rollout(model, data, nstep, control_spec, initial_state,
                      initial_warmstart, control, state, sensordata)
     return state, sensordata
 
@@ -83,8 +81,6 @@ def rollout(model: mujoco.MjModel,
     raise ValueError('control_spec can only contain bits in mjSTATE_USER')
 
   # check types
-  if nroll and not isinstance(nroll, int):
-    raise ValueError('nroll must be an integer')
   if nstep and not isinstance(nstep, int):
     raise ValueError('nstep must be an integer')
   _check_must_be_numeric(
@@ -121,7 +117,7 @@ def rollout(model: mujoco.MjModel,
   _check_trailing_dimension(model.nsensordata, sensordata=sensordata)
 
   # infer nroll, check for incompatibilities
-  nroll = _infer_dimension(0, nroll or 1,
+  nroll = _infer_dimension(0, 1,
                            initial_state=initial_state,
                            initial_warmstart=initial_warmstart,
                            control=control,
@@ -146,7 +142,7 @@ def rollout(model: mujoco.MjModel,
     sensordata = np.empty((nroll, nstep, model.nsensordata))
 
   # call rollout
-  _rollout.rollout(model, data, nroll, nstep, control_spec, initial_state,
+  _rollout.rollout(model, data, nstep, control_spec, initial_state,
                    initial_warmstart, control, state, sensordata)
 
   # return outputs

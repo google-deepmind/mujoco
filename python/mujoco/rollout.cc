@@ -39,7 +39,6 @@ Roll out open-loop trajectories from initial states, get resulting states and se
   input arguments (required):
     model              instance of MjModel
     data               associated instance of MjData
-    nroll              integer, number of initial states from which to roll out trajectories
     nstep              integer, number of steps to be taken for each trajectory
     control_spec       specification of controls, ncontrol = mj_stateSize(m, control_spec)
     state0             (nroll x nstate) nroll initial state vectors,
@@ -190,7 +189,7 @@ PYBIND11_MODULE(_rollout, pymodule) {
   pymodule.def(
       "rollout",
       [](const MjModelWrapper& m, MjDataWrapper& d,
-         int nroll, int nstep, unsigned int control_spec,
+         int nstep, unsigned int control_spec,
          const PyCArray state0,
          std::optional<const PyCArray> warmstart0,
          std::optional<const PyCArray> control,
@@ -201,13 +200,14 @@ PYBIND11_MODULE(_rollout, pymodule) {
         raw::MjData* data = d.get();
 
         // check that some steps need to be taken, return if not
-        if (nroll < 1 || nstep < 1) {
+        if (nstep < 1) {
           return;
         }
 
         // get sizes
         int nstate = mj_stateSize(model, mjSTATE_FULLPHYSICS);
         int ncontrol = mj_stateSize(model, control_spec);
+        int nroll = state0.shape(0);
 
         // get raw pointers
         mjtNum* state0_ptr = get_array_ptr(state0, "state0", nroll, 1, nstate);
@@ -232,7 +232,6 @@ PYBIND11_MODULE(_rollout, pymodule) {
       },
       py::arg("model"),
       py::arg("data"),
-      py::arg("nroll"),
       py::arg("nstep"),
       py::arg("control_spec"),
       py::arg("state0"),

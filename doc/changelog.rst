@@ -15,6 +15,7 @@ Python bindings
 - Provide prebuilt wheels for Python 3.13.
 - Added ``bind`` method and removed id attribute from :ref:`mjSpec` objects. Using ids is error prone in scenarios of repeated attachment and
   detachment. Python users are encouraged to use names for unique identification of model elements.
+- Removed ``nroll`` argument from :ref:`rollout<PyRollout>` because its value can always be inferred.
 
 Bug fixes
 ^^^^^^^^^
