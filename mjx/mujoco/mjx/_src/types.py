@@ -933,7 +933,7 @@ class Model(PyTreeNode):
   geom_sameframe: np.ndarray
   geom_dataid: np.ndarray
   geom_group: np.ndarray
-  geom_matid: np.ndarray
+  geom_matid: jax.Array
   geom_priority: np.ndarray
   geom_solmix: jax.Array
   geom_solref: jax.Array
