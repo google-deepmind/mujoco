@@ -794,6 +794,7 @@ const mjMap fcomp_map[mjNFCOMPTYPES] = {
   {"ellipsoid",   mjFCOMPTYPE_ELLIPSOID},
   {"square",      mjFCOMPTYPE_SQUARE},
   {"disc",        mjFCOMPTYPE_DISC},
+  {"circle",      mjFCOMPTYPE_CIRCLE},
   {"mesh",        mjFCOMPTYPE_MESH},
   {"gmsh",        mjFCOMPTYPE_GMSH},
   {"direct",      mjFCOMPTYPE_DIRECT}

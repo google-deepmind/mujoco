@@ -2981,20 +2981,6 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    define the tendons). The "main" tendons are parallel to the axes of the grid. In addition one can create diagonal
    "shear" tendons, using the :el:`tendon` sub-element. This type is suitable for simulating strings as well as cloth.
 
-   The **rope** type creates a 1D grid of bodies, each having a geom with user-defined type (sphere, capsule or
-   ellipsoid) and 2 hinge joints with axes orthogonal to the grid, creating a universal joint with the previous body.
-   This corresponds to a kinematic chain which can bend but cannot stretch or twist. In addition, one can specify
-   stretch and twist joints (slide and hinge respectively) with the :el:`joint` sub-element. When specified, these extra
-   joints are equality-constrained, but the constraint is soft by default so that some stretch and twist are possible.
-   The rope can extend in one or both directions from the parent body. To specify the origin of the rope, the parent
-   body *must* be named so that it fits the automatic naming convention. For example, to make the parent be the first
-   body in the chain, and assuming we have prefix="C", the parent body should be named "CB0". When the parent is not at
-   the end, the rope consists of two kinematic chains starting at the parent and extending in opposite directions.
-
-   The **loop** type is the same as the rope type except the elements are arranged in a circle, and the first and last
-   elements are equality-constrained to remain connected (using the "connect" constraint type). The softness of this
-   equality constraint is adjusted with the attributes solrefsmooth and solimpsmooth.
-
    The **cable** type creates a 1D chain of bodies connected with ball joints, each having a geom with user-defined type
    (cylinder, capsule or box). The geometry can either be defined with an array of 3D vertex coordinates :at:`vertex`
    or with prescribed functions with the option :at:`curve`. Currently, only linear and trigonometric functions are
@@ -3489,7 +3475,7 @@ saving the XML:
 
 .. _body-flexcomp-type:
 
-:at:`type`: :at-val:`[grid, box, cylinder, ellipsoid, mesh, gmsh, direct], "grid"`
+:at:`type`: :at-val:`[grid, box, cylinder, ellipsoid, disc, circle, mesh, gmsh, direct], "grid"`
    This attribute determines the type of :el:`flexcomp` object. The remaining attributes and sub-elements are then
    interpreted according to the type. Default settings are also adjusted depending on the type. Different types
    correspond to different methods for specifying the flexcomp points and the stretchable elements that connect them.
@@ -3512,6 +3498,13 @@ saving the XML:
    **cylinder** is the same as **box**, except the points are projected on the surface of a cylinder.
 
    **ellipsoid** is the same as **box**, except the points are projected on the surface of an ellipsoid.
+
+   **disc** is the same as **box**, except the points are projected on the surface of a disc. It is only compatible
+   with :at:`dim=2`.
+
+   **circle** is the same as **grid**, except the points are sampled along a circle so that the first and last points
+   are the same. The radius of the circle is computed such that each segment has the requested spacing. It is only
+   compatible with :at:`dim=1`.
 
    **mesh** loads the flexcomp points and elements (i.e. triangles) from a mesh file, in the same file formats as mesh
    assets. A mesh asset is not actually added to the model. Instead the vertex and face data from the mesh file are used

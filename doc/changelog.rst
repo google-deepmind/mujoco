@@ -6,6 +6,11 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- Removed rope and loop from :ref:`composite<body-composite>`. The user is encouraged to instead use the :at:`cable`
+  plugin or :ref:`flexcomp<body-flexcomp>`, respectively.
+
 MJX
 ^^^
 - Added muscle actuators.

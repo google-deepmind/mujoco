@@ -70,7 +70,6 @@ class mjCComposite {
 
   bool MakeParticle(mjCModel* model, mjsBody* body, char* error, int error_sz);
   bool MakeGrid(mjCModel* model, mjsBody* body, char* error, int error_sz);
-  bool MakeRope(mjCModel* model, mjsBody* body, char* error, int error_sz);
   bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
   void MakeShear(mjCModel* model);
 
@@ -124,7 +123,6 @@ class mjCComposite {
   int dim;                        // dimensionality
 
  private:
-  mjsBody* AddRopeBody(mjCModel* model, mjsBody* body, int ix, int ix1);
   mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, double normal[3], double prev_quat[4]);
 
   // temporary skin vectors

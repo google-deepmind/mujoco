@@ -309,15 +309,15 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
 
   case mjCOMPTYPE_ROPE:
     return comperr(error,
-                "The \"rope\" composite type is deprecated. Please use "
-                "\"cable\" instead.",
-                error_sz);
+                   "The \"rope\" composite type is deprecated. Please use "
+                   "\"cable\" instead.",
+                   error_sz);
 
   case mjCOMPTYPE_LOOP:
-    mju_warning(
-        "The \"loop\" composite type is deprecated. Please use \"cable\" "
-        "instead.");
-    return MakeRope(model, body, error, error_sz);
+    return comperr(error,
+                   "The \"loop\" composite type is deprecated. Please use "
+                   "\"flexcomp\" instead.",
+                   error_sz);
 
   case mjCOMPTYPE_CABLE:
     return MakeCable(model, body, error, error_sz);
@@ -723,171 +723,6 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
     mjs_setString(site->name, txt_site);
     mjuu_setvec(site->pos, last ? length : 0, 0, 0);
     mjuu_setvec(site->quat, 1, 0, 0, 0);
-  }
-
-  return body;
-}
-
-
-// make rope
-bool mjCComposite::MakeRope(mjCModel* model, mjsBody* body, char* error, int error_sz) {
-  // check dim
-  if (dim!=1) {
-    return comperr(error, "Rope must be one-dimensional", error_sz);
-  }
-
-  // check root body name prefix
-  char txt[200];
-  mju::sprintf_arr(txt, "%sB", prefix.c_str());
-  std::string body_name = mjs_getString(body->name);
-  if (std::strncmp(txt, body_name.substr(0, strlen(txt)).c_str(), mju::sizeof_arr(txt))) {
-    mju::strcat_arr(txt, " must be the beginning of root body name");
-    return comperr(error, txt, error_sz);
-  }
-
-  // read origin coordinate from root body
-  mju::strcpy_arr(txt, body_name.substr(strlen(txt)).c_str());
-  int ox = -1;
-  if (sscanf(txt, "%d", &ox)!=1) {
-    return comperr(error, "Root body name must contain X coordinate", error_sz);
-  }
-  if (ox<0 || ox>=count[0]) {
-    return comperr(error, "Root body coordinate out of range", error_sz);
-  }
-
-  // add origin
-  AddRopeBody(model, body, ox, ox);
-
-  // add elements: right
-  mjsBody* pbody = body;
-  for (int ix=ox; ix<count[0]-1; ix++) {
-    pbody = AddRopeBody(model, pbody, ix, ix+1);
-  }
-
-  // add elements: left
-  pbody = body;
-  for (int ix=ox; ix>0; ix--) {
-    pbody = AddRopeBody(model, pbody, ix, ix-1);
-  }
-
-  // close loop
-  if (type==mjCOMPTYPE_LOOP) {
-    char txt2[200];
-
-    // add equality constraint
-    mjsEquality* eq = mjs_addEquality(&model->spec, 0);
-    eq->type = mjEQ_CONNECT;
-    mju::sprintf_arr(txt, "%sB0", prefix.c_str());
-    mju::sprintf_arr(txt2, "%sB%d", prefix.c_str(), count[0]-1);
-    mjs_setString(eq->name1, txt);
-    mjs_setString(eq->name2, txt2);
-    mjuu_setvec(eq->data, -0.5*spacing, 0, 0);
-    mju_copy(eq->solref, solrefsmooth, mjNREF);
-    mju_copy(eq->solimp, solimpsmooth, mjNIMP);
-
-    // remove contact between connected bodies
-    mjsExclude* pair = mjs_addExclude(&model->spec);
-    mjs_setString(pair->bodyname1, std::string(txt).c_str());
-    mjs_setString(pair->bodyname2, std::string(txt2).c_str());
-  }
-
-  return true;
-}
-
-
-
-// add child body for cloth
-mjsBody* mjCComposite::AddRopeBody(mjCModel* model, mjsBody* body, int ix, int ix1) {
-  char txt[100];
-  bool isroot = (ix==ix1);
-  double dx = spacing*(ix1-ix);
-
-  // add child if not root
-  if (!isroot) {
-    body = mjs_addBody(body, 0);
-    mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), ix1);
-    mjs_setString(body->name, txt);
-
-    // loop
-    if (type==mjCOMPTYPE_LOOP) {
-      double alpha = 2*mjPI/count[0];
-      double R = 0.5*spacing*sin(mjPI-alpha)/sin(0.5*alpha);
-
-      if (ix1>ix) {
-        mjuu_setvec(body->pos, R*cos(0.5*alpha), R*sin(0.5*alpha), 0);
-        mjuu_setvec(body->quat, cos(0.5*alpha), 0, 0, sin(0.5*alpha));
-      } else {
-        mjuu_setvec(body->pos, -R*cos(0.5*alpha), R*sin(0.5*alpha), 0);
-        mjuu_setvec(body->quat, cos(-0.5*alpha), 0, 0, sin(-0.5*alpha));
-      }
-    }
-
-    // no loop
-    else {
-      mjuu_setvec(body->pos, dx, 0, 0);
-    }
-  }
-
-  // add geom
-  mjsGeom* geom = mjs_addGeom(body, &def[0].spec);
-  mjs_setDefault(geom->element, mjs_getDefault(body->element));
-  mju::sprintf_arr(txt, "%sG%d", prefix.c_str(), ix1);
-  mjs_setString(geom->name, txt);
-  mjuu_setvec(geom->pos, 0, 0, 0);
-  mjuu_setvec(geom->quat, sqrt(0.5), 0, sqrt(0.5), 0);
-
-  // root: no joints
-  if (isroot) {
-    return body;
-  }
-
-  // add main joint
-  for (int i=0; i<2; i++) {
-    // add joint
-    mjsJoint* jnt = mjs_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0].spec);
-    mjs_setDefault(jnt->element, mjs_getDefault(body->element));
-    mju::sprintf_arr(txt, "%sJ%d_%d", prefix.c_str(), i, ix1);
-    mjs_setString(jnt->name, txt);
-    jnt->type = mjJNT_HINGE;
-    mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
-    mjuu_setvec(jnt->axis, 0, 0, 0);
-    jnt->axis[i+1] = 1;
-  }
-
-  // add twist joint
-  if (add[mjCOMPKIND_TWIST]) {
-    // add joint
-    mjsJoint* jnt = mjs_addJoint(body, &defjoint[mjCOMPKIND_TWIST][0].spec);
-    mjs_setDefault(jnt->element, mjs_getDefault(body->element));
-    mju::sprintf_arr(txt, "%sJT%d", prefix.c_str(), ix1);
-    mjs_setString(jnt->name, txt);
-    jnt->type = mjJNT_HINGE;
-    mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
-    mjuu_setvec(jnt->axis, 1, 0, 0);
-
-    // add constraint
-    mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TWIST].spec);
-    mjs_setDefault(eq->element, &model->Default()->spec);
-    eq->type = mjEQ_JOINT;
-    mjs_setString(eq->name1, mjs_getString(jnt->name));
-  }
-
-  // add stretch joint
-  if (add[mjCOMPKIND_STRETCH]) {
-    // add joint
-    mjsJoint* jnt = mjs_addJoint(body, &defjoint[mjCOMPKIND_STRETCH][0].spec);
-    mjs_setDefault(jnt->element, mjs_getDefault(body->element));
-    mju::sprintf_arr(txt, "%sJS%d", prefix.c_str(), ix1);
-    mjs_setString(jnt->name, txt);
-    jnt->type = mjJNT_SLIDE;
-    mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
-    mjuu_setvec(jnt->axis, 1, 0, 0);
-
-    // add constraint
-    mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_STRETCH].spec);
-    mjs_setDefault(eq->element,  &model->Default()->spec);
-    eq->type = mjEQ_JOINT;
-    mjs_setString(eq->name1, mjs_getString(jnt->name));
   }
 
   return body;

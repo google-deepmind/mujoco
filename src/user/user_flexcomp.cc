@@ -157,6 +157,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   bool res;
   switch (type) {
   case mjFCOMPTYPE_GRID:
+  case mjFCOMPTYPE_CIRCLE:
     res = MakeGrid(error, error_sz);
     break;
 
@@ -548,15 +549,30 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   // 1D
   if (dim == 1) {
     for (int ix=0; ix < count[0]; ix++) {
-      // add point
-      point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
-      point.push_back(0);
-      point.push_back(0);
+      if (type == mjFCOMPTYPE_CIRCLE) {
+        // add point
+        double theta = 2*mjPI/(count[0]-1);
+        double radius = spacing[0]/std::sin(theta/2)/2;
+        point.push_back(radius*std::cos(theta*ix));
+        point.push_back(radius*std::sin(theta*ix));
+        point.push_back(0);
 
-      // add element
-      if (ix < count[0]-1) {
-        element.push_back(ix);
-        element.push_back(ix+1);
+        // add element
+        if (ix < count[0]-1) {
+          element.push_back(ix);
+          element.push_back(ix == count[0]-2 ? 0 : ix+1);
+        }
+      } else {
+        // add point
+        point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
+        point.push_back(0);
+        point.push_back(0);
+
+        // add element
+        if (ix < count[0]-1) {
+          element.push_back(ix);
+          element.push_back(ix+1);
+        }
       }
     }
   }
