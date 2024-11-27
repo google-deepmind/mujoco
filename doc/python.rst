@@ -700,6 +700,7 @@ states and sensor values. The basic usage form is
 
    state, sensordata = rollout.rollout(model, data, initial_state, control)
 
+``model`` is either a single instance of MjModel or a sequence of compatible MjModel of length ``nroll``.
 ``initial_state`` is an ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
 ``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
 :ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are

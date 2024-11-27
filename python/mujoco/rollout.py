@@ -14,7 +14,8 @@
 # ==============================================================================
 """Roll out open-loop trajectories from initial states, get subsequent states and sensor values."""
 
-from typing import Optional
+from collections.abc import Sequence
+from typing import Optional, Union
 
 import mujoco
 from mujoco import _rollout
@@ -22,7 +23,7 @@ import numpy as np
 from numpy import typing as npt
 
 
-def rollout(model: mujoco.MjModel,
+def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
             data: mujoco.MjData,
             initial_state: npt.ArrayLike,
             control: Optional[npt.ArrayLike] = None,
@@ -41,7 +42,7 @@ def rollout(model: mujoco.MjModel,
   Allocates outputs if none are given.
 
   Args:
-    model: An mjModel instance.
+    model: An mjModel or a sequence of MjModel with the same size signature.
     data: An associated mjData instance.
     initial_state: Array of initial states from which to roll out trajectories.
       ([nroll or 1] x nstate)
@@ -76,6 +77,9 @@ def rollout(model: mujoco.MjModel,
                      initial_warmstart, control, state, sensordata)
     return state, sensordata
 
+  if not isinstance(model, mujoco.MjModel):
+    model = list(model)
+
   # check control_spec
   if control_spec & ~mujoco.mjtState.mjSTATE_USER.value:
     raise ValueError('control_spec can only contain bits in mjSTATE_USER')
@@ -89,6 +93,7 @@ def rollout(model: mujoco.MjModel,
       control=control,
       state=state,
       sensordata=sensordata)
+
 
   # check number of dimensions
   _check_number_of_dimensions(2,
@@ -108,14 +113,6 @@ def rollout(model: mujoco.MjModel,
   state = _ensure_3d(state)
   sensordata = _ensure_3d(sensordata)
 
-  # check trailing dimensions
-  nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
-  _check_trailing_dimension(nstate, initial_state=initial_state, state=state)
-  ncontrol = mujoco.mj_stateSize(model, control_spec)
-  _check_trailing_dimension(ncontrol, control=control)
-  _check_trailing_dimension(model.nv, initial_warmstart=initial_warmstart)
-  _check_trailing_dimension(model.nsensordata, sensordata=sensordata)
-
   # infer nroll, check for incompatibilities
   nroll = _infer_dimension(0, 1,
                            initial_state=initial_state,
@@ -123,6 +120,14 @@ def rollout(model: mujoco.MjModel,
                            control=control,
                            state=state,
                            sensordata=sensordata)
+  if isinstance(model, list) and nroll == 1:
+    nroll = len(model)
+
+  if isinstance(model, list) and len(model) != nroll:
+    raise ValueError(f'nroll inferred as {nroll} '
+                     f'but model is length {len(model)}')
+  elif not isinstance(model, list):
+    model = [model] # Use a length 1 list to simplify code below
 
   # infer nstep, check for incompatibilities
   nstep = _infer_dimension(1, nstep or 1,
@@ -130,7 +135,27 @@ def rollout(model: mujoco.MjModel,
                            state=state,
                            sensordata=sensordata)
 
-  # tile input arrays if required (singleton expansion)
+  # get nstate/ncontrol/nv/nsensordata
+  # check that they are equal across models
+  nstate = mujoco.mj_stateSize(model[0], mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
+  ncontrol = mujoco.mj_stateSize(model[0], control_spec)
+  nv = model[0].nv
+  nsensordata = model[0].nsensordata
+  for m in model[1:]:
+    if (nstate != mujoco.mj_stateSize(m, mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
+        or ncontrol != mujoco.mj_stateSize(m, control_spec)
+        or nv != m.nv
+        or nsensordata != m.nsensordata):
+      raise ValueError('models are not compatible')
+
+  # check trailing dimensions
+  _check_trailing_dimension(nstate, initial_state=initial_state, state=state)
+  _check_trailing_dimension(ncontrol, control=control)
+  _check_trailing_dimension(nv, initial_warmstart=initial_warmstart)
+  _check_trailing_dimension(nsensordata, sensordata=sensordata)
+
+  # tile input arrays/lists if required (singleton expansion)
+  model = model * nroll if len(model) == 1 else model
   initial_state = _tile_if_required(initial_state, nroll)
   initial_warmstart = _tile_if_required(initial_warmstart, nroll)
   control = _tile_if_required(control, nroll, nstep)
@@ -139,7 +164,7 @@ def rollout(model: mujoco.MjModel,
   if state is None:
     state = np.empty((nroll, nstep, nstate))
   if sensordata is None:
-    sensordata = np.empty((nroll, nstep, model.nsensordata))
+    sensordata = np.empty((nroll, nstep, nsensordata))
 
   # call rollout
   _rollout.rollout(model, data, nstep, control_spec, initial_state,
