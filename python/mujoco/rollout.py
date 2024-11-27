@@ -14,6 +14,7 @@
 # ==============================================================================
 """Roll out open-loop trajectories from initial states, get subsequent states and sensor values."""
 
+from collections.abc import Sequence
 from typing import Optional, Union
 
 import mujoco
@@ -22,7 +23,7 @@ import numpy as np
 from numpy import typing as npt
 
 
-def rollout(model: Union[mujoco.MjModel, list[mujoco.MjModel]],
+def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
             data: mujoco.MjData,
             initial_state: npt.ArrayLike,
             control: Optional[npt.ArrayLike] = None,
@@ -41,7 +42,7 @@ def rollout(model: Union[mujoco.MjModel, list[mujoco.MjModel]],
   Allocates outputs if none are given.
 
   Args:
-    model: An mjModel or a list of MjModel with the same size signature.
+    model: An mjModel or a sequence of MjModel with the same size signature.
     data: An associated mjData instance.
     initial_state: Array of initial states from which to roll out trajectories.
       ([nroll or 1] x nstate)
@@ -75,6 +76,9 @@ def rollout(model: Union[mujoco.MjModel, list[mujoco.MjModel]],
     _rollout.rollout(model, data, nstep, control_spec, initial_state,
                      initial_warmstart, control, state, sensordata)
     return state, sensordata
+
+  if not isinstance(model, mujoco.MjModel):
+    model = list(model)
 
   # check control_spec
   if control_spec & ~mujoco.mjtState.mjSTATE_USER.value:
@@ -151,7 +155,7 @@ def rollout(model: Union[mujoco.MjModel, list[mujoco.MjModel]],
   _check_trailing_dimension(nsensordata, sensordata=sensordata)
 
   # tile input arrays/lists if required (singleton expansion)
-  model = model*nroll if len(model) == 1 else model
+  model = model * nroll if len(model) == 1 else model
   initial_state = _tile_if_required(initial_state, nroll)
   initial_warmstart = _tile_if_required(initial_warmstart, nroll)
   control = _tile_if_required(control, nroll, nstep)

@@ -73,26 +73,28 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int nroll, int n
   if (!(control_spec & mjSTATE_XFRC_APPLIED)) {
     mju_zero(d->xfrc_applied, 6*nbody);
   }
-  if (!(control_spec & mjSTATE_MOCAP_POS)) {
-    for (int i = 0; i < nbody; i++) {
-      int id = m[0]->body_mocapid[i];
-      if (id >= 0) mju_copy3(d->mocap_pos+3*id, m[0]->body_pos+3*i);
-    }
-  }
-  if (!(control_spec & mjSTATE_MOCAP_QUAT)) {
-    for (int i = 0; i < nbody; i++) {
-      int id = m[0]->body_mocapid[i];
-      if (id >= 0) mju_copy4(d->mocap_quat+4*id, m[0]->body_quat+4*i);
-    }
-  }
-  if (!(control_spec & mjSTATE_EQ_ACTIVE)) {
-    for (int i = 0; i < neq; i++) {
-      d->eq_active[i] = m[0]->eq_active0[i];
-    }
-  }
 
   // loop over rollouts
   for (int r = 0; r < nroll; r++) {
+    // clear user inputs if unspecified
+    if (!(control_spec & mjSTATE_MOCAP_POS)) {
+      for (int i = 0; i < nbody; i++) {
+        int id = m[r]->body_mocapid[i];
+        if (id >= 0) mju_copy3(d->mocap_pos+3*id, m[r]->body_pos+3*i);
+      }
+    }
+    if (!(control_spec & mjSTATE_MOCAP_QUAT)) {
+      for (int i = 0; i < nbody; i++) {
+        int id = m[r]->body_mocapid[i];
+        if (id >= 0) mju_copy4(d->mocap_quat+4*id, m[r]->body_quat+4*i);
+      }
+    }
+    if (!(control_spec & mjSTATE_EQ_ACTIVE)) {
+      for (int i = 0; i < neq; i++) {
+        d->eq_active[i] = m[r]->eq_active0[i];
+      }
+    }
+
     // set initial state
     mj_setState(m[r], d, state0 + r*nstate, mjSTATE_FULLPHYSICS);
 

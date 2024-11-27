@@ -458,7 +458,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     def thread_initializer():
       thread_local.data = mujoco.MjData(model)
 
-    model_list = [model]*nroll
+    model_list = [model] * nroll
     def call_rollout(initial_state, control, state, sensordata):
       rollout.rollout(model_list, thread_local.data, initial_state, control,
                       skip_checks=True,
