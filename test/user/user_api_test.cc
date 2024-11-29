@@ -1998,16 +1998,22 @@ TEST_F(MujocoTest, ResizeParentKeyframe) {
 
 TEST_F(MujocoTest, DifferentUnitsAllowed) {
   mjSpec* child = mj_makeSpec();
-  child->compiler.degree = 1;
+  child->compiler.degree = 0;
   mjsBody* body = mjs_addBody(mjs_findBody(child, "world"), 0);
   body->alt.type = mjORIENTATION_EULER;
-  body->alt.euler[0] = 90;
+  body->alt.euler[0] = -mjPI / 2;
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  geom->size[0] = 1;
+  mjsJoint* joint = mjs_addJoint(body, 0);
+  joint->type = mjJNT_HINGE;
+  joint->range[0] = -mjPI / 4;
+  joint->range[1] = mjPI / 4;
 
   mjSpec* parent = mj_makeSpec();
-  parent->compiler.degree = 0;
+  parent->compiler.degree = 1;
   mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), 0);
   frame->alt.type = mjORIENTATION_EULER;
-  frame->alt.euler[0] = -mjPI / 2;
+  frame->alt.euler[0] = 90;
 
   EXPECT_THAT(mjs_attachBody(frame, body, "child-", ""), NotNull());
   mjModel* model = mj_compile(parent, 0);
@@ -2016,6 +2022,8 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
   EXPECT_NEAR(model->body_quat[5], 0, 1e-12);
   EXPECT_NEAR(model->body_quat[6], 0, 1e-12);
   EXPECT_NEAR(model->body_quat[7], 0, 1e-12);
+  EXPECT_NEAR(model->jnt_range[0], -mjPI / 4, 1e-7);
+  EXPECT_NEAR(model->jnt_range[1], mjPI / 4, 1e-7);
 
   mjSpec* copy = mj_copySpec(parent);
   EXPECT_THAT(copy, NotNull());
@@ -2030,6 +2038,8 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
   EXPECT_NEAR(copy_model->body_quat[1], 0, 1e-12);
   EXPECT_NEAR(copy_model->body_quat[2], 0, 1e-12);
   EXPECT_NEAR(copy_model->body_quat[3], 0, 1e-12);
+  EXPECT_NEAR(copy_model->jnt_range[0], -mjPI / 4, 1e-7);
+  EXPECT_NEAR(copy_model->jnt_range[1], mjPI / 4, 1e-7);
 
   mj_deleteModel(copy_model);
   mj_deleteSpec(copy);
