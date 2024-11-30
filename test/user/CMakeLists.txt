@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(user_model_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
+mujoco_test(user_model_test ADDITIONAL_LINK_LIBRARIES absl::str_format TAGS nofloat32)
 
-mujoco_test(user_objects_test)
+mujoco_test(user_objects_test TAGS nofloat32)
 
 mujoco_test(
   user_api_test
@@ -23,9 +23,9 @@ mujoco_test(
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )
 
-mujoco_test(user_flex_test)
+mujoco_test(user_flex_test TAGS nofloat32)
 
-mujoco_test(user_mesh_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
+mujoco_test(user_mesh_test ADDITIONAL_LINK_LIBRARIES absl::str_format TAGS nofloat32)
 
 mujoco_test(user_composite_test)
 
