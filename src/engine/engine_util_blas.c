@@ -19,7 +19,7 @@
 #include <mujoco/mjtnum.h>
 
 #ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && defined(mjUSEDOUBLE)
+  #if defined(__AVX__) && !defined(mjUSESINGLE)
     #define mjUSEAVX
     #include "immintrin.h"
   #endif
@@ -34,6 +34,15 @@ void mju_zero3(mjtNum res[3]) {
   res[0] = 0;
   res[1] = 0;
   res[2] = 0;
+}
+
+
+
+// vec1 == vec2
+int mju_equal3(const mjtNum vec1[3], const mjtNum vec2[3]) {
+  return mju_abs(vec1[0] - vec2[0]) < mjMINVAL &&
+         mju_abs(vec1[1] - vec2[1]) < mjMINVAL &&
+         mju_abs(vec1[2] - vec2[2]) < mjMINVAL;
 }
 
 
@@ -152,8 +161,8 @@ mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
 
 
 
-// multiply vector by 3D rotation matrix
-void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
+// multiply 3-by-3 matrix by vector
+void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]) {
   mjtNum tmp[3] = {
     mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2],
     mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2],
@@ -166,8 +175,8 @@ void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
 
 
 
-// multiply vector by transposed 3D rotation matrix
-void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
+// multiply transposed 3-by-3 matrix by vector
+void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]) {
   mjtNum tmp[3] = {
     mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2],
     mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2],
@@ -181,46 +190,46 @@ void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
 
 
 // multiply 3x3 matrices,
-void mju_mulMatMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
-  res[0] = a[0]*b[0] + a[1]*b[3] + a[2]*b[6];
-  res[1] = a[0]*b[1] + a[1]*b[4] + a[2]*b[7];
-  res[2] = a[0]*b[2] + a[1]*b[5] + a[2]*b[8];
-  res[3] = a[3]*b[0] + a[4]*b[3] + a[5]*b[6];
-  res[4] = a[3]*b[1] + a[4]*b[4] + a[5]*b[7];
-  res[5] = a[3]*b[2] + a[4]*b[5] + a[5]*b[8];
-  res[6] = a[6]*b[0] + a[7]*b[3] + a[8]*b[6];
-  res[7] = a[6]*b[1] + a[7]*b[4] + a[8]*b[7];
-  res[8] = a[6]*b[2] + a[7]*b[5] + a[8]*b[8];
+void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]) {
+  res[0] = mat1[0]*mat2[0] + mat1[1]*mat2[3] + mat1[2]*mat2[6];
+  res[1] = mat1[0]*mat2[1] + mat1[1]*mat2[4] + mat1[2]*mat2[7];
+  res[2] = mat1[0]*mat2[2] + mat1[1]*mat2[5] + mat1[2]*mat2[8];
+  res[3] = mat1[3]*mat2[0] + mat1[4]*mat2[3] + mat1[5]*mat2[6];
+  res[4] = mat1[3]*mat2[1] + mat1[4]*mat2[4] + mat1[5]*mat2[7];
+  res[5] = mat1[3]*mat2[2] + mat1[4]*mat2[5] + mat1[5]*mat2[8];
+  res[6] = mat1[6]*mat2[0] + mat1[7]*mat2[3] + mat1[8]*mat2[6];
+  res[7] = mat1[6]*mat2[1] + mat1[7]*mat2[4] + mat1[8]*mat2[7];
+  res[8] = mat1[6]*mat2[2] + mat1[7]*mat2[5] + mat1[8]*mat2[8];
 }
 
 
 
 // multiply 3x3 matrices, first argument transposed
-void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
-  res[0] = a[0]*b[0] + a[3]*b[3] + a[6]*b[6];
-  res[1] = a[0]*b[1] + a[3]*b[4] + a[6]*b[7];
-  res[2] = a[0]*b[2] + a[3]*b[5] + a[6]*b[8];
-  res[3] = a[1]*b[0] + a[4]*b[3] + a[7]*b[6];
-  res[4] = a[1]*b[1] + a[4]*b[4] + a[7]*b[7];
-  res[5] = a[1]*b[2] + a[4]*b[5] + a[7]*b[8];
-  res[6] = a[2]*b[0] + a[5]*b[3] + a[8]*b[6];
-  res[7] = a[2]*b[1] + a[5]*b[4] + a[8]*b[7];
-  res[8] = a[2]*b[2] + a[5]*b[5] + a[8]*b[8];
+void mju_mulMatTMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]) {
+  res[0] = mat1[0]*mat2[0] + mat1[3]*mat2[3] + mat1[6]*mat2[6];
+  res[1] = mat1[0]*mat2[1] + mat1[3]*mat2[4] + mat1[6]*mat2[7];
+  res[2] = mat1[0]*mat2[2] + mat1[3]*mat2[5] + mat1[6]*mat2[8];
+  res[3] = mat1[1]*mat2[0] + mat1[4]*mat2[3] + mat1[7]*mat2[6];
+  res[4] = mat1[1]*mat2[1] + mat1[4]*mat2[4] + mat1[7]*mat2[7];
+  res[5] = mat1[1]*mat2[2] + mat1[4]*mat2[5] + mat1[7]*mat2[8];
+  res[6] = mat1[2]*mat2[0] + mat1[5]*mat2[3] + mat1[8]*mat2[6];
+  res[7] = mat1[2]*mat2[1] + mat1[5]*mat2[4] + mat1[8]*mat2[7];
+  res[8] = mat1[2]*mat2[2] + mat1[5]*mat2[5] + mat1[8]*mat2[8];
 }
 
 
 
 // multiply 3x3 matrices, second argument transposed
-void mju_mulMatMatT3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
-  res[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-  res[1] = a[0]*b[3] + a[1]*b[4] + a[2]*b[5];
-  res[2] = a[0]*b[6] + a[1]*b[7] + a[2]*b[8];
-  res[3] = a[3]*b[0] + a[4]*b[1] + a[5]*b[2];
-  res[4] = a[3]*b[3] + a[4]*b[4] + a[5]*b[5];
-  res[5] = a[3]*b[6] + a[4]*b[7] + a[5]*b[8];
-  res[6] = a[6]*b[0] + a[7]*b[1] + a[8]*b[2];
-  res[7] = a[6]*b[3] + a[7]*b[4] + a[8]*b[5];
-  res[8] = a[6]*b[6] + a[7]*b[7] + a[8]*b[8];
+void mju_mulMatMatT3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]) {
+  res[0] = mat1[0]*mat2[0] + mat1[1]*mat2[1] + mat1[2]*mat2[2];
+  res[1] = mat1[0]*mat2[3] + mat1[1]*mat2[4] + mat1[2]*mat2[5];
+  res[2] = mat1[0]*mat2[6] + mat1[1]*mat2[7] + mat1[2]*mat2[8];
+  res[3] = mat1[3]*mat2[0] + mat1[4]*mat2[1] + mat1[5]*mat2[2];
+  res[4] = mat1[3]*mat2[3] + mat1[4]*mat2[4] + mat1[5]*mat2[5];
+  res[5] = mat1[3]*mat2[6] + mat1[4]*mat2[7] + mat1[5]*mat2[8];
+  res[6] = mat1[6]*mat2[0] + mat1[7]*mat2[1] + mat1[8]*mat2[2];
+  res[7] = mat1[6]*mat2[3] + mat1[7]*mat2[4] + mat1[8]*mat2[5];
+  res[8] = mat1[6]*mat2[6] + mat1[7]*mat2[7] + mat1[8]*mat2[8];
 }
 
 
@@ -595,7 +604,7 @@ void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
   int i = 0;
 
-#if defined(__AVX__) && defined(mjUSEAVX)  && defined(mjUSEDOUBLE)
+#if defined(__AVX__) && defined(mjUSEAVX)  && !defined(mjUSESINGLE)
   int n_4 = n - 4;
 
   // vector part

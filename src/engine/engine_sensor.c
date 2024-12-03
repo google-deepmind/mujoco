@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
@@ -281,6 +282,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
       case mjSENS_BALLQUAT:                               // ballquat
         mju_copy4(d->sensordata+adr, d->qpos+m->jnt_qposadr[objid]);
+        mju_normalize4(d->sensordata+adr);
         break;
 
       case mjSENS_JOINTLIMITPOS:                          // jointlimitpos
@@ -328,12 +330,12 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
           get_xpos_xmat(d, reftype, refid, i, &xpos_ref, &xmat_ref);
           if (type == mjSENS_FRAMEPOS) {
             mju_sub3(rvec, xpos, xpos_ref);
-            mju_rotVecMatT(d->sensordata+adr, rvec, xmat_ref);
+            mju_mulMatTVec3(d->sensordata+adr, xmat_ref, rvec);
           } else {
             // offset = (0 or 1 or 2) for (x or y or z)-axis sensors, respectively
             int offset = type - mjSENS_FRAMEXAXIS;
             mjtNum axis[3] = {xmat[offset], xmat[offset+3], xmat[offset+6]};
-            mju_rotVecMatT(d->sensordata+adr, axis, xmat_ref);
+            mju_mulMatTVec3(d->sensordata+adr, xmat_ref, axis);
           }
         }
         break;
@@ -616,8 +618,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
           mju_addTo3(rel_vel+3, cross);
 
           // project into reference frame
-          mju_rotVecMatT(xvel, rel_vel, xmat_ref);
-          mju_rotVecMatT(xvel+3, rel_vel+3, xmat_ref);
+          mju_mulMatTVec3(xvel, xmat_ref, rel_vel);
+          mju_mulMatTVec3(xvel+3, xmat_ref, rel_vel+3);
         }
 
         // copy linear or angular component
@@ -729,7 +731,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       case mjSENS_TOUCH:                                  // touch
         // extract body data
         bodyid = m->site_bodyid[objid];
-        rootid = m->body_rootid[bodyid];
 
         // clear result
         d->sensordata[adr] = 0;
@@ -899,7 +900,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 // position-dependent energy (potential)
 void mj_energyPos(const mjModel* m, mjData* d) {
   int padr;
-  mjtNum dif[3], stiffness;
+  mjtNum dif[3], quat[4], stiffness;
 
   // disabled: clear and return
   if (!mjENABLED(mjENBL_ENERGY)) {
@@ -923,7 +924,9 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
       switch ((mjtJoint) m->jnt_type[i]) {
       case mjJNT_FREE:
-        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
+        mju_sub3(dif, quat, m->qpos_spring+padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
 
         // continue with rotations
@@ -932,6 +935,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
       case mjJNT_BALL:
         // covert quatertion difference into angular "velocity"
+        mju_copy4(quat, d->qpos+padr);
+        mju_normalize4(quat);
         mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
         break;

@@ -15,7 +15,6 @@
 #include "engine/engine_util_misc.h"
 
 #include <ctype.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +38,7 @@ static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
 
   // compute determinant, check
   mjtNum det = (p4[1]-p3[1])*(p2[0]-p1[0]) - (p4[0]-p3[0])*(p2[1]-p1[1]);
-  if (fabs(det) < mjMINVAL) {
+  if (mju_abs(det) < mjMINVAL) {
     return 0;
   }
 
@@ -53,89 +52,86 @@ static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
 
 
 // curve length along circle
-static mjtNum length_circle(const mjtNum* p0, const mjtNum* p1, int ind, mjtNum rad) {
-  mjtNum angle, cross;
+static mjtNum length_circle(const mjtNum* p0, const mjtNum* p1, int ind, mjtNum radius) {
   mjtNum p0n[2] = {p0[0], p0[1]};
   mjtNum p1n[2] = {p1[0], p1[1]};
 
   // compute angle between 0 and pi
   mju_normalize(p0n, 2);
   mju_normalize(p1n, 2);
-  angle = mju_acos(mju_dot(p0n, p1n, 2));
+  mjtNum angle = mju_acos(mju_dot(p0n, p1n, 2));
 
   // flip if necessary
-  cross = p0[1]*p1[0]-p0[0]*p1[1];
+  mjtNum cross = p0[1]*p1[0]-p0[0]*p1[1];
   if ((cross > 0 && ind) || (cross < 0 && !ind)) {
     angle = 2*mjPI - angle;
   }
 
-  return rad*angle;
+  return radius*angle;
 }
 
 
 
 // 2D circle wrap
-//  input: pair of 2D points in d[4], optional 2D side point in sd[2], radius
-//  output: pair of 2D points in pnt[4], length of circular wrap or -1
-static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum rad) {
-  mjtNum sqlen0 = d[0]*d[0]+d[1]*d[1];
-  mjtNum sqlen1 = d[2]*d[2]+d[3]*d[3];
-  mjtNum sqrad = rad*rad;
-  mjtNum dif[2] = {d[2]-d[0], d[3]-d[1]};
-  mjtNum a, tmp[2], dd, sqrt0, sqrt1;
-  mjtNum sol[2][2][2], good[2], wlen;
-  int sgn;
+//  input:  pair of 2D endpoints in end[4], optional 2D side point in side[2], radius
+//  output: return length of circular wrap or -1
+//          pair of 2D points in pnt[4]
+static mjtNum wrap_circle(mjtNum pnt[4], const mjtNum end[4], const mjtNum* side, mjtNum radius) {
+  mjtNum sqlen0 = end[0]*end[0] + end[1]*end[1];
+  mjtNum sqlen1 = end[2]*end[2] + end[3]*end[3];
+  mjtNum sqrad = radius*radius;
 
   // either point inside circle or circle too small: no wrap
-  if (sqlen0 < sqrad || sqlen1 < sqrad || rad < mjMINVAL) {
+  if (sqlen0 < sqrad || sqlen1 < sqrad || radius < mjMINVAL) {
     return -1;
   }
 
   // points too close: no wrap
-  dd = dif[0]*dif[0] + dif[1]*dif[1];
+  mjtNum dif[2] = {end[2]-end[0], end[3]-end[1]};
+  mjtNum dd = dif[0]*dif[0] + dif[1]*dif[1];
   if (dd < mjMINVAL) {
     return -1;
   }
 
   // find nearest point on line segment to origin: a*dif + d0
-  a = -(dif[0]*d[0]+dif[1]*d[1])/dd;
+  mjtNum a = -(dif[0]*end[0]+dif[1]*end[1])/dd;
   if (a < 0) {
     a = 0;
   } else if (a > 1) {
     a = 1;
   }
-  tmp[0] = a*dif[0] + d[0];
-  tmp[1] = a*dif[1] + d[1];
 
   // check for intersection and side
-  if (tmp[0]*tmp[0]+tmp[1]*tmp[1] > sqrad && (!sd || mju_dot(sd, tmp, 2) >= 0)) {
+  mjtNum tmp[2] = {a*dif[0] + end[0], a*dif[1] + end[1]};
+  if (tmp[0]*tmp[0]+tmp[1]*tmp[1] > sqrad && (!side || mju_dot(side, tmp, 2) >= 0)) {
     return -1;
   }
 
   // construct the two solutions, compute goodness
+  mjtNum sol[2][2][2], good[2];
   for (int i=0; i < 2; i++) {
-    sqrt0 = mju_sqrt(sqlen0 - sqrad);
-    sqrt1 = mju_sqrt(sqlen1 - sqrad);
+    mjtNum sqrt0 = mju_sqrt(sqlen0 - sqrad);
+    mjtNum sqrt1 = mju_sqrt(sqlen1 - sqrad);
 
-    sgn = (i == 0 ? 1 : -1);
+    int sgn = (i == 0 ? 1 : -1);
 
-    sol[i][0][0] = (d[0]*sqrad + sgn*rad*d[1]*sqrt0)/sqlen0;
-    sol[i][0][1] = (d[1]*sqrad - sgn*rad*d[0]*sqrt0)/sqlen0;
-    sol[i][1][0] = (d[2]*sqrad - sgn*rad*d[3]*sqrt1)/sqlen1;
-    sol[i][1][1] = (d[3]*sqrad + sgn*rad*d[2]*sqrt1)/sqlen1;
+    sol[i][0][0] = (end[0]*sqrad + sgn*radius*end[1]*sqrt0)/sqlen0;
+    sol[i][0][1] = (end[1]*sqrad - sgn*radius*end[0]*sqrt0)/sqlen0;
+    sol[i][1][0] = (end[2]*sqrad - sgn*radius*end[3]*sqrt1)/sqlen1;
+    sol[i][1][1] = (end[3]*sqrad + sgn*radius*end[2]*sqrt1)/sqlen1;
 
     // goodness: close to sd, or shorter path
-    if (sd) {
+    if (side) {
       mju_add(tmp, sol[i][0], sol[i][1], 2);
       mju_normalize(tmp, 2);
-      good[i] = mju_dot(tmp, sd, 2);
+      good[i] = mju_dot(tmp, side, 2);
     } else {
       mju_sub(tmp, sol[i][0], sol[i][1], 2);
       good[i] = -mju_dot(tmp, tmp, 2);
     }
 
     // penalize for intersection
-    if (is_intersect(d, sol[i][0], d+2, sol[i][1])) {
+    if (is_intersect(end, sol[i][0], end+2, sol[i][1])) {
       good[i] = -10000;
     }
   }
@@ -148,63 +144,62 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
   pnt[3] = sol[i][1][1];
 
   // check for intersection
-  if (is_intersect(d, pnt, d+2, pnt+2)) {
+  if (is_intersect(end, pnt, end+2, pnt+2)) {
     return -1;
   }
 
-  // compute curve length
-  wlen = length_circle(sol[i][0], sol[i][1], i, rad);
-  return wlen;
+  // return curve length
+  return length_circle(sol[i][0], sol[i][1], i, radius);
 }
 
 
 
 // 2D inside wrap
-//  input: pair of 2D points in d[4], radius
+//  input: pair of 2D endpoints in end[4], radius
 //  output: pair of 2D points in pnt[4]; return 0 if wrap, -1 if no wrap
-static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
+static mjtNum wrap_inside(mjtNum pnt[4], const mjtNum end[4], mjtNum radius) {
   // algorithm parameters
   const int maxiter = 20;
   const mjtNum zinit = 1 - 1e-7;
   const mjtNum tolerance = 1e-6;
 
   // constants
-  mjtNum len0 = mju_norm(d, 2);
-  mjtNum len1 = mju_norm(d+2, 2);
-  mjtNum dif[2] = {d[2]-d[0], d[3]-d[1]};
+  mjtNum len0 = mju_norm(end, 2);
+  mjtNum len1 = mju_norm(end+2, 2);
+  mjtNum dif[2] = {end[2]-end[0], end[3]-end[1]};
   mjtNum dd = dif[0]*dif[0] + dif[1]*dif[1];
 
   // either point inside circle or circle too small: no wrap
-  if (len0 <= rad || len1 <= rad || rad < mjMINVAL || len0 < mjMINVAL || len1 < mjMINVAL) {
+  if (len0 <= radius || len1 <= radius || radius < mjMINVAL || len0 < mjMINVAL || len1 < mjMINVAL) {
     return -1;
   }
 
   // segment-circle intersection: no wrap
   if (dd > mjMINVAL) {
     // find nearest point on line segment to origin: d0 + a*dif
-    mjtNum a = -(dif[0]*d[0]+dif[1]*d[1])/dd;
+    mjtNum a = -(dif[0]*end[0] + dif[1]*end[1]) / dd;
 
     // in segment
     if (a > 0 && a < 1) {
       mjtNum tmp[2];
-      mju_addScl(tmp, d, dif, a, 2);
-      if (mju_norm(tmp, 2) <= rad) {
+      mju_addScl(tmp, end, dif, a, 2);
+      if (mju_norm(tmp, 2) <= radius) {
         return -1;
       }
     }
   }
 
   // prepare default in case of numerical failure: average
-  pnt[0] = 0.5*(d[0] + d[2]);
-  pnt[1] = 0.5*(d[1] + d[3]);
+  pnt[0] = 0.5*(end[0] + end[2]);
+  pnt[1] = 0.5*(end[1] + end[3]);
   mju_normalize(pnt, 2);
-  mju_scl(pnt, pnt, rad, 2);
+  mju_scl(pnt, pnt, radius, 2);
   pnt[2] = pnt[0];
   pnt[3] = pnt[1];
 
   // compute function parameters: asin(A*z) + asin(B*z) - 2*asin(z) + G = 0
-  mjtNum A = rad/len0;
-  mjtNum B = rad/len1;
+  mjtNum A = radius/len0;
+  mjtNum B = radius/len1;
   mjtNum cosG = (len0*len0 + len1*len1 - dd) / (2*len0*len1);
   if (cosG < -1+mjMINVAL) {
     return -1;
@@ -261,16 +256,16 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
   // finalize: rotation by ang from vec = a or b, depending on cross(a,b) sign
   mjtNum vec[2];
   mjtNum ang;
-  if (d[0]*d[3] - d[1]*d[2] > 0) {
-    mju_copy(vec, d, 2);
+  if (end[0]*end[3] - end[1]*end[2] > 0) {
+    mju_copy(vec, end, 2);
     ang = mju_asin(z) - mju_asin(A*z);
   } else {
-    mju_copy(vec, d+2, 2);
+    mju_copy(vec, end+2, 2);
     ang = mju_asin(z) - mju_asin(B*z);
   }
   mju_normalize(vec, 2);
-  pnt[0] = rad*(mju_cos(ang)*vec[0] - mju_sin(ang)*vec[1]);
-  pnt[1] = rad*(mju_sin(ang)*vec[0] + mju_cos(ang)*vec[1]);
+  pnt[0] = radius*(mju_cos(ang)*vec[0] - mju_sin(ang)*vec[1]);
+  pnt[1] = radius*(mju_sin(ang)*vec[0] + mju_cos(ang)*vec[1]);
   pnt[2] = pnt[0];
   pnt[3] = pnt[1];
 
@@ -280,23 +275,27 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
 
 
 // wrap tendons around spheres and cylinders
-mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
-                const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
-                int type, const mjtNum* side) {
-  mjtNum tmp[3], normal[3], axis[2][3], p[2][3], s[3], d[4], sd[2], pnt[4];
-  mjtNum res[6], wlen, height;
-  mjtNum L0, L1;
-
+//  input:  x0, x1: pair of 3D endpoints
+//          xpos, xmat, radius: position, orientation and radius of geom
+//          type: wrap type (mjtWrap)
+//          side: 3D position of sidesite
+//  output: return wrap length, -1 if no wrap
+//          wpnt: pair of 3D wrap points
+mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3],
+                const mjtNum xpos[3], const mjtNum xmat[9], mjtNum radius,
+                int type, const mjtNum side[3]) {
   // check object type;  SHOULD NOT OCCUR
   if (type != mjWRAP_SPHERE && type != mjWRAP_CYLINDER) {
     mjERROR("unknown wrapping object type %d", type);
   }
 
   // map sites to wrap object's local frame
+  mjtNum tmp[3];
   mju_sub3(tmp, x0, xpos);
-  mju_mulMatTVec(p[0], xmat, tmp, 3, 3);
+  mjtNum p[2][3];
+  mju_mulMatTVec3(p[0], xmat, tmp);
   mju_sub3(tmp, x1, xpos);
-  mju_mulMatTVec(p[1], xmat, tmp, 3, 3);
+  mju_mulMatTVec3(p[1], xmat, tmp);
 
   // too close to origin: return
   if (mju_norm3(p[0]) < mjMINVAL || mju_norm3(p[1]) < mjMINVAL) {
@@ -304,12 +303,14 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   }
 
   // construct 2D frame for circle wrap
+  mjtNum axis[2][3];
   if (type == mjWRAP_SPHERE) {
     // 1st axis = p0
     mju_copy3(axis[0], p[0]);
     mju_normalize3(axis[0]);
 
     // normal to p0-0-p1 plane = cross(p0, p1)
+    mjtNum normal[3];
     mju_cross(normal, p[0], p[1]);
     mjtNum nrm = mju_normalize3(normal);
 
@@ -341,10 +342,6 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
     mju_cross(axis[1], normal, axis[0]);
     mju_normalize3(axis[1]);
   } else {
-    // normal = z
-    normal[2] = 1;
-    normal[0] = normal[1] = 0;
-
     // 1st axis = x
     axis[0][0] = 1;
     axis[0][1] = axis[0][2] = 0;
@@ -355,42 +352,44 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   }
 
   // project points in 2D frame: p => d
+  mjtNum s[3], d[4], sd[2];
   d[0] = mju_dot3(p[0], axis[0]);
   d[1] = mju_dot3(p[0], axis[1]);
   d[2] = mju_dot3(p[1], axis[0]);
   d[3] = mju_dot3(p[1], axis[1]);
+
+  // handle sidesite
   if (side) {
     // side point: apply same projection as x0, x1
     mju_sub3(tmp, side, xpos);
-    mju_mulMatTVec(s, xmat, tmp, 3, 3);
+    mju_mulMatTVec3(s, xmat, tmp);
+
+    // side point: project and rescale
     sd[0] = mju_dot3(s, axis[0]);
     sd[1] = mju_dot3(s, axis[1]);
-
-    // map to circle if outside, set to (0,0) if inside
-    if (mju_norm(sd, 2) >= size[0]) {
-      mju_normalize(sd, 2);
-      mju_scl(sd, sd, size[0], 2);
-    } else {
-      sd[0] = sd[1] = 0;
-    }
+    mju_normalize(sd, 2);
+    mju_scl(sd, sd, radius, 2);
   }
 
   // apply inside wrap
-  if (side && sd[0] == 0 && sd[1] == 0) {
-    wlen = wrap_inside(pnt, d, size[0]);
+  mjtNum wlen;
+  mjtNum pnt[4];
+  if (side && mju_norm3(s) < radius) {
+    wlen = wrap_inside(pnt, d, radius);
   }
 
   // apply circle wrap
   else {
-    wlen = wrap_circle(pnt, d, (side ? sd : 0), size[0]);
+    wlen = wrap_circle(pnt, d, (side ? sd : NULL), radius);
   }
 
-  // no wrap
+  // no wrap: return
   if (wlen < 0) {
     return -1;
   }
 
   // reconstruct 3D points in local frame: res
+  mjtNum res[6];
   for (int i=0; i < 2; i++) {
     // res = axis0*d0 + axis1*d1
     mju_scl3(res+3*i, axis[0], pnt[2*i]);
@@ -401,19 +400,19 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   // cylinder: correct along z
   if (type == mjWRAP_CYLINDER) {
     // set vertical coordinates
-    L0 = mju_sqrt((p[0][0]-res[0])*(p[0][0]-res[0]) + (p[0][1]-res[1])*(p[0][1]-res[1]));
-    L1 = mju_sqrt((p[1][0]-res[3])*(p[1][0]-res[3]) + (p[1][1]-res[4])*(p[1][1]-res[4]));
-    res[2] = p[0][2] + (p[1][2]-p[0][2])*L0/(L0+wlen+L1);
-    res[5] = p[0][2] + (p[1][2]-p[0][2])*(L0+wlen)/(L0+wlen+L1);
+    mjtNum L0 = mju_sqrt((p[0][0]-res[0])*(p[0][0]-res[0]) + (p[0][1]-res[1])*(p[0][1]-res[1]));
+    mjtNum L1 = mju_sqrt((p[1][0]-res[3])*(p[1][0]-res[3]) + (p[1][1]-res[4])*(p[1][1]-res[4]));
+    res[2] = p[0][2] + (p[1][2] - p[0][2])*L0 / (L0+wlen+L1);
+    res[5] = p[0][2] + (p[1][2] - p[0][2])*(L0+wlen) / (L0+wlen+L1);
 
     // correct wlen for height
-    height = mju_abs(res[5] - res[2]);
+    mjtNum height = mju_abs(res[5] - res[2]);
     wlen = mju_sqrt(wlen*wlen + height*height);
   }
 
   // map back to global frame: wpnt
-  mju_mulMatVec(wpnt, xmat, res, 3, 3);
-  mju_mulMatVec(wpnt+3, xmat, res+3, 3, 3);
+  mju_mulMatVec3(wpnt, xmat, res);
+  mju_mulMatVec3(wpnt+3, xmat, res+3);
   mju_addTo3(wpnt, xpos);
   mju_addTo3(wpnt+3, xpos);
 
@@ -593,8 +592,8 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
   mjtNum actclamp = mju_clip(act, 0, 1);
 
   // compute timescales as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
-  mjtNum tau_act = prm[0] * (0.5 + 1.5*actclamp);    // activation timscale
-  mjtNum tau_deact = prm[1] / (0.5 + 1.5*actclamp);  // deactivation timscale
+  mjtNum tau_act = prm[0] * (0.5 + 1.5*actclamp);    // activation timescale
+  mjtNum tau_deact = prm[1] / (0.5 + 1.5*actclamp);  // deactivation timescale
   mjtNum smoothing_width = prm[2];                   // width of smoothing sigmoid
   mjtNum dctrl = ctrlclamp - act;                    // excess excitation
 
@@ -858,7 +857,7 @@ int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[
 
   // vector from pos to point, projected to box frame
   mjtNum vec[3] = {point[0]-pos[0], point[1]-pos[1], point[2]-pos[2]};
-  mju_rotVecMatT(vec, vec, mat);
+  mju_mulMatTVec3(vec, mat, vec);
 
   // big: inflated box
   mjtNum big[3] = {size[0], size[1], size[2]};
@@ -1403,51 +1402,6 @@ char* mju_strncpy(char *dst, const char *src, int n) {
   }
 
   return dst;
-}
-
-
-
-// assemble full filename from directory and filename, return 0 on success
-int mju_makefullname(char* full, size_t nfull, const char* dir, const char* file) {
-  int dirlen = (!dir) ? 0 : strlen(dir);
-  int filelen = (!file) ? 0 : strlen(file);
-  char* filepos = full + dirlen;
-
-  // missing filename
-  if (!filelen) {
-    return -1;
-  }
-
-  // no directory then just copy filename over
-  if (!dirlen) {
-    // make sure full has space
-    if (filelen >= nfull) {
-      return -1;
-    }
-    strcpy(full, file);
-    return 0;
-  }
-
-  // make sure full has space
-  if (dirlen + filelen >= nfull) {
-    return -1;
-  }
-
-  // dir doesn't end with a slash
-  if (dir[dirlen - 1] != '\\' && dir[dirlen - 1] != '/') {
-    // need extra space for forward slash
-    if ((dirlen + filelen + 1) >= nfull) {
-      return -1;
-    }
-
-    // add forward slash
-    *filepos++ = '/';
-  }
-
-  // copy directory and file over
-  memcpy(full, dir, sizeof(char) * dirlen);
-  strcpy(filepos, file);
-  return 0;
 }
 
 

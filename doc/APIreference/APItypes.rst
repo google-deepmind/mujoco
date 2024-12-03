@@ -54,24 +54,28 @@ The two types below are defined in `mjtnum.h <https://github.com/google-deepmind
 mjtNum
 ^^^^^^
 
-This is the floating-point type used throughout the simulator. If the symbol ``mjUSEDOUBLE`` is defined in
-``mjmodel.h``, this type is defined as ``double``, otherwise it is defined as ``float``. Currently only the
-double-precision version of MuJoCo is distributed, although the entire code base works with single-precision as well.
-We may release the single-precision version in the future for efficiency reasons, but the double-precision version
-will always be available. Thus it is safe to write user code assuming double precision. However, our preference is to
-write code that works with either single or double precision. To this end we provide math utility functions that are
-always defined with the correct floating-point type.
+This is the floating-point type used throughout the simulator. When using the default build configuration, ``mjtNum`` is
+defined as ``double``. If the symbol ``mjUSESINGLE`` is defined, ``mjtNum`` is defined as ``float``.
 
-Note that changing ``mjUSEDOUBLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
+Currently only the double-precision version of MuJoCo is distributed, although the entire code base works with
+single-precision as well. We may release the single-precision version in the future, but the
+double-precision version will always be available. Thus it is safe to write user code assuming double precision.
+However, our preference is to write code that works with either single or double precision. To this end we provide math
+utility functions that are always defined with the correct floating-point type.
+
+Note that changing ``mjUSESINGLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
 result in numerous link errors. In general, the header files distributed with precompiled MuJoCo should never be
 changed by the user.
 
 .. code-block:: C
 
-   #ifdef mjUSEDOUBLE
-       typedef double mjtNum;
+   // floating point data type and minval
+   #ifndef mjUSESINGLE
+     typedef double mjtNum;
+     #define mjMINVAL    1E-15       // minimum value in any denominator
    #else
-       typedef float mjtNum;
+     typedef float mjtNum;
+     #define mjMINVAL    1E-15f
    #endif
 
 
@@ -169,6 +173,17 @@ mjtTexture
 Texture types, specifying how the texture will be mapped. These values are used in ``m->tex_type``.
 
 .. mujoco-include:: mjtTexture
+
+
+.. _mjtTextureRole:
+
+mjtTextureRole
+~~~~~~~~~~~~~~
+
+Texture roles, specifying how the renderer should interpret the texture.  Note that the MuJoCo built-in renderer only
+uses RGB textures.  These values are used to store the texture index in the material's array ``m->mat_texid``.
+
+.. mujoco-include:: mjtTextureRole
 
 
 .. _mjtIntegrator:
@@ -330,6 +345,16 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 
 .. mujoco-include:: mjtDataType
 
+
+.. _mjtSameFrame:
+
+mjtSameFrame
+~~~~~~~~~~~~
+
+Types of frame alignment of elements with their parent bodies. Used as shortcuts during :ref:`mj_kinematics` in the
+last argument to :ref:`mj_local2global`.
+
+.. mujoco-include:: mjtSameFrame
 
 
 .. _tyDataEnums:
@@ -578,6 +603,18 @@ Item types used in the UI framework.
 
 .. mujoco-include:: mjtItem
 
+
+.. _mjtSection:
+
+mjtSection
+~~~~~~~~~~
+
+State of a UI section.
+
+.. mujoco-include:: mjtSection
+
+
+
 .. _tySpecEnums:
 
 Spec
@@ -620,6 +657,15 @@ mjtLimited
 Type of limit specification.
 
 .. mujoco-include:: mjtLimited
+
+.. _mjtAlignFree:
+
+mjtAlignFree
+~~~~~~~~~~~~
+
+Whether to align free joints with the inertial frame.
+
+.. mujoco-include:: mjtAlignFree
 
 .. _mjtInertiaFromGeom:
 
@@ -929,7 +975,7 @@ mjvSceneState
 This structure contains the portions of :ref:`mjModel` and :ref:`mjData` that are required for
 various ``mjv_*`` functions.
 
-.. mujoco-include:: mjvScene
+.. mujoco-include:: mjvSceneState
 
 
 .. _mjvFigure:
@@ -1062,12 +1108,13 @@ is initialized, others change at runtime.
 
 .. _tySpecStructure:
 
-mjSpec
-^^^^^^
+Model Editing
+^^^^^^^^^^^^^
 
-The strucs below are defined in `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
-and, with the exception of the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix.
-For more details, see the :doc:`Model Editing <../programming/modeledit>` chapter.
+The structs below are defined in
+`mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__ and, with the exception of
+the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix. For more details, see the :doc:`Model Editing
+<../programming/modeledit>` chapter.
 
 .. _mjSpec:
 
@@ -1084,19 +1131,23 @@ Model specification.
 mjsElement
 ~~~~~~~~~~
 
-Special type corresponding to any element.
+Special type corresponding to any element. This struct is the first member of all other elements; in the low-level C++
+implementation, it is not included as a member but via class inheritance. Inclusion via inheritance allows the compiler
+to ``static_cast`` an ``mjsElement`` to the correct C++ object class. Unlike all other attributes of the structs below,
+which are user-settable by design, modifying the contents of an ``mjsElement`` is not allowed and leads to undefined
+behavior.
 
 .. mujoco-include:: mjsElement
 
 
-.. _mjsOrientation:
+.. _mjsCompiler:
 
-mjsOrientation
-~~~~~~~~~~~~~~
+mjsCompiler
+~~~~~~~~~~~
 
-Alternative orientation specifiers.
+Compiler options.
 
-.. mujoco-include:: mjsOrientation
+.. mujoco-include:: mjsCompiler
 
 
 .. _mjsBody:
@@ -1359,6 +1410,20 @@ Plugin specification.
 .. mujoco-include:: mjsPlugin
 
 
+.. _mjsOrientation:
+
+mjsOrientation
+~~~~~~~~~~~~~~
+
+Alternative orientation specifiers.
+
+.. mujoco-include:: mjsOrientation
+
+
+.. _ArrayHandles:
+
+.. _mjByteVec:
+
 .. _mjString:
 
 .. _mjStringVec:
@@ -1376,7 +1441,8 @@ Plugin specification.
 Array handles
 ~~~~~~~~~~~~~
 
-Explain how handles work.
+C handles for C++ strings and vector types. When using from C, use the provided :ref:`getters<AttributeGetters>` and
+:ref:`setters<AttributeSetters>`.
 
 .. code-block:: C++
 
@@ -1389,6 +1455,7 @@ Explain how handles work.
      using mjFloatVec    = std::vector<float>;
      using mjFloatVecVec = std::vector<std::vector<float>>;
      using mjDoubleVec   = std::vector<double>;
+     using mjByteVec     = std::vector<std::byte>;
    #else
      // C: opaque types
      typedef void mjString;
@@ -1398,6 +1465,7 @@ Explain how handles work.
      typedef void mjFloatVec;
      typedef void mjFloatVecVec;
      typedef void mjDoubleVec;
+     typedef void mjByteVec;
    #endif
 
 

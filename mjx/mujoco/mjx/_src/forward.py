@@ -25,6 +25,7 @@ from mujoco.mjx._src import constraint
 from mujoco.mjx._src import math
 from mujoco.mjx._src import passive
 from mujoco.mjx._src import scan
+from mujoco.mjx._src import sensor
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import solver
 from mujoco.mjx._src import support
@@ -66,6 +67,7 @@ def fwd_position(m: Model, d: Data) -> Data:
   d = smooth.kinematics(m, d)
   d = smooth.com_pos(m, d)
   d = smooth.camlight(m, d)
+  d = smooth.tendon(m, d)
   d = smooth.crb(m, d)
   d = smooth.factor_m(m, d)
   d = collision_driver.collision(m, d)
@@ -77,7 +79,10 @@ def fwd_position(m: Model, d: Data) -> Data:
 @named_scope
 def fwd_velocity(m: Model, d: Data) -> Data:
   """Velocity-dependent computations."""
-  d = d.replace(actuator_velocity=d.actuator_moment @ d.qvel)
+  d = d.replace(
+      actuator_velocity=d.actuator_moment @ d.qvel,
+      ten_velocity=d.ten_J @ d.qvel,
+  )
   d = smooth.com_vel(m, d)
   d = passive.passive(m, d)
   d = smooth.rne(m, d)
@@ -187,7 +192,9 @@ def fwd_actuation(m: Model, d: Data) -> Data:
   actfrcrange = actfrcrange[m.dof_jntid]
   qfrc_actuator = jp.clip(qfrc_actuator, actfrcrange[:, 0], actfrcrange[:, 1])
 
-  d = d.replace(act_dot=act_dot, qfrc_actuator=qfrc_actuator)
+  d = d.replace(
+      act_dot=act_dot, qfrc_actuator=qfrc_actuator, actuator_force=force
+  )
   return d
 
 
@@ -344,12 +351,55 @@ def rungekutta4(m: Model, d: Data) -> Data:
 
 
 @named_scope
+def implicit(m: Model, d: Data) -> Data:
+  """Integrates fully implicit in velocity."""
+
+  qderiv = None
+
+  # qDeriv += d qfrc_actuator / d qvel
+  if not m.opt.disableflags & DisableBit.ACTUATION:
+    affine_bias = m.actuator_biastype == BiasType.AFFINE
+    bias_vel = m.actuator_biasprm[:, 2] * affine_bias
+    affine_gain = m.actuator_gaintype == GainType.AFFINE
+    gain_vel = m.actuator_gainprm[:, 2] * affine_gain
+    ctrl = d.ctrl.at[m.actuator_dyntype != DynType.NONE].set(d.act)
+    vel = bias_vel + gain_vel * ctrl
+    qderiv = d.actuator_moment.T @ jp.diag(vel) @ d.actuator_moment
+
+  # qDeriv += d qfrc_passive / d qvel
+  if not m.opt.disableflags & DisableBit.PASSIVE:
+    if qderiv is None:
+      qderiv = -jp.diag(m.dof_damping)
+    else:
+      qderiv -= jp.diag(m.dof_damping)
+    if m.ntendon:
+      qderiv -= d.ten_J.T @ jp.diag(m.tendon_damping) @ d.ten_J
+    # TODO(robotics-simulation): fluid drag model
+    if m.opt.has_fluid_params:
+      raise NotImplementedError('fluid drag not supported for implicitfast')
+
+  qacc = d.qacc
+  if qderiv is not None:
+    # TODO(robotics-simulation): use smooth.factor_m / solve_m here:
+    qm = support.full_m(m, d) if support.is_sparse(m) else d.qM
+    qm -= m.opt.timestep * qderiv
+    qh, _ = jax.scipy.linalg.cho_factor(qm)
+    qfrc = d.qfrc_smooth + d.qfrc_constraint
+    qacc = jax.scipy.linalg.cho_solve((qh, False), qfrc)
+
+  return _advance(m, d, d.act_dot, qacc)
+
+
+@named_scope
 def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
   d = fwd_position(m, d)
+  d = sensor.sensor_pos(m, d)
   d = fwd_velocity(m, d)
+  d = sensor.sensor_vel(m, d)
   d = fwd_actuation(m, d)
   d = fwd_acceleration(m, d)
+  d = sensor.sensor_acc(m, d)
 
   if d.efc_J.size == 0:
     d = d.replace(qacc=d.qacc_smooth)
@@ -369,6 +419,8 @@ def step(m: Model, d: Data) -> Data:
     d = euler(m, d)
   elif m.opt.integrator == IntegratorType.RK4:
     d = rungekutta4(m, d)
+  elif m.opt.integrator == IntegratorType.IMPLICITFAST:
+    d = implicit(m, d)
   else:
     raise NotImplementedError(f'integrator {m.opt.integrator} not implemented.')
 

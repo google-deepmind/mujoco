@@ -99,7 +99,7 @@ struct mjpPlugin_ {
   void (*copy)(mjData* dest, const mjModel* m, const mjData* src, int instance);
 
   // called when an mjData is being reset (required)
-  void (*reset)(const mjModel* m, double* plugin_state, void* plugin_data, int instance);
+  void (*reset)(const mjModel* m, mjtNum* plugin_state, void* plugin_data, int instance);
 
   // called when the plugin needs to update its outputs (required)
   void (*compute)(const mjModel* m, mjData* d, int instance, int capability_bit);
@@ -111,9 +111,6 @@ struct mjpPlugin_ {
   void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
 
   // methods specific to actuators (optional)
-
-  // dimension of the actuator state for the plugin (excluding state from actuator's dyntype)
-  int (*actuator_actdim)(const mjModel*m, int instance, int actuator_id);
 
   // updates the actuator plugin's entries in act_dot
   // called after native act_dot is computed and before the compute callback

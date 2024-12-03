@@ -20,9 +20,11 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_io.h"
+#include "engine/engine_name.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -93,6 +95,20 @@ static void islandColor(float rgba[4], int islanddofadr) {
   rgba[1] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 3);
   rgba[2] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 5);
   rgba[3] = 1;
+}
+
+// make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
+static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
+                         const mjtNum v2[3], const float rgba[4]) {
+  mjtNum e1[3] =  {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+  mjtNum e2[3] =  {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+  mjtNum normal[3];
+  mju_cross(normal, e1, e2);
+  mjtNum lengths[3] = {mju_normalize3(e1), mju_normalize3(e2), mju_normalize3(normal)};
+  mjtNum xmat[9] = {e1[0], e2[0], normal[0],
+                    e1[1], e2[1], normal[1],
+                    e1[2], e2[2], normal[2]};
+  mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, lengths, v0, xmat, rgba);
 }
 
 // add contact-related geoms in mjvObject
@@ -301,19 +317,11 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
                         const mjtByte* flags) {
   // set material properties if given
   if (matid >= 0) {
-    f2f(geom->texrepeat, m->mat_texrepeat + 2*matid, 2);
     f2f(geom->rgba, m->mat_rgba + 4*matid, 4);
-    geom->texuniform = m->mat_texuniform[matid];
     geom->emission = m->mat_emission[matid];
     geom->specular = m->mat_specular[matid];
     geom->shininess = m->mat_shininess[matid];
     geom->reflectance = m->mat_reflectance[matid];
-  }
-
-  // otherwise clear texrepeat
-  else {
-    geom->texrepeat[0] = 0;
-    geom->texrepeat[1] = 0;
   }
 
   // use rgba if different from default, or no material given
@@ -323,7 +331,7 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
 
   // set texture
   if (flags[mjVIS_TEXTURE] && matid >= 0) {
-    geom->texid = m->mat_texid[matid];
+    geom->matid = matid;
   }
 
   // scale alpha for dynamic geoms only
@@ -338,10 +346,9 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
 
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
-void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                       mjtNum a0, mjtNum a1, mjtNum a2,
-                       mjtNum b0, mjtNum b1, mjtNum b2) {
-  mjtNum quat[4], mat[9], dif[3] = {b0-a0, b1-a1, b2-a2};
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]) {
+  mjtNum quat[4], mat[9], dif[3] = {to[0]-from[0], to[1]-from[1], to[2]-from[2]};
 
   // require connector-compatible type
   if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
@@ -359,17 +366,17 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
 
   // cylinder and capsule are centered, and size[0] is "radius"
   if (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER) {
-    geom->pos[0] = 0.5*(a0 + b0);
-    geom->pos[1] = 0.5*(a1 + b1);
-    geom->pos[2] = 0.5*(a2 + b2);
+    geom->pos[0] = 0.5*(from[0] + to[0]);
+    geom->pos[1] = 0.5*(from[1] + to[1]);
+    geom->pos[2] = 0.5*(from[2] + to[2]);
     geom->size[2] *= 0.5;
   }
 
   // arrow is not centered
   else {
-    geom->pos[0] = a0;
-    geom->pos[1] = a1;
-    geom->pos[2] = a2;
+    geom->pos[0] = from[0];
+    geom->pos[1] = from[1];
+    geom->pos[2] = from[2];
   }
 
   // set mat to minimal rotation aligning b-a with z axis
@@ -378,12 +385,7 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   mju_n2f(geom->mat, mat, 9);
 }
 
-// set (type, size, pos, mat) connector-type geom between given points
-//  assume that mjv_initGeom was already called to set all other properties
-void mjv_connector(mjvGeom* geom, int type, mjtNum width,
-                   const mjtNum from[3], const mjtNum to[3]) {
-  mjv_makeConnector(geom, type, width, from[0], from[1], from[2], to[0], to[1], to[2]);
-}
+
 
 // initialize given fields when not NULL, set the rest to their default values
 void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
@@ -457,11 +459,8 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
 
   // set defaults that cannot be assigned via this function
   geom->dataid       = -1;
-  geom->texid        = -1;
-  geom->texuniform   = 0;
+  geom->matid        = -1;
   geom->texcoord     = 0;
-  geom->texrepeat[0] = 1;
-  geom->texrepeat[1] = 1;
   geom->emission     = 0;
   geom->specular     = 0.5;
   geom->shininess    = 0.5;
@@ -511,11 +510,11 @@ static int bodycategory(const mjModel* m, int bodyid) {
 
 // computes the camera frustum
 static void getFrustum(float zver[2], float zhor[2], float znear,
-                       const float K[4], const float sensorsize[2]) {
-  zhor[0] = znear / K[0] * (sensorsize[0]/2.f - K[2]);
-  zhor[1] = znear / K[0] * (sensorsize[0]/2.f + K[2]);
-  zver[0] = znear / K[1] * (sensorsize[1]/2.f - K[3]);
-  zver[1] = znear / K[1] * (sensorsize[1]/2.f + K[3]);
+                       const float intrinsic[4], const float sensorsize[2]) {
+  zhor[0] = znear / intrinsic[0] * (sensorsize[0]/2.f - intrinsic[2]);
+  zhor[1] = znear / intrinsic[0] * (sensorsize[0]/2.f + intrinsic[2]);
+  zver[0] = znear / intrinsic[1] * (sensorsize[1]/2.f - intrinsic[3]);
+  zver[1] = znear / intrinsic[1] * (sensorsize[1]/2.f + intrinsic[3]);
 }
 
 
@@ -525,7 +524,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
-  mjtNum catenary[3*mjNCATENARY];
   mjtNum *cur, *nxt, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
@@ -570,7 +568,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           thisgeom->texcoord = 1;
         }
         else {
-          thisgeom->texid = -1;
+          thisgeom->matid = -1;
         }
 
         // glow flex if selected
@@ -668,7 +666,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // offset xpos with aabb center (not always at frame origin)
       const mjtNum *center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
       mjtNum pos[3];
-      mju_rotVecMat(pos, center, xmat);
+      mju_mulMatVec3(pos, xmat, center);
       mju_addTo3(pos, xpos);
 
       // set box color
@@ -755,7 +753,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // offset xpos with aabb center (not always at geom origin)
         const mjtNum *center = m->bvh_aabb + 6*i;
         mjtNum pos[3];
-        mju_rotVecMat(pos, center, xmat);
+        mju_mulMatVec3(pos, xmat, center);
         mju_addTo3(pos, xpos);
 
         START
@@ -830,7 +828,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       START
 
       // compute selection point in world coordinates
-      mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
+      mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
       mju_addTo3(selpos, d->xpos+3*pert->select);
 
       // construct geom
@@ -873,7 +871,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (m->body_bvhnum[i]) {
         mjtNum* aabb = m->bvh_aabb+6*m->body_bvhadr[i];
         mju_copy3(sz, aabb+3);
-        mju_rotVecMat(pos, aabb, d->ximat+9*i);
+        mju_mulMatVec3(pos, d->ximat+9*i, aabb);
       }
 
       // otherwise box of size meansize
@@ -946,7 +944,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     int i=0;
 
     // compute selection point in world coordinates
-    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
+    mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*pert->select);
 
     START
@@ -1502,11 +1500,87 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
-  // cameras
+  // cameras and frustums
   objtype = mjOBJ_CAMERA;
   category = mjCAT_DECOR;
   if (vopt->flags[mjVIS_CAMERA] && (category & catmask)) {
     for (int i=0; i < m->ncam; i++) {
+      // copy camera rgba
+      float cam_rgba[4];
+      f2f(cam_rgba, m->vis.rgba.camera, 4);
+
+      // draw frustum if sensorsize is defined
+      if (m->cam_sensorsize[2*i+1] > 0) {
+        // when drawing frustum, make camera translucent
+        cam_rgba[3] = 0.3;
+
+        // locals
+        const float* rgba = m->vis.rgba.frustum;
+        mjtNum vnear[4][3], vfar[4][3];
+        mjtNum center[3];
+        mjtNum znear = m->vis.map.znear * m->stat.extent;
+        mjtNum zfar = m->vis.scale.frustum * scl;
+        float zver[2], zhor[2];
+
+        // get frustum
+        getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
+
+        // frustum frame to convert from planes to vertex representation
+        mjtNum *cam_xpos = d->cam_xpos+3*i;
+        mjtNum *cam_xmat = d->cam_xmat+9*i;
+        mjtNum x[] = {cam_xmat[0], cam_xmat[3], cam_xmat[6]};
+        mjtNum y[] = {cam_xmat[1], cam_xmat[4], cam_xmat[7]};
+        mjtNum z[] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
+
+        // vertices of the near plane
+        mju_addScl3(center, cam_xpos, z, -znear);
+        mju_addScl3(vnear[0], center, x, -zhor[0]);
+        mju_addScl3(vnear[1], center, x,  zhor[1]);
+        mju_addScl3(vnear[2], center, x,  zhor[1]);
+        mju_addScl3(vnear[3], center, x, -zhor[0]);
+        mju_addToScl3(vnear[0], y, -zver[0]);
+        mju_addToScl3(vnear[1], y, -zver[0]);
+        mju_addToScl3(vnear[2], y,  zver[1]);
+        mju_addToScl3(vnear[3], y,  zver[1]);
+
+        // vertices of the far plane
+        zhor[0] *= zfar / znear;
+        zhor[1] *= zfar / znear;
+        zver[0] *= zfar / znear;
+        zver[1] *= zfar / znear;
+        mju_addScl3(center, cam_xpos, z, -zfar);
+        mju_addScl3(vfar[0], center, x, -zhor[0]);
+        mju_addScl3(vfar[1], center, x,  zhor[1]);
+        mju_addScl3(vfar[2], center, x,  zhor[1]);
+        mju_addScl3(vfar[3], center, x, -zhor[0]);
+        mju_addToScl3(vfar[0], y, -zver[0]);
+        mju_addToScl3(vfar[1], y, -zver[0]);
+        mju_addToScl3(vfar[2], y,  zver[1]);
+        mju_addToScl3(vfar[3], y,  zver[1]);
+
+        // triangulation and wireframe of the frustum
+        for (int e=0; e < 4; e++) {
+          START
+          makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
+          FINISH
+          START
+          makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
+          FINISH
+          START
+          mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
+          f2f(thisgeom->rgba, rgba, 4);
+          FINISH
+          START
+          mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
+          f2f(thisgeom->rgba, rgba, 4);
+          FINISH
+          START
+          mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
+          f2f(thisgeom->rgba, rgba, 4);
+          FINISH
+        }
+      }
+
       START
 
       // construct geom: camera body
@@ -1516,7 +1590,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       thisgeom->size[2] = scl * m->vis.scale.camera * 0.4;
       mju_n2f(thisgeom->pos, d->cam_xpos+3*i, 3);
       mju_n2f(thisgeom->mat, d->cam_xmat+9*i, 9);
-      f2f(thisgeom->rgba, m->vis.rgba.camera, 4);
+      f2f(thisgeom->rgba, cam_rgba, 4);
 
       // vopt->label
       if (vopt->label == mjLABEL_CAMERA) {
@@ -1539,7 +1613,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       thisgeom->size[1] = scl * m->vis.scale.camera * 0.4;
       thisgeom->size[2] = scl * m->vis.scale.camera * 0.3;
       mju_n2f(thisgeom->mat, d->cam_xmat+9*i, 9);
-      f2f(thisgeom->rgba, m->vis.rgba.camera, 4);
+      f2f(thisgeom->rgba, cam_rgba, 4);
       for (int k=0; k < 3; k++) {
         thisgeom->rgba[k] *= 0.5;  // make lens body darker
       }
@@ -1582,88 +1656,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
-  // camera frustum
-  if (vopt->flags[mjVIS_CAMERA]) {
-    objtype = mjOBJ_CAMERA;
-    category = mjCAT_DECOR;
-    const float* rgba = m->vis.rgba.frustum;
-    mjtNum vnear[4][3], vfar[4][3];
-    mjtNum center[3];
-    mjtNum znear = m->vis.map.znear * m->stat.extent;
-    mjtNum zfar = m->vis.scale.frustum * scl;
-    float zver[2], zhor[2];
-    for (int i=0; i < m->ncam; i++) {
-      if (m->cam_sensorsize[2*i+1] == 0) {
-        continue;
-      }
-      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
-
-      // frustum frame to convert from planes to vertex representation
-      mjtNum *cam_xpos = d->cam_xpos+3*i;
-      mjtNum *cam_xmat = d->cam_xmat+9*i;
-      mjtNum x[] = {cam_xmat[0], cam_xmat[3], cam_xmat[6]};
-      mjtNum y[] = {cam_xmat[1], cam_xmat[4], cam_xmat[7]};
-      mjtNum z[] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
-
-      // vertices of the near plane
-      mju_addScl3(center, cam_xpos, z, -znear);
-      mju_addScl3(vnear[0], center, x, -zhor[0]);
-      mju_addScl3(vnear[1], center, x,  zhor[1]);
-      mju_addScl3(vnear[2], center, x,  zhor[1]);
-      mju_addScl3(vnear[3], center, x, -zhor[0]);
-      mju_addToScl3(vnear[0], y, -zver[0]);
-      mju_addToScl3(vnear[1], y, -zver[0]);
-      mju_addToScl3(vnear[2], y,  zver[1]);
-      mju_addToScl3(vnear[3], y,  zver[1]);
-
-      // vertices of the far plane
-      zhor[0] *= zfar / znear;
-      zhor[1] *= zfar / znear;
-      zver[0] *= zfar / znear;
-      zver[1] *= zfar / znear;
-      mju_addScl3(center, cam_xpos, z, -zfar);
-      mju_addScl3(vfar[0], center, x, -zhor[0]);
-      mju_addScl3(vfar[1], center, x,  zhor[1]);
-      mju_addScl3(vfar[2], center, x,  zhor[1]);
-      mju_addScl3(vfar[3], center, x, -zhor[0]);
-      mju_addToScl3(vfar[0], y, -zver[0]);
-      mju_addToScl3(vfar[1], y, -zver[0]);
-      mju_addToScl3(vfar[2], y,  zver[1]);
-      mju_addToScl3(vfar[3], y,  zver[1]);
-
-      // triangulation and wireframe of the frustum
-      for (int e=0; e < 4; e++) {
-        START
-        mju_sub3(x, vfar[e], vnear[e]);
-        mju_sub3(y, vnear[(e+1)%4], vnear[e]);
-        mju_cross(z, x, y);
-        mjtNum tri1[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
-        mjtNum xmat1[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
-        mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri1, vnear[e], xmat1, rgba);
-        FINISH
-        START
-        mju_sub3(y, vnear[(e+1)%4], vfar[e]);
-        mju_sub3(x, vfar[(e+1)%4], vfar[e]);
-        mju_cross(z, x, y);
-        mjtNum tri2[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
-        mjtNum xmat2[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
-        mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri2, vfar[e], xmat2, rgba);
-        FINISH
-        START
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
-        f2f(thisgeom->rgba, rgba, 4);
-        FINISH
-        START
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
-        f2f(thisgeom->rgba, rgba, 4);
-        FINISH
-        START
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
-        f2f(thisgeom->rgba, rgba, 4);
-        FINISH
-      }
-    }
-  }
 
   // lights
   objtype = mjOBJ_LIGHT;
@@ -1818,8 +1810,15 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             length = m->tendon_lengthspring[2*i+1];
           }
 
+          // get number of points along catenary path
+          int ncatenary = m->vis.quality.numslices + 1;
+
+          // allocate catenary
+          mj_markStack(d);
+          mjtNum* catenary = mj_stackAllocNum(d, 3*ncatenary);
+
           // points along catenary path
-          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary);
+          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
 
           // draw npoints-1 segments
           for (int j=0; j < npoints-1; j++) {
@@ -1840,6 +1839,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
             FINISH
           }
+          mj_freeStack(d);
         }
       }
     }
@@ -2023,26 +2023,38 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_CONSTRAINT] && (category & catmask) && m->neq) {
     // connect or weld
     for (int i=0; i < m->neq; i++) {
-      if (d->eq_active[i] && (m->eq_type[i] == mjEQ_CONNECT || m->eq_type[i] == mjEQ_WELD)) {
+      int is_weld = m->eq_type[i] == mjEQ_WELD;
+      int is_connect = m->eq_type[i] == mjEQ_CONNECT;
+      if (d->eq_active[i] && (is_connect || is_weld)) {
         // compute endpoints in global coordinates
+        mjtNum *xmat_j, *xmat_k;
         int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
-        mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_WELD), d->xmat+9*j);
-        mju_addTo3(vec, d->xpos+3*j);
-        mju_rotVecMat(end, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_CONNECT), d->xmat+9*k);
-        mju_addTo3(end, d->xpos+3*k);
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
+          mju_copy3(vec, d->site_xpos+3*j);
+          mju_copy3(end, d->site_xpos+3*k);
+          xmat_j = d->site_xmat+9*j;
+          xmat_k = d->site_xmat+9*k;
+        } else {
+          mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*is_weld);
+          mju_addTo3(vec, d->xpos+3*j);
+          mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*is_connect);
+          mju_addTo3(end, d->xpos+3*k);
+          xmat_j = d->xmat+9*j;
+          xmat_k = d->xmat+9*k;
+        }
 
         // construct geom
         sz[0] = scl * m->vis.scale.constraint;
 
         START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, d->xmat+9*j, m->vis.rgba.connect);
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
         FINISH
 
         START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, d->xmat+9*k, m->vis.rgba.constraint);
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
@@ -2131,28 +2143,31 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
 
 // update camera only
 void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn) {
-  mjtNum ca, sa, ce, se, move[3], *mat;
-  mjtNum headpos[3], forward[3], up[3], right[3], ipd;
-
   // return if nothing to do
   if (!m || !cam || cam->type == mjCAMERA_USER) {
     return;
   }
 
-  // initialize frustum
-  float zver[2], zhor[2] = {0, 0};
-  float znear = m->vis.map.znear * m->stat.extent;
-  float zfar = m->vis.map.zfar * m->stat.extent;
+  // define extrinsics
+  mjtNum move[3];
+  mjtNum headpos[3], forward[3], up[3], right[3];
 
-  // get headpos, forward[3], up, right, ipd, fovy
+  // define intrinsics
+  int cid, orthographic = 0;
+  mjtNum fovy, ipd;
+  float* intrinsic = NULL;
+  float* sensorsize = NULL;
+
+  // get headpos, forward, up, right, ipd, fovy, orthographic, intrinsic
   switch (cam->type) {
   case mjCAMERA_FREE:
   case mjCAMERA_TRACKING:
     // get global ipd
     ipd = m->vis.global.ipd;
 
-    // compute image size from global fovy
-    zver[0] = zver[1] = (float)znear * mju_tan(m->vis.global.fovy * (float)(mjPI/360.0));
+    // get orthographic, fovy
+    orthographic = m->vis.global.orthographic;
+    fovy = m->vis.global.fovy;
 
     // move lookat for tracking
     if (cam->type == mjCAMERA_TRACKING) {
@@ -2168,10 +2183,10 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     }
 
     // compute frame
-    ca = mju_cos(cam->azimuth/180.0*mjPI);
-    sa = mju_sin(cam->azimuth/180.0*mjPI);
-    ce = mju_cos(cam->elevation/180.0*mjPI);
-    se = mju_sin(cam->elevation/180.0*mjPI);
+    mjtNum ca = mju_cos(cam->azimuth/180.0*mjPI);
+    mjtNum sa = mju_sin(cam->azimuth/180.0*mjPI);
+    mjtNum ce = mju_cos(cam->elevation/180.0*mjPI);
+    mjtNum se = mju_sin(cam->elevation/180.0*mjPI);
     forward[0] = ce*ca;
     forward[1] = ce*sa;
     forward[2] = se;
@@ -2184,25 +2199,27 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
     break;
 
-  case mjCAMERA_FIXED: {
-    // get id and check
-    int cid = cam->fixedcamid;
+  case mjCAMERA_FIXED:
+    // get id, check range
+    cid = cam->fixedcamid;
     if (cid < 0 || cid >= m->ncam) {
       mjERROR("fixed camera id is outside valid range");
     }
 
-    // get camera-specific ipd and fovy
+    // get camera-specific ipd, orthographic, fovy
     ipd = m->cam_ipd[cid];
 
-    // get frustum from intrinsics or from fovy
+    orthographic = m->cam_orthographic[cid];
+    fovy = m->cam_fovy[cid];
+
+    // if positive sensorsize, get sensorsize and intrinsic
     if (m->cam_sensorsize[2*cid+1]) {
-      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*cid, m->cam_sensorsize + 2*cid);
-    } else {
-      zver[0] = zver[1] = (float)znear * mju_tan(m->cam_fovy[cid] * (float)(mjPI/360.0));
+      sensorsize = m->cam_sensorsize + 2*cid;
+      intrinsic = m->cam_intrinsic + 4*cid;
     }
 
     // get pointer to camera orientation matrix
-    mat = d->cam_xmat + 9*cid;
+    mjtNum* mat = d->cam_xmat + 9*cid;
 
     // get frame
     forward[0] = -mat[2];
@@ -2215,11 +2232,24 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     right[1] = mat[3];
     right[2] = mat[6];
     mju_copy3(headpos, d->cam_xpos + 3*cid);
-  }
-  break;
+    break;
 
   default:
     mjERROR("unknown camera type");
+  }
+
+  // convert intrinsics to frustum parameters
+  float znear = m->vis.map.znear * m->stat.extent;
+  float zfar = m->vis.map.zfar * m->stat.extent;
+  float zver[2], zhor[2] = {0, 0};
+  if (orthographic){
+    zver[0] = zver[1] = fovy / 2;
+  } else {
+    if (!intrinsic) {
+      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
+    } else {
+      getFrustum(zver, zhor, znear, intrinsic, sensorsize);
+    }
   }
 
   // compute GL cameras
@@ -2230,6 +2260,9 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
       scn->camera[view].forward[i] = (float)forward[i];
       scn->camera[view].up[i] = (float)up[i];
     }
+
+    // set orthographic
+    scn->camera[view].orthographic = orthographic;
 
     // set symmetric frustum using intrinsic camera matrix
     scn->camera[view].frustum_top = zver[1];
@@ -2611,7 +2644,7 @@ void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, cons
 
         // compute translation
         mjtNum translate[3];
-        mju_rotVecMat(translate, bindpos, rotate);
+        mju_mulMatVec3(translate, rotate, bindpos);
         mju_sub3(translate, d->xpos+3*bodyid, translate);
 
         // process all bone vertices
@@ -2631,7 +2664,7 @@ void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, cons
 
           // transform
           mjtNum pos1[3];
-          mju_rotVecMat(pos1, pos, rotate);
+          mju_mulMatVec3(pos1, rotate, pos);
           mju_addTo3(pos1, translate);
 
           // accumulate position
@@ -2822,7 +2855,7 @@ static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
 
 // points along catenary of given length between x0 and x1, returns number of points
 int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
-                 mjtNum catenary[3*mjNCATENARY]) {
+                 mjtNum* catenary, int ncatenary) {
   mjtNum dist = mju_dist3(x0, x1);
 
   // tendon is stretched longer than length: draw straight line
@@ -2882,7 +2915,7 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       return 3;
     }
 
-    // compute catenary: mjNCATENARY points
+    // compute full catenary: ncatenary points
     else {
       // b*h: scaled catenary flatness
       mjtNum bh = solve_catenary(v, h, length) * h;
@@ -2895,9 +2928,9 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       mju_copy3(catenary+0, x0);
 
       // hanging points
-      for (int i=1; i < mjNCATENARY-1; i++) {
+      for (int i=1; i < ncatenary-1; i++) {
         // linearly spaced horizontal offset
-        mjtNum horizontal = i*h/mjNCATENARY;
+        mjtNum horizontal = i*h/ncatenary;
         mju_addScl3(catenary+3*i, x0, across, horizontal);
 
         // vertical offset, evaluate catenary values
@@ -2906,9 +2939,9 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       }
 
       // end point
-      mju_copy3(catenary+3*(mjNCATENARY-1), x1);
+      mju_copy3(catenary+3*(ncatenary-1), x1);
 
-      return mjNCATENARY;
+      return ncatenary;
     }
   }
 

@@ -15,7 +15,6 @@
 // Tests for engine/engine_util_spatial.c
 
 #include <cmath>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -35,10 +34,6 @@ using ::testing::ElementsAre;
 using ::testing::Pointwise;
 
 using Quat2MatTest = MujocoTest;
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 TEST_F(Quat2MatTest, NoRotation) {
   mjtNum result[9] = {0};
@@ -115,7 +110,7 @@ void RotVecQuatWithMatrix(mjtNum res[3], const mjtNum vec[3],
   } else {
     mjtNum mat[9];
     mju_quat2Mat(mat, quat);
-    mju_rotVecMat(res, vec, mat);
+    mju_mulMatVec3(res, mat, vec);
   }
 }
 
@@ -166,38 +161,38 @@ TEST_F(Euler2QuatTest, BadSeqLength) {
 }
 
 TEST_F(Euler2QuatTest, Euler2Quat) {
-  double quat[4] = {0};
-  double tol = 1e-14;
+  mjtNum quat[4] = {0};
+  mjtNum tol = 1e-14;
 
   char seq[] = "xyz";
-  double euler[3] = {mjPI, 0, 0};
-  double expected[4] = {0, 1, 0, 0};
+  mjtNum euler[3] = {mjPI, 0, 0};
+  mjtNum expected[4] = {0, 1, 0, 0};
   mju_euler2Quat(quat, euler, seq);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected));
 
   euler[1] = mjPI;
-  double expected2[4] = {0, 0, 0, 1};
+  mjtNum expected2[4] = {0, 0, 0, 1};
   mju_euler2Quat(quat, euler, seq);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected2));
 
   char seq2[] = "XYZ";
-  double expected3[4] = {0, 0, 0, -1};
+  mjtNum expected3[4] = {0, 0, 0, -1};
   mju_euler2Quat(quat, euler, seq2);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected3));
 
-  double euler2[3] = {2*mjPI, 2*mjPI, 2*mjPI};
-  double expected4[4] = {-1, 0, 0, 0};
+  mjtNum euler2[3] = {2*mjPI, 2*mjPI, 2*mjPI};
+  mjtNum expected4[4] = {-1, 0, 0, 0};
   mju_euler2Quat(quat, euler2, seq);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected4));
   mju_euler2Quat(quat, euler2, seq2);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected4));
 
-  double euler3[3] = {mjPI/2, mjPI/2, mjPI/2};
-  double expected5[4] = {0, mju_sqrt(.5), 0, mju_sqrt(.5)};
+  mjtNum euler3[3] = {mjPI/2, mjPI/2, mjPI/2};
+  mjtNum expected5[4] = {0, mju_sqrt(.5), 0, mju_sqrt(.5)};
   mju_euler2Quat(quat, euler3, seq);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected5));
   mju_euler2Quat(quat, euler3, seq2);
-  double expected6[4] = {mju_sqrt(.5), 0, mju_sqrt(.5), 0};
+  mjtNum expected6[4] = {mju_sqrt(.5), 0, mju_sqrt(.5), 0};
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected6));
 }
 

@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <math.h>
 #include <string.h>
 
 #include <mujoco/mjmacro.h>
-#include <mujoco/mujoco.h>
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_util_blas.h"
 
@@ -48,7 +46,7 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
   mjtNum dist, closest;
 
   mju_sub3(tmp, pos1, pos2);
-  mju_rotVecMatT(center, tmp, mat2);
+  mju_mulMatTVec3(center, mat2, tmp);
 
   mju_copy(clamped, center, 3);
   mju_clampVec(clamped, size2, 3);
@@ -65,9 +63,9 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
     closest = (size2[0] + size2[1] + size2[2]) * 2;
 
     for (i = 0; i < 6; i++)
-      if (closest > fabs((i % 2 ? 1 : -1)*size2[i / 2] - center[i / 2]))
+      if (closest > mju_abs((i % 2 ? 1 : -1)*size2[i / 2] - center[i / 2]))
       {
-        closest = fabs((i % 2 ? 1 : -1) * size2[i / 2] - center[i / 2]);
+        closest = mju_abs((i % 2 ? 1 : -1) * size2[i / 2] - center[i / 2]);
         k = i;
       }
 
@@ -76,16 +74,16 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
 
     mju_copy3(pos, center);
     mju_addToScl3(pos, nearest, (size1[0] - closest) / 2);
-    mju_rotVecMat(con[0].frame, nearest, mat2);
+    mju_mulMatVec3(con[0].frame, mat2, nearest);
   } else {
     mju_addToScl3(deepest, tmp, size1[0]);
     mju_zero3(pos);
     mju_addToScl3(pos, clamped, 0.5);
     mju_addToScl3(pos, deepest, 0.5);
-    mju_rotVecMat(con[0].frame, tmp, mat2);
+    mju_mulMatVec3(con[0].frame, mat2, tmp);
   }
 
-  mju_rotVecMat(tmp, pos, mat2);
+  mju_mulMatVec3(tmp, mat2, pos);
   mju_add3(con[0].pos, tmp, pos2);
   con[0].dist = dist - size1[0];
   mju_zero3(con[0].frame + 3);
@@ -153,13 +151,13 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
   secondpos = -4;  // initialize to no 2nd contact (valid values are between -1 and 1)
 
   mju_sub3(tmp1, pos1, pos2);       // bring capsule to box-local frame (center's box is at (0,0,0))
-  mju_rotVecMatT(pos, tmp1, mat2);  // and axis parralel to world
+  mju_mulMatTVec3(pos, mat2, tmp1);  // and axis parralel to world
 
   tmp1[0] = mat1[2];  // capsule's axis
   tmp1[1] = mat1[5];
   tmp1[2] = mat1[8];
 
-  mju_rotVecMatT(axis, tmp1, mat2);      // do the same for the capsule axis
+  mju_mulMatTVec3(axis, mat2, tmp1);      // do the same for the capsule axis
   mju_scl3(halfaxis, axis, halflength);  // scale to get actual capsule half-axis
 
   axisdir = 0;
@@ -240,7 +238,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
         v = mju_dot3(halfaxis, dif);
 
         det = ma * mc - mb * mb;
-        if (fabs(det) < mjMINVAL)
+        if (mju_abs(det) < mjMINVAL)
           continue;
         idet = 1 / det;
 
@@ -374,7 +372,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
       // c.x = s.x * ((c1 / 2) ? -1 : 1);
       // c.y = s.y * ((c1 % 2) ? -1 : 1);
 
-      ee1 = fabs(w) / l;
+      ee1 = mju_abs(w) / l;
       // e2 = best / l;
 
       // printf("%g %g      %g %g     %g %g\n",c.x,c.y,d.x,d.y,e1,e2);
@@ -453,7 +451,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
 
     if (axis[ax]*axis[ax] > 0.5) {  // second point along the edge of the box
       secondpos = de;  // initial position from the
-      e1 = 2 * size2[ax] / fabs(halfaxis[ax]);
+      e1 = 2 * size2[ax] / mju_abs(halfaxis[ax]);
 
       if (e1 < secondpos) {
         secondpos = e1;  // we overshoot, move back to the  other corner of the edge
@@ -464,11 +462,11 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
 
       // check for overshoot again
 
-      e1 = 2 * size2[ax1] / fabs(halfaxis[ax1]);
+      e1 = 2 * size2[ax1] / mju_abs(halfaxis[ax1]);
       if (e1 < secondpos)
         secondpos = e1;
 
-      e1 = 2 * size2[ax2] / fabs(halfaxis[ax2]);
+      e1 = 2 * size2[ax2] / mju_abs(halfaxis[ax2]);
       if (e1 < secondpos)
         secondpos = e1;
 
@@ -502,7 +500,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
 
     // Then it finds with which face the capsule has a lower angle and switches the axis names
 
-    if (fabs(axis[ax1]) > fabs(axis[ax2]))
+    if (mju_abs(axis[ax1]) > mju_abs(axis[ax2]))
       ax1 = ax2;
     ax2 = 3 - ax - ax1;
 
@@ -522,7 +520,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
     // now we have to find out whether we point towards the opposite side or towards one of the
     // sides and also find the farthest point along the capsule that is above the box
 
-    e1 = 2 * size2[ax2] / fabs(halfaxis[ax2]);
+    e1 = 2 * size2[ax2] / mju_abs(halfaxis[ax2]);
     if (e1 < secondpos)
       secondpos = e1;
 
@@ -531,7 +529,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
     else
       e2 = 1 + bestboxpos;
 
-    e1 = size2[ax] * e2 / fabs(halfaxis[ax]);
+    e1 = size2[ax] * e2 / mju_abs(halfaxis[ax]);
 
     if (e1 < secondpos)
       secondpos = e1;
@@ -576,7 +574,7 @@ skip:
   // create sphere in original orientation at first contact point
   mju_copy3(tmp1, pos);
   mju_addToScl3(tmp1, halfaxis, bestsegmentpos);
-  mju_rotVecMat(tmp2, tmp1, mat2);
+  mju_mulMatVec3(tmp2, mat2, tmp1);
   mju_addTo3(tmp2, pos2);
 
   // collide with
@@ -586,7 +584,7 @@ skip:
   if (secondpos > -3) {  // secondpos was modified
     mju_copy3(tmp1, pos);
     mju_addToScl3(tmp1, halfaxis, secondpos + bestsegmentpos);  // note the summation
-    mju_rotVecMat(tmp2, tmp1, mat2);
+    mju_mulMatVec3(tmp2, mat2, tmp1);
     mju_addTo3(tmp2, pos2);
     n += mjraw_SphereBox(con + n, margin, tmp2, mat1, size1, pos2, mat2, size2);
   }
@@ -633,28 +631,28 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   margin2 = margin * margin;
 
   mju_sub3(tmp1, pos2, pos1);
-  mju_rotVecMatT(pos21, tmp1, mat1);
+  mju_mulMatTVec3(pos21, mat1, tmp1);
 
   mju_sub3(tmp1, pos1, pos2);
-  mju_rotVecMatT(pos12, tmp1, mat2);
+  mju_mulMatTVec3(pos12, mat2, tmp1);
 
   mju_mulMatTMat3(rot, mat1, mat2);
   mju_transpose(rott, rot, 3, 3);
 
   for (i = 0; i < 9; i++)
-    rotabs[i] = fabs(rot[i]);
+    rotabs[i] = mju_abs(rot[i]);
   for (i = 0; i < 9; i++)
-    rottabs[i] = fabs(rott[i]);
+    rottabs[i] = mju_abs(rott[i]);
 
-  mju_rotVecMat(plen2, size2, rotabs);
-  mju_rotVecMatT(plen1, size1, rotabs);
+  mju_mulMatVec3(plen2, rotabs, size2);
+  mju_mulMatTVec3(plen1, rotabs, size1);
 
   for (i = 0, penetration = margin; i < 3; i++)
     penetration += size1[i] * 3 + size2[i] * 3;
 
   for (i = 0; i < 3; i++) {
-    c1 = -fabs(pos21[i]) + size1[i] + plen2[i];
-    c2 = -fabs(pos12[i]) + size2[i] + plen1[i];
+    c1 = -mju_abs(pos21[i]) + size1[i] + plen2[i];
+    c2 = -mju_abs(pos12[i]) + size2[i] + plen1[i];
 
     if (c1 < -margin || c2 < -margin)
       return 0;
@@ -697,12 +695,12 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
 
       for (k = 0; k < 3; k++)
         if (k != i)
-          c3 += size1[k] * fabs(tmp2[k]);
+          c3 += size1[k] * mju_abs(tmp2[k]);
       for (k = 0; k < 3; k++)
         if (k != j)
           c3 += size2[k] * rotabs[3 * i + 3 - k - j] / c1;
 
-      c3 -= fabs(c2);
+      c3 -= mju_abs(c2);
 
       if (c3 < -margin)
         return 0;
@@ -806,8 +804,8 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   if (q2) {
     mju_mulMatMatT3(r, rotmore, rot);
 
-    // mju_rotVecMat(p,pos12,rotmore);
-    // mju_rotVecMat(tmp1,size2,rotmore);
+    // mju_mulMatVec3(p,rotmore,pos12);
+    // mju_mulMatVec3(tmp1,rotmore,size2);
 
     rotaxis(p, pos12);
     rotaxis(tmp1, size2);
@@ -818,8 +816,8 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
 
     rotmatx(r, rot);
 
-    // mju_rotVecMat(p,pos21,rotmore);
-    // mju_rotVecMat(tmp1,size1,rotmore);
+    // mju_mulMatVec3(p,rotmore,pos21);
+    // mju_mulMatVec3(tmp1,rotmore,size1);
 
     rotaxis(p, pos21);
     rotaxis(tmp1, size1);
@@ -851,7 +849,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   mju_copy3(pts[m++], lp);
 
   for (i = 0; i < 3; i++)
-    if (fabs(r[6 + i]) < 0.5)
+    if (mju_abs(r[6 + i]) < 0.5)
       mju_scl3(pts[m++], rt + 3 * i, s[i] * ((clcorner & (1 << i)) ? -2 : 2));
 
   mju_add3(pts[3], pts[0], pts[1]);
@@ -880,14 +878,14 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
       c = lines[i][1 - q];
       d = lines[i][4 - q];
 
-      if (fabs(b) > mjMINVAL) {
+      if (mju_abs(b) > mjMINVAL) {
         for (j = -1; j <= 1; j += 2) {
           l = ss[q] * j;
           c1 = (l - a) * (1 / b);
           if (c1 < 0 || c1 > 1)
             continue;
           c2 = c + d * c1;
-          if (fabs(c2) > ss[1 - q])
+          if (mju_abs(c2) > ss[1 - q])
             continue;
 
           mju_copy3(points[n], lines[i]);
@@ -974,7 +972,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
     con[i].dist = points[i][2];
     points[i][2] += hz;
 
-    mju_rotVecMat(tmp2, points[i], r);
+    mju_mulMatVec3(tmp2, r, points[i]);
     mju_add3(con[i].pos, tmp2, p);
 
     if (i)
@@ -1074,8 +1072,8 @@ edgeedge:
     f2 = -1;
   }
 
-  // mju_rotVecMat(p,pos21,rotmore);
-  // mju_rotVecMat(rnorm,clnorm,rotmore);
+  // mju_mulMatVec3(p,rotmore,pos21);
+  // mju_mulMatVec3(rnorm,rotmore,clnorm);
   rotaxis(p, pos21);
   rotaxis(rnorm, clnorm);
 
@@ -1084,7 +1082,7 @@ edgeedge:
   // mju_mulMatMat(r,rotmore,rot,3,3,3);
   rotmatx(r, rot);
 
-  mju_rotVecMatT(tmp1, size1, rotmore);
+  mju_mulMatTVec3(tmp1, rotmore, size1);
   for (i = 0; i < 3; i++)
     s[i] = mju_abs(tmp1[i]);
 
@@ -1123,7 +1121,7 @@ edgeedge:
   mju_sub3(axi[2], points[2], points[0]);
 
 
-  if (fabs(rnorm[2]) < mjMINVAL)
+  if (mju_abs(rnorm[2]) < mjMINVAL)
     return 0;  // shouldn't happen
 
   innorm = (1 / rnorm[2]) * (in ? -1 : 1);
@@ -1183,7 +1181,7 @@ edgeedge:
       c = lines[i][1 - q];
       d = lines[i][4 - q];
 
-      if (fabs(b) > mjMINVAL) {
+      if (mju_abs(b) > mjMINVAL) {
         for (j = -1; j <= 1; j += 2) {
           if (n < mjMAXCONPAIR) {
             l = s[q] * j;
@@ -1191,7 +1189,7 @@ edgeedge:
             if (c1 < 0 || c1 > 1)
               continue;
             c2 = c + d * c1;
-            if (fabs(c2) > s[1 - q])
+            if (mju_abs(c2) > s[1 - q])
               continue;
 
             if ((linesu[i][2] + linesu[i][5]*c1)*innorm > margin)
@@ -1321,7 +1319,7 @@ edgeedge:
 
   mju_mulMatMatT3(r, mat1, rotmore);
 
-  mju_rotVecMat(tmp1, rnorm, r);
+  mju_mulMatVec3(tmp1, r, rnorm);
 
   mju_scl3(con[0].frame, tmp1, in ? -1 : 1);
   mju_zero3(con[0].frame + 3);
@@ -1331,7 +1329,7 @@ edgeedge:
     con[i].dist = depth[i];
     points[i][2] += hz;
 
-    mju_rotVecMat(tmp2, points[i], r);
+    mju_mulMatVec3(tmp2, r, points[i]);
 
     mju_add3(con[i].pos, tmp2, pos1);
 

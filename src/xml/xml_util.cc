@@ -35,20 +35,17 @@
 
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
-#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 #include "xml/xml_util.h"
 #include "xml/xml_numeric_format.h"
 
 namespace {
 
-using std::size_t;
-using std::string;
-using std::stringstream;
-using std::vector;
 using tinyxml2::XMLAttribute;
 using tinyxml2::XMLElement;
+using mujoco::user::FilePath;
 
 namespace mju = ::mujoco::util;
 
@@ -76,6 +73,36 @@ static std::optional<T> ParseInfOrNan(const std::string& s) {
     }
   }
   return std::nullopt;
+}
+
+FilePath ResolveFilePath(XMLElement* e, const FilePath& filename,
+                         const FilePath& dir, const mjVFS* vfs) {
+  std::string path = "";
+  if (filename.IsAbs()) {
+    return filename;
+  }
+
+  // TODO(kylebayes): We first look in the base model directory for files to
+  // remain backwards compatible.
+  FilePath fullname = dir + filename;
+  mjResource *resource = mju_openResource("", fullname.c_str(), vfs,
+                                          nullptr, 0);
+  if (resource != nullptr) {
+    mju_closeResource(resource);
+    return filename;
+  }
+
+  XMLElement* parent = e->Parent()->ToElement();
+  for (; parent; parent = parent->Parent()->ToElement()) {
+    if (!std::strcmp(parent->Value(), "include")) {
+      auto file_attr = mjXUtil::ReadAttrStr(parent, "dir", false);
+      if (file_attr.has_value()) {
+        path = file_attr.value();
+      }
+      break;
+    }
+  }
+  return FilePath(path) + filename;
 }
 
 }  // namespace
@@ -159,35 +186,6 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
   return nullptr;
 }
 
-static std::string ResolveFilePath(XMLElement* e, std::string filename,
-    const std::string& dir) {
-  std::string path = "";
-  if (mjuu_isabspath(filename)) {
-    return filename;
-  }
-
-  // TODO(kylebayes): We first look in the base model directory for files to
-  // remain backwards compatible.
-  std::string full_filename = dir + filename;
-  mjResource *resource = mju_openResource(full_filename.c_str(), nullptr, 0);
-  if (resource != nullptr) {
-    mju_closeResource(resource);
-    return filename;
-  }
-
-  XMLElement* parent = e->Parent()->ToElement();
-  for (; parent; parent = parent->Parent()->ToElement()) {
-    if (!std::strcmp(parent->Value(), "include")) {
-      auto file_attr = mjXUtil::ReadAttrStr(parent, "dir", false);
-      if (file_attr.has_value()) {
-        path = file_attr.value();
-      }
-      break;
-    }
-  }
-  return path + filename;
-}
-
 // constructor
 mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow) {
   // set name and type
@@ -237,7 +235,7 @@ mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow) {
 
 
 // get pointer to error message
-string mjXSchema::GetError() {
+std::string mjXSchema::GetError() {
   return error;
 }
 
@@ -255,7 +253,7 @@ static void printspace(std::stringstream& str, int n, const char* space) {
 // print schema as text
 void mjXSchema::Print(std::stringstream& str, int level) const {
   // replace body with (world)body
-  string name1 = (name_ == "body") ? "(world)body" : name_;
+  std::string name1 = (name_ == "body") ? "(world)body" : name_;
 
   // space, name, type
   printspace(str, 3*level, " ");
@@ -289,7 +287,7 @@ void mjXSchema::Print(std::stringstream& str, int level) const {
 // print schema as HTML table
 void mjXSchema::PrintHTML(std::stringstream& str, int level, bool pad) const {
   // replace body with (world)body
-  string name1 = (name_ == "body" ? "(world)body" : name_);
+  std::string name1 = (name_ == "body" ? "(world)body" : name_);
 
   // open table
   if (level==0) {
@@ -376,7 +374,7 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
   const XMLAttribute* attribute = elem->FirstAttribute();
   for (; attribute != nullptr; attribute = attribute->Next()) {
     if (attr_.find(attribute->Name()) == attr_.end()) {
-      error = "unrecognized attribute: '" + string(attribute->Name()) + "'";
+      error = "unrecognized attribute: '" + std::string(attribute->Name()) + "'";
       return elem;
     }
   }
@@ -540,7 +538,7 @@ template bool mjXUtil::SameVector(const unsigned char* vec1, const unsigned char
 
 
 // find string in map, return corresponding integer (-1: not found)
-int mjXUtil::FindKey(const mjMap* map, int mapsz, string key) {
+int mjXUtil::FindKey(const mjMap* map, int mapsz, std::string key) {
   for (int i=0; i<mapsz; i++) {
     if (map[i].key == key) {
       return map[i].value;
@@ -553,7 +551,7 @@ int mjXUtil::FindKey(const mjMap* map, int mapsz, string key) {
 
 
 // find integer in map, return corresponding string ("": not found)
-string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
+std::string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
   for (int i=0; i<mapsz; i++) {
     if (map[i].value == value) {
       return map[i].key;
@@ -569,9 +567,22 @@ string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
 template<typename T>
 std::optional<std::vector<T>> mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr,
                                                    bool required) {
-  std::vector<T> vec;
-  ReadAttrValues<T>(elem, attr, [&](int i, T num) { vec.push_back(num); });
-  if (!vec.size()) {
+  std::vector<T> v;
+  const char* raw_cstr = elem->Attribute(attr);
+  if (raw_cstr) {
+    v = mujoco::user::StringToVector<T>(raw_cstr);
+    if (errno == EDOM) {
+      mju_warning("XML contains a 'NaN'. Please check it carefully.");
+    } else if (errno == ERANGE) {
+      throw mjXError(elem, "number is too large in attribute '%s'", attr);
+    } else if (errno == EINVAL) {
+      throw mjXError(elem, "bad format in attribute '%s'", attr);
+    } else if (errno != 0) {
+      throw mjXError(elem, "unknown error in attribute '%s'", attr);
+    }
+  }
+
+  if (!v.size()) {
     if (required) {
       throw mjXError(elem, "required attribute missing: '%s'", attr);
     } else {
@@ -579,7 +590,7 @@ std::optional<std::vector<T>> mjXUtil::ReadAttrVec(XMLElement* elem, const char*
     }
   }
 
-  return vec;
+  return v;
 }
 
 template std::optional<std::vector<double>>
@@ -611,14 +622,15 @@ mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr, bool required) {
 }
 
 // if attribute is present, return attribute as a filename
-std::optional<std::string>
-mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr,
-                      const std::string& dir, bool required) {
+std::optional<FilePath>
+mjXUtil::ReadAttrFile(XMLElement* elem, const char* attr, const mjVFS* vfs,
+                      const FilePath& dir, bool required) {
   auto maybe_str = ReadAttrStr(elem, attr, required);
   if (!maybe_str.has_value()) {
     return std::nullopt;
   }
-  return ResolveFilePath(elem, maybe_str.value(), dir);
+  FilePath filename(maybe_str.value());
+  return ResolveFilePath(elem, filename, dir, vfs);
 }
 
 // if attribute is present, return numerical value of attribute
@@ -650,7 +662,7 @@ mjXUtil::ReadAttrNum(XMLElement* elem, const char* attr, bool required);
 //  return number of elements found
 template<typename T>
 int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
-                      T* data, string& text, bool required, bool exact) {
+                      T* data, std::string& text, bool required, bool exact) {
   auto maybe_vec = ReadAttrVec<T>(elem, attr, required);
   if (!maybe_vec.has_value()) {
     return 0;
@@ -671,21 +683,21 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
 }
 
 template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, int len,
-                               double* data, string& text, bool required, bool exact);
+                               double* data, std::string& text, bool required, bool exact);
 
 template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, int len,
-                               float* data, string& text, bool required, bool exact);
+                               float* data, std::string& text, bool required, bool exact);
 
 template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, int len,
-                               int* data, string& text, bool required, bool exact);
+                               int* data, std::string& text, bool required, bool exact);
 
 template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, int len,
-                               unsigned char* data, string& text, bool required,
+                               unsigned char* data, std::string& text, bool required,
                                bool exact);
 
 // read quaternion attribute
 //  throw error if identically zero
-int mjXUtil::ReadQuat(XMLElement* elem, const char* attr, double* data, string& text,
+int mjXUtil::ReadQuat(XMLElement* elem, const char* attr, double* data, std::string& text,
                       bool required) {
   ReadAttr(elem, attr, /*len=*/4, data, text, required, /*exact=*/true);
 
@@ -699,7 +711,7 @@ int mjXUtil::ReadQuat(XMLElement* elem, const char* attr, double* data, string& 
 
 // read DOUBLE array into C++ vector, return number read
 int mjXUtil::ReadVector(XMLElement* elem, const char* attr,
-                        vector<double>& vec, string& text, bool required) {
+                        std::vector<double>& vec, std::string& text, bool required) {
   auto maybe_vec = ReadAttrVec<double>(elem, attr, required);
   if (!maybe_vec.has_value()) {
     return 0;
@@ -712,7 +724,8 @@ int mjXUtil::ReadVector(XMLElement* elem, const char* attr,
 
 
 // read text field
-bool mjXUtil::ReadAttrTxt(tinyxml2::XMLElement* elem, const char* attr, string& text, bool required) {
+bool mjXUtil::ReadAttrTxt(tinyxml2::XMLElement* elem, const char* attr,
+                          std::string& text, bool required) {
   auto maybe_str = ReadAttrStr(elem, attr, required);
   if (!maybe_str.has_value()) {
     return false;
@@ -734,92 +747,9 @@ bool mjXUtil::ReadAttrInt(XMLElement* elem, const char* attr, int* data, bool re
 }
 
 
-
-template<> int mjXUtil::StrToNum(char* str, char** c) {
-  return std::strtol(str, c, 10);
-}
-
-template<> float mjXUtil::StrToNum(char* str, char** c) {
-  return std::strtof(str, c);
-}
-
-template<> double mjXUtil::StrToNum(char* str, char** c) {
-  return std::strtod(str, c);
-}
-
-template <typename T>
-std::vector<T> mjXUtil::String2Vector(const std::string& s) {
-  errno = 0;
-  std::vector<T> v;
-  char* cs = (char*) s.c_str();
-  char* ch = cs;
-
-  // reserve worst case
-  v.reserve((s.size() >> 1) + 1);
-
-  for (;;) {
-    cs = ch;
-    T num = StrToNum<T>(cs, &ch);
-    if (cs == ch) break;
-    if (errno) break;
-    v.push_back(num);
-  }
-
-  v.shrink_to_fit();
-  return v;
-}
-
-template std::vector<int> mjXUtil::String2Vector(const std::string& s);
-template std::vector<float> mjXUtil::String2Vector(const std::string& s);
-template std::vector<double> mjXUtil::String2Vector(const std::string& s);
-template<>
-std::vector<std::string> mjXUtil::String2Vector(const std::string& s) {
-  std::vector<std::string> v;
-  std::stringstream ss(s);
-  std::string word;
-  while (ss >> word) {
-    v.push_back(word);
-  }
-  return v;
-}
-
-
-
 // write vector<float> to string
-void mjXUtil::Vector2String(string& txt, const vector<string>& vec) {
-  stringstream strm;
-
-  for (size_t i=0; i<vec.size(); i++) {
-    if (i>0) {
-      strm << " ";
-    }
-    strm << vec[i];
-  }
-
-  txt = strm.str();
-}
-
-
-
-// write vector<double> to string
-void mjXUtil::Vector2String(string& txt, const vector<double>& vec) {
-  stringstream strm;
-
-  for (size_t i=0; i<vec.size(); i++) {
-    if (i>0) {
-      strm << " ";
-    }
-    strm << vec[i];
-  }
-
-  txt = strm.str();
-}
-
-
-
-// write vector<float> to string
-void mjXUtil::Vector2String(string& txt, const vector<float>& vec, int ncol) {
-  stringstream strm;
+void mjXUtil::Vector2String(std::string& txt, const std::vector<float>& vec, int ncol) {
+  std::stringstream strm;
 
   for (size_t i=0; i<vec.size(); i++) {
     if (ncol && (i % ncol) == 0) {
@@ -833,26 +763,8 @@ void mjXUtil::Vector2String(string& txt, const vector<float>& vec, int ncol) {
   txt = strm.str();
 }
 
-
-
-// write vector<int> to string
-void mjXUtil::Vector2String(string& txt, const vector<int>& vec) {
-  stringstream strm;
-
-  for (size_t i=0; i<vec.size(); i++) {
-    if (i>0) {
-      strm << " ";
-    }
-    strm << vec[i];
-  }
-
-  txt = strm.str();
-}
-
-
-
 // find subelement with given name, make sure it is unique
-XMLElement* mjXUtil::FindSubElem(XMLElement* elem, string name, bool required) {
+XMLElement* mjXUtil::FindSubElem(XMLElement* elem, std::string name, bool required) {
   XMLElement* subelem = 0;
 
   XMLElement* iter = elem->FirstChildElement();
@@ -923,7 +835,7 @@ static int Round(double x) {
 
 // write attribute
 template<typename T>
-void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, const T* def,
+void mjXUtil::WriteAttr(XMLElement* elem, std::string name, int n, const T* data, const T* def,
                         bool trim) {
   // make sure all are defined
   if constexpr (std::is_floating_point_v<T>) {
@@ -947,7 +859,7 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
   }
 
   // increase precision for testing
-  stringstream stream;
+  std::stringstream stream;
   stream.precision(mujoco::_mjPRIVATE__get_xml_precision());
 
   // process all numbers
@@ -971,22 +883,22 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
 }
 
 
-template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
+template void mjXUtil::WriteAttr(XMLElement* elem, std::string name, int n,
                                  const double* data, const double* def, bool trim);
 
-template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
+template void mjXUtil::WriteAttr(XMLElement* elem, std::string name, int n,
                                  const float* data, const float* def, bool trim);
 
-template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
+template void mjXUtil::WriteAttr(XMLElement* elem, std::string name, int n,
                                  const int* data, const int* def, bool trim);
 
-template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
+template void mjXUtil::WriteAttr(XMLElement* elem, std::string name, int n,
                                  const unsigned char* data,
                                  const unsigned char* def, bool trim);
 
 
 // write vector<double> attribute, default = zero array
-void mjXUtil::WriteVector(XMLElement* elem, string name, const vector<double>& vec) {
+void mjXUtil::WriteVector(XMLElement* elem, std::string name, const std::vector<double>& vec) {
   // proceed only if non-zero found
   bool ok = false;
   for (size_t i=0; i<vec.size(); i++) {
@@ -1005,8 +917,8 @@ void mjXUtil::WriteVector(XMLElement* elem, string name, const vector<double>& v
 
 
 // write vector<double> attribute, default with same size
-void mjXUtil::WriteVector(XMLElement* elem, string name, const vector<double>& vec,
-                          const vector<double>& def) {
+void mjXUtil::WriteVector(XMLElement* elem, std::string name, const std::vector<double>& vec,
+                          const std::vector<double>& def) {
   // proceed only if non-zero found
   bool ok = false;
   for (size_t i=0; i<vec.size(); i++) {
@@ -1025,7 +937,7 @@ void mjXUtil::WriteVector(XMLElement* elem, string name, const vector<double>& v
 
 
 // write attribute- string
-void mjXUtil::WriteAttrTxt(XMLElement* elem, string name, string value) {
+void mjXUtil::WriteAttrTxt(XMLElement* elem, std::string name, std::string value) {
   // skip if value is empty
   if (value.empty()) {
     return;
@@ -1038,7 +950,7 @@ void mjXUtil::WriteAttrTxt(XMLElement* elem, string name, string value) {
 
 
 // write attribute- single int
-void mjXUtil::WriteAttrInt(XMLElement* elem, string name, int data, int def) {
+void mjXUtil::WriteAttrInt(XMLElement* elem, std::string name, int data, int def) {
   // skip default
   if (data==def) {
     return;
@@ -1050,7 +962,7 @@ void mjXUtil::WriteAttrInt(XMLElement* elem, string name, int data, int def) {
 
 
 // write attribute- keyword
-void mjXUtil::WriteAttrKey(XMLElement* elem, string name,
+void mjXUtil::WriteAttrKey(XMLElement* elem, std::string name,
                            const mjMap* map, int mapsz, int data, int def) {
   // skip default
   if (data==def) {

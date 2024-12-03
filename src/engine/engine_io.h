@@ -54,10 +54,10 @@ void mj_defaultStatistic(mjStatistic* stat);
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic,
     int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert,
-    int nflexedge, int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair,
-    int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
-    int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
-    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
+    int nflexedge, int nflexelem, int nflexelemdata, int nflexelemedge, int nflexshelldata,
+    int nflexevpair, int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal,
+    int nmeshtexcoord, int nmeshface, int nmeshgraph, int nskin, int nskinvert, int nskintexvert,
+    int nskinface, int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
     int ntex, int ntexdata, int nmat, int npair, int nexclude,
     int neq, int ntendon, int nwrap, int nsensor,
     int nnumeric, int nnumericdata, int ntext, int ntextdata,
@@ -75,7 +75,7 @@ MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, in
 // load binary MJB
 mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 
-// de-allocate model
+// deallocate model
 MJAPI void mj_deleteModel(mjModel* m);
 
 // size of buffer needed to hold model
@@ -128,6 +128,9 @@ void mj__freeStack(mjData* d) __attribute__((noinline));
 
 #endif  // ADDRESS_SANITIZER
 
+// returns the number of bytes available on the stack
+MJAPI size_t mj_stackBytesAvailable(mjData* d);
+
 // mjData stack allocate
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
@@ -137,7 +140,7 @@ MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 // mjData stack allocate for array of ints
 MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
-// de-allocate data
+// deallocate data
 MJAPI void mj_deleteData(mjData* d);
 
 // clear arena pointers in mjData

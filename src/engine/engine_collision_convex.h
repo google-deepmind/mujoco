@@ -23,8 +23,10 @@
 
 #include <ccd/vec3.h>
 
+#include <mujoco/mjexport.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #define mjGETINFO_HFIELD \
     const mjtNum* pos1  = d->geom_xpos + 3*g1; \
@@ -34,28 +36,42 @@
           mjtNum* mat2  = d->geom_xmat + 9*g2;
 // mjc_ConvexHField modifies and then restores pos2 and mat2
 
+// minimum number of vertices to use hill-climbing in mesh support
+#define mjMESH_HILLCLIMB_MIN 10
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// ccd general object type
-struct _mjtCCD {
+// internal object type for convex collision detection
+struct _mjCCDObj {
   const mjModel* model;
   const mjData* data;
   int geom;
+  int geom_type;
   int meshindex;
   int flex;
   int elem;
   int vert;
   mjtNum margin;
   mjtNum rotate[4];
+  void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
+  void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
+  mjtNum prism[6][3];  // for hfield
 };
-typedef struct _mjtCCD mjtCCD;
+typedef struct _mjCCDObj mjCCDObj;
 
+// initialize a CCD object
+MJAPI void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjtNum margin);
 
-// ccd support function
-void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
+// center function for convex collision algorithms
+MJAPI void mjc_center(mjtNum res[3], const mjCCDObj *obj);
 
+// libccd center function
+MJAPI void mjccd_center(const void *obj, ccd_vec3_t *center);
+
+// libccd support function
+MJAPI void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
 
 // pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,

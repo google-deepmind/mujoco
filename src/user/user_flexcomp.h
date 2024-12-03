@@ -42,7 +42,7 @@ typedef enum _mjtFcompType {
 class mjCFlexcomp {
  public:
   mjCFlexcomp(void);
-  bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
+  bool Make(mjsBody* body, char* error, int error_sz);
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz);
@@ -89,7 +89,7 @@ class mjCFlexcomp {
   // set by user or computed internally
   bool rigid;                     // all vertices are in parent body (all pinned)
   bool centered;                  // all vertex coordinates are (0,0,0) (nothing pinned)
-  std::vector<mjtNum> point;      // flex bodies/vertices
+  std::vector<double> point;      // flex bodies/vertices
   std::vector<bool> pinned;       // is point pinned (true: no new body)
   std::vector<bool> used;         // is point used by any element (false: skip)
   std::vector<int> element;       // flex elements

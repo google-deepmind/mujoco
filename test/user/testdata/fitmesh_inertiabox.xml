@@ -1,8 +1,8 @@
 <mujoco>
-  <compiler fitaabb="false" exactmeshinertia="true"/>
+  <compiler fitaabb="false"/>
 
   <asset>
-    <mesh file="stanford_bunny.obj"/>
+    <mesh file="stanford_bunny.obj" inertia="exact"/>
   </asset>
 
   <worldbody>

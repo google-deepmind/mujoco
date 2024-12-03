@@ -146,7 +146,7 @@ void Bowl::RegisterPlugin() {
     delete reinterpret_cast<Bowl*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto sdf = reinterpret_cast<Bowl*>(plugin_data);
     sdf->Reset();

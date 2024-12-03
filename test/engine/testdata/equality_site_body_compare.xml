@@ -1,0 +1,58 @@
+<mujoco model="Equivalent Connects and Welds defined with sites and bodies">
+  <option viscosity="1">
+    <flag contact="disable"/>
+  </option>
+
+  <visual>
+    <scale framewidth="0.05" framelength="0.4"/>
+  </visual>
+
+  <default>
+    <default class="box">
+      <geom type="box" size=".2" fromto=".2 .2 0 .2 .2 -1" rgba=".4 .7 .6 1"/>
+    </default>
+    <site rgba=".0 .7 0 1" size="0.05"/>
+  </default>
+
+  <worldbody>
+    <geom pos="0 0 -2" type="plane" size="10 10 .01"/>
+    <light pos="0 0 20"/>
+
+    <site name="a1" pos="-2 0 0" euler="-90 0 0"/>
+    <body name="a" pos="-2 1 0">
+      <freejoint/>
+      <geom class="box"/>
+      <site name="a2" pos="0 -1 0"/>
+      <body pos="0 0 -1">
+        <geom class="box" size=".15"/>
+        <site name="a_sensor"/>
+      </body>
+    </body>
+
+    <site name="b1" euler="-90 0 0"/>
+    <body name="b" pos="0 1 0">
+      <freejoint/>
+      <geom class="box"/>
+      <site name="b2" pos="0 -1 0"/>
+      <body pos="0 0 -1">
+        <geom class="box" size=".15"/>
+        <site name="b_sensor"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <!-- equivalent connect and weld constraints defined with sites (enabled) and bodies (disabled) -->
+    <connect name="connect site" site1="a1"    site2="a2"    active="true"/>
+    <connect name="connect body" body1="a"     body2="world" active="false" anchor="0 -1 0"/>
+    <weld    name="weld site"    site1="b1"    site2="b2"    active="true"/>
+    <weld    name="weld body"    body1="world" body2="b"     active="false" anchor="0 -1 0" relpose="0 0 0 1 -1 0 0"/>
+  </equality>
+
+  <sensor>
+    <force  name="a_force"  site="a_sensor"/>
+    <torque name="a_torque" site="a_sensor"/>
+    <force  name="b_force"  site="b_sensor"/>
+    <torque name="b_torque" site="b_sensor"/>
+  </sensor>
+</mujoco>

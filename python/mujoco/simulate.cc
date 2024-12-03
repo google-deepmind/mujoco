@@ -123,6 +123,9 @@ class SimulateWrapper {
 
   mujoco::Simulate* simulate() { return simulate_; }
 
+  py::object GetModel() const { return m_; }
+  py::object GetData() const { return d_; }
+
  private:
   mujoco::Simulate* simulate_;
   std::atomic_int destroyed_ = 0;
@@ -222,6 +225,8 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("lock", GetIfNotNull(&mujoco::Simulate::mtx),
            py::call_guard<py::gil_scoped_release>(),
            py::return_value_policy::reference_internal)
+      .def_property_readonly("m", &SimulateWrapper::GetModel)
+      .def_property_readonly("d", &SimulateWrapper::GetData)
       .def_property_readonly("ctrl_noise_std",
                              GetIfNotNull(&mujoco::Simulate::ctrl_noise_std),
                              py::call_guard<py::gil_scoped_release>())

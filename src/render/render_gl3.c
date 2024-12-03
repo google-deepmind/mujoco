@@ -22,7 +22,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_crossplatform.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_vis_init.h"
 #include "render/render_context.h"
 #include "render/render_gl2.h"
@@ -61,6 +61,12 @@ enum {
 // enable/disable texture mapping
 static void settexture(int type, int state, const mjrContext* con, const mjvGeom* geom) {
   float plane[4], scl[2];
+  int texid = -1;
+  if (geom) {
+    if (geom->matid >= 0) {
+      texid = con->mat_texid[mjNTEXROLE * geom->matid + mjTEXROLE_RGB];
+    }
+  }
 
   // shadow
   if (type == mjtexSHADOW) {
@@ -89,10 +95,10 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   // explicit texture coordinates
   else if (type == mjtexREGULAR && geom->texcoord) {
     // enable
-    if (state) {
+    if (state && texid >= 0) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_2D);
-      glBindTexture(GL_TEXTURE_2D, con->texture[geom->texid]);
+      glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
     }
 
     // disable
@@ -103,18 +109,18 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   }
 
   // 2D
-  else if (type == mjtexREGULAR && con->textureType[geom->texid] == mjTEXTURE_2D) {
+  else if (type == mjtexREGULAR && texid >= 0 && con->textureType[texid] == mjTEXTURE_2D) {
     // enable
     if (state) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_2D);
       glEnable(GL_TEXTURE_GEN_S);
       glEnable(GL_TEXTURE_GEN_T);
-      glBindTexture(GL_TEXTURE_2D, con->texture[geom->texid]);
+      glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
 
       // determine scaling, adjust for pre-scaled geoms
-      scl[0] = geom->texrepeat[0];
-      scl[1] = geom->texrepeat[1];
+      scl[0] = con->mat_texrepeat[geom->matid*2];
+      scl[1] = con->mat_texrepeat[geom->matid*2+1];
       if (geom->dataid >= 0) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] / mju_max(mjMINVAL, geom->size[0]);
@@ -126,7 +132,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       }
 
       // uniform: repeat relative to spatial units rather than object
-      if (geom->texuniform) {
+      if (con->mat_texuniform[geom->matid]) {
         if (geom->size[0] > 0) {
           scl[0] = scl[0] * geom->size[0];
         }
@@ -155,21 +161,21 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   // cube or skybox
   else {
     // enable
-    if (state) {
+    if (state && texid >= 0) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_CUBE_MAP);
       glEnable(GL_TEXTURE_GEN_S);
       glEnable(GL_TEXTURE_GEN_T);
       glEnable(GL_TEXTURE_GEN_R);
-      glBindTexture(GL_TEXTURE_CUBE_MAP, con->texture[geom->texid]);
+      glBindTexture(GL_TEXTURE_CUBE_MAP, con->texture[texid]);
 
       // set mapping : cube
       if (type == mjtexREGULAR) {
-        mjr_setf4(plane, geom->texuniform ? geom->size[0] : 1, 0, 0, 0);
+        mjr_setf4(plane, con->mat_texuniform[geom->matid] ? geom->size[0] : 1, 0, 0, 0);
         glTexGenfv(GL_S, GL_OBJECT_PLANE, plane);
-        mjr_setf4(plane, 0, geom->texuniform ? geom->size[1] : 1, 0, 0);
+        mjr_setf4(plane, 0, con->mat_texuniform[geom->matid] ? geom->size[1] : 1, 0, 0);
         glTexGenfv(GL_T, GL_OBJECT_PLANE, plane);
-        mjr_setf4(plane, 0, 0, geom->texuniform ? geom->size[2] : 1, 0);
+        mjr_setf4(plane, 0, 0, con->mat_texuniform[geom->matid] ? geom->size[2] : 1, 0);
         glTexGenfv(GL_R, GL_OBJECT_PLANE, plane);
       }
 
@@ -232,7 +238,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   behind = isBehind(headpos, geom->pos, geom->mat);
 
   // enable texture in normal and shadowmap mode
-  if (geom->texid >= 0 && con->ntexture > 0 &&
+  if (geom->matid >= 0 &&
       (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 1, con, geom);
   }
@@ -515,14 +521,14 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       glEnableClientState(GL_NORMAL_ARRAY);
       glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*scn->flexfaceadr[geom->objid]);
       glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*scn->flexfaceadr[geom->objid]);
-      if (geom->texcoord && geom->texid>=0) {
+      if (geom->texcoord && geom->matid>=0) {
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*scn->flexfaceadr[geom->objid]);
       }
       glDrawArrays(GL_TRIANGLES, 0, 3*scn->flexfaceused[geom->objid]);
       glDisableClientState(GL_VERTEX_ARRAY);
       glDisableClientState(GL_NORMAL_ARRAY);
-      if (geom->texcoord && geom->texid>=0) {
+      if (geom->texcoord && geom->matid>=0) {
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
       }
     }
@@ -568,7 +574,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   glPopMatrix();
 
   // disable texture if enabled
-  if (geom->texid >= 0 && con->ntexture > 0 &&
+  if (geom->matid >= 0 &&
       (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 0, con, geom);
   }
@@ -694,7 +700,7 @@ static void initLights(mjvScene* scn) {
 
 // set projection and modelview
 static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrContext* con,
-                    float* camProject, float* camView) {
+                    float camProject[16], float camView[16]) {
   mjvGLCamera cam;
 
   // copy specified camera for stereo, average for mono (view = -1)
@@ -709,24 +715,34 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
                     : 0.5f * (float)viewport.width / (float)viewport.height *
                              (cam.frustum_top - cam.frustum_bottom);
 
-  // set projection
+  // prepare projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   if (mjGLAD_GL_ARB_clip_control) {
     // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
     glTranslatef(0.0f, 0.0f, 0.5f);
     glScalef(1.0f, 1.0f, -0.5f);
-  }
-  else {
+  } else {
     // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
     glScalef(1.0f, 1.0f, -1.0f);
   }
-  glFrustum(cam.frustum_center - halfwidth,
+
+  // set projection, orthographic or perspective
+  if (cam.orthographic) {
+    glOrtho(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
             cam.frustum_top,
             cam.frustum_near,
             cam.frustum_far);
+  } else {
+    glFrustum(cam.frustum_center - halfwidth,
+              cam.frustum_center + halfwidth,
+              cam.frustum_bottom,
+              cam.frustum_top,
+              cam.frustum_near,
+              cam.frustum_far);
+  }
 
   // save projection matrix if requested
   if (camProject) {
@@ -750,10 +766,10 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
 
 
 // comparison function for geom sorting
-quicksortfunc(geomcompare, context, el1, el2) {
+static inline int geomcmp(int* i, int* j, void* context) {
   mjvGeom* geom = (mjvGeom*) context;
-  float d1 = geom[*(int*)el1].camdist;
-  float d2 = geom[*(int*)el2].camdist;
+  float d1 = geom[*i].camdist;
+  float d2 = geom[*j].camdist;
 
   if (d1 < d2) {
     return -1;
@@ -763,6 +779,9 @@ quicksortfunc(geomcompare, context, el1, el2) {
     return 1;
   }
 }
+
+// define geomSort function for sorting geoms
+mjSORT(geomSort, int, geomcmp)
 
 
 
@@ -891,7 +910,11 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // sort transparent geoms according to distance to camera
-  mjQUICKSORT(scn->geomorder, nt, sizeof(int), geomcompare, scn->geoms);
+  if (nt > 1) {
+    int *buf = (int*) mju_malloc(nt * sizeof(int));
+    geomSort(scn->geomorder, buf, nt, scn->geoms);
+    mju_free(buf);
+  }
 
   // allow only one reflective geom
   int j = 0;
@@ -1258,7 +1281,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
         if (con->textureType[i] == mjTEXTURE_SKYBOX) {
           // save first skybox texture id in tempgeom
           memset(&tempgeom, 0, sizeof(mjvGeom));
-          tempgeom.texid = i;
+          tempgeom.matid = mjMAXMATERIAL - 1;
 
           // modify settings
           glDisable(GL_LIGHTING);

@@ -17,8 +17,9 @@
 #include <array>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -31,7 +32,9 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <absl/base/attributes.h>
 #include <absl/base/const_init.h>
+#include <absl/base/thread_annotations.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
@@ -72,11 +75,11 @@ MujocoErrorTestGuard::~MujocoErrorTestGuard() {
   }
 }
 
-const std::string GetTestDataFilePath(std::string_view path) {
+const std::string GetTestDataFilePath(std::string_view path) {  // NOLINT
   return std::string(path);
 }
 
-const std::string GetModelPath(std::string_view path) {
+const std::string GetModelPath(std::string_view path) {  // NOLINT
   return absl::StrCat("../model/", path);
 }
 
@@ -175,6 +178,17 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
   return ctrl;
 }
 
+template <typename T>
+auto Compare(T val1, T val2);
+
+auto Compare(char val1, char val2) {
+  return val1 != val2;
+}
+
+auto Compare(unsigned char val1, unsigned char val2) {
+  return val1 != val2;
+}
+
 // The maximum spacing between a normalised floating point number x and an
 // adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
 // for losses during non-idempotent operations such as vector normalizations.
@@ -183,13 +197,13 @@ auto Compare(T val1, T val2) {
   using ReturnType =
       std::conditional_t<std::is_same_v<T, float>, float, double>;
   ReturnType error;
-  if (mju_abs(val1) <= 1 || mju_abs(val2) <= 1) {
+  if (std::abs(val1) <= 1 || std::abs(val2) <= 1) {
       // Absolute precision for small numbers
-      error = mju_abs(val1-val2);
+      error = std::abs(val1-val2);
   } else {
     // Relative precision for larger numbers
-    ReturnType magnitude = mju_abs(val1) + mju_abs(val2);
-    error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
+    ReturnType magnitude = std::abs(val1) + std::abs(val2);
+    error = std::abs(val1/magnitude - val2/magnitude) / magnitude;
   }
   ReturnType safety_factor = 200;
   return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()
@@ -205,25 +219,34 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   // (needed in MJMODEL_POINTERS)
   MJMODEL_POINTERS_PREAMBLE(m1);
 
-  // compare ints
-  #define X(name) \
-    if (m1->name != m2->name) {maxdif = m1->name - m2->name; field = #name;}
-    MJMODEL_INTS
-  #undef X
+// compare ints, exclude nbuffer because it hides the actual difference
+#define X(name)                                           \
+  if constexpr (std::string_view(#name) != "nbuffer") {   \
+    if (m1->name != m2->name) {                           \
+      maxdif = std::abs((long)m1->name - (long)m2->name); \
+      field = #name;                                      \
+    }                                                     \
+  }
+  MJMODEL_INTS
+#undef X
   if (maxdif > 0) return maxdif;
 
-  // compare arrays
-#define X(type, name, nr, nc)                                    \
-  for (int r = 0; r < m1->nr; r++)                               \
-    for (int c = 0; c < nc; c++) {                               \
-      dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]); \
-      if (dif > maxdif) {                                        \
-        maxdif = dif;                                            \
-        field = #name;                                           \
-        field += " row: " + std::to_string(r);                   \
-        field += " col: " + std::to_string(c);                   \
-      }                                                          \
-    }  // NOLINT
+  // compare arrays, apart from bvh-related ones, as those are sensitive to
+  // numerical differences when meshes are perfectly symmetric.
+#define X(type, name, nr, nc)                                      \
+  if (strncmp(#name, "bvh_", 4)) {                                 \
+    for (int r = 0; r < m1->nr; r++) {                             \
+      for (int c = 0; c < nc; c++) {                               \
+        dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]); \
+        if (dif > maxdif) {                                        \
+          maxdif = dif;                                            \
+          field = #name;                                           \
+          field += " row: " + std::to_string(r);                   \
+          field += " col: " + std::to_string(c);                   \
+        }                                                          \
+      }                                                            \
+    }                                                              \
+  }  // NOLINT
   MJMODEL_POINTERS
 #undef X
 

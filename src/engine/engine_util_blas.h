@@ -26,7 +26,7 @@ extern "C" {
 
 //------------------------------ standard library functions ----------------------------------------
 
-#ifdef mjUSEDOUBLE
+#if !defined(mjUSESINGLE)
   #define mju_sqrt    sqrt
   #define mju_exp     exp
   #define mju_sin     sin
@@ -59,13 +59,16 @@ extern "C" {
   #define mju_log10   log10f
   #define mju_floor   floorf
   #define mju_ceil    ceilf
-#endif
+#endif  // !defined(mjUSESINGLE)
 
 
 //------------------------------ 3D vector and matrix-vector operations ----------------------------
 
 // res = 0
 MJAPI void mju_zero3(mjtNum res[3]);
+
+// vec1 == vec2
+MJAPI int mju_equal3(const mjtNum vec1[3], const mjtNum vec2[3]);
 
 // res = vec
 MJAPI void mju_copy3(mjtNum res[3], const mjtNum data[3]);
@@ -103,17 +106,17 @@ MJAPI mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
 // Cartesian distance between 3D vectors
 MJAPI mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
 
-// multiply vector by 3D rotation matrix
-MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
+// multiply 3-by-3 matrix by vector
+MJAPI void mju_mulMatVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 
-// multiply vector by transposed 3D rotation matrix
-MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
+// multiply transposed 3-by-3 matrix by vector
+MJAPI void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]);
 
 // multiply 3x3 matrices
 MJAPI void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 // multiply 3x3 matrices, first argument transposed
-MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]);
+MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 // multiply 3x3 matrices, second argument transposed
 MJAPI void mju_mulMatMatT3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);

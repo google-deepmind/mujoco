@@ -26,6 +26,8 @@
 
 #include "tinyxml2.h"
 
+#include <mujoco/mujoco.h>
+#include "user/user_util.h"
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);
@@ -101,26 +103,33 @@ class mjXUtil {
 
   // if attribute is present, return vector of numerical data
   template<typename T>
-  static std::optional<std::vector<T>> ReadAttrVec(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<std::vector<T>> ReadAttrVec(tinyxml2::XMLElement* elem,
+                                                   const char* attr,
                                                    bool required = false);
 
   // if attribute is present, return attribute as a string
-  static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem,
+                                                const char* attr,
                                                 bool required = false);
 
   // if attribute is present, return attribute as a filename
-  static std::optional<std::string> ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
-                                                 const std::string& dir = "", bool required = false);
+  static std::optional<mujoco::user::FilePath>
+      ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
+                   const mjVFS* vfs,
+                   const mujoco::user::FilePath& dir = mujoco::user::FilePath(),
+                   bool required = false);
 
   // if attribute is present, return numerical value of attribute
   template<typename T>
-  static std::optional<T> ReadAttrNum(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<T> ReadAttrNum(tinyxml2::XMLElement* elem,
+                                      const char* attr,
                                       bool required = false);
 
   // if attribute is present, return array of numerical data
   // N should be small as data is allocated on the stack
   template<typename T, int N>
-  static std::optional<std::array<T, N>> ReadAttrArr(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<std::array<T, N>> ReadAttrArr(tinyxml2::XMLElement* elem,
+                                                     const char* attr,
                                                      bool required = false) {
     std::array<T, N> arr;
     int n = 0;
@@ -163,21 +172,9 @@ class mjXUtil {
   static bool ReadAttrInt(tinyxml2::XMLElement* elem, const char* attr, int* data,
                           bool required = false);
 
-  // convert string to vector
-  template<typename T>
-  static std::vector<T> String2Vector(const std::string& s);
-
-  // write vector<string> to string
-  static void Vector2String(std::string& txt, const std::vector<std::string>& vec);
-
-  // write vector<double> to string
-  static void Vector2String(std::string& txt, const std::vector<double>& vec);
-
   // write vector<float> to string
   static void Vector2String(std::string& txt, const std::vector<float>& vec, int ncol = 0);
 
-  // write vector<int> to string
-  static void Vector2String(std::string& txt, const std::vector<int>& vec);
 
   // find subelement with given name, make sure it is unique
   static tinyxml2::XMLElement* FindSubElem(tinyxml2::XMLElement* elem, std::string name,
@@ -212,8 +209,6 @@ class mjXUtil {
   template<typename T>
   static bool ReadAttrValues(tinyxml2::XMLElement* elem, const char* attr,
                              std::function<void (int, T)> push, int max = -1);
-  template<typename T> static T StrToNum(char* str, char** c);
-
 };
 
 #endif  // MUJOCO_SRC_XML_XML_UTIL_H_

@@ -20,6 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_driver.h"
@@ -52,7 +53,9 @@ void mj_checkPos(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nq; i++) {
     if (mju_isBad(d->qpos[i])) {
       mj_warning(d, mjWARN_BADQPOS, i);
-      mj_resetData(m, d);
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
+        mj_resetData(m, d);
+      }
       d->warning[mjWARN_BADQPOS].number++;
       d->warning[mjWARN_BADQPOS].lastinfo = i;
       return;
@@ -67,7 +70,9 @@ void mj_checkVel(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nv; i++) {
     if (mju_isBad(d->qvel[i])) {
       mj_warning(d, mjWARN_BADQVEL, i);
-      mj_resetData(m, d);
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
+        mj_resetData(m, d);
+      }
       d->warning[mjWARN_BADQVEL].number++;
       d->warning[mjWARN_BADQVEL].lastinfo = i;
       return;
@@ -82,10 +87,14 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nv; i++) {
     if (mju_isBad(d->qacc[i])) {
       mj_warning(d, mjWARN_BADQACC, i);
-      mj_resetData(m, d);
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
+        mj_resetData(m, d);
+      }
       d->warning[mjWARN_BADQACC].number++;
       d->warning[mjWARN_BADQACC].lastinfo = i;
-      mj_forward(m, d);
+      if (!mjDISABLED(mjDSBL_AUTORESET)) {
+        mj_forward(m, d);
+      }
       return;
     }
   }
@@ -199,8 +208,11 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
     mju_mulMatVec(d->ten_velocity, d->ten_J, d->qvel, m->ntendon, m->nv);
   }
 
-  // actuator velocity: always dense
-  mju_mulMatVec(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu, m->nv);
+  // actuator velocity: always sparse
+  if (!mjDISABLED(mjDSBL_ACTUATION)) {
+    mju_mulMatVecSparse(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu,
+                        d->moment_rownnz, d->moment_rowadr, d->moment_colind, NULL);
+  }
 
   // com-based velocities, passive forces, constraint references
   mj_comVel(m, d);
@@ -256,27 +268,12 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, i
 
 
 
-// return number of dofs given joint type
-static int jnt_dofnum(mjtJoint type) {
-  if (type == mjJNT_FREE) {
-    return 6;
-  }
-
-  if (type == mjJNT_BALL) {
-    return 3;
-  }
-
-  return 1;
-}
-
-
-
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
   int nv = m->nv, nu = m->nu;
   mjtNum gain, bias, tau;
-  mjtNum *prm, *moment = d->actuator_moment, *force = d->actuator_force;
+  mjtNum *prm, *force = d->actuator_force;
 
   // clear actuator_force
   mju_zero(force, nu);
@@ -481,10 +478,13 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
 
   // qfrc_actuator = moment' * force
-  mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
+  mju_mulMatTVecSparse(d->qfrc_actuator, d->actuator_moment, force, nu, nv,
+                       d->moment_rownnz, d->moment_rowadr, d->moment_colind);
 
   // actuator-level gravity compensation
   if (m->ngravcomp && !mjDISABLED(mjDSBL_GRAVITY) && mju_norm3(m->opt.gravity)) {
+    // number of dofs for each joint type: {mjJNT_FREE, mjJNT_BALL, mjJNT_SLIDE, mjJNT_HINGE}
+    static const int jnt_dofnum[4] = {6, 3, 1, 1};
     int njnt = m->njnt;
     for (int i=0; i < njnt; i++) {
       // skip if gravcomp added as passive force
@@ -493,7 +493,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
 
       // add gravcomp force
-      int dofnum = jnt_dofnum(m->jnt_type[i]);
+      int dofnum = jnt_dofnum[m->jnt_type[i]];
       int dofadr = m->jnt_dofadr[i];
       mju_addTo(d->qfrc_actuator + dofadr, d->qfrc_gravcomp + dofadr, dofnum);
     }
@@ -797,7 +797,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjtNum* MhB = mj_stackAllocNum(d, nM);
 
       // MhB = M + h*diag(B)
-      mju_copy(MhB, d->qM, m->nM);
+      mju_copy(MhB, d->qM, nM);
       for (int i=0; i < nv; i++) {
         MhB[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
       }
@@ -938,7 +938,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv;
+  int nv = m->nv, nM = m->nM, nD = m->nD;
 
   mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
@@ -954,7 +954,9 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
       // set qLU = qM
-      mj_copyM2DSparse(m, d, d->qLU, d->qM);
+      for (int i=0; i < nD; i++) {
+        d->qLU[i] = d->qM[d->mapM2D[i]];
+      }
 
       // set qLU = qM - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
@@ -975,18 +977,20 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
       // modified mass matrix MhB = qDeriv[Lower]
-      mjtNum* MhB = mj_stackAllocNum(d, m->nM);
-      mj_copyD2MSparse(m, d, MhB, d->qDeriv);
+      mjtNum* MhB = mj_stackAllocNum(d, nM);
+      for (int i=0; i < nM; i++) {
+        MhB[i] = d->qDeriv[d->mapD2M[i]];
+      }
 
       // set MhB = M - dt*qDeriv
-      mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, m->nM);
+      mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
       // factorize
       mj_factorI(m, d, MhB, d->qH, d->qHDiagInv, NULL);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
-    mju_copy(qacc, qfrc, m->nv);
+    mju_copy(qacc, qfrc, nv);
     mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
   } else {
     mjERROR("integrator must be implicit or implicitfast");

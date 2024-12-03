@@ -20,6 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -35,6 +36,8 @@
 
 // forward kinematics
 void mj_kinematics(const mjModel* m, mjData* d) {
+  int nbody = m->nbody, nsite = m->nsite, ngeom = m->ngeom;
+
   // set world position and orientation
   mju_zero3(d->xpos);
   mju_unit4(d->xquat);
@@ -44,16 +47,8 @@ void mj_kinematics(const mjModel* m, mjData* d) {
   d->xmat[0] = d->xmat[4] = d->xmat[8] = 1;
   d->ximat[0] = d->ximat[4] = d->ximat[8] = 1;
 
-  // normalize all quaternions in qpos
-  mj_normalizeQuat(m, d->qpos);
-
-  // normalize mocap quaternions
-  for (int i=0; i < m->nmocap; i++) {
-    mju_normalize4(d->mocap_quat+4*i);
-  }
-
   // compute global cartesian positions and orientations of all bodies
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     mjtNum xpos[3], xquat[4];
     int jntadr = m->body_jntadr[i];
     int jntnum = m->body_jntnum[i];
@@ -66,6 +61,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       // copy pos and quat from qpos
       mju_copy3(xpos, d->qpos+qadr);
       mju_copy4(xquat, d->qpos+qadr+3);
+      mju_normalize4(xquat);
 
       // assign xanchor and xaxis
       mju_copy3(d->xanchor+3*jntadr, xpos);
@@ -77,10 +73,12 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       int pid = m->body_parentid[i];
 
       // get body pos and quat: from model or mocap
-      mjtNum *bodypos, *bodyquat;
+      mjtNum *bodypos, *bodyquat, quat[4];
       if (m->body_mocapid[i] >= 0) {
         bodypos = d->mocap_pos + 3*m->body_mocapid[i];
-        bodyquat = d->mocap_quat + 4*m->body_mocapid[i];
+        mju_copy4(quat, d->mocap_quat + 4*m->body_mocapid[i]);
+        mju_normalize4(quat);
+        bodyquat = quat;
       } else {
         bodypos = m->body_pos+3*i;
         bodyquat = m->body_quat+4*i;
@@ -88,7 +86,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 
       // apply fixed translation and rotation relative to parent
       if (pid) {
-        mju_rotVecMat(xpos, bodypos, d->xmat+9*pid);
+        mju_mulMatVec3(xpos, d->xmat+9*pid, bodypos);
         mju_addTo3(xpos, d->xpos+3*pid);
         mju_mulQuat(xquat, d->xquat+4*pid, bodyquat);
       } else {
@@ -125,6 +123,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
             mjtNum qloc[4];
             if (jtype == mjJNT_BALL) {
               mju_copy4(qloc, d->qpos+qadr);
+              mju_normalize4(qloc);
             } else {
               mju_axisAngle2Quat(qloc, m->jnt_axis+3*jid, d->qpos[qadr] - m->qpos0[qadr]);
             }
@@ -157,21 +156,21 @@ void mj_kinematics(const mjModel* m, mjData* d) {
   }
 
   // compute/copy Cartesian positions and orientations of body inertial frames
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     mj_local2Global(d, d->xipos+3*i, d->ximat+9*i,
                     m->body_ipos+3*i, m->body_iquat+4*i,
                     i, m->body_sameframe[i]);
   }
 
   // compute/copy Cartesian positions and orientations of geoms
-  for (int i=0; i < m->ngeom; i++) {
+  for (int i=0; i < ngeom; i++) {
     mj_local2Global(d, d->geom_xpos+3*i, d->geom_xmat+9*i,
                     m->geom_pos+3*i, m->geom_quat+4*i,
                     m->geom_bodyid[i], m->geom_sameframe[i]);
   }
 
   // compute/copy Cartesian positions and orientations of sites
-  for (int i=0; i < m->nsite; i++) {
+  for (int i=0; i < nsite; i++) {
     mj_local2Global(d, d->site_xpos+3*i, d->site_xmat+9*i,
                     m->site_pos+3*i, m->site_quat+4*i,
                     m->site_bodyid[i], m->site_sameframe[i]);
@@ -182,6 +181,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 
 // map inertias and motion dofs to global frame centered at subtree-CoM
 void mj_comPos(const mjModel* m, mjData* d) {
+  int nbody = m->nbody, njnt = m->njnt;
   mjtNum offset[3], axis[3];
   mj_markStack(d);
   mjtNum* mass_subtree = mj_stackAllocNum(d, m->nbody);
@@ -191,7 +191,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
   mju_zero(d->subtree_com, m->nbody*3);
 
   // backwards pass over bodies: compute subtree_com and mass_subtree
-  for (int i=m->nbody-1; i >= 0; i--) {
+  for (int i=nbody-1; i >= 0; i--) {
     // add local info
     mju_addToScl3(d->subtree_com+3*i, d->xipos+3*i, m->body_mass[i]);
     mass_subtree[i] += m->body_mass[i];
@@ -216,14 +216,14 @@ void mj_comPos(const mjModel* m, mjData* d) {
   mju_zero(d->cinert, 10);
 
   // map inertias to frame centered at subtree_com
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     mju_sub3(offset, d->xipos+3*i, d->subtree_com+3*m->body_rootid[i]);
     mju_inertCom(d->cinert+10*i, m->body_inertia+3*i, d->ximat+9*i,
                  offset, m->body_mass[i]);
   }
 
   // map motion dofs to global frame centered at subtree_com
-  for (int j=0; j < m->njnt; j++) {
+  for (int j=0; j < njnt; j++) {
     // get dof address, body index
     int da = 6*m->jnt_dofadr[j];
     int bi = m->jnt_bodyid[j];
@@ -464,7 +464,7 @@ void mj_flex(const mjModel* m, mjData* d) {
     // non-centered: map from local to global
     else {
       for (int i=vstart; i < vend; i++) {
-        mju_rotVecMat(d->flexvert_xpos+3*i, m->flex_vert+3*i, d->xmat+9*m->flex_vertbodyid[i]);
+        mju_mulMatVec3(d->flexvert_xpos+3*i, d->xmat+9*m->flex_vertbodyid[i], m->flex_vert+3*i);
         mju_addTo3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
       }
     }
@@ -475,7 +475,8 @@ void mj_flex(const mjModel* m, mjData* d) {
     int dim = m->flex_dim[f];
 
     // process elements of this flex
-    for (int e=0; e < m->flex_elemnum[f]; e++) {
+    int elemnum = m->flex_elemnum[f];
+    for (int e=0; e < elemnum; e++) {
       const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
       const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
@@ -548,7 +549,8 @@ void mj_flex(const mjModel* m, mjData* d) {
     // skip Jacobian if no built-in passive force is needed
     int skipjacobian = !m->flex_edgeequality[f] &&
                        !m->flex_edgedamping[f] &&
-                       !m->flex_edgestiffness[f];
+                       !m->flex_edgestiffness[f] &&
+                       !m->flex_damping[f];
 
     // process edges of this flex
     int vbase = m->flex_vertadr[f];
@@ -656,6 +658,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     adr = m->tendon_adr[i];
     d->ten_wrapadr[i] = wcnt;
     d->ten_wrapnum[i] = 0;
+    int tendon_num = m->tendon_num[i];
 
     // sparse Jacobian row init
     if (issparse) {
@@ -665,7 +668,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     // process joint tendon
     if (m->wrap_type[adr] == mjWRAP_JOINT) {
       // process all defined joints
-      for (int j=0; j < m->tendon_num[i]; j++) {
+      for (int j=0; j < tendon_num; j++) {
         // get joint id
         int k = m->wrap_objid[adr+j];
 
@@ -687,10 +690,10 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
       // sort on colind if sparse: custom insertion sort
       if (issparse) {
-        int x, *list = colind+rowadr[i];
+        int x, *list = colind+rowadr[i], nnz = rownnz[i];
         mjtNum y, *listy = J+rowadr[i];
 
-        for (int k=1; k < rownnz[i]; k++) {
+        for (int k=1; k < nnz; k++) {
           x = list[k];
           y = listy[k];
           int j = k-1;
@@ -710,7 +713,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     // process spatial tendon
     divisor = 1;
     int j = 0;
-    while (j < m->tendon_num[i]-1) {
+    while (j < tendon_num-1) {
       // get 1st and 2nd object
       tp0 = m->wrap_type[adr+j];
       id0 = m->wrap_objid[adr+j];
@@ -753,7 +756,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
         }
 
         wlen = mju_wrap(wpnt+3, d->site_xpos+3*id0, d->site_xpos+3*id1,
-                        d->geom_xpos+3*idw, d->geom_xmat+9*idw, m->geom_size+3*idw, tpw,
+                        d->geom_xpos+3*idw, d->geom_xmat+9*idw, m->geom_size[3*idw], tpw,
                         (sideid >= 0 ? d->site_xpos+3*sideid : 0));
       } else {
         tpw = mjWRAP_NONE;
@@ -828,7 +831,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
       j += (tpw != mjWRAP_NONE ? 2 : 1);
 
       // assign last site before pulley or tendon end
-      if (j == m->tendon_num[i]-1 || m->wrap_type[adr+j+1] == mjWRAP_PULLEY) {
+      if (j == tendon_num-1 || m->wrap_type[adr+j+1] == mjWRAP_PULLEY) {
         mju_copy3(d->wrap_xpos+wcnt*3, d->site_xpos+3*id1);
         d->wrap_obj[wcnt] = -1;
         d->ten_wrapnum[i]++;
@@ -844,35 +847,44 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
 // compute actuator/transmission lengths and moments
 void mj_transmission(const mjModel* m, mjData* d) {
-  int id, idslider, ok, nv = m->nv, nu = m->nu;
-  mjtNum det, sdet, av, rod, axis[3], vec[3], dlda[3], dldv[3], quat[4];
-  mjtNum wrench[6], gearAxis[3];
-  mjtNum *jac, *jacA, *jacS;
-  mjtNum *length = d->actuator_length, *moment = d->actuator_moment, *gear;
-  mjtNum *jacref = NULL, *moment_tmp = NULL;  // required for site actuators
+  int nv = m->nv, nu = m->nu;
 
+  // nothing to do
   if (!nu) {
     return;
   }
 
-  // allocate space, clear moments
-  mj_markStack(d);
-  jac  = mj_stackAllocNum(d, 3*nv);
-  jacA = mj_stackAllocNum(d, 3*nv);
-  jacS = mj_stackAllocNum(d, 3*nv);
+  // outputs
+  mjtNum* length = d->actuator_length;
+  mjtNum* moment = d->actuator_moment;
+  int *rownnz = d->moment_rownnz;
+  int *rowadr = d->moment_rowadr;
+  int *colind = d->moment_colind;
 
-  // define variables required for body transmission, don't allocate
+  // allocate Jacbians
+  mj_markStack(d);
+  mjtNum* jac  = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacA = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacS = mj_stackAllocNum(d, 3*nv);
+
+  // define stack variables required for body transmission, don't allocate
   int issparse = mj_isSparse(m);
   mjtNum* efc_force = NULL;  // used as marker for allocation requirement
   mjtNum *moment_exclude, *jacdifp, *jac1p, *jac2p;
   int *chain;
 
+  // define stack variables required for site transmission, don't allocate
+  mjtNum *jacref = NULL, *moment_tmp = NULL;
+
   // compute lengths and moments
   for (int i=0; i < nu; i++) {
+    rownnz[i] = 0;
+    rowadr[i] = i == 0 ? 0 : rowadr[i-1] + rownnz[i-1];
+    int adr = rowadr[i];
+
     // extract info
-    id = m->actuator_trnid[2*i];
-    idslider = m->actuator_trnid[2*i+1];    // for slider-crank only
-    gear = m->actuator_gear+6*i;
+    int id = m->actuator_trnid[2*i];
+    mjtNum* gear = m->actuator_gear+6*i;
 
     // process according to transmission type
     switch ((mjtTrn) m->actuator_trntype[i]) {
@@ -880,34 +892,45 @@ void mj_transmission(const mjModel* m, mjData* d) {
     case mjTRN_JOINTINPARENT:           // joint, force in parent frame
       // slide and hinge joint: scalar gear
       if (m->jnt_type[id] == mjJNT_SLIDE || m->jnt_type[id] == mjJNT_HINGE) {
+        // sparsity
+        rownnz[i]++;
+        colind[adr] = m->jnt_dofadr[id];
+
         length[i] = d->qpos[m->jnt_qposadr[id]]*gear[0];
-        moment[i*nv + m->jnt_dofadr[id]] = gear[0];
+        moment[adr] = gear[0];
       }
 
       // ball joint: 3D wrench gear
       else if (m->jnt_type[id] == mjJNT_BALL) {
-        // j: qpos start address
-        int j = m->jnt_qposadr[id];
-
         // axis: expmap representation of quaternion
-        mju_quat2Vel(axis, d->qpos+j, 1);
+        mjtNum axis[3], quat[4];
+        mju_copy4(quat, d->qpos+m->jnt_qposadr[id]);
+        mju_normalize4(quat);
+        mju_quat2Vel(axis, quat, 1);
 
         // gearAxis: rotate to parent frame if necessary
+        mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear);
         } else {
-          mju_negQuat(quat, d->qpos+j);
+          mju_negQuat(quat, quat);
           mju_rotVecQuat(gearAxis, gear, quat);
         }
 
         // length: axis*gearAxis
         length[i] = mju_dot3(axis, gearAxis);
 
-        // j: dof start address
-        j = m->jnt_dofadr[id];
+        // dof start address
+        int jnt_dofadr = m->jnt_dofadr[id];
+
+        // sparsity
+        for (int j = 0; j < 3; j++) {
+          colind[adr+j] = jnt_dofadr + j;
+        }
+        rownnz[i] += 3;
 
         // moment: gearAxis
-        mju_copy3(moment+i*nv+j, gearAxis);
+        mju_copy3(moment+adr, gearAxis);
       }
 
       // free joint: 6D wrench gear
@@ -915,83 +938,98 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // cannot compute meaningful length, set to 0
         length[i] = 0;
 
-        // j: qpos start address
-        int j = m->jnt_qposadr[id];
-
-        // vec: translational components
-        mju_copy3(vec, d->qpos+j);
-
-        // axis: expmap representation of quaternion
-        mju_quat2Vel(axis, d->qpos+j+3, 1);
-
         // gearAxis: rotate to world frame if necessary
+        mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mju_copy3(gearAxis, gear+3);
         } else {
-          mju_negQuat(quat, d->qpos+j+3);
+          mjtNum quat[4];
+          mju_copy4(quat, d->qpos+m->jnt_qposadr[id]+3);
+          mju_normalize4(quat);
+          mju_negQuat(quat, quat);
           mju_rotVecQuat(gearAxis, gear+3, quat);
         }
 
-        // j: dof start address
-        j = m->jnt_dofadr[id];
+        // dof start address
+        int jnt_dofadr = m->jnt_dofadr[id];
+
+        // sparsity
+        for (int j = 0; j < 6; j++) {
+          colind[adr+j] = jnt_dofadr + j;
+        }
+        rownnz[i] += 6;
 
         // moment: gear(tran), gearAxis
-        mju_copy3(moment+i*nv+j, gear);
-        mju_copy3(moment+i*nv+j+3, gearAxis);
+        mju_copy3(moment+adr, gear);
+        mju_copy3(moment+adr+3, gearAxis);
       }
       break;
 
     case mjTRN_SLIDERCRANK:             // slider-crank
-      // get data
-      rod = m->actuator_cranklength[i];
-      axis[0] = d->site_xmat[9*idslider+2];
-      axis[1] = d->site_xmat[9*idslider+5];
-      axis[2] = d->site_xmat[9*idslider+8];
-      mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*idslider);
+      {
+        // get data
+        int idslider = m->actuator_trnid[2*i+1];
+        mjtNum rod = m->actuator_cranklength[i];
+        mjtNum axis[3] = {d->site_xmat[9 * idslider + 2],
+                          d->site_xmat[9 * idslider + 5],
+                          d->site_xmat[9 * idslider + 8]};
+        mjtNum vec[3];
+        mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*idslider);
 
-      // compute length and determinant
-      //  length = a'*v - sqrt(det);  det = (a'*v)^2 + r^2 - v'*v)
-      av = mju_dot3(vec, axis);
-      det = av*av + rod*rod - mju_dot3(vec, vec);
-      ok = 1;
-      if (det <= 0) {
-        ok = 0;
-        sdet = 0;
-        length[i] = av;
-      } else {
-        sdet = mju_sqrt(det);
-        length[i] = av - sdet;
-      }
-
-      // compute derivatives of length w.r.t. vec and axis
-      if (ok) {
-        mju_scl3(dldv, axis, 1-av/sdet);
-        mju_scl3(dlda, vec, 1/sdet);        // use dlda as temp
-        mju_addTo3(dldv, dlda);
-
-        mju_scl3(dlda, vec, 1-av/sdet);
-      } else {
-        mju_copy3(dlda, vec);
-        mju_copy3(dldv, axis);
-      }
-
-      // get Jacobians of axis(jacA) and vec(jac)
-      mj_jacPointAxis(m, d, jacS, jacA, d->site_xpos+3*idslider,
-                      axis, m->site_bodyid[idslider]);
-      mj_jacSite(m, d, jac, 0, id);
-      mju_subFrom(jac, jacS, 3*nv);
-
-      // apply chain rule
-      for (int j=0; j < nv; j++) {
-        for (int k=0; k < 3; k++) {
-          moment[i*nv+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
+        // compute length and determinant
+        //  length = a'*v - sqrt(det);  det = (a'*v)^2 + r^2 - v'*v)
+        mjtNum av = mju_dot3(vec, axis);
+        mjtNum sdet, det = av*av + rod*rod - mju_dot3(vec, vec);
+        int ok = 1;
+        if (det <= 0) {
+          ok = 0;
+          sdet = 0;
+          length[i] = av;
+        } else {
+          sdet = mju_sqrt(det);
+          length[i] = av - sdet;
         }
-      }
 
-      // scale by gear ratio
-      length[i] *= gear[0];
-      for (int j = 0; j < nv; j++) {
-        moment[i*nv + j] *= gear[0];
+        // compute derivatives of length w.r.t. vec and axis
+        mjtNum dlda[3], dldv[3];
+        if (ok) {
+          mju_scl3(dldv, axis, 1-av/sdet);
+          mju_scl3(dlda, vec, 1/sdet);        // use dlda as temp
+          mju_addTo3(dldv, dlda);
+
+          mju_scl3(dlda, vec, 1-av/sdet);
+        } else {
+          mju_copy3(dlda, vec);
+          mju_copy3(dldv, axis);
+        }
+
+        // get Jacobians of axis(jacA) and vec(jac)
+        mj_jacPointAxis(m, d, jacS, jacA, d->site_xpos+3*idslider,
+                        axis, m->site_bodyid[idslider]);
+        mj_jacSite(m, d, jac, 0, id);
+        mju_subFrom(jac, jacS, 3*nv);
+
+        // sparsity
+        for (int j = 0; j < nv; j++) {
+          colind[adr+j] = j;
+        }
+        rownnz[i] += nv;
+
+        // clear moment
+        mju_zero(moment + adr, nv);
+
+        // apply chain rule
+        for (int j=0; j < nv; j++) {
+          for (int k=0; k < 3; k++) {
+            moment[adr+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
+          }
+        }
+
+        // scale by gear ratio
+        length[i] *= gear[0];
+        for (int j = 0; j < nv; j++) {
+          moment[adr+j] *= gear[0];
+        }
       }
       break;
 
@@ -999,20 +1037,32 @@ void mj_transmission(const mjModel* m, mjData* d) {
       length[i] = d->ten_length[id]*gear[0];
 
       // moment: sparse or dense
-      if (mj_isSparse(m)) {
-        // clear moment
-        mju_zero(moment+i*nv, nv);
+      if (issparse) {
+        // sparsity
+        int ten_J_rownnz = d->ten_J_rownnz[id];
+        int ten_J_rowadr = d->ten_J_rowadr[id];
+        rownnz[i] += ten_J_rownnz;
+        mju_copyInt(colind + adr, d->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
 
-        int end = d->ten_J_rowadr[id] + d->ten_J_rownnz[id];
-        for (int j=d->ten_J_rowadr[id]; j < end; j++) {
-          moment[i*nv + d->ten_J_colind[j]] = d->ten_J[j] * gear[0];
-        }
+        mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
       } else {
-        mju_scl(moment + i*nv, d->ten_J + id*nv, gear[0], nv);
+        // sparsity
+        for (int j = 0; j < nv; j++) {
+          colind[adr+j] = j;
+        }
+        rownnz[i] += nv;
+
+        mju_scl(moment+adr, d->ten_J + id*nv, gear[0], nv);
       }
       break;
 
     case mjTRN_SITE:                    // site
+      // sparsity
+      for (int j = 0; j < nv; j++) {
+        colind[adr+j] = j;
+      }
+      rownnz[i] += nv;
+
       // get site translation (jac) and rotation (jacS) Jacobians in global frame
       mj_jacSite(m, d, jac, jacS, id);
 
@@ -1022,13 +1072,14 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // reference site undefined
       if (m->actuator_trnid[2*i+1] == -1) {
         // wrench: gear expressed in global frame
-        mju_rotVecMat(wrench, gear, d->site_xmat+9*id);      // translation
-        mju_rotVecMat(wrench+3, gear+3, d->site_xmat+9*id);  // rotation
+        mjtNum wrench[6];
+        mju_mulMatVec3(wrench, d->site_xmat+9*id, gear);      // translation
+        mju_mulMatVec3(wrench+3, d->site_xmat+9*id, gear+3);  // rotation
 
         // moment: global Jacobian projected on wrench
-        mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);     // translation
-        mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);          // rotation
-        mju_addTo(moment+i*nv, jac, nv);                     // add the two
+        mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);       // translation
+        mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);           // rotation
+        mju_addTo(moment+adr, jac, nv);                       // add the two
       }
 
       // reference site defined
@@ -1065,13 +1116,14 @@ void mj_transmission(const mjModel* m, mjData* d) {
         }
 
         // clear moment
-        mju_zero(moment+i*nv, nv);
+        mju_zero(moment+adr, nv);
 
         // translational transmission
         if (!mju_isZero(gear, 3)) {
           // vec: site position in reference site frame
+          mjtNum vec[3];
           mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*refid);
-          mju_rotVecMatT(vec, vec, d->site_xmat+9*refid);
+          mju_mulMatTVec3(vec, d->site_xmat+9*refid, vec);
 
           // length: dot product with gear
           length[i] += mju_dot3(vec, gear);
@@ -1092,10 +1144,11 @@ void mj_transmission(const mjModel* m, mjData* d) {
           }
 
           // wrench: translational gear expressed in global frame
-          mju_rotVecMat(wrench, gear, d->site_xmat+9*refid);
+          mjtNum wrench[6];
+          mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear);
 
           // moment: global Jacobian projected on wrench
-          mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);
+          mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);
         }
 
         // rotational transmission
@@ -1103,10 +1156,12 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mjtNum refquat[4];
 
           // get site and refsite quats from parent bodies (avoiding mju_mat2Quat)
+          mjtNum quat[4];
           mju_mulQuat(quat, m->site_quat+4*id, d->xquat+4*m->site_bodyid[id]);
           mju_mulQuat(refquat, m->site_quat+4*refid, d->xquat+4*m->site_bodyid[refid]);
 
           // convert difference to expmap (axis-angle)
+          mjtNum vec[3];
           mju_subQuat(vec, quat, refquat);
 
           // add length: dot product with gear
@@ -1128,23 +1183,30 @@ void mj_transmission(const mjModel* m, mjData* d) {
           }
 
           // wrench: rotational gear expressed in global frame
-          mju_rotVecMat(wrench, gear+3, d->site_xmat+9*refid);
+          mjtNum wrench[6];
+          mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear+3);
 
           // moment_tmp: global Jacobian projected on wrench, add to moment
           if (!moment_tmp) moment_tmp = mj_stackAllocNum(d, nv);
           mju_mulMatTVec(moment_tmp, jacS, wrench, 3, nv);
-          mju_addTo(moment+i*nv, moment_tmp, nv);
+          mju_addTo(moment+adr, moment_tmp, nv);
         }
       }
 
       break;
 
     case mjTRN_BODY:                  // body (adhesive contacts)
+      // sparsity
+      for (int j = 0; j < nv; j++) {
+        colind[adr+j] = j;
+      }
+      rownnz[i] += nv;
+
       // cannot compute meaningful length, set to 0
       length[i] = 0;
 
       // clear moment
-      mju_zero(moment+i*nv, nv);
+      mju_zero(moment+adr, nv);
 
       // moment is average of all contact normal Jacobians
       {
@@ -1163,18 +1225,22 @@ void mj_transmission(const mjModel* m, mjData* d) {
         mju_zero(moment_exclude, nv);
 
         // count all relevant contacts, accumulate Jacobians
-        int counter = 0;
-        for (int j=0; j < d->ncon; j++) {
+        int counter = 0, ncon = d->ncon;
+        for (int j=0; j < ncon; j++) {
           const mjContact* con = d->contact+j;
 
+          // get geom ids
+          int g1 = con->geom[0];
+          int g2 = con->geom[1];
+
           // contact involving flex, continue
-          if (con->geom[0] < 0 || con->geom[1] < 0) {
+          if (g1 < 0 || g2 < 0) {
             continue;
           }
 
           // get body ids
-          int b1 = m->geom_bodyid[con->geom[0]];
-          int b2 = m->geom_bodyid[con->geom[1]];
+          int b1 = m->geom_bodyid[g1];
+          int b2 = m->geom_bodyid[g2];
 
           // irrelevant contact, continue
           if (b1 != id && b2 != id) {
@@ -1224,15 +1290,16 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // moment is average over contact normal Jacobians, make negative for adhesion
         if (counter) {
           // accumulate active contact Jacobians into moment
-          mj_mulJacTVec(m, d, moment+i*nv, efc_force);
+          mj_mulJacTVec(m, d, moment+adr, efc_force);
 
           // add Jacobians from excluded contacts
-          mju_addTo(moment+i*nv, moment_exclude, nv);
+          mju_addTo(moment+adr, moment_exclude, nv);
 
           // normalize by total contacts, flip sign
-          mju_scl(moment+i*nv, moment+i*nv, -1.0/counter, nv);
+          mju_scl(moment+adr, moment+adr, -1.0/counter, nv);
         }
       }
+
       break;
 
     default:
@@ -1613,21 +1680,26 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) 
 
 // compute cvel, cdof_dot
 void mj_comVel(const mjModel* m, mjData* d) {
-  mjtNum tmp[6], cvel[6], cdofdot[36];
+  int nbody = m->nbody;
 
   // set world vel to 0
   mju_zero(d->cvel, 6);
 
   // forward pass over bodies
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // get body's first dof address
     int bda = m->body_dofadr[i];
 
     // cvel = cvel_parent
+    mjtNum cvel[6];
     mju_copy(cvel, d->cvel+6*m->body_parentid[i], 6);
 
     // cvel = cvel_parent + cdof * qvel,  cdofdot = cvel x cdof
-    for (int j=0; j < m->body_dofnum[i]; j++) {
+    int dofnum = m->body_dofnum[i];
+    mjtNum cdofdot[36];
+    for (int j=0; j < dofnum; j++) {
+      mjtNum tmp[6];
+
       // compute cvel and cdofdot
       switch ((mjtJoint) m->jnt_type[m->dof_jntid[bda+j]]) {
       case mjJNT_FREE:
@@ -1678,12 +1750,13 @@ void mj_comVel(const mjModel* m, mjData* d) {
 
 // subtree linear velocity and angular momentum
 void mj_subtreeVel(const mjModel* m, mjData* d) {
+  int nbody = m->nbody;
   mjtNum dx[3], dv[3], dp[3], dL[3];
   mj_markStack(d);
   mjtNum* body_vel = mj_stackAllocNum(d, 6*m->nbody);
 
   // bodywise quantities
-  for (int i=0; i < m->nbody; i++) {
+  for (int i=0; i < nbody; i++) {
     // compute and save body velocity
     mj_objectVelocity(m, d, mjOBJ_BODY, i, body_vel+6*i, 0);
 
@@ -1691,15 +1764,15 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
     mju_scl3(d->subtree_linvel+3*i, body_vel+6*i+3, m->body_mass[i]);
 
     // body angular momentum
-    mju_rotVecMatT(dv, body_vel+6*i, d->ximat+9*i);
+    mju_mulMatTVec3(dv, d->ximat+9*i, body_vel+6*i);
     dv[0] *= m->body_inertia[3*i];
     dv[1] *= m->body_inertia[3*i+1];
     dv[2] *= m->body_inertia[3*i+2];
-    mju_rotVecMat(d->subtree_angmom+3*i, dv, d->ximat+9*i);
+    mju_mulMatVec3(d->subtree_angmom+3*i, d->ximat+9*i, dv);
   }
 
   // subtree linvel
-  for (int i=m->nbody-1; i >= 0; i--) {
+  for (int i=nbody-1; i >= 0; i--) {
     // non-world: add linear momentum to parent
     if (i) {
       mju_addTo3(d->subtree_linvel+3*m->body_parentid[i], d->subtree_linvel+3*i);
@@ -1711,7 +1784,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
   }
 
   // subtree angmom
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int i=nbody-1; i > 0; i--) {
     int parent = m->body_parentid[i];
 
     // momentum wrt body i
@@ -1744,6 +1817,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
+  int nbody = m->nbody, nv = m->nv;
   mjtNum tmp[6], tmp1[6];
   mj_markStack(d);
   mjtNum* loc_cacc = mj_stackAllocNum(d, m->nbody*6);
@@ -1756,7 +1830,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   }
 
   // forward pass over bodies: accumulate cacc, set cfrc_body
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // get body's first dof address
     int bda = m->body_dofadr[i];
 
@@ -1781,13 +1855,13 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   mju_zero(loc_cfrc_body, 6);
 
   // backward pass over bodies: accumulate cfrc_body from children
-  for (int i=m->nbody-1; i > 0; i--)
+  for (int i=nbody-1; i > 0; i--)
     if (m->body_parentid[i]) {
       mju_addTo(loc_cfrc_body+6*m->body_parentid[i], loc_cfrc_body+6*i, 6);
     }
 
   // result = cdof * cfrc_body
-  for (int i=0; i < m->nv; i++) {
+  for (int i=0; i < nv; i++) {
     result[i] = mju_dot(d->cdof+6*i, loc_cfrc_body+6*m->dof_bodyid[i], 6);
   }
 
@@ -1798,7 +1872,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
 
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int
 void mj_rnePostConstraint(const mjModel* m, mjData* d) {
-  int nbody=m->nbody;
+  int nbody = m->nbody;
   mjtNum cfrc_com[6], cfrc[6], lfrc[6];
   mjContact* con;
 
@@ -1824,7 +1898,8 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     }
 
   // cfrc_ext += contacts
-  for (int i=0; i < d->ncon; i++)
+  int ncon = d->ncon;
+  for (int i=0; i < ncon; i++)
     if (d->contact[i].efc_address >= 0) {
       // get contact pointer
       con = d->contact+i;
@@ -1838,8 +1913,8 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       mj_contactForce(m, d, i, lfrc);
 
       // cfrc = world-oriented torque:force vector (swap in the process)
-      mju_rotVecMatT(cfrc, lfrc+3, con->frame);
-      mju_rotVecMatT(cfrc+3, lfrc, con->frame);
+      mju_mulMatTVec3(cfrc, con->frame, lfrc+3);
+      mju_mulMatTVec3(cfrc+3, con->frame, lfrc);
 
       // body 1
       int k;
@@ -1861,16 +1936,16 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
     }
 
-  // cfrc_ext += connect and weld constraints
-  int i = 0;
-  while (i < d->ne) {
+  // cfrc_ext += connect, weld, flex constraints
+  int i = 0, ne = d->ne;
+  while (i < ne) {
     if (d->efc_type[i] != mjCNSTR_EQUALITY)
       mjERROR("row %d of efc is not an equality constraint", i);  // SHOULD NOT OCCUR
 
     int id = d->efc_id[i];
     mjtNum* eq_data = m->eq_data + mjNEQDATA*id;
-    mjtNum pos[3];
-    int k;
+    mjtNum pos[3], *offset;
+    int k, obj1, obj2, body_semantic;
     switch ((mjtEq) m->eq_type[id]) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
@@ -1882,10 +1957,17 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
         mju_zero3(cfrc);  // no torque from connect
       }
 
+      body_semantic = m->eq_objtype[id] == mjOBJ_BODY;
+
       // body 1
-      if ((k = m->eq_obj1id[id])) {
+      obj1 = m->eq_obj1id[id];
+      k = body_semantic ? obj1 : m->site_bodyid[obj1];
+      if (k) {
+        offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_WELD) :
+                                 m->site_pos + 3 * obj1;
+
         // transform point on body1: local -> global
-        mj_local2Global(d, pos, 0, eq_data + 3*(m->eq_type[id] == mjEQ_WELD), 0, k, 0);
+        mj_local2Global(d, pos, 0, offset, 0, k, 0);
 
         // tmp = subtree CoM-based torque_force vector
         mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
@@ -1895,9 +1977,14 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
 
       // body 2
-      if ((k = m->eq_obj2id[id])) {
+      obj2 = m->eq_obj2id[id];
+      k = body_semantic ? obj2 : m->site_bodyid[obj2];
+      if (k) {
+        offset = body_semantic ? eq_data + 3 * (m->eq_type[id] == mjEQ_CONNECT) :
+                                 m->site_pos + 3 * obj2;
+
         // transform point on body2: local -> global
-        mj_local2Global(d, pos, 0, eq_data + 3*(m->eq_type[id] == mjEQ_CONNECT), 0, k, 0);
+        mj_local2Global(d, pos, 0, offset, 0, k, 0);
 
         // tmp = subtree CoM-based torque_force vector
         mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
@@ -1937,7 +2024,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   // forward pass over bodies: compute cacc, cfrc_int
   mjtNum cacc[6], cfrc_body[6], cfrc_corr[6];
   mju_zero(d->cfrc_int, 6);
-  for (int j=1; j < m->nbody; j++) {
+  for (int j=1; j < nbody; j++) {
     // get body's first dof address
     int bda = m->body_dofadr[j];
 
@@ -1958,7 +2045,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   }
 
   // backward pass over bodies: accumulate cfrc_int from children
-  for (int j=m->nbody-1; j > 0; j--) {
+  for (int j=nbody-1; j > 0; j--) {
     mju_addTo(d->cfrc_int+6*m->body_parentid[j], d->cfrc_int+6*j, 6);
   }
 }

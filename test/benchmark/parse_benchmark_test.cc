@@ -54,11 +54,14 @@ static void run_parse_benchmark(const std::string xml_path,
 
   ASSERT_THAT(vfs_errno, Eq(0)) << "Failed to add file to VFS: " << vfs_errmsg;
 
+  // load once to warm up filesystem and compiler cache
   std::array<char, 1024> error;
-  for (auto s : state) {
-    mjModel* model =
+  mjModel* model =
       mj_loadXML(xml_path.data(), vfs.get(), error.data(), error.size());
-    ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  for (auto s : state) {
+    mjModel* model = mj_loadXML(xml_path.data(), vfs.get(), 0, 0);
     mj_deleteModel(model);
   }
   state.SetLabel(xml_path);
@@ -70,7 +73,7 @@ static void run_parse_benchmark(const std::string xml_path,
 // run_parse_benchmark).
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlagPlugin(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("plugin/elasticity/flag.xml"), state);
+  run_parse_benchmark(GetModelPath("plugin/elasticity/flag_flex.xml"), state);
 }
 BENCHMARK(BM_ParseFlagPlugin);
 
@@ -86,7 +89,7 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid(benchmark::State& state) {
 BENCHMARK(BM_ParseHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid100(benchmark::State& state) {
-  run_parse_benchmark(GetModelPath("humanoid100/humanoid100.xml"), state);
+  run_parse_benchmark(GetModelPath("humanoid/humanoid100.xml"), state);
 }
 BENCHMARK(BM_ParseHumanoid100);
 

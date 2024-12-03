@@ -21,6 +21,7 @@ import mujoco
 from mujoco.mjx._src import math
 from mujoco.mjx._src import scan
 # pylint: disable=g-importing-member
+from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import JacobianType
 from mujoco.mjx._src.types import Model
@@ -200,6 +201,7 @@ def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
       mujoco.mjtObj.mjOBJ_HFIELD: m.nhfield,
       mujoco.mjtObj.mjOBJ_PAIR: m.npair,
       mujoco.mjtObj.mjOBJ_EQUALITY: m.neq,
+      mujoco.mjtObj.mjOBJ_TENDON: m.ntendon,
       mujoco.mjtObj.mjOBJ_ACTUATOR: m.nu,
       mujoco.mjtObj.mjOBJ_SENSOR: m.nsensor,
       mujoco.mjtObj.mjOBJ_NUMERIC: m.nnumeric,
@@ -222,6 +224,7 @@ def _getadr(
       mujoco.mjtObj.mjOBJ_HFIELD: m.name_hfieldadr,
       mujoco.mjtObj.mjOBJ_PAIR: m.name_pairadr,
       mujoco.mjtObj.mjOBJ_EQUALITY: m.name_eqadr,
+      mujoco.mjtObj.mjOBJ_TENDON: m.name_tendonadr,
       mujoco.mjtObj.mjOBJ_ACTUATOR: m.name_actuatoradr,
       mujoco.mjtObj.mjOBJ_SENSOR: m.name_sensoradr,
       mujoco.mjtObj.mjOBJ_NUMERIC: m.name_numericadr,
@@ -293,7 +296,7 @@ def _decode_pyramid(
   force = force.at[0].set(pyramid[0 : 2 * (condim - 1)].sum())
 
   # force_tangent_i = (pyramid0_i - pyramid1_i) * mu_i
-  i = np.arange(0, condim)
+  i = np.arange(0, condim - 1)
   force = force.at[i + 1].set((pyramid[2 * i] - pyramid[2 * i + 1]) * mu[i])
 
   return force
@@ -305,12 +308,13 @@ def contact_force(
   """Extract 6D force:torque for one contact, in contact frame by default."""
   efc_address = d.contact.efc_address[contact_id]
   condim = d.contact.dim[contact_id]
-  if m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
+  if m.opt.cone == ConeType.PYRAMIDAL:
     force = _decode_pyramid(
         d.efc_force[efc_address:], d.contact.friction[contact_id], condim
     )
-  elif m.opt.cone == mujoco.mjtCone.mjCONE_ELLIPTIC:
-    raise NotImplementedError('Elliptic cone force is not implemented yet.')
+  elif m.opt.cone == ConeType.ELLIPTIC:
+    force = d.efc_force[efc_address : efc_address + condim]
+    force = jp.concatenate([force, jp.zeros((6 - condim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}')
 
@@ -319,3 +323,240 @@ def contact_force(
     force = force.reshape(-1)
 
   return force * (efc_address >= 0)
+
+
+def contact_force_dim(
+    m: Model, d: Data, dim: int
+) -> Tuple[jax.Array, np.ndarray]:
+  """Extract 6D force:torque for contacts with dimension dim."""
+  # valid contact and condim indices
+  idx_dim = (d.contact.efc_address >= 0) & (d.contact.dim == dim)
+
+  # contact force from efc
+  if m.opt.cone == ConeType.PYRAMIDAL:
+    efc_address = (
+        d.contact.efc_address[idx_dim, None]
+        + np.arange(np.where(dim == 1, 1, 2 * (dim - 1)))[None]
+    )
+    efc_force = d.efc_force[efc_address]
+    force = jax.vmap(_decode_pyramid, in_axes=(0, 0, None))(
+        efc_force, d.contact.friction[idx_dim], dim
+    )
+  elif m.opt.cone == ConeType.ELLIPTIC:
+    efc_address = d.contact.efc_address[idx_dim, None] + np.arange(dim)[None]
+    force = d.efc_force[efc_address]
+    force = jp.hstack([force, jp.zeros((force.shape[0], 6 - dim))])
+  else:
+    raise ValueError(f'Unknown cone type: {m.opt.cone}.')
+  return force, np.where(idx_dim)[0]
+
+
+def _length_circle(
+    p0: jax.Array, p1: jax.Array, ind: jax.Array, rad: jax.Array
+) -> jax.Array:
+  """Compute length of circle."""
+  # compute angle between 0 and pi
+  p0n = math.normalize(p0).reshape(-1)
+  p1n = math.normalize(p1).reshape(-1)
+
+  angle = jp.arccos(jp.dot(p0n, p1n))
+
+  # flip if necessary
+  cross = p0[1] * p1[0] - p0[0] * p1[1]
+  flip = ((cross > 0) & (ind != 0)) | ((cross < 0) & (ind == 0))
+  angle = jp.where(flip, 2 * jp.pi - angle, angle)
+
+  return rad * angle
+
+
+def _is_intersect(
+    p1: jax.Array, p2: jax.Array, p3: jax.Array, p4: jax.Array
+) -> jax.Array:
+  """Check for intersection between two lines defined by their endpoints."""
+  # compute determinant
+  det = (p4[1] - p3[1]) * (p2[0] - p1[0]) - (p4[0] - p3[0]) * (p2[1] - p1[1])
+
+  # compute intersection point on each line
+  a = (
+      (p4[0] - p3[0]) * (p1[1] - p3[1]) - (p4[1] - p3[1]) * (p1[0] - p3[0])
+  ) / det
+  b = (
+      (p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0])
+  ) / det
+
+  return (a >= 0) & (a <= 1) & (b >= 0) & (b <= 1)
+
+
+def wrap_circle(
+    d: jax.Array, sd: jax.Array, sidesite: jax.Array, rad: jax.Array
+) -> Tuple[jax.Array, jax.Array]:
+  """Compute circle wrap arc length and end points."""
+  # check cases
+  sqlen0 = d[0] ** 2 + d[1] ** 2
+  sqlen1 = d[2] ** 2 + d[3] ** 2
+  sqrad = rad * rad
+  dif = jp.array([d[2] - d[0], d[3] - d[1]])
+  dd = dif[0] ** 2 + dif[1] ** 2
+  a = jp.clip(-(dif[0] * d[0] + dif[1] * d[1]) / dd, 0, 1)
+  seg = jp.array([a * dif[0] + d[0], a * dif[1] + d[1]])
+
+  point_inside0 = sqlen0 < sqrad
+  point_inside1 = sqlen1 < sqrad
+  circle_too_small = rad < mujoco.mjMINVAL
+  points_too_close = dd < mujoco.mjMINVAL
+
+  intersect_and_side = (seg[0] ** 2 + seg[1] ** 2 > sqrad) & (
+      jp.where(sidesite, 0, 1) | (jp.dot(sd, seg) >= 0)
+  )
+
+  # construct the two solutions, compute goodness
+  def _sol(sgn):
+    sqrt0 = jp.sqrt(sqlen0 - sqrad)
+    sqrt1 = jp.sqrt(sqlen1 - sqrad)
+
+    d00 = (d[0] * sqrad + sgn * rad * d[1] * sqrt0) / sqlen0
+    d01 = (d[1] * sqrad - sgn * rad * d[0] * sqrt0) / sqlen0
+    d10 = (d[2] * sqrad - sgn * rad * d[3] * sqrt1) / sqlen1
+    d11 = (d[3] * sqrad + sgn * rad * d[2] * sqrt1) / sqlen1
+
+    sol = jp.array([[d00, d01], [d10, d11]])
+
+    # goodness: close to sd, or shorter path
+    tmp0 = sol[0] + sol[1]
+    tmp0 = math.normalize(tmp0).reshape(-1)
+    good0 = jp.dot(tmp0, sd)
+
+    tmp1 = (sol[0] - sol[1]).reshape(-1)
+    good1 = -jp.dot(tmp1, tmp1)
+
+    good = jp.where(sidesite, good0, good1)
+
+    # penalize for intersection
+    intersect = _is_intersect(d[:2], sol[0], d[2:], sol[1])
+    good = jp.where(intersect, -10000, good)
+
+    return sol, good
+
+  sol, good = jax.vmap(_sol)(jp.array([1, -1]))
+
+  # select the better solution
+  i = jp.argmax(good)
+  sol = sol[i]
+  pnt = sol.reshape(-1)
+
+  # check for intersection
+  intersect = _is_intersect(d[:2], pnt[:2], d[2:], pnt[2:])
+
+  # compute curve length
+  wlen = _length_circle(sol[0], sol[1], i, rad)
+
+  # check cases
+  invalid = (
+      point_inside0
+      | point_inside1
+      | circle_too_small
+      | points_too_close
+      | intersect_and_side
+      | intersect
+  )
+
+  wlen = jp.where(invalid, -1, wlen)
+  pnt = jp.where(invalid, jp.zeros(4), pnt)
+
+  return wlen, pnt
+
+
+def wrap(
+    x0: jax.Array,
+    x1: jax.Array,
+    xpos: jax.Array,
+    xmat: jax.Array,
+    size: jax.Array,
+    side: jax.Array,
+    sidesite: jax.Array,
+    is_sphere: jax.Array,
+):
+  """Wrap tendon around sphere or cylinder."""
+  # map sites to wrap object's local frame
+  p0 = xmat.T @ (x0 - xpos)
+  p1 = xmat.T @ (x1 - xpos)
+
+  close_to_origin = (jp.linalg.norm(p0) < mujoco.mjMINVAL) | (
+      jp.linalg.norm(p1) < mujoco.mjMINVAL
+  )
+
+  # compute axes for sphere
+  # 1st axis
+  axis0 = p0
+  axis0 = math.normalize(axis0)
+
+  # compute normal to p0-0-p1 plane = cross(p0, p1)
+  normal = jp.cross(p0, p1)
+  normal, nrm = math.normalize_with_norm(normal)
+
+  # compute alternative normal (if (p0, p1) are parallel)
+  # find max component of axis0
+  axis_alt = jp.ones(3).at[jp.argmax(axis0)].set(0)
+  normal_alt = jp.cross(axis0, axis_alt)
+  normal_alt = math.normalize(normal_alt)
+
+  normal = jp.where(nrm < mujoco.mjMINVAL, normal_alt, normal)
+
+  # 2nd axis
+  axis1 = jp.cross(normal, axis0)
+  axis1 = math.normalize(axis1)
+
+  # set geom dependent axes
+  axis0 = jp.where(is_sphere, axis0, jp.array([1.0, 0.0, 0.0]))
+  axis1 = jp.where(is_sphere, axis1, jp.array([0.0, 1.0, 0.0]))
+
+  # project points in 2D frame: p => d
+  d = jp.array([
+      jp.dot(p0, axis0),
+      jp.dot(p0, axis1),
+      jp.dot(p1, axis0),
+      jp.dot(p1, axis1),
+  ])
+
+  # compute sidesite projection
+  s = xmat.T @ (side - xpos)
+  sd = jp.array([jp.dot(s, axis0), jp.dot(s, axis1)])
+  sd = math.normalize(sd) * size
+
+  # TODO(taylorhowell): implement wrap_inside for internal wrapping case
+  wlen, pnt = wrap_circle(d, sd, sidesite, size)
+  no_wrap = wlen < 0
+
+  # reconstruct 3D points in local frame: res
+  res0 = axis0 * pnt[0] + axis1 * pnt[1]
+  res1 = axis0 * pnt[2] + axis1 * pnt[3]
+  res = jp.concatenate([res0, res1])
+
+  # perform correction for cylinder case
+  l0 = jp.sqrt(
+      (p0[0] - res[0]) * (p0[0] - res[0]) + (p0[1] - res[1]) * (p0[1] - res[1])
+  )
+  l1 = jp.sqrt(
+      (p1[0] - res[3]) * (p1[0] - res[3]) + (p1[1] - res[4]) * (p1[1] - res[4])
+  )
+  r2 = p0[2] + (p1[2] - p0[2]) * l0 / (l0 + wlen + l1)
+  r5 = p0[2] + (p1[2] - p0[2]) * (l0 + wlen) / (l0 + wlen + l1)
+  height = jp.abs(r5 - r2)
+
+  wlen = jp.where(is_sphere, wlen, jp.sqrt(wlen * wlen + height * height))
+  res = jp.where(
+      is_sphere, res, res.at[jp.array([2, 5])].set(jp.concatenate([r2, r5]))
+  )
+
+  # map wrap points back to global frame
+  wpnt0 = xmat @ res[:3] + xpos
+  wpnt1 = xmat @ res[3:] + xpos
+
+  # check cases for no wrap
+  invalid = close_to_origin | no_wrap
+
+  wlen = jp.where(invalid, -1, wlen)
+  wpnt0 = jp.where(invalid, jp.zeros(3), wpnt0)
+  wpnt1 = jp.where(invalid, jp.zeros(3), wpnt1)
+
+  return wlen, wpnt0, wpnt1

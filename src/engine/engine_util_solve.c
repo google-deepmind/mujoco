@@ -14,11 +14,11 @@
 
 #include "engine/engine_util_solve.h"
 
-#include <math.h>
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -141,28 +141,15 @@ int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus) {
 //---------------------------- sparse Cholesky -----------------------------------------------------
 
 // sparse reverse-order Cholesky decomposition: mat = L'*L; return 'rank'
-//  mat must have uncompressed layout; rownnz is modified to end at diagonal
+//  mat must be lower-triangular, have preallocated space for fill-in
 int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
-                         int* rownnz, int* rowadr, int* colind,
+                         int* rownnz, const int* rowadr, int* colind,
                          mjData* d) {
   int rank = n;
 
   mj_markStack(d);
+  mjtNum* buf = mj_stackAllocNum(d, n);
   int* buf_ind = mj_stackAllocInt(d, n);
-  mjtNum* sparse_buf = mj_stackAllocNum(d, n);
-
-  // shrink rows so that rownnz ends at diagonal
-  for (int r=0; r < n; r++) {
-    // shrink
-    while (rownnz[r] > 0 && colind[rowadr[r]+rownnz[r]-1] > r) {
-      rownnz[r]--;
-    }
-
-    // check
-    if (rownnz[r] == 0 || colind[rowadr[r]+rownnz[r]-1] != r) {
-      mjERROR("matrix must have non-zero diagonal");
-    }
-  }
 
   // backpass over rows
   for (int r=n-1; r >= 0; r--) {
@@ -191,7 +178,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
       // mat(c,0:c) = mat(c,0:c) - mat(r,c) * mat(r,0:c)
       int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], 1, -mat[adr+i],
                                     rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r],
-                                    sparse_buf, buf_ind);
+                                    buf, buf_ind);
 
       // assign new nnz to row c
       rownnz[c] = nnz_c;
@@ -251,7 +238,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
+                         const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d) {
   mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, n);
@@ -707,7 +694,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 //--------------------------- eigen decomposition --------------------------------------------------
 
 // eigenvalue decomposition of symmetric 3x3 matrix
-static const mjtNum eigEPS = 1E-12;
+static const mjtNum eigEPS = mjMINVAL * 1000;
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
   mjtNum D[9], tmp[9];
   mjtNum tau, t, c;
@@ -730,11 +717,11 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     eigval[2] = D[8];
 
     // find max off-diagonal element, set indices
-    if (fabs(D[1]) > fabs(D[2]) && fabs(D[1]) > fabs(D[5])) {
+    if (mju_abs(D[1]) > mju_abs(D[2]) && mju_abs(D[1]) > mju_abs(D[5])) {
       rk = 0;     // row
       ck = 1;     // column
       rotk = 2;   // rotation axis
-    } else if (fabs(D[2]) > fabs(D[5])) {
+    } else if (mju_abs(D[2]) > mju_abs(D[5])) {
       rk = 0;
       ck = 2;
       rotk = 1;
@@ -745,7 +732,7 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     }
 
     // terminate if max off-diagonal element too small
-    if (fabs(D[3*rk+ck]) < eigEPS) {
+    if (mju_abs(D[3*rk+ck]) < eigEPS) {
       break;
     }
 
@@ -789,7 +776,7 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
       eigval[j1+1] = t;
 
       // rotate quaternion
-      tmp[0] = 0.707106781186548;     // mju_cos(pi/4) = mju_sin(pi/4)
+      tmp[0] = 0.707106781186548;  // = cos(pi/4) = sin(pi/4)
       tmp[1] = tmp[2] = tmp[3] = 0;
       tmp[(j1+2)%3+1] = tmp[0];
       mju_mulQuat(quat, quat, tmp);
@@ -1059,10 +1046,9 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 //     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
 //     index (if given) must have allocated size n, but only nfree values are used in output
 //     only lower triangles of H and R and read from and written to, respectively
-int mju_boxQP(mjtNum* res, mjtNum* R, int* index,        // outputs
-              const mjtNum* H, const mjtNum* g, int n,   // QP definition
-              const mjtNum* lower, const mjtNum* upper)  // bounds
-{
+int mju_boxQP(mjtNum* res, mjtNum* R, int* index,
+              const mjtNum* H, const mjtNum* g, int n,
+              const mjtNum* lower, const mjtNum* upper) {
   // algorithm options
   int    maxiter    = 100;    // maximum number of iterations
   mjtNum mingrad    = 1E-16;  // minimum squared norm of (unclamped) gradient

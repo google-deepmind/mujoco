@@ -80,7 +80,7 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
   mjtNum* geom_quat = m->geom_quat + 4*g;
   mju_quat2Mat(geom_mat, geom_quat);
   mju_mulMatMatT(rotation, geom_xmat, geom_mat, 3, 3, 3);
-  mju_rotVecMat(offset, geom_pos, rotation);
+  mju_mulMatVec3(offset, rotation, geom_pos);
   mju_sub3(offset, geom_xpos, offset);
 
   for (int i = 0; i < niter; i++) {
@@ -97,15 +97,15 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
         mjvGeom* thisgeom = scn->geoms + scn->ngeom;
         mjtNum* p1 = points + (tot + (k == 0 ? (n-1) * j : j))*3;
         mjtNum* p2 = points + (tot + j + 1)*3;
-        mju_rotVecMat(from, p1, rotation);
+        mju_mulMatVec3(from, rotation, p1);
         mju_addTo3(from, offset);
-        mju_rotVecMat(to, p2, rotation);
+        mju_mulMatVec3(to, rotation, p2);
         mju_addTo3(to, offset);
         if (k == 0) {
           float rgba[4] = {static_cast<float>(j > 0), 0,
                            static_cast<float>(j == 0), 1};
-          mjtNum size[] = {.2*m->stat.meansize};
-          mjv_initGeom(thisgeom, mjGEOM_SPHERE, size, from, geom_xmat, rgba);
+          mjtNum size = 0.2 * m->stat.meansize;
+          mjv_initGeom(thisgeom, mjGEOM_SPHERE, &size, from, geom_xmat, rgba);
         } else {
           mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL);
           thisgeom->objtype = mjOBJ_UNKNOWN;

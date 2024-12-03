@@ -192,6 +192,9 @@ struct mjvCamera_ {               // abstract camera
   mjtNum   distance;              // distance to lookat point or tracked body
   mjtNum   azimuth;               // camera azimuth (deg)
   mjtNum   elevation;             // camera elevation (deg)
+
+  // orthographic / perspective
+  int      orthographic;          // 0: perspective; 1: orthographic
 };
 typedef struct mjvCamera_ mjvCamera;
 
@@ -211,6 +214,9 @@ struct mjvGLCamera_ {             // OpenGL camera
   float    frustum_top;           // top
   float    frustum_near;          // near
   float    frustum_far;           // far
+
+  // orthographic / perspective
+  int      orthographic;          // 0: perspective; 1: orthographic
 };
 typedef struct mjvGLCamera_ mjvGLCamera;
 
@@ -224,21 +230,22 @@ struct mjvGeom_ {                 // abstract geom
   int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
-  int      texid;                 // texture id; -1: no texture
-  int      texuniform;            // uniform cube mapping
+  int      matid;                 // material id; -1: no textured material
   int      texcoord;              // mesh or flex geom has texture coordinates
   int      segid;                 // segmentation id; -1: not shown
 
-  // OpenGL info
-  float    texrepeat[2];          // texture repetition for 2D mapping
+  // spatial transform
   float    size[3];               // size parameters
   float    pos[3];                // Cartesian position
   float    mat[9];                // Cartesian orientation
+
+  // material properties
   float    rgba[4];               // color and transparency
   float    emission;              // emission coef
   float    specular;              // specular coef
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
+
   char     label[100];            // text label
 
   // transparency rendering (set internally)
@@ -387,7 +394,7 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
 
   // line data
   int     linepnt[mjMAXLINE];     // number of points in line; (0) disable
-  float   linedata[mjMAXLINE][2*mjMAXLINEPNT]; // line data (x,y)
+  float   linedata[mjMAXLINE][2*mjMAXLINEPNT];  // line data (x,y)
 
   // output from renderer
   int     xaxispixel[2];          // range of x-axis in pixels
@@ -487,10 +494,12 @@ struct mjvSceneState_ {
     mjtNum* site_size;
     float* site_rgba;
 
+    int* cam_orthographic;
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
-    float* cam_intrinsic;
+    int* cam_resolution;
     float* cam_sensorsize;
+    float* cam_intrinsic;
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;
@@ -569,6 +578,7 @@ struct mjvSceneState_ {
     int* eq_type;
     int* eq_obj1id;
     int* eq_obj2id;
+    int* eq_objtype;
     mjtNum* eq_data;
 
     int* tendon_num;

@@ -40,7 +40,8 @@ class StructsTest(absltest.TestCase):
         self.assertEqual(field.doc, 'warning statistics')
       elif field.name == 'qpos':
         self.assertEqual(field.type, type_parsing.parse_type('mjtNum*'))
-        self.assertEqual(re.sub(r'\s+', ' ', field.doc), 'position (nq x 1)')
+        self.assertEqual(field.doc, 'position')
+        self.assertEqual(field.array_extent, ('nq',))
 
     self.assertIn('warning', field_names)
     self.assertIn('qpos', field_names)

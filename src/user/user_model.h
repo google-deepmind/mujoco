@@ -20,6 +20,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,17 @@
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
+
+typedef struct mjKeyInfo_ {
+  std::string name;
+  double time;
+  bool qpos;
+  bool qvel;
+  bool act;
+  bool ctrl;
+  bool mpos;
+  bool mquat;
+} mjKeyInfo;
 
 class mjCModel_ : public mjsElement {
  public:
@@ -78,6 +90,7 @@ class mjCModel_ : public mjsElement {
   int nflexedge;       // number of edges in all flexes
   int nflexelem;       // number of elements in all flexes
   int nflexelemdata;   // number of element vertex ids in all flexes
+  int nflexelemedge;   // number of element edges in all flexes
   int nflexshelldata;  // number of shell fragment vertex ids in all flexes
   int nflexevpair;     // number of element-vertex pairs in all flexes
   int nflextexcoord;   // number of vertex texture coordinates in all flexes
@@ -102,8 +115,9 @@ class mjCModel_ : public mjsElement {
   int nnames;          // number of chars in all names
   int npaths;          // number of chars in all paths
   int nM;              // number of non-zeros in sparse inertia matrix
-  int nD;              // number of non-zeros in sparse dof-dof matrix
   int nB;              // number of non-zeros in sparse body-dof matrix
+  int nC;              // number of non-zeros in reduced sparse dof-dof matrix
+  int nD;              // number of non-zeros in sparse dof-dof matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst
@@ -114,6 +128,8 @@ class mjCModel_ : public mjsElement {
 
   // save qpos0, to recognize changed key_qpos in write
   std::vector<mjtNum> qpos0;
+  std::vector<mjtNum> body_pos0;
+  std::vector<mjtNum> body_quat0;
 
   // variable-size attributes
   std::string comment_;           // comment at top of XML
@@ -165,6 +181,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator=(const mjCModel& other);  // copy other into this, if they are not the same
   mjCModel& operator+=(const mjCModel& other);  // add other into this, even if they are the same
   mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
+  mjCModel_& operator+=(mjCDef& subtree);  // add default tree to this model
 
   mjSpec spec;
 
@@ -191,7 +208,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCTuple* AddTuple();
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
-
+  void AppendSpec(mjSpec* spec);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -200,29 +217,31 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete all elements
   template <class T> void DeleteAll(std::vector<T*>& elements);
 
+  // delete object from the corresponding list
+  void DeleteElement(mjsElement* el);
+
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
+  mjsElement* NextObject(mjsElement* object, mjtObj type = mjOBJ_UNKNOWN);  // next object of specified type
 
   // API for access to other variables
-  bool IsCompiled() const;                                       // is model already compiled
-  const mjCError& GetError() const;                              // get reference of error object
-  mjCBody* GetWorld();                                           // pointer to world body
-  mjCDef* FindDefault(std::string name);                         // find defaults class name
-  mjCDef* AddDefault(std::string name, int parentid);            // add defaults class to array
-  mjCBase* FindObject(mjtObj type, std::string name) const;      // find object given type and name
-  mjCBody* FindBody(mjCBody* body, std::string name);            // find body given name
-  mjCFrame* FindFrame(mjCBody* body, std::string name) const;    // find frame given name
-  bool IsNullPose(const mjtNum* pos, const mjtNum* quat) const;  // detect null pose
-  void SetActivePlugins(const std::vector<std::pair<const mjpPlugin*, int>>&& active_plugins) {
-    active_plugins_ = std::move(active_plugins);
-  }
+  bool IsCompiled() const;                                          // is model already compiled
+  const mjCError& GetError() const;                                 // get reference of error object
+  void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
+  mjCBody* GetWorld();                                              // pointer to world body
+  mjCDef* FindDefault(std::string name);                            // find defaults class name
+  mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
+  mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
+  mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
+  mjSpec* FindSpec(std::string name) const;                         // find spec given name
+  void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }
   std::string get_texturedir() const { return texturedir_; }
 
-  mjCDef* Defaults(int i) const { return defaults_[i]; }
+  mjCDef* Default() const { return defaults_[0]; }
   int NumDefaults() const { return defaults_.size(); }
 
   const std::vector<std::pair<const mjpPlugin*, int>>& ActivePlugins() const {
@@ -257,16 +276,31 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear objects allocated by Compile
   void Clear();
 
-  // if asset name is missing, set to filename
-  template<class T> void SetDefaultNames(std::vector<T*>& assets);
+  // multi-threaded mesh compilation
+  void CompileMeshes(const mjVFS* vfs);
 
   // delete material from object
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
 
-  // save/restore the current state
-  void SaveState(const mjData* d);
-  void RestoreState(const mjModel* m, mjData** dest);
+  // save the current state
+  template <class T>
+  void SaveState(const std::string& state_name, const T* qpos, const T* qvel, const T* act,
+                 const T* ctrl, const T* mpos, const T* mquat);
+
+  // restore the previously saved state
+  template <class T>
+  void RestoreState(const std::string& state_name, const mjtNum* pos0, const mjtNum* mpos0,
+                    const mjtNum* mquat0, T* qpos, T* qvel, T* act, T* ctrl, T* mpos, T* mquat);
+
+  // clear existing data
+  void MakeData(const mjModel* m, mjData** dest);
+
+  // resolve keyframe references
+  void StoreKeyframes(mjCModel* dest);
+
+  // map from default class name to default class pointer
+  std::unordered_map<std::string, mjCDef*> def_map;
 
  private:
   // settings for each defaults class
@@ -307,6 +341,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::vector<mjCTuple*>    tuples_;      // list of tuple fields
   std::vector<mjCKey*>      keys_;        // list of keyframe fields
   std::vector<mjCPlugin*>   plugins_;     // list of plugin instances
+  std::vector<mjSpec*>      specs_;       // list of specs
 
   // pointers to objects created inside kinematic tree
   std::vector<mjCBody*>   bodies_;   // list of bodies
@@ -329,11 +364,14 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // copy vector of elements to this model
   template <class T> void CopyList(std::vector<T*>& dest,
-                                   const std::vector<T*>& sources,
-                                   std::map<mjCDef*, int>& def_map,
-                                   const std::vector<mjCDef*>& defaults);
+                                   const std::vector<T*>& sources);
 
-  // delete from list the elements that are compatible with other but not this model
+  // copy vector of plugins to this model
+  template <class T> void CopyPlugin(std::vector<mjCPlugin*>& dest,
+                                     const std::vector<mjCPlugin*>& sources,
+                                     const std::vector<T*>& list);
+
+  // delete from list the elements that cause an error
   template <class T> void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
   // create mjCBase lists from children lists
@@ -342,8 +380,23 @@ class mjCModel : public mjCModel_, private mjSpec {
   // populate objects ids
   void ProcessLists(bool checkrepeat = true);
 
+  // reset lists of kinematic tree
+  void ResetTreeLists();
+
+  // save dof offsets in joints and actuators
+  void SaveDofOffsets(bool computesize = false);
+
+  // convert pending keyframes info to actual keyframes
+  void ResolveKeyframes(const mjModel* m);
+
+  // resize a keyframe, filling in missing values
+  void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
+
+  // compute qpos0
+  void ComputeReference();
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
-  bool plugin_owner;  // this class allocated the plugins
+  std::vector<mjKeyInfo> key_pending_;  // attached keyframes
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

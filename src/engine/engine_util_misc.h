@@ -29,9 +29,8 @@ extern "C" {
 //------------------------------ tendons and actuators ---------------------------------------------
 
 // wrap tendons around spheres and cylinders
-mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
-                const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
-                int type, const mjtNum* side);
+mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3], const mjtNum xpos[3],
+                const mjtNum xmat[9], mjtNum radius, int type, const mjtNum side[3]);
 
 // normalized muscle length-gain curve
 MJAPI mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax);
@@ -163,10 +162,6 @@ MJAPI mjtNum mju_Halton(int index, int base);
 
 // call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
-
-// assemble full filename from directory and filename, return 0 on success
-MJAPI int mju_makefullname(char* full, size_t nfull,
-                           const char* dir, const char* file);
 
 // sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);

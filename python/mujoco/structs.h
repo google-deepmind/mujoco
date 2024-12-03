@@ -15,7 +15,9 @@
 #ifndef MUJOCO_PYTHON_STRUCTS_H_
 #define MUJOCO_PYTHON_STRUCTS_H_
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <functional>
 #include <istream>
@@ -39,8 +41,50 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
+namespace py = ::pybind11;
+
 namespace mujoco::python {
 namespace _impl {
+
+struct VfsAsset {
+  VfsAsset(const char* name, const void* content, std::size_t content_size)
+      : name(name), content(content), content_size(content_size) {}
+  const char* name;
+  const void* content;
+  std::size_t content_size;
+};
+
+// strip path prefix from filename and make lowercase
+inline std::string StripPath(const char* name) {
+  std::string filename(name);
+  size_t start = filename.find_last_of("/\\");
+
+  // get name without path
+  if (start != std::string::npos) {
+    filename = filename.substr(start + 1, filename.size() - start - 1);
+  }
+
+  // make lowercase
+  std::transform(filename.begin(), filename.end(), filename.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return filename;
+}
+
+
+// Converts a dict with py::bytes value to a vector of standard C++ types.
+// This allows us to release the GIL early. Note that the vector consists only
+// of pointers to existing data so no substantial data copies are being made.
+inline std::vector<VfsAsset> ConvertAssetsDict(
+    const std::optional<std::unordered_map<std::string, py::bytes>>& assets) {
+  std::vector<VfsAsset> out;
+  if (assets.has_value()) {
+    for (const auto& [name, content] : *assets) {
+      out.emplace_back(name.c_str(), PYBIND11_BYTES_AS_STRING(content.ptr()),
+                       py::len(content));
+    }
+  }
+  return out;
+}
 
 template <typename T>
 class WrapperBase {
@@ -462,6 +506,10 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
  public:
   MjWrapper(const MjWrapper&);
   MjWrapper(MjWrapper&&);
+
+  // Takes ownership of the raw mjModel pointer.
+  explicit MjWrapper(raw::MjModel* ptr);
+
   ~MjWrapper();
 
   MjModelIndexer& indexer() { return indexer_; }
@@ -485,6 +533,8 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
       const std::optional<
           std::unordered_map<std::string, pybind11::bytes>>& assets);
 
+  static MjWrapper CompileSpec(raw::MjSpec* spec, const mjVFS* vfs);
+
   static constexpr char kFromRawPointer[] =
       "__MUJOCO_STRUCTS_MJMODELWRAPPER_LOOKUP";
   static MjWrapper* FromRawPointer(raw::MjModel* m) noexcept;
@@ -502,8 +552,6 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   pybind11::bytes paths_bytes;
 
  protected:
-  explicit MjWrapper(raw::MjModel* ptr);
-
   MjModelIndexer indexer_;
 };
 
@@ -591,8 +639,14 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
   explicit MjWrapper(MjModelWrapper* model);
   MjWrapper(const MjWrapper& other);
   MjWrapper(MjWrapper&&);
+
   // Used for deepcopy
   MjWrapper(const MjWrapper& other, MjModelWrapper* model);
+
+  // Internal constructor which takes ownership of given mjData pointer.
+  // Used for deserialization and recompile.
+  explicit MjWrapper(MjModelWrapper* model, raw::MjData* d);
+
   ~MjWrapper();
 
   const MjModelWrapper& model() const { return *model_; }
@@ -622,9 +676,6 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
   py_array_or_tuple_t<mjtNum> energy;
 
  protected:
-  // Internal constructor which takes ownership of given mjData pointer.
-  // Used for deserialization.
-  explicit MjWrapper(MjModelWrapper* model, raw::MjData* d);
   raw::MjData* Copy() const;
 
   // A reference to the model that was used to create this mjData.
@@ -727,7 +778,7 @@ class MjWrapper<raw::MjvGeom> : public WrapperBase<raw::MjvGeom> {
     py_array_or_tuple_t<                                        \
         std::remove_all_extents_t<decltype(raw::MjvGeom::var)>> \
         var
-  X(texrepeat);
+  X(matid);
   X(size);
   X(pos);
   X(mat);

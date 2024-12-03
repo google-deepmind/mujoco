@@ -99,7 +99,7 @@
 
     <!-- falling pendulum -->
     <body pos="4.0 0 0">
-      <freejoint/>
+      <freejoint name="freejoint"/>
       <geom/>
       <body pos="0 0 -0.8">
         <joint name="joint13" axis="0.4 0.5 0.6" type="slide" armature="0.02" range="-0.4 0.6"/>
@@ -124,7 +124,25 @@
         </body>
       </body>
     </body>
+
+    <body mocap="true">
+      <geom type="sphere" size="0.05"/>
+    </body>
+    <body mocap="true" pos="1.0 2.0 0.5" quat="1 0 1 0">
+      <geom type="sphere" size="0.05"/>
+    </body>
   </worldbody>
+
+  <tendon>
+    <fixed name="tendon_1" limited="true" range="-0.3 0.1" stiffness=".1" damping=".2">
+      <joint joint="joint2" coef=".1"/>
+      <joint joint="joint3" coef="-.2"/>
+    </fixed>
+    <fixed name="tendon_2" limited="true" range="-0.3 2" springlength="0 0.05" stiffness=".3" damping=".4">
+      <joint joint="joint4" coef=".3"/>
+      <joint joint="joint5" coef="-.4"/>
+    </fixed>
+  </tendon>
 
   <actuator>
     <motor gear="250 0 0" joint="joint1" name="act1"/>
@@ -135,5 +153,8 @@
     <motor gear="150" joint="joint15" name="act6"/>
     <motor gear="150" joint="joint16" name="act7"/>
     <motor gear="150" joint="joint17" name="act8"/>
+    <position tendon="tendon_2" kp="100"/>
+    <motor gear="2 3 4" jointinparent="joint1"/>
+    <motor gear="5 6 7 8 9 10" jointinparent="freejoint"/>
   </actuator>
 </mujoco>

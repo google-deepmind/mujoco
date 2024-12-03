@@ -61,8 +61,8 @@ Where the command line arguments are
 - The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
   measure artificially faster simulation.
 - When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
-  threads, to speed up simulation of large scenes. Note that while it is possible to to use both ``nthread`` and
-  ``npoolthread``, the scenarios for which one would want these different type of multithreading are usually mutually
+  threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
+  ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.
 - For more repeatable performance statistics, run the tool with the ``performance``
   `governor <https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt>`__ on Linux, or the
@@ -84,7 +84,7 @@ data plots. The model file can be specified as a command-line argument, or loade
 functionality. This code sample uses the native UI to render various controls, and provides an
 illustration of how the new UI framework is intended to be used. Below is a screen-capture of ``simulate`` in action:
 
-..  youtube:: 0ORsj_E17B0
+..  youtube:: P83tKA1iz2Y
     :width: 95%
     :align: center
 
@@ -94,7 +94,7 @@ selected object by holding Ctrl and dragging the mouse. Dragging the mouse alone
 are keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
 very useful while editing the model in an XML editor.
 
-The code is quite long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
+The code is long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
 The ``main()`` function initializes both MuJoCo and GLFW, opens a window, and install GLFW callbacks for mouse and
 keyboard handling. Note that there is no render callback; GLFW puts the user in charge, instead of running a rendering
 loop behind the scenes. The main loop handles UI events and rendering. The simulation is handled in a background
@@ -203,7 +203,7 @@ data file into a playable movie file:
    ffmpeg -f rawvideo -pixel_format rgb24 -video_size 2560x1440
           -framerate 60 -i rgb.out -vf "vflip,format=yuv420p" video.mp4
 
-Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be the identical.
+Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be identical.
 
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
 invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by

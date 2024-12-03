@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
@@ -28,8 +29,8 @@
 
 // dot-product, first vector is sparse
 //  flg_unc1: is vec1 memory layout uncompressed
-mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                     const int nnz1, const int* ind1, int flg_unc1) {
+mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                     int flg_unc1) {
 #ifdef mjUSEAVX
   return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
 #else
@@ -79,7 +80,7 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
 // dot-productX3, first vector is sparse; supernode of size 3
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
-                     const mjtNum* vec2, const int nnz1, const int* ind1) {
+                     const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
   mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
 #else
@@ -109,9 +110,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 
 // dot-product, both vectors are sparse
 //  flg_unc2: is vec2 memory layout uncompressed
-mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                      const int nnz1, const int* ind1,
-                      const int nnz2, const int* ind2, int flg_unc2) {
+mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1, int nnz2,
+                      const int* ind2, int flg_unc2) {
   int i1 = 0, i2 = 0;
   mjtNum res = 0;
 
@@ -148,8 +148,13 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
 
 
 // convert matrix from dense to sparse
-void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      int* rownnz, int* rowadr, int* colind) {
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise
+int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                     int* rownnz, int* rowadr, int* colind, int nnz) {
+  if (nnz <= 0) {
+    return 1;
+  }
+
   int adr = 0;
 
   // find non-zeros and construct sparse
@@ -161,6 +166,11 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     // find non-zeros
     for (int c=0; c < nc; c++) {
       if (mat[r*nc+c]) {
+        // check for out of bounds
+        if (adr >= nnz) {
+          return 1;
+        }
+
         // record index and count
         colind[adr] = c;
         rownnz[r]++;
@@ -170,6 +180,7 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
       }
     }
   }
+  return 0;
 }
 
 
@@ -202,6 +213,31 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
     res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
   }
 #endif  // mjUSEAVX
+}
+
+
+
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec.
+void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                          const int* rownnz, const int* rowadr, const int* colind) {
+  // clear res
+  mju_zero(res, nc);
+
+  for (int i=0; i < nr; i++) {
+    mjtNum scl = vec[i];
+
+    // skip if 0
+    if (!scl) continue;
+
+    // add row scaled by the corresponding vector element
+    int nnz = rownnz[i];
+    int adr = rowadr[i];
+    const int* ind = colind + adr;
+    const mjtNum* row = mat + adr;
+    for (int j=0; j < nnz; j++) {
+      res[ind[j]] += row[j] * scl;
+    }
+  }
 }
 
 
@@ -637,18 +673,16 @@ void mju_superSparse(int nr, int* rowsuper,
 
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                            int nr, int nc,  const int* rownnz,
-                            const int* rowadr, const int* colind,
-                            const int* rownnzT, const int* rowadrT,
-                            const int* colindT, const int* rowsuperT,
-                            mjData* d) {
+void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
+                            const int* rownnz, const int* rowadr, const int* colind,
+                            const int* rownnzT, const int* rowadrT, const int* colindT,
+                            const int* rowsuperT, mjData* d) {
   mj_markStack(d);
-  int* chain = mj_stackAllocInt(d, 2*nc);
+  int* chain = mj_stackAllocInt(d, 2*nr);
   int nchain = 0;
   int* res_colind = NULL;
 
-  for (int r=0; r < nc; r++) {
+  for (int r=0; r < nr; r++) {
     // supernode; copy everything to next row
     if (rowsuperT && r > 0 && rowsuperT[r-1] > 0) {
       res_rownnz[r] = res_rownnz[r - 1];
@@ -664,7 +698,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         res_rownnz[r]++;
       }
     } else {
-      int inew = 0, iold = nc;
+      int inew = 0, iold = nr;
       nchain = 0;
 
       for (int i=0; i < rownnzT[r]; i++) {
@@ -679,8 +713,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         int end = rowadr[c] + rownnz[c];
         for (int adr1=rowadr[c]; adr1 < end; adr1++) {
           int col_mat = colind[adr1];
-          while (adr < nchain && chain[iold + adr] < col_mat &&
-                 chain[iold + adr] <= r) {
+          while (adr < nchain && chain[iold + adr] < col_mat && chain[iold + adr] <= r) {
             chain[inew + nnewchain++] = chain[iold + adr++];
           }
 
@@ -720,7 +753,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
   }
 
   res_rowadr[0] = 0;
-  for (int r = 1; r < nc; r++) {
+  for (int r = 1; r < nr; r++) {
     res_rowadr[r] = res_rowadr[r-1] + res_rownnz[r-1];
   }
 
@@ -741,7 +774,7 @@ void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc) {
 // res_rowadr is required to be precomputed
 void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const mjtNum* diag, int nr, int nc,
-                        int* res_rownnz, int* res_rowadr, int* res_colind,
+                        int* res_rownnz, const int* res_rowadr, int* res_colind,
                         const int* rownnz, const int* rowadr,
                         const int* colind, const int* rowsuper,
                         const int* rownnzT, const int* rowadrT,
@@ -858,4 +891,52 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   }
 
   mj_freeStack(d);
+}
+
+// compute row non-zeros of reverse-Cholesky factor L, return total non-zeros
+// based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
+// note: reads pattern from upper triangle
+int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
+                      int n, mjData* d) {
+  mj_markStack(d);
+  int* parent = mj_stackAllocInt(d, n);
+  int* flag = mj_stackAllocInt(d, n);
+
+  // loop over rows in reverse order
+  for (int r = n - 1; r >= 0; r--) {
+    parent[r] = -1;
+    flag[r] = r;
+    L_rownnz[r] = 1;  // start with 1 for diagonal
+
+    // loop over non-zero columns
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    for (int c = start; c < end; c++) {
+      int i = colind[c];
+      if (i > r) {
+        // traverse from i to ancestor, stop when row is flagged
+        while (flag[i] != r) {
+          // if not yet set, set parent to current row
+          if (parent[i] == -1) {
+            parent[i] = r;
+          }
+
+          // increment non-zeros, flag row i, advance to parent
+          L_rownnz[i]++;
+          flag[i] = r;
+          i = parent[i];
+        }
+      }
+    }
+  }
+
+  mj_freeStack(d);
+
+  // sum up all row non-zeros
+  int nnz = 0;
+  for (int r = 0; r < n; r++) {
+    nnz += L_rownnz[r];
+  }
+
+  return nnz;
 }

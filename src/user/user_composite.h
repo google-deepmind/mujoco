@@ -31,9 +31,6 @@ typedef enum _mjtCompType {
   mjCOMPTYPE_ROPE,
   mjCOMPTYPE_LOOP,
   mjCOMPTYPE_CLOTH,
-  mjCOMPTYPE_BOX,
-  mjCOMPTYPE_CYLINDER,
-  mjCOMPTYPE_ELLIPSOID,
 
   mjNCOMPTYPES
 } mjtCompType;
@@ -75,7 +72,6 @@ class mjCComposite {
   bool MakeGrid(mjCModel* model, mjsBody* body, char* error, int error_sz);
   bool MakeRope(mjCModel* model, mjsBody* body, char* error, int error_sz);
   bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
-  bool MakeBox(mjCModel* model, mjsBody* body, char* error, int error_sz);
   void MakeShear(mjCModel* model);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
@@ -84,13 +80,6 @@ class mjCComposite {
   void MakeClothBonesSubgrid(mjCModel* model, mjsSkin* skin);
   void MakeCableBones(mjCModel* model, mjsSkin* skin);
   void MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin);
-
-  void MakeSkin3(mjCModel* model);
-  void MakeSkin3Box(mjsSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
-  void MakeSkin3Smooth(mjsSkin* skin, int c0, int c1, int side,
-                       const std::map<std::string, int>& vmap, const char* format);
-
-  void BoxProject(double* pos);
 
   // common properties
   std::string prefix;             // name prefix
@@ -106,8 +95,7 @@ class mjCComposite {
   // currently used only for cable
   std::string initial;            // root boundary type
   std::vector<float> uservert;    // user-specified vertex positions
-  std::string userface;           // connectivity
-  mjtNum size[3];                 // rope size (meaning depends on the shape)
+  double size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
 
   // body names used in the skin
@@ -137,7 +125,7 @@ class mjCComposite {
 
  private:
   mjsBody* AddRopeBody(mjCModel* model, mjsBody* body, int ix, int ix1);
-  mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
+  mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, double normal[3], double prev_quat[4]);
 
   // temporary skin vectors
   void CopyIntoSkin(mjsSkin* skin);

@@ -27,10 +27,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 static const char* const kDefaultModel = "testdata/model.xml";
 
 using ::testing::Pointwise;
@@ -41,7 +37,9 @@ using PipelineTest = MujocoTest;
 // Joint and actuator damping should integrate identically under implicit
 TEST_F(PipelineTest, SparseDenseEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_NE(model, nullptr) << error;
   mjData* data = mj_makeData(model);
 
   // set dense jacobian, call mj_forward, save accelerations

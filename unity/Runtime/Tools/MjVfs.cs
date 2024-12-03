@@ -40,11 +40,6 @@ public sealed class MjVfs : IDisposable {
     }
   }
 
-  // Number of files added to the filesystem.
-  public int FilesCount {
-    get { return Data.nfile; }
-  }
-
   // Adds a new file to the virtual filesystem.
   public unsafe void AddFile(string filename, string contents) {
     var contents_bytes = Encoding.UTF8.GetBytes(contents);
@@ -59,20 +54,8 @@ public sealed class MjVfs : IDisposable {
     }
   }
 
-  // Searches the VFS for the specified file and returns its index.
-  // The index then can be used to retrieve the file contents from Data.filedata array.
-  public unsafe int FindFile(string filename) {
-    return mj_findFileVFS(_unmanagedVfs.ToPointer(), filename);
-  }
-
   // Loads a model from the specified file.
-  // The file is assumed to be located in the filesystem. If it's not found, the method will throw
-  // an ArgumentException.
   public unsafe MujocoLib.mjModel_* LoadXML(string filename) {
-    if (FindFile(filename) < 0) {
-      throw new ArgumentException($"File {filename} was not added to the VFS.");
-    }
-
     var errorBuf = new StringBuilder(1024);
     MujocoLib.mjModel_* model = MujocoLib.mj_loadXML(
       filename, _unmanagedVfs.ToPointer(), errorBuf, errorBuf.Capacity);

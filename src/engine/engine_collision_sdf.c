@@ -14,16 +14,16 @@
 
 #include "engine/engine_collision_sdf.h"
 
-#include <math.h>
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_primitive.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -191,17 +191,17 @@ mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjt
   case mjSDFTYPE_SINGLE:
     return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
   case mjSDFTYPE_INTERSECTION:
-    mju_rotVecMat(y, x, s->relmat);
+    mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     return mju_max(geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]),
                    geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]));
   case mjSDFTYPE_MIDSURFACE:
-    mju_rotVecMat(y, x, s->relmat);
+    mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]) -
            geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
   case mjSDFTYPE_COLLISION:
-    mju_rotVecMat(y, x, s->relmat);
+    mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     mjtNum A = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
     mjtNum B = geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
@@ -221,34 +221,34 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
 
   switch (s->type) {
   case mjSDFTYPE_INTERSECTION:
-    mju_rotVecMat(y, x, s->relmat);
+    mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     int i = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]) >
             geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]) ? 0 : 1;
     geomGradient(gradient, m, d, s->plugin[i], s->id[i], point[i], s->geomtype[i]);
     if (i == 1) {
-      mju_rotVecMatT(gradient, gradient, s->relmat);
+      mju_mulMatTVec3(gradient, s->relmat, gradient);
     }
     break;
   case mjSDFTYPE_MIDSURFACE:
-    mju_rotVecMat(y, x, s->relmat);
+    mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     geomGradient(grad1, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
     mju_normalize3(grad1);
     geomGradient(grad2, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
-    mju_rotVecMatT(grad2, grad2, s->relmat);
+    mju_mulMatTVec3(grad2, s->relmat, grad2);
     mju_normalize3(grad2);
     mju_sub3(gradient, grad1, grad2);
     mju_normalize3(gradient);
     break;
   case mjSDFTYPE_COLLISION:
-    mju_rotVecMat(y, x, s->relmat);
+    mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     mjtNum A = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
     mjtNum B = geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
     geomGradient(grad1, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
     geomGradient(grad2, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
-    mju_rotVecMatT(grad2, grad2, s->relmat);
+    mju_mulMatTVec3(grad2, s->relmat, grad2);
     gradient[0] = grad1[0] + grad2[0];
     gradient[1] = grad1[1] + grad2[1];
     gradient[2] = grad1[2] + grad2[2];
@@ -306,11 +306,10 @@ static void undoTransformation(const mjModel* m, const mjData* d, int g,
 //---------------------------- narrow phase -----------------------------------------------
 
 // comparison function for contact sorting
-quicksortfunc(distcompare, dist, i1, i2) {
-  mjtNum d1 = ((mjtNum*)dist)[*(int*)i1];
-  mjtNum d2 = ((mjtNum*)dist)[*(int*)i2];
-
-  if (d1 < d2) {
+static inline int distcmp(int* i, int* j, void* context) {
+  mjtNum d1 = ((mjtNum*)context)[*i];
+  mjtNum d2 = ((mjtNum*)context)[*j];
+    if (d1 < d2) {
     return -1;
   } else if (d1 == d2) {
     return 0;
@@ -318,6 +317,9 @@ quicksortfunc(distcompare, dist, i1, i2) {
     return 1;
   }
 }
+
+// define distSort function for contact sorting
+mjSORT(distSort, int, distcmp)
 
 // check if the collision point already exists
 static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
@@ -487,7 +489,7 @@ static int boxIntersect(const mjtNum bvh[6], const mjtNum offset[3],
   mjtNum candidate[3];
   mjtNum r = mju_norm3(bvh+3);
 
-  mju_rotVecMat(candidate, bvh, rotation);
+  mju_mulMatVec3(candidate, rotation, bvh);
   mju_addTo3(candidate, offset);
 
   // check if inside the bounding box
@@ -613,7 +615,7 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
       };
 
       // transform local 1 (mesh) to local 2 (sdf)
-      mju_rotVecMat(corners+3*v, vec, rotation);
+      mju_mulMatVec3(corners+3*v, rotation, vec);
       mju_addTo3(corners+3*v, offset);
     }
 
@@ -642,7 +644,10 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   }
 
   // sort contacts using depth
-  mjQUICKSORT(index, ncandidate, sizeof(int), distcompare, dist);
+  if (ncandidate > 1) {
+    int buf[MAXMESHPNT];
+    distSort(index, buf, ncandidate, dist);
+  }
 
   // add only the first mjMAXCONPAIR pairs
   for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {
@@ -694,7 +699,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     vec2[1] = (i&2 ? size2[1]+size2[4] : size2[1]-size2[4]);
     vec2[2] = (i&4 ? size2[2]+size2[5] : size2[2]-size2[5]);
 
-    mju_rotVecMat(vec2, vec2, rotation1);
+    mju_mulMatVec3(vec2, rotation1, vec2);
     mju_addTo3(vec2, offset1);
 
     for (int k=0; k < 3; k++) {
@@ -753,10 +758,10 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     x[1] = aabb[1] + (aabb[4]-aabb[1]) * mju_Halton(j, 3);
     x[2] = aabb[2] + (aabb[5]-aabb[2]) * mju_Halton(j, 5);
 
-    mju_rotVecMat(y, x, rotation2);
+    mju_mulMatVec3(y, rotation2, x);
     mju_addTo3(y, offset2);
 
-    mju_rotVecMat(x, y, rotation12);
+    mju_mulMatVec3(x, rotation12, y);
     mju_addTo3(x, offset12);
 
     j++;

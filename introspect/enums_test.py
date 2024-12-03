@@ -44,7 +44,8 @@ class EnumsTest(absltest.TestCase):
                                           ('mjENBL_INVDISCRETE', 1<<3),
                                           ('mjENBL_MULTICCD', 1<<4),
                                           ('mjENBL_ISLAND', 1<<5),
-                                          ('mjNENABLE', 6)))
+                                          ('mjENBL_NATIVECCD', 1<<6),
+                                          ('mjNENABLE', 7)))
 
   # values mostly increment by one with occasional overrides
   def test_mjtGeom(self):  # pylint: disable=invalid-name

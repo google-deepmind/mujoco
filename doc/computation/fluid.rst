@@ -116,19 +116,19 @@ also disables the inertia-based model for the parent body. The
      - :math:`C_{D, \text{blunt}}`
      - 0.5
    * - 1
-     - Slender drag coeficient
+     - Slender drag coefficient
      - :math:`C_{D, \text{slender}}`
      - 0.25
    * - 2
-     - Angular drag coeficient
+     - Angular drag coefficient
      - :math:`C_{D, \text{angular}}`
      - 1.5
    * - 3
-     - Kutta lift coeficient
+     - Kutta lift coefficient
      - :math:`C_K`
      - 1.0
    * - 4
-     - Magnus lift coeficient
+     - Magnus lift coefficient
      - :math:`C_M`
      - 1.0
 

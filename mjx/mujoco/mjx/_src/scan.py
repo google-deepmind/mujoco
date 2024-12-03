@@ -240,7 +240,7 @@ def flat(
         'a': m.actuator_actadr[i],
         'j': (
             m.actuator_trnid[i, 0]
-            if m.actuator_trntype[i] == TrnType.JOINT
+            if m.actuator_trntype[i] in (TrnType.JOINT, TrnType.JOINTINPARENT)
             else -1
         ),
         's': (
@@ -250,7 +250,7 @@ def flat(
         ),
     }
     v, q = np.array([-1]), np.array([-1])
-    if m.actuator_trntype[i] == TrnType.JOINT:
+    if m.actuator_trntype[i] in (TrnType.JOINT, TrnType.JOINTINPARENT):
       # v/q are associated with the joint transmissions only
       v = np.nonzero(m.dof_jntid == typ_ids['j'])[0]
       q = np.nonzero(_q_jointid(m) == typ_ids['j'])[0]

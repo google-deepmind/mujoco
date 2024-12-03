@@ -61,23 +61,15 @@
     <fromto geom1="ellipsoid" geom2="box" cutoff="1"/>
     <fromto geom1="ellipsoid" geom2="cylinder" cutoff="1"/>
     <fromto geom1="ellipsoid" geom2="mesh2" cutoff="1"/>
-    <fromto geom1="ellipsoid" geom2="hfield" cutoff="1"/>
     <fromto geom1="mesh1" geom2="sphere" cutoff="1"/>
     <fromto geom1="mesh1" geom2="box" cutoff="1"/>
     <fromto geom1="mesh1" geom2="mesh2" cutoff="1"/>
-    <fromto geom1="hfield" geom2="sphere" cutoff="1"/>
-    <fromto geom1="hfield" geom2="box" cutoff="1"/>
-    <fromto geom1="hfield" geom2="mesh1" cutoff="1"/>
 
     <fromto geom1="ellipsoid" geom2="box" cutoff="0.2"/>
     <fromto geom1="ellipsoid" geom2="cylinder" cutoff="0.2"/>
     <fromto geom1="ellipsoid" geom2="mesh2" cutoff="0.2"/>
-    <fromto geom1="ellipsoid" geom2="hfield" cutoff="0.2"/>
     <fromto geom1="mesh1" geom2="sphere" cutoff="0.2"/>
     <fromto geom1="mesh1" geom2="box" cutoff="0.2"/>
     <fromto geom1="mesh1" geom2="mesh2" cutoff="0.2"/>
-    <fromto geom1="hfield" geom2="sphere" cutoff="0.2"/>
-    <fromto geom1="hfield" geom2="box" cutoff="0.2"/>
-    <fromto geom1="hfield" geom2="mesh1" cutoff="0.2"/>
   </sensor>
 </mujoco>

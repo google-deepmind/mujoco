@@ -32,14 +32,15 @@
 using tinyxml2::XMLElement;
 
 // URDF joint type
-static const int urJoint_sz = 6;
+static const int urJoint_sz = 7;
 static const mjMap urJoint_map[urJoint_sz] = {
   {"revolute",    0},
   {"continuous",  1},
   {"prismatic",   2},
   {"fixed",       3},
   {"floating",    4},
-  {"planar",      5}
+  {"planar",      5},
+  {"spherical",   6}  // Bullet physics supports ball joints (non-standard URDF)
 };
 
 
@@ -61,7 +62,7 @@ mjXURDF::~mjXURDF() {
 
 // clear internal variables
 void mjXURDF::Clear(void) {
-  model = 0;
+  spec = 0;
 
   urName.clear();
   urParent.clear();
@@ -95,25 +96,25 @@ void mjXURDF::Parse(
   if (mjc) {
     XMLElement *section;
     if ((section = FindSubElem(mjc, "compiler"))) {
-      mjXReader::Compiler(section, model);
+      mjXReader::Compiler(section, spec);
     }
 
     if ((section = FindSubElem(mjc, "option"))) {
-      mjXReader::Option(section, &model->option);
+      mjXReader::Option(section, &spec->option);
     }
 
     if ((section = FindSubElem(mjc, "size"))) {
-      mjXReader::Size(section, model);
+      mjXReader::Size(section, spec);
     }
   }
 
   // enforce required compiler defaults for URDF
-  model->degree = false;
+  spec->compiler.degree = false;
 
   // get model name
   std::string modelname;
   if (ReadAttrTxt(root, "name", modelname)) {
-    mjs_setString(model->modelname, modelname.c_str());
+    mjs_setString(spec->modelname, modelname.c_str());
   }
 
   // find and register all materials
@@ -207,7 +208,7 @@ void mjXURDF::Parse(
   // override the pose for the base link and add a free joint
   for (int i = 0; i < (int)urName.size(); i++) {
     if (urParent[i] < 0) {
-      mjsBody* world = mjs_findBody(model, "world");
+      mjsBody* world = mjs_findBody(spec, "world");
       mjsBody* pbody = mjs_findChild(world, urName[i].c_str());
       mjuu_copyvec(pbody->pos, pos, 3);
       mjuu_copyvec(pbody->quat, quat, 4);
@@ -233,7 +234,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
   // get body name and pointer to mjsBody
   ReadAttrTxt(body_elem, "name", name, true);
   name = GetPrefixedName(name);
-  world = mjs_findBody(model, "world");
+  world = mjs_findBody(spec, "world");
   pbody = mjs_findChild(world, name.c_str());
   if (!pbody) {
     throw mjXError(body_elem, "URDF body not found");  // SHOULD NOT OCCUR
@@ -273,9 +274,9 @@ void mjXURDF::Body(XMLElement* body_elem) {
     //  lquat = rotation from specified to default (joint/body) inertial frame
     double lquat[4] = {1, 0, 0, 0};
     double tmpquat[4] = {1, 0, 0, 0};
-    const char* altres = mjs_fullInertia(lquat, pbody->inertia, pbody->fullinertia);
+    const char* altres = mjuu_fullInertia(lquat, nullptr, pbody->fullinertia);
 
-    // inertia are sometimes 0 in URDF files: ignore error in altres, fix later
+    // inertias are sometimes 0 in URDF files: ignore error in altres, fix later
     (void) altres;
 
     // correct for alignment of full inertia matrix
@@ -315,7 +316,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         }
       }
       // create geom if not discarded
-      if (!model->discardvisual) {
+      if (!spec->compiler.discardvisual) {
         pgeom = Geom(elem, pbody, false);
 
         // save color
@@ -363,7 +364,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
   }
 }
 
-void mjXURDF::Parse(XMLElement* root) {
+void mjXURDF::Parse(XMLElement* root, const mjVFS* vfs) {
   double pos[3] = {0};
   mjuu_setvec(pos, 0, 0, 0);
   double quat[4] = {1, 0, 0, 0};
@@ -391,7 +392,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);
   name = GetPrefixedName(name);
-  world = mjs_findBody(model, "world");
+  world = mjs_findBody(spec, "world");
   parent = mjs_findChild(world, name.c_str());
   if (!parent) {                      // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid parent name in URDF joint definition");
@@ -401,7 +402,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   elem = FindSubElem(joint_elem, "child", true);
   ReadAttrTxt(elem, "link", name, true);
   name = GetPrefixedName(name);
-  world = mjs_findBody(model, "world");
+  world = mjs_findBody(spec, "world");
   pbody = mjs_findChild(world, name.c_str());
   if (!pbody) {                       // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid child name in URDF joint definition");
@@ -474,6 +475,14 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     pjoint2->type = mjJNT_HINGE;
     mjuu_setvec(pjoint2->pos, 0, 0, 0);
     mjuu_copyvec(pjoint2->axis, axis, 3);
+    break;
+
+  case 6:  // ball joint
+    pjoint = mjs_addJoint(pbody, 0);
+    mjs_setString(pjoint->name, jntname.c_str());
+    pjoint->type = mjJNT_BALL;
+    mjuu_setvec(pjoint->pos, 0, 0, 0);
+    mjuu_copyvec(pjoint->axis, axis, 3);
   }
 
   // dynamics element
@@ -566,6 +575,9 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
 
   // mesh
   else if ((temp = FindSubElem(elem, "mesh"))) {
+    mjsMesh* pmesh = 0;
+    bool newmesh = false;
+
     // set geom type and read mesh attributes
     pgeom->type = mjGEOM_MESH;
     meshfile = ReadAttrStr(temp, "filename", true).value();
@@ -574,7 +586,7 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
                                       .value_or(default_meshscale);
 
     // strip file name if necessary
-    if (model->strippath) {
+    if (spec->strippath) {
       meshfile = mjuu_strippath(meshfile);
     }
 
@@ -582,35 +594,43 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
     std::string meshname = mjuu_strippath(meshfile);
     meshname = mjuu_stripext(meshname);
 
-    // look for existing mesh
-    mjsMesh* mesh = mjs_findMesh(model, meshname.c_str());
-    mjsMesh* pmesh = 0;
+    if (meshes.find(meshname) == meshes.end()) {
+      // does not exist: create
+      pmesh = mjs_addMesh(spec, 0);
+      meshes[meshname].push_back(pmesh);
+      newmesh = true;
+    } else {
+      int i = 0;
 
-    // does not exist: create
-    if (!mesh) {
-      pmesh = mjs_addMesh(model, 0);
-    }
+      // find if it exists with the same scale
+      for (mjsMesh* mesh : meshes[meshname]) {
+        if (mesh->scale[0] == meshscale[0] &&
+            mesh->scale[1] == meshscale[1] &&
+            mesh->scale[2] == meshscale[2]) {
+          pmesh = mesh;
+          break;
+        }
+        i++;
+      }
 
-    // exists with different scale: append name with '1', create
-    else if (mesh->scale[0]!=meshscale[0] ||
-             mesh->scale[1]!=meshscale[1] ||
-             mesh->scale[2]!=meshscale[2]) {
-      pmesh = mjs_addMesh(model, 0);
-      meshname = meshname + "1";
-    }
-
-    // point to already existing spec
-    else {
-      pmesh = mesh;
+      // add a new spec making an incremental new name
+      if (i == meshes[meshname].size()) {
+        pmesh = mjs_addMesh(spec, 0);
+        meshes[meshname].push_back(pmesh);
+        meshname = meshname + std::to_string(i);
+        newmesh = true;
+      }
     }
 
     // set fields
-    mjs_setString(pmesh->file, meshfile.c_str());
-    mjs_setString(pmesh->name, meshname.c_str());
+    if (newmesh) {
+      mjs_setString(pmesh->file, meshfile.c_str());
+      mjs_setString(pmesh->name, meshname.c_str());
+      pmesh->scale[0] = meshscale[0];
+      pmesh->scale[1] = meshscale[1];
+      pmesh->scale[2] = meshscale[2];
+    }
     mjs_setString(pgeom->meshname, meshname.c_str());
-    pmesh->scale[0] = meshscale[0];
-    pmesh->scale[1] = meshscale[1];
-    pmesh->scale[2] = meshscale[2];
   }
 
   else {
@@ -694,14 +714,14 @@ void mjXURDF::AddToTree(int n) {
   // get pointer to parent in mjCModel tree
   mjsBody *parent = 0, *child = 0, *world = 0;
   if (urParent[n]>=0) {
-    world = mjs_findBody(model, "world");
+    world = mjs_findBody(spec, "world");
     parent = mjs_findChild(world, urName[urParent[n]].c_str());
 
     if (!parent)
       throw mjXError(0, "URDF body parent should already be in tree: %s",
                      urName[urParent[n]].c_str());       // SHOULD NOT OCCUR
   } else {
-    parent = mjs_findBody(model, "world");
+    parent = mjs_findBody(spec, "world");
   }
 
   // add this body

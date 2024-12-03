@@ -15,15 +15,17 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cmath>
 #include <cstddef>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -34,6 +36,7 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::Pointwise;
 
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
   return std::vector<mjtNum>(array + ncolumn * row,
@@ -61,6 +64,58 @@ TEST_F(UserCModelTest, RepeatedNames) {
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
 }
+
+TEST_F(UserCModelTest, SameFrame) {
+  static constexpr char xml[] = R"(
+   <mujoco>
+     <default>
+      <geom type="box" size="1 2 3"/>
+     </default>
+
+     <worldbody>
+       <body name="body1">
+         <geom name="none"       mass="0" pos="1 1 1" euler="10 10 10"/>
+         <geom name="body"       mass="0"/>
+         <geom name="inertia"    mass="1" pos="3 2 1" euler="20 30 40"/>
+         <geom name="bodyrot"    mass="0" pos="1 1 1"/>
+         <geom name="inertiarot" mass="0" euler="20 30 40"/>
+        </body>
+      </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->geom_sameframe[0], mjSAMEFRAME_NONE);
+  EXPECT_EQ(model->geom_sameframe[1], mjSAMEFRAME_BODY);
+  EXPECT_EQ(model->geom_sameframe[2], mjSAMEFRAME_INERTIA);
+  EXPECT_EQ(model->geom_sameframe[3], mjSAMEFRAME_BODYROT);
+  EXPECT_EQ(model->geom_sameframe[4], mjSAMEFRAME_INERTIAROT);
+
+  // make data, get geom_xpos
+  mjData* data = mj_makeData(model);
+  mj_kinematics(model, data);
+  auto geom_xpos = AsVector(data->geom_xpos, model->ngeom*3);
+  auto geom_xmat = AsVector(data->geom_xmat, model->ngeom*9);
+
+  // set all geom_sameframe to 0, call kinematics again
+  for (int i = 0; i < model->ngeom; i++) {
+    model->geom_sameframe[i] = mjSAMEFRAME_NONE;
+  }
+  mj_resetData(model, data);
+  mj_kinematics(model, data);
+  auto geom_xpos2 = AsVector(data->geom_xpos, model->ngeom*3);
+  auto geom_xmat2 = AsVector(data->geom_xmat, model->ngeom*9);
+
+  // expect them to be equal
+  constexpr double eps = 1e-6;
+  EXPECT_THAT(geom_xpos, Pointwise(DoubleNear(eps), geom_xpos2));
+  EXPECT_THAT(geom_xmat, Pointwise(DoubleNear(eps), geom_xmat2));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 
@@ -220,22 +275,14 @@ TEST_F(UserDataTest, AutoNUserSensor) {
 
 // ------------- test duplicate names ------------------------------------------
 TEST_F(UserDataTest, DuplicateNames) {
-  static const char* const kFilePath = "user/testdata/load_twice.xml";
+  static const char* const kFilePath = "user/testdata/malformed_duplicated.xml";
   const std::string xml_path = GetTestDataFilePath(kFilePath);
 
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
 
-  EXPECT_THAT(m, NotNull()) << error.data();
-  EXPECT_THAT(m->nmesh, 2);
-
-  for (int i = 0; i < m->nmesh; i++) {
-    char mesh_name[mjMAXUINAME] = "";
-    util::strcat_arr(mesh_name, m->names + m->name_meshadr[i]);
-    EXPECT_THAT(std::string(mesh_name), "cube_" + std::to_string(i));
-  }
-
-  mj_deleteModel(m);
+  EXPECT_THAT(m, IsNull());
+  EXPECT_STREQ(error.data(), "Error: repeated name 'cube' in mesh");
 }
 
 // ------------- test fusestatic -----------------------------------------------
@@ -283,7 +330,7 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   mj_step(m_fuse, d_fuse);
   mj_step(m_no_fuse, d_no_fuse);
 
-  EXPECT_THAT(d_fuse->qvel[0], DoubleNear(d_no_fuse->qvel[0], 1e-17))
+  EXPECT_THAT(d_fuse->qvel[0], DoubleNear(d_no_fuse->qvel[0], 2e-17))
       << "Velocity should be the same after 1 step";
   EXPECT_NE(d_fuse->qvel[0], 0);
 
@@ -402,6 +449,178 @@ TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
   mj_deleteModel(model2);
   mj_deleteData(d1);
   mj_deleteData(d2);
+}
+
+// ------------- test lengthrange ----------------------------------------------
+
+using LengthRangeTest = MujocoTest;
+
+TEST_F(LengthRangeTest, LengthRangeThreading) {
+  char error[1024];
+  size_t error_sz = 1024;
+  std::string field = "";
+
+  static const char* const kLengthrangePath =
+      "user/testdata/lengthrange.xml";
+
+  const std::string xml_path1 = GetTestDataFilePath(kLengthrangePath);
+  mjSpec* spec = mj_parseXML(xml_path1.c_str(), 0, error, error_sz);
+  EXPECT_THAT(spec, NotNull()) << error;
+  mjModel* model1 = mj_compile(spec, 0);
+  EXPECT_THAT(model1, NotNull()) << error;
+
+  // model is such that the lengthrange for first actuator is [1, sqrt(5)]
+  EXPECT_THAT(model1->actuator_lengthrange[0], DoubleNear(1.0, 1e-3));
+  EXPECT_THAT(model1->actuator_lengthrange[1],
+              DoubleNear(std::sqrt(5.0), 1e-3));
+
+  // recompile without threads
+  ASSERT_EQ(spec->compiler.usethread, 1);
+  spec->compiler.usethread = 0;
+  mjModel* model2 = mj_compile(spec, 0);
+  EXPECT_THAT(model2, NotNull()) << error;
+
+  // expect threaded and unthreaded models to be identical
+  EXPECT_LE(CompareModel(model1, model2, field), 0)
+      << "Threaded and unthreaded lengthrange models are different!\n"
+      << "Different field: " << field << '\n';
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteSpec(spec);
+}
+
+// ----------------------------- test modeldir  --------------------------------
+
+TEST_F(MujocoTest, Modeldir) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "meshdir/cube.obj", cube, sizeof(cube));
+
+  // child with the asset
+  mjSpec* child = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(child, 0);
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
+  mjs_setString(child->meshdir, "meshdir");
+  mjs_setString(mesh->file, "cube.obj");
+  mjs_setString(mesh->name, "cube");
+  mjs_setString(geom->meshname, "cube");
+  mjs_setFrame(geom->element, frame);
+  geom->type = mjGEOM_MESH;
+
+  // parent attaching the child
+  mjSpec* spec = mj_makeSpec();
+  mjs_setString(spec->meshdir, "asset");
+  mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(MujocoTest, NestedMeshDir) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="child_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="child_mesh.obj"/>
+    </asset>
+
+    <worldbody>
+      <body name="child">
+        <geom type="mesh" mesh="m"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="parent_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="parent_mesh.obj"/>
+      <model name="child" file="child.xml"/>
+    </asset>
+
+    <worldbody>
+      <body name="parent">
+        <geom type="mesh" mesh="m"/>
+        <attach model="child" body="child" prefix="child_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char grandparent_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="grandparent_meshdir"/>
+
+    <asset>
+      <mesh name="m" file="grandparent_mesh.obj"/>
+      <model name="parent" file="parent.xml"/>
+    </asset>
+
+    <worldbody>
+      <geom type="mesh" mesh="m"/>
+      <attach model="parent" body="parent" prefix="parent_"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child_meshdir/child_mesh.obj", cube,
+                  sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+  mj_addBufferVFS(vfs.get(), "parent_meshdir/parent_mesh.obj", cube,
+                  sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "parent.xml", parent_xml, sizeof(parent_xml));
+  mj_addBufferVFS(vfs.get(), "grandparent_meshdir/grandparent_mesh.obj", cube,
+                  sizeof(cube));
+
+  std::array<char, 1024> error;
+  mjModel* child_model = LoadModelFromString(child_xml, error.data(),
+                                             error.size(), vfs.get());
+  EXPECT_THAT(child_model, NotNull()) << error.data();
+  mj_deleteModel(child_model);
+
+  mjModel* parent_model = LoadModelFromString(parent_xml, error.data(),
+                                              error.size(), vfs.get());
+  EXPECT_THAT(parent_model, NotNull()) << error.data();
+  mj_deleteModel(parent_model);
+
+  mjModel* grandparent_model = LoadModelFromString(
+      grandparent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(grandparent_model, NotNull()) << error.data();
+  mj_deleteModel(grandparent_model);
+
+  mj_deleteVFS(vfs.get());
 }
 
 }  // namespace

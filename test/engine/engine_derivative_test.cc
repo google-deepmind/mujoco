@@ -31,6 +31,7 @@
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_errmem.h"
+#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -84,11 +85,6 @@ static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
     }
     std::cerr << "\n";
   }
-}
-
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
 }
 
 static const char* const kEnergyConservingPendulumPath =
@@ -159,6 +155,149 @@ TEST_F(DerivativeTest, SmoothDvel) {
   }
 }
 
+// disabled actuators do not contribute to d_qfrc_actuator/d_qvel
+TEST_F(DerivativeTest, DisabledActuators) {
+  // model with only a position actuator
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position joint="joint" group="1" kp="2000" kv="200"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  mjModel* m1 = LoadModelFromString(xml1);
+  mjData* d1 = mj_makeData(m1);
+
+  d1->ctrl[0] = 6;
+  while (d1->time < 1)
+    mj_step(m1, d1);
+
+  // model with a position actuator and an intvelocity actuator
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" actuatorgroupdisable="2"/>
+
+    <worldbody>
+      <body>
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position joint="joint" group="1" kp="2000" kv="200"/>
+      <intvelocity joint="joint" group="2" kp="2000" kv="200" actrange="-6 6"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  mjModel* m2 = LoadModelFromString(xml2);
+  mjData* d2 = mj_makeData(m2);
+
+  d2->ctrl[0] = 6;
+  d2->ctrl[1] = 6;
+
+  while (d2->time < 1)
+    mj_step(m2, d2);
+
+  // expect same qvel in both models
+  EXPECT_EQ(d1->qvel[0], d2->qvel[0]);
+
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+}
+
+// actuator order has no effect
+TEST_F(DerivativeTest, ActuatorOrder) {
+  // model with stateful actuator first
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="0" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="1" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <muscle joint="0" ctrlrange="0 6"/>
+      <damper joint="1" kv="200" ctrlrange="0 6"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml1, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << "Failed to load model: " << error;
+  mjData* d1 = mj_makeData(m1);
+
+  d1->ctrl[0] = 6;
+  d1->ctrl[1] = 6;
+
+  while (d1->time < 1)
+    mj_step(m1, d1);
+
+  // model with stateful actuator second
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="0" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="1" type="slide" range="-1 1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <damper joint="1" kv="200" ctrlrange="0 6"/>
+      <muscle joint="0" ctrlrange="0 6"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  mjModel* m2 = LoadModelFromString(xml2, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << "Failed to load model: " << error;
+  mjData* d2 = mj_makeData(m2);
+
+  d2->ctrl[0] = 6;
+  d2->ctrl[1] = 6;
+
+  while (d2->time < 1)
+    mj_step(m2, d2);
+
+  // expect same qvel in both models
+  EXPECT_EQ(d1->qvel[0], d2->qvel[0]);
+  EXPECT_EQ(d1->qvel[1], d2->qvel[1]);
+
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+}
+
 // compare analytic and fin-diff d_qfrc_passive/d_qvel
 TEST_F(DerivativeTest, PassiveDvel) {
   for (const char* local_path : {kTumblingThinObjectPath,
@@ -223,11 +362,23 @@ TEST_F(DerivativeTest, StepSkip) {
                                          mjINT_IMPLICITFAST}) {
     model->opt.integrator = integrator;
 
-    // reset, take 20 steps, save initial state
+    // reset, take 20 steps
     mj_resetData(model, data);
     for (int i=0; i < 20; i++) {
       mj_step(model, data);
     }
+
+    // denormalize the quat, just to see that it doesn't make a difference
+    for (int j=0; j < model->njnt; j++) {
+      if (model->jnt_type[j] == mjJNT_BALL) {
+        int adr = model->jnt_qposadr[j];
+        for (int k=0; k < 4; k++) {
+          data->qpos[adr + k] *= 8;
+        }
+      }
+    }
+
+    // save state
     std::vector<mjtNum> qpos = AsVector(data->qpos, nq);
     std::vector<mjtNum> qvel = AsVector(data->qvel, nv);
 
@@ -279,7 +430,6 @@ TEST_F(DerivativeTest, StepSkip) {
   mj_deleteModel(model);
 }
 
-
 // Analytic transition matrices for linear dynamical system xn = A*x + B*u
 //   given modified mass matrix H (`data->qH`) and
 //   Ac = H^-1 [diag(-stiffness) diag(-damping)]
@@ -326,7 +476,8 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   if (B) {
     mjtNum *Bc = mj_stackAllocNum(d, nu*nv);
     mjtNum *BcT = mj_stackAllocNum(d, nv*nu);
-    mju_copy(Bc, d->actuator_moment, nv*nu);
+    mju_sparse2dense(Bc, d->actuator_moment, nu, nv, d->moment_rownnz,
+                     d->moment_rowadr, d->moment_colind);
     mj_solveLD(m, Bc, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);
     mju_scl(B, BcT, dt*dt, nu*nv);

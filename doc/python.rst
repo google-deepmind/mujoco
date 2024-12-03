@@ -126,7 +126,7 @@ attributes:
 - ``user_scn``: an :ref:`mjvScene` object that allows users to add change rendering flags and add custom
   visualization geoms to the rendered scene. This is separate from the ``mjvScene`` that the viewer uses internally to
   render the final scene, and is entirely under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or
-  :ref:`mjv_makeConnector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
+  :ref:`mjv_connector` to add visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer
   will incorporate these geoms to future rendered images. Similarly, user scripts can make changes to ``user_scn.flags``
   which would be picked up at the next call to ``sync()``. The ``sync()`` call also copies changes to rendering flags
   made via the GUI back into ``user_scn`` to preserve consistency. For example:
@@ -465,6 +465,107 @@ Alternatively, if a callback is implemented in a native dynamic library, users c
 it to ``mujoco.set_mjcb_foo``. The bindings will then retrieve the underlying function pointer and assign it directly to
 the raw callback pointer, and the GIL will **not** be acquired each time the callback is entered.
 
+.. _PyModelEdit:
+
+Model editing
+=============
+The C API for model editing is documented in the :doc:`Programming<../programming/modeledit>` chapter.
+This functionality is mirrored in the Python API, with the addition of several convenience methods.
+Below is a minimal usage example, more examples can be found in the Model Editing
+`colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__.
+
+
+.. code-block:: python
+
+   import mujoco
+   spec = mujoco.MjSpec()
+   body = spec.worldbody.add_body(
+       pos=[1, 2, 3],
+       quat=[0, 1, 0, 0],
+   )
+   geom = body.add_geom(
+       name='my_geom',
+       type=mujoco.mjtGeom.mjGEOM_SPHERE,
+       size=[1, 0, 0],
+       rgba=[1, 0, 0, 1],
+   )
+   ...
+   model = spec.compile()
+
+Construction
+------------
+
+The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in three ways:
+
+1. Create an empty spec: ``spec = mujoco.MjSpec()``
+2. Load the spec from XML string: ``spec = mujoco.MjSpec.from_string(xml_string)``
+3. Load the spec from XML file: ``spec = mujoco.MjSpec.from_file(file_path)``
+
+Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
+
+Convenience methods
+-------------------
+
+The Python bindings provide a number of convenience methods and attributes not directly available in the C API in order
+to make model editing easier:
+
+Element lists
+^^^^^^^^^^^^^
+Lists of all elements in a spec can be accessed using named properties, using the plural form. For example,
+``spec.meshes`` returns a list of all meshes in the spec.
+
+The following properties are implemented: ``sites``, ``geoms``, ``joints``, ``lights``, ``cameras``, ``bodies``,
+``frames``, ``materials``, ``meshes``, ``pairs``, ``equalities``, ``tendons``, ``actuators``, ``skins``, ``textures``,
+``texts``, ``tuples``, ``flexes``, ``hfields``, ``keys``, ``numerics``, ``excludes``, ``sensors``, ``plugins``.
+
+Tree traversal
+^^^^^^^^^^^^^^
+Traversal of the kinematic tree is aided by the following methods which return tree-related lists of elements:
+
+Direct children:
+  Like the spec-level element lists described above, bodies have properties which return lists of all direct children.
+  For example, ``body.geoms`` returns a list of all geoms that are direct children of the body. This works for all
+  in tree elements namely ``bodies``, ``joints``, ``geoms``, ``sites``, ``cameras``, ``lights`` and ``frames``.
+
+Recursive search:
+  ``body.find_all()`` returns a list of all elements of the given type which are in the subtree of the given body.
+  Element types can be specified with the :ref:`mjtObj` enum, or with the corresponding string. For example either
+  ``body.find_all(mujoco.mjtObj.mjOBJ_SITE)`` or ``body.find_all('site')`` will return a list of all sites under the
+  body.
+
+
+Relationship to ``PyMJCF``
+--------------------------
+
+`dm_control <https://github.com/google-deepmind/dm_control/tree/main>`__'s
+`PyMJCF <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md>`__ module provides similar
+functionality to the native model editing API described here, but is roughly two orders of magnitude slower due to its
+reliance on Python manipulation of strings.
+
+For users familiar with ``PyMJCF``, the ``MjSpec`` object is conceptually similar to ``dm_control``'s
+``mjcf_model``. A more detailed migration guide could be added here in the future; in the meantime, note that the
+Model Editing
+`colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__
+includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
+`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
+
+``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via the constructing
+elements. In the native API, this is done with object ids. For example, say we have multiple geoms containing the string
+"torso" in their name. We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as
+follows:
+
+.. code-block:: python
+
+   torsos = [geom.id for geom in spec.geoms if 'torso' in geom.name]
+   pos_x = data.geom_xpos[torsos, 0]
+   pos_y = data.geom_xpos[torsos, 1]
+
+Notes
+-----
+
+- :ref:`mj_recompile` works differently than in the C API. In the C API, it modifies the model and the data in place,
+  while in the Python API it returns new :ref:`MjModel` and :ref:`MjData` objects. This is to avoid dangling references.
+
 .. _PyBuild:
 
 Building from source
@@ -479,8 +580,8 @@ Building from source
 1. Make sure you have CMake and a C++17 compiler installed.
 
 2. Download the `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
-   from GitHub. On macOS, the download corresponds to a DMG file from which you
-   can drag ``MuJoCo.app`` into your ``/Applications`` folder.
+   from GitHub. On macOS, the download corresponds to a DMG file which you can mount by
+   double-clicking or running ``hdiutil attach <dmg_file>``.
 
 3. Clone the entire ``mujoco`` repository from GitHub and ``cd`` into the python
    directory:
@@ -502,7 +603,6 @@ Building from source
 
    .. code-block:: shell
 
-      cd python
       bash make_sdist.sh
 
    The ``make_sdist.sh`` script generates additional C++ header files that are
@@ -513,19 +613,21 @@ Building from source
 
 6. Use the generated source distribution to build and install the bindings.
    You'll need to specify the path to the MuJoCo library you downloaded earlier
-   in the ``MUJOCO_PATH`` environment variable.
+   in the ``MUJOCO_PATH`` environment variable, and the path to the MuJoCo
+   plugin directory in the ``MUJOCO_PLUGIN_PATH`` environment variable.
 
    .. note::
-      For macOS, this can be the path to a directory that contains the
-      ``mujoco.framework``. In particular, you can set
-      ``MUJOCO_PATH=/Applications/MuJoCo.app`` if you installed MuJoCo as
-      suggested in step 1.
+      For macOS, the files need to be extracted from the DMG.
+      Once you mounted it as in step 2, the ``mujoco.framework`` directory can be found in ``/Volumes/MuJoCo``,
+      and the plugins directory can be found in ``/Volumes/MuJoCo/MuJoCo.app/Contents/MacOS/mujoco_plugin``.
+      Those two directories can be copied out somewhere convenient, or you can use
+      ``MUJOCO_PATH=/Volumes/MuJoCo MUJOCO_PLUGIN_PATH=/Volumes/MuJoCo/MuJoCo.app/Contents/MacOS/mujoco_plugin``.
 
    .. code-block:: shell
 
       cd dist
-      MUJOCO_PATH=/PATH/TO/MUJOCO
-      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN
+      MUJOCO_PATH=/PATH/TO/MUJOCO \
+      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN \
       pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
@@ -591,7 +693,156 @@ Quadratic Programs with :ref:`mju_boxQP`. It is documented in the associated not
 .. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.svg
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
+.. _PyUSDexport:
 
+USD exporter
+------------
+
+The `USD exporter <https://github.com/google-deepmind/mujoco/tree/main/python/mujoco/usd>`__ module allows users to save
+scenes and trajectories in the `USD format <https://openusd.org/release/index.html>`__ for rendering in external
+renderers such as NVIDIA Omniverse or Blender. These renderers provide higher quality rendering capabilities not
+provided by the default renderer. Additionally, exporting to USD allows users to include different types of texture maps
+to make objects in the scene look more realistic.
+
+.. _PyUSDInstallation:
+
+Installation
+^^^^^^^^^^^^
+
+The recommended way to install the necessary requirements for the USD exporter is via
+`PyPI <https://pypi.org/project/mujoco/>`__:
+
+.. code-block:: shell
+
+   pip install mujoco[usd]
+
+This installs the optional dependencies ``usd-core`` and ``pillow`` required by the USD exporter.
+
+If you are building from source, please ensure to `build the Python bindings
+<https://mujoco.readthedocs.io/en/stable/python.html#building-from-source>`__. Then, using pip, install the required
+``usd-core`` and ``pillow`` packages.
+
+.. _PyUSDExporter:
+
+USDExporter
+^^^^^^^^^^^
+
+The ``USDExporter`` class in the ``mujoco.usd.exporter`` module allows saving full trajectories in addition to defining
+custom cameras and lights. The constructor arguments of a ``USDExporter`` instance are:
+
+- ``model``: An MjModel instance. The USD exporter reads relevant information from the model including details about
+  cameras, lights, textures, and object geometries.
+
+- ``max_geom``: Maximum number of geoms in a scene, required when instatiating the internal .
+  `mjvScene <https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html#mjvscene>`__.
+
+- ``output_directory``: Name of the directory under which the exported USD file and all relevant
+  assets are stored. When saving a scene/trajectory as a USD file, the exporter creates the following directory
+  structure.
+
+  .. code-block:: text
+
+      output_directory_root/
+      └-output_directory/
+        ├-assets/
+        | ├-texture_0.png
+        | ├-texture_1.png
+        | └-...
+        └─frames/
+          └-frame_301.usd
+
+  Using this file structure allows users to easily archive the ``output_directory``. All paths to assets in the USD file
+  are relative, facilitating the use of the USD archive on another machine.
+
+- ``output_directory_root``: Root directory to add USD trajectory to.
+
+- ``light_intensity``: Intensity of all lights. Note that the units of intensity may be defined differently in
+  different renderers, so this value may need to be adjusted on a render-specific basis.
+
+- ``camera_names``: List of cameras to be stored in the USD file. At each time step, for each camera defined, we
+  calculate its position and orientation and add that value for that given frame in the USD. USD allows us to store
+  multiple cameras.
+
+- ``verbose``: Whether or not to print log messages from the exporter.
+
+If you wish to export a model loaded directly from an MJCF, we provide a `demo
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/usd/demo.py>`__ script that shows how to do so. This
+demo file also serves as an example of the USD export functionality.
+
+.. _PyUSDBasicUsage:
+
+Basic usage
+^^^^^^^^^^^
+
+Once the optional dependencies are installed, the USD exporter can be imported via ``from mujoco.usd import exporter``.
+
+Below, we demonstrate a simple example of using the ``USDExporter``. During initialization, the ``USDExporter`` creates
+an empty USD stage, as well as the assets and frames directories if they do not already exist. Additionally, it
+generates .png files for each texture defined in the model. Every time ``update_scene`` is called, the exporter records
+the position and orientation of all geoms, lights, and cameras in the scene.
+
+The ``USDExporter`` keeps track of frames internally by maintaining a frame counter. Each time ``update_scene`` is
+called, the counter is incremented, and the poses of all geoms, cameras, and lights are saved for the corresponding
+frame. It's important to note that you can step through the simulation multiple times before calling ``update_scene``.
+The final USD file will only store the poses of the geoms, lights, and cameras as they were at the last update_scene
+call.
+
+.. code-block:: python
+
+    import mujoco
+    from mujoco.usd import exporter
+
+    m = mujoco.MjModel.from_xml_path('/path/to/mjcf.xml')
+    d = mujoco.MjData(m)
+
+    # Create the USDExporter
+    exp = exporter.USDExporter(model=m)
+
+    duration = 5
+    framerate = 60
+    while d.time < duration:
+
+      # Step the physics
+      mujoco.mj_step(m, d)
+
+      if exp.frame_count < d.time * framerate:
+        # Update the USD with a new frame
+        exp.update_scene(data=d)
+
+    # Export the USD file
+    exp.save_scene(filetype="usd")
+
+
+
+.. _PyUSDExportAPI:
+
+USD Export API
+^^^^^^^^^^^^^^
+
+- ``update_scene(self, data, scene_option)``: updates the scene with the latest simulation data passed in by the
+  user. This function updates the geom, cameras, and lights in the scene.
+
+- ``add_light(self, pos, intensity, radius, color, obj_name, light_type)``: adds a light to the USD scene with the
+  given properties post hoc.
+
+- ``add_camera(self, pos, rotation_xyz, obj_name)``: adds a camera to the USD scene with the given properties post hoc.
+
+- ``save_scene(self, filetype)``:  exports the USD scene using one of the usd filetype extensions ``.usd``, ``.usda``,
+  or ``.usdc``.
+
+.. _PyUSDTodos:
+
+Missing features
+^^^^^^^^^^^^^^^^
+
+Below, we list remaining action items for the USD exporter. Please feel free to suggest additional requests
+by creating a new `feature request <https://github.com/google-deepmind/mujoco/issues/new/choose>`__ in GitHub.
+
+- Add support for additional texture maps including metallic, occlusion, roughness, bump, etc.
+
+- Add support for online rendering with Isaac.
+
+- Add support for custom cameras.
 
 
 .. _PyUtility:
@@ -610,7 +861,7 @@ msh2obj.py
 
 The `msh2obj.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/msh2obj.py>`__ script converts the
 :ref:`legacy .msh format<legacy-msh-docs>` for surface meshes (different from the possibly-volumetric
-:ref:`gmsh format<gmsh-file-docs>` also using .msh), to OBJ files. The legacy format is depricated and will be removed
+:ref:`gmsh format<gmsh-file-docs>` also using .msh), to OBJ files. The legacy format is deprecated and will be removed
 in a future release. Please convert all legacy files to OBJ.
 
 

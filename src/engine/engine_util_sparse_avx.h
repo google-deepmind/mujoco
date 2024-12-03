@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPARSE_AVX_H_
 
 #ifdef mjUSEPLATFORMSIMD
-#if defined(__AVX__) && defined(mjUSEDOUBLE)
+#if defined(__AVX__) && !defined(mjUSESINGLE)
 
 #define mjUSEAVX
 
@@ -32,8 +32,8 @@
 // dot-product, first vector is sparse
 //  flg_unc1: is vec1 memory layout uncompressed
 static inline
-mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2,
-                         const int nnz1, const int* ind1, int flg_unc1) {
+mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                         int flg_unc1) {
   int i = 0;
   mjtNum res = 0;
   int nnz1_4 = nnz1 - 4;
@@ -115,7 +115,7 @@ mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2,
 static inline
 void mju_dotSparseX3_avx(mjtNum* res0, mjtNum* res1, mjtNum* res2, const mjtNum* vec10,
                          const mjtNum* vec11, const mjtNum* vec12, const mjtNum* vec2,
-                         const int nnz1, const int* ind1) {
+                         int nnz1, const int* ind1) {
   int i = 0;
 
   // clear result
@@ -209,7 +209,7 @@ void mju_mulMatVecSparse_avx(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
   if (!rowsuper) {
     // regular sparse dot-product
     for (int r=0; r<nr; r++) {
-      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc2=*/0);
+      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
     }
 
     return;
@@ -232,7 +232,7 @@ void mju_mulMatVecSparse_avx(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
       // handle remaining rows
       while (rs>0) {
-        res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc2=*/0);
+        res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
 
         r++;
         rs--;
@@ -243,7 +243,7 @@ void mju_mulMatVecSparse_avx(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
     }
 
     else {
-      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc2=*/0);
+      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
     }
   }
 }
@@ -315,7 +315,7 @@ int mju_compare_avx(const int* vec1, const int* vec2, int n) {
   return !memcmp(vec1+i, vec2+i, (n-i)*sizeof(int));
 }
 
-#endif  // defined(__AVX__) && defined(mjUSEDOUBLE)
+#endif  // defined(__AVX__) && !defined(mjUSESINGLE)
 
 #endif  // mjUSEPLATFORMSIMD
 

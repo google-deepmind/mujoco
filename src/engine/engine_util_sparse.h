@@ -26,26 +26,30 @@ extern "C" {
 //------------------------------ sparse operations -------------------------------------------------
 
 // dot-product, vec1 is sparse, can be uncompressed
-MJAPI mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                           const int nnz1, const int* ind1, int flg_unc1);
+MJAPI mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                           int flg_unc1);
 
 // dot-product, both vectors are sparse, vec2 can be uncompressed
-MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                            const int nnz1, const int* ind1,
-                            const int nnz2, const int* ind2, int flg_unc2);
+MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
+                            int nnz2, const int* ind2, int flg_unc2);
 
 // convert matrix from dense to sparse
-MJAPI void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                            int* rownnz, int* rowadr, int* colind);
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise
+MJAPI int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                           int* rownnz, int* rowadr, int* colind, int nnz);
 
 // convert matrix from sparse to dense
-void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      const int* rownnz, const int* rowadr, const int* colind);
+MJAPI void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc, const int* rownnz,
+                            const int* rowadr, const int* colind);
 
 // multiply sparse matrix and dense vector:  res = mat * vec
 MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                                int nr, const int* rownnz, const int* rowadr,
                                const int* colind, const int* rowsuper);
+
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec
+MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                                const int* rownnz, const int* rowadr, const int* colind);
 
 // compress layout of sparse matrix
 MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
@@ -90,7 +94,7 @@ MJAPI void mju_superSparse(int nr, int* rowsuper,
 // res_rowadr is required to be precomputed
 MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                               const mjtNum* diag, int nr, int nc,
-                              int* res_rownnz, int* res_rowadr, int* res_colind,
+                              int* res_rownnz, const int* res_rowadr, int* res_colind,
                               const int* rownnz, const int* rowadr,
                               const int* colind, const int* rowsuper,
                               const int* rownnzT, const int* rowadrT,
@@ -98,16 +102,17 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
                               mjData* d);
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                                  int nr, int nc,  const int* rownnz,
-                                  const int* rowadr, const int* colind,
-                                  const int* rownnzT, const int* rowadrT,
-                                  const int* colindT, const int* rowsuperT,
-                                  mjData* d);
+MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
+                                  const int* rownnz, const int* rowadr, const int* colind,
+                                  const int* rownnzT, const int* rowadrT, const int* colindT,
+                                  const int* rowsuperT, mjData* d);
 
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
+// compute row non-zeros of reverse-Cholesky factor L, return total
+MJAPI int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
+                            int n, mjData* d);
 
 #ifdef __cplusplus
 }

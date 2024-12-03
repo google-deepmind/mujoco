@@ -296,8 +296,8 @@ mjtNum _rayMesh(const mjModel* m, const mjData* d, int geomid,
   mjtNum lpnt[3], lvec[3];
   const mjtNum* pos = d->geom_xpos+3*geomid;
   const mjtNum dif[3] = {pnt[0]-pos[0], pnt[1]-pos[1], pnt[2]-pos[2]};
-  mju_rotVecMatT(lpnt, dif, d->geom_xmat+9*geomid);
-  mju_rotVecMatT(lvec, vec, d->geom_xmat+9*geomid);
+  mju_mulMatTVec3(lpnt, d->geom_xmat+9*geomid, dif);
+  mju_mulMatTVec3(lvec, d->geom_xmat+9*geomid, vec);
 
   // construct basis vectors of normal plane
   mjtNum b0[3] = {1, 1, 1}, b1[3];

@@ -17,7 +17,9 @@
 
 #include <cstdlib>
 #include <string>
+#include <string_view>
 
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 #include "xml/xml_base.h"
@@ -27,7 +29,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(const mjSpec* spec);
+  void SetModel(const mjSpec* _spec, const mjModel* m = nullptr);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);
@@ -49,7 +51,6 @@ class mjXWriter : public mjXBase {
   void Extension(tinyxml2::XMLElement* root);                             // extension section
   void Custom(tinyxml2::XMLElement* root);                                // custom section
   void Asset(tinyxml2::XMLElement* root);                                 // asset section
-  void Body(tinyxml2::XMLElement* elem, mjCBody* body);                   // body/world section
   void Contact(tinyxml2::XMLElement* root);                               // contact section
   void Deformable(tinyxml2::XMLElement* root);                            // deformable section
   void Equality(tinyxml2::XMLElement* root);                              // equality section
@@ -58,16 +59,24 @@ class mjXWriter : public mjXBase {
   void Sensor(tinyxml2::XMLElement* root);                                // sensor section
   void Keyframe(tinyxml2::XMLElement* root);                              // keyframe section
 
+  // body/world section
+  void Body(tinyxml2::XMLElement* elem, mjCBody* body, mjCFrame* frame, std::string_view childclass = "");
+
   // single element writers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem, const mjCMesh* pmesh,         mjCDef* def);
   void OneSkin(tinyxml2::XMLElement* elem, const mjCSkin* pskin);
   void OneMaterial(tinyxml2::XMLElement* elem, const mjCMaterial* pmaterial, mjCDef* def);
-  void OneJoint(tinyxml2::XMLElement* elem, const mjCJoint* pjoint,       mjCDef* def);
-  void OneGeom(tinyxml2::XMLElement* elem, const mjCGeom* pgeom,         mjCDef* def);
-  void OneSite(tinyxml2::XMLElement* elem, const mjCSite* psite,         mjCDef* def);
-  void OneCamera(tinyxml2::XMLElement* elem, const mjCCamera* pcamera,     mjCDef* def);
-  void OneLight(tinyxml2::XMLElement* elem, const mjCLight* plight,       mjCDef* def);
+  void OneJoint(tinyxml2::XMLElement* elem, const mjCJoint* pjoint, mjCDef* def,
+                std::string_view classname = "");
+  void OneGeom(tinyxml2::XMLElement* elem, const mjCGeom* pgeom, mjCDef* def,
+               std::string_view classname = "");
+  void OneSite(tinyxml2::XMLElement* elem, const mjCSite* psite, mjCDef* def,
+               std::string_view classname = "");
+  void OneCamera(tinyxml2::XMLElement* elem, const mjCCamera* pcamera,
+                 mjCDef* def, std::string_view classname = "");
+  void OneLight(tinyxml2::XMLElement* elem, const mjCLight* plight, mjCDef* def,
+                std::string_view classname = "");
   void OnePair(tinyxml2::XMLElement* elem, const mjCPair* ppair,         mjCDef* def);
   void OneEquality(tinyxml2::XMLElement* elem, const mjCEquality* pequality, mjCDef* def);
   void OneTendon(tinyxml2::XMLElement* elem, const mjCTendon* ptendon,     mjCDef* def);

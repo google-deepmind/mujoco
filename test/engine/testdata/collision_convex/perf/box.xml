@@ -1,0 +1,38 @@
+<mujoco  model="collide boxes">
+  <option timestep="1e-3" gravity="-1 1 -10" solver="CG" iterations="10">
+    <flag multiccd="enable"/>
+  </option>
+
+  <visual>
+    <scale forcewidth="0.02" contactwidth="0.05" contactheight="0.05"/>
+    <map force="0.01"/>
+  </visual>
+
+  <default>
+    <geom condim="1" type="box" solref="2e-3 1"/>
+    <default class="free">
+      <geom size=".025 .025 .025"/>
+    </default>
+    <default class="wall">
+      <geom size=".5 .5 .1" rgba=".5 .5 .8 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="1 -1 1" dir="-1 1 -1"/>
+    <geom class="wall"/>
+    <geom class="wall" pos="-.6 0 .4" euler="0 90 0"/>
+    <geom class="wall" pos="-.2 .6 .4" euler="90 0 0"/>
+
+    <replicate count="5" offset=".06 0 0">
+      <replicate count="5" offset="0 .06 0">
+        <replicate count="4" offset="0 0 .06">
+          <body pos="-.1 -.2 0.15">
+            <freejoint/>
+            <geom class="free"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

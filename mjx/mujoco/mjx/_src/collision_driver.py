@@ -38,6 +38,7 @@ in order to guarantee static shapes for contacts and jacobians.
 """
 
 import itertools
+import os
 from typing import Dict, Iterator, List, Tuple, Union
 
 import jax
@@ -65,6 +66,8 @@ from mujoco.mjx._src.collision_sdf import capsule_ellipsoid
 from mujoco.mjx._src.collision_sdf import cylinder_cylinder
 from mujoco.mjx._src.collision_sdf import ellipsoid_cylinder
 from mujoco.mjx._src.collision_sdf import ellipsoid_ellipsoid
+from mujoco.mjx._src.collision_sdf import sphere_cylinder
+from mujoco.mjx._src.collision_sdf import sphere_ellipsoid
 from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
@@ -88,6 +91,8 @@ _COLLISION_FUNC = {
     (GeomType.HFIELD, GeomType.MESH): hfield_convex,
     (GeomType.SPHERE, GeomType.SPHERE): sphere_sphere,
     (GeomType.SPHERE, GeomType.CAPSULE): sphere_capsule,
+    (GeomType.SPHERE, GeomType.CYLINDER): sphere_cylinder,
+    (GeomType.SPHERE, GeomType.ELLIPSOID): sphere_ellipsoid,
     (GeomType.SPHERE, GeomType.BOX): sphere_convex,
     (GeomType.SPHERE, GeomType.MESH): sphere_convex,
     (GeomType.CAPSULE, GeomType.CAPSULE): capsule_capsule,
@@ -372,11 +377,11 @@ def collision(m: Model, d: Data) -> Data:
   if d.ncon == 0:
     return d
 
-  groups = _contact_groups(m, d)
   max_geom_pairs = _numeric(m, 'max_geom_pairs')
   max_contact_points = _numeric(m, 'max_contact_points')
 
   # run collision functions on groups
+  groups = _contact_groups(m, d)
   for key, contact in groups.items():
     # determine which contacts we'll use for collision testing by running a
     # broad phase cull if requested
@@ -393,8 +398,9 @@ def collision(m: Model, d: Data) -> Data:
 
     # run the collision function specified by the grouping key
     func = _COLLISION_FUNC[key.types]
-    dist, pos, frame = func(m, d, key, contact.geom)
     ncon = func.ncon  # pytype: disable=attribute-error
+
+    dist, pos, frame = func(m, d, key, contact.geom)
     if ncon > 1:
       # repeat contacts to match the number of collisions returned
       repeat_fn = lambda x, r=ncon: jp.repeat(x, r, axis=0)

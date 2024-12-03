@@ -86,6 +86,9 @@ class Simulate {
   // add state to history buffer
   void AddToHistory();
 
+  // inject control noise
+  void InjectNoise();
+
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
@@ -262,7 +265,7 @@ class Simulate {
   // Constant arrays needed for the option section of UI and the UI interface
   // TODO setting the size here is not ideal
   const mjuiDef def_option[13] = {
-    {mjITEM_SECTION,  "Option",        1, nullptr,           "AO"},
+    {mjITEM_SECTION,  "Option",        mjPRESERVE, nullptr,  "AO"},
     {mjITEM_CHECKINT, "Help",          2, &this->help,       " #290"},
     {mjITEM_CHECKINT, "Info",          2, &this->info,       " #291"},
     {mjITEM_CHECKINT, "Profiler",      2, &this->profiler,   " #292"},
@@ -284,7 +287,7 @@ class Simulate {
 
   // simulation section of UI
   const mjuiDef def_simulation[14] = {
-    {mjITEM_SECTION,   "Simulation",    1, nullptr,              "AS"},
+    {mjITEM_SECTION,   "Simulation",    mjPRESERVE, nullptr,     "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
@@ -293,8 +296,8 @@ class Simulate {
     {mjITEM_SLIDERINT, "Key",           3, &this->key,           "0 0"},
     {mjITEM_BUTTON,    "Load key",      3},
     {mjITEM_BUTTON,    "Save key",      3},
-    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 2"},
-    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 2"},
+    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 1"},
+    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 4"},
     {mjITEM_SEPARATOR, "History",       1},
     {mjITEM_SLIDERINT, "",              5, &this->scrub_index,     "0 0"},
     {mjITEM_END}
@@ -303,7 +306,7 @@ class Simulate {
 
   // watch section of UI
   const mjuiDef def_watch[5] = {
-    {mjITEM_SECTION,   "Watch",         0, nullptr,              "AW"},
+    {mjITEM_SECTION,   "Watch",         mjPRESERVE, nullptr,     "AW"},
     {mjITEM_EDITTXT,   "Field",         2, this->field,          "qpos"},
     {mjITEM_EDITINT,   "Index",         2, &this->index,         "1"},
     {mjITEM_STATIC,    "Value",         2, nullptr,              " "},

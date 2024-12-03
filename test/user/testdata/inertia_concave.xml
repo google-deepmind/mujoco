@@ -1,9 +1,11 @@
 <mujoco>
-  <compiler exactmeshinertia="true"/>
+  <default>
+    <mesh scale="10 10 10" inertia="exact"/>
+  </default>
   <asset>
-    <mesh file="cube_cup.obj" scale="10 10 10"/>
-    <mesh file="cube_cup_quad.obj" scale="10 10 10"/>
-    <mesh file="cube_cup_hi.obj" scale="10 10 10"/>
+    <mesh file="cube_cup.obj"/>
+    <mesh file="cube_cup_quad.obj"/>
+    <mesh file="cube_cup_hi.obj"/>
   </asset>
   <worldbody>
     <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>

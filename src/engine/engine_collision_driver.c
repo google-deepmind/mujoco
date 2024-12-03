@@ -14,21 +14,21 @@
 
 #include "engine/engine_collision_driver.h"
 
-#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_constraint.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -224,10 +224,8 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 //----------------------------- collision detection entry point ------------------------------------
 
 // compare contact pairs by their geom/elem/vert IDs
-quicksortfunc(contactcompare, context, el1, el2) {
+static inline int contactcompare(const mjContact* c1, const mjContact* c2, void* context) {
   const mjModel* m = (const mjModel*) context;
-  mjContact* c1 = (mjContact*)el1;
-  mjContact* c2 = (mjContact*)el2;
 
   // get colliding object ids
   int con1_obj1 = c1->geom[0] >= 0 ? c1->geom[0] : (c1->elem[0] >= 0 ? c1->elem[0] : c1->vert[0]);
@@ -257,6 +255,9 @@ quicksortfunc(contactcompare, context, el1, el2) {
   if (con1_obj2 > con2_obj2) return 1;
   return 0;
 }
+
+// define contactSort function for sorting contacts
+mjSORT(contactSort, mjContact, contactcompare)
 
 
 
@@ -364,8 +365,14 @@ void mj_collision(const mjModel* m, mjData* d) {
       int ncon_after = d->ncon;
 
       // sort contacts
-      mjQUICKSORT(d->contact + ncon_before, ncon_after - ncon_before,
-                  sizeof(mjContact), contactcompare, (void*) m);
+      int n = ncon_after - ncon_before;
+      if (n > 1) {
+        mj_markStack(d);
+        mjContact* buf = (mjContact*)mj_stackAllocByte(d, n * sizeof(mjContact),
+                                                       _Alignof(mjContact));
+        contactSort(d->contact + ncon_before, buf, n, (void*)m);
+        mj_freeStack(d);
+      }
     }
 
     // process bodyflex pair: all-to-all
@@ -553,7 +560,7 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
     for (int i=0; i < 2; i++) {  // bounding boxes
       for (int j=0; j < 3; j++) {  // axes
         if (xmat[i]) {
-          mju_rotVecMat(xcenter[i], aabb[i], xmat[i]);
+          mju_mulMatVec3(xcenter[i], xmat[i], aabb[i]);
         } else {
           mju_copy3(xcenter[i], aabb[i]);
         }
@@ -602,22 +609,22 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
       for (int i=0; i < 2; i++) {  // bounding boxes
         if (product == NULL) {
           proj[i] = mju_dot3(xcenter[i], normal[j][k]);
-          radius[i] = fabs(aabb[i][3]*mju_dot3(normal[i][0], normal[j][k])) +
-                      fabs(aabb[i][4]*mju_dot3(normal[i][1], normal[j][k])) +
-                      fabs(aabb[i][5]*mju_dot3(normal[i][2], normal[j][k]));
+          radius[i] = mju_abs(aabb[i][3]*mju_dot3(normal[i][0], normal[j][k])) +
+                      mju_abs(aabb[i][4]*mju_dot3(normal[i][1], normal[j][k])) +
+                      mju_abs(aabb[i][5]*mju_dot3(normal[i][2], normal[j][k]));
         } else {
           int adr = 18*i + 9*j + 3*k;
           proj[i] = aabb[i][0] * product[adr + 0] +
                     aabb[i][1] * product[adr + 1] +
                     aabb[i][2] * product[adr + 2] +
                     offset[6*i + 3*j + k];
-          radius[i] = fabs(aabb[i][3]*product[adr + 0]) +
-                      fabs(aabb[i][4]*product[adr + 1]) +
-                      fabs(aabb[i][5]*product[adr + 2]);
+          radius[i] = mju_abs(aabb[i][3]*product[adr + 0]) +
+                      mju_abs(aabb[i][4]*product[adr + 1]) +
+                      mju_abs(aabb[i][5]*product[adr + 2]);
         }
       }
 
-      if (radius[0]+radius[1]+margin < fabs(proj[1]-proj[0])) {
+      if (radius[0]+radius[1]+margin < mju_abs(proj[1]-proj[0])) {
         return 0;
       }
     }
@@ -1006,10 +1013,7 @@ typedef struct _mjtSAP mjtSAP;
 
 
 // comparison function for SAP
-quicksortfunc(SAPcompare, context, el1, el2) {
-  mjtSAP* obj1 = (mjtSAP*)el1;
-  mjtSAP* obj2 = (mjtSAP*)el2;
-
+static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
   if (obj1->value < obj2->value) {
     return -1;
   } else if (obj1->value == obj2->value) {
@@ -1019,6 +1023,8 @@ quicksortfunc(SAPcompare, context, el1, el2) {
   }
 }
 
+// define SAPsort function for sorting SAP sorting
+mjSORT(SAPsort, mjtSAP, SAPcmp)
 
 
 // given list of axis-aligned bounding boxes in AAMM (xmin[3], xmax[3]) format,
@@ -1043,7 +1049,8 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   }
 
   // sort along specified axis
-  mjQUICKSORT(sortbuf, 2*n, sizeof(mjtSAP), SAPcompare, 0);
+  mjtSAP* buf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
+  SAPsort(sortbuf, buf, 2*n, NULL);
 
   // define the other two axes
   int axisA, axisB;
@@ -1133,19 +1140,18 @@ static void updateCov(mjtNum cov[9], const mjtNum vec[3], const mjtNum cen[3]) {
 
 
 // comparison function for unsigned ints
-quicksortfunc(uintcompare, context, el1, el2) {
-  unsigned int n1 = *(unsigned int*)el1;
-  unsigned int n2 = *(unsigned int*)el2;
-
-  if (n1 < n2) {
+static inline int uintcmp(int* i, int* j, void* context) {
+  if ((unsigned) *i < (unsigned) *j) {
     return -1;
-  } else if (n1 == n2) {
+  } else if (*i == *j) {
     return 0;
   } else {
     return 1;
   }
 }
 
+// define bfsort function for sorting bodyflex pairs
+mjSORT(bfsort, int, uintcmp)
 
 
 // broadphase collision detector
@@ -1237,52 +1243,48 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
     }
   }
 
-  // nothing collidable
-  if (ncollide < 2) {
-    goto endbroad;
-  }
-
-  // allocate and construct AAMMs for collidable only
-  mjtNum* aamm = mj_stackAllocNum(d, 6*ncollide);
-  for (int i=0; i < ncollide; i++) {
-    makeAAMM(m, d, aamm+6*i, bfid[i], frame);
-  }
-
-  // call SAP
-  int maxsappair = ncollide*(ncollide-1)/2;
-  int* sappair = mj_stackAllocInt(d, maxsappair);
-  int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
-  if (nsappair < 0) {
-    mjERROR("SAP failed");
-  }
-
-  // filter SAP pairs, convert to bodyflex pairs
-  for (int i=0; i < nsappair; i++) {
-    int bf1 = bfid[sappair[i] >> 16];
-    int bf2 = bfid[sappair[i] & 0xFFFF];
-
-    // body pair: prune based on weld filter
-    if (bf1 < nbody && bf2 < nbody) {
-      int weld1 = m->body_weldid[bf1];
-      int weld2 = m->body_weldid[bf2];
-      int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
-      int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
-
-      if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
-                         dsbl_filterparent)) {
-        continue;
-      }
+  if (ncollide > 1) {
+    // allocate and construct AAMMs for collidable only
+    mjtNum* aamm = mj_stackAllocNum(d, 6*ncollide);
+    for (int i=0; i < ncollide; i++) {
+      makeAAMM(m, d, aamm+6*i, bfid[i], frame);
     }
 
-    // add bodyflex pair if there is room in buffer
-    add_pair(m, bf1, bf2, &npair, bfpair, maxpair);
+    // call SAP
+    int maxsappair = ncollide*(ncollide-1)/2;
+    int* sappair = mj_stackAllocInt(d, maxsappair);
+    int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
+    if (nsappair < 0) {
+      mjERROR("SAP failed");
+    }
+
+    // filter SAP pairs, convert to bodyflex pairs
+    for (int i=0; i < nsappair; i++) {
+      int bf1 = bfid[sappair[i] >> 16];
+      int bf2 = bfid[sappair[i] & 0xFFFF];
+
+      // body pair: prune based on weld filter
+      if (bf1 < nbody && bf2 < nbody) {
+        int weld1 = m->body_weldid[bf1];
+        int weld2 = m->body_weldid[bf2];
+        int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
+        int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
+
+        if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
+                           dsbl_filterparent)) {
+          continue;
+        }
+      }
+
+      // add bodyflex pair if there is room in buffer
+      add_pair(m, bf1, bf2, &npair, bfpair, maxpair);
+    }
   }
 
-endbroad:
-
   // sort bodyflex pairs by signature
-  if (npair) {
-    mjQUICKSORT(bfpair, npair, sizeof(int), uintcompare, 0);
+  if (npair > 1) {
+    int* buf = mj_stackAllocInt(d, npair);
+    bfsort(bfpair, buf, npair, NULL);
   }
 
   mj_freeStack(d);

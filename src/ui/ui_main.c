@@ -14,6 +14,7 @@
 
 #include "ui/ui_main.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -26,139 +27,170 @@
 
 // theme spacing 0 : tight
 static const mjuiThemeSpacing themeSpacing0 = {
-  270,   // int total;
-  15,    // int scroll;
-  120,   // int label;
-  8,     // int section;
-  4,     // int itemside;
-  4,     // int itemmid;
-  4,     // int itemver;
-  8,     // int texthor;
-  4,     // int textver;
-  30,    // int linescroll;
-  4      // int samples;
+  270,   // total
+  15,    // scroll
+  120,   // label
+  8,     // section
+  6,     // cornersect
+  6,     // cornersep
+  4,     // itemside
+  4,     // itemmid
+  4,     // itemver
+  8,     // texthor
+  4,     // textver
+  30,    // linescroll
+  4      // samples
 };
 
 
 // theme spacing 1 : wide
 static const mjuiThemeSpacing themeSpacing1 = {
-  310,   // int total;
-  15,    // int scroll;
-  120,   // int label;
-  10,    // int section;
-  7,     // int itemside;
-  7,     // int itemmid;
-  7,     // int itemver;
-  10,    // int texthor;
-  5,     // int textver;
-  30,    // int linescroll;
-  4      // int samples;
+  310,   // total
+  15,    // scroll
+  120,   // label
+  10,    // section
+  10,    // cornersect
+  10,    // cornersep
+  7,     // itemside
+  7,     // itemmid
+  7,     // itemver
+  10,    // texthor
+  5,     // textver
+  30,    // linescroll
+  4      // samples
 };
 
 
 // theme color 0 : default
 static const mjuiThemeColor themeColor0 = {
-  {0.25, 0.25, 0.25},   // float master[3];
-  {0.12, 0.12, 0.12},   // float thumb[3];
-  {0.6,  0.2,  0.2},    // float secttitle[3];
-  {1.0,  1.0,  1.0},    // float sectfont[3];
-  {0.7,  0.7,  0.7},    // float sectsymbol[3];
-  {0.1,  0.1,  0.1},    // float sectpane[3];
-  {0.0,  0.0,  1.0},    // float shortcut[3];
-  {1.0,  1.0,  1.0},    // float fontactive[3];
-  {0.5,  0.5,  0.5},    // float fontinactive[3];
-  {0.3,  0.3,  0.3},    // float decorinactive[3];
-  {0.4,  0.4,  0.4},    // float decorinactive2[3];
-  {0.6,  0.4,  0.4},    // float button[3];
-  {0.4,  0.4,  0.7},    // float check[3];
-  {0.4,  0.6,  0.4},    // float radio[3];
-  {0.4,  0.6,  0.6},    // float select[3];
-  {0.2,  0.3,  0.3},    // float select2[3];
-  {0.3,  0.2,  0.3},    // float slider[3];
-  {0.6,  0.4,  0.6},    // float slider2[3];
-  {0.6,  0.6,  0.4},    // float edit[3];
-  {0.7,  0.0,  0.0},    // float edit2[3];
-  {0.9,  0.9,  0.9}     // float cursor[3];
+  {0.25, 0.25, 0.25},   // master
+  {0.12, 0.12, 0.12},   // thumb
+  {0.6,  0.2,  0.2},    // secttitle
+  {0.1,  0.1,  0.1},    // secttitle2
+  {0.45, 0.17, 0.17},   // secttitleuncheck
+  {0.45, 0.17, 0.17},   // secttitleuncheck2
+  {0.45, 0.17, 0.17},   // secttitlecheck
+  {0.45, 0.17, 0.17},   // secttitlecheck2
+  {1.0,  1.0,  1.0},    // sectfont
+  {0.7,  0.7,  0.7},    // sectsymbol
+  {0.1,  0.1,  0.1},    // sectpane
+  {0.25, 0.25, 0.25},   // separator
+  {0.1,  0.1,  0.1},    // separator2
+  {0.0,  0.0,  1.0},    // shortcut
+  {1.0,  1.0,  1.0},    // fontactive
+  {0.5,  0.5,  0.5},    // fontinactive
+  {0.3,  0.3,  0.3},    // decorinactive
+  {0.4,  0.4,  0.4},    // decorinactive2
+  {0.6,  0.4,  0.4},    // button
+  {0.4,  0.4,  0.7},    // check
+  {0.4,  0.6,  0.4},    // radio
+  {0.4,  0.6,  0.6},    // select
+  {0.2,  0.3,  0.3},    // select2
+  {0.3,  0.2,  0.3},    // slider
+  {0.6,  0.4,  0.6},    // slider2
+  {0.6,  0.6,  0.4},    // edit
+  {0.7,  0.0,  0.0},    // edit2
+  {0.9,  0.9,  0.9}     // cursor
 };
 
 
 // theme color 1 : orange
 static const mjuiThemeColor themeColor1 = {
-  {0.2,  0.2,  0.2},       // float master[3];
-  {0.12, 0.12, 0.12},      // float thumb[3];
-  {0.3,  0.3,  0.3},       // float secttitle[3];
-  {0.8,  0.8,  0.8},       // float sectfont[3];
-  {0.7,  0.7,  0.7},       // float sectsymbol[3];
-  {0.15, 0.15, 0.15},      // float sectpane[3];
-  {0.0,  0.0,  1.0},       // float shortcut[3];
-  {0.9,  0.9,  0.9},       // float fontactive[3];
-  {0.5,  0.5,  0.5},       // float fontinactive[3];
-  {0.2,  0.2,  0.2},       // float decorinactive[3];
-  {0.25, 0.25, 0.25},      // float decorinactive2[3];
-  {0.6,  0.4,  0.2},       // float button[3];
-  {0.6,  0.4,  0.2},       // float check[3];
-  {0.6,  0.4,  0.2},       // float radio[3];
-  {0.6,  0.4,  0.2},       // float select[3];
-  {0.3,  0.2,  0.1},       // float select2[3];
-  {0.2,  0.2,  0.2},       // float slider[3];
-  {0.6,  0.4,  0.2},       // float slider2[3];
-  {0.6,  0.4,  0.2},       // float edit[3];
-  {0.7,  0.0,  0.0},       // float edit2[3];
-  {0.9,  0.9,  0.9}        // float cursor[3];
+  {0.2,  0.2,  0.2},    // master
+  {0.12, 0.12, 0.12},   // thumb
+  {0.3,  0.3,  0.3},    // secttitle
+  {0.15, 0.15, 0.15},   // secttitle2
+  {0.25, 0.25, 0.25},   // secttitleuncheck
+  {0.25, 0.25, 0.25},   // secttitleuncheck2
+  {0.25, 0.25, 0.25},   // secttitlecheck
+  {0.25, 0.25, 0.25},   // secttitlecheck2
+  {0.8,  0.8,  0.8},    // sectfont
+  {0.7,  0.7,  0.7},    // sectsymbol
+  {0.15, 0.15, 0.15},   // sectpane
+  {0.2,  0.2,  0.2},    // separator
+  {0.15, 0.15, 0.15},   // separator2
+  {0.0,  0.0,  1.0},    // shortcut
+  {0.9,  0.9,  0.9},    // fontactive
+  {0.5,  0.5,  0.5},    // fontinactive
+  {0.2,  0.2,  0.2},    // decorinactive
+  {0.25, 0.25, 0.25},   // decorinactive2
+  {0.6,  0.4,  0.2},    // button
+  {0.6,  0.4,  0.2},    // check
+  {0.6,  0.4,  0.2},    // radio
+  {0.6,  0.4,  0.2},    // select
+  {0.3,  0.2,  0.1},    // select2
+  {0.2,  0.2,  0.2},    // slider
+  {0.6,  0.4,  0.2},    // slider2
+  {0.6,  0.4,  0.2},    // edit
+  {0.7,  0.0,  0.0},    // edit2
+  {0.9,  0.9,  0.9}     // cursor
 };
 
 
 // theme color 2 : white
 static const mjuiThemeColor themeColor2 = {
-  {0.9,  0.9,  0.9},       // float master[3];
-  {0.7,  0.7,  0.7},       // float thumb[3];
-  {0.8,  0.8,  0.8},       // float secttitle[3];
-  {0.0,  0.0,  0.8},       // float sectfont[3];
-  {0.0,  0.0,  0.8},       // float sectsymbol[3];
-  {1.0,  1.0,  1.0},       // float sectpane[3];
-  {0.0,  1.0,  1.0},       // float shortcut[3];
-  {0.0,  0.0,  0.0},       // float fontactive[3];
-  {0.7,  0.7,  0.7},       // float fontinactive[3];
-  {0.95, 0.95, 0.95},      // float decorinactive[3];
-  {0.9,  0.9,  0.9},       // float decorinactive2[3];
-  {0.8,  0.8,  0.8},       // float button[3];
-  {0.8,  0.8,  0.8},       // float check[3];
-  {0.8,  0.8,  0.8},       // float radio[3];
-  {0.8,  0.8,  0.8},       // float select[3];
-  {0.9,  0.9,  0.9},       // float select2[3];
-  {0.95, 0.95, 0.95},      // float slider[3];
-  {0.8,  0.8,  0.8},       // float slider2[3];
-  {0.8,  0.8,  0.8},       // float edit[3];
-  {1.0,  0.3,  0.3},       // float edit2[3];
-  {0.2,  0.2,  0.2}        // float cursor[3];
+  {0.9,  0.9,  0.9},    // master
+  {0.7,  0.7,  0.7},    // thumb
+  {0.8,  0.8,  0.8},    // secttitle
+  {1.0,  1.0,  1.0},    // secttitle2
+  {0.95, 0.95, 0.95},   // secttitleuncheck
+  {0.95, 0.95, 0.95},   // secttitleuncheck2
+  {0.95, 0.95, 0.95},   // secttitlecheck
+  {0.95, 0.95, 0.95},   // secttitlecheck2
+  {0.0,  0.0,  0.8},    // sectfont
+  {0.0,  0.0,  0.8},    // sectsymbol
+  {1.0,  1.0,  1.0},    // sectpane
+  {0.9,  0.9,  0.9},    // separator
+  {1.0,  1.0,  1.0},    // separator2
+  {0.0,  1.0,  1.0},    // shortcut
+  {0.0,  0.0,  0.0},    // fontactive
+  {0.7,  0.7,  0.7},    // fontinactive
+  {0.95, 0.95, 0.95},   // decorinactive
+  {0.9,  0.9,  0.9},    // decorinactive2
+  {0.8,  0.8,  0.8},    // button
+  {0.8,  0.8,  0.8},    // check
+  {0.8,  0.8,  0.8},    // radio
+  {0.8,  0.8,  0.8},    // select
+  {0.9,  0.9,  0.9},    // select2
+  {0.95, 0.95, 0.95},   // slider
+  {0.8,  0.8,  0.8},    // slider2
+  {0.8,  0.8,  0.8},    // edit
+  {1.0,  0.3,  0.3},    // edit2
+  {0.2,  0.2,  0.2}     // cursor
 };
 
 
 // theme color 3 : black
 static const mjuiThemeColor themeColor3 = {
-  {0.15, 0.15, 0.15},      // float master[3];
-  {0.3,  0.3,  0.3},       // float thumb[3];
-  {0.25, 0.25, 0.25},      // float secttitle[3];
-  {1.0,  0.3,  0.3},       // float sectfont[3];
-  {1.0,  0.3,  0.3},       // float sectsymbol[3];
-  {0.0,  0.0,  0.0},       // float sectpane[3];
-  {0.0,  0.0,  1.0},       // float shortcut[3];
-  {1.0,  1.0,  1.0},       // float fontactive[3];
-  {0.4,  0.4,  0.4},       // float fontinactive[3];
-  {0.1,  0.1,  0.1},       // float decorinactive[3];
-  {0.15, 0.15, 0.15},      // float decorinactive2[3];
-  {0.3,  0.3,  0.3},       // float button[3];
-  {0.3,  0.3,  0.3},       // float check[3];
-  {0.3,  0.3,  0.3},       // float radio[3];
-  {0.3,  0.3,  0.3},       // float select[3];
-  {0.15, 0.15, 0.15},      // float select2[3];
-  {0.15, 0.15, 0.15},      // float slider[3];
-  {0.3,  0.3,  0.3},       // float slider2[3];
-  {0.3,  0.3,  0.3},       // float edit[3];
-  {0.8,  0.2,  0.2},       // float edit2[3];
-  {0.8,  0.8,  0.8}        // float cursor[3];
+  {0.15, 0.15, 0.15},   // master
+  {0.3,  0.3,  0.3},    // thumb
+  {0.25, 0.25, 0.25},   // secttitle
+  {0.0,  0.0,  0.0},    // secttitle2
+  {0.2,  0.2,  0.2},    // secttitleuncheck
+  {0.2,  0.2,  0.2},    // secttitleuncheck2
+  {0.2,  0.2,  0.2},    // secttitlecheck
+  {0.2,  0.2,  0.2},    // secttitlecheck2
+  {1.0,  0.3,  0.3},    // sectfont
+  {1.0,  0.3,  0.3},    // sectsymbol
+  {0.0,  0.0,  0.0},    // sectpane
+  {0.15, 0.15, 0.15},   // separator
+  {0.0,  0.0,  0.0},    // separator2
+  {0.0,  0.0,  1.0},    // shortcut
+  {1.0,  1.0,  1.0},    // fontactive
+  {0.4,  0.4,  0.4},    // fontinactive
+  {0.1,  0.1,  0.1},    // decorinactive
+  {0.15, 0.15, 0.15},   // decorinactive2
+  {0.3,  0.3,  0.3},    // button
+  {0.3,  0.3,  0.3},    // check
+  {0.3,  0.3,  0.3},    // radio
+  {0.3,  0.3,  0.3},    // select
+  {0.15, 0.15, 0.15},   // select2
+  {0.15, 0.15, 0.15},   // slider
+  {0.3,  0.3,  0.3},    // slider2
+  {0.3,  0.3,  0.3},    // edit
+  {0.8,  0.2,  0.2},    // edit2
+  {0.8,  0.8,  0.8}     // cursor
 };
-
 
 
 
@@ -172,7 +204,7 @@ static int SCL(int sz, const mjrContext* con) {
 
 
 // init OpenGL
-static void initOpenGL(const mjUI* ui, const mjrContext* con) {
+static void initOpenGL(const mjrRect* r, const mjrContext* con) {
   // set OpenGL options
   glDisable(GL_NORMALIZE);
   glDisable(GL_DEPTH_TEST);
@@ -186,12 +218,12 @@ static void initOpenGL(const mjUI* ui, const mjrContext* con) {
   // standard 2D projection, in framebuffer units
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  glOrtho(0, ui->width, 0, ui->height, -1, 1);
+  glOrtho(0, r->width, 0, r->height, -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
   // set viewport
-  glViewport(0, 0, ui->width, ui->height);
+  glViewport(r->left, r->bottom, r->width, r->height);
 }
 
 
@@ -277,10 +309,72 @@ static void drawrectangle(mjrRect rect, const float* rgb, const float* rgbback,
 
 
 
+// round corners of rectangle
+static void roundcorner(mjrRect rect, int flg_skipbottom, int flg_separator,
+                        const mjUI* ui, const mjrContext* con) {
+  // get rounding from theme, exit if disabled
+  int cornerspec = flg_separator ? ui->spacing.cornersep : ui->spacing.cornersect;
+  if (cornerspec == 0) {
+    return;
+  }
+
+  // quarter-circle divisions and radius
+  int ndivide = 10;
+  double radius = cornerspec * 0.01 * con->fontScale;
+
+  // draw fans in the four corners, optionally skip bottom corners
+  for (int ic = (flg_skipbottom ? 2 : 0); ic < 4; ++ic) {
+    // set corner
+    double corner[2];
+    switch (ic) {
+    case 0:   // bottom-left
+      corner[0] = rect.left;
+      corner[1] = rect.bottom;
+      break;
+
+    case 1:   // bottom-right
+      corner[0] = rect.left + rect.width;
+      corner[1] = rect.bottom;
+      break;
+
+    case 2:   // top-right
+      corner[0] = rect.left + rect.width;
+      corner[1] = rect.bottom + rect.height;
+      break;
+
+    default:  // top-left
+      corner[0] = rect.left;
+      corner[1] = rect.bottom + rect.height;
+    }
+
+    // orient fan to point inside
+    double angle = ic * 0.5 * mjPI;
+
+    // compute circle center: opposite to corner
+    double center[2];
+    center[0] = corner[0] + mju_sqrt(2.0) * radius * cos(angle + 0.25 * mjPI);
+    center[1] = corner[1] + mju_sqrt(2.0) * radius * sin(angle + 0.25 * mjPI);
+
+    // fill with erase color, start trinagle_fan from corner
+    glColor3fv(flg_separator ? ui->color.sectpane : ui->color.master);
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2d(corner[0], corner[1]);
+
+    // compute vertices of quarter-circle
+    for (int i = 0; i <= ndivide; i++) {
+      double a = angle + mjPI + 0.5 * mjPI * (double)i / (double)ndivide;
+      glVertex2d(center[0] + radius * cos(a), center[1] + radius * sin(a));
+    }
+    glEnd();
+  }
+}
+
+
+
 // draw oval
 static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
                      const mjrContext* con) {
-  const int ndivide = 20;
+  const int ndivide = 15;
 
   // require horizontal
   if (rect.height > rect.width) {
@@ -334,8 +428,10 @@ static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
 
 
 
-// draw section open/closed symbol: section
-static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
+// draw open/closed symbol in title
+//  type: 0- section, 1- section with unchecked box,
+//        2- section with checked box, 3- separator
+static void drawsymbol(mjrRect rect, int flg_open, int type,
                        const mjUI* ui, const mjrContext* con) {
   // size and center
   int texthor =  SCL(ui->spacing.texthor, con);
@@ -344,7 +440,7 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
   int d = mju_round(con->charHeight*0.33);
 
   // separator size
-  if (flg_sep) {
+  if (type == 3) {
     d = mju_round(con->charHeight*0.28);
   }
 
@@ -360,7 +456,7 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
 
   // closed
   else {
-    // solid
+    // solid outside
     glColor3fv(ui->color.sectsymbol);
     glBegin(GL_TRIANGLES);
     glVertex2i(cx, cy-d);
@@ -368,23 +464,44 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
     glVertex2i(cx-2*d, cy);
     glEnd();
 
-    // empty
-    double margin = con->fontScale * 0.015;
-    double u = 0.5*sqrt(5.0)*margin;
-    double y = d - u - 0.5*margin;
-    if (flg_sep) {
+    // set color for inside
+    switch (type) {
+    case 0:   // section
       glColor3f(
-        (ui->color.master[0] + ui->color.sectpane[0]) * 0.5,
-        (ui->color.master[1] + ui->color.sectpane[1]) * 0.5,
-        (ui->color.master[2] + ui->color.sectpane[2]) * 0.5
-        );
-    } else {
+        (ui->color.secttitle[0] + ui->color.secttitle2[0]) * 0.5,
+        (ui->color.secttitle[1] + ui->color.secttitle2[1]) * 0.5,
+        (ui->color.secttitle[2] + ui->color.secttitle2[2]) * 0.5
+      );
+      break;
+
+    case 1:   // section with unchecked box
       glColor3f(
-        (ui->color.secttitle[0] + ui->color.sectpane[0]) * 0.5,
-        (ui->color.secttitle[1] + ui->color.sectpane[1]) * 0.5,
-        (ui->color.secttitle[2] + ui->color.sectpane[2]) * 0.5
-        );
+        (ui->color.secttitleuncheck[0] + ui->color.secttitleuncheck2[0]) * 0.5,
+        (ui->color.secttitleuncheck[1] + ui->color.secttitleuncheck2[1]) * 0.5,
+        (ui->color.secttitleuncheck[2] + ui->color.secttitleuncheck2[2]) * 0.5
+      );
+      break;
+
+    case 2:   // section with checked box
+      glColor3f(
+        (ui->color.secttitlecheck[0] + ui->color.secttitlecheck2[0]) * 0.5,
+        (ui->color.secttitlecheck[1] + ui->color.secttitlecheck2[1]) * 0.5,
+        (ui->color.secttitlecheck[2] + ui->color.secttitlecheck2[2]) * 0.5
+      );
+      break;
+
+    case 3:   // separator
+      glColor3f(
+        (ui->color.separator[0] + ui->color.separator2[0]) * 0.5,
+        (ui->color.separator[1] + ui->color.separator2[1]) * 0.5,
+        (ui->color.separator[2] + ui->color.separator2[2]) * 0.5
+      );
     }
+
+    // draw inside
+    double margin = con->fontScale * 0.015;
+    double u = 0.5 * sqrt(5.0) * margin;
+    double y = d - u - 0.5 * margin;
     glBegin(GL_TRIANGLES);
     glVertex2d(cx-margin, cy-y);
     glVertex2d(cx-margin, cy+y);
@@ -636,6 +753,7 @@ static int insideoval(int x, int y, mjrRect r) {
 // find mouse location in UI; y already inverted
 // sect: -1: thumb, -2: slider down, -3: slider up, positive: 1+section
 // item: -1: section title or scroll, non-negative: item number
+// item: -2: in checkbox on section title
 static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* con,
                       int* sect, int* item) {
   // clear
@@ -689,6 +807,16 @@ static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* co
     if (s->state < 2 && inside(x, y, s->rtitle)) {
       *sect = n+1;
       *item = -1;
+
+      // in checkbox
+      if (s->checkbox > 0) {
+        mjrRect rcheck = s->rtitle;
+        rcheck.width = mjMIN(rcheck.height, rcheck.width);
+        if (inside(x, y, rcheck)) {
+          *item = -2;
+        }
+      }
+
       return;
     }
 
@@ -1152,18 +1280,32 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       if (strlen(def[n].name) >= mjMAXUINAME-1) {
         mju_error("mjui_add: section name too long");
       }
-      if (def[n].state < 0 || def[n].state > 2) {
+      if (def[n].state != mjSECT_CLOSED && def[n].state != mjSECT_OPEN &&
+          def[n].state != mjSECT_FIXED && def[n].state != mjPRESERVE) {
         mju_error("mjui_add: invalid section state");
       }
 
-      // add section, clear
+      // add section, save state
       ui->nsect++;
       mjuiSection* se = ui->sect + (ui->nsect-1);
-      memset(se, 0, sizeof(mjuiSection));
+      int oldstate = se->state;
 
-      // copy data
+      // clear, but preserve item states
+      int itemstate[mjMAXUIITEM];
+      for (int i = 0; i < mjMAXUIITEM; ++i) {
+        itemstate[i] = se->item[i].state;
+      }
+      memset(se, 0, sizeof(mjuiSection));
+      for (int i = 0; i < mjMAXUIITEM; ++i) {
+        se->item[i].state = itemstate[i];
+      }
+
+      // set or restore section state
+      se->state = (def[n].state == mjPRESERVE ? oldstate : def[n].state);
+
+      // copy remaining data
       mjSTRNCPY(se->name, def[n].name);
-      se->state = def[n].state;
+      se->checkbox = def[n].otherint;
       parseshortcut(def[n].other, &(se->modifier), &(se->shortcut));
     }
 
@@ -1191,18 +1333,28 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
         mju_error("mjui_add: invalid item state");
       }
 
-      // add item, clear
+      // add item, save state, clear
       se->nitem++;
       mjuiItem* it = se->item + (se->nitem-1);
+      int oldstate = it->state;
       memset(it, 0, sizeof(mjuiItem));
+
+      // set or restore state for collapsible separator, copy state for others
+      if (def[n].type == mjITEM_SEPARATOR && def[n].state == mjPRESERVE) {
+        // mjSEPCLOSED makes separator collapsible
+        it->state = (oldstate < mjSEPCLOSED ? mjSEPCLOSED : oldstate);
+      }
+      else {
+        it->state = def[n].state;
+      }
 
       // copy common data
       it->type = def[n].type;
-      it->state = def[n].state;
       it->pdata = def[n].pdata;
       mjSTRNCPY(it->name, def[n].name);
       it->sectionid = ui->nsect - 1;
       it->itemid = se->nitem - 1;
+      it->userid = def[n].otherint;
 
       // data pointer check
       if (it->type > mjITEM_BUTTON && it->pdata == 0) {
@@ -1343,10 +1495,38 @@ void mjui_addToSection(mjUI* ui, int sect, const mjuiDef* def) {
 
 
 
-// Compute UI sizes.
-void mjui_resize(mjUI* ui, const mjrContext* con) {
+// set item skip flags within section, but not in pass 0
+static void setitemskip(mjuiSection* s, int pass) {
+  int skip = 0;
+
+  // process section items
+  for (int i = 0; i < s->nitem; ++i) {
+    mjuiItem* it = s->item + i;
+
+    // pass 0: nothing is skipped
+    if (pass == 0) {
+      it->skip = 0;
+      continue;
+    }
+
+    // item is a separator: update skip state for subsequent items
+    if (it->type == mjITEM_SEPARATOR) {
+      skip = (it->state == mjSEPCLOSED);
+    }
+
+    // item is not a separator: set skip state
+    else {
+      it->skip = skip;
+    }
+  }
+}
+
+
+
+// Compute UI sizes: internal fuction, may be called twice per resize
+static void tryresize(mjUI* ui, const mjrContext* con) {
   // scale theme sizes
-  int w_master =   SCL(ui->spacing.total,   con);
+  int w_master =   SCL(ui->spacing.total,    con);
   int w_scroll =   SCL(ui->spacing.scroll,   con);
   int g_section =  SCL(ui->spacing.section,  con);
   int g_itemside = SCL(ui->spacing.itemside, con);
@@ -1361,183 +1541,279 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
   // column width
   int colwidth = (w_master - w_scroll - 2*g_section - 2*g_itemside - g_itemmid)/2;
 
-  // init UI sizes
-  int height = 0;
-  int maxheight = 0;
+  // pass 0 includes skipped items, pass 1 does not
+  int Height, MaxHeight;
+  for (int pass = 0; pass < 2; ++pass) {
+    // init UI heights
+    int height = 0;
+    int maxheight = 0;
 
-  // process sections
-  int skip;
-  for (int n=0; n < ui->nsect; n++) {
-    // vertical padding before section
+    // process sections
+    for (int n = 0; n < ui->nsect; n++) {
+      // vertical padding before section
+      height += g_section;
+      maxheight += g_section;
+
+      // get section pointer
+      mjuiSection* s = ui->sect + n;
+
+      // set item skip flags for section, depending on pass
+      setitemskip(s, pass);
+
+      // title rectangle
+      s->rtitle.left = g_section;
+      s->rtitle.width = w_master - w_scroll - 2 * g_section;
+      if (s->state == mjSECT_FIXED) {  // fixed section: no title
+        s->rtitle.bottom = height;
+        s->rtitle.height = 0;
+      }
+      else {                             // regular section with title
+        s->rtitle.bottom = height + textheight;
+        s->rtitle.height = textheight;
+      }
+
+      // count title height
+      height += s->rtitle.height;
+      maxheight += s->rtitle.height;
+
+      // init content rectangle
+      s->rcontent.left = s->rtitle.left;
+      s->rcontent.width = s->rtitle.width;
+      s->rcontent.height = 0;
+      s->rcontent.bottom = 0;
+
+      // process items within section
+      for (int i = 0; i < s->nitem; i++) {
+        // get item pointer, clear rectangle
+        mjuiItem* it = s->item + i;
+        memset(&it->rect, 0, sizeof(mjrRect));
+
+        // item is skipped: nothing to do
+        if (it->skip) {
+          continue;
+        }
+
+        // vertical padding before item
+        s->rcontent.height += it->type == mjITEM_SEPARATOR ? g_section : g_itemver;
+
+        // packed pair of items
+        if (i < s->nitem - 1 && s->item[i + 1].type == it->type &&
+          (it->type == mjITEM_BUTTON ||
+            it->type == mjITEM_CHECKINT ||
+            it->type == mjITEM_CHECKBYTE)) {
+          // get next item pointer
+          mjuiItem* it1 = s->item + (i + 1);
+
+          // this item rectangle
+          it->rect.left = s->rcontent.left + g_itemside;
+          it->rect.width = colwidth;
+          it->rect.height = textheight;
+
+          // next item rectangle (set bottom here)
+          it1->rect.left = s->rcontent.left + g_itemside + colwidth + g_itemmid;
+          it1->rect.width = colwidth;
+          it1->rect.height = textheight;
+          it1->rect.bottom = height + s->rcontent.height + it->rect.height;
+
+          // advance
+          i++;
+        }
+
+        // single-line item
+        else {
+          // common left border (except for labeled controls at the end)
+          it->rect.left = s->rcontent.left + g_itemside;
+
+          // static
+          if (it->type == mjITEM_STATIC) {
+            it->rect.width = s->rcontent.width - 2 * g_itemside;
+            it->rect.height = (con->charHeight + g_textver) * it->multi.nelem;
+          }
+
+          // single column
+          else if (it->type == mjITEM_BUTTON ||
+            it->type == mjITEM_CHECKINT ||
+            it->type == mjITEM_CHECKBYTE) {
+            it->rect.width = colwidth;
+            it->rect.height = textheight;
+          }
+
+          // radio
+          else if (it->type == mjITEM_RADIO) {
+            int ncol = ui->radiocol ? ui->radiocol : 2;
+            int nrow = (it->multi.nelem - 1) / ncol + 1;
+            it->rect.width = s->rcontent.width - 2 * g_itemside;
+            it->rect.height = textheight * nrow;
+          }
+
+          // separator, select, slider, edit, radioline
+          else {
+            it->rect.width = s->rcontent.width - 2 * g_itemside;
+            it->rect.height = textheight;
+          }
+
+          // add room for label
+          if (it->name[0] &&
+            (it->type >= mjITEM_RADIO ||
+              it->type >= mjITEM_RADIOLINE ||
+              it->type == mjITEM_STATIC)) {
+            it->rect.left = s->rcontent.left + g_itemside + g_label;
+            it->rect.width = s->rcontent.width - (2 * g_itemside + g_label);
+          }
+        }
+
+        // set bottom, count height
+        it->rect.bottom = height + s->rcontent.height + it->rect.height;
+        s->rcontent.height += it->rect.height;
+      }
+
+      // vertical padding after last item, compute bottom
+      s->rcontent.height += g_itemver;
+      s->rcontent.bottom = height + s->rcontent.height;
+
+      // count content height
+      if (s->state != mjSECT_CLOSED) {
+        height += s->rcontent.height;
+      }
+      maxheight += s->rcontent.height;
+    }
+
+    // vertical padding after last section
     height += g_section;
     maxheight += g_section;
 
-    // get section pointer
-    mjuiSection* s = ui->sect + n;
-
-    // title rectangle
-    s->rtitle.left = g_section;
-    s->rtitle.width = w_master - w_scroll - 2*g_section;
-    if (s->state < 2) {
-      s->rtitle.bottom = height + textheight;
-      s->rtitle.height = textheight;
-    } else {
-      s->rtitle.bottom = height;
-      s->rtitle.height = 0;
+    // save data: maxheight from pass 0, height from pass 1
+    if (pass == 0) {
+      MaxHeight = maxheight;
     }
-
-    // count title height
-    height += s->rtitle.height;
-    maxheight += s->rtitle.height;
-
-    // init content rectangle
-    s->rcontent.left = s->rtitle.left;
-    s->rcontent.width = s->rtitle.width;
-    s->rcontent.height = 0;
-
-    // process items within section
-    for (int i=0; i < s->nitem; i++) {
-      // get item pointer
-      mjuiItem* it = s->item + i;
-
-      // save section rcontent
-      mjrRect oldcontent = s->rcontent;
-
-      // determine skip (collapsed separator before item)
-      skip = 0;
-      if (i > 0 && it->type != mjITEM_SEPARATOR) {
-        for (int k=i-1; k >= 0; k--) {
-          if (s->item[k].type == mjITEM_SEPARATOR) {
-            // collapsed state: skip items below it
-            if (s->item[k].state == mjSEPCLOSED) {
-              skip = 1;
-            }
-
-            break;
-          }
-        }
-      }
-
-      // vertical padding before item
-      s->rcontent.height += it->type == mjITEM_SEPARATOR ? g_section : g_itemver;
-
-      // packed pair of items
-      if (i < s->nitem-1 && s->item[i+1].type == it->type &&
-          (it->type == mjITEM_BUTTON ||
-           it->type == mjITEM_CHECKINT ||
-           it->type == mjITEM_CHECKBYTE)) {
-        // get next item pointer
-        mjuiItem* it1 = s->item + (i+1);
-
-        // this item rectangle
-        it->rect.left = s->rcontent.left + g_itemside;
-        it->rect.width = colwidth;
-        it->rect.height = textheight;
-
-        // next item rectangle (set bottom here)
-        it1->rect.left = s->rcontent.left + g_itemside + colwidth + g_itemmid;
-        it1->rect.width = colwidth;
-        it1->rect.height = textheight;
-        it1->rect.bottom = height + s->rcontent.height + it->rect.height;
-
-        // skip second item in pair
-        if (skip) {
-          it1->rect.width = 0;
-          it1->rect.height = 0;
-        }
-
-        // advance
-        i++;
-      }
-
-      // single-line item
-      else {
-        // common left border (except for labeled controls at the end)
-        it->rect.left = s->rcontent.left + g_itemside;
-
-        // static
-        if (it->type == mjITEM_STATIC) {
-          it->rect.width = s->rcontent.width - 2*g_itemside;
-          it->rect.height = (con->charHeight+g_textver)*it->multi.nelem;
-        }
-
-        // single column
-        else if (it->type == mjITEM_BUTTON ||
-                 it->type == mjITEM_CHECKINT ||
-                 it->type == mjITEM_CHECKBYTE) {
-          it->rect.width = colwidth;
-          it->rect.height = textheight;
-        }
-
-        // radio
-        else if (it->type == mjITEM_RADIO) {
-          int ncol = ui->radiocol ? ui->radiocol : 2;
-          int nrow = (it->multi.nelem-1)/ncol + 1;
-          it->rect.width = s->rcontent.width - 2*g_itemside;
-          it->rect.height = textheight*nrow;
-        }
-
-        // separator, select, slider, edit, radioline
-        else {
-          it->rect.width = s->rcontent.width - 2*g_itemside;
-          it->rect.height = textheight;
-        }
-
-        // add room for label
-        if (it->name[0] &&
-            (it->type >= mjITEM_RADIO ||
-             it->type >= mjITEM_RADIOLINE ||
-             it->type == mjITEM_STATIC)) {
-          it->rect.left = s->rcontent.left + g_itemside + g_label;
-          it->rect.width = s->rcontent.width - (2*g_itemside + g_label);
-        }
-      }
-
-      // set bottom, count height
-      it->rect.bottom = height + s->rcontent.height + it->rect.height;
-      s->rcontent.height += it->rect.height;
-
-      // skip item
-      if (skip) {
-        maxheight += s->rcontent.height - oldcontent.height;
-        s->rcontent = oldcontent;
-        it->rect.width = 0;
-        it->rect.height = 0;
-      }
+    else {
+      Height = height;
     }
-
-    // vertical padding after last item, compute bottom
-    s->rcontent.height += g_itemver;
-    s->rcontent.bottom = height + s->rcontent.height;
-
-    // count content height
-    if (s->state) {
-      height += s->rcontent.height;
-    }
-    maxheight += s->rcontent.height;
   }
-
-  // vertical padding after last section
-  height += g_section;
-  maxheight += g_section;
 
   // invert bottom for all sections and items
   for (int n=0; n < ui->nsect; n++) {
     // section
     mjuiSection* s = ui->sect + n;
-    s->rtitle.bottom = height - s->rtitle.bottom;
-    s->rcontent.bottom = height - s->rcontent.bottom;
+    s->rtitle.bottom = Height - s->rtitle.bottom;
+    s->rcontent.bottom = Height - s->rcontent.bottom;
 
     // items
     for (int i=0; i < s->nitem; i++) {
-      s->item[i].rect.bottom = height - s->item[i].rect.bottom;
+      s->item[i].rect.bottom = Height - s->item[i].rect.bottom;
     }
   }
 
   // assign UI sizes
   ui->width = w_master;
-  ui->height = height;
-  ui->maxheight = maxheight;
+  ui->height = Height;
+  ui->maxheight = MaxHeight;
+}
+
+
+
+// insertion sort of groups of ints: increasing order of leading int
+static void insertionsortgroup(int* list, int num, int stride) {
+  // allocate buffer of 10 ints, cannot handle more
+  if (stride > 10) {
+    mju_error("insertionsortgroup cannot handle stride greater than 10");
+  }
+  int x[10];
+
+  for (int i = 1; i < num; i++) {
+    memcpy(x, list + i * stride, sizeof(int) * stride);
+
+    int j = i - 1;
+    while (j >= 0 && list[j * stride] > x[0]) {
+      memcpy(list + (j + 1) * stride, list + j * stride, sizeof(int) * stride);
+      j--;
+    }
+
+    memcpy(list + (j + 1) * stride, x, sizeof(int) * stride);
+  }
+}
+
+
+
+// Compute UI sizes.
+void mjui_resize(mjUI* ui, const mjrContext* con) {
+  // get maximum buffer size allowed by OpenGL driver
+  int maxBufferSize = 0;
+  glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxBufferSize);
+
+  // USED FOR TESTING OF SMALL BUFFER SIZES
+  // maxBufferSize = 3000;
+
+  // resize with current section states, clamp maxheight
+  tryresize(ui, con);
+  ui->maxheight = mjMIN(ui->maxheight, maxBufferSize);
+
+  // if height is too large, close some sections
+  if (ui->height > ui->maxheight) {
+    // init new height with section gaps
+    int hnew = (ui->nsect + 1) * SCL(ui->spacing.section, con);
+
+    // add titles of regular sections and contents of fixed sections
+    for (int n = 0; n < ui->nsect; ++n) {
+      if (ui->sect[n].state == mjSECT_FIXED) {
+        hnew += ui->sect[n].rcontent.height;
+      }
+      else {
+        hnew += ui->sect[n].rtitle.height;
+      }
+    }
+
+    // if fixed height is too big, nothing we can do
+    if (hnew > ui->maxheight) {
+      mju_error("fixed section height already too big, closing sections cannot help");
+    }
+
+    // sort open sections by lastclick
+    int nopen = 0;
+    int sortbuf[2 * mjMAXUISECT] = { 0 };
+    for (int n = 0; n < ui->nsect; ++n) {
+      if (ui->sect[n].state == mjSECT_OPEN) {
+        sortbuf[2 * nopen] = ui->sect[n].lastclick;
+        sortbuf[2 * nopen + 1] = n;
+        ++nopen;
+      }
+    }
+    insertionsortgroup(sortbuf, nopen, 2);
+
+    // nothing is open; SHOULD NOT OCCUR
+    if (nopen == 0) {
+      mju_error("internal error: expected some sections to be open");
+    }
+
+    // keep most recent sections: as many as can fit in maxheight
+    for (int i = nopen - 1; i >= 0; --i) {
+      // section fits: add height
+      if (hnew + ui->sect[sortbuf[2 * i + 1]].rcontent.height <= ui->maxheight) {
+        hnew += ui->sect[sortbuf[2 * i + 1]].rcontent.height;
+      }
+
+      // section does not fit: mark for closing
+      else {
+        sortbuf[2 * i] = -1;
+      }
+    }
+
+    // close sections that were marked
+    for (int i = 0; i < nopen; ++i) {
+      if (sortbuf[2 * i] == -1) {
+        ui->sect[sortbuf[2 * i + 1]].state = mjSECT_CLOSED;
+      }
+    }
+
+    // resize with new section states, clamp maxheight again
+    tryresize(ui, con);
+    ui->maxheight = mjMIN(ui->maxheight, maxBufferSize);
+
+    // make sure tryresize did what we expected; SHOULD NOT OCCUR
+    if (ui->height != hnew) {
+      mju_error("internal error: tryresize produced unexpeced ui height");
+    }
+  }
 }
 
 
@@ -1653,7 +1929,8 @@ void mjui_update(int section, int item, const mjUI* ui,
 
   // start rendering
   mjr_setAux(ui->auxid, con);
-  initOpenGL(ui, con);
+  mjrRect rgl = { 0, 0, ui->width, ui->height };
+  initOpenGL(&rgl, con);
 
   // all sections: clear background
   if (section < 0) {
@@ -1684,34 +1961,89 @@ void mjui_update(int section, int item, const mjUI* ui,
 
     // redraw section title and pane
     if (section < 0 || item < 0) {
-      // title shown
-      if (s->state < 2) {
-        // interpolated rectangle
-        r = s->rtitle;
-        glBegin(GL_QUADS);
-        glColor3fv(ui->color.sectpane);
-        glVertex2i(r.left, r.bottom);
-        glVertex2i(r.left+r.width, r.bottom);
-        glColor3fv(ui->color.secttitle);
-        glVertex2i(r.left+r.width, r.bottom+r.height);
-        glVertex2i(r.left, r.bottom+r.height);
-        glEnd();
+      r = s->rtitle;
 
-        // symbol and text
-        drawsymbol(s->rtitle, s->state, 0, ui, con);
-        drawtext(s->name, s->rtitle.left+g_texthor, s->rtitle.bottom+g_textver,
-                 2*maxwidth, ui->color.sectfont, con);
+      // title shown
+      if (s->state != mjSECT_FIXED) {
+        // section without checkbox
+        if (s->checkbox == 0) {
+          // interpolated rectangle
+          glBegin(GL_QUADS);
+          glColor3fv(ui->color.secttitle2);
+          glVertex2i(r.left, r.bottom);
+          glVertex2i(r.left + r.width, r.bottom);
+          glColor3fv(ui->color.secttitle);
+          glVertex2i(r.left + r.width, r.bottom + r.height);
+          glVertex2i(r.left, r.bottom + r.height);
+          glEnd();
+
+          // symbol and text
+          drawsymbol(r, s->state, 0, ui, con);
+          drawtext(s->name, r.left + g_texthor,
+            r.bottom + g_textver, 2 * maxwidth,
+            ui->color.sectfont, con);
+        }
+
+        // section with checkbox
+        else {
+          // select colors depending on check state
+          const float* rgb = (s->checkbox == 1 ? ui->color.secttitleuncheck
+                                               : ui->color.secttitlecheck);
+          const float* rgb2 = (s->checkbox == 1 ? ui->color.secttitleuncheck2
+                                                : ui->color.secttitlecheck2);
+
+          // draw rectangle with gradient
+          glBegin(GL_QUADS);
+          glColor3fv(rgb2);
+          glVertex2i(r.left, r.bottom);
+          glVertex2i(r.left + r.width, r.bottom);
+          glColor3fv(rgb);
+          glVertex2i(r.left + r.width, r.bottom + r.height);
+          glVertex2i(r.left, r.bottom + r.height);
+          glEnd();
+
+          // symbol and text with offset
+          drawsymbol(r, s->state, s->checkbox, ui, con);
+          drawtext(s->name, r.left + r.height,
+            r.bottom + g_textver, 2 * maxwidth - r.height,
+            ui->color.sectfont, con);
+
+          // draw checkmark as specified
+          int cgap = r.height / 4;
+          mjrRect cr = {r.left + cgap,
+                        r.bottom + cgap,
+                        r.height - 2 * cgap,
+                        r.height - 2 * cgap};
+          float rgbmean[3] = {
+            0.5f * (rgb[0] + rgb2[0]),
+            0.5f * (rgb[1] + rgb2[1]),
+            0.5f * (rgb[2] + rgb2[2]),
+          };
+          drawrectangle(cr, ui->color.sectsymbol,
+            s->checkbox == 1 ? rgbmean : NULL, con);
+        }
 
         // shortcut
         if (ui->mousehelp && s->shortcut) {
-          shortcuthelp(s->rtitle, s->modifier, s->shortcut, ui, con);
+          shortcuthelp(r, s->modifier, s->shortcut, ui, con);
         }
       }
 
       // content pane, active only
-      if (s->state) {
+      if (s->state != mjSECT_CLOSED) {
         drawrectangle(s->rcontent, ui->color.sectpane, NULL, con);
       }
+
+      // round corners
+      mjrRect rround = s->rtitle;
+      if (s->state == mjSECT_FIXED) {
+        rround = s->rcontent;
+      }
+      else if (s->state == mjSECT_OPEN) {
+        rround.bottom = s->rcontent.bottom;
+        rround.height = s->rtitle.height + s->rcontent.height;
+      }
+      roundcorner(rround, 0, 0, ui, con);
     }
 
     // closed: skip items
@@ -1754,10 +2086,10 @@ void mjui_update(int section, int item, const mjUI* ui,
         // background
         r = it->rect;
         glBegin(GL_QUADS);
-        glColor3fv(ui->color.sectpane);
+        glColor3fv(ui->color.separator2);
         glVertex2i(r.left, r.bottom);
         glVertex2i(r.left+r.width, r.bottom);
-        glColor3fv(ui->color.master);
+        glColor3fv(ui->color.separator);
         glVertex2i(r.left+r.width, r.bottom+r.height);
         glVertex2i(r.left, r.bottom+r.height);
         glEnd();
@@ -1768,13 +2100,12 @@ void mjui_update(int section, int item, const mjUI* ui,
                  it->rect.bottom+g_textver,
                  it->rect.width-2*g_texthor, ui->color.sectfont, con);
 
-        // symbol
-        if (it->state == mjSEPCLOSED+1) {
-          drawsymbol(it->rect, 1, 1, ui, con);
-        } else if (it->state == mjSEPCLOSED) {
-          drawsymbol(it->rect, 0, 1, ui, con);
+        // symbol and round corners for collapsible
+        if (it->state >= mjSEPCLOSED) {
+          int flg_open = (it->state == mjSEPCLOSED + 1);
+          drawsymbol(it->rect, flg_open, 3, ui, con);
+          roundcorner(it->rect, flg_open, 1, ui, con);
         }
-
         break;
 
       case mjITEM_STATIC:
@@ -1945,7 +2276,7 @@ void mjui_update(int section, int item, const mjUI* ui,
                    it->rect.width-2*g_texthor, rgbfont, con);
         }
 
-        // draw tracking at the end
+        // draw tracking in mjui_render()
         break;
 
       case mjITEM_SLIDERINT:
@@ -2062,46 +2393,6 @@ void mjui_update(int section, int item, const mjUI* ui,
     }
   }
 
-  // select tracking
-  if (ui->mousesect > 0 && ui->mouseitem >= 0) {
-    // get item pointer
-    const mjuiItem* it = ui->sect[ui->mousesect-1].item + ui->mouseitem;
-
-    // proceed if select type
-    if (it->type == mjITEM_SELECT) {
-      // margin
-      r = it->rect;
-      r.left -= g_itemside;
-      r.width += 2*g_itemside;
-      r.height = it->multi.nelem * cellheight + g_itemside;
-      r.bottom -= r.height;
-      drawrectangle(r, ui->color.sectpane, NULL, con);
-
-      // box
-      r = it->rect;
-      r.height = it->multi.nelem * cellheight;
-      r.bottom -= r.height;
-      drawrectangle(r, ui->color.select2, NULL, con);
-
-      // hightlight row under mouse
-      int k = findselect(it, ui, state, con);
-      if (k >= 0) {
-        mjrRect r1 = r;
-        r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
-        r1.height = cellheight;
-        drawrectangle(r1, ui->color.select, NULL, con);
-      }
-
-      // values
-      for (int k=0; k < it->multi.nelem; k++) {
-        drawtext(it->multi.name[k],
-                 r.left+g_texthor,
-                 r.bottom+g_textver+(it->multi.nelem-1-k)*cellheight,
-                 r.width-2*g_texthor, ui->color.fontactive, con);
-      }
-    }
-  }
-
   // stop rendering
   mjr_restoreBuffer(con);
 }
@@ -2113,6 +2404,11 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   int i, key, change = 0;
   mjuiItem* it;
   ui->editchanged = NULL;
+
+  // count mouse clicks over UI
+  if (state->type == mjEVENT_PRESS) {
+    ++ui->mouseclicks;
+  }
 
   // non-left mouse events: handle shortcut help
   if ((state->type == mjEVENT_PRESS || state->type == mjEVENT_MOVE ||
@@ -2137,6 +2433,11 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   findmouse(ui, state, con, &sect_cur, &item_cur);
   if (sect_cur > 0 && item_cur >= 0) {
     it_cur = ui->sect[sect_cur-1].item + item_cur;
+  }
+
+  // update section lastclick
+  if (sect_cur > 0 && state->type == mjEVENT_PRESS) {
+    ui->sect[sect_cur - 1].lastclick = ui->mouseclicks;
   }
 
   // get recorded mouse section and item
@@ -2242,19 +2543,33 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
     // section title
     else if (sect_cur > 0 && item_cur < 0) {
-      // double-click: make all sections like this
+      mjuiSection* se = ui->sect + sect_cur - 1;
+
+      // handle section checkbox
+      if (item_cur == -2 && se->checkbox > 0) {
+        ui->mousesectcheck = sect_cur;
+        return NULL; // leave it to user, because sections may interact
+      }
+      else {
+        ui->mousesectcheck = 0;
+      }
+
+      // double-click: make all sections like this (exclude fixed)
       if (state->doubleclick) {
         for (int i=0; i < ui->nsect; i++) {
-          if (ui->sect[i].state < 2 && ui->sect[sect_cur-1].state < 2) {
-            ui->sect[i].state = ui->sect[sect_cur-1].state;
+          if (ui->sect[i].state != mjSECT_FIXED && se->state != mjSECT_FIXED) {
+            ui->sect[i].state = se->state;
           }
         }
       }
 
-      // single click: toggle section state
+      // single click: toggle section state (exclude fixed)
       else {
-        if (ui->sect[sect_cur-1].state < 2) {
-          ui->sect[sect_cur-1].state = 1 - ui->sect[sect_cur-1].state;
+        if (se->state == mjSECT_OPEN) {
+          se->state = mjSECT_CLOSED;
+        }
+        else if (se->state == mjSECT_CLOSED) {
+          se->state = mjSECT_OPEN;
         }
       }
 
@@ -2607,7 +2922,7 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
   mjr_blitAux(ui->auxid, raux, rect.left,
               rect.bottom + mjMAX(0, rect.height - ui->height + ui->scroll), con);
 
-  // draw scrollbar on top if needed
+  // draw scrollbar over blit if needed
   if (ui->height > rect.height) {
     // construct rectangles
     mjrRect bar;
@@ -2617,5 +2932,61 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
     // draw
     mjr_rectangle(thumb, ui->color.thumb[0], ui->color.thumb[1],
                   ui->color.thumb[2], 1);
+  }
+
+  // draw selection box tracking over blit if needed
+  if (ui->mousesect > 0 && ui->mouseitem >= 0) {
+    // get item pointer
+    const mjuiItem* it = ui->sect[ui->mousesect-1].item + ui->mouseitem;
+
+    // proceed if select type
+    if (it->type == mjITEM_SELECT) {
+      // get relevant sizes
+      int g_texthor = SCL(ui->spacing.texthor, con);
+      int g_textver = SCL(ui->spacing.textver, con);
+      int g_itemside = SCL(ui->spacing.itemside, con);
+      int cellheight = con->charHeight + 2 * g_textver;
+      int offset = mjMAX(0, rect.height - ui->height + ui->scroll) -
+                   mjMAX(0, ui->height - ui->scroll - rect.height);
+
+      // margin
+      mjrRect r = it->rect;
+      r.left -= g_itemside;
+      r.width += 2*g_itemside;
+      r.height = it->multi.nelem * cellheight + g_itemside;
+      r.bottom -= r.height;
+      r.bottom += offset;
+      r.left += rect.left;
+      mjr_rectangle(r, ui->color.sectpane[0],
+        ui->color.sectpane[1], ui->color.sectpane[2], 1);
+
+      // box
+      r = it->rect;
+      r.height = it->multi.nelem * cellheight;
+      r.bottom -= r.height;
+      r.bottom += offset;
+      r.left += rect.left;
+      mjr_rectangle(r, ui->color.select2[0],
+        ui->color.select2[1], ui->color.select2[2], 1);
+
+      // hightlight row under mouse
+      int k = findselect(it, ui, state, con);
+      if (k >= 0) {
+        mjrRect r1 = r;
+        r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
+        r1.height = cellheight;
+        mjr_rectangle(r1, ui->color.select[0],
+          ui->color.select[1], ui->color.select[2], 1);
+      }
+
+      // text values
+      initOpenGL(&rect, con);
+      for (int k=0; k < it->multi.nelem; k++) {
+        drawtext(it->multi.name[k],
+                 r.left+g_texthor - rect.left,
+                 r.bottom+g_textver+(it->multi.nelem-1-k)*cellheight,
+                 r.width-2*g_texthor, ui->color.fontactive, con);
+      }
+    }
   }
 }
