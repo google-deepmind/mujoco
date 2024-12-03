@@ -148,7 +148,7 @@ public class MjcfImporter {
       var extensionParentObject = CreateGameObjectInParent("extension", rootObject);
       foreach (var child in extensionNode.OfType<XmlElement>()) {
         _modifiers.ApplyModifiersToElement(child);
-        CreateGameObjectWithUniqueName(extensionParentObject, child, typeof(MjPlugin));
+        ParseBodyChildren(extensionParentObject, extensionNode);
       }
     }
 
@@ -249,6 +249,42 @@ public class MjcfImporter {
     }
   }
 
+  private void ParseExtensions(GameObject parentObject, XmlElement parentNode) {
+    foreach (var child in parentNode.Cast<XmlNode>().OfType<XmlElement>()) {
+      _modifiers.ApplyModifiersToElement(child);
+
+      if (_customNodeHandlers.TryGetValue(child.Name, out var handler)) {
+        handler?.Invoke(child, parentObject);
+      } else {
+        ParseExtension(child, parentObject);
+      }
+    }
+  }
+
+  private void ParseExtension(XmlElement child, GameObject parentObject) {
+    switch (child.Name) {
+
+      case "plugin": {
+        var pluginObject = CreateGameObjectWithUniqueName<MjPlugin>(parentObject, child);
+        ParseBodyChildren(pluginObject, child);
+        break;
+      }
+      case "instance": {
+        var instanceObject = CreateGameObjectWithUniqueName<MjPluginInstance>(parentObject, child);
+        ParseBodyChildren(instanceObject, child);
+        break;
+      }
+      case "config": {
+        CreateGameObjectWithUniqueName<MjPluginConfig>(parentObject, child);
+        break;
+      }
+      default: {
+        Debug.Log($"The importer does not yet support tags <{child.Name}>.");
+        break;
+      }
+    }
+  }
+
   // Called by ParseBodyChildren for each XML node, overridable by inheriting classes.
   private void ParseBodyChild(XmlElement child, GameObject parentObject) {
     switch (child.Name) {
@@ -295,7 +331,20 @@ public class MjcfImporter {
         break;
       }
       case "plugin": {
-        CreateGameObjectWithUniqueName<MjPlugin>(parentObject, child);
+        var pluginObject = CreateGameObjectWithUniqueName<MjPluginTag>(parentObject, child);
+        ParseBodyChildren(pluginObject, child);
+        break;
+      }
+      case "instance": {
+        var instanceObject = CreateGameObjectWithUniqueName<MjPluginInstance>(parentObject, child);
+        ParseBodyChildren(instanceObject, child);
+        break;
+      }
+      case "numeric": {
+        break;
+      }
+      case "config": {
+        CreateGameObjectWithUniqueName<MjPluginConfig>(parentObject, child);
         break;
       }
       default: {

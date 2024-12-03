@@ -19,27 +19,33 @@ using System.Xml;
 using UnityEngine;
 
 namespace Mujoco {
-// Actuators provide means to set joints in motion.
+
 public class MjPlugin : MjComponent {
 
   //Plugin identifier, used for implicit plugin instantiation.
   public string Plugin = "";
 
+  //Instance name, used for explicit plugin instantiation.
+  public string Instance = "";
+
   protected override bool _suppressNameAttribute => true;
 
-  public override MujocoLib.mjtObj ObjectType => MujocoLib.mjtObj.mjOBJ_UNKNOWN;
+  public override MujocoLib.mjtObj ObjectType => MujocoLib.mjtObj.mjOBJ_PLUGIN;
 
   // Parse the component settings from an external Mjcf.
   protected override void OnParseMjcf(XmlElement mjcf) {
     Plugin = mjcf.GetStringAttribute("plugin", "");
+    Instance = mjcf.GetStringAttribute("instance", "");
   }
 
   // Generate implementation specific XML element.
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
-    if (Plugin.Length > 0)
-      throw new ArgumentException($"Attribute \"plugin\" is required for {nameof(MjPlugin)}.");
+
     var mjcf = (XmlElement)doc.CreateElement("plugin");
-    mjcf.SetAttribute("plugin", Plugin);
+    if (Plugin.Length > 0)
+      mjcf.SetAttribute("plugin", Plugin);
+    if (Instance.Length > 0)
+      mjcf.SetAttribute("instance", Instance);
     return mjcf;
   }
 }

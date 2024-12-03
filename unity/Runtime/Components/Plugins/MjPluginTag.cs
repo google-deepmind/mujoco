@@ -19,7 +19,7 @@ using System.Xml;
 using UnityEngine;
 
 namespace Mujoco {
-// Actuators provide means to set joints in motion.
+
 public class MjPluginTag : MjComponent {
 
   //Plugin identifier, used for implicit plugin instantiation.

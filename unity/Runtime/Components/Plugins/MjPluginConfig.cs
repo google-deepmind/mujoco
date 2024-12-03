@@ -19,7 +19,6 @@ using System.Xml;
 using UnityEngine;
 
 namespace Mujoco {
-// Actuators provide means to set joints in motion.
 public class MjPluginConfig : MjComponent {
   public string Key = "";
   public string Value = "";

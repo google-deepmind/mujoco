@@ -393,9 +393,20 @@ public class MjScene : MonoBehaviour {
             (component is MjInertial) ||
             (component is MjBaseJoint) ||
             (component is MjGeom) ||
-            (component is MjSite)),
+            (component is MjSite)||
+            (component is MjPluginTag)),
         worldMjcf);
 
+    //MuJoCo plug-ins have some hierarchical structure too
+    var extensionMjcf = (XmlElement)MjRoot.AppendChild(doc.CreateElement("extension"));
+    BuildHierarchicalMjcf(
+        doc,
+        components.Where(component =>
+            (component is MjPlugin) ||
+            (component is MjPluginInstance) ||
+            (component is MjPluginConfig)),
+        extensionMjcf);
+    
     // Non-hierarchical sections:
     MjRoot.AppendChild(GenerateMjcfSection(
         doc, components.Where(component => component is MjExclude), "contact"));
