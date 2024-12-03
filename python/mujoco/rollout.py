@@ -25,7 +25,7 @@ from numpy import typing as npt
 
 def rollout(
     model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
-    data: mujoco.MjData,
+    data: Union[mujoco.MjData, Sequence[mujoco.MjData]],
     initial_state: npt.ArrayLike,
     control: Optional[npt.ArrayLike] = None,
     *,  # require subsequent arguments to be named
@@ -44,8 +44,8 @@ def rollout(
   Allocates outputs if none are given.
 
   Args:
-    model: An mjModel or a sequence of MjModel with the same size signature.
-    data: An associated mjData instance.
+    model: An instance or length nroll sequence of MjModel with the same size signature.
+    data: Associated mjData instance or sequence of instances with length nthread.
     initial_state: Array of initial states from which to roll out trajectories.
       ([nroll or 1] x nstate)
     control: Open-loop controls array to apply during the rollouts.
@@ -142,6 +142,9 @@ def rollout(
     )
   elif not isinstance(model, list):
     model = [model]  # Use a length 1 list to simplify code below
+
+  if not isinstance(data, list):
+    data = [data]  # Use a length 1 list to simplify code below
 
   # infer nstep, check for incompatibilities
   nstep = _infer_dimension(

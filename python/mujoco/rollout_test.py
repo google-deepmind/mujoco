@@ -478,7 +478,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     def call_rollout(initial_state, control, state, sensordata):
       rollout.rollout(
           model_list,
-          thread_local.data,
+          [thread_local.data],
           initial_state,
           control,
           skip_checks=True,
