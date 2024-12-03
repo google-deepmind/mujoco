@@ -244,8 +244,10 @@ The following features are **fully supported** in MJX:
      - ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``, ``TENDONPOS``, ``ACTUATORPOS``, ``BALLQUAT``,
        ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``, ``SUBTREECOM``, ``CLOCK``,
        ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``TENDONVEL``, ``ACTUATORVEL``, ``BALLANGVEL``, ``FRAMELINVEL``,
-       ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``ACCELEROMETER``, ``FORCE``, ``TORQUE``,
-       ``ACTUATORFRC``, ``JOINTACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``.
+       ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``ACTUATORFRC``, ``JOINTACTFRC``,
+       ``FRAMELINACC``, ``FRAMEANGACC``
+     - ``ACCELEROMETER``, ``FORCE``, and ``TORQUE`` are supported if the model does not include connect or weld equality
+       constraints.
 
 The following features are **in development** and coming soon:
 
@@ -274,6 +276,9 @@ The following features are **in development** and coming soon:
      - All except ``PLUGIN``, ``USER``
    * - Lights
      - Positions and directions of lights
+   * - :ref:`Sensors <mjtSensor>`
+     - ``ACCELEROMETER``, ``FORCE``, and ``TORQUE`` for models that include connect or weld equality
+     constraints.
 
 The following features are **unsupported**:
 

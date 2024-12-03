@@ -513,6 +513,38 @@ class DataIOTest(parameterized.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.make_data(m)
 
+  @parameterized.product(
+      sensor=['accelerometer', 'force', 'torque'], equality=['connect', 'weld']
+  )
+  def test_sensor_constraint_compatibility(self, sensor, equality):
+    """Test unsupported sensor and equality constraint combinations."""
+    equality_constraint = f'{equality} body1="body1" body2="body2"'
+    if equality == 'connect':
+      equality_constraint += ' anchor="0 0 0"'
+    m = mujoco.MjModel.from_xml_string(f"""
+        <mujoco>
+          <worldbody>
+            <body name="body1">
+              <freejoint/>
+              <geom size="0.1"/>
+              <site name="site1"/>
+            </body>
+            <body name="body2">
+              <freejoint/>
+              <geom size="0.1"/>
+            </body>
+          </worldbody>
+          <equality>
+            <{equality_constraint}/>
+          </equality>
+          <sensor>
+            <{sensor} site="site1"/>
+          </sensor>
+        </mujoco>
+      """)
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(m)
+
 
 if __name__ == '__main__':
   absltest.main()

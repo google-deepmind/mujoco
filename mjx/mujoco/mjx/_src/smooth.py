@@ -24,6 +24,7 @@ from mujoco.mjx._src import support
 from mujoco.mjx._src.types import CamLightType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
+from mujoco.mjx._src.types import EqType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import TrnType
@@ -635,6 +636,10 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
     )
 
   # TODO(taylorhowell): connect and weld constraints
+  if np.any(m.eq_type == EqType.CONNECT):
+    raise NotImplementedError('Connect constraints are not implemented.')
+  if np.any(m.eq_type == EqType.WELD):
+    raise NotImplementedError('Weld constraints are not implemented.')
 
   # forward pass over bodies: compute cacc, cfrc_int
   def _forward(carry, cfrc_ext, cinert, cvel, body_dofadr, body_dofnum):
