@@ -14,8 +14,6 @@
 
 // Tests for engine/engine_derivative.c.
 
-#include <iomanip>
-#include <iostream>
 #include <random>
 #include <string>
 #include <vector>
@@ -72,19 +70,6 @@ static mjtNum CompareMatrices(mjtNum* Actual, mjtNum* Expected,
     }
   }
   return max_error;
-}
-
-// utility function for matrix printing (debug)
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
-static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
-  std::cerr.precision(5);
-  std::cerr << "\n";
-  for (int r=0; r < nrow; r++) {
-    for (int c=0; c < ncol; c++) {
-      std::cerr << std::fixed << std::setw(9) << mat[c + r*ncol] << " ";
-    }
-    std::cerr << "\n";
-  }
 }
 
 static const char* const kEnergyConservingPendulumPath =
