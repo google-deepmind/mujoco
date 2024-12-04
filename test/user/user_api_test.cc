@@ -1316,7 +1316,7 @@ TEST_F(MujocoTest, AttachWorld) {
   static constexpr char xml_parent[] = R"(
   <mujoco>
     <worldbody>
-      <frame name="frame"/>
+      <frame name="frame" pos="1 2 3"/>
     </worldbody>
   </mujoco>)";
 
@@ -1327,18 +1327,20 @@ TEST_F(MujocoTest, AttachWorld) {
         <joint type="slide"/>
         <geom size=".1"/>
       </body>
+      <camera pos="0 0 0" quat="1 0 0 0"/>
     </worldbody>
   </mujoco>)";
 
   static constexpr char xml_result[] = R"(
   <mujoco>
     <worldbody>
-      <frame name="frame">
+      <frame name="frame" pos="1 2 3">
         <frame name="attached-world-1">
           <body name="attached-sphere-1">
             <joint type="slide"/>
             <geom size=".1"/>
           </body>
+          <camera pos="0 0 0" quat="1 0 0 0"/>
         </frame>
       </frame>
     </worldbody>

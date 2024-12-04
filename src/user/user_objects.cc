@@ -134,6 +134,18 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
   return image;
 }
 
+// associate all child list elements with a frame and copy them to parent list, clear child list
+template <typename T>
+void MapFrame(std::vector<T*>& parent, std::vector<T*>& child,
+              mjCFrame* frame, mjCBody* parent_body) {
+  std::for_each(child.begin(), child.end(), [frame, parent_body](T* element) {
+    element->SetFrame(frame);
+    element->SetParent(parent_body);
+  });
+  parent.insert(parent.end(), child.begin(), child.end());
+  child.clear();
+}
+
 }  // namespace
 
 
@@ -1195,20 +1207,13 @@ mjCFrame* mjCBody::ToFrame() {
   mjCFrame* newframe = parent->AddFrame(frame);
   mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
   mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
-  parent->bodies.insert(parent->bodies.end(), bodies.begin(), bodies.end());
-  parent->geoms.insert(parent->geoms.end(), geoms.begin(), geoms.end());
-  parent->joints.insert(parent->joints.end(), joints.begin(), joints.end());
-  parent->sites.insert(parent->sites.end(), sites.begin(), sites.end());
-  parent->cameras.insert(parent->cameras.end(), cameras.begin(), cameras.end());
-  parent->lights.insert(parent->lights.end(), lights.begin(), lights.end());
-  parent->frames.insert(parent->frames.end(), frames.begin(), frames.end());
-  bodies.clear();
-  geoms.clear();
-  joints.clear();
-  sites.clear();
-  cameras.clear();
-  lights.clear();
-  frames.clear();
+  MapFrame(parent->bodies, bodies, newframe, parent);
+  MapFrame(parent->geoms, geoms, newframe, parent);
+  MapFrame(parent->joints, joints, newframe, parent);
+  MapFrame(parent->sites, sites, newframe, parent);
+  MapFrame(parent->cameras, cameras, newframe, parent);
+  MapFrame(parent->lights, lights, newframe, parent);
+  MapFrame(parent->frames, frames, newframe, parent);
   parent->bodies.erase(
       std::remove_if(parent->bodies.begin(), parent->bodies.end(),
                      [this](mjCBody* body) { return body == this; }),
@@ -1888,12 +1893,6 @@ bool mjCFrame::IsAncestor(const mjCFrame* child) const {
   }
 
   return IsAncestor(child->frame);
-}
-
-
-
-void mjCFrame::SetParent(mjCBody* _body) {
-  body = _body;
 }
 
 
