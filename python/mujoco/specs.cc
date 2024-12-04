@@ -345,6 +345,12 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjSpec.def(
+      "find_site",
+      [](MjSpec& self, std::string& name) -> raw::MjsSite* {
+        return mjs_asSite(mjs_findElement(self.ptr, mjOBJ_SITE, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
       "find_default",
       [](MjSpec& self, std::string& classname) -> const raw::MjsDefault* {
         return mjs_findDefault(self.ptr, classname.c_str());

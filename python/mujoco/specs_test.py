@@ -723,6 +723,7 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(head)
     site = head.first_site()
     self.assertIsNotNone(site)
+    self.assertEqual(site, spec.find_site('head'))
 
     site.delete()
     spec.sensors[-1].delete()
