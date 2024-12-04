@@ -867,7 +867,7 @@ class SpecsTest(absltest.TestCase):
     parent.compiler.degree = not child.compiler.degree
     body = child.worldbody.add_body(euler=[90, 0, 0])
     frame = parent.worldbody.add_frame(euler=[-mujoco.mjPI / 2, 0, 0])
-    frame.attach_body(body, 'child-', '')
+    frame.attach_body(body, prefix='child-')
     model = parent.compile()
     np.testing.assert_almost_equal(model.body_quat[1], [1, 0, 0, 0])
 
@@ -876,7 +876,7 @@ class SpecsTest(absltest.TestCase):
     parent = mujoco.MjSpec()
     site = parent.worldbody.add_site(pos=[1, 2, 3])
     body = child.worldbody.add_body()
-    self.assertIsNotNone(site.attach(body, '_', ''))
+    self.assertIsNotNone(site.attach(body, prefix='_'))
     model = parent.compile()
     np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
 
@@ -892,7 +892,7 @@ class SpecsTest(absltest.TestCase):
     child.worldbody.add_camera(name='camera')
     parent = mujoco.MjSpec()
     frame = parent.worldbody.add_frame(name='frame')
-    frame.attach(child, 'child-', '')
+    frame.attach(child, prefix='child-')
     self.assertLen(child.cameras, 1)
     self.assertLen(parent.bodies, 1)
     self.assertLen(parent.frames, 2)
