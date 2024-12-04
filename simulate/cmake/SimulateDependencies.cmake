@@ -103,9 +103,6 @@ if(NOT SIMULATE_STANDALONE)
   target_link_options(glfw PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()
 
-
-message(STATUS "lolwaGLFW3 Source Directory: ${glfw3_SOURCE_DIR}")
-
 # Install GLFW headers if not using system GLFW
 if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
   FetchContent_GetProperties(glfw3)

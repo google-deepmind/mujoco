@@ -41,16 +41,12 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
-if(NOT DEFINED expose_headers)
-    
-endif()
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
 set(_INSTALL_SIMULATE ON)
-set(EXPOSE_HEADERS OFF)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(SIMULATE_STANDALONE ON)
   # If standalone, do not install the samples.
