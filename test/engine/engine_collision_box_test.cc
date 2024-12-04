@@ -30,6 +30,7 @@ namespace {
 
 using MjCollisionBoxTest = MujocoTest;
 using ::testing::NotNull;
+using ::testing::DoubleNear;
 
 static const char* const kBad0FilePath =
     "engine/testdata/collision_box/boxbox_bad0.xml";
@@ -238,6 +239,34 @@ TEST_F(MjCollisionBoxTest, DeepPenetration) {
 
   // expect 4 contact
   EXPECT_EQ(data->ncon ,4);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCollisionBoxTest, BoxSphere) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="plane" type="plane" size="0.05 0.05 0.001"/>
+      <geom name="box" type="box" pos = "0 0 -0.025" size="0.05 0.05 .025"/>
+      <body>
+        <freejoint/>
+        <geom name="sphere" type="sphere" mass="1" size="0.005"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+
+  for (mjtNum z : {-.015, -.00501, -.005, -.00499, 0.0, 0.004}) {
+    data->qpos[2] = z;
+    mj_forward(model, data);
+    EXPECT_EQ(data->ncon, 2);
+    EXPECT_THAT(data->contact[0].dist, DoubleNear(data->contact[1].dist, 1e-8));
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);

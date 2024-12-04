@@ -2,6 +2,12 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+- Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).
 
 Version 3.2.6 (Dec 2, 2024)
 ---------------------------

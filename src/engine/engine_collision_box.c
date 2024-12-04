@@ -38,10 +38,9 @@ static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n)
 // raw sphere : box
 int mjraw_SphereBox(mjContact* con, mjtNum margin,
                     const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
-                    const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2)
-{
+                    const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2) {
   int i, k;
-  mjtNum tmp[3], center[3], clamped[3], deepest[3], nearest[3];
+  mjtNum tmp[3], center[3], clamped[3], deepest[3];
   mjtNum pos[3];
   mjtNum dist, closest;
 
@@ -62,19 +61,20 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
   if (dist <= mjMINVAL) {
     closest = (size2[0] + size2[1] + size2[2]) * 2;
 
-    for (i = 0; i < 6; i++)
-      if (closest > mju_abs((i % 2 ? 1 : -1)*size2[i / 2] - center[i / 2]))
-      {
+    for (i = 0; i < 6; i++) {
+      if (closest > mju_abs((i % 2 ? 1 : -1)*size2[i / 2] - center[i / 2])) {
         closest = mju_abs((i % 2 ? 1 : -1) * size2[i / 2] - center[i / 2]);
         k = i;
       }
+    }
 
-    mju_zero3(nearest);
+    mjtNum nearest[3] = {0};
     nearest[k / 2] = (k % 2 ? -1 : 1);
 
     mju_copy3(pos, center);
     mju_addToScl3(pos, nearest, (size1[0] - closest) / 2);
     mju_mulMatVec3(con[0].frame, mat2, nearest);
+    dist = -closest;
   } else {
     mju_addToScl3(deepest, tmp, size1[0]);
     mju_zero3(pos);
