@@ -550,6 +550,10 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   if (dim == 1) {
     for (int ix=0; ix < count[0]; ix++) {
       if (type == mjFCOMPTYPE_CIRCLE) {
+        if (ix >= count[0]-1) {
+          continue;
+        }
+
         // add point
         double theta = 2*mjPI/(count[0]-1);
         double radius = spacing[0]/std::sin(theta/2)/2;
@@ -558,10 +562,8 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
         point.push_back(0);
 
         // add element
-        if (ix < count[0]-1) {
-          element.push_back(ix);
-          element.push_back(ix == count[0]-2 ? 0 : ix+1);
-        }
+        element.push_back(ix);
+        element.push_back(ix == count[0]-2 ? 0 : ix+1);
       } else {
         // add point
         point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
