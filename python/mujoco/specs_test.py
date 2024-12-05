@@ -875,11 +875,26 @@ class SpecsTest(absltest.TestCase):
   def test_attach_body_to_site(self):
     child = mujoco.MjSpec()
     parent = mujoco.MjSpec()
-    site = parent.worldbody.add_site(pos=[1, 2, 3])
+    site = parent.worldbody.add_site(pos=[1, 2, 3], quat=[0, 0, 0, 1])
     body = child.worldbody.add_body()
-    self.assertIsNotNone(site.attach(body, prefix='_'))
-    model = parent.compile()
-    np.testing.assert_array_equal(model.body_pos[1], [1, 2, 3])
+
+    # Attach body to site and compile.
+    self.assertIsNotNone(site.attach_body(body, prefix='_'))
+    model1 = parent.compile()
+    self.assertIsNotNone(model1)
+    self.assertEqual(model1.nbody, 2)
+    np.testing.assert_array_equal(model1.body_pos[1], [1, 2, 3])
+    np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
+
+    # Attach entire spec to site and compile again.
+    self.assertIsNotNone(site.attach(child, prefix='child-'))
+    model2 = parent.compile()
+    self.assertIsNotNone(model2)
+    self.assertEqual(model2.nbody, 3)
+    np.testing.assert_array_equal(model2.body_pos[1], [1, 2, 3])
+    np.testing.assert_array_equal(model2.body_pos[2], [1, 2, 3])
+    np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
+    np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
 
   def test_body_to_frame(self):
     spec = mujoco.MjSpec()
@@ -890,16 +905,27 @@ class SpecsTest(absltest.TestCase):
 
   def test_attach_spec_to_frame(self):
     child = mujoco.MjSpec()
-    child.worldbody.add_camera(name='camera')
     parent = mujoco.MjSpec()
-    frame = parent.worldbody.add_frame(name='frame')
-    frame.attach(child, prefix='child-')
-    self.assertLen(child.cameras, 1)
-    self.assertLen(parent.bodies, 1)
-    self.assertLen(parent.frames, 2)
-    self.assertEqual(parent.cameras[0].name, 'child-camera')
-    self.assertEqual(parent.frames[0].name, 'frame')
-    self.assertEqual(parent.frames[1].name, '')
+    frame = parent.worldbody.add_frame(pos=[1, 2, 3], quat=[0, 0, 0, 1])
+    body = child.worldbody.add_body()
+
+    # Attach body to frame and compile.
+    self.assertIsNotNone(frame.attach_body(body, prefix='_'))
+    model1 = parent.compile()
+    self.assertIsNotNone(model1)
+    self.assertEqual(model1.nbody, 2)
+    np.testing.assert_array_equal(model1.body_pos[1], [1, 2, 3])
+    np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
+
+    # Attach entire spec to frame and compile again.
+    self.assertIsNotNone(frame.attach(child, prefix='child-'))
+    model2 = parent.compile()
+    self.assertIsNotNone(model2)
+    self.assertEqual(model2.nbody, 3)
+    np.testing.assert_array_equal(model2.body_pos[1], [1, 2, 3])
+    np.testing.assert_array_equal(model2.body_pos[2], [1, 2, 3])
+    np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
+    np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
 
 
 if __name__ == '__main__':

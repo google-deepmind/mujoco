@@ -746,7 +746,7 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjsSite.def(
-      "attach",
+      "attach_body",
       [](raw::MjsSite& self, raw::MjsBody& body,
          std::optional<std::string>& prefix,
          std::optional<std::string>& suffix) -> raw::MjsBody* {
@@ -758,6 +758,28 @@ PYBIND11_MODULE(_specs, m) {
               mjs_getError(mjs_getSpec(self.element)));
         }
         return new_body;
+      },
+      py::arg("body"), py::arg("prefix") = py::none(),
+      py::arg("suffix") = py::none(),
+      py::return_value_policy::reference_internal);
+  mjsSite.def(
+      "attach",
+      [](raw::MjsSite& self, MjSpec& spec,
+         std::optional<std::string>& prefix,
+         std::optional<std::string>& suffix) -> raw::MjsFrame* {
+        auto world = mjs_findBody(spec.ptr, "world");
+        if (!world) {
+          throw pybind11::value_error(
+              mjs_getError(mjs_getSpec(self.element)));
+        }
+        const char* p = prefix.has_value() ? prefix.value().c_str() : "";
+        const char* s = suffix.has_value() ? suffix.value().c_str() : "";
+        auto attached_world = mjs_attachToSite(&self, world, p, s);
+        if (!attached_world) {
+          throw pybind11::value_error(
+              mjs_getError(mjs_getSpec(self.element)));
+        }
+        return mjs_bodyToFrame(&attached_world);
       },
       py::arg("body"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(),
