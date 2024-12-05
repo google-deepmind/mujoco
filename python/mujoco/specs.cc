@@ -493,6 +493,8 @@ PYBIND11_MODULE(_specs, m) {
           objtype = mjOBJ_GEOM;
         } else if (name == "site") {
           objtype = mjOBJ_SITE;
+        } else if (name == "joint") {
+          objtype = mjOBJ_JOINT;
         } else if (name == "light") {
           objtype = mjOBJ_LIGHT;
         } else if (name == "camera") {
@@ -500,7 +502,7 @@ PYBIND11_MODULE(_specs, m) {
         } else {
           throw pybind11::value_error(
               "body.find_all supports the types: body, frame, geom, site, "
-              "light, camera.");
+              "joint, light, camera.");
         }
         return FindAllImpl(self, objtype, true);
       },

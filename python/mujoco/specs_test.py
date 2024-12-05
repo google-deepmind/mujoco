@@ -667,7 +667,7 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(
         str(cm.exception),
         'body.find_all supports the types: body, frame, geom, site,'
-        ' light, camera.',
+        ' joint, light, camera.',
     )
     body4 = spec.worldbody.find_all('body')[3]
     body4.name = 'body4_new'
