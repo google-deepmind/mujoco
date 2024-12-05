@@ -102,3 +102,20 @@ if(NOT SIMULATE_STANDALONE)
   target_compile_options(glfw PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(glfw PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()
+
+# Install GLFW headers if not using system GLFW
+if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
+  FetchContent_GetProperties(glfw3)
+  if(NOT glfw3_POPULATED)
+    message(FATAL_ERROR "GLFW3 not populated")
+  endif()
+
+  install(
+    DIRECTORY ${glfw3_SOURCE_DIR}/include/GLFW
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    COMPONENT simulate
+    FILES_MATCHING PATTERN "*.h"
+    PATTERN "CMake*" EXCLUDE
+    PATTERN ".git*" EXCLUDE
+  )
+endif()
