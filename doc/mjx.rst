@@ -7,7 +7,7 @@ MuJoCo XLA (MJX)
 Starting with version 3.0.0, MuJoCo includes MuJoCo XLA (MJX) under the
 `mjx <https://github.com/google-deepmind/mujoco/tree/main/mjx>`__ directory.  MJX allows MuJoCo to run on compute
 hardware supported by the `XLA <https://www.tensorflow.org/xla>`__ compiler via the
-`JAX <https://github.com/google/jax#readme>`__ framework.  MJX runs on a
+`JAX <https://github.com/jax-ml/jax#readme>`__ framework.  MJX runs on a
 `all platforms supported by JAX <https://jax.readthedocs.io/en/latest/installation.html#supported-platforms>`__: Nvidia
 and AMD GPUs, Apple Silicon, and `Google Cloud TPUs <https://cloud.google.com/tpu>`__.
 
