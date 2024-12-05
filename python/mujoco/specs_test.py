@@ -584,13 +584,29 @@ class SpecsTest(absltest.TestCase):
     sensor1 = spec.add_sensor()
     sensor2 = spec.add_sensor()
     sensor3 = spec.add_sensor()
+    actuator1 = spec.add_actuator()
+    actuator2 = spec.add_actuator()
+    actuator3 = spec.add_actuator()
     sensor1.name = 'sensor1'
     sensor2.name = 'sensor2'
     sensor3.name = 'sensor3'
+    actuator1.name = 'actuator1'
+    actuator2.name = 'actuator2'
+    actuator3.name = 'actuator3'
     self.assertLen(spec.sensors, 3)
+    self.assertLen(spec.actuators, 3)
     self.assertEqual(spec.sensors[0].name, 'sensor1')
     self.assertEqual(spec.sensors[1].name, 'sensor2')
     self.assertEqual(spec.sensors[2].name, 'sensor3')
+    self.assertEqual(spec.actuators[0].name, 'actuator1')
+    self.assertEqual(spec.actuators[1].name, 'actuator2')
+    self.assertEqual(spec.actuators[2].name, 'actuator3')
+    self.assertEqual(spec.find_sensor('sensor1'), sensor1)
+    self.assertEqual(spec.find_sensor('sensor2'), sensor2)
+    self.assertEqual(spec.find_sensor('sensor3'), sensor3)
+    self.assertEqual(spec.find_actuator('actuator1'), actuator1)
+    self.assertEqual(spec.find_actuator('actuator2'), actuator2)
+    self.assertEqual(spec.find_actuator('actuator3'), actuator3)
 
   def test_body_list(self):
     main_xml = """

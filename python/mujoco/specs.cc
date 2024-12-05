@@ -351,6 +351,20 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjSpec.def(
+      "find_actuator",
+      [](MjSpec& self, std::string& name) -> raw::MjsActuator* {
+        return mjs_asActuator(
+            mjs_findElement(self.ptr, mjOBJ_ACTUATOR, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
+      "find_sensor",
+      [](MjSpec& self, std::string& name) -> raw::MjsSensor* {
+        return mjs_asSensor(
+            mjs_findElement(self.ptr, mjOBJ_SENSOR, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
       "find_default",
       [](MjSpec& self, std::string& classname) -> const raw::MjsDefault* {
         return mjs_findDefault(self.ptr, classname.c_str());
