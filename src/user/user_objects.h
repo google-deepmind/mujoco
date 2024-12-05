@@ -236,8 +236,9 @@ class mjCBase : public mjCBase_ {
 
 class mjCBody_ : public mjCBase {
  protected:
+  mjCBody* parent;
+
   // variables computed by 'Compile' and 'AddXXX'
-  int parentid;                   // parent index in global array
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
@@ -345,7 +346,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjsFrame* last_attached;  // last attached frame to this body
 
   // set parent of this body
-  void SetParent(const mjCBody* _body) { parentid = _body->id; }
+  void SetParent(mjCBody* _body) { parent = _body; }
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor

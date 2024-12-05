@@ -1316,7 +1316,9 @@ TEST_F(MujocoTest, AttachWorld) {
   static constexpr char xml_parent[] = R"(
   <mujoco>
     <worldbody>
-      <frame name="frame" pos="1 2 3"/>
+      <body name="body">
+        <frame name="frame" pos="1 2 3"/>
+      </body>
     </worldbody>
   </mujoco>)";
 
@@ -1334,15 +1336,21 @@ TEST_F(MujocoTest, AttachWorld) {
   static constexpr char xml_result[] = R"(
   <mujoco>
     <worldbody>
-      <frame name="frame" pos="1 2 3">
-        <frame name="attached-world-1">
+      <body name="body">
+        <frame name="frame" pos="1 2 3">
           <body name="attached-sphere-1">
             <joint type="slide"/>
             <geom size=".1"/>
           </body>
-          <camera pos="0 0 0" quat="1 0 0 0"/>
+          <frame name="attached-world-2">
+            <body name="attached-sphere-2">
+              <joint type="slide"/>
+              <geom size=".1"/>
+            </body>
+            <camera pos="0 0 0" quat="1 0 0 0"/>
+          </frame>
         </frame>
-      </frame>
+      </body>
     </worldbody>
   </mujoco>)";
 
@@ -1351,27 +1359,38 @@ TEST_F(MujocoTest, AttachWorld) {
   mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(child, NotNull()) << er.data();
 
+  // attach a body to the frame
   mjsFrame* frame = mjs_findFrame(parent, "frame");
   EXPECT_THAT(frame, NotNull());
+  mjsBody* body = mjs_findBody(child, "sphere");
+  EXPECT_THAT(body, NotNull());
+  mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
+  EXPECT_THAT(attached, NotNull());
+  mjModel* model1 = mj_compile(parent, 0);
+  EXPECT_THAT(model1, NotNull());
+
+  // attach the world to the same frame and convert it to a frame
   mjsBody* world = mjs_findBody(child, "world");
   EXPECT_THAT(world, NotNull());
-  mjsBody* child_world = mjs_attachBody(frame, world, "attached-", "-1");
+  mjsBody* child_world = mjs_attachBody(frame, world, "attached-", "-2");
   EXPECT_THAT(child_world, NotNull());
   mjsFrame* frame_world = mjs_bodyToFrame(&child_world);
   EXPECT_THAT(frame_world, NotNull());
   EXPECT_THAT(child_world, IsNull());
 
-  mjModel* model = mj_compile(parent, 0);
-  EXPECT_THAT(model, NotNull());
+  // compile and compare
+  mjModel* model2 = mj_compile(parent, 0);
+  EXPECT_THAT(model2, NotNull());
   mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
   EXPECT_THAT(expected, NotNull()) << er.data();
-  EXPECT_LE(CompareModel(model, expected, field), tol)
+  EXPECT_LE(CompareModel(model2, expected, field), tol)
             << "Expected and attached models are different!\n"
             << "Different field: " << field << '\n';
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
-  mj_deleteModel(model);
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
   mj_deleteModel(expected);
 }
 

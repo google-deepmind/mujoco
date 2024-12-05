@@ -765,7 +765,7 @@ mjCBody::mjCBody(mjCModel* _model) {
 
   mjs_defaultBody(&spec);
   elemtype = mjOBJ_BODY;
-  parentid = -1;
+  parent = nullptr;
   weldid = -1;
   dofnum = 0;
   lastdof = -1;
@@ -850,6 +850,7 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 
   for (int i=0; i<other.bodies.size(); i++) {
     bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
+    bodies.back()->parent = this;
     bodies.back()->frame =
         other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : nullptr;
   }
@@ -918,6 +919,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
       continue;
     }
     bodies.push_back(new mjCBody(*subtree->bodies[i], model));  // triggers recursive call
+    bodies.back()->parent = this;
     bodies.back()->frame =
         subtree->bodies[i]->frame ? frames[fmap[subtree->bodies[i]->frame]] : nullptr;
     bodies.back()->NameSpace_(other.model, /*propagate=*/ false);
@@ -1098,6 +1100,7 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
   obj->classname = _def ? _def->name : classname;
 
   bodies.push_back(obj);
+  obj->parent = this;
   return obj;
 }
 
@@ -1199,11 +1202,6 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
 
 // create a frame in the parent body and move all contents of this body into it
 mjCFrame* mjCBody::ToFrame() {
-  if (parentid < 0) {
-    // TODO: store the parent pointer instead of using the id
-    throw mjCError(this, "parent body is not defined, please compile the model first");
-  }
-  mjCBody* parent = model->Bodies()[parentid];
   mjCFrame* newframe = parent->AddFrame(frame);
   mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
   mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
@@ -1218,6 +1216,11 @@ mjCFrame* mjCBody::ToFrame() {
       std::remove_if(parent->bodies.begin(), parent->bodies.end(),
                      [this](mjCBody* body) { return body == this; }),
       parent->bodies.end());
+  if (model->IsCompiled()) {
+    mjCBody *world = model->bodies_[0];
+    model->ResetTreeLists();
+    model->MakeLists(world);
+  }
   return newframe;
 }
 
@@ -1573,7 +1576,6 @@ void mjCBody::Compile(void) {
 
   // set parentid and weldid of children
   for (int i=0; i<bodies.size(); i++) {
-    bodies[i]->parentid = id;
     bodies[i]->weldid = (!bodies[i]->joints.empty() ? bodies[i]->id : weldid);
   }
 
@@ -1721,13 +1723,12 @@ void mjCBody::Compile(void) {
   }
 
   // make sure mocap body is fixed child of world
-  if (mocap && (dofnum || parentid)) {
+  if (mocap && (dofnum || (parent && parent->name != "world"))) {
     throw mjCError(this, "mocap body '%s' is not a fixed child of world", name.c_str());
   }
 
   // compute body global pose (no joint transformations in qpos0)
   if (id>0) {
-    mjCBody* parent = model->Bodies()[parentid];
     mjuu_rotVecQuat(xpos0, pos, parent->xquat0);
     mjuu_addtovec(xpos0, parent->xpos0, 3);
     mjuu_mulquat(xquat0, parent->xquat0, quat);
@@ -1852,6 +1853,7 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   other.ForgetKeyframes();
   other.model->prefix = subtree->prefix;
   other.model->suffix = subtree->suffix;
+  subtree->SetParent(body);
   subtree->SetFrame(this);
   subtree->NameSpace(other.model);
 
