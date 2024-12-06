@@ -1,0 +1,7 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "array_safety",
+    hdrs = ["array_safety.h"],
+    target_compatible_with = ["@platforms//os:linux"],
+)

@@ -1,0 +1,58 @@
+# don't use bzlmod yet.
+common --enable_workspace=true
+common --enable_bzlmod=false
+
+# use c++20 by default
+build --cxxopt=-std=c++20
+
+# remove this when https://github.com/abseil/abseil-cpp/issues/740 is resolved
+build --copt=-Iexternal/abseil-cpp
+
+# Due to the repetitive directory names (e.g., `mujoco/mjx/mujoco/mjx`), `__init__.py` should not
+# be automatically created. Otherwise, importing with `import mujoco.mjx` will reference
+# `mujoco/mjx` instead of `mujoco/mjx/mujoco/mjx`.
+build --incompatible_default_to_explicit_init_py
+
+# Compiler configuration.
+# Note that the current configuration relies on system-installed toolchains, which may cause
+# non-hermetic behavior in builds. This could be improved by defining a `cc_toolchain` with
+# self-contained toolchains.
+# See https://docs.bazel.build/versions/1.2.0/tutorial/cc-toolchain-config.html#configuring-the-c-toolchain
+
+# clang by default
+build --platforms=@mujoco//tools:linux_clang_x86_64
+build --action_env=CC=clang
+
+# gcc
+build:linux_gcc_x86_64 --platforms=@mujoco//tools:linux_gcc_x86_64
+build:linux_gcc_x86_64 --action_env=CC=gcc
+
+# ASan Build
+build:asan --build_tests_only
+build:asan --features=asan
+# This flag effectively tells Bazel to avoid using certain hardware-dependent features that may
+# cause ASan or TSan to fail unexpectedly or produce inaccurate results.
+build:asan --incompatible_use_host_features
+
+# LSan is run with ASan by default
+build:asan --test_tag_filters=-no_asan,-no_lsan
+build:asan --test_lang_filters=-sh
+# Typical slowdown introduced by AddressSanitizer is 2x.
+# See https://clang.llvm.org/docs/AddressSanitizer.html
+build:asan --test_timeout=150,750,2250,9000
+
+# TSan Build
+build:tsan --build_tests_only
+build:tsan --features=tsan
+# This flag effectively tells Bazel to avoid using certain hardware-dependent features that may
+# cause ASan or TSan to fail unexpectedly or produce inaccurate results.
+build:tsan --incompatible_use_host_features
+
+# We assume anything that didn't want asan doesn't want tsan
+build:tsan --test_tag_filters=-no_asan,-no_tsan
+build:tsan --test_lang_filters=-sh
+# Typical slowdown introduced by ThreadSanitizer is about 5x-15x
+# See https://clang.llvm.org/docs/ThreadSanitizer.html
+build:tsan --test_timeout=150,750,2250,9000
+
+try-import %workspace%/user.bazelrc

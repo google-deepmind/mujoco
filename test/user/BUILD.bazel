@@ -1,0 +1,40 @@
+load("//test:helper.bzl", "PLUGIN_DIR")
+
+cc_test(
+    name = "user_test",
+    size = "large",  # user_api_test.cc takes a long time
+    srcs = [
+        "user_api_test.cc",
+        "user_cache_test.cc",
+        "user_composite_test.cc",
+        "user_flex_test.cc",
+        "user_model_test.cc",
+        "user_objects_test.cc",
+        "user_resource_test.cc",
+        "user_util_test.cc",
+        "user_vfs_test.cc",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+        "-Wno-write-strings",
+    ] + select({
+        "//tools:gcc": [
+            "-Wno-maybe-uninitialized",
+        ],
+        "//conditions:default": [],
+    }),
+    data = [
+        "//:model_data",
+        "//:test_engine_data_stripped",
+        "//:test_user_data",
+    ],
+    env = PLUGIN_DIR,
+    deps = [
+        "//src/user:user_cache",
+        "//src/user:user_resource",
+        "//src/user:user_util",
+        "//src/user:user_vfs",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
