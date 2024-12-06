@@ -536,6 +536,8 @@ class Model(PyTreeNode):
     nM: number of non-zeros in sparse inertia matrix
     nD: number of non-zeros in sparse dof-dof matrix
     nB: number of non-zeros in sparse body-dof matrix
+    nC: number of non-zeros in sparse reduced dof-dof matrix
+    nD: number of non-zeros in sparse dof-dof matrix
     nJmom: number of non-zeros in sparse actuator_moment matrix
     ntree: number of kinematic trees under world body
     ngravcomp: number of bodies with nonzero gravcomp
@@ -854,8 +856,9 @@ class Model(PyTreeNode):
   nkey: int
   nmocap: int
   nM: int  # pylint:disable=invalid-name
-  nD: int  # pylint:disable=invalid-name
   nB: int  # pylint:disable=invalid-name
+  nC: int  # pylint:disable=invalid-name
+  nD: int  # pylint:disable=invalid-name
   nJmom: int
   ntree: int = _restricted_to('mujoco')
   ngravcomp: int
@@ -1265,12 +1268,18 @@ class Data(PyTreeNode):
     subtree_angmom: angular momentum about subtree com          (nbody, 3)
     qH: L'*D*L factorization of modified M                      (nM,)
     qHDiagInv: 1/diag(D) of modified M                          (nv,)
-    D_rownnz: non-zeros in each row                             (nv,)
-    D_rowadr: address of each row in D_colind                   (nv,)
-    D_colind: column indices of non-zeros                       (nD,)
-    B_rownnz: non-zeros in each row                             (nbody,)
-    B_rowadr: address of each row in B_colind                   (nbody,)
-    B_colind: column indices of non-zeros                       (nB,)
+    B_rownnz: body-dof: non-zeros in each row                   (nbody,)
+    B_rowadr: body-dof: address of each row in B_colind         (nbody,)
+    B_colind: body-dof: column indices of non-zeros             (nB,)
+    C_rownnz: reduced dof-dof: non-zeros in each row            (nv,)
+    C_rowadr: reduced dof-dof: address of each row in C_colind  (nv,)
+    C_colind: reduced dof-dof: column indices of non-zeros      (nC,)
+    mapM2C: index mapping from M to C                           (nC,)
+    D_rownnz: dof-dof: non-zeros in each row                    (nv,)
+    D_rowadr: dof-dof: address of each row in D_colind          (nv,)
+    D_colind: dof-dof: column indices of non-zeros              (nD,)
+    mapM2D: index mapping from M to D                           (nD,)
+    mapD2M: index mapping from D to M                           (nM,)
     qDeriv: d (passive + actuator - bias) / d qvel              (nD,)
     qLU: sparse LU of (qM - dt*qDeriv)                          (nD,)
     actuator_force: actuator force in actuation space           (nu,)
@@ -1388,12 +1397,18 @@ class Data(PyTreeNode):
   subtree_angmom: jax.Array
   qH: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   qHDiagInv: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
-  D_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
-  D_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
-  D_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   B_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   B_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   B_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  C_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  C_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  C_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  mapM2C: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  mapM2D: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  mapD2M: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   qDeriv: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   qLU: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   # position, velocity, control & acceleration dependent:
