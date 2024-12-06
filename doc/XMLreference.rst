@@ -6392,7 +6392,7 @@ contributed by all actuators to a single scalar joint (hinge or slider). If the 
 :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>` attribute is "true", this sensor will also measure contributions by
 gravity compensation forces (which are added directly to the joint and would *not* register in the
 :ref:`actuatorfrc<sensor-actuatorfrc>`) sensor. This type of sensor is important when multiple actuators act on a single
-joint or when a single actuator act on multiple joints. See :ref:`CForceRange` for details.
+joint or when a single actuator acts on multiple joints. See :ref:`CForceRange` for details.
 
 
 .. _sensor-jointactuatorfrc-name:
