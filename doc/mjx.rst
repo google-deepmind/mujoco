@@ -416,4 +416,4 @@ The following environment variables should be set:
 ``XLA_FLAGS=--xla_gpu_triton_gemm_any=true``
   This enables the Triton-based GEMM (matmul) emitter for any GEMM that it supports.  This can yield a 30% speedup on
   NVIDIA GPUs.  If you have multiple GPUs, you may also benefit from enabling flags related to
-  `communciation between GPUs <https://jax.readthedocs.io/en/latest/gpu_performance_tips.html>`__.
+  `communication between GPUs <https://jax.readthedocs.io/en/latest/gpu_performance_tips.html>`__.
