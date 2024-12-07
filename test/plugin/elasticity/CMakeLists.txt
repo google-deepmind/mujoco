@@ -18,4 +18,3 @@ mujoco_test(
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )
-target_link_libraries(elasticity_test fixture gmock)
