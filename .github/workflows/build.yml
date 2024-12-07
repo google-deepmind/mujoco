@@ -33,6 +33,15 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
+            additional_label: "-gcc-12-single-precision"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-12
+              -DCMAKE_CXX_COMPILER:STRING=g++-12
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+              -DMUJOCO_USE_SINGLE_PRECISION:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
             additional_label: "-gcc-11"
             cmake_args: >-
               -G Ninja
@@ -63,6 +72,15 @@ jobs:
               -DCMAKE_C_COMPILER:STRING=clang-14
               -DCMAKE_CXX_COMPILER:STRING=clang++-14
               -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "-clang-14-single-precision"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-14
+              -DCMAKE_CXX_COMPILER:STRING=clang++-14
+              -DMUJOCO_HARDEN:BOOL=ON
+              -DMUJOCO_USE_SINGLE_PRECISION:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-22.04
             additional_label: "-clang-13"
