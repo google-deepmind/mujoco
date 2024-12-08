@@ -17,10 +17,26 @@ set(MUJOCO_TEST_WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(GoogleTest)
 
-macro(mujoco_test name)
+# This function is used to add a C++ test to MuJoCo CMake build system
+#
+# The CMake targets linked by default with target_link_libraries are:
+#   mujoco fixture gmock
+#
+# This function supports the following parameters:
+#   * PROPERTIES: multiple value parameter, its value is set as test properties
+#                 via the set_tests_properties(<test> PROPERTIES <argument>) function
+#   * ADDITIONAL_LINK_LIBRARIES: multiple value parameter, additional libraries linked
+#                                to the test via target_link_libraries
+#   * MAIN_TARGET: single value parameter, used to specify the target linked to the tests
+#                  that define the main entry poiny. If not indicated, gest_main is used
+#   * TAGS: multiple value parameter, used to annotate the test if it belongs to a given
+#           category. The macro supports the following tags:
+#           * nofloat32: Used to annotate the tests should be skipped if
+#                        MUJOCO_USE_SINGLE_PRECISION option is enabled
+function(mujoco_test name)
   set(options)
-  set(oneValueArgs)
-  set(multiValueArgs PROPERTIES)
+  set(oneValueArgs MAIN_TARGET)
+  set(multiValueArgs PROPERTIES ADDITIONAL_LINK_LIBRARIES TAGS)
   cmake_parse_arguments(
     _ARGS
     "${options}"
@@ -29,8 +45,22 @@ macro(mujoco_test name)
     ${ARGN}
   )
 
+  # If TAGS include nofloat32 and MUJOCO_USE_SINGLE_PRECISION is enabled,
+  # we do not compile or add the tests
+  if("nofloat32" IN_LIST _ARGS_TAGS AND MUJOCO_USE_SINGLE_PRECISION)
+    return()
+  endif()
+
   add_executable(${name} ${name}.cc)
-  target_link_libraries(${name} gtest_main mujoco)
+  target_link_libraries(${name} mujoco fixture gmock)
+  if(_ARGS_MAIN_TARGET)
+    target_link_libraries(${name} ${_ARGS_MAIN_TARGET})
+  else()
+    target_link_libraries(${name} gtest_main)
+  endif()
+  if(_ARGS_ADDITIONAL_LINK_LIBRARIES)
+    target_link_libraries(${name} ${_ARGS_ADDITIONAL_LINK_LIBRARIES})
+  endif()
   target_include_directories(${name} PRIVATE ${MUJOCO_TEST_INCLUDE})
   set_target_properties(${name} PROPERTIES BUILD_RPATH ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
   # gtest_discover_tests is recommended over gtest_add_tests, but has some issues in Windows.
@@ -48,7 +78,8 @@ macro(mujoco_test name)
   if(_ARGS_PROPERTIES)
     set_tests_properties(${testList} PROPERTIES ${_ARGS_PROPERTIES})
   endif()
-endmacro()
+
+endfunction()
 
 add_library(fixture STATIC fixture.h fixture.cc)
 target_include_directories(fixture PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -67,13 +98,10 @@ target_link_libraries(
 target_include_directories(fixture PRIVATE ${mujoco_SOURCE_DIR}/include gmock)
 
 mujoco_test(fixture_test)
-target_link_libraries(fixture_test fixture gmock)
 
 mujoco_test(header_test)
-target_link_libraries(header_test fixture gmock)
 
-mujoco_test(pipeline_test)
-target_link_libraries(pipeline_test fixture gmock)
+mujoco_test(pipeline_test TAGS nofloat32)
 
 add_subdirectory(benchmark)
 add_subdirectory(engine)
