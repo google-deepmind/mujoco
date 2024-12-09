@@ -14,8 +14,11 @@
 
 mujoco_test(
   pid_test
+  ADDITIONAL_LINK_LIBRARIES
+  absl::cleanup
+  absl::strings
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:actuator>"
 )
-target_link_libraries(pid_test fixture gmock absl::cleanup absl::strings)
+target_link_libraries(pid_test fixture gmock )

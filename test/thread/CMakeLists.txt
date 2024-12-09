@@ -13,7 +13,5 @@
 # limitations under the License.
 
 mujoco_test(thread_pool_test)
-target_link_libraries(thread_pool_test fixture gmock)
 
 mujoco_test(thread_queue_test)
-target_link_libraries(thread_queue_test fixture gmock)
