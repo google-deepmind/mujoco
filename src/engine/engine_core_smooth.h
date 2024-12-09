@@ -55,9 +55,14 @@ MJAPI void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD,
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 
-// sparse backsubstitution:  x = inv(L'*D*L)*y
+// sparse backsubstitution:  x = inv(L'*D*L)*x
 MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, int n,
                       const mjtNum* qLD, const mjtNum* qLDiagInv);
+
+// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
+//  like mj_solveLD, but using the CSR representation of L
+MJAPI void mj_solveLDs(mjtNum* x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
+                       const int* rownnz, const int* rowadr, const int* diag, const int* colind);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d
 MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);

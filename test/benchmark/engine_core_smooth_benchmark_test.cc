@@ -19,85 +19,28 @@
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_core_smooth.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
-// number of steps to roll out before benhmarking
+// number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 200;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
 
-// ----------------------------- old functions --------------------------------
-
-void ABSL_ATTRIBUTE_NOINLINE solveLD_baseline(const mjModel* m, mjtNum* x,
-                                              const mjtNum* y,
-                                              const mjtNum* qLD,
-                                              const mjtNum* qLDiagInv) {
-  mjtNum tmp;
-
-  // local copies of key variables
-  int* dof_Madr = m->dof_Madr;
-  int* dof_parentid = m->dof_parentid;
-  int nv = m->nv;
-
-  // x = y
-  if (x != y) {
-    mju_copy(x, y, nv);
-  }
-
-  // x <- inv(L') * x; skip simple, exploit sparsity of input vector
-  for (int i=nv-1; i >= 0; i--) {
-    if (!m->dof_simplenum[i] && (tmp = x[i])) {
-      // init
-      int Madr_ij = dof_Madr[i]+1;
-      int j = dof_parentid[i];
-
-      // traverse ancestors backwards
-      while (j >= 0) {
-        x[j] -= qLD[Madr_ij++]*tmp;         // x(j) -= L(i,j) * x(i)
-
-        // advance to parent
-        j = dof_parentid[j];
-      }
-    }
-  }
-
-  // x <- inv(D) * x
-  for (int i=0; i < nv; i++) {
-    x[i] *= qLDiagInv[i];  // x(i) /= L(i,i)
-  }
-
-  // x <- inv(L) * x; skip simple
-  for (int i=0; i < nv; i++) {
-    if (!m->dof_simplenum[i]) {
-      // init
-      int Madr_ij = dof_Madr[i]+1;
-      int j = dof_parentid[i];
-
-      // traverse ancestors backwards
-      tmp = x[i];
-      while (j>= 0) {
-        tmp -= qLD[Madr_ij++]*x[j];             // x(i) -= L(i,j) * x(j)
-
-        // advance to parent
-        j = dof_parentid[j];
-      }
-      x[i] = tmp;
-    }
-  }
-}
-
-void solveM_baseline(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y) {
-  solveLD_baseline(m, x, y, d->qLD, d->qLDiagInv);
-}
-
 // ----------------------------- benchmark ------------------------------------
 
-static void BM_solveLD(benchmark::State& state, bool new_function) {
-  static mjModel* m = LoadModelFromPath("plugin/elasticity/coil.xml");
+static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
+  static mjModel* m;
+  if (coil) {
+    m = LoadModelFromPath("plugin/elasticity/coil.xml");
+  } else {
+    m = LoadModelFromPath("humanoid/humanoid100.xml");
+  }
+
   mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
@@ -117,24 +60,21 @@ static void BM_solveLD(benchmark::State& state, bool new_function) {
     grad[i] = Ma[i] - d->qfrc_smooth[i] - d->qfrc_constraint[i];
   }
 
-  // save state
-  std::vector<mjtNum> qpos = AsVector(d->qpos, m->nq);
-  std::vector<mjtNum> qvel = AsVector(d->qvel, m->nv);
-  std::vector<mjtNum> act = AsVector(d->act, m->na);
-  std::vector<mjtNum> warmstart = AsVector(d->qacc_warmstart, m->nv);
+  // CSR matrix
+  mjtNum* LDs = mj_stackAllocNum(d, m->nC);
+  for (int i=0; i < m->nC; i++) {
+    LDs[i] = d->qLD[d->mapM2C[i]];
+  }
 
   // reset state, benchmark subsequent kNumBenchmarkSteps steps
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
-    mju_copy(d->qpos, qpos.data(), m->nq);
-    mju_copy(d->qvel, qvel.data(), m->nv);
-    mju_copy(d->act, act.data(), m->na);
-    mju_copy(d->qacc_warmstart, warmstart.data(), m->nv);
-
     for (int i=0; i < kNumBenchmarkSteps; i++) {
-      if (new_function) {
+      if (featherstone) {
         mj_solveM(m, d, res, grad, 1);
       } else {
-        solveM_baseline(m, d, res, grad);
+        mju_copy(res, grad, m->nv);
+        mj_solveLDs(res, LDs, d->qLDiagInv, m->nv,
+                    d->C_rownnz, d->C_rowadr, d->C_diag, d->C_colind);
       }
     }
   }
@@ -145,17 +85,29 @@ static void BM_solveLD(benchmark::State& state, bool new_function) {
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_new(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_COIL_FS(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, true);
+  BM_solveLD(state, /*featherstone=*/true, /*coil=*/true);
 }
-BENCHMARK(BM_solveLD_new);
+BENCHMARK(BM_solveLD_COIL_FS);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_old(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_COIL_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, false);
+  BM_solveLD(state, /*featherstone=*/false, /*coil=*/true);
 }
-BENCHMARK(BM_solveLD_old);
+BENCHMARK(BM_solveLD_COIL_CSR);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_H100_FS(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_solveLD(state, /*featherstone=*/true, /*coil=*/false);
+}
+BENCHMARK(BM_solveLD_H100_FS);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_H100_CSR(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_solveLD(state, /*featherstone=*/false, /*coil=*/false);
+}
+BENCHMARK(BM_solveLD_H100_CSR);
 
 }  // namespace
 }  // namespace mujoco

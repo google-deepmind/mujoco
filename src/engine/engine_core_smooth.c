@@ -1575,6 +1575,38 @@ void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
 }
 
 
+
+// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
+//  like mj_solveLD, but using the CSR representation of L
+void mj_solveLDs(mjtNum* x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
+                 const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
+  // x <- L^-T x
+  for (int i=nv-2; i >= 0; i--) {
+    int d1 = diag[i] + 1;
+    int nnz = rownnz[i] - d1;
+    if (nnz > 0) {
+      int adr = rowadr[i] + d1;
+      x[i] -= mju_dotSparse(qLDs+adr, x, nnz, colind+adr, /*flg_unc1=*/0);
+    }
+  }
+
+  // x(i) /= D(i,i)
+  for (int i=0; i < nv; i++) {
+    x[i] *= qLDiagInv[i];
+  }
+
+  // x <- L^-1 x
+  for (int i=1; i < nv; i++) {
+    int d = diag[i];
+    if (d > 0) {
+      int adr = rowadr[i];
+      x[i] -= mju_dotSparse(qLDs+adr, x, d, colind+adr, /*flg_unc1=*/0);
+    }
+  }
+}
+
+
+
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  use factorization in d
 void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {

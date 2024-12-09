@@ -15,6 +15,7 @@
 // Tests for engine/engine_core_smooth.c.
 
 #include "src/engine/engine_core_smooth.h"
+#include "src/engine/engine_util_sparse.h"
 
 #include <string>
 #include <string_view>
@@ -31,6 +32,7 @@
 namespace mujoco {
 namespace {
 
+using ::std::vector;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -261,7 +263,7 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
   while (data->time < 0.1) {
     mj_step(model, data);
   }
-  std::vector<mjtNum> sdata = AsVector(data->sensordata, model->nsensordata);
+  vector<mjtNum> sdata = AsVector(data->sensordata, model->nsensordata);
 
   // reset
   mj_resetData(model, data);
@@ -403,6 +405,80 @@ TEST_F(CoreSmoothTest, SolveMIsland) {
   mju_free(vec);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(CoreSmoothTest, SolveLD2) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <geom type="capsule" size="0.1"/>
+      <joint axis="0 1 0"/>
+    </default>
+
+    <worldbody>
+      <body>
+        <geom fromto="0 0 0 0 0 1"/>
+        <joint/>
+        <body pos="0 0 1">
+          <geom fromto="0 0 0 1 0 1"/>
+          <joint/>
+        </body>
+        <body pos="0 0 1">
+          <geom fromto="0 0 0 -1 0 1"/>
+          <joint/>
+          <body pos="-1 0 1">
+            <geom fromto="0 0 0 1 0 1"/>
+            <joint/>
+          </body>
+          <body pos="-1 0 1">
+            <geom fromto="0 0 0 -1 0 1"/>
+            <joint/>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  int nv = m->nv;
+  int nC = m->nC;
+
+  // copy LD into LDs: CSR format
+  vector<mjtNum> LDs(nC);
+  for (int i=0; i < nC; i++) {
+    LDs[i] = d->qLD[d->mapM2C[i]];
+  }
+
+  // compare LD and LDs densified matrices
+  vector<mjtNum> LDdense(nv*nv);
+  mju_sparse2dense(LDdense.data(), LDs.data(), nv, nv,
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  vector<mjtNum> LDdense2(nv*nv);
+  mj_fullM(m, LDdense2.data(), d->qLD);
+
+  // expect dense matrices to match exactly
+  for (int i=0; i < nv*nv; i++) EXPECT_EQ(LDdense[i], LDdense2[i]);
+
+  // compare LD and LDs vector solve
+  vector<mjtNum> vec(nv);
+  vector<mjtNum> vec2(nv);
+  for (int i=0; i < nv; i++) vec[i] = vec2[i] = 20 + 30*i;
+  for (int i=0; i < nv; i+=2) vec[i] = vec2[i] = 0;
+
+  mj_solveLD(m, vec.data(), 1, d->qLD, d->qLDiagInv);
+  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv,
+              d->C_rownnz, d->C_rowadr, d->C_diag, d->C_colind);
+
+  // expect vectors to match up to floating point precision
+  for (int i=0; i < nv; i++) {
+    EXPECT_FLOAT_EQ(vec[i], vec2[i]);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace
