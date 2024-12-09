@@ -1273,10 +1273,12 @@ class Data(PyTreeNode):
     B_colind: body-dof: column indices of non-zeros             (nB,)
     C_rownnz: reduced dof-dof: non-zeros in each row            (nv,)
     C_rowadr: reduced dof-dof: address of each row in C_colind  (nv,)
+    C_diag: reduced dof-dof: index of diagonal element          (nv,)
     C_colind: reduced dof-dof: column indices of non-zeros      (nC,)
     mapM2C: index mapping from M to C                           (nC,)
     D_rownnz: dof-dof: non-zeros in each row                    (nv,)
     D_rowadr: dof-dof: address of each row in D_colind          (nv,)
+    D_diag: dof-dof: index of diagonal element                  (nv,)
     D_colind: dof-dof: column indices of non-zeros              (nD,)
     mapM2D: index mapping from M to D                           (nD,)
     mapD2M: index mapping from D to M                           (nM,)
@@ -1402,10 +1404,12 @@ class Data(PyTreeNode):
   B_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   C_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   C_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  C_diag: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   C_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   mapM2C: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   D_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   D_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  D_diag: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   D_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   mapM2D: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   mapD2M: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name

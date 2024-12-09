@@ -921,7 +921,8 @@ int mj_sizeModel(const mjModel* m) {
 
 // construct sparse representation of dof-dof matrix
 static void makeDofDofSparse(const mjModel* m, mjData* d,
-                             int* rownnz, int* rowadr, int* colind, int reduced) {
+                             int* rownnz, int* rowadr,  int* diag, int* colind,
+                             int reduced) {
   int nv = m->nv;
 
   // no dofs, nothing to do
@@ -984,6 +985,19 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
   // check total nnz; SHOULD NOT OCCUR
   if (rowadr[nv - 1] + rownnz[nv - 1] != (reduced ? m->nC : m->nD)) {
     mjERROR("sum of rownnz different from expected");
+  }
+
+  // find diagonal indices
+  for (int i = 0; i < nv; i++) {
+    int adr = rowadr[i];
+    int j = 0;
+    while (colind[adr + j] < i && j < rownnz[i]) {
+      j++;
+    }
+    if (colind[adr + j] != i) {
+      mjERROR("diagonal index not found");
+    }
+    diag[i] = j;
   }
 
   mj_freeStack(d);
@@ -1915,14 +1929,14 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // construct sparse matrix representations
   if (m->body_dofadr) {
     // make D
-    makeDofDofSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_colind, /*reduced=*/0);
+    makeDofDofSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind, /*reduced=*/0);
 
     // make B, check D and B
     makeBSparse(m, d);
     checkDBSparse(m, d);
 
     // make C
-    makeDofDofSparse(m, d, d->C_rownnz, d->C_rowadr, d->C_colind, /*reduced=*/1);
+    makeDofDofSparse(m, d, d->C_rownnz, d->C_rowadr, d->C_diag, d->C_colind, /*reduced=*/1);
     makeDmap(m, d);
   }
 

@@ -5397,6 +5397,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='reduced dof-dof: address of each row in C_colind (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='C_diag',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='reduced dof-dof: index of diagonal element',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
                  name='C_colind',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -5426,6 +5434,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='dof-dof: address of each row in D_colind',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='D_diag',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='dof-dof: index of diagonal element',
                  array_extent=('nv',),
              ),
              StructFieldDecl(

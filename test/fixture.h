@@ -118,7 +118,7 @@ inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5) {
   std::cerr << "\n";
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < ncol; c++) {
-      std::cerr << std::fixed << std::setw(4 + p) << mat[c + r*ncol] << " ";
+      std::cerr << std::fixed << std::setw(3 + p) << mat[c + r*ncol] << " ";
     }
     std::cerr << "\n";
   }

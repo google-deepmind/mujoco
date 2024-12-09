@@ -655,10 +655,12 @@
     X   ( int,       B_colind,          nB,          1           ) \
     X   ( int,       C_rownnz,          nv,          1           ) \
     X   ( int,       C_rowadr,          nv,          1           ) \
+    X   ( int,       C_diag,            nv,          1           ) \
     X   ( int,       C_colind,          nC,          1           ) \
     X   ( int,       mapM2C,            nC,          1           ) \
     X   ( int,       D_rownnz,          nv,          1           ) \
     X   ( int,       D_rowadr,          nv,          1           ) \
+    X   ( int,       D_diag,            nv,          1           ) \
     X   ( int,       D_colind,          nD,          1           ) \
     X   ( int,       mapM2D,            nD,          1           ) \
     X   ( int,       mapD2M,            nM,          1           ) \
