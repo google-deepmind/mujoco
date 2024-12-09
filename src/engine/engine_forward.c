@@ -967,7 +967,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
-    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_colind);
+    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind);
   }
 
   // IMPLICITFAST

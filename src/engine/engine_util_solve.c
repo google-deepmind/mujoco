@@ -651,41 +651,31 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 
 // solve mat*res=vec given LU factorization of mat
 void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
-                       const int* rownnz, const int* rowadr, const int* colind) {
-  //------------------ solve (U+I)*res = vec
+                       const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
+  // solve (U+I)*res = vec
   for (int i=n-1; i >= 0; i--) {
     // init: diagonal of (U+I) is 1
     res[i] = vec[i];
 
-    // res[i] -= sum_k>i res[k]*LU(i,k)
-    int j = rownnz[i] - 1;
-    while (colind[rowadr[i]+j] > i) {
-      res[i] -= res[colind[rowadr[i]+j]] * LU[rowadr[i]+j];
-      j--;
-    }
-
-    // make sure j points to diagonal
-    if (colind[rowadr[i]+j] != i) {
-      mjERROR("diagonal of U not reached");
+    int d1 = diag[i]+1;
+    int nnz = rownnz[i] - d1;
+    if (nnz > 0) {
+      int adr = rowadr[i] + d1;
+      res[i] -= mju_dotSparse(LU+adr, res, nnz, colind+adr, /*flg_unc1=*/0);
     }
   }
 
   //------------------ solve L*res(new) = res
   for (int i=0; i < n; i++) {
     // res[i] -= sum_k<i res[k]*LU(i,k)
-    int j = 0;
-    while (colind[rowadr[i]+j] < i) {
-      res[i] -= res[colind[rowadr[i]+j]] * LU[rowadr[i]+j];
-      j++;
+    int d = diag[i];
+    int adr = rowadr[i];
+    if (d > 0) {
+      res[i] -= mju_dotSparse(LU+adr, res, d, colind+adr, /*flg_unc1=*/0);
     }
 
     // divide by diagonal element of L
-    res[i] /= LU[rowadr[i]+j];
-
-    // make sure j points to diagonal
-    if (colind[rowadr[i]+j] != i) {
-      mjERROR("diagonal of L not reached");
-    }
+    res[i] /= LU[adr + d];
   }
 }
 
