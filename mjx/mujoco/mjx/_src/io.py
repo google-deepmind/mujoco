@@ -474,7 +474,7 @@ def get_data_into(
         if m.nu:
           mujoco.mju_dense2sparse(
               actuator_moment,
-              d.actuator_moment,
+              d_i.actuator_moment,
               moment_rownnz,
               moment_rowadr,
               moment_colind,
