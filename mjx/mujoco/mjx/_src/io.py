@@ -37,28 +37,32 @@ def _strip_weak_type(tree):
   return jax.tree_util.tree_map(f, tree)
 
 
-def _make_option(o: mujoco.MjOption) -> types.Option:
+def _make_option(
+    o: mujoco.MjOption, _full_compat: bool = False
+) -> types.Option:
   """Returns mjx.Option given mujoco.MjOption."""
-  if o.integrator not in set(types.IntegratorType):
-    raise NotImplementedError(f'{mujoco.mjtIntegrator(o.integrator)}')
+  if not _full_compat:
+    if o.integrator not in set(types.IntegratorType):
+      raise NotImplementedError(f'{mujoco.mjtIntegrator(o.integrator)}')
 
-  if o.cone not in set(types.ConeType):
-    raise NotImplementedError(f'{mujoco.mjtCone(o.cone)}')
+    if o.cone not in set(types.ConeType):
+      raise NotImplementedError(f'{mujoco.mjtCone(o.cone)}')
 
-  if o.jacobian not in set(types.JacobianType):
-    raise NotImplementedError(f'{mujoco.mjtJacobian(o.jacobian)}')
+    if o.jacobian not in set(types.JacobianType):
+      raise NotImplementedError(f'{mujoco.mjtJacobian(o.jacobian)}')
 
-  if o.solver not in set(types.SolverType):
-    raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
+    if o.solver not in set(types.SolverType):
+      raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
 
-  for i in range(mujoco.mjtEnableBit.mjNENABLE):
-    if o.enableflags & 2**i:
-      raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
+    for i in range(mujoco.mjtEnableBit.mjNENABLE):
+      if o.enableflags & 2**i:
+        raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
 
   has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
   implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
-  if implicitfast and has_fluid_params:
-    raise NotImplementedError('implicitfast not implemented for fluid drag.')
+  if not _full_compat:
+    if implicitfast and has_fluid_params:
+      raise NotImplementedError('implicitfast not implemented for fluid drag.')
 
   fields = {f.name: getattr(o, f.name, None) for f in types.Option.fields()}
   fields['integrator'] = types.IntegratorType(o.integrator)
@@ -182,16 +186,17 @@ def put_model(
   fields['tendon_hasfrictionloss'] = fields['tendon_frictionloss'] > 0
   fields['geom_rbound_hfield'] = fields['geom_rbound']
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
-  fields['opt'] = _make_option(m.opt)
+  fields['opt'] = _make_option(m.opt, _full_compat=_full_compat)
   fields['stat'] = _make_statistic(m.stat)
 
   # Pre-compile meshes for MJX collisions.
   fields['mesh_convex'] = [None] * m.nmesh
-  for i in mesh_geomid:
-    dataid = m.geom_dataid[i]
-    if fields['mesh_convex'][dataid] is None:
-      fields['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
-  fields['mesh_convex'] = tuple(fields['mesh_convex'])
+  if not _full_compat:
+    for i in mesh_geomid:
+      dataid = m.geom_dataid[i]
+      if fields['mesh_convex'][dataid] is None:
+        fields['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
+    fields['mesh_convex'] = tuple(fields['mesh_convex'])
 
   model = types.Model(**{k: copy.copy(v) for k, v in fields.items()})
 
@@ -496,9 +501,10 @@ def get_data_into(
         value = np.ones(m.nv)
 
       if isinstance(value, np.ndarray) and value.shape:
-        if restricted_to in ('mujoco', 'mjx') and value.shape == (0,):
+        if restricted_to in ('mujoco', 'mjx'):
           continue  # don't copy fields that are mujoco-only or MJX-only
-        getattr(result_i, field.name)[:] = value
+        else:
+          getattr(result_i, field.name)[:] = value
       else:
         setattr(result_i, field.name, value)
 
