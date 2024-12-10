@@ -837,15 +837,13 @@ void mjXReader::PrintSchema(std::stringstream& str, bool html, bool pad) {
 void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
   // check schema
   if (!schema.GetError().empty()) {
-    throw mjXError(0, "XML Schema Construction Error: %s\n",
-                   schema.GetError().c_str());
+    throw mjXError(0, "XML Schema Construction Error: %s", schema.GetError().c_str());
   }
 
   // validate
   XMLElement* bad = 0;
   if ((bad = schema.Check(root, 0))) {
-    throw mjXError(bad, "Schema violation: %s\n",
-                   schema.GetError().c_str());
+    throw mjXError(bad, "Schema violation: %s", schema.GetError().c_str());
   }
 
   // get model name
