@@ -479,6 +479,7 @@ Below is a minimal usage example, more examples can be found in the Model Editin
 
    import mujoco
    spec = mujoco.MjSpec()
+   spec.modelname = "my model"
    body = spec.worldbody.add_body(
        pos=[1, 2, 3],
        quat=[0, 1, 0, 0],
@@ -503,8 +504,29 @@ The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in t
 
 Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
-Attachments
+Save to XML
 -----------
+
+Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` method:
+
+.. code-block:: python
+
+   print(spec.to_xml())
+
+.. code-block:: XML
+
+   <mujoco model="my model">
+     <compiler angle="radian"/>
+
+     <worldbody>
+       <body pos="1 2 3" quat="0 1 0 0">
+         <geom name="my_geom" size="1" rgba="1 0 0 1"/>
+       </body>
+     </worldbody>
+   </mujoco>
+
+Attachment
+----------
 
 It is possible to combine multiple specs by using attachments. The following options are possible:
 
