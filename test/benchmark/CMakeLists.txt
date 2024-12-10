@@ -12,86 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Macro for benchmarks that don't use GL (same as mujoco_api_test, but uses
-# benchmark::benchmark_main).
 
-macro(mujoco_benchmark_test name)
-  add_executable(${name} ${name}.cc)
-  target_link_libraries(
-    ${name}
-    benchmark::benchmark_main
-    mujoco
-    absl::core_headers
-  )
-  target_include_directories(${name} PRIVATE ${MUJOCO_TEST_INCLUDE})
-  # TODO(fraromano) Check RPATH settings
-  set_target_properties(${name} PROPERTIES BUILD_RPATH ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-  # gtest_discover_tests is recommended over gtest_add_tests, but has some issues in Windows.
-  gtest_add_tests(
-    TARGET ${name}
-    SOURCES ${name}.cc
-    WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
-    TEST_LIST testList
-  )
-  if(WIN32)
-    set_tests_properties(
-      ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"
-    )
-  endif()
-endmacro()
-
-mujoco_benchmark_test(ccd_benchmark_test)
-target_link_libraries(
+mujoco_test(
   ccd_benchmark_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
 
-mujoco_benchmark_test(step_benchmark_test)
-target_link_libraries(
+mujoco_test(
   step_benchmark_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
 
-mujoco_benchmark_test(thread_performance_test)
-target_link_libraries(
+mujoco_test(
   thread_performance_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
 
-mujoco_benchmark_test(parse_benchmark_test)
-target_link_libraries(
+mujoco_test(
   parse_benchmark_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
 
-mujoco_benchmark_test(engine_util_spatial_benchmark_test)
-target_link_libraries(
+mujoco_test(
   engine_util_spatial_benchmark_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
 
-mujoco_benchmark_test(engine_core_smooth_benchmark_test)
-target_link_libraries(
+mujoco_test(
   engine_core_smooth_benchmark_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
 
-mujoco_benchmark_test(engine_util_sparse_benchmark_test)
-target_link_libraries(
+mujoco_test(
   engine_util_sparse_benchmark_test
-  fixture
-  gmock
-  benchmark::benchmark
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
