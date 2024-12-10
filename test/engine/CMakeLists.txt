@@ -12,97 +12,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(engine_collision_box_test)
-target_link_libraries(engine_collision_box_test fixture gmock)
+mujoco_test(engine_collision_box_test TAGS nofloat32)
 
 mujoco_test(engine_collision_convex_test)
-target_link_libraries(engine_collision_convex_test fixture gmock)
 
 mujoco_test(engine_collision_driver_test)
-target_link_libraries(engine_collision_driver_test fixture gmock)
 
-mujoco_test(engine_collision_gjk_test)
-target_link_libraries(engine_collision_gjk_test fixture gmock ccd)
+mujoco_test(engine_collision_gjk_test ADDITIONAL_LINK_LIBRARIES ccd TAGS nofloat32)
 
-mujoco_test(engine_core_constraint_test)
-target_link_libraries(engine_core_constraint_test fixture gmock)
+mujoco_test(engine_core_constraint_test TAGS nofloat32)
 
-mujoco_test(engine_core_smooth_test)
-target_link_libraries(engine_core_smooth_test fixture gmock absl::span)
+mujoco_test(engine_core_smooth_test ADDITIONAL_LINK_LIBRARIES absl::span TAGS nofloat32)
 
-mujoco_test(engine_derivative_test)
-target_link_libraries(engine_derivative_test fixture gmock)
+mujoco_test(engine_derivative_test TAGS nofloat32)
 
-mujoco_test(engine_forward_test)
-target_link_libraries(engine_forward_test fixture gmock)
+mujoco_test(engine_forward_test TAGS nofloat32)
 
-mujoco_test(engine_inverse_test)
-target_link_libraries(engine_inverse_test fixture gmock)
+mujoco_test(engine_inverse_test TAGS nofloat32)
 
 mujoco_test(engine_island_test)
-target_link_libraries(engine_island_test fixture gmock)
 
-mujoco_test(engine_io_test)
-target_link_libraries(
-  engine_io_test
-  fixture
-  gmock
-  absl::str_format
-)
+mujoco_test(engine_io_test ADDITIONAL_LINK_LIBRARIES absl::str_format)
 
 mujoco_test(
   engine_plugin_test
+  ADDITIONAL_LINK_LIBRARIES
+  absl::str_format
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
-)
-target_link_libraries(
-  engine_plugin_test
-  fixture
-  gmock
-  absl::str_format
+  TAGS
+  nofloat32
 )
 
-mujoco_test(engine_passive_test)
-target_link_libraries(engine_passive_test fixture gmock)
+mujoco_test(engine_passive_test TAGS nofloat32)
 
 mujoco_test(engine_print_test)
-target_link_libraries(engine_print_test fixture gmock)
 
-mujoco_test(engine_ray_test)
-target_link_libraries(engine_ray_test fixture gmock)
+mujoco_test(engine_ray_test TAGS nofloat32)
 
-mujoco_test(engine_sensor_test)
-target_link_libraries(engine_sensor_test fixture gmock)
+mujoco_test(engine_sensor_test TAGS nofloat32)
 
-mujoco_test(engine_solver_test)
-target_link_libraries(engine_solver_test fixture gmock)
+mujoco_test(engine_solver_test TAGS nofloat32)
 
 mujoco_test(engine_sort_test)
-target_link_libraries(engine_sort_test fixture gmock)
 
-mujoco_test(engine_support_test)
-target_link_libraries(engine_support_test fixture gmock)
+mujoco_test(engine_support_test TAGS nofloat32)
 
 mujoco_test(engine_thread_test)
-target_link_libraries(engine_thread_test fixture gmock)
 
-mujoco_test(engine_util_blas_test)
-target_link_libraries(engine_util_blas_test fixture gmock)
+mujoco_test(engine_util_blas_test TAGS nofloat32)
 
 mujoco_test(engine_util_errmem_test)
-target_link_libraries(engine_util_errmem_test fixture gmock)
 
-mujoco_test(engine_util_solve_test)
-target_link_libraries(engine_util_solve_test fixture gmock)
+mujoco_test(engine_util_solve_test TAGS nofloat32)
 
-mujoco_test(engine_util_spatial_test)
-target_link_libraries(engine_util_spatial_test fixture gmock)
+mujoco_test(engine_util_spatial_test TAGS nofloat32)
 
 mujoco_test(
   engine_vis_state_test
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+  TAGS
+  nofloat32
 )
-target_link_libraries(engine_vis_state_test fixture gmock)
