@@ -36,7 +36,7 @@ public class MjPluginConfig : MjComponent {
   // Generate implementation specific XML element.
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
 
-    var mjcf = (XmlElement)doc.CreateElement("plugin");
+    var mjcf = (XmlElement)doc.CreateElement("config");
     if (Key.Length > 0)
       mjcf.SetAttribute("key", Key);
     if (Value.Length > 0)

@@ -406,6 +406,10 @@ public class MjScene : MonoBehaviour {
             (component is MjPluginInstance) ||
             (component is MjPluginConfig)),
         extensionMjcf);
+
+    if (MjCustom.InstanceExists) {
+      MjCustom.Instance.GenerateCustomMjcf(doc);
+    }
     
     // Non-hierarchical sections:
     MjRoot.AppendChild(GenerateMjcfSection(

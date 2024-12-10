@@ -148,12 +148,22 @@ public class MjcfImporter {
       var extensionParentObject = CreateGameObjectInParent("extension", rootObject);
       foreach (var child in extensionNode.OfType<XmlElement>()) {
         _modifiers.ApplyModifiersToElement(child);
-        ParseBodyChildren(extensionParentObject, extensionNode);
+        ParseExtensions(extensionParentObject, extensionNode);
       }
     }
 
-    // This makes references to assets.
-    var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
+    var customNode = mujocoNode.SelectSingleNode("custom") as XmlElement;
+    if (customNode != null) {
+      var customObject = CreateGameObjectInParent("custom", rootObject);
+      var customComponent = customObject.AddComponent<MjCustom>();
+      foreach (var child in customNode.OfType<XmlElement>()) {
+        _modifiers.ApplyModifiersToElement(child);
+        customComponent.ParseCustom(child);
+      }
+    }
+
+      // This makes references to assets.
+      var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
     ParseBodyChildren(rootObject, worldBodyNode);
 
     // This section references bodies, must be parsed after worldbody.

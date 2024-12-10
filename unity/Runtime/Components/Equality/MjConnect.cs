@@ -22,12 +22,16 @@ namespace Mujoco {
   public class MjConnect : MjBaseConstraint {
     public MjBaseBody Body1;
     public MjBaseBody Body2;
+    public MjSite Site1;
+    public MjSite Site2;
     public Transform Anchor;
     protected override string _constraintName => "connect";
 
     protected override void FromMjcf(XmlElement mjcf) {
       Body1 = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body1");
       Body2 = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body2");
+      Site1 = mjcf.GetObjectReferenceAttribute<MjSite>("site1");
+      Site2 = mjcf.GetObjectReferenceAttribute<MjSite>("site2");
       var anchorPos = MjEngineTool.UnityVector3(
           mjcf.GetVector3Attribute("anchor", defaultValue: Vector3.zero));
       Anchor = new GameObject("connect_anchor").transform;
@@ -37,16 +41,21 @@ namespace Mujoco {
 
     // Generate implementation specific XML element.
     protected override void ToMjcf(XmlElement mjcf) {
-      if (Body1 == null || Body2 == null) {
-        throw new NullReferenceException($"Both bodies in connect {name} are required.");
+      if (!(Body1 && Anchor) && !(Site1 && Site2)) {
+        throw new NullReferenceException($"Either body1 and anchor is required or both sites have to be defined in {name}.");
       }
-      if (Anchor == null) {
-        throw new NullReferenceException($"Anchor in connect {name} is required.");
-      }
-      mjcf.SetAttribute("body1", Body1.MujocoName);
-      mjcf.SetAttribute("body2", Body2.MujocoName);
-      mjcf.SetAttribute("anchor",
-                        MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Anchor.localPosition)));
+      if (Body1)
+        mjcf.SetAttribute("body1", Body1.MujocoName);
+      if (Body2) 
+        mjcf.SetAttribute("body2", Body2.MujocoName);
+      if (Anchor)
+        mjcf.SetAttribute("anchor", 
+            MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Anchor.localPosition)));
+      if (Site1)
+        mjcf.SetAttribute("site1", Site1.MujocoName);
+      if (Site2)
+        mjcf.SetAttribute("site2", Site2.MujocoName);
+
     }
 
     public void OnValidate() {
