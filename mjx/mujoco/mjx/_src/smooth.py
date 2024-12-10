@@ -334,7 +334,7 @@ def factor_m(m: Model, d: Data) -> Data:
     pivots = []
     out = []
 
-    for (b, e, madr_d, madr_ij) in updates:
+    for b, e, madr_d, madr_ij in updates:
       width = e - b
       rows.append(np.arange(madr_ij, madr_ij + width))
       madr_ijs.append(np.full((width,), madr_ij))
@@ -511,7 +511,6 @@ def subtree_vel(m: Model, d: Data) -> Data:
       angmom_child, mom_parent_child = carry
       return angmom + mom + angmom_child + mom_parent_child, mom_parent
 
-
   subtree_angmom, _ = scan.body_tree(
       m,
       _subtree_angmom,
@@ -535,6 +534,7 @@ def subtree_vel(m: Model, d: Data) -> Data:
 
 def rne(m: Model, d: Data) -> Data:
   """Computes inverse dynamics using the recursive Newton-Euler algorithm."""
+
   # forward scan over tree: accumulate link center of mass acceleration
   def cacc_fn(cacc, cdof_dot, qvel):
     if cacc is None:

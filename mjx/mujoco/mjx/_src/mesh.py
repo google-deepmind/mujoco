@@ -172,8 +172,8 @@ def _merge_coplanar(
 
     # resize faces that exceed max polygon vertices
     if face.shape[0] > _MAX_HULL_FACE_VERTICES:
-      name = m.names[m.name_meshadr[meshid]:]
-      name = name[:name.find(b'\x00')].decode('utf-8')
+      name = m.names[m.name_meshadr[meshid] :]
+      name = name[: name.find(b'\x00')].decode('utf-8')
       warnings.warn(
           f'Mesh "{name}" has a coplanar face with more than '
           f'{_MAX_HULL_FACE_VERTICES} vertices. This may lead to performance '

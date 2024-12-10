@@ -52,6 +52,7 @@ class _Context(PyTreeNode):
     u: friction cone (normal and tangents)            (num(con.dim > 1), 6)
     h: cone hessian                                   (num(con.dim > 1), 6, 6)
   """
+
   qacc: jax.Array
   qfrc_constraint: jax.Array
   Jaref: jax.Array  # pylint: disable=invalid-name
@@ -225,6 +226,7 @@ class _LSContext(PyTreeNode):
 
 def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
   """Scan-based implementation (jit ok, reverse-mode autodiff ok)."""
+
   def _iter(val):
     next_val = body_fun(val)
     next_cond = cond_fun(next_val)
@@ -382,7 +384,7 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
       # set efc of cone H along diagonal
       for i, (condim, addr) in enumerate(zip(dim, efc_address)):
         h_cone = ctx.h[i, :condim, :condim]
-        cm = cm.at[addr:addr+condim, addr:addr+condim].add(h_cone)
+        cm = cm.at[addr : addr + condim, addr : addr + condim].add(h_cone)
       h = d.efc_J.T @ cm @ d.efc_J
     else:
       h = (d.efc_J.T * d.efc_D * ctx.active) @ d.efc_J

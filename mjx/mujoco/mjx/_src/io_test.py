@@ -92,12 +92,11 @@ _MULTIPLE_CONSTRAINTS = """
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
 
-  @parameterized.parameters(
-      _MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS
-  )
+  @parameterized.parameters(_MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS)
   def test_put_model(self, xml):
     m = mujoco.MjModel.from_xml_string(xml)
     mx = mjx.put_model(m)
+
     def assert_not_weak_type(x):
       if isinstance(x, jax.Array):
         assert not x.weak_type

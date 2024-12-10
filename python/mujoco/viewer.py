@@ -42,7 +42,7 @@ PERCENT_REALTIME = (
     10, 8, 6.6, 5, 4, 3.3, 2.5, 2, 1.6, 1.3,
     1, 0.8, 0.66, 0.5, 0.4, 0.33, 0.25, 0.2, 0.16, 0.13,
     0.1
-)
+)  # fmt: skip
 
 # Maximum time mis-alignment before re-sync.
 MAX_SYNC_MISALIGN = 0.1
@@ -194,12 +194,13 @@ def _file_loader(path: str) -> _LoaderWithPathType:
 
 
 def _reload(
-    simulate: _Simulate, loader: _InternalLoaderType,
-    notify_loaded: Optional[Callable[[], None]] = None
+    simulate: _Simulate,
+    loader: _InternalLoaderType,
+    notify_loaded: Optional[Callable[[], None]] = None,
 ) -> Optional[Tuple[mujoco.MjModel, mujoco.MjData]]:
   """Internal function for reloading a model in the viewer."""
   try:
-    simulate.load_message('') # path is unknown at this point
+    simulate.load_message('')  # path is unknown at this point
     load_tuple = loader()
   except Exception as e:  # pylint: disable=broad-except
     simulate.load_error = str(e)
@@ -275,14 +276,16 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
           # Inject noise.
           if simulate.ctrl_noise_std != 0.0:
             # Convert rate and scale to discrete time (Ornstein–Uhlenbeck).
-            rate = math.exp(-m.opt.timestep /
-                            max(simulate.ctrl_noise_rate, mujoco.mjMINVAL))
+            rate = math.exp(
+                -m.opt.timestep / max(simulate.ctrl_noise_rate, mujoco.mjMINVAL)
+            )
             scale = simulate.ctrl_noise_std * math.sqrt(1 - rate * rate)
 
             for i in range(m.nu):
               # Update noise.
-              ctrl_noise[i] = (rate * ctrl_noise[i] +
-                               scale * mujoco.mju_standardNormal(None))
+              ctrl_noise[i] = rate * ctrl_noise[
+                  i
+              ] + scale * mujoco.mju_standardNormal(None)
 
               # Apply noise.
               d.ctrl[i] = ctrl_noise[i]
@@ -291,12 +294,18 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
           slowdown = 100 / PERCENT_REALTIME[simulate.real_time_index]
 
           # Misalignment: distance from target sim time > MAX_SYNC_MISALIGN.
-          misaligned = abs(elapsedcpu / slowdown -
-                           elapsedsim) > MAX_SYNC_MISALIGN
+          misaligned = (
+              abs(elapsedcpu / slowdown - elapsedsim) > MAX_SYNC_MISALIGN
+          )
 
           # Out-of-sync (for any reason): reset sync times, step.
-          if (elapsedsim < 0 or elapsedcpu < 0 or synccpu == 0 or misaligned or
-              simulate.speed_changed):
+          if (
+              elapsedsim < 0
+              or elapsedcpu < 0
+              or synccpu == 0
+              or misaligned
+              or simulate.speed_changed
+          ):
             # Re-sync.
             synccpu = startcpu
             syncsim = d.time
@@ -312,9 +321,9 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
             prevsim = d.time
             refreshtime = SIM_REFRESH_FRACTION / simulate.refresh_rate
             # Step while sim lags behind CPU and within refreshtime.
-            while (((d.time - syncsim) * slowdown <
-                    (time.time() - synccpu)) and
-                   ((time.time() - startcpu) < refreshtime)):
+            while (
+                (d.time - syncsim) * slowdown < (time.time() - synccpu)
+            ) and ((time.time() - startcpu) < refreshtime):
               # Measure slowdown before first step.
               if not measured and elapsedsim:
                 simulate.measured_slowdown = elapsedcpu / elapsedsim
@@ -329,7 +338,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
                 break
 
           # save current state to history buffer
-          if (stepped):
+          if stepped:
             simulate.add_to_history()
 
         else:  # simulate.run is False: GUI is paused.
@@ -355,7 +364,8 @@ def _launch_internal(
     raise ValueError('mjData is specified but mjModel is not')
   elif callable(model) and data is not None:
     raise ValueError(
-        'mjData should not be specified when an mjModel loader is used')
+        'mjData should not be specified when an mjModel loader is used'
+    )
   elif loader is not None and model is not None:
     raise ValueError('model and loader are both specified')
   elif run_physics_thread and handle_return is not None:
@@ -398,14 +408,17 @@ def _launch_internal(
 
   if run_physics_thread:
     side_thread = threading.Thread(
-        target=_physics_loop, args=(simulate, loader))
+        target=_physics_loop, args=(simulate, loader)
+    )
   else:
     side_thread = threading.Thread(
-        target=_reload, args=(simulate, loader, notify_loaded))
+        target=_reload, args=(simulate, loader, notify_loaded)
+    )
 
   def make_exit(simulate):
     def exit_simulate():
       simulate.exit()
+
     return exit_simulate
 
   exit_simulate = make_exit(simulate)
@@ -456,8 +469,7 @@ def launch_passive(
   if not isinstance(data, mujoco.MjData):
     raise ValueError(f'`data` is not a mujoco.MjData: got {data!r}')
   if key_callback is not None and not callable(key_callback):
-    raise ValueError(
-        f'`key_callback` is not callable: got {key_callback!r}')
+    raise ValueError(f'`key_callback` is not callable: got {key_callback!r}')
 
   mujoco.mj_forward(model, data)
   handle_return = queue.Queue(1)
@@ -480,7 +492,8 @@ def launch_passive(
     if not isinstance(_MJPYTHON, _MjPythonBase):
       raise RuntimeError(
           '`launch_passive` requires that the Python script be run under '
-          '`mjpython` on macOS')
+          '`mjpython` on macOS'
+      )
     _MJPYTHON.launch_on_ui_thread(
         model,
         data,

@@ -53,8 +53,9 @@ class MeshTest(absltest.TestCase):
     map_ = {v: k for k, v in enumerate(vidx)}
     h_face = np.vectorize(map_.get)(convex_face)
     face_verts = sorted([tuple(sorted(set(s))) for s in h_face.tolist()])
-    expected_face_verts = sorted([
-        (0, 3, 4), (1, 3, 4), (0, 2, 4), (0, 1, 2, 3), (1, 2, 4)])
+    expected_face_verts = sorted(
+        [(0, 3, 4), (1, 3, 4), (0, 2, 4), (0, 1, 2, 3), (1, 2, 4)]
+    )
     self.assertSequenceEqual(
         face_verts,
         expected_face_verts,

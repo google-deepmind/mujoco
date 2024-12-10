@@ -63,7 +63,8 @@ class MshTest(absltest.TestCase):
     obj = msh2obj.msh_to_obj(msh_path)
 
     obj_model = mujoco.MjModel.from_xml_string(
-        _XML, {"abdomen_1_body.obj": obj.encode()})
+        _XML, {"abdomen_1_body.obj": obj.encode()}
+    )
 
     for field in _MESH_FIELDS:
       np.testing.assert_allclose(
@@ -72,6 +73,7 @@ class MshTest(absltest.TestCase):
           atol=1e-6,
           err_msg=f"Field {field} does not match between msh and obj models.",
       )
+
 
 if __name__ == "__main__":
   absltest.main()

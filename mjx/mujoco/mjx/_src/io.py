@@ -34,6 +34,7 @@ def _strip_weak_type(tree):
     if isinstance(leaf, jax.Array):
       return leaf.astype(jax.dtypes.canonicalize_dtype(leaf.dtype))
     return leaf
+
   return jax.tree_util.tree_map(f, tree)
 
 
@@ -95,7 +96,7 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     _full_compat: put all MjModel fields onto device irrespective of MJX support
-        This is an experimental feature.  Avoid using it for now.
+      This is an experimental feature.  Avoid using it for now.
 
   Returns:
     an mjx.Model placed on device
@@ -215,8 +216,8 @@ def make_data(
     m: the model to use
     device: which device to use - if unspecified picks the default device
     _full_compat: create all MjData fields on device irrespective of MJX support
-        This is an experimental feature.  Avoid using it for now.
-        If using this flag, also use _full_compat for put_model.
+      This is an experimental feature.  Avoid using it for now. If using this
+      flag, also use _full_compat for put_model.
 
   Returns:
     an initialized mjx.Data placed on device
@@ -383,7 +384,7 @@ def make_data(
       contact=contact,
       efc_type=efc_type,
       eq_active=m.eq_active0,
-      **zero_fields
+      **zero_fields,
   )
 
   return d
@@ -556,8 +557,8 @@ def put_data(
     d: the data to put on device
     device: which device to use - if unspecified picks the default device
     _full_compat: put all MjModel fields onto device irrespective of MJX support
-        This is an experimental feature.  Avoid using it for now.
-        If using this flag, also use _full_compat for put_model.
+      This is an experimental feature.  Avoid using it for now. If using this
+      flag, also use _full_compat for put_model.
 
   Returns:
     an mjx.Data placed on device
@@ -646,7 +647,7 @@ def put_data(
       if num_rows > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
         num_rows = (num_rows - 1) * 2
       efc_i, efc_o = d.contact.efc_address[id_from], efc_address[id_to]
-      value[efc_o:efc_o + num_rows] = fields[fname][efc_i:efc_i + num_rows]
+      value[efc_o : efc_o + num_rows] = fields[fname][efc_i : efc_i + num_rows]
 
     fields[fname] = value
 

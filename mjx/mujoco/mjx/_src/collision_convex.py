@@ -906,7 +906,8 @@ def _sat_gaussmap(
     return edge_axis * sign, degenerate_edge_axis
 
   edge_axes, degenerate_edge_axes = jax.vmap(get_normals)(
-      edge_a_dir, edge_a_pt, edge_b_dir)
+      edge_a_dir, edge_a_pt, edge_b_dir
+  )
   edge_dist = jax.vmap(jp.dot)(edge_axes, edge_b_pt - edge_a_pt)
   # handle degenerate axis
   edge_dist = jp.where(degenerate_edge_axes, -jp.inf, edge_dist)
@@ -928,11 +929,14 @@ def _sat_gaussmap(
       dist,
   )
   a_closest, b_closest = math.closest_segment_to_segment_points(
-      edge_a_pt[best_edge_idx], edge_a_pt_2[best_edge_idx],
-      edge_b_pt[best_edge_idx], edge_b_pt_2[best_edge_idx])
+      edge_a_pt[best_edge_idx],
+      edge_a_pt_2[best_edge_idx],
+      edge_b_pt[best_edge_idx],
+      edge_b_pt_2[best_edge_idx],
+  )
   pos = jp.where(
-      is_edge_contact,
-      jp.tile(0.5 * (a_closest + b_closest), (4, 1)), pos)
+      is_edge_contact, jp.tile(0.5 * (a_closest + b_closest), (4, 1)), pos
+  )
 
   return dist, pos, normal
 

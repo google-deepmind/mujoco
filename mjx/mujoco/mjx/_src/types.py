@@ -47,6 +47,7 @@ class DisableBit(enum.IntFlag):
     REFSAFE:      integrator safety: make ref[0]>=2*timestep
     SENSOR:       sensors
   """
+
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
   EQUALITY = mujoco.mjtDisableBit.mjDSBL_EQUALITY
   FRICTIONLOSS = mujoco.mjtDisableBit.mjDSBL_FRICTIONLOSS
@@ -73,6 +74,7 @@ class JointType(enum.IntEnum):
     SLIDE: sliding distance along body-fixed axis       (1,)
     HINGE: rotation angle (rad) around body-fixed axis  (1,)
   """
+
   FREE = mujoco.mjtJoint.mjJNT_FREE
   BALL = mujoco.mjtJoint.mjJNT_BALL
   SLIDE = mujoco.mjtJoint.mjJNT_SLIDE
@@ -93,6 +95,7 @@ class IntegratorType(enum.IntEnum):
     RK4: 4th-order Runge Kutta
     IMPLICITFAST: implicit in velocity, no rne derivative
   """
+
   EULER = mujoco.mjtIntegrator.mjINT_EULER
   RK4 = mujoco.mjtIntegrator.mjINT_RK4
   IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
@@ -113,6 +116,7 @@ class GeomType(enum.IntEnum):
     MESH: mesh
     SDF: signed distance field
   """
+
   PLANE = mujoco.mjtGeom.mjGEOM_PLANE
   HFIELD = mujoco.mjtGeom.mjGEOM_HFIELD
   SPHERE = mujoco.mjtGeom.mjGEOM_SPHERE
@@ -134,6 +138,7 @@ class ConvexMesh(PyTreeNode):
     edge: edge indexes for all edges in the convex mesh
     edge_face_normal: indexes for face normals adjacent to edges in `edge`
   """
+
   vert: jax.Array
   face: jax.Array
   face_normal: jax.Array
@@ -148,6 +153,7 @@ class ConeType(enum.IntEnum):
     PYRAMIDAL: pyramidal
     ELLIPTIC: elliptic
   """
+
   PYRAMIDAL = mujoco.mjtCone.mjCONE_PYRAMIDAL
   ELLIPTIC = mujoco.mjtCone.mjCONE_ELLIPTIC
 
@@ -160,6 +166,7 @@ class JacobianType(enum.IntEnum):
     SPARSE: sparse
     AUTO: sparse if nv>60 and device is TPU, dense otherwise
   """
+
   DENSE = mujoco.mjtJacobian.mjJAC_DENSE
   SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE
   AUTO = mujoco.mjtJacobian.mjJAC_AUTO
@@ -172,6 +179,7 @@ class SolverType(enum.IntEnum):
     CG: Conjugate gradient (primal)
     NEWTON: Newton (primal)
   """
+
   # unsupported: PGS
   CG = mujoco.mjtSolver.mjSOL_CG
   NEWTON = mujoco.mjtSolver.mjSOL_NEWTON
@@ -186,6 +194,7 @@ class EqType(enum.IntEnum):
     JOINT: couple the values of two scalar joints with cubic
     TENDON: couple the lengths of two tendons with cubic
   """
+
   CONNECT = mujoco.mjtEq.mjEQ_CONNECT
   WELD = mujoco.mjtEq.mjEQ_WELD
   JOINT = mujoco.mjtEq.mjEQ_JOINT
@@ -203,6 +212,7 @@ class WrapType(enum.IntEnum):
     SPHERE: wrap around sphere
     CYLINDER: wrap around (infinite) cylinder
   """
+
   JOINT = mujoco.mjtWrap.mjWRAP_JOINT
   PULLEY = mujoco.mjtWrap.mjWRAP_PULLEY
   SITE = mujoco.mjtWrap.mjWRAP_SITE
@@ -219,6 +229,7 @@ class TrnType(enum.IntEnum):
     TENDON: force on tendon
     SITE: force on site
   """
+
   JOINT = mujoco.mjtTrn.mjTRN_JOINT
   JOINTINPARENT = mujoco.mjtTrn.mjTRN_JOINTINPARENT
   SITE = mujoco.mjtTrn.mjTRN_SITE
@@ -236,6 +247,7 @@ class DynType(enum.IntEnum):
     FILTEREXACT: linear filter: da/dt = (u-a) / tau, with exact integration
     MUSCLE: piece-wise linear filter with two time constants
   """
+
   NONE = mujoco.mjtDyn.mjDYN_NONE
   INTEGRATOR = mujoco.mjtDyn.mjDYN_INTEGRATOR
   FILTER = mujoco.mjtDyn.mjDYN_FILTER
@@ -252,6 +264,7 @@ class GainType(enum.IntEnum):
     AFFINE: const + kp*length + kv*velocity
     MUSCLE: muscle FLV curve computed by muscle_gain
   """
+
   FIXED = mujoco.mjtGain.mjGAIN_FIXED
   AFFINE = mujoco.mjtGain.mjGAIN_AFFINE
   MUSCLE = mujoco.mjtGain.mjGAIN_MUSCLE
@@ -266,6 +279,7 @@ class BiasType(enum.IntEnum):
     AFFINE: const + kp*length + kv*velocity
     MUSCLE: muscle passive force computed by muscle_bias
   """
+
   NONE = mujoco.mjtBias.mjBIAS_NONE
   AFFINE = mujoco.mjtBias.mjBIAS_AFFINE
   MUSCLE = mujoco.mjtBias.mjBIAS_MUSCLE
@@ -282,6 +296,7 @@ class ConstraintType(enum.IntEnum):
     CONTACT_FRICTIONLESS: frictionless contact
     CONTACT_PYRAMIDAL: frictional contact, pyramidal friction cone
   """
+
   EQUALITY = mujoco.mjtConstraint.mjCNSTR_EQUALITY
   FRICTION_DOF = mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF
   FRICTION_TENDON = mujoco.mjtConstraint.mjCNSTR_FRICTION_TENDON
@@ -302,6 +317,7 @@ class CamLightType(enum.IntEnum):
     TARGETBODY: pos fixed in body, rot tracks target body
     TARGETBODYCOM: pos fixed in body, rot tracks target subtree com
   """
+
   FIXED = mujoco.mjtCamLight.mjCAMLIGHT_FIXED
   TRACK = mujoco.mjtCamLight.mjCAMLIGHT_TRACK
   TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM
@@ -346,6 +362,7 @@ class SensorType(enum.IntEnum):
     FRAMELINACC: 3D linear acceleration
     FRAMEANGACC: 3D angular acceleration
   """
+
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
   CAMPROJECTION = mujoco.mjtSensor.mjSENS_CAMPROJECTION
   RANGEFINDER = mujoco.mjtSensor.mjSENS_RANGEFINDER
@@ -391,6 +408,7 @@ class ObjType(PyTreeNode):
     SITE: site
     CAMERA: camera
   """
+
   UNKNOWN = mujoco.mjtObj.mjOBJ_UNKNOWN
   BODY = mujoco.mjtObj.mjOBJ_BODY
   XBODY = mujoco.mjtObj.mjOBJ_XBODY
@@ -437,7 +455,7 @@ class Option(PyTreeNode):
     disableactuator:   bit flags for disabling actuators by group id (not used)
     sdf_initpoints:    number of starting points for gradient descent (not used)
     sdf_iterations:    max number of iterations for gradient descent (not used)
-  """
+  """  # fmt: skip
   timestep: jax.Array
   apirate: jax.Array = _restricted_to('mujoco')
   impratio: jax.Array
@@ -480,6 +498,7 @@ class Statistic(PyTreeNode):
     extent: spatial extent (not used)
     center: center of model (not used)
   """
+
   meaninertia: jax.Array
   meanmass: jax.Array
   meansize: jax.Array
@@ -813,6 +832,7 @@ class Model(PyTreeNode):
     name_keyadr: keyframe name pointers                       (nkey,)
     names: names of all objects, 0-terminated                 (nnames,)
   """
+
   nq: int
   nv: int
   nu: int
@@ -1161,7 +1181,7 @@ class Contact(PyTreeNode):
     geom2: id of geom 2; deprecated, use geom[1]
     geom: geom ids                                                    (2,)
     efc_address: address in efc; -1: not included
-  """
+  """  # fmt: skip
   dist: jax.Array
   pos: jax.Array
   frame: jax.Array
@@ -1306,7 +1326,7 @@ class Data(PyTreeNode):
     _qM_sparse: qM in sparse representation                     (nM,)
     _qLD_sparse: qLD in sparse representation                   (nM,)
     _qLDiagInv_sparse: qLDiagInv in sparse representation       (nv,)
-  """
+  """  # fmt: skip
   # constant sizes:
   ne: int
   nf: int

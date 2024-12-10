@@ -57,6 +57,7 @@ class MemoryLeakTest(absltest.TestCase):
     soft = -1
     try:
       import resource  # pylint: disable=g-import-not-at-top
+
       soft, hard = resource.getrlimit(resource.RLIMIT_AS)
       resource.setrlimit(resource.RLIMIT_AS, (limit_in_bytes, hard))
     except (ImportError, ValueError):
@@ -65,5 +66,5 @@ class MemoryLeakTest(absltest.TestCase):
     return soft
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   absltest.main()

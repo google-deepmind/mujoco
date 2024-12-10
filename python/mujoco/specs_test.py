@@ -104,7 +104,9 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nuser_site, 6)
     np.testing.assert_array_equal(model.site_user[0], [1, 2, 3, 4, 5, 6])
 
-    self.assertEqual(spec.to_xml(), textwrap.dedent("""\
+    self.assertEqual(
+        spec.to_xml(),
+        textwrap.dedent("""\
         <mujoco model="MuJoCo Model">
           <compiler angle="radian"/>
 
@@ -116,7 +118,8 @@ class SpecsTest(absltest.TestCase):
             </body>
           </worldbody>
         </mujoco>
-    """),)
+    """),
+    )
 
   def test_kwarg(self):
     # Create a spec.
@@ -467,7 +470,7 @@ class SpecsTest(absltest.TestCase):
     # Try to compile, get error.
     expected_error = (
         'Error: size 0 must be positive in geom\n'
-        + f'Element name \'MyGeom\', id 0, geom added on line {added_on_line}'
+        + f"Element name 'MyGeom', id 0, geom added on line {added_on_line}"
     )
     with self.assertRaisesRegex(ValueError, expected_error):
       spec.compile()
@@ -531,7 +534,9 @@ class SpecsTest(absltest.TestCase):
     spec.worldbody.add_geom(main)
 
     spec.compile()
-    self.assertEqual(spec.to_xml(), textwrap.dedent("""\
+    self.assertEqual(
+        spec.to_xml(),
+        textwrap.dedent("""\
         <mujoco model="test">
           <compiler angle="radian"/>
 
@@ -547,7 +552,8 @@ class SpecsTest(absltest.TestCase):
             <geom/>
           </worldbody>
         </mujoco>
-    """))
+    """),
+    )
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
 
@@ -561,7 +567,9 @@ class SpecsTest(absltest.TestCase):
     spec.worldbody.add_geom(main)
 
     spec.compile()
-    self.assertEqual(spec.to_xml(), textwrap.dedent("""\
+    self.assertEqual(
+        spec.to_xml(),
+        textwrap.dedent("""\
         <mujoco model="test">
           <compiler angle="radian"/>
 
@@ -577,7 +585,8 @@ class SpecsTest(absltest.TestCase):
             <geom/>
           </worldbody>
         </mujoco>
-    """))
+    """),
+    )
 
   def test_element_list(self):
     spec = mujoco.MjSpec()
@@ -718,13 +727,17 @@ class SpecsTest(absltest.TestCase):
         </worldbody>
       </mujoco>
     """
-    spec = mujoco.MjSpec.from_string(textwrap.dedent("""
+    spec = mujoco.MjSpec.from_string(
+        textwrap.dedent("""
       <mujoco model="MuJoCo Model">
         <include file="included.xml"/>
       </mujoco>
-    """), {'included.xml': included_xml.encode('utf-8')})
-    self.assertEqual(spec.worldbody.first_body().first_geom().type,
-                     mujoco.mjtGeom.mjGEOM_BOX)
+    """),
+        {'included.xml': included_xml.encode('utf-8')},
+    )
+    self.assertEqual(
+        spec.worldbody.first_body().first_geom().type, mujoco.mjtGeom.mjGEOM_BOX
+    )
 
   def test_delete(self):
     file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"

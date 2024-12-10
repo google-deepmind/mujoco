@@ -23,17 +23,19 @@ import numpy as np
 from numpy import typing as npt
 
 
-def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
-            data: mujoco.MjData,
-            initial_state: npt.ArrayLike,
-            control: Optional[npt.ArrayLike] = None,
-            *,  # require subsequent arguments to be named
-            control_spec: int = mujoco.mjtState.mjSTATE_CTRL.value,
-            skip_checks: bool = False,
-            nstep: Optional[int] = None,
-            initial_warmstart: Optional[npt.ArrayLike] = None,
-            state: Optional[npt.ArrayLike] = None,
-            sensordata: Optional[npt.ArrayLike] = None):
+def rollout(
+    model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
+    data: mujoco.MjData,
+    initial_state: npt.ArrayLike,
+    control: Optional[npt.ArrayLike] = None,
+    *,  # require subsequent arguments to be named
+    control_spec: int = mujoco.mjtState.mjSTATE_CTRL.value,
+    skip_checks: bool = False,
+    nstep: Optional[int] = None,
+    initial_warmstart: Optional[npt.ArrayLike] = None,
+    state: Optional[npt.ArrayLike] = None,
+    sensordata: Optional[npt.ArrayLike] = None,
+):
   """Rolls out open-loop trajectories from initial states, get subsequent states and sensor values.
 
   Python wrapper for rollout.cc, see documentation therein.
@@ -66,15 +68,24 @@ def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
 
   Raises:
     ValueError: bad shapes or sizes.
-  """
+  """  # fmt: skip
   # skip_checks shortcut:
   #   don't infer nroll/nstep
   #   don't support singleton expansion
   #   don't allocate output arrays
   #   just call rollout and return
   if skip_checks:
-    _rollout.rollout(model, data, nstep, control_spec, initial_state,
-                     initial_warmstart, control, state, sensordata)
+    _rollout.rollout(
+        model,
+        data,
+        nstep,
+        control_spec,
+        initial_state,
+        initial_warmstart,
+        control,
+        state,
+        sensordata,
+    )
     return state, sensordata
 
   if not isinstance(model, mujoco.MjModel):
@@ -92,17 +103,16 @@ def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
       initial_warmstart=initial_warmstart,
       control=control,
       state=state,
-      sensordata=sensordata)
-
+      sensordata=sensordata,
+  )
 
   # check number of dimensions
-  _check_number_of_dimensions(2,
-                              initial_state=initial_state,
-                              initial_warmstart=initial_warmstart)
-  _check_number_of_dimensions(3,
-                              control=control,
-                              state=state,
-                              sensordata=sensordata)
+  _check_number_of_dimensions(
+      2, initial_state=initial_state, initial_warmstart=initial_warmstart
+  )
+  _check_number_of_dimensions(
+      3, control=control, state=state, sensordata=sensordata
+  )
 
   # ensure 2D, make contiguous, row-major (C ordering)
   initial_state = _ensure_2d(initial_state)
@@ -114,38 +124,46 @@ def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
   sensordata = _ensure_3d(sensordata)
 
   # infer nroll, check for incompatibilities
-  nroll = _infer_dimension(0, 1,
-                           initial_state=initial_state,
-                           initial_warmstart=initial_warmstart,
-                           control=control,
-                           state=state,
-                           sensordata=sensordata)
+  nroll = _infer_dimension(
+      0,
+      1,
+      initial_state=initial_state,
+      initial_warmstart=initial_warmstart,
+      control=control,
+      state=state,
+      sensordata=sensordata,
+  )
   if isinstance(model, list) and nroll == 1:
     nroll = len(model)
 
   if isinstance(model, list) and len(model) != nroll:
-    raise ValueError(f'nroll inferred as {nroll} '
-                     f'but model is length {len(model)}')
+    raise ValueError(
+        f'nroll inferred as {nroll} but model is length {len(model)}'
+    )
   elif not isinstance(model, list):
-    model = [model] # Use a length 1 list to simplify code below
+    model = [model]  # Use a length 1 list to simplify code below
 
   # infer nstep, check for incompatibilities
-  nstep = _infer_dimension(1, nstep or 1,
-                           control=control,
-                           state=state,
-                           sensordata=sensordata)
+  nstep = _infer_dimension(
+      1, nstep or 1, control=control, state=state, sensordata=sensordata
+  )
 
   # get nstate/ncontrol/nv/nsensordata
   # check that they are equal across models
-  nstate = mujoco.mj_stateSize(model[0], mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
+  nstate = mujoco.mj_stateSize(
+      model[0], mujoco.mjtState.mjSTATE_FULLPHYSICS.value
+  )
   ncontrol = mujoco.mj_stateSize(model[0], control_spec)
   nv = model[0].nv
   nsensordata = model[0].nsensordata
   for m in model[1:]:
-    if (nstate != mujoco.mj_stateSize(m, mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
+    if (
+        nstate
+        != mujoco.mj_stateSize(m, mujoco.mjtState.mjSTATE_FULLPHYSICS.value)
         or ncontrol != mujoco.mj_stateSize(m, control_spec)
         or nv != m.nv
-        or nsensordata != m.nsensordata):
+        or nsensordata != m.nsensordata
+    ):
       raise ValueError('models are not compatible')
 
   # check trailing dimensions
@@ -167,8 +185,17 @@ def rollout(model: Union[mujoco.MjModel, Sequence[mujoco.MjModel]],
     sensordata = np.empty((nroll, nstep, nsensordata))
 
   # call rollout
-  _rollout.rollout(model, data, nstep, control_spec, initial_state,
-                   initial_warmstart, control, state, sensordata)
+  _rollout.rollout(
+      model,
+      data,
+      nstep,
+      control_spec,
+      initial_state,
+      initial_warmstart,
+      control,
+      state,
+      sensordata,
+  )
 
   # return outputs
   return state, sensordata
@@ -227,8 +254,8 @@ def _infer_dimension(dim, value, **kwargs):
   Args:
     dim: Dimension to be inferred.
     value: Initial guess of inferred value (1: unknown).
-    **kwargs: List of arrays which should all have the same size (or 1)
-      along dimension dim.
+    **kwargs: List of arrays which should all have the same size (or 1) along
+      dimension dim.
 
   Returns:
     Inferred dimension.
