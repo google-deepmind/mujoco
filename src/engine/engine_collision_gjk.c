@@ -156,7 +156,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum* x1_k = status->x1;               // the kth approximation point for obj1
   mjtNum* x2_k = status->x2;               // the kth approximation point for obj2
   mjtNum x_k[3];                           // the kth approximation point in Minkowski difference
-  mjtNum lambda[4];                        // barycentric coordinates for x_k
+  mjtNum lambda[4] = {1, 0, 0, 0};         // barycentric coordinates for x_k
   mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
 
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
@@ -179,6 +179,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
     mjtNum diff[3];
     sub3(diff, x_k, s_k);
     if (2*dot3(x_k, diff) < epsilon) {
+      if (!k) n = 1;
       break;
     }
 
@@ -1374,9 +1375,30 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
 
 
 
+// inflate a contact by margin
+static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) {
+  mjtNum n[3];
+  sub3(n, status->x2, status->x1);
+  mju_normalize3(n);
+  if (margin1) {
+    status->x1[0] += margin1 * n[0];
+    status->x1[1] += margin1 * n[1];
+    status->x1[2] += margin1 * n[2];
+  }
+  if (margin2) {
+    status->x2[0] -= margin2 * n[0];
+    status->x2[1] -= margin2 * n[1];
+    status->x2[2] -= margin2 * n[2];
+  }
+  status->dist -= (margin1 + margin2);
+}
+
+
+
 // general convex collision detection
 mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // set up
+  mjtNum dist;
   obj1->center(status->x1, obj1);
   obj2->center(status->x2, obj2);
   status->gjk_iterations = 0;
@@ -1386,7 +1408,66 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   status->max_contacts = config->max_contacts;
   status->dist_cutoff = config->dist_cutoff;
 
-  mjtNum dist = gjk(status, obj1, obj2);
+  // special handling for sphere and capsule (shrink to point and line respectively)
+  if (obj1->geom_type == mjGEOM_SPHERE || obj2->geom_type == mjGEOM_SPHERE ||
+      obj1->geom_type == mjGEOM_CAPSULE || obj2->geom_type == mjGEOM_CAPSULE) {
+    void (*support1)(mjtNum*, struct _mjCCDObj*, const mjtNum*) = obj1->support;
+    void (*support2)(mjtNum*, struct _mjCCDObj*, const mjtNum*) = obj2->support;
+    mjtNum margin1 = 0, margin2 = 0;
+
+    if (obj1->geom_type == mjGEOM_SPHERE) {
+      const mjModel* m = obj1->model;
+      margin1 = m->geom_size[3*obj1->geom];
+      support1 = obj1->support;
+      obj1->support = mjc_pointSupport;
+    } else if (obj1->geom_type == mjGEOM_CAPSULE) {
+      const mjModel* m = obj1->model;
+      margin1 = m->geom_size[3*obj1->geom];
+      support1 = obj1->support;
+      obj1->support = mjc_lineSupport;
+    }
+
+    if (obj2->geom_type == mjGEOM_SPHERE) {
+      const mjModel* m = obj2->model;
+      margin2 = m->geom_size[3*obj2->geom];
+      support2 = obj2->support;
+      obj2->support = mjc_pointSupport;
+    } else if (obj2->geom_type == mjGEOM_CAPSULE) {
+      const mjModel* m = obj2->model;
+      margin2 = m->geom_size[3*obj2->geom];
+      support2 = obj2->support;
+      obj2->support = mjc_lineSupport;
+    }
+
+    status->dist_cutoff += margin1 + margin2;
+    dist = gjk(status, obj1, obj2);
+    status->dist_cutoff = config->dist_cutoff;
+
+    // shallow penetration, inflate contact
+    if (dist > 0) {
+      inflate(status, margin1, margin2);
+      if (status->dist > status->dist_cutoff) {
+        status->dist = mjMAXVAL;
+      }
+      return status->dist;
+    }
+
+    // contact not needed
+    if (!config->max_contacts) {
+      status->nx = 0;
+      status->dist = 0;
+      return 0;
+    }
+
+    // deep penetration, reset everything and run GJK again
+    status->gjk_iterations = 0;
+    obj1->support = support1;
+    obj2->support = support2;
+    obj1->center(status->x1, obj1);
+    obj2->center(status->x2, obj2);
+  }
+
+  dist = gjk(status, obj1, obj2);
 
   // penetration recovery for contacts not needed
   if (!config->max_contacts) {

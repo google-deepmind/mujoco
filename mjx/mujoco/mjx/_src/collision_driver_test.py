@@ -56,6 +56,7 @@ def _collide(
   d = mujoco.MjData(m)
   dx = mjx.put_data(m, d)
 
+  m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_NATIVECCD
   mujoco.mj_step(m, d)
   collision_jit_fn = jax.jit(mjx.collision)
   kinematics_jit_fn = jax.jit(mjx.kinematics)
@@ -241,7 +242,7 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     self.assertLess(dx.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-ellipsoid', 1e-5
+          dx.contact, d.contact, field.name, 'ellipsoid-ellipsoid', 1e-2
       )
 
   _ELLIPSOID_SPHERE = """
@@ -265,7 +266,7 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     self.assertLess(dx.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-3
+          dx.contact, d.contact, field.name, 'ellipsoid-sphere', 1e-4
       )
 
   _ELLIPSOID_CAPSULE = """
@@ -288,7 +289,7 @@ class EllipsoidCollisionTest(parameterized.TestCase):
     self.assertLess(dx.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
-          dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-3
+          dx.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-5
       )
 
   _ELLIPSOID_CYLINDER = """

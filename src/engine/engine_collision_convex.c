@@ -142,6 +142,16 @@ static inline void localToGlobal(mjtNum res[3], const mjtNum mat[9], const mjtNu
 
 
 
+// point support function
+void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
+  const mjtNum* pos = obj->data->geom_xpos + 3*obj->geom;
+  res[0] = pos[0];
+  res[1] = pos[1];
+  res[2] = pos[2];
+}
+
+
+
 // sphere support function
 static void mjc_sphereSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjModel* m = obj->model;
@@ -154,6 +164,31 @@ static void mjc_sphereSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3])
   res[0] = radius*dir[0] + pos[0];
   res[1] = radius*dir[1] + pos[1];
   res[2] = radius*dir[2] + pos[2];
+}
+
+
+
+// line support function (capsule)
+void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
+  const mjModel* m = obj->model;
+  const mjData* d = obj->data;
+
+  // capsule data
+  int i = 3*obj->geom;
+  const mjtNum* mat = d->geom_xmat + 3*i;
+  const mjtNum* pos = d->geom_xpos + i;
+  mjtNum length = m->geom_size[i+1];
+
+  // rotate dir to geom local frame
+  mjtNum local_dir[3], tmp[3];
+  mulMatTVec3(local_dir, mat, dir);
+
+  tmp[0] = 0;
+  tmp[1] = 0;
+  tmp[2] = (local_dir[2] >= 0 ? length : -length);
+
+  // transform result to global frame
+  localToGlobal(res, mat, tmp, pos);
 }
 
 
@@ -180,7 +215,7 @@ static void mjc_capsuleSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]
   tmp[2] = local_dir[2] * radius;
 
   // add cylinder contribution
-  tmp[2] += mju_sign(local_dir[2]) * length;
+  tmp[2] += (local_dir[2] >= 0 ? length : -length);
 
   // transform result to global frame
   localToGlobal(res, mat, tmp, pos);

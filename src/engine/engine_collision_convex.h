@@ -73,6 +73,12 @@ MJAPI void mjccd_center(const void *obj, ccd_vec3_t *center);
 // libccd support function
 MJAPI void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
 
+// support function for point
+void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
+// support function for line (capsule)
+void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
 // pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,
                        mjContact* con, int g1, int g2, mjtNum margin);

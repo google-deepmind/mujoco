@@ -245,8 +245,8 @@ TEST_F(MjGjkTest, SphereSphereIntersect) {
 
   // direction
   EXPECT_NEAR(dir[0], 1, kTolerance);
-  EXPECT_NEAR(dir[1], 0, 0.001);
-  EXPECT_NEAR(dir[2], 0, 0.001);
+  EXPECT_NEAR(dir[1], 0, kTolerance);
+  EXPECT_NEAR(dir[2], 0, kTolerance);
 
   // position
   EXPECT_NEAR(pos[0], 1, kTolerance);
