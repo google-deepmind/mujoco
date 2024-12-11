@@ -289,7 +289,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   // broadphase collision detector
   TM_START;
   int nmaxpairs = (nbodyflex*(nbodyflex - 1))/2;
-  int* broadphasepair = mj_stackAllocInt(d, nmaxpairs);
+  int* broadphasepair = mjSTACKALLOC(d, nmaxpairs, int);
   int nbfpair = mj_broadphase(m, d, broadphasepair, nmaxpairs);
   unsigned int last_signature = -1;
   TM_END(mjTIMER_COL_BROAD);
@@ -368,8 +368,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       int n = ncon_after - ncon_before;
       if (n > 1) {
         mj_markStack(d);
-        mjContact* buf = (mjContact*)mj_stackAllocByte(d, n * sizeof(mjContact),
-                                                       _Alignof(mjContact));
+        mjContact* buf = mjSTACKALLOC(d, n, mjContact);
         contactSort(d->contact + ncon_before, buf, n, (void*)m);
         mj_freeStack(d);
       }
@@ -494,15 +493,6 @@ struct mjCollisionTree_ {
   int node2;
 };
 typedef struct mjCollisionTree_ mjCollisionTree;
-
-
-
-// collision tree allocation
-static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
-  return (mjCollisionTree*) mj_stackAllocByte(
-    d, max_stack * sizeof(mjCollisionTree), _Alignof(mjCollisionTree));
-}
-
 
 
 // checks if the proposed collision pair is already present in pair_geom and calls narrow phase
@@ -667,7 +657,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   // TODO(b/273737633): Store bvh max depths to make this bound tighter.
   const int max_stack = (isbody1 ? m->body_bvhnum[bf1] : m->flex_bvhnum[f1]) +
                         (isbody2 ? m->body_bvhnum[bf2] : m->flex_bvhnum[f2]);
-  mjCollisionTree* stack = mj_stackAllocTree(d, max_stack);
+  mjCollisionTree* stack = mjSTACKALLOC(d, max_stack, mjCollisionTree);
 
   int nstack = 1;
   stack[0].node1 = stack[0].node2 = 0;
@@ -1037,8 +1027,8 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   }
 
   // allocate sort buffer
-  mjtSAP* sortbuf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
-  mjtSAP* activebuf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
+  mjtSAP* sortbuf = mjSTACKALLOC(d, 2*n, mjtSAP);
+  mjtSAP* activebuf = mjSTACKALLOC(d, 2*n, mjtSAP);
 
   // init sortbuf with specified axis
   for (int i=0; i < n; i++) {
@@ -1049,7 +1039,7 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   }
 
   // sort along specified axis
-  mjtSAP* buf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
+  mjtSAP* buf = mjSTACKALLOC(d, 2*n, mjtSAP);
   SAPsort(sortbuf, buf, 2*n, NULL);
 
   // define the other two axes
@@ -1235,7 +1225,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   // allocate collidable bodyflex ids, construct list
   mj_markStack(d);
-  int* bfid = mj_stackAllocInt(d, nbodyflex);
+  int* bfid = mjSTACKALLOC(d, nbodyflex, int);
   int ncollide = 0;
   for (int i=1; i < nbodyflex; i++) {
     if (canCollide(m, i)) {
@@ -1245,14 +1235,14 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   if (ncollide > 1) {
     // allocate and construct AAMMs for collidable only
-    mjtNum* aamm = mj_stackAllocNum(d, 6*ncollide);
+    mjtNum* aamm = mjSTACKALLOC(d, 6*ncollide, mjtNum);
     for (int i=0; i < ncollide; i++) {
       makeAAMM(m, d, aamm+6*i, bfid[i], frame);
     }
 
     // call SAP
     int maxsappair = ncollide*(ncollide-1)/2;
-    int* sappair = mj_stackAllocInt(d, maxsappair);
+    int* sappair = mjSTACKALLOC(d, maxsappair, int);
     int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
     if (nsappair < 0) {
       mjERROR("SAP failed");
@@ -1283,7 +1273,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   // sort bodyflex pairs by signature
   if (npair > 1) {
-    int* buf = mj_stackAllocInt(d, npair);
+    int* buf = mjSTACKALLOC(d, npair, int);
     bfsort(bfpair, buf, npair, NULL);
   }
 
@@ -1800,7 +1790,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
   mj_markStack(d);
 
   // allocate and construct active element ids
-  int* elid = mj_stackAllocInt(d, m->flex_elemnum[f]);
+  int* elid = mjSTACKALLOC(d, m->flex_elemnum[f], int);
   int nactive = 0;
   int flex_elemnum = m->flex_elemnum[f];
   for (int i=0; i < flex_elemnum; i++) {
@@ -1816,7 +1806,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
   }
 
   // allocate and construct AAMMs for active elements
-  mjtNum* aamm = mj_stackAllocNum(d, 6*nactive);
+  mjtNum* aamm = mjSTACKALLOC(d, 6*nactive, mjtNum);
   const mjtNum* elemaabb = d->flexelem_aabb + 6*m->flex_elemadr[f];
   for (int i=0; i < nactive; i++) {
     mju_sub3(aamm+6*i+0, elemaabb+6*elid[i], elemaabb+6*elid[i]+3);
@@ -1829,7 +1819,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
   // call SAP; hard limit on number of pairs to avoid out-of-memory
   int maxsappair = mjMIN(nactive*(nactive-1)/2, 1000000);
-  int* sappair = mj_stackAllocInt(d, maxsappair);
+  int* sappair = mjSTACKALLOC(d, maxsappair, int);
   int nsappair = mj_SAP(d, aamm, nactive, axis, sappair, maxsappair);
   if (nsappair < 0) {
     mjERROR("SAP failed");

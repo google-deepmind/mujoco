@@ -65,22 +65,22 @@ static void set0(mjModel* m, mjData* d) {
   int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
   mj_markStack(d);
-  mjtNum* jac = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 6*nv);
-  mjtNum* moment = mj_stackAllocNum(d, nv);
+  mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
   int* cammode = 0;
   int* lightmode = 0;
 
   // save camera and light mode, set to fixed
   if (m->ncam) {
-    cammode = mj_stackAllocInt(d, m->ncam);
+    cammode = mjSTACKALLOC(d, m->ncam, int);
     for (int i=0; i < m->ncam; i++) {
       cammode[i] = m->cam_mode[i];
       m->cam_mode[i] = mjCAMLIGHT_FIXED;
     }
   }
   if (m->nlight) {
-    lightmode = mj_stackAllocInt(d, m->nlight);
+    lightmode = mjSTACKALLOC(d, m->nlight, int);
     for (int i=0; i < m->nlight; i++) {
       lightmode[i] = m->light_mode[i];
       m->light_mode[i] = mjCAMLIGHT_FIXED;
@@ -427,7 +427,7 @@ static void setStat(mjModel* m, mjData* d) {
   mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
   mjtNum rbound;
   mj_markStack(d);
-  mjtNum* body = mj_stackAllocNum(d, m->nbody);
+  mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
 
   // compute bounding box of bodies, joint centers, geoms and sites
   for (int i=1; i < m->nbody; i++) {
@@ -595,7 +595,7 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
 
   // dense actuator_moment row
   mj_markStack(d);
-  mjtNum* moment = mj_stackAllocNum(d, nv);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
   mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + index,
                    d->moment_rowadr + index, d->moment_colind);
 

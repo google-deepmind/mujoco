@@ -1060,7 +1060,7 @@ Euler integrator, semi-implicit in velocity.
   def test_can_raise_error(self):
     self.data.pstack = self.data.narena
     with self.assertRaisesRegex(
-        mujoco.FatalError, r'\Amj_stackAlloc: insufficient memory:'
+        mujoco.FatalError, r'\Amj_stackAlloc: out of memory, stack overflow'
     ):
       mujoco.mj_forward(self.model, self.data)
 

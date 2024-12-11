@@ -134,8 +134,16 @@ void mj__freeStack(mjData* d) __attribute__((noinline));
 // returns the number of bytes available on the stack
 MJAPI size_t mj_stackBytesAvailable(mjData* d);
 
-// mjData stack allocate
+// allocate bytes on the stack
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
+
+// allocate bytes on the stack, with added caller information
+MJAPI void* mj_stackAllocInfo(mjData* d, size_t bytes, size_t alignment,
+                              const char* caller, int line);
+
+// macro to allocate a stack array of given type, adds caller information
+#define mjSTACKALLOC(d, num, type) \
+(type*) mj_stackAllocInfo(d, (num) * sizeof(type), _Alignof(type), __func__, __LINE__)
 
 // mjData stack allocate for array of mjtNums
 MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);

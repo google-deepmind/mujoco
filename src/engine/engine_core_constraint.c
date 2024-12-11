@@ -485,14 +485,14 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate space
-  jac[0] = mj_stackAllocNum(d, 6*nv);
-  jac[1] = mj_stackAllocNum(d, 6*nv);
-  jacdif = mj_stackAllocNum(d, 6*nv);
+  jac[0] = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jac[1] = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
   if (issparse) {
-    chain = mj_stackAllocInt(d, nv);
-    chain2 = mj_stackAllocInt(d, nv);
-    buf_ind = mj_stackAllocInt(d, nv);
-    sparse_buf = mj_stackAllocNum(d, nv);
+    chain = mjSTACKALLOC(d, nv, int);
+    chain2 = mjSTACKALLOC(d, nv, int);
+    buf_ind = mjSTACKALLOC(d, nv, int);
+    sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
   }
 
   // find active equality constraints
@@ -756,7 +756,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate Jacobian
-  jac = mj_stackAllocNum(d, nv);
+  jac = mjSTACKALLOC(d, nv, mjtNum);
 
   // find frictional dofs
   for (int i=0; i < nv; i++) {
@@ -813,7 +813,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate Jacobian
-  jac = mj_stackAllocNum(d, nv);
+  jac = mjSTACKALLOC(d, nv, mjtNum);
 
   // find joint limits
   for (int i=0; i < m->njnt; i++) {
@@ -953,16 +953,16 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate Jacobian
-  jac = mj_stackAllocNum(d, 6*nv);
-  jacdif = mj_stackAllocNum(d, 6*nv);
+  jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
   jacdifp = jacdif;
   jacdifr = jacdif + 3*nv;
-  jac1p = mj_stackAllocNum(d, 3*nv);
-  jac2p = mj_stackAllocNum(d, 3*nv);
-  jac1r = mj_stackAllocNum(d, 3*nv);
-  jac2r = mj_stackAllocNum(d, 3*nv);
+  jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2r = mjSTACKALLOC(d, 3*nv, mjtNum);
   if (issparse) {
-    chain = mj_stackAllocInt(d, nv);
+    chain = mjSTACKALLOC(d, nv, int);
   }
 
   // find contacts to be included
@@ -1589,8 +1589,8 @@ static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
   int nv = m->nv, NV;
 
   mj_markStack(d);
-  int* bodychain = mj_stackAllocInt(d, nv);
-  int* tempchain = mj_stackAllocInt(d, nv);
+  int* bodychain = mjSTACKALLOC(d, nv, int);
+  int* tempchain = mjSTACKALLOC(d, nv, int);
 
   // set first
   NV = mj_bodyChain(m, body[0], chain);
@@ -1643,8 +1643,8 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   mj_markStack(d);
 
   if (nnz) {
-    chain = mj_stackAllocInt(d, nv);
-    chain2 = mj_stackAllocInt(d, nv);
+    chain = mjSTACKALLOC(d, nv, int);
+    chain2 = mjSTACKALLOC(d, nv, int);
   }
 
   // find active equality constraints
@@ -1870,7 +1870,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   }
 
   mj_markStack(d);
-  int *chain = mj_stackAllocInt(d, m->nv);
+  int *chain = mjSTACKALLOC(d, m->nv, int);
 
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
@@ -2068,19 +2068,19 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // space for backsubM2(J')' and its traspose
-  mjtNum* JM2 = mj_stackAllocNum(d, nefc*nv);
-  mjtNum* JM2T = mj_stackAllocNum(d, nv*nefc);
+  mjtNum* JM2 = mjSTACKALLOC(d, nefc*nv, mjtNum);
+  mjtNum* JM2T = mjSTACKALLOC(d, nv*nefc, mjtNum);
 
   // sparse
   if (mj_isSparse(m)) {
     // space for JM2 and JM2T indices
-    int* rownnz = mj_stackAllocInt(d, nefc);
-    int* rowadr = mj_stackAllocInt(d, nefc);
-    int* colind = mj_stackAllocInt(d, nefc*nv);
-    int* rowsuper = mj_stackAllocInt(d, nefc);
-    int* rownnzT = mj_stackAllocInt(d, nv);
-    int* rowadrT = mj_stackAllocInt(d, nv);
-    int* colindT = mj_stackAllocInt(d, nv*nefc);
+    int* rownnz = mjSTACKALLOC(d, nefc, int);
+    int* rowadr = mjSTACKALLOC(d, nefc, int);
+    int* colind = mjSTACKALLOC(d, nefc*nv, int);
+    int* rowsuper = mjSTACKALLOC(d, nefc, int);
+    int* rownnzT = mjSTACKALLOC(d, nv, int);
+    int* rowadrT = mjSTACKALLOC(d, nv, int);
+    int* colindT = mjSTACKALLOC(d, nv*nefc, int);
 
     // construct JM2 = backsubM2(J')' by rows
     for (int r=0; r < nefc; r++) {

@@ -1291,8 +1291,8 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
   // initialize horizon
   Horizon h;
   mj_markStack(d);
-  h.indices = mj_stackAllocInt(d, 6 + status->max_iterations);
-  h.edges = mj_stackAllocInt(d, 6 + status->max_iterations);
+  h.indices = mjSTACKALLOC(d, 6 + status->max_iterations, int);
+  h.edges = mjSTACKALLOC(d, 6 + status->max_iterations, int);
   h.nedges = 0;
   h.pt = pt;
 
@@ -1483,9 +1483,9 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     pt.nfaces = pt.nmap = pt.nverts = 0;
 
     // allocate memory for vertices
-    pt.verts  = mj_stackAllocNum(d, 3*(5 + N));
-    pt.verts1 = mj_stackAllocNum(d, 3*(5 + N));
-    pt.verts2 = mj_stackAllocNum(d, 3*(5 + N));
+    pt.verts  = mjSTACKALLOC(d, 3*(5 + N), mjtNum);
+    pt.verts1 = mjSTACKALLOC(d, 3*(5 + N), mjtNum);
+    pt.verts2 = mjSTACKALLOC(d, 3*(5 + N), mjtNum);
 
     // allocate memory for faces
     pt.maxfaces = (6*N > 1000) ? 6*N : 1000;  // use 1000 faces as lower bound
@@ -1497,11 +1497,9 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     size_t max_size = mj_stackBytesAvailable(d) - 12*(N * sizeof(int));
     if (size1 + size2 > max_size) {
       pt.maxfaces = max_size / (sizeof(Face) + sizeof(Face*));
-      size1 = sizeof(Face) * pt.maxfaces;
-      size2 = sizeof(Face*) * pt.maxfaces;
     }
-    pt.faces = mj_stackAllocByte(d, size1, _Alignof(Face));
-    pt.map = mj_stackAllocByte(d, size2, _Alignof(Face*));
+    pt.faces = mjSTACKALLOC(d, pt.maxfaces, Face);
+    pt.map = mjSTACKALLOC(d, pt.maxfaces, Face*);
 
     int ret;
     if (status->nsimplex == 2) {

@@ -330,8 +330,8 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   const mjtNum *floss = d->efc_frictionloss;
   mjtNum *force = d->efc_force;
   mj_markStack(d);
-  mjtNum* ARinv = mj_stackAllocNum(d, nefc);
-  int* oldstate = mj_stackAllocInt(d, nefc);
+  mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
+  int* oldstate = mjSTACKALLOC(d, nefc, int);
 
   // TODO: b/295296178 - Use island index (currently hardcoded to 0)
   int island = 0;
@@ -555,8 +555,8 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   mjtNum v[5], Ac[25], bc[5], res[5], oldforce[5], delta[5], mid, y, K0, K1;
   mjContact* con;
   mj_markStack(d);
-  mjtNum* ARinv = mj_stackAllocNum(d, nefc);
-  int* oldstate = mj_stackAllocInt(d, nefc);
+  mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
+  int* oldstate = mjSTACKALLOC(d, nefc, int);
 
   // TODO: b/295296178 - Use island index (currently hardcoded to 0)
   int island = 0;
@@ -837,28 +837,28 @@ static void CGallocate(const mjModel* m, mjData* d, mjCGContext* ctx,
   ctx->efcind = island < 0 ? NULL : d->island_efcind + d->island_efcadr[island];
 
   // common arrays
-  ctx->Jaref  = mj_stackAllocNum(d, nefc);
-  ctx->Jv     = mj_stackAllocNum(d, nefc);
-  ctx->Ma     = mj_stackAllocNum(d, nv);
-  ctx->Mv     = mj_stackAllocNum(d, nv);
-  ctx->grad   = mj_stackAllocNum(d, nv);
-  ctx->Mgrad  = mj_stackAllocNum(d, nv);
-  ctx->search = mj_stackAllocNum(d, nv);
-  ctx->quad   = mj_stackAllocNum(d, nefc*3);
+  ctx->Jaref  = mjSTACKALLOC(d, nefc, mjtNum);
+  ctx->Jv     = mjSTACKALLOC(d, nefc, mjtNum);
+  ctx->Ma     = mjSTACKALLOC(d, nv, mjtNum);
+  ctx->Mv     = mjSTACKALLOC(d, nv, mjtNum);
+  ctx->grad   = mjSTACKALLOC(d, nv, mjtNum);
+  ctx->Mgrad  = mjSTACKALLOC(d, nv, mjtNum);
+  ctx->search = mjSTACKALLOC(d, nv, mjtNum);
+  ctx->quad   = mjSTACKALLOC(d, nefc*3, mjtNum);
 
   // Newton only, known-size arrays
   ctx->flg_Newton = flg_Newton;
   if (flg_Newton) {
-    ctx->D    = mj_stackAllocNum(d, nefc);
+    ctx->D    = mjSTACKALLOC(d, nefc, mjtNum);
 
     // sparse Newton only
     if (mj_isSparse(m)) {
-      ctx->C          = mj_stackAllocNum(d, m->nC);
-      ctx->H_rowadr   = mj_stackAllocInt(d, nv);
-      ctx->H_rownnz   = mj_stackAllocInt(d, nv);
-      ctx->H_lowernnz = mj_stackAllocInt(d, nv);
-      ctx->L_rownnz   = mj_stackAllocInt(d, nv);
-      ctx->L_rowadr   = mj_stackAllocInt(d, nv);
+      ctx->C          = mjSTACKALLOC(d, m->nC, mjtNum);
+      ctx->H_rowadr   = mjSTACKALLOC(d, nv, int);
+      ctx->H_rownnz   = mjSTACKALLOC(d, nv, int);
+      ctx->H_lowernnz = mjSTACKALLOC(d, nv, int);
+      ctx->L_rownnz   = mjSTACKALLOC(d, nv, int);
+      ctx->L_rowadr   = mjSTACKALLOC(d, nv, int);
     }
   }
 }
@@ -1416,8 +1416,8 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
     }
 
     // allocate H_colind and H
-    ctx->H_colind = mj_stackAllocInt(d, ctx->nH);
-    ctx->H = mj_stackAllocNum(d, ctx->nH);
+    ctx->H_colind = mjSTACKALLOC(d, ctx->nH, int);
+    ctx->H = mjSTACKALLOC(d, ctx->nH, mjtNum);
 
     // compute H = J'*D*J
     mju_sqrMatTDSparse(ctx->H, d->efc_J, d->efc_JT, ctx->D, nefc, nv,
@@ -1440,10 +1440,10 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
     }
 
     // allocate L_colind, L, Lcone
-    ctx->L_colind = mj_stackAllocInt(d, ctx->nL);
-    ctx->L = mj_stackAllocNum(d, ctx->nL);
+    ctx->L_colind = mjSTACKALLOC(d, ctx->nL, int);
+    ctx->L = mjSTACKALLOC(d, ctx->nL, mjtNum);
     if (m->opt.cone == mjCONE_ELLIPTIC) {
-      ctx->Lcone = mj_stackAllocNum(d, ctx->nL);
+      ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
     }
 
     // count nonzeros in rows of H lower triangle
@@ -1471,9 +1471,9 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
   else {
     // allocate L, Lcone
     ctx->nL = nv*nv;
-    ctx->L = mj_stackAllocNum(d, ctx->nL);
+    ctx->L = mjSTACKALLOC(d, ctx->nL, mjtNum);
     if (m->opt.cone == mjCONE_ELLIPTIC) {
-      ctx->Lcone = mj_stackAllocNum(d, ctx->nL);
+      ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
     }
 
     // compute H = M + J'*D*J
@@ -1572,9 +1572,9 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   mj_markStack(d);
 
   // storage for L'*J
-  mjtNum* LTJ = mj_stackAllocNum(d, 6*nv);
-  mjtNum* LTJ_row = mj_stackAllocNum(d, nv);
-  int* LTJ_ind = mj_stackAllocInt(d, nv);
+  mjtNum* LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* LTJ_row = mjSTACKALLOC(d, nv, mjtNum);
+  int* LTJ_ind = mjSTACKALLOC(d, nv, int);
 
   // add contributions
   for (int i=0; i < nefc; i++) {
@@ -1646,8 +1646,8 @@ static void HessianIncremental(const mjModel* m, mjData* d, mjCGContext* ctx, co
   mj_markStack(d);
 
   // local space
-  mjtNum* vec = mj_stackAllocNum(d, nv);
-  int* vec_ind = mj_stackAllocInt(d, nv);
+  mjtNum* vec = mjSTACKALLOC(d, nv, mjtNum);
+  int* vec_ind = mjSTACKALLOC(d, nv, int);
 
   // clear update counter
   ctx->nupdate = 0;
@@ -1727,11 +1727,11 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
 
   // allocate local storage
   if (!flg_Newton) {
-    gradold     = mj_stackAllocNum(d, nv);
-    Mgradold    = mj_stackAllocNum(d, nv);
-    Mgraddif    = mj_stackAllocNum(d, nv);
+    gradold     = mjSTACKALLOC(d, nv, mjtNum);
+    Mgradold    = mjSTACKALLOC(d, nv, mjtNum);
+    Mgraddif    = mjSTACKALLOC(d, nv, mjtNum);
   }
-  int* oldstate = mj_stackAllocInt(d, nefc);
+  int* oldstate = mjSTACKALLOC(d, nefc, int);
 
   // initialize matrix-vector products
   int flg_vecunc = 1;  // d->qacc is uncompressed

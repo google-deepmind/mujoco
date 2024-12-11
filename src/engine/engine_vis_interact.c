@@ -539,8 +539,8 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   int sel = pert->select;
   mjtNum headpos[3], forward[3], dif[3];
 
-  mjtNum* jac = mj_stackAllocNum(d, 3*nv);
-  mjtNum* jacM2 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacM2 = mjSTACKALLOC(d, 3*nv, mjtNum);
 
   // invalid selected body: return
   if (sel <= 0 || sel >= m->nbody) {

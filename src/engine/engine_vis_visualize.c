@@ -1817,7 +1817,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
           // allocate catenary
           mj_markStack(d);
-          mjtNum* catenary = mj_stackAllocNum(d, 3*ncatenary);
+          mjtNum* catenary = mjSTACKALLOC(d, 3*ncatenary, mjtNum);
 
           // points along catenary path
           int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
@@ -2520,7 +2520,7 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
     else {
       // allocate and clear vertex normals for smoothing
       mj_markStack(d);
-      mjtNum* vertnorm = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
+      mjtNum* vertnorm = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
       mju_zero(vertnorm, 3*m->flex_vertnum[f]);
 
       // add vertex normals: top element sides in 2D, shell fragments in 3D

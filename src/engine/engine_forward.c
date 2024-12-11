@@ -286,7 +286,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // local, clamped copy of ctrl
   mj_markStack(d);
-  mjtNum *ctrl = mj_stackAllocNum(d, nu);
+  mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
   mju_copy(ctrl, d->ctrl, nu);
   if (!mjDISABLED(mjDSBL_CLAMPCTRL)) {
     clampVec(ctrl, m->actuator_ctrlrange, m->actuator_ctrllimited, nu, NULL);
@@ -531,7 +531,7 @@ static void warmstart(const mjModel* m, mjData* d) {
   // warmstart with best of (qacc_warmstart, qacc_smooth)
   if (!mjDISABLED(mjDSBL_WARMSTART)) {
     mj_markStack(d);
-    mjtNum* jar = mj_stackAllocNum(d, nefc);
+    mjtNum* jar = mjSTACKALLOC(d, nefc, mjtNum);
 
     // start with qacc = qacc_warmstart
     mju_copy(d->qacc, d->qacc_warmstart, nv);
@@ -548,7 +548,7 @@ static void warmstart(const mjModel* m, mjData* d) {
     if (m->opt.solver == mjSOL_PGS) {
       // cost(force_warmstart)
       mjtNum PGS_warmstart = mju_dot(d->efc_force, d->efc_b, nefc);
-      mjtNum* ARf = mj_stackAllocNum(d, nefc);
+      mjtNum* ARf = mjSTACKALLOC(d, nefc, mjtNum);
       if (mj_isSparse(m))
         mju_mulMatVecSparse(ARf, d->efc_AR, d->efc_force, nefc,
                             d->efc_AR_rownnz, d->efc_AR_rowadr,
@@ -568,7 +568,7 @@ static void warmstart(const mjModel* m, mjData* d) {
     // non-PGS
     else {
       // add Gauss to cost(qacc_warmstart)
-      mjtNum* Ma = mj_stackAllocNum(d, nv);
+      mjtNum* Ma = mjSTACKALLOC(d, nv, mjtNum);
       mj_mulM(m, d, Ma, d->qacc_warmstart);
       for (int i=0; i < nv; i++) {
         cost_warmstart += 0.5*(Ma[i]-d->qfrc_smooth[i])*(d->qacc_warmstart[i]-d->qacc_smooth[i]);
@@ -618,9 +618,9 @@ void* mj_solCG_island_wrapper(void* args) {
 void mj_solCG_island_multithreaded(const mjModel* m, mjData* d) {
   mj_markStack(d);
   // allocate array of arguments to be passed to threads
-  mjSolIslandArgs* sol_cg_island_args =
-    mj_stackAllocByte(d, sizeof(mjSolIslandArgs) * d->nisland, _Alignof(mjSolIslandArgs));
-  mjTask* tasks = mj_stackAllocByte(d, sizeof(mjTask)  * d->nisland, _Alignof(mjTask));
+  mjSolIslandArgs* sol_cg_island_args = mjSTACKALLOC(d, d->nisland, mjSolIslandArgs);
+  mjTask* tasks = mjSTACKALLOC(d, d->nisland, mjTask);
+
 
   for (int island = 0; island < d->nisland; ++island) {
     sol_cg_island_args[island].m = m;
@@ -772,8 +772,8 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
   int nv = m->nv, nM = m->nM;
   mj_markStack(d);
-  mjtNum* qfrc = mj_stackAllocNum(d, nv);
-  mjtNum* qacc = mj_stackAllocNum(d, nv);
+  mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* qacc = mjSTACKALLOC(d, nv, mjtNum);
 
   // check for dof damping if disable flag is not set
   int dof_damping = 0;
@@ -794,7 +794,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   // damping: integrate implicitly
   else {
     if (!skipfactor) {
-      mjtNum* MhB = mj_stackAllocNum(d, nM);
+      mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
 
       // MhB = M + h*diag(B)
       mju_copy(MhB, d->qM, nM);
@@ -857,10 +857,10 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
   // allocate space for intermediate solutions
   mj_markStack(d);
-  dX = mj_stackAllocNum(d, 2*nv+na);
+  dX = mjSTACKALLOC(d, 2*nv+na, mjtNum);
   for (int i=0; i < N; i++) {
-    X[i] = mj_stackAllocNum(d, nq+nv+na);
-    F[i] = mj_stackAllocNum(d, nv+na);
+    X[i] = mjSTACKALLOC(d, nq+nv+na, mjtNum);
+    F[i] = mjSTACKALLOC(d, nv+na, mjtNum);
   }
 
   // precompute C and T;  C,T,A have size (N-1)
@@ -941,8 +941,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   int nv = m->nv, nM = m->nM, nD = m->nD;
 
   mj_markStack(d);
-  mjtNum* qfrc = mj_stackAllocNum(d, nv);
-  mjtNum* qacc = mj_stackAllocNum(d, nv);
+  mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* qacc = mjSTACKALLOC(d, nv, mjtNum);
 
   // set qfrc = qfrc_smooth + qfrc_constraint
   mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
@@ -962,7 +962,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
       // factorize qLU
-      int* scratch = mj_stackAllocInt(d, nv);
+      int* scratch = mjSTACKALLOC(d, nv, int);
       mju_factorLUSparse(d->qLU, nv, scratch, d->D_rownnz, d->D_rowadr, d->D_colind);
     }
 
@@ -977,7 +977,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
       // modified mass matrix MhB = qDeriv[Lower]
-      mjtNum* MhB = mj_stackAllocNum(d, nM);
+      mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
       for (int i=0; i < nM; i++) {
         MhB[i] = d->qDeriv[d->mapD2M[i]];
       }

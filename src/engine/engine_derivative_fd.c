@@ -176,9 +176,9 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int nv = m->nv;
 
   mj_markStack(d);
-  mjtNum* qfrc_passive = mj_stackAllocNum(d, nv);
-  mjtNum* fd = mj_stackAllocNum(d, nv);
-  int* cnt = mj_stackAllocInt(d, nv);
+  mjtNum* qfrc_passive = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* fd = mjSTACKALLOC(d, nv, mjtNum);
+  int* cnt = mjSTACKALLOC(d, nv, int);
 
   // clear row counters
   mju_zeroInt(cnt, nv);
@@ -227,10 +227,10 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int nv = m->nv;
 
   mj_markStack(d);
-  mjtNum* plus = mj_stackAllocNum(d, nv);
-  mjtNum* minus = mj_stackAllocNum(d, nv);
-  mjtNum* fd = mj_stackAllocNum(d, nv);
-  int* cnt = mj_stackAllocInt(d, nv);
+  mjtNum* plus = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* minus = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* fd = mjSTACKALLOC(d, nv, mjtNum);
+  int* cnt = mjSTACKALLOC(d, nv, int);
 
   // clear row counters
   mju_zeroInt(cnt, nv);
@@ -314,20 +314,20 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
   unsigned int restore_spec = mjSTATE_FULLPHYSICS | mjSTATE_CTRL;
   restore_spec |= mjDISABLED(mjDSBL_WARMSTART) ? 0 : mjSTATE_WARMSTART;
 
-  mjtNum *fullstate  = mj_stackAllocNum(d, mj_stateSize(m, restore_spec));
-  mjtNum *state      = mj_stackAllocNum(d, nq+nv+na);  // current state
-  mjtNum *next       = mj_stackAllocNum(d, nq+nv+na);  // next state
-  mjtNum *next_plus  = mj_stackAllocNum(d, nq+nv+na);  // forward-nudged next state
-  mjtNum *next_minus = mj_stackAllocNum(d, nq+nv+na);  // backward-nudged next state
+  mjtNum *fullstate  = mjSTACKALLOC(d, mj_stateSize(m, restore_spec), mjtNum);
+  mjtNum *state      = mjSTACKALLOC(d, nq+nv+na, mjtNum);  // current state
+  mjtNum *next       = mjSTACKALLOC(d, nq+nv+na, mjtNum);  // next state
+  mjtNum *next_plus  = mjSTACKALLOC(d, nq+nv+na, mjtNum);  // forward-nudged next state
+  mjtNum *next_minus = mjSTACKALLOC(d, nq+nv+na, mjtNum);  // backward-nudged next state
 
   // sensors
   int skipsensor = !DsDq && !DsDv && !DsDa && !DsDu;
-  mjtNum *sensor       = skipsensor ? NULL : mj_stackAllocNum(d, ns);  // sensor values
-  mjtNum *sensor_plus  = skipsensor ? NULL : mj_stackAllocNum(d, ns);  // forward-nudged sensors
-  mjtNum *sensor_minus = skipsensor ? NULL : mj_stackAllocNum(d, ns);  // backward-nudged sensors
+  mjtNum *sensor       = skipsensor ? NULL : mjSTACKALLOC(d, ns, mjtNum);  // sensor values
+  mjtNum *sensor_plus  = skipsensor ? NULL : mjSTACKALLOC(d, ns, mjtNum);  // forward-nudged
+  mjtNum *sensor_minus = skipsensor ? NULL : mjSTACKALLOC(d, ns, mjtNum);  // backward-nudged
 
   // controls
-  mjtNum *ctrl = mj_stackAllocNum(d, nu);
+  mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
 
   // save current inputs
   mj_getState(m, d, fullstate, restore_spec);
@@ -485,7 +485,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 
   // finite-difference positions: skip=mjSTAGE_NONE
   if (DyDq || DsDq) {
-    mjtNum *dpos  = mj_stackAllocNum(d, nv);  // allocate position perturbation
+    mjtNum *dpos  = mjSTACKALLOC(d, nv, mjtNum);  // allocate position perturbation
     for (int i=0; i < nv; i++) {
       // nudge forward
       mju_zero(dpos, nv);
@@ -563,10 +563,10 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
   mj_markStack(d);
 
   // allocate transposed matrices
-  mjtNum *AT = A ? mj_stackAllocNum(d, ndx*ndx) : NULL;  // state-transition matrix   (transposed)
-  mjtNum *BT = B ? mj_stackAllocNum(d, nu*ndx) : NULL;   // control-transition matrix (transposed)
-  mjtNum *CT = C ? mj_stackAllocNum(d, ndx*ns) : NULL;   // state-observation matrix   (transposed)
-  mjtNum *DT = D ? mj_stackAllocNum(d, nu*ns) : NULL;    // control-observation matrix (transposed)
+  mjtNum *AT = A ? mjSTACKALLOC(d, ndx*ndx, mjtNum) : NULL;  // state-transition     (transposed)
+  mjtNum *BT = B ? mjSTACKALLOC(d, nu*ndx, mjtNum) : NULL;   // control-transition   (transposed)
+  mjtNum *CT = C ? mjSTACKALLOC(d, ndx*ns, mjtNum) : NULL;   // state-observation    (transposed)
+  mjtNum *DT = D ? mjSTACKALLOC(d, nu*ns, mjtNum) : NULL;    // control-observation  (transposed)
 
   // set offset pointers
   if (A) {
@@ -629,11 +629,11 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
 
   // local vectors
   mj_markStack(d);
-  mjtNum *pos        = mj_stackAllocNum(d, nq);                      // position
-  mjtNum *force      = mj_stackAllocNum(d, nv);                      // force
-  mjtNum *force_plus = mj_stackAllocNum(d, nv);                      // nudged force
-  mjtNum *sensor     = skipsensor ? NULL : mj_stackAllocNum(d, ns);  // sensor values
-  mjtNum *mass       = DmDq ? mj_stackAllocNum(d, nM) : NULL;        // mass matrix
+  mjtNum *pos        = mjSTACKALLOC(d, nq, mjtNum);                      // position
+  mjtNum *force      = mjSTACKALLOC(d, nv, mjtNum);                      // force
+  mjtNum *force_plus = mjSTACKALLOC(d, nv, mjtNum);                      // nudged force
+  mjtNum *sensor     = skipsensor ? NULL : mjSTACKALLOC(d, ns, mjtNum);  // sensor values
+  mjtNum *mass       = DmDq ? mjSTACKALLOC(d, nM, mjtNum) : NULL;        // mass matrix
 
   // save current positions
   mju_copy(pos, d->qpos, nq);
@@ -687,7 +687,7 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
 
   // position: skip = mjSTAGE_NONE
   if (DfDq || DsDq || DmDq) {
-    mjtNum *dpos  = mj_stackAllocNum(d, nv);  // allocate position perturbation
+    mjtNum *dpos  = mjSTACKALLOC(d, nv, mjtNum);  // allocate position perturbation
     for (int i=0; i < nv; i++) {
       // nudge
       mju_zero(dpos, nv);

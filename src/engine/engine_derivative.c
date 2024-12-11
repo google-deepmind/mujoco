@@ -395,11 +395,11 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
   mj_markStack(d);
-  mjtNum* Dcvel = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* Dcdofdot = mj_stackAllocNum(d, nv*6*nv);
-  mjtNum* Dcacc = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* Dcfrcbody = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* Dcvel = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* Dcdofdot = mjSTACKALLOC(d, nv*6*nv, mjtNum);
+  mjtNum* Dcacc = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* Dcfrcbody = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // compute Dcvel and Dcdofdot
   mjd_comVel_vel_dense(m, d, Dcvel, Dcdofdot);
@@ -610,11 +610,11 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
   mj_markStack(d);
-  mjtNum* Dcdofdot = mj_stackAllocNum(d, 6*m->nD);
-  mjtNum* Dcvel = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* Dcacc = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* Dcfrcbody = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* Dcdofdot = mjSTACKALLOC(d, 6*m->nD, mjtNum);
+  mjtNum* Dcvel = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* Dcacc = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* Dcfrcbody = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // clear
   mju_zero(Dcdofdot, 6*m->nD);
@@ -695,7 +695,7 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 
   // allocate dense row
   mj_markStack(d);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // process non-zero elements of B
   for (int i=0; i < n; i++) {
@@ -734,7 +734,7 @@ static void addJTBJSparse(
 
   // allocate row
   mj_markStack(d);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
@@ -829,7 +829,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
   // allocate dense actuator_moment row
   mj_markStack(d);
-  mjtNum* moment = mj_stackAllocNum(d, nv);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
 
   // process actuators
   for (int i=0; i < nu; i++) {
@@ -1181,10 +1181,10 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
   int nv = m->nv;
   int nnz = nv;
   int rownnz[6], rowadr[6];
-  mjtNum* J = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 3*nv);
-  int* colind = mj_stackAllocInt(d, 6*nv);
-  int* colind_compressed = mj_stackAllocInt(d, 6*nv);
+  mjtNum* J = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* colind = mjSTACKALLOC(d, 6*nv, int);
+  int* colind_compressed = mjSTACKALLOC(d, 6*nv, int);
 
   mjtNum lvel[6], wind[6], lwind[6];
   mjtNum geom_interaction_coef, magnus_lift_coef, kutta_lift_coef;
@@ -1287,9 +1287,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
 
   int nv = m->nv;
   int rownnz[6], rowadr[6];
-  mjtNum* J = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 3*nv);
-  int* colind = mj_stackAllocInt(d, 6*nv);
+  mjtNum* J = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* colind = mjSTACKALLOC(d, 6*nv, int);
 
   mjtNum lvel[6], wind[6], lwind[6], box[3], B;
   mjtNum* inertia = m->body_inertia + 3*i;

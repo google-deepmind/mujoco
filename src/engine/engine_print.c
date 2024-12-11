@@ -892,7 +892,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   // allocate full inertia if it's small
   if (m->nv <= 200) {
-    M = mj_stackAllocNum(d, m->nv*m->nv);
+    M = mjSTACKALLOC(d, m->nv*m->nv, mjtNum);
   }
 
 #ifdef MEMORY_SANITIZER

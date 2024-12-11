@@ -148,8 +148,8 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
   int rank = n;
 
   mj_markStack(d);
-  mjtNum* buf = mj_stackAllocNum(d, n);
-  int* buf_ind = mj_stackAllocInt(d, n);
+  mjtNum* buf = mjSTACKALLOC(d, n, mjtNum);
+  int* buf_ind = mjSTACKALLOC(d, n, int);
 
   // backpass over rows
   for (int r=n-1; r >= 0; r--) {
@@ -241,8 +241,8 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
                          const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d) {
   mj_markStack(d);
-  int* buf_ind = mj_stackAllocInt(d, n);
-  mjtNum* sparse_buf = mj_stackAllocNum(d, n);
+  int* buf_ind = mjSTACKALLOC(d, n, int);
+  mjtNum* sparse_buf = mjSTACKALLOC(d, n, mjtNum);
 
   // backpass over rows corresponding to non-zero x(r)
   int rank = n, i = x_nnz - 1;

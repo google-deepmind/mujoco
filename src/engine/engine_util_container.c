@@ -24,8 +24,7 @@
 
 // stack allocate and initialize new mjArrayList
 mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_capacity) {
-  mjArrayList* array_list = (mjArrayList*) mj_stackAllocByte(
-    d, sizeof(mjArrayList), _Alignof(mjArrayList));
+  mjArrayList* array_list = mjSTACKALLOC(d, 1, mjArrayList);
   initial_capacity = mjMAX(1, initial_capacity);
   array_list->d = d;
   array_list->element_size = element_size;

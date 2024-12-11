@@ -678,7 +678,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
                             const int* rownnzT, const int* rowadrT, const int* colindT,
                             const int* rowsuperT, mjData* d) {
   mj_markStack(d);
-  int* chain = mj_stackAllocInt(d, 2*nr);
+  int* chain = mjSTACKALLOC(d, 2*nr, int);
   int nchain = 0;
   int* res_colind = NULL;
 
@@ -784,11 +784,11 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   mj_markStack(d);
 
   // a dense row buffer that stores the current row in the resulting matrix
-  mjtNum* buffer = mj_stackAllocNum(d, nc);
+  mjtNum* buffer = mjSTACKALLOC(d, nc, mjtNum);
 
   // these mark the currently set columns in the dense row buffer,
   // used for when creating the resulting sparse row
-  int* markers = mj_stackAllocInt(d, nc);
+  int* markers = mjSTACKALLOC(d, nc, int);
 
   for (int i=0; i < nc; i++) {
     int* cols = res_colind+res_rowadr[i];
@@ -899,8 +899,8 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
                       int n, mjData* d) {
   mj_markStack(d);
-  int* parent = mj_stackAllocInt(d, n);
-  int* flag = mj_stackAllocInt(d, n);
+  int* parent = mjSTACKALLOC(d, n, int);
+  int* flag = mjSTACKALLOC(d, n, int);
 
   // loop over rows in reverse order
   for (int r = n - 1; r >= 0; r--) {

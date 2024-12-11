@@ -134,7 +134,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     mjtNum kD = m->flex_damping[f] / m->opt.timestep;
 
     mj_markStack(d);
-    mjtNum* qfrc = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
+    mjtNum* qfrc = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
     mju_zero(qfrc, 3*m->flex_vertnum[f]);
 
     // compute force element-by-element
