@@ -286,6 +286,55 @@ TEST_F(MjGjkTest, BoxBoxDepth) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, BoxBoxDepth2) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom name="geom1" type="box" pos="0 0 0" size="5 5 .1"/>
+    <geom name="geom2" type="box" pos="0 0 0" size="1 1 1"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  mjtNum* xmat = data->geom_xmat + 9;
+  mjtNum* xpos = data->geom_xpos + 3;
+
+  xpos[0] = -0.000171208577507291721461757383;
+  xpos[1] = -0.000171208577507290908310128019;
+  xpos[2] = 1.067119586248553853025100579544;
+
+  xmat[0] = 0.999999966039443077825410455262;
+  xmat[1] = -0.000000033960556969622165789148;
+  xmat[2] = -0.000260616790777324182967061850;
+  xmat[3] = -0.000000033960556972087627235699;
+  xmat[4] = 0.999999966039443077825410455262;
+  xmat[5] = -0.000260616790777321797722282382;
+  xmat[6] = 0.000260616790777324182967061850;
+  xmat[7] = 0.000260616790777321797722282382;
+  xmat[8] = 0.999999932078886044628518448008;
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dir[3], pos[3];
+  mjtNum dist = Penetration(model, data, geom1, geom2, dir, pos);
+
+  if (dist < 0) {
+    EXPECT_NEAR(dist, -0.033401579411886845, kTolerance);
+    EXPECT_NEAR(dir[0], 0, kTolerance);
+    EXPECT_NEAR(dir[1], 0, kTolerance);
+    EXPECT_NEAR(dir[2], 1, kTolerance);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, SmallBoxMesh) {
   static constexpr char xml[] = R"(
   <mujoco>
