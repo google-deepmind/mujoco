@@ -26,7 +26,15 @@ The code currently uses [OpenXr](https://www.khronos.org/OpenXR/), and generally
 In progress:
 
 * OS X
+    * For screen sharing with Quest 3, Immersed app works.
+    * One could try developing for XR using [Meta Xr Simulator](https://github.com/Oculus-VR/homebrew-repo/blob/main/meta-xr-simulator.md).
+    * OpenXR runtime Monado is in progress of [porting to MacOS](https://gitlab.freedesktop.org/monado/monado/-/issues/318), however no specific deadline exists.
+    * Windows VM + SteamVR is an [option](https://www.youtube.com/watch?v=Wzk3nBWMKL8), however the performance will suffer.
+    * Probably is not happening anytime soon, however will work on building on Mac to deploy to Quest3 and Vive XR.
+
 * Unix
+    * Use [Monado](https://github.com/shinyquagsire23/monado)
+    * https://github.com/shinyquagsire23/openxr-simple-example-macos
 
 
 ## Supported devices
