@@ -1,0 +1,40 @@
+# Threading library for MuJoCo.
+licenses(["notice"])
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "thread_queue",
+    hdrs = ["thread_queue.h"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_library(
+    name = "thread_task",
+    srcs = ["thread_task.cc"],
+    hdrs = ["thread_task.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//:mujoco_hdrs"],
+)
+
+cc_library(
+    name = "thread_pool",
+    srcs = ["thread_pool.cc"],
+    hdrs = ["thread_pool.h"],
+    copts = [
+        "-Wno-unknown-pragmas",
+        "-Wno-error=unknown-pragmas",
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":thread_queue",
+        ":thread_task",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_util_errmem",
+    ],
+)
