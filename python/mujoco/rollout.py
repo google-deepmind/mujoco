@@ -35,7 +35,7 @@ def rollout(
     initial_warmstart: Optional[npt.ArrayLike] = None,
     state: Optional[npt.ArrayLike] = None,
     sensordata: Optional[npt.ArrayLike] = None,
-    chunk_divisor: int = 10,
+    chunk_size: int = None,
 ):
   """Rolls out open-loop trajectories from initial states, get subsequent states and sensor values.
 
@@ -60,8 +60,8 @@ def rollout(
       (nroll x nstep x nstate)
     sensordata: Sensor data output array (optional).
       (nroll x nstep x nsensordata)
-    chunk_divisor: Determines threadpool chunk size according to
-                   chunk_size = max(1, nroll / (nthread * chunk_divisor)
+    chunk_size: Determines threadpool chunk size. If unspecified,
+                chunk_size = max(1, nroll / (nthread * 10)
 
   Returns:
     state:
@@ -88,7 +88,7 @@ def rollout(
         control,
         state,
         sensordata,
-        chunk_divisor,
+        chunk_size,
     )
     return state, sensordata
 
@@ -102,6 +102,8 @@ def rollout(
   # check types
   if nstep and not isinstance(nstep, int):
     raise ValueError('nstep must be an integer')
+  if chunk_size and not isinstance(chunk_size, int):
+    raise ValueError('chunk_size must be an integer')
   _check_must_be_numeric(
       initial_state=initial_state,
       initial_warmstart=initial_warmstart,
@@ -202,7 +204,7 @@ def rollout(
       control,
       state,
       sensordata,
-      chunk_divisor,
+      chunk_size,
   )
 
   # return outputs

@@ -50,8 +50,8 @@ Roll out open-loop trajectories from initial states, get resulting states and se
   output arguments (optional):
     state              (nroll x nstep x nstate)       nroll nstep states
     sensordata         (nroll x nstep x nsendordata)  nroll trajectories of nstep sensordata vectors
-    chunk_divisor      integer, determines threadpool chunk size according to
-                                chunk_size = max(1, nroll / (nthread * chunk_divisor)
+    chunk_size         integer, determines threadpool chunk size. If unspecified
+                                chunk_size = max(1, nroll / (nthread * 10)
 )";
 
 // C-style rollout function, assumes all arguments are valid
@@ -241,7 +241,7 @@ PYBIND11_MODULE(_rollout, pymodule) {
          std::optional<const PyCArray> control,
          std::optional<const PyCArray> state,
          std::optional<const PyCArray> sensordata,
-         int chunk_divisor
+         std::optional<int> chunk_size
          ) {
         // get raw pointers
         int nroll = state0.shape(0);
@@ -281,11 +281,17 @@ PYBIND11_MODULE(_rollout, pymodule) {
 
           // call unsafe rollout function
           if (nthread > 1 && nroll > 1) {
-            int chunk_size = std::max(1, nroll / (chunk_divisor * nthread));
+            int chunk_size_final = 1;
+            if (!chunk_size.has_value()) {
+              chunk_size_final = std::max(1, nroll / (10 * nthread));
+            }
+            else {
+              chunk_size_final = *chunk_size;
+            }
             InterceptMjErrors(_unsafe_rollout_threaded)(
                 model_ptrs, data_ptrs, nroll, nstep, control_spec, state0_ptr,
                 warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
-                nthread, chunk_size);
+                nthread, chunk_size_final);
           }
           else {
             InterceptMjErrors(_unsafe_rollout)(
@@ -303,7 +309,7 @@ PYBIND11_MODULE(_rollout, pymodule) {
       py::arg("control")    = py::none(),
       py::arg("state")      = py::none(),
       py::arg("sensordata") = py::none(),
-      py::arg("chunk_divisor") = 10,
+      py::arg("chunk_size") = py::none(),
       py::doc(rollout_doc)
   );
 }
