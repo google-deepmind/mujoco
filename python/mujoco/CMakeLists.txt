@@ -383,7 +383,7 @@ target_link_libraries(
           structs_header
 )
 
-mujoco_pybind11_module(_rollout rollout.cc)
+mujoco_pybind11_module(_rollout rollout.cc threadpool.cc)
 target_link_libraries(_rollout PRIVATE functions_header mujoco raw)
 
 mujoco_pybind11_module(

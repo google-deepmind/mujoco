@@ -1,4 +1,4 @@
-// Copyright 2022 DeepMind Technologies Limited
+// Copyright 2024 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "mjpc/threadpool.h"
+#include "threadpool.h"
 
 #include <condition_variable>
 #include <functional>
@@ -22,7 +22,7 @@
 
 #include <absl/base/attributes.h>
 
-namespace mjpc {
+namespace mujoco::python {
 
 ABSL_CONST_INIT thread_local int ThreadPool::worker_id_ = -1;
 
@@ -84,4 +84,4 @@ void ThreadPool::WorkerThread(int i) {
   }
 }
 
-}  // namespace mjpc
+}  // namespace mujoco::python

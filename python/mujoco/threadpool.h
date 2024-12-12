@@ -1,4 +1,4 @@
-// Copyright 2022 DeepMind Technologies Limited
+// Copyright 2024 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MJPC_THREADPOOL_H_
-#define MJPC_THREADPOOL_H_
+#ifndef MUJOCO_PYTHON_THREADPOOL_H_
+#define MUJOCO_PYTHON_THREADPOOL_H_
 
 #include <condition_variable>
 #include <cstdint>
@@ -26,7 +26,7 @@
 
 #include <absl/base/attributes.h>
 
-namespace mjpc {
+namespace mujoco::python {
 
 // ThreadPool class
 class ThreadPool {
@@ -76,6 +76,6 @@ class ThreadPool {
   std::uint64_t ctr_;
 };
 
-}  // namespace mjpc
+}  // namespace mujoco::python
 
-#endif  // MJPC_THREADPOOL_H_
+#endif  // MUJOCO_PYTHON_THREADPOOL_H_
