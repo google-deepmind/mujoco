@@ -11,8 +11,9 @@ Bug fixes
 
 Python bindings
 ^^^^^^^^^^^^^^^
-- :ref:`rollout<PyRollout>` can now accept sequences of MjData of length ``nthread``. If passed, :ref:`rollout<PyRollout>`
-  will automatically create a persistent threadpool and parallelize rollouts.
+- :ref:`rollout<PyRollout>` now features native multi-threading. If a sequence of MjData instances
+  of length ``nthread`` is passed in, ``rollout`` will automatically create a persistent threadpool
+  and parallelize the computation. Contribution by :github:user:`aftersomemath`.
 
 Version 3.2.6 (Dec 2, 2024)
 ---------------------------

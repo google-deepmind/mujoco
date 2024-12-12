@@ -51,7 +51,7 @@ Roll out open-loop trajectories from initial states, get resulting states and se
     state              (nroll x nstep x nstate)       nroll nstep states
     sensordata         (nroll x nstep x nsendordata)  nroll trajectories of nstep sensordata vectors
     chunk_size         integer, determines threadpool chunk size. If unspecified
-                                chunk_size = max(1, nroll / (nthread * 10)
+                                chunk_size = max(1, nroll / (nthread * 10))
 )";
 
 // C-style rollout function, assumes all arguments are valid
@@ -172,16 +172,19 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
   int chunk_remainder = nroll % chunk_size;
   int njobs = (chunk_remainder > 0) ? nfulljobs + 1 : nfulljobs;
 
-  if (pool == nullptr) {
-    pool = new ThreadPool(nthread);
-  }
-  else if (pool->NumThreads() != nthread) {
+  // if existing thread pool of the wrong size, delete
+  if (pool && pool->NumThreads() != nthread) {
     delete pool;
+  }
+
+  // make threadpool if required
+  if (pool == nullptr) {
     pool = new ThreadPool(nthread);
   } else {
     pool->ResetCount();
   }
 
+  // schedule all jobs of full (chunk) size
   for (int j = 0; j < nfulljobs; j++) {
     auto task = [=, &m, &d](void) {
       int id = pool->WorkerId();
@@ -191,6 +194,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
     pool->Schedule(task);
   }
 
+  // schedule any remaining jobs of size < chunk_size
   if (chunk_remainder > 0) {
     auto task = [=, &m, &d](void) {
       _unsafe_rollout(m, d[pool->WorkerId()], nfulljobs*chunk_size, nfulljobs*chunk_size+chunk_remainder,
@@ -199,6 +203,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
     pool->Schedule(task);
   }
 
+  // wait for job counter to incremented up to the number of jobs submitted by this thread
   pool->WaitCount(njobs);
 }
 
@@ -279,21 +284,19 @@ PYBIND11_MODULE(_rollout, pymodule) {
           // release the GIL
           py::gil_scoped_release no_gil;
 
-          // call unsafe rollout function
+          // call unsafe rollout function, multi or single threaded
           if (nthread > 1 && nroll > 1) {
             int chunk_size_final = 1;
             if (!chunk_size.has_value()) {
               chunk_size_final = std::max(1, nroll / (10 * nthread));
-            }
-            else {
+            } else {
               chunk_size_final = *chunk_size;
             }
             InterceptMjErrors(_unsafe_rollout_threaded)(
                 model_ptrs, data_ptrs, nroll, nstep, control_spec, state0_ptr,
                 warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
                 nthread, chunk_size_final);
-          }
-          else {
+          } else {
             InterceptMjErrors(_unsafe_rollout)(
                 model_ptrs, data_ptrs[0], 0, nroll, nstep, control_spec, state0_ptr,
                 warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr);

@@ -61,7 +61,7 @@ def rollout(
     sensordata: Sensor data output array (optional).
       (nroll x nstep x nsensordata)
     chunk_size: Determines threadpool chunk size. If unspecified,
-                chunk_size = max(1, nroll / (nthread * 10)
+                chunk_size = max(1, nroll / (nthread * 10))
 
   Returns:
     state:

@@ -355,7 +355,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
         body.pos = body.pos + i
         model.append(spec.compile())
     else:
-      model = [spec.compile() for i in range(nroll)]
+      model = [spec.compile() for _ in range(nroll)]
 
     nstate = mujoco.mj_stateSize(model[0], mujoco.mjtState.mjSTATE_FULLPHYSICS)
     data = mujoco.MjData(model[0])
