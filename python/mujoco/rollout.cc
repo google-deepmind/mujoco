@@ -39,7 +39,7 @@ Roll out open-loop trajectories from initial states, get resulting states and se
 
   input arguments (required):
     model              list of MjModel instances of length nroll
-    data               associated instance of MjData
+    data               list of associated MjData instances of length nthread
     nstep              integer, number of steps to be taken for each trajectory
     control_spec       specification of controls, ncontrol = mj_stateSize(m, control_spec)
     state0             (nroll x nstate) nroll initial state vectors,
@@ -50,6 +50,8 @@ Roll out open-loop trajectories from initial states, get resulting states and se
   output arguments (optional):
     state              (nroll x nstep x nstate)       nroll nstep states
     sensordata         (nroll x nstep x nsendordata)  nroll trajectories of nstep sensordata vectors
+    chunk_divisor      integer, determines threadpool chunk size according to
+                                chunk_size = max(1, nroll / (nthread * chunk_divisor)
 )";
 
 // C-style rollout function, assumes all arguments are valid
@@ -238,7 +240,8 @@ PYBIND11_MODULE(_rollout, pymodule) {
          std::optional<const PyCArray> warmstart0,
          std::optional<const PyCArray> control,
          std::optional<const PyCArray> state,
-         std::optional<const PyCArray> sensordata
+         std::optional<const PyCArray> sensordata,
+         int chunk_divisor
          ) {
         // get raw pointers
         int nroll = state0.shape(0);
@@ -278,7 +281,7 @@ PYBIND11_MODULE(_rollout, pymodule) {
 
           // call unsafe rollout function
           if (nthread > 1 && nroll > 1) {
-            int chunk_size = std::max(1, nroll / (10 * nthread));
+            int chunk_size = std::max(1, nroll / (chunk_divisor * nthread));
             InterceptMjErrors(_unsafe_rollout_threaded)(
                 model_ptrs, data_ptrs, nroll, nstep, control_spec, state0_ptr,
                 warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
@@ -300,6 +303,7 @@ PYBIND11_MODULE(_rollout, pymodule) {
       py::arg("control")    = py::none(),
       py::arg("state")      = py::none(),
       py::arg("sensordata") = py::none(),
+      py::arg("chunk_divisor") = 10,
       py::doc(rollout_doc)
   );
 }

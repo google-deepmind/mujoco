@@ -35,6 +35,7 @@ def rollout(
     initial_warmstart: Optional[npt.ArrayLike] = None,
     state: Optional[npt.ArrayLike] = None,
     sensordata: Optional[npt.ArrayLike] = None,
+    chunk_divisor: int = 10,
 ):
   """Rolls out open-loop trajectories from initial states, get subsequent states and sensor values.
 
@@ -59,6 +60,8 @@ def rollout(
       (nroll x nstep x nstate)
     sensordata: Sensor data output array (optional).
       (nroll x nstep x nsensordata)
+    chunk_divisor: Determines threadpool chunk size according to
+                   chunk_size = max(1, nroll / (nthread * chunk_divisor)
 
   Returns:
     state:
@@ -85,6 +88,7 @@ def rollout(
         control,
         state,
         sensordata,
+        chunk_divisor,
     )
     return state, sensordata
 
@@ -198,6 +202,7 @@ def rollout(
       control,
       state,
       sensordata,
+      chunk_divisor,
   )
 
   # return outputs

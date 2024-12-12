@@ -9,6 +9,11 @@ Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).
 
+Python bindings
+^^^^^^^^^^^^^^^
+- :ref:`rollout<PyRollout>` can now accept sequences of MjData of length ``nthread``. If passed, :ref:`rollout<PyRollout>`
+  will automatically create a persistent threadpool and parallelize rollouts.
+
 Version 3.2.6 (Dec 2, 2024)
 ---------------------------
 
