@@ -1729,6 +1729,16 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   objtype = mjOBJ_TENDON;
   category = mjCAT_DYNAMIC;
   if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
+    // mark actuated tendons
+    int* tendon_actuated = mjSTACKALLOC(d, m->ntendon, int);
+    mju_zeroInt(tendon_actuated, m->ntendon);
+    for (int i=0; i < m->nu; i++) {
+      if (m->actuator_trntype[i] == mjTRN_TENDON) {
+        tendon_actuated[m->actuator_trnid[2*i]] = 1;
+      }
+    }
+
+    // draw tendons
     for (int i=0; i < m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
         // tendon has a deadband spring
@@ -1752,9 +1762,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
           mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
           m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-          (limitedspring || limitedconstraint)  &&    // either spring or constraint length limits
+          (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
           m->tendon_damping[i] == 0             &&    // no damping
-          m->tendon_frictionloss[i] == 0;             // no frictionloss
+          m->tendon_frictionloss[i] == 0        &&    // no frictionloss
+          tendon_actuated[i] == 0;                    // no actuator
 
         // conditions not met: draw straight lines
         if (!draw_catenary) {

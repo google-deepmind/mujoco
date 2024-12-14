@@ -4661,6 +4661,18 @@ A second form of wrapping is where the tendon is constrained to pass *through* a
 wrap around it. This is enabled automatically when a sidesite is specified and its position is inside the volume of
 the obstacle geom.
 
+.. youtube:: I2q7D0Vda-A
+   :width: 300px
+   :align: right
+
+**Visualization:** Tendon paths are visualized as in the image above, respecting the :ref:`width<tendon-spatial-width>`,
+:ref:`material<tendon-spatial-material>` and :ref:`rgba<tendon-spatial-rgba>` attributes below. A special kind of
+visualization is used for unactuated 2-point tendons with :ref:`range<tendon-spatial-range>` or
+:ref:`springlength<tendon-spatial-springlength>` of the form :at-val:`[0 X]`, with positive X. Such tendons act like a
+cable, applying force only when stretched. Therefore when not stretched, they are drawn as a catenary of
+length X, as in the clip on the right of `this example model
+<https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/catenary.xml>`__.
+
 .. _tendon-spatial-name:
 
 :at:`name`: :at-val:`string, optional`
