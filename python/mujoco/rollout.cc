@@ -32,7 +32,17 @@ namespace {
 
 namespace py = ::pybind11;
 
+using PyCArray = py::array_t<mjtNum, py::array::c_style>;
+
 // NOLINTBEGIN(whitespace/line_length)
+
+const auto rollout_init_doc = R"(
+Construct a rollout object containing a thread pool for parallel rollouts.
+
+  input arguments (optional):
+    nthread            integer, number of threads in pool
+                       if zero, this pool is not started and rollouts run on the calling thread
+)";
 
 const auto rollout_doc = R"(
 Roll out open-loop trajectories from initial states, get resulting states and sensor values.
@@ -162,32 +172,25 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll, 
 }
 
 // C-style threaded version of _unsafe_rollout
-static ThreadPool* pool = nullptr;
 void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData*>& d,
                               int nroll, int nstep, unsigned int control_spec,
                               const mjtNum* state0, const mjtNum* warmstart0,
                               const mjtNum* control, mjtNum* state, mjtNum* sensordata,
-                              int nthread, int chunk_size) {
+                              std::shared_ptr<ThreadPool> pool, int chunk_size) {
   int nfulljobs = nroll / chunk_size;
   int chunk_remainder = nroll % chunk_size;
   int njobs = (chunk_remainder > 0) ? nfulljobs + 1 : nfulljobs;
 
-  // if existing thread pool of the wrong size, delete
-  if (pool && pool->NumThreads() != nthread) {
-    delete pool;
-  }
+  // Reset the pool counter
+  pool->ResetCount();
 
-  // make threadpool if required
-  if (pool == nullptr) {
-    pool = new ThreadPool(nthread);
-  } else {
-    pool->ResetCount();
-  }
+  // use a raw self pointer for jobs run within the thread pool
+  ThreadPool* pool_raw = pool.get();
 
   // schedule all jobs of full (chunk) size
   for (int j = 0; j < nfulljobs; j++) {
     auto task = [=, &m, &d](void) {
-      int id = pool->WorkerId();
+      int id = pool_raw->WorkerId();
       _unsafe_rollout(m, d[id], j*chunk_size, (j+1)*chunk_size,
         nstep, control_spec, state0, warmstart0, control, state, sensordata);
     };
@@ -197,7 +200,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
   // schedule any remaining jobs of size < chunk_size
   if (chunk_remainder > 0) {
     auto task = [=, &m, &d](void) {
-      _unsafe_rollout(m, d[pool->WorkerId()], nfulljobs*chunk_size, nfulljobs*chunk_size+chunk_remainder,
+      _unsafe_rollout(m, d[pool_raw->WorkerId()], nfulljobs*chunk_size, nfulljobs*chunk_size+chunk_remainder,
         nstep, control_spec, state0, warmstart0, control, state, sensordata);
     };
     pool->Schedule(task);
@@ -230,91 +233,121 @@ mjtNum* get_array_ptr(std::optional<const py::array_t<mjtNum>> arg,
   return static_cast<mjtNum*>(info.ptr);
 }
 
+class Rollout {
+  public:
+    Rollout(int nthread) : nthread_(nthread) {
+      if (this->nthread_ > 0) {
+        this->pool_ = std::shared_ptr<ThreadPool>(
+          new ThreadPool(this->nthread_));
+      }
+    }
+
+    void rollout(py::list m, py::list d,
+                 int nstep, unsigned int control_spec,
+                 const PyCArray state0,
+                 std::optional<const PyCArray> warmstart0,
+                 std::optional<const PyCArray> control,
+                 std::optional<const PyCArray> state,
+                 std::optional<const PyCArray> sensordata,
+                 std::optional<int> chunk_size
+                 ) {
+      // get raw pointers
+      int nroll = state0.shape(0);
+      std::vector<const raw::MjModel*> model_ptrs(nroll);
+      for (int r = 0; r < nroll; r++) {
+        model_ptrs[r] = m[r].cast<const MjModelWrapper*>()->get();
+      }
+
+      // check length d and nthread are consistent
+      if (this->nthread_ == 0 && py::len(d) > 1) {
+        std::ostringstream msg;
+        msg << "More than one data instance passed but "
+            << "rollout is configured to run on main thread";
+        py::value_error(msg.str());
+      } else if (this->nthread_ != py::len(d)) {
+        std::ostringstream msg;
+        msg << "Length of data: " << py::len(d)
+            << " not equal to nthread: " <<  this->nthread_;
+        py::value_error(msg.str());
+      }
+
+      std::vector<raw::MjData*> data_ptrs(py::len(d));
+      for (int t = 0; t < py::len(d); t++) {
+        data_ptrs[t] = d[t].cast<MjDataWrapper*>()->get();
+      }
+
+      // check that some steps need to be taken, return if not
+      if (nstep < 1) {
+        return;
+      }
+
+      // get sizes
+      int nstate = mj_stateSize(model_ptrs[0], mjSTATE_FULLPHYSICS);
+      int ncontrol = mj_stateSize(model_ptrs[0], control_spec);
+
+      mjtNum* state0_ptr = get_array_ptr(state0, "state0", nroll, 1, nstate);
+      mjtNum* warmstart0_ptr = get_array_ptr(warmstart0, "warmstart0", nroll,
+                                             1, model_ptrs[0]->nv);
+      mjtNum* control_ptr = get_array_ptr(control, "control", nroll,
+                                          nstep, ncontrol);
+      mjtNum* state_ptr = get_array_ptr(state, "state", nroll, nstep, nstate);
+      mjtNum* sensordata_ptr = get_array_ptr(sensordata, "sensordata", nroll,
+                                             nstep, model_ptrs[0]->nsensordata);
+
+      // perform rollouts
+      {
+        // release the GIL
+        py::gil_scoped_release no_gil;
+
+        // call unsafe rollout function, multi or single threaded
+        if (this->nthread_ > 0 && nroll > 1) {
+          int chunk_size_final = 1;
+          if (!chunk_size.has_value()) {
+            chunk_size_final = std::max(1, nroll / (10 * this->nthread_));
+          } else {
+            chunk_size_final = *chunk_size;
+          }
+          InterceptMjErrors(_unsafe_rollout_threaded)(
+              model_ptrs, data_ptrs, nroll, nstep, control_spec, state0_ptr,
+              warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
+              this->pool_, chunk_size_final);
+        } else {
+          InterceptMjErrors(_unsafe_rollout)(
+              model_ptrs, data_ptrs[0], 0, nroll, nstep, control_spec, state0_ptr,
+              warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr);
+        }
+      }
+    }
+
+  private:
+    int nthread_;
+    std::shared_ptr<ThreadPool> pool_;
+};
+
 
 PYBIND11_MODULE(_rollout, pymodule) {
   namespace py = ::pybind11;
-  using PyCArray = py::array_t<mjtNum, py::array::c_style>;
 
-  // roll out open loop trajectories from multiple initial states
-  // get subsequent states and corresponding sensor values
-  pymodule.def(
-      "rollout",
-      [](py::list m, py::list d,
-         int nstep, unsigned int control_spec,
-         const PyCArray state0,
-         std::optional<const PyCArray> warmstart0,
-         std::optional<const PyCArray> control,
-         std::optional<const PyCArray> state,
-         std::optional<const PyCArray> sensordata,
-         std::optional<int> chunk_size
-         ) {
-        // get raw pointers
-        int nroll = state0.shape(0);
-        std::vector<const raw::MjModel*> model_ptrs(nroll);
-        for (int r = 0; r < nroll; r++) {
-          model_ptrs[r] = m[r].cast<const MjModelWrapper*>()->get();
-        }
-
-        int nthread = py::len(d);
-        std::vector<raw::MjData*> data_ptrs(nthread);
-        for (int t = 0; t < nthread; t++) {
-          data_ptrs[t] = d[t].cast<MjDataWrapper*>()->get();
-        }
-
-        // check that some steps need to be taken, return if not
-        if (nstep < 1) {
-          return;
-        }
-
-        // get sizes
-        int nstate = mj_stateSize(model_ptrs[0], mjSTATE_FULLPHYSICS);
-        int ncontrol = mj_stateSize(model_ptrs[0], control_spec);
-
-        mjtNum* state0_ptr = get_array_ptr(state0, "state0", nroll, 1, nstate);
-        mjtNum* warmstart0_ptr = get_array_ptr(warmstart0, "warmstart0", nroll,
-                                               1, model_ptrs[0]->nv);
-        mjtNum* control_ptr = get_array_ptr(control, "control", nroll,
-                                            nstep, ncontrol);
-        mjtNum* state_ptr = get_array_ptr(state, "state", nroll, nstep, nstate);
-        mjtNum* sensordata_ptr = get_array_ptr(sensordata, "sensordata", nroll,
-                                               nstep, model_ptrs[0]->nsensordata);
-
-        // perform rollouts
-        {
-          // release the GIL
-          py::gil_scoped_release no_gil;
-
-          // call unsafe rollout function, multi or single threaded
-          if (nthread > 1 && nroll > 1) {
-            int chunk_size_final = 1;
-            if (!chunk_size.has_value()) {
-              chunk_size_final = std::max(1, nroll / (10 * nthread));
-            } else {
-              chunk_size_final = *chunk_size;
-            }
-            InterceptMjErrors(_unsafe_rollout_threaded)(
-                model_ptrs, data_ptrs, nroll, nstep, control_spec, state0_ptr,
-                warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
-                nthread, chunk_size_final);
-          } else {
-            InterceptMjErrors(_unsafe_rollout)(
-                model_ptrs, data_ptrs[0], 0, nroll, nstep, control_spec, state0_ptr,
-                warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr);
-          }
-        }
-      },
-      py::arg("model"),
-      py::arg("data"),
-      py::arg("nstep"),
-      py::arg("control_spec"),
-      py::arg("state0"),
-      py::arg("warmstart0") = py::none(),
-      py::arg("control")    = py::none(),
-      py::arg("state")      = py::none(),
-      py::arg("sensordata") = py::none(),
-      py::arg("chunk_size") = py::none(),
-      py::doc(rollout_doc)
-  );
+  py::class_<Rollout>(pymodule, "Rollout")
+      .def(
+        py::init([](int nthread) {
+          return std::make_unique<Rollout>(nthread);
+        }),
+        py::doc(rollout_init_doc))
+      .def(
+        "rollout",
+        &Rollout::rollout,
+        py::arg("model"),
+        py::arg("data"),
+        py::arg("nstep"),
+        py::arg("control_spec"),
+        py::arg("state0"),
+        py::arg("warmstart0") = py::none(),
+        py::arg("control")    = py::none(),
+        py::arg("state")      = py::none(),
+        py::arg("sensordata") = py::none(),
+        py::arg("chunk_size") = py::none(),
+        py::doc(rollout_doc));
 }
 
 }  // namespace

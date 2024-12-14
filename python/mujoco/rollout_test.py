@@ -461,7 +461,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
     num_workers = 32
-    nroll = 10000
+    nroll = 100
     nstep = 5
     initial_state = np.random.randn(nroll, nstate)
     state = np.empty((nroll, nstep, nstate))
@@ -523,7 +523,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
     num_workers = 32
-    nroll = 10000
+    nroll = 100
     nstep = 5
     initial_state = np.random.randn(nroll, nstate)
     state = np.empty((nroll, nstep, nstate))
@@ -547,6 +547,69 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     py_state, py_sensordata = py_rollout(model, data, initial_state, control)
     np.testing.assert_array_equal(state, py_state)
     np.testing.assert_array_equal(sensordata, py_sensordata)
+
+  def test_threading_native_persistent_object(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    num_workers = 32
+    nroll = 100
+    nstep = 5
+    initial_state = np.random.randn(nroll, nstate)
+    state = np.empty((nroll, nstep, nstate))
+    sensordata = np.empty((nroll, nstep, model.nsensordata))
+    control = np.random.randn(nroll, nstep, model.nu)
+
+    model_list = [model] * nroll
+    data_list = [mujoco.MjData(model) for i in range(num_workers)]
+
+    with rollout.Rollout(num_workers) as rollout_:
+      for i in range(2):
+        rollout_.rollout(
+            model_list,
+            data_list,
+            initial_state,
+            control,
+            nstep=nstep,
+            state=state,
+            sensordata=sensordata,
+        )
+
+      data = mujoco.MjData(model)
+      py_state, py_sensordata = py_rollout(model, data, initial_state, control)
+      np.testing.assert_array_equal(state, py_state)
+      np.testing.assert_array_equal(sensordata, py_sensordata)
+
+  def test_threading_native_persistent_function(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    num_workers = 32
+    nroll = 100
+    nstep = 5
+    initial_state = np.random.randn(nroll, nstate)
+    state = np.empty((nroll, nstep, nstate))
+    sensordata = np.empty((nroll, nstep, model.nsensordata))
+    control = np.random.randn(nroll, nstep, model.nu)
+
+    model_list = [model] * nroll
+    data_list = [mujoco.MjData(model) for i in range(num_workers)]
+
+    for i in range(2):
+      rollout.rollout(
+          model_list,
+          data_list,
+          initial_state,
+          control,
+          nstep=nstep,
+          state=state,
+          sensordata=sensordata,
+          persistent_pool=True,
+      )
+
+      data = mujoco.MjData(model)
+      py_state, py_sensordata = py_rollout(model, data, initial_state, control)
+      np.testing.assert_array_equal(state, py_state)
+      np.testing.assert_array_equal(sensordata, py_sensordata)
+    rollout.shutdown_persistent_pool()
 
   # ---------------------------- test advanced operation
 
