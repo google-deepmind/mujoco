@@ -227,8 +227,13 @@ def _binding_code(field: ast_nodes.StructFieldDecl, key: str) -> str:
   if isinstance(field.type, ast_nodes.ValueType):
     return _value_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.AnonymousStructDecl):
+    code = ""
+    if field.name in ['headlight', 'rgba']:
+      for subfield in field.type.fields:
+        code += _binding_code(subfield, 'mjVisual'+field.name.title())
     field.type = ast_nodes.ValueType(name='mjVisual'+field.name.title())
-    return _value_binding_code(field.type, key, field.name)
+    code += _value_binding_code(field.type, key, field.name)
+    return code
   elif isinstance(field.type, ast_nodes.PointerType):
     return _ptr_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.ArrayType):
