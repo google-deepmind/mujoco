@@ -759,9 +759,11 @@ or
 
 .. code-block:: python
 
-  # pool shutdown on object deletion, interpreter shutdown, or call to rollout_.shutdown_pool
+  # pool shutdown on object deletion or call to rollout_.shutdown_pool
+  # to ensure clean shutdown of threads, call shutdown_pool before interpreter exit
   rollout_ = rollout.Rollout(nthread)
   rollout_.rollout(model, data, initial_state)
+  rollout_.shutdown_pool()
 
 Since the Global Interpreter Lock is released, this function can also be threaded using Python threads. However, this
 is less efficient than using native threads. See the ``test_threading`` function in

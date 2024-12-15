@@ -176,7 +176,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
                               int nroll, int nstep, unsigned int control_spec,
                               const mjtNum* state0, const mjtNum* warmstart0,
                               const mjtNum* control, mjtNum* state, mjtNum* sensordata,
-                              std::shared_ptr<ThreadPool> pool, int chunk_size) {
+                              std::shared_ptr<ThreadPool>& pool, int chunk_size) {
   int nfulljobs = nroll / chunk_size;
   int chunk_remainder = nroll % chunk_size;
   int njobs = (chunk_remainder > 0) ? nfulljobs + 1 : nfulljobs;

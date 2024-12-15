@@ -579,6 +579,24 @@ class MuJoCoRolloutTest(parameterized.TestCase):
       np.testing.assert_array_equal(state, py_state)
       np.testing.assert_array_equal(sensordata, py_sensordata)
 
+    rollout_ = rollout.Rollout(num_workers)
+    for i in range(2):
+      rollout_.rollout(
+          model_list,
+          data_list,
+          initial_state,
+          control,
+          nstep=nstep,
+          state=state,
+          sensordata=sensordata,
+      )
+
+      data = mujoco.MjData(model)
+      py_state, py_sensordata = py_rollout(model, data, initial_state, control)
+      np.testing.assert_array_equal(state, py_state)
+      np.testing.assert_array_equal(sensordata, py_sensordata)
+    rollout_.shutdown_pool()
+
   def test_threading_native_persistent_function(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)

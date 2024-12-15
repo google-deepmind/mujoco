@@ -33,7 +33,6 @@ class Rollout:
     """  # fmt: skip
     self.nthread = 0 if nthread is None else nthread
     self.rollout_ = _rollout.Rollout(self.nthread)
-    atexit.register(self.shutdown_pool)
 
   def __enter__(self):
     return self
