@@ -170,11 +170,12 @@ def _ptr_binding_code(
         return MjTypeVec<std::byte>(self.{fullvarname}->data(),
                                     self.{fullvarname}->size());
       }},
-    []({rawclassname}& self, py::object rhs) {{
+    []({rawclassname}& self, py::bytes& rhs) {{
         self.{fullvarname}->clear();
         self.{fullvarname}->reserve(py::len(rhs));
-        for (auto val : rhs) {{
-          self.{fullvarname}->push_back(py::cast<const std::byte>(val));
+        std::string_view rhs_view = py::cast<std::string_view>(rhs);
+        for (auto val : rhs_view) {{
+          self.{fullvarname}->push_back(static_cast<std::byte>(val));
         }}
     }}, py::return_value_policy::move);"""
   elif vartype == 'mjStringVec':

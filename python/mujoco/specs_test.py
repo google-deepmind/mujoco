@@ -891,6 +891,12 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(IndexError):
       material.textures[-1] = 'x'
 
+  def test_assign_texture(self):
+    spec = mujoco.MjSpec()
+    texture = spec.add_texture(name='texture', height=2, width=2)
+    texture.data = np.zeros((2, 2, 3), dtype=np.uint8).tobytes()
+    spec.compile()
+
   def test_attach_units(self):
     child = mujoco.MjSpec()
     parent = mujoco.MjSpec()
