@@ -562,7 +562,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     model_list = [model] * nroll
     data_list = [mujoco.MjData(model) for i in range(num_workers)]
 
-    with rollout.Rollout(num_workers) as rollout_:
+    with rollout.Rollout(nthread=num_workers) as rollout_:
       for i in range(2):
         rollout_.rollout(
             model_list,
@@ -579,7 +579,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
       np.testing.assert_array_equal(state, py_state)
       np.testing.assert_array_equal(sensordata, py_sensordata)
 
-    rollout_ = rollout.Rollout(num_workers)
+    rollout_ = rollout.Rollout(nthread=num_workers)
     for i in range(2):
       rollout_.rollout(
           model_list,
@@ -595,7 +595,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
       py_state, py_sensordata = py_rollout(model, data, initial_state, control)
       np.testing.assert_array_equal(state, py_state)
       np.testing.assert_array_equal(sensordata, py_sensordata)
-    rollout_.shutdown_pool()
+    rollout_.close()
 
   def test_threading_native_persistent_function(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)

@@ -24,7 +24,7 @@ import numpy as np
 from numpy import typing as npt
 
 class Rollout:
-  def __init__(self, nthread: int = None):
+  def __init__(self, *, nthread: int = None):
     """Construct a rollout object containing a thread pool for parallel rollouts.
 
     Args:
@@ -32,15 +32,15 @@ class Rollout:
         If zero, this pool is not started and rollouts run on the calling thread.
     """  # fmt: skip
     self.nthread = 0 if nthread is None else nthread
-    self.rollout_ = _rollout.Rollout(self.nthread)
+    self.rollout_ = _rollout.Rollout(nthread=self.nthread)
 
   def __enter__(self):
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
-    self.shutdown_pool()
+    self.close()
 
-  def shutdown_pool(self):
+  def close(self):
     del self.rollout_
     self.rollout_ = None
 
@@ -311,10 +311,10 @@ def rollout(
     global persistent_rollout
     # Create or restart persistent threadpool
     if persistent_rollout is None or persistent_rollout.nthread != nthread:
-      persistent_rollout = Rollout(nthread)
+      persistent_rollout = Rollout(nthread=nthread)
     rollout = persistent_rollout
   else:
-    rollout = Rollout(nthread)
+    rollout = Rollout(nthread=nthread)
 
   ret = rollout.rollout(
     model,
@@ -328,6 +328,9 @@ def rollout(
     state=state,
     sensordata=sensordata,
     chunk_size=chunk_size)
+
+  if not persistent_pool:
+    rollout.close()
 
   # return outputs
   return ret

@@ -176,7 +176,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
                               int nroll, int nstep, unsigned int control_spec,
                               const mjtNum* state0, const mjtNum* warmstart0,
                               const mjtNum* control, mjtNum* state, mjtNum* sensordata,
-                              std::shared_ptr<ThreadPool>& pool, int chunk_size) {
+                              ThreadPool* pool, int chunk_size) {
   int nfulljobs = nroll / chunk_size;
   int chunk_remainder = nroll % chunk_size;
   int njobs = (chunk_remainder > 0) ? nfulljobs + 1 : nfulljobs;
@@ -184,13 +184,10 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
   // Reset the pool counter
   pool->ResetCount();
 
-  // use a raw self pointer for jobs run within the thread pool
-  ThreadPool* pool_raw = pool.get();
-
   // schedule all jobs of full (chunk) size
   for (int j = 0; j < nfulljobs; j++) {
     auto task = [=, &m, &d](void) {
-      int id = pool_raw->WorkerId();
+      int id = pool->WorkerId();
       _unsafe_rollout(m, d[id], j*chunk_size, (j+1)*chunk_size,
         nstep, control_spec, state0, warmstart0, control, state, sensordata);
     };
@@ -200,7 +197,7 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m, std::vector<mjData
   // schedule any remaining jobs of size < chunk_size
   if (chunk_remainder > 0) {
     auto task = [=, &m, &d](void) {
-      _unsafe_rollout(m, d[pool_raw->WorkerId()], nfulljobs*chunk_size, nfulljobs*chunk_size+chunk_remainder,
+      _unsafe_rollout(m, d[pool->WorkerId()], nfulljobs*chunk_size, nfulljobs*chunk_size+chunk_remainder,
         nstep, control_spec, state0, warmstart0, control, state, sensordata);
     };
     pool->Schedule(task);
@@ -237,8 +234,7 @@ class Rollout {
   public:
     Rollout(int nthread) : nthread_(nthread) {
       if (this->nthread_ > 0) {
-        this->pool_ = std::shared_ptr<ThreadPool>(
-          new ThreadPool(this->nthread_));
+        this->pool_ = std::make_shared<ThreadPool>(this->nthread_);
       }
     }
 
@@ -310,7 +306,7 @@ class Rollout {
           InterceptMjErrors(_unsafe_rollout_threaded)(
               model_ptrs, data_ptrs, nroll, nstep, control_spec, state0_ptr,
               warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
-              this->pool_, chunk_size_final);
+              this->pool_.get(), chunk_size_final);
         } else {
           InterceptMjErrors(_unsafe_rollout)(
               model_ptrs, data_ptrs[0], 0, nroll, nstep, control_spec, state0_ptr,
@@ -333,6 +329,8 @@ PYBIND11_MODULE(_rollout, pymodule) {
         py::init([](int nthread) {
           return std::make_unique<Rollout>(nthread);
         }),
+        py::kw_only(),
+        py::arg("nthread"),
         py::doc(rollout_init_doc))
       .def(
         "rollout",

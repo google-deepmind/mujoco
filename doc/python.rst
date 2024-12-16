@@ -711,7 +711,7 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 rollout
 -------
 
-``mujoco.rollout`` and ``mujoco.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python module
+``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python module
 via pybind11. It is implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
 and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module
 performs a common functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory
@@ -752,18 +752,18 @@ To use multiple thread pools from multiple threads, use ``Rollout`` objects. The
 .. code-block:: python
 
    # Pool shutdown upon exiting block
-   with rollout.Rollout(nthread) as rollout_:
+   with rollout.Rollout(nthread=nthread) as rollout_:
     rollout_.rollout(model, data, initial_state)
 
 or
 
 .. code-block:: python
 
-  # pool shutdown on object deletion or call to rollout_.shutdown_pool
-  # to ensure clean shutdown of threads, call shutdown_pool before interpreter exit
-  rollout_ = rollout.Rollout(nthread)
+  # pool shutdown on object deletion or call to rollout_.close
+  # to ensure clean shutdown of threads, call close before interpreter exit
+  rollout_ = rollout.Rollout(nthread=nthread)
   rollout_.rollout(model, data, initial_state)
-  rollout_.shutdown_pool()
+  rollout_.close()
 
 Since the Global Interpreter Lock is released, this function can also be threaded using Python threads. However, this
 is less efficient than using native threads. See the ``test_threading`` function in
