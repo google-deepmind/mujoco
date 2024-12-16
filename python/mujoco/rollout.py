@@ -243,6 +243,8 @@ def shutdown_persistent_pool():
   This is called automatically interpreter shutdown, but can also be called manually.
   """  # fmt: skip
   global persistent_rollout
+  if persistent_rollout is not None:
+    persistent_rollout.close()
   persistent_rollout = None
 atexit.register(shutdown_persistent_pool)
 
@@ -308,29 +310,33 @@ def rollout(
 
   # Use a persistent thread pool if requested
   if persistent_pool:
-    global persistent_rollout
     # Create or restart persistent threadpool
-    if persistent_rollout is None or persistent_rollout.nthread != nthread:
+    global persistent_rollout
+    if persistent_rollout is None:
+      persistent_rollout = Rollout(nthread=nthread)
+    if persistent_rollout.nthread != nthread:
+      persistent_rollout.close()
       persistent_rollout = Rollout(nthread=nthread)
     rollout = persistent_rollout
   else:
     rollout = Rollout(nthread=nthread)
 
-  ret = rollout.rollout(
-    model,
-    data,
-    initial_state,
-    control,
-    control_spec=control_spec,
-    skip_checks=skip_checks,
-    nstep=nstep,
-    initial_warmstart=initial_warmstart,
-    state=state,
-    sensordata=sensordata,
-    chunk_size=chunk_size)
-
-  if not persistent_pool:
-    rollout.close()
+  try:
+    ret = rollout.rollout(
+      model,
+      data,
+      initial_state,
+      control,
+      control_spec=control_spec,
+      skip_checks=skip_checks,
+      nstep=nstep,
+      initial_warmstart=initial_warmstart,
+      state=state,
+      sensordata=sensordata,
+      chunk_size=chunk_size)
+  finally:
+    if not persistent_pool:
+      rollout.close()
 
   # return outputs
   return ret
