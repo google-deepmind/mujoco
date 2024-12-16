@@ -322,7 +322,7 @@ def rollout(
     rollout = Rollout(nthread=nthread)
 
   try:
-    ret = rollout.rollout(
+    return rollout.rollout(
       model,
       data,
       initial_state,
@@ -337,9 +337,6 @@ def rollout(
   finally:
     if not persistent_pool:
       rollout.close()
-
-  # return outputs
-  return ret
 
 def _check_must_be_numeric(**kwargs):
   for key, value in kwargs.items():
