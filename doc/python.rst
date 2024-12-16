@@ -711,18 +711,20 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 rollout
 -------
 
-``mujoco.rollout`` shows how to add additional C/C++ functionality, exposed as a Python module via pybind11. It is
-implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
+``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python module
+via pybind11. It is implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
 and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module
 performs a common functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory
 (i.e., calling :ref:`mj_step` in a loop), given an intial state and sequence of controls, and returning subsequent
-states and sensor values. The basic usage form is
+states and sensor values. The rollouts are run in parallel with an internally managed thread pool if multiple MjData instances
+(one per thread) are passed as an argument. The basic usage form is
 
 .. code-block:: python
 
    state, sensordata = rollout.rollout(model, data, initial_state, control)
 
 ``model`` is either a single instance of MjModel or a sequence of compatible MjModel of length ``nroll``.
+``data`` is either a single instance of MjData or a sequence of compatible MjData of length ``nthread``.
 ``initial_state`` is an ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
 ``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
 :ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are
@@ -732,13 +734,41 @@ specified by passing an optional ``control_spec`` bitflag.
 If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
 Therefore, non-increasing time values can be used to detect diverged rollouts.
 
-The ``rollout`` function is designed to be completely stateless, so all inputs of the stepping pipeline are set and any
+The ``rollout`` function is designed to be computationally stateless, so all inputs of the stepping pipeline are set and any
 values already present in the given ``MjData`` instance will have no effect on the output.
 
-Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
-the ``test_threading`` function in
+By default ``rollout.rollout`` creates a new thread pool every call if ``len(data) > 1``. To reuse the thread pool
+over multiple calls use the ``persistent_pool`` argument. ``rollout.rollout`` is not thread safe when using
+a persistent pool. The basic usage form is
+
+.. code-block:: python
+
+   state, sensordata = rollout.rollout(model, data, initial_state, persistent_pool=True)
+
+The pool is shutdown on interpreter shutdown or by a call to ``rollout.shutdown_persistent_pool``.
+
+To use multiple thread pools from multiple threads, use ``Rollout`` objects. The basic usage form is
+
+.. code-block:: python
+
+   # Pool shutdown upon exiting block.
+   with rollout.Rollout(nthread=nthread) as rollout_:
+    rollout_.rollout(model, data, initial_state)
+
+or
+
+.. code-block:: python
+
+   # Pool shutdown on object deletion or call to rollout_.close().
+   # To ensure clean shutdown of threads, call close() before interpreter exit.
+   rollout_ = rollout.Rollout(nthread=nthread)
+   rollout_.rollout(model, data, initial_state)
+   rollout_.close()
+
+Since the Global Interpreter Lock is released, this function can also be threaded using Python threads. However, this
+is less efficient than using native threads. See the ``test_threading`` function in
 `rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`__ for an example
-of threaded operation (and more generally for usage examples).
+of threaded operation (and for more general usage examples).
 
 .. _PyMinimize:
 
