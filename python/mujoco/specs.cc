@@ -983,10 +983,10 @@ PYBIND11_MODULE(_specs, m) {
                 [](raw::MjsPlugin& self) { mjs_delete(self.element); });
   // ============================= MJVISUAL ====================================
   mjVisual.def_property(
-      "global_", 
+      "global_",
       [](raw::MjVisual& self) -> raw::MjVisualGlobal& { return self.global; },
-      [](raw::MjVisual& self, raw::MjVisualGlobal& value) { 
-        self.global = value; 
+      [](raw::MjVisual& self, raw::MjVisualGlobal& value) {
+        self.global = value;
       });
 
 #include "specs.cc.inc"
