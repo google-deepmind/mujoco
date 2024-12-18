@@ -9,7 +9,7 @@ Python bindings
 ^^^^^^^^^^^^^^^
 - :ref:`rollout<PyRollout>` now features native multi-threading. If a sequence of ``MjData`` instances
   of length ``nthread`` is passed in, ``rollout`` will automatically create a thread pool and parallelize
-  the computation. The thread pool can be resused across calls, but then the function cannot be called simultaneously
+  the computation. The thread pool can be reused across calls, but then the function cannot be called simultaneously
   from multiple threads. To run multiple threaded rollouts simultaneously, use the new class ``Rollout`` which
   encapsulates the thread pool. Contribution by :github:user:`aftersomemath`.
 
