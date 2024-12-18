@@ -1,0 +1,107 @@
+load("@pip_deps//:requirements.bzl", "requirement")
+
+# This genrule is non-hermetic and uses the system-installed clang.
+genrule(
+    name = "_genrule_mujoco.h.json",
+    srcs = ["//:mujoco_headers"],
+    outs = ["mujoco.h.json"],
+    cmd = """
+    CLANG=$$(which clang)
+    CLANG_INCLUDE=$$($${CLANG} --print-resource-dir)/include
+    MUJOCO_H=$$(find $(locations //:mujoco_headers) -name mujoco.h)
+    MUJOCO_INCLUDE=$$(dirname $$(dirname $${MUJOCO_H}))
+    $${CLANG} \
+        -isystem$${CLANG_INCLUDE} \
+        -I$${PWD} \
+        -I$${MUJOCO_INCLUDE} \
+        -Xclang -ast-dump=json -fsyntax-only -fparse-all-comments -x c \
+        $${MUJOCO_H} > $@
+    """,
+)
+
+py_binary(
+    name = "generate_enums",
+    srcs = ["generate_enums.py"],
+    deps = [
+        ":formatter",
+        "//introspect:ast_nodes",
+        requirement("absl-py"),
+        "@abseil-cpp//absl/flags:flag",
+    ],
+)
+
+genrule(
+    name = "_genrule_enums.py",
+    srcs = [
+        "mujoco.h.json",
+        "//:mujoco_headers",
+    ],
+    outs = ["enums.py"],
+    cmd = """
+    MUJOCO_H=$$(find $(locations //:mujoco_headers) -name mujoco.h)
+    $(location :generate_enums) \
+        --json_path=$(location mujoco.h.json) > $@
+    """,
+    tools = [":generate_enums"],
+)
+
+py_binary(
+    name = "generate_functions",
+    srcs = ["generate_functions.py"],
+    deps = [
+        ":formatter",
+        "//introspect:ast_nodes",
+        "//introspect:type_parsing",
+        requirement("absl-py"),
+        "@abseil-cpp//absl/flags:flag",
+    ],
+)
+
+genrule(
+    name = "_genrule_functions.py",
+    srcs = [
+        "mujoco.h.json",
+        "//:mujoco_headers",
+    ],
+    outs = ["functions.py"],
+    cmd = """
+    MUJOCO_H=$$(find $(locations //:mujoco_headers) -name mujoco.h)
+    $(location :generate_functions) \
+        --header_path=$${MUJOCO_H} \
+        --json_path=$(location mujoco.h.json) > $@
+    """,
+    tools = [":generate_functions"],
+)
+
+py_binary(
+    name = "generate_structs",
+    srcs = ["generate_structs.py"],
+    deps = [
+        ":formatter",
+        "//introspect:ast_nodes",
+        "//introspect:type_parsing",
+        requirement("absl-py"),
+        "@abseil-cpp//absl/flags:flag",
+    ],
+)
+
+genrule(
+    name = "_genrule_structs.py",
+    srcs = [
+        "mujoco.h.json",
+        "//:mujoco_headers",
+    ],
+    outs = ["structs.py"],
+    cmd = """
+    MUJOCO_H=$$(find $(locations //:mujoco_headers) -name mujoco.h)
+    $(location :generate_structs) \
+        --json_path=$(location mujoco.h.json) > $@
+    """,
+    tools = [":generate_structs"],
+)
+
+py_library(
+    name = "formatter",
+    srcs = ["formatter.py"],
+    imports = ["."],
+)
