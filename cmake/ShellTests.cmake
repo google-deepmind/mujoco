@@ -13,6 +13,21 @@
 # limitations under the License.
 
 function(add_mujoco_shell_test TEST_NAME TARGET_BINARY)
+  set(options)
+  set(oneValueArgs)
+  set(multiValueArgs TAGS)
+  cmake_parse_arguments(
+    _ARGS
+    "${options}"
+    "${oneValueArgs}"
+    "${multiValueArgs}"
+    ${ARGN}
+  )
+  # If TAGS include nofloat32 and MUJOCO_USE_SINGLE_PRECISION is enabled,
+  # we do not compile or add the tests
+  if("nofloat32" IN_LIST _ARGS_TAGS AND MUJOCO_USE_SINGLE_PRECISION)
+    return()
+  endif()
   find_program(BASH_PROGRAM bash)
   if(BASH_PROGRAM)
     # Set up the test directory
