@@ -1,0 +1,57 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+write_file(
+    name = "config_h",
+    out = "src/ccd/config.h",
+    content = ["""
+#ifndef __CCD_CONFIG_H__
+#define __CCD_CONFIG_H__
+
+/* #undef CCD_SINGLE */
+#define CCD_DOUBLE
+
+#endif /* __CCD_CONFIG_H__ */
+    """],
+)
+
+cc_library(
+    name = "libccd",
+    srcs = [
+        "src/alloc.h",
+        "src/ccd.c",
+        "src/dbg.h",
+        "src/list.h",
+        "src/mpr.c",
+        "src/polytope.c",
+        "src/polytope.h",
+        "src/simplex.h",
+        "src/support.c",
+        "src/support.h",
+        "src/vec3.c",
+    ],
+    hdrs = [
+        "src/ccd/ccd.h",
+        "src/ccd/ccd_export.h",
+        "src/ccd/compiler.h",
+        "src/ccd/quat.h",
+        "src/ccd/vec3.h",
+        ":config_h",
+    ],
+    local_defines = [
+        "CCD_STATIC_DEFINE",
+    ],
+    includes = [
+        "src",
+    ],
+    data = [":license_filegroup"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        "BSD-LICENSE",
+    ],
+    tags = ["license_filegroup"],
+)

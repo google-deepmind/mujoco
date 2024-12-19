@@ -1,0 +1,31 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+py_library(
+    name = "ast_nodes",
+    srcs = ["ast_nodes.py"],
+    imports = [".."],
+)
+
+py_library(
+    name = "type_parsing",
+    srcs = ["type_parsing.py"],
+    deps = [":ast_nodes"],
+)
+
+py_library(
+    name = "enums",
+    srcs = ["enums.py"],
+    deps = [":ast_nodes"],
+)
+
+py_library(
+    name = "functions",
+    srcs = ["functions.py"],
+    deps = [":ast_nodes"],
+)
+
+py_library(
+    name = "structs",
+    srcs = ["structs.py"],
+    deps = [":ast_nodes"],
+)
