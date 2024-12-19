@@ -666,11 +666,13 @@ class Model(PyTreeNode):
     light_bodyid: id of light's body                          (nlight,)
     light_targetbodyid: id of targeted body; -1: none         (nlight,)
     light_directional: directional light                      (nlight,)
+    light_castshadow: does light cast shadows                 (nlight,)
     light_pos: position rel. to body frame                    (nlight, 3)
     light_dir: direction rel. to body frame                   (nlight, 3)
     light_poscom0: global position rel. to sub-com in qpos0   (nlight, 3)
     light_pos0: global position rel. to body in qpos0         (nlight, 3)
     light_dir0: global direction in qpos0                     (nlight, 3)
+    light_cutoff: OpenGL cutoff                               (nlight,)
     flex_contype: flex contact type                           (nflex,)
     flex_conaffinity: flex contact affinity                   (nflex,)
     flex_condim: contact dimensionality (1, 3, 4, 6)          (nflex,)
@@ -879,7 +881,7 @@ class Model(PyTreeNode):
   nB: int  # pylint:disable=invalid-name
   nC: int  # pylint:disable=invalid-name
   nD: int  # pylint:disable=invalid-name
-  nJmom: int
+  nJmom: int  # pylint:disable=invalid-name
   ntree: int = _restricted_to('mujoco')
   ngravcomp: int
   nuserdata: int
@@ -993,12 +995,14 @@ class Model(PyTreeNode):
   light_mode: np.ndarray
   light_bodyid: np.ndarray = _restricted_to('mujoco')
   light_targetbodyid: np.ndarray = _restricted_to('mujoco')
-  light_directional: np.ndarray
+  light_directional: jax.Array
+  light_castshadow: jax.Array
   light_pos: jax.Array
   light_dir: jax.Array
   light_poscom0: np.ndarray = _restricted_to('mujoco')
   light_pos0: np.ndarray
   light_dir0: np.ndarray
+  light_cutoff: jax.Array
   flex_contype: np.ndarray = _restricted_to('mujoco')
   flex_conaffinity: np.ndarray = _restricted_to('mujoco')
   flex_condim: np.ndarray = _restricted_to('mujoco')
