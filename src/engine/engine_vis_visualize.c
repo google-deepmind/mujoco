@@ -1730,6 +1730,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   category = mjCAT_DYNAMIC;
   if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
     // mark actuated tendons
+    mj_markStack(d);
     int* tendon_actuated = mjSTACKALLOC(d, m->ntendon, int);
     mju_zeroInt(tendon_actuated, m->ntendon);
     for (int i=0; i < m->nu; i++) {
@@ -1827,7 +1828,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           int ncatenary = m->vis.quality.numslices + 1;
 
           // allocate catenary
-          mj_markStack(d);
           mjtNum* catenary = mjSTACKALLOC(d, 3*ncatenary, mjtNum);
 
           // points along catenary path
@@ -1852,10 +1852,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
             FINISH
           }
-          mj_freeStack(d);
         }
       }
     }
+    mj_freeStack(d);
   }
 
   // slider-crank
