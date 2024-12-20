@@ -1,8 +1,8 @@
-licenses(["notice"])
+load("@mujoco//tools:def.bzl", "mj_cc_library")
 
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "glad",
     srcs = [
         "glad/glad.c",
@@ -10,7 +10,6 @@ cc_library(
     ],
     hdrs = ["glad/glad.h"],
     copts = [
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
         "-Isrc",
     ],
@@ -19,7 +18,7 @@ cc_library(
     deps = ["//src/engine:engine_util_errmem"],
 )
 
-cc_library(
+mj_cc_library(
     name = "render",
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
@@ -31,7 +30,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "render_context",
     srcs = ["render_context.c"],
     hdrs = ["render_context.h"],
@@ -49,7 +48,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "render_gl2",
     srcs = ["render_gl2.c"],
     hdrs = ["render_gl2.h"],
@@ -64,7 +63,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "render_gl3",
     srcs = ["render_gl3.c"],
     hdrs = ["render_gl3.h"],
@@ -88,7 +87,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "render_util",
     srcs = ["render_util.c"],
     hdrs = ["render_util.h"],

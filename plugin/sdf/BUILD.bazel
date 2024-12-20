@@ -1,6 +1,8 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "sdf_impl",
     srcs = [
         "sdf.cc",
@@ -8,15 +10,13 @@ cc_library(
     hdrs = [
         "sdf.h",
     ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
     deps = [
         "//:mujoco_hdrs",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "torus",
     srcs = [
         "torus.cc",
@@ -24,16 +24,14 @@ cc_library(
     hdrs = [
         "torus.h",
     ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
     deps = [
         ":sdf_impl",
         "//:mujoco_hdrs",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "bolt",
     srcs = [
         "bolt.cc",
@@ -41,16 +39,14 @@ cc_library(
     hdrs = [
         "bolt.h",
     ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
     deps = [
         ":sdf_impl",
         "//:mujoco_hdrs",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "bowl",
     srcs = [
         "bowl.cc",
@@ -58,16 +54,14 @@ cc_library(
     hdrs = [
         "bowl.h",
     ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
     deps = [
         ":sdf_impl",
         "//:mujoco_hdrs",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "nut",
     srcs = [
         "nut.cc",
@@ -75,16 +69,14 @@ cc_library(
     hdrs = [
         "nut.h",
     ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
     deps = [
         ":sdf_impl",
         "//:mujoco_hdrs",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "gear",
     srcs = [
         "gear.cc",
@@ -92,16 +84,14 @@ cc_library(
     hdrs = [
         "gear.h",
     ],
-    copts = [
-        "-Wno-sign-compare",
-    ],
     deps = [
         ":sdf_impl",
         "//:mujoco_hdrs",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "sdflib",
     srcs = [
         "sdflib.cc",
@@ -114,9 +104,10 @@ cc_library(
         "//:mujoco_hdrs",
         "@SdfLib",
     ],
+    alwayslink = True,
 )
 
-cc_library(
+mj_cc_library(
     name = "register",
     srcs = [
         "register.cc",

@@ -1,5 +1,6 @@
 load("@mujoco//tools:symlink_files.bzl", "symlink_files")
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+load("@mujoco//tools:def.bzl", "mj_cc_library")
 
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
@@ -11,7 +12,7 @@ filegroup(
     tags = ["license_filegroup"],
 )
 
-cc_library(
+mj_cc_library(
     name = "mujoco_hdrs",
     hdrs = [":mujoco_headers"],
     includes = [
@@ -21,9 +22,8 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-cc_library(
+mj_cc_library(
     name = "_core",
-    linkopts = ["-Wl,--gc-sections"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//src/engine",
@@ -32,9 +32,8 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "_graphics_native",
-    linkopts = ["-Wl,--gc-sections"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//src/render",
@@ -63,7 +62,7 @@ filegroup(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "mujoco",
     hdrs = [":mujoco_headers"],
     data = [
@@ -73,7 +72,6 @@ cc_library(
         "include",
     ],
     target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//visibility:public"],
     deps = [
         ":_core",
         ":_graphics_native",
@@ -82,7 +80,7 @@ cc_library(
 
 cc_shared_library(
     name = "mujoco_shared",
-    shared_lib_name = "libmujoco.so.3.2.2",
+    shared_lib_name = "libmujoco.so",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [

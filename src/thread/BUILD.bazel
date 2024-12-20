@@ -1,15 +1,14 @@
-# Threading library for MuJoCo.
-licenses(["notice"])
+load("@mujoco//tools:def.bzl", "mj_cc_library")
 
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "thread_queue",
     hdrs = ["thread_queue.h"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-cc_library(
+mj_cc_library(
     name = "thread_task",
     srcs = ["thread_task.cc"],
     hdrs = ["thread_task.h"],
@@ -20,12 +19,11 @@ cc_library(
     deps = ["//:mujoco_hdrs"],
 )
 
-cc_library(
+mj_cc_library(
     name = "thread_pool",
     srcs = ["thread_pool.cc"],
     hdrs = ["thread_pool.h"],
     copts = [
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
         "-Isrc",
     ],

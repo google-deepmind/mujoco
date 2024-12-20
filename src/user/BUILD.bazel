@@ -1,14 +1,14 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "user_flexcomp",
     srcs = ["user_flexcomp.cc"],
     hdrs = ["user_flexcomp.h"],
     copts = [
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
         "-Wno-type-limits",
-        "-Wno-sign-compare",
         "-fexceptions",
         "-Isrc",
     ],
@@ -25,14 +25,12 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "user_composite",
     srcs = ["user_composite.cc"],
     hdrs = ["user_composite.h"],
     copts = [
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
-        "-Wno-sign-compare",
         "-fexceptions",
         "-Isrc",
     ],
@@ -49,7 +47,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "user_model",
     srcs = [
         "user_api.cc",
@@ -64,18 +62,11 @@ cc_library(
         "user_objects.h",
     ],
     copts = [
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
-        "-Wno-sign-compare",
         "-fexceptions",
         "-Isrc",
         "-Iexternal/qhull/src/libqhull_r",
-    ] + select({
-        "//tools:gcc": [
-            "-Wno-maybe-uninitialized",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     features = ["-use_header_modules"],
     local_defines = [
         "_GNU_SOURCE",
@@ -103,12 +94,11 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "user_util",
     srcs = ["user_util.cc"],
     hdrs = ["user_util.h"],
     copts = [
-        "-Wno-sign-compare",
         "-Isrc",
     ],
     target_compatible_with = ["@platforms//os:linux"],
@@ -118,7 +108,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "user_cache",
     srcs = ["user_cache.cc"],
     hdrs = ["user_cache.h"],
@@ -132,7 +122,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "user_resource",
     srcs = ["user_resource.cc"],
     hdrs = ["user_resource.h"],
@@ -150,7 +140,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "user_vfs",
     srcs = ["user_vfs.cc"],
     hdrs = ["user_vfs.h"],

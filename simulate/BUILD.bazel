@@ -1,6 +1,8 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "platform_ui_adapter",
     srcs = [
         "glfw_adapter.cc",
@@ -23,7 +25,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "simulate_lib",
     srcs = [
         "array_safety.h",
@@ -31,9 +33,6 @@ cc_library(
     ],
     hdrs = [
         "simulate.h",
-    ],
-    copts = [
-        "-Wno-sign-compare",
     ],
     data = [
         "//:license_filegroup",
@@ -49,9 +48,6 @@ cc_binary(
     name = "main",
     srcs = [
         "main.cc",
-    ],
-    copts = [
-        "-Wno-sign-compare",
     ],
     data = [
         "//:license_filegroup",

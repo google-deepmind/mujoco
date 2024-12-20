@@ -1,6 +1,8 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "touch_grid",
     srcs = [
         "sensor.cc",

@@ -9,8 +9,10 @@ cc_test(
         "-Wno-sign-compare",
     ],
     deps = [
+        "//:mujoco",
         "//src/engine:engine_util_container",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],
+    linkstatic=True,
 )
