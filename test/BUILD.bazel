@@ -5,11 +5,11 @@ cc_library(
     testonly = True,
     srcs = ["fixture.cc"],
     hdrs = ["fixture.h"],
-    copts = [
-        "-Wno-sign-compare",
+    implementation_deps = [
+        "//:mujoco",
     ],
     deps = [
-        "//:mujoco",
+        "//:mujoco_hdrs",
         "//plugin/actuator:register",
         "//plugin/elasticity:register",
         "//plugin/sdf:register",
@@ -30,8 +30,10 @@ cc_test(
     srcs = ["fixture_test.cc"],
     deps = [
         ":fixture",
+        "//:mujoco",
         "@googletest//:gtest_main",
     ],
+    linkstatic=True,
 )
 
 cc_test(
@@ -40,8 +42,10 @@ cc_test(
     srcs = ["header_test.cc"],
     deps = [
         ":fixture",
+        "//:mujoco",
         "@googletest//:gtest_main",
     ],
+    linkstatic=True,
 )
 
 cc_test(
@@ -53,6 +57,8 @@ cc_test(
     ],
     deps = [
         ":fixture",
+        "//:mujoco",
         "@googletest//:gtest_main",
     ],
+    linkstatic=True,
 )

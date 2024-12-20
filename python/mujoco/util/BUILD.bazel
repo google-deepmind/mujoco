@@ -1,6 +1,8 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "array_traits",
     hdrs = ["array_traits.h"],
     deps = [
@@ -9,17 +11,17 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "crossplatform",
     hdrs = ["crossplatform.h"],
 )
 
-cc_library(
+mj_cc_library(
     name = "func_traits",
     hdrs = ["func_traits.h"],
 )
 
-cc_library(
+mj_cc_library(
     name = "func_wrap",
     hdrs = ["func_wrap.h"],
     deps = [
@@ -30,7 +32,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "tuple_tools",
     hdrs = ["tuple_tools.h"],
     deps = [

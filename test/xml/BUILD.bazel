@@ -34,4 +34,5 @@ cc_test(
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest_main",
     ],
+    linkstatic=True,
 )

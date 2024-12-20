@@ -1,6 +1,8 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
-cc_library(
+mj_cc_library(
     name = "ui_main",
     srcs = ["ui_main.c"],
     hdrs = ["ui_main.h"],

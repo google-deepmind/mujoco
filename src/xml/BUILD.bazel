@@ -1,8 +1,10 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
 exports_files(["xml_native_reader.cc"])
 
-cc_library(
+mj_cc_library(
     name = "xml",
     srcs = ["xml.cc"],
     hdrs = ["xml.h"],
@@ -27,19 +29,13 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_api",
     srcs = ["xml_api.cc"],
     hdrs = ["xml_api.h"],
     copts = [
-        "-Wno-sign-compare",
         "-Isrc",
-    ] + select({
-        "//tools:gcc": [
-            "-Wno-maybe-uninitialized",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     features = ["-use_header_modules"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
@@ -53,7 +49,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_base",
     srcs = ["xml_base.cc"],
     hdrs = ["xml_base.h"],
@@ -70,13 +66,11 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_native_reader",
     srcs = ["xml_native_reader.cc"],
     hdrs = ["xml_native_reader.h"],
     copts = [
-        "-Wno-sign-compare",
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
         "-fexceptions",
         "-Isrc",
@@ -98,13 +92,11 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_native_writer",
     srcs = ["xml_native_writer.cc"],
     hdrs = ["xml_native_writer.h"],
     copts = [
-        "-Wno-sign-compare",
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
         "-fexceptions",
         "-Isrc",
@@ -125,12 +117,11 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_urdf",
     srcs = ["xml_urdf.cc"],
     hdrs = ["xml_urdf.h"],
     copts = [
-        "-Wno-sign-compare",
         "-fexceptions",
         "-Isrc",
     ],
@@ -147,13 +138,11 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_util",
     srcs = ["xml_util.cc"],
     hdrs = ["xml_util.h"],
     copts = [
-        "-Wno-sign-compare",
-        "-Wno-unknown-pragmas",
         "-Wno-error=unknown-pragmas",
         "-fexceptions",
         "-Isrc",
@@ -171,7 +160,7 @@ cc_library(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "xml_numeric_format",
     srcs = ["xml_numeric_format.cc"],
     hdrs = ["xml_numeric_format.h"],

@@ -3,6 +3,7 @@ load("//devtools/bbcp/builddefs:build_defs.bzl", "generated_file")
 load("//devtools/python/blaze:pybind.bzl", "pybind_extension", "pybind_library")
 load("@pip_deps//:requirements.bzl", "requirement")
 load("@mujoco//tools:symlink_files.bzl", "symlink_files")
+load("@mujoco//tools:def.bzl", "mj_cc_library")
 
 package(default_visibility = ["@mujoco//:__subpackages__"])
 
@@ -50,7 +51,7 @@ generated_file(
     wrapped_target = ":_genrule_enum_traits.h",
 )
 
-cc_library(
+mj_cc_library(
     name = "mujoco_private_api_header",
     hdrs = ["private.h"],
     deps = ["//:mujoco_hdrs"],
@@ -85,7 +86,7 @@ pybind_extension(
     ],
 )
 
-cc_library(
+mj_cc_library(
     name = "enum_traits",
     hdrs = ["enum_traits.h"],
     includes = ["."],
@@ -118,7 +119,7 @@ generated_file(
     wrapped_target = ":_genrule_function_traits.h",
 )
 
-cc_library(
+mj_cc_library(
     name = "function_traits",
     hdrs = ["function_traits.h"],
     includes = ["."],
@@ -232,7 +233,6 @@ pybind_extension(
         "-Wno-redundant-move",
         "-Wno-type-limits",
         "-Wno-error",
-        "-Wno-int-in-bool-context",
     ],
     dynamic_deps = [
         "//:mujoco_shared",
