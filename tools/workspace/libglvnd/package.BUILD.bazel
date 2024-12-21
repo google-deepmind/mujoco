@@ -1,0 +1,16 @@
+cc_library(
+    name = "lib",
+    hdrs = glob(["usr/include/**/*.h*"]),
+    srcs = [],
+    includes = ["usr/include"],
+    deps = [],
+    data = [":license_filegroup"],
+    target_compatible_with = ["@platforms//os:linux", "@platforms//cpu:x86_64"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    tags = ["license_filegroup"],
+    srcs = glob(["usr/share/doc/*/copyright"]),
+)
