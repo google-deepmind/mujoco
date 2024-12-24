@@ -73,3 +73,5 @@ mujoco_test(
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )
+
+mujoco_test(engine_vis_visualize_test)
