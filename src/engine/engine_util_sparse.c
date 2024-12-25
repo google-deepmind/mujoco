@@ -27,55 +27,6 @@
 
 //------------------------------ sparse operations -------------------------------------------------
 
-// dot-product, first vector is sparse
-//  flg_unc1: is vec1 memory layout uncompressed
-mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
-                     int flg_unc1) {
-#ifdef mjUSEAVX
-  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
-#else
-  int i = 0;
-  mjtNum res = 0;
-  int n_4 = nnz1 - 4;
-  mjtNum res0 = 0;
-  mjtNum res1 = 0;
-  mjtNum res2 = 0;
-  mjtNum res3 = 0;
-
-
-  if (flg_unc1) {
-    for (; i <= n_4; i+=4) {
-      res0 += vec1[ind1[i+0]] * vec2[ind1[i+0]];
-      res1 += vec1[ind1[i+1]] * vec2[ind1[i+1]];
-      res2 += vec1[ind1[i+2]] * vec2[ind1[i+2]];
-      res3 += vec1[ind1[i+3]] * vec2[ind1[i+3]];
-    }
-  } else {
-    for (; i <= n_4; i+=4) {
-      res0 += vec1[i+0] * vec2[ind1[i+0]];
-      res1 += vec1[i+1] * vec2[ind1[i+1]];
-      res2 += vec1[i+2] * vec2[ind1[i+2]];
-      res3 += vec1[i+3] * vec2[ind1[i+3]];
-    }
-  }
-  res = (res0 + res2) + (res1 + res3);
-
-  // scalar part
-  if (flg_unc1) {
-    for (; i < nnz1; i++) {
-      res += vec1[ind1[i]] * vec2[ind1[i]];
-    }
-  } else {
-    for (; i < nnz1; i++) {
-      res += vec1[i] * vec2[ind1[i]];
-    }
-  }
-
-  return res;
-#endif  // mjUSEAVX
-}
-
-
 
 // dot-productX3, first vector is sparse; supernode of size 3
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
