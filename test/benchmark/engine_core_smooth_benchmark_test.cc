@@ -14,7 +14,6 @@
 
 // A benchmark for comparing different implementations of mj_solveLD.
 
-#include <vector>
 #include <benchmark/benchmark.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
@@ -24,9 +23,6 @@
 
 namespace mujoco {
 namespace {
-
-// number of steps to roll out before benchmarking
-static const int kNumWarmupSteps = 200;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
@@ -42,37 +38,31 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
   }
 
   mjData* d = mj_makeData(m);
+  mj_forward(m, d);
 
-  // warm-up rollout to get a typical state
-  for (int i=0; i < kNumWarmupSteps; i++) {
-    mj_step(m, d);
-  }
-
-  // allocate gradient
+  // allocate input and output vectors
   mj_markStack(d);
-  mjtNum *grad = mj_stackAllocNum(d, m->nv);
-  mjtNum *Ma = mj_stackAllocNum(d, m->nv);
+  mjtNum *vec = mj_stackAllocNum(d, m->nv);
   mjtNum *res = mj_stackAllocNum(d, m->nv);
 
-  // compute gradient
-  mj_mulM(m, d, Ma, d->qacc);
+  // arbitrary input vector
   for (int i=0; i < m->nv; i++) {
-    grad[i] = Ma[i] - d->qfrc_smooth[i] - d->qfrc_constraint[i];
+    vec[i] = 0.2 + 0.3*i;
   }
 
-  // CSR matrix
+  // make CSR matrix
   mjtNum* LDs = mj_stackAllocNum(d, m->nC);
   for (int i=0; i < m->nC; i++) {
     LDs[i] = d->qLD[d->mapM2C[i]];
   }
 
-  // reset state, benchmark subsequent kNumBenchmarkSteps steps
+  // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
       if (featherstone) {
-        mj_solveM(m, d, res, grad, 1);
+        mj_solveM(m, d, res, vec, 1);
       } else {
-        mju_copy(res, grad, m->nv);
+        mju_copy(res, vec, m->nv);
         mj_solveLDs(res, LDs, d->qLDiagInv, m->nv,
                     d->C_rownnz, d->C_rowadr, d->C_diag, d->C_colind);
       }
@@ -82,6 +72,7 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
   // finalize
   mj_freeStack(d);
   mj_deleteData(d);
+  mj_deleteModel(m);
   state.SetItemsProcessed(state.iterations());
 }
 
