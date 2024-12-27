@@ -72,8 +72,6 @@ class SensorTest(parameterized.TestCase):
         cfrc_int=jp.zeros_like(d.cfrc_int),
         cfrc_ext=jp.zeros_like(d.cfrc_ext),
     )
-    
-    # Test sensor functions
     dx = jax.jit(mjx.sensor_pos)(mx, dx)
     dx = jax.jit(mjx.sensor_vel)(mx, dx)
     dx = jax.jit(mjx.sensor_acc)(mx, dx)
