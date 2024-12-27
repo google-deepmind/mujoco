@@ -407,7 +407,7 @@ def forward(m: Model, d: Data) -> Data:
   d = fwd_velocity(m, d)
   d = sensor.sensor_vel(m, d)
   d = fwd_actuation(m, d)
-  d = sensor.sensor_energy(m, d)
+  d = sensor.energy_vel(m, d)
   d = fwd_acceleration(m, d)
   d = sensor.sensor_acc(m, d)
   if d.efc_J.size == 0:

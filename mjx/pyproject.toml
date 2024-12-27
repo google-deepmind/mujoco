@@ -30,9 +30,6 @@ dependencies = [
     "etils[epath]",
     "jax",
     "jaxlib",
-    "mujoco>=3.2.7.dev0",
-    "scipy",
-    "trimesh",
 ]
 
 [project.scripts]
