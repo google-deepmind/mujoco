@@ -71,12 +71,23 @@ class SensorTest(parameterized.TestCase):
         cacc=jp.zeros_like(d.cacc),
         cfrc_int=jp.zeros_like(d.cfrc_int),
         cfrc_ext=jp.zeros_like(d.cfrc_ext),
+        energy=jp.zeros_like(d.energy),  # Reset energy
     )
+    
+    # Calculate energies
+    dx = jax.jit(mjx.energy_pos)(mx, dx)
+    dx = jax.jit(mjx.energy_vel)(mx, dx)
+    
+    # Test sensor functions
     dx = jax.jit(mjx.sensor_pos)(mx, dx)
     dx = jax.jit(mjx.sensor_vel)(mx, dx)
     dx = jax.jit(mjx.sensor_acc)(mx, dx)
 
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+    
+    # Test potential and kinetic energies match
+    _assert_eq(d.energy[0], dx.energy[0], 'potential energy')
+    _assert_eq(d.energy[1], dx.energy[1], 'kinetic energy')
 
   def test_disable_sensor(self):
     """Tests disabling sensor."""
