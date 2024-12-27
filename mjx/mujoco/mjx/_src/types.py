@@ -1330,6 +1330,7 @@ class Data(PyTreeNode):
     _qM_sparse: qM in sparse representation                     (nM,)
     _qLD_sparse: qLD in sparse representation                   (nM,)
     _qLDiagInv_sparse: qLDiagInv in sparse representation       (nv,)
+    energy: potential, kinetic energy (2, )
   """  # fmt: skip
   # constant sizes:
   ne: int
@@ -1467,3 +1468,4 @@ class Data(PyTreeNode):
   _qM_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
   _qLD_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
   _qLDiagInv_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
+  energy: jax.Array
