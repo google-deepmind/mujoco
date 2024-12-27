@@ -65,6 +65,15 @@ class DisableBit(enum.IntFlag):
   # unsupported: MIDPHASE
 
 
+class EnableBit(enum.IntFlag):
+  """Enable optional feature bitflags.
+
+  Members:
+    ENERGY: enable energy computation
+  """
+
+  ENERGY = mujoco.mjtEnableBit.mjENBL_ENERGY
+
 class JointType(enum.IntEnum):
   """Type of degree of freedom.
 
