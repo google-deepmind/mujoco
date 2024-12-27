@@ -56,8 +56,8 @@ def _make_option(
       raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
 
     # Check enable flags using enum pattern
-    if types.EnableBit(o.enableflags) not in set(types.EnableBit):
-      raise NotImplementedError(f'Unsupported enable flags: {mujoco.mjtEnableBit(o.enableflags)}')
+    if types.EnableBit(o.enableflags) not in set(types.EnableBit) and o.enableflags != 0:
+      raise NotImplementedError(f'{mujoco.mjtEnableBit(o.enableflags)}')
 
   has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
   implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST

@@ -491,7 +491,7 @@ class Option(PyTreeNode):
   noslip_iterations: int = _restricted_to('mujoco')
   ccd_iterations: int = _restricted_to('mujoco')
   disableflags: DisableBit
-  enableflags: int
+  enableflags: EnableBit
   disableactuator: int
   sdf_initpoints: int = _restricted_to('mujoco')
   sdf_iterations: int = _restricted_to('mujoco')

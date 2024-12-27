@@ -28,6 +28,7 @@ from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
 from mujoco.mjx._src.types import JointType
+from mujoco.mjx._src.types import EnableBit
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -609,6 +610,8 @@ def energy_pos(m: Model, d: Data) -> Data:
         
     # Initialize potential energy
     energy = jp.array(0.0)
+    if not m.opt.enableflags & EnableBit.ENERGY:
+        return d
     
     # Add gravitational potential energy for each body
     if not m.opt.disableflags & DisableBit.GRAVITY:
@@ -668,6 +671,8 @@ def energy_pos(m: Model, d: Data) -> Data:
 def energy_vel(m: Model, d: Data) -> Data:
     """Calculates velocity-dependent energy (kinetic).
     """
+    if not m.opt.enableflags & EnableBit.ENERGY:
+        return d
 
     vec = support.mul_m(m, d, d.qvel)
     energy = 0.5 * jp.dot(vec, d.qvel)
