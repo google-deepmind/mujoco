@@ -43,12 +43,13 @@
 
   <worldbody>
     <light pos="0 0 3"/>
-    <geom name="floor" type="plane" size="4 4 .1"/>
+    <geom name="floor" type="plane" size="4 4 .1" margin="0.01" gap="0.005"/>
     <geom type="hfield" hfield="hfield" pos="-.4 .6 .05" rgba="0 0 1 1"/>
     <body name="head" pos="0 0 .7" gravcomp="0.5">
       <geom type="ellipsoid" size=".2 .2 .4" density="200" material="grid"/>
       <site name="head" pos="0 0 .4" size=".1 .1 .05" type="box"/>
       <site name="anchor0" pos="0 .2 0"/>
+      <site name="anchor_knee" pos="-.16 -.16 0"/>
       <site name="rf" pos="0 0 -0.41" zaxis="0 0 -1"/>
       <freejoint/>
       <body euler="0 0 0" pos=".2 0 -.2">
@@ -81,9 +82,10 @@
         <joint name="hipy_2" class="hip0" axis="0 1 0"/>
         <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
         <geom type="capsule" size=".05" rgba="1 0 0 1" fromto=".3 0 0 .4 0 -.3"/>
+        <site name="knee_2" pos=".3 0 .05"/>
         <body pos=".45 0 -.3">
           <joint name="wheel_2" axis="1 0 0" class="wheel"/>
-          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0"/>
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0" margin="0.01"/>
           <site name="wheel_2" size=".13"  rgba="0 0 0 0.1" type="cylinder" fromto="-.01 0 0 .04 0 0"/>
         </body>
       </body>
@@ -126,6 +128,10 @@
       <site site="anchor1"/>
       <geom geom="wrapping" sidesite="sidesite"/>
       <site site="anchor2"/>
+    </spatial>
+    <spatial name="knee" limited="true" range=".4 .5" rgba="1 0 1 1">
+      <site site="anchor_knee"/>
+      <site site="knee_2"/>
     </spatial>
     <fixed name="fixed">
       <joint joint="hipy_0" coef="1"/>
