@@ -363,6 +363,7 @@ def make_data(
         '_qM_sparse': (m.nM, float),
         '_qLD_sparse': (m.nM, float),
         '_qLDiagInv_sparse': (m.nv, float),
+        'energy': (2, float),
     }
 
     if not _full_compat:

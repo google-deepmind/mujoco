@@ -600,3 +600,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
   )
 
   return d.replace(sensordata=sensordata)
+
+
+
+def energy_vel(m: Model, d: Data) -> Data:
+    """Calculates velocity-dependent energy (kinetic).
+    """
+
+    vec = support.mul_m(m, d, d.qvel)
+    energy = 0.5 * jp.dot(vec, d.qvel)
+    
+    return d.replace(energy=d.energy.at[1].set(energy))
