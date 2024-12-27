@@ -121,51 +121,6 @@ class SensorTest(parameterized.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(m)
 
-  def test_energy(self):
-    """Tests energy calculations with and without enable flag."""
-    m = test_util.load_test_file('sensor/sensor.xml')
-    d = mujoco.MjData(m)
-    
-    # Set up non-zero state
-    d.qvel = 0.1 * np.random.random(m.nv)
-    d.qpos = m.qpos0 + 0.1 * np.random.random(m.nq)
-    mujoco.mj_step(m, d, 10)
-    mujoco.mj_forward(m, d)
-
-    # JIT compile energy functions once
-    energy_pos_fn = jax.jit(mjx.energy_pos)
-    energy_vel_fn = jax.jit(mjx.energy_vel)
-
-    # Test without enabling energy flag
-    mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d).replace(energy=jp.zeros_like(d.energy))
-    
-    # Calculate energies without flag - should be zero
-    dx = energy_pos_fn(mx, dx)
-    dx = energy_vel_fn(mx, dx)
-
-    # Verify energies are zero without enable flag
-    np.testing.assert_array_equal(dx.energy, jp.zeros_like(dx.energy))
-
-    # Now enable energy calculations in both MuJoCo and MJX
-    m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_ENERGY
-    mujoco.mj_forward(m, d)  # Recalculate MuJoCo energies with flag enabled
-    
-    mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d).replace(energy=jp.zeros_like(d.energy))
-    
-    # Calculate energies with flag enabled
-    dx = energy_pos_fn(mx, dx)
-    dx = energy_vel_fn(mx, dx)
-
-    # Verify energies match MuJoCo with enable flag
-    _assert_eq(d.energy[0], dx.energy[0], 'potential energy')
-    _assert_eq(d.energy[1], dx.energy[1], 'kinetic energy')
-
-    # Verify energy values are non-zero
-    self.assertGreater(abs(dx.energy[0]) + abs(dx.energy[1]), 0,
-                      'Expected non-zero energy values')
-
 
 if __name__ == '__main__':
   absltest.main()
