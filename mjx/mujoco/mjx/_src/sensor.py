@@ -27,6 +27,7 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
+from mujoco.mjx._src.types import JointType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -601,6 +602,67 @@ def sensor_acc(m: Model, d: Data) -> Data:
 
   return d.replace(sensordata=sensordata)
 
+
+def energy_pos(m: Model, d: Data) -> Data:
+    """Calculates position-dependent energy (potential).
+    """
+        
+    # Initialize potential energy
+    energy = jp.array(0.0)
+    
+    # Add gravitational potential energy for each body
+    if not m.opt.disableflags & DisableBit.GRAVITY:
+        for i in range(1, m.nbody):  # Skip world body
+            energy -= m.body_mass[i] * jp.dot(m.opt.gravity, d.xipos[i])
+    
+    # Add joint spring potential energy
+    if not m.opt.disableflags & DisableBit.PASSIVE:
+        for i in range(m.njnt):
+            stiffness = m.jnt_stiffness[i]
+            padr = m.jnt_qposadr[i]
+            
+            if m.jnt_type[i] == JointType.FREE:
+                # Position springs
+                quat = d.qpos[padr:padr+4]
+                quat = math.normalize(quat)
+                dif = quat - m.qpos_spring[padr:padr+4]
+                energy += 0.5 * stiffness * jp.dot(dif[:3], dif[:3])
+                
+                # Handle rotations
+                padr += 3
+                
+            if m.jnt_type[i] in (JointType.FREE, JointType.BALL):
+                # Convert quaternion difference to angular displacement
+                quat = d.qpos[padr:padr+4]
+                quat = math.normalize(quat)
+                dif = math.quat_sub(quat, m.qpos_spring[padr:padr+4])
+                energy += 0.5 * stiffness * jp.dot(dif, dif)
+                
+            elif m.jnt_type[i] in (JointType.SLIDE, JointType.HINGE):
+                dif = d.qpos[padr] - m.qpos_spring[padr]
+                energy += 0.5 * stiffness * dif * dif
+
+    # Add tendon spring potential energy
+    if not m.opt.disableflags & DisableBit.PASSIVE:
+        for i in range(m.ntendon):
+            stiffness = m.tendon_stiffness[i]
+            length = d.ten_length[i]
+            
+            # Compute spring displacement
+            lower = m.tendon_lengthspring[2*i]
+            upper = m.tendon_lengthspring[2*i+1]
+            
+            if length > upper:
+                displacement = upper - length
+            elif length < lower:
+                displacement = lower - length
+            else:
+                displacement = 0.0
+                
+            energy += 0.5 * stiffness * displacement * displacement
+
+    # Update energy[0] (potential energy) in data
+    return d.replace(energy=d.energy.at[0].set(energy))
 
 
 def energy_vel(m: Model, d: Data) -> Data:
