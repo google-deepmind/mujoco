@@ -264,6 +264,11 @@ how to use includes and how to modularize large files if desired.
    The name of the XML file to be included. The file location is relative to the directory of the main MJCF file. If the
    file is not in the same directory, it should be prefixed with a relative path.
 
+.. admonition:: Prefer attach to include
+   :class: note
+
+   While some use cases for :ref:`include<include>` remain valid, it is recommended to use the
+   :ref:`attach<body-attach>` element instead, where applicable.
 
 
 .. _mujoco:
