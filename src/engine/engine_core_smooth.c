@@ -1578,7 +1578,7 @@ void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 //  like mj_solveLD, but using the CSR representation of L
-void mj_solveLDs(mjtNum* x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
+void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
                  const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
   // x <- L^-T x
   for (int i=nv-2; i >= 0; i--) {
