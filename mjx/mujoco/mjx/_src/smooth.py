@@ -988,7 +988,7 @@ def _site_dof_mask(m: Model) -> np.ndarray:
   mask = np.ones((m.nu, m.nv))
   for i in np.nonzero(m.actuator_trnid[:, 1] != -1)[0]:
     id_, refid = m.actuator_trnid[i]
-    # intialize last dof address for each body
+    # initialize last dof address for each body
     b0 = m.body_weldid[m.site_bodyid[id_]]
     b1 = m.body_weldid[m.site_bodyid[refid]]
     dofadr0 = m.body_dofadr[b0] + m.body_dofnum[b0] - 1

@@ -147,7 +147,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
     mj_collision(m, d);  // timed internally (POS_COLLISION)
   }
 
-  // have threadpool: inertia and collision on seperate threads
+  // have threadpool: inertia and collision on separate threads
   else {
     mjTask tasks[2];
     mjFwdPositionArgs forward_args;

@@ -12380,7 +12380,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='height',
                  type=ValueType(name='int'),
-                 doc='current heigth',
+                 doc='current height',
              ),
              StructFieldDecl(
                  name='maxheight',

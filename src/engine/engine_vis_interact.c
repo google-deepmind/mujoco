@@ -497,7 +497,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     // get current model rotation
     mju_f2n(rotate, scn->rotate, 4);
 
-    // compose rotation, normalize and and set
+    // compose rotation, normalize and set
     mju_mulQuat(result, quat, rotate);
     mju_normalize4(result);
     mju_n2f(scn->rotate, result, 4);

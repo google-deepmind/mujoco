@@ -278,7 +278,7 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
     return 0;
   }
 
-  // intialize last dof address for each body
+  // initialize last dof address for each body
   da1 = m->body_dofadr[b1] + m->body_dofnum[b1] - 1;
   da2 = m->body_dofadr[b2] + m->body_dofnum[b2] - 1;
 
@@ -361,7 +361,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
       return 0;
     }
 
-    // intialize last dof
+    // initialize last dof
     int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
     int NV = 0;
 
