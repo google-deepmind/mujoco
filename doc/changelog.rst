@@ -16,6 +16,7 @@ Python bindings
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).
+- Fixed a bug in :ref:`mj_mulM2` and added a test.
 
 Version 3.2.6 (Dec 2, 2024)
 ---------------------------

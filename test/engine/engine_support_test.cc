@@ -29,12 +29,13 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
-using ::testing::Eq;
+using ::std::vector;
 using ::testing::ContainsRegex;  // NOLINT
-using ::testing::MatchesRegex;
-using ::testing::Pointwise;
+using ::testing::DoubleNear;
 using ::testing::ElementsAreArray;
+using ::testing::Eq;
+using ::testing::MatchesRegex;
+using ::testing::NotNull;
 using ::testing::Pointwise;
 
 using AngMomMatTest = MujocoTest;
@@ -685,9 +686,9 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   mj_deleteModel(model);
 }
 
-using AddMTest = MujocoTest;
+using InertiaTest = MujocoTest;
 
-TEST_F(AddMTest, DenseSameAsSparse) {
+TEST_F(InertiaTest, DenseSameAsSparse) {
   mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
   mjData* d = mj_makeData(m);
   int nv = m->nv;
@@ -730,6 +731,72 @@ TEST_F(AddMTest, DenseSameAsSparse) {
   // clean up
   mj_deleteData(d);
   mj_deleteModel(m);
+}
+
+static const char* const kInertiaPath = "engine/testdata/inertia.xml";
+
+TEST_F(InertiaTest, mulM) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // dense M matrix
+  vector<mjtNum> Mdense(nv*nv);
+  mj_fullM(model, Mdense.data(), data->qM);
+
+  // arbitrary RHS vector
+  vector<mjtNum> vec(nv);
+  for (int i=0; i < nv; i++) vec[i] = vec[i] = 20 + 30*i;
+
+  // multiply directly
+  vector<mjtNum> res1(nv, 0);
+  mju_mulMatVec(res1.data(), Mdense.data(), vec.data(), nv, nv);
+
+  // multiply with mj_mulM
+  vector<mjtNum> res2(nv, 0);
+  mj_mulM(model, data, res2.data(), vec.data());
+
+  // expect vectors to match to floating point precision
+  EXPECT_THAT(res1, Pointwise(DoubleNear(1e-10), res2));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(InertiaTest, mulM2) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // arbitrary RHS vector
+  vector<mjtNum> vec(nv);
+  for (int i=0; i < nv; i++) vec[i] = .2 + .3*i;
+
+  // multiply sqrtMvec = M^1/2 * vec
+  vector<mjtNum> sqrtMvec(nv);
+  mj_mulM2(model, data, sqrtMvec.data(), vec.data());
+
+  // multiply Mvec = M * vec
+  vector<mjtNum> Mvec(nv);
+  mj_mulM(model, data, Mvec.data(), vec.data());
+
+  // compute vec' * M * vec in two different ways, expect them to match
+  mjtNum sqrtMvec2 = mju_dot(sqrtMvec.data(), sqrtMvec.data(), nv);
+  mjtNum vecMvec = mju_dot(vec.data(), Mvec.data(), nv);
+  EXPECT_FLOAT_EQ(sqrtMvec2, vecMvec);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 static const char* const kIlslandEfcPath =

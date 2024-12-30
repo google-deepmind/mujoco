@@ -1085,51 +1085,28 @@ void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 
 // multiply vector by M^(1/2)
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int adr, nv = m->nv;
+  int  nv = m->nv;
   const mjtNum* qLD = d->qLD;
   const mjtNum* qLDiagSqrtInv = d->qLDiagSqrtInv;
   const int* dofMadr = m->dof_Madr;
 
   mju_zero(res, nv);
 
+  // res = L * vec
   for (int i=0; i < nv; i++) {
-#ifdef mjUSEAVX
-    // simple: diagonal division, AVX
-    if (m->dof_simplenum[i] >= 4) {
-      // init
-      __m256d result, val1, val2;
-
-      // parallel computation
-      val1 = _mm256_loadu_pd(vec+i);
-      val2 = _mm256_set_pd(qLDiagSqrtInv[dofMadr[i+3]],
-                           qLDiagSqrtInv[dofMadr[i+2]],
-                           qLDiagSqrtInv[dofMadr[i+1]],
-                           qLDiagSqrtInv[dofMadr[i+0]]);
-      result = _mm256_div_pd(val1, val2);
-
-      // store result
-      _mm256_storeu_pd(res+i, result);
-
-      // skip rest of block
-      i += 3;
-      continue;
-    }
-#endif
-
-    // simple: diagonal division
+    // simple: diagonal
     if (m->dof_simplenum[i]) {
-      res[i] = vec[i]/qLDiagSqrtInv[i];
+      res[i] = vec[i];
     }
 
     // regular: full multiplication
     else {
       // diagonal
-      adr = dofMadr[i];
-      res[i] += vec[i]/qLDiagSqrtInv[i];
+      res[i] += vec[i];
 
       // off-diagonal
       int j = m->dof_parentid[i];
-      adr++;
+      int adr = dofMadr[i] + 1;
       while (j >= 0) {
         res[i] += qLD[adr]*vec[j];
 
@@ -1138,6 +1115,11 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
         adr++;
       }
     }
+  }
+
+  // res = sqrt(D) * res
+  for (int i=0; i < nv; i++) {
+    res[i] /= qLDiagSqrtInv[i];
   }
 }
 

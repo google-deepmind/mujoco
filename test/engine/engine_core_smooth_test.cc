@@ -407,39 +407,61 @@ TEST_F(CoreSmoothTest, SolveMIsland) {
   mj_deleteModel(model);
 }
 
-TEST_F(CoreSmoothTest, SolveLD2) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <default>
-      <geom type="capsule" size="0.1"/>
-      <joint axis="0 1 0"/>
-    </default>
+static const char* const kInertiaPath = "engine/testdata/inertia.xml";
 
-    <worldbody>
-      <body>
-        <geom fromto="0 0 0 0 0 1"/>
-        <joint/>
-        <body pos="0 0 1">
-          <geom fromto="0 0 0 1 0 1"/>
-          <joint/>
-        </body>
-        <body pos="0 0 1">
-          <geom fromto="0 0 0 -1 0 1"/>
-          <joint/>
-          <body pos="-1 0 1">
-            <geom fromto="0 0 0 1 0 1"/>
-            <joint/>
-          </body>
-          <body pos="-1 0 1">
-            <geom fromto="0 0 0 -1 0 1"/>
-            <joint/>
-          </body>
-        </body>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-  mjModel* m = LoadModelFromString(xml);
+TEST_F(CoreSmoothTest, FactorI) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // dense L matrix
+  int nv = model->nv;
+  vector<mjtNum> Ldense(nv*nv);
+  mj_fullM(model, Ldense.data(), data->qLD);
+  // clear upper triangle, set diagonal to 1
+  for (int i=0; i < nv; i++) {
+    for (int j=i; j < nv; j++) {
+      Ldense[i*nv+j] = i == j ? 1 : 0;
+    }
+  }
+
+  // dense D matrix
+  vector<mjtNum> Ddense(nv*nv);
+  mj_fullM(model, Ddense.data(), data->qLD);
+  // clear everything but the diagonal
+  for (int i=0; i < nv; i++) {
+    for (int j=0; j < nv; j++) {
+      if (i != j) Ddense[i*nv+j] = 0;
+    }
+  }
+
+  // perform multiplication: M = L^T * D * L
+  vector<mjtNum> tmp(nv*nv);
+  vector<mjtNum> M(nv*nv);
+  mju_mulMatMat(tmp.data(), Ddense.data(), Ldense.data(), nv, nv, nv);
+  mju_mulMatTMat(M.data(), Ldense.data(), tmp.data(), nv, nv, nv);
+
+  // dense M matrix
+  vector<mjtNum> Mexpected(nv*nv);
+  mj_fullM(model, Mexpected.data(), data->qM);
+
+  // expect matrices to match to floating point precision
+  EXPECT_THAT(M, Pointwise(DoubleNear(1e-12), Mexpected));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(CoreSmoothTest, SolveLD2) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
