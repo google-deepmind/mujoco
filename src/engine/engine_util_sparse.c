@@ -355,10 +355,10 @@ void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNu
 
 
 
-// dst += src, only at common non-zero indices
-void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
-                        int nnzdst, const int* inddst,
-                        int nnzsrc, const int* indsrc) {
+// dst += scl*src, only at common non-zero indices
+void mju_addToSclSparseInc(mjtNum* dst, const mjtNum* src,
+                           int nnzdst, const int* inddst,
+                           int nnzsrc, const int* indsrc, mjtNum scl) {
   if (!nnzdst || !nnzsrc) {
     return;
   }
@@ -368,7 +368,7 @@ void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
     // common non-zero index
     if (inds == indd) {
       // add
-      dst[adrd] += src[adrs];
+      dst[adrd] += scl * src[adrs];
 
       // advance src
       if (++adrs < nnzsrc) {

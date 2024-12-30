@@ -730,11 +730,6 @@ static void addJTBJSparse(
   const mjModel* m, mjData* d, const mjtNum* J,
   const mjtNum* B, int n, int offset,
   const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
-  int nv = m->nv;
-
-  // allocate row
-  mj_markStack(d);
-  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
@@ -749,19 +744,14 @@ static void addJTBJSparse(
         int ik = J_rowadr[offset_i] + k;
         int colik = J_colind[ik];
 
-        // row = J(i,k)*B(i,j)*J(j,:)
-        mju_scl(row, J + J_rowadr[offset_j], J[ik]*B[i*n+j], J_rownnz[offset_j]);
-
-        // qDeriv(k,:) += row
-        mju_addToSparseInc(d->qDeriv + d->D_rowadr[colik], row,
-                           d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
-                           J_rownnz[offset_j], J_colind + J_rowadr[offset_j]);
+        // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
+        mju_addToSclSparseInc(d->qDeriv + d->D_rowadr[colik], J + J_rowadr[offset_j],
+                              d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
+                              J_rownnz[offset_j], J_colind + J_rowadr[offset_j],
+                              J[ik]*B[i*n+j]);
       }
     }
   }
-
-  // free space
-  mj_freeStack(d);
 }
 
 

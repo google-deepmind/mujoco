@@ -63,10 +63,10 @@ int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
 void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
                           int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind);
 
-// dst += src, only at common non-zero indices
-void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
-                        int nnzdst, const int* inddst,
-                        int nnzsrc, const int* indsrc);
+// dst += scl * src, only at common non-zero indices
+void mju_addToSclSparseInc(mjtNum* dst, const mjtNum* src,
+                           int nnzdst, const int* inddst,
+                           int nnzsrc, const int* indsrc, mjtNum scl);
 
 // add to sparse matrix: dst = dst + scl*src, return nnz of result
 int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum scl,
