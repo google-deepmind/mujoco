@@ -803,7 +803,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       }
 
       // factor
-      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv, 0);
+      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv);
     }
 
     // solve
@@ -986,7 +986,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
       // factorize
-      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv, NULL);
+      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc

@@ -1274,7 +1274,6 @@ class Data(PyTreeNode):
                                                      if dense:  (nv, nv)
     qLDiagInv: 1/diag(D)                             if sparse: (nv,)
                                                      if dense:  (0,)
-    qLDiagSqrtInv: 1/sqrt(diag(D))                              (nv,)
     bvh_aabb_dyn: global bounding box (center, size)            (nbvhdynamic, 6)
     bvh_active: volume has been added to collisions             (nbvh,)
     flexedge_velocity: flex edge velocities                     (nflexedge,)
@@ -1404,7 +1403,6 @@ class Data(PyTreeNode):
   qM: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  qLDiagSqrtInv: jax.Array  # pylint:disable=invalid-name
   bvh_aabb_dyn: jax.Array = _restricted_to('mujoco')
   bvh_active: jax.Array = _restricted_to('mujoco')
   # position, velocity dependent:

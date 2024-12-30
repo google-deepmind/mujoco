@@ -234,7 +234,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM2, "n")(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d, Eigen::Ref<EigenArrayXX> x,
-         Eigen::Ref<const EigenArrayXX> y) {
+         Eigen::Ref<const EigenArrayXX> y, Eigen::Ref<const EigenArrayXX> sqrtInvD) {
         if (x.rows() != y.rows()) {
           throw py::type_error(
               "the first dimension of x and y should be of the same size");
@@ -247,8 +247,12 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error(
               "the last dimension of y should be of size nv");
         }
+        if (sqrtInvD.size() != m->nv) {
+          throw py::type_error(
+              "the size of sqrtInvD should be nv");
+        }
         return InterceptMjErrors(::mj_solveM2)(
-            m, d, x.data(), y.data(), y.rows());
+            m, d, x.data(), y.data(), sqrtInvD.data(), y.rows());
       });
   Def<traits::mj_comVel>(pymodule);
   Def<traits::mj_passive>(pymodule);

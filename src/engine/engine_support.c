@@ -1087,7 +1087,6 @@ void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   int  nv = m->nv;
   const mjtNum* qLD = d->qLD;
-  const mjtNum* qLDiagSqrtInv = d->qLDiagSqrtInv;
   const int* dofMadr = m->dof_Madr;
 
   mju_zero(res, nv);
@@ -1117,9 +1116,9 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
     }
   }
 
-  // res = sqrt(D) * res
+  // res *= sqrt(D)
   for (int i=0; i < nv; i++) {
-    res[i] /= qLDiagSqrtInv[i];
+    res[i] *= mju_sqrt(qLD[dofMadr[i]]);
   }
 }
 

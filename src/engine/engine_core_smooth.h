@@ -49,8 +49,7 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
-MJAPI void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNum* qLDiagInv,
-                      mjtNum* qLDiagSqrtInv);
+MJAPI void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNum* qLDiagInv);
 
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
@@ -71,7 +70,8 @@ MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, in
 MJAPI void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* x, int island);
 
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
-MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
+                      const mjtNum* sqrtInvD, int n);
 
 
 //-------------------------- velocity --------------------------------------------------------------

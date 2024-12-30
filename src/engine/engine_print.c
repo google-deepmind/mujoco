@@ -1107,7 +1107,6 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
-  printArray("QLDIAGSQRTINV", m->nv, 1, d->qLDiagSqrtInv, fp, float_format);
 
   // B sparse structure
   printSparsity("B: body-dof matrix", m->nbody, m->nv, d->B_rowadr, NULL, d->B_rownnz, NULL,

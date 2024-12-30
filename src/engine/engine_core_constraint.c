@@ -2067,6 +2067,12 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
+  // inverse square root of D from inertia LDL decomposition
+  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
+  for (int i=0; i < nv; i++) {
+    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[m->dof_Madr[i]]);
+  }
+
   // space for backsubM2(J')' and its traspose
   mjtNum* JM2 = mjSTACKALLOC(d, nefc*nv, mjtNum);
   mjtNum* JM2T = mjSTACKALLOC(d, nv*nefc, mjtNum);
@@ -2140,7 +2146,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
         // process if not zero
         if (xi) {
           // x(i) /= sqrt(L(i,i))
-          JM2[adr+i] *= d->qLDiagSqrtInv[colind[adr+i]];
+          JM2[adr+i] *= sqrtInvD[colind[adr+i]];
 
           // x(j) -= L(i,j) * x(i)
           int Madr_ij = m->dof_Madr[colind[adr+i]]+1;
@@ -2191,7 +2197,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   // dense
   else {
     // JM2 = backsubM2(J')'
-    mj_solveM2(m, d, JM2, d->efc_J, nefc);
+    mj_solveM2(m, d, JM2, d->efc_J, sqrtInvD, nefc);
 
     // construct JM2T
     mju_transpose(JM2T, JM2, nefc, nv);

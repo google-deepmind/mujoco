@@ -365,7 +365,8 @@ MJAPI void mj_factorM(const mjModel* m, mjData* d);
 MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
 
 // Half of linear solve:  x = sqrt(inv(D))*inv(L')*y
-MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
+                      const mjtNum* sqrtInvD, int n);
 
 // Compute cvel, cdof_dot.
 MJAPI void mj_comVel(const mjModel* m, mjData* d);

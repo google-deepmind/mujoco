@@ -379,7 +379,6 @@
   X( mjtNum, , xaxis,           njnt, 3           ) \
   X( mjtNum, , cdof,            nv,   6           ) \
   X( mjtNum, , qLDiagInv,       nv,   1           ) \
-  X( mjtNum, , qLDiagSqrtInv,   nv,   1           ) \
   X( mjtNum, , cdof_dot,        nv,   6           ) \
   X( mjtNum, , qfrc_bias,       nv,   1           ) \
   X( mjtNum, , qfrc_passive,    nv,   1           ) \

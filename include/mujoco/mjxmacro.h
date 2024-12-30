@@ -632,7 +632,6 @@
     X   ( mjtNum,    qM,                nM,          1           ) \
     X   ( mjtNum,    qLD,               nM,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \
-    X   ( mjtNum,    qLDiagSqrtInv,     nv,          1           ) \
     XMJV( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
     XMJV( mjtByte,   bvh_active,        nbvh,        1           ) \
     X   ( mjtNum,    flexedge_velocity, nflexedge,   1           ) \

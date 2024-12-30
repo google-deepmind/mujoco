@@ -4917,7 +4917,6 @@ public unsafe struct mjData_ {
   public double* qM;
   public double* qLD;
   public double* qLDiagInv;
-  public double* qLDiagSqrtInv;
   public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public double* flexedge_velocity;
@@ -6679,7 +6678,7 @@ public static unsafe extern void mj_factorM(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_solveM(mjModel_* m, mjData_* d, double* x, double* y, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_solveM2(mjModel_* m, mjData_* d, double* x, double* y, int n);
+public static unsafe extern void mj_solveM2(mjModel_* m, mjData_* d, double* x, double* y, double* sqrtInvD, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_comVel(mjModel_* m, mjData_* d);
