@@ -1,0 +1,12 @@
+load("@pip_deps//:requirements.bzl", "requirement")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+py_library(
+    name = "osmesa",
+    srcs = ["__init__.py"],
+    deps = [
+        requirement("pyopengl"),
+        requirement("pyopengl_accelerate"),
+    ],
+)
