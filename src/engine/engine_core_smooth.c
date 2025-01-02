@@ -1575,15 +1575,19 @@ void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 //  like mj_solveLD, but using the CSR representation of L
 void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
-                 const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
+                 const int* rownnz, const int* rowadr, const int* diagind, const int* diagnum,
+                 const int* colind) {
   // x <- L^-T x
   for (int i=nv-2; i >= 0; i--) {
-    int d1 = diag[i] + 1;
-    int nnz = rownnz[i] - d1;
-    if (nnz > 0) {
-      int adr = rowadr[i] + d1;
-      x[i] -= mju_dotSparse(qLDs+adr, x, nnz, colind+adr, /*flg_unc1=*/0);
+    // skip diagonal (simple) rows
+    if (diagnum[i]) {
+      continue;
     }
+
+    int d1 = diagind[i] + 1;
+    int nnz = rownnz[i] - d1;
+    int adr = rowadr[i] + d1;
+    x[i] -= mju_dotSparse(qLDs+adr, x, nnz, colind+adr, /*flg_unc1=*/0);
   }
 
   // x(i) /= D(i,i)
@@ -1593,11 +1597,14 @@ void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv
 
   // x <- L^-1 x
   for (int i=1; i < nv; i++) {
-    int d = diag[i];
-    if (d > 0) {
-      int adr = rowadr[i];
-      x[i] -= mju_dotSparse(qLDs+adr, x, d, colind+adr, /*flg_unc1=*/0);
+    // skip diagonal (simple) rows
+    if (diagnum[i]) {
+      i += diagnum[i] - 1;  // when iterating forward we can skip ahead
+      continue;
     }
+
+    int adr = rowadr[i];
+    x[i] -= mju_dotSparse(qLDs+adr, x, diagind[i], colind+adr, /*flg_unc1=*/0);
   }
 }
 

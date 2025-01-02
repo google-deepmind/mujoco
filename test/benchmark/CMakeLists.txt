@@ -44,7 +44,7 @@ mujoco_test(
 )
 
 mujoco_test(
-  engine_core_smooth_benchmark_test
+  solveLD_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )

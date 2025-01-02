@@ -456,7 +456,54 @@ TEST_F(CoreSmoothTest, FactorI) {
   mj_deleteModel(model);
 }
 
-TEST_F(CoreSmoothTest, SolveLD2) {
+// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
+//  like mj_solveLD, but using the CSR representation of L
+//  variant that only uses the lower triangle of qLDs
+static void mj_solveLDsLower(mjtNum* x, const mjtNum* qLDs,
+                             const mjtNum* qLDiagInv, int nv, const int* rownnz,
+                             const int* rowadr, const int* diagind,
+                             const int* diagnum, const int* colind,
+                             int* scratch) {
+  int* marker = scratch;
+  for (int i=1; i < nv; i++) {
+    marker[i] = rowadr[i] + diagind[i] - 1;
+  }
+
+  // x <- L^-T x
+  for (int i=nv-2; i >= 0; i--) {
+    // skip diagonal (simple) rows
+    if (diagnum[i]) {
+      continue;
+    }
+
+    for (int j=i+1; j < nv; j++) {
+      if (colind[marker[j]] == i) {
+        x[i] -= qLDs[marker[j]--] * x[j];
+      }
+    }
+  }
+
+  // x(i) /= D(i,i)
+  for (int i=0; i < nv; i++) {
+    x[i] *= qLDiagInv[i];
+  }
+
+  // x <- L^-1 x
+  for (int i=1; i < nv; i++) {
+    // skip diagonal (simple) rows
+    if (diagnum[i]) {
+      i += diagnum[i] - 1;  // when iterating forward we can skip ahead
+      continue;
+    }
+
+    int d = diagind[i];
+    int adr = rowadr[i];
+    x[i] -= mju_dotSparse(qLDs+adr, x, d, colind+adr, /*flg_unc1=*/0);
+  }
+}
+
+
+TEST_F(CoreSmoothTest, SolveLDs) {
   const std::string xml_path = GetTestDataFilePath(kInertiaPath);
   char error[1024];
   mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
@@ -490,9 +537,23 @@ TEST_F(CoreSmoothTest, SolveLD2) {
   for (int i=0; i < nv; i++) vec[i] = vec2[i] = 20 + 30*i;
   for (int i=0; i < nv; i+=2) vec[i] = vec2[i] = 0;
 
+  // use upper triangle
   mj_solveLD(m, vec.data(), 1, d->qLD, d->qLDiagInv);
   mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv,
-              d->C_rownnz, d->C_rowadr, d->C_diag, d->C_colind);
+              d->C_rownnz, d->C_rowadr, d->C_diag, m->dof_simplenum,
+              d->C_colind);
+
+  // expect vectors to match up to floating point precision
+  for (int i=0; i < nv; i++) {
+    EXPECT_FLOAT_EQ(vec[i], vec2[i]);
+  }
+
+  // don't use use upper triangle
+  mj_solveLD(m, vec.data(), 1, d->qLD, d->qLDiagInv);
+  vector<int> scratch(nv);
+  mj_solveLDsLower(vec2.data(), LDs.data(), d->qLDiagInv, nv, d->C_rownnz,
+                   d->C_rowadr, d->C_diag, m->dof_simplenum, d->C_colind,
+                   scratch.data());
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
