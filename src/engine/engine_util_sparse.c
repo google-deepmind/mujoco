@@ -742,7 +742,8 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   int* markers = mjSTACKALLOC(d, nc, int);
 
   for (int i=0; i < nc; i++) {
-    int* cols = res_colind+res_rowadr[i];
+    int rowadr_i = res_rowadr[i];
+    int* cols = res_colind + rowadr_i;
 
     res_rownnz[i] = 0;
     buffer[i] = 0;
@@ -755,18 +756,26 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
     }
 
     // iterate through each row of M'
-    int end = rowadrT[i] + rownnzT[i];
-    for (int r = rowadrT[i]; r < end; r++) {
+    int adrT = rowadrT[i];
+    int end_r = adrT + rownnzT[i];
+    for (int r = adrT; r < end_r; r++) {
       int t = colindT[r];
-      mjtNum v = diag ? matT[r] * diag[t] : matT[r];
-      for (int c=rowadr[t]; c < rowadr[t]+rownnz[t]; c++) {
+      int adr = rowadr[t];
+      int end_c = adr + rownnz[t];
+      for (int c=adr; c < end_c; c++) {
         int cc = colind[c];
+
         // ignore upper triangle
         if (cc > i) {
           break;
         }
 
-        buffer[cc] += v*mat[c];
+        // add value to buffer
+        if (diag) {
+          buffer[cc] += matT[r] * diag[t] * mat[c];
+        } else {
+          buffer[cc] += matT[r] * mat[c];
+        }
 
         // only need to insert nnz if not marked
         if (!markers[cc]) {
@@ -810,22 +819,26 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
       }
     }
 
-    end = res_rownnz[i];
+    end_r = res_rownnz[i];
 
     // rowsuperT: reuse sparsity, copy into res
     if (rowsuperT && rowsuperT[i]) {
-      for (int r=0; r < end; r++) {
-        res[res_rowadr[i] + r] = buffer[cols[r]];
-        buffer[cols[r]] = 0;
+      for (int r=0; r < end_r; r++) {
+        int c = cols[r];
+        res[rowadr_i + r] = buffer[c];
+        buffer[c] = 0;
       }
-    } else {
-      // clear out buffers since sparsity cannot be reused
-      for (int r=0; r < end; r++) {
-        int cc = cols[r];
-        res[res_rowadr[i] + r] = buffer[cc];
-        res_colind[res_rowadr[i] + r] = cc;
-        buffer[cc] = 0;
-        markers[cc] = 0;
+    }
+
+    // clear out buffers, sparsity cannot be reused
+    else {
+      for (int r=0; r < end_r; r++) {
+        int c = cols[r];
+        int adr = rowadr_i + r;
+        res[adr] = buffer[c];
+        res_colind[adr] = c;
+        buffer[c] = 0;
+        markers[c] = 0;
       }
     }
   }
@@ -833,8 +846,9 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
   // fill upper triangle
   for (int i=0; i < nc; i++) {
-    int end = res_rowadr[i] + res_rownnz[i] - 1;
-    for (int j=res_rowadr[i]; j < end; j++) {
+    int start = res_rowadr[i];
+    int end = start + res_rownnz[i] - 1;
+    for (int j=start; j < end; j++) {
       int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
       res[adr] = res[j];
       res_colind[adr] = i;
