@@ -65,6 +65,15 @@ class DisableBit(enum.IntFlag):
   # unsupported: MIDPHASE
 
 
+class EnableBit(enum.IntFlag):
+  """Enable optional feature bitflags.
+
+  Members:
+    ENERGY: enable energy computation
+  """
+
+  ENERGY = mujoco.mjtEnableBit.mjENBL_ENERGY
+
 class JointType(enum.IntEnum):
   """Type of degree of freedom.
 
@@ -482,7 +491,7 @@ class Option(PyTreeNode):
   noslip_iterations: int = _restricted_to('mujoco')
   ccd_iterations: int = _restricted_to('mujoco')
   disableflags: DisableBit
-  enableflags: int
+  enableflags: EnableBit
   disableactuator: int
   sdf_initpoints: int = _restricted_to('mujoco')
   sdf_iterations: int = _restricted_to('mujoco')
@@ -1329,6 +1338,7 @@ class Data(PyTreeNode):
     _qM_sparse: qM in sparse representation                     (nM,)
     _qLD_sparse: qLD in sparse representation                   (nM,)
     _qLDiagInv_sparse: qLDiagInv in sparse representation       (nv,)
+    energy: potential, kinetic energy (2, )
   """  # fmt: skip
   # constant sizes:
   ne: int
@@ -1465,3 +1475,4 @@ class Data(PyTreeNode):
   _qM_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
   _qLD_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
   _qLDiagInv_sparse: jax.Array = _restricted_to('mjx')  # pylint:disable=invalid-name
+  energy: jax.Array
