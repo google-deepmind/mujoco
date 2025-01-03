@@ -25,17 +25,30 @@
 extern "C" {
 #endif
 
+// Status of an EPA run
+typedef enum {
+  mjEPA_NOCONTACT           = -1,
+  mjEPA_SUCCESS             = 0,
+  mjEPA_P2_INVALID_FACES,
+  mjEPA_P2_MISSING_ORIGIN,
+  mjEPA_P2_ORIGIN_ON_FACE,
+  mjEPA_P3_BAD_NORMAL,
+  mjEPA_P3_INVALID_V4,
+  mjEPA_P3_INVALID_V5,
+  mjEPA_P3_MISSING_ORIGIN,
+  mjEPA_P3_ORIGIN_ON_FACE,
+} mjEPAStatus;
+
 // configuration for convex collision detection
-struct _mjCCDConfig {
+typedef struct {
   int max_iterations;   // the maximum number of iterations for GJK and EPA
   mjtNum tolerance;     // tolerance used by GJK and EPA
   int max_contacts;     // set to max number of contact points to recover
   mjtNum dist_cutoff;   // set to max geom distance to recover
-};
-typedef struct _mjCCDConfig mjCCDConfig;
+} mjCCDConfig;
 
 // data produced from running GJK and EPA
-struct _mjCCDStatus {
+typedef struct {
   // geom distance information
   mjtNum dist;                  // distance between geoms
   mjtNum x1[3 * mjMAXCONPAIR];  // witness points for geom 1
@@ -50,13 +63,13 @@ struct _mjCCDStatus {
 
   // statistics for debugging purposes
   int gjk_iterations;           // number of iterations that GJK ran
-  int epa_iterations;           // number of iterations that EPA ran (negative if EPA did not run)
+  int epa_iterations;           // number of iterations that EPA ran (zero if EPA did not run)
+  mjEPAStatus epa_status;       // status of the EPA run
   mjtNum simplex1[12];          // the simplex that GJK returned for obj1
   mjtNum simplex2[12];          // the simplex that GJK returned for obj2
   mjtNum simplex[12];           // the simplex that GJK returned for the Minkowski difference
   int nsimplex;                 // size of simplex 1 & 2
-};
-typedef struct _mjCCDStatus mjCCDStatus;
+} mjCCDStatus;
 
 // run general convex collision detection, returns positive for distance, negative for penetration
 MJAPI mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);

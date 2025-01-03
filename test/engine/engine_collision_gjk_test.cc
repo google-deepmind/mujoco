@@ -335,6 +335,33 @@ TEST_F(MjGjkTest, BoxBoxDepth2) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, BoxBoxTouching) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom name="geom1" type="box" pos="0 0 1.859913200000001376466229885409" size="1 1 1"/>
+    <geom name="geom2" type="box" pos="0 2 1.859913200000001376466229885409" size="1 1 1"/>
+  </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  mjtNum dir[3], pos[3];
+  mjtNum dist = Penetration(model, data, geom1, geom2, dir, pos);
+
+  EXPECT_EQ(dist, mjMAXVAL);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, SmallBoxMesh) {
   static constexpr char xml[] = R"(
   <mujoco>

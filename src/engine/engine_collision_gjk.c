@@ -890,7 +890,12 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   if (mju_abs(det3(v1, v3, v4)) < mjMINVAL || mju_abs(det3(v1, v3, v5)) < mjMINVAL ||
       mju_abs(det3(v1, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v3, v4)) < mjMINVAL ||
       mju_abs(det3(v2, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v4, v5)) < mjMINVAL) {
-    return 2;
+    return mjEPA_P2_INVALID_FACES;
+  }
+
+  // check that origin is in the hexahedron
+  if (!testTetra(v1, v3, v4, v5) && !testTetra(v2, v3, v4, v5)) {
+    return mjEPA_P2_MISSING_ORIGIN;
   }
 
   // save vertices and get indices for each one
@@ -914,7 +919,7 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
     pt->map[i] = pt->faces + i;
     pt->faces[i].index = i;
     if (pt->faces[i].dist < mjMINVAL) {
-      return 3;
+      return mjEPA_P2_ORIGIN_ON_FACE;
     }
   }
   pt->nmap = 6;
@@ -1003,7 +1008,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   cross3(n, diff1, diff2);
   mjtNum n_norm = mju_norm3(n);
   if (n_norm < mjMINVAL) {
-    return 4;
+    return mjEPA_P3_BAD_NORMAL;
   }
 
   // negative of triangle normal n
@@ -1016,7 +1021,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // check that v4 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v4)) {
-    return 5;
+    return mjEPA_P3_INVALID_V4;
   }
 
   // get 5th vertex in -n direction
@@ -1026,7 +1031,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
   // check that v5 is not contained in the 2-simplex
   if (triPointIntersect(v1, v2, v3, v5)) {
-    return 6;
+    return mjEPA_P3_INVALID_V5;
   }
 
   // if origin does not lie on simplex then we need to check that the hexahedron contains the
@@ -1036,7 +1041,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   // it but within tolerance from it. In that case the hexahedron could possibly be constructed
   // that doesn't contain the origin, but nonetheless there is penetration depth.
   if (status->dist > 10*mjMINVAL && !testTetra(v1, v2, v3, v4) && !testTetra(v1, v2, v3, v5)) {
-    return 7;
+    return mjEPA_P3_MISSING_ORIGIN;
   }
 
   // save vertices and get indices for each one
@@ -1061,7 +1066,7 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
     pt->map[i] = pt->faces + i;
     pt->faces[i].index = i;
     if (pt->faces[i].dist < mjMINVAL) {
-      return 8;
+      return mjEPA_P3_ORIGIN_ON_FACE;
     }
   }
   pt->nmap = 6;
@@ -1444,7 +1449,8 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   obj1->center(status->x1, obj1);
   obj2->center(status->x2, obj2);
   status->gjk_iterations = 0;
-  status->epa_iterations = -1;
+  status->epa_iterations = 0;
+  status->epa_status = mjEPA_NOCONTACT;
   status->tolerance = config->tolerance;
   status->max_iterations = config->max_iterations;
   status->max_contacts = config->max_contacts;
@@ -1551,12 +1557,12 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     } else {
       ret = polytope4(&pt, status, obj1, obj2);
     }
+    status->epa_status = ret;
 
     // simplex not on boundary (objects are penetrating)
     if (!ret) {
       dist = -epa(status, &pt, obj1, obj2);
     } else {
-      status->epa_iterations = -ret;
       dist = 0;
     }
     mj_freeStack(d);
