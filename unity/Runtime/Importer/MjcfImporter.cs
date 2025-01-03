@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
+using UnityEditor;
 using UnityEngine;
 
 namespace Mujoco {
@@ -198,8 +199,18 @@ public class MjcfImporter {
       }
     }
 
-    // This section references worldbody elements + tendons, must be parsed after them.
-    var equalityNode = mujocoNode.SelectSingleNode("equality") as XmlElement;
+    var deformableNode = mujocoNode.SelectSingleNode("deformable") as XmlElement;
+    if (deformableNode != null) {
+      var deformableParentObject = CreateGameObjectInParent("deformable configuration", rootObject);
+      foreach (var child in deformableNode.OfType<XmlElement>()) {
+        var deformableType = ParseDeformableType(child);
+        _modifiers.ApplyModifiersToElement(child);
+        CreateGameObjectWithUniqueName(deformableParentObject, child, deformableType);
+      }
+    }
+
+      // This section references worldbody elements + tendons, must be parsed after them.
+      var equalityNode = mujocoNode.SelectSingleNode("equality") as XmlElement;
     if (equalityNode != null) {
       var equalitiesParentObject = CreateGameObjectInParent("equality constraints", rootObject);
       foreach (var child in equalityNode.OfType<XmlElement>()) {
@@ -379,11 +390,27 @@ public class MjcfImporter {
       case "tendon":
         equalityType = typeof(MjTendonConstraint);
         break;
+       case "flex":
+        equalityType = typeof(MjFlexConstraint);
+        break;
       default:
-        Debug.Log($"The importer does not yet support equality <{node.Name}>.");
+        Debug.LogWarning($"The importer does not yet support equality <{node.Name}>.");
         break;
     }
     return equalityType;
+  }
+
+  private static Type ParseDeformableType(XmlElement node) {
+    Type deformableType = null;
+    switch (node.Name) {
+      case "flex":
+        deformableType = typeof(MjFlexDeformable);
+        break;
+      default:
+        Debug.LogWarning($"The importer does not yet support deformable <{node.Name}>.");
+        break;
+    }
+    return deformableType;
   }
 
   private static Type ParseSensorType(XmlElement node) {
