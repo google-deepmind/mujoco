@@ -1578,16 +1578,19 @@ void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv
                  const int* rownnz, const int* rowadr, const int* diagind, const int* diagnum,
                  const int* colind) {
   // x <- L^-T x
-  for (int i=nv-2; i >= 0; i--) {
-    // skip diagonal (simple) rows
-    if (diagnum[i]) {
+  for (int i=nv-1; i > 0; i--) {
+    // skip diagonal (simple) rows, exploit sparsity of input vector
+    if (diagnum[i] || x[i] == 0) {
       continue;
     }
 
-    int d1 = diagind[i] + 1;
-    int nnz = rownnz[i] - d1;
-    int adr = rowadr[i] + d1;
-    x[i] -= mju_dotSparse(qLDs+adr, x, nnz, colind+adr, /*flg_unc1=*/0);
+    int d = diagind[i];
+    int adr_i = rowadr[i];
+    mjtNum x_i = x[i];
+    for (int j=0; j < d; j++) {
+      int adr = adr_i + j;
+      x[colind[adr]] -= qLDs[adr] * x_i;
+    }
   }
 
   // x(i) /= D(i,i)
