@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_PRINT_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_PRINT_H_
 
+#include <stdio.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -39,6 +41,10 @@ MJAPI void mj_printFormattedData(const mjModel* m, mjData* d, const char* filena
 
 // print data to text file
 MJAPI void mj_printData(const mjModel* m, mjData* d, const char* filename);
+
+// print sparse matrix structure
+MJAPI void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,
+                            const int* rownnz, const int* rowsuper, const int* colind, FILE* fp);
 
 #ifdef __cplusplus
 }

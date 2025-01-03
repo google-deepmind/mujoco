@@ -114,8 +114,8 @@ static void printSparse(const char* str, const mjtNum* mat, int nr,
 
 
 // print sparse matrix structure
-static void printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,
-                          const int* rownnz, const int* rowsuper, const int* colind, FILE* fp) {
+void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,
+                      const int* rownnz, const int* rowsuper, const int* colind, FILE* fp) {
   // if no rows / columns, or too many columns to be visually useful, return
   if (!nr || !nc || nc > 300) {
     return;
@@ -1060,8 +1060,9 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   if (!mj_isSparse(m)) {
     printArray("FLEXEDGE_J", m->nflexedge, m->nv, d->flexedge_J, fp, float_format);
   } else {
-    printSparsity("FLEXEDGE_J: flex edge connectivity", m->nflexedge, m->nv,
-                  d->flexedge_J_rowadr, NULL, d->flexedge_J_rownnz, NULL, d->flexedge_J_colind, fp);
+    mj_printSparsity("FLEXEDGE_J: flex edge connectivity", m->nflexedge, m->nv,
+                     d->flexedge_J_rowadr, NULL, d->flexedge_J_rownnz, NULL, d->flexedge_J_colind,
+                     fp);
     printArrayInt("FLEXEDGE_J_ROWNNZ", m->nflexedge, 1, d->flexedge_J_rownnz, fp);
     printArrayInt("FLEXEDGE_J_ROWADR", m->nflexedge, 1, d->flexedge_J_rowadr, fp);
     printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, d->flexedge_J_rownnz,
@@ -1073,8 +1074,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   if (!mj_isSparse(m)) {
     printArray("TEN_MOMENT", m->ntendon, m->nv, d->ten_J, fp, float_format);
   } else {
-    printSparsity("TEN_J: tendon moments", m->ntendon, m->nv, d->ten_J_rowadr, NULL,
-                  d->ten_J_rownnz, NULL, d->ten_J_colind, fp);
+    mj_printSparsity("TEN_J: tendon moments", m->ntendon, m->nv, d->ten_J_rowadr, NULL,
+                     d->ten_J_rownnz, NULL, d->ten_J_colind, fp);
     printArrayInt("TEN_J_ROWNNZ", m->ntendon, 1, d->ten_J_rownnz, fp);
     printArrayInt("TEN_J_ROWADR", m->ntendon, 1, d->ten_J_rowadr, fp);
     printSparse("TEN_J", d->ten_J, m->ntendon, d->ten_J_rownnz,
@@ -1090,8 +1091,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   printArray("ACTUATOR_LENGTH", m->nu, 1, d->actuator_length, fp, float_format);
-  printSparsity("actuator_moment", m->nu, m->nv,
-                d->moment_rowadr, NULL, d->moment_rownnz, NULL, d->moment_colind, fp);
+  mj_printSparsity("actuator_moment", m->nu, m->nv,
+                   d->moment_rowadr, NULL, d->moment_rownnz, NULL, d->moment_colind, fp);
   printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
@@ -1109,8 +1110,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
 
   // B sparse structure
-  printSparsity("B: body-dof matrix", m->nbody, m->nv, d->B_rowadr, NULL, d->B_rownnz, NULL,
-                d->B_colind, fp);
+  mj_printSparsity("B: body-dof matrix", m->nbody, m->nv, d->B_rowadr, NULL, d->B_rownnz, NULL,
+                   d->B_colind, fp);
 
   // B_rownnz
   fprintf(fp, NAME_FORMAT, "B_rownnz");
@@ -1134,8 +1135,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "\n\n");
 
   // C sparse structure
-  printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, d->C_diag, d->C_rownnz,
-                NULL, d->C_colind, fp);
+  mj_printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, d->C_diag, d->C_rownnz,
+                   NULL, d->C_colind, fp);
 
   fprintf(fp, NAME_FORMAT, "C_rownnz");
   for (int i = 0; i < m->nv; i++) {
@@ -1165,8 +1166,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "\n\n");
 
   // D sparse structure
-  printSparsity("D: dof-dof matrix", m->nv, m->nv,
-                d->D_rowadr, d->D_diag, d->D_rownnz, NULL, d->D_colind, fp);
+  mj_printSparsity("D: dof-dof matrix", m->nv, m->nv,
+                   d->D_rowadr, d->D_diag, d->D_rownnz, NULL, d->D_colind, fp);
 
   // D_rownnz
   fprintf(fp, NAME_FORMAT, "D_rownnz");
@@ -1263,14 +1264,14 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     printArray("EFC_J", d->nefc, m->nv, d->efc_J, fp, float_format);
     printArray("EFC_AR", d->nefc, d->nefc, d->efc_AR, fp, float_format);
   } else {
-    printSparsity("J: constraint Jacobian", d->nefc, m->nv,
-                  d->efc_J_rowadr, NULL, d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
+    mj_printSparsity("J: constraint Jacobian", d->nefc, m->nv, d->efc_J_rowadr, NULL,
+                     d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
     printArrayInt("EFC_J_ROWNNZ", d->nefc, 1, d->efc_J_rownnz, fp);
     printArrayInt("EFC_J_ROWADR", d->nefc, 1, d->efc_J_rowadr, fp);
     printSparse("EFC_J", d->efc_J, d->nefc, d->efc_J_rownnz,
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
-    printSparsity("JT: constraint Jacobian transposed", m->nv, d->nefc, d->efc_JT_rowadr, NULL,
-                  d->efc_JT_rownnz, d->efc_JT_rowsuper, d->efc_JT_colind, fp);
+    mj_printSparsity("JT: constraint Jacobian transposed", m->nv, d->nefc, d->efc_JT_rowadr, NULL,
+                     d->efc_JT_rownnz, d->efc_JT_rowsuper, d->efc_JT_colind, fp);
     printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
     printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);
     printSparse("EFC_AR", d->efc_AR, d->nefc, d->efc_AR_rownnz,
