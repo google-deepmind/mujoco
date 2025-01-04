@@ -21,7 +21,10 @@ Installation instructions
 The plug-in directory (available at https://github.com/google-deepmind/mujoco/tree/main/unity) includes a
 ``package.json`` file.  Unity's package manager recognizes this file and will import the plug-in's C# codebase to your
 project. In addition, Unity also needs the native MuJoCo library, which can be found in the specific platform archive at
-https://github.com/google-deepmind/mujoco/releases.
+https://github.com/google-deepmind/mujoco/releases. If you wish to simply use the plug-in and not develop it, you should
+use one of the version-specific stable commits of the repository, identified by git tags. Check out the relevant version
+of the cloned repository with git (``git checkout 3.X.Y`` where X and Y specify the engine version). Simply using the
+``main`` branch of the repository may not be compatible with the most recent release binary of MuJoCo.
 
 On Unity version 2020.2 and later, the Package Manager will look for the native library file and copy it to the package
 directory when the package is imported. Alternatively, you can manually copy the native library to the package directory
@@ -334,8 +337,8 @@ from the terrain is dynamically kept in sync with the simulation.
 MuJoCo plugins
 ______________
 
-The current version of the Unity package does not support loading MJCF scenes that use MuJoCo plugins such as
-``elasticity``. Adding basic functionality to do this will be part of an upcoming release.
+The current version of the Unity package does not support loading MJCF scenes that use :ref:`MuJoCo plugins<exPlugin>` such as
+`elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity#readme>`__ . Adding basic functionality to do this will be part of an upcoming release.
 
 Interaction with External Processes
 ___________________________________
