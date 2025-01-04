@@ -338,7 +338,7 @@ MuJoCo plugins
 ______________
 
 The current version of the Unity package does not support loading MJCF scenes that use :ref:`MuJoCo plugins<exPlugin>` such as
-`elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity#readme>`__ . Adding basic functionality to do this will be part of an upcoming release.
+`elasticity <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity#readme>`__ . Adding basic functionality to do this will be part of an upcoming release.
 
 Interaction with External Processes
 ___________________________________
