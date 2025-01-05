@@ -121,7 +121,7 @@ MJAPI void mj_freeLastXML(void);
 // If length of the output buffer is too small, returns the required size.
 MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 
-// Save spec to XML file, return 1 on success, 0 otherwise.
+// Save spec to XML file, return 0 on success, -1 otherwise.
 MJAPI int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
 
 
