@@ -118,7 +118,13 @@ inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5) {
   std::cerr << "\n";
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < ncol; c++) {
-      std::cerr << std::fixed << std::setw(3 + p) << mat[c + r*ncol] << " ";
+      mjtNum val = mat[c + r*ncol];
+      if (val) {
+        std::cerr << std::fixed << std::setw(5 + p) << val << " ";
+      } else {
+        // don't print exact zeros
+        std::cerr << std::string(6 + p, ' ');
+      }
     }
     std::cerr << "\n";
   }

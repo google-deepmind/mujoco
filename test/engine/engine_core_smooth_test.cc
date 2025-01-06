@@ -496,13 +496,58 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD(m, vec.data(), 1, d->qLD, d->qLDiagInv);
   mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv,
-              d->C_rownnz, d->C_rowadr, d->C_diag, m->dof_simplenum,
-              d->C_colind);
+              d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
     EXPECT_FLOAT_EQ(vec[i], vec2[i]);
   }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(CoreSmoothTest, FactorIs) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  int nC = m->nC, nv = m->nv;
+
+  // copy qM into LDs, qLD into qLDexpected: CSR format
+  vector<mjtNum> qLDsExpected(nC);
+  vector<mjtNum> qLDs(nC);
+  for (int i=0; i < nC; i++) {
+    int index = d->mapM2C[i];
+    qLDs[i] = d->qM[index];  // mj_factorIs is in-place
+    qLDsExpected[i] = d->qLD[index];
+  }
+
+  vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
+  vector<mjtNum> qLDiagInv(nv, 0);
+
+  mj_factorIs(qLDs.data(), qLDiagInv.data(), nv,
+              d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+
+  // expect outputs to match to floating point precision
+  EXPECT_THAT(qLDs, Pointwise(DoubleNear(1e-12), qLDsExpected));
+  EXPECT_THAT(qLDiagInv, Pointwise(DoubleNear(1e-12), qLDiagInvExpected));
+
+  /* uncomment for debugging
+  vector<mjtNum> LDdense(nv*nv);
+
+  mju_sparse2dense(LDdense.data(), qLDexpected.data(), nv, nv,
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  PrintMatrix(LDdense.data(), nv, nv, 2);
+
+  mju_sparse2dense(LDdense.data(), qLDs.data(), nv, nv,
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  PrintMatrix(LDdense.data(), nv, nv, 2);
+  */
 
   mj_deleteData(d);
   mj_deleteModel(m);

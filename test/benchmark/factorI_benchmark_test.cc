@@ -1,4 +1,4 @@
-// Copyright 2021 DeepMind Technologies Limited
+// Copyright 2025 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// A benchmark for comparing different implementations of mj_solveLD.
+// A benchmark for comparing different implementations of mj_factorI.
 
 #include <benchmark/benchmark.h>
 #include <absl/base/attributes.h>
@@ -29,7 +29,7 @@ static const int kNumBenchmarkSteps = 50;
 
 // ----------------------------- benchmark ------------------------------------
 
-static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
+static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
   static mjModel* m;
   if (coil) {
     m = LoadModelFromPath("plugin/elasticity/coil.xml");
@@ -40,30 +40,24 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  // allocate input and output vectors
+  // allocate inputs and outputs
   mj_markStack(d);
-  mjtNum *vec = mj_stackAllocNum(d, m->nv);
-  mjtNum *res = mj_stackAllocNum(d, m->nv);
 
-  // arbitrary input vector
-  for (int i=0; i < m->nv; i++) {
-    vec[i] = 0.2 + 0.3*i;
-  }
-
-  // make CSR matrix
+  // CSR matrices
+  mjtNum* Ms = mj_stackAllocNum(d, m->nC);
   mjtNum* LDs = mj_stackAllocNum(d, m->nC);
   for (int i=0; i < m->nC; i++) {
-    LDs[i] = d->qLD[d->mapM2C[i]];
+    Ms[i] = d->qM[d->mapM2C[i]];
   }
 
   // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
-      if (featherstone) {
-        mj_solveM(m, d, res, vec, 1);
+      if (legacy) {
+        mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv);
       } else {
-        mju_copy(res, vec, m->nv);
-        mj_solveLDs(res, LDs, d->qLDiagInv, m->nv,
+        mju_copy(LDs, Ms, m->nC);
+        mj_factorIs(LDs, d->qLDiagInv, m->nv,
                     d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }
@@ -76,29 +70,33 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_COIL_FS(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_factorI_COIL_LEGACY(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/true, /*coil=*/true);
+  BM_factorI(state, /*legacy=*/true, /*coil=*/true);
 }
-BENCHMARK(BM_solveLD_COIL_FS);
+BENCHMARK(BM_factorI_COIL_LEGACY);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_COIL_CSR(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_factorI_COIL_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/false, /*coil=*/true);
+  BM_factorI(state, /*legacy=*/false, /*coil=*/true);
 }
-BENCHMARK(BM_solveLD_COIL_CSR);
+BENCHMARK(BM_factorI_COIL_CSR);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_H100_FS(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_factorI_H100_LEGACY(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/true, /*coil=*/false);
+  BM_factorI(state, /*legacy=*/true, /*coil=*/false);
 }
-BENCHMARK(BM_solveLD_H100_FS);
+BENCHMARK(BM_factorI_H100_LEGACY);
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_solveLD_H100_CSR(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_factorI_H100_CSR(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_solveLD(state, /*featherstone=*/false, /*coil=*/false);
+  BM_factorI(state, /*legacy=*/false, /*coil=*/false);
 }
-BENCHMARK(BM_solveLD_H100_CSR);
+BENCHMARK(BM_factorI_H100_CSR);
 
 }  // namespace
 }  // namespace mujoco
