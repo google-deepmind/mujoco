@@ -552,12 +552,13 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
   // clear number of non-zeros for each row of transposed
   mju_zeroInt(res_rownnz, nc);
 
-  // total number of non-zeros of mat
-  int nnz = rowadr[nr-1] + rownnz[nr-1];
-
   // count the number of non-zeros for each row of the transposed matrix
-  for (int i = 0; i < nnz; i++) {
-    res_rownnz[colind[i]]++;
+  for (int r = 0; r < nr; r++) {
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    for (int j = start; j < end; j++) {
+      res_rownnz[colind[j]]++;
+    }
   }
 
   // compute the row addresses for the transposed matrix
@@ -566,18 +567,18 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     res_rowadr[i] = res_rowadr[i-1] + res_rownnz[i-1];
   }
 
-  // r holds the current row in mat
-  int r = 0;
-
   // iterate through each non-zero entry of mat
-  for (int i = 0; i < nnz; i++) {
-    // iterate to get to the current row (skipping rows with all zeros)
-    while ((i-rowadr[r]) >= rownnz[r]) r++;
-
-    // swap rows with columns and increment res_rowadr
-    int c = res_rowadr[colind[i]]++;
-    res[c] = mat[i];
-    res_colind[c] = r;
+  for (int r = 0; r < nr; r++) {
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    for (int i = start; i < end; i++) {
+      // swap rows with columns and increment res_rowadr
+      int c = res_rowadr[colind[i]]++;
+      res_colind[c] = r;
+      if (res) {
+        res[c] = mat[i];
+      }
+    }
   }
 
   // shift back row addresses
