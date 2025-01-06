@@ -3632,6 +3632,13 @@ saving the XML:
    These attributes are directly passed through to the automatically-generated :ref:`flex<deformable-flex>` object and
    have the same meaning.
 
+.. _body-flexcomp-origin:
+
+:at:`origin`: :at-val:`real(3), "0 0 0"`
+   The origin of the flexcomp. Used for generating a volumetric mesh from an OBJ surface mesh. Each surface triangle is
+   connected to the origin to create a tetrahedron, so the resulting volumetric mesh is guaranteed to be well-formed
+   only for convex shapes.
+
 .. _flexcomp-contact:
 
 :el-prefix:`flexcomp/` |-| **contact** (*)

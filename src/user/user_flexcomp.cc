@@ -940,8 +940,8 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // check dim
-  if (def.spec.flex->dim != 2) {
-    return comperr(error, "Flex dim must be 2 in for mesh", error_sz);
+  if (def.spec.flex->dim < 2) {
+    return comperr(error, "Flex dim must be at least 2 for mesh", error_sz);
   }
 
   // load resource
@@ -990,13 +990,40 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
     mesh.RemoveRepeated();
   }
 
-  // copy faces
-  element = mesh.Face();
-
   // copy vertices, convert from float to double
   point = vector<double> (mesh.nvert()*3);
   for (int i=0; i < mesh.nvert()*3; i++) {
     point[i] = (double) mesh.Vert(i);
+  }
+
+  // copy faces or create 3D mesh
+  if (def.spec.flex->dim == 2) {
+    element = mesh.Face();
+  } else {
+    point.insert(point.begin() + 0, origin[0]);
+    point.insert(point.begin() + 1, origin[1]);
+    point.insert(point.begin() + 2, origin[2]);
+    for (int i=0; i < mesh.Face().size(); i+=3) {
+      // only add tetrahedra with positive volume
+      int tet[3] = {mesh.Face()[i+0]+1,
+                    mesh.Face()[i+1]+1,
+                    mesh.Face()[i+2]+1};
+      double edge1[3], edge2[3], edge3[3];
+      for (int i=0; i < 3; i++) {
+        edge1[i] = point[3*tet[0]+i] - origin[i];
+        edge2[i] = point[3*tet[1]+i] - origin[i];
+        edge3[i] = point[3*tet[2]+i] - origin[i];
+      }
+      double normal[3];
+      mjuu_crossvec(normal, edge1, edge2);
+      if (mjuu_dot3(normal, edge3) < mjMINVAL) {
+        continue;
+      }
+      element.push_back(0);
+      element.push_back(tet[0]);
+      element.push_back(tet[1]);
+      element.push_back(tet[2]);
+    }
   }
 
   return true;

@@ -68,6 +68,7 @@ class mjCFlexcomp {
   int count[3];                   // grid count in each dimension
   double spacing[3];              // spacing between grid elements
   double scale[3];                // scaling for mesh and direct
+  double origin[3];               // origin for generating a 3D mesh from a convex 2D mesh
   double mass;                    // total mass of auto-generated bodies
   double inertiabox;              // size of inertia box for each body
   bool equality;                  // create edge equality constraint
