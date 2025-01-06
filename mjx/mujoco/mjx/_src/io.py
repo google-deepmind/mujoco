@@ -332,7 +332,6 @@ def make_data(
         'B_colind': (m.nB, jp.int32),
         'C_rownnz': (m.nv, jp.int32),
         'C_rowadr': (m.nv, jp.int32),
-        'C_diag': (m.nv, jp.int32),
         'C_colind': (m.nC, jp.int32),
         'mapM2C': (m.nC, jp.int32),
         'D_rownnz': (m.nv, jp.int32),

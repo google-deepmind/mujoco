@@ -1135,7 +1135,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "\n\n");
 
   // C sparse structure
-  mj_printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, d->C_diag, d->C_rownnz,
+  mj_printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, NULL, d->C_rownnz,
                    NULL, d->C_colind, fp);
 
   fprintf(fp, NAME_FORMAT, "C_rownnz");

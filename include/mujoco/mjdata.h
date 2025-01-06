@@ -341,7 +341,6 @@ struct mjData_ {
   int*    B_colind;          // body-dof: column indices of non-zeros            (nB x 1)
   int*    C_rownnz;          // reduced dof-dof: non-zeros in each row           (nv x 1)
   int*    C_rowadr;          // reduced dof-dof: address of each row in C_colind (nv x 1)
-  int*    C_diag;            // reduced dof-dof: index of diagonal element       (nv x 1)
   int*    C_colind;          // reduced dof-dof: column indices of non-zeros     (nC x 1)
   int*    mapM2C;            // index mapping from M to C                        (nC x 1)
   int*    D_rownnz;          // dof-dof: non-zeros in each row                   (nv x 1)
