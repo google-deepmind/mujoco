@@ -1014,6 +1014,9 @@ TEST_F(MujocoTest, AttachDifferent) {
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
 
+  // check frame is present
+  EXPECT_THAT(mjs_findFrame(parent, "frame"), NotNull());
+
   // check full name stored in mjModel
   EXPECT_STREQ(mj_id2name(m_attached, mjOBJ_BODY, 2), "attached-body-1");
 

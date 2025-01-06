@@ -614,7 +614,7 @@ mjsBody* mjs_findBody(mjSpec* s, const char* name) {
 // find element in spec by name
 mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
-  if (model->IsCompiled()) {
+  if (model->IsCompiled() && type != mjOBJ_FRAME) {
     return model->FindObject(type, std::string(name));  // fast lookup
   }
   switch (type) {
