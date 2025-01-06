@@ -310,6 +310,15 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.cvel, d.cvel)
     np.testing.assert_allclose(dx.cdof_dot, d.cdof_dot)
 
+    # check that there are no weak types
+    self.assertFalse(
+        any(
+            jax.tree_util.tree_flatten(
+                jax.tree_util.tree_map(lambda x: x.weak_type, dx)
+            )[0]
+        )
+    )
+
     # check that qM is transformed properly
     qm = np.zeros((m.nv, m.nv), dtype=np.float64)
     mujoco.mj_fullM(m, qm, d.qM)

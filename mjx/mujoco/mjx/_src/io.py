@@ -681,4 +681,5 @@ def put_data(
   # copy because device_put is async:
   data = types.Data(**{k: copy.copy(v) for k, v in fields.items()})
 
-  return jax.device_put(data, device=device)
+  data = jax.device_put(data, device=device)
+  return _strip_weak_type(data)
