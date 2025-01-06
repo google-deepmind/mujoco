@@ -2495,7 +2495,7 @@ void mjCModel::CopyTree(mjModel* m) {
       }
     }
   }
-  m->nC = nC = 2 * nOD + nv;
+  m->nC = nC = nOD + nv;
 }
 
 // copy plugin data

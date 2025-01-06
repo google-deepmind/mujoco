@@ -628,7 +628,7 @@ void mju_superSparse(int nr, int* rowsuper,
 void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
                             const int* rownnz, const int* rowadr, const int* colind,
                             const int* rownnzT, const int* rowadrT, const int* colindT,
-                            const int* rowsuperT, mjData* d) {
+                            const int* rowsuperT, mjData* d, int flg_upper) {
   mj_markStack(d);
   int* chain = mjSTACKALLOC(d, 2*nr, int);
   int nchain = 0;
@@ -640,8 +640,10 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
       res_rownnz[r] = res_rownnz[r - 1];
 
       // fill in upper triangle
-      for (int j=0; j < nchain; j++) {
-        res_rownnz[res_colind[j]]++;
+      if (flg_upper) {
+        for (int j=0; j < nchain; j++) {
+          res_rownnz[res_colind[j]]++;
+        }
       }
 
       // update chain with diagonal
@@ -691,15 +693,17 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
       res_colind = chain + inew;
 
       // update upper triangle
-      int nchain_end = nchain;
+      if (flg_upper) {
+        int nchain_end = nchain;
 
-      // avoid double counting.
-      if (nchain > 0 && res_colind[nchain-1] == r) {
-        nchain_end = nchain - 1;
-      }
+        // avoid double counting
+        if (nchain > 0 && res_colind[nchain-1] == r) {
+          nchain_end = nchain - 1;
+        }
 
-      for (int j=0; j < nchain_end; j++) {
-        res_rownnz[res_colind[j]]++;
+        for (int j=0; j < nchain_end; j++) {
+          res_rownnz[res_colind[j]]++;
+        }
       }
     }
   }
@@ -731,7 +735,7 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const int* colind, const int* rowsuper,
                         const int* rownnzT, const int* rowadrT,
                         const int* colindT, const int* rowsuperT,
-                        mjData* d) {
+                        mjData* d, int flg_upper) {
   // allocate space for accumulation buffer and matT
   mj_markStack(d);
 
@@ -846,13 +850,15 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
 
   // fill upper triangle
-  for (int i=0; i < nc; i++) {
-    int start = res_rowadr[i];
-    int end = start + res_rownnz[i] - 1;
-    for (int j=start; j < end; j++) {
-      int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
-      res[adr] = res[j];
-      res_colind[adr] = i;
+  if (flg_upper) {
+    for (int i=0; i < nc; i++) {
+      int start = res_rowadr[i];
+      int end = start + res_rownnz[i] - 1;
+      for (int j=start; j < end; j++) {
+        int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
+        res[adr] = res[j];
+        res_colind[adr] = i;
+      }
     }
   }
 

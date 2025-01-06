@@ -481,8 +481,12 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   vector<mjtNum> LDdense2(nv*nv);
   mj_fullM(m, LDdense2.data(), d->qLD);
 
-  // expect dense matrices to match exactly
-  for (int i=0; i < nv*nv; i++) EXPECT_EQ(LDdense[i], LDdense2[i]);
+  // expect lower triangles to match exactly
+  for (int i=0; i < nv; i++) {
+    for (int j=0; j < i; j++) {
+      EXPECT_EQ(LDdense[i*nv+j], LDdense2[i*nv+j]);
+    }
+  }
 
   // compare LD and LDs vector solve
   vector<mjtNum> vec(nv);

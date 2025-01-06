@@ -725,8 +725,12 @@ TEST_F(InertiaTest, DenseSameAsSparse) {
   // dense addM
   mj_addM(m, d, dst_dense.data(), nullptr, nullptr, nullptr);
 
-  // dense comparison, should be same matrix
-  EXPECT_THAT(dst_dense, ElementsAreArray(dst_sparse));
+  // dense comparison, lower triangle should match
+  for (int i=0; i < nv; i++) {
+    for (int j=0; j < i; j++) {
+      EXPECT_EQ(dst_dense[i*nv+j], dst_sparse[i*nv+j]);
+    }
+  }
 
   // clean up
   mj_deleteData(d);

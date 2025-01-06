@@ -1403,7 +1403,7 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
     mju_sqrMatTDSparseInit(ctx->H_rownnz, ctx->H_rowadr, nv,
                            d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
                            d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                           d);
+                           d, /*flg_upper=*/0);
 
     // add nC to Hessian total nonzeros (unavoidable overcounting since H_colind is still unknown)
     ctx->nH = m->nC + ctx->H_rowadr[nv - 1] + ctx->H_rownnz[nv - 1];
@@ -1424,14 +1424,24 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
                        d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                       d);
+                       d, /*flg_upper=*/0);
 
     // add mass matrix: H = J'*D*J + C
     mj_addMSparse(m, d, ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
                   ctx->C, d->C_rownnz, d->C_rowadr, d->C_colind);
 
+    // transiently compute H'; mju_cholFactorNNZ is memory-contiguous in upper triangle layout
+    mj_markStack(d);
+    int* HT_rownnz = mjSTACKALLOC(d, nv, int);
+    int* HT_rowadr = mjSTACKALLOC(d, nv, int);
+    int* HT_colind = mjSTACKALLOC(d, ctx->nH, int);
+    mju_transposeSparse(NULL, NULL, nv, nv,
+                        HT_rownnz, HT_rowadr, HT_colind,
+                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
+
     // count total and row non-zeros of reverse-Cholesky factor L
-    ctx->nL = mju_cholFactorNNZ(ctx->L_rownnz, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv, d);
+    ctx->nL = mju_cholFactorNNZ(ctx->L_rownnz, HT_rownnz, HT_rowadr, HT_colind, nv, d);
+    mj_freeStack(d);
 
     // compute L row adresses: rowadr = cumsum(rownnz)
     ctx->L_rowadr[0] = 0;
@@ -1508,7 +1518,7 @@ static void FactorizeHessian(const mjModel* m, mjData* d, mjCGContext* ctx,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
                         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
                         d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                        d);
+                        d, /*flg_upper=*/0);
 
       // add mass matrix: H = J'*D*J + C
       mj_addMSparse(m, d, ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,

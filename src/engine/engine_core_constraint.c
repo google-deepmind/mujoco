@@ -2176,12 +2176,12 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
     // AR = JM2 * JM2'
     mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc, rownnzT,
-                           rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d);
+                           rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d, /*flg_upper=*/1);
 
     mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
                        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
                        rownnzT, rowadrT, colindT, NULL,
-                       rownnz, rowadr, colind, rowsuper, d);
+                       rownnz, rowadr, colind, rowsuper, d, /*flg_upper=*/1);
 
     // add R to diagonal of AR
     for (int i=0; i < nefc; i++) {
