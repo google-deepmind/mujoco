@@ -3578,7 +3578,7 @@ mjsGeom* mjs_addGeom(mjsBody* body, const mjsDefault* def);
 mjsCamera* mjs_addCamera(mjsBody* body, const mjsDefault* def);
 mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
-void mjs_delete(mjsElement* element);
+int mjs_delete(mjsElement* element);
 mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* def);
 mjsSensor* mjs_addSensor(mjSpec* s);
 mjsFlex* mjs_addFlex(mjSpec* s);

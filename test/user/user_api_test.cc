@@ -1222,8 +1222,20 @@ void TestDetachBody(bool compile) {
   mjsBody* body = mjs_findBody(child, "body");
   EXPECT_THAT(body, NotNull());
 
+  // get an error if trying to delete the body
+  EXPECT_EQ(mjs_delete(body->element), -1);
+  EXPECT_THAT(mjs_getError(child), HasSubstr("use detach instead"));
+
   // detach subtree
   EXPECT_THAT(mjs_detachBody(child, body), 0);
+
+  // try saving to XML before compiling again
+  std::array<char, 1024> e;
+  std::array<char, 1024> s;
+  EXPECT_EQ(mj_saveXMLString(child, s.data(), 1024, e.data(), 1024), -1);
+  EXPECT_THAT(e.data(), compile
+                  ? HasSubstr("Model has pending keyframes")
+                  : HasSubstr("Only compiled model can be written"));
 
   // compile new model
   mjModel* m_detached = mj_compile(child, 0);

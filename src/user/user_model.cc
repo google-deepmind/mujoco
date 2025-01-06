@@ -530,7 +530,6 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
     ResetTreeLists();
   }
 
-  PointToLocal();
   return *this;
 }
 

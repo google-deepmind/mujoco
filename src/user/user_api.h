@@ -108,8 +108,8 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Delete object corresponding to the given element.
-MJAPI void mjs_delete(mjsElement* element);
+// Delete object corresponding to the given element, return 0 on success.
+MJAPI int mjs_delete(mjsElement* element);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------

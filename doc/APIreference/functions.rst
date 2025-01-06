@@ -3918,7 +3918,7 @@ Add frame to body.
 
 .. mujoco-include:: mjs_delete
 
-Delete object corresponding to the given element.
+Delete object corresponding to the given element, return 0 on success.
 
 .. _AddNonTreeElements:
 

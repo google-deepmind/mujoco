@@ -858,7 +858,7 @@ mjXWriter::mjXWriter(void) {
 // cast model
 void mjXWriter::SetModel(const mjSpec* _spec, const mjModel* m) {
   if (_spec) {
-    model = (mjCModel*)_spec->element;
+    model = static_cast<mjCModel*>(_spec->element);
   }
   if (m) {
     model->CopyBack(m);
@@ -2206,6 +2206,10 @@ void mjXWriter::Sensor(XMLElement* root) {
 void mjXWriter::Keyframe(XMLElement* root) {
   // create section
   XMLElement* section = InsertEnd(root, "keyframe");
+
+  if (!model->key_pending_.empty()) {
+    throw mjXError(0, "Model has pending keyframes. It must be (re)compiled before writing XML.");
+  }
 
   // write all keyframes
   for (int i=0; i<model->nkey; i++) {
