@@ -326,8 +326,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {
   int rowadrH[] = {0, 0, 0};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
@@ -371,8 +371,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse2) {
   int rowadrH[] = {0, 0, 0};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
@@ -419,8 +419,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse3) {
   mjtNum diag[] = {2, 3, 4};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(2, 2, 0));
   EXPECT_THAT(rowadrH, ElementsAre(0, 2, 4));
@@ -467,8 +467,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse4) {
 
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(2, 0, 2));
   EXPECT_THAT(rowadrH, ElementsAre(0, 2, 2));
@@ -513,8 +513,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse5) {
 
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 5));
@@ -558,8 +558,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse6) {
   int rowadrH[] = {0, 0, 0};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(2, 1, 2));
   EXPECT_THAT(rowadrH, ElementsAre(0, 2, 3));
@@ -605,8 +605,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse7) {
   mjtNum diag[] = {2, 3, 4};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 2, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 2, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(2, 2));
   EXPECT_THAT(rowadrH, ElementsAre(0, 2));
@@ -651,8 +651,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse8) {
   mjtNum diag[] = {2, 3};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 5));
@@ -698,8 +698,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse9) {
   mjtNum diag[] = {2, 3, 4};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, nullptr, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, nullptr, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
@@ -746,8 +746,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse10) {
   mjtNum diag[] = {1, 1, 1};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
@@ -794,8 +794,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse11) {
   mjtNum diag[] = {1, 1, 1};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
   EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
@@ -842,8 +842,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse12) {
   mjtNum diag[] = {1, 1, 1};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 4, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 4, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(4, 4, 4, 4));
   EXPECT_THAT(rowadrH, ElementsAre(0, 4, 8, 12));
@@ -894,8 +894,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
   mjtNum diag[] = {1, 1, 1};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 5, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 5, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(2, 2, 0, 0, 0));
   EXPECT_THAT(rowadrH, ElementsAre(0, 2, 4, 4, 4));
@@ -944,8 +944,8 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
   int rowadrH[] = {0, 0, 0, 0, 0, 0, 0};
 
   // test precount
-  mju_sqrMatTDSparseInit(rownnzH, rowadrH, 7, rownnz, rowadr, colind,
-                         rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 7, rownnz, rowadr, colind,
+                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
 
   EXPECT_THAT(rownnzH, ElementsAre(7, 7, 7, 7, 7, 7, 7));
   EXPECT_THAT(rowadrH, ElementsAre(0, 7, 14, 21, 28, 35, 42));
@@ -985,8 +985,8 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int colindA[4];
   int rownnzA_factor[2];
   mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA, 4);
-  int nnzA = mju_cholFactorNNZ(rownnzA_factor,
-                               rownnzA, rowadrA, colindA, nA, d);
+  int nnzA = mju_cholFactorCount(rownnzA_factor,
+                                 rownnzA, rowadrA, colindA, nA, d);
 
   EXPECT_EQ(nnzA, 2);
   EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
@@ -1001,8 +1001,8 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int colindB[9];
   int rownnzB_factor[3];
   mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB, 9);
-  int nnzB = mju_cholFactorNNZ(rownnzB_factor,
-                               rownnzB, rowadrB, colindB, nB, d);
+  int nnzB = mju_cholFactorCount(rownnzB_factor,
+                                 rownnzB, rowadrB, colindB, nB, d);
 
   EXPECT_EQ(nnzB, 5);
   EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
@@ -1017,8 +1017,8 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int colindC[9];
   int rownnzC_factor[3];
   mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC, 9);
-  int nnzC = mju_cholFactorNNZ(rownnzC_factor,
-                               rownnzC, rowadrC, colindC, nC, d);
+  int nnzC = mju_cholFactorCount(rownnzC_factor,
+                                 rownnzC, rowadrC, colindC, nC, d);
 
   EXPECT_EQ(nnzC, 4);
   EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
@@ -1034,8 +1034,8 @@ TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
   int colindD[16];
   int rownnzD_factor[4];
   mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD, 16);
-  int nnzD = mju_cholFactorNNZ(rownnzD_factor,
-                               rownnzD, rowadrD, colindD, nD, d);
+  int nnzD = mju_cholFactorCount(rownnzD_factor,
+                                 rownnzD, rowadrD, colindD, nD, d);
 
   EXPECT_EQ(nnzD, 8);
   EXPECT_THAT(AsVector(rownnzD_factor, 4), ElementsAre(1, 2, 2, 3));

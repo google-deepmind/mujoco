@@ -99,17 +99,17 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
                               mjData* d, int flg_upper);
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr, int nr,
-                                  const int* rownnz, const int* rowadr, const int* colind,
-                                  const int* rownnzT, const int* rowadrT, const int* colindT,
-                                  const int* rowsuperT, mjData* d, int flg_upper);
+MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
+                                   const int* rownnz, const int* rowadr, const int* colind,
+                                   const int* rownnzT, const int* rowadrT, const int* colindT,
+                                   const int* rowsuperT, mjData* d, int flg_upper);
 
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
-// compute row non-zeros of reverse-Cholesky factor L, return total
-MJAPI int mju_cholFactorNNZ(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
-                            int n, mjData* d);
+// precount row non-zeros of reverse-Cholesky factor L, return total
+MJAPI int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr,
+                              const int* colind, int n, mjData* d);
 
 // ------------------------------ inlined functions ------------------------------------------------
 

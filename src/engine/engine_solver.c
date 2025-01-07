@@ -1400,10 +1400,10 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
     }
 
     // initialize Hessian rowadr, rownnz
-    mju_sqrMatTDSparseInit(ctx->H_rownnz, ctx->H_rowadr, nv,
-                           d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                           d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                           d, /*flg_upper=*/0);
+    mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
+                            d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                            d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
+                            d->efc_JT_rowsuper, d, /*flg_upper=*/0);
 
     // add nC to Hessian total nonzeros (unavoidable overcounting since H_colind is still unknown)
     ctx->nH = m->nC + ctx->H_rowadr[nv - 1] + ctx->H_rownnz[nv - 1];
@@ -1440,7 +1440,7 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
     // count total and row non-zeros of reverse-Cholesky factor L
-    ctx->nL = mju_cholFactorNNZ(ctx->L_rownnz, HT_rownnz, HT_rowadr, HT_colind, nv, d);
+    ctx->nL = mju_cholFactorCount(ctx->L_rownnz, HT_rownnz, HT_rowadr, HT_colind, nv, d);
     mj_freeStack(d);
 
     // compute L row adresses: rowadr = cumsum(rownnz)
