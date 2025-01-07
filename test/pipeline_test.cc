@@ -31,32 +31,38 @@ static const char* const kDefaultModel = "testdata/model.xml";
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::NotNull;
 using PipelineTest = MujocoTest;
 
 
-// Joint and actuator damping should integrate identically under implicit
+// sparse and dense pipelines should produce the same results, for all solvers
 TEST_F(PipelineTest, SparseDenseEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
   char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
-  ASSERT_NE(model, nullptr) << error;
+  ASSERT_THAT(model, NotNull())  << error;
   mjData* data = mj_makeData(model);
 
-  // set dense jacobian, call mj_forward, save accelerations
-  model->opt.jacobian = mjJAC_DENSE;
-  mj_forward(model, data);
-  std::vector<mjtNum> qacc_dense = AsVector(data->qacc, model->nv);
-
-  // set sparse jacobian, call mj_forward, save accelerations
-  model->opt.jacobian = mjJAC_SPARSE;
-  mj_forward(model, data);
-  std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
-
-  // expect accelerations to be insignificantly different
   mjtNum tol = 1e-11;
-  EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse));
-  // TODO: is 1e-12 larger than we expect?
-  //       investigate sources of discrepancy, eliminate if possible
+
+  for (mjtSolver solver : {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG}) {
+    model->opt.solver = solver;
+
+    // set dense jacobian, call mj_forward, save accelerations
+    model->opt.jacobian = mjJAC_DENSE;
+    mj_resetDataKeyframe(model, data, 0);
+    mj_forward(model, data);
+    std::vector<mjtNum> qacc_dense = AsVector(data->qacc, model->nv);
+
+    // set sparse jacobian, call mj_forward, save accelerations
+    model->opt.jacobian = mjJAC_SPARSE;
+    mj_resetDataKeyframe(model, data, 0);
+    mj_forward(model, data);
+    std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
+
+    // expect accelerations to be insignificantly different
+    EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse));
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);
