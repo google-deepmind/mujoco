@@ -206,17 +206,6 @@ static void mju_addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum 
 
 
 
-// return 1 if vec1==vec2, 0 otherwise
-static int mju_compare(const int* vec1, const int* vec2, int n) {
-#ifdef mjUSEAVX
-  return mju_compare_avx(vec1, vec2, n);
-#else
-  return !memcmp(vec1, vec2, n*sizeof(int));
-#endif  // mjUSEAVX
-}
-
-
-
 // count the number of non-zeros in the sum of two sparse vectors
 int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
   int a = 0, b = 0, c_nnz = 0;

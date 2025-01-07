@@ -1100,5 +1100,23 @@ TEST_F(EngineUtilSparseTest, MjuDenseToSparse) {
   EXPECT_EQ(status0, 1);
 }
 
+TEST_F(EngineUtilSparseTest, MergeSorted) {
+  const int chain1_a[] = {1, 2, 3};
+  const int chain2_a[] = {};
+  int merged_a[3];
+  int n1 = 3;
+  int n2 = 0;
+  EXPECT_EQ(mj_mergeSorted(merged_a, chain1_a, n1, chain2_a, n2), 3);
+  EXPECT_THAT(merged_a, ElementsAre(1, 2, 3));
+
+  const int chain1_b[] = {1, 3, 5, 7, 8};
+  const int chain2_b[] = {2, 4, 5, 6, 8};
+  int merged_b[8];
+  n1 = 5;
+  n2 = 5;
+  EXPECT_EQ(mj_mergeSorted(merged_b, chain1_b, n1, chain2_b, n2), 8);
+  EXPECT_THAT(merged_b, ElementsAre(1, 2, 3, 4, 5, 6, 7, 8));
+}
+
 }  // namespace
 }  // namespace mujoco

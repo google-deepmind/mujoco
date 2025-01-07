@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPARSE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPARSE_H_
 
+#include <string.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjtnum.h>
@@ -160,6 +162,69 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int
 
   return res;
 #endif  // mjUSEAVX
+}
+
+// return 1 if vec1==vec2, 0 otherwise
+static inline
+int mju_compare(const int* vec1, const int* vec2, int n) {
+#ifdef mjUSEAVX
+  return mju_compare_avx(vec1, vec2, n);
+#else
+  return !memcmp(vec1, vec2, n*sizeof(int));
+#endif  // mjUSEAVX
+}
+
+
+// merge unique sorted integers, merge array must be large enough (not checked for)
+static inline
+int mj_mergeSorted(int* merge, const int* chain1, int n1, const int* chain2, int n2) {
+  // special case: one or both empty
+  if (n1 == 0) {
+    if (n2 == 0) {
+      return 0;
+    }
+    memcpy(merge, chain2, n2 * sizeof(int));
+    return n2;
+  } else if (n2 == 0) {
+    memcpy(merge, chain1, n1 * sizeof(int));
+    return n1;
+  }
+
+  // special case: identical pattern
+  if (n1 == n2 && mju_compare(chain1, chain2, n1)) {
+    memcpy(merge, chain1, n1 * sizeof(int));
+    return n1;
+  }
+
+  // merge while both chains are non-empty
+  int i = 0, j = 0, k = 0;
+  while (i < n1 && j < n2) {
+    int c1 = chain1[i];
+    int c2 = chain2[j];
+
+    if (c1 < c2) {
+      merge[k++] = c1;
+      i++;
+    } else if (c1 > c2) {
+      merge[k++] = c2;
+      j++;
+    } else { // c1 == c2
+      merge[k++] = c1;
+      i++;
+      j++;
+    }
+  }
+
+  // copy remaining
+  if (i < n1) {
+    memcpy(merge + k, chain1 + i, (n1 - i)*sizeof(int));
+    k += n1 - i;
+  } else if (j < n2) {
+    memcpy(merge + k, chain2 + j, (n2 - j)*sizeof(int));
+    k += n2 - j;
+  }
+
+  return k;
 }
 
 
