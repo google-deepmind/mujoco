@@ -1728,7 +1728,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // spatial tendons
   objtype = mjOBJ_TENDON;
   category = mjCAT_DYNAMIC;
-  if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
+  if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
     // mark actuated tendons
     mj_markStack(d);
     int* tendon_actuated = mjSTACKALLOC(d, m->ntendon, int);
