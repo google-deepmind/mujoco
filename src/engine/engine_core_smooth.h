@@ -64,8 +64,8 @@ MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, int n,
                       const mjtNum* qLD, const mjtNum* qLDiagInv);
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
-//  like mj_solveLD, but using the CSR representation of L
-MJAPI void mj_solveLDs(mjtNum* x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
+//  handle n vectors at once
+MJAPI void mj_solveLDs(mjtNum* x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv, int n,
                        const int* rownnz, const int* rowadr, const int* diagnum, const int* colind);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d

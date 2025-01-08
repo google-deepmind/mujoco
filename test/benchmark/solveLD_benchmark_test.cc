@@ -63,7 +63,7 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
         mj_solveM(m, d, res, vec, 1);
       } else {
         mju_copy(res, vec, m->nv);
-        mj_solveLDs(res, LDs, d->qLDiagInv, m->nv,
+        mj_solveLDs(res, LDs, d->qLDiagInv, m->nv, 1,
                     d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }

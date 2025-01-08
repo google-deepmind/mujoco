@@ -495,11 +495,49 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   for (int i=0; i < nv; i+=2) vec[i] = vec2[i] = 0;
 
   mj_solveLD(m, vec.data(), 1, d->qLD, d->qLDiagInv);
-  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv,
+  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv, 1,
               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
+    EXPECT_FLOAT_EQ(vec[i], vec2[i]);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  int nv = m->nv;
+  int nC = m->nC;
+
+  // copy LD into LDs: CSR format
+  vector<mjtNum> LDs(nC);
+  for (int i=0; i < nC; i++) {
+    LDs[i] = d->qLD[d->mapM2C[i]];
+  }
+
+  // compare n LD and LDs vector solve
+  int n = 3;
+  vector<mjtNum> vec(nv*n);
+  vector<mjtNum> vec2(nv*n);
+  for (int i=0; i < nv*n; i++) vec[i] = vec2[i] = 2 + 3*i;
+  for (int i=0; i < nv*n; i+=3) vec[i] = vec2[i] = 0;
+
+  mj_solveLD(m, vec.data(), n, d->qLD, d->qLDiagInv);
+  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv, n,
+              d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+
+  // expect vectors to match up to floating point precision
+  for (int i=0; i < nv*n; i++) {
     EXPECT_FLOAT_EQ(vec[i], vec2[i]);
   }
 

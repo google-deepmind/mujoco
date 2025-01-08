@@ -1607,39 +1607,88 @@ void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 //  like mj_solveLD, but using the CSR representation of L
-void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv,
+void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv, int n,
                  const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
-  // x <- L^-T x
-  for (int i=nv-1; i > 0; i--) {
-    // skip diagonal (simple) rows, exploit sparsity of input vector
-    if (diagnum[i] || x[i] == 0) {
-      continue;
+  // single vector
+  if (n == 1) {
+    // x <- L^-T x
+    for (int i=nv-1; i > 0; i--) {
+      // skip diagonal rows, zero elements in input vector
+      mjtNum x_i = x[i];
+      if (x_i == 0 || diagnum[i]) {
+        continue;
+      }
+
+      int start = rowadr[i];
+      int end = start + rownnz[i] - 1;
+      for (int adr=start; adr < end; adr++) {
+        x[colind[adr]] -= qLDs[adr] * x_i;
+      }
     }
 
-    int d = rownnz[i] - 1;
-    int adr_i = rowadr[i];
-    mjtNum x_i = x[i];
-    for (int j=0; j < d; j++) {
-      int adr = adr_i + j;
-      x[colind[adr]] -= qLDs[adr] * x_i;
+    // x <- D^-1 x
+    for (int i=0; i < nv; i++) {
+      x[i] *= qLDiagInv[i];
+    }
+
+    // x <- L^-1 x
+    for (int i=1; i < nv; i++) {
+      // skip diagonal rows
+      if (diagnum[i]) {
+        i += diagnum[i] - 1;  // iterating forward: skip ahead, adjust i
+        continue;
+      }
+
+      int adr = rowadr[i];
+      x[i] -= mju_dotSparse(qLDs+adr, x, rownnz[i] - 1, colind+adr, /*flg_unc1=*/0);
     }
   }
 
-  // x(i) /= D(i,i)
-  for (int i=0; i < nv; i++) {
-    x[i] *= qLDiagInv[i];
-  }
+  // multiple vectors
+  else {
+    // x <- L^-T x
+    for (int i=nv-1; i > 0; i--) {
+      // skip diagonal rows
+      if (diagnum[i]) {
+        continue;
+      }
 
-  // x <- L^-1 x
-  for (int i=1; i < nv; i++) {
-    // skip diagonal (simple) rows
-    if (diagnum[i]) {
-      i += diagnum[i] - 1;  // when iterating forward we can skip ahead
-      continue;
+      int start = rowadr[i];
+      int end = start + rownnz[i] - 1;
+      for (int adr=start; adr < end; adr++) {
+        int j = colind[adr];
+        mjtNum val = qLDs[adr];
+        for (int offset=0; offset < n*nv; offset+=nv) {
+          mjtNum x_i;
+          if ((x_i = x[i+offset])) {
+            x[j+offset] -= val * x_i;
+          }
+        }
+      }
     }
 
-    int adr = rowadr[i];
-    x[i] -= mju_dotSparse(qLDs+adr, x, rownnz[i] - 1, colind+adr, /*flg_unc1=*/0);
+    // x <- D^-1 x
+    for (int i=0; i < nv; i++) {
+      mjtNum invD_i = qLDiagInv[i];
+      for (int offset=0; offset < n*nv; offset+=nv) {
+        x[i+offset] *= invD_i;
+      }
+    }
+
+    // x <- L^-1 x
+    for (int i=1; i < nv; i++) {
+      // skip diagonal rows
+      if (diagnum[i]) {
+        i += diagnum[i] - 1;  // iterating forward: skip ahead, adjust i
+        continue;
+      }
+
+      int adr = rowadr[i];
+      int d = rownnz[i] - 1;
+      for (int offset=0; offset < n*nv; offset+=nv) {
+        x[i+offset] -= mju_dotSparse(qLDs+adr, x+offset, d, colind+adr, /*flg_unc1=*/0);
+      }
+    }
   }
 }
 

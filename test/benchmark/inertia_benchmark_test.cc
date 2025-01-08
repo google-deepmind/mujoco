@@ -72,7 +72,7 @@ static void BM_solve(benchmark::State& state, SolveType type) {
           mj_factorIs(LDs, d->qLDiagInv, m->nv,
                       d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
           mju_copy(res, vec, m->nv);
-          mj_solveLDs(res, LDs, d->qLDiagInv, m->nv,
+          mj_solveLDs(res, LDs, d->qLDiagInv, m->nv, 1,
                       d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }
