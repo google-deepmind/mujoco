@@ -1272,10 +1272,14 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
     mj_printSparsity("JT: constraint Jacobian transposed", m->nv, d->nefc, d->efc_JT_rowadr, NULL,
                      d->efc_JT_rownnz, d->efc_JT_rowsuper, d->efc_JT_colind, fp);
-    printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
-    printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);
-    printSparse("EFC_AR", d->efc_AR, d->nefc, d->efc_AR_rownnz,
-                d->efc_AR_rowadr, d->efc_AR_colind, fp, float_format);
+    if (mj_isDual(m)) {
+      printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
+      printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);
+      printSparse("EFC_AR", d->efc_AR, d->nefc, d->efc_AR_rownnz,
+                  d->efc_AR_rowadr, d->efc_AR_colind, fp, float_format);
+      mj_printSparsity("efc_AR: inverse constraint inertia", d->nefc, d->nefc, d->efc_AR_rowadr,
+                       NULL, d->efc_AR_rownnz, NULL, d->efc_AR_colind, fp);
+    }
   }
 
   printArray("EFC_POS", d->nefc, 1, d->efc_pos, fp, float_format);
