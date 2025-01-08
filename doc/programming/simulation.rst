@@ -267,7 +267,7 @@ control laws obtained from trajectory optimizers would normally be indexed by ``
 The reason for the "official" caveat above is because user callbacks may store additional state variables that change
 over time and affect the callback outputs; indeed the field ``mjData.userdata`` exists mostly for that purpose. Other
 state-like quantities that are part of mjData and are treated as inputs by forward dynamics are ``mjData.mocap_pos`` and
-mjData.mocap_quat. These quantities are unusual in that they are meant to change at each time step (normally driven by a
+``mjData.mocap_quat``. These quantities are unusual in that they are meant to change at each time step (normally driven by a
 motion capture device), however this change is implemented by the user, while the simulator treats them as constants. In
 that sense they are no different from all the constants in mjModel, or the function callback pointers set by the user:
 such constants affect the computation, but are not part of the state vector of a dynamical system.
