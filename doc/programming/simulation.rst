@@ -286,7 +286,7 @@ Next we turn to the controls and applied forces. The control vector in MuJoCo is
      u = (mjData.ctrl, mjData.qfrc_applied, mjData.xfrc_applied)
 
 These quantities specify control signals (``mjData.ctrl``) for the actuators defined in the model, or directly apply
-forces and torques specified in joint space (``mjData.qfrc_applied``) or in Cartesian space (mjData.xfrc_applied).
+forces and torques specified in joint space (``mjData.qfrc_applied``) or in Cartesian space (``mjData.xfrc_applied``).
 
 Finally, calling mj_forward which corresponds to the abstract dynamics function ``f(t,x,u)`` computes the
 time-derivative of the state vector. The corresponding fields of mjData are
