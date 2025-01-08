@@ -146,6 +146,9 @@ mjCModel::mjCModel() {
   defaults_.push_back(new mjCDef);
   defaults_.back()->name = "main";
 
+  // point to model from spec
+  PointToLocal();
+
   // world body
   mjCBody* world = new mjCBody(this);
   mjuu_zerovec(world->pos, 3);
@@ -163,14 +166,15 @@ mjCModel::mjCModel() {
   // create mjCBase lists from children lists
   CreateObjectLists();
 
-  // point to model from spec
-  PointToLocal();
+  // the source spec is the model itself, overwritten in the copy constructor
+  source_spec_ = &spec;
 }
 
 
 
 mjCModel::mjCModel(const mjCModel& other) {
   CreateObjectLists();
+  source_spec_ = (mjSpec*)&other.spec;
   *this = other;
 }
 
@@ -1218,6 +1222,25 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
     }
   }
   return nullptr;
+}
+
+
+
+// find spec by mjsCompiler pointer
+mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
+  for (auto spec : specs_) {
+    if (&(static_cast<const mjCModel*>(spec->element)->GetSourceSpec()->compiler) == compiler_) {
+      return spec;
+    }
+  }
+  return nullptr;
+}
+
+
+
+// get the spec from which this model was created
+mjSpec* mjCModel::GetSourceSpec() const {
+  return source_spec_;
 }
 
 

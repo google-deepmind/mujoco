@@ -236,6 +236,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
+  mjSpec* FindSpec(const mjsCompiler* compiler_) const;             // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
@@ -303,9 +304,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;
 
+  // get the spec from which this model was created
+  mjSpec* GetSourceSpec() const;
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
+
+  // spec from which this model was created in copy constructor
+  mjSpec* source_spec_;
 
   // list of active plugins
   std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;

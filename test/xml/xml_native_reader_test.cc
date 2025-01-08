@@ -1579,6 +1579,72 @@ TEST_F(XMLReaderTest, InvalidAttach) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, LookupCompilerOptionWithoutSpecCopy) {
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+
+    <worldbody>
+      <body name="child">
+        <geom type="box" size="1 1 1"/>
+        <joint name="child_joint" range="-3.1415926 3.1415926"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="child.xml"/>
+    </asset>
+
+    <worldbody>
+      <body name="parent">
+        <geom type="box" size="1 1 1"/>
+        <joint name="parent_joint" range="-180 180"/>
+        <attach model="child" body="child" prefix="child_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+  mj_addBufferVFS(vfs.get(), "parent.xml", parent_xml, sizeof(parent_xml));
+
+  std::array<char, 1024> error;
+  auto* spec = mj_parseXMLString(parent_xml, vfs.get(), error.data(),
+                                 error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->njnt, 2);
+  EXPECT_NEAR(model->jnt_range[0], -3.14159, 1e-5);
+  EXPECT_NEAR(model->jnt_range[1], 3.14159, 1e-5);
+  EXPECT_NEAR(model->jnt_range[2], -3.14159, 1e-5);
+  EXPECT_NEAR(model->jnt_range[3], 3.14159, 1e-5);
+
+  mjSpec* copied_spec = mj_copySpec(spec);
+  ASSERT_THAT(copied_spec, NotNull());
+  mjModel* copied_model = mj_compile(copied_spec, vfs.get());
+  EXPECT_THAT(copied_model, NotNull());
+  EXPECT_THAT(copied_model->njnt, 2);
+  EXPECT_NEAR(copied_model->jnt_range[0], -3.14159, 1e-5);
+  EXPECT_NEAR(copied_model->jnt_range[1], 3.14159, 1e-5);
+  EXPECT_NEAR(copied_model->jnt_range[2], -3.14159, 1e-5);
+  EXPECT_NEAR(copied_model->jnt_range[3], 3.14159, 1e-5);
+
+  mj_deleteSpec(spec);
+  mj_deleteSpec(copied_spec);
+  mj_deleteModel(model);
+  mj_deleteModel(copied_model);
+
+  mj_deleteVFS(vfs.get());
+}
+
 // ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {

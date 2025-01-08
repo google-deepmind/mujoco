@@ -798,7 +798,7 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 mjCBody::mjCBody(const mjCBody& other, mjCModel* _model) {
   model = _model;
-  mjSpec* origin = model->FindSpec(mjs_getString(other.model->spec.modelname));
+  mjSpec* origin = model->FindSpec(other.compiler);
   compiler = origin ? &origin->compiler : &model->spec.compiler;
   *this = other;
   CopyPlugin();
@@ -881,7 +881,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   }
 
   // copy input frame
-  mjSpec* origin = model->FindSpec(mjs_getString(other.model->spec.modelname));
+  mjSpec* origin = model->FindSpec(other.compiler);
   frames.push_back(new mjCFrame(other));
   frames.back()->body = this;
   frames.back()->model = model;
@@ -947,7 +947,7 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
     if (pframe && !pframe->IsAncestor(src[i]->frame)) {
       continue;  // skip if the element is not inside pframe
     }
-    mjSpec* origin = model->FindSpec(mjs_getString(src[i]->model->spec.modelname));
+    mjSpec* origin = model->FindSpec(src[i]->compiler);
     dst.push_back(new T(*src[i]));
     dst.back()->body = this;
     dst.back()->model = model;

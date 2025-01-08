@@ -117,6 +117,8 @@ to :ref:`attach a body to a site<mjs_attachToSite>`:
 
    mjSpec* parent = mj_makeSpec();
    mjSpec* child = mj_makeSpec();
+   parent->compiler.degree = 0;
+   child->compiler.degree = 1;
    mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), NULL);
    mjsSite* site = mjs_addSite(mjs_findBody(parent, "world"), NULL);
    mjsBody* body = mjs_addBody(mjs_findBody(child, "world"), NULL);
@@ -132,6 +134,11 @@ or :ref:`attach a frame to a body<mjs_attachFrame>`:
    mjsBody* body = mjs_addBody(mjs_findBody(parent, "world"), NULL);
    mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), NULL);
    mjsFrame* attached_frame = mjs_attachFrame(body, frame, "attached-", "-1");
+
+Note that in the above examples, the parent and child models have different values for ``compiler.degree``,
+corresponding to the :ref:`compiler/angle<compiler-angle>` attribute, specifying the units in which angles are
+interperted. Compiler options are carried over during attachment, so the child model will be compiled using X, while the
+parent will be compiled using Y.
 
 .. _meDefault:
 
