@@ -12,6 +12,7 @@ Python bindings
   the computation. The thread pool can be reused across calls, but then the function cannot be called simultaneously
   from multiple threads. To run multiple threaded rollouts simultaneously, use the new class ``Rollout`` which
   encapsulates the thread pool. Contribution by :github:user:`aftersomemath`.
+- Fix global namespace pollution when using ``mjpython`` (:github:issue:`2265`).
 
 General
 ^^^^^^^
