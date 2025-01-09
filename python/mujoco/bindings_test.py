@@ -93,6 +93,19 @@ TEST_XML_PLUGIN = r"""
 </mujoco>
 """
 
+TEST_XML_TEXTURE = r"""
+<mujoco>
+  <asset>
+    <texture name="tex" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
+      width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <material name="mat" reflectance="0.3" texture="tex" texrepeat="1 1" texuniform="true"/>
+  </asset>
+  <worldbody>
+    <geom type="plane" size="1 1 1" material="mat"/>
+  </worldbody>
+</mujoco>
+"""
+
 
 @contextlib.contextmanager
 def temporary_callback(setter, callback):
@@ -1618,6 +1631,10 @@ Euler integrator, semi-implicit in velocity.
     np.testing.assert_array_equal(data1.qpos, data2.qpos)
     self.assertIsNot(data1.model, data2.model)
     self.assertNotEqual(data1.model._address, data2.model._address)
+
+  def test_texture_size(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML_TEXTURE)
+    self.assertEqual(model.tex('tex').data.shape, (512, 512, 3))
 
   def _assert_attributes_equal(self, actual_obj, expected_obj, attr_to_compare):
     for name in attr_to_compare:
