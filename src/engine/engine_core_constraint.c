@@ -2174,23 +2174,20 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     // construct supernodes
     mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
 
-    // AR = JM2 * JM2'
+    // pre-count efc_AR_rownnz, efc_AR_rowadr
     mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc, rownnzT,
                             rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d, /*flg_upper=*/1);
 
+    // AR = JM2 * JM2'
+    int* diagind = mjSTACKALLOC(d, nefc, int);
     mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
                        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
                        rownnzT, rowadrT, colindT, NULL,
-                       rownnz, rowadr, colind, rowsuper, d, /*flg_upper=*/1);
+                       rownnz, rowadr, colind, rowsuper, d, diagind);
 
     // add R to diagonal of AR
     for (int i=0; i < nefc; i++) {
-      for (int j=0; j < d->efc_AR_rownnz[i]; j++) {
-        if (i == d->efc_AR_colind[d->efc_AR_rowadr[i]+j]) {
-          d->efc_AR[d->efc_AR_rowadr[i]+j] += d->efc_R[i];
-          break;
-        }
-      }
+      d->efc_AR[diagind[i]] += d->efc_R[i];
     }
   }
 

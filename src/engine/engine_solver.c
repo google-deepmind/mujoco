@@ -1424,7 +1424,7 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
                        d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                       d, /*flg_upper=*/0);
+                       d, /*diagind=*/NULL);
 
     // add mass matrix: H = J'*D*J + C
     mj_addMSparse(m, d, ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
@@ -1518,7 +1518,7 @@ static void FactorizeHessian(const mjModel* m, mjData* d, mjCGContext* ctx,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
                         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
                         d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                        d, /*flg_upper=*/0);
+                        d, /*diagind=*/NULL);
 
       // add mass matrix: H = J'*D*J + C
       mj_addMSparse(m, d, ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,

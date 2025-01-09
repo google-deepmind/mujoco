@@ -89,8 +89,7 @@ MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 MJAPI void mju_superSparse(int nr, int* rowsuper,
                            const int* rownnz, const int* rowadr, const int* colind);
 
-// compute sparse M'*diag*M (diag=NULL: compute M'*M), res has uncompressed layout
-// res_rowadr is required to be precomputed
+// compute sparse M'*diag*M (diag=NULL: compute M'*M), res_rowadr must be precomputed
 MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                               const mjtNum* diag, int nr, int nc,
                               int* res_rownnz, const int* res_rowadr, int* res_colind,
@@ -98,7 +97,7 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
                               const int* colind, const int* rowsuper,
                               const int* rownnzT, const int* rowadrT,
                               const int* colindT, const int* rowsuperT,
-                              mjData* d, int flg_upper);
+                              mjData* d, int* diagind);
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
 MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,

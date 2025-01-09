@@ -724,7 +724,7 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const int* colind, const int* rowsuper,
                         const int* rownnzT, const int* rowadrT,
                         const int* colindT, const int* rowsuperT,
-                        mjData* d, int flg_upper) {
+                        mjData* d, int* diagind) {
   // allocate space for accumulation buffer and matT
   mj_markStack(d);
 
@@ -838,8 +838,14 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   }
 
 
-  // fill upper triangle
-  if (flg_upper) {
+  // diagonal indices requested: fill upper triangle
+  if (diagind) {
+    // save diagonal indices
+    for (int i=0; i < nc; i++) {
+      diagind[i] = res_rowadr[i] + res_rownnz[i] - 1;
+    }
+
+    // fill upper triangle
     for (int i=0; i < nc; i++) {
       int start = res_rowadr[i];
       int end = start + res_rownnz[i] - 1;
