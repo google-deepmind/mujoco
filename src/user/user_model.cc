@@ -236,7 +236,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     }
     // copy the element from the other model to this model
     source[i]->ForgetKeyframes();
-    mjSpec* origin = FindSpec(mjs_getString(source[i]->model->spec.modelname));
+    mjSpec* origin = FindSpec(source[i]->compiler);
     dest.push_back(candidate);
     dest.back()->model = this;
     dest.back()->compiler = origin ? &origin->compiler : &spec.compiler;
@@ -1228,9 +1228,13 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
 
 // find spec by mjsCompiler pointer
 mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
-  for (auto spec : specs_) {
-    if (&(static_cast<const mjCModel*>(spec->element)->GetSourceSpec()->compiler) == compiler_) {
-      return spec;
+  if (&GetSourceSpec()->compiler == compiler_) {
+    return (mjSpec*)&spec;
+  }
+  for (auto s : specs_) {
+    mjSpec* source = static_cast<mjCModel*>(s->element)->FindSpec(compiler_);
+    if (source) {
+      return source;
     }
   }
   return nullptr;

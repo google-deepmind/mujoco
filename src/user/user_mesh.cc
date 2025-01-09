@@ -151,6 +151,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   // set model, def
   model = _model;
+  if (_model) compiler = &_model->spec.compiler;
   classname = (_def ? _def->name : (_model ? "main" : ""));
 
   // in case this body is not compiled
@@ -1981,6 +1982,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 
   // set model pointer
   model = _model;
+  if (model) compiler = &model->spec.compiler;
 
   // clear data
   spec_file_.clear();
@@ -2638,6 +2640,7 @@ mjCFlex::mjCFlex(mjCModel* _model) {
 
   // set model
   model = _model;
+  if (_model) compiler = &_model->spec.compiler;
 
   // clear internal variables
   nvert = 0;
