@@ -1104,19 +1104,19 @@ static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   int v4 = newVertex(pt, status->simplex1 + 9, status->simplex2 + 9);
 
   // if the origin is on a face, replace the 3-simplex with a 2-simplex
-  if (attachFace(pt, v1, v2, v3, 1, 3, 2) == 0.0) {
+  if (attachFace(pt, v1, v2, v3, 1, 3, 2) < mjMINVAL) {
     replaceSimplex3(pt, status, v1, v2, v3);
     return polytope3(pt, status, obj1, obj2);
   }
-  if (attachFace(pt, v1, v4, v2, 2, 3, 0) == 0.0) {
+  if (attachFace(pt, v1, v4, v2, 2, 3, 0) < mjMINVAL) {
     replaceSimplex3(pt, status, v1, v4, v2);
     return polytope3(pt, status, obj1, obj2);
   }
-  if (attachFace(pt, v1, v3, v4, 0, 3, 1) == 0.0) {
+  if (attachFace(pt, v1, v3, v4, 0, 3, 1) < mjMINVAL) {
     replaceSimplex3(pt, status, v1, v3, v4);
     return polytope3(pt, status, obj1, obj2);
   }
-  if (attachFace(pt, v4, v3, v2, 2, 0, 1) == 0.0) {
+  if (attachFace(pt, v4, v3, v2, 2, 0, 1) < mjMINVAL) {
     replaceSimplex3(pt, status, v4, v3, v2);
     return polytope3(pt, status, obj1, obj2);
   }
