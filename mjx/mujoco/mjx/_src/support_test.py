@@ -238,9 +238,11 @@ class SupportTest(parameterized.TestCase):
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
 
     # test invalid name
-    with self.assertRaises(ValueError):
+    with self.assertRaises(AttributeError):
+      print(dx.bind(mx, s.geoms).ctrl)
+    with self.assertRaises(AttributeError):
       print(dx.bind(mx, s.actuators).actuator_ctrl)
-    with self.assertRaises(ValueError):
+    with self.assertRaises(AttributeError):
       print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
 
   _CONTACTS = """

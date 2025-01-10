@@ -404,7 +404,7 @@ class BindData(object):
           self.prefix = 'cam_'
           ids.append(name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name))
         case mujoco.MjsTendon():
-          self.prefix = 'tendon_'
+          self.prefix = 'ten_'
           ids.append(name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name))
         case mujoco.MjsActuator():
           self.prefix = 'actuator_'
@@ -412,6 +412,9 @@ class BindData(object):
         case mujoco.MjsSensor():
           self.prefix = 'sensor_'
           ids.append(name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name))
+        case mujoco.MjsEquality():
+          self.prefix = 'eq_'
+          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name))
         case _:
           raise ValueError('invalid spec type')
     if len(ids) == 1:
@@ -420,15 +423,13 @@ class BindData(object):
       self.id = ids
 
   def __getname(self, name: str):
-    try:
-      getattr(self.data, self.prefix + name)
-      return self.prefix + name
-    except AttributeError:
-      try:
-        getattr(self.data, name)
+    if name == 'ctrl':
+      if self.prefix == 'actuator_':
         return name
-      except AttributeError as e:
-        raise ValueError(f'invalid name: {name}') from e
+      else:
+        raise AttributeError('ctrl is not available for this type')
+    else:
+      return self.prefix + name
 
   def __getattr__(self, name: str):
     return getattr(self.data, self.__getname(name))[self.id, ...]
