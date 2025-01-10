@@ -157,6 +157,92 @@ class SupportTest(parameterized.TestCase):
         i = i if n is not None else -1
         self.assertEqual(support.name2id(mx, obj, n), i)
 
+  def test_bind(self):
+    xml = """
+    <mujoco model="test_bind_model">
+        <worldbody>
+          <body pos="1 2 3" name="body1">
+            <joint axis="1 0 0" type="slide" name="joint1"/>
+            <geom size="1 2 3" type="box" name="geom1"/>
+          </body>
+          <body pos="4 5 6" name="body2">
+            <joint axis="0 1 0" type="slide" name="joint2"/>
+            <geom size="4 5 6" type="box" name="geom2"/>
+          </body>
+          <body pos="7 8 9" name="body3">
+            <joint axis="0 0 1" type="slide" name="joint3"/>
+            <geom size="7 8 9" type="box" name="geom3"/>
+          </body>
+        </worldbody>
+
+        <actuator>
+          <motor name="actuator1" joint="joint1"/>
+          <motor name="actuator2" joint="joint2"/>
+          <motor name="actuator3" joint="joint3"/>
+        </actuator>
+    </mujoco>
+    """
+
+    s = mujoco.MjSpec.from_string(xml)
+    m = s.compile()
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    mujoco.mj_step(m, d)
+    dx = mjx.step(mx, dx)
+
+    # test getting
+    np.testing.assert_array_equal(mx.bind(s.bodies).pos, m.body_pos)
+    np.testing.assert_array_equal(dx.bind(mx, s.bodies).xpos, d.xpos)
+    for i in range(m.nbody):
+      np.testing.assert_array_equal(m.bind(s.bodies[i]).pos, m.body_pos[i, :])
+      np.testing.assert_array_equal(mx.bind(s.bodies[i]).pos, m.body_pos[i, :])
+      np.testing.assert_array_equal(d.bind(s.bodies[i]).xpos, d.xpos[i, :])
+      np.testing.assert_array_equal(
+          dx.bind(mx, s.bodies[i]).xpos, d.xpos[i, :]
+          )
+
+    np.testing.assert_array_equal(mx.bind(s.geoms).size, m.geom_size)
+    np.testing.assert_array_equal(dx.bind(mx, s.geoms).xpos, d.geom_xpos)
+    for i in range(m.ngeom):
+      np.testing.assert_array_equal(m.bind(s.geoms[i]).size, m.geom_size[i, :])
+      np.testing.assert_array_equal(mx.bind(s.geoms[i]).size, m.geom_size[i, :])
+      np.testing.assert_array_equal(d.bind(s.geoms[i]).xpos, d.geom_xpos[i, :])
+      np.testing.assert_array_equal(
+          dx.bind(mx, s.geoms[i]).xpos, d.geom_xpos[i, :]
+      )
+
+    np.testing.assert_array_equal(mx.bind(s.joints).axis, m.jnt_axis)
+    for i in range(m.njnt):
+      np.testing.assert_array_equal(m.bind(s.joints[i]).axis, m.jnt_axis[i, :])
+      np.testing.assert_array_equal(mx.bind(s.joints[i]).axis, m.jnt_axis[i, :])
+
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
+    for i in range(m.nu):
+      np.testing.assert_array_equal(d.bind(s.actuators[i]).ctrl, d.ctrl[i])
+      np.testing.assert_array_equal(
+          dx.bind(mx, s.actuators[i]).ctrl, d.ctrl[i]
+      )
+
+    # test setting
+    np.testing.assert_array_equal(d.ctrl, [0, 0, 0])
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
+    dx2 = dx.bind(mx, s.actuators).set('ctrl', [1, 2, 3])
+    np.testing.assert_array_equal(dx2.bind(mx, s.actuators).ctrl, [1, 2, 3])
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
+    dx3 = dx.bind(mx, s.actuators[1:]).set('ctrl', [4, 5])
+    np.testing.assert_array_equal(dx3.bind(mx, s.actuators).ctrl, [0, 4, 5])
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
+    dx4 = dx.bind(mx, s.actuators[1]).set('ctrl', [6])
+    np.testing.assert_array_equal(dx4.bind(mx, s.actuators).ctrl, [0, 6, 0])
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
+
+    # test invalid name
+    with self.assertRaises(ValueError):
+      print(dx.bind(mx, s.actuators).actuator_ctrl)
+    with self.assertRaises(ValueError):
+      print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
+
   _CONTACTS = """
     <mujoco>
       <worldbody>
