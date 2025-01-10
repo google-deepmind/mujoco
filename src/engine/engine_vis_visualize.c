@@ -115,7 +115,7 @@ static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
                            const mjvOption* vopt, mjvScene* scn) {
   int objtype = mjOBJ_UNKNOWN, category = mjCAT_DECOR;
-  mjtNum mat[9], tmp[9], vec[3], frc[3], confrc[6], axis[3];
+  mjtNum mat[9], vec[3], frc[3], confrc[6], axis[3];
   mjtNum framewidth, framelength, scl = m->stat.meansize;
   mjContact* con;
   mjvGeom* thisgeom;
@@ -131,10 +131,8 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
     // get pointer
     con = d->contact + i;
 
-    // mat = contact rotation matrix (normal along z)
-    mju_copy(tmp, con->frame+3, 6);
-    mju_copy(tmp+6, con->frame, 3);
-    mju_transpose(mat, tmp, 3, 3);
+    // mat = contact frame rotation matrix (normal along x)
+    mju_transpose(mat, con->frame, 3, 3);
 
     // contact point
     if (flags[mjVIS_CONTACTPOINT]) {
@@ -243,9 +241,6 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
     if (d->contact[i].efc_address < 0) {
       continue;
     }
-
-    // mat = contact frame rotation matrix (normal along x)
-    mju_transpose(mat, con->frame, 3, 3);
 
     // get contact force:torque in contact frame
     mj_contactForce(m, d, i, confrc);
