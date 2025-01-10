@@ -157,6 +157,7 @@ TEST_F(EngineIoTest, ResetVariableSizes) {
   EXPECT_EQ(data->nf, 0);
   EXPECT_EQ(data->nefc, 0);
   EXPECT_EQ(data->nJ, 0);
+  EXPECT_EQ(data->nA, 0);
   EXPECT_EQ(data->ncon, 0);
 
   mj_deleteData(data);

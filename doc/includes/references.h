@@ -170,6 +170,7 @@ struct mjData_ {
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nJ;                // number of non-zeros in constraint Jacobian
+  int     nA;                // number of non-zeros in constraint inverse inertia matrix
   int     nisland;           // number of detected constraint islands
 
   // global properties
@@ -391,8 +392,8 @@ struct mjData_ {
   // computed by mj_projectConstraint (PGS solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
   int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
-  int*    efc_AR_colind;     // column indices in sparse AR                      (nefc x nefc)
-  mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nefc x nefc)
+  int*    efc_AR_colind;     // column indices in sparse AR                      (nA x 1)
+  mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nA x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY dependent
 

@@ -748,6 +748,7 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(ne);
   X(nf);
   X(nJ);
+  X(nA);
   X(nefc);
   X(nisland);
   X(time);
@@ -825,6 +826,7 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(ne);
   X(nf);
   X(nJ);
+  X(nA);
   X(nefc);
   X(nisland);
   X(time);

@@ -1943,7 +1943,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nJ = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nJ = d->nA = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -1960,6 +1960,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     d->nJ = nefc_allocated * m->nv;
   }
   d->nefc = nefc_allocated;
+  d->nA = d->nefc * d->nefc;
 
   // allocate efc arrays on arena
   if (!arenaAllocEfc(m, d)) {
