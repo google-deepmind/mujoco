@@ -556,6 +556,13 @@ or termination of the iterative solver.
 Model changes
 ~~~~~~~~~~~~~
 
+.. admonition:: Model editing framework
+   :class: tip
+
+   The discussion below regarding mjModel changes at runtime was written before the 3.2.0 introduction of the
+   :doc:`Model Editing<modeledit>` framework. It is still valid, but the new framework is the safe and recommended way
+   to modify models.
+
 The MuJoCo model contained in mjModel is supposed to represent constant physical properties of the system, and in
 theory should not change after compilation. Of course in practice things are not that simple. It is often desirable to
 change the physics options in ``mjModel.opt``, so as to experiment with different aspects of the physics or to create
@@ -590,8 +597,8 @@ asking a "decompiler" to make corresponding changes to the C code -- it is just 
 
 .. _siLayout:
 
-Data layout and buffer allocation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Data layout
+~~~~~~~~~~~
 
 All matrices in MuJoCo are in **row-major** format. For example, the linear memory array (a0, a1, ... a5) represents the
 2-by-3 matrix
@@ -712,8 +719,8 @@ and :ref:`mj_stackAllocByte` is provided for allocation of arbitrary number of b
 
 .. _siError:
 
-Errors, warnings, memory allocation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Errors and warnings
+~~~~~~~~~~~~~~~~~~~
 
 When a terminal error occurs, MuJoCo calls the function :ref:`mju_error` internally. Here is what mju_error does:
 
