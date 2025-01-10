@@ -23,6 +23,9 @@ General
    - The field ``mjData.qLDiagSqrtInv`` has been removed. This field is only required for the dual solvers. It is now
      computed as-needed rather than unconditionally. Relatedly, added the corresponding argument to :ref:`mj_solveM2`.
 
+- Reduced the memory footprint of the PGS solver's :ref:`A matrix<soDual>`. This was the last remaining dense-memory
+  allocation in MuJoCo, allowing for a significant reduction of the :ref:`dynamic memory allocation heuristic<CSize>`.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).

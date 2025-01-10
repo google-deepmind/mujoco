@@ -72,9 +72,6 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   }
 
   MJDATA_ARENA_POINTERS_SOLVER
-  if (mj_isDual(m)) {
-    MJDATA_ARENA_POINTERS_DUAL
-  }
 #undef X
 
 #undef MJ_M
@@ -1960,7 +1957,6 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     d->nJ = nefc_allocated * m->nv;
   }
   d->nefc = nefc_allocated;
-  d->nA = d->nefc * d->nefc;
 
   // allocate efc arrays on arena
   if (!arenaAllocEfc(m, d)) {
@@ -2223,10 +2219,35 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
                         BT_rownnz, BT_rowadr, BT_colind,
                         B_rownnz, B_rowadr, B_colind);
 
-    // pre-count efc_AR_rownnz, efc_AR_rowadr
+    // allocate AR row nonzeros and addresses on arena
+    d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    d->efc_AR_rowadr = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    if (!d->efc_AR_rownnz || !d->efc_AR_rowadr) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // pre-count A nonzeros (compute AR_rownnz, AR_rowadr)
     mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
                             BT_rownnz, BT_rowadr, BT_colind,
                             B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
+
+    // nA = total number of nonzeros in A
+    d->nA = d->efc_AR_rownnz[nefc - 1] + d->efc_AR_rowadr[nefc - 1];
+
+    // allocate A values and column indices on arena
+    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
+    d->efc_AR_colind = mj_arenaAllocByte(d, sizeof(int) * d->nA, _Alignof(int));
+    if (!d->efc_AR || !d->efc_AR_colind) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
 
     // A = B * B'
     int* diagind = mjSTACKALLOC(d, nefc, int);
@@ -2243,7 +2264,19 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
   // dense
   else {
-    // space for backsubM2(J')' and its traspose
+    d->nA = nefc * nefc;
+
+    // arena-allocate efc_AR
+    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
+    if (!d->efc_AR) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // space for B = backsubM2(J')' and its transpose
     mjtNum* B = mjSTACKALLOC(d, nefc*nv, mjtNum);
     mjtNum* BT = mjSTACKALLOC(d, nv*nefc, mjtNum);
 
