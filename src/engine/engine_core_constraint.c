@@ -2073,37 +2073,79 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[m->dof_Madr[i]]);
   }
 
-  // space for backsubM2(J')' and its traspose
-  mjtNum* JM2 = mjSTACKALLOC(d, nefc*nv, mjtNum);
-  mjtNum* JM2T = mjSTACKALLOC(d, nv*nefc, mjtNum);
-
   // sparse
   if (mj_isSparse(m)) {
-    // space for JM2 and JM2T indices
-    int* rownnz = mjSTACKALLOC(d, nefc, int);
-    int* rowadr = mjSTACKALLOC(d, nefc, int);
-    int* colind = mjSTACKALLOC(d, nefc*nv, int);
-    int* rowsuper = mjSTACKALLOC(d, nefc, int);
-    int* rownnzT = mjSTACKALLOC(d, nv, int);
-    int* rowadrT = mjSTACKALLOC(d, nv, int);
-    int* colindT = mjSTACKALLOC(d, nv*nefc, int);
+    // compute B = backsubM2(J')' and its transpose
 
-    // construct JM2 = backsubM2(J')' by rows
+
+    // === pre-count B_rownnz, B_rowadr, nB (total nonzeros)
+
+    // allocate B rownnz and rowadr
+    int* B_rownnz = mjSTACKALLOC(d, nefc, int);
+    int* B_rowadr = mjSTACKALLOC(d, nefc, int);
+
+    // markers for merged dofs, initialized to -1
+    int* marker = mjSTACKALLOC(d, nv, int);
+    for (int i=0; i < nv; i++) {
+      marker[i] = -1;
+    }
+
+    B_rowadr[0] = 0;
+    for (int r=0; r < nefc; r++) {
+      int nnz = 0;  // nonzeros in row r of B
+
+      // traverse row r of J in reverse, count unique nonzeros
+      int start = d->efc_J_rowadr[r];
+      int end = start + d->efc_J_rownnz[r];
+      for (int i=end-1; i >= start; i--) {
+        int j = d->efc_J_colind[i];
+
+        // if dof j is marked, it was already counted by a child dof: skip it
+        if (marker[j] == r) {
+          continue;
+        }
+
+        // traverse row j of C, marking new unique nonzeros
+        int nnzC = d->C_rownnz[j];
+        int adrC = d->C_rowadr[j];
+        for (int k=0; k < nnzC; k++) {
+          int c = d->C_colind[adrC + k];
+          if (marker[c] != r) {
+            marker[c] = r;
+            nnz++;
+          }
+        }
+      }
+
+      // update rownnz and rowadr
+      B_rownnz[r] = nnz;
+      if (r < nefc - 1) {
+        B_rowadr[r+1] = B_rowadr[r] + nnz;
+      }
+    }
+
+    // total non-zeros in B
+    int nB = B_rowadr[nefc-1] + B_rownnz[nefc-1];
+
+
+    // === fill in B column indices, copy values from J
+
+    // allocate values and column indices
+    mjtNum* B = mjSTACKALLOC(d, nB, mjtNum);
+    int* B_colind = mjSTACKALLOC(d, nB, int);
+
     for (int r=0; r < nefc; r++) {
       // init row
-      int nnz = 0;
-      int adr = (r > 0 ? rowadr[r-1]+rownnz[r-1] : 0);
-      int remain = d->efc_J_rownnz[r];
+      int end = B_rowadr[r] + B_rownnz[r];
+      int adrJ = d->efc_J_rowadr[r];
+      int remainJ = d->efc_J_rownnz[r];
+      int nnzB = 0;
 
       // complete chain in reverse
       while (1) {
-        // assign row descriptor
-        rownnz[r] = nnz;
-        rowadr[r] = adr;
-
         // get previous dof in src and dst
-        int prev_src = (remain > 0 ? d->efc_J_colind[d->efc_J_rowadr[r]+remain-1] : -1);
-        int prev_dst = (nnz > 0 ? m->dof_parentid[colind[adr+nnz-1]] : -1);
+        int prev_src = (remainJ > 0 ? d->efc_J_colind[adrJ + remainJ - 1] : -1);
+        int prev_dst = (nnzB > 0 ? m->dof_parentid[B_colind[end - nnzB]] : -1);
 
         // both finished: break
         if (prev_src < 0 && prev_dst < 0) {
@@ -2112,80 +2154,87 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
         // add src
         else if (prev_src >= prev_dst) {
-          colind[adr+nnz] = prev_src;
-          JM2[adr+nnz] = d->efc_J[d->efc_J_rowadr[r]+remain-1];
-          remain--;
-          nnz++;
+          nnzB++;
+          remainJ--;
+          B_colind[end - nnzB] = prev_src;
+          B[end - nnzB] = d->efc_J[adrJ + remainJ];
         }
 
         // add dst
         else {
-          colind[adr+nnz] = prev_dst;
-          JM2[adr+nnz] = 0;
-          nnz++;
+          nnzB++;
+          B_colind[end - nnzB] = prev_dst;
+          B[end - nnzB] = 0;
         }
       }
 
-      // reverse order of chain: make it increasing
-      for (int i=0; i < nnz/2; i++) {
-        int tmp_col = colind[adr+i];
-        colind[adr+i] = colind[adr+nnz-i-1];
-        colind[adr+nnz-i-1] = tmp_col;
-
-        mjtNum tmp_dat = JM2[adr+i];
-        JM2[adr+i] = JM2[adr+nnz-i-1];
-        JM2[adr+nnz-i-1] = tmp_dat;
-      }
-
-      // sparse backsubM2
-      for (int i=nnz-1; i >= 0; i--) {
-        // save x(i) and i-pointer
-        mjtNum xi = JM2[adr+i];
-        int pi = i;
-
-        // process if not zero
-        if (xi) {
-          // x(i) /= sqrt(L(i,i))
-          JM2[adr+i] *= sqrtInvD[colind[adr+i]];
-
-          // x(j) -= L(i,j) * x(i)
-          int Madr_ij = m->dof_Madr[colind[adr+i]]+1;
-          int j = m->dof_parentid[colind[adr+i]];
-          while (j >= 0) {
-            // match dof id in sparse vector
-            while (colind[adr+pi] > j) {
-              pi--;
-            }
-
-            // scale
-            JM2[adr+pi] -= d->qLD[Madr_ij++] * xi;
-
-            // advance to parent
-            j = m->dof_parentid[j];
-          }
-        }
+      // compare with B_rownnz: SHOULD NOT OCCUR
+      if (nnzB != B_rownnz[r]) {
+        mjERROR("pre and post-count of B_rownnz are not equal on row %d", r);
       }
     }
 
-    // construct JM2T
-    mju_transposeSparse(JM2T, JM2, nefc, nv,
-                        rownnzT, rowadrT, colindT, rownnz, rowadr, colind);
 
-    // construct supernodes
-    mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
+    // === in-place sparse back-substitution:  B <- B * M^-1/2
+
+    // make qLD
+    int nC = m->nC;
+    mjtNum* qLD = mjSTACKALLOC(d, nC, mjtNum);
+    for (int i=0; i < nC; i++) {
+      qLD[i] = d->qLD[d->mapM2C[i]];
+    }
+
+    // sparse backsubM2 (half of LD back-substitution)
+    for (int r=0; r < nefc; r++) {
+      int nnzB = B_rownnz[r];
+      int adrB = B_rowadr[r];
+
+      // B(r,:) <- inv(L') * B(r,:), exploit sparsity of input vector
+      for (int i=adrB + nnzB-1; i >= adrB; i--) {
+        mjtNum b = B[i];
+        if (b == 0) {
+          continue;
+        }
+        int j = B_colind[i];
+        int adrC = d->C_rowadr[j];
+        mju_addToSclSparseInc(B + adrB, qLD + adrC,
+                              nnzB, B_colind + adrB,
+                              d->C_rownnz[j]-1, d->C_colind + adrC, -b);
+      }
+
+      // B(r,:) <- sqrt(inv(D)) * B(r,:)
+      for (int i=adrB; i < adrB + nnzB; i++) {
+        int j = B_colind[i];
+        B[i] *= sqrtInvD[j];
+      }
+    }
+
+    // construct B supernodes
+    int* B_rowsuper = mjSTACKALLOC(d, nefc, int);
+    mju_superSparse(nefc, B_rowsuper, B_rownnz, B_rowadr, B_colind);
+
+    // construct B transposed
+    int* BT_rownnz = mjSTACKALLOC(d, nv, int);
+    int* BT_rowadr = mjSTACKALLOC(d, nv, int);
+    int* BT_colind = mjSTACKALLOC(d, nB, int);
+    mjtNum* BT = mjSTACKALLOC(d, nB, mjtNum);
+    mju_transposeSparse(BT, B, nefc, nv,
+                        BT_rownnz, BT_rowadr, BT_colind,
+                        B_rownnz, B_rowadr, B_colind);
 
     // pre-count efc_AR_rownnz, efc_AR_rowadr
-    mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc, rownnzT,
-                            rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d, /*flg_upper=*/1);
+    mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
+                            BT_rownnz, BT_rowadr, BT_colind,
+                            B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
 
-    // AR = JM2 * JM2'
+    // A = B * B'
     int* diagind = mjSTACKALLOC(d, nefc, int);
-    mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
+    mju_sqrMatTDSparse(d->efc_AR, BT, B, NULL, nv, nefc,
                        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
-                       rownnzT, rowadrT, colindT, NULL,
-                       rownnz, rowadr, colind, rowsuper, d, diagind);
+                       BT_rownnz, BT_rowadr, BT_colind, NULL,
+                       B_rownnz, B_rowadr, B_colind, B_rowsuper, d, diagind);
 
-    // add R to diagonal of AR
+    // AR = A + diag(R)
     for (int i=0; i < nefc; i++) {
       d->efc_AR[diagind[i]] += d->efc_R[i];
     }
@@ -2193,14 +2242,18 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
   // dense
   else {
-    // JM2 = backsubM2(J')'
-    mj_solveM2(m, d, JM2, d->efc_J, sqrtInvD, nefc);
+    // space for backsubM2(J')' and its traspose
+    mjtNum* B = mjSTACKALLOC(d, nefc*nv, mjtNum);
+    mjtNum* BT = mjSTACKALLOC(d, nv*nefc, mjtNum);
 
-    // construct JM2T
-    mju_transpose(JM2T, JM2, nefc, nv);
+    // B = backsubM2(J')'
+    mj_solveM2(m, d, B, d->efc_J, sqrtInvD, nefc);
 
-    // AR = JM2 * JM2'
-    mju_sqrMatTD(d->efc_AR, JM2T, NULL, nv, nefc);
+    // construct BT
+    mju_transpose(BT, B, nefc, nv);
+
+    // AR = B * B'
+    mju_sqrMatTD(d->efc_AR, BT, NULL, nv, nefc);
 
     // add R to diagonal of AR
     for (int r=0; r < nefc; r++) {
