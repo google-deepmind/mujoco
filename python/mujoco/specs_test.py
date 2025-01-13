@@ -714,8 +714,10 @@ class SpecsTest(absltest.TestCase):
     geom = spec.worldbody.add_geom()
     geom.type = mujoco.mjtGeom.mjGEOM_MESH
     geom.meshname = 'cube'
-    model = spec.compile({'cube.obj': cube})
+    spec.assets = {'cube.obj': cube}
+    model = spec.compile()
     self.assertEqual(model.nmeshvert, 8)
+    self.assertEqual(spec.assets['cube.obj'], cube)
 
   def test_include(self):
     included_xml = """

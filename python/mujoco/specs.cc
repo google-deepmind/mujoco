@@ -71,25 +71,43 @@ using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
 
 struct MjSpec {
   MjSpec() : ptr(mj_makeSpec()) {}
-  MjSpec(raw::MjSpec* ptr) : ptr(ptr) {}
+  MjSpec(raw::MjSpec* ptr,
+         const std::unordered_map<std::string, py::bytes>& assets_ = {})
+      : ptr(ptr) {
+    for (const auto& asset : assets_) {
+      assets[asset.first.c_str()] = asset.second;
+    }
+  }
 
   // copy constructor and assignment
-  MjSpec(const MjSpec& other) : ptr(mj_copySpec(other.ptr)) {}
+  MjSpec(const MjSpec& other) : ptr(mj_copySpec(other.ptr)) {
+    assets = other.assets;
+  }
   MjSpec& operator=(const MjSpec& other) {
     ptr = mj_copySpec(other.ptr);
+    assets = other.assets;
     return *this;
   }
 
   // move constructor and move assignment
-  MjSpec(MjSpec&& other) : ptr(other.ptr) { other.ptr = nullptr; }
+  MjSpec(MjSpec&& other) : ptr(other.ptr) {
+    other.ptr = nullptr;
+    assets = other.assets;
+    other.assets.clear();
+  }
   MjSpec& operator=(MjSpec&& other) {
     ptr = other.ptr;
     other.ptr = nullptr;
+    assets = other.assets;
+    other.assets.clear();
     return *this;
   }
 
-  ~MjSpec() { mj_deleteSpec(ptr); }
+  ~MjSpec() {
+    mj_deleteSpec(ptr);
+  }
   raw::MjSpec* ptr;
+  py::dict assets;
 };
 
 template <typename LoadFunc>
@@ -263,6 +281,9 @@ PYBIND11_MODULE(_specs, m) {
             throw py::value_error(error);
           }
         }
+        if (assets.has_value()) {
+          return MjSpec(spec, assets.value());
+        }
         return MjSpec(spec);
       },
       py::arg("filename"), py::arg("assets") = py::none(), R"mydelimiter(
@@ -305,6 +326,9 @@ PYBIND11_MODULE(_specs, m) {
             throw py::value_error(error);
           }
         }
+        if (assets.has_value()) {
+          return MjSpec(spec, assets.value());
+        }
         return MjSpec(spec);
       },
       py::arg("xml"), py::arg("assets") = py::none(), R"mydelimiter(
@@ -324,7 +348,7 @@ PYBIND11_MODULE(_specs, m) {
                                         m, d);
   });
   mjSpec.def("copy", [](const MjSpec& self) -> MjSpec {
-    return MjSpec(mj_copySpec(self.ptr));
+    return MjSpec(self);
   });
   mjSpec.def_property_readonly(
       "worldbody",
@@ -370,33 +394,33 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_findDefault(self.ptr, classname.c_str());
       },
       py::return_value_policy::reference_internal);
-  mjSpec.def("compile", [mjmodel_from_spec_ptr](MjSpec& self) {
-    return mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr));
+  mjSpec.def("compile", [mjmodel_from_spec_ptr](MjSpec& self) -> py::object {
+    if (self.assets.empty()) {
+      return mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr));
+    }
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    for (auto item : self.assets) {
+      std::string buffer = py::cast<std::string>(item.second);
+      mj_addBufferVFS(&vfs, py::cast<std::string>(item.first).c_str(),
+                      buffer.c_str(), buffer.size());
+    };
+    auto model =
+        mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
+                              reinterpret_cast<uintptr_t>(&vfs));
+    mj_deleteVFS(&vfs);
+    return model;
   });
-  mjSpec.def(
-      "compile",
-      [mjmodel_from_spec_ptr](MjSpec& self, py::dict& assets) -> py::object {
-        mjVFS vfs;
-        mj_defaultVFS(&vfs);
+  mjSpec.def_property(
+      "assets",
+      [](MjSpec& self) -> py::dict {
+        return self.assets;
+      },
+      [](MjSpec& self, py::dict& assets) {
         for (auto item : assets) {
-          std::string buffer = py::cast<std::string>(item.second);
-          mj_addBufferVFS(&vfs, py::cast<std::string>(item.first).c_str(),
-                          buffer.c_str(), buffer.size());
+          self.assets[item.first] = item.second;
         };
-        auto model =
-            mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
-                                  reinterpret_cast<uintptr_t>(&vfs));
-        mj_deleteVFS(&vfs);
-        return model;
-      }, R"mydelimiter(
-    Compiles the spec and returns the compiled model.
-
-    Parameters
-    ----------
-    assets : dict, optional
-        A dictionary of assets to be used by the spec. The keys are asset names
-        and the values are asset contents.
-  )mydelimiter");
+  }, py::return_value_policy::reference_internal);
   mjSpec.def("to_xml", [](MjSpec& self) -> std::string {
     int size = mj_saveXMLString(self.ptr, nullptr, 0, nullptr, 0);
     std::unique_ptr<char[]> buf(new char[size + 1]);
