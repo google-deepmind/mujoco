@@ -529,7 +529,9 @@ def _length_circle(
   p0n = math.normalize(p0).reshape(-1)
   p1n = math.normalize(p1).reshape(-1)
 
-  angle = jp.arccos(jp.dot(p0n, p1n))
+  # clip input to closed interval for jp.arccos to prevent potential nan
+  # TODO(taylorhowell): add test for case where clip is necessary
+  angle = jp.arccos(jp.clip(jp.dot(p0n, p1n), -1, 1))
 
   # flip if necessary
   cross = p0[1] * p1[0] - p0[0] * p1[1]
@@ -554,7 +556,11 @@ def _is_intersect(
       (p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0])
   ) / det
 
-  return (a >= 0) & (a <= 1) & (b >= 0) & (b <= 1)
+  return jp.where(
+      jp.abs(det) < mujoco.mjMINVAL,
+      0,
+      (a >= 0) & (a <= 1) & (b >= 0) & (b <= 1),
+  )
 
 
 def wrap_circle(
@@ -567,7 +573,9 @@ def wrap_circle(
   sqrad = rad * rad
   dif = jp.array([d[2] - d[0], d[3] - d[1]])
   dd = dif[0] ** 2 + dif[1] ** 2
-  a = jp.clip(-(dif[0] * d[0] + dif[1] * d[1]) / dd, 0, 1)
+  a = jp.clip(
+      -(dif[0] * d[0] + dif[1] * d[1]) / jp.maximum(mujoco.mjMINVAL, dd), 0, 1
+  )
   seg = jp.array([a * dif[0] + d[0], a * dif[1] + d[1]])
 
   point_inside0 = sqlen0 < sqrad
@@ -581,13 +589,21 @@ def wrap_circle(
 
   # construct the two solutions, compute goodness
   def _sol(sgn):
-    sqrt0 = jp.sqrt(sqlen0 - sqrad)
-    sqrt1 = jp.sqrt(sqlen1 - sqrad)
+    sqrt0 = jp.sqrt(jp.maximum(mujoco.mjMINVAL, sqlen0 - sqrad))
+    sqrt1 = jp.sqrt(jp.maximum(mujoco.mjMINVAL, sqlen1 - sqrad))
 
-    d00 = (d[0] * sqrad + sgn * rad * d[1] * sqrt0) / sqlen0
-    d01 = (d[1] * sqrad - sgn * rad * d[0] * sqrt0) / sqlen0
-    d10 = (d[2] * sqrad - sgn * rad * d[3] * sqrt1) / sqlen1
-    d11 = (d[3] * sqrad + sgn * rad * d[2] * sqrt1) / sqlen1
+    d00 = (d[0] * sqrad + sgn * rad * d[1] * sqrt0) / jp.maximum(
+        mujoco.mjMINVAL, sqlen0
+    )
+    d01 = (d[1] * sqrad - sgn * rad * d[0] * sqrt0) / jp.maximum(
+        mujoco.mjMINVAL, sqlen0
+    )
+    d10 = (d[2] * sqrad - sgn * rad * d[3] * sqrt1) / jp.maximum(
+        mujoco.mjMINVAL, sqlen1
+    )
+    d11 = (d[3] * sqrad + sgn * rad * d[2] * sqrt1) / jp.maximum(
+        mujoco.mjMINVAL, sqlen1
+    )
 
     sol = jp.array([[d00, d01], [d10, d11]])
 
@@ -785,9 +801,8 @@ def muscle_gain(
 
   # velocity curve
   y = fvmax - 1
-  FV = fvmax  # pylint:disable=invalid-name
   FV = jp.where(  # pylint:disable=invalid-name
-      V <= y, fvmax - jp.square(y - V) / jp.maximum(mujoco.mjMINVAL, y), FV
+      V <= y, fvmax - jp.square(y - V) / jp.maximum(mujoco.mjMINVAL, y), fvmax
   )
   FV = jp.where(V <= 0, jp.square(V + 1), FV)  # pylint:disable=invalid-name
   FV = jp.where(V <= -1, 0, FV)  # pylint:disable=invalid-name
@@ -845,7 +860,10 @@ def muscle_dynamics_timescale(
     # sigmoid function over 0 <= x <= 1 using quintic polynomial
     # sigmoid: f(x) = 6 * x^5 - 15 * x^4 + 10 * x^3
     # solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
-    return jp.clip(x**3 * (3 * x * (2 * x - 5) + 10), 0, 1)
+    sol = x * x * x * (3 * x * (2 * x - 5) + 10)
+    sol = jp.where(x <= 0, 0, sol)
+    sol = jp.where(x >= 1, 1, sol)
+    return sol
 
   # smooth switching
   # scale by width, center around 0.5 midpoint, rescale to bounds

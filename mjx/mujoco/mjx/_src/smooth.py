@@ -734,7 +734,9 @@ def tendon(m: Model, d: Data) -> Data:
   for adr, num in zip(m.tendon_adr, m.tendon_num):
     for id_pulley in wrap_id_pulley:
       if adr <= id_pulley < adr + num:
-        divisor[id_pulley : adr + num] = m.wrap_prm[id_pulley]
+        divisor[id_pulley : adr + num] = np.maximum(
+            mujoco.mjMINVAL, m.wrap_prm[id_pulley]
+        )
 
   # process spatial tendon sites
   (wrap_id_site,) = np.nonzero(m.wrap_type == WrapType.SITE)
