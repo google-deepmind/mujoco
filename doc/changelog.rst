@@ -2,17 +2,17 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.2.7 (Jan 14, 2025)
+----------------------------
 
 Python bindings
 ^^^^^^^^^^^^^^^
-- :ref:`rollout<PyRollout>` now features native multi-threading. If a sequence of ``MjData`` instances
-  of length ``nthread`` is passed in, ``rollout`` will automatically create a thread pool and parallelize
-  the computation. The thread pool can be reused across calls, but then the function cannot be called simultaneously
-  from multiple threads. To run multiple threaded rollouts simultaneously, use the new class ``Rollout`` which
-  encapsulates the thread pool. Contribution by :github:user:`aftersomemath`.
-- Fix global namespace pollution when using ``mjpython`` (:github:issue:`2265`).
+1. :ref:`rollout<PyRollout>` now features native multi-threading. If a sequence of ``MjData`` instances
+   of length ``nthread`` is passed in, ``rollout`` will automatically create a thread pool and parallelize
+   the computation. The thread pool can be reused across calls, but then the function cannot be called simultaneously
+   from multiple threads. To run multiple threaded rollouts simultaneously, use the new class ``Rollout`` which
+   encapsulates the thread pool. Contribution by :github:user:`aftersomemath`.
+2. Fix global namespace pollution when using ``mjpython`` (:github:issue:`2265`).
 
 General
 ^^^^^^^
@@ -20,16 +20,16 @@ General
 .. admonition:: Breaking API changes (minor)
    :class: attention
 
-   - The field ``mjData.qLDiagSqrtInv`` has been removed. This field is only required for the dual solvers. It is now
-     computed as-needed rather than unconditionally. Relatedly, added the corresponding argument to :ref:`mj_solveM2`.
+   3. The field ``mjData.qLDiagSqrtInv`` has been removed. This field is only required for the dual solvers. It is now
+      computed as-needed rather than unconditionally. Relatedly, added the corresponding argument to :ref:`mj_solveM2`.
 
-- Reduced the memory footprint of the PGS solver's :ref:`A matrix<soDual>`. This was the last remaining dense-memory
-  allocation in MuJoCo, allowing for a significant reduction of the :ref:`dynamic memory allocation heuristic<CSize>`.
+4. Reduced the memory footprint of the PGS solver's :ref:`A matrix<soDual>`. This was the last remaining dense-memory
+   allocation in MuJoCo, allowing for a significant reduction of the :ref:`dynamic memory allocation heuristic<CSize>`.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).
-- Fixed a bug in :ref:`mj_mulM2` and added a test.
+5. Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).
+6. Fixed a bug in :ref:`mj_mulM2` and added a test.
 
 Version 3.2.6 (Dec 2, 2024)
 ---------------------------
