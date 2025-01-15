@@ -400,11 +400,22 @@ PYBIND11_MODULE(_specs, m) {
     }
     mjVFS vfs;
     mj_defaultVFS(&vfs);
-    for (auto item : self.assets) {
-      std::string buffer = py::cast<std::string>(item.second);
-      mj_addBufferVFS(&vfs, py::cast<std::string>(item.first).c_str(),
-                      buffer.c_str(), buffer.size());
-    };
+    for (const auto& asset : self.assets) {
+      std::string buffer_name =
+          _impl::StripPath(py::cast<std::string>(asset.first).c_str());
+      std::string buffer = py::cast<std::string>(asset.second);
+      const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
+          &vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
+      if (vfs_error) {
+        mj_deleteVFS(&vfs);
+        if (vfs_error == 2) {
+          throw py::value_error("Repeated file name in assets dict: " +
+                                buffer_name);
+        } else {
+          throw py::value_error("Asset failed to load: " + buffer_name);
+        }
+      }
+    }
     auto model =
         mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
                               reinterpret_cast<uintptr_t>(&vfs));
