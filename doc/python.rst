@@ -591,6 +591,8 @@ Recursive search:
   ``body.find_all(mujoco.mjtObj.mjOBJ_SITE)`` or ``body.find_all('site')`` will return a list of all sites under the
   body.
 
+Additionally, the parent body of a given element - including bodies and frames - can be accessed via the ``parent``
+property. For example, the parent of a site can be accessed via ``site.parent``.
 
 Relationship to ``PyMJCF``
 --------------------------

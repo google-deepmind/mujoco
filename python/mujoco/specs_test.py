@@ -646,6 +646,10 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.bodies[2].name, 'body2')
     self.assertEqual(spec.bodies[3].name, 'body3')
     self.assertEqual(spec.bodies[4].name, 'body4')
+    self.assertEqual(spec.bodies[1].parent, spec.worldbody)
+    self.assertEqual(spec.bodies[2].parent, spec.worldbody)
+    self.assertEqual(spec.bodies[3].parent, spec.bodies[1])
+    self.assertEqual(spec.bodies[4].parent, spec.bodies[3])
     self.assertLen(spec.worldbody.find_all(bodytype), 4)
     self.assertLen(spec.bodies[1].find_all(bodytype), 2)
     self.assertLen(spec.bodies[3].find_all(bodytype), 1)
@@ -671,6 +675,11 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.bodies[3].sites[2].name, 'site3')
     self.assertEqual(spec.bodies[3].sites[3].name, 'site4')
     self.assertEqual(spec.bodies[4].sites[0].name, 'site5')
+    self.assertEqual(spec.bodies[3].sites[0].parent, spec.bodies[3])
+    self.assertEqual(spec.bodies[3].sites[1].parent, spec.bodies[3])
+    self.assertEqual(spec.bodies[3].sites[2].parent, spec.bodies[3])
+    self.assertEqual(spec.bodies[3].sites[3].parent, spec.bodies[3])
+    self.assertEqual(spec.bodies[4].sites[0].parent, spec.bodies[4])
     with self.assertRaises(ValueError) as cm:
       spec.worldbody.find_all('actuator')
     self.assertEqual(

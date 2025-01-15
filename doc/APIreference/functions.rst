@@ -4175,6 +4175,15 @@ Find element in spec by name.
 
 Find child body by name.
 
+.. _mjs_getParent:
+
+`mjs_getParent <#mjs_getParent>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getParent
+
+Get parent body.
+
 .. _mjs_findFrame:
 
 `mjs_findFrame <#mjs_findFrame>`__
