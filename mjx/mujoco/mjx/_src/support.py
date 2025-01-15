@@ -318,7 +318,7 @@ class BindModel(object):
         case mujoco.MjsMesh():
           self.prefix = 'mesh_'
           ids.append(name2id(model, mujoco.mjtObj.mjOBJ_MESH, spec.name))
-        case mujoco.MjsHfield():
+        case mujoco.MjsHField():
           self.prefix = 'hfield_'
           ids.append(name2id(model, mujoco.mjtObj.mjOBJ_HFIELD, spec.name))
         case mujoco.MjsPair():
