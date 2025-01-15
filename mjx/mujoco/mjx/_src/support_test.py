@@ -236,6 +236,9 @@ class SupportTest(parameterized.TestCase):
     dx4 = dx.bind(mx, s.actuators[1]).set('ctrl', [6])
     np.testing.assert_array_equal(dx4.bind(mx, s.actuators).ctrl, [0, 6, 0])
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
+    dx5 = dx.bind(mx, s.actuators[1]).set('ctrl', 7)
+    np.testing.assert_array_equal(dx5.bind(mx, s.actuators).ctrl, [0, 7, 0])
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
 
     # test invalid name
     with self.assertRaises(AttributeError):
