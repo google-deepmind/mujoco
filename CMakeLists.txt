@@ -28,7 +28,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.2.7
+  VERSION 3.2.8
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
