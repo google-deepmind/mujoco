@@ -247,6 +247,12 @@ class SupportTest(parameterized.TestCase):
       print(dx.bind(mx, s.actuators).actuator_ctrl)
     with self.assertRaises(AttributeError):
       print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
+    with self.assertRaises(KeyError, msg='invalid name: invalid_actuator_name'):
+      s.actuators[0].name = 'invalid_actuator_name'
+      print(dx.bind(mx, s.actuators).set('ctrl', [1, 2, 3]))
+    with self.assertRaises(KeyError, msg='invalid name: invalid_geom_name'):
+      s.geoms[0].name = 'invalid_geom_name'
+      print(mx.bind(s.geoms).pos)
 
   _CONTACTS = """
     <mujoco>

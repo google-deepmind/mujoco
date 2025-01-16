@@ -299,66 +299,69 @@ class BindModel(object):
       match spec:
         case mujoco.MjsBody():
           self.prefix = 'body_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
         case mujoco.MjsJoint():
           self.prefix = 'jnt_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_JOINT, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_JOINT, spec.name)
         case mujoco.MjsGeom():
           self.prefix = 'geom_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_GEOM, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_GEOM, spec.name)
         case mujoco.MjsSite():
           self.prefix = 'site_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_SITE, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_SITE, spec.name)
         case mujoco.MjsLight():
           self.prefix = 'light_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_LIGHT, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_LIGHT, spec.name)
         case mujoco.MjsCamera():
           self.prefix = 'cam_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name)
         case mujoco.MjsMesh():
           self.prefix = 'mesh_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_MESH, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_MESH, spec.name)
         case mujoco.MjsHField():
           self.prefix = 'hfield_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_HFIELD, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_HFIELD, spec.name)
         case mujoco.MjsPair():
           self.prefix = 'pair_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_PAIR, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_PAIR, spec.name)
         case mujoco.MjsTendon():
           self.prefix = 'tendon_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name)
         case mujoco.MjsActuator():
           self.prefix = 'actuator_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, spec.name)
         case mujoco.MjsSensor():
           self.prefix = 'sensor_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name)
         case mujoco.MjsNumeric():
           self.prefix = 'numeric_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_NUMERIC, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_NUMERIC, spec.name)
         case mujoco.MjsText():
           self.prefix = 'text_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_TEXT, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_TEXT, spec.name)
         case mujoco.MjsTuple():
           self.prefix = 'tuple_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_TUPLE, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_TUPLE, spec.name)
         case mujoco.MjsKey():
           self.prefix = 'key_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_KEY, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_KEY, spec.name)
         case mujoco.MjsEquality():
           self.prefix = 'eq_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name)
         case mujoco.MjsExclude():
           self.prefix = 'exclude_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_EXCLUDE, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_EXCLUDE, spec.name)
         case mujoco.MjsSkin():
           self.prefix = 'skin_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_SKIN, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_SKIN, spec.name)
         case mujoco.MjsMaterial():
           self.prefix = 'material_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, spec.name)
         case _:
           raise ValueError('invalid spec type')
+      if idx < 0:
+        raise KeyError(f'invalid name: {spec.name}')
+      ids.append(idx)
     if len(ids) == 1:
       self.id = ids[0]
     else:
@@ -387,36 +390,39 @@ class BindData(object):
       match spec:
         case mujoco.MjsBody():
           self.prefix = ''
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
         case mujoco.MjsJoint():
           self.prefix = 'jnt_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_JOINT, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_JOINT, spec.name)
         case mujoco.MjsGeom():
           self.prefix = 'geom_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_GEOM, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_GEOM, spec.name)
         case mujoco.MjsSite():
           self.prefix = 'site_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_SITE, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_SITE, spec.name)
         case mujoco.MjsLight():
           self.prefix = 'light_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_LIGHT, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_LIGHT, spec.name)
         case mujoco.MjsCamera():
           self.prefix = 'cam_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name)
         case mujoco.MjsTendon():
           self.prefix = 'ten_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name)
         case mujoco.MjsActuator():
           self.prefix = 'actuator_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, spec.name)
         case mujoco.MjsSensor():
           self.prefix = 'sensor_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name)
         case mujoco.MjsEquality():
           self.prefix = 'eq_'
-          ids.append(name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name))
+          idx = name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name)
         case _:
           raise ValueError('invalid spec type')
+      if idx < 0:
+        raise KeyError(f'invalid name: {spec.name}')
+      ids.append(idx)
     if len(ids) == 1:
       self.id = ids[0]
     else:
