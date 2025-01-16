@@ -402,6 +402,12 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_findDefault(self.ptr, classname.c_str());
       },
       py::return_value_policy::reference_internal);
+  mjSpec.def(
+      "find_geom",
+      [](MjSpec& self, std::string& name) -> raw::MjsGeom* {
+        return mjs_asGeom(mjs_findElement(self.ptr, mjOBJ_GEOM, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
   mjSpec.def("compile", [mjmodel_from_spec_ptr](MjSpec& self) -> py::object {
     if (self.assets.empty()) {
       return mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr));

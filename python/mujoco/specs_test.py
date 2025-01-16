@@ -691,6 +691,24 @@ class SpecsTest(absltest.TestCase):
     body4.name = 'body4_new'
     self.assertEqual(spec.bodies[4].name, 'body4_new')
 
+  def test_geom_list(self):
+    main_xml = """
+    <mujoco>
+      <worldbody>
+        <body name="body1"/>
+      </worldbody>
+    </mujoco>
+    """
+    spec = mujoco.MjSpec.from_string(main_xml)
+    geom1 = spec.worldbody.add_geom(name='geom1')
+    geom2 = spec.worldbody.add_geom(name='geom2')
+    geom3 = spec.find_body('body1').add_geom(name='geom3')
+
+    self.assertEqual(spec.geoms, [geom1, geom2, geom3])
+    self.assertEqual(spec.find_geom('geom1'), geom1)
+    self.assertEqual(spec.find_geom('geom2'), geom2)
+    self.assertEqual(spec.find_geom('geom3'), geom3)
+
   def test_iterators(self):
     spec = mujoco.MjSpec()
     geom1 = spec.worldbody.add_geom()
