@@ -139,7 +139,7 @@ void mjCComposite::SetDefault(void) {
     }
   }
 
-  // set all deafult groups to 3
+  // set all default groups to 3
   for (int i=0; i<mjNCOMPKINDS; i++) {
     def[i].spec.geom->group = 3;
     def[i].spec.site->group = 3;

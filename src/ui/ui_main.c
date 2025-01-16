@@ -228,7 +228,7 @@ static void initOpenGL(const mjrRect* r, const mjrContext* con) {
 
 
 
-// get text width up to specificed limit (0: 0, -1: entire string)
+// get text width up to specified limit (0: 0, -1: entire string)
 static int textwidth(const char* text, const mjrContext* con, int limit) {
   int i = 0, width = 0;
 
@@ -1523,7 +1523,7 @@ static void setitemskip(mjuiSection* s, int pass) {
 
 
 
-// Compute UI sizes: internal fuction, may be called twice per resize
+// Compute UI sizes: internal function, may be called twice per resize
 static void tryresize(mjUI* ui, const mjrContext* con) {
   // scale theme sizes
   int w_master =   SCL(ui->spacing.total,    con);
@@ -2969,7 +2969,7 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
       mjr_rectangle(r, ui->color.select2[0],
         ui->color.select2[1], ui->color.select2[2], 1);
 
-      // hightlight row under mouse
+      // highlight row under mouse
       int k = findselect(it, ui, state, con);
       if (k >= 0) {
         mjrRect r1 = r;

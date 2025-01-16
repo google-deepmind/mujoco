@@ -1527,7 +1527,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     // read elements, discard all tags
     element.reserve(numNodeTags*numElements);
     for (size_t i=0; i<numElements; i++) {
-      int nodeTag = 0, physicalEntityTag = 0, elmentModelEntityTag = 0;
+      int nodeTag = 0, physicalEntityTag = 0, elementModelEntityTag = 0;
       if (i != 0) {
         ss >> tag >> elementType >> numTags;
         if (!ss.good()) {
@@ -1535,7 +1535,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
         }
       }
       if (numTags > 0) {
-        ss >> physicalEntityTag >> elmentModelEntityTag;
+        ss >> physicalEntityTag >> elementModelEntityTag;
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
         }

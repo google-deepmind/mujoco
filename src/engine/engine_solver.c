@@ -1408,7 +1408,7 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
     // add nC to Hessian total nonzeros (unavoidable overcounting since H_colind is still unknown)
     ctx->nH = m->nC + ctx->H_rowadr[nv - 1] + ctx->H_rownnz[nv - 1];
 
-    // shift H row adresses to make room for C
+    // shift H row addresses to make room for C
     int shift = 0;
     for (int r = 0; r < nv - 1; r++) {
       shift += d->C_rownnz[r];
@@ -1443,7 +1443,7 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
     ctx->nL = mju_cholFactorCount(ctx->L_rownnz, HT_rownnz, HT_rowadr, HT_colind, nv, d);
     mj_freeStack(d);
 
-    // compute L row adresses: rowadr = cumsum(rownnz)
+    // compute L row addresses: rowadr = cumsum(rownnz)
     ctx->L_rowadr[0] = 0;
     for (int r=1; r < nv; r++) {
       ctx->L_rowadr[r] = ctx->L_rowadr[r-1] + ctx->L_rownnz[r-1];

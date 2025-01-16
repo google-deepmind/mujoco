@@ -475,7 +475,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
   } else if (cltype >= 0 && cltype / 3 == 1) {  // we are on box's edge
     // hacks to find the relative orientation of capsule and edge
     // there are 2 cases:
-    //    c1= 2^n: edge and capsule are oriented in a T configuaration (no more contacts
+    //    c1= 2^n: edge and capsule are oriented in a T configuration (no more contacts
     //    c1!=2^n: oriented in a cross X configuration
 
     c1 = axisdir ^ clcorner;  // same trick

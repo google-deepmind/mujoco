@@ -131,7 +131,7 @@ mjCModel::mjCModel() {
 
   //------------------------ auto-computed statistics
 #ifndef MEMORY_SANITIZER
-  // initializing as best practice, but want MSAN to catch unintialized use
+  // initializing as best practice, but want MSAN to catch uninitialized use
   meaninertia_auto = 0;
   meanmass_auto = 0;
   meansize_auto = 0;
@@ -1845,7 +1845,7 @@ void mjCModel::AutoSpringDamper(mjModel* m) {
     int adr = m->jnt_dofadr[n];
     int ndim = mjCJoint::nv((mjtJoint)m->jnt_type[n]);
 
-    // get timeconst and dampratio from joint specificatin
+    // get timeconst and dampratio from joint specification
     mjtNum timeconst = (mjtNum)joints_[n]->springdamper[0];
     mjtNum dampratio = (mjtNum)joints_[n]->springdamper[1];
 

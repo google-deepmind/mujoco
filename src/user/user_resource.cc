@@ -249,7 +249,7 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
 
 
 // return 0 if the resource's timestamp matches the provided timestamp
-// return > 0 if the the resource is younger than the given timestamp
+// return > 0 if the resource is younger than the given timestamp
 // return < 0 if the resource is older than the given timestamp
 int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
   // provider is not OS filesystem

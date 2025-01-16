@@ -1123,7 +1123,7 @@ void mjCBody::NameSpace(const mjCModel* m) {
 
 
 
-// apply prefix and suffix, propagate to all descendents or only to child bodies
+// apply prefix and suffix, propagate to all descendants or only to child bodies
 void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
   mjCBase::NameSpace(m);
   if (!plugin_instance_name.empty()) {
@@ -5487,7 +5487,7 @@ void mjCTendon::Compile(void) {
       case mjWRAP_PULLEY:
         // pulley should not follow other pulley
         if (i>0 && path[i-1]->type==mjWRAP_PULLEY) {
-          throw mjCError(this, "tendon '%s' (id = %d): consequtive pulleys (pos %d)",
+          throw mjCError(this, "tendon '%s' (id = %d): consecutive pulleys (pos %d)",
                          name.c_str(), id, i);
         }
 

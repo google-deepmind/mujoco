@@ -895,7 +895,7 @@ static void setVertexHaze(float* v, float az, float h, float r) {
 
 // truncated cone for haze rendering
 static void haze(int nSlice, float r, const float* rgba) {
-  // compute elevation h for transparancy transition point
+  // compute elevation h for transparency transition point
   float alpha = atan2f(1, r);
   float beta = (float)(0.75*mjPI) - alpha;
   float h = sqrtf(0.5f) * r * sinf(alpha) / sinf(beta);

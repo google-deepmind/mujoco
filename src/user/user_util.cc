@@ -993,7 +993,7 @@ std::string FilePath::PathReduce(const std::string& str) {
   int j = abs_prefix.size();
 
   for (int i = j; i < str.size(); ++i) {
-    if (IsSeperator(str[i])) {
+    if (IsSeparator(str[i])) {
       std::string temp = str.substr(j, i - j);
       j = i + 1;
       if (temp == ".." && !dirs.empty() && dirs.back() != "..") {

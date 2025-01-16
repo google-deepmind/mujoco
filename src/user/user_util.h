@@ -211,7 +211,7 @@ class FilePath {
  private:
   static std::string AbsPrefix(const std::string& str);
   static std::string PathReduce(const std::string& str);
-  static bool IsSeperator(char c) {
+  static bool IsSeparator(char c) {
     return c == '/' || c == '\\';
   }
   static std::string Combine(const std::string& s1, const std::string& s2);

@@ -29,7 +29,7 @@ mjfAct mjcb_act_dyn      = 0;
 
 
 
-// reset callbacks to defauls
+// reset callbacks to defaults
 void mj_resetCallbacks(void) {
   mjcb_passive  = 0;
   mjcb_control  = 0;

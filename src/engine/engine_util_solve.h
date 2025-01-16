@@ -114,7 +114,7 @@ MJAPI void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index,
                            mjtNum** H, mjtNum** g, int n,
                            mjtNum** lower, mjtNum** upper);
 
-// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options (see implemetation)
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options (see implementation)
 MJAPI int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,
                           const mjtNum* H, const mjtNum* g, int n,
                           const mjtNum* lower, const mjtNum* upper,

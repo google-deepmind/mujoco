@@ -1153,7 +1153,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   // init with pairs involving always-colliding bodies
   for (int b1=0; b1 < nbody; b1++) {
-    // cannot colide
+    // cannot collide
     if (!canCollide(m, b1)) {
       continue;
     }
@@ -1163,7 +1163,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
         (m->body_weldid[b1] == 0 && hasPlane(m, b1))) {
       // add b1:body pairs that are not welded together
       for (int b2=0; b2 < nbody; b2++) {
-        // cannot colide
+        // cannot collide
         if (!canCollide(m, b2)) {
           continue;
         }
