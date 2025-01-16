@@ -5,26 +5,27 @@ Unity Plug-in
 Introduction
 ------------
 
-The MuJoCo `Unity plug-in <https://github.com/google-deepmind/mujoco/tree/main/unity>`_ allows the Unity Editor and
+The MuJoCo `Unity plug-in <https://github.com/google-deepmind/mujoco/tree/main/unity>`__ allows the Unity Editor and
 runtime to use the MuJoCo physics engine.  Users can import MJCF files and edit the models in the Editor.  The plug-in
 relies on Unity for most aspects -- assets, game logic, simulation time -- but uses MuJoCo to determine how objects
 move, giving the designer access to MuJoCo's full API.
 
-An example project using MuJoCo's Unity plugin in a set of introductory tutorials is available at
-https://github.com/Balint-H/mj-unity-tutorial.
+An example project using MuJoCo's Unity plugin in a set of introductory tutorials are also available as a `standalone
+repository <https://github.com/Balint-H/mj-unity-tutorial>`__.
 
 .. _UInstallation:
 
 Installation instructions
 -------------------------
 
-The plug-in directory (available at https://github.com/google-deepmind/mujoco/tree/main/unity) includes a
+The `plug-in directory <https://github.com/google-deepmind/mujoco/tree/main/unity>`__ includes a
 ``package.json`` file.  Unity's package manager recognizes this file and will import the plug-in's C# codebase to your
-project. In addition, Unity also needs the native MuJoCo library, which can be found in the specific platform archive at
-https://github.com/google-deepmind/mujoco/releases. If you wish to simply use the plug-in and not develop it, you should
-use one of the version-specific stable commits of the repository, identified by git tags. Check out the relevant version
-of the cloned repository with git (``git checkout 3.X.Y`` where X and Y specify the engine version). Simply using the
-``main`` branch of the repository may not be compatible with the most recent release binary of MuJoCo.
+project. In addition, Unity also needs the native MuJoCo library, which can be found in the corrsponding `platform 
+archive <https://github.com/google-deepmind/mujoco/releases>`__. If you wish to simply use the plug-in and not 
+develop it, you should use one of the version-specific stable commits of the repository, identified by git tags. Check
+out the relevant version of the cloned repository with git (``git checkout 3.X.Y`` where X and Y specify the engine 
+version). Simply using the ``main`` branch of the repository may not be compatible with the most recent release binary
+of MuJoCo.
 
 On Unity version 2020.2 and later, the Package Manager will look for the native library file and copy it to the package
 directory when the package is imported. Alternatively, you can manually copy the native library to the package directory
@@ -121,7 +122,7 @@ This design principle has several implications:
 - The layout of MuJoCo components in the GameObject hierarchy determines the layout of the resulting MuJoCo model.
   Therefore, we adopt a design rule that **every game object must have at most one MuJoCo component**.
 - We rely on Unity for spatial configuration, which requires vector components to be `swizzled
-  <https://en.wikipedia.org/wiki/Swizzling_(computer_graphics)>`_ since Unity uses left-handed frames with Y as the
+  <https://en.wikipedia.org/wiki/Swizzling_(computer_graphics)>`__ since Unity uses left-handed frames with Y as the
   vertical axis, while MuJoCo uses right-handed frames with Z as the vertical axis.
 - Unity transform scaling affects positions, orientations, and scale of the entire game object subtree.  However, MuJoCo
   doesn’t support collision of skewed cylinders and capsules (skewed spheres are supported via the ellipsoid primitive).
@@ -343,9 +344,9 @@ The current version of the Unity package does not support loading MJCF scenes th
 Interaction with External Processes
 ___________________________________
 
-Roboti’s `MuJoCo plug-in for Unity <https://roboti.us/download.html>`_ steps the simulation in an external Python
+Roboti’s `MuJoCo plug-in for Unity <https://roboti.us/download.html>`__ steps the simulation in an external Python
 process, and uses Unity only for rendering.  In contrast, our plug-in relies on Unity to step the simulation. It should
 be possible to use our plug-in while an external process "drives" the simulation, for example by setting ``qpos``,
 calling ``mj_kinematics``, synchronizing the transforms, and then using Unity to render or compute game logic. In order
 to establish communication with an external process, you can use Unity's `ML-Agents
-<https://github.com/Unity-Technologies/ml-agents>`_ package.
+<https://github.com/Unity-Technologies/ml-agents>`__ package.
