@@ -1510,6 +1510,15 @@ Free memory allocation in mjSpec.
 
 Activate plugin. Returns 0 on success.
 
+.. _mjs_setDeepCopy:
+
+`mjs_setDeepCopy <#mjs_setDeepCopy>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setDeepCopy
+
+Turn deep copy on or off attach. Returns 0 on success.
+
 .. _Errorandmemory:
 
 Error and memory

@@ -242,6 +242,9 @@ MJAPI void mj_deleteSpec(mjSpec* s);
 // Activate plugin. Returns 0 on success.
 MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
 
+// Turn deep copy on or off attach. Returns 0 on success.
+MJAPI int mjs_setDeepCopy(mjSpec* s, int deepcopy);
+
 
 //---------------------------------- Printing ------------------------------------------------------
 

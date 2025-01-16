@@ -262,35 +262,48 @@ TEST_F(PluginTest, AttachPlugin) {
     </mujoco>)";
 
   std::array<char, 1000> err;
-  mjSpec* spec_1 = mj_parseXMLString(xml_1, 0, err.data(), err.size());
+  mjSpec* parent = mj_parseXMLString(xml_1, 0, err.data(), err.size());
+  ASSERT_THAT(parent, NotNull()) << err.data();
+  mjSpec* spec_1 = mj_parseXMLString(xml_2, 0, err.data(), err.size());
   ASSERT_THAT(spec_1, NotNull()) << err.data();
-  mjSpec* spec_2 = mj_parseXMLString(xml_2, 0, err.data(), err.size());
-  ASSERT_THAT(spec_2, NotNull()) << err.data();
 
-  mjsBody* body_1 = mjs_findBody(spec_1, "body");
+  // do a copy before attaching
+  mjSpec* spec_2 = mj_copySpec(spec_1);
+  mjs_setString(spec_2->modelname, "first_copy");
+  mjSpec* spec_3 = mj_copySpec(spec_1);
+  mjs_setString(spec_3->modelname, "second_copy");
+  ASSERT_THAT(spec_3, NotNull()) << err.data();
+
+  // attach a body referencing the plugin to the frame and compile
+  mjsBody* body_1 = mjs_findBody(parent, "body");
   EXPECT_THAT(body_1, NotNull());
   mjsFrame* attachment_frame = mjs_addFrame(body_1, 0);
   EXPECT_THAT(attachment_frame, NotNull());
-
-  mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "body"), "child-", "");
-  mjModel* model_1 = mj_compile(spec_1, nullptr);
+  mjs_attachBody(attachment_frame, mjs_findBody(spec_1, "body"), "child-", "");
+  mjModel* model_1 = mj_compile(parent, nullptr);
   EXPECT_THAT(model_1, NotNull());
+  EXPECT_THAT(model_1->nbody, 3);
 
-  // attach it a second time to test namespacing
+  // attach it a second time to test namespacing and compile
+  ASSERT_THAT(spec_2, NotNull()) << err.data();
   mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "body"), "copy-", "");
-  mjModel* model_2 = mj_compile(spec_1, nullptr);
+  mjModel* model_2 = mj_compile(parent, nullptr);
   EXPECT_THAT(model_2, NotNull());
+  EXPECT_THAT(model_2->nbody, 4);
 
-  // attach a body not referencing the plugin
-  mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "empty"), "empty-", "");
-  mjModel* model_3 = mj_compile(spec_1, nullptr);
+  // attach a body not referencing the plugin and compile
+  mjs_attachBody(attachment_frame, mjs_findBody(spec_3, "empty"), "empty-", "");
+  mjModel* model_3 = mj_compile(parent, nullptr);
   EXPECT_THAT(model_3, NotNull());
+  EXPECT_THAT(model_3->nbody, 5);
 
   mj_deleteModel(model_1);
   mj_deleteModel(model_2);
   mj_deleteModel(model_3);
+  mj_deleteSpec(parent);
   mj_deleteSpec(spec_1);
   mj_deleteSpec(spec_2);
+  mj_deleteSpec(spec_3);
 }
 
 TEST_F(PluginTest, AttachExplicitPlugin) {
@@ -858,6 +871,7 @@ TEST_F(MujocoTest, AttachSame) {
   // create parent
   mjSpec* parent = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
+  mjs_setDeepCopy(parent, true);  // needed for self-attach
 
   // get frame
   mjsFrame* frame = mjs_findFrame(parent, "frame");
@@ -903,7 +917,7 @@ TEST_F(MujocoTest, AttachDifferent) {
   std::string field = "";
 
   static constexpr char xml_parent[] = R"(
-  <mujoco>
+  <mujoco model="parent">
     <default>
       <default class="geom_size">
         <geom size="0.1"/>
@@ -924,7 +938,7 @@ TEST_F(MujocoTest, AttachDifferent) {
   </mujoco>)";
 
   static constexpr char xml_result[] = R"(
-  <mujoco>
+  <mujoco model="parent">
     <default>
       <default class="geom_size">
         <geom size="0.1"/>
@@ -1048,7 +1062,7 @@ TEST_F(MujocoTest, AttachFrame) {
   std::string field = "";
 
   static constexpr char xml_parent[] = R"(
-  <mujoco>
+  <mujoco model="parent">
     <worldbody>
       <body name="sphere">
         <freejoint/>
@@ -1063,7 +1077,7 @@ TEST_F(MujocoTest, AttachFrame) {
   </mujoco>)";
 
   static constexpr char xml_result[] = R"(
-  <mujoco>
+  <mujoco model="parent">
     <default>
       <default class="attached-cylinder-1">
         <geom type="cylinder" size=".1 1 0"/>
@@ -1371,13 +1385,15 @@ TEST_F(MujocoTest, AttachWorld) {
 
   mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
   EXPECT_THAT(parent, NotNull()) << er.data();
-  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
-  EXPECT_THAT(child, NotNull()) << er.data();
+  mjSpec* child1 = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child1, NotNull()) << er.data();
+  mjSpec* child2 = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child2, NotNull()) << er.data();
 
   // attach a body to the frame
   mjsFrame* frame = mjs_findFrame(parent, "frame");
   EXPECT_THAT(frame, NotNull());
-  mjsBody* body = mjs_findBody(child, "sphere");
+  mjsBody* body = mjs_findBody(child1, "sphere");
   EXPECT_THAT(body, NotNull());
   mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
   EXPECT_THAT(attached, NotNull());
@@ -1385,7 +1401,7 @@ TEST_F(MujocoTest, AttachWorld) {
   EXPECT_THAT(model1, NotNull());
 
   // attach the world to the same frame and convert it to a frame
-  mjsBody* world = mjs_findBody(child, "world");
+  mjsBody* world = mjs_findBody(child2, "world");
   EXPECT_THAT(world, NotNull());
   mjsBody* child_world = mjs_attachBody(frame, world, "attached-", "-2");
   EXPECT_THAT(child_world, NotNull());
@@ -1403,7 +1419,8 @@ TEST_F(MujocoTest, AttachWorld) {
             << "Different field: " << field << '\n';
 
   mj_deleteSpec(parent);
-  mj_deleteSpec(child);
+  mj_deleteSpec(child1);
+  mj_deleteSpec(child2);
   mj_deleteModel(model1);
   mj_deleteModel(model2);
   mj_deleteModel(expected);
@@ -1577,11 +1594,13 @@ TEST_F(MujocoTest, RecompileAttach) {
   mjSpec* parent = mj_makeSpec();
   EXPECT_THAT(parent, NotNull());
 
-  mjSpec* child = mj_parseXMLString(xml, 0, er.data(), er.size());
-  EXPECT_THAT(child, NotNull());
+  mjSpec* child1 = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(child1, NotNull());
+  mjSpec* child2 = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(child2, NotNull());
 
   mjsFrame* frame1 = mjs_addFrame(mjs_findBody(parent, "world"), 0);
-  mjs_attachBody(frame1, mjs_findBody(child, "body"), "child-", "-1");
+  mjs_attachBody(frame1, mjs_findBody(child1, "body"), "child-", "-1");
 
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
@@ -1594,7 +1613,7 @@ TEST_F(MujocoTest, RecompileAttach) {
   }
 
   mjsFrame* frame2 = mjs_addFrame(mjs_findBody(parent, "world"), 0);
-  mjs_attachBody(frame2, mjs_findBody(child, "body"), "child-", "-2");
+  mjs_attachBody(frame2, mjs_findBody(child2, "body"), "child-", "-2");
 
   EXPECT_EQ(mj_recompile(parent, 0, model, data), 0);
   EXPECT_THAT(model, NotNull());
@@ -1604,7 +1623,8 @@ TEST_F(MujocoTest, RecompileAttach) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
-  mj_deleteSpec(child);
+  mj_deleteSpec(child1);
+  mj_deleteSpec(child2);
   mj_deleteSpec(parent);
 }
 
@@ -1637,6 +1657,7 @@ TEST_F(MujocoTest, AttachMocap) {
 
   mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
   EXPECT_THAT(spec, NotNull()) << er.data();
+  mjs_setDeepCopy(spec, true);  // needed for self-attach
 
   mjsBody* body = mjs_findBody(spec, "mocap");
   EXPECT_THAT(body, NotNull());
@@ -1732,8 +1753,8 @@ TEST_F(MujocoTest, AttachUnnamedAssets) {
   EXPECT_STREQ(mj_id2name(model, mjOBJ_MESH, 0), "_cube");
 
   mj_deleteVFS(vfs.get());
-  mj_deleteSpec(child);
   mj_deleteSpec(spec);
+  mj_deleteSpec(child);
   mj_deleteModel(model);
 }
 
@@ -1866,6 +1887,9 @@ void AttachNestedKeyframe(bool compile) {
   mjSpec* gchild = mj_parseXMLString(gchild_xml, 0, er.data(), er.size());
   EXPECT_THAT(gchild, NotNull()) << er.data();
 
+  mjs_setDeepCopy(parent, true);
+  mjs_setDeepCopy(child, true);
+
   // attach gchild to child
   mjs_attachBody(mjs_findFrame(child, "frame"),
                  mjs_findBody(gchild, "body"), "gchild-", "");
@@ -1937,18 +1961,18 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
     </mujoco>)";
 
     std::array<char, 1000> er;
-    mjSpec* spec_1 = mj_parseXMLString(xml_1, 0, er.data(), er.size());
-    EXPECT_THAT(spec_1, NotNull()) << er.data();
-    mjSpec* spec_2 = mj_parseXMLString(xml_2, 0, er.data(), er.size());
-    EXPECT_THAT(spec_2, NotNull()) << er.data();
+    mjSpec* parent = mj_parseXMLString(xml_1, 0, er.data(), er.size());
+    EXPECT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_2, 0, er.data(), er.size());
+    EXPECT_THAT(child, NotNull()) << er.data();
 
-    mjsBody* body_1 = mjs_findBody(spec_1, "body");
+    mjsBody* body_1 = mjs_findBody(parent, "body");
     mjsFrame* attachment_frame = mjs_addFrame(body_1, 0);
-    mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "b1"), "b1-", "");
-    mjModel* model_1 = mj_compile(spec_1, 0);
+    mjs_attachBody(attachment_frame, mjs_findBody(child, "b1"), "b1-", "");
+    mjModel* model_1 = mj_compile(parent, 0);
     EXPECT_THAT(model_1, NotNull());
-    mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "b2"), "b2-", "");
-    mjModel* model_2 = mj_compile(spec_1, 0);
+    mjs_attachBody(attachment_frame, mjs_findBody(child, "b2"), "b2-", "");
+    mjModel* model_2 = mj_compile(parent, 0);
     EXPECT_THAT(model_2, NotNull());
 
     EXPECT_EQ(model_1->nkey, 1);
@@ -1956,8 +1980,8 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
     EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 0), "b1-home");
     EXPECT_STREQ(mj_id2name(model_2, mjOBJ_KEY, 1), "b2-home");
 
-    mj_deleteSpec(spec_1);
-    mj_deleteSpec(spec_2);
+    mj_deleteSpec(parent);
+    mj_deleteSpec(child);
     mj_deleteModel(model_1);
     mj_deleteModel(model_2);
 }
@@ -2173,6 +2197,65 @@ TEST_F(MujocoTest, CopyAttachedSpec) {
 
   mj_deleteSpec(spec);
   mj_deleteSpec(copy);
+  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(MujocoTest, ApplyNameSpaceToDefaults) {
+  static constexpr char xml_c[] = R"(
+  <mujoco>
+    <default>
+      <default class="mesh">
+        <mesh scale="0.001 0.001 0.001"/>
+      </default>
+    </default>
+    <asset>
+      <mesh file="cube.obj" class="mesh"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom type="mesh" mesh="cube"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_p[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="parent"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char cube[] = R"(
+  v -0.500000 -0.500000  0.500000
+  v  0.500000 -0.500000  0.500000
+  v -0.500000  0.500000  0.500000
+  v  0.500000  0.500000  0.500000
+  v -0.500000  0.500000 -0.500000
+  v  0.500000  0.500000 -0.500000
+  v -0.500000 -0.500000 -0.500000
+  v  0.500000 -0.500000 -0.500000)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1024> err;
+  mjSpec* child = mj_parseXMLString(xml_c, vfs.get(), err.data(), err.size());
+  EXPECT_THAT(child, NotNull()) << err.data();
+  mjSpec* parent = mj_parseXMLString(xml_p, 0, err.data(), err.size());
+  EXPECT_THAT(parent, NotNull()) << err.data();
+
+  mjsBody* attached = mjs_attachBody(mjs_findFrame(parent, "parent"),
+                                     mjs_findBody(child, "body"), "child-", "");
+  EXPECT_THAT(attached, NotNull());
+
+  mjModel* model = mj_compile(parent, vfs.get());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
   mj_deleteModel(model);
   mj_deleteVFS(vfs.get());
 }

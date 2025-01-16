@@ -918,27 +918,31 @@ class SpecsTest(absltest.TestCase):
     model = parent.compile()
     np.testing.assert_almost_equal(model.body_quat[1], [1, 0, 0, 0])
 
-  def test_attach_body_to_site(self):
-    child = mujoco.MjSpec()
+  def test_attach_to_site(self):
     parent = mujoco.MjSpec()
     site = parent.worldbody.add_site(pos=[1, 2, 3], quat=[0, 0, 0, 1])
-    body = child.worldbody.add_body()
 
     # Attach body to site and compile.
-    self.assertIsNotNone(site.attach_body(body, prefix='_'))
+    child1 = mujoco.MjSpec()
+    body1 = child1.worldbody.add_body()
+    self.assertIs(body1, site.attach_body(body1, prefix='_'))
+    body1.pos = [1, 1, 1]
     model1 = parent.compile()
     self.assertIsNotNone(model1)
     self.assertEqual(model1.nbody, 2)
-    np.testing.assert_array_equal(model1.body_pos[1], [1, 2, 3])
+    np.testing.assert_array_equal(model1.body_pos[1], [0, 1, 4])
     np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
 
     # Attach entire spec to site and compile again.
-    self.assertIsNotNone(site.attach(child, prefix='child-'))
+    child2 = mujoco.MjSpec()
+    body2 = child2.worldbody.add_body(name='body')
+    self.assertIsNotNone(site.attach(child2, prefix='child-'))
+    body2.pos = [-1, -1, -1]
     model2 = parent.compile()
     self.assertIsNotNone(model2)
     self.assertEqual(model2.nbody, 3)
-    np.testing.assert_array_equal(model2.body_pos[1], [1, 2, 3])
-    np.testing.assert_array_equal(model2.body_pos[2], [1, 2, 3])
+    np.testing.assert_array_equal(model2.body_pos[1], [0, 1, 4])
+    np.testing.assert_array_equal(model2.body_pos[2], [2, 3, 2])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
 
@@ -949,27 +953,31 @@ class SpecsTest(absltest.TestCase):
     frame = body.to_frame()
     np.testing.assert_array_equal(frame.pos, [1, 2, 3])
 
-  def test_attach_spec_to_frame(self):
-    child = mujoco.MjSpec()
+  def test_attach_to_frame(self):
     parent = mujoco.MjSpec()
     frame = parent.worldbody.add_frame(pos=[1, 2, 3], quat=[0, 0, 0, 1])
-    body = child.worldbody.add_body()
 
     # Attach body to frame and compile.
-    self.assertIsNotNone(frame.attach_body(body, prefix='_'))
+    child1 = mujoco.MjSpec()
+    body1 = child1.worldbody.add_body()
+    self.assertIs(body1, frame.attach_body(body1, prefix='_'))
+    body1.pos = [1, 1, 1]
     model1 = parent.compile()
     self.assertIsNotNone(model1)
     self.assertEqual(model1.nbody, 2)
-    np.testing.assert_array_equal(model1.body_pos[1], [1, 2, 3])
+    np.testing.assert_array_equal(model1.body_pos[1], [0, 1, 4])
     np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
 
     # Attach entire spec to frame and compile again.
-    self.assertIsNotNone(frame.attach(child, prefix='child-'))
+    child2 = mujoco.MjSpec()
+    body2 = child2.worldbody.add_body(name='body')
+    self.assertIsNotNone(frame.attach(child2, prefix='child-'))
+    body2.pos = [-1, -1, -1]
     model2 = parent.compile()
     self.assertIsNotNone(model2)
     self.assertEqual(model2.nbody, 3)
-    np.testing.assert_array_equal(model2.body_pos[1], [1, 2, 3])
-    np.testing.assert_array_equal(model2.body_pos[2], [1, 2, 3])
+    np.testing.assert_array_equal(model2.body_pos[1], [0, 1, 4])
+    np.testing.assert_array_equal(model2.body_pos[2], [2, 3, 2])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
 

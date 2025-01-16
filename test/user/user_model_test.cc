@@ -545,6 +545,7 @@ TEST_F(MujocoTest, Modeldir) {
 
   // parent attaching the child
   mjSpec* spec = mj_makeSpec();
+  mjs_setDeepCopy(spec, true);
   mjs_setString(spec->meshdir, "asset");
   mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
   mjModel* model = mj_compile(spec, vfs.get());

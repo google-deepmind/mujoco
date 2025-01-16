@@ -350,6 +350,14 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def("copy", [](const MjSpec& self) -> MjSpec {
     return MjSpec(self);
   });
+  mjSpec.def_property(
+      "copy_during_attach",
+      [](MjSpec& self) {
+        throw pybind11::value_error("copy_during_attach can only be set.");
+      },
+      [](MjSpec& self, bool deepcopy) {
+        return mjs_setDeepCopy(self.ptr, deepcopy);
+      });
   mjSpec.def_property_readonly(
       "worldbody",
       [](MjSpec& self) -> raw::MjsBody* {

@@ -224,9 +224,23 @@ class mjCBase : public mjCBase_ {
   virtual void ForgetKeyframes() {}
   virtual void ForgetKeyframes() const {}
 
+  // increment and decrement reference count
+  // release uses the argument to delete the plugin
+  // which may be still owned by the source spec during shallow attach
+  virtual void AddRef() { ++refcount; }
+  virtual int GetRef() { return refcount; }
+  virtual void Release() {
+    if (--refcount == 0) {
+      delete this;
+    }
+  }
+
  protected:
   mjCBase();                                 // constructor
   mjCBase(const mjCBase& other);             // copy constructor
+
+  // reference count for allowing deleting an attached object
+  int refcount = 1;
 };
 
 
@@ -348,6 +362,15 @@ class mjCBody : public mjCBody_, private mjsBody {
   // set parent of this body
   void SetParent(mjCBody* _body) { parent = _body; }
   mjCBody* GetParent() const { return parent; }
+
+  // set model of this body
+  void SetModel(mjCModel* _model);
+
+  // reset ids of all objects in this body
+  void ResetId();
+
+  // getters
+  std::vector<mjCBody*> Bodies() const { return bodies; }
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -537,7 +560,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   mjCGeom(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCGeom(const mjCGeom& other);
   mjCGeom& operator=(const mjCGeom& other);
-  ~mjCGeom();
 
   using mjCBase::name;
   mjsGeom spec;                       // variables set by user
@@ -1505,7 +1527,6 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   mjCActuator(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCActuator(const mjCActuator& other);
   mjCActuator& operator=(const mjCActuator& other);
-  ~mjCActuator();
 
   mjsActuator spec;
   using mjCBase::name;
@@ -1567,7 +1588,6 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   mjCSensor(mjCModel*);
   mjCSensor(const mjCSensor& other);
   mjCSensor& operator=(const mjCSensor& other);
-  ~mjCSensor();
 
   mjsSensor spec;
   using mjCBase::name;

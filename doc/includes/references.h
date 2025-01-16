@@ -3181,6 +3181,7 @@ mjSpec* mj_makeSpec(void);
 mjSpec* mj_copySpec(const mjSpec* s);
 void mj_deleteSpec(mjSpec* s);
 int mjs_activatePlugin(mjSpec* s, const char* name);
+int mjs_setDeepCopy(mjSpec* s, int deepcopy);
 void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format);
 void mj_printModel(const mjModel* m, const char* filename);
 void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,

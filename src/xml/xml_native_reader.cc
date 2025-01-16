@@ -945,10 +945,16 @@ void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
     Keyframe(section);
   }
 
+  // set deepcopy flag to true to copy child specs during attach calls
+  mjs_setDeepCopy(spec, true);
+
   for (XMLElement* section = FirstChildElement(root, "worldbody"); section;
        section = NextSiblingElement(section, "worldbody")) {
     Body(section, mjs_findBody(spec, "world"), nullptr, vfs);
   }
+
+  // set deepcopy flag to false to disable copying during attach in all future calls
+  mjs_setDeepCopy(spec, false);
 }
 
 

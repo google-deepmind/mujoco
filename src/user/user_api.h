@@ -63,6 +63,9 @@ MJAPI void mjs_addSpec(mjSpec* s, mjSpec* child);
 // Activate plugin, return 0 on success.
 MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
 
+// Turn deep copy on or off attach. Returns 0 on success.
+MJAPI int mjs_setDeepCopy(mjSpec* s, int deepcopy);
+
 
 //---------------------------------- Attachment ----------------------------------------------------
 

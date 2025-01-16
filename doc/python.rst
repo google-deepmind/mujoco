@@ -531,14 +531,18 @@ Attachment
 It is possible to combine multiple specs by using attachments. The following options are possible:
 
 -   Attach a body from the child spec to a frame in the parent spec: ``body.attach_body(body, prefix, suffix)``, returns
-    the newly createdbody in the parent spec.
+    the reference to the attached body, which should be identical to the body used as input.
 -   Attach a frame from the child spec to a body in the parent spec: ``body.attach_frame(frame, prefix, suffix)``,
-    returns the newly created frame in the parent spec.
+    returns the reference to the attached frame, which should be identical to the frame used as input.
 -   Attach a body from the child spec to a site in the parent spec: ``site.attach(body, prefix, suffix)``, returns the
-    newly created body in the parent spec.
+    reference to the attached body, which should be identical to the body used as input.
 -   Attach the worldbody from the child spec to a frame in the parent spec and transform it to a frame:
     ``body.attach(spec, prefix, suffix)``, returns the newly created frame that the child worldbody was transformed
     into.
+
+Attaching does not copy, so all the child reference are still valid in the parent and therefore modifying the child will
+modify the parent. This is not true for the attach :ref:`attach<body-attach>` an :ref:`replicate<replicate>`
+meta-elements in MJCF, which create deep copies while attaching.
 
 .. code-block:: python
 

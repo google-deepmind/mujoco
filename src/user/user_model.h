@@ -221,6 +221,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete object from the corresponding list
   void DeleteElement(mjsElement* el);
 
+  // detach subtree from model
+  void Detach(mjCBody* subtree);
+
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
@@ -307,6 +310,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // get the spec from which this model was created
   mjSpec* GetSourceSpec() const;
 
+  // set deepcopy flag
+  void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
@@ -351,7 +357,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::vector<mjCTuple*>    tuples_;      // list of tuple fields
   std::vector<mjCKey*>      keys_;        // list of keyframe fields
   std::vector<mjCPlugin*>   plugins_;     // list of plugin instances
-  std::vector<mjSpec*>      specs_;       // list of specs
+  std::vector<mjSpec*>      specs_;       // list of attached specs
 
   // pointers to objects created inside kinematic tree
   std::vector<mjCBody*>   bodies_;   // list of bodies
@@ -410,5 +416,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
+  bool deepcopy_;     // copy objects when attaching
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

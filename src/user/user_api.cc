@@ -208,7 +208,7 @@ int mjs_detachBody(mjSpec* s, mjsBody* b) {
     model->SetError(e);
     return -1;
   }
-  delete body;
+  model->Detach(body);
   return 0;
 }
 
@@ -249,6 +249,15 @@ int mjs_activatePlugin(mjSpec* s, const char* name) {
   }
   mjCModel* model = static_cast<mjCModel*>(s->element);
   model->ActivatePlugin(plugin, plugin_slot);
+  return 0;
+}
+
+
+
+// set deep copy flag
+int mjs_setDeepCopy(mjSpec* s, int deepcopy) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  model->SetDeepCopy(deepcopy);
   return 0;
 }
 
@@ -705,7 +714,7 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
   mjCFrame* frameC = bodyC->ToFrame();
-  delete bodyC;
+  bodyC->model->Detach(bodyC);
   *body = nullptr;
   return &frameC->spec;
 }

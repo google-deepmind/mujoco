@@ -278,9 +278,6 @@ void mjCMesh::CopyPlugin() {
 mjCMesh::~mjCMesh() {
   if (center_) mju_free(center_);
   if (graph_) mju_free(graph_);
-  if (spec.plugin.active && spec.plugin.name->empty() && model) {
-    model->DeleteElement(spec.plugin.element);
-  }
 }
 
 

@@ -1045,6 +1045,24 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Activate plugin. Returns 0 on success.',
      )),
+    ('mjs_setDeepCopy',
+     FunctionDecl(
+         name='mjs_setDeepCopy',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='deepcopy',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Turn deep copy on or off attach. Returns 0 on success.',
+     )),
     ('mj_printFormattedModel',
      FunctionDecl(
          name='mj_printFormattedModel',

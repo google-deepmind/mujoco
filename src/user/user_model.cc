@@ -139,6 +139,7 @@ mjCModel::mjCModel() {
   center_auto[0] = center_auto[1] = center_auto[2] = 0;
 #endif
 
+  deepcopy_ = false;
   nplugin = 0;
   Clear();
 
@@ -181,6 +182,7 @@ mjCModel::mjCModel(const mjCModel& other) {
 
 
 mjCModel& mjCModel::operator=(const mjCModel& other) {
+  deepcopy_ = true;
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
@@ -210,6 +212,7 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
       ids[i] = other.ids[i];
     }
   }
+  deepcopy_ = other.deepcopy_;
   return *this;
 }
 
@@ -222,20 +225,29 @@ void mjCModel::CopyList(std::vector<T*>& dest,
   // loop over the elements from the other model
   int nsource = (int)source.size();
   for (int i = 0; i < nsource; i++) {
-    T* candidate = new T(*source[i]);
+    T* candidate = deepcopy_ ? new T(*source[i]) : source[i];
     try {
       // try to find the referenced object in this model
-      candidate->NameSpace(source[i]->model);
+      mjCModel* source_model = source[i]->model;
+      candidate->model = this;
+      candidate->NameSpace(source_model);
       candidate->CopyFromSpec();
       candidate->ResolveReferences(this);
     } catch (mjCError err) {
       // if not present, skip the element
       // TODO: do not skip elements that contain user errors
-      delete candidate;
+      if (deepcopy_) {
+        candidate->model = nullptr;
+        delete candidate;
+      }
       continue;
     }
     // copy the element from the other model to this model
-    source[i]->ForgetKeyframes();
+    if (deepcopy_) {
+      source[i]->ForgetKeyframes();
+    } else {
+      candidate->AddRef();
+    }
     mjSpec* origin = FindSpec(source[i]->compiler);
     dest.push_back(candidate);
     dest.back()->model = this;
@@ -324,9 +336,12 @@ void mjCModel::CopyExplicitPlugin(T* obj) {
     return;
   }
   mjCPlugin* origin = static_cast<mjCPlugin*>(obj->spec.plugin.element);
-  mjCPlugin* candidate = new mjCPlugin(*origin);
+  mjCPlugin* candidate = deepcopy_ ? new mjCPlugin(*origin) : origin;
   candidate->id = plugins_.size();
   candidate->model = this;
+  if (!deepcopy_) {
+    candidate->AddRef();
+  }
   plugins_.push_back(candidate);
   obj->spec.plugin.element = candidate;
 }
@@ -566,7 +581,7 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
   for (int j = 0; j < list->size(); ++j) {
     list->at(j)->id = -1;
     if (list->at(j) == element) {
-      delete list->at(j);
+      list->at(j)->Release();
       list->erase(list->begin() + j);
       j--;
     }
@@ -577,8 +592,9 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 
 // discard all invalid elements from all lists
 void mjCModel::DeleteElement(mjsElement* el) {
-  mjCBody *world = bodies_[0];
+  mjCBody *world = nullptr;
   if (compiled) {
+    world = bodies_[0];
     ResetTreeLists();
   }
 
@@ -588,8 +604,14 @@ void mjCModel::DeleteElement(mjsElement* el) {
       break;
 
     case mjOBJ_GEOM:
-      deletefromlist(&(static_cast<mjCGeom*>(el)->body->geoms), el);
+    {
+      mjCGeom* geom = static_cast<mjCGeom*>(el);
+      if (geom->plugin.active && geom->plugin.name->empty() && geom->GetRef() == 1) {
+        DeleteElement(geom->plugin.element);
+      }
+      deletefromlist(&(geom->body->geoms), el);
       break;
+    }
 
     case mjOBJ_SITE:
       deletefromlist(&(static_cast<mjCSite*>(el)->body->sites), el);
@@ -607,6 +629,36 @@ void mjCModel::DeleteElement(mjsElement* el) {
       deletefromlist(&(static_cast<mjCCamera*>(el)->body->cameras), el);
       break;
 
+    case mjOBJ_MESH:
+    {
+      mjCMesh* mesh = static_cast<mjCMesh*>(el);
+      if (mesh->plugin.active && mesh->plugin.name->empty() && mesh->GetRef() == 1) {
+        DeleteElement(mesh->plugin.element);
+      }
+      deletefromlist(object_lists_[mjOBJ_MESH], el);
+      break;
+    }
+
+    case mjOBJ_ACTUATOR:
+    {
+      mjCActuator* actuator = static_cast<mjCActuator*>(el);
+      if (actuator->plugin.active && actuator->plugin.name->empty() && actuator->GetRef() == 1) {
+        DeleteElement(actuator->plugin.element);
+      }
+      deletefromlist(object_lists_[mjOBJ_ACTUATOR], el);
+      break;
+    }
+
+    case mjOBJ_SENSOR:
+    {
+      mjCSensor* sensor = static_cast<mjCSensor*>(el);
+      if (sensor->plugin.active && sensor->plugin.name->empty() && sensor->GetRef() == 1) {
+        DeleteElement(sensor->plugin.element);
+      }
+      deletefromlist(object_lists_[mjOBJ_SENSOR], el);
+      break;
+    }
+
     default:
       deletefromlist(object_lists_[el->elemtype], el);
       break;
@@ -617,6 +669,29 @@ void mjCModel::DeleteElement(mjsElement* el) {
     MakeLists(world);
     ProcessLists(/*checkrepeat=*/false);
   }
+}
+
+
+
+// recursively delete all plugins in the subtree
+void deletesubtreeplugin(mjCBody* subtree, mjCModel* model) {
+  mjsPlugin* plugin = &(subtree->spec.plugin);
+  if (plugin->active && plugin->name->empty()) {
+    model->DeleteElement(plugin->element);
+  }
+  for (auto* body : subtree->Bodies()) {
+    deletesubtreeplugin(body, model);
+  }
+}
+
+
+
+// deletes all plugins in the subtree and then the subtree itself
+void mjCModel::Detach(mjCBody* subtree) {
+  if (subtree->GetRef() == 1)  {
+    deletesubtreeplugin(subtree, this);
+  }
+  subtree->Release();
 }
 
 
@@ -688,28 +763,28 @@ mjCModel::~mjCModel() {
   compiled = false;
 
   // delete kinematic tree and all objects allocated in it
-  delete bodies_[0];
+  bodies_[0]->Release();
 
   // delete objects allocated in mjCModel
-  for (int i=0; i<flexes_.size(); i++) delete flexes_[i];
-  for (int i=0; i<meshes_.size(); i++) delete meshes_[i];
-  for (int i=0; i<skins_.size(); i++) delete skins_[i];
-  for (int i=0; i<hfields_.size(); i++) delete hfields_[i];
-  for (int i=0; i<textures_.size(); i++) delete textures_[i];
-  for (int i=0; i<materials_.size(); i++) delete materials_[i];
-  for (int i=0; i<pairs_.size(); i++) delete pairs_[i];
-  for (int i=0; i<excludes_.size(); i++) delete excludes_[i];
-  for (int i=0; i<equalities_.size(); i++) delete equalities_[i];
-  for (int i=0; i<tendons_.size(); i++) delete tendons_[i];  // also deletes wraps
-  for (int i=0; i<actuators_.size(); i++) delete actuators_[i];
-  for (int i=0; i<sensors_.size(); i++) delete sensors_[i];
-  for (int i=0; i<numerics_.size(); i++) delete numerics_[i];
-  for (int i=0; i<texts_.size(); i++) delete texts_[i];
-  for (int i=0; i<tuples_.size(); i++) delete tuples_[i];
-  for (int i=0; i<keys_.size(); i++) delete keys_[i];
+  for (int i=0; i<flexes_.size(); i++) flexes_[i]->Release();
+  for (int i=0; i<meshes_.size(); i++) meshes_[i]->Release();
+  for (int i=0; i<skins_.size(); i++) skins_[i]->Release();
+  for (int i=0; i<hfields_.size(); i++) hfields_[i]->Release();
+  for (int i=0; i<textures_.size(); i++) textures_[i]->Release();
+  for (int i=0; i<materials_.size(); i++) materials_[i]->Release();
+  for (int i=0; i<pairs_.size(); i++) pairs_[i]->Release();
+  for (int i=0; i<excludes_.size(); i++) excludes_[i]->Release();
+  for (int i=0; i<equalities_.size(); i++) equalities_[i]->Release();
+  for (int i=0; i<tendons_.size(); i++) tendons_[i]->Release();  // also deletes wraps
+  for (int i=0; i<actuators_.size(); i++) actuators_[i]->Release();
+  for (int i=0; i<sensors_.size(); i++) sensors_[i]->Release();
+  for (int i=0; i<numerics_.size(); i++) numerics_[i]->Release();
+  for (int i=0; i<texts_.size(); i++) texts_[i]->Release();
+  for (int i=0; i<tuples_.size(); i++) tuples_[i]->Release();
+  for (int i=0; i<keys_.size(); i++) keys_[i]->Release();
   for (int i=0; i<defaults_.size(); i++) delete defaults_[i];
   for (int i=0; i<specs_.size(); i++) mj_deleteSpec(specs_[i]);
-  for (int i=0; i<plugins_.size(); i++) delete plugins_[i];
+  for (int i=0; i<plugins_.size(); i++) plugins_[i]->Release();
 
   // clear sizes and pointer lists created in Compile
   Clear();
@@ -933,6 +1008,7 @@ mjCPlugin* mjCModel::AddPlugin() {
 
 // append spec to spec
 void mjCModel::AppendSpec(mjSpec* spec) {
+  // TODO: check if the spec is already in the list
   specs_.push_back(spec);
 }
 
