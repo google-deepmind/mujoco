@@ -381,6 +381,7 @@ class BindData(object):
 
   def __init__(self, data: Data, model: Model, specs: Sequence[Any]):
     self.data = data
+    self.model = model
     try:
       iter(specs)
     except TypeError:
@@ -438,10 +439,22 @@ class BindData(object):
       return self.prefix + name
 
   def __getattr__(self, name: str):
+    if name == 'sensordata':
+      adr = self.model.sensor_adr[self.id]
+      num = self.model.sensor_dim[self.id]
+      if isinstance(self.id, list):
+        idx = []
+        for i, n in zip(self.id, num):
+          idx.extend(adr[i] + j for j in range(n))
+        return getattr(self.data, name)[idx, ...]
+      else:
+        return getattr(self.data, name)[adr : adr + num, ...]
     return getattr(self.data, self.__getname(name))[self.id, ...]
 
   def set(self, name: str, value: jax.Array) -> Data:
     """Set the value of an array in an MJX Data."""
+    if name == 'sensordata':
+      raise AttributeError('sensordata is readonly')
     array = getattr(self.data, self.__getname(name))
     try:
       iter(value)

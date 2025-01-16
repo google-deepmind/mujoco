@@ -180,6 +180,12 @@ class SupportTest(parameterized.TestCase):
           <motor name="actuator2" joint="joint2"/>
           <motor name="actuator3" joint="joint3"/>
         </actuator>
+
+        <sensor>
+          <framepos name="sensor1" objtype="body" objname="body1"/>
+          <framepos name="sensor2" objtype="body" objname="body2"/>
+          <framepos name="sensor3" objtype="body" objname="body3"/>
+        </sensor>
     </mujoco>
     """
 
@@ -222,6 +228,15 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_array_equal(d.bind(s.actuators[i]).ctrl, d.ctrl[i])
       np.testing.assert_array_equal(
           dx.bind(mx, s.actuators[i]).ctrl, d.ctrl[i]
+      )
+
+    np.testing.assert_array_equal(
+        dx.bind(mx, s.sensors).sensordata, d.sensordata
+    )
+    for i in range(m.nsensor):
+      np.testing.assert_array_equal(
+          dx.bind(mx, s.sensors[i]).sensordata,
+          d.sensordata[m.sensor_adr[i] : m.sensor_adr[i] + m.sensor_dim[i]],
       )
 
     # test setting
