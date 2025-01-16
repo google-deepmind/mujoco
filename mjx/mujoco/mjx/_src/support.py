@@ -444,8 +444,8 @@ class BindData(object):
       num = self.model.sensor_dim[self.id]
       if isinstance(self.id, list):
         idx = []
-        for i, n in zip(self.id, num):
-          idx.extend(adr[i] + j for j in range(n))
+        for a, n in zip(adr, num):
+          idx.extend(a + j for j in range(n))
         return getattr(self.data, name)[idx, ...]
       else:
         return getattr(self.data, name)[adr : adr + num, ...]
