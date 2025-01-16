@@ -10,6 +10,9 @@ Upcoming version (not yet released)
   such a shallow copy. The old behavioud of creating a deep copy of the child model while attaching can be restored by
   setting the deep copy flag to 1.
 
+Version 3.2.7 (Jan 14, 2025)
+----------------------------
+
 Python bindings
 ^^^^^^^^^^^^^^^
 1. :ref:`rollout<PyRollout>` now features native multi-threading. If a sequence of ``MjData`` instances
