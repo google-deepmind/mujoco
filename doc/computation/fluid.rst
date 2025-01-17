@@ -308,7 +308,7 @@ We present the following result.
          :math:`\mathcal{E}` with :math:`\Pi_{\mathbf{u}}` (denoted :math:`\mathcal{E}^{\cap}_{\mathbf{u}}`).
 
          An important property of :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is that :math:`\mathbf{u}` is tangent
-         tangent to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
+         to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
 
          We can regard :math:`\mathcal{E}` as the image of the unit sphere :math:`\mathcal{S}` under a stretching
          transformation :math:`T = \mathrm{diag}(r_x, r_y, r_z)`. Furthermore, if :math:`\mathbf{\tilde{u}}` is a vector
