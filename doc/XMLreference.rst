@@ -601,9 +601,17 @@ from its default.
 .. _option-flag-energy:
 
 :at:`energy`: :at-val:`[disable, enable], "disable"`
-   This flag enables the computation of kinetic and potential energy, stored in mjData.energy and displayed in the GUI.
-   This feature adds some CPU time but it is usually negligible. Monitoring energy for a system that is supposed to be
-   energy-conserving is one of the best ways to assess the accuracy of a complex simulation.
+   This flag enables the computation of potential and kinetic energy in ``mjData.energy[0, 1]`` respectively,
+   and displayed in the simulate GUI info overlay. Potential energy includes the gravitational component summed over
+   all bodies :math:`\sum_b m_b g h` and energy stored in passive springs in joints, tendons and flexes
+   :math:`\tfrac{1}{2} k x^2`, where :math:`x` is the displacement and and :math:`k` is the spring constant. Kinetic
+   energy is given by :math:`\tfrac{1}{2} v^T M v`, where :math:`v` is the velocity and :math:`M` is the
+   mass matrix. Note that potential and kinetic energy in constraints is not accounted for.
+
+   The extra computation (also triggered by :ref:`potential<sensor-e_potential>` and
+   :ref:`kinetic<sensor-e_kinetic>` energy sensors) adds some CPU time but it is usually negligible. Monitoring energy
+   for a system that is supposed to be energy-conserving is one of the best ways to assess the accuracy of a complex
+   simulation.
 
 .. _option-flag-fwdinv:
 
@@ -7244,6 +7252,45 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 :at:`name`, :at:`noise`, :at:`user`
    See :ref:`CSensor`.
+
+
+.. _sensor-e_potential:
+
+:el-prefix:`sensor/` |-| **e_potential** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates sensor that returns the potential energy.
+
+.. _sensor-e_potential-name:
+
+.. _sensor-e_potential-noise:
+
+.. _sensor-e_potential-cutoff:
+
+.. _sensor-e_potential-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
+
+.. _sensor-e_kinetic:
+
+:el-prefix:`sensor/` |-| **e_kinetic** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates sensor that returns the kinetic energy.
+
+.. _sensor-e_kinetic-name:
+
+.. _sensor-e_kinetic-noise:
+
+.. _sensor-e_kinetic-cutoff:
+
+.. _sensor-e_kinetic-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
 
 .. _sensor-clock:
 

@@ -2056,6 +2056,8 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_TENDONLIMITVEL:
   case mjSENS_TENDONLIMITFRC:
   case mjSENS_GEOMDIST:
+  case mjSENS_E_POTENTIAL:
+  case mjSENS_E_KINETIC:
   case mjSENS_CLOCK:
     return 1;
 

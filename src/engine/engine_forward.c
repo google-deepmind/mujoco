@@ -1013,6 +1013,38 @@ void mj_implicit(const mjModel* m, mjData* d) {
 
 
 
+// return 1 if potential energy was computed by sensor, 0 otherwise
+static int energyPosSensor(const mjModel* m) {
+  if (mjDISABLED(mjDSBL_SENSOR)) {
+    return 0;
+  }
+
+  for (int i=0; i < m->nsensor; i++) {
+    if (m->sensor_type[i] == mjSENS_E_POTENTIAL) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+
+// return 1 if kinetic energy was computed by sensor, 0 otherwise
+static int energyVelSensor(const mjModel* m) {
+  if (mjDISABLED(mjDSBL_SENSOR)) {
+    return 0;
+  }
+
+  for (int i=0; i < m->nsensor; i++) {
+    if (m->sensor_type[i] == mjSENS_E_KINETIC) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+
 //-------------------------- top-level API ---------------------------------------------------------
 
 // forward dynamics with skip; skipstage is mjtStage
@@ -1022,21 +1054,33 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   // position-dependent
   if (skipstage < mjSTAGE_POS) {
     mj_fwdPosition(m, d);
+
+    int energyPos = 0;
     if (!skipsensor) {
       mj_sensorPos(m, d);
+      energyPos = energyPosSensor(m);
     }
-    if (mjENABLED(mjENBL_ENERGY)) {
-      mj_energyPos(m, d);
+
+    if (!energyPos) {
+      if (mjENABLED(mjENBL_ENERGY)) {
+        mj_energyPos(m, d);
+      } else {
+        d->energy[0] = d->energy[1] = 0;
+      }
     }
   }
 
   // velocity-dependent
   if (skipstage < mjSTAGE_VEL) {
     mj_fwdVelocity(m, d);
+
+    int energyVel = 0;
     if (!skipsensor) {
       mj_sensorVel(m, d);
+      energyVel = energyVelSensor(m);
     }
-    if (mjENABLED(mjENBL_ENERGY)) {
+
+    if (mjENABLED(mjENBL_ENERGY) && !energyVel) {
       mj_energyVel(m, d);
     }
   }
@@ -1111,10 +1155,18 @@ void mj_step1(const mjModel* m, mjData* d) {
   mj_checkVel(m, d);
   mj_fwdPosition(m, d);
   mj_sensorPos(m, d);
-  mj_energyPos(m, d);
+  if (!energyPosSensor(m)) {
+    if (mjENABLED(mjENBL_ENERGY)) {
+      mj_energyPos(m, d);
+    } else {
+      d->energy[0] = d->energy[1] = 0;
+    }
+  }
   mj_fwdVelocity(m, d);
   mj_sensorVel(m, d);
-  mj_energyVel(m, d);
+  if (mjENABLED(mjENBL_ENERGY) && !energyVelSensor(m)) {
+    mj_energyVel(m, d);
+  }
   if (mjcb_control) {
     mjcb_control(m, d);
   }

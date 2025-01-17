@@ -347,6 +347,8 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_GEOMFROMTO,              // segment between two geoms
 
   // global sensors
+  mjSENS_E_POTENTIAL,             // potential energy
+  mjSENS_E_KINETIC,               // kinetic energy
   mjSENS_CLOCK,                   // simulation time
 
   // plugin-controlled sensors

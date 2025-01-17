@@ -2156,6 +2156,12 @@ void mjXWriter::Sensor(XMLElement* root) {
       break;
 
     // global sensors
+    case mjSENS_E_POTENTIAL:
+      elem = InsertEnd(section, "potential");
+      break;
+    case mjSENS_E_KINETIC:
+      elem = InsertEnd(section, "kinetic");
+      break;
     case mjSENS_CLOCK:
       elem = InsertEnd(section, "clock");
       break;

@@ -6206,7 +6206,11 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
       ((mjCGeom*)obj)->SetNotVisual();
     }
 
-  } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN && type != mjSENS_USER) {
+  } else if (type != mjSENS_E_POTENTIAL &&
+             type != mjSENS_E_KINETIC   &&
+             type != mjSENS_CLOCK       &&
+             type != mjSENS_PLUGIN      &&
+             type != mjSENS_USER) {
     throw mjCError(this, "invalid type in sensor");
   }
 
@@ -6539,6 +6543,8 @@ void mjCSensor::Compile(void) {
     }
     break;
 
+  case mjSENS_E_POTENTIAL:
+  case mjSENS_E_KINETIC:
   case mjSENS_CLOCK:
     dim = 1;
     needstage = mjSTAGE_POS;

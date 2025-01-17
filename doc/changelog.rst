@@ -5,10 +5,13 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-- Added ``mjs_setDeepCopy`` API function. When the deep copy flag is 0, attaching a model will not copy it to the
-  parent, so the original references to the child allow to modify the parent as well. The default behavior is to perform
-  such a shallow copy. The old behavioud of creating a deep copy of the child model while attaching can be restored by
-  setting the deep copy flag to 1.
+General
+^^^^^^^
+- Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
+  parent, so the original references to the child can be used to modify the parent after attachment. The default
+  behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
+  attaching can be restored by setting the deep copy flag to 1.
+- Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
 
 Version 3.2.7 (Jan 14, 2025)
 ----------------------------
