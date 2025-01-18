@@ -4380,7 +4380,7 @@ ball joint outside the kinematic tree. Connect constraints can be specified in o
 
 - Using :ref:`body1<equality-connect-body1>` and :ref:`anchor<equality-connect-anchor>` (both required) and
   optionally :ref:`body2<equality-connect-body2>`. When using this specification, the constraint is assumed to be
-  satisfied in the configuration in which the model is defined.
+  satisfied at the configuration in which the model is defined (``mjData.qpos0``).
 - :ref:`site1<equality-connect-site1>` and :ref:`site2<equality-connect-site2>` (both required). When using this
   specification, the two sites will be pulled together by the constraint, regardless of their position in the default
   configuration. An example of this specification is shown in
@@ -4426,8 +4426,8 @@ ball joint outside the kinematic tree. Connect constraints can be specified in o
 
 :at:`anchor`: :at-val:`real(3), optional`
    Coordinates of the 3D anchor point where the two bodies are connected, in the local coordinate frame of :at:`body1`.
-   The constraint is assumed to be satisfied in the configuration in which the model is defined, which lets the compiler
-   compute the associated anchor point for :at:`body2`.
+   The constraint is assumed to be satisfied in the configuration at which the model is defined (``mjData.qpos0``),
+   which lets the compiler compute the associated anchor point for :at:`body2`.
 
 .. _equality-connect-site1:
 
