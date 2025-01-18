@@ -2367,7 +2367,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    This attribute specifies an integer group to which the geom belongs. The only effect on the physics is at compile
    time, when body masses and inertias are inferred from geoms selected based on their group; see inertiagrouprange
    attribute of :ref:`compiler <compiler>`. At runtime this attribute is used by the visualizer to enable and disable
-   the rendering of entire geom groups. It can also be used as a tag for custom computations.
+   the rendering of entire geom groups. By default, groups 0, 1 and 2 are visible, while all other groups are invisible.
+   The group attribute can also be used as a tag for custom computations.
 
 .. _body-geom-priority:
 
