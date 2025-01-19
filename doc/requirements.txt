@@ -6,7 +6,9 @@ sphinxcontrib-youtube==1.2.0
 sphinx-copybutton==0.5.2
 sphinx-favicon==1.0.1
 sphinx-reredirects==0.1.1
-sphinx-toolbox==3.4.0
+# TODO: b/390995275 - Bug in sphinx-toolbox, use Kevin's workaround until fixed.
+sphinx-toolbox @ git+https://github.com/kevinzakka/sphinx-toolbox.git@gh-issue-fix
+# sphinx-toolbox==3.4.0
 nbsphinx==0.9.1
 pandoc==1.1.0
 pygments==2.15.0
