@@ -81,8 +81,9 @@ static mjtNum attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj
 // status must have initial tetrahedrons
 static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 
-// return the penetration depth of two convex objects; witness points are in status->{x1, x2}
-static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
+// return a face of the expanded polytope that best approximates the pentration depth
+// witness points are in status->{x1, x2}
+static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
 
 // -------------------------------- inlined  3D vector utils --------------------------------------
 
@@ -145,7 +146,7 @@ static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
 
 
 // GJK algorithm
-static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
+static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   int get_dist = status->dist_cutoff > 0;  // need to recover geom distances if not in contact
   int backup_gjk = !get_dist;              // use gjkIntersect if no geom distances needed
   mjtNum *simplex1 = status->simplex1;     // simplex for obj1
@@ -192,7 +193,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         status->nsimplex = 0;
         status->nx = 0;
         status->dist = mjMAXVAL;
-        return status->dist;
+        return;
       }
     } else if (status->dist_cutoff < mjMAXVAL) {
       mjtNum vs = mju_dot3(x_k, s_k), vv = mju_dot3(x_k, x_k);
@@ -201,7 +202,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         status->nsimplex = 0;
         status->nx = 0;
         status->dist = mjMAXVAL;
-        return status->dist;
+        return;
       }
     }
 
@@ -213,7 +214,7 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       if (ret != -1) {
         status->nx = 0;
         status->dist = ret > 0 ? 0 : mjMAXVAL;
-        return status->dist;
+        return;
       }
       k = status->gjk_iterations;
       backup_gjk = 0;
@@ -259,7 +260,6 @@ static mjtNum gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   status->gjk_iterations = k;
   status->nsimplex = n;
   status->dist = mju_norm3(x_k);
-  return status->dist;
 }
 
 
@@ -1294,8 +1294,9 @@ static void epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNu
 
 
 
-// return the penetration depth of two convex objects; witness points are in status->{x1, x2}
-static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
+// return a face of the expanded polytope that best approximates the pentration depth
+// witness points are in status->{x1, x2}
+static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum tolerance = status->tolerance, lower, upper = FLT_MAX;
   int k, kmax = status->max_iterations;
   mjData* d = (mjData*) obj1->data;
@@ -1368,7 +1369,8 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
       mj_freeStack(d);
       status->epa_iterations = k;
       status->nx = 0;
-      return 0;
+      status->dist = 0;
+      return NULL;
     }
 
     // store face in map
@@ -1395,7 +1397,8 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
         mj_freeStack(d);
         status->epa_iterations = k;
         status->nx = 0;
-        return 0;
+        status->dist = 0;
+        return NULL;
       }
 
       // store face in map
@@ -1417,7 +1420,8 @@ static mjtNum epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* o
   epaWitness(pt, face, status->x1, status->x2);
   status->epa_iterations = k;
   status->nx = 1;
-  return face->dist;
+  status->dist = -face->dist;
+  return face;
 }
 
 
@@ -1444,8 +1448,7 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
 
 // general convex collision detection
 mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
-  // set up
-  mjtNum dist;
+  // setup
   obj1->center(status->x1, obj1);
   obj2->center(status->x2, obj2);
   status->gjk_iterations = 0;
@@ -1488,11 +1491,11 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     }
 
     status->dist_cutoff += margin1 + margin2;
-    dist = gjk(status, obj1, obj2);
+    gjk(status, obj1, obj2);
     status->dist_cutoff = config->dist_cutoff;
 
     // shallow penetration, inflate contact
-    if (dist > 0) {
+    if (status->dist > 0) {
       inflate(status, margin1, margin2);
       if (status->dist > status->dist_cutoff) {
         status->dist = mjMAXVAL;
@@ -1515,14 +1518,15 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     obj2->center(status->x2, obj2);
   }
 
-  dist = gjk(status, obj1, obj2);
+  gjk(status, obj1, obj2);
 
   // penetration recovery for contacts not needed
   if (!config->max_contacts) {
-    return dist;
+    return status->dist;
   }
 
-  if (dist <= config->tolerance && status->nsimplex > 1) {
+  if (status->dist <= config->tolerance && status->nsimplex > 1) {
+    status->dist = 0;  // assume touching
     int N = status->max_iterations;
     mjData* d = (mjData*) obj1->data;
     mj_markStack((mjData*) obj1->data);
@@ -1561,11 +1565,9 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
 
     // simplex not on boundary (objects are penetrating)
     if (!ret) {
-      dist = -epa(status, &pt, obj1, obj2);
-    } else {
-      dist = 0;
+      epa(status, &pt, obj1, obj2);
     }
     mj_freeStack(d);
   }
-  return dist;
+  return status->dist;
 }
