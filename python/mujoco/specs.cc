@@ -408,6 +408,27 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_asGeom(mjs_findElement(self.ptr, mjOBJ_GEOM, name.c_str()));
       },
       py::return_value_policy::reference_internal);
+  mjSpec.def(
+      "find_joint",
+      [](MjSpec& self, std::string& name) -> raw::MjsJoint* {
+        return mjs_asJoint(
+            mjs_findElement(self.ptr, mjOBJ_JOINT, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
+      "find_light",
+      [](MjSpec& self, std::string& name) -> raw::MjsLight* {
+        return mjs_asLight(
+            mjs_findElement(self.ptr, mjOBJ_LIGHT, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
+      "find_camera",
+      [](MjSpec& self, std::string& name) -> raw::MjsCamera* {
+        return mjs_asCamera(
+            mjs_findElement(self.ptr, mjOBJ_CAMERA, name.c_str()));
+      },
+      py::return_value_policy::reference_internal);
   mjSpec.def("compile", [mjmodel_from_spec_ptr](MjSpec& self) -> py::object {
     if (self.assets.empty()) {
       return mjmodel_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr));
