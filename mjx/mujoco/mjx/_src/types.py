@@ -999,7 +999,7 @@ class Model(PyTreeNode):
   light_castshadow: jax.Array
   light_pos: jax.Array
   light_dir: jax.Array
-  light_poscom0: np.ndarray = _restricted_to('mujoco')
+  light_poscom0: jax.Array
   light_pos0: np.ndarray
   light_dir0: np.ndarray
   light_cutoff: jax.Array
@@ -1129,7 +1129,7 @@ class Model(PyTreeNode):
   actuator_actrange: jax.Array
   actuator_gear: jax.Array
   actuator_cranklength: np.ndarray
-  actuator_acc0: np.ndarray
+  actuator_acc0: jax.Array
   actuator_lengthrange: np.ndarray
   actuator_plugin: np.ndarray = _restricted_to('mujoco')
   sensor_type: np.ndarray
