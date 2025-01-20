@@ -15,6 +15,7 @@
 """tests for rollout function."""
 
 import concurrent.futures
+import copy
 import threading
 
 from absl.testing import absltest
@@ -22,6 +23,7 @@ from absl.testing import parameterized
 import mujoco
 from mujoco import rollout
 import numpy as np
+
 
 # -------------------------- models used for testing ---------------------------
 
@@ -473,7 +475,7 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     def thread_initializer():
       thread_local.data = mujoco.MjData(model)
 
-    model_list = [model] * nroll
+    model_list = [copy.copy(model) for _ in range(nroll)]
 
     def call_rollout(initial_state, control, state, sensordata):
       rollout.rollout(
