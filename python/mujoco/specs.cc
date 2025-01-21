@@ -81,9 +81,11 @@ struct MjSpec {
 
   // copy constructor and assignment
   MjSpec(const MjSpec& other) : ptr(mj_copySpec(other.ptr)) {
+    override_assets = other.override_assets;
     assets = other.assets;
   }
   MjSpec& operator=(const MjSpec& other) {
+    override_assets = other.override_assets;
     ptr = mj_copySpec(other.ptr);
     assets = other.assets;
     return *this;
@@ -91,11 +93,13 @@ struct MjSpec {
 
   // move constructor and move assignment
   MjSpec(MjSpec&& other) : ptr(other.ptr) {
+    override_assets = other.override_assets;
     other.ptr = nullptr;
     assets = other.assets;
     other.assets.clear();
   }
   MjSpec& operator=(MjSpec&& other) {
+    override_assets = other.override_assets;
     ptr = other.ptr;
     other.ptr = nullptr;
     assets = other.assets;
@@ -108,6 +112,7 @@ struct MjSpec {
   }
   raw::MjSpec* ptr;
   py::dict assets;
+  bool override_assets = true;
 };
 
 template <typename LoadFunc>
@@ -467,6 +472,14 @@ PYBIND11_MODULE(_specs, m) {
           self.assets[item.first] = item.second;
         };
   }, py::return_value_policy::reference_internal);
+  mjSpec.def_property(
+      "override_assets",
+      [](MjSpec& self) -> bool {
+        return self.override_assets;
+      },
+      [](MjSpec& self, bool override_assets) {
+        self.override_assets = override_assets;
+      });
   mjSpec.def("to_xml", [](MjSpec& self) -> std::string {
     int size = mj_saveXMLString(self.ptr, nullptr, 0, nullptr, 0);
     std::unique_ptr<char[]> buf(new char[size + 1]);
@@ -553,7 +566,7 @@ PYBIND11_MODULE(_specs, m) {
           throw pybind11::value_error(mjs_getError(self.ptr));
         }
         for (const auto& asset : child.assets) {
-          if (self.assets.contains(asset.first)) {
+          if (self.assets.contains(asset.first) && !self.override_assets) {
             throw pybind11::value_error("Asset " +
                                         asset.first.cast<std::string>() +
                                         " already exists in parent spec.");

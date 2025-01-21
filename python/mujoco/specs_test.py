@@ -1039,7 +1039,7 @@ class SpecsTest(absltest.TestCase):
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
-    child3.assets = {'cube3.obj': 'cube3_content'}
+    child3.assets = {'cube2.obj': 'new_cube2_content'}
     body3 = child3.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child3, frame='frame', prefix='child3-'))
     body3.pos = [-2, -2, -2]
@@ -1053,8 +1053,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
     self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
-    self.assertEqual(parent.assets['cube3.obj'], 'cube3_content')
+    self.assertEqual(parent.assets['cube2.obj'], 'new_cube2_content')
 
     # Fail to attach to a frame that does not exist.
     child4 = mujoco.MjSpec()
