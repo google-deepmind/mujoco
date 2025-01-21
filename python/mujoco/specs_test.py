@@ -939,6 +939,7 @@ class SpecsTest(absltest.TestCase):
   def test_attach_to_site(self):
     parent = mujoco.MjSpec()
     site = parent.worldbody.add_site(pos=[1, 2, 3], quat=[0, 0, 0, 1])
+    site.name = 'site'
 
     # Attach body to site and compile.
     child1 = mujoco.MjSpec()
@@ -954,7 +955,7 @@ class SpecsTest(absltest.TestCase):
     # Attach entire spec to site and compile again.
     child2 = mujoco.MjSpec()
     body2 = child2.worldbody.add_body(name='body')
-    self.assertIsNotNone(site.attach(child2, prefix='child-'))
+    self.assertIsNotNone(parent.attach(child2, site=site, prefix='child2-'))
     body2.pos = [-1, -1, -1]
     model2 = parent.compile()
     self.assertIsNotNone(model2)
@@ -963,6 +964,26 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_pos[2], [2, 3, 2])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
+
+    # Attach another spec to site (referenced by name) and compile again.
+    child3 = mujoco.MjSpec()
+    body3 = child3.worldbody.add_body(name='body')
+    self.assertIsNotNone(parent.attach(child3, site='site', prefix='child3-'))
+    body3.pos = [-2, -2, -2]
+    model3 = parent.compile()
+    self.assertIsNotNone(model3)
+    self.assertEqual(model3.nbody, 4)
+    np.testing.assert_array_equal(model3.body_pos[1], [0, 1, 4])
+    np.testing.assert_array_equal(model3.body_pos[2], [2, 3, 2])
+    np.testing.assert_array_equal(model3.body_pos[3], [3, 4, 1])
+    np.testing.assert_array_equal(model3.body_quat[1], [0, 0, 0, 1])
+    np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
+    np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
+
+    # Fail to attach to a site that does not exist.
+    child4 = mujoco.MjSpec()
+    with self.assertRaisesRegex(ValueError, 'Site not found.'):
+      parent.attach(child4, site='invalid_site', prefix='child3-')
 
   def test_body_to_frame(self):
     spec = mujoco.MjSpec()
@@ -974,6 +995,7 @@ class SpecsTest(absltest.TestCase):
   def test_attach_to_frame(self):
     parent = mujoco.MjSpec()
     frame = parent.worldbody.add_frame(pos=[1, 2, 3], quat=[0, 0, 0, 1])
+    frame.name = 'frame'
 
     # Attach body to frame and compile.
     child1 = mujoco.MjSpec()
@@ -989,7 +1011,7 @@ class SpecsTest(absltest.TestCase):
     # Attach entire spec to frame and compile again.
     child2 = mujoco.MjSpec()
     body2 = child2.worldbody.add_body(name='body')
-    self.assertIsNotNone(frame.attach(child2, prefix='child-'))
+    self.assertIsNotNone(parent.attach(child2, frame=frame, prefix='child-'))
     body2.pos = [-1, -1, -1]
     model2 = parent.compile()
     self.assertIsNotNone(model2)
@@ -999,6 +1021,25 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
 
+    # Attach another spec to frame (referenced by name) and compile again.
+    child3 = mujoco.MjSpec()
+    body3 = child3.worldbody.add_body(name='body')
+    self.assertIsNotNone(parent.attach(child3, frame='frame', prefix='child3-'))
+    body3.pos = [-2, -2, -2]
+    model3 = parent.compile()
+    self.assertIsNotNone(model3)
+    self.assertEqual(model3.nbody, 4)
+    np.testing.assert_array_equal(model3.body_pos[1], [0, 1, 4])
+    np.testing.assert_array_equal(model3.body_pos[2], [2, 3, 2])
+    np.testing.assert_array_equal(model3.body_pos[3], [3, 4, 1])
+    np.testing.assert_array_equal(model3.body_quat[1], [0, 0, 0, 1])
+    np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
+    np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
+
+    # Fail to attach to a frame that does not exist.
+    child4 = mujoco.MjSpec()
+    with self.assertRaisesRegex(ValueError, 'Frame not found.'):
+      parent.attach(child4, frame='invalid_frame', prefix='child3-')
 
 if __name__ == '__main__':
   absltest.main()

@@ -534,11 +534,12 @@ It is possible to combine multiple specs by using attachments. The following opt
     the reference to the attached body, which should be identical to the body used as input.
 -   Attach a frame from the child spec to a body in the parent spec: ``body.attach_frame(frame, prefix, suffix)``,
     returns the reference to the attached frame, which should be identical to the frame used as input.
--   Attach a body from the child spec to a site in the parent spec: ``site.attach(body, prefix, suffix)``, returns the
-    reference to the attached body, which should be identical to the body used as input.
--   Attach the worldbody from the child spec to a frame in the parent spec and transform it to a frame:
-    ``body.attach(spec, prefix, suffix)``, returns the newly created frame that the child worldbody was transformed
-    into.
+-   Attach a child spec to a site in the parent spec: ``spec.attach(child_spec, site=site_name_or_obj)``, returns the
+    reference to a frame, which is the attached worldbody transformed into a frame. The site must belong to the child
+    spec. Prefix and suffix can also be specified as keyword arguments.
+-   Attach a child spec to a frame in the parent spec: ``parent_spec.attach(child_spec, frame=frame_name_or_obj)``,
+    returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must belong to
+    the child spec. Prefix and suffix can also be specified as keyword arguments.
 
 Attaching does not copy, so all the child reference are still valid in the parent and therefore modifying the child will
 modify the parent. This is not true for the attach :ref:`attach<body-attach>` an :ref:`replicate<replicate>`
@@ -562,8 +563,8 @@ meta-elements in MJCF, which create deep copies while attaching.
    # Attach the child to the parent in different ways.
    body_in_frame = frame.attach_body(child_body, 'child-', '')
    frame_in_body = body.attach_frame(child_frame, 'child-', '')
-   body_in_site = site.attach(child_body, 'child-', '')
-   worldframe_in_frame = frame.attach(child, 'child-', '')
+   worldframe_in_site = parent.attach(child, site=site, prefix='child-')
+   worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
 
 Convenience methods
 -------------------
