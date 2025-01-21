@@ -1347,6 +1347,15 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     h.w = w;
     horizon(&h, face);
 
+    // unrecoverable numerical issue; at least one face was deleted so nedges is 3 or more
+    if (h.nedges < 3) {
+      mj_freeStack(d);
+      status->epa_iterations = k;
+      status->nx = 0;
+      status->dist = 0;
+      return NULL;
+    }
+
     // insert w as new vertex and attach faces along the horizon
     int wi = newVertex(pt, w1, w2), nfaces = pt->nfaces, nedges = h.nedges;
 
