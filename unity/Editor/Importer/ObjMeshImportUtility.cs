@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using UnityEditor;
 using UnityEngine;
 
 namespace Mujoco {
@@ -32,7 +30,7 @@ public static class ObjMeshImportUtility {
 
   public static void CopyAndScaleOBJFile(string sourceFilePath, string targetFilePath,
       Vector3 scale) {
-    // OBJ files are human readable
+    // OBJ files are human-readable
     string[] lines = File.ReadAllLines(sourceFilePath);
     StringBuilder outputBuilder = new StringBuilder();
     // Culture info for consistent decimal point handling
