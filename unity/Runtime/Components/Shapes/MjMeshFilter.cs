@@ -41,17 +41,17 @@ public class MjMeshFilter : MonoBehaviour {
       return;
     }
 
-    _shapeChangeStamp = currentChangeStamp;
-    Tuple<Vector3[], int[]> meshData = _geom.BuildMesh();
-
-    if (meshData == null) {
-      throw new ArgumentException("Unsupported geom shape detected");
-    }
-
     if(_geom.ShapeType == MjShapeComponent.ShapeTypes.Mesh) { 
       MjMeshShape meshShape = _geom.Shape as MjMeshShape;
       _meshFilter.sharedMesh = meshShape.Mesh;
       return;
+    }
+
+    _shapeChangeStamp = currentChangeStamp;
+    Tuple<Vector3[], int[]> meshData = _geom.BuildMesh();
+    if (meshData == null)
+    {
+      throw new ArgumentException("Unsupported geom shape detected");
     }
 
     DisposeCurrentMesh();

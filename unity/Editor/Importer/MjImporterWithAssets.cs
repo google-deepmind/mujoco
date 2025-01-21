@@ -174,7 +174,14 @@ public class MjImporterWithAssets : MjcfImporter {
       throw new Exception(
         $"Trying to import mesh {unsanitizedAssetReferenceName} but {assetPath} already exists.");
     }
+
     AssetDatabase.ImportAsset(assetPath);
+    ModelImporter importer = AssetImporter.GetAtPath(assetPath) as ModelImporter;
+    if (importer != null && !importer.isReadable) {
+      importer.isReadable = true;
+      importer.SaveAndReimport();
+    }
+
     var copiedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
     if (copiedMesh == null) {
       throw new Exception($"Mesh {assetPath} was not imported.");
@@ -283,12 +290,12 @@ public class MjImporterWithAssets : MjcfImporter {
         // We use the geom's name, guaranteed to be unique, as the asset name.
         // If geom is nameless, use a random number.
         var name =
-          MjEngineTool.Sanitize(parentNode.GetStringAttribute(
-              "name", defaultValue: $"{UnityEngine.Random.Range(0, 1000000)}"));
-        var assetPath = Path.Combine(_targetAssetDir, name + ".mat");
+            MjEngineTool.Sanitize(parentNode.GetStringAttribute(
+                "name", defaultValue: $"{UnityEngine.Random.Range(0, 1000000)}"));
+        var assetPath = Path.Combine(_targetAssetDir, name+".mat");
         if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null) {
           throw new Exception(
-            $"Creating a material asset for the geom {name}, but {assetPath} already exists.");
+              $"Creating a material asset for the geom {name}, but {assetPath} already exists.");
         }
         AssetDatabase.CreateAsset(material, assetPath);
         AssetDatabase.SaveAssets();
@@ -297,6 +304,7 @@ public class MjImporterWithAssets : MjcfImporter {
         material = DefaultMujocoMaterial;
       }
     }
+    if (parentNode.GetFloatAttribute("group") > 2) renderer.enabled = false;
     renderer.sharedMaterial = material;
   }
 }
