@@ -172,7 +172,7 @@ class Rollout:
     if isinstance(model, list) and nroll == 1:
       nroll = len(model)
 
-    if isinstance(model, list) and len(model) != nroll:
+    if isinstance(model, list) and len(model) > 1 and len(model) != nroll:
       raise ValueError(
           f'nroll inferred as {nroll} but model is length {len(model)}'
       )

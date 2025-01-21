@@ -20,9 +20,10 @@ import threading
 
 from absl.testing import absltest
 from absl.testing import parameterized
+import numpy as np
+
 import mujoco
 from mujoco import rollout
-import numpy as np
 
 
 # -------------------------- models used for testing ---------------------------
@@ -795,6 +796,84 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     # assert that we still get the same outputs
     np.testing.assert_array_equal(state, state2)
     np.testing.assert_array_equal(sensordata, sensordata2)
+
+  def test_length_one_model_list(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = mujoco.MjData(model)
+
+    initial_state = np.random.randn(nstate)
+    control = np.random.randn(3, 3, model.nu)
+
+    state, sensordata = rollout.rollout(model, data, initial_state, control)
+    state2, sensordata2 = rollout.rollout([model], data, initial_state, control)
+
+    # assert that we get same outputs
+    np.testing.assert_array_equal(state, state2)
+    np.testing.assert_array_equal(sensordata, sensordata2)
+
+  def test_data_sizes(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = mujoco.MjData(model)
+
+    initial_state = np.random.randn(nstate)
+    control = np.random.randn(3, 3, model.nu)
+
+    # Test passing empty lists for data
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'The list of data instances is empty'
+    ):
+      rollout.rollout(model, [], initial_state, control)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'The list of data instances is empty'
+    ):
+      with rollout.Rollout(nthread=0) as rollout_:
+        rollout_.rollout(model, [], initial_state, control)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'The list of data instances is empty'
+    ):
+      with rollout.Rollout(nthread=1) as rollout_:
+        rollout_.rollout(model, [], initial_state, control)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'The list of data instances is empty'
+    ):
+      with rollout.Rollout(nthread=2) as rollout_:
+        rollout_.rollout(model, [], initial_state, control)
+
+    # Test checking that len(data) equals nthread
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        'More than one data instance passed but rollout is configured to run on'
+        ' main thread',
+    ):
+      with rollout.Rollout(nthread=0) as rollout_:
+        rollout_.rollout(
+            model, [copy.copy(data) for i in range(2)], initial_state, control
+        )
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'Length of data: 1 not equal to nthread: 2'
+    ):
+      with rollout.Rollout(nthread=2) as rollout_:
+        rollout_.rollout(model, data, initial_state, control)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'Length of data: 1 not equal to nthread: 2'
+    ):
+      with rollout.Rollout(nthread=2) as rollout_:
+        rollout_.rollout(model, [data], initial_state, control)
+
+    with self.assertRaisesWithLiteralMatch(
+        ValueError, 'Length of data: 3 not equal to nthread: 2'
+    ):
+      with rollout.Rollout(nthread=2) as rollout_:
+        rollout_.rollout(
+            model, [copy.copy(data) for i in range(3)], initial_state, control
+        )
 
 
 # -------------- Python implementation of rollout functionality ----------------
