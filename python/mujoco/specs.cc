@@ -552,6 +552,14 @@ PYBIND11_MODULE(_specs, m) {
         if (!attached_world) {
           throw pybind11::value_error(mjs_getError(self.ptr));
         }
+        for (const auto& asset : child.assets) {
+          if (self.assets.contains(asset.first)) {
+            throw pybind11::value_error("Asset " +
+                                        asset.first.cast<std::string>() +
+                                        " already exists in parent spec.");
+          }
+          self.assets[asset.first] = asset.second;
+        }
         return mjs_bodyToFrame(&attached_world);
       },
       py::arg("child"), py::arg("prefix") = py::none(),
