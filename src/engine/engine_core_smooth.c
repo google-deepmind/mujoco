@@ -1701,7 +1701,7 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
 
 // in-place sparse backsubstitution for one island:  x = inv(L'*D*L)*x
 //  L is in lower triangle of qLD; D is on diagonal of qLD
-void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int island) {
+void mj_solveM_island(const mjModel* m, mjData* d, mjtNum* restrict x, int island) {
   // if no islands, call mj_solveLD
   const mjtNum* qLD = d->qLD;
   const mjtNum* qLDiagInv = d->qLDiagInv;
@@ -1710,10 +1710,19 @@ void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int
     return;
   }
 
-  // local constants: general
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
+  // local copies of key variables
+  const int* rownnz = d->C_rownnz;
+  const int* rowadr = d->C_rowadr;
+  const int* colind = d->C_colind;
+  const int* diagnum = m->dof_simplenum;
+
+  // temporary: make local CSR version of qLD
+  int nC = m->nC;
+  mj_markStack(d);
+  mjtNum* qLDs = mjSTACKALLOC(d, nC, mjtNum);
+  for (int i=0; i < nC; i++) {
+    qLDs[i] = d->qLD[d->mapM2C[i]];
+  }
 
   // local constants: island specific
   int ndof = d->island_dofnum[island];
@@ -1723,18 +1732,12 @@ void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int
   // x <- inv(L') * x; skip simple, exploit sparsity of input vector
   for (int k=ndof-1; k >= 0; k--) {
     int i = dofind[k];
-    if (!simplenum[i] && x[k]) {
-      // init
-      int Madr_ij = Madr[i]+1;
-      int j = parentid[i];
-
-      // traverse ancestors backwards
-      // read directly from x[l] since j cannot be a parent of itself
-      while (j >= 0) {
-        x[islandind[j]] -= qLD[Madr_ij++]*x[k];         // x(j) -= L(i,j) * x(i)
-
-        // advance to parent
-        j = parentid[j];
+    mjtNum x_k;
+    if (!diagnum[i] && (x_k = x[k])) {
+      int start = rowadr[i];
+      int end = start + rownnz[i] - 1;
+      for (int adr=end-1; adr >= start; adr--) {
+        x[islandind[colind[adr]]] -= qLDs[adr] * x_k;
       }
     }
   }
@@ -1747,21 +1750,20 @@ void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int
   // x <- inv(L) * x; skip simple
   for (int k=0; k < ndof; k++) {
     int i = dofind[k];
-    if (!simplenum[i]) {
-      // init
-      int Madr_ij = Madr[i]+1;
-      int j = parentid[i];
 
-      // traverse ancestors backwards
-      // write directly in x[i] since i cannot be a parent of itself
-      while (j >= 0) {
-        x[k] -= qLD[Madr_ij++]*x[islandind[j]];             // x(i) -= L(i,j) * x(j)
+    // skip diagonal rows
+    if (diagnum[i]) {
+      continue;
+    }
 
-        // advance to parent
-        j = parentid[j];
-      }
+    int start = rowadr[i];
+    int end = start + rownnz[i] - 1;
+    for (int adr=end-1; adr >= start; adr--) {
+      x[k] -= x[islandind[colind[adr]]] * qLDs[adr];
     }
   }
+
+  mj_freeStack(d);
 }
 
 

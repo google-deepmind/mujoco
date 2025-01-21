@@ -895,9 +895,9 @@ static void CGupdateConstraint(const mjModel* m, mjData* d, mjCGContext* ctx) {
 }
 
 
-
+// TODO(tassa): Restore mjData const-ness.
 // update grad, Mgrad
-static void CGupdateGradient(const mjModel* m, const mjData* d, mjCGContext* ctx) {
+static void CGupdateGradient(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = ctx->nv;
   const int* dofind = ctx->dofind;
 
