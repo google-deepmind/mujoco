@@ -2056,6 +2056,32 @@ TEST_F(MujocoTest, ResizeParentKeyframe) {
   mj_deleteModel(expected);
 }
 
+TEST_F(MujocoTest, KeyframeSizeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <replicate count="2" offset="0 1 0">
+        <body name="ball" pos="0 0 1">
+          <geom type="sphere" size="0.1"/>
+          <joint/>
+        </body>
+      </replicate>
+    </worldbody>
+
+    <keyframe>
+      <key name="valid_qpos" qpos="0.5"/>
+      <key name="invalid_qpos" qpos="0.5 0.25"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(er.data(), HasSubstr(
+      "Keyframe 'invalid_qpos' has invalid qpos size, got 2, should be 1"));
+}
+
 TEST_F(MujocoTest, DifferentUnitsAllowed) {
   static constexpr char gchild_xml[] = R"(
   <mujoco model="gchild">

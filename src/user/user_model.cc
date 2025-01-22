@@ -3473,7 +3473,30 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
     info.mpos = !key->spec_mpos_.empty();
     info.mquat = !key->spec_mquat_.empty();
     dest->key_pending_.push_back(info);
-    ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
+    if (!key->spec_qpos_.empty() && key->spec_qpos_.size() != nq) {
+      throw mjCError(nullptr, "Keyframe '%s' has invalid qpos size, got %d, should be %d",
+                     key->name.c_str(), key->spec_qpos_.size(), nq);
+    }
+    if (!key->spec_qvel_.empty() && key->spec_qvel_.size() != nv) {
+      throw mjCError(nullptr, "Keyframe %s has invalid qvel size, got %d, should be %d",
+                     key->name.c_str(), key->spec_qvel_.size(), nv);
+    }
+    if (!key->spec_act_.empty() && key->spec_act_.size() != na) {
+      throw mjCError(nullptr, "Keyframe %s has invalid act size, got %d, should be %d",
+                     key->name.c_str(), key->spec_act_.size(), na);
+    }
+    if (!key->spec_ctrl_.empty() && key->spec_ctrl_.size() != nu) {
+      throw mjCError(nullptr, "Keyframe %s has invalid ctrl size, got %d, should be %d",
+                     key->name.c_str(), key->spec_ctrl_.size(), nu);
+    }
+    if (!key->spec_mpos_.empty() && key->spec_mpos_.size() != 3*nmocap) {
+      throw mjCError(nullptr, "Keyframe %s has invalid mpos size, got %d, should be %d",
+                     key->name.c_str(), key->spec_mpos_.size(), 3*nmocap);
+    }
+    if (!key->spec_mquat_.empty() && key->spec_mquat_.size() != 4*nmocap) {
+      throw mjCError(nullptr, "Keyframe %s has invalid mquat size, got %d, should be %d",
+                     key->name.c_str(), key->spec_mquat_.size(), 4*nmocap);
+    }
     SaveState(info.name, key->spec_qpos_.data(), key->spec_qvel_.data(),
               key->spec_act_.data(), key->spec_ctrl_.data(),
               key->spec_mpos_.data(), key->spec_mquat_.data());
