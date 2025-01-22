@@ -254,16 +254,20 @@ class Rollout {
     }
 
     // check length d and nthread are consistent
-    if (this->nthread_ == 0 && py::len(d) > 1) {
+    if (py::len(d) == 0) {
+      std::ostringstream msg;
+      msg << "The list of data instances is empty";
+      throw py::value_error(msg.str());
+    } else if (this->nthread_ == 0 && py::len(d) > 1) {
       std::ostringstream msg;
       msg << "More than one data instance passed but "
           << "rollout is configured to run on main thread";
-      py::value_error(msg.str());
-    } else if (this->nthread_ != py::len(d)) {
+      throw py::value_error(msg.str());
+    } else if (this->nthread_ > 0 && this->nthread_ != py::len(d)) {
       std::ostringstream msg;
       msg << "Length of data: " << py::len(d)
           << " not equal to nthread: " << this->nthread_;
-      py::value_error(msg.str());
+      throw py::value_error(msg.str());
     }
 
     std::vector<raw::MjData*> data_ptrs(py::len(d));
