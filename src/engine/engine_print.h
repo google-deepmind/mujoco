@@ -36,11 +36,11 @@ MJAPI void mj_printModel(const mjModel* m, const char* filename);
 
 // print mjData to text file, specifying format
 // float_format must be a valid printf-style format string for a single float value
-MJAPI void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
+MJAPI void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filename,
                                  const char* float_format);
 
 // print data to text file
-MJAPI void mj_printData(const mjModel* m, mjData* d, const char* filename);
+MJAPI void mj_printData(const mjModel* m, const mjData* d, const char* filename);
 
 // print sparse matrix structure
 MJAPI void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,

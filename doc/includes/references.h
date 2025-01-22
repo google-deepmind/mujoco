@@ -3186,9 +3186,9 @@ int mjs_activatePlugin(mjSpec* s, const char* name);
 int mjs_setDeepCopy(mjSpec* s, int deepcopy);
 void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format);
 void mj_printModel(const mjModel* m, const char* filename);
-void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
+void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filename,
                            const char* float_format);
-void mj_printData(const mjModel* m, mjData* d, const char* filename);
+void mj_printData(const mjModel* m, const mjData* d, const char* filename);
 void mju_printMat(const mjtNum* mat, int nr, int nc);
 void mju_printMatSparse(const mjtNum* mat, int nr,
                         const int* rownnz, const int* rowadr, const int* colind);

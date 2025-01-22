@@ -257,11 +257,11 @@ MJAPI void mj_printModel(const mjModel* m, const char* filename);
 
 // Print mjData to text file, specifying format.
 // float_format must be a valid printf-style format string for a single float value
-MJAPI void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
+MJAPI void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filename,
                                  const char* float_format);
 
 // Print data to text file.
-MJAPI void mj_printData(const mjModel* m, mjData* d, const char* filename);
+MJAPI void mj_printData(const mjModel* m, const mjData* d, const char* filename);
 
 // Print matrix to screen.
 MJAPI void mju_printMat(const mjtNum* mat, int nr, int nc);
