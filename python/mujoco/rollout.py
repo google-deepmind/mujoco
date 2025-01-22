@@ -65,34 +65,34 @@ class Rollout:
     """Rolls out open-loop trajectories from initial states, get subsequent state and sensor values.
 
     Python wrapper for rollout.cc, see documentation therein.
-    Infers nroll and nstep.
+    Infers nbatch and nstep.
     Tiles inputs with singleton dimensions.
     Allocates outputs if none are given.
 
     Args:
-      model: An instance or length nroll sequence of MjModel with the same size signature.
+      model: An instance or length nbatch sequence of MjModel with the same size signature.
       data: Associated mjData instance or sequence of instances with length nthread.
       initial_state: Array of initial states from which to roll out trajectories.
-        ([nroll or 1] x nstate)
+        ([nbatch or 1] x nstate)
       control: Open-loop controls array to apply during the rollouts.
-        ([nroll or 1] x [nstep or 1] x ncontrol)
+        ([nbatch or 1] x [nstep or 1] x ncontrol)
       control_spec: mjtState specification of control vectors.
       skip_checks: Whether to skip internal shape and type checks.
       nstep: Number of steps in rollouts (inferred if unspecified).
       initial_warmstart: Initial qfrc_warmstart array (optional).
-        ([nroll or 1] x nv)
+        ([nbatch or 1] x nv)
       state: State output array (optional).
-        (nroll x nstep x nstate)
+        (nbatch x nstep x nstate)
       sensordata: Sensor data output array (optional).
-        (nroll x nstep x nsensordata)
+        (nbatch x nstep x nsensordata)
       chunk_size: Determines threadpool chunk size. If unspecified,
-                  chunk_size = max(1, nroll / (nthread * 10))
+                  chunk_size = max(1, nbatch / (nthread * 10))
 
     Returns:
       state:
-        State output array, (nroll x nstep x nstate).
+        State output array, (nbatch x nstep x nstate).
       sensordata:
-        Sensor data output array, (nroll x nstep x nsensordata).
+        Sensor data output array, (nbatch x nstep x nsensordata).
 
     Raises:
       RuntimeError: rollout requested after thread pool shutdown.
@@ -103,7 +103,7 @@ class Rollout:
       raise RuntimeError('rollout requested after thread pool shutdown')
 
     # skip_checks shortcut:
-    #   don't infer nroll/nstep
+    #   don't infer nbatch or nstep
     #   don't support singleton expansion
     #   don't allocate output arrays
     #   just call rollout and return
@@ -159,8 +159,8 @@ class Rollout:
     state = _ensure_3d(state)
     sensordata = _ensure_3d(sensordata)
 
-    # infer nroll, check for incompatibilities
-    nroll = _infer_dimension(
+    # infer nbatch, check for incompatibilities
+    nbatch = _infer_dimension(
         0,
         1,
         initial_state=initial_state,
@@ -169,12 +169,12 @@ class Rollout:
         state=state,
         sensordata=sensordata,
     )
-    if isinstance(model, list) and nroll == 1:
-      nroll = len(model)
+    if isinstance(model, list) and nbatch == 1:
+      nbatch = len(model)
 
-    if isinstance(model, list) and len(model) > 1 and len(model) != nroll:
+    if isinstance(model, list) and len(model) > 1 and len(model) != nbatch:
       raise ValueError(
-          f'nroll inferred as {nroll} but model is length {len(model)}'
+          f'nbatch inferred as {nbatch} but model is length {len(model)}'
       )
     elif not isinstance(model, list):
       model = [model]  # Use a length 1 list to simplify code below
@@ -212,16 +212,16 @@ class Rollout:
     _check_trailing_dimension(nsensordata, sensordata=sensordata)
 
     # tile input arrays/lists if required (singleton expansion)
-    model = model * nroll if len(model) == 1 else model
-    initial_state = _tile_if_required(initial_state, nroll)
-    initial_warmstart = _tile_if_required(initial_warmstart, nroll)
-    control = _tile_if_required(control, nroll, nstep)
+    model = model * nbatch if len(model) == 1 else model
+    initial_state = _tile_if_required(initial_state, nbatch)
+    initial_warmstart = _tile_if_required(initial_warmstart, nbatch)
+    control = _tile_if_required(control, nbatch, nstep)
 
     # allocate output if not provided
     if state is None:
-      state = np.empty((nroll, nstep, nstate))
+      state = np.empty((nbatch, nstep, nstate))
     if sensordata is None:
-      sensordata = np.empty((nroll, nstep, nsensordata))
+      sensordata = np.empty((nbatch, nstep, nsensordata))
 
     # call rollout
     self.rollout_.rollout(
@@ -276,35 +276,35 @@ def rollout(
   """Rolls out open-loop trajectories from initial states, get subsequent states and sensor values.
 
   Python wrapper for rollout.cc, see documentation therein.
-  Infers nroll and nstep.
+  Infers nbatch and nstep.
   Tiles inputs with singleton dimensions.
   Allocates outputs if none are given.
 
   Args:
-    model: An instance or length nroll sequence of MjModel with the same size signature.
+    model: An instance or length nbatch sequence of MjModel with the same size signature.
     data: Associated mjData instance or sequence of instances with length nthread.
     initial_state: Array of initial states from which to roll out trajectories.
-      ([nroll or 1] x nstate)
+      ([nbatch or 1] x nstate)
     control: Open-loop controls array to apply during the rollouts.
-      ([nroll or 1] x [nstep or 1] x ncontrol)
+      ([nbatch or 1] x [nstep or 1] x ncontrol)
     control_spec: mjtState specification of control vectors.
     skip_checks: Whether to skip internal shape and type checks.
     nstep: Number of steps in rollouts (inferred if unspecified).
     initial_warmstart: Initial qfrc_warmstart array (optional).
-      ([nroll or 1] x nv)
+      ([nbatch or 1] x nv)
     state: State output array (optional).
-      (nroll x nstep x nstate)
+      (nbatch x nstep x nstate)
     sensordata: Sensor data output array (optional).
-      (nroll x nstep x nsensordata)
+      (nbatch x nstep x nsensordata)
     chunk_size: Determines threadpool chunk size. If unspecified,
-                chunk_size = max(1, nroll / (nthread * 10))
+                chunk_size = max(1, nbatch / (nthread * 10))
     persistent_pool: Determines if a persistent thread pool is created or reused.
 
   Returns:
     state:
-      State output array, (nroll x nstep x nstate).
+      State output array, (nbatch x nstep x nstate).
     sensordata:
-      Sensor data output array, (nroll x nstep x nsensordata).
+      Sensor data output array, (nbatch x nstep x nsensordata).
 
   Raises:
     ValueError: bad shapes or sizes.

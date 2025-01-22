@@ -730,11 +730,11 @@ states and sensor values. The rollouts are run in parallel with an internally ma
 
    state, sensordata = rollout.rollout(model, data, initial_state, control)
 
-``model`` is either a single instance of MjModel or a sequence of compatible MjModel of length ``nroll``.
+``model`` is either a single instance of MjModel or a sequence of compatible MjModel of length ``nbatch``.
 ``data`` is either a single instance of MjData or a sequence of compatible MjData of length ``nthread``.
-``initial_state`` is an ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
+``initial_state`` is an ``nbatch x nstate`` array, with ``nbatch`` initial states of size ``nstate``, where
 ``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
-:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are
+:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nbatch x nstep x ncontrol`` array of controls. Controls are
 by default the ``mjModel.nu`` standard actuators, but any combination of :ref:`user input<geInput>` arrays can be
 specified by passing an optional ``control_spec`` bitflag.
 
