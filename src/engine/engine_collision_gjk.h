@@ -25,6 +25,9 @@
 extern "C" {
 #endif
 
+// max sides of a face of mesh supported for multiple contacts
+#define mjMAX_SIDES 10
+
 // Status of an EPA run
 typedef enum {
   mjEPA_NOCONTACT           = -1,

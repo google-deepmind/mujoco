@@ -87,11 +87,21 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
 // -------------------------------- inlined  3D vector utils --------------------------------------
 
-// v1 == v2
+// v1 == v2 up to 1e-15
 static inline int equal3(const mjtNum v1[3], const mjtNum v2[3]) {
   return mju_abs(v1[0] - v2[0]) < mjMINVAL &&
          mju_abs(v1[1] - v2[1]) < mjMINVAL &&
          mju_abs(v1[2] - v2[2]) < mjMINVAL;
+}
+
+// v1 == v2
+static inline int equalexact3(const mjtNum v1[3], const mjtNum v2[3]) {
+  return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
+}
+
+// res = v1 + v2
+static inline void add3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
+  res[0] = v1[0] + v2[0], res[1] = v1[1] + v2[1], res[2] = v1[2] + v2[2];
 }
 
 // res = v1 - v2
@@ -501,10 +511,19 @@ static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mj
 
 
 
-// return true only when a and b are both strictly positive or both strictly negative
-static inline int sameSign(mjtNum a, mjtNum b) {
+// return 1 if both numbers are positive, -1 if both negative and 0 otherwise
+static inline int sameSign2(mjtNum a, mjtNum b) {
   if (a > 0 && b > 0) return 1;
-  if (a < 0 && b < 0) return 1;
+  if (a < 0 && b < 0) return -1;
+  return 0;
+}
+
+
+
+// return 1 if all three numbers are positive, -1 if all negative and 0 otherwise
+static inline int sameSign3(mjtNum a, mjtNum b, mjtNum c) {
+  if (a > 0 && b > 0 && c > 0) return 1;
+  if (a < 0 && b < 0 && c < 0) return -1;
   return 0;
 }
 
@@ -553,10 +572,10 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
   // with vertices {s1, s2, s3, 0} - si
   mjtNum m_det = C41 + C42 + C43 + C44;
 
-  int comp1 = sameSign(m_det, C41),
-      comp2 = sameSign(m_det, C42),
-      comp3 = sameSign(m_det, C43),
-      comp4 = sameSign(m_det, C44);
+  int comp1 = sameSign2(m_det, C41),
+      comp2 = sameSign2(m_det, C42),
+      comp3 = sameSign2(m_det, C43),
+      comp4 = sameSign2(m_det, C44);
 
   // if all signs are the same then the origin is inside the simplex
   if (comp1 && comp2 && comp3 && comp4) {
@@ -706,9 +725,9 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
   mjtNum C33 = p_o_2D[0]*s1_2D[1] + p_o_2D[1]*s2_2D[0] + s1_2D[0]*s2_2D[1]
              - p_o_2D[0]*s2_2D[1] - p_o_2D[1]*s1_2D[0] - s2_2D[0]*s1_2D[1];
 
-  int comp1 = sameSign(M_max, C31),
-      comp2 = sameSign(M_max, C32),
-      comp3 = sameSign(M_max, C33);
+  int comp1 = sameSign2(M_max, C31),
+      comp2 = sameSign2(M_max, C32),
+      comp3 = sameSign2(M_max, C33);
 
   // all the same sign, p_o is inside the 2-simplex
   if (comp1 && comp2 && comp3) {
@@ -780,7 +799,7 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
   mjtNum C2 = s1[index] - p_o[index];
 
   // inside the simplex
-  if (sameSign(mu_max, C1) && sameSign(mu_max, C2)) {
+  if (sameSign2(mu_max, C1) && sameSign2(mu_max, C2)) {
     lambda[0] = C1 / mu_max;
     lambda[1] = C2 / mu_max;
   } else {
@@ -1434,6 +1453,358 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 }
 
 
+// ------------------------------------- MultiCCD -------------------------------------------------
+
+// find the normal of a plane perpendicular to the face (given by its normal n) and intersecting the
+// face edge (v1, v2)
+static mjtNum planeNormal(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
+                          const mjtNum n[3]) {
+  mjtNum v3[3], diff1[3], diff2[3];
+  add3(v3, v1, n);
+  sub3(diff1, v2, v1);
+  sub3(diff2, v3, v1);
+  cross3(res, diff1, diff2);
+  return dot3(res, v1);
+}
+
+
+
+// find what side of a plane a point p lies
+static int halfspace(const mjtNum a[3], const mjtNum n[3], const mjtNum p[3]) {
+  mjtNum diff[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
+  return dot3(diff, n) > 0;
+}
+
+
+
+// compute the intersection of a plane with a line segment (a, b)
+static mjtNum planeIntersect(mjtNum res[3], const mjtNum pn[3], mjtNum pd,
+                             const mjtNum a[3], const mjtNum b[3]) {
+  mjtNum ab[3];
+  sub3(ab, b, a);
+  mjtNum temp = dot3(pn, ab);
+  if (temp == 0.0) return mjMAXVAL;  // parallel; no intersection
+  mjtNum t = (pd - dot3(pn, a)) / temp;
+  if (t >= 0.0 && t <= 1.0) {
+    res[0] = a[0] + t*ab[0];
+    res[1] = a[1] + t*ab[1];
+    res[2] = a[2] + t*ab[2];
+  }
+  return t;
+}
+
+
+
+// clip a polygon against another polygon
+static void polygonClip(mjCCDStatus* status, const mjtNum face1[3 * mjMAX_SIDES], int nface1,
+                       const mjtNum face2[3 * mjMAX_SIDES], int nface2, const mjtNum n[3],
+                       const mjtNum dir[3]) {
+  // compute plane normal and distance to plane for each vertex
+  mjtNum pn[3 * mjMAX_SIDES], pd[mjMAX_SIDES];
+  for (int i = 0; i < nface1 - 1; i++) {
+    pd[i] = planeNormal(&pn[3*i], &face1[3*i], &face1[3*i + 3], n);
+  }
+  pd[nface1 - 1] = planeNormal(&pn[3*(nface1 - 1)], &face1[3*(nface1 - 1)], &face1[0], n);
+
+  // reserve 2 * max_sides as max sides for a clipped polygon
+  mjtNum polygon1[6 * mjMAX_SIDES], polygon2[6 * mjMAX_SIDES], *polygon, *clipped;
+  int npolygon = nface2, nclipped = 0;
+  polygon = polygon1;
+  clipped = polygon2;
+
+  for (int i = 0; i < nface2; i++) {
+    copy3(polygon + 3*i, face2 + 3*i);
+  }
+
+  // clip the polygon by one edge e at a time
+  for (int e = 0; e < (3 * nface1); e += 3) {
+    for (int i = 0; i < npolygon; i++) {
+      // get edge PQ of the polygon
+      mjtNum *P = polygon + 3*i;
+      mjtNum *Q = (i < npolygon - 1) ? polygon + 3*(i+1) : polygon;
+
+      // determine if P and Q are in the halfspace of the clipping edge
+      int inside1 = halfspace(face1 + e, pn + e, P);
+      int inside2 = halfspace(face1 + e, pn + e, Q);
+
+      // PQ entirely outside the clipping edge, skip
+      if (!inside1 && !inside2) {
+        continue;
+      }
+
+      // edge PQ is inside the clipping edge, add Q
+      if (inside1 && inside2) {
+        copy3(clipped + 3*nclipped++, Q);
+        continue;
+      }
+
+      // add new vertex to clipped polygon where PQ intersects the clipping edge
+      mjtNum t = planeIntersect(clipped + 3*nclipped++, pn + e, pd[e/3], P, Q);
+      if (t < 0.0 || t > 1.0) {
+        nclipped--;  // no intersection in PQ
+      }
+
+      // add Q as PQ is now back inside the clipping edge
+      if (inside2) {
+        copy3(clipped + 3*nclipped++, Q);
+      }
+    }
+
+    // swap clipped and polygon
+    mjtNum* tmp = polygon;
+    polygon = clipped;
+    clipped = tmp;
+    npolygon = nclipped;
+    nclipped = 0;
+  }
+
+  // copy final clipped polygon to status
+  if (npolygon > 0) {
+    status->nx = npolygon;
+    for (int i = 0; i < 3*npolygon; i += 3) {
+      copy3(status->x2 + i, polygon + i);
+      sub3(status->x1 + i, status->x2 + i, dir);
+    }
+  }
+}
+
+
+
+// compute local coordinates of a global point (g1, g2, g3)
+static inline void localcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum pos[3],
+                              mjtNum g1, mjtNum g2, mjtNum g3) {
+  // perform matT * ((g1, g2, g3) - pos)
+  if (pos) {
+    g1 -= pos[0];
+    g2 -= pos[1];
+    g3 -= pos[2];
+  }
+  res[0] = mat[0]*g1 + mat[3]*g2 + mat[6]*g3;
+  res[1] = mat[1]*g1 + mat[4]*g2 + mat[7]*g3;
+  res[2] = mat[2]*g1 + mat[5]*g2 + mat[8]*g3;
+}
+
+
+
+// compute global coordinates of a local point (l1, l2, l3)
+static inline void globalcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum pos[3],
+                              mjtNum l1, mjtNum l2, mjtNum l3) {
+  // perform mat * (l1, l2, l3) + pos
+  res[0] = mat[0]*l1 + mat[1]*l2 + mat[2]*l3;
+  res[1] = mat[3]*l1 + mat[4]*l2 + mat[5]*l3;
+  res[2] = mat[6]*l1 + mat[7]*l2 + mat[8]*l3;
+  if (pos) {
+    res[0] += pos[0];
+    res[1] += pos[1];
+    res[2] += pos[2];
+  }
+}
+
+
+
+// compute possible face normals of a box given up to 3 vertices
+static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
+                      const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
+  // box data
+  int g = 3*obj->geom;
+  const mjtNum* mat = obj->data->geom_xmat + 3*g;
+  const mjtNum* pos = obj->data->geom_xpos + g;
+
+  // rotate global coordinates to geom local frame
+  mjtNum v1_local[3], v2_local[3], v3_local[3];
+  if (dim > 0) localcoord(v1_local, mat, pos, v1[0], v1[1], v1[2]);
+  if (dim > 1) localcoord(v2_local, mat, pos, v2[0], v2[1], v2[2]);
+  if (dim > 2) localcoord(v3_local, mat, pos, v3[0], v3[1], v3[2]);
+
+  if (dim == 3) {
+    int x = sameSign3(v1_local[0], v2_local[0], v3_local[0]);
+    int y = sameSign3(v1_local[1], v2_local[1], v3_local[1]);
+    int z = sameSign3(v1_local[2], v2_local[2], v3_local[2]);
+    globalcoord(res, mat, NULL, x, y, z);
+    int sgn = x + y + z;
+    if (x) resind[0] = 0;
+    if (y) resind[0] = 2;
+    if (z) resind[0] = 4;
+    if (sgn == -1) resind[0]++;
+    return 1;
+  }
+
+  if (dim == 2) {
+    int x = sameSign2(v1_local[0], v2_local[0]);
+    int y = sameSign2(v1_local[1], v2_local[1]);
+    int z = sameSign2(v1_local[2], v2_local[2]);
+    if (x) {
+      globalcoord(res, mat, NULL, x, 0, 0);
+      resind[0] = (x > 0) ? 0 : 1;
+    }
+    if (y) {
+      int i = (x ? 1 : 0);
+      globalcoord(res + 3*i, mat, NULL, 0, y, 0);
+      resind[i] = (y > 0) ? 2 : 3;
+    }
+    if (z) {
+      globalcoord(res + 3, mat, NULL, 0, 0, z);
+      resind[1] = (z > 0) ? 4 : 5;
+    }
+    return 2;
+  }
+
+  if (dim == 1) {
+    mjtNum x = (v1_local[0] > 0) ? 1 : -1;
+    mjtNum y = (v1_local[1] > 0) ? 1 : -1;
+    mjtNum z = (v1_local[2] > 0) ? 1 : -1;
+    globalcoord(res + 0, mat, NULL, x, 0, 0);
+    globalcoord(res + 3, mat, NULL, 0, y, 0);
+    globalcoord(res + 6, mat, NULL, 0, 0, z);
+    resind[0] = (x > 0) ? 0 : 1;
+    resind[1] = (y > 0) ? 2 : 3;
+    resind[2] = (z > 0) ? 4 : 5;
+    return 3;
+  }
+  return 0;
+}
+
+
+
+// recover face of a box from its index
+static int boxFace(mjtNum res[12], mjCCDObj* obj, int idx) {
+  // box data
+  int g = 3*obj->geom;
+  const mjtNum* mat = obj->data->geom_xmat + 3*g;
+  const mjtNum* pos = obj->data->geom_xpos + g;
+  const mjtNum* size = obj->model->geom_size + g;
+
+  // compute global coordinates of the box face and face normal
+  switch (idx) {
+    case 0:  // right
+      globalcoord(res + 0, mat, pos,  size[0],  size[1],  size[2]);
+      globalcoord(res + 3, mat, pos,  size[0],  size[1], -size[2]);
+      globalcoord(res + 6, mat, pos,  size[0], -size[1], -size[2]);
+      globalcoord(res + 9, mat, pos,  size[0], -size[1],  size[2]);
+      return 4;
+     case 1:  // left
+      globalcoord(res + 0, mat, pos, -size[0],  size[1], -size[2]);
+      globalcoord(res + 3, mat, pos, -size[0],  size[1],  size[2]);
+      globalcoord(res + 6, mat, pos, -size[0], -size[1],  size[2]);
+      globalcoord(res + 9, mat, pos, -size[0], -size[1], -size[2]);
+      return 4;
+    case 2:  // top
+      globalcoord(res + 0, mat, pos, -size[0],  size[1], -size[2]);
+      globalcoord(res + 3, mat, pos,  size[0],  size[1], -size[2]);
+      globalcoord(res + 6, mat, pos,  size[0],  size[1],  size[2]);
+      globalcoord(res + 9, mat, pos, -size[0],  size[1],  size[2]);
+      return 4;
+    case 3:  // bottom
+      globalcoord(res + 0, mat, pos, -size[0], -size[1],  size[2]);
+      globalcoord(res + 3, mat, pos,  size[0], -size[1],  size[2]);
+      globalcoord(res + 6, mat, pos,  size[0], -size[1], -size[2]);
+      globalcoord(res + 9, mat, pos, -size[0], -size[1], -size[2]);
+      return 4;
+    case 4:  // front
+      globalcoord(res + 0, mat, pos, -size[0],  size[1],  size[2]);
+      globalcoord(res + 3, mat, pos,  size[0],  size[1],  size[2]);
+      globalcoord(res + 6, mat, pos,  size[0], -size[1],  size[2]);
+      globalcoord(res + 9, mat, pos, -size[0], -size[1],  size[2]);
+      return 4;
+    case 5:  // back
+      globalcoord(res + 0, mat, pos,  size[0],  size[1], -size[2]);
+      globalcoord(res + 3, mat, pos, -size[0],  size[1], -size[2]);
+      globalcoord(res + 6, mat, pos, -size[0], -size[1], -size[2]);
+      globalcoord(res + 9, mat, pos,  size[0], -size[1], -size[2]);
+      return 4;
+  }
+  return 0;
+}
+
+
+
+static inline int compareNorms(int res[2], const mjtNum* v, int nv,
+                               const mjtNum* w, int nw) {
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < nw; j++) {
+      if (dot3(v + 3*i, w + 3*j) < -0.99999872) {
+        res[0] = i;
+        res[1] = j;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+
+
+// return number of dimensions of a feature (1, 2 or 3)
+static inline int simplexDim(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
+  int i = 1;
+  int same1 = equalexact3(v1, v2);
+  int same2 = equalexact3(v1, v3);
+  int same3 = equalexact3(v2, v3);
+  if (!same1) i++;
+  if (!same3 && !same2) i++;
+  return i;
+}
+
+
+
+// recover multiple contacts from EPA polytope
+static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
+                         mjCCDObj* obj1, mjCCDObj* obj2) {
+  mjtNum face1[mjMAX_SIDES * 3], face2[mjMAX_SIDES * 3];
+
+  // get vertices of faces from EPA
+  const mjtNum* v11 = pt->verts1 + face->verts[0];
+  const mjtNum* v12 = pt->verts1 + face->verts[1];
+  const mjtNum* v13 = pt->verts1 + face->verts[2];
+  const mjtNum* v21 = pt->verts2 + face->verts[0];
+  const mjtNum* v22 = pt->verts2 + face->verts[1];
+  const mjtNum* v23 = pt->verts2 + face->verts[2];
+
+  // get dimensions of features of geoms 1 and 2
+  int nface1 = simplexDim(v11, v12, v13);
+  int nface2 = simplexDim(v21, v22, v23);
+  int nnorms1 = 0, nnorms2 = 0;
+  mjtNum n1[9], n2[9];  // normals of possible face collisions
+  int idx1[3], idx2[3];  // indices of faces, so they can be recovered later
+
+  // get all possible face normals for each geom
+  if (obj1->geom_type == mjGEOM_BOX) {
+    nnorms1 = boxNormals(n1, idx1, nface1, obj1, v11, v12, v13);
+  }
+  if (obj2->geom_type == mjGEOM_BOX) {
+    nnorms2 = boxNormals(n2, idx2, nface2, obj2, v21, v22, v23);
+  }
+
+  // determine if any two normals match
+  int res[2];
+  if (!compareNorms(res, n1, nnorms1, n2, nnorms2)) {
+    return;
+  }
+  int i = res[0], j = res[1];
+
+  // recover matching faces
+  if (obj1->geom_type == mjGEOM_BOX) {
+    nface1 = boxFace(face1, obj1, idx1[i]);
+  }
+  if (obj2->geom_type == mjGEOM_BOX) {
+    nface2 = boxFace(face2, obj2, idx2[j]);
+  }
+
+  if (nface1 >= 3 && nface2 >= 3) {
+    // TODO(kylebayes): this approximates the contact direction, by scaling the face normal by the
+    // single contact direction's magnitude. This is effective, but polygonClip should compute
+    // this for each contact point.
+    mjtNum diff[3], approx_dir[3];
+    sub3(diff, status->x2, status->x1);
+    scl3(approx_dir, n2 + 3*j, mju_sqrt(dot3(diff, diff)));
+
+    // clip the faces and store the results in status
+    polygonClip(status, face1, nface1, face2, nface2, n1 + 3*i, approx_dir);
+  }
+}
+
+
+
 
 // inflate a contact by margin
 static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) {
@@ -1574,7 +1945,10 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
 
     // simplex not on boundary (objects are penetrating)
     if (!ret) {
-      epa(status, &pt, obj1, obj2);
+      Face* face = epa(status, &pt, obj1, obj2);
+      if (config->max_contacts > 1 && face) {
+        multicontact(&pt, face, status, obj1, obj2);
+      }
     }
     mj_freeStack(d);
   }

@@ -779,9 +779,9 @@ static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
 
 
 
-// find single convex-convex collision
+// find convex-convex collision
 static int mjc_CCDIteration(const mjModel* m, const mjData* d, mjCCDObj* obj1, mjCCDObj* obj2,
-                            mjContact* con, mjtNum margin) {
+                            mjContact* con, int max_contacts, mjtNum margin) {
   if (mjENABLED(mjENBL_NATIVECCD)) {
     mjCCDConfig config;
     mjCCDStatus status;
@@ -789,19 +789,22 @@ static int mjc_CCDIteration(const mjModel* m, const mjData* d, mjCCDObj* obj1, m
     // set config
     config.max_iterations = m->opt.ccd_iterations;
     config.tolerance = m->opt.ccd_tolerance;
-    config.max_contacts = 1;
+    config.max_contacts = max_contacts;
     config.dist_cutoff = 0;  // no geom distances needed
 
     mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
     if (dist < 0) {
-      con->dist = margin + dist;
-      mju_sub3(con->frame, status.x1, status.x2);
-      mju_normalize3(con->frame);
-      con->pos[0] = 0.5 * (status.x1[0] + status.x2[0]);
-      con->pos[1] = 0.5 * (status.x1[1] + status.x2[1]);
-      con->pos[2] = 0.5 * (status.x1[2] + status.x2[2]);
-      mju_zero3(con->frame+3);
-      return 1;
+      for (int i = 0; i < status.nx; i++) {
+        mjContact* c = con++;
+        c->dist = margin + dist;
+        mju_sub3(c->frame, status.x1 + 3*i, status.x2 + 3*i);
+        mju_normalize3(c->frame);
+        c->pos[0] = 0.5 * (status.x1[0 + 3*i] + status.x2[0 + 3*i]);
+        c->pos[1] = 0.5 * (status.x1[1 + 3*i] + status.x2[1 + 3*i]);
+        c->pos[2] = 0.5 * (status.x1[2 + 3*i] + status.x2[2 + 3*i]);
+        mju_zero3(c->frame+3);
+      }
+      return status.nx;
     }
     return 0;
   }
@@ -884,12 +887,23 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
   mjc_initCCDObj(&obj2, m, d, g2, margin);
+  int max_contacts = 1;
+  if (mjENABLED(mjENBL_MULTICCD)) {
+    // TODO(kylebayes): Support contact pruning.
+    max_contacts = 8;
+  }
 
   // find initial contact
-  int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, margin);
+  int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, max_contacts, margin);
+
+  // nativeccd supports multi Box-Box collision directly
+  if (mjENABLED(mjENBL_NATIVECCD) && m->geom_type[g1] == mjGEOM_BOX
+      && m->geom_type[g2] == mjGEOM_BOX) {
+    return ncon;
+  }
 
   // look for additional contacts
-  if (ncon && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
+  if (ncon == 1 && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
       && m->geom_type[g1] != mjGEOM_ELLIPSOID && m->geom_type[g1] != mjGEOM_SPHERE
       && m->geom_type[g2] != mjGEOM_ELLIPSOID && m->geom_type[g2] != mjGEOM_SPHERE) {
     // multiCCD parameters
@@ -935,7 +949,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
         mju_rotateFrame(con[0].pos, invrot, d->geom_xmat+9*g2, d->geom_xpos+3*g2);
 
         // search for new contact
-        int new_contact = mjc_CCDIteration(m, d, &obj1, &obj2, con+ncon, margin);
+        int new_contact = mjc_CCDIteration(m, d, &obj1, &obj2, con+ncon, 1, margin);
 
         // check new contact
         if (new_contact && mjc_isDistinctContact(con, ncon + 1, tolerance)) {
@@ -1583,7 +1597,7 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
   mjc_setCCDObjFlex(&obj2, f2, e2, -1);
 
   // find contacts
-  return mjc_CCDIteration(m, d, &obj1, &obj2, con, margin);
+  return mjc_CCDIteration(m, d, &obj1, &obj2, con, 1, margin);
 }
 
 
