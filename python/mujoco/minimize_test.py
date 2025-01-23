@@ -292,6 +292,34 @@ class MinimizeTest(absltest.TestCase):
           check_derivatives=True,
       )
 
+  def test_soft_l1_norm(self) -> None:
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    class SoftL1(minimize.Norm):
+      """Implementation of the loss called 'soft_l1' in scipy least_squares."""
+
+      def value(self, r):
+        return np.sum(np.sqrt(r**2 + 1) - 1)
+
+      def grad_hess(self, r, proj):
+        s = np.sqrt(r**2 + 1)
+        y_r = r / s
+        grad = proj.T @ y_r
+        y_rr = (1 - y_r ** 2) / s
+        hess = proj.T @ (y_rr * proj)
+        return grad, hess
+
+    out = io.StringIO()
+    x0 = np.array((0.0, 0.0))
+    x, _ = minimize.least_squares(
+        x0, residual, norm=SoftL1(), output=out, check_derivatives=True
+    )
+    expected_x = np.array((1.0, 1.0))
+    np.testing.assert_array_almost_equal(x, expected_x)
+    self.assertIn('User-provided norm gradient matches', out.getvalue())
+    self.assertIn('User-provided norm Hessian matches', out.getvalue())
+
 
 if __name__ == '__main__':
   absltest.main()
