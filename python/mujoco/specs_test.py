@@ -15,7 +15,9 @@
 """Tests for mjSpec bindings."""
 
 import inspect
+import os
 import textwrap
+import zipfile
 
 from absl.testing import absltest
 from etils import epath
@@ -735,6 +737,7 @@ class SpecsTest(absltest.TestCase):
       v -1 -1 -1
       v  1 -1 -1"""
     spec = mujoco.MjSpec()
+    spec.modelname = 'test'
     mesh = spec.add_mesh()
     mesh.name = 'cube'
     mesh.file = 'cube.obj'
