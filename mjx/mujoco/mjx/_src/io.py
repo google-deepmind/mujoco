@@ -39,7 +39,7 @@ def _strip_weak_type(tree):
 
 
 def _make_option(
-    o: mujoco.MjOption, _full_compat: bool = False
+    o: mujoco.MjOption, _full_compat: bool = False  # pylint: disable=invalid-name
 ) -> types.Option:
   """Returns mjx.Option given mujoco.MjOption."""
   if not _full_compat:
@@ -183,6 +183,15 @@ def put_model(
       if f.metadata.get('restricted_to') != 'mjx'
   }
   fields = {f: getattr(m, f) for f in mj_field_names}
+
+  # zero out fields restricted to MuJoCo
+  if not _full_compat:
+    for f in types.Model.fields():
+      if f.metadata.get('restricted_to') == 'mujoco' and isinstance(
+          fields[f.name], np.ndarray
+      ):
+        fields[f.name] = np.zeros((0,), dtype=fields[f.name].dtype)
+
   fields['dof_hasfrictionloss'] = fields['dof_frictionloss'] > 0
   fields['tendon_hasfrictionloss'] = fields['tendon_frictionloss'] > 0
   fields['geom_rbound_hfield'] = fields['geom_rbound']
@@ -522,7 +531,7 @@ def _make_contact(
   # if we have fewer Contacts for a condim range, pad the range with zeros
 
   # build a map for where to find a dim-matching contact, or -1 if none
-  contact_map = np.zeros_like(dim) - 1
+  contact_map = -np.ones_like(dim)
   for i, di in enumerate(fields['dim']):
     space = [j for j, dj in enumerate(dim) if di == dj and contact_map[j] == -1]
     if not space:
@@ -672,7 +681,9 @@ def put_data(
     fields['_qLDiagInv_sparse'] = jp.zeros(0, dtype=float)
     # otherwise clear out unused arrays
     for f in types.Data.fields():
-      if f.metadata.get('restricted_to') == 'mujoco':
+      if f.metadata.get('restricted_to') == 'mujoco' and isinstance(
+          fields[f.name], np.ndarray
+      ):
         fields[f.name] = np.zeros(0, dtype=fields[f.name].dtype)
 
   fields['contact'] = contact

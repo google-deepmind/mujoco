@@ -20,7 +20,9 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
+# pylint: disable=g-importing-member
 from mujoco.mjx._src.types import ConeType
+# pylint: enable=g-importing-member
 import numpy as np
 
 
@@ -116,6 +118,9 @@ class ModelIOTest(parameterized.TestCase):
     self.assertEqual(mx.nnumeric, m.nnumeric)
     self.assertEqual(mx.nM, m.nM)
     self.assertAlmostEqual(mx.opt.timestep, m.opt.timestep)
+
+    # fields restricted to MuJoCo should not be populated
+    self.assertEqual(mx.bvh_aabb.shape, (0,))
 
     np.testing.assert_allclose(mx.body_parentid, m.body_parentid)
     np.testing.assert_allclose(mx.geom_type, m.geom_type)
