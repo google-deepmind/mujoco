@@ -20,7 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjtnum.h>
-#include "engine/engine_util_sparse_avx.h"  // IWYU pragma: keep
+#include "engine/engine_util_sparse_avx.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,11 +56,6 @@ MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
 
 // count the number of non-zeros in the sum of two sparse vectors
 MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
-
-// combine two sparse vectors: dst = a*dst + b*src, return nnz of result
-int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
-                      int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
-                      mjtNum* buf, int* buf_ind);
 
 // incomplete combine sparse: dst = a*dst + b*src at common indices
 void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
@@ -163,6 +158,8 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int
 #endif  // mjUSEAVX
 }
 
+
+
 // return 1 if vec1==vec2, 0 otherwise
 static inline
 int mju_compare(const int* vec1, const int* vec2, int n) {
@@ -172,6 +169,7 @@ int mju_compare(const int* vec1, const int* vec2, int n) {
   return !memcmp(vec1, vec2, n*sizeof(int));
 #endif  // mjUSEAVX
 }
+
 
 
 // merge unique sorted integers, merge array must be large enough (not checked for)
@@ -226,6 +224,83 @@ int mj_mergeSorted(int* merge, const int* chain1, int n1, const int* chain2, int
   return k;
 }
 
+
+
+// res = res*scl1 + vec*scl2
+static inline
+void mju_addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum scl2, int n) {
+#ifdef mjUSEAVX
+  mju_addToSclScl_avx(res, vec, scl1, scl2, n);
+#else
+  for (int i=0; i < n; i++) {
+    res[i] = res[i]*scl1 + vec[i]*scl2;
+  }
+#endif  // mjUSEAVX
+}
+
+
+
+// combine two sparse vectors: dst = a*dst + b*src, return nnz of result
+static inline
+int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
+                      int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
+                      mjtNum* buf, int* buf_ind) {
+  // check for identical pattern
+  if (dst_nnz == src_nnz) {
+    if (mju_compare(dst_ind, src_ind, dst_nnz)) {
+      // combine mjtNum data directly
+      mju_addToSclScl(dst, src, a, b, dst_nnz);
+      return dst_nnz;
+    }
+  }
+
+  // copy dst into buf
+  if (dst_nnz) {
+    memcpy(buf, dst, dst_nnz * sizeof(mjtNum));
+    memcpy(buf_ind, dst_ind, dst_nnz * sizeof(int));
+  }
+
+  // prepare to merge buf and src into dst
+  int bi = 0, si = 0, nnz = 0;
+  int buf_nnz = dst_nnz;
+
+  // merge vectors
+  while (bi < buf_nnz && si < src_nnz) {
+    int badr = buf_ind[bi];
+    int sadr = src_ind[si];
+
+    if (badr == sadr) {
+      dst[nnz] = a*buf[bi++] + b*src[si++];
+      dst_ind[nnz++] = badr;
+    }
+
+    // buf only
+    else if (badr < sadr) {
+      dst[nnz] = a*buf[bi++];
+      dst_ind[nnz++] = badr;
+    }
+
+    // src only
+    else {
+      dst[nnz] = b*src[si++];
+      dst_ind[nnz++] = sadr;
+    }
+  }
+
+  // the rest of src only
+  while (si < src_nnz) {
+    dst[nnz] = b*src[si];
+    dst_ind[nnz++] = src_ind[si++];
+  }
+
+  // the rest of buf only
+  while (bi < buf_nnz) {
+    dst[nnz] = a*buf[bi];
+    dst_ind[nnz++] = buf_ind[bi++];
+  }
+
+  return nnz;
+}
 
 #ifdef __cplusplus
 }
