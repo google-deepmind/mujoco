@@ -367,7 +367,7 @@ class BindModel(object):
       self.id = ids
 
   def __getattr__(self, name: str):
-    return getattr(self.model, self.prefix + name)[self.id, :]
+    return getattr(self.model, self.prefix + name)[self.id, ...]
 
 
 def _bind_model(self: Model, obj: Sequence[Any]) -> BindModel:

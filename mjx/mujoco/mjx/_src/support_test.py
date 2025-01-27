@@ -219,6 +219,7 @@ class SupportTest(parameterized.TestCase):
       )
 
     np.testing.assert_array_equal(mx.bind(s.joints).axis, m.jnt_axis)
+    np.testing.assert_array_equal(mx.bind(s.joints).qposadr, m.jnt_qposadr)
     for i in range(m.njnt):
       np.testing.assert_array_equal(m.bind(s.joints[i]).axis, m.jnt_axis[i, :])
       np.testing.assert_array_equal(mx.bind(s.joints[i]).axis, m.jnt_axis[i, :])
