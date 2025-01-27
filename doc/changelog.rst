@@ -88,7 +88,7 @@ General
 4. The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
 5. Removed the deprecated ``mju_rotVecMat``, ``mju_rotVecMatT`` and ``mjv_makeConnector`` functions.
 6. Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
-7. The PBR texture layers introduced in 3.2.1 were refactored from seperate sub-elements to a single
+7. The PBR texture layers introduced in 3.2.1 were refactored from separate sub-elements to a single
    :ref:`layer<material-layer>` sub-element.
 8. The composite types box, cylinder, and sphere have been removed. Users should instead use the equivalent types
    available in :ref:`flexcomp<body-flexcomp>`.
@@ -178,7 +178,7 @@ General
 
 4. Added the :ref:`nativeccd<option-flag-nativeccd>` flag. When this flag is enabled, general convex collision
    detection is handled with a new native code path, rather than `libccd <https://github.com/danfis/libccd>`__.
-   This feature is in early stages of testing, but users who've experienced issues related to collsion detection are
+   This feature is in early stages of testing, but users who've experienced issues related to collision detection are
    welcome to experiment with it and report any issues.
 
 .. youtube:: kcM_oauk3ZA
@@ -316,7 +316,7 @@ General
       The older functions have been removed from the Python bindings and will be removed from the C API in the next
       release.
    5. Removed the ``actuator_actdim`` callback from actuator plugins. They now have the ``actdim`` attribute, which
-      must be used with actuators that write state to the ``act`` array. This fixed a crash which happend when
+      must be used with actuators that write state to the ``act`` array. This fixed a crash which happened when
       keyframes were used in a model with stateful actuator plugins. The PID plugin will give an error when the wrong
       value of actdim is provided.
 
@@ -577,7 +577,7 @@ General
 1. Improved the :ref:`discardvisual<compiler-discardvisual>` compiler flag, which now discards all visual-only assets.
    See :ref:`discardvisual<compiler-discardvisual>` for details.
 2. Removed the :ref:`timer<mjtTimer>` for midphase colllision detection, it is now folded in with the narrowphase
-   timer. This is because timing the two phases seperately required fine-grained timers inside the collision
+   timer. This is because timing the two phases separately required fine-grained timers inside the collision
    functions; these functions are so small and fast that the timer itself was incurring a measurable cost.
 3. Added the flag :ref:`bvactive<visual-global-bvactive>` to ``visual/global``, allowing users to turn off
    visualisation of active bounding volumes (the red/green boxes in this :ref:`this changelog item<midphase>`). For
@@ -1050,7 +1050,7 @@ Simulate
    :width: 240px
 
 6. Added Visualization tab to simulate UI, corresponding to elements of the :ref:`visual<visual>` MJCF element. After
-   modifying values in the GUI, a saved XML will contain the new values. The modifyable members of
+   modifying values in the GUI, a saved XML will contain the new values. The modifiable members of
    :ref:`mjStatistic` (:ref:`extent<statistic-extent>`, :ref:`meansize<statistic-meansize>` and
    :ref:`center<statistic-center>`) are computed by the compiler and therefore do not have defaults. In order for these
    attributes to appear in the saved XML, a value must be specified in the loaded XML.
@@ -1169,7 +1169,7 @@ Python bindings
    passive viewer now also requires an explicit call to ``sync`` on its handle to pick up any update to the physics
    state. This is to avoid race conditions that can result in visual artifacts. See
    :ref:`documentation<PyViewerPassive>` for details.
-#. The ``viewer.launch_repl`` function has been removed since its functionality is superceded by ``launch_passive``.
+#. The ``viewer.launch_repl`` function has been removed since its functionality is superseded by ``launch_passive``.
 #. Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
 
 Bug fixes

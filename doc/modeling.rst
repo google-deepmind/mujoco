@@ -629,7 +629,7 @@ Group disable
 The :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute, which can be changed at runtime by setting the
 :ref:`mjOption.disableactuator<mjOption>` integer bitfield, allows the user to disable sets of actuators according to
 their :ref:`group<actuator-general-group>`. This feature is convenient when one would like to use multiple types of
-actuators for the same kinematic tree. For example consider a robot with firmware that supports mutiple control modes
+actuators for the same kinematic tree. For example consider a robot with firmware that supports multiple control modes
 e.g., torque-control and position-control. In this case, one can define both types of actuators in the same MJCF
 model, assigning one type of actuator to group 0 and the other to group 1.
 
@@ -1452,7 +1452,7 @@ elements available in MuJoCo. In addition to standard URDF files, MuJoCo can loa
 viewpoint of URDF) :el:`mujoco` element as a child of the top-level element :el:`robot`. This custom element can have
 sub-elements :ref:`compiler <compiler>`, :ref:`option <option>`,
 :ref:`size <size>` with the same functionality as in MJCF, except that the default compiler settings
-are modified so as to accomodate the URDF modeling convention. The :ref:`compiler <compiler>` extension
+are modified so as to accommodate the URDF modeling convention. The :ref:`compiler <compiler>` extension
 in particular has proven very useful, and indeed several of its attributes were introduced because a number of
 existing URDF models have non-physical dynamics parameters which MuJoCo's built-in compiler will reject if left
 unmodified. This extension is also needed to specify mesh directories. Also note that the compiler attributes
@@ -1607,8 +1607,8 @@ dedicated section :ref:`therein<MjxPerformance>`.
    :ref:`Numerical Integration<geIntegration>` section. The default recommended choice is the ``implicitfast``
    integrator.
 3. :ref:`Constraint Jacobians<option-jacobian>`: Try switching the Jacobian setting between "dense" and "sparse". These
-   two options use seperate code paths using dense or sparse algebra, but are otherwise computationally identical, so the
-   faster one is always preferred. The default "auto" heuristic does not always make the right choice.
+   two options use separate code paths using dense or sparse algebra, but are otherwise computationally identical, so
+   the faster one is always preferred. The default "auto" heuristic does not always make the right choice.
 4. **Constraint solver:** If the profiler reports that a large chunk of time is spent in the solver, consider the
    following:
 
@@ -1617,8 +1617,8 @@ dedicated section :ref:`therein<MjxPerformance>`.
      freedom than constraints, the PGS solver will be fastest, though this situation is not common.
    - :ref:`iterations<option-iterations>` and :ref:`tolerance<option-tolerance>`: Try reducing the number of iterations
      or, equivalently, increasing the solver's termination tolerance. In particular for the Newton solver, which
-     typically acheives numerical convergence in 2-3 (expensive) iterations, the last iteration increases the precision
-     to a level that has no noticable effect, and can be skipped.
+     typically achieves numerical convergence in 2-3 (expensive) iterations, the last iteration increases the precision
+     to a level that has no noticeable effect, and can be skipped.
 5. **Collisions:** If the profiler reports that collision detection takes up a large chunk of the computation
    time, consider the following steps:
 

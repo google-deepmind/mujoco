@@ -241,7 +241,7 @@ The computation of the constraint force is the hard part and will be described l
 description of the general framework by summarizing how the above quantities up to the constraint Jacobian are computed.
 
 -  The applied force :math:`\tau` includes :ref:`passive <gePassive>` forces from spring-dampers and fluid dynamics,
-   :ref:`actuation <geActuation>` forces, and additonal forces specified by the user.
+   :ref:`actuation <geActuation>` forces, and additional forces specified by the user.
 -  The bias force :math:`c` includes Coriolis, centrifugal and gravitational forces. Their sum is computed using the
    Recursive Newton-Euler (RNE) algorithm with acceleration set to 0.
 -  The joint-space inertia matrix :math:`M` is computed using the Composite Rigid-Body (CRB) algorithm. This matrix is
@@ -414,7 +414,7 @@ with MuJoCo's operation as long as such user forces depend only on position and 
 
 MuJoCo can compute three types of passive forces:
 
-- Spring-dampers in joints and tendons. See the following attribues for details.
+- Spring-dampers in joints and tendons. See the following attributes for details.
   |br| **Joints:**
   :ref:`stiffness<body-joint-stiffness>`, :ref:`springref<body-joint-springref>`,
   :ref:`damping<body-joint-damping>`, :ref:`springdamper<body-joint-springdamper>`.
@@ -576,8 +576,8 @@ Fast implicit-in-velocity (``implicitfast``)
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
     **implicit**:
      The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces, including
-     gyroscopic forces. The most common case where integrating such forces implicitly leads to noticable improvement is
-     when free objects with assymetric inertia are spinning quickly. `gyroscopic.xml <../_static/gyroscopic.xml>`__
+     gyroscopic forces. The most common case where integrating such forces implicitly leads to noticeable improvement is
+     when free objects with asymmetric inertia are spinning quickly. `gyroscopic.xml <../_static/gyroscopic.xml>`__
      shows an ellipsoid rolling on an inclined plane which quickly diverges with ``implicitfast`` but is stable with
      ``implicit``.
     **RK4**:
@@ -646,7 +646,7 @@ Control: ``ctrl``
   generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
   produce forces.
 
-Auxillary Controls: ``qfrc_applied`` and ``xfrc_applied``
+Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
   | ``mjData.qfrc_applied`` are directly applied generalized forces.
   | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
     example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
@@ -1722,7 +1722,7 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 Derivatives
 -----------
 
-MuJoCo's entire computational pipline including its constraint solver are analytically differentiable in principle.
+MuJoCo's entire computational pipeline including its constraint solver are analytically differentiable in principle.
 Writing efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives
 of the smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
 :ref:`implicit integrators<geIntegration>`.

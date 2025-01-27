@@ -76,7 +76,7 @@ Loading a spec from XML can be done as follows:
 
 Model elements
 ^^^^^^^^^^^^^^
-Model elements coresponding to MJCF are exposed to the user as C structs with the ``mjs`` prefix, the definitions are
+Model elements corresponding to MJCF are exposed to the user as C structs with the ``mjs`` prefix, the definitions are
 listed under the :ref:`Model Editing<tySpecStructure>` section of the struct reference. For example, an MJCF
 :ref:`geom<body-geom>` corresponds to an :ref:`mjsGeom`.
 

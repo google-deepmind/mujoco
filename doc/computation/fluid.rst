@@ -135,7 +135,7 @@ also disables the inertia-based model for the parent body. The
 Elements of the model are a generalization of :cite:t:`andersen2005b` to 3 dimensions.
 The force :math:`\mathbf{f}_{\text{ellipsoid}}` and torque
 :math:`\mathbf{g}_{\text{ellipsoid}}` exerted by the fluid onto the solid are
-the sum of of the terms
+the sum of the terms
 
 .. math::
    \begin{align*}

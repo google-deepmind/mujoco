@@ -718,31 +718,34 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 rollout
 -------
 
-``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python module
-via pybind11. It is implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
-and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module
-performs a common functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory
-(i.e., calling :ref:`mj_step` in a loop), given an intial state and sequence of controls, and returning subsequent
-states and sensor values. The rollouts are run in parallel with an internally managed thread pool if multiple MjData instances
-(one per thread) are passed as an argument. The basic usage form is
+``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python
+module via pybind11. It is implemented in `rollout.cc
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__ and wrapped in `rollout.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module performs a common
+functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling
+:ref:`mj_step` in a loop), given an initial state and sequence of controls, and returning subsequent states and sensor
+values. The rollouts are run in parallel with an internally managed thread pool if multiple MjData instances (one per
+thread) are passed as an argument. The basic usage form is
 
 .. code-block:: python
 
    state, sensordata = rollout.rollout(model, data, initial_state, control)
 
-``model`` is either a single instance of MjModel or a sequence of compatible MjModel of length ``nbatch``.
-``data`` is either a single instance of MjData or a sequence of compatible MjData of length ``nthread``.
-``initial_state`` is an ``nbatch x nstate`` array, with ``nbatch`` initial states of size ``nstate``, where
-``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
-:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nbatch x nstep x ncontrol`` array of controls. Controls are
-by default the ``mjModel.nu`` standard actuators, but any combination of :ref:`user input<geInput>` arrays can be
-specified by passing an optional ``control_spec`` bitflag.
+- ``model`` is either a single instance of MjModel or a sequence of homogeneous MjModels of length ``nbatch``.
+  Homogeneous models have the same integer sizes, but floating point values can differ.
+- ``data`` is either a single instance of MjData or a sequence of compatible MjDatas of length ``nthread``.
+- ``initial_state`` is an ``nbatch x nstate`` array, with ``nbatch`` initial states of size ``nstate``, where
+  ``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
+  :ref:`full physics state<geFullPhysics>`.
+- ``control`` is a ``nbatch x nstep x ncontrol`` array of controls. Controls are by default the ``mjModel.nu`` standard
+  actuators, but any combination of :ref:`user input<geInput>` arrays can be specified by passing an optional
+  ``control_spec`` bitflag.
 
 If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
 Therefore, non-increasing time values can be used to detect diverged rollouts.
 
-The ``rollout`` function is designed to be computationally stateless, so all inputs of the stepping pipeline are set and any
-values already present in the given ``MjData`` instance will have no effect on the output.
+The ``rollout`` function is designed to be computationally stateless, so all inputs of the stepping pipeline are set and
+any values already present in the given ``MjData`` instance will have no effect on the output.
 
 By default ``rollout.rollout`` creates a new thread pool every call if ``len(data) > 1``. To reuse the thread pool
 over multiple calls use the ``persistent_pool`` argument. ``rollout.rollout`` is not thread safe when using

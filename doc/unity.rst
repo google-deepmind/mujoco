@@ -20,7 +20,7 @@ Installation instructions
 
 The `plug-in directory <https://github.com/google-deepmind/mujoco/tree/main/unity>`__ includes a
 ``package.json`` file.  Unity's package manager recognizes this file and will import the plug-in's C# codebase to your
-project. In addition, Unity also needs the native MuJoCo library, which can be found in the corrsponding `platform
+project. In addition, Unity also needs the native MuJoCo library, which can be found in the corresponding `platform
 archive <https://github.com/google-deepmind/mujoco/releases>`__. If you wish to simply use the plug-in and not
 develop it, you should use one of the version-specific stable commits of the repository, identified by git tags. Check
 out the relevant version of the cloned repository with git (``git checkout 3.X.Y`` where X and Y specify the engine

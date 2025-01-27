@@ -591,7 +591,7 @@ Flex
 Flexes were added in MuJoCo 3.0. They represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
 are capsules, triangles or tetrahedra). Unlike geoms which are static shapes attached rigidly to a single body, the
 elements of a flex are deformable: they are constructed by connecting multiple bodies, thus the body positions and
-orientations determine the shape of the flex elements at runtime. These deformable elements suport collisions and
+orientations determine the shape of the flex elements at runtime. These deformable elements support collisions and
 contact forces, as well as generate passive and constraint forces which softly preserve the shape of the deformable
 entity. Automation is provided to load a mesh from a file, construct bodies corresponding to the mesh vertices,
 construct flex elements corresponding to the mesh faces (or lines or tetrahedra, depending on dimensionality), and
@@ -939,7 +939,7 @@ positions and orientations as well as the linear and angular velocities of such 
 
 The semantics of free joints are as follows. The position data is 7 numbers (3D position followed
 by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity).
-The linear postions of free joints are in the global frame, as are
+The linear positions of free joints are in the global frame, as are
 linear velocities. The orientation of a free joint (the quaternion) is also in the global frame. However, the rotational
 velocities of a free joint are in the local body frame. This is not so much a design decision but rather correct
 use of the topology of quaternions. Angular velocities live in the quaternion tangent space, which is defined locally

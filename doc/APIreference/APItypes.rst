@@ -28,7 +28,7 @@ MuJoCo defines a large number of types:
     - :ref:`mjOption` (embedded in :ref:`mjModel`).
     - :ref:`mjData`.
 
-  - :ref:`Auxillary struct types<tyAuxStructure>`, also used by the engine.
+  - :ref:`Auxiliary struct types<tyAuxStructure>`, also used by the engine.
   - Structs for collecting :ref:`simulation statistics<tyStatStructure>`.
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
   - Structs used by the :ref:`openGL renderer<tyRenderStructure>`.
@@ -752,7 +752,7 @@ modifiable inputs and write their outputs.
 
 .. _tyAuxStructure:
 
-Auxillary
+Auxiliary
 ^^^^^^^^^
 
 These struct types are used in the engine and their names are prefixed with ``mj``. :ref:`mjVisual`

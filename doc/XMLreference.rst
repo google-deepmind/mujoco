@@ -591,7 +591,7 @@ from its default.
 .. _option-flag-autoreset:
 
 :at:`autoreset`: :at-val:`[disable, enable], "enable"`
-   This flag disables the automatic reseting of the simulation state when numerical issues are detected.
+   This flag disables the automatic resetting of the simulation state when numerical issues are detected.
 
 .. _option-flag-override:
 
@@ -604,7 +604,7 @@ from its default.
    This flag enables the computation of potential and kinetic energy in ``mjData.energy[0, 1]`` respectively,
    and displayed in the simulate GUI info overlay. Potential energy includes the gravitational component summed over
    all bodies :math:`\sum_b m_b g h` and energy stored in passive springs in joints, tendons and flexes
-   :math:`\tfrac{1}{2} k x^2`, where :math:`x` is the displacement and and :math:`k` is the spring constant. Kinetic
+   :math:`\tfrac{1}{2} k x^2`, where :math:`x` is the displacement and :math:`k` is the spring constant. Kinetic
    energy is given by :math:`\tfrac{1}{2} v^T M v`, where :math:`v` is the velocity and :math:`M` is the
    mass matrix. Note that potential and kinetic energy in constraints is not accounted for.
 
@@ -1271,7 +1271,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 :at:`maxhullvert`: :at-val:`int, "-1"`
    Maximum number of vertices in a mesh's convex hull. Currently this is implemented by asking qhull
-   `to teminate <http://www.qhull.org/html/qh-optt.htm#TAn>`__ after :at:`maxhullvert` vertices. The default
+   `to terminate <http://www.qhull.org/html/qh-optt.htm#TAn>`__ after :at:`maxhullvert` vertices. The default
    value of -1 means "unlimited". Positive values must be larger than 3.
 
 .. _asset-mesh-vertex:
@@ -2122,7 +2122,7 @@ rotations as unit quaternions.
    (``mjData.qfrc_actuator``) rather than passive forces (``mjData.qfrc_passive``). Notionally, this means that gravity
    compensation is the result of a control system rather than natural buoyancy. In practice, enabling this flag is
    useful when joint-level actuator force clamping is used. In this case, the total actuation force applied on a joint,
-   including gravity compensation, is guaranteed to not exceeed the specified limits. See :ref:`CForceRange` and
+   including gravity compensation, is guaranteed to not exceed the specified limits. See :ref:`CForceRange` and
    :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` for more details on this type of force limit.
 
 .. _body-joint-margin:
@@ -2505,7 +2505,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
    <COrientation>`. The frame position is in the middle between the end points. If this attribute is specified, the
    remaining position and orientation-related attributes are ignored. The image on the right demonstrates use of
    :at:`fromto` with the four supported geoms, using identical Z values. The model is `here <_static/fromto.xml>`__.
-   Note that the :at:`fromto` semantics of *capsule* are unique: the two end points specify the segement around which
+   Note that the :at:`fromto` semantics of *capsule* are unique: the two end points specify the segment around which
    the radius defines the capsule surface.
 
 .. _body-geom-pos:
@@ -2736,7 +2736,7 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`mode`: :at-val:`[fixed, track, trackcom, targetbody, targetbodycom], "fixed"`
    This attribute specifies how the camera position and orientation in world coordinates are computed in forward
    kinematics (which in turn determine what the camera sees). "fixed" means that the position and orientation specified
-   below are fixed relative to the the body where the camera is defined. "track" means that the camera position is at a
+   below are fixed relative to the body where the camera is defined. "track" means that the camera position is at a
    constant offset from the body in world coordinates, while the camera orientation is constant in world coordinates.
    These constants are determined by applying forward kinematics in qpos0 and treating the camera as fixed. Tracking can
    be used for example to position a camera above a body, point it down so it sees the body, and have it always remain
@@ -4052,7 +4052,7 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
    which is why the number of indices equals (dim+1) times the number of elements. In 2D, the vertices should be listed
    in counter-clockwise order. In 1D and 3D the order is irrelevant; in 3D the model compiler will rearrange the
    vertices as needed. Repeated vertex indices within a flex element are not allowed. The topology of the flex is not
-   enforced; it could corespond to a continuous soft body, or a collection of disconnected stretchable elements, or
+   enforced; it could correspond to a continuous soft body, or a collection of disconnected stretchable elements, or
    anything in-between.
 
 .. _deformable-flex-flatskin:
@@ -4140,7 +4140,7 @@ stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
 :at:`thickness`: :at-val:`real(1), "-1"`
    Shell thickness, units of length; only for used 2D flexes. Used to scale the stretching stiffness.
    This thickness can be set equal to 2 times the :ref:`radius <deformable-flex-radius>` in order to match the geometry,
-   but is exposed seperately since the radius might be constrained by considerations related to collision detection.
+   but is exposed separately since the radius might be constrained by considerations related to collision detection.
 
 
 .. _flex-contact:
@@ -7099,7 +7099,7 @@ pipeline. These 3 sensors share some common properties:
       .. TODO: b/339596989 - Improve mjc_Convex.
 
       For some colliders, a positive :at:`cutoff` will result in an accurate measurement. However, for collision
-      pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
+      pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely inaccurate.
       This is considered a bug to be fixed in a future release.
       In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
       `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.

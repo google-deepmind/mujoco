@@ -50,7 +50,7 @@ The recommended way to install this package is via `PyPI <https://pypi.org/proje
 
    pip install mujoco-mjx
 
-A copy of the MuJoCo library is provided as part of this package's depdendencies and does **not** need to be downloaded
+A copy of the MuJoCo library is provided as part of this package's dependencies and does **not** need to be downloaded
 or installed separately.
 
 .. _MjxUsage:

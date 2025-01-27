@@ -228,7 +228,7 @@ found, the function will return ``distmax`` and ``fromto``, if given, will be se
    .. TODO: b/339596989 - Improve mjc_Convex.
 
    For some colliders, a large, positive ``distmax`` will result in an accurate measurement. However, for collision
-   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
+   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely inaccurate.
    This is considered a bug to be fixed in a future release.
    In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
    `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
