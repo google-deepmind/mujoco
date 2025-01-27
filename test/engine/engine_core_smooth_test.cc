@@ -109,6 +109,56 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
   mj_deleteModel(model);
 }
 
+// ----------------------------- mj_tendon -------------------------------------
+
+TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="sparse"/>
+
+    <worldbody>
+      <body>
+        <geom size=".1"/>
+        <joint name="0"/>
+      </body>
+      <body pos="1 0 0">
+        <geom size=".1"/>
+        <joint name="1"/>
+      </body>
+      <body pos="2 0 0">
+        <geom size=".1"/>
+        <joint name="2"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed>
+        <joint coef="3" joint="2"/>
+        <joint coef="2" joint="1"/>
+        <joint coef="1" joint="0"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  ASSERT_EQ(model->ntendon, 1);
+  ASSERT_EQ(model->nwrap, 3);
+
+  mjData* data = mj_makeData(model);
+  mj_fwdPosition(model, data);
+
+  int rowadr = data->ten_J_rowadr[0];
+  int* colind = data->ten_J_colind + rowadr;
+  mjtNum* J = data->ten_J + rowadr;
+
+  EXPECT_THAT(vector<mjtNum>(J, J + 3), ElementsAre(1, 2, 3));
+  EXPECT_THAT(vector<int>(colind, colind + 3), ElementsAre(0, 1, 2));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // --------------------------- connect constraint ------------------------------
 
 // test that bodies hanging on connects lead to expected force sensor readings

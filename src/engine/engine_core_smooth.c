@@ -665,7 +665,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
       rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
     }
 
-    // process joint tendon
+    // process fixed tendon
     if (m->wrap_type[adr] == mjWRAP_JOINT) {
       // process all defined joints
       for (int j=0; j < tendon_num; j++) {
@@ -677,33 +677,15 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
         // add to moment
         if (issparse) {
-          J[rowadr[i] + rownnz[i]] = m->wrap_prm[adr+j];
-          colind[rowadr[i] + rownnz[i]] = m->jnt_dofadr[k];
-          rownnz[i]++;
+          rownnz[i] = mju_combineSparse(J+rowadr[i], &m->wrap_prm[adr+j], 1, 1,
+                                        rownnz[i], 1,
+                                        colind+rowadr[i], &m->jnt_dofadr[k],
+                                        sparse_buf, buf_ind);
         }
 
         // add to moment: dense
         else {
           J[i*nv + m->jnt_dofadr[k]] = m->wrap_prm[adr+j];
-        }
-      }
-
-      // sort on colind if sparse: custom insertion sort
-      if (issparse) {
-        int x, *list = colind+rowadr[i], nnz = rownnz[i];
-        mjtNum y, *listy = J+rowadr[i];
-
-        for (int k=1; k < nnz; k++) {
-          x = list[k];
-          y = listy[k];
-          int j = k-1;
-          while (j >= 0 && list[j] > x) {
-            list[j+1] = list[j];
-            listy[j+1] = listy[j];
-            j--;
-          }
-          list[j+1] = x;
-          listy[j+1] = y;
         }
       }
 
