@@ -49,7 +49,7 @@ editing corresponds to setting attributes. For example, in order to change the t
    mjSpec* spec = mj_makeSpec();
    spec->opt.timestep = 0.01;
    ...
-   mjModel* model = mj_compile(spec);
+   mjModel* model = mj_compile(spec, NULL);
 
 Attributes which have variable length are C++ vectors and strings, :ref:`exposed to C as opaque types<ArrayHandles>`.
 In C one uses the provided :ref:`getters<AttributeGetters>` and :ref:`setters<AttributeSetters>`:
@@ -95,7 +95,7 @@ Elements cannot be created directly; they are returned to the user by the corres
    mjsGeom* my_geom = mjs_addGeom(world, NULL);                   // add a geom to the world
    my_geom->type = mjGEOM_BOX;                                    // set geom type
    my_geom->size[0] = my_geom->size[1] = my_geom->size[2] = 0.5;  // set box size
-   mjModel* model = mj_compile(spec);                             // compile to mjModel
+   mjModel* model = mj_compile(spec, NULL);                       // compile to mjModel
 
 The ``NULL`` second argument to :ref:`mjs_addGeom` is the optional default class pointer. When using defaults
 procedurally, default classes are passed in explicitly to element constructors. The global defaults of all elements
