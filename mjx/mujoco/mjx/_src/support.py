@@ -25,6 +25,7 @@ from mujoco.mjx._src import scan
 from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import JacobianType
+from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
 import numpy as np
@@ -433,20 +434,38 @@ class BindData(object):
         return name
       else:
         raise AttributeError('ctrl is not available for this type')
+    if name == 'qpos':
+      if self.prefix == 'jnt_':
+        return name
+      else:
+        raise AttributeError('qpos is not available for this type')
     else:
       return self.prefix + name
 
   def __getattr__(self, name: str):
-    if name == 'sensordata':
-      adr = self.model.sensor_adr[self.id]
-      num = self.model.sensor_dim[self.id]
+    if name == 'sensordata' or name == 'qpos':
+      adr = num = 0
+      if name == 'sensordata':
+        adr = self.model.sensor_adr[self.id]
+        num = self.model.sensor_dim[self.id]
+      elif name == 'qpos':
+        adr = self.model.jnt_qposadr[self.id]
+        typ = self.model.jnt_type[self.id]
+        num = (
+            (typ == JointType.FREE) * JointType.FREE.qpos_width()
+            + (typ == JointType.BALL) * JointType.BALL.qpos_width()
+            + (typ == JointType.HINGE) * JointType.HINGE.qpos_width()
+            + (typ == JointType.SLIDE) * JointType.SLIDE.qpos_width()
+        )
       if isinstance(self.id, list):
         idx = []
         for a, n in zip(adr, num):
           idx.extend(a + j for j in range(n))
         return getattr(self.data, name)[idx, ...]
-      else:
+      elif num > 1:
         return getattr(self.data, name)[adr : adr + num, ...]
+      else:
+        return getattr(self.data, name)[adr, ...]
     return getattr(self.data, self.__getname(name))[self.id, ...]
 
   def set(self, name: str, value: jax.Array) -> Data:

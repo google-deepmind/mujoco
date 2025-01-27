@@ -161,15 +161,15 @@ class SupportTest(parameterized.TestCase):
     xml = """
     <mujoco model="test_bind_model">
         <worldbody>
-          <body pos="1 2 3" name="body1">
+          <body pos="10 20 30" name="body1">
             <joint axis="1 0 0" type="slide" name="joint1"/>
             <geom size="1 2 3" type="box" name="geom1"/>
           </body>
-          <body pos="4 5 6" name="body2">
+          <body pos="40 50 60" name="body2">
             <joint axis="0 1 0" type="slide" name="joint2"/>
             <geom size="4 5 6" type="box" name="geom2"/>
           </body>
-          <body pos="7 8 9" name="body3">
+          <body pos="70 80 90" name="body3">
             <joint axis="0 0 1" type="slide" name="joint3"/>
             <geom size="7 8 9" type="box" name="geom3"/>
           </body>
@@ -223,6 +223,10 @@ class SupportTest(parameterized.TestCase):
     for i in range(m.njnt):
       np.testing.assert_array_equal(m.bind(s.joints[i]).axis, m.jnt_axis[i, :])
       np.testing.assert_array_equal(mx.bind(s.joints[i]).axis, m.jnt_axis[i, :])
+      np.testing.assert_array_almost_equal(
+          dx.bind(mx, s.joints[i]).qpos,
+          d.qpos[m.jnt_qposadr[i]], decimal=6
+      )
 
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
     for i in range(m.nu):
@@ -255,6 +259,12 @@ class SupportTest(parameterized.TestCase):
     dx5 = dx.bind(mx, s.actuators[1]).set('ctrl', 7)
     np.testing.assert_array_equal(dx5.bind(mx, s.actuators).ctrl, [0, 7, 0])
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
+
+    np.testing.assert_array_almost_equal(d.qpos, [0, 0, -3.924e-05])
+    np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
+    dx6 = dx.bind(mx, s.joints[1:]).set('qpos', [8, 0])
+    np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, [0, 8, 0])
+    np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
 
     # test invalid name
     with self.assertRaises(AttributeError):
