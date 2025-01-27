@@ -45,8 +45,8 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
-                         mjData* d);
+                         const int* rownnz, const int* rowadr, const int* colind,
+                         int x_nnz, int* x_ind, mjData* d);
 
 // band-dense Cholesky decomposition
 //  returns minimum value in the factorized diagonal, or 0 if rank-deficient

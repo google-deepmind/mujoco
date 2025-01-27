@@ -298,7 +298,7 @@ int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
 
 // incomplete combine sparse: dst = a*dst + b*src at common indices
 void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
-                          int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind) {
+                          int dst_nnz, int src_nnz, const int* dst_ind, const int* src_ind) {
   // check for identical pattern
   if (dst_nnz == src_nnz) {
     if (mju_compare(dst_ind, src_ind, dst_nnz)) {

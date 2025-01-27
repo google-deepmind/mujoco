@@ -238,7 +238,8 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
+                         const int* rownnz, const int* rowadr, const int* colind,
+                         int x_nnz, int* x_ind,
                          mjData* d) {
   mj_markStack(d);
   int* buf_ind = mjSTACKALLOC(d, n, int);
@@ -264,14 +265,8 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     mat[adr+nnz-1] = r;
 
     // update row:  mat(r,1:r-1) = (mat(r,1:r-1) + s*x(1:r-1)) / c
-    int new_nnz = mju_combineSparse(mat + adr, x, 1 / c, (flg_plus ? s / c : -s / c),
-                                    nnz-1, i, colind + adr, x_ind,
-                                    sparse_buf, buf_ind);
-
-    // check for size change
-    if (new_nnz != nnz-1) {
-      mjERROR("varying sparsity pattern");
-    }
+    mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
+                         nnz-1, i, colind + adr, x_ind);
 
     // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
     int new_x_nnz = mju_combineSparse(x, mat+adr, c, -s, i, nnz-1, x_ind,
