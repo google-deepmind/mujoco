@@ -765,7 +765,7 @@ class SpecsTest(absltest.TestCase):
         <include file="included.xml"/>
       </mujoco>
     """),
-        {'included.xml': included_xml.encode('utf-8')},
+        include={'included.xml': included_xml.encode('utf-8')},
     )
     self.assertEqual(
         spec.worldbody.first_body().first_geom().type, mujoco.mjtGeom.mjGEOM_BOX
