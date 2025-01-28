@@ -13,6 +13,10 @@ General
   attaching can be restored by setting the deep copy flag to 1.
 - Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
 
+MJX
+^^^
+- Added support for spatial tendons with internal sphere and cylinder wrapping.
+
 Version 3.2.7 (Jan 14, 2025)
 ----------------------------
 

@@ -344,6 +344,127 @@ class SupportTest(parameterized.TestCase):
       force = force.at[3:].set(dx.contact.frame[j] @ force[3:])
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
+  def test_wrap_inside(self):
+    maxiter = 5
+    tolerance = 1.0e-4
+    z_init = 1.0 - 1.0e-5
+
+    # len0 <= radius
+    np.testing.assert_equal(
+        support.wrap_inside(
+            jp.array([1.0, 0, 0, 0]),
+            jp.array([1.0]),
+            maxiter,
+            tolerance,
+            z_init,
+        )[0],
+        jp.array([-1]),
+    )
+
+    # len1 <= radius
+    np.testing.assert_equal(
+        support.wrap_inside(
+            jp.array([0, 0, 1.0, 0]),
+            jp.array([1.0]),
+            maxiter,
+            tolerance,
+            z_init,
+        )[0],
+        jp.array([-1]),
+    )
+
+    # radius < mjMINVAL
+    np.testing.assert_equal(
+        support.wrap_inside(
+            jp.array([1, 0, 0, 1]), jp.array([0.1 * mujoco.mjMINVAL]), maxiter,
+            tolerance,
+            z_init,
+        )[0],
+        jp.array([-1]),
+    )
+
+    # len0 < mjMINVAL and radius < mjMINVAL
+    np.testing.assert_equal(
+        support.wrap_inside(
+            jp.array([0.1 * mujoco.mjMINVAL, 0, 0, 0]),
+            jp.array([0.1 * mujoco.mjMINVAL]),
+            maxiter,
+            tolerance,
+            z_init,
+        )[0],
+        jp.array([-1]),
+    )
+
+    # len1 < mjMINVAL and radius < mjMINVAL
+    np.testing.assert_equal(
+        support.wrap_inside(
+            jp.array([0, 0, 0.1 * mujoco.mjMINVAL, 0]),
+            jp.array([0.1 * mujoco.mjMINVAL]),
+            maxiter,
+            tolerance,
+            z_init,
+        )[0],
+        jp.array([-1]),
+    )
+
+    # wrap: p0 = [1, 0], p1 = [0, 1]
+    status, pnt = support.wrap_inside(
+        jp.array([1, 0, 0, 1]), jp.array([0.5]), maxiter, tolerance, z_init
+    )
+    np.testing.assert_allclose(
+        pnt,
+        jp.array([0.353553, 0.353553, 0.353553, 0.353553]),
+        atol=1e-3,
+        rtol=1e-3,
+    )
+    np.testing.assert_equal(status, jp.array([0]))
+
+    # no wrap, point on circle: p0 = [1, 0], p1 = [0, 0.5]
+    status, pnt = support.wrap_inside(
+        jp.array([1, 0, 0, 0.5]), jp.array([0.5]), maxiter, tolerance, z_init
+    )
+    np.testing.assert_allclose(
+        pnt,
+        jp.zeros(4),
+        atol=1e-3,
+        rtol=1e-3,
+    )
+    np.testing.assert_equal(status, jp.array([-1]))
+
+    # no wrap, segment-circle intersection: p0 = [0.75, 0], p1 = [0, 0.51]
+    status, pnt = support.wrap_inside(
+        jp.array([0.75, 0, 0, 0.51]),
+        jp.array([0.5]),
+        maxiter,
+        tolerance,
+        z_init,
+    )
+    np.testing.assert_allclose(
+        pnt,
+        jp.zeros(4),
+        atol=1e-3,
+        rtol=1e-3,
+    )
+    np.testing.assert_equal(status, jp.array([-1]))
+
+    # wrap: p0 = [-0.5, 1], p1 = [0.5, 1]
+    status, pnt = support.wrap_inside(
+        jp.array([-0.5, 1, 0.5, 1]),
+        jp.array([0.5]),
+        maxiter,
+        tolerance,
+        z_init,
+    )
+    np.testing.assert_allclose(
+        pnt,
+        jp.array([0, 0.5, 0, 0.5]),
+        atol=1e-3,
+        rtol=1e-3,
+    )
+    np.testing.assert_equal(status, jp.array([0]))
+
+    # TODO(taylorhowell): improve wrap_inside testing with additional test cases
+
   def test_muscle_gain_length(self):
     lmin = 0.5
     lmax = 1.5

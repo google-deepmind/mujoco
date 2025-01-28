@@ -220,7 +220,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Actuator Bias <mjtBias>`
      - ``NONE``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Tendon Wrapping <mjtWrap>`
-     - ``JOINT``, ``SITE``, ``PULLEY``
+     - ``JOINT``, ``SITE``, ``PULLEY``, ``SPHERE``, ``CYLINDER``
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and
        ``CYLINDER`` are implemented but only collide with other primitives, note that ``BOX`` is implemented as a mesh.
@@ -239,7 +239,7 @@ The following features are **fully supported** in MJX:
    * - Fluid Model
      - :ref:`flInertia`
    * - :ref:`Tendons <tendon>`
-     - :ref:`Fixed <tendon-fixed>`
+     - :ref:`Fixed <tendon-fixed>`, :ref:`Spatial <tendon-spatial>`
    * - :ref:`Sensors <mjtSensor>`
      - ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``, ``TENDONPOS``, ``ACTUATORPOS``, ``BALLQUAT``,
        ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``, ``SUBTREECOM``, ``CLOCK``,
@@ -265,12 +265,8 @@ The following features are **in development** and coming soon:
      - ``IMPLICIT``
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
-   * - :ref:`Tendon Wrapping <mjtWrap>`
-     - ``SPHERE``, ``CYLINDER`` (external wrapping is supported)
    * - Fluid Model
      - :ref:`flEllipsoid`
-   * - :ref:`Tendons <tendon>`
-     - :ref:`Spatial <tendon-spatial>`
    * - :ref:`Sensors <mjtSensor>`
      - All except ``PLUGIN``, ``USER``
    * - Lights

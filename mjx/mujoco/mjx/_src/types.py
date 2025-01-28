@@ -779,6 +779,10 @@ class Model(PyTreeNode):
     wrap_type: wrap object type (mjtWrap)                     (nwrap,)
     wrap_objid: object id: geom, site, joint                  (nwrap,)
     wrap_prm: divisor, joint coef, or site id                 (nwrap,)
+    wrap_inside_maxiter: maximum iterations for wrap_inside
+    wrap_inside_tolerance: tolerance for wrap_inside
+    wrap_inside_z_init: initialization for wrap_inside
+    is_wrap_inside: spatial tendon sidesite inside geom       (nwrapinside,)
     actuator_trntype: transmission type (mjtTrn)              (nu,)
     actuator_dyntype: dynamics type (mjtDyn)                  (nu,)
     actuator_gaintype: gain type (mjtGain)                    (nu,)
@@ -1109,6 +1113,10 @@ class Model(PyTreeNode):
   wrap_type: np.ndarray
   wrap_objid: np.ndarray
   wrap_prm: np.ndarray
+  wrap_inside_maxiter: int = _restricted_to('mjx')
+  wrap_inside_tolerance: float = _restricted_to('mjx')
+  wrap_inside_z_init: float = _restricted_to('mjx')
+  is_wrap_inside: np.ndarray = _restricted_to('mjx')
   actuator_trntype: np.ndarray
   actuator_dyntype: np.ndarray
   actuator_gaintype: np.ndarray

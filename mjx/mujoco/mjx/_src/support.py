@@ -692,6 +692,136 @@ def wrap_circle(
   return wlen, pnt
 
 
+def wrap_inside(
+    end: jax.Array,
+    radius: jax.Array,
+    maxiter: int,
+    tolerance: float,
+    z_init: float,
+) -> Tuple[jax.Array, jax.Array]:
+  """Compute 2D inside wrap point.
+
+  Args:
+    end: 2D points
+    radius: radius of circle
+
+  Returns:
+    status: 0 if wrap, else -1
+    concatentated 2D wrap points: jax.Array
+  """
+  mjMINVAL = mujoco.mjMINVAL  # pylint: disable=invalid-name
+
+  # constants
+  len0 = math.norm(end[:2])
+  len1 = math.norm(end[2:])
+  dif = jp.array([end[2] - end[0], end[3] - end[1]])
+  dd = dif[0] * dif[0] + dif[1] * dif[1]
+
+  # either point inside circle or circle too small: no wrap
+  no_wrap0 = (
+      (len0 <= radius)
+      | (len1 <= radius)
+      | (radius < mjMINVAL)
+      | (len0 < mjMINVAL)
+      | (len1 < mjMINVAL)
+  )
+
+  # find nearest point on line segment to origin: d0 + a*dif
+  a = -1 * (dif[0] * end[0] + dif[1] * end[1]) / jp.maximum(mjMINVAL, dd)
+  tmp = end[:2] + a * dif
+
+  # segment-circle intersection: no wrap
+  no_wrap1 = (dd > mjMINVAL) & (a > 0) & (a < 1) & (math.norm(tmp) <= radius)
+
+  # prepare default in case of numerical failure: average
+  pnt_avg = 0.5 * jp.array([end[0] + end[2], end[1] + end[3]])
+  pnt_avg = radius * math.normalize(pnt_avg)
+
+  # compute function parameters: asin(A*z) + asin(B*z) - 2*asin(z) + G = 0
+  A = radius / jp.maximum(mjMINVAL, len0)  # pylint: disable=invalid-name
+  B = radius / jp.maximum(mjMINVAL, len1)  # pylint: disable=invalid-name
+  cosG = (len0 * len0 + len1 * len1 - dd) / jp.maximum(mjMINVAL, 2 * len0 * len1)  # pylint: disable=invalid-name
+
+  no_wrap2 = cosG < -1 + mjMINVAL
+  early_return0 = cosG > 1 - mjMINVAL
+
+  G = jp.arccos(cosG)  # pylint: disable=invalid-name
+
+  # initialize solver
+  z = jp.array([z_init])
+  f = jp.arcsin(A * z) + jp.arcsin(B * z) - 2 * jp.arcsin(z) + G
+
+  # make sure initialization is not on the other side
+  early_return1 = f > 0
+
+  # iteratively solve with Newton's method
+  def _newton(carry, _):
+    # unpack
+    z, f, status_prev = carry
+
+    # check current solution
+    converged = jp.abs(f) <= tolerance
+
+    # compute derivative
+    df = (
+        A / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * A * A))
+        + B / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * B * B))
+        - 2 / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z))
+    )
+
+    # check sign; SHOULD NOT OCCUR
+    status0 = df > -mjMINVAL
+
+    # new point
+    z_next = z - (1 - converged) * f / jp.where(
+        jp.abs(df) < mjMINVAL, mjMINVAL, df
+    )
+
+    # make sure we are moving to the left; SHOULD NOT OCCUR
+    status1 = z_next > z
+
+    # evaluate solution
+    f_next = (
+        jp.arcsin(A * z_next)
+        + jp.arcsin(B * z_next)
+        - 2 * jp.arcsin(z_next)
+        + G
+    )
+
+    # exit if positive; SHOULD NOT OCCUR
+    status2 = f_next > tolerance
+
+    return (
+        z_next,
+        f_next,
+        status_prev | status0 | status1 | status2,
+    ), None
+
+  # TODO(taylorhowell): compare performance of jax.lax.scan and jax.lax.while_loop
+  z, _, early_return2 = jax.lax.scan(
+      _newton, (z, f, jp.array([False])), None, maxiter
+  )[0]
+
+  # finalize: rotation by ang from vec = a or b, depending on cross(a,b) sign
+  sign = end[0] * end[3] - end[1] * end[2] > 0
+  vec = jp.where(sign, end[:2], end[2:])
+  vec = math.normalize(vec)
+  ang = jp.arcsin(z) - jp.where(sign, jp.arcsin(A * z), jp.arcsin(B * z))
+  pnt_sol = radius * jp.array([
+      jp.cos(ang) * vec[0] - jp.sin(ang) * vec[1],
+      jp.sin(ang) * vec[0] + jp.cos(ang) * vec[1],
+  ]).reshape(-1)
+
+  no_wrap = no_wrap0 | no_wrap1 | no_wrap2
+  early_return = early_return0 | early_return1 | early_return2
+  status = -1 * no_wrap * jp.ones(1)
+
+  pnt = jp.where(early_return, pnt_avg, pnt_sol)
+  pnt = jp.where(no_wrap, jp.zeros(2), pnt)
+
+  return status, jp.concatenate([pnt, pnt])
+
+
 def wrap(
     x0: jax.Array,
     x1: jax.Array,
@@ -701,7 +831,11 @@ def wrap(
     side: jax.Array,
     sidesite: jax.Array,
     is_sphere: jax.Array,
-):
+    is_wrap_inside: bool,
+    wrap_inside_maxiter: int,
+    wrap_inside_tolerance: float,
+    wrap_inside_z_init: float,
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Wrap tendon around sphere or cylinder."""
   # map sites to wrap object's local frame
   p0 = xmat.T @ (x0 - xpos)
@@ -749,8 +883,13 @@ def wrap(
   sd = jp.array([jp.dot(s, axis0), jp.dot(s, axis1)])
   sd = math.normalize(sd) * size
 
-  # TODO(taylorhowell): implement wrap_inside for internal wrapping case
-  wlen, pnt = wrap_circle(d, sd, sidesite, size)
+  if is_wrap_inside:
+    wlen, pnt = wrap_inside(
+        d, size, wrap_inside_maxiter, wrap_inside_tolerance, wrap_inside_z_init
+    )
+  else:
+    wlen, pnt = wrap_circle(d, sd, sidesite, size)
+
   no_wrap = wlen < 0
 
   # reconstruct 3D points in local frame: res

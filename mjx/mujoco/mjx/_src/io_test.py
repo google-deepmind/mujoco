@@ -20,6 +20,7 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import test_util
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import ConeType
 # pylint: enable=g-importing-member
@@ -171,33 +172,6 @@ class ModelIOTest(parameterized.TestCase):
           )
       )
 
-  def test_spatial_tendon_not_implemented(self):
-    with self.assertRaises(NotImplementedError):
-      mjx.put_model(mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <worldbody>
-            <body name="arm">
-              <joint name="arm" axis="0 1 0"/>
-              <geom name="shoulder" type="sphere" size=".05"/>
-              <site name="arm" pos="-.1 0 .05"/>
-              <site name="sidesite" pos="0 0 0"/>
-            </body>
-            <body name="slider" pos=".05 0 -.2">
-              <joint name="slider" type="slide" damping="1"/>
-              <geom name="slider" type="box" size=".01 .01 .01"/>
-              <site name="slider" pos="0 0 .01"/>
-            </body>
-          </worldbody>
-
-          <tendon>
-            <spatial name="rope" range="0 .35">
-              <site site="slider"/>
-              <geom geom="shoulder" sidesite="sidesite"/>
-              <site site="arm"/>
-            </spatial>
-          </tendon>
-        </mujoco>"""))
-
   def test_margin_gap_mesh_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
@@ -224,6 +198,20 @@ class ModelIOTest(parameterized.TestCase):
           <option viscosity="3.0" integrator="implicitfast"/>
           <worldbody/>
         </mujoco>"""))
+
+  def test_wrap_inside(self):
+    m = test_util.load_test_file('tendon/wrap_sidesite.xml')
+    mx0 = mjx.put_model(m)
+    np.testing.assert_equal(
+        mx0.is_wrap_inside,
+        np.array([1, 0, 1, 0, 1, 1, 0]),
+    )
+    m.site_pos[2] = m.site_pos[1]
+    mx1 = mjx.put_model(m)
+    np.testing.assert_equal(
+        mx1.is_wrap_inside,
+        np.array([0, 0, 1, 0, 1, 0, 0]),
+    )
 
 
 class DataIOTest(parameterized.TestCase):

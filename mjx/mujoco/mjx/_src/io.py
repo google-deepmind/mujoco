@@ -123,29 +123,6 @@ def put_model(
       if t == mujoco.mjtGeom.mjGEOM_MESH:
         mesh_geomid.add(g)
 
-  # check for spatial tendon internal geom wrapping
-  if m.ntendon:
-    # find sphere or cylinder geoms (if any exist)
-    (wrap_id_geom,) = np.nonzero(
-        (m.wrap_type == mujoco.mjtWrap.mjWRAP_SPHERE)
-        | (m.wrap_type == mujoco.mjtWrap.mjWRAP_CYLINDER)
-    )
-    wrap_objid_geom = m.wrap_objid[wrap_id_geom]
-    geom_pos = m.geom_pos[wrap_objid_geom]
-    geom_size = m.geom_size[wrap_objid_geom, 0]
-
-    # find sidesites (if any exist)
-    side_id = np.round(m.wrap_prm[wrap_id_geom]).astype(int)
-    side = m.site_pos[side_id]
-
-    # check for sidesite inside geom
-    if np.any(
-        (np.linalg.norm(side - geom_pos, axis=1) < geom_size) & (side_id >= 0)
-    ):
-      raise NotImplementedError(
-          'Internal wrapping with sphere and cylinder geoms is not'
-          ' implemented for spatial tendons.'
-      )
 
   # check for unsupported sensor and equality constraint combinations
   sensor_rne_postconstraint = (
@@ -198,6 +175,30 @@ def put_model(
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _make_option(m.opt, _full_compat=_full_compat)
   fields['stat'] = _make_statistic(m.stat)
+
+  # spatial tendon wrap inside
+  fields['wrap_inside_maxiter'] = 5
+  fields['wrap_inside_tolerance'] = 1.0e-4
+  fields['wrap_inside_z_init'] = 1.0 - 1.0e-5
+  fields['is_wrap_inside'] = np.zeros(0, dtype=bool)
+  if m.nsite:
+    # find sphere or cylinder geoms (if any exist)
+    (wrap_id_geom,) = np.nonzero(
+        (m.wrap_type == mujoco.mjtWrap.mjWRAP_SPHERE)
+        | (m.wrap_type == mujoco.mjtWrap.mjWRAP_CYLINDER)
+    )
+    wrap_objid_geom = m.wrap_objid[wrap_id_geom]
+    geom_pos = m.geom_pos[wrap_objid_geom]
+    geom_size = m.geom_size[wrap_objid_geom, 0]
+
+    # find sidesites (if any exist)
+    side_id = np.round(m.wrap_prm[wrap_id_geom]).astype(int)
+    side = m.site_pos[side_id]
+
+    # wrap inside flag
+    fields['is_wrap_inside'] = np.array(
+        (np.linalg.norm(side - geom_pos, axis=1) < geom_size) & (side_id >= 0)
+    )
 
   # Pre-compile meshes for MJX collisions.
   fields['mesh_convex'] = [None] * m.nmesh

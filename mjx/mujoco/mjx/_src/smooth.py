@@ -812,6 +812,7 @@ def tendon(m: Model, d: Data) -> Data:
   geom_xmat = d.geom_xmat[wrap_objid_geom]
   geom_size = m.geom_size[wrap_objid_geom, 0]
   geom_type = m.wrap_type[wrap_id_geom]
+  is_sphere = geom_type == WrapType.SPHERE
 
   # get body ids for site-geom-site instances
   body_id_site0 = m.site_bodyid[wrap_objid_site0]
@@ -823,17 +824,52 @@ def tendon(m: Model, d: Data) -> Data:
   side = d.site_xpos[side_id]
   has_sidesite = np.expand_dims(np.array(side_id >= 0), -1)
 
+  # wrap inside
+  # TODO(taylorhowell): check that is_wrap_inside is consistent with
+  # site and geom relative positions
+  (wrap_inside_id,) = np.nonzero(m.is_wrap_inside)
+  (wrap_outside_id,) = np.nonzero(~m.is_wrap_inside)
+
   # compute geom wrap length and connect points (if wrap occurs)
-  lengths_geomgeom, geom_pnt0, geom_pnt1 = jax.vmap(support.wrap)(
-      site_pnt0,
-      site_pnt1,
-      geom_xpos,
-      geom_xmat,
-      geom_size,
-      side,
-      has_sidesite,
-      geom_type == WrapType.SPHERE,
+  v_wrap = jax.vmap(
+      support.wrap, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None)
   )
+  lengths_inside, pnt0_inside, pnt1_inside = v_wrap(
+      site_pnt0[wrap_inside_id],
+      site_pnt1[wrap_inside_id],
+      geom_xpos[wrap_inside_id],
+      geom_xmat[wrap_inside_id],
+      geom_size[wrap_inside_id],
+      side[wrap_inside_id],
+      has_sidesite[wrap_inside_id],
+      is_sphere[wrap_inside_id],
+      True,
+      m.wrap_inside_maxiter,
+      m.wrap_inside_tolerance,
+      m.wrap_inside_z_init,
+  )
+
+  lengths_outside, pnt0_outside, pnt1_outside = v_wrap(
+      site_pnt0[wrap_outside_id],
+      site_pnt1[wrap_outside_id],
+      geom_xpos[wrap_outside_id],
+      geom_xmat[wrap_outside_id],
+      geom_size[wrap_outside_id],
+      side[wrap_outside_id],
+      has_sidesite[wrap_outside_id],
+      is_sphere[wrap_outside_id],
+      False,
+      m.wrap_inside_maxiter,
+      m.wrap_inside_tolerance,
+      m.wrap_inside_z_init,
+  )
+
+  wrap_id = np.argsort(np.concatenate([wrap_inside_id, wrap_outside_id]))
+  vstack_ = lambda x, y: jp.vstack([x, y])[wrap_id]
+  lengths_geomgeom = vstack_(lengths_inside, lengths_outside)
+  geom_pnt0 = vstack_(pnt0_inside, pnt0_outside)
+  geom_pnt1 = vstack_(pnt1_inside, pnt1_outside)
+
   lengths_geomgeom = lengths_geomgeom.reshape(-1)
 
   # identify geoms where wrap does not occur
