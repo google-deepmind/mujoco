@@ -24,6 +24,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <tiny_obj_loader.h>
 
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
@@ -31,6 +32,8 @@
 #include <mujoco/mjspec.h>
 #include "user/user_cache.h"
 #include "user/user_util.h"
+
+using face_vertices_type = decltype(tinyobj::mesh_t::num_face_vertices)::value_type;
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -993,7 +996,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<int> vertex_index_;
   std::vector<int> normal_index_;
   std::vector<int> texcoord_index_;
-  std::vector<unsigned char> num_face_vertices_;
+  std::vector<face_vertices_type> num_face_vertices_;
 
   // compute the volume and center-of-mass of the mesh given the face center
   void ComputeVolume(double CoM[3], mjtGeomInertia gtype, const double facecen[3]);
