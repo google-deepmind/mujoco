@@ -504,6 +504,20 @@ The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in t
 
 Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
+Assets
+^^^^^^
+
+All three methods allow one to specify a dictionary of assets that will be used
+to resolve asset references in the XML. The dictionary maps from asset
+name (string) to asset data (bytes), and can be assigned to the ``assets``
+attribute before calling ``compile()``, as demonstrated below.
+
+.. code-block:: python
+
+  assets = {'image.png': b'image_data'}
+  spec = mujoco.MjSpec.from_string(xml_referencing_image_png, assets=assets)
+  model = spec.compile()
+
 Save to XML
 -----------
 
