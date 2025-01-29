@@ -123,7 +123,6 @@ def put_model(
       if t == mujoco.mjtGeom.mjGEOM_MESH:
         mesh_geomid.add(g)
 
-
   # check for unsupported sensor and equality constraint combinations
   sensor_rne_postconstraint = (
       np.any(m.sensor_type == types.SensorType.ACCELEROMETER)
@@ -659,18 +658,6 @@ def put_data(
 
     fields[fname] = value
 
-  # convert qM and qLD if jacobian is dense
-  if not support.is_sparse(m):
-    fields['qM'] = np.zeros((m.nv, m.nv))
-    mujoco.mj_fullM(m, fields['qM'], d.qM)
-    # TODO(erikfrey): derive L*L' from L'*D*L instead of recomputing
-    try:
-      fields['qLD'], _ = scipy.linalg.cho_factor(fields['qM'])
-    except scipy.linalg.LinAlgError:
-      # this happens when qM is empty or unstable simulation
-      fields['qLD'] = np.zeros((m.nv, m.nv))
-    fields['qLDiagInv'] = np.zeros(0)
-
   if _full_compat:
     # full compatibility mode, we store sparse qM regardless of jacobian setting
     fields['_qM_sparse'] = fields['qM']
@@ -686,6 +673,18 @@ def put_data(
           fields[f.name], np.ndarray
       ):
         fields[f.name] = np.zeros(0, dtype=fields[f.name].dtype)
+
+  # convert qM and qLD if jacobian is dense
+  if not support.is_sparse(m):
+    fields['qM'] = np.zeros((m.nv, m.nv))
+    mujoco.mj_fullM(m, fields['qM'], d.qM)
+    # TODO(erikfrey): derive L*L' from L'*D*L instead of recomputing
+    try:
+      fields['qLD'], _ = scipy.linalg.cho_factor(fields['qM'])
+    except scipy.linalg.LinAlgError:
+      # this happens when qM is empty or unstable simulation
+      fields['qLD'] = np.zeros((m.nv, m.nv))
+    fields['qLDiagInv'] = np.zeros(0)
 
   fields['contact'] = contact
   fields.update(ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type)
