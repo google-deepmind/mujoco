@@ -53,42 +53,6 @@ def _get_face_norm(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
   return face_norm
 
 
-def _get_unique_edge_dir(vert: np.ndarray, face: np.ndarray) -> np.ndarray:
-  """Returns unique edge directions.
-
-  Args:
-    vert: (n_vert, 3) vertices
-    face: (n_face, n_vert) face index array
-
-  Returns:
-    edges: tuples of vertex indexes for each edge
-  """
-  r_face = np.roll(face, 1, axis=1)
-  edges = np.concatenate(np.array([face, r_face]).T)
-
-  # do a first pass to remove duplicates
-  edges.sort(axis=1)
-  edges = np.unique(edges, axis=0)
-  edges = edges[edges[:, 0] != edges[:, 1]]  # get rid of edges from padded face
-
-  # get normalized edge directions
-  edge_vert = vert.take(edges, axis=0)
-  edge_dir = edge_vert[:, 0] - edge_vert[:, 1]
-  norms = np.sqrt(np.sum(edge_dir**2, axis=1))
-  edge_dir = edge_dir / norms.reshape((-1, 1))
-
-  # get the first unique edge for all pairwise comparisons
-  diff1 = edge_dir[:, None, :] - edge_dir[None, :, :]
-  diff2 = edge_dir[:, None, :] + edge_dir[None, :, :]
-  matches = (np.linalg.norm(diff1, axis=-1) < 1e-6) | (
-      np.linalg.norm(diff2, axis=-1) < 1e-6
-  )
-  matches = np.tril(matches).sum(axis=-1)
-  unique_edge_idx = np.where(matches == 1)[0]
-
-  return edges[unique_edge_idx]
-
-
 def _get_edge_normals(
     face: np.ndarray, face_norm: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -221,7 +185,6 @@ def box(info: GeomInfo) -> ConvexInfo:
   # pyformat: enable
   face_normal = _get_face_norm(vert, face)
   edge, edge_face_normal = _get_edge_normals(face, face_normal)
-  edge_dir = _get_unique_edge_dir(vert, face)
   face = vert[face]  # materialize full nface x nvert matrix
 
   c = ConvexInfo(
@@ -233,7 +196,6 @@ def box(info: GeomInfo) -> ConvexInfo:
       face_normal,
       edge,
       edge_face_normal,
-      edge_dir,
   )
   c = jax.tree_util.tree_map(jp.array, c)
   vert = jax.vmap(jp.multiply, in_axes=(None, 0))(c.vert, info.size)
@@ -356,7 +318,6 @@ def hfield_prism(vert: jax.Array) -> ConvexInfo:
       face_norm,
       edges,
       face_norm[edge_face_norm],
-      None,
   )
 
   return jax.tree_util.tree_map(jp.array, c)

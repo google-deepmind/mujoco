@@ -15,7 +15,7 @@
 """Collision base types."""
 
 import dataclasses
-from typing import Optional, Tuple
+from typing import Tuple
 import jax
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
@@ -46,7 +46,6 @@ class ConvexInfo(PyTreeNode):
   face_normal: jax.Array
   edge: jax.Array
   edge_face_normal: jax.Array
-  edge_dir: Optional[jax.Array] = None
 
 
 class HFieldInfo(PyTreeNode):

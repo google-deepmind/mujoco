@@ -35,6 +35,7 @@ General
 MJX
 ^^^
 - Added support for spatial tendons with internal sphere and cylinder wrapping.
+- Fix a bug with box-box collisions :github:issue:`2356`.
 
 Version 3.2.7 (Jan 14, 2025)
 ----------------------------

@@ -61,15 +61,6 @@ class MeshTest(absltest.TestCase):
         expected_face_verts,
     )
 
-    # check edges
-    edge_dir = mesh._get_unique_edge_dir(convex_vert, convex_face)
-    unique_edge = np.vectorize(map_.get)(edge_dir)
-    unique_edge = np.array(sorted(unique_edge.tolist()))
-    np.testing.assert_array_equal(
-        unique_edge,
-        np.array([[0, 2], [0, 3], [0, 4], [1, 4], [2, 4], [3, 4]]),
-    )
-
     # face normals
     face_normal = mesh._get_face_norm(convex_vert, convex_face)
     self.assertEqual(face_normal.shape, (5, 3))
@@ -141,20 +132,6 @@ class ConvexHull2DTest(absltest.TestCase):
     expected = np.cross(pts[idx][1] - pts[idx][0], pts[idx][2] - pts[idx][0])
     expected /= np.linalg.norm(expected)
     np.testing.assert_array_almost_equal(normal, expected)
-
-
-class UniqueEdgesTest(absltest.TestCase):
-
-  def test_tetrahedron_edges(self):
-    """Tests unique edges for a tetrahedron."""
-    vert = np.array(
-        [[-0.1, 0.0, -0.1], [0.0, 0.1, 0.1], [0.1, 0.0, -0.1], [0.0, -0.1, 0.1]]
-    )
-    face = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [2, 1, 3]])
-    idx = mesh._get_unique_edge_dir(vert, face)
-    np.testing.assert_array_equal(
-        idx, np.array([[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]])
-    )
 
 
 if __name__ == '__main__':
