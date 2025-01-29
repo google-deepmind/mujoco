@@ -507,10 +507,9 @@ Note the ``from_string()`` and ``from_file()`` methods can only be called at con
 Assets
 ^^^^^^
 
-All three methods allow one to specify a dictionary of assets that will be used
-to resolve asset references in the XML. The dictionary maps from asset
-name (string) to asset data (bytes), and can be assigned to the ``assets``
-attribute before calling ``compile()``, as demonstrated below.
+All three methods take in an optional argument called ``assets`` which is used
+to resolve asset references in the XML. This argument is a dictionary that maps
+asset name (string) to asset data (bytes), as demonstrated below:
 
 .. code-block:: python
 
