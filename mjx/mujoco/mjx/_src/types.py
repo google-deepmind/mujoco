@@ -822,6 +822,13 @@ class Model(PyTreeNode):
     tuple_objtype: array of object types in all tuples        (ntupledata,)
     tuple_objid: array of object ids in all tuples            (ntupledata,)
     tuple_objprm: array of object params in all tuples        (ntupledata,)
+    key_time: key time                                        (nkey,)
+    key_qpos: key position                                    (nkey, nq)
+    key_qvel: key velocity                                    (nkey, nv)
+    key_act: key activation                                   (nkey, na)
+    key_mpos: key mocap position                              (nkey, nmocap, 3)
+    key_mquat: key mocap quaternion                           (nkey, nmocap, 4)
+    key_ctrl: key control                                     (nkey, nu)
     name_bodyadr: body name pointers                          (nbody,)
     name_jntadr: joint name pointers                          (njnt,)
     name_geomadr: geom name pointers                          (ngeom,)
@@ -1157,6 +1164,13 @@ class Model(PyTreeNode):
   tuple_objtype: np.ndarray
   tuple_objid: np.ndarray
   tuple_objprm: np.ndarray
+  key_time: np.ndarray
+  key_qpos: np.ndarray
+  key_qvel: np.ndarray
+  key_act: np.ndarray
+  key_mpos: np.ndarray
+  key_mquat: np.ndarray
+  key_ctrl: np.ndarray
   name_bodyadr: np.ndarray
   name_jntadr: np.ndarray
   name_geomadr: np.ndarray
