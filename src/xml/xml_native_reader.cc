@@ -311,7 +311,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
               {"config", "*", "2", "key", "value"},
             {">"},
         {">"},
-        {"flexcomp", "*", "25", "name", "type", "group", "dim",
+        {"flexcomp", "*", "26", "name", "type", "group", "dim", "dof",
             "count", "spacing", "radius", "rigid", "mass", "inertiabox",
             "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler", "origin"},
@@ -331,8 +331,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"deformable", "*", "0"},
     {"<"},
-        {"flex", "*", "11", "name", "group", "dim", "radius", "material",
-            "rgba", "flatskin", "body", "vertex", "element", "texcoord"},
+        {"flex", "*", "12", "name", "group", "dim", "radius", "material",
+            "rgba", "flatskin", "body", "vertex", "element", "texcoord", "node"},
         {"<"},
             {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
@@ -800,6 +800,14 @@ const mjMap fcomp_map[mjNFCOMPTYPES] = {
   {"mesh",        mjFCOMPTYPE_MESH},
   {"gmsh",        mjFCOMPTYPE_GMSH},
   {"direct",      mjFCOMPTYPE_DIRECT}
+};
+
+
+// flexcomp dof type
+const mjMap fdof_map[mjNFCOMPDOFS] = {
+  {"full",        mjFCOMPDOF_FULL},
+  {"radial",      mjFCOMPDOF_RADIAL},
+  {"trilinear",   mjFCOMPDOF_TRILINEAR}
 };
 
 
@@ -1324,7 +1332,7 @@ void mjXReader::Statistic(XMLElement* section) {
 
 // flex element parser
 void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
-  string text, name, material;
+  string text, name, material, nodebody;
   int n;
 
   // read attributes
@@ -1346,6 +1354,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
     mjs_setStringVec(flex->vertbody, text.c_str());
+  }
+  if (ReadAttrTxt(elem, "node", nodebody)) {
+    mjs_setStringVec(flex->nodebody, nodebody.c_str());
   }
   auto vert = ReadAttrVec<double>(elem, "vertex");
   if (vert.has_value()) {
@@ -2676,6 +2687,11 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   auto texcoord = ReadAttrVec<float>(elem, "texcoord");
   if (texcoord.has_value()) {
     fcomp.texcoord = std::move(texcoord.value());
+  }
+
+  // dof type
+  if (MapValue(elem, "dof", &n, fdof_map, mjNFCOMPDOFS)) {
+    fcomp.doftype = (mjtDof)n;
   }
 
   // edge

@@ -899,6 +899,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of flexes',
              ),
              StructFieldDecl(
+                 name='nflexnode',
+                 type=ValueType(name='int'),
+                 doc='number of dofs in all flexes',
+             ),
+             StructFieldDecl(
                  name='nflexvert',
                  type=ValueType(name='int'),
                  doc='number of vertices in all flexes',
@@ -2441,6 +2446,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_interp',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='interpolation (0: vertex, 1: nodes)',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
+                 name='flex_nodeadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='first node address',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
+                 name='flex_nodenum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of nodes',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_vertadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -2545,6 +2574,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_nodebodyid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='node body ids',
+                 array_extent=('nflexnode',),
+             ),
+             StructFieldDecl(
                  name='flex_vertbodyid',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -2614,6 +2651,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='vertex positions in qpos0 on [0, 1]^d',
                  array_extent=('nflexvert', 3),
+             ),
+             StructFieldDecl(
+                 name='flex_node',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='node positions in local body frames',
+                 array_extent=('nflexnode', 3),
+             ),
+             StructFieldDecl(
+                 name='flex_node0',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='Cartesian node positions in qpos0',
+                 array_extent=('nflexnode', 3),
              ),
              StructFieldDecl(
                  name='flexedge_length0',
@@ -7448,6 +7501,34 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='flex_interp',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='flex_nodeadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='flex_nodenum',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='flex_nodebodyid',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='flex_vertadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
@@ -7535,6 +7616,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='flex_bvhnum',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='flex_centered',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtByte'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='flex_node',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtNum'),
                              ),
                              doc='',
                          ),
@@ -10210,11 +10305,25 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='thickness (2D only)',
              ),
              StructFieldDecl(
+                 name='nodebody',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjStringVec'),
+                 ),
+                 doc='node body names',
+             ),
+             StructFieldDecl(
                  name='vertbody',
                  type=PointerType(
                      inner_type=ValueType(name='mjStringVec'),
                  ),
                  doc='vertex body names',
+             ),
+             StructFieldDecl(
+                 name='node',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjDoubleVec'),
+                 ),
+                 doc='node positions',
              ),
              StructFieldDecl(
                  name='vert',

@@ -823,6 +823,7 @@ void mjCModel::Clear() {
   nv = 0;
   nu = 0;
   na = 0;
+  nflexnode = 0;
   nflexvert = 0;
   nflexedge = 0;
   nflexelem = 0;
@@ -1733,6 +1734,7 @@ void mjCModel::SetSizes() {
 
   // flex counts
   for (int i=0; i<nflex; i++) {
+    nflexnode += flexes_[i]->nnode;
     nflexvert += flexes_[i]->nvert;
     nflexedge += flexes_[i]->nedge;
     nflexelem += flexes_[i]->nelem;
@@ -2746,7 +2748,7 @@ int mjCModel::CountNJmom(const mjModel* m) {
 
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
-  int adr, bone_adr, vert_adr, normal_adr, face_adr, texcoord_adr;
+  int adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr;
   int edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
   int bonevert_adr, graph_adr, data_adr, bvh_adr;
 
@@ -2826,6 +2828,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
   // flexes
   vert_adr = 0;
+  node_adr = 0;
   edge_adr = 0;
   elem_adr = 0;
   elemdata_adr = 0;
@@ -2865,6 +2868,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_dim[i] = pfl->dim;
     m->flex_vertadr[i] = vert_adr;
     m->flex_vertnum[i] = pfl->nvert;
+    m->flex_nodeadr[i] = node_adr;
+    m->flex_nodenum[i] = pfl->nnode;
     m->flex_edgeadr[i] = edge_adr;
     m->flex_edgenum[i] = pfl->nedge;
     m->flex_elemadr[i] = elem_adr;
@@ -2924,15 +2929,26 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // copy or set vert
-    if (pfl->centered) {
+    if (pfl->centered && !pfl->interpolated) {
       mjuu_zerovec(m->flex_vert + 3*vert_adr, 3*pfl->nvert);
     }
     else {
       mjuu_copyvec(m->flex_vert + 3*vert_adr, pfl->vert_.data(), 3*pfl->nvert);
     }
 
+    // copy or set node
+    if (pfl->centered && pfl->interpolated) {
+      mjuu_zerovec(m->flex_node + 3*node_adr, 3*pfl->nnode);
+    }
+    else if (pfl->interpolated) {
+      mjuu_copyvec(m->flex_node + 3*node_adr, pfl->node_.data(), 3*pfl->nnode);
+    }
+
     // copy vert0
     mjuu_copyvec(m->flex_vert0 + 3*vert_adr, pfl->vert0_.data(), 3*pfl->nvert);
+
+    // copy node0
+    mjuu_copyvec(m->flex_node0 + 3*node_adr, pfl->node0_.data(), 3*pfl->nnode);
 
     // copy or set vertbodyid
     if (pfl->rigid) {
@@ -2944,6 +2960,18 @@ void mjCModel::CopyObjects(mjModel* m) {
       memcpy(m->flex_vertbodyid + vert_adr, pfl->vertbodyid.data(), pfl->nvert*sizeof(int));
     }
 
+    // copy or set nodebodyid
+    if (pfl->rigid) {
+      for (int k=0; k<pfl->nnode; k++) {
+        m->flex_nodebodyid[node_adr + k] = pfl->nodebodyid[0];
+      }
+    } else {
+      memcpy(m->flex_nodebodyid + node_adr, pfl->nodebodyid.data(), pfl->nnode*sizeof(int));
+    }
+
+    // set interpolation type, only two types for now
+    m->flex_interp[i] = pfl->interpolated;
+
     // convert edge pairs to int array, set edge rigid
     for (int k=0; k<pfl->nedge; k++) {
       m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
@@ -2951,8 +2979,9 @@ void mjCModel::CopyObjects(mjModel* m) {
 
       if (pfl->rigid) {
         m->flexedge_rigid[edge_adr+k] = 1;
-      } else {
+      } else if (!pfl->interpolated) {
         // check if vertex body weldids are the same
+        // unsupported by trilinear interpolation
         int b1 = pfl->vertbodyid[pfl->edge[k].first];
         int b2 = pfl->vertbodyid[pfl->edge[k].second];
         m->flexedge_rigid[edge_adr+k] = (bodies_[b1]->weldid == bodies_[b2]->weldid);
@@ -2961,6 +2990,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // advance counters
     vert_adr += pfl->nvert;
+    node_adr += pfl->nnode;
     edge_adr += pfl->nedge;
     elem_adr += pfl->nelem;
     elemdata_adr += (pfl->dim+1) * pfl->nelem;
@@ -4317,7 +4347,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // create low-level model
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
-               ncam, nlight, nflex, nflexvert, nflexedge, nflexelem,
+               ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
                nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,

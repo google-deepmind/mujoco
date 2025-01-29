@@ -516,6 +516,10 @@ struct mjvSceneState_ {
     int* flex_dim;
     int* flex_matid;
     int* flex_group;
+    int* flex_interp;
+    int* flex_nodeadr;
+    int* flex_nodenum;
+    int* flex_nodebodyid;
     int* flex_vertadr;
     int* flex_vertnum;
     int* flex_elem;
@@ -529,6 +533,8 @@ struct mjvSceneState_ {
     int* flex_texcoordadr;
     int* flex_bvhadr;
     int* flex_bvhnum;
+    mjtByte* flex_centered;
+    mjtNum* flex_node;
     mjtNum* flex_radius;
     float* flex_rgba;
 

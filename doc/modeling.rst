@@ -1335,9 +1335,7 @@ improved realism and accuracy. The edge-based model could be seen as a "lumped" 
 coupling of deformation modes (e.g. shear and volumetric) is averaged in a single quantity. The continuum model enables
 instead to specify shear and volumetic stiffnesses separately using the `Poisson's ratio
 <https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
-<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model. This
-functionality is currently based on first-party :ref:`engine plugins<exPlugin>` as of MuJoCo 3.0 but may be integrated
-into the engine in future releases.
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model.
 
 **Creation and visualization**.
 
@@ -1345,20 +1343,12 @@ into the engine in future releases.
 
    <option timestep=".001"/>
 
-   <extension>
-      <plugin plugin="mujoco.elasticity.solid"/>
-   </extension>
-
    <worldbody>
       <flexcomp type="grid" count="24 4 4" spacing=".1 .1 .1" pos=".1 0 1.5"
                 radius=".0" rgba="0 .7 .7 1" name="softbody" dim="3" mass="7">
          <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
          <edge damping="1"/>
-         <plugin plugin="mujoco.elasticity.solid">
-            <config key="poisson" value="0.2"/>
-            <!--Units are in Pa (SI)-->
-            <config key="young" value="5e4"/>
-         </plugin>
+         <elasticity poisson="0.2" young="5e4">
       </flexcomp>
    </worldbody>
 

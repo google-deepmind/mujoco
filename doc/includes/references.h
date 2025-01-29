@@ -901,6 +901,7 @@ struct mjModel_ {
   int ncam;                       // number of cameras
   int nlight;                     // number of lights
   int nflex;                      // number of flexes
+  int nflexnode;                   // number of dofs in all flexes
   int nflexvert;                  // number of vertices in all flexes
   int nflexedge;                  // number of edges in all flexes
   int nflexelem;                  // number of elements in all flexes
@@ -1153,6 +1154,9 @@ struct mjModel_ {
   int*      flex_dim;             // 1: lines, 2: triangles, 3: tetrahedra    (nflex x 1)
   int*      flex_matid;           // material id for rendering                (nflex x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
+  int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
+  int*      flex_nodeadr;         // first node address                       (nflex x 1)
+  int*      flex_nodenum;         // number of nodes                          (nflex x 1)
   int*      flex_vertadr;         // first vertex address                     (nflex x 1)
   int*      flex_vertnum;         // number of vertices                       (nflex x 1)
   int*      flex_edgeadr;         // first edge address                       (nflex x 1)
@@ -1166,6 +1170,7 @@ struct mjModel_ {
   int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
   int*      flex_evpairnum;       // number of evpairs                        (nflex x 1)
   int*      flex_texcoordadr;     // address in flex_texcoord; -1: none       (nflex x 1)
+  int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
   int*      flex_edge;            // edge vertex ids (2 per edge)             (nflexedge x 2)
   int*      flex_elem;            // element vertex ids (dim+1 per elem)      (nflexelemdata x 1)
@@ -1175,6 +1180,8 @@ struct mjModel_ {
   int*      flex_evpair;          // (element, vertex) collision pairs        (nflexevpair x 2)
   mjtNum*   flex_vert;            // vertex positions in local body frames    (nflexvert x 3)
   mjtNum*   flex_vert0;           // vertex positions in qpos0 on [0, 1]^d    (nflexvert x 3)
+  mjtNum*   flex_node;            // node positions in local body frames      (nflexnode x 3)
+  mjtNum*   flex_node0;           // Cartesian node positions in qpos0        (nflexnode x 3)
   mjtNum*   flexedge_length0;     // edge lengths in qpos0                    (nflexedge x 1)
   mjtNum*   flexedge_invweight0;  // edge inv. weight in qpos0                (nflexedge x 1)
   mjtNum*   flex_radius;          // radius around primitive element          (nflex x 1)
@@ -1983,7 +1990,9 @@ typedef struct mjsFlex_ {          // flex specification
   double thickness;                // thickness (2D only)
 
   // mesh properties
+  mjStringVec* nodebody;           // node body names
   mjStringVec* vertbody;           // vertex body names
+  mjDoubleVec* node;               // node positions
   mjDoubleVec* vert;               // vertex positions
   mjIntVec* elem;                  // element vertex ids
   mjFloatVec* texcoord;            // vertex texture coordinates
@@ -2968,6 +2977,10 @@ struct mjvSceneState_ {
     int* flex_dim;
     int* flex_matid;
     int* flex_group;
+    int* flex_interp;
+    int* flex_nodeadr;
+    int* flex_nodenum;
+    int* flex_nodebodyid;
     int* flex_vertadr;
     int* flex_vertnum;
     int* flex_elem;
@@ -2981,6 +2994,8 @@ struct mjvSceneState_ {
     int* flex_texcoordadr;
     int* flex_bvhadr;
     int* flex_bvhnum;
+    mjtByte* flex_centered;
+    mjtNum* flex_node;
     mjtNum* flex_radius;
     float* flex_rgba;
 

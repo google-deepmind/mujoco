@@ -81,6 +81,7 @@
     XMJV( ncam )               \
     XMJV( nlight )             \
     XMJV( nflex )              \
+    X   ( nflexnode )          \
     XMJV( nflexvert )          \
     X   ( nflexedge )          \
     X   ( nflexelem )          \
@@ -326,6 +327,9 @@
     XMJV( int,     flex_dim,              nflex,         1                    ) \
     XMJV( int,     flex_matid,            nflex,         1                    ) \
     XMJV( int,     flex_group,            nflex,         1                    ) \
+    XMJV( int,     flex_interp,           nflex,         1                    ) \
+    XMJV( int,     flex_nodeadr,          nflex,         1                    ) \
+    XMJV( int,     flex_nodenum,          nflex,         1                    ) \
     XMJV( int,     flex_vertadr,          nflex,         1                    ) \
     XMJV( int,     flex_vertnum,          nflex,         1                    ) \
     X   ( int,     flex_edgeadr,          nflex,         1                    ) \
@@ -339,6 +343,7 @@
     X   ( int,     flex_evpairadr,        nflex,         1                    ) \
     X   ( int,     flex_evpairnum,        nflex,         1                    ) \
     XMJV( int,     flex_texcoordadr,      nflex,         1                    ) \
+    XMJV( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     XMJV( int,     flex_elem,             nflexelemdata, 1                    ) \
@@ -348,6 +353,8 @@
     X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
+    XMJV( mjtNum,  flex_node,             nflexnode,     3                    ) \
+    X   ( mjtNum,  flex_node0,            nflexnode,     3                    ) \
     X   ( mjtNum,  flexedge_length0,      nflexedge,     1                    ) \
     X   ( mjtNum,  flexedge_invweight0,   nflexedge,     1                    ) \
     XMJV( mjtNum,  flex_radius,           nflex,         1                    ) \
@@ -358,7 +365,7 @@
     X   ( mjtByte, flex_edgeequality,     nflex,         1                    ) \
     X   ( mjtByte, flex_rigid,            nflex,         1                    ) \
     X   ( mjtByte, flexedge_rigid,        nflexedge,     1                    ) \
-    X   ( mjtByte, flex_centered,         nflex,         1                    ) \
+    XMJV( mjtByte, flex_centered,         nflex,         1                    ) \
     XMJV( mjtByte, flex_flatskin,         nflex,         1                    ) \
     XMJV( int,     flex_bvhadr,           nflex,         1                    ) \
     XMJV( int,     flex_bvhnum,           nflex,         1                    ) \

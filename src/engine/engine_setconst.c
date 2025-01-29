@@ -213,6 +213,10 @@ static void set0(mjModel* m, mjData* d) {
   if (nv) {
     // compute flexedge_invweight0
     for (int f=0; f < m->nflex; f++) {
+      if (m->flex_interp[f]) {
+        continue;
+      }
+
       for (int i=m->flex_edgeadr[f]; i < m->flex_edgeadr[f]+m->flex_edgenum[f]; i++) {
         // bodies connected by edge
         int b1 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i]];
@@ -498,12 +502,21 @@ static void setStat(mjModel* m, mjData* d) {
 
   // adjust body size for flex edges involving body
   for (int f=0; f < m->nflex; f++) {
+    mjtNum meanedge = 0;
     for (int e=m->flex_edgeadr[f]; e < m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
+      meanedge += m->flexedge_length0[e] / m->flex_edgenum[f];
+      if (m->flex_interp[f]) {
+        continue;
+      }
+
       int b1 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e]];
       int b2 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e+1]];
 
       body[b1] = mju_max(body[b1], m->flexedge_length0[e]);
       body[b2] = mju_max(body[b2], m->flexedge_length0[e]);
+    }
+    for (int v=m->flex_nodeadr[f]; v < m->flex_nodeadr[f]+m->flex_node[f]; v++) {
+      body[m->flex_nodebodyid[v]] = mju_max(body[m->flex_nodebodyid[v]], meanedge);
     }
   }
 

@@ -713,6 +713,47 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           FINISH
         }
       }
+
+      if (!m->flex_interp[f]) {
+        continue;
+      }
+
+      // control points box
+      mjtNum xpos[mjMAXFLEXNODES];
+      int nstart = m->flex_nodeadr[f];
+      int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      if (m->flex_centered[f]) {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+        }
+      } else {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+          mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+        }
+      }
+      for (int i=0; i < 2; i++) {
+        for (int j=0; j < 2; j++) {
+          for (int k=0; k < 2; k++) {
+            if (scn->ngeom >= scn->maxgeom) break;
+            if (i == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
+              FINISH
+            }
+            if (j == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
+              FINISH
+            }
+            if (k == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
+              FINISH
+            }
+          }
+        }
+      }
     }
   }
 

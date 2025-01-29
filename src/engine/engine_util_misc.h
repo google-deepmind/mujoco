@@ -53,6 +53,11 @@ MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
 
+// ----------------------------- Flex interpolation ------------------------------------------------
+
+// evaluate the deformation gradient at p using the nodal dof values
+MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order);
+
 // ----------------------------- Base64 -----------------------------------------------------------
 
 // encode data as Base64 into buf (including padding and null char)

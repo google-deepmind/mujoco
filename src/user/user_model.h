@@ -86,6 +86,7 @@ class mjCModel_ : public mjsElement {
   int nbvh;            // number of total boundary volume hierarchies
   int nbvhstatic;      // number of static boundary volume hierarchies
   int nbvhdynamic;     // number of dynamic boundary volume hierarchies
+  int nflexnode;       // number of nodes in all flexes
   int nflexvert;       // number of vertices in all flexes
   int nflexedge;       // number of edges in all flexes
   int nflexelem;       // number of elements in all flexes

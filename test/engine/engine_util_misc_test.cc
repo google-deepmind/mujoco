@@ -32,6 +32,7 @@ namespace {
 using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::Ne;
+using ::testing::Pointwise;
 using ::testing::StrEq;
 using ::testing::ElementsAreArray;
 
@@ -208,6 +209,94 @@ TEST_F(UtilMiscTest, MuscleGainLength) {
   EXPECT_EQ(mju_muscleGainLength(1.25, lmin, lmax), 0.5);
   EXPECT_EQ(mju_muscleGainLength(1.5,  lmin, lmax), 0);
   EXPECT_EQ(mju_muscleGainLength(2.0,  lmin, lmax), 0);
+}
+
+// --------------------------------- Interpolation -----------------------------
+
+using InterpolationTest = MujocoTest;
+
+TEST_F(InterpolationTest, mju_defGradient) {
+  int order = 1;
+  mjtNum mat[9];
+  mjtNum p1[3] = {.5, .5, .5};
+  mjtNum p2[3] = {.25, .25, .25};
+  mjtNum dof0[24] = {0, 0, 0,  0, 0, 1,  0, 1, 0,  0, 1, 1,
+                     1, 0, 0,  1, 0, 1,  1, 1, 0,  1, 1, 1};
+
+  // identity
+  mjtNum dof1[24];
+  for (int i = 0; i < 24; ++i) dof1[i] = dof0[i];
+  mju_defGradient(mat, p1, dof1, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+
+  // translation
+  mjtNum dof2[24];
+  for (int i = 0; i < 24; ++i) dof2[i] = 2 + dof0[i];
+  mju_defGradient(mat, p1, dof2, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+  mju_defGradient(mat, p2, dof2, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+
+  // constant stretch
+  mjtNum dof3[24];
+  for (int i = 0; i < 24; ++i) dof3[i] = 2*dof0[i];
+  mju_defGradient(mat, p1, dof3, order);
+  EXPECT_THAT(mat, ElementsAreArray({2, 0, 0, 0, 2, 0, 0, 0, 2}));
+  mju_defGradient(mat, p2, dof3, order);
+  EXPECT_THAT(mat, ElementsAreArray({2, 0, 0, 0, 2, 0, 0, 0, 2}));
+
+  // axial stretch
+  mjtNum dof4[24];
+  for (int i = 0; i < 24; ++i) dof4[i] = (i%3 == 1 ? 2 : 1)*dof0[i];
+  mju_defGradient(mat, p1, dof4, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 2, 0, 0, 0, 1}));
+  mju_defGradient(mat, p2, dof4, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 2, 0, 0, 0, 1}));
+
+  // z-axis 90 degree rotation
+  mjtNum dof5[24];
+  for (int i = 0; i < 8; ++i) {
+    mjtNum quat[4] = {0, 0, 0, 1};
+    mjtNum axis[3] = {0, 0, 1};
+    mju_axisAngle2Quat(quat, axis, mjPI/2);
+    mju_rotVecQuat(dof5 + 3*i, dof0 + 3*i, quat);
+  }
+  mju_defGradient(mat, p1, dof5, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
+  mju_defGradient(mat, p2, dof5, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
+
+  // z-axis 30 degree rotation
+  mjtNum dof6[24];
+  mjtNum rot6[9];
+  for (int i = 0; i < 8; ++i) {
+    mjtNum quat[4];
+    mjtNum axis[3] = {0, 0, 1};
+    mju_axisAngle2Quat(quat, axis, mjPI/6);
+    mju_rotVecQuat(dof6 + 3*i, dof0 + 3*i, quat);
+    mju_quat2Mat(rot6, quat);
+  }
+  mju_defGradient(mat, p1, dof6, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot6));
+  mju_defGradient(mat, p2, dof6, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot6));
+
+  // z-axis CoM rotation
+  mjtNum dof7[24];
+  mjtNum rot7[9];
+  for (int i = 0; i < 8; ++i) {
+    mjtNum quat[4];
+    mjtNum axis[3] = {0, 0, 1};
+    mjtNum offset[3] = {-.5, -.5, 0};
+    mju_axisAngle2Quat(quat, axis, mjPI/6);
+    mju_add3(dof7 + 3*i, dof0 + 3*i, offset);
+    mju_rotVecQuat(dof7 + 3*i, dof0 + 3*i, quat);
+    mju_quat2Mat(rot7, quat);
+  }
+  mju_defGradient(mat, p1, dof7, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot7));
+  mju_defGradient(mat, p2, dof7, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot7));
 }
 
 // --------------------------------- Base64 ------------------------------------

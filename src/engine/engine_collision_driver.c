@@ -1859,7 +1859,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
   const int* bdata = m->flex_vertbodyid + m->flex_vertadr[f];
   for (int i=0; i <= dim; i++) {
-    if (b == bdata[edata[i]]) {
+    if (b >= 0 && b == bdata[edata[i]]) {
       return;
     }
   }
@@ -1983,7 +1983,7 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
   for (int i1=0; i1 <= dim1; i1++) {
     int b1 = bdata1[edata1[i1]];
     for (int i2=0; i2 <= dim2; i2++) {
-      if (b1 == bdata2[edata2[i2]]) {
+      if (b1 >= 0 && b1 == bdata2[edata2[i2]]) {
         return;
       }
     }

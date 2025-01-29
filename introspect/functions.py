@@ -7429,7 +7429,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion returns the number of iterations required to converge',  # pylint: disable=line-too-long
+         doc='Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion. Returns the number of iterations required to converge',  # pylint: disable=line-too-long
      )),
     ('mju_euler2Quat',
      FunctionDecl(

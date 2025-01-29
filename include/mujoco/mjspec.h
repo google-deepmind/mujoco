@@ -439,7 +439,9 @@ typedef struct mjsFlex_ {          // flex specification
   double thickness;                // thickness (2D only)
 
   // mesh properties
+  mjStringVec* nodebody;           // node body names
   mjStringVec* vertbody;           // vertex body names
+  mjDoubleVec* node;               // node positions
   mjDoubleVec* vert;               // vertex positions
   mjIntVec* elem;                  // element vertex ids
   mjFloatVec* texcoord;            // vertex texture coordinates

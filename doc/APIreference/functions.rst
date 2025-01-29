@@ -3572,8 +3572,8 @@ Construct quaternion performing rotation from z-axis to given vector.
 
 .. mujoco-include:: mju_mat2Rot
 
-extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion
-returns the number of iterations required to converge
+Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion.
+Returns the number of iterations required to converge
 
 .. _mju_euler2Quat:
 

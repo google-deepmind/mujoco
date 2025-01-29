@@ -452,6 +452,51 @@ void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
 
 
 
+// ----------------------------- Flex interpolation ------------------------------------------------
+
+mjtNum static inline phi(mjtNum s, int i) {
+  if (i == 0) {
+    return 1-s;
+  } else {
+    return s;
+  }
+}
+
+mjtNum static inline dphi(mjtNum s, int i) {
+  if (i == 0) {
+    return -1;
+  } else {
+    return 1;
+  }
+}
+
+// evaluate the deformation gradient at p using the nodal dof values
+void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order) {
+  mjtNum gradient[3];
+  mju_zero(res, 9);
+  for (int i = 0; i <= order; i++) {
+    for (int j = 0; j <= order; j++) {
+      for (int k = 0; k <= order; k++) {
+        int idx = 4*i + 2*j + k;
+        gradient[0] = dphi(p[0], i) *  phi(p[1], j) *  phi(p[2], k);
+        gradient[1] =  phi(p[0], i) * dphi(p[1], j) *  phi(p[2], k);
+        gradient[2] =  phi(p[0], i) *  phi(p[1], j) * dphi(p[2], k);
+        res[0] += dof[3*idx+0] * gradient[0];
+        res[1] += dof[3*idx+0] * gradient[1];
+        res[2] += dof[3*idx+0] * gradient[2];
+        res[3] += dof[3*idx+1] * gradient[0];
+        res[4] += dof[3*idx+1] * gradient[1];
+        res[5] += dof[3*idx+1] * gradient[2];
+        res[6] += dof[3*idx+2] * gradient[0];
+        res[7] += dof[3*idx+2] * gradient[1];
+        res[8] += dof[3*idx+2] * gradient[2];
+      }
+    }
+  }
+}
+
+
+
 //------------------------------ actuator models ---------------------------------------------------
 
 // normalized muscle length-gain curve

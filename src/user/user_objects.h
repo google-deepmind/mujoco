@@ -746,12 +746,15 @@ class mjCLight : public mjCLight_, private mjsLight {
 class mjCFlex_ : public mjCBase {
  protected:
   int nvert;                              // number of verices
+  int nnode;                              // number of nodes
   int nedge;                              // number of edges
   int nelem;                              // number of elements
   int matid;                              // material id
   bool rigid;                             // all vertices attached to the same body
   bool centered;                          // all vertices coordinates (0,0,0)
+  bool interpolated;                      // vertices are interpolated from nodes
   std::vector<int> vertbodyid;            // vertex body ids
+  std::vector<int> nodebodyid;            // node body ids
   std::vector<std::pair<int, int>> edge;  // edge vertex ids
   std::vector<int> shell;                 // shell fragment vertex ids (dim per fragment)
   std::vector<int> elemlayer;             // element layer (distance from border)
@@ -764,14 +767,18 @@ class mjCFlex_ : public mjCBase {
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
+  std::vector<std::string> nodebody_;     // node body names
   std::vector<double> vert_;              // vertex positions
+  std::vector<double> node_;              // node positions
   std::vector<int> elem_;                 // element vertex ids
   std::vector<float> texcoord_;           // vertex texture coordinates
   std::string material_;                  // name of material used for rendering
 
   std::string spec_material_;
   std::vector<std::string> spec_vertbody_;
+  std::vector<std::string> spec_nodebody_;
   std::vector<double> spec_vert_;
+  std::vector<double> spec_node_;
   std::vector<int> spec_elem_;
   std::vector<float> spec_texcoord_;
 };
@@ -804,6 +811,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   const std::vector<double>& get_elemaabb() const { return elemaabb_; }
   const std::vector<int>& get_elem() const { return elem_; }
   const std::vector<float>& get_texcoord() const { return texcoord_; }
+  const std::vector<std::string>& get_nodebody() const { return nodebody_; }
 
   bool HasTexcoord() const;               // texcoord not null
   void DelTexcoord();                     // delete texcoord
@@ -816,6 +824,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   void CreateShellPair(void);             // create shells and evpairs
 
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
+  std::vector<double> node0_;             // node Cartesian positions
 };
 
 

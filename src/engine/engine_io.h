@@ -53,7 +53,7 @@ void mj_defaultStatistic(mjStatistic* stat);
 // allocate mjModel
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic,
-    int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert,
+    int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexnode, int nflexvert,
     int nflexedge, int nflexelem, int nflexelemdata, int nflexelemedge, int nflexshelldata,
     int nflexevpair, int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal,
     int nmeshtexcoord, int nmeshface, int nmeshgraph, int nskin, int nskinvert, int nskintexvert,

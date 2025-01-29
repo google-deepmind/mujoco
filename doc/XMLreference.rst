@@ -3487,6 +3487,45 @@ saving the XML:
    radius in 2D, and tetrahedra with radius in 3D. Certain flexcomp types imply a dimensionality, in which case the
    value specified here is ignored.
 
+.. youtube:: uNt3i8hrJu4
+   :align: right
+   :width: 240px
+
+.. _body-flexcomp-dof:
+
+:at:`dof`: :at-val:`[full, radial, trilinear], "full"`
+   The parametrization of the flex's degrees of freedom (dofs). See the video on the right illustrating the
+   different parametrizations with deformable spheres. The three models in the video are respectively
+   `sphere_full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/sphere_full.xml>`__,
+   `sphere_radial <https://github.com/google-deepmind/mujoco/blob/main/model/flex/sphere_radial.xml>`__
+   and `sphere_trilinear <https://github.com/google-deepmind/mujoco/blob/main/model/flex/sphere_trilinear.xml>`__.
+
+   **full**
+     Three translational dofs per vertex. This is the most expressive but also the most expensive option.
+
+   **radial**
+     A single radial translational dof per vertex. Note that unlike in the "full" case, the radial parametrization
+     requires a free joint at the flex's parent in order for free body motion to be possible. This type of
+     parametrization is appropriate for shapes that are relatively spherical.
+
+   **trilinear**
+     Three translational dofs at each corner of the bounding box of the flex, for a total of 24 dofs for the entire
+     flex, independent of the number of vertices. The positions of the vertices are updated using trilinear
+     interpolation over the bounding box.
+
+   .. youtube:: qJFbx-FR7Bc
+      :align: right
+      :width: 240px
+
+   Trilinear flexes are much faster than the previous two options, and are the preferred choice if the expected
+   deformations can be captured by the reduced parametriation. For example, see the video on the right comparing `full
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
+   deformable gripper pads.
+
+   Note that the choice of dof parametrization affects the deformation modes of the flex but has no effect on the
+   accuracy of the collision geometry, which always takes into account the high-resolution mesh of the flex.
+
 .. _body-flexcomp-type:
 
 :at:`type`: :at-val:`[grid, box, cylinder, ellipsoid, disc, circle, mesh, gmsh, direct], "grid"`
@@ -4081,6 +4120,12 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
    Integer group to which the flex belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of flexes.
 
+.. _deformable-flex-node:
+
+:at:`node`: :at-val:`string(nnode), optional`
+   The degrees-of-freedom of the flex.
+   An array of MuJoCo body names (separated by white space) to which each node belongs. The number of body names
+   should equal the number of nodes (nnode). See the flexcomp :ref:`dof<body-flexcomp-dof>` attribute for more details.
 
 .. _flex-edge:
 

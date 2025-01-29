@@ -41,6 +41,7 @@ public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXTREEDEPTH = 50;
+public const int mjMAXFLEXNODES = 27;
 public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
@@ -5191,6 +5192,7 @@ public unsafe struct mjModel_ {
   public int ncam;
   public int nlight;
   public int nflex;
+  public int nflexnode;
   public int nflexvert;
   public int nflexedge;
   public int nflexelem;
@@ -5411,6 +5413,9 @@ public unsafe struct mjModel_ {
   public int* flex_dim;
   public int* flex_matid;
   public int* flex_group;
+  public int* flex_interp;
+  public int* flex_nodeadr;
+  public int* flex_nodenum;
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_edgeadr;
@@ -5424,6 +5429,7 @@ public unsafe struct mjModel_ {
   public int* flex_evpairadr;
   public int* flex_evpairnum;
   public int* flex_texcoordadr;
+  public int* flex_nodebodyid;
   public int* flex_vertbodyid;
   public int* flex_edge;
   public int* flex_elem;
@@ -5433,6 +5439,8 @@ public unsafe struct mjModel_ {
   public int* flex_evpair;
   public double* flex_vert;
   public double* flex_vert0;
+  public double* flex_node;
+  public double* flex_node0;
   public double* flexedge_length0;
   public double* flexedge_invweight0;
   public double* flex_radius;
@@ -6296,6 +6304,10 @@ public unsafe struct model {
   public int* flex_dim;
   public int* flex_matid;
   public int* flex_group;
+  public int* flex_interp;
+  public int* flex_nodeadr;
+  public int* flex_nodenum;
+  public int* flex_nodebodyid;
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_elem;
@@ -6309,6 +6321,8 @@ public unsafe struct model {
   public int* flex_texcoordadr;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
+  public byte* flex_centered;
+  public double* flex_node;
   public double* flex_radius;
   public float* flex_rgba;
   public int* hfield_pathadr;

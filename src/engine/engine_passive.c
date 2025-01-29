@@ -122,6 +122,88 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       continue;
     }
 
+    if (m->flex_interp[f]) {
+      mjtNum xpos[mjMAXFLEXNODES], displ[mjMAXFLEXNODES], vel[mjMAXFLEXNODES];
+      mjtNum frc[mjMAXFLEXNODES], dmp[mjMAXFLEXNODES];
+      mjtNum com[3] = {0};
+      mjtNum* xpos0 = m->flex_node0 + 3*m->flex_nodeadr[f];
+      int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      int nstart = m->flex_nodeadr[f];
+
+      // compute positions
+      if (m->flex_centered[f]) {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+          mju_copy3(vel + 3*i, d->qvel + m->body_dofadr[bodyid[i]]);
+        }
+      } else {
+        mjtNum screw[6];
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+          mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+          mj_objectVelocity(m, d, mjOBJ_BODY, bodyid[i], screw, 0);
+          mju_copy3(vel + 3*i, screw + 3);
+        }
+      }
+
+      // compute center of mass
+      for (int i = 0; i < m->flex_nodenum[f]; i++) {
+        mju_addToScl3(com, xpos+3*i, 1.0/m->flex_nodenum[f]);
+      }
+
+      // re-center positions using center of mass
+      for (int i = 0; i < m->flex_nodenum[f]; i++) {
+        mju_addToScl3(xpos+3*i, com, -1);
+      }
+
+      // compute the Jacobian at the center of mass
+      mjtNum mat[9] = {0};
+      mjtNum p[3] = {.5, .5, .5};
+      mju_defGradient(mat, p, xpos, 1);
+
+      // find rotation
+      mjtNum quat[4] = {1, 0, 0, 0};
+      mju_mat2Rot(quat, mat);
+      mju_negQuat(quat, quat);
+
+      // rotate vertices to quat and add reference center of mass
+      for (int i = 0; i < m->flex_nodenum[f]; i++) {
+        mju_rotVecQuat(xpos+3*i, xpos+3*i, quat);
+        mju_addTo3(xpos+3*i, p);
+        mju_rotVecQuat(vel+3*i, vel+3*i, quat);
+      }
+
+      // compute displacement
+      for (int i = 0; i < m->flex_nodenum[f]; i++) {
+        mju_addScl3(displ+3*i, xpos+3*i, xpos0+3*i, -1);
+      }
+
+      // compute force in the stretch frame
+      mju_mulMatVec(frc, k, displ, 3*m->flex_nodenum[f], 3*m->flex_nodenum[f]);
+
+      // compute damping force in stretch frame
+      mju_mulMatVec(dmp, k, vel, 3*m->flex_nodenum[f], 3*m->flex_nodenum[f]);
+
+      // rotate forces to global frame and add to qfrc
+      mju_negQuat(quat, quat);
+      for (int i = 0; i < m->flex_nodenum[f]; i++) {
+        mjtNum qfrc[3], qdmp[3];
+        mju_rotVecQuat(qfrc, frc+3*i, quat);
+        mju_rotVecQuat(qdmp, dmp+3*i, quat);
+        mju_scl3(qdmp, qdmp, m->flex_damping[f]);
+        if (m->flex_centered[f]) {
+          mju_addTo3(d->qfrc_spring+m->body_dofadr[bodyid[i]], qfrc);
+          mju_addTo3(d->qfrc_damper+m->body_dofadr[bodyid[i]], qdmp);
+        } else {
+          mj_applyFT(m, d, qfrc, 0, xpos+3*i, bodyid[i], d->qfrc_spring);
+          mj_applyFT(m, d, qdmp, 0, xpos+3*i, bodyid[i], d->qfrc_damper);
+        }
+      }
+
+      // do not continue with the rest of the flex passive forces
+      continue;
+    }
+
     int nedge = (dim == 2) ? 3 : 6;
     int nvert = (dim == 2) ? 3 : 4;
     const int* elem = m->flex_elem + m->flex_elemdataadr[f];

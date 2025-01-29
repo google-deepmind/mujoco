@@ -5,8 +5,27 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+
+Feature promotion
+^^^^^^^^^^^^^^^^^
+.. youtube:: qJFbx-FR7Bc
+   :align: right
+   :width: 240px
+
+- Introduced a new kind of **fast deformable body**, activated by setting :ref:`flexcomp/dof<body-flexcomp-dof>` to
+  "trilinear". This type of :ref:`deformable<CDeformable>` flex object has the same collision geometry as a regular
+  flex, but has far fewer degrees of freedom. Instead of 3 dofs per vertex, only the corners of the bounding box are
+  free to move, with the positions of the interior vertices computed with trilinear interpolation of the 8 corners, for
+  a total of 24 dofs for the entire flex object (or less, if some of the corners are pinned). This limits the types of
+  deformation achievable by the flex, but allows for much faster simulation. For example, see the video on the right
+  comparing `full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
+  <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
+  deformable gripper pads.
+
 General
 ^^^^^^^
+- Separate collision and deformation meshes for :ref:`flex<deformable-flex>`. This enables a fixed cost for the soft
+  body computations, while preserving the fidelity of high-resolution collisions.
 - Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
   parent, so the original references to the child can be used to modify the parent after attachment. The default
   behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while

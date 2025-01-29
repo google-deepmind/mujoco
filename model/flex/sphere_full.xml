@@ -1,4 +1,4 @@
-<!-- Copyright 2021 DeepMind Technologies Limited
+<!-- Copyright 2024 DeepMind Technologies Limited
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,22 +13,24 @@
      limitations under the License.
 -->
 
-<mujoco model="Soft box">
+<mujoco model="Full-flex sphere">
   <include file="scene.xml"/>
 
-  <option solver="CG" tolerance="1e-6"/>
+  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
 
-  <size memory="30M"/>
+  <size memory="10M"/>
+
+  <visual>
+    <map stiffness="500"/>
+  </visual>
 
   <worldbody>
-    <body pos="0 0 1" name="body">
-      <freejoint/>
-      <geom size=".1" contype="0" conaffinity="0" group="4"/>
-      <flexcomp name="softbox" type="box" count="7 7 7" spacing=".04 .04 .04"
-                radius="0.01" dim="3" material="matsponge">
-        <contact internal="false" selfcollide="none"/>
-        <edge equality="true"/>
-      </flexcomp>
-    </body>
+    <geom type="box" pos="1.5 0 0.25" size=".5 2 .25"/>
+    <geom type="box" pos="0 0 0.25" size="2 2 .05" euler="0 15 0"/>
+    <flexcomp type="ellipsoid" count="8 8 8" spacing=".07 .07 .07" pos="-.5 0 1" dim="3"
+              radius=".001" rgba="0 .7 .7 1" mass="5" name="slow">
+      <edge equality="true"/>
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
   </worldbody>
 </mujoco>

@@ -28,11 +28,12 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::HasSubstr;
+using ::testing::Pointwise;
 using UserFlexTest = MujocoTest;
-
 
 
 
@@ -280,6 +281,158 @@ TEST_F(UserFlexTest, BoundingBoxCoordinates) {
 
   mj_deleteModel(m);
   mj_deleteData(d);
+}
+
+TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
+  std::array<char, 1024> error;
+  static constexpr char xml_selfcoll[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
+      <contact selfcollide="auto" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  mjModel* m1 = LoadModelFromString(xml_selfcoll, error.data(), error.size());
+  EXPECT_THAT(m1, IsNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              HasSubstr("trilinear interpolation cannot do self-collision"));
+  static constexpr char xml_internal[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="true"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  mjModel* m2 = LoadModelFromString(xml_internal, error.data(), error.size());
+  EXPECT_THAT(m2, IsNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              HasSubstr("trilinear interpolation cannot do internal"));
+}
+
+TEST_F(UserFlexTest, TrilinearInterpolation) {
+  static constexpr char xml_trilinear[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom type="plane" pos="0 0 -.5" size="10 10 .1"/>
+    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m1 = LoadModelFromString(xml_trilinear, error.data(), error.size());
+  ASSERT_THAT(m1, NotNull()) << error.data();
+  mjData* d1 = mj_makeData(m1);
+  mj_step(m1, d1);
+
+  static constexpr char xml_linear[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom type="plane" pos="0 0 -.5" size="10 10 .1"/>
+    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3">
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  mjModel* m2 = LoadModelFromString(xml_linear, error.data(), error.size());
+  ASSERT_THAT(m2, NotNull()) << error.data();
+  mjData* d2 = mj_makeData(m2);
+  mj_step(m2, d2);
+
+  EXPECT_EQ(m1->nflexvert, m2->nflexvert);
+  for (int i = 0; i < 3*m1->nflexvert; ++i) {
+    EXPECT_EQ(m1->flex_vert[i], d2->flexvert_xpos[i]);
+    EXPECT_EQ(m1->flex_vert0[i], m2->flex_vert0[i]);
+    EXPECT_EQ(d1->flexvert_xpos[i], d2->flexvert_xpos[i]);
+  }
+
+  EXPECT_EQ(m1->nM, m2->nM);
+  for (int i = 0; i < m1->nM; ++i) {
+    EXPECT_EQ(d1->qM[i], d2->qM[i]);
+  }
+
+  EXPECT_EQ(m1->nbody, m2->nbody);
+  for (int i = 0; i < m2->nbody; ++i) {
+    if (i == 0) {
+      continue;
+    }
+    EXPECT_EQ(m1->body_mass[i], m2->body_mass[i]);
+    for (int j = 0; j < 2; ++j) {
+      EXPECT_EQ(m1->body_invweight0[i*2+j], m2->body_invweight0[i*2+j]);
+    }
+    for (int j = 0; j < 10; ++j) {
+      EXPECT_NEAR(d1->cinert[10*i+j], d2->cinert[i*10+j], 1e-5) << i;
+      EXPECT_NEAR(d1->crb[10*i+j], d2->crb[i*10+j], 1e-5) << i;
+    }
+  }
+
+  EXPECT_EQ(d1->ncon, 4);
+  EXPECT_EQ(d2->ncon, 4);
+  for (int i = 0; i < d1->ncon; ++i) {
+    EXPECT_EQ(d1->contact[i].dist, d2->contact[i].dist);
+    EXPECT_EQ(d1->contact[i].mu, d2->contact[i].mu);
+    for (int j = 0; j < 5; ++j) {
+      EXPECT_EQ(d1->contact[i].friction[j], d2->contact[i].friction[j]);
+    }
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_EQ(d1->contact[i].pos[j], d2->contact[i].pos[j]);
+    }
+    for (int j = 0; j < 9; ++j) {
+      EXPECT_EQ(d1->contact[i].frame[j], d2->contact[i].frame[j]);
+    }
+    for (int j = 0; j < 36; ++j) {
+      EXPECT_EQ(d1->contact[i].H[j], d2->contact[i].H[j]);
+    }
+  }
+
+  EXPECT_EQ(d1->nefc, 4*(d1->contact[0].dim-1)*2);
+  EXPECT_EQ(d2->nefc, 4*(d2->contact[0].dim-1)*2);
+  EXPECT_EQ(d1->nJ, d2->nJ);
+  for (int i = 0; i < d1->nefc; ++i) {
+    EXPECT_EQ(d1->efc_diagApprox[i], d2->efc_diagApprox[i]);
+    EXPECT_EQ(d1->efc_D[i], d2->efc_D[i]);
+  }
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteData(d1);
+  mj_deleteData(d2);
+}
+
+TEST_F(UserFlexTest, StiffnessMatrix) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="false"/>
+      <elasticity young="1"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_NE(m->flex_stiffness[0], 0);
+  EXPECT_EQ(m->nflexnode, 8);
+
+  // constants are in the kernel
+  mjtNum ones[24], zeros[24], res[24];
+  for (int i = 0; i < 3*m->nflexnode; ++i) {
+    zeros[i] = 0;
+    ones[i] = 1;
+  }
+  mju_mulMatVec(res, m->flex_stiffness, ones, 3*m->nflexnode, 3*m->nflexnode);
+  EXPECT_THAT(res, Pointwise(DoubleNear(1e-8), zeros));
+
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHBinary_41_Success) {
