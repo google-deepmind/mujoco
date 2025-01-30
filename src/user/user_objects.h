@@ -863,7 +863,11 @@ class mjCMesh_ : public mjCBase {
   // mesh properties that indicate a well-formed mesh
   std::pair<int, int> invalidorientation_;    // indices of invalid edge; -1 if none
   bool validarea_;                            // false if the area is too small
-  int validvolume_;                           // 0: volume is too small, -1: volume is negative
+  enum ValidVolume {
+    MeshNegativeVolume = -1,
+    MeshZeroVolume = 0,
+    MeshVolumeOK = 1
+  } validvolume_;                             // indicates if volume is valid
   bool valideigenvalue_;                      // false if inertia eigenvalue is too small
   bool validinequality_;                      // false if inertia inequality is not satisfied
   bool processed_;                            // false if the mesh has not been processed yet
@@ -993,6 +997,10 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
   void CopyPlugin();
+  void Rotate(double quat[4]);                // rotate mesh by quaternion
+
+  // computes the inertia matrix of the mesh given the type of inertia
+  void ComputeInertia(mjtGeomInertia type, double inert[6]);
 
   // mesh data to be copied into mjModel
   double* center_;                    // face circumcenter data (3*nface)

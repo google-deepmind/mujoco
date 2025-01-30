@@ -3014,12 +3014,14 @@ void mjCGeom::Compile(void) {
       meshname_.clear();
       mesh = nullptr;
     } else {
+      // Retrieve the mesh position for the relevant inertia type.
       mjuu_copyvec(meshpos, mesh->GetPosPtr(typeinertia), 3);
     }
 
     // apply geom pos/quat as offset
     mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
     mjuu_copyvec(pmesh->GetOffsetPosPtr(), meshpos, 3);
+    // Retrieve the mesh quaternion for the relevant inertia type.
     mjuu_copyvec(pmesh->GetOffsetQuatPtr(), pmesh->GetQuatPtr(typeinertia), 4);
   }
 

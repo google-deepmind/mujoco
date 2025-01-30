@@ -139,7 +139,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   invalidorientation_.first = -1;
   invalidorientation_.second = -1;
   validarea_ = true;
-  validvolume_ = 1;
+  validvolume_ = MeshVolumeOK;
   valideigenvalue_ = true;
   validinequality_ = true;
   processed_ = false;
@@ -1401,10 +1401,7 @@ void mjCMesh::ComputeFaceCentroid(double facecen[3]) {
 
 
 void mjCMesh::Process() {
-  double facecen[3] = {0, 0, 0};
-  double nrm[3];
-  double cen[3];
-
+  double facecen[3] = {0, 0, 0};;
   // user offset, rotation, scaling
   ApplyTransformations();
 
@@ -1413,7 +1410,13 @@ void mjCMesh::Process() {
 
   double density = model->def_map[classname]->Geom().density;
 
+  bool centered = false;                      // true if the mesh is centered at the CoM
+  bool aligned_with_inertial_frame = false;   // true if mesh is aligned with inertial frame
+
   // compute inertial properties for both inertia types
+  // the mesh is transformed such that it is centered at the CoM and the axes
+  // are the principle axes of inertia. If the volume is valid, we use the volume
+  // inertia for this transformation, otherwise we use the shell inertia.
   for ( const auto type : { mjtGeomInertia::mjINERTIA_VOLUME, mjtGeomInertia::mjINERTIA_SHELL } ) {
     double CoM[3] = {0, 0, 0};
     double inert[6] = {0, 0, 0, 0, 0, 0};
@@ -1426,7 +1429,7 @@ void mjCMesh::Process() {
       if (type == mjINERTIA_SHELL) {
         validarea_ = 0;
       } else {
-        validvolume_ = GetVolumeRef(type) < 0 ? -1 : 0;
+        validvolume_ = GetVolumeRef(type) < 0 ? MeshNegativeVolume : MeshZeroVolume;
       }
       continue;
     }
@@ -1438,55 +1441,18 @@ void mjCMesh::Process() {
     mjuu_copyvec(GetPosPtr(type), CoM, 3);
 
     // re-center mesh at CoM
-    if (type==mjINERTIA_VOLUME || validvolume_<=0) {
+    // we only want to do this if the mesh is not already centered at the CoM
+    if (!centered) {
       for (int i=0; i < nvert(); i++) {
         for (int j=0; j<3; j++) {
           vert_[3*i+j] -= CoM[j];
         }
       }
+      centered = true;
     }
 
-    // accumulate products of inertia, recompute volume
-    const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
-    double P[6] = {0, 0, 0, 0, 0, 0};
-    GetVolumeRef(type) = 0;
-    int nf = (inertia == mjINERTIA_CONVEX) ? graph_[1] : nface();
-    int* f = (inertia == mjINERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
-    for (int i=0; i < nf; i++) {
-      float* D = vert_.data()+3*f[3*i];
-      float* E = vert_.data()+3*f[3*i+1];
-      float* F = vert_.data()+3*f[3*i+2];
-
-      // get area, normal and center; update volume
-      double a = _triangle(nrm, cen, D, E, F);
-      double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
-
-      // if legacy computation requested, then always positive
-      if (inertia == mjINERTIA_LEGACY) {
-        vol = abs(vol);
-      }
-
-      // apply formula, accumulate
-      GetVolumeRef(type) += vol;
-      for (int j=0; j<6; j++) {
-        P[j] += density*vol /
-                  (type==mjINERTIA_SHELL ? 12 : 20) * (
-                  2*(D[k[j][0]] * D[k[j][1]] +
-                    E[k[j][0]] * E[k[j][1]] +
-                    F[k[j][0]] * F[k[j][1]]) +
-                  D[k[j][0]] * E[k[j][1]]  +  D[k[j][1]] * E[k[j][0]] +
-                  D[k[j][0]] * F[k[j][1]]  +  D[k[j][1]] * F[k[j][0]] +
-                  E[k[j][0]] * F[k[j][1]]  +  E[k[j][1]] * F[k[j][0]]);
-      }
-    }
-
-    // convert from products of inertia to moments of inertia
-    inert[0] = P[1] + P[2];
-    inert[1] = P[0] + P[2];
-    inert[2] = P[0] + P[1];
-    inert[3] = -P[3];
-    inert[4] = -P[4];
-    inert[5] = -P[5];
+    // compute inertia
+    ComputeInertia(type, inert);
 
     // get quaternion and diagonal inertia
     double eigval[3], eigvec[9], quattmp[4];
@@ -1516,43 +1482,99 @@ void mjCMesh::Process() {
     boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;
     boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
 
-    // if volume was valid, copy volume quat to shell and stop,
+    // if mesh is aligned with inertial frame, we already successfully
+    // computed the volume inertia, so we can copy volume quat to shell,
     // otherwise use shell quat for coordinate transformations
-    if (type==mjINERTIA_SHELL && validvolume_>0) {
+    if (aligned_with_inertial_frame) {
       mjuu_copyvec(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME), 4);
-      continue;
     }
-
-    // rotate vertices and normals into axis-aligned frame
-    mjuu_copyvec(GetQuatPtr(type), quattmp, 4);
-    double neg[4] = {quattmp[0], -quattmp[1], -quattmp[2], -quattmp[3]};
-    double mat[9];
-    mjuu_quat2mat(mat, neg);
-    for (int i=0; i < nvert(); i++) {
-      // vertices
-      const double vec[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-      double res[3];
-      mjuu_mulvecmat(res, vec, mat);
-      for (int j=0; j<3; j++) {
-        vert_[3*i+j] = (float) res[j];
-
-        // axis-aligned bounding box
-        aamm_[j+0] = min(aamm_[j+0], res[j]);
-        aamm_[j+3] = max(aamm_[j+3], res[j]);
-      }
-    }
-    for (int i=0; i < nnormal(); i++) {
-      // normals
-      const double nrm[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
-      double res[3];
-      mjuu_mulvecmat(res, nrm, mat);
-      for (int j=0; j<3; j++) {
-        normal_[3*i+j] = (float) res[j];
-      }
+    // rotate vertices and normals to axes of inertia
+    // we only want to do this if the mesh is not already rotated
+    else {
+      mjuu_copyvec(GetQuatPtr(type), quattmp, 4);
+      Rotate(quattmp);
+      aligned_with_inertial_frame = true;
     }
   }
 }
 
+void mjCMesh::ComputeInertia(mjtGeomInertia type, double inert[6]) {
+  double nrm[3];
+  double cen[3];
+  double density = model->def_map[classname]->Geom().density;
+
+  // accumulate products of inertia, recompute volume
+  const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
+  double P[6] = {0, 0, 0, 0, 0, 0};
+  GetVolumeRef(type) = 0;
+  int nf = (inertia == mjINERTIA_CONVEX) ? graph_[1] : nface();
+  int* f = (inertia == mjINERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
+  for (int i=0; i < nf; i++) {
+    float* D = vert_.data()+3*f[3*i];
+    float* E = vert_.data()+3*f[3*i+1];
+    float* F = vert_.data()+3*f[3*i+2];
+
+    // get area, normal and center; update volume
+    double a = _triangle(nrm, cen, D, E, F);
+    double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
+
+    // if legacy computation requested, then always positive
+    if (inertia == mjINERTIA_LEGACY) {
+      vol = abs(vol);
+    }
+
+    // apply formula, accumulate
+    GetVolumeRef(type) += vol;
+    for (int j=0; j<6; j++) {
+      P[j] += density*vol /
+                (type==mjINERTIA_SHELL ? 12 : 20) * (
+                2*(D[k[j][0]] * D[k[j][1]] +
+                  E[k[j][0]] * E[k[j][1]] +
+                  F[k[j][0]] * F[k[j][1]]) +
+                D[k[j][0]] * E[k[j][1]]  +  D[k[j][1]] * E[k[j][0]] +
+                D[k[j][0]] * F[k[j][1]]  +  D[k[j][1]] * F[k[j][0]] +
+                E[k[j][0]] * F[k[j][1]]  +  E[k[j][1]] * F[k[j][0]]);
+    }
+  }
+
+  // convert from products of inertia to moments of inertia
+  inert[0] = P[1] + P[2];
+  inert[1] = P[0] + P[2];
+  inert[2] = P[0] + P[1];
+  inert[3] = -P[3];
+  inert[4] = -P[4];
+  inert[5] = -P[5];
+}
+
+
+void mjCMesh::Rotate(double quat[4]) {
+  // Rotates vertices and normals of mesh by quaternion.
+  double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
+  double mat[9];
+  mjuu_quat2mat(mat, neg);
+  for (int i=0; i < nvert(); i++) {
+    // vertices
+    const double vec[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
+    double res[3];
+    mjuu_mulvecmat(res, vec, mat);
+    for (int j=0; j<3; j++) {
+      vert_[3*i+j] = (float) res[j];
+
+      // axis-aligned bounding box
+      aamm_[j+0] = min(aamm_[j+0], res[j]);
+      aamm_[j+3] = max(aamm_[j+3], res[j]);
+    }
+  }
+  for (int i=0; i < nnormal(); i++) {
+    // normals
+    const double nrm[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
+    double res[3];
+    mjuu_mulvecmat(res, nrm, mat);
+    for (int j=0; j<3; j++) {
+      normal_[3*i+j] = (float) res[j];
+    }
+  }
+}
 
 // check that the mesh is valid
 void mjCMesh::CheckMesh(mjtGeomInertia type) {
@@ -1566,9 +1588,9 @@ void mjCMesh::CheckMesh(mjtGeomInertia type) {
                    name.c_str(), invalidorientation_.first, invalidorientation_.second);
   if (!validarea_ && type==mjINERTIA_SHELL)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  if (validvolume_<0 && type==mjINERTIA_VOLUME)
+  if (validvolume_==MeshNegativeVolume && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
-  if (!validvolume_ && type==mjINERTIA_VOLUME)
+  if (validvolume_==MeshZeroVolume && type==mjINERTIA_VOLUME)
     throw mjCError(this, "mesh volume is too small: %s", name.c_str());
   if (!valideigenvalue_)
     throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
