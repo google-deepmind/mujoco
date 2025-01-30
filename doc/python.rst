@@ -554,8 +554,8 @@ It is possible to combine multiple specs by using attachments. The following opt
     returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must belong to
     the child spec. Prefix and suffix can also be specified as keyword arguments.
 
-Attaching does not copy, so all the child reference are still valid in the parent and therefore modifying the child will
-modify the parent. This is not true for the attach :ref:`attach<body-attach>` an :ref:`replicate<replicate>`
+Attaching does not copy, so all the child references are still valid in the parent and therefore modifying the child will
+modify the parent. This is not true for the attach :ref:`attach<body-attach>` and :ref:`replicate<replicate>`
 meta-elements in MJCF, which create deep copies while attaching.
 
 .. code-block:: python
@@ -940,7 +940,7 @@ USD Export API
 
 - ``add_camera(self, pos, rotation_xyz, obj_name)``: adds a camera to the USD scene with the given properties post hoc.
 
-- ``save_scene(self, filetype)``:  exports the USD scene using one of the usd filetype extensions ``.usd``, ``.usda``,
+- ``save_scene(self, filetype)``:  exports the USD scene using one of the USD filetype extensions ``.usd``, ``.usda``,
   or ``.usdc``.
 
 .. _PyUSDTodos:
