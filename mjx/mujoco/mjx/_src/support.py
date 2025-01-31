@@ -477,11 +477,25 @@ class BindData(object):
       iter(value)
     except TypeError:
       value = [value]
-    if len(value) == 1:
-      array = array.at[self.id].set(value[0])
+    if name == 'qpos':
+      adr = self.model.jnt_qposadr[self.id]
+      typ = self.model.jnt_type[self.id]
+      num = (
+          (typ == JointType.FREE) * JointType.FREE.qpos_width()
+          + (typ == JointType.BALL) * JointType.BALL.qpos_width()
+          + (typ == JointType.HINGE) * JointType.HINGE.qpos_width()
+          + (typ == JointType.SLIDE) * JointType.SLIDE.qpos_width()
+      )
+    elif isinstance(self.id, list):
+      adr = self.id
+      num = [1 for _ in range(len(self.id))]
     else:
-      for i, v in enumerate(value):
-        array = array.at[self.id[i]].set(v)
+      adr = [self.id]
+      num = [1]
+    i = 0
+    for a, n in zip(adr, num):
+      array = array.at[a: a + n].set(value[i: i + n])
+      i += n
     return self.data.replace(**{self.__getname(name): array})
 
 

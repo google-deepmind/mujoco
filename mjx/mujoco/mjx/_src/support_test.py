@@ -162,8 +162,8 @@ class SupportTest(parameterized.TestCase):
     <mujoco model="test_bind_model">
         <worldbody>
           <body pos="10 20 30" name="body1">
-            <joint axis="1 0 0" type="slide" name="joint1"/>
-            <geom size="1 2 3" type="box" name="geom1"/>
+            <joint axis="1 0 0" type="ball" name="joint1"/>
+            <geom size="1 2 3" type="box" name="geom1" pos="0 1 0"/>
           </body>
           <body pos="40 50 60" name="body2">
             <joint axis="0 1 0" type="slide" name="joint2"/>
@@ -220,12 +220,13 @@ class SupportTest(parameterized.TestCase):
 
     np.testing.assert_array_equal(mx.bind(s.joints).axis, m.jnt_axis)
     np.testing.assert_array_equal(mx.bind(s.joints).qposadr, m.jnt_qposadr)
+    qposnum = [4, 1, 1]
     for i in range(m.njnt):
       np.testing.assert_array_equal(m.bind(s.joints[i]).axis, m.jnt_axis[i, :])
       np.testing.assert_array_equal(mx.bind(s.joints[i]).axis, m.jnt_axis[i, :])
       np.testing.assert_array_almost_equal(
           dx.bind(mx, s.joints[i]).qpos,
-          d.qpos[m.jnt_qposadr[i]], decimal=6
+          d.qpos[m.jnt_qposadr[i]:m.jnt_qposadr[i] + qposnum[i]], decimal=6
       )
 
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
@@ -260,10 +261,12 @@ class SupportTest(parameterized.TestCase):
     np.testing.assert_array_equal(dx5.bind(mx, s.actuators).ctrl, [0, 7, 0])
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, [0, 0, 0])
 
-    np.testing.assert_array_almost_equal(d.qpos, [0, 0, -3.924e-05])
+    qpos_1step = [1.00000e00, -3.67875e-06, 0, 0, 0, -3.924e-05]
+    qpos_desired = [1, 0, 0, 0, 0, 8]
+    np.testing.assert_array_almost_equal(d.qpos, qpos_1step)
     np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
-    dx6 = dx.bind(mx, s.joints[1:]).set('qpos', [8, 0])
-    np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, [0, 8, 0])
+    dx6 = dx.bind(mx, s.joints[::2]).set('qpos', [1, 0, 0, 0, 8])
+    np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, qpos_desired)
     np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
 
     # test invalid name
