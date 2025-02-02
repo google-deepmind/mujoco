@@ -103,7 +103,7 @@ std::unique_ptr<Pid> Pid::Create(const mjModel* m, int instance) {
   }
 
   if (config.slew_max.value_or(0.0) < 0) {
-    mju_warning("maxslew must be non-negative");
+    mju_warning("slewmax must be non-negative");
     return nullptr;
   }
 
@@ -116,6 +116,23 @@ std::unique_ptr<Pid> Pid::Create(const mjModel* m, int instance) {
   if (actuators.empty()) {
     mju_warning("actuator not found for plugin instance %d", instance);
     return nullptr;
+  }
+  // Validate actnum values for all actuators:
+  for (int actuator_id : actuators) {
+    int actnum = m->actuator_actnum[actuator_id];
+    int expected_actnum = Pid::ActDim(m, instance, actuator_id);
+    int dyntype = m->actuator_dyntype[actuator_id];
+    if (dyntype == mjDYN_FILTER || dyntype == mjDYN_FILTEREXACT ||
+        dyntype == mjDYN_INTEGRATOR) {
+      expected_actnum++;
+    }
+    if (actnum != expected_actnum) {
+      mju_warning(
+          "actuator %d has actdim %d, expected %d. Add actdim=\"%d\" to the "
+          "actuator plugin element.",
+          actuator_id, actnum, expected_actnum, expected_actnum);
+      return nullptr;
+    }
   }
   return std::unique_ptr<Pid>(new Pid(config, std::move(actuators)));
 }
@@ -240,8 +257,6 @@ void Pid::RegisterPlugin() {
                                          kAttrIMax, kAttrSlewMax};
   plugin.nattribute = attributes.size();
   plugin.attributes = attributes.data();
-
-  plugin.actuator_actdim = Pid::ActDim;
   plugin.nstate = Pid::StateSize;
 
   plugin.init = +[](const mjModel* m, mjData* d, int instance) {

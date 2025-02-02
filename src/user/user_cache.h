@@ -16,38 +16,34 @@
 #define MUJOCO_SRC_USER_CACHE_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <set>
 #include <string>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
-#include <vector>
 
-// data associated with an asset
-struct mjCAssetData {
-  std::shared_ptr<uint8_t> bytes;    // raw serialized bytes of cached data
-  std::size_t nbytes;                // number of bytes stored
-};
+#include <mujoco/mjplugin.h>
+
+typedef std::function<void(const void*)> mjCDataFunc;
+typedef void (*mjCDeallocFunc)(const void*);
 
 // A class container for a thread-safe asset cache
 //
 // Each mjCAsset is used to store raw and/or processed data loaded from a
 // resource and is defined by a unique ID (usually the full filename of the
-// asset). The asset's data can be segregated into blocks for ease of use of
-// mix and matching different types of data. Each block is given a unique name
-// within the asset for readability. For example, mjCAsset for a mesh may
-// include all vertex positions, edges, and the computed volume.
+// asset).
 class mjCAsset {
   friend class mjCCache;
  public:
-  mjCAsset(std::string filename, std::string id, std::string timestamp)
-      :  id_(std::move(id)), timestamp_(std::move(timestamp)) {
-    AddReference(filename);
+  mjCAsset(std::string modelname, const mjResource* resource,
+           std::shared_ptr<const void> data, std::size_t size) :
+             id_(resource->name), timestamp_(resource->timestamp),
+             size_(size), data_(std::move(data)) {
+    AddReference(modelname);
   }
 
   // move and copy constructors
@@ -56,34 +52,15 @@ class mjCAsset {
   mjCAsset(const mjCAsset& other) = default;
   mjCAsset& operator=(const mjCAsset& other) = default;
 
-  // copies a block of data into the asset and returns number of bytes stored
-  // loading data into an asset should happen in a single thread
-  template<typename T> std::size_t Add(const std::string& name,
-                                       const T* data, std::size_t n);
-
-
-  // copies a vector into the asset and returns number of bytes stored
-  // loading data into an asset should happen in a single thread
-  template<typename T> std::size_t AddVector(const std::string& name,
-                                             const std::vector<T>& v);
-
-  // returns a pointer to a block of data, sets n to size of data
-  template<typename T>
-  const T* Get(const std::string& name, std::size_t* n) const;
-
-  // copies a block of data into a vector
-  template<typename T>
-  std::optional<std::vector<T>> GetVector(const std::string& name) const;
-
-  // returns true if a block of data by the given name is stored in the asset
-  bool HasData(const std::string& name) const {
-    return blocks_.find(name) != blocks_.end();
-  }
-
   const std::string& Timestamp() const { return timestamp_; }
   const std::string& Id() const { return id_; }
   std::size_t InsertNum() const { return insert_num_; }
   std::size_t AccessCount() const { return access_count_; }
+
+  // pass data in the cache to the given function
+  void PopulateData(mjCDataFunc fn) const {
+    fn(data_.get());
+  }
 
  private:
   mjCAsset() = default;
@@ -93,12 +70,13 @@ class mjCAsset {
   void RemoveReference(const std::string& xml_file) {
     references_.erase(xml_file);
   }
-  bool HasReferences() const { return !references_.empty(); }
 
-  // replaces data blocks in asset
-  void ReplaceBlocks(
-      const std::unordered_map<std::string, mjCAssetData>& blocks,
-      std::size_t nbytes);
+  void ReplaceData(const mjCAsset& other)  {
+    data_ = other.data_;
+    size_ = other.size_;
+  }
+
+  bool HasReferences() const { return !references_.empty(); }
 
   void IncrementAccess() { access_count_++; }
 
@@ -110,9 +88,9 @@ class mjCAsset {
   void SetTimestamp(std::string timestamp) { timestamp_ = timestamp; }
 
   // accessors
-  std::size_t BytesCount() const { return nbytes_; }
-  const std::unordered_map<std::string, mjCAssetData>& Blocks() const {
-    return blocks_;
+  std::size_t BytesCount() const { return size_; }
+  const void* Data() const {
+    return data_.get();
   }
   const std::set<std::string>& References() const { return references_; }
 
@@ -120,10 +98,8 @@ class mjCAsset {
   std::string timestamp_;             // opaque timestamp of asset
   std::size_t insert_num_;            // number when asset was inserted
   std::size_t access_count_ = 0;      // incremented when getting 0th block
-  std::size_t nbytes_ = 0;            // how many bytes taken up by the asset
-
-  // the actually data of the asset
-  std::unordered_map<std::string, mjCAssetData> blocks_;
+  std::size_t size_ = 0;              // how many bytes taken up by the asset
+  std::shared_ptr<const void> data_;  // actual data of the asset
 
   // list of models referencing this asset
   std::set<std::string> references_;
@@ -160,11 +136,11 @@ class mjCCache {
 
   // inserts an asset into the cache, if asset is already in the cache, its data
   // is updated only if the timestamps disagree
-  bool Insert(const mjCAsset& asset);
-  bool Insert(mjCAsset&& asset);
+  bool Insert(const std::string& modelname, const mjResource *resource,
+              std::shared_ptr<const void> data, std::size_t size);
 
-  // returns the asset with the given id, if it exists in the cache
-  std::optional<mjCAsset> Get(const std::string& id);
+  // populate data from the cache into the given function
+  bool PopulateData(const mjResource* resource, mjCDataFunc fn);
 
   // deletes the asset from the cache with the given id
   void DeleteAsset(const std::string& id);

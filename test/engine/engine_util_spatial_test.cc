@@ -15,7 +15,7 @@
 // Tests for engine/engine_util_spatial.c
 
 #include <cmath>
-#include <vector>
+#include <cstdlib>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -35,10 +35,6 @@ using ::testing::ElementsAre;
 using ::testing::Pointwise;
 
 using Quat2MatTest = MujocoTest;
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
 
 TEST_F(Quat2MatTest, NoRotation) {
   mjtNum result[9] = {0};
@@ -199,6 +195,70 @@ TEST_F(Euler2QuatTest, Euler2Quat) {
   mju_euler2Quat(quat, euler3, seq2);
   mjtNum expected6[4] = {mju_sqrt(.5), 0, mju_sqrt(.5), 0};
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected6));
+}
+
+using Mat2RotTest = MujocoTest;
+
+TEST_F(Mat2RotTest, RotationFromArbitraryMatrix) {
+  // create arbitrary target rotation matrix
+  mjtNum target[4], rot[9];
+  mjtNum axis[3] = {1, 1, 1};
+  mju_axisAngle2Quat(target, axis, mjPI/6);
+  mju_normalize4(target);
+  mju_quat2Mat(rot, target);
+
+  // combine rotation with arbitrary stretch
+  mjtNum mat[9];
+  mjtNum deformation_gradient[9] = {0.5, 0.25, 0.125,
+                                    0.3, 0.66, 0.999,
+                                    0.4, 0.22, 0.111};
+  mjtNum stretch[9];
+  mju_mulMatTMat3(stretch, deformation_gradient, deformation_gradient);
+  mju_mulMatMat3(mat, rot, stretch);
+
+  // calculate rotational part of the matrix
+  mjtNum quat[4] = {1, 0, 0, 0};
+  int niter = mju_mat2Rot(quat, mat);
+  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), target));
+  EXPECT_LE(niter, 150);
+}
+
+TEST_F(Mat2RotTest, IdentityFromRandomRotation) {
+  // This test is based on the following paper:
+  // Müller, Matthias, Jan Bender, Nuttapong Chentanez, and Miles Macklin. "A
+  // robust method to extract the rotational part of deformations." In
+  // Proceedings of the 9th International Conference on Motion in Games, pp.
+  // 55-60. 2016.
+  mjtNum mat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  srand(123);
+
+  for (int i = 0; i < 100; ++i) {
+    // random quaternion
+    mjtNum quat[4];
+    for (int j = 0; j < 4; ++j) {
+      quat[j] = rand() / (float)RAND_MAX;  // NOLINT
+    }
+
+    // calculate rotational part of the matrix
+    mjtNum res[9];
+    mju_normalize4(quat);
+    EXPECT_LE(mju_mat2Rot(quat, mat), 40);
+    mju_quat2Mat(res, quat);
+    EXPECT_THAT(res, Pointwise(DoubleNear(1e-6), mat));
+  }
+}
+
+TEST_F(Mat2RotTest, SpecialCases) {
+  mjtNum eye[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  mjtNum quat[4] = {1, 0, 0, 0};
+  EXPECT_EQ(mju_mat2Rot(quat, eye), 0);
+  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), {1, 0, 0, 0}));
+  mjtNum zero[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  EXPECT_EQ(mju_mat2Rot(quat, zero), 0);
+  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), {1, 0, 0, 0}));
+  mjtNum ones[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+  EXPECT_EQ(mju_mat2Rot(quat, ones), 0);
+  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), {1, 0, 0, 0}));
 }
 
 }  // namespace

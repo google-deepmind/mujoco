@@ -14,21 +14,21 @@
 
 #include "engine/engine_collision_driver.h"
 
-#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_constraint.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -224,10 +224,8 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 //----------------------------- collision detection entry point ------------------------------------
 
 // compare contact pairs by their geom/elem/vert IDs
-quicksortfunc(contactcompare, context, el1, el2) {
+static inline int contactcompare(const mjContact* c1, const mjContact* c2, void* context) {
   const mjModel* m = (const mjModel*) context;
-  mjContact* c1 = (mjContact*)el1;
-  mjContact* c2 = (mjContact*)el2;
 
   // get colliding object ids
   int con1_obj1 = c1->geom[0] >= 0 ? c1->geom[0] : (c1->elem[0] >= 0 ? c1->elem[0] : c1->vert[0]);
@@ -257,6 +255,9 @@ quicksortfunc(contactcompare, context, el1, el2) {
   if (con1_obj2 > con2_obj2) return 1;
   return 0;
 }
+
+// define contactSort function for sorting contacts
+mjSORT(contactSort, mjContact, contactcompare)
 
 
 
@@ -288,7 +289,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   // broadphase collision detector
   TM_START;
   int nmaxpairs = (nbodyflex*(nbodyflex - 1))/2;
-  int* broadphasepair = mj_stackAllocInt(d, nmaxpairs);
+  int* broadphasepair = mjSTACKALLOC(d, nmaxpairs, int);
   int nbfpair = mj_broadphase(m, d, broadphasepair, nmaxpairs);
   unsigned int last_signature = -1;
   TM_END(mjTIMER_COL_BROAD);
@@ -364,8 +365,13 @@ void mj_collision(const mjModel* m, mjData* d) {
       int ncon_after = d->ncon;
 
       // sort contacts
-      mjQUICKSORT(d->contact + ncon_before, ncon_after - ncon_before,
-                  sizeof(mjContact), contactcompare, (void*) m);
+      int n = ncon_after - ncon_before;
+      if (n > 1) {
+        mj_markStack(d);
+        mjContact* buf = mjSTACKALLOC(d, n, mjContact);
+        contactSort(d->contact + ncon_before, buf, n, (void*)m);
+        mj_freeStack(d);
+      }
     }
 
     // process bodyflex pair: all-to-all
@@ -489,15 +495,6 @@ struct mjCollisionTree_ {
 typedef struct mjCollisionTree_ mjCollisionTree;
 
 
-
-// collision tree allocation
-static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
-  return (mjCollisionTree*) mj_stackAllocByte(
-    d, max_stack * sizeof(mjCollisionTree), _Alignof(mjCollisionTree));
-}
-
-
-
 // checks if the proposed collision pair is already present in pair_geom and calls narrow phase
 void mj_collideGeomPair(const mjModel* m, mjData* d, int g1, int g2, int merged,
                         int startadr, int pairadr) {
@@ -602,22 +599,22 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
       for (int i=0; i < 2; i++) {  // bounding boxes
         if (product == NULL) {
           proj[i] = mju_dot3(xcenter[i], normal[j][k]);
-          radius[i] = fabs(aabb[i][3]*mju_dot3(normal[i][0], normal[j][k])) +
-                      fabs(aabb[i][4]*mju_dot3(normal[i][1], normal[j][k])) +
-                      fabs(aabb[i][5]*mju_dot3(normal[i][2], normal[j][k]));
+          radius[i] = mju_abs(aabb[i][3]*mju_dot3(normal[i][0], normal[j][k])) +
+                      mju_abs(aabb[i][4]*mju_dot3(normal[i][1], normal[j][k])) +
+                      mju_abs(aabb[i][5]*mju_dot3(normal[i][2], normal[j][k]));
         } else {
           int adr = 18*i + 9*j + 3*k;
           proj[i] = aabb[i][0] * product[adr + 0] +
                     aabb[i][1] * product[adr + 1] +
                     aabb[i][2] * product[adr + 2] +
                     offset[6*i + 3*j + k];
-          radius[i] = fabs(aabb[i][3]*product[adr + 0]) +
-                      fabs(aabb[i][4]*product[adr + 1]) +
-                      fabs(aabb[i][5]*product[adr + 2]);
+          radius[i] = mju_abs(aabb[i][3]*product[adr + 0]) +
+                      mju_abs(aabb[i][4]*product[adr + 1]) +
+                      mju_abs(aabb[i][5]*product[adr + 2]);
         }
       }
 
-      if (radius[0]+radius[1]+margin < fabs(proj[1]-proj[0])) {
+      if (radius[0]+radius[1]+margin < mju_abs(proj[1]-proj[0])) {
         return 0;
       }
     }
@@ -660,7 +657,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   // TODO(b/273737633): Store bvh max depths to make this bound tighter.
   const int max_stack = (isbody1 ? m->body_bvhnum[bf1] : m->flex_bvhnum[f1]) +
                         (isbody2 ? m->body_bvhnum[bf2] : m->flex_bvhnum[f2]);
-  mjCollisionTree* stack = mj_stackAllocTree(d, max_stack);
+  mjCollisionTree* stack = mjSTACKALLOC(d, max_stack, mjCollisionTree);
 
   int nstack = 1;
   stack[0].node1 = stack[0].node2 = 0;
@@ -1006,10 +1003,7 @@ typedef struct _mjtSAP mjtSAP;
 
 
 // comparison function for SAP
-quicksortfunc(SAPcompare, context, el1, el2) {
-  mjtSAP* obj1 = (mjtSAP*)el1;
-  mjtSAP* obj2 = (mjtSAP*)el2;
-
+static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
   if (obj1->value < obj2->value) {
     return -1;
   } else if (obj1->value == obj2->value) {
@@ -1019,6 +1013,8 @@ quicksortfunc(SAPcompare, context, el1, el2) {
   }
 }
 
+// define SAPsort function for sorting SAP sorting
+mjSORT(SAPsort, mjtSAP, SAPcmp)
 
 
 // given list of axis-aligned bounding boxes in AAMM (xmin[3], xmax[3]) format,
@@ -1031,8 +1027,8 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   }
 
   // allocate sort buffer
-  mjtSAP* sortbuf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
-  mjtSAP* activebuf = (mjtSAP*) mj_stackAllocByte(d, 2*n*sizeof(mjtSAP), _Alignof(mjtSAP));
+  mjtSAP* sortbuf = mjSTACKALLOC(d, 2*n, mjtSAP);
+  mjtSAP* activebuf = mjSTACKALLOC(d, 2*n, mjtSAP);
 
   // init sortbuf with specified axis
   for (int i=0; i < n; i++) {
@@ -1043,7 +1039,8 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   }
 
   // sort along specified axis
-  mjQUICKSORT(sortbuf, 2*n, sizeof(mjtSAP), SAPcompare, 0);
+  mjtSAP* buf = mjSTACKALLOC(d, 2*n, mjtSAP);
+  SAPsort(sortbuf, buf, 2*n, NULL);
 
   // define the other two axes
   int axisA, axisB;
@@ -1133,19 +1130,18 @@ static void updateCov(mjtNum cov[9], const mjtNum vec[3], const mjtNum cen[3]) {
 
 
 // comparison function for unsigned ints
-quicksortfunc(uintcompare, context, el1, el2) {
-  unsigned int n1 = *(unsigned int*)el1;
-  unsigned int n2 = *(unsigned int*)el2;
-
-  if (n1 < n2) {
+static inline int uintcmp(int* i, int* j, void* context) {
+  if ((unsigned) *i < (unsigned) *j) {
     return -1;
-  } else if (n1 == n2) {
+  } else if (*i == *j) {
     return 0;
   } else {
     return 1;
   }
 }
 
+// define bfsort function for sorting bodyflex pairs
+mjSORT(bfsort, int, uintcmp)
 
 
 // broadphase collision detector
@@ -1157,7 +1153,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   // init with pairs involving always-colliding bodies
   for (int b1=0; b1 < nbody; b1++) {
-    // cannot colide
+    // cannot collide
     if (!canCollide(m, b1)) {
       continue;
     }
@@ -1167,7 +1163,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
         (m->body_weldid[b1] == 0 && hasPlane(m, b1))) {
       // add b1:body pairs that are not welded together
       for (int b2=0; b2 < nbody; b2++) {
-        // cannot colide
+        // cannot collide
         if (!canCollide(m, b2)) {
           continue;
         }
@@ -1229,7 +1225,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
   // allocate collidable bodyflex ids, construct list
   mj_markStack(d);
-  int* bfid = mj_stackAllocInt(d, nbodyflex);
+  int* bfid = mjSTACKALLOC(d, nbodyflex, int);
   int ncollide = 0;
   for (int i=1; i < nbodyflex; i++) {
     if (canCollide(m, i)) {
@@ -1237,52 +1233,48 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
     }
   }
 
-  // nothing collidable
-  if (ncollide < 2) {
-    goto endbroad;
-  }
-
-  // allocate and construct AAMMs for collidable only
-  mjtNum* aamm = mj_stackAllocNum(d, 6*ncollide);
-  for (int i=0; i < ncollide; i++) {
-    makeAAMM(m, d, aamm+6*i, bfid[i], frame);
-  }
-
-  // call SAP
-  int maxsappair = ncollide*(ncollide-1)/2;
-  int* sappair = mj_stackAllocInt(d, maxsappair);
-  int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
-  if (nsappair < 0) {
-    mjERROR("SAP failed");
-  }
-
-  // filter SAP pairs, convert to bodyflex pairs
-  for (int i=0; i < nsappair; i++) {
-    int bf1 = bfid[sappair[i] >> 16];
-    int bf2 = bfid[sappair[i] & 0xFFFF];
-
-    // body pair: prune based on weld filter
-    if (bf1 < nbody && bf2 < nbody) {
-      int weld1 = m->body_weldid[bf1];
-      int weld2 = m->body_weldid[bf2];
-      int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
-      int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
-
-      if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
-                         dsbl_filterparent)) {
-        continue;
-      }
+  if (ncollide > 1) {
+    // allocate and construct AAMMs for collidable only
+    mjtNum* aamm = mjSTACKALLOC(d, 6*ncollide, mjtNum);
+    for (int i=0; i < ncollide; i++) {
+      makeAAMM(m, d, aamm+6*i, bfid[i], frame);
     }
 
-    // add bodyflex pair if there is room in buffer
-    add_pair(m, bf1, bf2, &npair, bfpair, maxpair);
+    // call SAP
+    int maxsappair = ncollide*(ncollide-1)/2;
+    int* sappair = mjSTACKALLOC(d, maxsappair, int);
+    int nsappair = mj_SAP(d, aamm, ncollide, 0, sappair, maxsappair);
+    if (nsappair < 0) {
+      mjERROR("SAP failed");
+    }
+
+    // filter SAP pairs, convert to bodyflex pairs
+    for (int i=0; i < nsappair; i++) {
+      int bf1 = bfid[sappair[i] >> 16];
+      int bf2 = bfid[sappair[i] & 0xFFFF];
+
+      // body pair: prune based on weld filter
+      if (bf1 < nbody && bf2 < nbody) {
+        int weld1 = m->body_weldid[bf1];
+        int weld2 = m->body_weldid[bf2];
+        int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
+        int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
+
+        if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
+                           dsbl_filterparent)) {
+          continue;
+        }
+      }
+
+      // add bodyflex pair if there is room in buffer
+      add_pair(m, bf1, bf2, &npair, bfpair, maxpair);
+    }
   }
 
-endbroad:
-
   // sort bodyflex pairs by signature
-  if (npair) {
-    mjQUICKSORT(bfpair, npair, sizeof(int), uintcompare, 0);
+  if (npair > 1) {
+    int* buf = mjSTACKALLOC(d, npair, int);
+    bfsort(bfpair, buf, npair, NULL);
   }
 
   mj_freeStack(d);
@@ -1469,8 +1461,10 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
   type1 = m->geom_type[g1];
   type2 = m->geom_type[g2];
 
+  mjfCollision collisionFunc = mjCOLLISIONFUNC[type1][type2];
+
   // return if no collision function
-  if (!mjCOLLISIONFUNC[type1][type2]) {
+  if (!collisionFunc) {
     return;
   }
 
@@ -1511,7 +1505,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
   }
 
   // call collision detector to generate contacts
-  num = mjCOLLISIONFUNC[type1][type2](m, d, con, g1, g2, margin);
+  num = collisionFunc(m, d, con, g1, g2, margin);
 
   // check contacts
   if (!num) {
@@ -1525,7 +1519,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
   }
 
   // remove bad and repeated contacts in box-box
-  if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
+  if (collisionFunc == mjc_BoxBox) {
     // use dim field to mark: -1: bad, 0: good
     for (int i=0; i < num; i++) {
       con[i].dim = 0;
@@ -1798,7 +1792,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
   mj_markStack(d);
 
   // allocate and construct active element ids
-  int* elid = mj_stackAllocInt(d, m->flex_elemnum[f]);
+  int* elid = mjSTACKALLOC(d, m->flex_elemnum[f], int);
   int nactive = 0;
   int flex_elemnum = m->flex_elemnum[f];
   for (int i=0; i < flex_elemnum; i++) {
@@ -1814,7 +1808,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
   }
 
   // allocate and construct AAMMs for active elements
-  mjtNum* aamm = mj_stackAllocNum(d, 6*nactive);
+  mjtNum* aamm = mjSTACKALLOC(d, 6*nactive, mjtNum);
   const mjtNum* elemaabb = d->flexelem_aabb + 6*m->flex_elemadr[f];
   for (int i=0; i < nactive; i++) {
     mju_sub3(aamm+6*i+0, elemaabb+6*elid[i], elemaabb+6*elid[i]+3);
@@ -1827,7 +1821,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
   // call SAP; hard limit on number of pairs to avoid out-of-memory
   int maxsappair = mjMIN(nactive*(nactive-1)/2, 1000000);
-  int* sappair = mj_stackAllocInt(d, maxsappair);
+  int* sappair = mjSTACKALLOC(d, maxsappair, int);
   int nsappair = mj_SAP(d, aamm, nactive, axis, sappair, maxsappair);
   if (nsappair < 0) {
     mjERROR("SAP failed");
@@ -1865,7 +1859,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
   const int* bdata = m->flex_vertbodyid + m->flex_vertadr[f];
   for (int i=0; i <= dim; i++) {
-    if (b == bdata[edata[i]]) {
+    if (b >= 0 && b == bdata[edata[i]]) {
       return;
     }
   }
@@ -1989,7 +1983,7 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
   for (int i1=0; i1 <= dim1; i1++) {
     int b1 = bdata1[edata1[i1]];
     for (int i2=0; i2 <= dim2; i2++) {
-      if (b1 == bdata2[edata2[i2]]) {
+      if (b1 >= 0 && b1 == bdata2[edata2[i2]]) {
         return;
       }
     }

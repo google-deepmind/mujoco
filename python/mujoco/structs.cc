@@ -16,7 +16,9 @@
 
 #include <Python.h>
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -39,6 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "function_traits.h"
+#include "indexer_xmacro.h"
 #include "indexers.h"
 #include "private.h"
 #include "raw.h"
@@ -84,6 +87,7 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
 inline std::size_t NConMax(const mjData* d) {
   return d->narena / sizeof(mjContact);
 }
+
 }  // namespace
 
 // ==================== MJOPTION ===============================================
@@ -300,16 +304,6 @@ MjModelWrapper::~MjWrapper() {
   }
 }
 
-namespace {
-struct VfsAsset {
-  VfsAsset(const char* name, const void* content, std::size_t content_size)
-      : name(name), content(content), content_size(content_size) {}
-  const char* name;
-  const void* content;
-  std::size_t content_size;
-};
-}
-
 // Helper function for both LoadXMLFile and LoadBinaryFile.
 // Creates a temporary MJB from the assets dictionary if one is supplied.
 template <typename LoadFunc>
@@ -323,10 +317,17 @@ static raw::MjModel* LoadModelFileImpl(
     mj_defaultVFS(&vfs);
     vfs_ptr = &vfs;
     for (const auto& asset : assets) {
+      std::string buffer_name = StripPath(asset.name);
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          vfs_ptr, asset.name, asset.content, asset.content_size);
+          vfs_ptr, buffer_name.c_str(), asset.content, asset.content_size);
       if (vfs_error) {
-        throw py::value_error("assets dict is too big");
+        mj_deleteVFS(vfs_ptr);
+        if (vfs_error == 2) {
+          throw py::value_error("Repeated file name in assets dict: " +
+                                buffer_name);
+        } else {
+          throw py::value_error("Asset failed to load: " + buffer_name);
+        }
       }
     }
   }
@@ -338,22 +339,6 @@ static raw::MjModel* LoadModelFileImpl(
     model = nullptr;
   }
   return model;
-}
-
-// Converts a dict with py::bytes value to a vector of standard C++ types.
-// This allows us to release the GIL early. Note that the vector consists only
-// of pointers to existing data so no substantial data copies are being made.
-static std::vector<VfsAsset>
-ConvertAssetsDict(
-    const std::optional<std::unordered_map<std::string, py::bytes>>& assets) {
-  std::vector<VfsAsset> out;
-  if (assets.has_value()) {
-    for (const auto& [name, content] : *assets) {
-      out.emplace_back(name.c_str(), PYBIND11_BYTES_AS_STRING(content.ptr()),
-                       py::len(content));
-    }
-  }
-  return out;
 }
 
 MjModelWrapper MjModelWrapper::LoadXMLFile(
@@ -423,8 +408,9 @@ MjModelWrapper MjModelWrapper::LoadXML(
   return MjModelWrapper(model);
 }
 
-MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec) {
-  auto m = mj_compile(spec, nullptr);
+MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec,
+                                           const mjVFS* vfs) {
+  auto m = mj_compile(spec, vfs);
   if (!m || mjs_isWarning(spec)) {
     throw py::value_error(mjs_getError(spec));
   }
@@ -436,7 +422,9 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
   raw::MjModel* m = static_cast<raw::MjModel*>(mju_malloc(sizeof(mjModel)));
   m->buffer = nullptr;
   raw::MjData* d = mj_copyData(nullptr, old_m.get(), old_d.get());
-  mj_recompile(spec, nullptr, m, d);
+  if (mj_recompile(spec, nullptr, m, d)) {
+    throw py::value_error(mjs_getError(spec));
+  }
 
   py::object m_pyobj = py::cast((MjModelWrapper(m)));
   py::object d_pyobj =
@@ -756,17 +744,18 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(solver);
   X(timer);
   X(warning);
+  X(ncon);
   X(ne);
   X(nf);
-  X(nnzJ);
+  X(nJ);
+  X(nA);
   X(nefc);
-  X(ncon);
   X(nisland);
   X(time);
   X(energy);
 #undef X
 
-  // Write buffer contents
+  // Write buffer and arena contents
   {
     MJDATA_POINTERS_PREAMBLE((this->model_->get()))
 
@@ -779,13 +768,14 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 #define MJ_M(x) this->model_->get()->x
 #undef MJ_D
 #define MJ_D(x) this->ptr_->x
-#define X(type, name, nr, nc)                                   \
-  if ((nr) * (nc)) {                                            \
-    WriteBytes(output, ptr_->name, sizeof(type) * (nr) * (nc)); \
+#define X(type, name, nr, nc)                     \
+  if ((nr) * (nc)) {                              \
+    WriteBytes(output, ptr_->name,                \
+    ptr_->name ? sizeof(type) * (nr) * (nc) : 0); \
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
-    MJDATA_ARENA_POINTERS_PRIMAL
+    MJDATA_ARENA_POINTERS_SOLVER
     if (mj_isDual(this->model_->get())) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -832,17 +822,18 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(solver);
   X(timer);
   X(warning);
+  X(ncon);
   X(ne);
   X(nf);
-  X(nnzJ);
+  X(nJ);
+  X(nA);
   X(nefc);
-  X(ncon);
   X(nisland);
   X(time);
   X(energy);
 #undef X
 
-  // Read buffer contents
+  // Read buffer and arena contents
   {
     MJDATA_POINTERS_PREAMBLE((&m))
 
@@ -855,15 +846,25 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 #define MJ_M(x) m.x
 #undef MJ_D
 #define MJ_D(x) d->x
-#define X(type, name, nr, nc)                                              \
-  if ((nr) * (nc)) {                                                       \
-    d->name = static_cast<decltype(d->name)>(                              \
-        mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), alignof(type)));  \
-    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc));                 \
+// arena pointers might be null, so we need to check the size before allocating.
+#define X(type, name, nr, nc)                                                 \
+  if ((nr) * (nc)) {                                                          \
+    std::size_t actual_nbytes = ReadInt(input);                               \
+    if (actual_nbytes) {                                                      \
+      if (actual_nbytes != sizeof(type) * (nr) * (nc)) {                      \
+        input.setstate(input.rdstate() | std::ios_base::failbit);             \
+      } else {                                                                \
+        d->name = static_cast<decltype(d->name)>(                             \
+            mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), alignof(type))); \
+        input.read(reinterpret_cast<char*>(d->name), actual_nbytes);          \
+      }                                                                       \
+    } else {                                                                  \
+      d->name = nullptr;                                                      \
+    }                                                                         \
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
-    MJDATA_ARENA_POINTERS_PRIMAL
+    MJDATA_ARENA_POINTERS_SOLVER
     if (is_dual) {
       MJDATA_ARENA_POINTERS_DUAL
     }
@@ -1382,6 +1383,30 @@ PYBIND11_MODULE(_structs, m) {
   MJOPTION_VECTORS
 #undef X
 
+  mjOption.def_property_readonly_static("_float_fields", [](py::object) {
+    std::vector<std::string> field_names;
+#define X(type, var) field_names.push_back(#var);
+    MJOPTION_FLOATS
+#undef X
+    return py::tuple(py::cast(field_names));
+  });
+
+  mjOption.def_property_readonly_static("_int_fields", [](py::object) {
+    std::vector<std::string> field_names;
+#define X(type, var) field_names.push_back(#var);
+    MJOPTION_INTS
+#undef X
+    return py::tuple(py::cast(field_names));
+  });
+
+  mjOption.def_property_readonly_static("_floatarray_fields", [](py::object) {
+    std::vector<std::string> field_names;
+#define X(var, sz) field_names.push_back(#var);
+    MJOPTION_VECTORS
+#undef X
+    return py::tuple(py::cast(field_names));
+  });
+
   // ==================== MJVISUAL =============================================
   py::class_<MjVisualWrapper> mjVisual(m, "MjVisual");
   mjVisual.def("__copy__", [](const MjVisualWrapper& other) {
@@ -1572,7 +1597,14 @@ R"(Loads an MjModel from an XML string and an optional assets dictionary.)"));
   mjModel.def_static(
       "_from_spec_ptr", [](uintptr_t addr) {
         return MjModelWrapper::CompileSpec(
-            reinterpret_cast<raw::MjSpec*>(addr));
+            reinterpret_cast<raw::MjSpec*>(addr),
+            nullptr);
+      });
+  mjModel.def_static(
+      "_from_spec_ptr", [](uintptr_t addr, uintptr_t vfs) {
+        return MjModelWrapper::CompileSpec(
+            reinterpret_cast<raw::MjSpec*>(addr),
+            reinterpret_cast<mjVFS*>(vfs));
       });
   mjModel.def_static(
       "from_xml_path", &MjModelWrapper::LoadXMLFile,
@@ -1620,6 +1652,32 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   MJMODEL_INTS
 #undef X
 
+  mjModel.def_property_readonly("_sizes", [](const MjModelWrapper& m) {
+    int nint = 0;
+#define X(var) ++nint;
+    MJMODEL_INTS
+#undef X
+    py::array_t<std::int64_t> sizes(nint);
+    {
+      int i = 0;
+      auto data = sizes.mutable_unchecked();
+#define X(var) data[i++] = m.get()->var;
+      MJMODEL_INTS
+#undef X
+    }
+    py::detail::array_proxy(sizes.ptr())->flags &=
+        ~py::detail::npy_api::NPY_ARRAY_WRITEABLE_;
+    return sizes;
+  });
+
+  mjModel.def_property_readonly_static("_size_fields", [](py::object) {
+    std::vector<std::string> fields;
+#define X(var) fields.push_back(#var);
+    MJMODEL_INTS
+#undef X
+    return py::tuple(py::cast(fields));
+  });
+
 #define X(dtype, var, dim0, dim1)                             \
   if constexpr (std::string_view(#var) != "text_data" &&      \
                 std::string_view(#var) != "names" &&          \
@@ -1658,6 +1716,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
 
   MJMODEL_VIEW_GROUPS
+#undef XGROUP
+
+#define XGROUP(spectype, field)                                       \
+  mjModel.def(                                                        \
+      "bind",                                                         \
+      [](MjModelWrapper& m, spectype& spec) -> auto& {                \
+        return m.indexer().field##_by_name(mjs_getString(spec.name)); \
+      },                                                              \
+      py::return_value_policy::reference_internal,                    \
+      py::arg_v("spec", py::none()));
+
+  MJMODEL_BIND_GROUPS
 #undef XGROUP
 
 #define XGROUP(field, altname, FIELD_XMACROS)                                 \
@@ -1965,7 +2035,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     return InitPyArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var, d.owner()); \
   });
 
-  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_SOLVER
   MJDATA_ARENA_POINTERS_DUAL
   MJDATA_ARENA_POINTERS_ISLAND
 
@@ -1992,6 +2062,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJDATA_VIEW_GROUPS
+#undef XGROUP
+
+#define XGROUP(spectype, field)                                       \
+  mjData.def(                                                         \
+      "bind",                                                         \
+      [](MjDataWrapper& d, spectype& spec) -> auto& {                 \
+        return d.indexer().field##_by_name(mjs_getString(spec.name)); \
+      },                                                              \
+      py::return_value_policy::reference_internal,                    \
+      py::arg_v("spec", py::none()));
+
+  MJDATA_BIND_GROUPS
 #undef XGROUP
 
 #define XGROUP(field, altname, FIELD_XMACROS)                                \

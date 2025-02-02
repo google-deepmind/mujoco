@@ -40,7 +40,7 @@ class MemoryLeakTest(absltest.TestCase):
       </worldbody>
     </mujoco>
     """)
-    limit = self._memory_limit(4 * 2**30)
+    limit = self._memory_limit(4 * 2**32)
     try:
       model = mujoco.MjModel.from_xml_string(model_xml)
       data = mujoco.MjData(model)
@@ -57,6 +57,7 @@ class MemoryLeakTest(absltest.TestCase):
     soft = -1
     try:
       import resource  # pylint: disable=g-import-not-at-top
+
       soft, hard = resource.getrlimit(resource.RLIMIT_AS)
       resource.setrlimit(resource.RLIMIT_AS, (limit_in_bytes, hard))
     except (ImportError, ValueError):
@@ -65,5 +66,5 @@ class MemoryLeakTest(absltest.TestCase):
     return soft
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   absltest.main()

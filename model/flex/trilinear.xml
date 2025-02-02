@@ -1,0 +1,38 @@
+<!-- Copyright 2024 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Trilinear">
+  <include file="scene.xml"/>
+
+  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
+
+  <size memory="10M"/>
+
+  <visual>
+    <map stiffness="100"/>
+    <rgba bv="0 0 0 0" bvactive="0 0 0 0"/>
+  </visual>
+
+  <worldbody>
+    <body mocap="true" pos="-.1 .05 0" zaxis=".5 0 1">
+      <geom type="capsule" size=".1 .1" group="1" condim="1"/>
+    </body>
+    <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1" dim="3"
+              radius=".001" rgba="0 .7 .7 1" mass="5" name="softbody" dof="trilinear">
+      <elasticity young="1e4" poisson="0.1" damping="0.01"/>
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>

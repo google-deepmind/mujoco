@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
@@ -457,6 +458,16 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         }
         break;
 
+      case mjSENS_E_POTENTIAL:                            // potential energy
+        mj_energyPos(m, d);
+        d->sensordata[adr] = d->energy[0];
+        break;
+
+      case mjSENS_E_KINETIC:                              // kinetic energy
+        mj_energyVel(m, d);
+        d->sensordata[adr] = d->energy[1];
+        break;
+
       case mjSENS_CLOCK:                                  // clock
         d->sensordata[adr] = d->time;
         break;
@@ -730,7 +741,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       case mjSENS_TOUCH:                                  // touch
         // extract body data
         bodyid = m->site_bodyid[objid];
-        rootid = m->body_rootid[bodyid];
 
         // clear result
         d->sensordata[adr] = 0;
@@ -902,12 +912,6 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   int padr;
   mjtNum dif[3], quat[4], stiffness;
 
-  // disabled: clear and return
-  if (!mjENABLED(mjENBL_ENERGY)) {
-    d->energy[0] = d->energy[1] = 0;
-    return;
-  }
-
   // init potential energy:  -sum_i body(i).mass * mju_dot(body(i).pos, gravity)
   d->energy[0] = 0;
   if (!mjDISABLED(mjDSBL_GRAVITY)) {
@@ -996,15 +1000,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
 // velocity-dependent energy (kinetic)
 void mj_energyVel(const mjModel* m, mjData* d) {
-  mjtNum *vec;
-
-  // return if disabled (already cleared in potential)
-  if (!mjENABLED(mjENBL_ENERGY)) {
-    return;
-  }
-
   mj_markStack(d);
-  vec = mj_stackAllocNum(d, m->nv);
+  mjtNum *vec = mjSTACKALLOC(d, m->nv, mjtNum);
 
   // kinetic energy:  0.5 * qvel' * M * qvel
   mj_mulM(m, d, vec, d->qvel);

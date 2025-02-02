@@ -64,7 +64,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
+         doc='Add file to VFS, return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_addBufferVFS',
      FunctionDecl(
@@ -94,7 +94,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
+         doc='Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_deleteFileVFS',
      FunctionDecl(
@@ -251,7 +251,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_recompile',
      FunctionDecl(
          name='mj_recompile',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='s',
@@ -278,7 +278,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Recompile spec to model, preserving the state.',
+         doc='Recompile spec to model, preserving the state, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_saveLastXML',
      FunctionDecl(
@@ -317,26 +317,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          parameters=(),
          doc='Free last XML model if loaded. Called internally at each load.',
      )),
-    ('mj_copyBack',
-     FunctionDecl(
-         name='mj_copyBack',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='m',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjModel', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Copy (possibly modified) model fields back into spec.',
-     )),
     ('mj_saveXMLString',
      FunctionDecl(
          name='mj_saveXMLString',
@@ -369,7 +349,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Save spec to XML string, return 1 on success, 0 otherwise.',
+         doc='Save spec to XML string, return 0 on success, -1 on failure. If length of the output buffer is too small, returns the required size.',  # pylint: disable=line-too-long
      )),
     ('mj_saveXML',
      FunctionDecl(
@@ -399,7 +379,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Save spec to XML file, return 1 on success, 0 otherwise.',
+         doc='Save spec to XML file, return 0 on success, -1 otherwise.',
      )),
     ('mj_step',
      FunctionDecl(
@@ -1045,6 +1025,44 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Free memory allocation in mjSpec.',
      )),
+    ('mjs_activatePlugin',
+     FunctionDecl(
+         name='mjs_activatePlugin',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Activate plugin. Returns 0 on success.',
+     )),
+    ('mjs_setDeepCopy',
+     FunctionDecl(
+         name='mjs_setDeepCopy',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='deepcopy',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Turn deep copy on or off attach. Returns 0 on success.',
+     )),
     ('mj_printFormattedModel',
      FunctionDecl(
          name='mj_printFormattedModel',
@@ -1105,7 +1123,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -1137,7 +1155,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -1864,6 +1882,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='y',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='sqrtInvD',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
                  ),
@@ -2623,6 +2647,49 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.',  # pylint: disable=line-too-long
      )),
+    ('mj_jacDot',
+     FunctionDecl(
+         name='mj_jacDot',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='jacp',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='jacr',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='point',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='body',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Compute 3/6-by-nv Jacobian time derivative of global point attached to given body.',  # pylint: disable=line-too-long
+     )),
     ('mj_angmomMat',
      FunctionDecl(
          name='mj_angmomMat',
@@ -3168,7 +3235,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtByte'),
              ),
          ),
-         doc='Map from body local to global Cartesian coordinates.',
+         doc='Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.',  # pylint: disable=line-too-long
      )),
     ('mj_getTotalmass',
      FunctionDecl(
@@ -4329,52 +4396,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Initialize given geom fields when not NULL, set the rest to their default values.',  # pylint: disable=line-too-long
      )),
-    ('mjv_makeConnector',
-     FunctionDecl(
-         name='mjv_makeConnector',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='geom',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjvGeom'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='type',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='width',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a0',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a1',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='a2',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b0',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b1',
-                 type=ValueType(name='mjtNum'),
-             ),
-             FunctionParameterDecl(
-                 name='b2',
-                 type=ValueType(name='mjtNum'),
-             ),
-         ),
-         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels. Deprecated: use mjv_connector.',  # pylint: disable=line-too-long
-     )),
     ('mjv_connector',
      FunctionDecl(
          name='mjv_connector',
@@ -4552,6 +4573,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.',  # pylint: disable=line-too-long
+     )),
+    ('mjv_copyModel',
+     FunctionDecl(
+         name='mjv_copyModel',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Copy mjModel, skip large arrays not required for abstract visualization.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultSceneState',
      FunctionDecl(
@@ -6144,64 +6185,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.",
      )),
-    ('mju_rotVecMat',
-     FunctionDecl(
-         name='mju_rotVecMat',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='res',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='vec',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='mat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(9,),
-                 ),
-             ),
-         ),
-         doc='Deprecated, use mju_mulMatVec3(res, mat, vec).',
-     )),
-    ('mju_rotVecMatT',
-     FunctionDecl(
-         name='mju_rotVecMatT',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='res',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='vec',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='mat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(9,),
-                 ),
-             ),
-         ),
-         doc='Deprecated, use mju_mulMatTVec3(res, mat, vec).',
-     )),
     ('mju_cross',
      FunctionDecl(
          name='mju_cross',
@@ -7019,6 +7002,102 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Coordinate transform of 6D motion or force vector in rotation:translation format. rotnew2old is 3-by-3, NULL means no rotation; flg_force specifies force or motion type.',  # pylint: disable=line-too-long
      )),
+    ('mju_dense2sparse',
+     FunctionDecl(
+         name='mju_dense2sparse',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nr',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nc',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nnz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Convert matrix from dense to sparse.  nnz is size of res and colind, return 1 if too small, 0 otherwise.',  # pylint: disable=line-too-long
+     )),
+    ('mju_sparse2dense',
+     FunctionDecl(
+         name='mju_sparse2dense',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nr',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nc',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Convert matrix from sparse to dense.',
+     )),
     ('mju_rotVecQuat',
      FunctionDecl(
          name='mju_rotVecQuat',
@@ -7329,6 +7408,28 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Construct quaternion performing rotation from z-axis to given vector.',  # pylint: disable=line-too-long
+     )),
+    ('mju_mat2Rot',
+     FunctionDecl(
+         name='mju_mat2Rot',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='quat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(9,),
+                 ),
+             ),
+         ),
+         doc='Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion. Returns the number of iterations required to converge',  # pylint: disable=line-too-long
      )),
     ('mju_euler2Quat',
      FunctionDecl(
@@ -8902,7 +9003,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_attachBody',
      FunctionDecl(
          name='mjs_attachBody',
-         return_type=ValueType(name='int'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsBody'),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='parent',
@@ -8929,12 +9032,14 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Attach child body to a parent frame, return 0 on success.',
+         doc='Attach child body to a parent frame, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
     ('mjs_attachFrame',
      FunctionDecl(
          name='mjs_attachFrame',
-         return_type=ValueType(name='int'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='parent',
@@ -8961,7 +9066,41 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Attach child frame to a parent body, return 0 on success.',
+         doc='Attach child frame to a parent body, return the attached frame if success or NULL otherwise.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_attachToSite',
+     FunctionDecl(
+         name='mjs_attachToSite',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsBody'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='parent',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSite'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='child',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='prefix',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='suffix',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Attach child body to a parent site, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
     ('mjs_detachBody',
      FunctionDecl(
@@ -8999,7 +9138,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9021,7 +9160,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9043,7 +9182,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9081,7 +9220,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9103,7 +9242,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9125,7 +9264,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9156,7 +9295,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_delete',
      FunctionDecl(
          name='mjs_delete',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='element',
@@ -9165,7 +9304,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Delete object corresponding to the given element.',
+         doc='Delete object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_addActuator',
      FunctionDecl(
@@ -9183,7 +9322,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9237,7 +9376,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9275,7 +9414,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9297,7 +9436,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9523,7 +9662,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9593,7 +9732,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='def',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
                  ),
              ),
          ),
@@ -9607,13 +9746,35 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          parameters=(
              FunctionParameterDecl(
-                 name='body',
+                 name='element',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsBody'),
+                     inner_type=ValueType(name='mjsElement'),
                  ),
              ),
          ),
          doc='Get spec from body.',
+     )),
+    ('mjs_findSpec',
+     FunctionDecl(
+         name='mjs_findSpec',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Find spec (model asset) by name.',
      )),
     ('mjs_findBody',
      FunctionDecl(
@@ -9635,7 +9796,33 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Find body in model by name.',
+         doc='Find body in spec by name.',
+     )),
+    ('mjs_findElement',
+     FunctionDecl(
+         name='mjs_findElement',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsElement'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='type',
+                 type=ValueType(name='mjtObj'),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Find element in spec by name.',
      )),
     ('mjs_findChild',
      FunctionDecl(
@@ -9659,27 +9846,21 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Find child body by name.',
      )),
-    ('mjs_findMesh',
+    ('mjs_getParent',
      FunctionDecl(
-         name='mjs_findMesh',
+         name='mjs_getParent',
          return_type=PointerType(
-             inner_type=ValueType(name='mjsMesh'),
+             inner_type=ValueType(name='mjsBody'),
          ),
          parameters=(
              FunctionParameterDecl(
-                 name='s',
+                 name='element',
                  type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='name',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
+                     inner_type=ValueType(name='mjsElement'),
                  ),
              ),
          ),
-         doc='Find mesh by name.',
+         doc='Get parent body.',
      )),
     ('mjs_findFrame',
      FunctionDecl(
@@ -9703,28 +9884,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Find frame by name.',
      )),
-    ('mjs_findKeyframe',
-     FunctionDecl(
-         name='mjs_findKeyframe',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjsKey'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='name',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Find keyframe by name.',
-     )),
     ('mjs_getDefault',
      FunctionDecl(
          name='mjs_getDefault',
@@ -9745,7 +9904,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
      FunctionDecl(
          name='mjs_findDefault',
          return_type=PointerType(
-             inner_type=ValueType(name='mjsDefault'),
+             inner_type=ValueType(name='mjsDefault', is_const=True),
          ),
          parameters=(
              FunctionParameterDecl(
@@ -9810,8 +9969,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='type',
                  type=ValueType(name='mjtObj'),
              ),
+             FunctionParameterDecl(
+                 name='recurse',
+                 type=ValueType(name='int'),
+             ),
          ),
-         doc="Return body's first child of given type.",
+         doc="Return body's first child of given type. If recurse is nonzero, also search the body's subtree.",  # pylint: disable=line-too-long
      )),
     ('mjs_nextChild',
      FunctionDecl(
@@ -9832,8 +9995,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjsElement'),
                  ),
              ),
+             FunctionParameterDecl(
+                 name='recurse',
+                 type=ValueType(name='int'),
+             ),
          ),
-         doc="Return body's next child of the same type; return NULL if child is last.",  # pylint: disable=line-too-long
+         doc="Return body's next child of the same type; return NULL if child is last. If recurse is nonzero, also search the body's subtree.",  # pylint: disable=line-too-long
      )),
     ('mjs_firstElement',
      FunctionDecl(
@@ -9876,6 +10043,733 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc="Return spec's next element; return NULL if element is last.",
+     )),
+    ('mjs_setBuffer',
+     FunctionDecl(
+         name='mjs_setBuffer',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjByteVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy buffer.',
+     )),
+    ('mjs_setString',
+     FunctionDecl(
+         name='mjs_setString',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='text',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Copy text to string.',
+     )),
+    ('mjs_setStringVec',
+     FunctionDecl(
+         name='mjs_setStringVec',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjStringVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='text',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Split text to entries and copy to string vector.',
+     )),
+    ('mjs_setInStringVec',
+     FunctionDecl(
+         name='mjs_setInStringVec',
+         return_type=ValueType(name='mjtByte'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjStringVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='text',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Set entry in string vector.',
+     )),
+    ('mjs_appendString',
+     FunctionDecl(
+         name='mjs_appendString',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjStringVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='text',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Append text entry to string vector.',
+     )),
+    ('mjs_setInt',
+     FunctionDecl(
+         name='mjs_setInt',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjIntVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy int array to vector.',
+     )),
+    ('mjs_appendIntVec',
+     FunctionDecl(
+         name='mjs_appendIntVec',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjIntVecVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='int', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Append int array to vector of arrays.',
+     )),
+    ('mjs_setFloat',
+     FunctionDecl(
+         name='mjs_setFloat',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjFloatVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='float', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy float array to vector.',
+     )),
+    ('mjs_appendFloatVec',
+     FunctionDecl(
+         name='mjs_appendFloatVec',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjFloatVecVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='float', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Append float array to vector of arrays.',
+     )),
+    ('mjs_setDouble',
+     FunctionDecl(
+         name='mjs_setDouble',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjDoubleVec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='array',
+                 type=PointerType(
+                     inner_type=ValueType(name='double', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy double array to vector.',
+     )),
+    ('mjs_setPluginAttributes',
+     FunctionDecl(
+         name='mjs_setPluginAttributes',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='plugin',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsPlugin'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='attributes',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+             ),
+         ),
+         doc='Set plugin attributes.',
+     )),
+    ('mjs_getString',
+     FunctionDecl(
+         name='mjs_getString',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='source',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get string contents.',
+     )),
+    ('mjs_getDouble',
+     FunctionDecl(
+         name='mjs_getDouble',
+         return_type=PointerType(
+             inner_type=ValueType(name='double', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='source',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjDoubleVec', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+         ),
+         doc='Get double array contents and optionally its size.',
+     )),
+    ('mjs_setDefault',
+     FunctionDecl(
+         name='mjs_setDefault',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='def',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
+                 ),
+             ),
+         ),
+         doc="Set element's default.",
+     )),
+    ('mjs_setFrame',
+     FunctionDecl(
+         name='mjs_setFrame',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='frame',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsFrame'),
+                 ),
+             ),
+         ),
+         doc="Set element's enclosing frame.",
+     )),
+    ('mjs_resolveOrientation',
+     FunctionDecl(
+         name='mjs_resolveOrientation',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='quat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='degree',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='sequence',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='orientation',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsOrientation', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Resolve alternative orientations to quat, return error if any.',
+     )),
+    ('mjs_bodyToFrame',
+     FunctionDecl(
+         name='mjs_bodyToFrame',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjsBody'),
+                     ),
+                 ),
+             ),
+         ),
+         doc='Transform body into a frame.',
+     )),
+    ('mjs_defaultSpec',
+     FunctionDecl(
+         name='mjs_defaultSpec',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+         ),
+         doc='Default spec attributes.',
+     )),
+    ('mjs_defaultOrientation',
+     FunctionDecl(
+         name='mjs_defaultOrientation',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='orient',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsOrientation'),
+                 ),
+             ),
+         ),
+         doc='Default orientation attributes.',
+     )),
+    ('mjs_defaultBody',
+     FunctionDecl(
+         name='mjs_defaultBody',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody'),
+                 ),
+             ),
+         ),
+         doc='Default body attributes.',
+     )),
+    ('mjs_defaultFrame',
+     FunctionDecl(
+         name='mjs_defaultFrame',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='frame',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsFrame'),
+                 ),
+             ),
+         ),
+         doc='Default frame attributes.',
+     )),
+    ('mjs_defaultJoint',
+     FunctionDecl(
+         name='mjs_defaultJoint',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='joint',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsJoint'),
+                 ),
+             ),
+         ),
+         doc='Default joint attributes.',
+     )),
+    ('mjs_defaultGeom',
+     FunctionDecl(
+         name='mjs_defaultGeom',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='geom',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsGeom'),
+                 ),
+             ),
+         ),
+         doc='Default geom attributes.',
+     )),
+    ('mjs_defaultSite',
+     FunctionDecl(
+         name='mjs_defaultSite',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='site',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSite'),
+                 ),
+             ),
+         ),
+         doc='Default site attributes.',
+     )),
+    ('mjs_defaultCamera',
+     FunctionDecl(
+         name='mjs_defaultCamera',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='camera',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsCamera'),
+                 ),
+             ),
+         ),
+         doc='Default camera attributes.',
+     )),
+    ('mjs_defaultLight',
+     FunctionDecl(
+         name='mjs_defaultLight',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='light',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsLight'),
+                 ),
+             ),
+         ),
+         doc='Default light attributes.',
+     )),
+    ('mjs_defaultFlex',
+     FunctionDecl(
+         name='mjs_defaultFlex',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='flex',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsFlex'),
+                 ),
+             ),
+         ),
+         doc='Default flex attributes.',
+     )),
+    ('mjs_defaultMesh',
+     FunctionDecl(
+         name='mjs_defaultMesh',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='mesh',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsMesh'),
+                 ),
+             ),
+         ),
+         doc='Default mesh attributes.',
+     )),
+    ('mjs_defaultHField',
+     FunctionDecl(
+         name='mjs_defaultHField',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='hfield',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsHField'),
+                 ),
+             ),
+         ),
+         doc='Default height field attributes.',
+     )),
+    ('mjs_defaultSkin',
+     FunctionDecl(
+         name='mjs_defaultSkin',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='skin',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSkin'),
+                 ),
+             ),
+         ),
+         doc='Default skin attributes.',
+     )),
+    ('mjs_defaultTexture',
+     FunctionDecl(
+         name='mjs_defaultTexture',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='texture',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTexture'),
+                 ),
+             ),
+         ),
+         doc='Default texture attributes.',
+     )),
+    ('mjs_defaultMaterial',
+     FunctionDecl(
+         name='mjs_defaultMaterial',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='material',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsMaterial'),
+                 ),
+             ),
+         ),
+         doc='Default material attributes.',
+     )),
+    ('mjs_defaultPair',
+     FunctionDecl(
+         name='mjs_defaultPair',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='pair',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsPair'),
+                 ),
+             ),
+         ),
+         doc='Default pair attributes.',
+     )),
+    ('mjs_defaultEquality',
+     FunctionDecl(
+         name='mjs_defaultEquality',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='equality',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsEquality'),
+                 ),
+             ),
+         ),
+         doc='Default equality attributes.',
+     )),
+    ('mjs_defaultTendon',
+     FunctionDecl(
+         name='mjs_defaultTendon',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='tendon',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTendon'),
+                 ),
+             ),
+         ),
+         doc='Default tendon attributes.',
+     )),
+    ('mjs_defaultActuator',
+     FunctionDecl(
+         name='mjs_defaultActuator',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='actuator',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsActuator'),
+                 ),
+             ),
+         ),
+         doc='Default actuator attributes.',
+     )),
+    ('mjs_defaultSensor',
+     FunctionDecl(
+         name='mjs_defaultSensor',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='sensor',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSensor'),
+                 ),
+             ),
+         ),
+         doc='Default sensor attributes.',
+     )),
+    ('mjs_defaultNumeric',
+     FunctionDecl(
+         name='mjs_defaultNumeric',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='numeric',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsNumeric'),
+                 ),
+             ),
+         ),
+         doc='Default numeric attributes.',
+     )),
+    ('mjs_defaultText',
+     FunctionDecl(
+         name='mjs_defaultText',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='text',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsText'),
+                 ),
+             ),
+         ),
+         doc='Default text attributes.',
+     )),
+    ('mjs_defaultTuple',
+     FunctionDecl(
+         name='mjs_defaultTuple',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='tuple',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTuple'),
+                 ),
+             ),
+         ),
+         doc='Default tuple attributes.',
+     )),
+    ('mjs_defaultKey',
+     FunctionDecl(
+         name='mjs_defaultKey',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='key',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsKey'),
+                 ),
+             ),
+         ),
+         doc='Default keyframe attributes.',
+     )),
+    ('mjs_defaultPlugin',
+     FunctionDecl(
+         name='mjs_defaultPlugin',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='plugin',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsPlugin'),
+                 ),
+             ),
+         ),
+         doc='Default plugin attributes.',
      )),
     ('mjs_asBody',
      FunctionDecl(
@@ -10245,292 +11139,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.',  # pylint: disable=line-too-long
      )),
-    ('mjs_setString',
+    ('mjs_asPlugin',
      FunctionDecl(
-         name='mjs_setString',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Copy text to string.',
-     )),
-    ('mjs_setStringVec',
-     FunctionDecl(
-         name='mjs_setStringVec',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjStringVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Split text to entries and copy to string vector.',
-     )),
-    ('mjs_setInStringVec',
-     FunctionDecl(
-         name='mjs_setInStringVec',
-         return_type=ValueType(name='mjtByte'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjStringVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='i',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Set entry in string vector.',
-     )),
-    ('mjs_appendString',
-     FunctionDecl(
-         name='mjs_appendString',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjStringVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Append text entry to string vector.',
-     )),
-    ('mjs_setInt',
-     FunctionDecl(
-         name='mjs_setInt',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjIntVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='array',
-                 type=PointerType(
-                     inner_type=ValueType(name='int', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='size',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Copy int array to vector.',
-     )),
-    ('mjs_appendIntVec',
-     FunctionDecl(
-         name='mjs_appendIntVec',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjIntVecVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='array',
-                 type=PointerType(
-                     inner_type=ValueType(name='int', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='size',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Append int array to vector of arrays.',
-     )),
-    ('mjs_setFloat',
-     FunctionDecl(
-         name='mjs_setFloat',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjFloatVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='array',
-                 type=PointerType(
-                     inner_type=ValueType(name='float', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='size',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Copy float array to vector.',
-     )),
-    ('mjs_appendFloatVec',
-     FunctionDecl(
-         name='mjs_appendFloatVec',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjFloatVecVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='array',
-                 type=PointerType(
-                     inner_type=ValueType(name='float', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='size',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Append float array to vector of arrays.',
-     )),
-    ('mjs_setDouble',
-     FunctionDecl(
-         name='mjs_setDouble',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjDoubleVec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='array',
-                 type=PointerType(
-                     inner_type=ValueType(name='double', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='size',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Copy double array to vector.',
-     )),
-    ('mjs_setPluginAttributes',
-     FunctionDecl(
-         name='mjs_setPluginAttributes',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='plugin',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsPlugin'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='attributes',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-             ),
-         ),
-         doc='Set plugin attributes.',
-     )),
-    ('mjs_getString',
-     FunctionDecl(
-         name='mjs_getString',
+         name='mjs_asPlugin',
          return_type=PointerType(
-             inner_type=ValueType(name='char', is_const=True),
+             inner_type=ValueType(name='mjsPlugin'),
          ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='source',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Get string contents.',
-     )),
-    ('mjs_getDouble',
-     FunctionDecl(
-         name='mjs_getDouble',
-         return_type=PointerType(
-             inner_type=ValueType(name='double', is_const=True),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='source',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjDoubleVec', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='size',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-             ),
-         ),
-         doc='Get double array contents and optionally its size.',
-     )),
-    ('mjs_setActivePlugins',
-     FunctionDecl(
-         name='mjs_setActivePlugins',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='activeplugins',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-             ),
-         ),
-         doc='Set active plugins.',
-     )),
-    ('mjs_setDefault',
-     FunctionDecl(
-         name='mjs_setDefault',
-         return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
                  name='element',
@@ -10538,416 +11152,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjsElement'),
                  ),
              ),
-             FunctionParameterDecl(
-                 name='def',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
-                 ),
-             ),
          ),
-         doc="Set element's default.",
-     )),
-    ('mjs_setFrame',
-     FunctionDecl(
-         name='mjs_setFrame',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='dest',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsElement'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='frame',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsFrame'),
-                 ),
-             ),
-         ),
-         doc="Set element's enlcosing frame.",
-     )),
-    ('mjs_resolveOrientation',
-     FunctionDecl(
-         name='mjs_resolveOrientation',
-         return_type=PointerType(
-             inner_type=ValueType(name='char', is_const=True),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='quat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='double'),
-                     extents=(4,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='degree',
-                 type=ValueType(name='mjtByte'),
-             ),
-             FunctionParameterDecl(
-                 name='sequence',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='orientation',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsOrientation', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Resolve alternative orientations to quat, return error if any.',
-     )),
-    ('mjs_defaultSpec',
-     FunctionDecl(
-         name='mjs_defaultSpec',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='spec',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-         ),
-         doc='Default spec attributes.',
-     )),
-    ('mjs_defaultOrientation',
-     FunctionDecl(
-         name='mjs_defaultOrientation',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='orient',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsOrientation'),
-                 ),
-             ),
-         ),
-         doc='Default orientation attributes.',
-     )),
-    ('mjs_defaultBody',
-     FunctionDecl(
-         name='mjs_defaultBody',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='body',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsBody'),
-                 ),
-             ),
-         ),
-         doc='Default body attributes.',
-     )),
-    ('mjs_defaultFrame',
-     FunctionDecl(
-         name='mjs_defaultFrame',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='frame',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsFrame'),
-                 ),
-             ),
-         ),
-         doc='Default frame attributes.',
-     )),
-    ('mjs_defaultJoint',
-     FunctionDecl(
-         name='mjs_defaultJoint',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='joint',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsJoint'),
-                 ),
-             ),
-         ),
-         doc='Default joint attributes.',
-     )),
-    ('mjs_defaultGeom',
-     FunctionDecl(
-         name='mjs_defaultGeom',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='geom',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsGeom'),
-                 ),
-             ),
-         ),
-         doc='Default geom attributes.',
-     )),
-    ('mjs_defaultSite',
-     FunctionDecl(
-         name='mjs_defaultSite',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='site',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsSite'),
-                 ),
-             ),
-         ),
-         doc='Default site attributes.',
-     )),
-    ('mjs_defaultCamera',
-     FunctionDecl(
-         name='mjs_defaultCamera',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='camera',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsCamera'),
-                 ),
-             ),
-         ),
-         doc='Default camera attributes.',
-     )),
-    ('mjs_defaultLight',
-     FunctionDecl(
-         name='mjs_defaultLight',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='light',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsLight'),
-                 ),
-             ),
-         ),
-         doc='Default light attributes.',
-     )),
-    ('mjs_defaultFlex',
-     FunctionDecl(
-         name='mjs_defaultFlex',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='flex',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsFlex'),
-                 ),
-             ),
-         ),
-         doc='Default flex attributes.',
-     )),
-    ('mjs_defaultMesh',
-     FunctionDecl(
-         name='mjs_defaultMesh',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='mesh',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsMesh'),
-                 ),
-             ),
-         ),
-         doc='Default mesh attributes.',
-     )),
-    ('mjs_defaultHField',
-     FunctionDecl(
-         name='mjs_defaultHField',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='hfield',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsHField'),
-                 ),
-             ),
-         ),
-         doc='Default height field attributes.',
-     )),
-    ('mjs_defaultSkin',
-     FunctionDecl(
-         name='mjs_defaultSkin',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='skin',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsSkin'),
-                 ),
-             ),
-         ),
-         doc='Default skin attributes.',
-     )),
-    ('mjs_defaultTexture',
-     FunctionDecl(
-         name='mjs_defaultTexture',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='texture',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsTexture'),
-                 ),
-             ),
-         ),
-         doc='Default texture attributes.',
-     )),
-    ('mjs_defaultMaterial',
-     FunctionDecl(
-         name='mjs_defaultMaterial',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='material',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsMaterial'),
-                 ),
-             ),
-         ),
-         doc='Default material attributes.',
-     )),
-    ('mjs_defaultPair',
-     FunctionDecl(
-         name='mjs_defaultPair',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='pair',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsPair'),
-                 ),
-             ),
-         ),
-         doc='Default pair attributes.',
-     )),
-    ('mjs_defaultEquality',
-     FunctionDecl(
-         name='mjs_defaultEquality',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='equality',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsEquality'),
-                 ),
-             ),
-         ),
-         doc='Default equality attributes.',
-     )),
-    ('mjs_defaultTendon',
-     FunctionDecl(
-         name='mjs_defaultTendon',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='tendon',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsTendon'),
-                 ),
-             ),
-         ),
-         doc='Default tendon attributes.',
-     )),
-    ('mjs_defaultActuator',
-     FunctionDecl(
-         name='mjs_defaultActuator',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='actuator',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsActuator'),
-                 ),
-             ),
-         ),
-         doc='Default actuator attributes.',
-     )),
-    ('mjs_defaultSensor',
-     FunctionDecl(
-         name='mjs_defaultSensor',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='sensor',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsSensor'),
-                 ),
-             ),
-         ),
-         doc='Default sensor attributes.',
-     )),
-    ('mjs_defaultNumeric',
-     FunctionDecl(
-         name='mjs_defaultNumeric',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='numeric',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsNumeric'),
-                 ),
-             ),
-         ),
-         doc='Default numeric attributes.',
-     )),
-    ('mjs_defaultText',
-     FunctionDecl(
-         name='mjs_defaultText',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsText'),
-                 ),
-             ),
-         ),
-         doc='Default text attributes.',
-     )),
-    ('mjs_defaultTuple',
-     FunctionDecl(
-         name='mjs_defaultTuple',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='tuple',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsTuple'),
-                 ),
-             ),
-         ),
-         doc='Default tuple attributes.',
-     )),
-    ('mjs_defaultKey',
-     FunctionDecl(
-         name='mjs_defaultKey',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='key',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsKey'),
-                 ),
-             ),
-         ),
-         doc='Default keyframe attributes.',
-     )),
-    ('mjs_defaultPlugin',
-     FunctionDecl(
-         name='mjs_defaultPlugin',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='plugin',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsPlugin'),
-                 ),
-             ),
-         ),
-         doc='Default plugin attributes.',
+         doc='Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.',  # pylint: disable=line-too-long
      )),
 ])

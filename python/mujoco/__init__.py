@@ -19,7 +19,18 @@ import ctypes.util
 import os
 import platform
 import subprocess
+from typing import Union, IO
 import warnings
+import zipfile
+
+# Extend the path to enable multiple directories to contribute to the same
+# package. Without this line, the `mujoco-mjx` package would not be able to
+# be discovered by import. For more information, see: https://packaging.python.org/guides/packaging-namespace-packages/#pkgutil-style-namespace-packages
+# NOTE: As per the Python Packaging User Guide linked above, the preferable way
+# of declaring the namespace package is to use the native namespace packages.
+# This seems non-trivial at the current state of the project, however.
+# For more information, see: https://github.com/google-deepmind/mujoco/issues/2119
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
 
 _SYSTEM = platform.system()
 if _SYSTEM == 'Windows':
@@ -44,9 +55,31 @@ from mujoco._errors import *
 from mujoco._functions import *
 from mujoco._render import *
 from mujoco._specs import *
+from mujoco._specs import MjSpec
 from mujoco._structs import *
 from mujoco.gl_context import *
 from mujoco.renderer import Renderer
+
+
+def to_zip(spec: MjSpec, file: Union[str, IO[bytes]]) -> None:
+  """Converts a spec to a zip file.
+
+  Args:
+    spec: The mjSpec to save to a file.
+    file: The path to the file to save to or the file object to write to.
+  """
+  files_to_zip = spec.assets
+  files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
+  if isinstance(file, str):
+    directory = os.path.dirname(file)
+    os.makedirs(directory, exist_ok=True)
+    file = open(file, 'wb')
+  with zipfile.ZipFile(file, 'w') as zip_file:
+    for filename, contents in files_to_zip.items():
+      zip_info = zipfile.ZipInfo(os.path.join(spec.modelname, filename))
+      zip_file.writestr(zip_info, contents)
+
+MjSpec.to_zip = to_zip
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

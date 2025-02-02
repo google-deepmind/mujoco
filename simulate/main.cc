@@ -199,6 +199,16 @@ void scanPluginLibraries() {
 
 //------------------------------------------- simulation -------------------------------------------
 
+const char* Diverged(int disableflags, const mjData* d) {
+  if (disableflags & mjDSBL_AUTORESET) {
+    for (mjtWarning w : {mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS}) {
+      if (d->warning[w].number > 0) {
+        return mju_warningText(w, d->warning[w].lastinfo);
+      }
+    }
+  }
+  return nullptr;
+}
 
 mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   // this copy is needed so that the mju::strlen call below compiles
@@ -213,6 +223,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   // load and compile
   char loadError[kErrorLength] = "";
   mjModel* mnew = 0;
+  auto load_start = mj::Simulate::Clock::now();
   if (mju::strlen_arr(filename)>4 &&
       !std::strncmp(filename + mju::strlen_arr(filename) - 4, ".mjb",
                     mju::sizeof_arr(filename) - mju::strlen_arr(filename)+4)) {
@@ -222,6 +233,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     }
   } else {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
+
     // remove trailing newline character from loadError
     if (loadError[0]) {
       int error_length = mju::strlen_arr(loadError);
@@ -230,11 +242,12 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
       }
     }
   }
-
-  mju::strcpy_arr(sim.load_error, loadError);
+  auto load_interval = mj::Simulate::Clock::now() - load_start;
+  double load_seconds = Seconds(load_interval).count();
 
   if (!mnew) {
     std::printf("%s\n", loadError);
+    mju::strcpy_arr(sim.load_error, loadError);
     return nullptr;
   }
 
@@ -244,6 +257,13 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     std::printf("Model compiled, but simulation warning (paused):\n  %s\n", loadError);
     sim.run = 0;
   }
+
+  // if no error and load took more than 1/4 seconds, report load time
+  else if (load_seconds > 0.25) {
+    mju::sprintf_arr(loadError, "Model loaded in %.2g seconds", load_seconds);
+  }
+
+  mju::strcpy_arr(sim.load_error, loadError);
 
   return mnew;
 }
@@ -347,7 +367,13 @@ void PhysicsLoop(mj::Simulate& sim) {
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
-            stepped = true;
+            const char* message = Diverged(m->opt.disableflags, d);
+            if (message) {
+              sim.run = 0;
+              mju::strcpy_arr(sim.load_error, message);
+            } else {
+              stepped = true;
+            }
           }
 
           // in-sync: step until ahead of cpu
@@ -372,7 +398,13 @@ void PhysicsLoop(mj::Simulate& sim) {
 
               // call mj_step
               mj_step(m, d);
-              stepped = true;
+              const char* message = Diverged(m->opt.disableflags, d);
+              if (message) {
+                sim.run = 0;
+                mju::strcpy_arr(sim.load_error, message);
+              } else {
+                stepped = true;
+              }
 
               // break if reset
               if (d->time < prevSim) {

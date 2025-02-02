@@ -28,6 +28,7 @@ def matmul_unroll(a: jax.Array, b: jax.Array) -> jax.Array:
   Args:
     a: left hand of matmul operand
     b: right hand of matmul operand
+
   Returns:
     the matrix product of the inputs.
   """

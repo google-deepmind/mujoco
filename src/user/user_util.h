@@ -15,10 +15,12 @@
 #ifndef MUJOCO_SRC_USER_USER_UTIL_H_
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
-
+#include <vector>
 
 const double mjEPS = 1E-14;     // minimum value in various calculations
 const double mjMINMASS = 1E-6;  // minimum mass allowed
@@ -155,6 +157,93 @@ void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4], c
 // compute frame quat and diagonal inertia from full inertia matrix, return error if any
 const char* mjuu_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]);
 
+namespace mujoco::user {
+
+// utility class for handling file paths
+class FilePath {
+ public:
+  FilePath() = default;
+  explicit FilePath(const std::string& str) : path_(PathReduce(str)) {}
+  explicit FilePath(const char* str) { path_ = PathReduce(str); }
+  FilePath(const std::string& str1, const std::string& str2) {
+    path_ = PathReduce(Combine(str1, str2));
+  }
+  FilePath(FilePath&& other) = default;
+  FilePath& operator=(FilePath&& other) = default;
+  FilePath(const FilePath&) = default;
+  FilePath& operator=(const FilePath&) = default;
+
+  // return true if the path is absolute
+  bool IsAbs() const { return !AbsPrefix(path_).empty(); }
+
+  // return string with the absolute prefix of the path
+  // e.g. "c:\", "http://", etc
+  std::string AbsPrefix() const { return AbsPrefix(path_); }
+
+  // return copy of the internal path string
+  const std::string& Str() const { return path_; }
+
+  // return copy of the internal path string in lower case
+  // (for case insensitive purposes)
+  std::string StrLower() const;
+
+  // return the extension of the file path (e.g. "hello.txt" -> ".txt")
+  std::string Ext() const;
+
+  // concatenate two paths together
+  FilePath operator+(const FilePath& path) const;
+
+  // return a new FilePath with the extension stripped
+  FilePath StripExt() const;
+
+  // return a new FilePath with the path stripped
+  FilePath StripPath() const;
+
+  // return a new FilePath with path lower cased
+  FilePath Lower() const { return FilePathFast(StrLower()); }
+
+  // C++ string methods
+  std::size_t size() const { return path_.size(); }
+  const char* c_str() const { return path_.c_str(); }
+  bool empty() const { return path_.empty(); }
+  char operator[](int i) const { return path_[i]; }
+
+ private:
+  static std::string AbsPrefix(const std::string& str);
+  static std::string PathReduce(const std::string& str);
+  static bool IsSeparator(char c) {
+    return c == '/' || c == '\\';
+  }
+  static std::string Combine(const std::string& s1, const std::string& s2);
+
+  // fast constructor that does not call PathReduce
+  static FilePath FilePathFast(const std::string& str) {
+    FilePath path;
+    path.path_ = str;
+    return path;
+  }
+
+  static FilePath FilePathFast(std::string&& str) {
+    FilePath path;
+    path.path_ = str;
+    return path;
+  }
+
+  std::string path_;
+};
+
+// read file into memory buffer
+std::vector<uint8_t> FileToMemory(const char* filename);
+
+// convert vector to string separating elements by whitespace
+template<typename T> std::string VectorToString(const std::vector<T>& v);
+
+// convert string to vector
+template<typename T> std::vector<T> StringToVector(char *cs);
+template<typename T> std::vector<T> StringToVector(const std::string& s);
+
+}  // namespace mujoco::user
+
 // strip path from filename
 std::string mjuu_strippath(std::string filename);
 
@@ -180,5 +269,8 @@ std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_vie
 
 // convert filename extension to content type; return empty string if not found
 std::string mjuu_extToContentType(std::string_view filename);
+
+// get the length of the dirname portion of a given path
+int mjuu_dirnamelen(const char* path);
 
 #endif  // MUJOCO_SRC_USER_USER_UTIL_H_

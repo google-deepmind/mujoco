@@ -603,7 +603,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
   // prepare info text
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
-                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.2g of %s",
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.1f%% of %s",
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
@@ -611,7 +611,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
                    d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
                    solerr, solver_niter,
                    fps,
-                   d->maxuse_arena/(double)(d->narena),
+                   100*d->maxuse_arena/(double)(d->narena),
                    mju_writeNumBytes(d->narena));
 
   // add Energy if enabled
@@ -690,8 +690,8 @@ void MakePhysicsSection(mj::Simulate* sim) {
     {mjITEM_EDITNUM,   "LS Tol",        2, &(opt->ls_tolerance),      "1 0 0.1"},
     {mjITEM_EDITINT,   "Noslip Iter",   2, &(opt->noslip_iterations), "1 0 1000"},
     {mjITEM_EDITNUM,   "Noslip Tol",    2, &(opt->noslip_tolerance),  "1 0 1"},
-    {mjITEM_EDITINT,   "MPR Iter",      2, &(opt->mpr_iterations),    "1 0 1000"},
-    {mjITEM_EDITNUM,   "MPR Tol",       2, &(opt->mpr_tolerance),     "1 0 1"},
+    {mjITEM_EDITINT,   "CCD Iter",      2, &(opt->ccd_iterations),    "1 0 1000"},
+    {mjITEM_EDITNUM,   "CCD Tol",       2, &(opt->ccd_tolerance),     "1 0 1"},
     {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
     {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
@@ -1886,7 +1886,7 @@ void Simulate::Sync() {
     X(impratio);
     X(tolerance);
     X(noslip_tolerance);
-    X(mpr_tolerance);
+    X(ccd_tolerance);
     X(gravity);
     X(wind);
     X(magnetic);
@@ -1902,7 +1902,7 @@ void Simulate::Sync() {
     X(solver);
     X(iterations);
     X(noslip_iterations);
-    X(mpr_iterations);
+    X(ccd_iterations);
     X(disableflags);
     X(enableflags);
     X(disableactuator);
@@ -1950,6 +1950,7 @@ void Simulate::Sync() {
   if (pending_.reset) {
     mj_resetData(m_, d_);
     mj_forward(m_, d_);
+    load_error[0] = '\0';
     update_profiler = true;
     update_sensor = true;
     scrub_index = 0;

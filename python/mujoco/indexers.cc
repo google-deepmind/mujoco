@@ -103,6 +103,7 @@ py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
     shape.insert(shape.begin(), m.hfield_nrow[index]);
   } else if (MjSize == &raw::MjModel::ntexdata) {
     offset = m.tex_adr[index];
+    shape.insert(shape.begin(), m.tex_nchannel[index]);
     shape.insert(shape.begin(), m.tex_width[index]);
     shape.insert(shape.begin(), m.tex_height[index]);
   } else if (MjSize == &raw::MjModel::nsensordata) {

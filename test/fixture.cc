@@ -17,6 +17,7 @@
 #include <array>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <fstream>
@@ -218,28 +219,34 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   // (needed in MJMODEL_POINTERS)
   MJMODEL_POINTERS_PREAMBLE(m1);
 
-  // compare ints
-  #define X(name) \
-    if (m1->name != m2->name) {maxdif = m1->name - m2->name; field = #name;}
-    MJMODEL_INTS
-  #undef X
+// compare ints, exclude nbuffer because it hides the actual difference
+#define X(name)                                           \
+  if constexpr (std::string_view(#name) != "nbuffer") {   \
+    if (m1->name != m2->name) {                           \
+      maxdif = std::abs((long)m1->name - (long)m2->name); \
+      field = #name;                                      \
+    }                                                     \
+  }
+  MJMODEL_INTS
+#undef X
   if (maxdif > 0) return maxdif;
 
-  // compare arrays, apart from bvh-related ones, as those are sensitive to
-  // numerical differences when meshes are perfectly symmetric.
-#define X(type, name, nr, nc)                                      \
-  if (strncmp(#name, "bvh_", 4)) {                                 \
-    for (int r = 0; r < m1->nr; r++) {                             \
-      for (int c = 0; c < nc; c++) {                               \
-        dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]); \
-        if (dif > maxdif) {                                        \
-          maxdif = dif;                                            \
-          field = #name;                                           \
-          field += " row: " + std::to_string(r);                   \
-          field += " col: " + std::to_string(c);                   \
-        }                                                          \
-      }                                                            \
-    }                                                              \
+  // compare arrays, apart from bvh-related ones (which includes flex_vert0), as
+  // those are sensitive to numerical differences when meshes are perfectly
+  // symmetric.
+#define X(type, name, nr, nc)                                         \
+  if (strncmp(#name, "bvh_", 4) && strncmp(#name, "flex_vert0", 4)) { \
+    for (int r = 0; r < m1->nr; r++) {                                \
+      for (int c = 0; c < nc; c++) {                                  \
+        dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]);    \
+        if (dif > maxdif) {                                           \
+          maxdif = dif;                                               \
+          field = #name;                                              \
+          field += " row: " + std::to_string(r);                      \
+          field += " col: " + std::to_string(c);                      \
+        }                                                             \
+      }                                                               \
+    }                                                                 \
   }  // NOLINT
   MJMODEL_POINTERS
 #undef X

@@ -13,8 +13,8 @@ The model and all files referenced in it can be loaded from disk or from a VFS w
 
 .. _mj_loadXML:
 
-mj_loadXML
-~~~~~~~~~~
+`mj_loadXML <#mj_loadXML>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_loadXML
 
@@ -24,8 +24,8 @@ If error is not NULL, it must have size error_sz.
 
 .. _mj_parseXML:
 
-mj_parseXML
-~~~~~~~~~~~
+`mj_parseXML <#mj_parseXML>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_parseXML
 
@@ -33,8 +33,8 @@ Parse spec from XML file.
 
 .. _mj_parseXMLString:
 
-mj_parseXMLString
-~~~~~~~~~~~~~~~~~
+`mj_parseXMLString <#mj_parseXMLString>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_parseXMLString
 
@@ -42,26 +42,36 @@ Parse spec from XML string.
 
 .. _mj_compile:
 
-mj_compile
-~~~~~~~~~~
+`mj_compile <#mj_compile>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_compile
 
-Compile spec to model.
+Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multiple times, returning a new
+:ref:`mjModel` instance that takes the edits into account.
+If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
 
 .. _mj_recompile:
 
-mj_recompile
-~~~~~~~~~~~~
+`mj_recompile <#mj_recompile>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_recompile
 
-Recompile spec to model, preserving the state.
+Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
+:ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
+reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
+:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
+struct pointers while editing the model programmatically.
+
+:ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
+instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
 .. _mj_saveLastXML:
 
-mj_saveLastXML
-~~~~~~~~~~~~~~
+`mj_saveLastXML <#mj_saveLastXML>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_saveLastXML
 
@@ -70,39 +80,31 @@ If error is not NULL, it must have size error_sz.
 
 .. _mj_freeLastXML:
 
-mj_freeLastXML
-~~~~~~~~~~~~~~
+`mj_freeLastXML <#mj_freeLastXML>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_freeLastXML
 
 Free last XML model if loaded. Called internally at each load.
 
-.. _mj_copyBack:
-
-mj_copyBack
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_copyBack
-
-Copy (possibly modified) model fields back into spec.
-
 .. _mj_saveXMLString:
 
-mj_saveXMLString
-~~~~~~~~~~~~~~~~
+`mj_saveXMLString <#mj_saveXMLString>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_saveXMLString
 
-Save spec to XML string, return 1 on success, 0 otherwise.
+Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
+the required size. XML saving requires that the spec first be compiled.
 
 .. _mj_saveXML:
 
-mj_saveXML
-~~~~~~~~~~
+`mj_saveXML <#mj_saveXML>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_saveXML
 
-Save spec to XML file, return 1 on success, 0 otherwise.
+Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
 .. _Mainsimulation:
 
@@ -135,8 +137,8 @@ depend on qpos. Calling the dynamics with skipstage = :ref:`mjSTAGE_POS<mjtStage
 
 .. _mj_step:
 
-mj_step
-~~~~~~~
+`mj_step <#mj_step>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_step
 
@@ -144,8 +146,8 @@ Advance simulation, use control callback to obtain external force and control.
 
 .. _mj_step1:
 
-mj_step1
-~~~~~~~~
+`mj_step1 <#mj_step1>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_step1
 
@@ -153,8 +155,8 @@ Advance simulation in two steps: before external force and control is set by use
 
 .. _mj_step2:
 
-mj_step2
-~~~~~~~~
+`mj_step2 <#mj_step2>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_step2
 
@@ -162,8 +164,8 @@ Advance simulation in two steps: after external force and control is set by user
 
 .. _mj_forward:
 
-mj_forward
-~~~~~~~~~~
+`mj_forward <#mj_forward>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_forward
 
@@ -171,8 +173,8 @@ Forward dynamics: same as mj_step but do not integrate in time.
 
 .. _mj_inverse:
 
-mj_inverse
-~~~~~~~~~~
+`mj_inverse <#mj_inverse>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_inverse
 
@@ -180,8 +182,8 @@ Inverse dynamics: qacc must be set before calling.
 
 .. _mj_forwardSkip:
 
-mj_forwardSkip
-~~~~~~~~~~~~~~
+`mj_forwardSkip <#mj_forwardSkip>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_forwardSkip
 
@@ -189,8 +191,8 @@ Forward dynamics with skip; skipstage is mjtStage.
 
 .. _mj_inverseSkip:
 
-mj_inverseSkip
-~~~~~~~~~~~~~~
+`mj_inverseSkip <#mj_inverseSkip>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_inverseSkip
 
@@ -207,8 +209,8 @@ computations, and are documented in more detail below.
 
 .. _mj_stateSize:
 
-mj_stateSize
-~~~~~~~~~~~~
+`mj_stateSize <#mj_stateSize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_stateSize
 
@@ -217,8 +219,8 @@ correspond to element fields of :ref:`mjtState`.
 
 .. _mj_getState:
 
-mj_getState
-~~~~~~~~~~~
+`mj_getState <#mj_getState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_getState
 
@@ -227,8 +229,8 @@ Copy concatenated state components specified by ``spec`` from ``d`` into ``state
 
 .. _mj_setState:
 
-mj_setState
-~~~~~~~~~~~
+`mj_setState <#mj_setState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_setState
 
@@ -237,8 +239,8 @@ Copy concatenated state components specified by ``spec`` from  ``state`` into ``
 
 .. _mj_setKeyframe:
 
-mj_setKeyframe
-~~~~~~~~~~~~~~
+`mj_setKeyframe <#mj_setKeyframe>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_setKeyframe
 
@@ -246,8 +248,8 @@ Copy current state to the k-th model keyframe.
 
 .. _mj_addContact:
 
-mj_addContact
-~~~~~~~~~~~~~
+`mj_addContact <#mj_addContact>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_addContact
 
@@ -255,8 +257,8 @@ Add contact to d->contact list; return 0 if success; 1 if buffer full.
 
 .. _mj_isPyramidal:
 
-mj_isPyramidal
-~~~~~~~~~~~~~~
+`mj_isPyramidal <#mj_isPyramidal>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_isPyramidal
 
@@ -264,8 +266,8 @@ Determine type of friction cone.
 
 .. _mj_isSparse:
 
-mj_isSparse
-~~~~~~~~~~~
+`mj_isSparse <#mj_isSparse>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_isSparse
 
@@ -273,8 +275,8 @@ Determine type of constraint Jacobian.
 
 .. _mj_isDual:
 
-mj_isDual
-~~~~~~~~~
+`mj_isDual <#mj_isDual>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_isDual
 
@@ -282,8 +284,8 @@ Determine type of solver (PGS is dual, CG and Newton are primal).
 
 .. _mj_mulJacVec:
 
-mj_mulJacVec
-~~~~~~~~~~~~
+`mj_mulJacVec <#mj_mulJacVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_mulJacVec
 
@@ -292,8 +294,8 @@ sparse; the function is aware of this setting. Multiplication by J maps velociti
 
 .. _mj_mulJacTVec:
 
-mj_mulJacTVec
-~~~~~~~~~~~~~
+`mj_mulJacTVec <#mj_mulJacTVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_mulJacTVec
 
@@ -302,8 +304,8 @@ space.
 
 .. _mj_jac:
 
-mj_jac
-~~~~~~
+`mj_jac <#mj_jac>`__
+~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jac
 
@@ -312,13 +314,15 @@ degrees-of-freedom and a given point. Given a body specified by its integer id (
 frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
 (``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
 3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
-respect to the degrees-of-freedom. The :ref:`pipeline stages<piStages>` required for Jacobian computations to be
-consistenst with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` and :ref:`mj_comPos`.
+respect to the degrees-of-freedom. The frame with respect to which the Jacobian is computed is centered at the body
+center-of-mass but aligned with the world frame. The minimal :ref:`pipeline stages<piForward>` required for Jacobian
+computations to be consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` followed
+by :ref:`mj_comPos`.
 
 .. _mj_jacBody:
 
-mj_jacBody
-~~~~~~~~~~
+`mj_jacBody <#mj_jacBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jacBody
 
@@ -327,8 +331,8 @@ site. They are just shortcuts; the same can be achieved by calling mj_jac direct
 
 .. _mj_jacBodyCom:
 
-mj_jacBodyCom
-~~~~~~~~~~~~~
+`mj_jacBodyCom <#mj_jacBodyCom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jacBodyCom
 
@@ -336,8 +340,8 @@ Compute body center-of-mass end-effector Jacobian.
 
 .. _mj_jacSubtreeCom:
 
-mj_jacSubtreeCom
-~~~~~~~~~~~~~~~~
+`mj_jacSubtreeCom <#mj_jacSubtreeCom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jacSubtreeCom
 
@@ -345,8 +349,8 @@ Compute subtree center-of-mass end-effector Jacobian.
 
 .. _mj_jacGeom:
 
-mj_jacGeom
-~~~~~~~~~~
+`mj_jacGeom <#mj_jacGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jacGeom
 
@@ -354,8 +358,8 @@ Compute geom end-effector Jacobian.
 
 .. _mj_jacSite:
 
-mj_jacSite
-~~~~~~~~~~
+`mj_jacSite <#mj_jacSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jacSite
 
@@ -363,17 +367,29 @@ Compute site end-effector Jacobian.
 
 .. _mj_jacPointAxis:
 
-mj_jacPointAxis
-~~~~~~~~~~~~~~~
+`mj_jacPointAxis <#mj_jacPointAxis>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_jacPointAxis
 
 Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.
 
+.. _mj_jacDot:
+
+`mj_jacDot <#mj_jacDot>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_jacDot
+
+This function computes the time-derivative of an end-effector kinematic Jacobian computed by :ref:`mj_jac`.
+The minimal :ref:`pipeline stages<piStages>` required for computation to be
+consistent with the current generalized positions and velocities ``mjData.{qpos, qvel}`` are
+:ref:`mj_kinematics`, :ref:`mj_comPos`, :ref:`mj_comVel` (in that order).
+
 .. _mj_angmomMat:
 
-mj_angmomMat
-~~~~~~~~~~~~
+`mj_angmomMat <#mj_angmomMat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_angmomMat
 
@@ -384,8 +400,8 @@ and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = 
 
 .. _mj_name2id:
 
-mj_name2id
-~~~~~~~~~~
+`mj_name2id <#mj_name2id>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_name2id
 
@@ -393,8 +409,8 @@ Get id of object with the specified mjtObj type and name, returns -1 if id not f
 
 .. _mj_id2name:
 
-mj_id2name
-~~~~~~~~~~
+`mj_id2name <#mj_id2name>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_id2name
 
@@ -402,8 +418,8 @@ Get name of object with the specified mjtObj type and id, returns NULL if name n
 
 .. _mj_fullM:
 
-mj_fullM
-~~~~~~~~
+`mj_fullM <#mj_fullM>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_fullM
 
@@ -411,8 +427,8 @@ Convert sparse inertia matrix M into full (i.e. dense) matrix.
 
 .. _mj_mulM:
 
-mj_mulM
-~~~~~~~
+`mj_mulM <#mj_mulM>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_mulM
 
@@ -423,8 +439,8 @@ sparsity.
 
 .. _mj_mulM2:
 
-mj_mulM2
-~~~~~~~~
+`mj_mulM2 <#mj_mulM2>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_mulM2
 
@@ -432,8 +448,8 @@ Multiply vector by (inertia matrix)^(1/2).
 
 .. _mj_addM:
 
-mj_addM
-~~~~~~~
+`mj_addM <#mj_addM>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_addM
 
@@ -442,8 +458,8 @@ Destination can be sparse uncompressed, or dense when all int* are NULL
 
 .. _mj_applyFT:
 
-mj_applyFT
-~~~~~~~~~~
+`mj_applyFT <#mj_applyFT>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_applyFT
 
@@ -453,8 +469,8 @@ we want to add the result to a different vector.
 
 .. _mj_objectVelocity:
 
-mj_objectVelocity
-~~~~~~~~~~~~~~~~~
+`mj_objectVelocity <#mj_objectVelocity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_objectVelocity
 
@@ -462,8 +478,8 @@ Compute object 6D velocity (rot:lin) in object-centered frame, world/local orien
 
 .. _mj_objectAcceleration:
 
-mj_objectAcceleration
-~~~~~~~~~~~~~~~~~~~~~
+`mj_objectAcceleration <#mj_objectAcceleration>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_objectAcceleration
 
@@ -473,8 +489,8 @@ mjData.cacc -- the total body acceleration, including contributions from the con
 
 .. _mj_geomDistance:
 
-mj_geomDistance
-~~~~~~~~~~~~~~~
+`mj_geomDistance <#mj_geomDistance>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_geomDistance
 
@@ -488,15 +504,15 @@ found, the function will return ``distmax`` and ``fromto``, if given, will be se
    .. TODO: b/339596989 - Improve mjc_Convex.
 
    For some colliders, a large, positive ``distmax`` will result in an accurate measurement. However, for collision
-   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
+   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely inaccurate.
    This is considered a bug to be fixed in a future release.
    In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
    `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
 
 .. _mj_contactForce:
 
-mj_contactForce
-~~~~~~~~~~~~~~~
+`mj_contactForce <#mj_contactForce>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_contactForce
 
@@ -504,8 +520,8 @@ Extract 6D force:torque given contact id, in the contact frame.
 
 .. _mj_differentiatePos:
 
-mj_differentiatePos
-~~~~~~~~~~~~~~~~~~~
+`mj_differentiatePos <#mj_differentiatePos>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_differentiatePos
 
@@ -517,8 +533,8 @@ inputs have dimensionality nq.
 
 .. _mj_integratePos:
 
-mj_integratePos
-~~~~~~~~~~~~~~~
+`mj_integratePos <#mj_integratePos>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_integratePos
 
@@ -527,8 +543,8 @@ format of qpos.
 
 .. _mj_normalizeQuat:
 
-mj_normalizeQuat
-~~~~~~~~~~~~~~~~
+`mj_normalizeQuat <#mj_normalizeQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_normalizeQuat
 
@@ -536,17 +552,17 @@ Normalize all quaternions in qpos-type vector.
 
 .. _mj_local2Global:
 
-mj_local2Global
-~~~~~~~~~~~~~~~
+`mj_local2Global <#mj_local2Global>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_local2Global
 
-Map from body local to global Cartesian coordinates.
+Map from body local to global Cartesian coordinates, sameframe takes values from mjtSameFrame.
 
 .. _mj_getTotalmass:
 
-mj_getTotalmass
-~~~~~~~~~~~~~~~
+`mj_getTotalmass <#mj_getTotalmass>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_getTotalmass
 
@@ -554,8 +570,8 @@ Sum all body masses.
 
 .. _mj_setTotalmass:
 
-mj_setTotalmass
-~~~~~~~~~~~~~~~
+`mj_setTotalmass <#mj_setTotalmass>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_setTotalmass
 
@@ -563,8 +579,8 @@ Scale body masses and inertias to achieve specified total mass.
 
 .. _mj_getPluginConfig:
 
-mj_getPluginConfig
-~~~~~~~~~~~~~~~~~~
+`mj_getPluginConfig <#mj_getPluginConfig>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_getPluginConfig
 
@@ -573,8 +589,8 @@ NULL: invalid plugin instance ID or attribute name
 
 .. _mj_loadPluginLibrary:
 
-mj_loadPluginLibrary
-~~~~~~~~~~~~~~~~~~~~
+`mj_loadPluginLibrary <#mj_loadPluginLibrary>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_loadPluginLibrary
 
@@ -582,8 +598,8 @@ Load a dynamic library. The dynamic library is assumed to register one or more p
 
 .. _mj_loadAllPluginLibraries:
 
-mj_loadAllPluginLibraries
-~~~~~~~~~~~~~~~~~~~~~~~~~
+`mj_loadAllPluginLibraries <#mj_loadAllPluginLibraries>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_loadAllPluginLibraries
 
@@ -593,8 +609,8 @@ for each dynamic library encountered that registers plugins.
 
 .. _mj_version:
 
-mj_version
-~~~~~~~~~~
+`mj_version <#mj_version>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_version
 
@@ -602,8 +618,8 @@ Return version number: 1.0.2 is encoded as 102.
 
 .. _mj_versionString:
 
-mj_versionString
-~~~~~~~~~~~~~~~~
+`mj_versionString <#mj_versionString>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_versionString
 
@@ -619,8 +635,8 @@ These are components of the simulation pipeline, called internally from :ref:`mj
 
 .. _mj_fwdPosition:
 
-mj_fwdPosition
-~~~~~~~~~~~~~~
+`mj_fwdPosition <#mj_fwdPosition>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_fwdPosition
 
@@ -628,8 +644,8 @@ Run position-dependent computations.
 
 .. _mj_fwdVelocity:
 
-mj_fwdVelocity
-~~~~~~~~~~~~~~
+`mj_fwdVelocity <#mj_fwdVelocity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_fwdVelocity
 
@@ -637,8 +653,8 @@ Run velocity-dependent computations.
 
 .. _mj_fwdActuation:
 
-mj_fwdActuation
-~~~~~~~~~~~~~~~
+`mj_fwdActuation <#mj_fwdActuation>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_fwdActuation
 
@@ -646,8 +662,8 @@ Compute actuator force qfrc_actuator.
 
 .. _mj_fwdAcceleration:
 
-mj_fwdAcceleration
-~~~~~~~~~~~~~~~~~~
+`mj_fwdAcceleration <#mj_fwdAcceleration>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_fwdAcceleration
 
@@ -655,8 +671,8 @@ Add up all non-constraint forces, compute qacc_smooth.
 
 .. _mj_fwdConstraint:
 
-mj_fwdConstraint
-~~~~~~~~~~~~~~~~
+`mj_fwdConstraint <#mj_fwdConstraint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_fwdConstraint
 
@@ -664,8 +680,8 @@ Run selected constraint solver.
 
 .. _mj_Euler:
 
-mj_Euler
-~~~~~~~~
+`mj_Euler <#mj_Euler>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_Euler
 
@@ -673,8 +689,8 @@ Euler integrator, semi-implicit in velocity.
 
 .. _mj_RungeKutta:
 
-mj_RungeKutta
-~~~~~~~~~~~~~
+`mj_RungeKutta <#mj_RungeKutta>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_RungeKutta
 
@@ -682,8 +698,8 @@ Runge-Kutta explicit order-N integrator.
 
 .. _mj_implicit:
 
-mj_implicit
-~~~~~~~~~~~
+`mj_implicit <#mj_implicit>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_implicit
 
@@ -693,8 +709,8 @@ Integrates the simulation state using an implicit-in-velocity integrator (either
 
 .. _mj_invPosition:
 
-mj_invPosition
-~~~~~~~~~~~~~~
+`mj_invPosition <#mj_invPosition>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_invPosition
 
@@ -702,8 +718,8 @@ Run position-dependent computations in inverse dynamics.
 
 .. _mj_invVelocity:
 
-mj_invVelocity
-~~~~~~~~~~~~~~
+`mj_invVelocity <#mj_invVelocity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_invVelocity
 
@@ -711,8 +727,8 @@ Run velocity-dependent computations in inverse dynamics.
 
 .. _mj_invConstraint:
 
-mj_invConstraint
-~~~~~~~~~~~~~~~~
+`mj_invConstraint <#mj_invConstraint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_invConstraint
 
@@ -720,8 +736,8 @@ Apply the analytical formula for inverse constraint dynamics.
 
 .. _mj_compareFwdInv:
 
-mj_compareFwdInv
-~~~~~~~~~~~~~~~~
+`mj_compareFwdInv <#mj_compareFwdInv>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_compareFwdInv
 
@@ -737,8 +753,8 @@ that the user will need to call them.
 
 .. _mj_sensorPos:
 
-mj_sensorPos
-~~~~~~~~~~~~
+`mj_sensorPos <#mj_sensorPos>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_sensorPos
 
@@ -746,8 +762,8 @@ Evaluate position-dependent sensors.
 
 .. _mj_sensorVel:
 
-mj_sensorVel
-~~~~~~~~~~~~
+`mj_sensorVel <#mj_sensorVel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_sensorVel
 
@@ -755,8 +771,8 @@ Evaluate velocity-dependent sensors.
 
 .. _mj_sensorAcc:
 
-mj_sensorAcc
-~~~~~~~~~~~~
+`mj_sensorAcc <#mj_sensorAcc>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_sensorAcc
 
@@ -764,8 +780,8 @@ Evaluate acceleration and force-dependent sensors.
 
 .. _mj_energyPos:
 
-mj_energyPos
-~~~~~~~~~~~~
+`mj_energyPos <#mj_energyPos>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_energyPos
 
@@ -773,8 +789,8 @@ Evaluate position-dependent energy (potential).
 
 .. _mj_energyVel:
 
-mj_energyVel
-~~~~~~~~~~~~
+`mj_energyVel <#mj_energyVel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_energyVel
 
@@ -782,8 +798,8 @@ Evaluate velocity-dependent energy (kinetic).
 
 .. _mj_checkPos:
 
-mj_checkPos
-~~~~~~~~~~~
+`mj_checkPos <#mj_checkPos>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_checkPos
 
@@ -791,8 +807,8 @@ Check qpos, reset if any element is too big or nan.
 
 .. _mj_checkVel:
 
-mj_checkVel
-~~~~~~~~~~~
+`mj_checkVel <#mj_checkVel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_checkVel
 
@@ -800,8 +816,8 @@ Check qvel, reset if any element is too big or nan.
 
 .. _mj_checkAcc:
 
-mj_checkAcc
-~~~~~~~~~~~
+`mj_checkAcc <#mj_checkAcc>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_checkAcc
 
@@ -809,8 +825,8 @@ Check qacc, reset if any element is too big or nan.
 
 .. _mj_kinematics:
 
-mj_kinematics
-~~~~~~~~~~~~~
+`mj_kinematics <#mj_kinematics>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_kinematics
 
@@ -818,8 +834,8 @@ Run forward kinematics.
 
 .. _mj_comPos:
 
-mj_comPos
-~~~~~~~~~
+`mj_comPos <#mj_comPos>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_comPos
 
@@ -827,8 +843,8 @@ Map inertias and motion dofs to global frame centered at CoM.
 
 .. _mj_camlight:
 
-mj_camlight
-~~~~~~~~~~~
+`mj_camlight <#mj_camlight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_camlight
 
@@ -836,8 +852,8 @@ Compute camera and light positions and orientations.
 
 .. _mj_flex:
 
-mj_flex
-~~~~~~~
+`mj_flex <#mj_flex>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_flex
 
@@ -845,8 +861,8 @@ Compute flex-related quantities.
 
 .. _mj_tendon:
 
-mj_tendon
-~~~~~~~~~
+`mj_tendon <#mj_tendon>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_tendon
 
@@ -854,8 +870,8 @@ Compute tendon lengths, velocities and moment arms.
 
 .. _mj_transmission:
 
-mj_transmission
-~~~~~~~~~~~~~~~
+`mj_transmission <#mj_transmission>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_transmission
 
@@ -863,8 +879,8 @@ Compute actuator transmission lengths and moments.
 
 .. _mj_crb:
 
-mj_crb
-~~~~~~
+`mj_crb <#mj_crb>`__
+~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_crb
 
@@ -872,8 +888,8 @@ Run composite rigid body inertia algorithm (CRB).
 
 .. _mj_factorM:
 
-mj_factorM
-~~~~~~~~~~
+`mj_factorM <#mj_factorM>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_factorM
 
@@ -881,8 +897,8 @@ Compute sparse :math:`L^T D L` factorizaton of inertia matrix.
 
 .. _mj_solveM:
 
-mj_solveM
-~~~~~~~~~
+`mj_solveM <#mj_solveM>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_solveM
 
@@ -890,8 +906,8 @@ Solve linear system :math:`M x = y` using factorization: :math:`x = (L^T D L)^{-
 
 .. _mj_solveM2:
 
-mj_solveM2
-~~~~~~~~~~
+`mj_solveM2 <#mj_solveM2>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_solveM2
 
@@ -899,8 +915,8 @@ Half of linear solve: :math:`x = \sqrt{D^{-1}} (L^T)^{-1} y`
 
 .. _mj_comVel:
 
-mj_comVel
-~~~~~~~~~
+`mj_comVel <#mj_comVel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_comVel
 
@@ -908,8 +924,8 @@ Compute cvel, cdof_dot.
 
 .. _mj_passive:
 
-mj_passive
-~~~~~~~~~~
+`mj_passive <#mj_passive>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_passive
 
@@ -917,8 +933,8 @@ Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.
 
 .. _mj_subtreeVel:
 
-mj_subtreeVel
-~~~~~~~~~~~~~
+`mj_subtreeVel <#mj_subtreeVel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_subtreeVel
 
@@ -929,8 +945,8 @@ It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-
 
 .. _mj_rne:
 
-mj_rne
-~~~~~~
+`mj_rne <#mj_rne>`__
+~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_rne
 
@@ -939,8 +955,8 @@ assumes :math:`\ddot q = 0`).
 
 .. _mj_rnePostConstraint:
 
-mj_rnePostConstraint
-~~~~~~~~~~~~~~~~~~~~
+`mj_rnePostConstraint <#mj_rnePostConstraint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_rnePostConstraint
 
@@ -962,8 +978,8 @@ the effect of spatial tendons, see :github:issue:`832`.
 
 .. _mj_collision:
 
-mj_collision
-~~~~~~~~~~~~
+`mj_collision <#mj_collision>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_collision
 
@@ -971,8 +987,8 @@ Run collision detection.
 
 .. _mj_makeConstraint:
 
-mj_makeConstraint
-~~~~~~~~~~~~~~~~~
+`mj_makeConstraint <#mj_makeConstraint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_makeConstraint
 
@@ -980,8 +996,8 @@ Construct constraints.
 
 .. _mj_island:
 
-mj_island
-~~~~~~~~~
+`mj_island <#mj_island>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_island
 
@@ -989,8 +1005,8 @@ Find constraint islands.
 
 .. _mj_projectConstraint:
 
-mj_projectConstraint
-~~~~~~~~~~~~~~~~~~~~
+`mj_projectConstraint <#mj_projectConstraint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_projectConstraint
 
@@ -998,8 +1014,8 @@ Compute inverse constraint inertia efc_AR.
 
 .. _mj_referenceConstraint:
 
-mj_referenceConstraint
-~~~~~~~~~~~~~~~~~~~~~~
+`mj_referenceConstraint <#mj_referenceConstraint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_referenceConstraint
 
@@ -1007,8 +1023,8 @@ Compute efc_vel, efc_aref.
 
 .. _mj_constraintUpdate:
 
-mj_constraintUpdate
-~~~~~~~~~~~~~~~~~~~
+`mj_constraintUpdate <#mj_constraintUpdate>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_constraintUpdate
 
@@ -1032,8 +1048,8 @@ rays from a single point.
 
 .. _mj_multiRay:
 
-mj_multiRay
-~~~~~~~~~~~
+`mj_multiRay <#mj_multiRay>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_multiRay
 
@@ -1042,8 +1058,8 @@ Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 
 .. _mj_ray:
 
-mj_ray
-~~~~~~
+`mj_ray <#mj_ray>`__
+~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_ray
 
@@ -1060,8 +1076,8 @@ bodyexclude=-1 can be used to indicate that all bodies are included.
 
 .. _mj_rayHfield:
 
-mj_rayHfield
-~~~~~~~~~~~~
+`mj_rayHfield <#mj_rayHfield>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_rayHfield
 
@@ -1069,8 +1085,8 @@ Intersect ray with hfield, return nearest distance or -1 if no intersection.
 
 .. _mj_rayMesh:
 
-mj_rayMesh
-~~~~~~~~~~
+`mj_rayMesh <#mj_rayMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_rayMesh
 
@@ -1078,8 +1094,8 @@ Intersect ray with mesh, return nearest distance or -1 if no intersection.
 
 .. _mju_rayGeom:
 
-mju_rayGeom
-~~~~~~~~~~~
+`mju_rayGeom <#mju_rayGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_rayGeom
 
@@ -1087,8 +1103,8 @@ Intersect ray with pure geom, return nearest distance or -1 if no intersection.
 
 .. _mju_rayFlex:
 
-mju_rayFlex
-~~~~~~~~~~~
+`mju_rayFlex <#mju_rayFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_rayFlex
 
@@ -1097,8 +1113,8 @@ and also output nearest vertex id.
 
 .. _mju_raySkin:
 
-mju_raySkin
-~~~~~~~~~~~
+`mju_raySkin <#mju_raySkin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_raySkin
 
@@ -1114,8 +1130,8 @@ These functions can be used to print various quantities to the screen for debugg
 
 .. _mj_printFormattedModel:
 
-mj_printFormattedModel
-~~~~~~~~~~~~~~~~~~~~~~
+`mj_printFormattedModel <#mj_printFormattedModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_printFormattedModel
 
@@ -1124,8 +1140,8 @@ float_format must be a valid printf-style format string for a single float value
 
 .. _mj_printModel:
 
-mj_printModel
-~~~~~~~~~~~~~
+`mj_printModel <#mj_printModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_printModel
 
@@ -1133,8 +1149,8 @@ Print model to text file.
 
 .. _mj_printFormattedData:
 
-mj_printFormattedData
-~~~~~~~~~~~~~~~~~~~~~
+`mj_printFormattedData <#mj_printFormattedData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_printFormattedData
 
@@ -1143,8 +1159,8 @@ float_format must be a valid printf-style format string for a single float value
 
 .. _mj_printData:
 
-mj_printData
-~~~~~~~~~~~~
+`mj_printData <#mj_printData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_printData
 
@@ -1152,8 +1168,8 @@ Print data to text file.
 
 .. _mju_printMat:
 
-mju_printMat
-~~~~~~~~~~~~
+`mju_printMat <#mju_printMat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_printMat
 
@@ -1161,8 +1177,8 @@ Print matrix to screen.
 
 .. _mju_printMatSparse:
 
-mju_printMatSparse
-~~~~~~~~~~~~~~~~~~
+`mju_printMatSparse <#mju_printMatSparse>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_printMatSparse
 
@@ -1170,8 +1186,8 @@ Print sparse matrix to screen.
 
 .. _mj_printSchema:
 
-mj_printSchema
-~~~~~~~~~~~~~~
+`mj_printSchema <#mj_printSchema>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_printSchema
 
@@ -1187,47 +1203,43 @@ files (MJCF, URDF and included files), STL meshes, PNGs for textures and height 
 height field format. Model and resource files in the VFS can also be constructed programmatically (say using a Python
 library that writes to memory). Once all desired files are in the VFS, the user can call :ref:`mj_loadModel` or
 :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the loaders will first check the VFS for any
-file they are about to load, and only access the disk if the file is not found in the VFS. The file names stored in the
-VFS have their name and extension but the path information is stripped; this can be bypassed however by using a custom
-path symbol in the file names, say "mydir_myfile.xml".
+files they are about to load, and only access the disk if the file is not found in the VFS.
 
-The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
-this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
-mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
-mj_loadModel, and then clear everything with mj_deleteVFS.
+The VFS must first be allocated using :ref:`mj_defaultVFS` and must be freed with :ref:`mj_deleteVFS`.
+
 
 .. _mj_defaultVFS:
 
-mj_defaultVFS
-~~~~~~~~~~~~~
+`mj_defaultVFS <#mj_defaultVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_defaultVFS
 
-Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
+Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VFS.
 
 .. _mj_addFileVFS:
 
-mj_addFileVFS
-~~~~~~~~~~~~~
+`mj_addFileVFS <#mj_addFileVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_addFileVFS
 
-Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
+Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
 .. _mj_addBufferVFS:
 
-mj_addBufferVFS
-~~~~~~~~~~~~~~~
+`mj_addBufferVFS <#mj_addBufferVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_addBufferVFS
 
-Add file to VFS from buffer, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.
 
 .. _mj_deleteFileVFS:
 
-mj_deleteFileVFS
-~~~~~~~~~~~~~~~~
+`mj_deleteFileVFS <#mj_deleteFileVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_deleteFileVFS
 
@@ -1235,8 +1247,8 @@ Delete file from VFS, return 0: success, -1: not found in VFS.
 
 .. _mj_deleteVFS:
 
-mj_deleteVFS
-~~~~~~~~~~~~
+`mj_deleteVFS <#mj_deleteVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_deleteVFS
 
@@ -1252,8 +1264,8 @@ in the code samples.
 
 .. _mj_defaultLROpt:
 
-mj_defaultLROpt
-~~~~~~~~~~~~~~~
+`mj_defaultLROpt <#mj_defaultLROpt>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_defaultLROpt
 
@@ -1261,8 +1273,8 @@ Set default options for length range computation.
 
 .. _mj_defaultSolRefImp:
 
-mj_defaultSolRefImp
-~~~~~~~~~~~~~~~~~~~
+`mj_defaultSolRefImp <#mj_defaultSolRefImp>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_defaultSolRefImp
 
@@ -1270,8 +1282,8 @@ Set solver parameters to default values.
 
 .. _mj_defaultOption:
 
-mj_defaultOption
-~~~~~~~~~~~~~~~~
+`mj_defaultOption <#mj_defaultOption>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_defaultOption
 
@@ -1279,8 +1291,8 @@ Set physics options to default values.
 
 .. _mj_defaultVisual:
 
-mj_defaultVisual
-~~~~~~~~~~~~~~~~
+`mj_defaultVisual <#mj_defaultVisual>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_defaultVisual
 
@@ -1288,8 +1300,8 @@ Set visual options to default values.
 
 .. _mj_copyModel:
 
-mj_copyModel
-~~~~~~~~~~~~
+`mj_copyModel <#mj_copyModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_copyModel
 
@@ -1297,8 +1309,8 @@ Copy mjModel, allocate new if dest is NULL.
 
 .. _mj_saveModel:
 
-mj_saveModel
-~~~~~~~~~~~~
+`mj_saveModel <#mj_saveModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_saveModel
 
@@ -1306,8 +1318,8 @@ Save model to binary MJB file or memory buffer; buffer has precedence when given
 
 .. _mj_loadModel:
 
-mj_loadModel
-~~~~~~~~~~~~
+`mj_loadModel <#mj_loadModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_loadModel
 
@@ -1316,8 +1328,8 @@ If vfs is not NULL, look up file in vfs before reading from disk.
 
 .. _mj_deleteModel:
 
-mj_deleteModel
-~~~~~~~~~~~~~~
+`mj_deleteModel <#mj_deleteModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_deleteModel
 
@@ -1325,8 +1337,8 @@ Free memory allocation in model.
 
 .. _mj_sizeModel:
 
-mj_sizeModel
-~~~~~~~~~~~~
+`mj_sizeModel <#mj_sizeModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_sizeModel
 
@@ -1334,8 +1346,8 @@ Return size of buffer needed to hold model.
 
 .. _mj_makeData:
 
-mj_makeData
-~~~~~~~~~~~
+`mj_makeData <#mj_makeData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_makeData
 
@@ -1344,8 +1356,8 @@ If the model buffer is unallocated the initial configuration will not be set.
 
 .. _mj_copyData:
 
-mj_copyData
-~~~~~~~~~~~
+`mj_copyData <#mj_copyData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_copyData
 
@@ -1354,8 +1366,8 @@ m is only required to contain the size fields from MJMODEL_INTS.
 
 .. _mj_resetData:
 
-mj_resetData
-~~~~~~~~~~~~
+`mj_resetData <#mj_resetData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_resetData
 
@@ -1363,8 +1375,8 @@ Reset data to defaults.
 
 .. _mj_resetDataDebug:
 
-mj_resetDataDebug
-~~~~~~~~~~~~~~~~~
+`mj_resetDataDebug <#mj_resetDataDebug>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_resetDataDebug
 
@@ -1372,8 +1384,8 @@ Reset data to defaults, fill everything else with debug_value.
 
 .. _mj_resetDataKeyframe:
 
-mj_resetDataKeyframe
-~~~~~~~~~~~~~~~~~~~~
+`mj_resetDataKeyframe <#mj_resetDataKeyframe>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_resetDataKeyframe
 
@@ -1381,8 +1393,8 @@ Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 
 .. _mj_markStack:
 
-mj_markStack
-~~~~~~~~~~~~
+`mj_markStack <#mj_markStack>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_markStack
 
@@ -1390,8 +1402,8 @@ Mark a new frame on the mjData stack.
 
 .. _mj_freeStack:
 
-mj_freeStack
-~~~~~~~~~~~~
+`mj_freeStack <#mj_freeStack>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_freeStack
 
@@ -1400,8 +1412,8 @@ to mj_markStack must no longer be used afterwards.
 
 .. _mj_stackAllocByte:
 
-mj_stackAllocByte
-~~~~~~~~~~~~~~~~~
+`mj_stackAllocByte <#mj_stackAllocByte>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_stackAllocByte
 
@@ -1410,8 +1422,8 @@ Call mju_error on stack overflow.
 
 .. _mj_stackAllocNum:
 
-mj_stackAllocNum
-~~~~~~~~~~~~~~~~
+`mj_stackAllocNum <#mj_stackAllocNum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_stackAllocNum
 
@@ -1419,8 +1431,8 @@ Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
 
 .. _mj_stackAllocInt:
 
-mj_stackAllocInt
-~~~~~~~~~~~~~~~~
+`mj_stackAllocInt <#mj_stackAllocInt>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_stackAllocInt
 
@@ -1428,8 +1440,8 @@ Allocate array of ints on mjData stack. Call mju_error on stack overflow.
 
 .. _mj_deleteData:
 
-mj_deleteData
-~~~~~~~~~~~~~
+`mj_deleteData <#mj_deleteData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_deleteData
 
@@ -1437,8 +1449,8 @@ Free memory allocation in mjData.
 
 .. _mj_resetCallbacks:
 
-mj_resetCallbacks
-~~~~~~~~~~~~~~~~~
+`mj_resetCallbacks <#mj_resetCallbacks>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_resetCallbacks
 
@@ -1446,8 +1458,8 @@ Reset all callbacks to NULL pointers (NULL is the default).
 
 .. _mj_setConst:
 
-mj_setConst
-~~~~~~~~~~~
+`mj_setConst <#mj_setConst>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_setConst
 
@@ -1455,8 +1467,8 @@ Set constant fields of mjModel, corresponding to qpos0 configuration.
 
 .. _mj_setLengthRange:
 
-mj_setLengthRange
-~~~~~~~~~~~~~~~~~
+`mj_setLengthRange <#mj_setLengthRange>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_setLengthRange
 
@@ -1464,8 +1476,8 @@ Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.
 
 .. _mj_makeSpec:
 
-mj_makeSpec
-~~~~~~~~~~~
+`mj_makeSpec <#mj_makeSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_makeSpec
 
@@ -1473,8 +1485,8 @@ Create empty spec.
 
 .. _mj_copySpec:
 
-mj_copySpec
-~~~~~~~~~~~
+`mj_copySpec <#mj_copySpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_copySpec
 
@@ -1482,12 +1494,30 @@ Copy spec.
 
 .. _mj_deleteSpec:
 
-mj_deleteSpec
-~~~~~~~~~~~~~
+`mj_deleteSpec <#mj_deleteSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_deleteSpec
 
 Free memory allocation in mjSpec.
+
+.. _mjs_activatePlugin:
+
+`mjs_activatePlugin <#mjs_activatePlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_activatePlugin
+
+Activate plugin. Returns 0 on success.
+
+.. _mjs_setDeepCopy:
+
+`mjs_setDeepCopy <#mjs_setDeepCopy>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setDeepCopy
+
+Turn deep copy on or off attach. Returns 0 on success.
 
 .. _Errorandmemory:
 
@@ -1496,8 +1526,8 @@ Error and memory
 
 .. _mju_error:
 
-mju_error
-~~~~~~~~~
+`mju_error <#mju_error>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_error
 
@@ -1505,8 +1535,8 @@ Main error function; does not return to caller.
 
 .. _mju_error_i:
 
-mju_error_i
-~~~~~~~~~~~
+`mju_error_i <#mju_error_i>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_error_i
 
@@ -1514,8 +1544,8 @@ Deprecated: use mju_error.
 
 .. _mju_error_s:
 
-mju_error_s
-~~~~~~~~~~~
+`mju_error_s <#mju_error_s>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_error_s
 
@@ -1523,8 +1553,8 @@ Deprecated: use mju_error.
 
 .. _mju_warning:
 
-mju_warning
-~~~~~~~~~~~
+`mju_warning <#mju_warning>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_warning
 
@@ -1532,8 +1562,8 @@ Main warning function; returns to caller.
 
 .. _mju_warning_i:
 
-mju_warning_i
-~~~~~~~~~~~~~
+`mju_warning_i <#mju_warning_i>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_warning_i
 
@@ -1541,8 +1571,8 @@ Deprecated: use mju_warning.
 
 .. _mju_warning_s:
 
-mju_warning_s
-~~~~~~~~~~~~~
+`mju_warning_s <#mju_warning_s>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_warning_s
 
@@ -1550,8 +1580,8 @@ Deprecated: use mju_warning.
 
 .. _mju_clearHandlers:
 
-mju_clearHandlers
-~~~~~~~~~~~~~~~~~
+`mju_clearHandlers <#mju_clearHandlers>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_clearHandlers
 
@@ -1559,8 +1589,8 @@ Clear user error and memory handlers.
 
 .. _mju_malloc:
 
-mju_malloc
-~~~~~~~~~~
+`mju_malloc <#mju_malloc>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_malloc
 
@@ -1568,8 +1598,8 @@ Allocate memory; byte-align on 64; pad size to multiple of 64.
 
 .. _mju_free:
 
-mju_free
-~~~~~~~~
+`mju_free <#mju_free>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_free
 
@@ -1577,8 +1607,8 @@ Free memory, using free() by default.
 
 .. _mj_warning:
 
-mj_warning
-~~~~~~~~~~
+`mj_warning <#mj_warning>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_warning
 
@@ -1586,8 +1616,8 @@ High-level warning function: count warnings in mjData, print only the first.
 
 .. _mju_writeLog:
 
-mju_writeLog
-~~~~~~~~~~~~
+`mju_writeLog <#mju_writeLog>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_writeLog
 
@@ -1595,8 +1625,8 @@ Write [datetime, type: message] to MUJOCO_LOG.TXT.
 
 .. _mjs_getError:
 
-mjs_getError
-~~~~~~~~~~~~
+`mjs_getError <#mjs_getError>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getError
 
@@ -1604,8 +1634,8 @@ Get compiler error message from spec.
 
 .. _mjs_isWarning:
 
-mjs_isWarning
-~~~~~~~~~~~~~
+`mjs_isWarning <#mjs_isWarning>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_isWarning
 
@@ -1618,8 +1648,8 @@ Miscellaneous
 
 .. _mju_muscleGain:
 
-mju_muscleGain
-~~~~~~~~~~~~~~
+`mju_muscleGain <#mju_muscleGain>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_muscleGain
 
@@ -1627,8 +1657,8 @@ Muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvm
 
 .. _mju_muscleBias:
 
-mju_muscleBias
-~~~~~~~~~~~~~~
+`mju_muscleBias <#mju_muscleBias>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_muscleBias
 
@@ -1636,8 +1666,8 @@ Muscle passive force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fv
 
 .. _mju_muscleDynamics:
 
-mju_muscleDynamics
-~~~~~~~~~~~~~~~~~~
+`mju_muscleDynamics <#mju_muscleDynamics>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_muscleDynamics
 
@@ -1645,8 +1675,8 @@ Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).
 
 .. _mju_encodePyramid:
 
-mju_encodePyramid
-~~~~~~~~~~~~~~~~~
+`mju_encodePyramid <#mju_encodePyramid>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_encodePyramid
 
@@ -1654,8 +1684,8 @@ Convert contact force to pyramid representation.
 
 .. _mju_decodePyramid:
 
-mju_decodePyramid
-~~~~~~~~~~~~~~~~~
+`mju_decodePyramid <#mju_decodePyramid>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_decodePyramid
 
@@ -1663,8 +1693,8 @@ Convert pyramid representation to contact force.
 
 .. _mju_springDamper:
 
-mju_springDamper
-~~~~~~~~~~~~~~~~
+`mju_springDamper <#mju_springDamper>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_springDamper
 
@@ -1672,8 +1702,8 @@ Integrate spring-damper analytically, return pos(dt).
 
 .. _mju_min:
 
-mju_min
-~~~~~~~
+`mju_min <#mju_min>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_min
 
@@ -1681,8 +1711,8 @@ Return min(a,b) with single evaluation of a and b.
 
 .. _mju_max:
 
-mju_max
-~~~~~~~
+`mju_max <#mju_max>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_max
 
@@ -1690,8 +1720,8 @@ Return max(a,b) with single evaluation of a and b.
 
 .. _mju_clip:
 
-mju_clip
-~~~~~~~~
+`mju_clip <#mju_clip>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_clip
 
@@ -1699,8 +1729,8 @@ Clip x to the range [min, max].
 
 .. _mju_sign:
 
-mju_sign
-~~~~~~~~
+`mju_sign <#mju_sign>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_sign
 
@@ -1708,8 +1738,8 @@ Return sign of x: +1, -1 or 0.
 
 .. _mju_round:
 
-mju_round
-~~~~~~~~~
+`mju_round <#mju_round>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_round
 
@@ -1717,8 +1747,8 @@ Round x to nearest integer.
 
 .. _mju_type2Str:
 
-mju_type2Str
-~~~~~~~~~~~~
+`mju_type2Str <#mju_type2Str>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_type2Str
 
@@ -1726,8 +1756,8 @@ Convert type id (mjtObj) to type name.
 
 .. _mju_str2Type:
 
-mju_str2Type
-~~~~~~~~~~~~
+`mju_str2Type <#mju_str2Type>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_str2Type
 
@@ -1735,8 +1765,8 @@ Convert type name to type id (mjtObj).
 
 .. _mju_writeNumBytes:
 
-mju_writeNumBytes
-~~~~~~~~~~~~~~~~~
+`mju_writeNumBytes <#mju_writeNumBytes>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_writeNumBytes
 
@@ -1744,8 +1774,8 @@ Return human readable number of bytes using standard letter suffix.
 
 .. _mju_warningText:
 
-mju_warningText
-~~~~~~~~~~~~~~~
+`mju_warningText <#mju_warningText>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_warningText
 
@@ -1753,8 +1783,8 @@ Construct a warning message given the warning type and info.
 
 .. _mju_isBad:
 
-mju_isBad
-~~~~~~~~~
+`mju_isBad <#mju_isBad>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_isBad
 
@@ -1762,8 +1792,8 @@ Return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise. Used by check functions.
 
 .. _mju_isZero:
 
-mju_isZero
-~~~~~~~~~~
+`mju_isZero <#mju_isZero>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_isZero
 
@@ -1771,8 +1801,8 @@ Return 1 if all elements are 0.
 
 .. _mju_standardNormal:
 
-mju_standardNormal
-~~~~~~~~~~~~~~~~~~
+`mju_standardNormal <#mju_standardNormal>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_standardNormal
 
@@ -1780,8 +1810,8 @@ Standard normal random number generator (optional second number).
 
 .. _mju_f2n:
 
-mju_f2n
-~~~~~~~
+`mju_f2n <#mju_f2n>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_f2n
 
@@ -1789,8 +1819,8 @@ Convert from float to mjtNum.
 
 .. _mju_n2f:
 
-mju_n2f
-~~~~~~~
+`mju_n2f <#mju_n2f>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_n2f
 
@@ -1798,8 +1828,8 @@ Convert from mjtNum to float.
 
 .. _mju_d2n:
 
-mju_d2n
-~~~~~~~
+`mju_d2n <#mju_d2n>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_d2n
 
@@ -1807,8 +1837,8 @@ Convert from double to mjtNum.
 
 .. _mju_n2d:
 
-mju_n2d
-~~~~~~~
+`mju_n2d <#mju_n2d>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_n2d
 
@@ -1816,8 +1846,8 @@ Convert from mjtNum to double.
 
 .. _mju_insertionSort:
 
-mju_insertionSort
-~~~~~~~~~~~~~~~~~
+`mju_insertionSort <#mju_insertionSort>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_insertionSort
 
@@ -1825,8 +1855,8 @@ Insertion sort, resulting list is in increasing order.
 
 .. _mju_insertionSortInt:
 
-mju_insertionSortInt
-~~~~~~~~~~~~~~~~~~~~
+`mju_insertionSortInt <#mju_insertionSortInt>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_insertionSortInt
 
@@ -1834,8 +1864,8 @@ Integer insertion sort, resulting list is in increasing order.
 
 .. _mju_Halton:
 
-mju_Halton
-~~~~~~~~~~
+`mju_Halton <#mju_Halton>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_Halton
 
@@ -1843,8 +1873,8 @@ Generate Halton sequence.
 
 .. _mju_strncpy:
 
-mju_strncpy
-~~~~~~~~~~~
+`mju_strncpy <#mju_strncpy>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_strncpy
 
@@ -1852,8 +1882,8 @@ Call strncpy, then set dst[n-1] = 0.
 
 .. _mju_sigmoid:
 
-mju_sigmoid
-~~~~~~~~~~~
+`mju_sigmoid <#mju_sigmoid>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_sigmoid
 
@@ -1872,13 +1902,13 @@ Twice continuously differentiable sigmoid function using a quintic polynomial:
 Interaction
 ^^^^^^^^^^^
 
-These function implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
+These functions implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
 illustrated in :ref:`simulate<saSimulate>`.
 
 .. _mjv_defaultCamera:
 
-mjv_defaultCamera
-~~~~~~~~~~~~~~~~~
+`mjv_defaultCamera <#mjv_defaultCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultCamera
 
@@ -1886,8 +1916,8 @@ Set default camera.
 
 .. _mjv_defaultFreeCamera:
 
-mjv_defaultFreeCamera
-~~~~~~~~~~~~~~~~~~~~~
+`mjv_defaultFreeCamera <#mjv_defaultFreeCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultFreeCamera
 
@@ -1895,8 +1925,8 @@ Set default free camera.
 
 .. _mjv_defaultPerturb:
 
-mjv_defaultPerturb
-~~~~~~~~~~~~~~~~~~
+`mjv_defaultPerturb <#mjv_defaultPerturb>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultPerturb
 
@@ -1904,8 +1934,8 @@ Set default perturbation.
 
 .. _mjv_room2model:
 
-mjv_room2model
-~~~~~~~~~~~~~~
+`mjv_room2model <#mjv_room2model>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_room2model
 
@@ -1913,8 +1943,8 @@ Transform pose from room to model space.
 
 .. _mjv_model2room:
 
-mjv_model2room
-~~~~~~~~~~~~~~
+`mjv_model2room <#mjv_model2room>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_model2room
 
@@ -1922,8 +1952,8 @@ Transform pose from model to room space.
 
 .. _mjv_cameraInModel:
 
-mjv_cameraInModel
-~~~~~~~~~~~~~~~~~
+`mjv_cameraInModel <#mjv_cameraInModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_cameraInModel
 
@@ -1931,8 +1961,8 @@ Get camera info in model space; average left and right OpenGL cameras.
 
 .. _mjv_cameraInRoom:
 
-mjv_cameraInRoom
-~~~~~~~~~~~~~~~~
+`mjv_cameraInRoom <#mjv_cameraInRoom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_cameraInRoom
 
@@ -1940,8 +1970,8 @@ Get camera info in room space; average left and right OpenGL cameras.
 
 .. _mjv_frustumHeight:
 
-mjv_frustumHeight
-~~~~~~~~~~~~~~~~~
+`mjv_frustumHeight <#mjv_frustumHeight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_frustumHeight
 
@@ -1949,8 +1979,8 @@ Get frustum height at unit distance from camera; average left and right OpenGL c
 
 .. _mjv_alignToCamera:
 
-mjv_alignToCamera
-~~~~~~~~~~~~~~~~~
+`mjv_alignToCamera <#mjv_alignToCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_alignToCamera
 
@@ -1958,8 +1988,8 @@ Rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_
 
 .. _mjv_moveCamera:
 
-mjv_moveCamera
-~~~~~~~~~~~~~~
+`mjv_moveCamera <#mjv_moveCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_moveCamera
 
@@ -1967,8 +1997,8 @@ Move camera with mouse; action is mjtMouse.
 
 .. _mjv_moveCameraFromState:
 
-mjv_moveCameraFromState
-~~~~~~~~~~~~~~~~~~~~~~~
+`mjv_moveCameraFromState <#mjv_moveCameraFromState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_moveCameraFromState
 
@@ -1976,8 +2006,8 @@ Move camera with mouse given a scene state; action is mjtMouse.
 
 .. _mjv_movePerturb:
 
-mjv_movePerturb
-~~~~~~~~~~~~~~~
+`mjv_movePerturb <#mjv_movePerturb>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_movePerturb
 
@@ -1985,8 +2015,8 @@ Move perturb object with mouse; action is mjtMouse.
 
 .. _mjv_movePerturbFromState:
 
-mjv_movePerturbFromState
-~~~~~~~~~~~~~~~~~~~~~~~~
+`mjv_movePerturbFromState <#mjv_movePerturbFromState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_movePerturbFromState
 
@@ -1994,8 +2024,8 @@ Move perturb object with mouse given a scene state; action is mjtMouse.
 
 .. _mjv_moveModel:
 
-mjv_moveModel
-~~~~~~~~~~~~~
+`mjv_moveModel <#mjv_moveModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_moveModel
 
@@ -2003,8 +2033,8 @@ Move model with mouse; action is mjtMouse.
 
 .. _mjv_initPerturb:
 
-mjv_initPerturb
-~~~~~~~~~~~~~~~
+`mjv_initPerturb <#mjv_initPerturb>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_initPerturb
 
@@ -2012,8 +2042,8 @@ Copy perturb pos,quat from selected body; set scale for perturbation.
 
 .. _mjv_applyPerturbPose:
 
-mjv_applyPerturbPose
-~~~~~~~~~~~~~~~~~~~~
+`mjv_applyPerturbPose <#mjv_applyPerturbPose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_applyPerturbPose
 
@@ -2022,8 +2052,8 @@ Write d->qpos only if flg_paused and subtree root for selected body has free joi
 
 .. _mjv_applyPerturbForce:
 
-mjv_applyPerturbForce
-~~~~~~~~~~~~~~~~~~~~~
+`mjv_applyPerturbForce <#mjv_applyPerturbForce>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_applyPerturbForce
 
@@ -2031,8 +2061,8 @@ Set perturb force,torque in d->xfrc_applied, if selected body is dynamic.
 
 .. _mjv_averageCamera:
 
-mjv_averageCamera
-~~~~~~~~~~~~~~~~~
+`mjv_averageCamera <#mjv_averageCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_averageCamera
 
@@ -2040,8 +2070,8 @@ Return the average of two OpenGL cameras.
 
 .. _mjv_select:
 
-mjv_select
-~~~~~~~~~~
+`mjv_select <#mjv_select>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_select
 
@@ -2056,14 +2086,14 @@ an illustration.
 Visualization
 ^^^^^^^^^^^^^
 
-The functions in this section implement abstract visualization. The results are used by the OpenGL rendered, and can
-also be used by users wishing to implement their own rendered, or hook up MuJoCo to advanced rendering tools such as
+The functions in this section implement abstract visualization. The results are used by the OpenGL renderer, and can
+also be used by users wishing to implement their own renderer, or hook up MuJoCo to advanced rendering tools such as
 Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
 .. _mjv_defaultOption:
 
-mjv_defaultOption
-~~~~~~~~~~~~~~~~~
+`mjv_defaultOption <#mjv_defaultOption>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultOption
 
@@ -2071,8 +2101,8 @@ Set default visualization options.
 
 .. _mjv_defaultFigure:
 
-mjv_defaultFigure
-~~~~~~~~~~~~~~~~~
+`mjv_defaultFigure <#mjv_defaultFigure>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultFigure
 
@@ -2080,29 +2110,17 @@ Set default figure.
 
 .. _mjv_initGeom:
 
-mjv_initGeom
-~~~~~~~~~~~~
+`mjv_initGeom <#mjv_initGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_initGeom
 
 Initialize given geom fields when not NULL, set the rest to their default values.
 
-.. _mjv_makeConnector:
-
-mjv_makeConnector
-~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_makeConnector
-
-Set (type, size, pos, mat) for connector-type geom between given points.
-Assume that mjv_initGeom was already called to set all other properties.
-Width of mjGEOM_LINE is denominated in pixels.
-Deprecated: use mjv_connector.
-
 .. _mjv_connector:
 
-mjv_connector
-~~~~~~~~~~~~~
+`mjv_connector <#mjv_connector>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_connector
 
@@ -2112,8 +2130,8 @@ Width of mjGEOM_LINE is denominated in pixels.
 
 .. _mjv_defaultScene:
 
-mjv_defaultScene
-~~~~~~~~~~~~~~~~
+`mjv_defaultScene <#mjv_defaultScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultScene
 
@@ -2121,8 +2139,8 @@ Set default abstract scene.
 
 .. _mjv_makeScene:
 
-mjv_makeScene
-~~~~~~~~~~~~~
+`mjv_makeScene <#mjv_makeScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_makeScene
 
@@ -2130,8 +2148,8 @@ Allocate resources in abstract scene.
 
 .. _mjv_freeScene:
 
-mjv_freeScene
-~~~~~~~~~~~~~
+`mjv_freeScene <#mjv_freeScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_freeScene
 
@@ -2139,8 +2157,8 @@ Free abstract scene.
 
 .. _mjv_updateScene:
 
-mjv_updateScene
-~~~~~~~~~~~~~~~
+`mjv_updateScene <#mjv_updateScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_updateScene
 
@@ -2148,17 +2166,26 @@ Update entire scene given model state.
 
 .. _mjv_updateSceneFromState:
 
-mjv_updateSceneFromState
-~~~~~~~~~~~~~~~~~~~~~~~~
+`mjv_updateSceneFromState <#mjv_updateSceneFromState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_updateSceneFromState
 
 Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
 
+.. _mjv_copyModel:
+
+`mjv_copyModel <#mjv_copyModel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_copyModel
+
+Copy mjModel, skip large arrays not required for abstract visualization.
+
 .. _mjv_defaultSceneState:
 
-mjv_defaultSceneState
-~~~~~~~~~~~~~~~~~~~~~
+`mjv_defaultSceneState <#mjv_defaultSceneState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_defaultSceneState
 
@@ -2166,8 +2193,8 @@ Set default scene state.
 
 .. _mjv_makeSceneState:
 
-mjv_makeSceneState
-~~~~~~~~~~~~~~~~~~
+`mjv_makeSceneState <#mjv_makeSceneState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_makeSceneState
 
@@ -2175,8 +2202,8 @@ Allocate resources and initialize a scene state object.
 
 .. _mjv_freeSceneState:
 
-mjv_freeSceneState
-~~~~~~~~~~~~~~~~~~
+`mjv_freeSceneState <#mjv_freeSceneState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_freeSceneState
 
@@ -2184,8 +2211,8 @@ Free scene state.
 
 .. _mjv_updateSceneState:
 
-mjv_updateSceneState
-~~~~~~~~~~~~~~~~~~~~
+`mjv_updateSceneState <#mjv_updateSceneState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_updateSceneState
 
@@ -2193,8 +2220,8 @@ Update a scene state from model and data.
 
 .. _mjv_addGeoms:
 
-mjv_addGeoms
-~~~~~~~~~~~~
+`mjv_addGeoms <#mjv_addGeoms>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_addGeoms
 
@@ -2202,8 +2229,8 @@ Add geoms from selected categories.
 
 .. _mjv_makeLights:
 
-mjv_makeLights
-~~~~~~~~~~~~~~
+`mjv_makeLights <#mjv_makeLights>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_makeLights
 
@@ -2211,8 +2238,8 @@ Make list of lights.
 
 .. _mjv_updateCamera:
 
-mjv_updateCamera
-~~~~~~~~~~~~~~~~
+`mjv_updateCamera <#mjv_updateCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_updateCamera
 
@@ -2220,8 +2247,8 @@ Update camera.
 
 .. _mjv_updateSkin:
 
-mjv_updateSkin
-~~~~~~~~~~~~~~
+`mjv_updateSkin <#mjv_updateSkin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_updateSkin
 
@@ -2237,8 +2264,8 @@ of how to use these functions.
 
 .. _mjr_defaultContext:
 
-mjr_defaultContext
-~~~~~~~~~~~~~~~~~~
+`mjr_defaultContext <#mjr_defaultContext>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_defaultContext
 
@@ -2246,8 +2273,8 @@ Set default mjrContext.
 
 .. _mjr_makeContext:
 
-mjr_makeContext
-~~~~~~~~~~~~~~~
+`mjr_makeContext <#mjr_makeContext>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_makeContext
 
@@ -2255,8 +2282,8 @@ Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 
 .. _mjr_changeFont:
 
-mjr_changeFont
-~~~~~~~~~~~~~~
+`mjr_changeFont <#mjr_changeFont>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_changeFont
 
@@ -2264,8 +2291,8 @@ Change font of existing context.
 
 .. _mjr_addAux:
 
-mjr_addAux
-~~~~~~~~~~
+`mjr_addAux <#mjr_addAux>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_addAux
 
@@ -2273,8 +2300,8 @@ Add Aux buffer with given index to context; free previous Aux buffer.
 
 .. _mjr_freeContext:
 
-mjr_freeContext
-~~~~~~~~~~~~~~~
+`mjr_freeContext <#mjr_freeContext>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_freeContext
 
@@ -2282,8 +2309,8 @@ Free resources in custom OpenGL context, set to default.
 
 .. _mjr_resizeOffscreen:
 
-mjr_resizeOffscreen
-~~~~~~~~~~~~~~~~~~~
+`mjr_resizeOffscreen <#mjr_resizeOffscreen>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_resizeOffscreen
 
@@ -2291,8 +2318,8 @@ Resize offscreen buffers.
 
 .. _mjr_uploadTexture:
 
-mjr_uploadTexture
-~~~~~~~~~~~~~~~~~
+`mjr_uploadTexture <#mjr_uploadTexture>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_uploadTexture
 
@@ -2300,8 +2327,8 @@ Upload texture to GPU, overwriting previous upload if any.
 
 .. _mjr_uploadMesh:
 
-mjr_uploadMesh
-~~~~~~~~~~~~~~
+`mjr_uploadMesh <#mjr_uploadMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_uploadMesh
 
@@ -2309,8 +2336,8 @@ Upload mesh to GPU, overwriting previous upload if any.
 
 .. _mjr_uploadHField:
 
-mjr_uploadHField
-~~~~~~~~~~~~~~~~
+`mjr_uploadHField <#mjr_uploadHField>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_uploadHField
 
@@ -2318,8 +2345,8 @@ Upload height field to GPU, overwriting previous upload if any.
 
 .. _mjr_restoreBuffer:
 
-mjr_restoreBuffer
-~~~~~~~~~~~~~~~~~
+`mjr_restoreBuffer <#mjr_restoreBuffer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_restoreBuffer
 
@@ -2327,8 +2354,8 @@ Make con->currentBuffer current again.
 
 .. _mjr_setBuffer:
 
-mjr_setBuffer
-~~~~~~~~~~~~~
+`mjr_setBuffer <#mjr_setBuffer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_setBuffer
 
@@ -2337,8 +2364,8 @@ If only one buffer is available, set that buffer and ignore framebuffer argument
 
 .. _mjr_readPixels:
 
-mjr_readPixels
-~~~~~~~~~~~~~~
+`mjr_readPixels <#mjr_readPixels>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_readPixels
 
@@ -2347,8 +2374,8 @@ Viewport is in OpenGL framebuffer; client buffer starts at (0,0).
 
 .. _mjr_drawPixels:
 
-mjr_drawPixels
-~~~~~~~~~~~~~~
+`mjr_drawPixels <#mjr_drawPixels>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_drawPixels
 
@@ -2357,8 +2384,8 @@ Viewport is in OpenGL framebuffer; client buffer starts at (0,0).
 
 .. _mjr_blitBuffer:
 
-mjr_blitBuffer
-~~~~~~~~~~~~~~
+`mjr_blitBuffer <#mjr_blitBuffer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_blitBuffer
 
@@ -2367,8 +2394,8 @@ If src, dst have different size and flg_depth==0, color is interpolated with GL_
 
 .. _mjr_setAux:
 
-mjr_setAux
-~~~~~~~~~~
+`mjr_setAux <#mjr_setAux>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_setAux
 
@@ -2376,8 +2403,8 @@ Set Aux buffer for custom OpenGL rendering (call restoreBuffer when done).
 
 .. _mjr_blitAux:
 
-mjr_blitAux
-~~~~~~~~~~~
+`mjr_blitAux <#mjr_blitAux>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_blitAux
 
@@ -2385,8 +2412,8 @@ Blit from Aux buffer to con->currentBuffer.
 
 .. _mjr_text:
 
-mjr_text
-~~~~~~~~
+`mjr_text <#mjr_text>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_text
 
@@ -2394,8 +2421,8 @@ Draw text at (x,y) in relative coordinates; font is mjtFont.
 
 .. _mjr_overlay:
 
-mjr_overlay
-~~~~~~~~~~~
+`mjr_overlay <#mjr_overlay>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_overlay
 
@@ -2403,8 +2430,8 @@ Draw text overlay; font is mjtFont; gridpos is mjtGridPos.
 
 .. _mjr_maxViewport:
 
-mjr_maxViewport
-~~~~~~~~~~~~~~~
+`mjr_maxViewport <#mjr_maxViewport>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_maxViewport
 
@@ -2412,8 +2439,8 @@ Get maximum viewport for active buffer.
 
 .. _mjr_rectangle:
 
-mjr_rectangle
-~~~~~~~~~~~~~
+`mjr_rectangle <#mjr_rectangle>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_rectangle
 
@@ -2421,8 +2448,8 @@ Draw rectangle.
 
 .. _mjr_label:
 
-mjr_label
-~~~~~~~~~
+`mjr_label <#mjr_label>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_label
 
@@ -2430,8 +2457,8 @@ Draw rectangle with centered text.
 
 .. _mjr_figure:
 
-mjr_figure
-~~~~~~~~~~
+`mjr_figure <#mjr_figure>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_figure
 
@@ -2439,8 +2466,8 @@ Draw 2D figure.
 
 .. _mjr_render:
 
-mjr_render
-~~~~~~~~~~
+`mjr_render <#mjr_render>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_render
 
@@ -2448,8 +2475,8 @@ Render 3D scene.
 
 .. _mjr_finish:
 
-mjr_finish
-~~~~~~~~~~
+`mjr_finish <#mjr_finish>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_finish
 
@@ -2457,8 +2484,8 @@ Call glFinish.
 
 .. _mjr_getError:
 
-mjr_getError
-~~~~~~~~~~~~
+`mjr_getError <#mjr_getError>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_getError
 
@@ -2466,8 +2493,8 @@ Call glGetError and return result.
 
 .. _mjr_findRect:
 
-mjr_findRect
-~~~~~~~~~~~~
+`mjr_findRect <#mjr_findRect>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjr_findRect
 
@@ -2482,8 +2509,8 @@ For a high-level description of the UI framework, see :ref:`UI`.
 
 .. _mjui_themeSpacing:
 
-mjui_themeSpacing
-~~~~~~~~~~~~~~~~~
+`mjui_themeSpacing <#mjui_themeSpacing>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_themeSpacing
 
@@ -2491,8 +2518,8 @@ Get builtin UI theme spacing (ind: 0-1).
 
 .. _mjui_themeColor:
 
-mjui_themeColor
-~~~~~~~~~~~~~~~
+`mjui_themeColor <#mjui_themeColor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_themeColor
 
@@ -2500,8 +2527,8 @@ Get builtin UI theme color (ind: 0-3).
 
 .. _mjui_add:
 
-mjui_add
-~~~~~~~~
+`mjui_add <#mjui_add>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_add
 
@@ -2514,8 +2541,8 @@ of the UI. Keep in mind that there is a maximum preallocated number of sections 
 
 .. _mjui_addToSection:
 
-mjui_addToSection
-~~~~~~~~~~~~~~~~~
+`mjui_addToSection <#mjui_addToSection>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_addToSection
 
@@ -2523,8 +2550,8 @@ Add definitions to UI section.
 
 .. _mjui_resize:
 
-mjui_resize
-~~~~~~~~~~~
+`mjui_resize <#mjui_resize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_resize
 
@@ -2532,8 +2559,8 @@ Compute UI sizes.
 
 .. _mjui_update:
 
-mjui_update
-~~~~~~~~~~~
+`mjui_update <#mjui_update>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_update
 
@@ -2546,8 +2573,8 @@ specifies the section and the item that was modified. A value of -1 means all it
 
 .. _mjui_event:
 
-mjui_event
-~~~~~~~~~~
+`mjui_event <#mjui_event>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_event
 
@@ -2558,8 +2585,8 @@ depending on which UI item was modified and what the state of that item is after
 
 .. _mjui_render:
 
-mjui_render
-~~~~~~~~~~~
+`mjui_render <#mjui_render>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_render
 
@@ -2578,12 +2605,12 @@ outputs of derivative functions are the trailing rather than leading arguments.
 
 .. _mjd_transitionFD:
 
-mjd_transitionFD
-~~~~~~~~~~~~~~~~
+`mjd_transitionFD <#mjd_transitionFD>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjd_transitionFD
 
-Finite-differenced discrete-time transition matrices.
+Compute finite-differenced discrete-time transition matrices.
 
 Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
@@ -2604,14 +2631,31 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
-- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
-  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
-  all calls to the solver will perform exactly the same number of iterations.
+- The Runge-Kutta integrator (:ref:`mjINT_RK4<mjtIntegrator>`) is not supported.
+
+.. admonition:: Improving speed and accuracy
+   :class: tip
+
+   warmstart
+     If warm-starts are not :ref:`disabled<option-flag-warmstart>`, the warm-start accelerations
+     ``mjData.qacc_warmstart`` which are present at call-time are loaded at the start of every relevant pipeline call,
+     to preserve determinism. If solver computations are an expensive part of the simulation, the following trick can
+     lead to significant speed-ups: First call :ref:`mj_forward` to let the solver converge, then reduce :ref:`solver
+     iterations<option-iterations>` significantly, then call :ref:`mjd_transitionFD`, finally, restore the original
+     value of :ref:`iterations<option-iterations>`. Because we are already near the solution, few iteration are required
+     to find the new minimum. This is especially true for the :ref:`Newton<option-solver>` solver, where the required
+     number of iteration for convergence near the minimum can be as low as 1.
+
+   tolerance
+      Accuracy can be improved if solver :ref:`tolerance<option-tolerance>` is set to 0. This means that all calls to
+      the solver will perform exactly the same number of iterations, preventing numerical errors due to early
+      termination. Of course, this means that :ref:`solver iterations<option-iterations>` should be small, to not tread
+      water at the minimum. This method and the one described above can and should be combined.
 
 .. _mjd_inverseFD:
 
-mjd_inverseFD
-~~~~~~~~~~~~~
+`mjd_inverseFD <#mjd_inverseFD>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjd_inverseFD
 
@@ -2644,11 +2688,17 @@ using finite-differencing. These matrices and their dimensions are:
 - ``eps`` is the (forward) finite-differencing epsilon.
 - ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
   dynamics. If this flag is positive, actuator forces are not considered as external.
+- The model option flag ``invdiscrete`` should correspond to the representation of ``mjData.qacc`` in order to compute
+  the correct derivative information.
+
+.. attention::
+   - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
+   - The noslip solver is not supported.
 
 .. _mjd_subQuat:
 
-mjd_subQuat
-~~~~~~~~~~~
+`mjd_subQuat <#mjd_subQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjd_subQuat
 
@@ -2656,8 +2706,8 @@ Derivatives of :ref:`mju_subQuat` (quaternion difference).
 
 .. _mjd_quatIntegrate:
 
-mjd_quatIntegrate
-~~~~~~~~~~~~~~~~~
+`mjd_quatIntegrate <#mjd_quatIntegrate>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjd_quatIntegrate
 
@@ -2681,17 +2731,14 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
 
-
-These functions provide high level manipulation for :ref:`mjSpec` structs, which represent an uncompiled :ref:`mjModel`.
-
 .. _Plugins-api:
 
 Plugins
 ^^^^^^^
 .. _mjp_defaultPlugin:
 
-mjp_defaultPlugin
-~~~~~~~~~~~~~~~~~
+`mjp_defaultPlugin <#mjp_defaultPlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_defaultPlugin
 
@@ -2699,8 +2746,8 @@ Set default plugin definition.
 
 .. _mjp_registerPlugin:
 
-mjp_registerPlugin
-~~~~~~~~~~~~~~~~~~
+`mjp_registerPlugin <#mjp_registerPlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_registerPlugin
 
@@ -2713,8 +2760,8 @@ need not be the same.
 
 .. _mjp_pluginCount:
 
-mjp_pluginCount
-~~~~~~~~~~~~~~~
+`mjp_pluginCount <#mjp_pluginCount>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_pluginCount
 
@@ -2722,8 +2769,8 @@ Return the number of globally registered plugins.
 
 .. _mjp_getPlugin:
 
-mjp_getPlugin
-~~~~~~~~~~~~~
+`mjp_getPlugin <#mjp_getPlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_getPlugin
 
@@ -2731,8 +2778,8 @@ Look up a plugin by name. If slot is not NULL, also write its registered slot nu
 
 .. _mjp_getPluginAtSlot:
 
-mjp_getPluginAtSlot
-~~~~~~~~~~~~~~~~~~~
+`mjp_getPluginAtSlot <#mjp_getPluginAtSlot>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_getPluginAtSlot
 
@@ -2740,8 +2787,8 @@ Look up a plugin by the registered slot number that was returned by mjp_register
 
 .. _mjp_defaultResourceProvider:
 
-mjp_defaultResourceProvider
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_defaultResourceProvider <#mjp_defaultResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_defaultResourceProvider
 
@@ -2749,8 +2796,8 @@ Set default resource provider definition.
 
 .. _mjp_registerResourceProvider:
 
-mjp_registerResourceProvider
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_registerResourceProvider <#mjp_registerResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_registerResourceProvider
 
@@ -2760,8 +2807,8 @@ returns a slot number > 0 on success.
 
 .. _mjp_resourceProviderCount:
 
-mjp_resourceProviderCount
-~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_resourceProviderCount <#mjp_resourceProviderCount>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_resourceProviderCount
 
@@ -2769,8 +2816,8 @@ Return the number of globally registered resource providers.
 
 .. _mjp_getResourceProvider:
 
-mjp_getResourceProvider
-~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_getResourceProvider <#mjp_getResourceProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_getResourceProvider
 
@@ -2779,8 +2826,8 @@ If no match, return NULL.
 
 .. _mjp_getResourceProviderAtSlot:
 
-mjp_getResourceProviderAtSlot
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_getResourceProviderAtSlot <#mjp_getResourceProviderAtSlot>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjp_getResourceProviderAtSlot
 
@@ -2793,8 +2840,8 @@ Threads
 ^^^^^^^
 .. _mju_threadPoolCreate:
 
-mju_threadPoolCreate
-~~~~~~~~~~~~~~~~~~~~
+`mju_threadPoolCreate <#mju_threadPoolCreate>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_threadPoolCreate
 
@@ -2802,8 +2849,8 @@ Create a thread pool with the specified number of threads running.
 
 .. _mju_bindThreadPool:
 
-mju_bindThreadPool
-~~~~~~~~~~~~~~~~~~
+`mju_bindThreadPool <#mju_bindThreadPool>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_bindThreadPool
 
@@ -2811,8 +2858,8 @@ Adds a thread pool to mjData and configures it for multi-threaded use.
 
 .. _mju_threadPoolEnqueue:
 
-mju_threadPoolEnqueue
-~~~~~~~~~~~~~~~~~~~~~
+`mju_threadPoolEnqueue <#mju_threadPoolEnqueue>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_threadPoolEnqueue
 
@@ -2820,8 +2867,8 @@ Enqueue a task in a thread pool.
 
 .. _mju_threadPoolDestroy:
 
-mju_threadPoolDestroy
-~~~~~~~~~~~~~~~~~~~~~
+`mju_threadPoolDestroy <#mju_threadPoolDestroy>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_threadPoolDestroy
 
@@ -2829,8 +2876,8 @@ Destroy a thread pool.
 
 .. _mju_defaultTask:
 
-mju_defaultTask
-~~~~~~~~~~~~~~~
+`mju_defaultTask <#mju_defaultTask>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_defaultTask
 
@@ -2838,8 +2885,8 @@ Initialize an mjTask.
 
 .. _mju_taskJoin:
 
-mju_taskJoin
-~~~~~~~~~~~~
+`mju_taskJoin <#mju_taskJoin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_taskJoin
 
@@ -2969,8 +3016,8 @@ Vector math
 
 .. _mju_zero3:
 
-mju_zero3
-~~~~~~~~~
+`mju_zero3 <#mju_zero3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_zero3
 
@@ -2978,8 +3025,8 @@ Set res = 0.
 
 .. _mju_copy3:
 
-mju_copy3
-~~~~~~~~~
+`mju_copy3 <#mju_copy3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_copy3
 
@@ -2987,8 +3034,8 @@ Set res = vec.
 
 .. _mju_scl3:
 
-mju_scl3
-~~~~~~~~
+`mju_scl3 <#mju_scl3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_scl3
 
@@ -2996,8 +3043,8 @@ Set res = vec*scl.
 
 .. _mju_add3:
 
-mju_add3
-~~~~~~~~
+`mju_add3 <#mju_add3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_add3
 
@@ -3005,8 +3052,8 @@ Set res = vec1 + vec2.
 
 .. _mju_sub3:
 
-mju_sub3
-~~~~~~~~
+`mju_sub3 <#mju_sub3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_sub3
 
@@ -3014,8 +3061,8 @@ Set res = vec1 - vec2.
 
 .. _mju_addTo3:
 
-mju_addTo3
-~~~~~~~~~~
+`mju_addTo3 <#mju_addTo3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_addTo3
 
@@ -3023,8 +3070,8 @@ Set res = res + vec.
 
 .. _mju_subFrom3:
 
-mju_subFrom3
-~~~~~~~~~~~~
+`mju_subFrom3 <#mju_subFrom3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_subFrom3
 
@@ -3032,8 +3079,8 @@ Set res = res - vec.
 
 .. _mju_addToScl3:
 
-mju_addToScl3
-~~~~~~~~~~~~~
+`mju_addToScl3 <#mju_addToScl3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_addToScl3
 
@@ -3041,8 +3088,8 @@ Set res = res + vec*scl.
 
 .. _mju_addScl3:
 
-mju_addScl3
-~~~~~~~~~~~
+`mju_addScl3 <#mju_addScl3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_addScl3
 
@@ -3050,8 +3097,8 @@ Set res = vec1 + vec2*scl.
 
 .. _mju_normalize3:
 
-mju_normalize3
-~~~~~~~~~~~~~~
+`mju_normalize3 <#mju_normalize3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_normalize3
 
@@ -3059,8 +3106,8 @@ Normalize vector, return length before normalization.
 
 .. _mju_norm3:
 
-mju_norm3
-~~~~~~~~~
+`mju_norm3 <#mju_norm3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_norm3
 
@@ -3068,8 +3115,8 @@ Return vector length (without normalizing the vector).
 
 .. _mju_dot3:
 
-mju_dot3
-~~~~~~~~
+`mju_dot3 <#mju_dot3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_dot3
 
@@ -3077,8 +3124,8 @@ Return dot-product of vec1 and vec2.
 
 .. _mju_dist3:
 
-mju_dist3
-~~~~~~~~~
+`mju_dist3 <#mju_dist3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_dist3
 
@@ -3086,8 +3133,8 @@ Return Cartesian distance between 3D vectors pos1 and pos2.
 
 .. _mju_mulMatVec3:
 
-mju_mulMatVec3
-~~~~~~~~~~~~~~
+`mju_mulMatVec3 <#mju_mulMatVec3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatVec3
 
@@ -3095,35 +3142,17 @@ Multiply 3-by-3 matrix by vector: res = mat * vec.
 
 .. _mju_mulMatTVec3:
 
-mju_mulMatTVec3
-~~~~~~~~~~~~~~~
+`mju_mulMatTVec3 <#mju_mulMatTVec3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatTVec3
 
 Multiply transposed 3-by-3 matrix by vector: res = mat' * vec.
 
-.. _mju_rotVecMat:
-
-mju_rotVecMat
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_rotVecMat
-
-Deprecated, use mju_mulMatVec3(res, mat, vec).
-
-.. _mju_rotVecMatT:
-
-mju_rotVecMatT
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_rotVecMatT
-
-Deprecated, use mju_mulMatTVec3(res, mat, vec).
-
 .. _mju_cross:
 
-mju_cross
-~~~~~~~~~
+`mju_cross <#mju_cross>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_cross
 
@@ -3131,8 +3160,8 @@ Compute cross-product: res = cross(a, b).
 
 .. _mju_zero4:
 
-mju_zero4
-~~~~~~~~~
+`mju_zero4 <#mju_zero4>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_zero4
 
@@ -3140,8 +3169,8 @@ Set res = 0.
 
 .. _mju_unit4:
 
-mju_unit4
-~~~~~~~~~
+`mju_unit4 <#mju_unit4>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_unit4
 
@@ -3149,8 +3178,8 @@ Set res = (1,0,0,0).
 
 .. _mju_copy4:
 
-mju_copy4
-~~~~~~~~~
+`mju_copy4 <#mju_copy4>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_copy4
 
@@ -3158,8 +3187,8 @@ Set res = vec.
 
 .. _mju_normalize4:
 
-mju_normalize4
-~~~~~~~~~~~~~~
+`mju_normalize4 <#mju_normalize4>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_normalize4
 
@@ -3167,8 +3196,8 @@ Normalize vector, return length before normalization.
 
 .. _mju_zero:
 
-mju_zero
-~~~~~~~~
+`mju_zero <#mju_zero>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_zero
 
@@ -3176,8 +3205,8 @@ Set res = 0.
 
 .. _mju_fill:
 
-mju_fill
-~~~~~~~~
+`mju_fill <#mju_fill>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_fill
 
@@ -3185,8 +3214,8 @@ Set res = val.
 
 .. _mju_copy:
 
-mju_copy
-~~~~~~~~
+`mju_copy <#mju_copy>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_copy
 
@@ -3194,8 +3223,8 @@ Set res = vec.
 
 .. _mju_sum:
 
-mju_sum
-~~~~~~~
+`mju_sum <#mju_sum>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_sum
 
@@ -3203,8 +3232,8 @@ Return sum(vec).
 
 .. _mju_L1:
 
-mju_L1
-~~~~~~
+`mju_L1 <#mju_L1>`__
+~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_L1
 
@@ -3212,8 +3241,8 @@ Return L1 norm: sum(abs(vec)).
 
 .. _mju_scl:
 
-mju_scl
-~~~~~~~
+`mju_scl <#mju_scl>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_scl
 
@@ -3221,8 +3250,8 @@ Set res = vec*scl.
 
 .. _mju_add:
 
-mju_add
-~~~~~~~
+`mju_add <#mju_add>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_add
 
@@ -3230,8 +3259,8 @@ Set res = vec1 + vec2.
 
 .. _mju_sub:
 
-mju_sub
-~~~~~~~
+`mju_sub <#mju_sub>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_sub
 
@@ -3239,8 +3268,8 @@ Set res = vec1 - vec2.
 
 .. _mju_addTo:
 
-mju_addTo
-~~~~~~~~~
+`mju_addTo <#mju_addTo>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_addTo
 
@@ -3248,8 +3277,8 @@ Set res = res + vec.
 
 .. _mju_subFrom:
 
-mju_subFrom
-~~~~~~~~~~~
+`mju_subFrom <#mju_subFrom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_subFrom
 
@@ -3257,8 +3286,8 @@ Set res = res - vec.
 
 .. _mju_addToScl:
 
-mju_addToScl
-~~~~~~~~~~~~
+`mju_addToScl <#mju_addToScl>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_addToScl
 
@@ -3266,8 +3295,8 @@ Set res = res + vec*scl.
 
 .. _mju_addScl:
 
-mju_addScl
-~~~~~~~~~~
+`mju_addScl <#mju_addScl>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_addScl
 
@@ -3275,8 +3304,8 @@ Set res = vec1 + vec2*scl.
 
 .. _mju_normalize:
 
-mju_normalize
-~~~~~~~~~~~~~
+`mju_normalize <#mju_normalize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_normalize
 
@@ -3284,8 +3313,8 @@ Normalize vector, return length before normalization.
 
 .. _mju_norm:
 
-mju_norm
-~~~~~~~~
+`mju_norm <#mju_norm>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_norm
 
@@ -3293,8 +3322,8 @@ Return vector length (without normalizing vector).
 
 .. _mju_dot:
 
-mju_dot
-~~~~~~~
+`mju_dot <#mju_dot>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_dot
 
@@ -3302,8 +3331,8 @@ Return dot-product of vec1 and vec2.
 
 .. _mju_mulMatVec:
 
-mju_mulMatVec
-~~~~~~~~~~~~~
+`mju_mulMatVec <#mju_mulMatVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatVec
 
@@ -3311,8 +3340,8 @@ Multiply matrix and vector: res = mat * vec.
 
 .. _mju_mulMatTVec:
 
-mju_mulMatTVec
-~~~~~~~~~~~~~~
+`mju_mulMatTVec <#mju_mulMatTVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatTVec
 
@@ -3320,8 +3349,8 @@ Multiply transposed matrix and vector: res = mat' * vec.
 
 .. _mju_mulVecMatVec:
 
-mju_mulVecMatVec
-~~~~~~~~~~~~~~~~
+`mju_mulVecMatVec <#mju_mulVecMatVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulVecMatVec
 
@@ -3329,8 +3358,8 @@ Multiply square matrix with vectors on both sides: returns vec1' * mat * vec2.
 
 .. _mju_transpose:
 
-mju_transpose
-~~~~~~~~~~~~~
+`mju_transpose <#mju_transpose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_transpose
 
@@ -3338,8 +3367,8 @@ Transpose matrix: res = mat'.
 
 .. _mju_symmetrize:
 
-mju_symmetrize
-~~~~~~~~~~~~~~
+`mju_symmetrize <#mju_symmetrize>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_symmetrize
 
@@ -3347,8 +3376,8 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _mju_eye:
 
-mju_eye
-~~~~~~~
+`mju_eye <#mju_eye>`__
+~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_eye
 
@@ -3356,8 +3385,8 @@ Set mat to the identity matrix.
 
 .. _mju_mulMatMat:
 
-mju_mulMatMat
-~~~~~~~~~~~~~
+`mju_mulMatMat <#mju_mulMatMat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatMat
 
@@ -3365,8 +3394,8 @@ Multiply matrices: res = mat1 * mat2.
 
 .. _mju_mulMatMatT:
 
-mju_mulMatMatT
-~~~~~~~~~~~~~~
+`mju_mulMatMatT <#mju_mulMatMatT>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatMatT
 
@@ -3374,8 +3403,8 @@ Multiply matrices, second argument transposed: res = mat1 * mat2'.
 
 .. _mju_mulMatTMat:
 
-mju_mulMatTMat
-~~~~~~~~~~~~~~
+`mju_mulMatTMat <#mju_mulMatTMat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulMatTMat
 
@@ -3383,8 +3412,8 @@ Multiply matrices, first argument transposed: res = mat1' * mat2.
 
 .. _mju_sqrMatTD:
 
-mju_sqrMatTD
-~~~~~~~~~~~~
+`mju_sqrMatTD <#mju_sqrMatTD>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_sqrMatTD
 
@@ -3392,13 +3421,36 @@ Set res = mat' * diag * mat if diag is not NULL, and res = mat' * mat otherwise.
 
 .. _mju_transformSpatial:
 
-mju_transformSpatial
-~~~~~~~~~~~~~~~~~~~~
+`mju_transformSpatial <#mju_transformSpatial>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_transformSpatial
 
 Coordinate transform of 6D motion or force vector in rotation:translation format.
 rotnew2old is 3-by-3, NULL means no rotation; flg_force specifies force or motion type.
+
+.. _Sparsemath:
+
+Sparse math
+^^^^^^^^^^^
+.. _mju_dense2sparse:
+
+`mju_dense2sparse <#mju_dense2sparse>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_dense2sparse
+
+Convert matrix from dense to sparse.
+ nnz is size of res and colind, return 1 if too small, 0 otherwise.
+
+.. _mju_sparse2dense:
+
+`mju_sparse2dense <#mju_sparse2dense>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_sparse2dense
+
+Convert matrix from sparse to dense.
 
 .. _Quaternions:
 
@@ -3407,8 +3459,8 @@ Quaternions
 
 .. _mju_rotVecQuat:
 
-mju_rotVecQuat
-~~~~~~~~~~~~~~
+`mju_rotVecQuat <#mju_rotVecQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_rotVecQuat
 
@@ -3416,8 +3468,8 @@ Rotate vector by quaternion.
 
 .. _mju_negQuat:
 
-mju_negQuat
-~~~~~~~~~~~
+`mju_negQuat <#mju_negQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_negQuat
 
@@ -3425,8 +3477,8 @@ Conjugate quaternion, corresponding to opposite rotation.
 
 .. _mju_mulQuat:
 
-mju_mulQuat
-~~~~~~~~~~~
+`mju_mulQuat <#mju_mulQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulQuat
 
@@ -3434,8 +3486,8 @@ Multiply quaternions.
 
 .. _mju_mulQuatAxis:
 
-mju_mulQuatAxis
-~~~~~~~~~~~~~~~
+`mju_mulQuatAxis <#mju_mulQuatAxis>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulQuatAxis
 
@@ -3443,8 +3495,8 @@ Multiply quaternion and axis.
 
 .. _mju_axisAngle2Quat:
 
-mju_axisAngle2Quat
-~~~~~~~~~~~~~~~~~~
+`mju_axisAngle2Quat <#mju_axisAngle2Quat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_axisAngle2Quat
 
@@ -3452,8 +3504,8 @@ Convert axisAngle to quaternion.
 
 .. _mju_quat2Vel:
 
-mju_quat2Vel
-~~~~~~~~~~~~
+`mju_quat2Vel <#mju_quat2Vel>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_quat2Vel
 
@@ -3461,8 +3513,8 @@ Convert quaternion (corresponding to orientation difference) to 3D velocity.
 
 .. _mju_subQuat:
 
-mju_subQuat
-~~~~~~~~~~~
+`mju_subQuat <#mju_subQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_subQuat
 
@@ -3470,8 +3522,8 @@ Subtract quaternions, express as 3D velocity: qb*quat(res) = qa.
 
 .. _mju_quat2Mat:
 
-mju_quat2Mat
-~~~~~~~~~~~~
+`mju_quat2Mat <#mju_quat2Mat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_quat2Mat
 
@@ -3479,8 +3531,8 @@ Convert quaternion to 3D rotation matrix.
 
 .. _mju_mat2Quat:
 
-mju_mat2Quat
-~~~~~~~~~~~~
+`mju_mat2Quat <#mju_mat2Quat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mat2Quat
 
@@ -3488,8 +3540,8 @@ Convert 3D rotation matrix to quaternion.
 
 .. _mju_derivQuat:
 
-mju_derivQuat
-~~~~~~~~~~~~~
+`mju_derivQuat <#mju_derivQuat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_derivQuat
 
@@ -3497,8 +3549,8 @@ Compute time-derivative of quaternion, given 3D rotational velocity.
 
 .. _mju_quatIntegrate:
 
-mju_quatIntegrate
-~~~~~~~~~~~~~~~~~
+`mju_quatIntegrate <#mju_quatIntegrate>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_quatIntegrate
 
@@ -3506,17 +3558,27 @@ Integrate quaternion given 3D angular velocity.
 
 .. _mju_quatZ2Vec:
 
-mju_quatZ2Vec
-~~~~~~~~~~~~~
+`mju_quatZ2Vec <#mju_quatZ2Vec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_quatZ2Vec
 
 Construct quaternion performing rotation from z-axis to given vector.
 
+.. _mju_mat2Rot:
+
+`mju_mat2Rot <#mju_mat2Rot>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_mat2Rot
+
+Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion.
+Returns the number of iterations required to converge
+
 .. _mju_euler2Quat:
 
-mju_euler2Quat
-~~~~~~~~~~~~~~
+`mju_euler2Quat <#mju_euler2Quat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_euler2Quat
 
@@ -3530,8 +3592,8 @@ Poses
 
 .. _mju_mulPose:
 
-mju_mulPose
-~~~~~~~~~~~
+`mju_mulPose <#mju_mulPose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_mulPose
 
@@ -3539,8 +3601,8 @@ Multiply two poses.
 
 .. _mju_negPose:
 
-mju_negPose
-~~~~~~~~~~~
+`mju_negPose <#mju_negPose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_negPose
 
@@ -3548,8 +3610,8 @@ Conjugate pose, corresponding to the opposite spatial transformation.
 
 .. _mju_trnVecPose:
 
-mju_trnVecPose
-~~~~~~~~~~~~~~
+`mju_trnVecPose <#mju_trnVecPose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_trnVecPose
 
@@ -3562,8 +3624,8 @@ Decompositions / Solvers
 
 .. _mju_cholFactor:
 
-mju_cholFactor
-~~~~~~~~~~~~~~
+`mju_cholFactor <#mju_cholFactor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_cholFactor
 
@@ -3571,8 +3633,8 @@ Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-plac
 
 .. _mju_cholSolve:
 
-mju_cholSolve
-~~~~~~~~~~~~~
+`mju_cholSolve <#mju_cholSolve>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_cholSolve
 
@@ -3580,8 +3642,8 @@ Solve (mat*mat') * res = vec, where mat is a Cholesky factor.
 
 .. _mju_cholUpdate:
 
-mju_cholUpdate
-~~~~~~~~~~~~~~
+`mju_cholUpdate <#mju_cholUpdate>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_cholUpdate
 
@@ -3589,8 +3651,8 @@ Cholesky rank-one update: L*L' +/- x*x'; return rank.
 
 .. _mju_cholFactorBand:
 
-mju_cholFactorBand
-~~~~~~~~~~~~~~~~~~
+`mju_cholFactorBand <#mju_cholFactorBand>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_cholFactorBand
 
@@ -3639,8 +3701,8 @@ Band-dense Cholesky decomposition.
 
 .. _mju_cholSolveBand:
 
-mju_cholSolveBand
-~~~~~~~~~~~~~~~~~
+`mju_cholSolveBand <#mju_cholSolveBand>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_cholSolveBand
 
@@ -3648,8 +3710,8 @@ Solve (mat*mat')*res = vec where mat is a band-dense Cholesky factor.
 
 .. _mju_band2Dense:
 
-mju_band2Dense
-~~~~~~~~~~~~~~
+`mju_band2Dense <#mju_band2Dense>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_band2Dense
 
@@ -3657,8 +3719,8 @@ Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
 
 .. _mju_dense2Band:
 
-mju_dense2Band
-~~~~~~~~~~~~~~
+`mju_dense2Band <#mju_dense2Band>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_dense2Band
 
@@ -3666,8 +3728,8 @@ Convert dense matrix to banded matrix.
 
 .. _mju_bandMulMatVec:
 
-mju_bandMulMatVec
-~~~~~~~~~~~~~~~~~
+`mju_bandMulMatVec <#mju_bandMulMatVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_bandMulMatVec
 
@@ -3675,8 +3737,8 @@ Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_s
 
 .. _mju_bandDiag:
 
-mju_bandDiag
-~~~~~~~~~~~~
+`mju_bandDiag <#mju_bandDiag>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_bandDiag
 
@@ -3684,8 +3746,8 @@ Address of diagonal element i in band-dense matrix representation.
 
 .. _mju_eig3:
 
-mju_eig3
-~~~~~~~~
+`mju_eig3 <#mju_eig3>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_eig3
 
@@ -3693,8 +3755,8 @@ Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * 
 
 .. _mju_boxQP:
 
-mju_boxQP
-~~~~~~~~~
+`mju_boxQP <#mju_boxQP>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_boxQP
 
@@ -3733,8 +3795,8 @@ notes:
 
 .. _mju_boxQPmalloc:
 
-mju_boxQPmalloc
-~~~~~~~~~~~~~~~
+`mju_boxQPmalloc <#mju_boxQPmalloc>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_boxQPmalloc
 
@@ -3748,26 +3810,35 @@ Attachment
 ^^^^^^^^^^
 .. _mjs_attachBody:
 
-mjs_attachBody
-~~~~~~~~~~~~~~
+`mjs_attachBody <#mjs_attachBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_attachBody
 
-Attach child body to a parent frame, return 0 on success.
+Attach child body to a parent frame, return the attached body if success or NULL otherwise.
 
 .. _mjs_attachFrame:
 
-mjs_attachFrame
-~~~~~~~~~~~~~~~
+`mjs_attachFrame <#mjs_attachFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_attachFrame
 
-Attach child frame to a parent body, return 0 on success.
+Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
+
+.. _mjs_attachToSite:
+
+`mjs_attachToSite <#mjs_attachToSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_attachToSite
+
+Attach child body to a parent site, return the attached body if success or NULL otherwise.
 
 .. _mjs_detachBody:
 
-mjs_detachBody
-~~~~~~~~~~~~~~
+`mjs_detachBody <#mjs_detachBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_detachBody
 
@@ -3779,8 +3850,8 @@ Tree elements
 ^^^^^^^^^^^^^
 .. _mjs_addBody:
 
-mjs_addBody
-~~~~~~~~~~~
+`mjs_addBody <#mjs_addBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addBody
 
@@ -3788,8 +3859,8 @@ Add child body to body, return child.
 
 .. _mjs_addSite:
 
-mjs_addSite
-~~~~~~~~~~~
+`mjs_addSite <#mjs_addSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addSite
 
@@ -3797,8 +3868,8 @@ Add site to body, return site spec.
 
 .. _mjs_addJoint:
 
-mjs_addJoint
-~~~~~~~~~~~~
+`mjs_addJoint <#mjs_addJoint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addJoint
 
@@ -3806,8 +3877,8 @@ Add joint to body.
 
 .. _mjs_addFreeJoint:
 
-mjs_addFreeJoint
-~~~~~~~~~~~~~~~~
+`mjs_addFreeJoint <#mjs_addFreeJoint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addFreeJoint
 
@@ -3815,8 +3886,8 @@ Add freejoint to body.
 
 .. _mjs_addGeom:
 
-mjs_addGeom
-~~~~~~~~~~~
+`mjs_addGeom <#mjs_addGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addGeom
 
@@ -3824,8 +3895,8 @@ Add geom to body.
 
 .. _mjs_addCamera:
 
-mjs_addCamera
-~~~~~~~~~~~~~
+`mjs_addCamera <#mjs_addCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addCamera
 
@@ -3833,8 +3904,8 @@ Add camera to body.
 
 .. _mjs_addLight:
 
-mjs_addLight
-~~~~~~~~~~~~
+`mjs_addLight <#mjs_addLight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addLight
 
@@ -3842,8 +3913,8 @@ Add light to body.
 
 .. _mjs_addFrame:
 
-mjs_addFrame
-~~~~~~~~~~~~
+`mjs_addFrame <#mjs_addFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addFrame
 
@@ -3851,12 +3922,12 @@ Add frame to body.
 
 .. _mjs_delete:
 
-mjs_delete
-~~~~~~~~~~
+`mjs_delete <#mjs_delete>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_delete
 
-Delete object corresponding to the given element.
+Delete object corresponding to the given element, return 0 on success.
 
 .. _AddNonTreeElements:
 
@@ -3864,8 +3935,8 @@ Non-tree elements
 ^^^^^^^^^^^^^^^^^
 .. _mjs_addActuator:
 
-mjs_addActuator
-~~~~~~~~~~~~~~~
+`mjs_addActuator <#mjs_addActuator>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addActuator
 
@@ -3873,8 +3944,8 @@ Add actuator.
 
 .. _mjs_addSensor:
 
-mjs_addSensor
-~~~~~~~~~~~~~
+`mjs_addSensor <#mjs_addSensor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addSensor
 
@@ -3882,8 +3953,8 @@ Add sensor.
 
 .. _mjs_addFlex:
 
-mjs_addFlex
-~~~~~~~~~~~
+`mjs_addFlex <#mjs_addFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addFlex
 
@@ -3891,8 +3962,8 @@ Add flex.
 
 .. _mjs_addPair:
 
-mjs_addPair
-~~~~~~~~~~~
+`mjs_addPair <#mjs_addPair>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addPair
 
@@ -3900,8 +3971,8 @@ Add contact pair.
 
 .. _mjs_addExclude:
 
-mjs_addExclude
-~~~~~~~~~~~~~~
+`mjs_addExclude <#mjs_addExclude>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addExclude
 
@@ -3909,8 +3980,8 @@ Add excluded body pair.
 
 .. _mjs_addEquality:
 
-mjs_addEquality
-~~~~~~~~~~~~~~~
+`mjs_addEquality <#mjs_addEquality>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addEquality
 
@@ -3918,8 +3989,8 @@ Add equality.
 
 .. _mjs_addTendon:
 
-mjs_addTendon
-~~~~~~~~~~~~~
+`mjs_addTendon <#mjs_addTendon>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addTendon
 
@@ -3927,8 +3998,8 @@ Add tendon.
 
 .. _mjs_wrapSite:
 
-mjs_wrapSite
-~~~~~~~~~~~~
+`mjs_wrapSite <#mjs_wrapSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_wrapSite
 
@@ -3936,8 +4007,8 @@ Wrap site using tendon.
 
 .. _mjs_wrapGeom:
 
-mjs_wrapGeom
-~~~~~~~~~~~~
+`mjs_wrapGeom <#mjs_wrapGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_wrapGeom
 
@@ -3945,8 +4016,8 @@ Wrap geom using tendon.
 
 .. _mjs_wrapJoint:
 
-mjs_wrapJoint
-~~~~~~~~~~~~~
+`mjs_wrapJoint <#mjs_wrapJoint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_wrapJoint
 
@@ -3954,8 +4025,8 @@ Wrap joint using tendon.
 
 .. _mjs_wrapPulley:
 
-mjs_wrapPulley
-~~~~~~~~~~~~~~
+`mjs_wrapPulley <#mjs_wrapPulley>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_wrapPulley
 
@@ -3963,8 +4034,8 @@ Wrap pulley using tendon.
 
 .. _mjs_addNumeric:
 
-mjs_addNumeric
-~~~~~~~~~~~~~~
+`mjs_addNumeric <#mjs_addNumeric>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addNumeric
 
@@ -3972,8 +4043,8 @@ Add numeric.
 
 .. _mjs_addText:
 
-mjs_addText
-~~~~~~~~~~~
+`mjs_addText <#mjs_addText>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addText
 
@@ -3981,8 +4052,8 @@ Add text.
 
 .. _mjs_addTuple:
 
-mjs_addTuple
-~~~~~~~~~~~~
+`mjs_addTuple <#mjs_addTuple>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addTuple
 
@@ -3990,8 +4061,8 @@ Add tuple.
 
 .. _mjs_addKey:
 
-mjs_addKey
-~~~~~~~~~~
+`mjs_addKey <#mjs_addKey>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addKey
 
@@ -3999,8 +4070,8 @@ Add keyframe.
 
 .. _mjs_addPlugin:
 
-mjs_addPlugin
-~~~~~~~~~~~~~
+`mjs_addPlugin <#mjs_addPlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addPlugin
 
@@ -4008,8 +4079,8 @@ Add plugin.
 
 .. _mjs_addDefault:
 
-mjs_addDefault
-~~~~~~~~~~~~~~
+`mjs_addDefault <#mjs_addDefault>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addDefault
 
@@ -4021,8 +4092,8 @@ Assets
 ^^^^^^
 .. _mjs_addMesh:
 
-mjs_addMesh
-~~~~~~~~~~~
+`mjs_addMesh <#mjs_addMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addMesh
 
@@ -4030,8 +4101,8 @@ Add mesh.
 
 .. _mjs_addHField:
 
-mjs_addHField
-~~~~~~~~~~~~~
+`mjs_addHField <#mjs_addHField>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addHField
 
@@ -4039,8 +4110,8 @@ Add height field.
 
 .. _mjs_addSkin:
 
-mjs_addSkin
-~~~~~~~~~~~
+`mjs_addSkin <#mjs_addSkin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addSkin
 
@@ -4048,8 +4119,8 @@ Add skin.
 
 .. _mjs_addTexture:
 
-mjs_addTexture
-~~~~~~~~~~~~~~
+`mjs_addTexture <#mjs_addTexture>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addTexture
 
@@ -4057,8 +4128,8 @@ Add texture.
 
 .. _mjs_addMaterial:
 
-mjs_addMaterial
-~~~~~~~~~~~~~~~
+`mjs_addMaterial <#mjs_addMaterial>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_addMaterial
 
@@ -4070,62 +4141,71 @@ Find and get utilities
 ^^^^^^^^^^^^^^^^^^^^^^
 .. _mjs_getSpec:
 
-mjs_getSpec
-~~~~~~~~~~~
+`mjs_getSpec <#mjs_getSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getSpec
 
 Get spec from body.
 
+.. _mjs_findSpec:
+
+`mjs_findSpec <#mjs_findSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findSpec
+
+Find spec (model asset) by name.
+
 .. _mjs_findBody:
 
-mjs_findBody
-~~~~~~~~~~~~
+`mjs_findBody <#mjs_findBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_findBody
 
-Find body in model by name.
+Find body in spec by name.
+
+.. _mjs_findElement:
+
+`mjs_findElement <#mjs_findElement>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_findElement
+
+Find element in spec by name.
 
 .. _mjs_findChild:
 
-mjs_findChild
-~~~~~~~~~~~~~
+`mjs_findChild <#mjs_findChild>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_findChild
 
 Find child body by name.
 
-.. _mjs_findMesh:
+.. _mjs_getParent:
 
-mjs_findMesh
-~~~~~~~~~~~~
+`mjs_getParent <#mjs_getParent>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjs_findMesh
+.. mujoco-include:: mjs_getParent
 
-Find mesh by name.
+Get parent body.
 
 .. _mjs_findFrame:
 
-mjs_findFrame
-~~~~~~~~~~~~~
+`mjs_findFrame <#mjs_findFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_findFrame
 
 Find frame by name.
 
-.. _mjs_findKeyframe:
-
-mjs_findKeyframe
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_findKeyframe
-
-Find keyframe by name.
-
 .. _mjs_getDefault:
 
-mjs_getDefault
-~~~~~~~~~~~~~~
+`mjs_getDefault <#mjs_getDefault>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getDefault
 
@@ -4133,8 +4213,8 @@ Get default corresponding to an element.
 
 .. _mjs_findDefault:
 
-mjs_findDefault
-~~~~~~~~~~~~~~~
+`mjs_findDefault <#mjs_findDefault>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_findDefault
 
@@ -4142,8 +4222,8 @@ Find default in model by class name.
 
 .. _mjs_getSpecDefault:
 
-mjs_getSpecDefault
-~~~~~~~~~~~~~~~~~~
+`mjs_getSpecDefault <#mjs_getSpecDefault>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getSpecDefault
 
@@ -4151,8 +4231,8 @@ Get global default from model.
 
 .. _mjs_getId:
 
-mjs_getId
-~~~~~~~~~
+`mjs_getId <#mjs_getId>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getId
 
@@ -4160,26 +4240,27 @@ Get element id.
 
 .. _mjs_firstChild:
 
-mjs_firstChild
-~~~~~~~~~~~~~~
+`mjs_firstChild <#mjs_firstChild>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_firstChild
 
-Return body's first child of given type.
+Return body's first child of given type. If recurse is nonzero, also search the body's subtree.
 
 .. _mjs_nextChild:
 
-mjs_nextChild
-~~~~~~~~~~~~~
+`mjs_nextChild <#mjs_nextChild>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_nextChild
 
 Return body's next child of the same type; return NULL if child is last.
+If recurse is nonzero, also search the body's subtree.
 
 .. _mjs_firstElement:
 
-mjs_firstElement
-~~~~~~~~~~~~~~~~
+`mjs_firstElement <#mjs_firstElement>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_firstElement
 
@@ -4187,228 +4268,30 @@ Return spec's first element of selected type.
 
 .. _mjs_nextElement:
 
-mjs_nextElement
-~~~~~~~~~~~~~~~
+`mjs_nextElement <#mjs_nextElement>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_nextElement
 
 Return spec's next element; return NULL if element is last.
 
-.. _mjs_asBody:
-
-mjs_asBody
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asBody
-
-Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
-
-.. _mjs_asGeom:
-
-mjs_asGeom
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asGeom
-
-Safely cast an element as mjsGeom, or return NULL if the element is not an mjsGeom.
-
-.. _mjs_asJoint:
-
-mjs_asJoint
-~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asJoint
-
-Safely cast an element as mjsJoint, or return NULL if the element is not an mjsJoint.
-
-.. _mjs_asSite:
-
-mjs_asSite
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asSite
-
-Safely cast an element as mjsSite, or return NULL if the element is not an mjsSite.
-
-.. _mjs_asCamera:
-
-mjs_asCamera
-~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asCamera
-
-Safely cast an element as mjsCamera, or return NULL if the element is not an mjsCamera.
-
-.. _mjs_asLight:
-
-mjs_asLight
-~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asLight
-
-Safely cast an element as mjsLight, or return NULL if the element is not an mjsLight.
-
-.. _mjs_asFrame:
-
-mjs_asFrame
-~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asFrame
-
-Safely cast an element as mjsFrame, or return NULL if the element is not an mjsFrame.
-
-.. _mjs_asActuator:
-
-mjs_asActuator
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asActuator
-
-Safely cast an element as mjsActuator, or return NULL if the element is not an mjsActuator.
-
-.. _mjs_asSensor:
-
-mjs_asSensor
-~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asSensor
-
-Safely cast an element as mjsSensor, or return NULL if the element is not an mjsSensor.
-
-.. _mjs_asFlex:
-
-mjs_asFlex
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asFlex
-
-Safely cast an element as mjsFlex, or return NULL if the element is not an mjsFlex.
-
-.. _mjs_asPair:
-
-mjs_asPair
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asPair
-
-Safely cast an element as mjsPair, or return NULL if the element is not an mjsPair.
-
-.. _mjs_asEquality:
-
-mjs_asEquality
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asEquality
-
-Safely cast an element as mjsEquality, or return NULL if the element is not an mjsEquality.
-
-.. _mjs_asExclude:
-
-mjs_asExclude
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asExclude
-
-Safely cast an element as mjsExclude, or return NULL if the element is not an mjsExclude.
-
-.. _mjs_asTendon:
-
-mjs_asTendon
-~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asTendon
-
-Safely cast an element as mjsTendon, or return NULL if the element is not an mjsTendon.
-
-.. _mjs_asNumeric:
-
-mjs_asNumeric
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asNumeric
-
-Safely cast an element as mjsNumeric, or return NULL if the element is not an mjsNumeric.
-
-.. _mjs_asText:
-
-mjs_asText
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asText
-
-Safely cast an element as mjsText, or return NULL if the element is not an mjsText.
-
-.. _mjs_asTuple:
-
-mjs_asTuple
-~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asTuple
-
-Safely cast an element as mjsTuple, or return NULL if the element is not an mjsTuple.
-
-.. _mjs_asKey:
-
-mjs_asKey
-~~~~~~~~~
-
-.. mujoco-include:: mjs_asKey
-
-Safely cast an element as mjsKey, or return NULL if the element is not an mjsKey.
-
-.. _mjs_asMesh:
-
-mjs_asMesh
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asMesh
-
-Safely cast an element as mjsMesh, or return NULL if the element is not an mjsMesh.
-
-.. _mjs_asHField:
-
-mjs_asHField
-~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asHField
-
-Safely cast an element as mjsHField, or return NULL if the element is not an mjsHField.
-
-.. _mjs_asSkin:
-
-mjs_asSkin
-~~~~~~~~~~
-
-.. mujoco-include:: mjs_asSkin
-
-Safely cast an element as mjsSkin, or return NULL if the element is not an mjsSkin.
-
-.. _mjs_asTexture:
-
-mjs_asTexture
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asTexture
-
-Safely cast an element as mjsTexture, or return NULL if the element is not an mjsTexture.
-
-.. _mjs_asMaterial:
-
-mjs_asMaterial
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_asMaterial
-
-Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.
-
 .. _AttributeSetters:
 
 Attribute setters
 ^^^^^^^^^^^^^^^^^
+.. _mjs_setBuffer:
+
+`mjs_setBuffer <#mjs_setBuffer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setBuffer
+
+Copy buffer.
+
 .. _mjs_setString:
 
-mjs_setString
-~~~~~~~~~~~~~
+`mjs_setString <#mjs_setString>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setString
 
@@ -4416,8 +4299,8 @@ Copy text to string.
 
 .. _mjs_setStringVec:
 
-mjs_setStringVec
-~~~~~~~~~~~~~~~~
+`mjs_setStringVec <#mjs_setStringVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setStringVec
 
@@ -4425,8 +4308,8 @@ Split text to entries and copy to string vector.
 
 .. _mjs_setInStringVec:
 
-mjs_setInStringVec
-~~~~~~~~~~~~~~~~~~
+`mjs_setInStringVec <#mjs_setInStringVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setInStringVec
 
@@ -4434,8 +4317,8 @@ Set entry in string vector.
 
 .. _mjs_appendString:
 
-mjs_appendString
-~~~~~~~~~~~~~~~~
+`mjs_appendString <#mjs_appendString>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_appendString
 
@@ -4443,8 +4326,8 @@ Append text entry to string vector.
 
 .. _mjs_setInt:
 
-mjs_setInt
-~~~~~~~~~~
+`mjs_setInt <#mjs_setInt>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setInt
 
@@ -4452,8 +4335,8 @@ Copy int array to vector.
 
 .. _mjs_appendIntVec:
 
-mjs_appendIntVec
-~~~~~~~~~~~~~~~~
+`mjs_appendIntVec <#mjs_appendIntVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_appendIntVec
 
@@ -4461,8 +4344,8 @@ Append int array to vector of arrays.
 
 .. _mjs_setFloat:
 
-mjs_setFloat
-~~~~~~~~~~~~
+`mjs_setFloat <#mjs_setFloat>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setFloat
 
@@ -4470,8 +4353,8 @@ Copy float array to vector.
 
 .. _mjs_appendFloatVec:
 
-mjs_appendFloatVec
-~~~~~~~~~~~~~~~~~~
+`mjs_appendFloatVec <#mjs_appendFloatVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_appendFloatVec
 
@@ -4479,8 +4362,8 @@ Append float array to vector of arrays.
 
 .. _mjs_setDouble:
 
-mjs_setDouble
-~~~~~~~~~~~~~
+`mjs_setDouble <#mjs_setDouble>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setDouble
 
@@ -4488,8 +4371,8 @@ Copy double array to vector.
 
 .. _mjs_setPluginAttributes:
 
-mjs_setPluginAttributes
-~~~~~~~~~~~~~~~~~~~~~~~
+`mjs_setPluginAttributes <#mjs_setPluginAttributes>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setPluginAttributes
 
@@ -4501,8 +4384,8 @@ Attribute getters
 ^^^^^^^^^^^^^^^^^
 .. _mjs_getString:
 
-mjs_getString
-~~~~~~~~~~~~~
+`mjs_getString <#mjs_getString>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getString
 
@@ -4510,8 +4393,8 @@ Get string contents.
 
 .. _mjs_getDouble:
 
-mjs_getDouble
-~~~~~~~~~~~~~
+`mjs_getDouble <#mjs_getDouble>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_getDouble
 
@@ -4521,19 +4404,10 @@ Get double array contents and optionally its size.
 
 Spec utilities
 ^^^^^^^^^^^^^^
-.. _mjs_setActivePlugins:
-
-mjs_setActivePlugins
-~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_setActivePlugins
-
-Set active plugins.
-
 .. _mjs_setDefault:
 
-mjs_setDefault
-~~~~~~~~~~~~~~
+`mjs_setDefault <#mjs_setDefault>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setDefault
 
@@ -4541,21 +4415,30 @@ Set element's default.
 
 .. _mjs_setFrame:
 
-mjs_setFrame
-~~~~~~~~~~~~
+`mjs_setFrame <#mjs_setFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_setFrame
 
-Set element's enlcosing frame.
+Set element's enclosing frame.
 
 .. _mjs_resolveOrientation:
 
-mjs_resolveOrientation
-~~~~~~~~~~~~~~~~~~~~~~
+`mjs_resolveOrientation <#mjs_resolveOrientation>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_resolveOrientation
 
 Resolve alternative orientations to quat, return error if any.
+
+.. _mjs_bodyToFrame:
+
+`mjs_bodyToFrame <#mjs_bodyToFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_bodyToFrame
+
+Transform body into a frame.
 
 .. _ElementInitialization:
 
@@ -4563,8 +4446,8 @@ Element initialization
 ^^^^^^^^^^^^^^^^^^^^^^
 .. _mjs_defaultSpec:
 
-mjs_defaultSpec
-~~~~~~~~~~~~~~~
+`mjs_defaultSpec <#mjs_defaultSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultSpec
 
@@ -4572,8 +4455,8 @@ Default spec attributes.
 
 .. _mjs_defaultOrientation:
 
-mjs_defaultOrientation
-~~~~~~~~~~~~~~~~~~~~~~
+`mjs_defaultOrientation <#mjs_defaultOrientation>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultOrientation
 
@@ -4581,8 +4464,8 @@ Default orientation attributes.
 
 .. _mjs_defaultBody:
 
-mjs_defaultBody
-~~~~~~~~~~~~~~~
+`mjs_defaultBody <#mjs_defaultBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultBody
 
@@ -4590,8 +4473,8 @@ Default body attributes.
 
 .. _mjs_defaultFrame:
 
-mjs_defaultFrame
-~~~~~~~~~~~~~~~~
+`mjs_defaultFrame <#mjs_defaultFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultFrame
 
@@ -4599,8 +4482,8 @@ Default frame attributes.
 
 .. _mjs_defaultJoint:
 
-mjs_defaultJoint
-~~~~~~~~~~~~~~~~
+`mjs_defaultJoint <#mjs_defaultJoint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultJoint
 
@@ -4608,8 +4491,8 @@ Default joint attributes.
 
 .. _mjs_defaultGeom:
 
-mjs_defaultGeom
-~~~~~~~~~~~~~~~
+`mjs_defaultGeom <#mjs_defaultGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultGeom
 
@@ -4617,8 +4500,8 @@ Default geom attributes.
 
 .. _mjs_defaultSite:
 
-mjs_defaultSite
-~~~~~~~~~~~~~~~
+`mjs_defaultSite <#mjs_defaultSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultSite
 
@@ -4626,8 +4509,8 @@ Default site attributes.
 
 .. _mjs_defaultCamera:
 
-mjs_defaultCamera
-~~~~~~~~~~~~~~~~~
+`mjs_defaultCamera <#mjs_defaultCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultCamera
 
@@ -4635,8 +4518,8 @@ Default camera attributes.
 
 .. _mjs_defaultLight:
 
-mjs_defaultLight
-~~~~~~~~~~~~~~~~
+`mjs_defaultLight <#mjs_defaultLight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultLight
 
@@ -4644,8 +4527,8 @@ Default light attributes.
 
 .. _mjs_defaultFlex:
 
-mjs_defaultFlex
-~~~~~~~~~~~~~~~
+`mjs_defaultFlex <#mjs_defaultFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultFlex
 
@@ -4653,8 +4536,8 @@ Default flex attributes.
 
 .. _mjs_defaultMesh:
 
-mjs_defaultMesh
-~~~~~~~~~~~~~~~
+`mjs_defaultMesh <#mjs_defaultMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultMesh
 
@@ -4662,8 +4545,8 @@ Default mesh attributes.
 
 .. _mjs_defaultHField:
 
-mjs_defaultHField
-~~~~~~~~~~~~~~~~~
+`mjs_defaultHField <#mjs_defaultHField>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultHField
 
@@ -4671,8 +4554,8 @@ Default height field attributes.
 
 .. _mjs_defaultSkin:
 
-mjs_defaultSkin
-~~~~~~~~~~~~~~~
+`mjs_defaultSkin <#mjs_defaultSkin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultSkin
 
@@ -4680,8 +4563,8 @@ Default skin attributes.
 
 .. _mjs_defaultTexture:
 
-mjs_defaultTexture
-~~~~~~~~~~~~~~~~~~
+`mjs_defaultTexture <#mjs_defaultTexture>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultTexture
 
@@ -4689,8 +4572,8 @@ Default texture attributes.
 
 .. _mjs_defaultMaterial:
 
-mjs_defaultMaterial
-~~~~~~~~~~~~~~~~~~~
+`mjs_defaultMaterial <#mjs_defaultMaterial>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultMaterial
 
@@ -4698,8 +4581,8 @@ Default material attributes.
 
 .. _mjs_defaultPair:
 
-mjs_defaultPair
-~~~~~~~~~~~~~~~
+`mjs_defaultPair <#mjs_defaultPair>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultPair
 
@@ -4707,8 +4590,8 @@ Default pair attributes.
 
 .. _mjs_defaultEquality:
 
-mjs_defaultEquality
-~~~~~~~~~~~~~~~~~~~
+`mjs_defaultEquality <#mjs_defaultEquality>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultEquality
 
@@ -4716,8 +4599,8 @@ Default equality attributes.
 
 .. _mjs_defaultTendon:
 
-mjs_defaultTendon
-~~~~~~~~~~~~~~~~~
+`mjs_defaultTendon <#mjs_defaultTendon>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultTendon
 
@@ -4725,8 +4608,8 @@ Default tendon attributes.
 
 .. _mjs_defaultActuator:
 
-mjs_defaultActuator
-~~~~~~~~~~~~~~~~~~~
+`mjs_defaultActuator <#mjs_defaultActuator>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultActuator
 
@@ -4734,8 +4617,8 @@ Default actuator attributes.
 
 .. _mjs_defaultSensor:
 
-mjs_defaultSensor
-~~~~~~~~~~~~~~~~~
+`mjs_defaultSensor <#mjs_defaultSensor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultSensor
 
@@ -4743,8 +4626,8 @@ Default sensor attributes.
 
 .. _mjs_defaultNumeric:
 
-mjs_defaultNumeric
-~~~~~~~~~~~~~~~~~~
+`mjs_defaultNumeric <#mjs_defaultNumeric>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultNumeric
 
@@ -4752,8 +4635,8 @@ Default numeric attributes.
 
 .. _mjs_defaultText:
 
-mjs_defaultText
-~~~~~~~~~~~~~~~
+`mjs_defaultText <#mjs_defaultText>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultText
 
@@ -4761,8 +4644,8 @@ Default text attributes.
 
 .. _mjs_defaultTuple:
 
-mjs_defaultTuple
-~~~~~~~~~~~~~~~~
+`mjs_defaultTuple <#mjs_defaultTuple>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultTuple
 
@@ -4770,8 +4653,8 @@ Default tuple attributes.
 
 .. _mjs_defaultKey:
 
-mjs_defaultKey
-~~~~~~~~~~~~~~
+`mjs_defaultKey <#mjs_defaultKey>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultKey
 
@@ -4779,10 +4662,230 @@ Default keyframe attributes.
 
 .. _mjs_defaultPlugin:
 
-mjs_defaultPlugin
-~~~~~~~~~~~~~~~~~
+`mjs_defaultPlugin <#mjs_defaultPlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjs_defaultPlugin
 
 Default plugin attributes.
+
+.. _ElementCasting:
+
+Element casting
+^^^^^^^^^^^^^^^
+.. _mjs_asBody:
+
+`mjs_asBody <#mjs_asBody>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asBody
+
+Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
+
+.. _mjs_asGeom:
+
+`mjs_asGeom <#mjs_asGeom>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asGeom
+
+Safely cast an element as mjsGeom, or return NULL if the element is not an mjsGeom.
+
+.. _mjs_asJoint:
+
+`mjs_asJoint <#mjs_asJoint>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asJoint
+
+Safely cast an element as mjsJoint, or return NULL if the element is not an mjsJoint.
+
+.. _mjs_asSite:
+
+`mjs_asSite <#mjs_asSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSite
+
+Safely cast an element as mjsSite, or return NULL if the element is not an mjsSite.
+
+.. _mjs_asCamera:
+
+`mjs_asCamera <#mjs_asCamera>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asCamera
+
+Safely cast an element as mjsCamera, or return NULL if the element is not an mjsCamera.
+
+.. _mjs_asLight:
+
+`mjs_asLight <#mjs_asLight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asLight
+
+Safely cast an element as mjsLight, or return NULL if the element is not an mjsLight.
+
+.. _mjs_asFrame:
+
+`mjs_asFrame <#mjs_asFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asFrame
+
+Safely cast an element as mjsFrame, or return NULL if the element is not an mjsFrame.
+
+.. _mjs_asActuator:
+
+`mjs_asActuator <#mjs_asActuator>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asActuator
+
+Safely cast an element as mjsActuator, or return NULL if the element is not an mjsActuator.
+
+.. _mjs_asSensor:
+
+`mjs_asSensor <#mjs_asSensor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSensor
+
+Safely cast an element as mjsSensor, or return NULL if the element is not an mjsSensor.
+
+.. _mjs_asFlex:
+
+`mjs_asFlex <#mjs_asFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asFlex
+
+Safely cast an element as mjsFlex, or return NULL if the element is not an mjsFlex.
+
+.. _mjs_asPair:
+
+`mjs_asPair <#mjs_asPair>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asPair
+
+Safely cast an element as mjsPair, or return NULL if the element is not an mjsPair.
+
+.. _mjs_asEquality:
+
+`mjs_asEquality <#mjs_asEquality>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asEquality
+
+Safely cast an element as mjsEquality, or return NULL if the element is not an mjsEquality.
+
+.. _mjs_asExclude:
+
+`mjs_asExclude <#mjs_asExclude>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asExclude
+
+Safely cast an element as mjsExclude, or return NULL if the element is not an mjsExclude.
+
+.. _mjs_asTendon:
+
+`mjs_asTendon <#mjs_asTendon>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asTendon
+
+Safely cast an element as mjsTendon, or return NULL if the element is not an mjsTendon.
+
+.. _mjs_asNumeric:
+
+`mjs_asNumeric <#mjs_asNumeric>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asNumeric
+
+Safely cast an element as mjsNumeric, or return NULL if the element is not an mjsNumeric.
+
+.. _mjs_asText:
+
+`mjs_asText <#mjs_asText>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asText
+
+Safely cast an element as mjsText, or return NULL if the element is not an mjsText.
+
+.. _mjs_asTuple:
+
+`mjs_asTuple <#mjs_asTuple>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asTuple
+
+Safely cast an element as mjsTuple, or return NULL if the element is not an mjsTuple.
+
+.. _mjs_asKey:
+
+`mjs_asKey <#mjs_asKey>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asKey
+
+Safely cast an element as mjsKey, or return NULL if the element is not an mjsKey.
+
+.. _mjs_asMesh:
+
+`mjs_asMesh <#mjs_asMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asMesh
+
+Safely cast an element as mjsMesh, or return NULL if the element is not an mjsMesh.
+
+.. _mjs_asHField:
+
+`mjs_asHField <#mjs_asHField>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asHField
+
+Safely cast an element as mjsHField, or return NULL if the element is not an mjsHField.
+
+.. _mjs_asSkin:
+
+`mjs_asSkin <#mjs_asSkin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asSkin
+
+Safely cast an element as mjsSkin, or return NULL if the element is not an mjsSkin.
+
+.. _mjs_asTexture:
+
+`mjs_asTexture <#mjs_asTexture>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asTexture
+
+Safely cast an element as mjsTexture, or return NULL if the element is not an mjsTexture.
+
+.. _mjs_asMaterial:
+
+`mjs_asMaterial <#mjs_asMaterial>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asMaterial
+
+Safely cast an element as mjsMaterial, or return NULL if the element is not an mjsMaterial.
+
+.. _mjs_asPlugin:
+
+`mjs_asPlugin <#mjs_asPlugin>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_asPlugin
+
+Safely cast an element as mjsPlugin, or return NULL if the element is not an mjsPlugin.
 

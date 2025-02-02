@@ -53,11 +53,11 @@ void mj_defaultStatistic(mjStatistic* stat);
 // allocate mjModel
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic,
-    int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert,
-    int nflexedge, int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair,
-    int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
-    int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
-    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
+    int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexnode, int nflexvert,
+    int nflexedge, int nflexelem, int nflexelemdata, int nflexelemedge, int nflexshelldata,
+    int nflexevpair, int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal,
+    int nmeshtexcoord, int nmeshface, int nmeshgraph, int nskin, int nskinvert, int nskintexvert,
+    int nskinface, int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
     int ntex, int ntexdata, int nmat, int npair, int nexclude,
     int neq, int ntendon, int nwrap, int nsensor,
     int nnumeric, int nnumericdata, int ntext, int ntextdata,
@@ -69,13 +69,16 @@ void mj_makeModel(mjModel** dest,
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
+// copy mjModel, skip large arrays not required for abstract visualization
+MJAPI void mjv_copyModel(mjModel* dest, const mjModel* src);
+
 // save model to binary file
 MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
 
 // load binary MJB
 mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 
-// de-allocate model
+// deallocate model
 MJAPI void mj_deleteModel(mjModel* m);
 
 // size of buffer needed to hold model
@@ -128,8 +131,19 @@ void mj__freeStack(mjData* d) __attribute__((noinline));
 
 #endif  // ADDRESS_SANITIZER
 
-// mjData stack allocate
+// returns the number of bytes available on the stack
+MJAPI size_t mj_stackBytesAvailable(mjData* d);
+
+// allocate bytes on the stack
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
+
+// allocate bytes on the stack, with added caller information
+MJAPI void* mj_stackAllocInfo(mjData* d, size_t bytes, size_t alignment,
+                              const char* caller, int line);
+
+// macro to allocate a stack array of given type, adds caller information
+#define mjSTACKALLOC(d, num, type) \
+(type*) mj_stackAllocInfo(d, (num) * sizeof(type), _Alignof(type), __func__, __LINE__)
 
 // mjData stack allocate for array of mjtNums
 MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
@@ -137,7 +151,7 @@ MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 // mjData stack allocate for array of ints
 MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
-// de-allocate data
+// deallocate data
 MJAPI void mj_deleteData(mjData* d);
 
 // clear arena pointers in mjData

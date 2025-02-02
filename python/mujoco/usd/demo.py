@@ -12,69 +12,88 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+"""Demo script for USD exporter."""
+
 import argparse
-from pathlib import Path
+import pathlib
 
 import mujoco
+# from mujoco.usd import exporter
+import exporter
 
-from mujoco.usd import exporter
 
-def generate_usd_trajectory(args):
-  """Generates a USD file given the user arguments"""
+def generate_usd_trajectory(local_args):
+  """Generates a USD file given the user arguments."""
   # load a model to mujoco
-  model_path = args.model_path
+  model_path = local_args.model_path
   m = mujoco.MjModel.from_xml_path(model_path)
   d = mujoco.MjData(m)
 
   # create an instance of the USDExporter
-  exp = exporter.USDExporter(model=m,
-                             output_directory_name=Path(args.model_path).stem,
-                             output_directory_root=args.output_directory_root,
-                             camera_names=args.camera_names)
+  exp = exporter.USDExporter(
+      model=m,
+      output_directory=pathlib.Path(local_args.model_path).stem,
+      output_directory_root=local_args.output_directory_root,
+      camera_names=local_args.camera_names,
+  )
 
   cam = mujoco.MjvCamera()
     
   # step through the simulation for the given duration of time
-  while d.time < args.duration:
+  while d.time < local_args.duration:
     mujoco.mj_step(m, d)
-    if exp.frame_count < d.time * args.framerate:
-      exp.update_scene(data=d, camera=cam)
+    if exp.frame_count < d.time * local_args.framerate:
+      exp.update_scene(data=d, camera="cinematic")
 
-  exp.save_scene(filetype=args.export_extension)
+  exp.add_light(pos=(0, 0, 0),
+                intensity=2000,
+                light_type='dome')
 
-if __name__ == "__main__":
+  exp.save_scene(filetype=local_args.export_extension)
+
+
+if __name__ == '__main__':
 
   parser = argparse.ArgumentParser()
 
-  parser.add_argument('--model_path',
-                      type=str,
-                      required=True,
-                      help='path to mjcf xml model')
+  parser.add_argument(
+      '--model_path', type=str, required=True, help='path to mjcf xml model'
+  )
 
-  parser.add_argument('--duration',
-                      type=int,
-                      default=5,
-                      help='duration in seconds for the generated video')
+  parser.add_argument(
+      '--duration',
+      type=int,
+      default=5,
+      help='duration in seconds for the generated video',
+  )
 
-  parser.add_argument('--framerate',
-                      type=int,
-                      default=60,
-                      help='frame rate of the generated video')
+  parser.add_argument(
+      '--framerate',
+      type=int,
+      default=60,
+      help='frame rate of the generated video',
+  )
 
-  parser.add_argument('--output_directory_root',
-                      type=str,
-                      default="../usd_trajectories/",
-                      help='location where to create usd files')
+  parser.add_argument(
+      '--output_directory_root',
+      type=str,
+      default='../usd_trajectories/',
+      help='location where to create usd files',
+  )
 
-  parser.add_argument('--camera_names',
-                      type=str,
-                      nargs='+',
-                      help='cameras to include in usd')
+  parser.add_argument(
+      '--camera_names',
+      type=str,
+      nargs='+',
+      help='cameras to include in usd'
+  )
 
-  parser.add_argument('--export_extension',
-                      type=str,
-                      default="usd",
-                      help='extension of exported file (usd, usda, usdc)')
+  parser.add_argument(
+      '--export_extension',
+      type=str,
+      default='usd',
+      help='extension of exported file (usd, usda, usdc)',
+  )
 
   args = parser.parse_args()
   generate_usd_trajectory(args)

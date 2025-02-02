@@ -15,12 +15,12 @@
 
 #include "engine/engine_ray.h"
 
-#include <math.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
@@ -343,7 +343,7 @@ static mjtNum ray_cylinder(const mjtNum* pos, const mjtNum* mat, const mjtNum* s
   int side;
   if (mju_abs(lvec[2]) > mjMINVAL) {
     for (side=-1; side <= 1; side+=2) {
-      // soludion of: lpnt[2] + x*lvec[2] = side*height_size
+      // solution of: lpnt[2] + x*lvec[2] = side*height_size
       sol = (side*size[1]-lpnt[2])/lvec[2];
 
       // process if non-negative
@@ -417,7 +417,7 @@ static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
   for (int i=0; i < 3; i++) {
     if (mju_abs(lvec[i]) > mjMINVAL) {
       for (int side=-1; side <= 1; side+=2) {
-        // soludion of: lpnt[i] + x*lvec[i] = side*size[i]
+        // solution of: lpnt[i] + x*lvec[i] = side*size[i]
         sol = (side*size[i]-lpnt[i])/lvec[i];
 
         // process if non-negative
@@ -1351,8 +1351,8 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
   mj_markStack(d);
 
   // allocate source
-  mjtNum* geom_ba = mj_stackAllocNum(d, 4*m->ngeom);
-  int* geom_eliminate = mj_stackAllocInt(d, m->ngeom);
+  mjtNum* geom_ba = mjSTACKALLOC(d, 4*m->ngeom, mjtNum);
+  int* geom_eliminate = mjSTACKALLOC(d, m->ngeom, int);
 
   // initialize source
   mju_multiRayPrepare(m, d, pnt, NULL, geomgroup, flg_static, bodyexclude,

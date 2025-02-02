@@ -14,8 +14,6 @@
 
 #include "engine/engine_util_spatial.h"
 
-#include <math.h>
-
 #include <mujoco/mjmodel.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -271,7 +269,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   a = mju_normalize3(axis);
 
   // almost parallel
-  if (fabs(a) < mjMINVAL) {
+  if (mju_abs(a) < mjMINVAL) {
     // opposite: 180 deg rotation around x axis
     if (mju_dot3(vn, z) < 0) {
       quat[0] = 0;
@@ -284,6 +282,47 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   // make quaternion from angle and axis
   a = mju_atan2(a, mju_dot3(vn, z));
   mju_axisAngle2Quat(quat, axis, a);
+}
+
+
+
+// extract 3D rotation from an arbitrary 3x3 matrix
+static const mjtNum rotEPS = 1e-9;
+int mju_mat2Rot(mjtNum quat[4], const mjtNum mat[9]) {
+  // Müller, Matthias, Jan Bender, Nuttapong Chentanez, and Miles Macklin. "A
+  // robust method to extract the rotational part of deformations." In
+  // Proceedings of the 9th International Conference on Motion in Games, pp.
+  // 55-60. 2016.
+
+  int iter;
+  mjtNum col1_mat[3] = {mat[0], mat[3], mat[6]};
+  mjtNum col2_mat[3] = {mat[1], mat[4], mat[7]};
+  mjtNum col3_mat[3] = {mat[2], mat[5], mat[8]};
+  for (iter = 0; iter < 500; iter++) {
+    mjtNum rot[9];
+    mju_quat2Mat(rot, quat);
+    mjtNum col1_rot[3] = {rot[0], rot[3], rot[6]};
+    mjtNum col2_rot[3] = {rot[1], rot[4], rot[7]};
+    mjtNum col3_rot[3] = {rot[2], rot[5], rot[8]};
+    mjtNum omega[3], vec1[3], vec2[3], vec3[3];
+    mju_cross(vec1, col1_rot, col1_mat);
+    mju_cross(vec2, col2_rot, col2_mat);
+    mju_cross(vec3, col3_rot, col3_mat);
+    mju_add3(omega, vec1, vec2);
+    mju_addTo3(omega, vec3);
+    mju_scl3(omega, omega, 1.0 / (mju_abs(mju_dot3(col1_rot, col1_mat) +
+                                          mju_dot3(col2_rot, col2_mat) +
+                                          mju_dot3(col3_rot, col3_mat)) + mjMINVAL));
+    mjtNum w = mju_normalize3(omega);
+    if (w < rotEPS) {
+      break;
+    }
+    mjtNum qrot[4];
+    mju_axisAngle2Quat(qrot, omega, w);
+    mju_mulQuat(quat, qrot, quat);
+    mju_normalize4(quat);
+  }
+  return iter;
 }
 
 

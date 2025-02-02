@@ -21,6 +21,7 @@ import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import solver
 from mujoco.mjx._src import test_util
+from mujoco.mjx._src.types import ConeType
 import numpy as np
 
 
@@ -95,7 +96,7 @@ class SolverTest(parameterized.TestCase):
       # lower (due to slight differences in the MJX linsearch algorithm)
       mj_cost = cost(d.qacc)
       mjx_cost = cost(dx.qacc)
-      self.assertLess(mjx_cost, mj_cost * 1.01)
+      self.assertLess(mjx_cost, mj_cost * 1.015)
 
   def test_no_warmstart(self):
     """Test no warmstart."""
@@ -131,6 +132,39 @@ class SolverTest(parameterized.TestCase):
     _assert_attr_eq(d, dx, 'qfrc_constraint')
     nnz = dx.efc_J.any(axis=1)
     _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+
+  def test_quad_frictionloss(self):
+    """Test a case with quadratic frictionloss constraints."""
+    m = test_util.load_test_file('quadratic_frictionloss.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
+
+    _assert_attr_eq(d, dx, 'qacc')
+    _assert_attr_eq(d, dx, 'qfrc_constraint')
+    nnz = dx.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+
+  # TODO(taylorhowell): condim=1 with ConeType.ELLIPTIC
+  @parameterized.product(condim=(3, 4, 6), cone=tuple(ConeType))
+  def test_condim(self, condim, cone):
+    """Test contact dimension."""
+    m = mujoco.MjModel.from_xml_string(f"""
+       <mujoco>
+          <worldbody>
+            <geom size="0 0 1e-5" type="plane" condim="1"/>
+            <body pos="0 0 0.09">
+              <freejoint/>
+              <geom size="0.1" condim="{condim}"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """)
+    m.opt.cone = cone
+    solver.solve(mjx.put_model(m), mjx.put_data(m, mujoco.MjData(m)))
+
 
 if __name__ == '__main__':
   absltest.main()

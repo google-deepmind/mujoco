@@ -34,8 +34,8 @@
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_resource.h"
 #include <mujoco/mjspec.h>
+#include "user/user_resource.h"
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 #include "xml/xml_native_reader.h"
@@ -48,8 +48,10 @@ namespace {
 using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
 using tinyxml2::XMLNode;
+using mujoco::user::FilePath;
 
 namespace mju = ::mujoco::util;
+
 
 // We are using "locale-sensitive" sprintf to read and write XML.
 // When MuJoCo is being used as a plug-in for an application that respects the system locale
@@ -97,29 +99,30 @@ class LocaleOverride {
 };
 #endif
 
-}  // namespace
-
-// Main writer function - calls mjXWrite
-std::string mjWriteXML(const mjSpec* spec, char* error, int error_sz) {
-  LocaleOverride locale_override;
-
-  // check for empty model
-  if (!spec) {
-    mjCopyError(error, "Cannot write empty model", error_sz);
-    return "";
+void RegisterResourceProvider() {
+  // register string resource provider if not registered before
+  if (mjp_getResourceProvider("LoadModelFromString:") == nullptr) {
+    mjpResourceProvider resourceProvider;
+    mjp_defaultResourceProvider(&resourceProvider);
+    resourceProvider.prefix = "LoadModelFromString";
+    resourceProvider.open = +[](mjResource* resource) {
+      resource->data = &(resource->name[strlen("LoadModelFromString:")]);
+      return 1;
+    };
+    resourceProvider.read =
+        +[](mjResource* resource, const void** buffer) {
+          *buffer = resource->data;
+          return (int) strlen((const char*) resource->data);
+        };
+    resourceProvider.close = +[](mjResource* resource) {};
+    mjp_registerResourceProvider(&resourceProvider);
   }
-
-  mjXWriter writer;
-  writer.SetModel(spec);
-  return writer.Write(error, error_sz);
 }
 
-
-
 // find include elements recursively, replace them with subtree from xml file
-static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
-                         std::string_view dir, const mjVFS* vfs,
-                         std::unordered_set<std::string>& included) {
+void IncludeXML(mjXReader& reader, XMLElement* elem,
+                const FilePath& dir, const mjVFS* vfs,
+                std::unordered_set<std::string>& included) {
   // capture directory defaults on first pass of XML tree
   if (!strcasecmp(elem->Value(), "compiler")) {
     auto assetdir_attr = mjXUtil::ReadAttrStr(elem, "assetdir");
@@ -142,7 +145,7 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
   if (strcasecmp(elem->Value(), "include")) {
     XMLElement* child = elem->FirstChildElement();
     for (; child; child = child->NextSiblingElement()) {
-      mjIncludeXML(reader, child, dir, vfs, included);
+      IncludeXML(reader, child, dir, vfs, included);
     }
     return;
   }
@@ -153,59 +156,46 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
   }
 
   // get filename
-  auto file_attr = mjXUtil::ReadAttrStr(elem, "file", true);
+  auto file_attr = mjXUtil::ReadAttrFile(elem, "file", vfs,
+                                         reader.ModelFileDir(), true);
   if (!file_attr.has_value()) {
     throw mjXError(elem, "Include element missing file attribute");
   }
-  std::string filename = file_attr.value();
+  FilePath filename = file_attr.value();
 
 
   // block repeated include files
-  if (included.find(filename) != included.end()) {
+  if (included.find(filename.Str()) != included.end()) {
     throw mjXError(elem, "File '%s' already included", filename.c_str());
   }
 
   // TODO: b/325905702 - We have a messy wrapper here to remain backwards
   // compatible, which will be removed in the near future.
-  std::string fullname;
-  if (!mjuu_isabspath(filename)) {
-    fullname = reader.ModelFileDir() + filename;
-  } else {
-    fullname = filename;
-  }
-  mjResource *resource = mju_openVfsResource(fullname.c_str(), vfs);
-  if (!resource) {
-    // load from provider or OS filesystem
-    std::array<char, 1024> error;
-    resource = mju_openResource(fullname.c_str(), error.data(), error.size());
-    if (!resource) {
-      if (!mjuu_isabspath(filename)) {
-        fullname = std::string(dir) + filename;
-      } else {
-        fullname = filename;
-      }
-
-      // load from provider or OS filesystem
-      std::array<char, 1024> error;
-      resource = mju_openResource(fullname.c_str(), error.data(), error.size());
-      if (!resource) {
-        throw mjXError(elem, "%s", error.data());
-      }
+  // legacy behavior: try to load in top level directory
+  std::array<char, 1024> error;
+  mjResource *resource = mju_openResource(reader.ModelFileDir().c_str(),
+                                          filename.c_str(), vfs,
+                                          error.data(), error.size());
+  if (resource == nullptr) {
+    // new behavior: try to load in relative directory
+    if (!filename.IsAbs()) {
+      FilePath fullname = dir + filename;
+      resource = mju_openResource(reader.ModelFileDir().c_str(),
+                                  fullname.c_str(), vfs, error.data(), error.size());
     }
   }
 
-  if (!mjuu_isabspath(filename)) {
-    filename = std::string(dir) + filename;
+  if (resource == nullptr) {
+    throw mjXError(elem, "%s", error.data());
   }
+
+  filename = dir + filename;
 
   const char* include_dir = nullptr;
   int ninclude_dir = 0;
   mju_getResourceDir(resource, &include_dir, &ninclude_dir);
-  std::string next_dir = std::string(include_dir, ninclude_dir);
-  if (!mjuu_isabspath(filename)) {
-    next_dir = std::string(dir) + next_dir;
-  }
-  elem->SetAttribute("dir", next_dir.data());
+  FilePath next_dir = FilePath(std::string(include_dir, ninclude_dir));
+  elem->SetAttribute("dir", next_dir.c_str());
 
   const char* xmlstring = nullptr;
   int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
@@ -232,7 +222,7 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
   }
 
   // remember that file was included
-  included.insert(filename);
+  included.insert(filename.Str());
 
   // get and check root element
   XMLElement* docroot = doc.RootElement();
@@ -266,21 +256,21 @@ static void mjIncludeXML(mjXReader& reader, XMLElement* elem,
   // recursively run include
   child = include->FirstChildElement();
   for (; child; child = child->NextSiblingElement()) {
-    mjIncludeXML(reader, child, next_dir, vfs, included);
+    IncludeXML(reader, child, next_dir, vfs, included);
   }
 }
 
-
+}  // namespace
 
 // Main parser function
-mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
-                     char* error, int error_sz) {
+mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
+                 char* error, int nerror) {
   LocaleOverride locale_override;
 
   // check arguments
   if (!filename) {
     if (error) {
-      std::snprintf(error, error_sz, "mjParseXML: filename argument required\n");
+      std::snprintf(error, nerror, "ParseXML: filename argument required\n");
     }
     return nullptr;
   }
@@ -293,29 +283,25 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
 
   // get data source
   const char* xmlstring = nullptr;
-  mjResource* resource = mju_openVfsResource(filename, vfs);
-
-  if (!resource) {
-    // load from provider or fallback to OS filesystem
-    std::array<char, 1024> rerror;
-    resource = mju_openResource(filename, rerror.data(), rerror.size());
-    if (!resource) {
-      std::snprintf(error, error_sz, "mjParseXML: %s", rerror.data());
-      return nullptr;
-    }
+  std::array<char, 1024> rerror;
+  mjResource* resource = mju_openResource("", filename, vfs,
+                                          rerror.data(), rerror.size());
+  if (resource == nullptr) {
+    std::snprintf(error, nerror, "ParseXML: %s", rerror.data());
+    return nullptr;
   }
 
   int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
   if (buffer_size < 0) {
     if (error) {
-      std::snprintf(error, error_sz,
-                    "mjParseXML: error reading file '%s'", filename);
+      std::snprintf(error, nerror,
+                    "ParseXML: error reading file '%s'", filename);
     }
     mju_closeResource(resource);
     return nullptr;
   } else if (!buffer_size) {
     if (error) {
-      std::snprintf(error, error_sz, "mjParseXML: empty file '%s'", filename);
+      std::snprintf(error, nerror, "ParseXML: empty file '%s'", filename);
     }
     mju_closeResource(resource);
     return nullptr;
@@ -329,7 +315,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   // error checking
   if (doc.Error()) {
     if (error) {
-      snprintf(error, error_sz, "XML parse error %d:\n%s\n",
+      snprintf(error, nerror, "XML parse error %d:\n%s\n",
                doc.ErrorID(), doc.ErrorStr());
     }
     mju_closeResource(resource);
@@ -340,7 +326,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   XMLElement* root = doc.RootElement();
   if (!root) {
     mju_closeResource(resource);
-    mjCopyError(error, "XML root element not found", error_sz);
+    mjCopyError(error, "XML root element not found", nerror);
     return nullptr;
   }
 
@@ -365,11 +351,11 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
       std::unordered_set<std::string> included = {filename};
       mjXReader parser;
       parser.SetModelFileDir(mjs_getString(spec->modelfiledir));
-      mjIncludeXML(parser, root, mjs_getString(spec->modelfiledir), vfs, included);
+      IncludeXML(parser, root, FilePath(), vfs, included);
 
       // parse MuJoCo model
       parser.SetModel(spec);
-      parser.Parse(root);
+      parser.Parse(root, vfs);
     }
 
     else if (!strcasecmp(root->Value(), "robot")) {
@@ -379,8 +365,8 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
       // set reasonable default for parsing a URDF
       // this is separate from the Parser to allow multiple URDFs to be loaded.
       spec->strippath = true;
-      spec->fusestatic = true;
-      spec->discardvisual = true;
+      spec->compiler.fusestatic = true;
+      spec->compiler.discardvisual = true;
 
       parser.SetModel(spec);
       parser.Parse(root);
@@ -393,7 +379,7 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
 
   // catch known errors
   catch (mjXError err) {
-    mjCopyError(error, err.message, error_sz);
+    mjCopyError(error, err.message, nerror);
     mj_deleteSpec(spec);
     return nullptr;
   }
@@ -401,32 +387,30 @@ mjSpec* mjParseXML(const char* filename, const mjVFS* vfs,
   return spec;
 }
 
-
-static void RegisterResourceProvider() {
-  // register string resource provider if not registered before
-  if (mjp_getResourceProvider("LoadModelFromString:") == nullptr) {
-    mjpResourceProvider resourceProvider;
-    mjp_defaultResourceProvider(&resourceProvider);
-    resourceProvider.prefix = "LoadModelFromString";
-    resourceProvider.open = +[](mjResource* resource) {
-      resource->data = &(resource->name[strlen("LoadModelFromString:")]);
-      return 1;
-    };
-    resourceProvider.read =
-        +[](mjResource* resource, const void** buffer) {
-          *buffer = resource->data;
-          return (int) strlen((const char*) resource->data);
-        };
-    resourceProvider.close = +[](mjResource* resource) {};
-    mjp_registerResourceProvider(&resourceProvider);
-  }
-}
-
-
-mjSpec* ParseSpecFromString(std::string_view xml, char* error,
-                            int error_size) {
+mjSpec* ParseSpecFromString(std::string_view xml, const mjVFS* vfs, char* error, int nerror) {
   RegisterResourceProvider();
   std::string xml2 = {xml.begin(), xml.end()};
   std::string str = "LoadModelFromString:" +  xml2;
-  return mjParseXML(str.c_str(), nullptr, error, error_size);
+  return ParseXML(str.c_str(), vfs, error, nerror);
+}
+
+// Main writer function - calls mjXWrite
+std::string WriteXML(const mjModel* m, const mjSpec* spec, char* error, int nerror) {
+  LocaleOverride locale_override;
+
+  // check for empty model
+  if (!spec) {
+    mjCopyError(error, "Cannot write empty model", nerror);
+    return "";
+  }
+
+  mjXWriter writer;
+  writer.SetModel(spec, m);
+
+  try {
+    return writer.Write(error, nerror);
+  } catch (mjXError err) {
+    mjCopyError(error, err.message, nerror);
+    return "";
+  }
 }

@@ -61,8 +61,8 @@ Where the command line arguments are
 - The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
   measure artificially faster simulation.
 - When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
-  threads, to speed up simulation of large scenes. Note that while it is possible to to use both ``nthread`` and
-  ``npoolthread``, the scenarios for which one would want these different type of multithreading are usually mutually
+  threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
+  ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.
 - For more repeatable performance statistics, run the tool with the ``performance``
   `governor <https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt>`__ on Linux, or the
@@ -203,7 +203,7 @@ data file into a playable movie file:
    ffmpeg -f rawvideo -pixel_format rgb24 -video_size 2560x1440
           -framerate 60 -i rgb.out -vf "vflip,format=yuv420p" video.mp4
 
-Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be the identical.
+Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be identical.
 
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
 invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by

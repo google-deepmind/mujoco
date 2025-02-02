@@ -48,7 +48,7 @@ typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* n
 // callback for checking if the current resource was modified from the time
 // specified by the timestamp
 // returns 0 if the resource's timestamp matches the provided timestamp
-// returns > 0 if the the resource is younger than the given timestamp
+// returns > 0 if the resource is younger than the given timestamp
 // returns < 0 if the resource is older than the given timestamp
 typedef int (*mjfResourceModified)(const mjResource* resource, const char* timestamp);
 
@@ -111,9 +111,6 @@ struct mjpPlugin_ {
   void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
 
   // methods specific to actuators (optional)
-
-  // dimension of the actuator state for the plugin (excluding state from actuator's dyntype)
-  int (*actuator_actdim)(const mjModel*m, int instance, int actuator_id);
 
   // updates the actuator plugin's entries in act_dot
   // called after native act_dot is computed and before the compute callback

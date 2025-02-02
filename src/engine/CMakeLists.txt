@@ -57,14 +57,13 @@ set(MUJOCO_ENGINE_SRCS
     engine_print.h
     engine_ray.c
     engine_ray.h
-    engine_resource.c
-    engine_resource.h
     engine_sensor.c
     engine_sensor.h
     engine_setconst.c
     engine_setconst.h
     engine_solver.c
     engine_solver.h
+    engine_sort.h
     engine_support.c
     engine_support.h
     engine_util_blas.c

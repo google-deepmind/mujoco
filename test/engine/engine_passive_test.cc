@@ -72,7 +72,7 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
     <option wind="5 5 0" density="10"/>
     <worldbody>
       <body pos="1 2 3">
-        <freejoint/>
+        <freejoint align="false"/>
         <geom type="box" size=".1 .01 0.01" pos="0.1 0 0" euler="40 0 0" fluidshape="ellipsoid"/>
         <geom type="box" size=".1 .01 0.01" pos="-.1 0 0" euler="0 20 0" fluidshape="ellipsoid"/>
       </body>

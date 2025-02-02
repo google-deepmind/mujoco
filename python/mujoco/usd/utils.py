@@ -12,16 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+"""Utility functions for USD exporter."""
 import numpy as np
 
-def get_texture_name(texid, rgba) -> str:
-  # returns a name for image to store
-  res = f"texid{str(texid)}"
-  res += f"_rgba"
-  for v in rgba[0:3]:
-    res += f"_{str(v)}"
-  res += ".png"
-  return res
 
 def create_transform_matrix(rotation_matrix, translation_vector):
   # Ensure rotation_matrix and translation_vector are NumPy arrays

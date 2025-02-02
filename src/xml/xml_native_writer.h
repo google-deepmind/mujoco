@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "user/user_objects.h"
 #include "xml/xml_base.h"
@@ -28,7 +29,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(const mjSpec* spec);
+  void SetModel(const mjSpec* _spec, const mjModel* m = nullptr);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);
@@ -59,7 +60,7 @@ class mjXWriter : public mjXBase {
   void Keyframe(tinyxml2::XMLElement* root);                              // keyframe section
 
   // body/world section
-  void Body(tinyxml2::XMLElement* elem, mjCBody* body, std::string_view childclass = "");
+  void Body(tinyxml2::XMLElement* elem, mjCBody* body, mjCFrame* frame, std::string_view childclass = "");
 
   // single element writers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);

@@ -32,10 +32,13 @@ namespace {
 using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::Ne;
+using ::testing::Pointwise;
 using ::testing::StrEq;
 using ::testing::ElementsAreArray;
 
-TEST_F(MujocoTest, PrintsMemoryWarning) {
+using UtilMiscTest = MujocoTest;
+
+TEST_F(UtilMiscTest, PrintsMemoryWarning) {
   EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 10)),
               HasSubstr("1K bytes"));
   EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 20)),
@@ -52,7 +55,7 @@ TEST_F(MujocoTest, PrintsMemoryWarning) {
               HasSubstr("1073741825 bytes"));
 }
 
-TEST_F(MujocoTest, Sigmoid) {
+TEST_F(UtilMiscTest, Sigmoid) {
   // function values
   EXPECT_EQ(mju_sigmoid(-1),  0);
   EXPECT_EQ(mju_sigmoid(0),   0);
@@ -78,6 +81,66 @@ TEST_F(MujocoTest, Sigmoid) {
   EXPECT_THAT(dy_dx_0p5, DoubleNear(expected, dx));
 }
 
+TEST_F(UtilMiscTest, SphereWrap) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <site size=".015" rgba="1 0 0 1"/>
+    </default>
+
+    <worldbody>
+      <light pos="0 0 3"/>
+
+      <site name="fixed" pos="0 0 1"/>
+      <geom name="sphere" size=".1" pos="0 0 0.5"/>
+      <site name="sidesite" pos=".52 0 .5"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom size=".05"/>
+        <site name="body" pos="0 0 .05"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <spatial name="tendon" range="0 0.8">
+        <site site="fixed"/>
+        <geom geom="sphere" sidesite="sidesite"/>
+        <site site="body"/>
+      </spatial>
+    </tendon>
+
+    <sensor>
+      <tendonpos tendon="tendon"/>
+    </sensor>
+
+    <keyframe>
+      <key qpos="-0.00653537 -0.068031 0.301253 0.982186 -0.180204 -0.0273515 0.0457068"/>
+      <key qpos="-0.00653537 -0.069 0.301253 0.982186 -0.180204 -0.0273515 0.0457068"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // measure tendon length for keyframe 0
+  mj_resetDataKeyframe(model, data, 0);
+  mj_forward(model, data);
+  mjtNum ten_length0 = data->sensordata[0];
+
+  // measure tendon length for keyframe 1
+  mj_resetDataKeyframe(model, data, 1);
+  mj_forward(model, data);
+  mjtNum ten_length1 = data->sensordata[0];
+
+  // difference should be small
+  mjtNum diff = ten_length1 - ten_length0;
+  EXPECT_LT(mju_abs(diff), 1e-3);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // compute time constant as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
 mjtNum muscleDynamicsMillard(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
   // clamp control
@@ -97,7 +160,7 @@ mjtNum muscleDynamicsMillard(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
   return (ctrlclamp-act) / mjMAX(mjMINVAL, tau);
 }
 
-TEST_F(MujocoTest, SmoothMuscleDynamics) {
+TEST_F(UtilMiscTest, SmoothMuscleDynamics) {
   mjtNum prm[3] = {0.01, 0.04, 0.0};
 
   // exact equality if tau_smooth = 0
@@ -135,7 +198,7 @@ TEST_F(MujocoTest, SmoothMuscleDynamics) {
   }
 }
 
-TEST_F(MujocoTest, MuscleGainLength) {
+TEST_F(UtilMiscTest, MuscleGainLength) {
   mjtNum lmin = 0.5;
   mjtNum lmax = 1.5;
 
@@ -146,6 +209,94 @@ TEST_F(MujocoTest, MuscleGainLength) {
   EXPECT_EQ(mju_muscleGainLength(1.25, lmin, lmax), 0.5);
   EXPECT_EQ(mju_muscleGainLength(1.5,  lmin, lmax), 0);
   EXPECT_EQ(mju_muscleGainLength(2.0,  lmin, lmax), 0);
+}
+
+// --------------------------------- Interpolation -----------------------------
+
+using InterpolationTest = MujocoTest;
+
+TEST_F(InterpolationTest, mju_defGradient) {
+  int order = 1;
+  mjtNum mat[9];
+  mjtNum p1[3] = {.5, .5, .5};
+  mjtNum p2[3] = {.25, .25, .25};
+  mjtNum dof0[24] = {0, 0, 0,  0, 0, 1,  0, 1, 0,  0, 1, 1,
+                     1, 0, 0,  1, 0, 1,  1, 1, 0,  1, 1, 1};
+
+  // identity
+  mjtNum dof1[24];
+  for (int i = 0; i < 24; ++i) dof1[i] = dof0[i];
+  mju_defGradient(mat, p1, dof1, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+
+  // translation
+  mjtNum dof2[24];
+  for (int i = 0; i < 24; ++i) dof2[i] = 2 + dof0[i];
+  mju_defGradient(mat, p1, dof2, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+  mju_defGradient(mat, p2, dof2, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+
+  // constant stretch
+  mjtNum dof3[24];
+  for (int i = 0; i < 24; ++i) dof3[i] = 2*dof0[i];
+  mju_defGradient(mat, p1, dof3, order);
+  EXPECT_THAT(mat, ElementsAreArray({2, 0, 0, 0, 2, 0, 0, 0, 2}));
+  mju_defGradient(mat, p2, dof3, order);
+  EXPECT_THAT(mat, ElementsAreArray({2, 0, 0, 0, 2, 0, 0, 0, 2}));
+
+  // axial stretch
+  mjtNum dof4[24];
+  for (int i = 0; i < 24; ++i) dof4[i] = (i%3 == 1 ? 2 : 1)*dof0[i];
+  mju_defGradient(mat, p1, dof4, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 2, 0, 0, 0, 1}));
+  mju_defGradient(mat, p2, dof4, order);
+  EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 2, 0, 0, 0, 1}));
+
+  // z-axis 90 degree rotation
+  mjtNum dof5[24];
+  for (int i = 0; i < 8; ++i) {
+    mjtNum quat[4] = {0, 0, 0, 1};
+    mjtNum axis[3] = {0, 0, 1};
+    mju_axisAngle2Quat(quat, axis, mjPI/2);
+    mju_rotVecQuat(dof5 + 3*i, dof0 + 3*i, quat);
+  }
+  mju_defGradient(mat, p1, dof5, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
+  mju_defGradient(mat, p2, dof5, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
+
+  // z-axis 30 degree rotation
+  mjtNum dof6[24];
+  mjtNum rot6[9];
+  for (int i = 0; i < 8; ++i) {
+    mjtNum quat[4];
+    mjtNum axis[3] = {0, 0, 1};
+    mju_axisAngle2Quat(quat, axis, mjPI/6);
+    mju_rotVecQuat(dof6 + 3*i, dof0 + 3*i, quat);
+    mju_quat2Mat(rot6, quat);
+  }
+  mju_defGradient(mat, p1, dof6, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot6));
+  mju_defGradient(mat, p2, dof6, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot6));
+
+  // z-axis CoM rotation
+  mjtNum dof7[24];
+  mjtNum rot7[9];
+  for (int i = 0; i < 8; ++i) {
+    mjtNum quat[4];
+    mjtNum axis[3] = {0, 0, 1};
+    mjtNum offset[3] = {-.5, -.5, 0};
+    mju_axisAngle2Quat(quat, axis, mjPI/6);
+    mju_add3(dof7 + 3*i, dof0 + 3*i, offset);
+    mju_rotVecQuat(dof7 + 3*i, dof0 + 3*i, quat);
+    mju_quat2Mat(rot7, quat);
+  }
+  mju_defGradient(mat, p1, dof7, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot7));
+  mju_defGradient(mat, p2, dof7, order);
+  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot7));
 }
 
 // --------------------------------- Base64 ------------------------------------

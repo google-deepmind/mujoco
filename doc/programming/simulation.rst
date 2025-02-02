@@ -98,7 +98,7 @@ function :ref:`mj_step` in a loop such as
 .. code-block:: C
 
    // simulate until t = 10 seconds
-   while( d->time<10 )
+   while (d->time < 10)
      mj_step(m, d);
 
 This by itself will simulate the passive dynamics, because we have not provided any control signals or applied forces.
@@ -107,9 +107,8 @@ The default (and recommended) way to control the system is to implement a contro
 .. code-block:: C
 
    // simple controller applying damping to each dof
-   void mycontroller(const mjModel* m, mjData* d)
-   {
-     if( m->nu==m->nv )
+   void mycontroller(const mjModel* m, mjData* d) {
+     if (m->nu == m->nv)
        mju_scl(d->ctrl, d->qvel, -0.1, m->nv);
    }
 
@@ -138,7 +137,7 @@ control callback) would become
 
 .. code-block:: C
 
-   while( d->time<10 ) {
+   while (d->time < 10) {
      // set d->ctrl or d->qfrc_applied or d->xfrc_applied
      mj_step(m, d);
    }
@@ -161,7 +160,7 @@ before the control is needed, and after the control is needed. The simulation lo
 
 .. code-block:: C
 
-   while( d->time<10 ) {
+   while (d->time < 10) {
      mj_step1(m, d);
      // set d->ctrl or d->qfrc_applied or d->xfrc_applied
      mj_step2(m, d);
@@ -186,11 +185,11 @@ omitting some code that computes timing diagnostics. The main simulation functio
      mj_checkAcc(m, d);
 
      // compare forward and inverse solutions if enabled
-     if( mjENABLED(mjENBL_FWDINV) )
+     if (mjENABLED(mjENBL_FWDINV))
        mj_compareFwdInv(m, d);
 
      // use selected integrator
-     if( m->opt.integrator==mjINT_RK4 )
+     if (m->opt.integrator == mjINT_RK4)
        mj_RungeKutta(m, d, 4);
      else
        mj_Euler(m, d);
@@ -206,8 +205,7 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
 
 .. code-block:: C
 
-   void mj_step1(const mjModel* m, mjData* d)
-   {
+   void mj_step1(const mjModel* m, mjData* d) {
      mj_checkPos(m, d);
      mj_checkVel(m, d);
      mj_fwdPosition(m, d);
@@ -218,12 +216,11 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
      mj_energyVel(m, d);
 
      // if we had a callback we would be using mj_step, but call it anyway
-     if( mjcb_control )
+     if (mjcb_control)
        mjcb_control(m, d);
    }
 
-   void mj_step2(const mjModel* m, mjData* d)
-   {
+   void mj_step2(const mjModel* m, mjData* d) {
      mj_fwdActuation(m, d);
      mj_fwdAcceleration(m, d);
      mj_fwdConstraint(m, d);
@@ -231,7 +228,7 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
      mj_checkAcc(m, d);
 
      // compare forward and inverse solutions if enabled
-     if( mjENABLED(mjENBL_FWDINV) )
+     if (mjENABLED(mjENBL_FWDINV))
        mj_compareFwdInv(m, d);
 
      // integrate with Euler; ignore integrator option
@@ -248,7 +245,7 @@ notion of state of a dynamical system. Dynamical systems are usually described i
 
 .. code-block:: Text
 
-     dx/dt = f(t,x,u)
+     dx/dt = f(t, x, u)
 
 where ``t`` is the time, ``x`` is the state vector, ``u`` is the control vector, and ``f`` is the function that
 computes the time-derivative of the state. This is a continuous-time formulation, and indeed the physics model
@@ -270,7 +267,7 @@ control laws obtained from trajectory optimizers would normally be indexed by ``
 The reason for the "official" caveat above is because user callbacks may store additional state variables that change
 over time and affect the callback outputs; indeed the field ``mjData.userdata`` exists mostly for that purpose. Other
 state-like quantities that are part of mjData and are treated as inputs by forward dynamics are ``mjData.mocap_pos`` and
-mjData.mocap_quat. These quantities are unusual in that they are meant to change at each time step (normally driven by a
+``mjData.mocap_quat``. These quantities are unusual in that they are meant to change at each time step (normally driven by a
 motion capture device), however this change is implemented by the user, while the simulator treats them as constants. In
 that sense they are no different from all the constants in mjModel, or the function callback pointers set by the user:
 such constants affect the computation, but are not part of the state vector of a dynamical system.
@@ -289,7 +286,7 @@ Next we turn to the controls and applied forces. The control vector in MuJoCo is
      u = (mjData.ctrl, mjData.qfrc_applied, mjData.xfrc_applied)
 
 These quantities specify control signals (``mjData.ctrl``) for the actuators defined in the model, or directly apply
-forces and torques specified in joint space (``mjData.qfrc_applied``) or in Cartesian space (mjData.xfrc_applied).
+forces and torques specified in joint space (``mjData.qfrc_applied``) or in Cartesian space (``mjData.xfrc_applied``).
 
 Finally, calling mj_forward which corresponds to the abstract dynamics function ``f(t,x,u)`` computes the
 time-derivative of the state vector. The corresponding fields of mjData are
@@ -317,7 +314,7 @@ internal diagnostics which do not affect the simulation). This can be done as
    // copy mocap body pose and userdata
    mju_copy(dst->mocap_pos,  src->mocap_pos,  3*m->nmocap);
    mju_copy(dst->mocap_quat, src->mocap_quat, 4*m->nmocap);
-   mju_copy(dst->userdata, src->userdata, m->nuserdata);
+   mju_copy(dst->userdata,   src->userdata,   m->nuserdata);
 
    // copy warm-start acceleration
    mju_copy(dst->qacc_warmstart, src->qacc_warmstart, m->nv);
@@ -372,32 +369,30 @@ skip arguments (mjSTAGE_NONE, 0), where the latter function is implemented as
 
    void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
      // position-dependent
-     if( skipstage<mjSTAGE_POS )
-     {
+     if (skipstage < mjSTAGE_POS) {
        mj_fwdPosition(m, d);
-       if( !skipsensor )
+       if (!skipsensor)
          mj_sensorPos(m, d);
-       if( mjENABLED(mjENBL_ENERGY) )
+       if (mjENABLED(mjENBL_ENERGY))
          mj_energyPos(m, d);
      }
 
      // velocity-dependent
-     if( skipstage<mjSTAGE_VEL )
-     {
+     if (skipstage < mjSTAGE_VEL) {
        mj_fwdVelocity(m, d);
-       if( !skipsensor )
+       if (!skipsensor)
          mj_sensorVel(m, d);
-       if( mjENABLED(mjENBL_ENERGY) )
+       if (mjENABLED(mjENBL_ENERGY))
          mj_energyVel(m, d);
      }
 
      // acceleration-dependent
-     if( mjcb_control )
+     if (mjcb_control)
        mjcb_control(m, d);
      mj_fwdActuation(m, d);
      mj_fwdAcceleration(m, d);
      mj_fwdConstraint(m, d);
-     if( !skipsensor )
+     if (!skipsensor)
        mj_sensorAcc(m, d);
    }
 
@@ -510,8 +505,8 @@ management.
 
    // allocate per-thread mjData
    mjData* d[64];
-   for( int n=0; n < nthread; n++ )
-       d[n] = mj_makeData(m);
+   for (int n=0; n < nthread; n++)
+     d[n] = mj_makeData(m);
 
    // ... serial code, perhaps using its own mjData* dmain
 
@@ -527,7 +522,7 @@ management.
    }
 
    // delete per-thread mjData
-   for( int n=0; n<nthread; n++ )
+   for (int n=0; n < nthread; n++)
      mj_deleteData(d[n]);
 
 Since all top-level API functions treat mjModel as ``const``, this multi-threading scheme is safe. Each thread only
@@ -561,6 +556,13 @@ or termination of the iterative solver.
 Model changes
 ~~~~~~~~~~~~~
 
+.. admonition:: Model editing framework
+   :class: tip
+
+   The discussion below regarding mjModel changes at runtime was written before the 3.2.0 introduction of the
+   :doc:`Model Editing<modeledit>` framework. It is still valid, but the new framework is the safe and recommended way
+   to modify models.
+
 The MuJoCo model contained in mjModel is supposed to represent constant physical properties of the system, and in
 theory should not change after compilation. Of course in practice things are not that simple. It is often desirable to
 change the physics options in ``mjModel.opt``, so as to experiment with different aspects of the physics or to create
@@ -572,7 +574,7 @@ because that may result in incorrect sizes or indexing. This rule does not hold 
 parameters such as inertias are expected to obey certain properties. On the other hand, some structural parameters
 such as object types may be possible to change, but that depends on whether any sizes or indexes depend on them.
 Arrays of type mjtByte can be changed safely, since they are binary indicators that enable and disable certain
-features. The only exception here is ``mjModel.tex_rgb`` which is texture data represented as mjtByte.
+features. The only exception here is ``mjModel.tex_data`` which is texture data represented as mjtByte.
 
 When changing mjModel fields that corresponds to resources uploaded to the GPU, the user must also call the
 corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used
@@ -595,8 +597,8 @@ asking a "decompiler" to make corresponding changes to the C code -- it is just 
 
 .. _siLayout:
 
-Data layout and buffer allocation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Data layout
+~~~~~~~~~~~
 
 All matrices in MuJoCo are in **row-major** format. For example, the linear memory array (a0, a1, ... a5) represents the
 2-by-3 matrix
@@ -717,8 +719,8 @@ and :ref:`mj_stackAllocByte` is provided for allocation of arbitrary number of b
 
 .. _siError:
 
-Errors, warnings, memory allocation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Errors and warnings
+~~~~~~~~~~~~~~~~~~~
 
 When a terminal error occurs, MuJoCo calls the function :ref:`mju_error` internally. Here is what mju_error does:
 
@@ -950,7 +952,7 @@ this body quaternion, the quaternions of all other objects attached to the body 
 multiplication. The function :ref:`mj_local2Global` converts from local body coordinates to global Cartesian
 coordinates.
 
-:ref:`mju_negPose` and :ref:`mju_trnVecPose`. A pose is a grouping of a 3D position and a unit quaternion orientation.
+A pose is a grouping of a 3D position and a unit quaternion orientation.
 There is no separate data structure; the grouping is in terms of logic. This represents a position and orientation in
 space, or in other words a spatial frame. Note that OpenGL uses 4-by-4 matrices to represent the same information,
 except here we use a quaternion for orientation. The function mju_mulPose multiplies two poses, meaning that it

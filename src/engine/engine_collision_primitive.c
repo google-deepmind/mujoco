@@ -14,8 +14,6 @@
 
 #include "engine/engine_collision_primitive.h"
 
-#include <math.h>
-
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
@@ -414,7 +412,7 @@ int mjraw_CapsuleCapsule(mjContact* con, mjtNum margin,
   mjtNum det = ma*mc - mb*mb;
 
   // general configuration (non-parallel axes)
-  if (fabs(det) >= mjMINVAL) {
+  if (mju_abs(det) >= mjMINVAL) {
     // find projections, clip to segments
     mjtNum x1 = (mc*u - mb*v) / det;
     mjtNum x2 = (ma*v - mb*u) / det;

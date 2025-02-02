@@ -20,6 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_forward.h"
@@ -28,6 +29,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
 
@@ -63,21 +65,22 @@ static void set0(mjModel* m, mjData* d) {
   int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
   mj_markStack(d);
-  mjtNum* jac = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 6*nv);
+  mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
   int* cammode = 0;
   int* lightmode = 0;
 
   // save camera and light mode, set to fixed
   if (m->ncam) {
-    cammode = mj_stackAllocInt(d, m->ncam);
+    cammode = mjSTACKALLOC(d, m->ncam, int);
     for (int i=0; i < m->ncam; i++) {
       cammode[i] = m->cam_mode[i];
       m->cam_mode[i] = mjCAMLIGHT_FIXED;
     }
   }
   if (m->nlight) {
-    lightmode = mj_stackAllocInt(d, m->nlight);
+    lightmode = mjSTACKALLOC(d, m->nlight, int);
     for (int i=0; i < m->nlight; i++) {
       lightmode[i] = m->light_mode[i];
       m->light_mode[i] = mjCAMLIGHT_FIXED;
@@ -118,7 +121,6 @@ static void set0(mjModel* m, mjData* d) {
   }
 
   // copy fields
-  mju_copy(m->flex_xvert0, d->flexvert_xpos, 3*m->nflexvert);
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
   mju_copy(m->tendon_length0, d->ten_length, m->ntendon);
   mju_copy(m->actuator_length0, d->actuator_length, m->nu);
@@ -211,6 +213,10 @@ static void set0(mjModel* m, mjData* d) {
   if (nv) {
     // compute flexedge_invweight0
     for (int f=0; f < m->nflex; f++) {
+      if (m->flex_interp[f]) {
+        continue;
+      }
+
       for (int i=m->flex_edgeadr[f]; i < m->flex_edgeadr[f]+m->flex_edgenum[f]; i++) {
         // bodies connected by edge
         int b1 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i]];
@@ -266,7 +272,9 @@ static void set0(mjModel* m, mjData* d) {
 
     // compute actuator_acc0
     for (int i=0; i < m->nu; i++) {
-      mj_solveM(m, d, tmp, d->actuator_moment+i*nv, 1);
+      mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
+                       d->moment_rowadr + i, d->moment_colind);
+      mj_solveM(m, d, tmp, moment, 1);
       m->actuator_acc0[i] = mju_norm(tmp, nv);
     }
   } else {
@@ -286,36 +294,53 @@ static void set0(mjModel* m, mjData* d) {
 
     // connect constraint
     if (m->eq_type[i] == mjEQ_CONNECT) {
-      // pos = anchor position in global frame
-      mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id1, 0);
+      switch ((mjtObj) m->eq_objtype[i]) {
+        case mjOBJ_BODY:
+          // pos = anchor position in global frame
+          mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id1, 0);
 
-      // data[3-5] = anchor position in body2 local frame
-      mju_subFrom3(pos, d->xpos+3*id2);
-      mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
+          // data[3-5] = anchor position in body2 local frame
+          mju_subFrom3(pos, d->xpos+3*id2);
+          mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
+          break;
+        case mjOBJ_SITE:
+          // site-based connect, eq_data is unused
+          mju_zero(m->eq_data+mjNEQDATA*i, mjNEQDATA);
+          break;
+        default:
+          mjERROR("invalid objtype in connect constraint %d", i);
+      }
     }
 
     // weld constraint
     else if (m->eq_type[i] == mjEQ_WELD) {
-      // skip if user has set any quaternion data
-      if (m->eq_data[mjNEQDATA*i+6] ||
-          m->eq_data[mjNEQDATA*i+7] ||
-          m->eq_data[mjNEQDATA*i+8] ||
-          m->eq_data[mjNEQDATA*i+9]) {
-        // normalize quaternion just in case
-        mju_normalize4(m->eq_data+mjNEQDATA*i+6);
-        continue;
+      switch ((mjtObj) m->eq_objtype[i]) {
+        case mjOBJ_BODY: {
+          // skip if user has set any quaternion data
+          if (!mju_isZero(m->eq_data + mjNEQDATA*i + 6, 4)) {
+            // normalize quaternion just in case
+            mju_normalize4(m->eq_data+mjNEQDATA*i+6);
+            continue;
+          }
+
+          // anchor position is in body2 local frame
+          mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id2, 0);
+
+          // data[3-5] = anchor position in body1 local frame
+          mju_subFrom3(pos, d->xpos+3*id1);
+          mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id1, pos);
+
+          // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
+          mju_negQuat(quat, d->xquat+4*id1);
+          mju_mulQuat(m->eq_data+mjNEQDATA*i+6, quat, d->xquat+4*id2);
+          break;
+        }
+        case mjOBJ_SITE: {
+          break;
+        }
+        default:
+          mjERROR("invalid objtype in weld constraint %d", i);
       }
-
-      // anchor position is in body2 local frame
-      mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id2, 0);
-
-      // data[3-5] = anchor position in body1 local frame
-      mju_subFrom3(pos, d->xpos+3*id1);
-      mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id1, pos);
-
-      // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
-      mju_negQuat(quat, d->xquat+4*id1);
-      mju_mulQuat(m->eq_data+mjNEQDATA*i+6, quat, d->xquat+4*id2);
     }
   }
 
@@ -366,13 +391,16 @@ static void set0(mjModel* m, mjData* d) {
     // === interpret biasprm[2] > 0 as dampratio for position-like actuators
 
     // "reflected" inertia (inversely scaled by transmission squared)
-    mjtNum* transmission = d->actuator_moment + i*nv;
+    int rownnz = d->moment_rownnz[i];
+    int rowadr = d->moment_rowadr[i];
+    mjtNum* transmission = d->actuator_moment + rowadr;
     mjtNum mass = 0;
-    for (int j=0; j < nv; j++) {
+    for (int j=0; j < rownnz; j++) {
       mjtNum trn = mju_abs(transmission[j]);
       mjtNum trn2 = trn*trn;  // transmission squared
       if (trn2 > mjMINVAL) {
-        mass += m->dof_M0[j] / trn2;
+        int dof = d->moment_colind[rowadr + j];
+        mass += m->dof_M0[dof] / trn2;
       }
     }
 
@@ -403,7 +431,7 @@ static void setStat(mjModel* m, mjData* d) {
   mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
   mjtNum rbound;
   mj_markStack(d);
-  mjtNum* body = mj_stackAllocNum(d, m->nbody);
+  mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
 
   // compute bounding box of bodies, joint centers, geoms and sites
   for (int i=1; i < m->nbody; i++) {
@@ -474,12 +502,21 @@ static void setStat(mjModel* m, mjData* d) {
 
   // adjust body size for flex edges involving body
   for (int f=0; f < m->nflex; f++) {
+    mjtNum meanedge = 0;
     for (int e=m->flex_edgeadr[f]; e < m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
+      meanedge += m->flexedge_length0[e] / m->flex_edgenum[f];
+      if (m->flex_interp[f]) {
+        continue;
+      }
+
       int b1 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e]];
       int b2 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e+1]];
 
       body[b1] = mju_max(body[b1], m->flexedge_length0[e]);
       body[b2] = mju_max(body[b2], m->flexedge_length0[e]);
+    }
+    for (int v=m->flex_nodeadr[f]; v < m->flex_nodeadr[f]+m->flex_node[f]; v++) {
+      body[m->flex_nodebodyid[v]] = mju_max(body[m->flex_nodebodyid[v]], meanedge);
     }
   }
 
@@ -569,11 +606,16 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   // step1: compute inertia and actuator moments
   mj_step1(m, d);
 
+  // dense actuator_moment row
+  mj_markStack(d);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
+  mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + index,
+                   d->moment_rowadr + index, d->moment_colind);
+
   // set force to generate desired acceleration
-  mj_solveM(m, d, d->qfrc_applied, d->actuator_moment+index*nv, 1);
+  mj_solveM(m, d, d->qfrc_applied, moment, 1);
   mjtNum nrm = mju_norm(d->qfrc_applied, nv);
-  mju_scl(d->qfrc_applied, d->actuator_moment+index*nv,
-          (2*side-1)*opt->accel/mjMAX(mjMINVAL, nrm), nv);
+  mju_scl(d->qfrc_applied, moment, (2*side-1)*opt->accel/mjMAX(mjMINVAL, nrm), nv);
 
   // impose maxforce
   nrm = mju_norm(d->qfrc_applied, nv);
@@ -583,6 +625,8 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
 
   // step2: apply force
   mj_step2(m, d);
+
+  mj_freeStack(d);
 
   // return actuator length
   return d->actuator_length[index];

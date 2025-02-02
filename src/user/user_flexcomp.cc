@@ -20,6 +20,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -30,12 +31,12 @@
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_flexcomp.h"
 #include <mujoco/mjspec.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 
 namespace {
@@ -85,25 +86,23 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjuu_setvec(quat, 1, 0, 0, 0);
   rigid = false;
   centered = false;
+  doftype = mjFCOMPDOF_FULL;
 
   mjs_defaultPlugin(&plugin);
   mjs_defaultOrientation(&alt);
   plugin_name = "";
   plugin_instance_name = "";
-  plugin.name = (mjString*)&plugin_name;
-  plugin.instance_name = (mjString*)&plugin_instance_name;
+  plugin.plugin_name = (mjString*)&plugin_name;
+  plugin.name = (mjString*)&plugin_instance_name;
 }
 
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
-  mjCModel* model = (mjCModel*)spec->element;
+bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
+  mjCModel* model = static_cast<mjCBody*>(body->element)->model;
+  mjsCompiler* compiler = static_cast<mjCBody*>(body->element)->compiler;
   mjsFlex* dflex = def.spec.flex;
-  int dim = dflex->dim;
-  bool radial = (type == mjFCOMPTYPE_BOX ||
-                 type == mjFCOMPTYPE_CYLINDER ||
-                 type == mjFCOMPTYPE_ELLIPSOID);
   bool direct = (type == mjFCOMPTYPE_DIRECT ||
                  type == mjFCOMPTYPE_MESH ||
                  type == mjFCOMPTYPE_GMSH);
@@ -114,13 +113,13 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check dim
-  if (dim < 1 || dim > 3) {
+  if (dflex->dim < 1 || dflex->dim > 3) {
     return comperr(error, "Invalid dim, must be between 1 and 3", error_sz);
   }
 
   // check counts
   for (int i=0; i < 3; i++) {
-    if (count[i] < 1 || ((radial && count[i] < 2) && dim == 3)) {
+    if (count[i] < 1 || ((doftype == mjFCOMPDOF_RADIAL && count[i] < 2) && dflex->dim == 3)) {
       return comperr(error, "Count too small", error_sz);
     }
   }
@@ -146,7 +145,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // compute orientation
-  const char* alterr = mjs_resolveOrientation(quat, model->spec.degree, model->spec.eulerseq, &alt);
+  const char* alterr = mjs_resolveOrientation(quat, compiler->degree, compiler->eulerseq, &alt);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
@@ -155,6 +154,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   bool res;
   switch (type) {
   case mjFCOMPTYPE_GRID:
+  case mjFCOMPTYPE_CIRCLE:
     res = MakeGrid(error, error_sz);
     break;
 
@@ -190,7 +190,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
 
   // force flatskin shading for box, cylinder and 3D grid
   if (type == mjFCOMPTYPE_BOX || type == mjFCOMPTYPE_CYLINDER ||
-      (type == mjFCOMPTYPE_GRID && dim == 3)) {
+      (type == mjFCOMPTYPE_GRID && dflex->dim == 3)) {
     dflex->flatskin = true;
   }
 
@@ -198,16 +198,16 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   if (pinrange.size()%2) {
     return comperr(error, "Pin range number must be multiple of 2", error_sz);
   }
-  if (pingrid.size()%dim) {
+  if (pingrid.size()%dflex->dim) {
     return comperr(error, "Pin grid number must be multiple of dim", error_sz);
   }
-  if (pingridrange.size()%(2*dim)) {
+  if (pingridrange.size()%(2*dflex->dim)) {
     return comperr(error, "Pin grid range number of must be multiple of 2*dim", error_sz);
   }
   if (type != mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) can only be used with grid type", error_sz);
   }
-  if (dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
+  if (dflex->dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) cannot be used with dim=1", error_sz);
   }
 
@@ -222,7 +222,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   }
 
   // check element size
-  if (element.size()%(dim+1)) {
+  if (element.size()%(dflex->dim+1)) {
     return comperr(error, "Element size must be a multiple of dim+1", error_sz);
   }
 
@@ -257,6 +257,15 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
     point[3*i+2] = newp[2];
   }
 
+  // compute bounding box of points
+  double minmax[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+  for (int i=0; i < npnt; i++) {
+    for (int j=0; j < 3; j++) {
+      minmax[j+0] = std::min(minmax[j+0], point[3*i+j]);
+      minmax[j+3] = std::max(minmax[j+3], point[3*i+j]);
+    }
+  }
+
   // construct pinned array
   pinned = vector<bool>(npnt, rigid);
 
@@ -288,41 +297,41 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
     }
 
     // process pingrid
-    for (int i=0; i < (int)pingrid.size(); i+=dim) {
+    for (int i=0; i < (int)pingrid.size(); i+=dflex->dim) {
       // check range
-      for (int k=0; k < dim; k++) {
+      for (int k=0; k < dflex->dim; k++) {
         if (pingrid[i+k] < 0 || pingrid[i+k] >= count[k]) {
           return comperr(error, "pingrid out of range", error_sz);
         }
       }
 
       // set
-      if (dim == 2) {
+      if (dflex->dim == 2) {
         pinned[GridID(pingrid[i], pingrid[i+1])] = true;
       }
-      else if (dim == 3) {
+      else if (dflex->dim == 3) {
         pinned[GridID(pingrid[i], pingrid[i+1], pingrid[i+2])] = true;
       }
     }
 
     // process pingridrange
-    for (int i=0; i < (int)pingridrange.size(); i+=2*dim) {
+    for (int i=0; i < (int)pingridrange.size(); i+=2*dflex->dim) {
       // check range
-      for (int k=0; k < 2*dim; k++) {
-        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dim]) {
+      for (int k=0; k < 2*dflex->dim; k++) {
+        if (pingridrange[i+k] < 0 || pingridrange[i+k] >= count[k%dflex->dim]) {
           return comperr(error, "pingridrange out of range", error_sz);
         }
       }
 
       // set
-      if (dim == 2) {
+      if (dflex->dim == 2) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+2]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+3]; iy++) {
             pinned[GridID(ix, iy)] = true;
           }
         }
       }
-      else if (dim==3) {
+      else if (dflex->dim==3) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+3]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+4]; iy++) {
             for (int iz=pingridrange[i+2]; iz <= pingridrange[i+5]; iz++) {
@@ -334,7 +343,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
     }
 
     // center of radial body is always pinned
-    if (radial) {
+    if (doftype == mjFCOMPDOF_RADIAL) {
       pinned[0] = true;
     }
 
@@ -421,7 +430,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
   // overwrite plugin name
   if (plugin.active && plugin_instance_name.empty()) {
     plugin_instance_name = "flexcomp_" + name;
-    static_cast<mjCPlugin*>(plugin.instance)->name = plugin_instance_name;
+    static_cast<mjCPlugin*>(plugin.element)->name = plugin_instance_name;
   }
 
   // create bodies, construct flex vert and vertbody
@@ -431,21 +440,21 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       continue;
     }
 
-    // pinned: parent body
-    if (pinned[i]) {
+    // pinned or trilinear: parent body
+    if (pinned[i] || doftype == mjFCOMPDOF_TRILINEAR) {
       mjs_appendString(pf->vertbody, mjs_getString(body->name));
 
       // add plugin
       if (plugin.active) {
         mjsPlugin* pplugin = &body->plugin;
         pplugin->active = true;
-        pplugin->instance = static_cast<mjsElement*>(plugin.instance);
-        mjs_setString(pplugin->name, mjs_getString(plugin.name));
-        mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
+        pplugin->element = static_cast<mjsElement*>(plugin.element);
+        mjs_setString(pplugin->plugin_name, mjs_getString(plugin.plugin_name));
+        mjs_setString(pplugin->name, plugin_instance_name.c_str());
       }
     }
 
-    // not pinned: new body
+    // not pinned and not trilinear: new body
     else {
       // add new body at vertex coordinates
       mjsBody* pb = mjs_addBody(body, 0);
@@ -462,7 +471,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       pb->explicitinertial = true;
 
       // add radial slider
-      if (radial) {
+      if (doftype == mjFCOMPDOF_RADIAL) {
         mjsJoint* jnt = mjs_addJoint(pb, 0);
 
         // set properties
@@ -473,7 +482,7 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       }
 
       // add three orthogonal sliders
-      else {
+      else if (doftype == mjFCOMPDOF_FULL) {
         for (int j=0; j < 3; j++) {
           // add joint to body
           mjsJoint* jnt = mjs_addJoint(pb, 0);
@@ -503,21 +512,68 @@ bool mjCFlexcomp::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) {
       if (plugin.active) {
         mjsPlugin* pplugin = &pb->plugin;
         pplugin->active = true;
-        pplugin->instance = static_cast<mjsElement*>(plugin.instance);
-        mjs_setString(pplugin->name, mjs_getString(plugin.name));
-        mjs_setString(pplugin->instance_name, plugin_instance_name.c_str());
+        pplugin->element = static_cast<mjsElement*>(plugin.element);
+        mjs_setString(pplugin->plugin_name, mjs_getString(plugin.plugin_name));
+        mjs_setString(pplugin->name, plugin_instance_name.c_str());
       }
     }
   }
 
-  if (!centered) {
+  // create nodal mesh for trilinear interpolation
+  if (doftype == mjFCOMPDOF_TRILINEAR) {
+    std::vector<double> node(24, 0);
+    for (int i=0; i < 2; i++) {
+      for (int j=0; j < 2; j++) {
+        for (int k=0; k < 2; k++) {
+          if (pinned[i*4+j*2+k]) {
+            node[3*(i*4+j*2+k)+0] = i == 0 ? minmax[0] : minmax[3];
+            node[3*(i*4+j*2+k)+1] = j == 0 ? minmax[1] : minmax[4];
+            node[3*(i*4+j*2+k)+2] = k == 0 ? minmax[2] : minmax[5];
+            mjs_appendString(pf->nodebody, mjs_getString(body->name));
+            continue;
+          }
+
+          mjsBody* pb = mjs_addBody(body, 0);
+          pb->pos[0] = i == 0 ? minmax[0] : minmax[3];
+          pb->pos[1] = j == 0 ? minmax[1] : minmax[4];
+          pb->pos[2] = k == 0 ? minmax[2] : minmax[5];
+          mjuu_zerovec(pb->ipos, 3);
+          pb->mass = mass / 8;
+          pb->inertia[0] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
+          pb->inertia[1] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
+          pb->inertia[2] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
+          pb->explicitinertial = true;
+
+          for (int d=0; d < 3; d++) {
+            mjsJoint* jnt = mjs_addJoint(pb, 0);
+            jnt->type = mjJNT_SLIDE;
+            mjuu_setvec(jnt->pos, 0, 0, 0);
+            mjuu_setvec(jnt->axis, 0, 0, 0);
+            jnt->axis[d] = 1;
+          }
+
+          // construct node name, add to nodebody
+          char txt[100];
+          mju::sprintf_arr(txt, "%s_%d_%d_%d", name.c_str(), i, j, k);
+          mjs_setString(pb->name, txt);
+          mjs_appendString(pf->nodebody, mjs_getString(pb->name));
+        }
+      }
+    }
+
+    if (!centered) {
+      mjs_setDouble(pf->node, node.data(), node.size());
+    }
+  }
+
+  if (!centered || doftype == mjFCOMPDOF_TRILINEAR) {
     mjs_setDouble(pf->vert, point.data(), point.size());
   }
 
   // create edge equality constraint
   if (equality) {
     mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
-    mjs_setDefault(pe->element, &model->Defaults(0)->spec);
+    mjs_setDefault(pe->element, &model->Default()->spec);
     pe->type = mjEQ_FLEX;
     pe->active = true;
     mjs_setString(pe->name1, name.c_str());
@@ -546,15 +602,32 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   // 1D
   if (dim == 1) {
     for (int ix=0; ix < count[0]; ix++) {
-      // add point
-      point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
-      point.push_back(0);
-      point.push_back(0);
+      if (type == mjFCOMPTYPE_CIRCLE) {
+        if (ix >= count[0]-1) {
+          continue;
+        }
 
-      // add element
-      if (ix < count[0]-1) {
+        // add point
+        double theta = 2*mjPI/(count[0]-1);
+        double radius = spacing[0]/std::sin(theta/2)/2;
+        point.push_back(radius*std::cos(theta*ix));
+        point.push_back(radius*std::sin(theta*ix));
+        point.push_back(0);
+
+        // add element
         element.push_back(ix);
-        element.push_back(ix+1);
+        element.push_back(ix == count[0]-2 ? 0 : ix+1);
+      } else {
+        // add point
+        point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
+        point.push_back(0);
+        point.push_back(0);
+
+        // add element
+        if (ix < count[0]-1) {
+          element.push_back(ix);
+          element.push_back(ix+1);
+        }
       }
     }
   }
@@ -761,6 +834,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
 // make 3d box, ellipsoid or cylinder
 bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   double pos[3];
+  bool needtex = texcoord.empty() && !std::string(mjs_getString(def.spec.flex->material)).empty();
 
   // set 3D
   def.spec.flex->dim = 3;
@@ -769,6 +843,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   point.push_back(0);
   point.push_back(0);
   point.push_back(0);
+
+  // add texture coordinates, if not specified explicitly
+  if (needtex) {
+    texcoord.push_back(0);
+    texcoord.push_back(0);
+  }
 
   // iz=0/max
   for (int iz=0; iz < count[2]; iz+=count[2]-1) {
@@ -779,6 +859,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
         point.push_back(pos[0]);
         point.push_back(pos[1]);
         point.push_back(pos[2]);
+
+        // add texture coordinates, if not specified explicitly
+        if (needtex) {
+          texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+          texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+        }
 
         // add elements
         if (ix < count[0]-1 && iy < count[1]-1) {
@@ -806,6 +892,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+
+          // add texture coordinates
+          if (needtex) {
+            texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+            texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
+          }
         }
 
         // add elements
@@ -834,6 +926,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+
+          // add texture coordinates
+          if (needtex) {
+            texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+            texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
+          }
         }
 
         // add elements
@@ -895,17 +993,17 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // check dim
-  if (def.spec.flex->dim != 2) {
-    return comperr(error, "Flex dim must be 2 in for mesh", error_sz);
+  if (def.spec.flex->dim < 2) {
+    return comperr(error, "Flex dim must be at least 2 for mesh", error_sz);
   }
 
   // load resource
-  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.modelfiledir),
-                                           mjs_getString(model->spec.meshdir), file);
+  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
 
   try {
-    resource = mjCBase::LoadResource(filename, 0);
+    resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir),
+                                     filename, 0);
   } catch (mjCError err) {
     return comperr(error, err.message, error_sz);
   }
@@ -931,13 +1029,13 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   // LoadOBJ uses userXXX, extra processing needed
   if (isobj) {
     // check sizes
-    if (mesh.vert_.empty() || mesh.face_.empty()) {
+    if (mesh.Vert().empty() || mesh.Face().empty()) {
       return comperr(error, "Vertex and face data required", error_sz);
     }
-    if (mesh.vert_.size()%3) {
+    if (mesh.Vert().size()%3) {
       return comperr(error, "Vertex data must be multiple of 3", error_sz);
     }
-    if (mesh.face_.size()%3) {
+    if (mesh.Face().size()%3) {
       return comperr(error, "Face data must be multiple of 3", error_sz);
     }
 
@@ -945,13 +1043,40 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
     mesh.RemoveRepeated();
   }
 
-  // copy faces
-  element = mesh.face_;
-
   // copy vertices, convert from float to double
   point = vector<double> (mesh.nvert()*3);
   for (int i=0; i < mesh.nvert()*3; i++) {
-    point[i] = (double) mesh.vert_[i];
+    point[i] = (double) mesh.Vert(i);
+  }
+
+  // copy faces or create 3D mesh
+  if (def.spec.flex->dim == 2) {
+    element = mesh.Face();
+  } else {
+    point.insert(point.begin() + 0, origin[0]);
+    point.insert(point.begin() + 1, origin[1]);
+    point.insert(point.begin() + 2, origin[2]);
+    for (int i=0; i < mesh.Face().size(); i+=3) {
+      // only add tetrahedra with positive volume
+      int tet[3] = {mesh.Face()[i+0]+1,
+                    mesh.Face()[i+1]+1,
+                    mesh.Face()[i+2]+1};
+      double edge1[3], edge2[3], edge3[3];
+      for (int i=0; i < 3; i++) {
+        edge1[i] = point[3*tet[0]+i] - origin[i];
+        edge2[i] = point[3*tet[1]+i] - origin[i];
+        edge3[i] = point[3*tet[2]+i] - origin[i];
+      }
+      double normal[3];
+      mjuu_crossvec(normal, edge1, edge2);
+      if (mjuu_dot3(normal, edge3) < mjMINVAL) {
+        continue;
+      }
+      element.push_back(0);
+      element.push_back(tet[0]);
+      element.push_back(tet[1]);
+      element.push_back(tet[2]);
+    }
   }
 
   return true;
@@ -999,12 +1124,11 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   }
 
   // open resource
-  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.modelfiledir),
-                                           mjs_getString(model->spec.meshdir), file);
   mjResource* resource = nullptr;
-
   try {
-    resource = mjCBase::LoadResource(filename, 0);
+    std::string filename = mjuu_combinePaths(mjs_getString(model->spec.meshdir), file);
+    resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir),
+                                     filename, 0);
   } catch (mjCError err) {
     return comperr(error, err.message, error_sz);
   }
@@ -1351,7 +1475,12 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     char maxNodeTagChar[11] = {0};
     ReadStrFromBuffer(maxNodeTagChar, buffer + nodebegin, std::min(10, nodeend - nodebegin));
     size_t measuredHeaderSize = strnlen(maxNodeTagChar, 10) - 1;
-    size_t maxNodeTag = std::stoi(maxNodeTagChar);
+    size_t maxNodeTag;
+    try {
+      maxNodeTag = std::stoi(maxNodeTagChar);
+    } catch (const std::out_of_range& e) {
+      throw mjCError(NULL, "Invalid number of nodes");
+    }
     numNodes = maxNodeTag;
 
     // check number of nodes is a positive number
@@ -1451,7 +1580,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     // read elements, discard all tags
     element.reserve(numNodeTags*numElements);
     for (size_t i=0; i<numElements; i++) {
-      int nodeTag = 0, physicalEntityTag = 0, elmentModelEntityTag = 0;
+      int nodeTag = 0, physicalEntityTag = 0, elementModelEntityTag = 0;
       if (i != 0) {
         ss >> tag >> elementType >> numTags;
         if (!ss.good()) {
@@ -1459,7 +1588,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
         }
       }
       if (numTags > 0) {
-        ss >> physicalEntityTag >> elmentModelEntityTag;
+        ss >> physicalEntityTag >> elementModelEntityTag;
         if (!ss.good()) {
           throw mjCError(NULL, "Error reading Elements");
         }
@@ -1491,7 +1620,12 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
     char maxElementTagChar[11] = {0};
     ReadStrFromBuffer(maxElementTagChar, buffer + elembegin, std::min(10, elemend - elembegin));
     int measuredHeaderSize = strnlen(maxElementTagChar, 10) - 1;
-    int maxElementTag = std::stoi(maxElementTagChar);
+    int maxElementTag;
+    try {
+      maxElementTag = std::stoi(maxElementTagChar);
+    } catch (const std::out_of_range& e) {
+      throw mjCError(NULL, "Invalid number of elements");
+    }
     int numElements = maxElementTag;
     int tag, numTags;
     int nodeTag;

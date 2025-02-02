@@ -34,10 +34,6 @@ using ::testing::DoubleNear;
 using ::testing::Pointwise;
 using CoreConstraintTest = MujocoTest;
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 // compute rotation residual following formula in mj_instantiateEquality
 void RotationResidual(const mjModel *model, mjData *data,
                         const mjtNum qpos[7], const mjtNum dqpos[6],
@@ -254,6 +250,41 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
   }
 }
 
+TEST_F(CoreConstraintTest, EqualityBodySite) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");
+
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // simulate, get diag(A)
+  while (data->time < 0.1) {
+    mj_step(model, data);
+  }
+  int nefc_site = data->nefc;
+  std::vector<mjtNum> dA = AsVector(data->efc_diagApprox, nefc_site);
+
+  // reset
+  mj_resetData(model, data);
+
+  // turn site-defined equalities off, equivalent body-defined equalities on
+  for (int e=0; e < 4; e++) data->eq_active[e] = 1 - data->eq_active[e];
+
+  // simulate again, get diag(A)
+  while (data->time < 0.1) {
+    mj_step(model, data);
+  }
+
+  // compare
+  EXPECT_EQ(nefc_site, data->nefc);
+  EXPECT_THAT(AsVector(data->efc_diagApprox, data->nefc),
+              Pointwise(DoubleNear(1e-12), dA));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
 static const char* const kIlslandEfcPath =
     "engine/testdata/island/island_efc.xml";
 
@@ -446,6 +477,7 @@ TEST_F(CoreConstraintTest, MulJacTVecIsland) {
   mj_deleteModel(model);
 }
 
+// compare mj_constraintUpdate and mj_constraintUpdate_island
 TEST_F(CoreConstraintTest, ConstraintUpdateIsland) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
@@ -526,12 +558,15 @@ TEST_F(CoreConstraintTest, ConstraintUpdateIsland) {
         }
 
         // compare cone Hessians
-        for (int c=0; c < data2->ncon; c++) {
-          int efcadr = data2->contact[c].efc_address;
-          if (data2->efc_island[efcadr] == island) {
-            for (int j=0; j < 36; j++) {
-              EXPECT_THAT(data2->contact[c].H[j],
-                          DoubleNear(data2->contact[c].H[j], 1e-12));
+        if (cone == mjCONE_ELLIPTIC) {
+          for (int c=0; c < data2->ncon; c++) {
+            int efcadr = data2->contact[c].efc_address;
+            if (data2->efc_island[efcadr] == island &&
+                data2->efc_state[efcadr] == mjCNSTRSTATE_CONE) {
+              for (int j=0; j < 36; j++) {
+                EXPECT_THAT(data2->contact[c].H[j],
+                            DoubleNear(data1->contact[c].H[j], 1e-12));
+              }
             }
           }
         }

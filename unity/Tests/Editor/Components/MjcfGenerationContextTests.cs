@@ -74,8 +74,8 @@ public class MjcfGenerationContextTests {
     Assert.That(mjcf.OuterXml, Does.Contain("tolerance"));
     Assert.That(mjcf.OuterXml, Does.Contain("noslip_iterations"));
     Assert.That(mjcf.OuterXml, Does.Contain("noslip_tolerance"));
-    Assert.That(mjcf.OuterXml, Does.Contain("mpr_iterations"));
-    Assert.That(mjcf.OuterXml, Does.Contain("mpr_tolerance"));
+    Assert.That(mjcf.OuterXml, Does.Contain("ccd_iterations"));
+    Assert.That(mjcf.OuterXml, Does.Contain("ccd_tolerance"));
   }
 
   [Test]

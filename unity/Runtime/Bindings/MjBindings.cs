@@ -41,6 +41,7 @@ public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXTREEDEPTH = 50;
+public const int mjMAXFLEXNODES = 27;
 public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
@@ -50,13 +51,13 @@ public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
-public const int mjNTEXMAT = 6;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
-public const int mjMAXTEXTURE = 100;
-public const int mjMAXMATERIAL = 100;
+public const int mjMAXTEXTURE = 1000;
+public const int mjMAXMATERIAL = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSAN_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const int mjMAXTHREAD = 128;
@@ -109,7 +110,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 317;
+public const int mjVERSION_HEADER = 328;
 
 
 // ------------------------------------Enums------------------------------------
@@ -158,7 +159,8 @@ public enum mjtDisableBit : int{
   mjDSBL_SENSOR = 4096,
   mjDSBL_MIDPHASE = 8192,
   mjDSBL_EULERDAMP = 16384,
-  mjNDISABLE = 15,
+  mjDSBL_AUTORESET = 32768,
+  mjNDISABLE = 16,
 }
 public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,
@@ -167,7 +169,8 @@ public enum mjtEnableBit : int{
   mjENBL_INVDISCRETE = 8,
   mjENBL_MULTICCD = 16,
   mjENBL_ISLAND = 32,
-  mjNENABLE = 6,
+  mjENBL_NATIVECCD = 64,
+  mjNENABLE = 7,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -208,6 +211,19 @@ public enum mjtTexture : int{
   mjTEXTURE_2D = 0,
   mjTEXTURE_CUBE = 1,
   mjTEXTURE_SKYBOX = 2,
+}
+public enum mjtTextureRole : int{
+  mjTEXROLE_USER = 0,
+  mjTEXROLE_RGB = 1,
+  mjTEXROLE_OCCLUSION = 2,
+  mjTEXROLE_ROUGHNESS = 3,
+  mjTEXROLE_METALLIC = 4,
+  mjTEXROLE_NORMAL = 5,
+  mjTEXROLE_OPACITY = 6,
+  mjTEXROLE_EMISSIVE = 7,
+  mjTEXROLE_RGBA = 8,
+  mjTEXROLE_ORM = 9,
+  mjNTEXROLE = 10,
 }
 public enum mjtIntegrator : int{
   mjINT_EULER = 0,
@@ -362,9 +378,11 @@ public enum mjtSensor : int{
   mjSENS_GEOMDIST = 37,
   mjSENS_GEOMNORMAL = 38,
   mjSENS_GEOMFROMTO = 39,
-  mjSENS_CLOCK = 40,
-  mjSENS_PLUGIN = 41,
-  mjSENS_USER = 42,
+  mjSENS_E_POTENTIAL = 40,
+  mjSENS_E_KINETIC = 41,
+  mjSENS_CLOCK = 42,
+  mjSENS_PLUGIN = 43,
+  mjSENS_USER = 44,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -377,6 +395,13 @@ public enum mjtDataType : int{
   mjDATATYPE_POSITIVE = 1,
   mjDATATYPE_AXIS = 2,
   mjDATATYPE_QUATERNION = 3,
+}
+public enum mjtSameFrame : int{
+  mjSAMEFRAME_NONE = 0,
+  mjSAMEFRAME_BODY = 1,
+  mjSAMEFRAME_INERTIA = 2,
+  mjSAMEFRAME_BODYROT = 3,
+  mjSAMEFRAME_INERTIAROT = 4,
 }
 public enum mjtLRMode : int{
   mjLRMODE_NONE = 0,
@@ -429,8 +454,13 @@ public enum mjtFont : int{
   mjFONT_BIG = 2,
 }
 public enum mjtGeomInertia : int{
-  mjINERTIA_VOLUME = 1,
-  mjINERTIA_SHELL = 2,
+  mjINERTIA_VOLUME = 0,
+  mjINERTIA_SHELL = 1,
+}
+public enum mjtMeshInertia : int{
+  mjINERTIA_CONVEX = 0,
+  mjINERTIA_EXACT = 1,
+  mjINERTIA_LEGACY = 2,
 }
 public enum mjtBuiltin : int{
   mjBUILTIN_NONE = 0,
@@ -448,6 +478,11 @@ public enum mjtLimited : int{
   mjLIMITED_FALSE = 0,
   mjLIMITED_TRUE = 1,
   mjLIMITED_AUTO = 2,
+}
+public enum mjtAlignFree : int{
+  mjALIGNFREE_FALSE = 0,
+  mjALIGNFREE_TRUE = 1,
+  mjALIGNFREE_AUTO = 2,
 }
 public enum mjtInertiaFromGeom : int{
   mjINERTIAFROMGEOM_FALSE = 0,
@@ -4814,12 +4849,13 @@ public unsafe struct mjData_ {
   public mjTimerStat_ timer12;
   public mjTimerStat_ timer13;
   public mjTimerStat_ timer14;
+  public int ncon;
   public int ne;
   public int nf;
   public int nl;
   public int nefc;
-  public int nnzJ;
-  public int ncon;
+  public int nJ;
+  public int nA;
   public int nisland;
   public double time;
   public fixed double energy[2];
@@ -4877,12 +4913,14 @@ public unsafe struct mjData_ {
   public int* wrap_obj;
   public double* wrap_xpos;
   public double* actuator_length;
+  public int* moment_rownnz;
+  public int* moment_rowadr;
+  public int* moment_colind;
   public double* actuator_moment;
   public double* crb;
   public double* qM;
   public double* qLD;
   public double* qLDiagInv;
-  public double* qLDiagSqrtInv;
   public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public double* flexedge_velocity;
@@ -4900,12 +4938,19 @@ public unsafe struct mjData_ {
   public double* subtree_angmom;
   public double* qH;
   public double* qHDiagInv;
-  public int* D_rownnz;
-  public int* D_rowadr;
-  public int* D_colind;
   public int* B_rownnz;
   public int* B_rowadr;
   public int* B_colind;
+  public int* C_rownnz;
+  public int* C_rowadr;
+  public int* C_colind;
+  public int* mapM2C;
+  public int* D_rownnz;
+  public int* D_rowadr;
+  public int* D_diag;
+  public int* D_colind;
+  public int* mapM2D;
+  public int* mapD2M;
   public double* qDeriv;
   public double* qLU;
   public double* actuator_force;
@@ -4987,7 +5032,7 @@ public unsafe struct mjOption_ {
   public double tolerance;
   public double ls_tolerance;
   public double noslip_tolerance;
-  public double mpr_tolerance;
+  public double ccd_tolerance;
   public fixed double gravity[3];
   public fixed double wind[3];
   public fixed double magnetic[3];
@@ -5004,7 +5049,7 @@ public unsafe struct mjOption_ {
   public int iterations;
   public int ls_iterations;
   public int noslip_iterations;
-  public int mpr_iterations;
+  public int ccd_iterations;
   public int disableflags;
   public int enableflags;
   public int disableactuator;
@@ -5147,10 +5192,12 @@ public unsafe struct mjModel_ {
   public int ncam;
   public int nlight;
   public int nflex;
+  public int nflexnode;
   public int nflexvert;
   public int nflexedge;
   public int nflexelem;
   public int nflexelemdata;
+  public int nflexelemedge;
   public int nflexshelldata;
   public int nflexevpair;
   public int nflextexcoord;
@@ -5196,11 +5243,13 @@ public unsafe struct mjModel_ {
   public int nuser_actuator;
   public int nuser_sensor;
   public int nnames;
-  public int nnames_map;
   public int npaths;
+  public int nnames_map;
   public int nM;
-  public int nD;
   public int nB;
+  public int nC;
+  public int nD;
+  public int nJmom;
   public int ntree;
   public int ngravcomp;
   public int nemax;
@@ -5364,6 +5413,9 @@ public unsafe struct mjModel_ {
   public int* flex_dim;
   public int* flex_matid;
   public int* flex_group;
+  public int* flex_interp;
+  public int* flex_nodeadr;
+  public int* flex_nodenum;
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_edgeadr;
@@ -5371,22 +5423,29 @@ public unsafe struct mjModel_ {
   public int* flex_elemadr;
   public int* flex_elemnum;
   public int* flex_elemdataadr;
+  public int* flex_elemedgeadr;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
   public int* flex_evpairadr;
   public int* flex_evpairnum;
   public int* flex_texcoordadr;
+  public int* flex_nodebodyid;
   public int* flex_vertbodyid;
   public int* flex_edge;
   public int* flex_elem;
+  public int* flex_elemedge;
   public int* flex_elemlayer;
   public int* flex_shell;
   public int* flex_evpair;
   public double* flex_vert;
-  public double* flex_xvert0;
+  public double* flex_vert0;
+  public double* flex_node;
+  public double* flex_node0;
   public double* flexedge_length0;
   public double* flexedge_invweight0;
   public double* flex_radius;
+  public double* flex_stiffness;
+  public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
   public byte* flex_edgeequality;
@@ -5451,8 +5510,9 @@ public unsafe struct mjModel_ {
   public int* tex_type;
   public int* tex_height;
   public int* tex_width;
+  public int* tex_nchannel;
   public int* tex_adr;
-  public byte* tex_rgb;
+  public byte* tex_data;
   public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
@@ -5478,6 +5538,7 @@ public unsafe struct mjModel_ {
   public int* eq_type;
   public int* eq_obj1id;
   public int* eq_obj2id;
+  public int* eq_objtype;
   public byte* eq_active0;
   public double* eq_solref;
   public double* eq_solimp;
@@ -5630,12 +5691,12 @@ public unsafe struct mjrContext_ {
   public fixed uint auxFBO_r[10];
   public fixed uint auxColor[10];
   public fixed uint auxColor_r[10];
-  public fixed int mat_texid[600];
-  public fixed int mat_texuniform[100];
-  public fixed int mat_texrepeat[200];
+  public fixed int mat_texid[10000];
+  public fixed int mat_texuniform[1000];
+  public fixed float mat_texrepeat[2000];
   public int ntexture;
-  public fixed int textureType[100];
-  public fixed uint texture[100];
+  public fixed int textureType[1000];
+  public fixed uint texture[1000];
   public uint basePlane;
   public uint baseMesh;
   public uint baseHField;
@@ -5665,6 +5726,25 @@ public unsafe struct mjrContext_ {
   public int currentBuffer;
   public int readPixelFormat;
   public int readDepthMap;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjsCompiler_ {
+  public byte autolimits;
+  public double boundmass;
+  public double boundinertia;
+  public double settotalmass;
+  public byte balanceinertia;
+  public byte fitaabb;
+  public byte degree;
+  public fixed sbyte eulerseq[3];
+  public byte discardvisual;
+  public byte usethread;
+  public byte fusestatic;
+  public int inertiafromgeom;
+  public fixed int inertiagrouprange[2];
+  public int alignfree;
+  public mjLROpt_ LRopt;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5744,6 +5824,8 @@ public unsafe struct mjuiThemeColor_ {
   public fixed float thumb[3];
   public fixed float secttitle[3];
   public fixed float secttitle2[3];
+  public fixed float secttitleuncheck[3];
+  public fixed float secttitleuncheck2[3];
   public fixed float secttitlecheck[3];
   public fixed float secttitlecheck2[3];
   public fixed float sectfont[3];
@@ -6222,6 +6304,10 @@ public unsafe struct model {
   public int* flex_dim;
   public int* flex_matid;
   public int* flex_group;
+  public int* flex_interp;
+  public int* flex_nodeadr;
+  public int* flex_nodenum;
+  public int* flex_nodebodyid;
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_elem;
@@ -6235,6 +6321,8 @@ public unsafe struct model {
   public int* flex_texcoordadr;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
+  public byte* flex_centered;
+  public double* flex_node;
   public double* flex_radius;
   public float* flex_rgba;
   public int* hfield_pathadr;
@@ -6278,6 +6366,7 @@ public unsafe struct model {
   public int* eq_type;
   public int* eq_obj1id;
   public int* eq_obj2id;
+  public int* eq_objtype;
   public double* eq_data;
   public int* tendon_num;
   public int* tendon_matid;
@@ -6605,7 +6694,7 @@ public static unsafe extern void mj_factorM(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_solveM(mjModel_* m, mjData_* d, double* x, double* y, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_solveM2(mjModel_* m, mjData_* d, double* x, double* y, int n);
+public static unsafe extern void mj_solveM2(mjModel_* m, mjData_* d, double* x, double* y, double* sqrtInvD, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_comVel(mjModel_* m, mjData_* d);
@@ -6690,6 +6779,9 @@ public static unsafe extern void mj_jacSite(mjModel_* m, mjData_* d, double* jac
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_jacPointAxis(mjModel_* m, mjData_* d, double* jacPoint, double* jacAxis, double* point, double* axis, int body);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_jacDot(mjModel_* m, mjData_* d, double* jacp, double* jacr, double* point, int body);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_angmomMat(mjModel_* m, mjData_* d, double* mat, int body);
@@ -6848,9 +6940,6 @@ public static unsafe extern void mjv_defaultFigure(mjvFigure_* fig);
 public static unsafe extern void mjv_initGeom(mjvGeom_* geom, int type, double* size, double* pos, double* mat, float* rgba);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjv_makeConnector(mjvGeom_* geom, int type, double width, double a0, double a1, double a2, double b0, double b1, double b2);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_connector(mjvGeom_* geom, int type, double width, double* from, double* to);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -6867,6 +6956,9 @@ public static unsafe extern void mjv_updateScene(mjModel_* m, mjData_* d, mjvOpt
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mjv_updateSceneFromState(mjvSceneState_* scnstate, mjvOption_* opt, mjvPerturb_* pert, mjvCamera_* cam, int catmask, mjvScene_* scn);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_copyModel(mjModel_* dest, mjModel_* src);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultSceneState(mjvSceneState_* scnstate);
@@ -7067,12 +7159,6 @@ public static unsafe extern void mju_mulMatVec3(double* res, double* mat, double
 public static unsafe extern void mju_mulMatTVec3(double* res, double* mat, double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_rotVecMat(double* res, double* vec, double* mat);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_rotVecMatT(double* res, double* vec, double* mat);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_cross(double* res, double* a, double* b);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -7166,6 +7252,12 @@ public static unsafe extern void mju_sqrMatTD(double* res, double* mat, double* 
 public static unsafe extern void mju_transformSpatial(double* res, double* vec, int flg_force, double* newpos, double* oldpos, double* rotnew2old);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mju_dense2sparse(double* res, double* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind, int nnz);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_sparse2dense(double* res, double* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_rotVecQuat(double* res, double* vec, double* quat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -7200,6 +7292,9 @@ public static unsafe extern void mju_quatIntegrate(double* quat, double* vel, do
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_quatZ2Vec(double* quat, double* vec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mju_mat2Rot(double* quat, double* mat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_euler2Quat(double* quat, double* euler, [MarshalAs(UnmanagedType.LPStr)]string seq);

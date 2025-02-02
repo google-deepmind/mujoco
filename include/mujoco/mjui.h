@@ -191,8 +191,10 @@ struct mjuiThemeColor_ {          // UI visualization theme color
   float thumb[3];                 // scrollbar thumb
   float secttitle[3];             // section title
   float secttitle2[3];            // section title: bottom color
-  float secttitlecheck[3];        // section title with checkbox
-  float secttitlecheck2[3];       // section title with checkbox: bottom color
+  float secttitleuncheck[3];      // section title with unchecked box
+  float secttitleuncheck2[3];     // section title with unchecked box: bottom color
+  float secttitlecheck[3];        // section title with checked box
+  float secttitlecheck2[3];       // section title with checked box: bottom color
   float sectfont[3];              // section font
   float sectsymbol[3];            // section symbol
   float sectpane[3];              // section pane
@@ -276,7 +278,7 @@ struct mjuiSection_ {             // UI section
   int state;                      // section state (mjtSection)
   int modifier;                   // 0: none, 1: control, 2: shift; 4: alt
   int shortcut;                   // shortcut key; 0: undefined
-  int checkbox;                   // 0: none, 1: hidden, 2: unchecked, 2: checked
+  int checkbox;                   // 0: none, 1: unchecked, 2: checked
   int nitem;                      // number of items in use
   mjuiItem item[mjMAXUIITEM];     // preallocated array of items
 
@@ -302,7 +304,7 @@ struct mjUI_ {                    // entire UI
 
   // UI sizes (framebuffer units)
   int width;                      // width
-  int height;                     // current heigth
+  int height;                     // current height
   int maxheight;                  // height when all sections open
   int scroll;                     // scroll from top of UI
 

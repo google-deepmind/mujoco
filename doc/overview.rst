@@ -9,7 +9,7 @@ aims to facilitate research and development in robotics, biomechanics, graphics 
 other areas that demand fast and accurate simulation of articulated structures interacting with their environment.
 Initially developed by Roboti LLC, it was acquired and made `freely available
 <https://github.com/google-deepmind/mujoco/blob/main/LICENSE>`__ by DeepMind in October 2021, and open sourced in May
-2022. The MuJoCo codebase is available at the `deepmind/mujoco <https://github.com/google-deepmind/mujoco>`__ repository
+2022. The MuJoCo codebase is available at the `google-deepmind/mujoco <https://github.com/google-deepmind/mujoco>`__ repository
 on GitHub.
 
 MuJoCo is a C/C++ library with a C API, intended for researchers and developers. The runtime simulation module is tuned
@@ -207,28 +207,26 @@ rendering, is given below.
    mjModel* m;
    mjData* d;
 
-   int main(void)
-   {
-      // load model from file and check for errors
-      m = mj_loadXML("hello.xml", NULL, error, 1000);
-      if( !m )
-      {
-         printf("%s\n", error);
-         return 1;
-      }
+   int main(void) {
+     // load model from file and check for errors
+     m = mj_loadXML("hello.xml", NULL, error, 1000);
+     if (!m) {
+       printf("%s\n", error);
+       return 1;
+     }
 
-      // make data corresponding to model
-      d = mj_makeData(m);
+     // make data corresponding to model
+     d = mj_makeData(m);
 
-      // run simulation for 10 seconds
-      while( d->time<10 )
-         mj_step(m, d);
+     // run simulation for 10 seconds
+     while (d->time < 10)
+       mj_step(m, d);
 
-      // free model and data
-      mj_deleteData(d);
-      mj_deleteModel(m);
+     // free model and data
+     mj_deleteData(d);
+     mj_deleteModel(m);
 
-      return 0;
+     return 0;
    }
 
 This is technically a C file, but it is also a legitimate C++ file. Indeed the MuJoCo API is compatible with both C and
@@ -593,7 +591,7 @@ Flex
 Flexes were added in MuJoCo 3.0. They represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
 are capsules, triangles or tetrahedra). Unlike geoms which are static shapes attached rigidly to a single body, the
 elements of a flex are deformable: they are constructed by connecting multiple bodies, thus the body positions and
-orientations determine the shape of the flex elements at runtime. These deformable elements suport collisions and
+orientations determine the shape of the flex elements at runtime. These deformable elements support collisions and
 contact forces, as well as generate passive and constraint forces which softly preserve the shape of the deformable
 entity. Automation is provided to load a mesh from a file, construct bodies corresponding to the mesh vertices,
 construct flex elements corresponding to the mesh faces (or lines or tetrahedra, depending on dimensionality), and
@@ -806,7 +804,7 @@ first, followed by the limits of the second joint etc. This ordering reflects th
 row-major format.
 
 The available element types are defined in `mjmodel.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L237>`_, in the enum type :ref:`mjtObj`.
 These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
 MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
 
@@ -823,8 +821,9 @@ convention. Suppose we already have ``mjModel* m``. To print the range of a join
 .. code:: C
 
    int jntid = mj_name2id(m, mjOBJ_JOINT, "elbow");
-   if( jntid>=0 )
+   if (jntid >= 0)
       printf("(%f, %f)\n", m->jnt_range[2*jntid], m->jnt_range[2*jntid+1]);
+
 
 If the name is not found the function returns -1, which is why one should always check for id>=0.
 
@@ -852,10 +851,14 @@ Geoms (short for geometric primitive) are used to specify appearance and collisi
 and is rigidly attached to that body. Multiple geoms can be attached to the same body. This is particularly useful in
 light of the fact that MuJoCo's collision detector assumes that all geoms are convex (it internally replaces meshes with
 their convex hulls if the meshes are not convex). Thus if you want to model a non-convex shape, you have to decompose it
-into a union of convex geoms and attach all of them to the same body. Geoms can also have mass and inertia in the XML
-model (or rather material density which is used to compute the mass and inertia), but that is only used to compute the
-body mass and inertia in the model compiler. In the actual ``mjModel`` being simulated geoms do not have inertial
-properties.
+into a union of convex geoms and attach all of them to the same body.
+
+A geom can also have density or mass values specified in the XML, which the model compiler uses to compute the parent
+body's mass and inertia. Mass is either specified or computed from a geom's volume and :ref:`density
+<body-geom-density>`. Inertia is computed from the mass, shape, and uniform density assumption. If the
+:ref:`shellinertia <body-geom-shellinertia>` flag is set, mass is assumed to be uniformly distributed on the **surface**,
+:at:`density` is interpreted as mass-per-area, and the inertia contribution to the parent body is computed accordingly.
+In the actual ``mjModel`` being simulated, geoms do not have inertial properties.
 
 Sites are light geoms. They have the same appearance properties but cannot participate in collisions and cannot be used
 to infer body masses. On the other hand sites can do things that geoms cannot do: they can specify the volumes of touch
@@ -898,14 +901,14 @@ density of water).
 Joint coordinates
 ~~~~~~~~~~~~~~~~~
 
-One of the key distinctions between MuJoCo and gaming engines (such as ODE, Bullet, Havoc, PhysX) is that MuJoCo
-operates in generalized or joint coordinates, while gaming engines operate in Cartesian coordinates, although Bullet now
-supports generalized coordinates. The differences between these two approaches can be summarized as follows:
+One of the key distinctions between MuJoCo and gaming engines is that MuJoCo operates in generalized or joint
+coordinates, while most gaming engines operate in Cartesian coordinates. The differences between these two approaches
+can be summarized as follows:
 
 Joint coordinates:
 
 -  Best suited for elaborate kinematic structures such as robots;
--  Joints add degrees of freedom among bodies that would be welded together by default;
+-  Joints **add** degrees of freedom among bodies that would be welded together by default;
 -  Joint constraints are implicit in the representation and cannot be violated;
 -  The positions and orientations of the simulated bodies are obtained from the generalized coordinates via forward
    kinematics, and cannot be manipulated directly (except for root bodies).
@@ -913,7 +916,7 @@ Joint coordinates:
 Cartesian coordinates:
 
 -  Best suited for many bodies that bounce off each other, as in molecular dynamics and box stacking;
--  Joints remove degrees of freedom among bodies that would be free-floating by default;
+-  Joints **remove** degrees of freedom among bodies that would be free-floating by default;
 -  Joint constraints are enforced numerically and can be violated;
 -  The positions and orientations of the simulated bodies are represented explicitly and can be manipulated directly,
    although this can introduce further joint constraint violations.
@@ -932,31 +935,17 @@ necessarily unique) set of joint coordinates for which the forward kinematics pl
 
 The situation is different for floating bodies, i.e., bodies that are connected to the world with a free joint. The
 positions and orientations as well as the linear and angular velocities of such bodies are explicitly represented in
-``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly. The general approach is to find the
-addresses in qpos and qvel where the body's data are. Of course qpos and qvel represents joints and not bodies, so you
-need the corresponding joint addresses. Suppose the body was named "myfloatingbody" in the XML. The necessary addresses
-can be obtained as:
+``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly.
 
-.. code:: C
-
-   int bodyid = mj_name2id(m, mjOBJ_BODY, "myfloatingbody");
-   int qposadr = -1, qveladr = -1;
-
-   // make sure we have a floating body: it has a single free joint
-   if( bodyid>=0 && m->body_jntnum[bodyid]==1 && m->jnt_type[m->body_jntadr[bodyid]]==mjJNT_FREE ) {
-     // extract the addresses from the joint specification
-     qposadr = m->jnt_qposadr[m->body_jntadr[bodyid]];
-     qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
-   }
-
-Now if everything went well (i.e., "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses
-in qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed
-by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
-numbers can now be set to the desired pose and velocity of the body.
-
-The semantics of free joints are as follows. The linear postions of free joints are in the global frame, as are
+The semantics of free joints are as follows. The position data is 7 numbers (3D position followed
+by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity).
+The linear positions of free joints are in the global frame, as are
 linear velocities. The orientation of a free joint (the quaternion) is also in the global frame. However, the rotational
 velocities of a free joint are in the local body frame. This is not so much a design decision but rather correct
 use of the topology of quaternions. Angular velocities live in the quaternion tangent space, which is defined locally
-for a certain orientation, so frame-local angular velocities are a natural parameterization.
+for a certain orientation, so frame-local angular velocities are the natural parameterization.
 Accelerations are defined in the same space as the corresponding velocities.
+
+Free joints are always defined in the body frame, yet it is computationally favorable to align this frame with the
+body's inertia. Read more about this option in the documentation of the :ref:`freejoint/align<body-freejoint-align>`
+attribute.

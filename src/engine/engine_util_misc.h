@@ -29,9 +29,8 @@ extern "C" {
 //------------------------------ tendons and actuators ---------------------------------------------
 
 // wrap tendons around spheres and cylinders
-mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
-                const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
-                int type, const mjtNum* side);
+mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3], const mjtNum xpos[3],
+                const mjtNum xmat[9], mjtNum radius, int type, const mjtNum side[3]);
 
 // normalized muscle length-gain curve
 MJAPI mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax);
@@ -53,6 +52,11 @@ MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
+
+// ----------------------------- Flex interpolation ------------------------------------------------
+
+// evaluate the deformation gradient at p using the nodal dof values
+MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order);
 
 // ----------------------------- Base64 -----------------------------------------------------------
 

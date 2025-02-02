@@ -96,7 +96,7 @@ jobs:
               -DCMAKE_CXX_COMPILER:STRING=clang++-10
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
-          - os: macos-12
+          - os: macos-13
             cmake_args: >-
               -G Ninja
               -DMUJOCO_HARDEN:BOOL=ON
@@ -142,6 +142,7 @@ jobs:
         fi
         source venv/bin/activate
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
     - name: Configure MuJoCo
       run: >
         mkdir build &&

@@ -40,10 +40,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
 static const char* const kDampedActuatorsPath =
@@ -162,6 +158,47 @@ TEST_F(ForwardTest, DamperDampens) {
     mj_step(model, data);
 
   EXPECT_LE(data->qvel[0], std::numeric_limits<double>::epsilon());
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+static const char* const kArmatureEquivalencePath =
+    "engine/testdata/armature_equivalence.xml";
+
+// test that adding joint armature is equivalent to a coupled rotating mass with
+// a gear ratio enforced by an equality
+TEST_F(ForwardTest, ArmatureEquivalence) {
+  const std::string xml_path = GetTestDataFilePath(kArmatureEquivalencePath);
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // with actuators
+  mjtNum qpos_mse = 0;
+  int nstep = 0;
+  while (data->time < 4) {
+    data->ctrl[0] = data->ctrl[1] = mju_sin(2*data->time);
+    mj_step(model, data);
+    nstep++;
+    mjtNum err = data->qpos[0] - data->qpos[2];
+    qpos_mse += err * err;
+  }
+  EXPECT_LT(mju_sqrt(qpos_mse/nstep), 1e-3);
+
+  // no actuators
+  model->opt.disableflags |= mjDSBL_ACTUATION;
+  qpos_mse = 0;
+  nstep = 0;
+  mj_resetData(model, data);
+  while (data->time < 4) {
+    mj_step(model, data);
+    nstep++;
+    mjtNum err = data->qpos[0] - data->qpos[2];
+    qpos_mse += err * err;
+  }
+  EXPECT_LT(mju_sqrt(qpos_mse/nstep), 1e-3);
+
   mj_deleteData(data);
   mj_deleteModel(model);
 }

@@ -107,6 +107,10 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
               const mjtNum point[3], mjtNum* jac, int flg_rot);
 
+// compute 3/6-by-nv Jacobian time derivative of global point attached to given body
+MJAPI void mj_jacDot(const mjModel* m, const mjData* d,
+                     mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body);
+
 // compute subtree angular momentum matrix
 MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 
@@ -131,10 +135,6 @@ MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
 
-// make inertia matrix M
-MJAPI void mj_makeMSparse(const mjModel* m, mjData* d, mjtNum* M,
-                          int* M_rownnz, int* M_rowadr, int* M_colind);
-
 // add inertia matrix to sparse destination matrix
 MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
                          int* rownnz, int* rowadr, int* colind, mjtNum* M,
@@ -142,15 +142,6 @@ MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 
 // add inertia matrix to dense destination matrix
 MJAPI void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst);
-
-
-//-------------------------- sparse system matrix conversion ---------------------------------------
-
-// dst[D] = src[M], handle different sparsity representations
-MJAPI void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
-
-// dst[M] = src[D lower], handle different sparsity representations
-MJAPI void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
 
 
 //-------------------------- perturbations ---------------------------------------------------------

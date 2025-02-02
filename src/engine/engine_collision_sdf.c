@@ -14,16 +14,16 @@
 
 #include "engine/engine_collision_sdf.h"
 
-#include <math.h>
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_primitive.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -306,11 +306,10 @@ static void undoTransformation(const mjModel* m, const mjData* d, int g,
 //---------------------------- narrow phase -----------------------------------------------
 
 // comparison function for contact sorting
-quicksortfunc(distcompare, dist, i1, i2) {
-  mjtNum d1 = ((mjtNum*)dist)[*(int*)i1];
-  mjtNum d2 = ((mjtNum*)dist)[*(int*)i2];
-
-  if (d1 < d2) {
+static inline int distcmp(int* i, int* j, void* context) {
+  mjtNum d1 = ((mjtNum*)context)[*i];
+  mjtNum d2 = ((mjtNum*)context)[*j];
+    if (d1 < d2) {
     return -1;
   } else if (d1 == d2) {
     return 0;
@@ -318,6 +317,9 @@ quicksortfunc(distcompare, dist, i1, i2) {
     return 1;
   }
 }
+
+// define distSort function for contact sorting
+mjSORT(distSort, int, distcmp)
 
 // check if the collision point already exists
 static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
@@ -514,9 +516,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
     int node;
   };
   typedef struct CollideTreeArgs_ CollideTreeArgs;
-  CollideTreeArgs* stack = (CollideTreeArgs*) mj_stackAllocByte(
-    d, max_stack * sizeof(CollideTreeArgs), _Alignof(CollideTreeArgs));
-
+  CollideTreeArgs* stack = mjSTACKALLOC(d, max_stack, CollideTreeArgs);
   int nstack = 0;
   stack[nstack].node = 0;
   nstack++;
@@ -642,7 +642,10 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   }
 
   // sort contacts using depth
-  mjQUICKSORT(index, ncandidate, sizeof(int), distcompare, dist);
+  if (ncandidate > 1) {
+    int buf[MAXMESHPNT];
+    distSort(index, buf, ncandidate, dist);
+  }
 
   // add only the first mjMAXCONPAIR pairs
   for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {

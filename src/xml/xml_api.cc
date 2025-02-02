@@ -14,6 +14,7 @@
 
 #include "xml/xml_api.h"
 
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -27,14 +28,16 @@
 
 #include <mujoco/mjmodel.h>
 #include "engine/engine_io.h"
-#include "engine/engine_resource.h"
 #include <mujoco/mjspec.h>
+#include "user/user_resource.h"
 #include "user/user_vfs.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
 
 //---------------------------------- Globals -------------------------------------------------------
+
+namespace {
 
 // global user model class
 class GlobalModel {
@@ -59,8 +62,7 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  mj_copyBack(spec_, m);
-  std::string result = mjWriteXML(spec_, error, error_sz);
+  std::string result = WriteXML(m, spec_, error, error_sz);
   if (result.empty()) {
     return std::nullopt;
   }
@@ -85,6 +87,8 @@ GlobalModel& GetGlobalModel() {
   return global_model;
 }
 
+}  // namespace
+
 //---------------------------------- Functions -----------------------------------------------------
 
 // parse XML file in MJCF or URDF format, compile it, return low-level model
@@ -95,7 +99,7 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
 
   // parse new model
   std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> spec(
-      mjParseXML(filename, vfs, error, error_sz),
+      ParseXML(filename, vfs, error, error_sz),
       [](mjSpec* s) { mj_deleteSpec(s); });
   if (!spec) {
     return nullptr;
@@ -186,15 +190,12 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
 
 // load model from binary MJB resource
 mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
-  mjResource* resource = nullptr;
-
-  // first try vfs, otherwise try a provider or OS filesystem
-  if (!(resource = mju_openVfsResource(filename, vfs))) {
-    char error[1024];
-    if (!(resource = mju_openResource(filename, error, 1024))) {
-       mju_warning("%s", error);
-      return nullptr;
-    }
+  std::array<char, 1024> error;
+  mjResource* resource = mju_openResource("", filename, vfs,
+                                          error.data(), error.size());
+  if (resource == nullptr) {
+    mju_warning("%s", error.data());
+    return nullptr;
   }
 
   const void* buffer = NULL;
@@ -213,37 +214,38 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
 // parse spec from file
 mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
-  return mjParseXML(filename, vfs, error, error_sz);
+  return ParseXML(filename, vfs, error, error_sz);
 }
 
 
 
 // parse spec from string
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz) {
-  return ParseSpecFromString(xml, error, error_sz);
+  return ParseSpecFromString(xml, vfs, error, error_sz);
 }
 
 
 
-// save spec to XML file, return 1 on success, 0 otherwise
+// save spec to XML file, return 0 on success, -1 otherwise
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
-  std::string result = mjWriteXML(s, error, error_sz);
+  std::string result = WriteXML(NULL, s, error, error_sz);
   if (result.empty()) {
-    return 0;
+    return -1;
   }
 
   std::ofstream file;
   file.open(filename);
   file << result;
   file.close();
-  return 1;
+  return 0;
 }
 
 
 
-// save spec to string, return 1 on success, 0 otherwise
+// save spec to XML string, return 0 on success, -1 on failure
+// if length of the output buffer is too small, returns the required size
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
-  std::string result = mjWriteXML(s, error, error_sz);
+  std::string result = WriteXML(NULL, s, error, error_sz);
   if (result.size() >= xml_sz) {
     std::string error_msg = "Output string too short, should be at least " +
                             std::to_string(result.size()+1);
@@ -251,7 +253,7 @@ int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int er
     return result.size();
   }
   if (result.empty()) {
-    return 0;
+    return -1;
   }
 
   result.copy(xml, xml_sz);

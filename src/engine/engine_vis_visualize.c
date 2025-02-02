@@ -20,6 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_io.h"
@@ -96,6 +97,20 @@ static void islandColor(float rgba[4], int islanddofadr) {
   rgba[3] = 1;
 }
 
+// make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
+static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
+                         const mjtNum v2[3], const float rgba[4]) {
+  mjtNum e1[3] =  {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+  mjtNum e2[3] =  {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+  mjtNum normal[3];
+  mju_cross(normal, e1, e2);
+  mjtNum lengths[3] = {mju_normalize3(e1), mju_normalize3(e2), mju_normalize3(normal)};
+  mjtNum xmat[9] = {e1[0], e2[0], normal[0],
+                    e1[1], e2[1], normal[1],
+                    e1[2], e2[2], normal[2]};
+  mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, lengths, v0, xmat, rgba);
+}
+
 // add contact-related geoms in mjvObject
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
                            const mjvOption* vopt, mjvScene* scn) {
@@ -126,7 +141,9 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       START
       thisgeom->type = mjGEOM_CYLINDER;
       thisgeom->size[0] = thisgeom->size[1] = m->vis.scale.contactwidth * scl;
-      thisgeom->size[2] = m->vis.scale.contactheight * scl;
+      float halfheight = m->vis.scale.contactheight * scl;
+      float halfdepth = -con->dist / 2;
+      thisgeom->size[2] = mjMAX(halfheight, halfdepth);
       mju_n2f(thisgeom->pos, con->pos, 3);
       mju_n2f(thisgeom->mat, mat, 9);
 
@@ -331,10 +348,9 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
 
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
-void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                       mjtNum a0, mjtNum a1, mjtNum a2,
-                       mjtNum b0, mjtNum b1, mjtNum b2) {
-  mjtNum quat[4], mat[9], dif[3] = {b0-a0, b1-a1, b2-a2};
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]) {
+  mjtNum quat[4], mat[9], dif[3] = {to[0]-from[0], to[1]-from[1], to[2]-from[2]};
 
   // require connector-compatible type
   if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
@@ -352,17 +368,17 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
 
   // cylinder and capsule are centered, and size[0] is "radius"
   if (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER) {
-    geom->pos[0] = 0.5*(a0 + b0);
-    geom->pos[1] = 0.5*(a1 + b1);
-    geom->pos[2] = 0.5*(a2 + b2);
+    geom->pos[0] = 0.5*(from[0] + to[0]);
+    geom->pos[1] = 0.5*(from[1] + to[1]);
+    geom->pos[2] = 0.5*(from[2] + to[2]);
     geom->size[2] *= 0.5;
   }
 
   // arrow is not centered
   else {
-    geom->pos[0] = a0;
-    geom->pos[1] = a1;
-    geom->pos[2] = a2;
+    geom->pos[0] = from[0];
+    geom->pos[1] = from[1];
+    geom->pos[2] = from[2];
   }
 
   // set mat to minimal rotation aligning b-a with z axis
@@ -371,12 +387,7 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   mju_n2f(geom->mat, mat, 9);
 }
 
-// set (type, size, pos, mat) connector-type geom between given points
-//  assume that mjv_initGeom was already called to set all other properties
-void mjv_connector(mjvGeom* geom, int type, mjtNum width,
-                   const mjtNum from[3], const mjtNum to[3]) {
-  mjv_makeConnector(geom, type, width, from[0], from[1], from[2], to[0], to[1], to[2]);
-}
+
 
 // initialize given fields when not NULL, set the rest to their default values
 void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
@@ -515,7 +526,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
-  mjtNum catenary[3*mjNCATENARY];
   mjtNum *cur, *nxt, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
@@ -701,6 +711,47 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           START
           mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
           FINISH
+        }
+      }
+
+      if (!m->flex_interp[f]) {
+        continue;
+      }
+
+      // control points box
+      mjtNum xpos[mjMAXFLEXNODES];
+      int nstart = m->flex_nodeadr[f];
+      int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      if (m->flex_centered[f]) {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+        }
+      } else {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+          mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+        }
+      }
+      for (int i=0; i < 2; i++) {
+        for (int j=0; j < 2; j++) {
+          for (int k=0; k < 2; k++) {
+            if (scn->ngeom >= scn->maxgeom) break;
+            if (i == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
+              FINISH
+            }
+            if (j == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
+              FINISH
+            }
+            if (k == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
+              FINISH
+            }
+          }
         }
       }
     }
@@ -1553,20 +1604,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // triangulation and wireframe of the frustum
         for (int e=0; e < 4; e++) {
           START
-          mju_sub3(x, vfar[e], vnear[e]);
-          mju_sub3(y, vnear[(e+1)%4], vnear[e]);
-          mju_cross(z, x, y);
-          mjtNum tri1[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
-          mjtNum xmat1[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
-          mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri1, vnear[e], xmat1, rgba);
+          makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
           FINISH
           START
-          mju_sub3(y, vnear[(e+1)%4], vfar[e]);
-          mju_sub3(x, vfar[(e+1)%4], vfar[e]);
-          mju_cross(z, x, y);
-          mjtNum tri2[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
-          mjtNum xmat2[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
-          mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri2, vfar[e], xmat2, rgba);
+          makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
           FINISH
           START
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
@@ -1728,7 +1769,18 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // spatial tendons
   objtype = mjOBJ_TENDON;
   category = mjCAT_DYNAMIC;
-  if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
+  if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
+    // mark actuated tendons
+    mj_markStack(d);
+    int* tendon_actuated = mjSTACKALLOC(d, m->ntendon, int);
+    mju_zeroInt(tendon_actuated, m->ntendon);
+    for (int i=0; i < m->nu; i++) {
+      if (m->actuator_trntype[i] == mjTRN_TENDON) {
+        tendon_actuated[m->actuator_trnid[2*i]] = 1;
+      }
+    }
+
+    // draw tendons
     for (int i=0; i < m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
         // tendon has a deadband spring
@@ -1752,9 +1804,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
           mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
           m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-          (limitedspring || limitedconstraint)  &&    // either spring or constraint length limits
+          (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
           m->tendon_damping[i] == 0             &&    // no damping
-          m->tendon_frictionloss[i] == 0;             // no frictionloss
+          m->tendon_frictionloss[i] == 0        &&    // no frictionloss
+          tendon_actuated[i] == 0;                    // no actuator
 
         // conditions not met: draw straight lines
         if (!draw_catenary) {
@@ -1812,14 +1865,20 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             length = m->tendon_lengthspring[2*i+1];
           }
 
+          // get number of points along catenary path
+          int ncatenary = m->vis.quality.numslices + 1;
+
+          // allocate catenary
+          mjtNum* catenary = mjSTACKALLOC(d, 3*ncatenary, mjtNum);
+
           // points along catenary path
-          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary);
+          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
 
           // draw npoints-1 segments
           for (int j=0; j < npoints-1; j++) {
             START
 
-              sz[0] = m->tendon_width[i];
+            sz[0] = m->tendon_width[i];
 
             // construct geom
             mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], catenary+3*j, catenary+3*j+3);
@@ -1837,6 +1896,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
       }
     }
+    mj_freeStack(d);
   }
 
   // slider-crank
@@ -2017,26 +2077,38 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_CONSTRAINT] && (category & catmask) && m->neq) {
     // connect or weld
     for (int i=0; i < m->neq; i++) {
-      if (d->eq_active[i] && (m->eq_type[i] == mjEQ_CONNECT || m->eq_type[i] == mjEQ_WELD)) {
+      int is_weld = m->eq_type[i] == mjEQ_WELD;
+      int is_connect = m->eq_type[i] == mjEQ_CONNECT;
+      if (d->eq_active[i] && (is_connect || is_weld)) {
         // compute endpoints in global coordinates
+        mjtNum *xmat_j, *xmat_k;
         int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
-        mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_WELD));
-        mju_addTo3(vec, d->xpos+3*j);
-        mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_CONNECT));
-        mju_addTo3(end, d->xpos+3*k);
+        if (m->eq_objtype[i] == mjOBJ_SITE) {
+          mju_copy3(vec, d->site_xpos+3*j);
+          mju_copy3(end, d->site_xpos+3*k);
+          xmat_j = d->site_xmat+9*j;
+          xmat_k = d->site_xmat+9*k;
+        } else {
+          mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*is_weld);
+          mju_addTo3(vec, d->xpos+3*j);
+          mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*is_connect);
+          mju_addTo3(end, d->xpos+3*k);
+          xmat_j = d->xmat+9*j;
+          xmat_k = d->xmat+9*k;
+        }
 
         // construct geom
         sz[0] = scl * m->vis.scale.constraint;
 
         START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, d->xmat+9*j, m->vis.rgba.connect);
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
         FINISH
 
         START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, d->xmat+9*k, m->vis.rgba.constraint);
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
@@ -2500,7 +2572,7 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
     else {
       // allocate and clear vertex normals for smoothing
       mj_markStack(d);
-      mjtNum* vertnorm = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
+      mjtNum* vertnorm = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
       mju_zero(vertnorm, 3*m->flex_vertnum[f]);
 
       // add vertex normals: top element sides in 2D, shell fragments in 3D
@@ -2837,7 +2909,7 @@ static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
 
 // points along catenary of given length between x0 and x1, returns number of points
 int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
-                 mjtNum catenary[3*mjNCATENARY]) {
+                 mjtNum* catenary, int ncatenary) {
   mjtNum dist = mju_dist3(x0, x1);
 
   // tendon is stretched longer than length: draw straight line
@@ -2897,7 +2969,7 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       return 3;
     }
 
-    // compute catenary: mjNCATENARY points
+    // compute full catenary: ncatenary points
     else {
       // b*h: scaled catenary flatness
       mjtNum bh = solve_catenary(v, h, length) * h;
@@ -2910,9 +2982,9 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       mju_copy3(catenary+0, x0);
 
       // hanging points
-      for (int i=1; i < mjNCATENARY-1; i++) {
+      for (int i=1; i < ncatenary-1; i++) {
         // linearly spaced horizontal offset
-        mjtNum horizontal = i*h/mjNCATENARY;
+        mjtNum horizontal = i*h/ncatenary;
         mju_addScl3(catenary+3*i, x0, across, horizontal);
 
         // vertical offset, evaluate catenary values
@@ -2921,9 +2993,9 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
       }
 
       // end point
-      mju_copy3(catenary+3*(mjNCATENARY-1), x1);
+      mju_copy3(catenary+3*(ncatenary-1), x1);
 
-      return mjNCATENARY;
+      return ncatenary;
     }
   }
 

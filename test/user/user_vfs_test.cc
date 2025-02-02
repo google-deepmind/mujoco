@@ -19,7 +19,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_resource.h"
+#include "src/user/user_resource.h"
 #include "src/user/user_vfs.h"
 #include "test/fixture.h"
 
@@ -30,7 +30,7 @@ using ::testing::NotNull;
 using UserVfsTest = MujocoTest;
 
 static bool HasFile(const mjVFS* vfs, const std::string& filename) {
-  mjResource* resource = mju_openVfsResource(filename.c_str(), vfs);
+  mjResource* resource = mju_openResource("", filename.c_str(), vfs, nullptr, 0);
   bool result = resource != nullptr;
   mju_closeResource(resource);
   return result;
@@ -180,7 +180,7 @@ TEST_F(UserVfsTest, AddBuffer) {
                   buffer.size());
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML("model", &vfs, error.data(), error.size());
-  EXPECT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   mj_deleteModel(model);
   mj_deleteVFS(&vfs);
 }
@@ -196,14 +196,13 @@ TEST_F(UserVfsTest, AddBufferRepeat) {
   mj_deleteVFS(&vfs);
 }
 
-TEST_F(UserVfsTest, BufferStripPath) {
+TEST_F(UserVfsTest, BufferPath) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
     std::string buffer = "<mujoco/>";
     const void* ptr = static_cast<const void*>(buffer.c_str());
   mj_addBufferVFS(&vfs, "dir/model", ptr, buffer.size());
-  EXPECT_TRUE(HasFile(&vfs, "MODEL"));
-  EXPECT_TRUE(HasFile(&vfs, "dir\\model"));
+  EXPECT_TRUE(HasFile(&vfs, "files/../dir/model"));
   mj_deleteVFS(&vfs);
 }
 
@@ -222,7 +221,7 @@ TEST_F(UserVfsTest, Timestamps) {
   mj_defaultVFS(&vfs);
   mj_addBufferVFS(&vfs, "cube.obj", cube, sizeof(cube));
 
-  mjResource* resource = mju_openVfsResource("cube.obj", &vfs);
+  mjResource* resource = mju_openResource("", "cube.obj", &vfs, nullptr, 0);
 
   // same timestamps
   EXPECT_EQ(mju_isModifiedResource(resource, resource->timestamp), 0);

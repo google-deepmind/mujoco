@@ -209,7 +209,7 @@ def least_squares(
 
   # Decrease mu agressively: sequential decreases grow exponentially.
   def decrease_mu(mu, n_reduc):
-    dmu = (1/mu_factor) ** (2**n_reduc)
+    dmu = (1 / mu_factor) ** (2**n_reduc)
     mu = 0.0 if mu * dmu < mu_min else mu * dmu
     n_reduc += 1
     return mu, n_reduc
@@ -427,7 +427,6 @@ def jacobian_fd(
   Returns:
     jac: Jacobian of the residual at x.
     n_res: updated number of residual evaluations (add x.size).
-
   """
   n = x.size
   if bounds is None:
@@ -438,7 +437,7 @@ def jacobian_fd(
   xh = x + np.diag(eps_vec)
   rh = residual(xh)
   jac = (rh - r) / eps_vec
-  return jac, n_res+n
+  return jac, n_res + n
 
 
 def check_jacobian(
@@ -467,14 +466,15 @@ def check_jacobian(
 
   Returns:
     n_res: updated number of residual evaluations.
-
   """
   jac_fd, n_res = jacobian_fd(residual, x, r, eps, n_res, bounds)
   denom = np.abs(jac).sum() + np.abs(jac_fd).sum() + 1e-8
   rel_diff = np.abs(jac - jac_fd) / denom
   if np.any(rel_diff > 1e-5):
-    raise ValueError(f'User-provided {name} does not match finite-differences '
-                     'to a relative tolerance of 1e-5.')
+    raise ValueError(
+        f'User-provided {name} does not match finite-differences '
+        'to a relative tolerance of 1e-5.'
+    )
   print(f'User-provided {name} matches finite-differences.', file=output)
   return n_res
 
@@ -489,8 +489,8 @@ def check_norm(
 
   Args:
     r: residual vector.
-    norm: Norm function returning either the norm scalar or its gradient
-      and Gauss-Newton Hessian.
+    norm: Norm function returning either the norm scalar or its gradient and
+      Gauss-Newton Hessian.
     eps: finite-difference step size.
     output: Optional file or StringIO to which to print messages.
   """
@@ -506,12 +506,16 @@ def check_norm(
   # Check that Hessian is positive-definite.
   if np.any(np.linalg.eigvals(n_h) < 0):
     h_min = np.min(np.linalg.eigvals(n_h))
-    raise ValueError('User-provided norm Hessian is not positive definite. '
-                     f'Minimum eigenvalue is {h_min:<.4g}')
+    raise ValueError(
+        'User-provided norm Hessian is not positive definite. '
+        f'Minimum eigenvalue is {h_min:<.4g}'
+    )
 
   # Local function returning norm values (vectorized).
   def norm_vec(v):
-    norms = [np.atleast_2d(norm.value(v[:, i:i+1])) for i in range(v.shape[1])]
+    norms = [
+        np.atleast_2d(norm.value(v[:, i : i + 1])) for i in range(v.shape[1])
+    ]
     return np.hstack(norms)
 
   # Check the norm gradient.
@@ -519,7 +523,9 @@ def check_norm(
 
   # Local function returning norm gradients (vectorized).
   def grad_vec(v):
-    gradients = [norm.grad_hess(v[:, i:i+1], eye)[0] for i in range(v.shape[1])]
+    gradients = [
+        norm.grad_hess(v[:, i : i + 1], eye)[0] for i in range(v.shape[1])
+    ]
     return np.hstack(gradients)
 
   # Check the norm Hessian.

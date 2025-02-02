@@ -31,6 +31,7 @@ from mujoco.mjx._src.types import Model
 
 def _spring_damper(m: Model, d: Data) -> jax.Array:
   """Applies joint level spring and damping forces."""
+
   def fn(jnt_typs, stiffness, qpos_spring, qpos):
     qpos_i = 0
     qfrcs = []
@@ -69,6 +70,13 @@ def _spring_damper(m: Model, d: Data) -> jax.Array:
 
   # dof-level dampers
   qfrc -= m.dof_damping * d.qvel
+
+  # tendon-level spring-dampers
+  below, above = m.tendon_lengthspring.T - d.ten_length
+  frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
+  frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
+  frc_damper = -m.tendon_damping * d.ten_velocity
+  qfrc += d.ten_J.T @ (frc_spring + frc_damper)
 
   return qfrc
 

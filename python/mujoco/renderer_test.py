@@ -20,9 +20,11 @@ import mujoco
 import numpy as np
 
 
-@absltest.skipUnless(hasattr(mujoco, 'GLContext'),
-                     'MuJoCo rendering is disabled')
+@absltest.skipUnless(
+    hasattr(mujoco, 'GLContext'), 'MuJoCo rendering is disabled'
+)
 class MuJoCoRendererTest(parameterized.TestCase):
+
   def test_renderer_unknown_camera_name(self):
     xml = """
 <mujoco>

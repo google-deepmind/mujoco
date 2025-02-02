@@ -36,6 +36,9 @@
           mjtNum* mat2  = d->geom_xmat + 9*g2;
 // mjc_ConvexHField modifies and then restores pos2 and mat2
 
+// minimum number of vertices to use hill-climbing in mesh support
+#define mjMESH_HILLCLIMB_MIN 10
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,24 +48,36 @@ struct _mjCCDObj {
   const mjModel* model;
   const mjData* data;
   int geom;
+  int geom_type;
   int meshindex;
   int flex;
   int elem;
   int vert;
   mjtNum margin;
   mjtNum rotate[4];
-  mjtNum x0[3];  // initial guess of the witness point
+  void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
+  void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
+  mjtNum prism[6][3];  // for hfield
 };
 typedef struct _mjCCDObj mjCCDObj;
 
-// support function for convex collision algorithms
-MJAPI void mjc_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+// initialize a CCD object
+MJAPI void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjtNum margin);
 
 // center function for convex collision algorithms
 MJAPI void mjc_center(mjtNum res[3], const mjCCDObj *obj);
 
-// ccd support function
-void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
+// libccd center function
+MJAPI void mjccd_center(const void *obj, ccd_vec3_t *center);
+
+// libccd support function
+MJAPI void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
+
+// support function for point
+void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
+// support function for line (capsule)
+void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
 
 // pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,
@@ -76,7 +91,7 @@ int mjc_Convex        (const mjModel* m, const mjData* d,
 int mjc_ConvexElem    (const mjModel* m, const mjData* d, mjContact* con,
                        int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin);
 
-// heighfield-elem collision function using ccd
+// heightfield-elem collision function using ccd
 int mjc_HFieldElem    (const mjModel* m, const mjData* d, mjContact* con,
                        int g, int f, int e, mjtNum margin);
 

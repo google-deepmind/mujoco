@@ -14,15 +14,35 @@
 
 #include "user/user_util.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cerrno>
+#include <climits>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
+
+
+// workaround with locale bug on some MacOS machines
+#if defined (__APPLE__) && defined (__MACH__)
+#include <xlocale.h>
+#include <locale.h>
+
+#define strtof(X, Y) strtof_l((X), (Y), _c_locale)
+#define strtod(X, Y) strtod_l((X), (Y), _c_locale)
+#endif
 
 // check if numeric variable is defined
 bool mjuu_defined(double num) {
@@ -934,3 +954,304 @@ std::string mjuu_extToContentType(std::string_view filename) {
     return "";
   }
 }
+
+// get the length of the dirname portion of a given path
+int mjuu_dirnamelen(const char* path) {
+  if (!path) {
+    return 0;
+  }
+
+  int pos = -1;
+  for (int i = 0; path[i]; ++i) {
+    if (path[i] == '/' || path[i] == '\\') {
+      pos = i;
+    }
+  }
+
+  return pos + 1;
+}
+
+namespace mujoco::user {
+
+std::string FilePath::Combine(const std::string& s1, const std::string& s2) {
+  // str2 has absolute path
+  if (!AbsPrefix(s2).empty()) {
+    return s2;
+  }
+
+  std::size_t n = s1.size();
+  if (n > 0 && s1[n - 1] != '\\' && s1[n - 1] != '/') {
+    return s1 + "/" + s2;
+  }
+  return s1 + s2;
+}
+
+std::string FilePath::PathReduce(const std::string& str) {
+  std::vector<std::string> dirs;
+  std::string abs_prefix = AbsPrefix(str);
+
+  int j = abs_prefix.size();
+
+  for (int i = j; i < str.size(); ++i) {
+    if (IsSeparator(str[i])) {
+      std::string temp = str.substr(j, i - j);
+      j = i + 1;
+      if (temp == ".." && !dirs.empty() && dirs.back() != "..") {
+        dirs.pop_back();
+      } else if (temp != ".") {
+        dirs.push_back(std::move(temp));
+      }
+    }
+  }
+
+  // push the rest of the string
+  dirs.push_back(str.substr(j, str.size() - j));
+
+  // join the path
+  std::stringstream path;
+  auto it = dirs.begin();
+  path << abs_prefix << *it++;
+  for (; it != dirs.end(); ++it) {
+    path << "/" << *it;
+  }
+  return path.str();
+}
+
+FilePath FilePath::operator+(const FilePath& path) const {
+  return FilePath(path_, path.path_);
+}
+
+std::string FilePath::Ext() const {
+  std::size_t n = path_.find_last_of('.');
+
+  if (n == std::string::npos) {
+    return "";
+  }
+  return path_.substr(n, path_.size() - n);
+}
+
+FilePath FilePath::StripExt() const {
+  size_t n = path_.find_last_of('.');
+
+  // no extension
+  if (n == std::string::npos) {
+    return FilePathFast(path_);
+  }
+
+  // return path without extension
+  return FilePathFast(path_.substr(0, n));
+}
+
+// is directory absolute path
+std::string FilePath::AbsPrefix(const std::string& str) {
+  // empty: not absolute
+  if (str.empty()) {
+    return "";
+  }
+
+  // path is scheme:filename which we consider an absolute path
+  // e.g. file URI's are always absolute paths
+  const mjpResourceProvider* provider = mjp_getResourceProvider(str.c_str());
+  if (provider != nullptr) {
+    std::size_t n = std::strlen(provider->prefix);
+    return str.substr(0, n + 1);
+  }
+
+  // check first char
+  if (str[0] == '\\' || str[0] == '/') {
+    return str.substr(0, 1);
+  }
+
+  // find ":/" or ":\"
+  std::size_t pos = str.find(":/");
+  if (pos != std::string::npos) {
+    return str.substr(0, pos + 2);
+  }
+
+  pos = str.find(":\\");
+  if (pos != std::string::npos) {
+    return str.substr(0, pos + 2);
+  }
+
+  return "";
+}
+
+FilePath FilePath::StripPath() const {
+  // find last path symbol
+  std::size_t n = path_.find_last_of("/\\");
+
+  // no path
+  if (n == std::string::npos) {
+    return FilePathFast(path_);
+  }
+
+  return FilePathFast(path_.substr(n + 1, path_.size() - (n + 1)));
+}
+
+std::string FilePath::StrLower() const {
+  std::string str = path_;
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return str;
+}
+
+// read file into memory buffer
+std::vector<uint8_t> FileToMemory(const char* filename) {
+  FILE* fp = fopen(filename, "rb");
+  if (!fp) {
+    return {};
+  }
+
+  // find size
+  if (fseek(fp, 0, SEEK_END) != 0) {
+    fclose(fp);
+    mju_warning("Failed to calculate size for '%s'", filename);
+    return {};
+  }
+
+  // ensure file size fits in int
+  long long_filesize = ftell(fp);  // NOLINT(runtime/int)
+  if (long_filesize > INT_MAX) {
+    fclose(fp);
+    mju_warning("File size over 2GB is not supported. File: '%s'", filename);
+    return {};
+  } else if (long_filesize < 0) {
+    fclose(fp);
+    mju_warning("Failed to calculate size for '%s'", filename);
+    return {};
+  }
+
+  std::vector<uint8_t> buffer(long_filesize);
+
+  // go back to start of file
+  if (fseek(fp, 0, SEEK_SET) != 0) {
+    fclose(fp);
+    mju_warning("Read error while reading '%s'", filename);
+    return {};
+  }
+
+  // allocate and read
+  std::size_t bytes_read = fread(buffer.data(), 1, buffer.size(), fp);
+
+  // check that read data matches file size
+  if (bytes_read != buffer.size()) {  // SHOULD NOT OCCUR
+    if (ferror(fp)) {
+      fclose(fp);
+      mju_warning("Read error while reading '%s'", filename);
+      return {};
+    } else if (feof(fp)) {
+      buffer.resize(bytes_read);
+    }
+  }
+
+  // close file, return contents
+  fclose(fp);
+  return buffer;
+}
+
+// convert vector to string separating elements by whitespace
+template<typename T> std::string VectorToString(const std::vector<T>& v) {
+  std::stringstream ss;
+
+  for (const T& t : v) {
+    ss << t << " ";
+  }
+
+  std::string s = ss.str();
+  if (!s.empty()) s.pop_back();  // remove trailing space
+  return s;
+}
+
+template std::string VectorToString(const std::vector<int>& v);
+template std::string VectorToString(const std::vector<float>& v);
+template std::string VectorToString(const std::vector<double>& v);
+template std::string VectorToString(const std::vector<std::string>& v);
+
+namespace {
+
+template<typename T> T StrToNum(char* str, char** c);
+
+template<> int StrToNum(char* str, char** c) {
+  long n = std::strtol(str, c, 10);
+  if (n < INT_MIN || n > INT_MAX) errno = ERANGE;
+  return n;
+}
+
+template<> float StrToNum(char* str, char** c) {
+  float f = strtof(str, c);
+  if (std::isnan(f)) errno = EDOM;
+  return f;
+}
+
+template<> double StrToNum(char* str, char** c) {
+  double d = strtod(str, c);
+  if (std::isnan(d)) errno = EDOM;
+  return d;
+}
+
+template<> unsigned char StrToNum(char* str, char** c) {
+  long n = std::strtol(str, c, 10);
+  if (n < 0 || n > UCHAR_MAX) errno = ERANGE;
+  return n;
+}
+
+inline bool IsNullOrSpace(char* c) {
+  return std::isspace(static_cast<unsigned char>(*c)) || *c == '\0';
+}
+
+inline char* SkipSpace(char* c) {
+  for (; *c != '\0'; c++) {
+    if (!IsNullOrSpace(c)) {
+      break;
+    }
+  }
+  return c;
+}
+}  // namespace
+
+template <typename T> std::vector<T> StringToVector(char* cs) {
+  std::vector<T> v;
+  char* ch = cs;
+
+  errno = 0;
+  // reserve worst case
+  v.reserve((std::strlen(cs) >> 1) + 1);
+
+  for (;;) {
+    cs = SkipSpace(ch);                      // skip leading spaces
+    if (*cs == '\0') break;                  // end of string
+    T num = StrToNum<T>(cs, &ch);            // parse number
+    if (!IsNullOrSpace(ch)) errno = EINVAL;  // invalid separator
+    if (cs == ch) errno = EINVAL;            // failed to parse number
+    if (errno && errno != EDOM) break;       // NaNs are quietly ignored
+    v.push_back(num);
+  }
+
+  v.shrink_to_fit();
+  return v;
+}
+
+template<> std::vector<std::string> StringToVector(const std::string& s) {
+  std::vector<std::string> v;
+  std::stringstream ss(s);
+  std::string word;
+  while (ss >> word) {
+    v.push_back(word);
+  }
+  return v;
+}
+
+template std::vector<int>    StringToVector(char* cs);
+template std::vector<float>  StringToVector(char* cs);
+template std::vector<double> StringToVector(char* cs);
+
+
+template <typename T> std::vector<T> StringToVector(const std::string& s) {
+  return StringToVector<T>(const_cast<char*>(s.c_str()));
+}
+template std::vector<int>    StringToVector(const std::string& s);
+template std::vector<float>  StringToVector(const std::string& s);
+template std::vector<double> StringToVector(const std::string& s);
+template std::vector<unsigned char> StringToVector(const std::string& s);
+
+}  // namespace mujoco::user

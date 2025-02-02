@@ -29,16 +29,14 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
-using ::testing::DoubleNear;
-using ::testing::Eq;
+using ::std::vector;
 using ::testing::ContainsRegex;  // NOLINT
-using ::testing::MatchesRegex;
-using ::testing::Pointwise;
+using ::testing::DoubleNear;
 using ::testing::ElementsAreArray;
+using ::testing::Eq;
+using ::testing::MatchesRegex;
+using ::testing::NotNull;
+using ::testing::Pointwise;
 
 using AngMomMatTest = MujocoTest;
 
@@ -283,6 +281,164 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   mju_free(jac_subtree);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+static constexpr char kQuat[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="query">
+      <joint type="ball"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="2 3 5"/>
+  </keyframe>
+</mujoco>
+)";
+
+static constexpr char kFreeBall[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="distractor1" pos="0 0 .3">
+      <freejoint/>
+      <geom size=".1"/>
+    </body>
+    <body name="main">
+      <freejoint/>
+      <geom size=".1"/>
+      <body pos=".1 0 0">
+        <joint axis="0 1 0"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 .2 0 0"/>
+        <body pos=".2 0 0">
+          <joint type="ball" stiffness="20"/>
+          <geom type="capsule" size=".03" fromto="0 0 0 0 .2 0"/>
+          <body name="query" pos="0 .2 0">
+            <joint type="slide" axis="1 1 1"/>
+            <geom size=".05"/>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="distractor2" pos="0 0 -.3">
+      <freejoint/>
+      <geom size=".1"/>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"/>
+  </keyframe>
+</mujoco>
+)";
+
+static constexpr char kQuatlessPendulum[] = R"(
+<mujoco>
+  <option integrator="implicit">
+    <flag constraint="disable"/>
+  </option>
+  <worldbody>
+    <body pos="0.15 0 0">
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+      <body pos="0.1 0 0">
+        <joint type="slide" axis="1 0 0" stiffness="200"/>
+        <geom type="capsule" size="0.015" fromto="-.1 0 0 .1 0 0"/>
+        <body pos=".1 0 0">
+          <joint axis="1 0 0"/>
+          <joint axis="0 1 0"/>
+          <joint axis="0 0 1"/>
+          <geom type="box" size=".02" fromto="0 0 0 0 .1 0"/>
+          <body name="query" pos="0 .1 0">
+            <joint axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 0 .1 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char kTelescope[] = R"(
+<mujoco>
+  <worldbody>
+    <body>
+      <joint type="ball"/>
+      <geom type="capsule" size="0.02" fromto="0 .02 0 .1 .02 0"/>
+      <body pos=".1 .02 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+        <body pos=".1 .02 0">
+          <joint type="slide" axis="1 0 0"/>
+          <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+          <body pos=".1 .02 0" name="query">
+            <joint type="slide" axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <keyframe>
+    <key qvel="1 1 1 1 1 1"/>
+  </keyframe>
+</mujoco>
+)";
+
+// compare mj_jacDot with finite-differenced mj_jac
+TEST_F(JacobianTest, JacDot) {
+  for (auto xml : {kQuat, kFreeBall, kQuatlessPendulum, kTelescope}) {
+    mjModel* model = LoadModelFromString(xml);
+    int nv = model->nv;
+    mjtNum point[3] = {.01, .02, .03};
+    mjData* data = mj_makeData(model);
+
+    // load keyframe if present, step for a bit
+    if (model->nkey) mj_resetDataKeyframe(model, data, 0);
+    while (data->time < 0.1) {
+      mj_step(model, data);
+    }
+
+    // minimal call required for mj_jacDot outputs to be valid
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mj_comVel(model, data);
+
+    // get bodyid
+    int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
+    EXPECT_GT(bodyid, 0);
+
+    // jac, jac_dot
+    mj_markStack(data);
+    mjtNum* jac = mj_stackAllocNum(data, 6*nv);
+    mj_jac(model, data, jac, jac+3*nv, point, bodyid);
+    mjtNum* jac_dot =  mj_stackAllocNum(data, 6*nv);
+    mj_jacDot(model, data, jac_dot, jac_dot+3*nv, point, bodyid);
+
+    // jac_h: jacobian after integrating qpos with a timestep of h
+    mjtNum h = 1e-7;
+    mj_integratePos(model, data->qpos, data->qvel, h);
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mjtNum* jac_h =  mj_stackAllocNum(data, 6*nv);;
+    mj_jac(model, data, jac_h, jac_h+3*nv, point, bodyid);
+
+    // jac_dot_h finite-difference approximation
+    mjtNum* jac_dot_h = mj_stackAllocNum(data, 6*nv);;
+    mju_sub(jac_dot_h, jac_h, jac, 6*nv);
+    mju_scl(jac_dot_h, jac_dot_h, 1/h, 6*nv);
+
+    // compare finite-differenced and analytic
+    mjtNum tol = 1e-5;
+    for (int j=0; j < 6; j++) {
+      EXPECT_THAT(AsVector(jac_dot_h + j*nv, nv),
+                  Pointwise(DoubleNear(tol), AsVector(jac_dot + j*nv, nv)));
+    }
+
+    mj_freeStack(data);
+    mj_deleteData(data);
+    mj_deleteModel(model);
+  }
 }
 
 using Name2idTest = MujocoTest;
@@ -530,10 +686,10 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   mj_deleteModel(model);
 }
 
-using AddMTest = MujocoTest;
+using InertiaTest = MujocoTest;
 
-TEST_F(AddMTest, DenseSameAsSparse) {
-  mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+TEST_F(InertiaTest, DenseSameAsSparse) {
+  mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
   mjData* d = mj_makeData(m);
   int nv = m->nv;
 
@@ -569,12 +725,82 @@ TEST_F(AddMTest, DenseSameAsSparse) {
   // dense addM
   mj_addM(m, d, dst_dense.data(), nullptr, nullptr, nullptr);
 
-  // dense comparison, should be same matrix
-  EXPECT_THAT(dst_dense, ElementsAreArray(dst_sparse));
+  // dense comparison, lower triangle should match
+  for (int i=0; i < nv; i++) {
+    for (int j=0; j < i; j++) {
+      EXPECT_EQ(dst_dense[i*nv+j], dst_sparse[i*nv+j]);
+    }
+  }
 
   // clean up
   mj_deleteData(d);
   mj_deleteModel(m);
+}
+
+static const char* const kInertiaPath = "engine/testdata/inertia.xml";
+
+TEST_F(InertiaTest, mulM) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // dense M matrix
+  vector<mjtNum> Mdense(nv*nv);
+  mj_fullM(model, Mdense.data(), data->qM);
+
+  // arbitrary RHS vector
+  vector<mjtNum> vec(nv);
+  for (int i=0; i < nv; i++) vec[i] = vec[i] = 20 + 30*i;
+
+  // multiply directly
+  vector<mjtNum> res1(nv, 0);
+  mju_mulMatVec(res1.data(), Mdense.data(), vec.data(), nv, nv);
+
+  // multiply with mj_mulM
+  vector<mjtNum> res2(nv, 0);
+  mj_mulM(model, data, res2.data(), vec.data());
+
+  // expect vectors to match to floating point precision
+  EXPECT_THAT(res1, Pointwise(DoubleNear(1e-10), res2));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(InertiaTest, mulM2) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // arbitrary RHS vector
+  vector<mjtNum> vec(nv);
+  for (int i=0; i < nv; i++) vec[i] = .2 + .3*i;
+
+  // multiply sqrtMvec = M^1/2 * vec
+  vector<mjtNum> sqrtMvec(nv);
+  mj_mulM2(model, data, sqrtMvec.data(), vec.data());
+
+  // multiply Mvec = M * vec
+  vector<mjtNum> Mvec(nv);
+  mj_mulM(model, data, Mvec.data(), vec.data());
+
+  // compute vec' * M * vec in two different ways, expect them to match
+  mjtNum sqrtMvec2 = mju_dot(sqrtMvec.data(), sqrtMvec.data(), nv);
+  mjtNum vecMvec = mju_dot(vec.data(), Mvec.data(), nv);
+  EXPECT_FLOAT_EQ(sqrtMvec2, vecMvec);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 static const char* const kIlslandEfcPath =
@@ -650,6 +876,9 @@ TEST_F(SupportTest, MulMIsland) {
 
 static constexpr char GeomDistanceTestingModel[] = R"(
 <mujoco>
+  <option>
+    <flag nativeccd="enable"/>
+  </option>
   <asset>
     <mesh name="box" scale=".1 .1 .1" vertex="0 0 0  1 0 0  0 1 0  1 1 0
                                               0 0 1  1 0 1  0 1 1  1 1 1"/>
@@ -698,25 +927,20 @@ TEST_F(SupportTest, GeomDistance) {
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
                                 std::vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
 
-  // TODO: b/339596989 - Improve the bounds below (mjc_Convex).
-
   // mesh-sphere (close distmax)
   distmax = 0.701;
-  eps = 1e-5;
+  eps = model->opt.ccd_tolerance;
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
               DoubleNear(0.7, eps));
-  eps = 1e-3;
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+                                std::vector<mjtNum>{0, 0, .8, 0, 0, .1}));
 
   // mesh-sphere (far distmax)
   distmax = 1.0;
-  eps = 1e-3;
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
               DoubleNear(0.7, eps));
-  eps = 2e-2;
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{0, 0, .1, 0, 0, .8}));
+                                std::vector<mjtNum>{0, 0, .8, 0, 0, .1}));
 
   mj_deleteData(data);
   mj_deleteModel(model);

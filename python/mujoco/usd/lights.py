@@ -12,17 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+"""Light handling for USD exporter."""
+
 from typing import Optional
 
 import numpy as np
 
+# TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
+# pytype: disable=module-attr
 from pxr import Gf
 from pxr import Usd
 from pxr import UsdGeom
 from pxr import UsdLux
 
+
 class USDSphereLight:
-  """Class that handles the sphere lights in the USD scene"""
+  """Class that handles the sphere lights in the USD scene."""
+
   def __init__(
       self, stage: Usd.Stage, light_name: str, radius: Optional[float] = 0.3
   ):
@@ -43,11 +49,7 @@ class USDSphereLight:
     self.translate_op = self.usd_xform.AddTranslateOp()
 
   def update(
-    self,
-    pos: np.ndarray,
-    intensity: int,
-    color: np.ndarray,
-    frame: int
+      self, pos: np.ndarray, intensity: int, color: np.ndarray, frame: int
   ):
     """Updates the attributes of a sphere light."""
     self.translate_op.Set(Gf.Vec3d(pos.tolist()), frame)
@@ -60,7 +62,8 @@ class USDSphereLight:
 
 
 class USDDomeLight:
-  """Class that handles the dome lights in the USD scene"""
+  """Class that handles the dome lights in the USD scene."""
+
   def __init__(self, stage: Usd.Stage, light_name: str):
     self.stage = stage
 

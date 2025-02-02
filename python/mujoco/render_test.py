@@ -19,8 +19,9 @@ import mujoco
 import numpy as np
 
 
-@absltest.skipUnless(hasattr(mujoco, 'GLContext'),
-                     'MuJoCo rendering is disabled')
+@absltest.skipUnless(
+    hasattr(mujoco, 'GLContext'), 'MuJoCo rendering is disabled'
+)
 class MuJoCoRenderTest(absltest.TestCase):
 
   def setUp(self):
@@ -48,8 +49,14 @@ class MuJoCoRenderTest(absltest.TestCase):
 
     scene = mujoco.MjvScene(self.model, maxgeom=0)
     mujoco.mjv_updateScene(
-        self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),
-        mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL, scene)
+        self.model,
+        self.data,
+        mujoco.MjvOption(),
+        mujoco.MjvPerturb(),
+        mujoco.MjvCamera(),
+        mujoco.mjtCatBit.mjCAT_ALL,
+        scene,
+    )
 
     context = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150)
     mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
@@ -62,7 +69,7 @@ class MuJoCoRenderTest(absltest.TestCase):
     mujoco.mjr_rectangle(blue_rect, 0, 0, 1, 1)
 
     expected_upside_down_image = np.zeros((480, 640, 3), dtype=np.uint8)
-    expected_upside_down_image[67:67+123, 56:56+234, 2] = 255
+    expected_upside_down_image[67 : 67 + 123, 56 : 56 + 234, 2] = 255
 
     upside_down_image = np.empty((480, 640, 3), dtype=np.uint8)
     mujoco.mjr_readPixels(upside_down_image, None, full_rect, context)
@@ -71,7 +78,8 @@ class MuJoCoRenderTest(absltest.TestCase):
     # Check that mjr_readPixels can accept a flattened array.
     upside_down_image[:] = 0
     mujoco.mjr_readPixels(
-        np.reshape(upside_down_image, -1), None, full_rect, context)
+        np.reshape(upside_down_image, -1), None, full_rect, context
+    )
     np.testing.assert_array_equal(upside_down_image, expected_upside_down_image)
     context.free()
 
@@ -81,8 +89,14 @@ class MuJoCoRenderTest(absltest.TestCase):
 
     scene = mujoco.MjvScene(self.model, maxgeom=0)
     mujoco.mjv_updateScene(
-        self.model, self.data, mujoco.MjvOption(), None,
-        mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL, scene)
+        self.model,
+        self.data,
+        mujoco.MjvOption(),
+        None,
+        mujoco.MjvCamera(),
+        mujoco.mjtCatBit.mjCAT_ALL,
+        scene,
+    )
 
     context = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150)
     mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)

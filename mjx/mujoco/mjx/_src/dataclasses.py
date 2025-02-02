@@ -16,7 +16,6 @@
 
 import copy
 import dataclasses
-
 import typing
 from typing import Dict, Optional, Sequence, Tuple, TypeVar, Union
 import jax
@@ -57,7 +56,7 @@ def dataclass(clz: _T) -> _T:
       meta_fields.append(field)
 
   def replace(self, **updates):
-    """"Returns a new object replacing the specified fields with new values."""
+    """Returns a new object replacing the specified fields with new values."""
     return dataclasses.replace(self, **updates)
 
   data_clz.replace = replace

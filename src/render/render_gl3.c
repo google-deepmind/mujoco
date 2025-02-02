@@ -22,7 +22,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_crossplatform.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_vis_init.h"
 #include "render/render_context.h"
 #include "render/render_gl2.h"
@@ -63,7 +63,9 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   float plane[4], scl[2];
   int texid = -1;
   if (geom) {
-    texid = (geom->matid == -1) ? -1 : con->mat_texid[mjNTEXMAT * geom->matid];
+    if (geom->matid >= 0) {
+      texid = con->mat_texid[mjNTEXROLE * geom->matid + mjTEXROLE_RGB];
+    }
   }
 
   // shadow
@@ -93,7 +95,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   // explicit texture coordinates
   else if (type == mjtexREGULAR && geom->texcoord) {
     // enable
-    if (state) {
+    if (state && texid >= 0) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_2D);
       glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
@@ -107,7 +109,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   }
 
   // 2D
-  else if (type == mjtexREGULAR && con->textureType[texid] == mjTEXTURE_2D) {
+  else if (type == mjtexREGULAR && texid >= 0 && con->textureType[texid] == mjTEXTURE_2D) {
     // enable
     if (state) {
       glActiveTexture(GL_TEXTURE0);
@@ -159,7 +161,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   // cube or skybox
   else {
     // enable
-    if (state) {
+    if (state && texid >= 0) {
       glActiveTexture(GL_TEXTURE0);
       glEnable(GL_TEXTURE_CUBE_MAP);
       glEnable(GL_TEXTURE_GEN_S);
@@ -764,10 +766,10 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
 
 
 // comparison function for geom sorting
-quicksortfunc(geomcompare, context, el1, el2) {
+static inline int geomcmp(int* i, int* j, void* context) {
   mjvGeom* geom = (mjvGeom*) context;
-  float d1 = geom[*(int*)el1].camdist;
-  float d2 = geom[*(int*)el2].camdist;
+  float d1 = geom[*i].camdist;
+  float d2 = geom[*j].camdist;
 
   if (d1 < d2) {
     return -1;
@@ -777,6 +779,9 @@ quicksortfunc(geomcompare, context, el1, el2) {
     return 1;
   }
 }
+
+// define geomSort function for sorting geoms
+mjSORT(geomSort, int, geomcmp)
 
 
 
@@ -905,7 +910,11 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // sort transparent geoms according to distance to camera
-  mjQUICKSORT(scn->geomorder, nt, sizeof(int), geomcompare, scn->geoms);
+  if (nt > 1) {
+    int *buf = (int*) mju_malloc(nt * sizeof(int));
+    geomSort(scn->geomorder, buf, nt, scn->geoms);
+    mju_free(buf);
+  }
 
   // allow only one reflective geom
   int j = 0;

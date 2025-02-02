@@ -28,7 +28,7 @@ MuJoCo defines a large number of types:
     - :ref:`mjOption` (embedded in :ref:`mjModel`).
     - :ref:`mjData`.
 
-  - :ref:`Auxillary struct types<tyAuxStructure>`, also used by the engine.
+  - :ref:`Auxiliary struct types<tyAuxStructure>`, also used by the engine.
   - Structs for collecting :ref:`simulation statistics<tyStatStructure>`.
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
   - Structs used by the :ref:`openGL renderer<tyRenderStructure>`.
@@ -173,6 +173,17 @@ mjtTexture
 Texture types, specifying how the texture will be mapped. These values are used in ``m->tex_type``.
 
 .. mujoco-include:: mjtTexture
+
+
+.. _mjtTextureRole:
+
+mjtTextureRole
+~~~~~~~~~~~~~~
+
+Texture roles, specifying how the renderer should interpret the texture.  Note that the MuJoCo built-in renderer only
+uses RGB textures.  These values are used to store the texture index in the material's array ``m->mat_texid``.
+
+.. mujoco-include:: mjtTextureRole
 
 
 .. _mjtIntegrator:
@@ -334,6 +345,16 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 
 .. mujoco-include:: mjtDataType
 
+
+.. _mjtSameFrame:
+
+mjtSameFrame
+~~~~~~~~~~~~
+
+Types of frame alignment of elements with their parent bodies. Used as shortcuts during :ref:`mj_kinematics` in the
+last argument to :ref:`mj_local2global`.
+
+.. mujoco-include:: mjtSameFrame
 
 
 .. _tyDataEnums:
@@ -637,6 +658,15 @@ Type of limit specification.
 
 .. mujoco-include:: mjtLimited
 
+.. _mjtAlignFree:
+
+mjtAlignFree
+~~~~~~~~~~~~
+
+Whether to align free joints with the inertial frame.
+
+.. mujoco-include:: mjtAlignFree
+
 .. _mjtInertiaFromGeom:
 
 mjtInertiaFromGeom
@@ -722,7 +752,7 @@ modifiable inputs and write their outputs.
 
 .. _tyAuxStructure:
 
-Auxillary
+Auxiliary
 ^^^^^^^^^
 
 These struct types are used in the engine and their names are prefixed with ``mj``. :ref:`mjVisual`
@@ -945,7 +975,7 @@ mjvSceneState
 This structure contains the portions of :ref:`mjModel` and :ref:`mjData` that are required for
 various ``mjv_*`` functions.
 
-.. mujoco-include:: mjvScene
+.. mujoco-include:: mjvSceneState
 
 
 .. _mjvFigure:
@@ -1078,12 +1108,13 @@ is initialized, others change at runtime.
 
 .. _tySpecStructure:
 
-mjSpec
-^^^^^^
+Model Editing
+^^^^^^^^^^^^^
 
-The strucs below are defined in `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
-and, with the exception of the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix.
-For more details, see the :doc:`Model Editing <../programming/modeledit>` chapter.
+The structs below are defined in
+`mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__ and, with the exception of
+the top level :ref:`mjSpec` struct, begin with the ``mjs`` prefix. For more details, see the :doc:`Model Editing
+<../programming/modeledit>` chapter.
 
 .. _mjSpec:
 
@@ -1100,19 +1131,23 @@ Model specification.
 mjsElement
 ~~~~~~~~~~
 
-Special type corresponding to any element.
+Special type corresponding to any element. This struct is the first member of all other elements; in the low-level C++
+implementation, it is not included as a member but via class inheritance. Inclusion via inheritance allows the compiler
+to ``static_cast`` an ``mjsElement`` to the correct C++ object class. Unlike all other attributes of the structs below,
+which are user-settable by design, modifying the contents of an ``mjsElement`` is not allowed and leads to undefined
+behavior.
 
 .. mujoco-include:: mjsElement
 
 
-.. _mjsOrientation:
+.. _mjsCompiler:
 
-mjsOrientation
-~~~~~~~~~~~~~~
+mjsCompiler
+~~~~~~~~~~~
 
-Alternative orientation specifiers.
+Compiler options.
 
-.. mujoco-include:: mjsOrientation
+.. mujoco-include:: mjsCompiler
 
 
 .. _mjsBody:
@@ -1375,6 +1410,20 @@ Plugin specification.
 .. mujoco-include:: mjsPlugin
 
 
+.. _mjsOrientation:
+
+mjsOrientation
+~~~~~~~~~~~~~~
+
+Alternative orientation specifiers.
+
+.. mujoco-include:: mjsOrientation
+
+
+.. _ArrayHandles:
+
+.. _mjByteVec:
+
 .. _mjString:
 
 .. _mjStringVec:
@@ -1392,7 +1441,8 @@ Plugin specification.
 Array handles
 ~~~~~~~~~~~~~
 
-Explain how handles work.
+C handles for C++ strings and vector types. When using from C, use the provided :ref:`getters<AttributeGetters>` and
+:ref:`setters<AttributeSetters>`.
 
 .. code-block:: C++
 
@@ -1405,6 +1455,7 @@ Explain how handles work.
      using mjFloatVec    = std::vector<float>;
      using mjFloatVecVec = std::vector<std::vector<float>>;
      using mjDoubleVec   = std::vector<double>;
+     using mjByteVec     = std::vector<std::byte>;
    #else
      // C: opaque types
      typedef void mjString;
@@ -1414,6 +1465,7 @@ Explain how handles work.
      typedef void mjFloatVec;
      typedef void mjFloatVecVec;
      typedef void mjDoubleVec;
+     typedef void mjByteVec;
    #endif
 
 

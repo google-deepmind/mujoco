@@ -394,9 +394,9 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
 
 
 // move camera with mouse given a scene state; action is mjtMouse
-MJAPI void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
-                                   mjtNum reldx, mjtNum reldy,
-                                   const mjvScene* scn, mjvCamera* cam) {
+void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
+                             mjtNum reldx, mjtNum reldy,
+                             const mjvScene* scn, mjvCamera* cam) {
   mjModel m;
   mjv_assignFromSceneState(scnstate, &m, NULL);
   mjv_moveCamera(&m, action, reldx, reldy, scn, cam);
@@ -405,9 +405,9 @@ MJAPI void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
 
 
 // move perturb object with mouse given a scene state; action is mjtMouse
-MJAPI void mjv_movePerturbFromState(const mjvSceneState* scnstate, int action,
-                                    mjtNum reldx, mjtNum reldy,
-                                    const mjvScene* scn, mjvPerturb* pert) {
+void mjv_movePerturbFromState(const mjvSceneState* scnstate, int action,
+                              mjtNum reldx, mjtNum reldy,
+                              const mjvScene* scn, mjvPerturb* pert) {
   mjModel m;
   mjData d;
   mjv_assignFromSceneState(scnstate, &m, &d);
