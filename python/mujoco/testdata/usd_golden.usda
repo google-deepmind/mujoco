@@ -14,7 +14,7 @@ def Xform "World"
     def Xform "Light_Xform_0"
     {
         double3 xformOp:translate.timeSamples = {
-            0: (0, -3.674234628677368, 3.674234628677368),
+            0: (0, -6, 0),
         }
         uniform token[] xformOpOrder = ["xformOp:translate"]
 
@@ -25,6 +25,22 @@ def Xform "World"
             bool inputs:normalize = 1
             float inputs:radius = 0.3
             bool treatAsPoint = 0
+        }
+    }
+
+    def Xform "Camera_Xform_primary_camera"
+    {
+        matrix4d xformOp:transform.timeSamples = {
+            0: ( (1, 0, -0, 0), (0, 0.009999499656260014, 0.9999499917030334, 0), (0, -0.9999499917030334, 0.009999499656260014, 0), (0, -6, 0, 1) ),
+        }
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def Camera "Camera_primary_camera"
+        {
+            float2 clippingRange = (0.0001, 1000000)
+            float focalLength = 12
+            float focusDistance = 400
+            float horizontalAperture = 12
         }
     }
 
