@@ -981,6 +981,7 @@ class SpecsTest(absltest.TestCase):
     body2 = child2.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child2, site=site, prefix='child2-'))
     self.assertIsNone(child2.worldbody)
+    self.assertEqual(child2.parent, parent)
     body2.pos = [-1, -1, -1]
     model2 = parent.compile()
     self.assertIsNotNone(model2)
@@ -998,6 +999,7 @@ class SpecsTest(absltest.TestCase):
     body3 = child3.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child3, site='site', prefix='child3-'))
     self.assertIsNone(child3.worldbody)
+    self.assertEqual(child3.parent, parent)
     body3.pos = [-2, -2, -2]
     model3 = parent.compile()
     self.assertIsNotNone(model3)
@@ -1050,6 +1052,7 @@ class SpecsTest(absltest.TestCase):
     body2 = child2.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child2, frame=frame, prefix='child-'))
     self.assertIsNone(child2.worldbody)
+    self.assertEqual(child2.parent, parent)
     body2.pos = [-1, -1, -1]
     model2 = parent.compile()
     self.assertIsNotNone(model2)
@@ -1067,6 +1070,7 @@ class SpecsTest(absltest.TestCase):
     body3 = child3.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child3, frame='frame', prefix='child3-'))
     self.assertIsNone(child3.worldbody)
+    self.assertEqual(child3.parent, parent)
     body3.pos = [-2, -2, -2]
     model3 = parent.compile()
     self.assertIsNotNone(model3)

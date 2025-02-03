@@ -83,6 +83,7 @@ struct MjSpec {
     for (const auto [key, value] : other.assets) {
       assets[key] = value;
     }
+    parent = other.parent;
   }
   MjSpec& operator=(const MjSpec& other) {
     override_assets = other.override_assets;
@@ -90,6 +91,7 @@ struct MjSpec {
     for (const auto [key, value] : other.assets) {
       assets[key] = value;
     }
+    parent = other.parent;
     return *this;
   }
 
@@ -101,6 +103,8 @@ struct MjSpec {
       assets[key] = value;
     }
     other.assets.clear();
+    parent = other.parent;
+    other.parent = nullptr;
   }
   MjSpec& operator=(MjSpec&& other) {
     override_assets = other.override_assets;
@@ -110,6 +114,8 @@ struct MjSpec {
       assets[key] = value;
     }
     other.assets.clear();
+    parent = other.parent;
+    other.parent = nullptr;
     return *this;
   }
 
@@ -119,6 +125,7 @@ struct MjSpec {
   raw::MjSpec* ptr;
   py::dict assets;
   bool override_assets = true;
+  MjSpec* parent = nullptr;
 };
 
 template <typename LoadFunc>
@@ -272,6 +279,8 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSPEC =====================================
   mjSpec.def(py::init<>());
+  mjSpec.def_property_readonly(
+      "parent", [](MjSpec& self) -> MjSpec* { return self.parent; });
   mjSpec.def_static(
       "from_file",
       [](std::string& filename,
@@ -590,6 +599,7 @@ PYBIND11_MODULE(_specs, m) {
           }
           self.assets[asset.first] = asset.second;
         }
+        child.parent = &self;
         return mjs_bodyToFrame(&attached_world);
       },
       py::arg("child"), py::arg("prefix") = py::none(),
