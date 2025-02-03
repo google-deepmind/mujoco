@@ -810,12 +810,6 @@ PYBIND11_MODULE(_specs, m) {
         return FindAllImpl(self, mjOBJ_FRAME, false);
       },
       py::return_value_policy::reference_internal);
-  mjsBody.def(
-      "spec",
-      [](raw::MjsBody& self) -> raw::MjSpec* {
-        return mjs_getSpec(self.element);
-      },
-      py::return_value_policy::reference_internal);
   mjsBody.def_property_readonly(
       "parent",
       [](raw::MjsBody& self) -> raw::MjsBody* {
