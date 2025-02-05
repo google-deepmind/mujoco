@@ -40,6 +40,7 @@ typedef enum {
   mjEPA_P3_INVALID_V5,
   mjEPA_P3_MISSING_ORIGIN,
   mjEPA_P3_ORIGIN_ON_FACE,
+  mjEPA_P4_MISSING_ORIGIN,
 } mjEPAStatus;
 
 // configuration for convex collision detection

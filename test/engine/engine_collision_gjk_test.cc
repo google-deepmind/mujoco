@@ -877,6 +877,68 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD8) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, BoxBoxMultiCCD9) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <geom name="geom1" type="box" size=".025 .025 .025" pos="0 0 0"/>
+    <geom name="geom2" type="box" size=".025 .025 .025" pos="0 0 0"/>
+  </worldbody>
+</mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  mjtNum* xmat = data->geom_xmat;
+  mjtNum* xpos = data->geom_xpos;
+
+  xmat[0] = 1.0000000000000000000000000000000000000000;
+  xmat[1] = -0.0000000000000000000000000000000000050579;
+  xmat[2] = 0.0000000000000000001927715439853908006818;
+  xmat[3] = 0.0000000000000000000000000000000000056403;
+  xmat[4] = 1.0000000000000000000000000000000000000000;
+  xmat[5] = -0.0000000000000000030208514688407265124010;
+  xmat[6] = -0.0000000000000000001927715439853908006818;
+  xmat[7] = 0.0000000000000000030208514688407265124010;
+  xmat[8] = 1.0000000000000000000000000000000000000000;
+
+  xpos[0] = -0.1071400000000000268807198722242901567370;
+  xpos[1] = -0.1928599999999999758948376893386011943221;
+  xpos[2] = 0.1749951524564917204607183975895168259740;
+
+  xmat = data->geom_xmat + 9;
+  xpos = data->geom_xpos + 3;
+
+  xmat[0] = 1.0000000000000000000000000000000000000000;
+  xmat[1] = 0.0000000000000000000000000000000037070001;
+  xmat[2] = -0.0000000000000000649578747741268744461630;
+  xmat[3] = 0.0000000000000000000000000000000064174485;
+  xmat[4] = 1.0000000000000000000000000000000000000000;
+  xmat[5] = 0.0000000000000001558617582226398399563910;
+  xmat[6] = 0.0000000000000000649578747741268744461630;
+  xmat[7] = -0.0000000000000001558617582226398399563910;
+  xmat[8] = 1.0000000000000000000000000000000000000000;
+
+  xpos[0] = -0.1071400000000000268807198722242901567370;
+  xpos[1] = -0.1928599999999999758948376893386011943221;
+  xpos[2] = 0.2156259187793853615566774806211469694972;
+
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(dist, dir, pos, model, data, geom1, geom2, 0, 1000);
+
+  EXPECT_EQ(ncons, 4);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, SmallBoxMesh) {
   static constexpr char xml[] = R"(
   <mujoco>

@@ -81,6 +81,11 @@ static mjtNum attachFace(Polytope* pt, int v1, int v2, int v3, int adj1, int adj
 // status must have initial tetrahedrons
 static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 
+// create initial polytope for EPA for a 2, 3, or 4-simplex
+static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
+static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
+static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
+
 // return a face of the expanded polytope that best approximates the pentration depth
 // witness points are in status->{x1, x2}
 static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
@@ -808,7 +813,29 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
   }
 }
 
+
 // ---------------------------------------- EPA ---------------------------------------------------
+
+// replace a 3-simplex with one of its faces
+static inline void replaceSimplex3(Polytope* pt, mjCCDStatus* status, int v1, int v2, int v3) {
+  status->nsimplex = 3;
+  copy3(status->simplex1 + 0, pt->verts1 + v1);
+  copy3(status->simplex1 + 3, pt->verts1 + v2);
+  copy3(status->simplex1 + 6, pt->verts1 + v3);
+
+  copy3(status->simplex2 + 0, pt->verts2 + v1);
+  copy3(status->simplex2 + 3, pt->verts2 + v2);
+  copy3(status->simplex2 + 6, pt->verts2 + v3);
+
+  copy3(status->simplex + 0, pt->verts + v1);
+  copy3(status->simplex + 3, pt->verts + v2);
+  copy3(status->simplex + 6, pt->verts + v3);
+
+  pt->nfaces = 0;
+  pt->nverts = 0;
+}
+
+
 
 // return 1 if the origin and p3 are on the same side of the plane defined by p0, p1, p2
 static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
@@ -861,7 +888,7 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 
 
 // create a polytope from a 1-simplex (returns 0 on success)
-static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
+static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum v1[3], v2[3];
   sub3(v1, status->simplex1 + 0, status->simplex2 + 0);
   sub3(v2, status->simplex1 + 3, status->simplex2 + 3);
@@ -905,18 +932,6 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   epaSupport(v5a, v5b, obj1, obj2, d3, mju_norm3(d3));
   sub3(v5, v5a, v5b);
 
-  // check that all six faces are valid triangles (not collinear)
-  if (mju_abs(det3(v1, v3, v4)) < mjMINVAL || mju_abs(det3(v1, v3, v5)) < mjMINVAL ||
-      mju_abs(det3(v1, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v3, v4)) < mjMINVAL ||
-      mju_abs(det3(v2, v3, v5)) < mjMINVAL || mju_abs(det3(v2, v4, v5)) < mjMINVAL) {
-    return mjEPA_P2_INVALID_FACES;
-  }
-
-  // check that origin is in the hexahedron
-  if (!testTetra(v1, v3, v4, v5) && !testTetra(v2, v3, v4, v5)) {
-    return mjEPA_P2_MISSING_ORIGIN;
-  }
-
   // save vertices and get indices for each one
   int v1i = newVertex(pt, status->simplex1 + 0, status->simplex2 + 0);
   int v2i = newVertex(pt, status->simplex1 + 3, status->simplex2 + 3);
@@ -925,21 +940,39 @@ static int polytope2(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
   int v5i = newVertex(pt, v5a, v5b);
 
   // build hexahedron
-  attachFace(pt, v1i, v3i, v4i, 1, 3, 2);
-  attachFace(pt, v1i, v5i, v3i, 2, 4, 0);
-  attachFace(pt, v1i, v4i, v5i, 0, 5, 1);
-  attachFace(pt, v2i, v4i, v3i, 5, 0, 4);
-  attachFace(pt, v2i, v3i, v5i, 3, 1, 5);
-  attachFace(pt, v2i, v5i, v4i, 4, 2, 3);
+  if (attachFace(pt, v1i, v3i, v4i, 1, 3, 2) < mjMINVAL) {
+    replaceSimplex3(pt, status, v1i, v3i, v4i);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v1i, v5i, v3i, 2, 4, 0) < mjMINVAL) {
+    replaceSimplex3(pt, status, v1i, v5i, v3i);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v1i, v4i, v5i, 0, 5, 1) < mjMINVAL) {
+    replaceSimplex3(pt, status, v1i, v4i, v5i);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v2i, v4i, v3i, 5, 0, 4) < mjMINVAL) {
+    replaceSimplex3(pt, status, v2i, v4i, v3i);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v2i, v3i, v5i, 3, 1, 5) < mjMINVAL) {
+    replaceSimplex3(pt, status, v2i, v3i, v5i);
+    return polytope3(pt, status, obj1, obj2);
+  }
+  if (attachFace(pt, v2i, v5i, v4i, 4, 2, 3) < mjMINVAL) {
+    replaceSimplex3(pt, status, v2i, v5i, v4i);
+    return polytope3(pt, status, obj1, obj2);
+  }
 
-  // if the origin is on the affine hull of any of the faces then the origin is not in the
-  //  hexahedron or the hexahedron is degenerate
+  // check that origin is in the hexahedron
+  if (status->dist > 10*mjMINVAL && !testTetra(v1, v3, v4, v5) && !testTetra(v2, v3, v4, v5)) {
+    return mjEPA_P2_MISSING_ORIGIN;
+  }
+
   for (int i = 0; i < 6; i++) {
     pt->map[i] = pt->faces + i;
     pt->faces[i].index = i;
-    if (pt->faces[i].dist < mjMINVAL) {
-      return mjEPA_P2_ORIGIN_ON_FACE;
-    }
   }
   pt->nmap = 6;
 
@@ -1014,7 +1047,7 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
 
 
 // create a polytope from a 2-simplex (returns 0 on success)
-static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
+static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // get vertices of simplex from GJK
   const mjtNum *v1 = status->simplex,
                *v2 = status->simplex + 3,
@@ -1094,27 +1127,6 @@ static int polytope3(Polytope* pt, const mjCCDStatus* status, mjCCDObj* obj1, mj
 
 
 
-// replace a 3-simplex with one of its faces
-static inline void replaceSimplex3(Polytope* pt, mjCCDStatus* status, int v1, int v2, int v3) {
-  status->nsimplex = 3;
-  copy3(status->simplex1 + 0, pt->verts1 + v1);
-  copy3(status->simplex1 + 3, pt->verts1 + v2);
-  copy3(status->simplex1 + 6, pt->verts1 + v3);
-
-  copy3(status->simplex2 + 0, pt->verts2 + v1);
-  copy3(status->simplex2 + 3, pt->verts2 + v2);
-  copy3(status->simplex2 + 6, pt->verts2 + v3);
-
-  copy3(status->simplex + 0, pt->verts + v1);
-  copy3(status->simplex + 3, pt->verts + v2);
-  copy3(status->simplex + 6, pt->verts + v3);
-
-  pt->nfaces = 0;
-  pt->nverts = 0;
-}
-
-
-
 // create a polytope from a 3-simplex (returns 0 on success)
 static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   int v1 = newVertex(pt, status->simplex1 + 0, status->simplex2 + 0);
@@ -1138,6 +1150,10 @@ static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   if (attachFace(pt, v4, v3, v2, 2, 0, 1) < mjMINVAL) {
     replaceSimplex3(pt, status, v4, v3, v2);
     return polytope3(pt, status, obj1, obj2);
+  }
+
+  if (!testTetra(pt->verts + v1, pt->verts + v2, pt->verts + v3, pt->verts + v4)) {
+    return mjEPA_P4_MISSING_ORIGIN;
   }
 
   for (int i = 0; i < 4; i++) {
