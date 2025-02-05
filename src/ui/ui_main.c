@@ -1106,7 +1106,7 @@ static void revealcursor(mjrRect r, mjUI* ui, const mjrContext* con) {
 
   // scan backwards
   int i = ui->editcursor;
-  while (width >= 0 && i >= ui->editscroll) {
+  while (width >= 0 && i >= ui->editscroll && i > 0) {
     i--;
     width -= con->charWidth[(unsigned char)ui->edittext[i]];
   }
