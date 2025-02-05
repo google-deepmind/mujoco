@@ -19,7 +19,8 @@ import ctypes.util
 import os
 import platform
 import subprocess
-from typing import Union, IO
+from typing import IO, Union
+from typing_extensions import TypeAlias
 import warnings
 import zipfile
 
@@ -48,6 +49,7 @@ elif _SYSTEM == 'Darwin':
         'machine. This is not supported by MuJoCo. Please install and run a '
         'native, arm64 build of Python.')
 
+from mujoco import _specs
 from mujoco._callbacks import *
 from mujoco._constants import *
 from mujoco._enums import *
@@ -55,13 +57,38 @@ from mujoco._errors import *
 from mujoco._functions import *
 from mujoco._render import *
 from mujoco._specs import *
-from mujoco._specs import MjSpec
 from mujoco._structs import *
 from mujoco.gl_context import *
 from mujoco.renderer import Renderer
 
+MjStruct: TypeAlias = Union[
+    _specs.MjsBody,
+    _specs.MjsFrame,
+    _specs.MjsGeom,
+    _specs.MjsJoint,
+    _specs.MjsLight,
+    _specs.MjsMaterial,
+    _specs.MjsSite,
+    _specs.MjsMesh,
+    _specs.MjsSkin,
+    _specs.MjsTexture,
+    _specs.MjsText,
+    _specs.MjsTuple,
+    _specs.MjsCamera,
+    _specs.MjsFlex,
+    _specs.MjsHField,
+    _specs.MjsKey,
+    _specs.MjsNumeric,
+    _specs.MjsPair,
+    _specs.MjsExclude,
+    _specs.MjsEquality,
+    _specs.MjsTendon,
+    _specs.MjsSensor,
+    _specs.MjsActuator,
+    _specs.MjsPlugin,
+]
 
-def to_zip(spec: MjSpec, file: Union[str, IO[bytes]]) -> None:
+def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
   """Converts a spec to a zip file.
 
   Args:
@@ -79,7 +106,7 @@ def to_zip(spec: MjSpec, file: Union[str, IO[bytes]]) -> None:
       zip_info = zipfile.ZipInfo(os.path.join(spec.modelname, filename))
       zip_file.writestr(zip_info, contents)
 
-MjSpec.to_zip = to_zip
+_specs.MjSpec.to_zip = to_zip
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

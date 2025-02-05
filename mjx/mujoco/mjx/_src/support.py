@@ -14,7 +14,7 @@
 # ==============================================================================
 """Engine support functions."""
 from collections.abc import Sequence
-from typing import Optional, Tuple, Union, Any
+from typing import Optional, Tuple, Union
 
 import jax
 from jax import numpy as jp
@@ -289,7 +289,7 @@ def name2id(
 class BindModel(object):
   """Class holding the requested MJX Model and spec id for binding a spec to Model."""
 
-  def __init__(self, model: Model, specs: Sequence[Any]):
+  def __init__(self, model: Model, specs: Sequence[mujoco.MjStruct]):
     self.model = model
     try:
       iter(specs)
@@ -371,7 +371,9 @@ class BindModel(object):
     return getattr(self.model, self.prefix + name)[self.id, ...]
 
 
-def _bind_model(self: Model, obj: Sequence[Any]) -> BindModel:
+def _bind_model(
+    self: Model, obj: Sequence[mujoco.MjStruct]
+) -> BindModel:
   """Bind a Mujoco spec to an MJX Model."""
   return BindModel(self, obj)
 
@@ -379,7 +381,9 @@ def _bind_model(self: Model, obj: Sequence[Any]) -> BindModel:
 class BindData(object):
   """Class holding the requested MJX Data and spec id for binding a spec to Data."""
 
-  def __init__(self, data: Data, model: Model, specs: Sequence[Any]):
+  def __init__(
+      self, data: Data, model: Model, specs: Sequence[mujoco.MjStruct]
+  ):
     self.data = data
     self.model = model
     try:
@@ -499,7 +503,9 @@ class BindData(object):
     return self.data.replace(**{self.__getname(name): array})
 
 
-def _bind_data(self: Data, model: Model, obj: Sequence[Any]) -> BindData:
+def _bind_data(
+    self: Data, model: Model, obj: Sequence[mujoco.MjStruct]
+) -> BindData:
   """Bind a Mujoco spec to an MJX Data."""
   return BindData(self, model, obj)
 

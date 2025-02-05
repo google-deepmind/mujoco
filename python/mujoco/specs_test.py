@@ -17,6 +17,7 @@
 import inspect
 import os
 import textwrap
+import typing
 import zipfile
 
 from absl.testing import absltest
@@ -31,6 +32,12 @@ def get_linenumber():
 
 
 class SpecsTest(absltest.TestCase):
+
+  def test_typing(self):
+    spec = mujoco.MjSpec()
+    self.assertIsInstance(spec, mujoco.MjSpec)
+    self.assertIsInstance(spec.worldbody, mujoco.MjsBody)
+    self.assertIsInstance(spec.worldbody, typing.get_args(mujoco.MjStruct))
 
   def test_basic(self):
     # Create a spec.
