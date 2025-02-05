@@ -12,7 +12,7 @@
   </asset>
   <worldbody>
     <body>
-      <geom type="mesh" mesh="incomplete_convex"/>
+      <geom type="mesh" mesh="incomplete_convex" contype="0" conaffinity="0"/>
     </body>
     <body>
       <geom type="mesh" mesh="incomplete"/>
