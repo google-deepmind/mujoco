@@ -14,8 +14,8 @@
 # ==============================================================================
 """Generates structs.py.
 
-The JSON input can be generated via:
-  clang -Xclang -ast-dump=json -fsyntax-only -fparse-all-comments -x c mujoco.h
+The JSON input can be generated via running the following in the `mujoco/include` directory:
+  clang -Xclang -ast-dump=json -fsyntax-only -fparse-all-comments -x c -I$(pwd) mujoco/mujoco.h
 """
 
 import itertools

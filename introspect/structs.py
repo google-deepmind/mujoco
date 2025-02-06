@@ -12284,6 +12284,83 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjuiItemSingle',
+     StructDecl(
+         name='mjuiItemSingle',
+         declname='struct mjuiItemSingle_',
+         fields=(
+             StructFieldDecl(
+                 name='modifier',
+                 type=ValueType(name='int'),
+                 doc='0: none, 1: control, 2: shift; 4: alt',
+             ),
+             StructFieldDecl(
+                 name='shortcut',
+                 type=ValueType(name='int'),
+                 doc='shortcut key; 0: undefined',
+             ),
+         ),
+     )),
+    ('mjuiItemMulti',
+     StructDecl(
+         name='mjuiItemMulti',
+         declname='struct mjuiItemMulti_',
+         fields=(
+             StructFieldDecl(
+                 name='nelem',
+                 type=ValueType(name='int'),
+                 doc='number of elements in group',
+             ),
+             StructFieldDecl(
+                 name='name',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(35, 40),
+                 ),
+                 doc='element names',
+             ),
+         ),
+     )),
+    ('mjuiItemSlider',
+     StructDecl(
+         name='mjuiItemSlider',
+         declname='struct mjuiItemSlider_',
+         fields=(
+             StructFieldDecl(
+                 name='range',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='slider range',
+             ),
+             StructFieldDecl(
+                 name='divisions',
+                 type=ValueType(name='double'),
+                 doc='number of range divisions',
+             ),
+         ),
+     )),
+    ('mjuiItemEdit',
+     StructDecl(
+         name='mjuiItemEdit',
+         declname='struct mjuiItemEdit_',
+         fields=(
+             StructFieldDecl(
+                 name='nelem',
+                 type=ValueType(name='int'),
+                 doc='number of elements in list',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(7, 2),
+                 ),
+                 doc='element range (min>=max: ignore)',
+             ),
+         ),
+     )),
     ('mjuiItem',
      StructDecl(
          name='mjuiItem',
@@ -12333,22 +12410,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  fields=(
                      StructFieldDecl(
                          name='single',
-                         type=ValueType(name='struct mjuiItemSingle_'),
+                         type=ValueType(name='mjuiItemSingle'),
                          doc='check and button',
                      ),
                      StructFieldDecl(
                          name='multi',
-                         type=ValueType(name='struct mjuiItemMulti_'),
+                         type=ValueType(name='mjuiItemMulti'),
                          doc='static, radio and select',
                      ),
                      StructFieldDecl(
                          name='slider',
-                         type=ValueType(name='struct mjuiItemSlider_'),
+                         type=ValueType(name='mjuiItemSlider'),
                          doc='slider',
                      ),
                      StructFieldDecl(
                          name='edit',
-                         type=ValueType(name='struct mjuiItemEdit_'),
+                         type=ValueType(name='mjuiItemEdit'),
                          doc='edit',
                      ),
                  ),
