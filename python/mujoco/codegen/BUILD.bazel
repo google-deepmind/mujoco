@@ -1,0 +1,33 @@
+load("@pip_deps//:requirements.bzl", "requirement")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+py_binary(
+    name = "generate_enum_traits",
+    srcs = ["generate_enum_traits.py"],
+    deps = [
+        "//introspect:ast_nodes",
+        "//introspect:enums",
+        requirement("absl-py"),
+    ],
+)
+
+py_binary(
+    name = "generate_function_traits",
+    srcs = ["generate_function_traits.py"],
+    deps = [
+        "//introspect:ast_nodes",
+        "//introspect:functions",
+        requirement("absl-py"),
+    ],
+)
+
+py_binary(
+    name = "generate_spec_bindings",
+    srcs = ["generate_spec_bindings.py"],
+    deps = [
+        "//introspect:ast_nodes",
+        "//introspect:structs",
+        requirement("absl-py"),
+    ],
+)
