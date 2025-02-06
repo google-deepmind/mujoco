@@ -368,7 +368,7 @@ def make_data(
         'efc_aref': (nefc, float),
         'efc_force': (nefc, float),
         '_qM_sparse': (m.nM, float),
-        '_qLD_sparse': (m.nM, float),
+        '_qLD_sparse': (m.nC, float),
         '_qLDiagInv_sparse': (m.nv, float),
     }
 

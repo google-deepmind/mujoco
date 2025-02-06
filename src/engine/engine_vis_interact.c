@@ -556,7 +556,8 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 
   // compute average spatial inertia at selection point
   for (int i=0; i < nv; i++) {
-    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[m->dof_Madr[i]]);
+    int diag = d->C_rowadr[i] + d->C_rownnz[i] - 1;
+    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
   mj_jac(m, d, jac, NULL, selpos, sel);
   mj_solveM2(m, d, jacM2, jac, sqrtInvD, 3);

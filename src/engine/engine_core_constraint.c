@@ -2131,7 +2131,8 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   // inverse square root of D from inertia LDL decomposition
   mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
   for (int i=0; i < nv; i++) {
-    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[m->dof_Madr[i]]);
+    int diag = d->C_rowadr[i] + d->C_rownnz[i] - 1;
+    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
   // sparse
@@ -2238,13 +2239,6 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
     // === in-place sparse back-substitution:  B <- B * M^-1/2
 
-    // make qLD
-    int nC = m->nC;
-    mjtNum* qLD = mjSTACKALLOC(d, nC, mjtNum);
-    for (int i=0; i < nC; i++) {
-      qLD[i] = d->qLD[d->mapM2C[i]];
-    }
-
     // sparse backsubM2 (half of LD back-substitution)
     for (int r=0; r < nefc; r++) {
       int nnzB = B_rownnz[r];
@@ -2258,7 +2252,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
         }
         int j = B_colind[i];
         int adrC = d->C_rowadr[j];
-        mju_addToSclSparseInc(B + adrB, qLD + adrC,
+        mju_addToSclSparseInc(B + adrB, d->qLD + adrC,
                               nnzB, B_colind + adrB,
                               d->C_rownnz[j]-1, d->C_colind + adrC, -b);
       }

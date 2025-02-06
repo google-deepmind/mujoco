@@ -61,7 +61,8 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
     std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
 
     // expect accelerations to be insignificantly different
-    EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse));
+    EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse))
+        << "failed equivalence for solver=" << solver;
   }
 
   mj_deleteData(data);

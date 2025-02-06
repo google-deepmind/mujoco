@@ -50,20 +50,21 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
     vec[i] = 0.2 + 0.3*i;
   }
 
-  // make CSR matrix
-  mjtNum* LDs = mj_stackAllocNum(d, m->nC);
+  // make legacy matrix
+  mjtNum* LDlegacy = mj_stackAllocNum(d, m->nM);
+  mju_zero(LDlegacy, m->nM);
   for (int i=0; i < m->nC; i++) {
-    LDs[i] = d->qLD[d->mapM2C[i]];
+    LDlegacy[d->mapM2C[i]] = d->qLD[i];
   }
 
   // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
+      mju_copy(res, vec, m->nv);
       if (featherstone) {
-        mj_solveM(m, d, res, vec, 1);
+        mj_solveLD(m, res, 1, LDlegacy, d->qLDiagInv);
       } else {
-        mju_copy(res, vec, m->nv);
-        mj_solveLDs(res, LDs, d->qLDiagInv, m->nv, 1,
+        mj_solveLDs(res, d->qLD, d->qLDiagInv, m->nv, 1,
                     d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }

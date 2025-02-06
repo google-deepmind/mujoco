@@ -770,7 +770,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv, nM = m->nM;
+  int nv = m->nv, nC = m->nC;
   mj_markStack(d);
   mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
   mjtNum* qacc = mjSTACKALLOC(d, nv, mjtNum);
@@ -794,22 +794,23 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   // damping: integrate implicitly
   else {
     if (!skipfactor) {
-      mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
-
-      // MhB = M + h*diag(B)
-      mju_copy(MhB, d->qM, nM);
+      // qH = M + h*diag(B)
+      for (int i=0; i < nC; i++) {
+        d->qH[i] = d->qM[d->mapM2C[i]];
+      }
       for (int i=0; i < nv; i++) {
-        MhB[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
+        d->qH[d->C_rowadr[i] + d->C_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
       }
 
-      // factor
-      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv);
+      // factorize in-place
+      mj_factorIs(d->qH, d->qHDiagInv, nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
     }
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
     mju_copy(qacc, qfrc, m->nv);
-    mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
+    mj_solveLDs(qacc, d->qH, d->qHDiagInv, nv, 1,
+                d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
   }
 
   // advance state and time
@@ -938,7 +939,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv, nM = m->nM, nD = m->nD;
+  int nv = m->nv, nM = m->nM, nD = m->nD, nC = m->nC;
 
   mj_markStack(d);
   mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
@@ -985,13 +986,20 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // set MhB = M - dt*qDeriv
       mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
-      // factorize
-      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv);
+      // copy into qH
+      for (int i=0; i < nC; i++) {
+        d->qH[i] = MhB[d->mapM2C[i]];
+      }
+
+      // factorize in-place
+      mj_factorIs(d->qH, d->qHDiagInv, nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
     mju_copy(qacc, qfrc, nv);
-    mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
+    mj_solveLDs(qacc, d->qH, d->qHDiagInv, nv, 1,
+                d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+
   } else {
     mjERROR("integrator must be implicit or implicitfast");
   }

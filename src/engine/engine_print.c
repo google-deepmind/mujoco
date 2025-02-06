@@ -1127,7 +1127,8 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 
   printInertia("QM", d->qM, m, fp, float_format);
 
-  printInertia("QLD", d->qLD, m, fp, float_format);
+  printSparse("QLD", d->qLD, m->nv, d->C_rownnz,
+              d->C_rowadr, d->C_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
 
   // B sparse structure
