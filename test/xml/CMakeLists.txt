@@ -14,7 +14,7 @@
 
 mujoco_test(xml_api_test)
 
-mujoco_test(xml_native_reader_test)
+mujoco_test(xml_native_reader_test TAGS nofloat32)
 
 mujoco_test(
   xml_native_writer_test
@@ -23,4 +23,6 @@ mujoco_test(
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+  TAGS
+  nofloat32
 )
