@@ -62,7 +62,6 @@
 #include "user/user_objects.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
-#include <tiny_obj_loader.h>
 
 extern "C" {
 #include "qhull_ra.h"
@@ -395,7 +394,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource,
       + (sizeof(int) * vertex_index_.size())
       + (sizeof(int) * normal_index_.size())
       + (sizeof(int) * texcoord_index_.size())
-      + (sizeof(unsigned char) * num_face_vertices_.size());
+      + (sizeof(face_vertices_type) * num_face_vertices_.size());
 
   std::shared_ptr<const void> cached_data(mesh, +[](const void* data) {
     const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
