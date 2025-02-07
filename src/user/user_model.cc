@@ -1867,6 +1867,10 @@ void mjCModel::AutoSpringDamper(mjModel* m) {
     mjtNum stiffness = inertia / std::max(mjMINVAL, timeconst*timeconst*dampratio*dampratio);
     mjtNum damping = 2 * inertia / std::max(mjMINVAL, timeconst);
 
+    // save stiffness and damping in the private mjsJoints
+    joints_[n]->stiffness = stiffness;
+    joints_[n]->damping = damping;
+
     // assign
     m->jnt_stiffness[n] = stiffness;
     for (int i=0; i<ndim; i++) {

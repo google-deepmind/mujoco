@@ -648,5 +648,28 @@ TEST_F(MujocoTest, NestedMeshDir) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(MujocoTest, ConvertSpringdamper) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+    <worldbody>
+      <body>
+        <joint axis="0 1 0" springdamper="1 1"/>
+        <geom size="0.2 0.2 0.2" type="box"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << err.data();
+  std::array<char, 1024> str;
+  mj_saveXMLString(spec, str.data(), str.size(), err.data(), err.size());
+  EXPECT_THAT(str.data(), HasSubstr("damping"));
+  EXPECT_THAT(str.data(), HasSubstr("stiffness"));
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
