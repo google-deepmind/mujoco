@@ -423,8 +423,7 @@ Get name of object with the specified mjtObj type and id, returns NULL if name n
 
 .. mujoco-include:: mj_fullM
 
-Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
-|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same size as ``mjData.qM``.
+Convert sparse inertia matrix M into full (i.e. dense) matrix.
 
 .. _mj_mulM:
 

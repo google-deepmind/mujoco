@@ -449,8 +449,9 @@ TEST_F(CoreSmoothTest, SolveMIsland) {
 
       // expect corresponding values to match
       for (int j=0; j < dofnum; j++) {
-        EXPECT_THAT(res_i[j], DoubleNear(res[dofind[j]], 1e-12));
+        EXPECT_THAT(res_i[j], DoubleNear(res[dofind[j]], 1e-14));
       }
+
       mju_free(res_i);
     }
 
@@ -474,21 +475,21 @@ TEST_F(CoreSmoothTest, FactorI) {
 
   // dense L matrix
   int nv = model->nv;
-  vector<mjtNum> Ldense(nv*nv, 0);
-  mju_sparse2dense(Ldense.data(), data->qLD, nv, nv,
-                   data->C_rownnz, data->C_rowadr, data->C_colind);
+  vector<mjtNum> Ldense(nv*nv);
+  mj_fullM(model, Ldense.data(), data->qLD);
+  // clear upper triangle, set diagonal to 1
   for (int i=0; i < nv; i++) {
-    // set diagonal to 1
-    Ldense[i*nv+i] = 1;
+    for (int j=i; j < nv; j++) {
+      Ldense[i*nv+j] = i == j ? 1 : 0;
+    }
   }
 
   // dense D matrix
   vector<mjtNum> Ddense(nv*nv);
-  mju_sparse2dense(Ddense.data(), data->qLD, nv, nv,
-                   data->C_rownnz, data->C_rowadr, data->C_colind);
+  mj_fullM(model, Ddense.data(), data->qLD);
+  // clear everything but the diagonal
   for (int i=0; i < nv; i++) {
     for (int j=0; j < nv; j++) {
-      // zero everything except the diagonal
       if (i != j) Ddense[i*nv+j] = 0;
     }
   }
@@ -520,21 +521,20 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   mj_forward(m, d);
 
   int nv = m->nv;
-  int nM = m->nM;
   int nC = m->nC;
 
-  // copy M into LD: Legacy format
-  vector<mjtNum> LDlegacy(nM, 0);
+  // copy LD into LDs: CSR format
+  vector<mjtNum> LDs(nC);
   for (int i=0; i < nC; i++) {
-    LDlegacy[d->mapM2C[i]] = d->qLD[i];
+    LDs[i] = d->qLD[d->mapM2C[i]];
   }
 
   // compare LD and LDs densified matrices
   vector<mjtNum> LDdense(nv*nv);
-  mju_sparse2dense(LDdense.data(), d->qLD, nv, nv,
+  mju_sparse2dense(LDdense.data(), LDs.data(), nv, nv,
                    d->C_rownnz, d->C_rowadr, d->C_colind);
   vector<mjtNum> LDdense2(nv*nv);
-  mj_fullM(m, LDdense2.data(), LDlegacy.data());
+  mj_fullM(m, LDdense2.data(), d->qLD);
 
   // expect lower triangles to match exactly
   for (int i=0; i < nv; i++) {
@@ -543,14 +543,14 @@ TEST_F(CoreSmoothTest, SolveLDs) {
     }
   }
 
-  // compare legacy and CSR LD vector solve
+  // compare LD and LDs vector solve
   vector<mjtNum> vec(nv);
   vector<mjtNum> vec2(nv);
   for (int i=0; i < nv; i++) vec[i] = vec2[i] = 20 + 30*i;
   for (int i=0; i < nv; i+=2) vec[i] = vec2[i] = 0;
 
-  mj_solveLD(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
-  mj_solveLDs(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
+  mj_solveLD(m, vec.data(), 1, d->qLD, d->qLDiagInv);
+  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv, 1,
               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect vectors to match up to floating point precision
@@ -572,13 +572,12 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
   mj_forward(m, d);
 
   int nv = m->nv;
-  int nM = m->nM;
   int nC = m->nC;
 
-  // copy LD into LDlegacy: Legacy format
-  vector<mjtNum> LDlegacy(nM, 0);
+  // copy LD into LDs: CSR format
+  vector<mjtNum> LDs(nC);
   for (int i=0; i < nC; i++) {
-    LDlegacy[d->mapM2C[i]] = d->qLD[i];
+    LDs[i] = d->qLD[d->mapM2C[i]];
   }
 
   // compare n LD and LDs vector solve
@@ -588,8 +587,8 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
   for (int i=0; i < nv*n; i++) vec[i] = vec2[i] = 2 + 3*i;
   for (int i=0; i < nv*n; i+=3) vec[i] = vec2[i] = 0;
 
-  mj_solveLD(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
-  mj_solveLDs(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
+  mj_solveLD(m, vec.data(), n, d->qLD, d->qLDiagInv);
+  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv, n,
               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect vectors to match up to floating point precision
@@ -610,12 +609,19 @@ TEST_F(CoreSmoothTest, SolveM2) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  // inverse square root of D from inertia LDL decomposition
   int nv = m->nv;
+  int nC = m->nC;
+
+  // copy LD into LDs: CSR format
+  vector<mjtNum> LDs(nC);
+  for (int i=0; i < nC; i++) {
+    LDs[i] = d->qLD[d->mapM2C[i]];
+  }
+
+  // inverse square root of D from inertia LDL decomposition
   vector<mjtNum> sqrtInvD(nv);
   for (int i=0; i < nv; i++) {
-    int diag = d->C_rowadr[i] + d->C_rownnz[i] - 1;
-    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
+    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[m->dof_Madr[i]]);
   }
 
   // compare full solve and half solve
@@ -627,7 +633,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
   vector<mjtNum> res(nv*n);
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
-  mj_solveLDs(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
+  mj_solveLDs(vec2.data(), LDs.data(), d->qLDiagInv, nv, n,
               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
@@ -649,32 +655,25 @@ TEST_F(CoreSmoothTest, FactorIs) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  int nC = m->nC, nM = m->nM, nv = m->nv;
+  int nC = m->nC, nv = m->nv;
 
-  // copy qM into into qLDlegacy and factorize
-  vector<mjtNum> qLDlegacy(nM);
-  mj_factorI(m, d, d->qM, qLDlegacy.data(), d->qLDiagInv);
-
-  // copy qLDlegacy into qLDexpected: CSR format
-  vector<mjtNum> qLDexpected(nC);
+  // copy qM into LDs, qLD into qLDexpected: CSR format
+  vector<mjtNum> qLDsExpected(nC);
+  vector<mjtNum> qLDs(nC);
   for (int i=0; i < nC; i++) {
-    qLDexpected[i] = qLDlegacy[d->mapM2C[i]];  // mj_factorIs is in-place
-  }
-
-  // copy qM into qLD: CSR format
-  vector<mjtNum> qLD(nC);
-  for (int i=0; i < nC; i++) {
-    qLD[i] = d->qM[d->mapM2C[i]];  // mj_factorIs is in-place
+    int index = d->mapM2C[i];
+    qLDs[i] = d->qM[index];  // mj_factorIs is in-place
+    qLDsExpected[i] = d->qLD[index];
   }
 
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);
 
-  mj_factorIs(qLD.data(), qLDiagInv.data(), nv,
+  mj_factorIs(qLDs.data(), qLDiagInv.data(), nv,
               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect outputs to match to floating point precision
-  EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));
+  EXPECT_THAT(qLDs, Pointwise(DoubleNear(1e-12), qLDsExpected));
   EXPECT_THAT(qLDiagInv, Pointwise(DoubleNear(1e-12), qLDiagInvExpected));
 
   /* uncomment for debugging

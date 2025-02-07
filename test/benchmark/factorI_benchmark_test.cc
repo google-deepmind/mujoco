@@ -43,23 +43,21 @@ static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
   // allocate inputs and outputs
   mj_markStack(d);
 
-  // M: mass matrix in CSR format
-  mjtNum* M = mj_stackAllocNum(d, m->nC);
+  // CSR matrices
+  mjtNum* Ms = mj_stackAllocNum(d, m->nC);
+  mjtNum* LDs = mj_stackAllocNum(d, m->nC);
   for (int i=0; i < m->nC; i++) {
-    M[i] = d->qM[d->mapM2C[i]];
+    Ms[i] = d->qM[d->mapM2C[i]];
   }
-
-  // LDlegacy: legacy LD matrix (size nM)
-  mjtNum* LDlegacy = mj_stackAllocNum(d, m->nM);
 
   // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
       if (legacy) {
-        mj_factorI(m, d, d->qM, LDlegacy, d->qLDiagInv);
+        mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv);
       } else {
-        mju_copy(d->qLD, M, m->nC);
-        mj_factorIs(d->qLD, d->qLDiagInv, m->nv,
+        mju_copy(LDs, Ms, m->nC);
+        mj_factorIs(LDs, d->qLDiagInv, m->nv,
                     d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }
