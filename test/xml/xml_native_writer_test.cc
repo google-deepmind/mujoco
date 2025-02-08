@@ -1408,7 +1408,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
 
 // ---------------- test CopyBack functionality (decompiler) ------------------
 using DecompilerTest = MujocoTest;
-TEST_F(DecompilerTest, SavesStatitics) {
+TEST_F(DecompilerTest, SavesStatistics) {
   static constexpr char xml[] = R"(
   <mujoco>
     <statistic meansize="2" extent="3" center="4 5 6" meanmass="7" meaninertia="8"/>
@@ -1432,7 +1432,7 @@ TEST_F(DecompilerTest, SavesStatitics) {
   mj_deleteModel(model);
 }
 
-TEST_F(DecompilerTest, DoesntSaveInferredStatitics) {
+TEST_F(DecompilerTest, DoesntSaveInferredStatistics) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
