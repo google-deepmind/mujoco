@@ -9,6 +9,7 @@ Upcoming version (not yet released)
 Feature promotion
 ^^^^^^^^^^^^^^^^^
 .. youtube:: qJFbx-FR7Bc
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -147,6 +148,7 @@ General
 ^^^^^^^
 
 .. youtube:: e8lUuykQPGs
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -206,6 +208,7 @@ General
    welcome to experiment with it and report any issues.
 
 .. youtube:: kcM_oauk3ZA
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -350,6 +353,7 @@ General
    speed and memory footprint.
 
 .. youtube:: ZXBTEIDWHhs
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -438,6 +442,7 @@ General
 ^^^^^^^
 
 .. youtube:: 5k0_wsIRAFc
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -542,6 +547,7 @@ Python bindings
 ^^^^^^^^^^^^^^^
 
 .. youtube:: xHDS0n5DpqM
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -706,6 +712,7 @@ General
    ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
 
 .. youtube:: H9qG9Zf2W44
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -769,6 +776,7 @@ Documentation
 ^^^^^^^^^^^^^
 
 .. youtube:: cE3s_IfO4g4
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -800,6 +808,7 @@ New features
            :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
 
 .. youtube:: QewlEqIZi1o
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -810,6 +819,7 @@ New features
      gradient at query points. See the :ref:`documentation<exWriting>` for more details.
 
 .. youtube:: ra2bTiZHGlw
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -830,6 +840,7 @@ New features
    this functionality to be unified in the future.
 
 .. youtube:: Vc1tq0fFvQA
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -958,6 +969,7 @@ Simulate
 ^^^^^^^^
 
 .. youtube:: YSvWn_poqWs
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -972,6 +984,7 @@ Documentation
 ^^^^^^^^^^^^^
 
 .. youtube:: nljr0X79vI0
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -1070,6 +1083,7 @@ Simulate
 ^^^^^^^^
 
 .. youtube:: mXVPbppGk5I
+   :aspect: 16:7
    :align: right
    :width: 240px
 
@@ -1443,6 +1457,7 @@ General
    See the :ref:`Memory allocation <CSize>` section for details.
 
    .. youtube:: RHnXD6uO3Mg
+      :aspect: 16:7
       :align: right
       :height: 150px
 
@@ -1530,6 +1545,7 @@ General
 ^^^^^^^
 
 .. youtube:: BcHZ5BFeTmU
+   :aspect: 16:7
    :align: right
    :height: 150px
 
@@ -1546,6 +1562,7 @@ General
    different uses of new weld attributes.
 
    .. youtube:: s-0JHanqV1A
+      :aspect: 16:7
       :align: right
       :height: 150px
 

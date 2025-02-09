@@ -85,6 +85,7 @@ functionality. This code sample uses the native UI to render various controls, a
 illustration of how the new UI framework is intended to be used. Below is a screen-capture of ``simulate`` in action:
 
 ..  youtube:: P83tKA1iz2Y
+    :aspect: 16:9
     :width: 95%
     :align: center
 

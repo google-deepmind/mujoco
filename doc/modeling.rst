@@ -634,6 +634,7 @@ e.g., torque-control and position-control. In this case, one can define both typ
 model, assigning one type of actuator to group 0 and the other to group 1.
 
 .. youtube:: H9qG9Zf2W44
+   :aspect: 2:1
    :align: right
    :width: 40%
 
