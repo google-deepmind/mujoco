@@ -482,6 +482,18 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d_2.contact.frame.shape, (1, 9))
     np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
+  def test_get_data_into_wrong_shape(self):
+    """Tests that get_data_into throwsif input and output shapes don't match."""
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d)
+    m_2 = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
+    d_2 = mujoco.MjData(m_2)
+    with self.assertRaisesRegex(ValueError, r'Input field.*has shape.*'):
+      mjx.get_data_into(d_2, m, dx)
+
   def test_make_matches_put(self):
     """Test that make_data produces a pytree that matches put_data."""
 

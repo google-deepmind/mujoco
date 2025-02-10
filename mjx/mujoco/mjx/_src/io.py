@@ -514,7 +514,13 @@ def get_data_into(
         if restricted_to in ('mujoco', 'mjx'):
           continue  # don't copy fields that are mujoco-only or MJX-only
         else:
-          getattr(result_i, field.name)[:] = value
+          result_field = getattr(result_i, field.name)
+          if result_field.shape != value.shape:
+            raise ValueError(
+                f'Input field {field.name} has shape {value.shape}, but output'
+                f' has shape {result_field.shape}'
+            )
+          result_field[:] = value
       else:
         setattr(result_i, field.name, value)
 
