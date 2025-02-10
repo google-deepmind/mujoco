@@ -518,6 +518,12 @@ PYBIND11_MODULE(_specs, m) {
     }
     return std::string(buf.get());
   });
+  mjSpec.def("to_file", [](MjSpec& self, std::string& file) {
+    std::array<char, 1024> err;
+    if (mj_saveXML(self.ptr, file.c_str(), err.data(), err.size()) < 0) {
+      throw FatalError(std::string(err.data()));
+    }
+  });
   mjSpec.def(
       "add_default",
       [](MjSpec* spec, std::string& classname,

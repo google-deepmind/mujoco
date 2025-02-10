@@ -113,9 +113,7 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nuser_site, 6)
     np.testing.assert_array_equal(model.site_user[0], [1, 2, 3, 4, 5, 6])
 
-    self.assertEqual(
-        spec.to_xml(),
-        textwrap.dedent("""\
+    xml = textwrap.dedent("""\
         <mujoco model="MuJoCo Model">
           <compiler angle="radian"/>
 
@@ -127,8 +125,8 @@ class SpecsTest(absltest.TestCase):
             </body>
           </worldbody>
         </mujoco>
-    """),
-    )
+    """)
+    self.assertEqual(spec.to_xml(), xml)
 
   def test_kwarg(self):
     # Create a spec.
