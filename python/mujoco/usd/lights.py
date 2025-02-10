@@ -30,12 +30,12 @@ class USDSphereLight:
   """Class that handles the sphere lights in the USD scene."""
 
   def __init__(
-      self, stage: Usd.Stage, obj_name: str, radius: Optional[float] = 0.3
+      self, stage: Usd.Stage, light_name: str, radius: Optional[float] = 0.3
   ):
     self.stage = stage
 
-    xform_path = f"/World/Light_Xform_{obj_name}"
-    light_path = f"{xform_path}/Light_{obj_name}"
+    xform_path = f"/World/Light_Xform_{light_name}"
+    light_path = f"{xform_path}/Light_{light_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_light = UsdLux.SphereLight.Define(stage, light_path)
     self.usd_prim = stage.GetPrimAtPath(light_path)
@@ -64,11 +64,11 @@ class USDSphereLight:
 class USDDomeLight:
   """Class that handles the dome lights in the USD scene."""
 
-  def __init__(self, stage: Usd.Stage, obj_name: str):
+  def __init__(self, stage: Usd.Stage, light_name: str):
     self.stage = stage
 
-    xform_path = f"/World/Light_Xform_{obj_name}"
-    light_path = f"{xform_path}/Light_{obj_name}"
+    xform_path = f"/World/Light_Xform_{light_name}"
+    light_path = f"{xform_path}/Light_{light_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_light = UsdLux.DomeLight.Define(stage, light_path)
     self.usd_prim = stage.GetPrimAtPath(light_path)
