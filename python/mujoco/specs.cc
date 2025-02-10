@@ -396,68 +396,9 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjSpec.def(
-      "find_body",
-      [](MjSpec& self, std::string& name) -> raw::MjsBody* {
-        return mjs_findBody(self.ptr, name.c_str());
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_frame",
-      [](MjSpec& self, std::string& name) -> raw::MjsFrame* {
-        return mjs_findFrame(self.ptr, name.c_str());
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_site",
-      [](MjSpec& self, std::string& name) -> raw::MjsSite* {
-        return mjs_asSite(mjs_findElement(self.ptr, mjOBJ_SITE, name.c_str()));
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_actuator",
-      [](MjSpec& self, std::string& name) -> raw::MjsActuator* {
-        return mjs_asActuator(
-            mjs_findElement(self.ptr, mjOBJ_ACTUATOR, name.c_str()));
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_sensor",
-      [](MjSpec& self, std::string& name) -> raw::MjsSensor* {
-        return mjs_asSensor(
-            mjs_findElement(self.ptr, mjOBJ_SENSOR, name.c_str()));
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
       "find_default",
       [](MjSpec& self, std::string& classname) -> const raw::MjsDefault* {
         return mjs_findDefault(self.ptr, classname.c_str());
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_geom",
-      [](MjSpec& self, std::string& name) -> raw::MjsGeom* {
-        return mjs_asGeom(mjs_findElement(self.ptr, mjOBJ_GEOM, name.c_str()));
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_joint",
-      [](MjSpec& self, std::string& name) -> raw::MjsJoint* {
-        return mjs_asJoint(
-            mjs_findElement(self.ptr, mjOBJ_JOINT, name.c_str()));
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_light",
-      [](MjSpec& self, std::string& name) -> raw::MjsLight* {
-        return mjs_asLight(
-            mjs_findElement(self.ptr, mjOBJ_LIGHT, name.c_str()));
-      },
-      py::return_value_policy::reference_internal);
-  mjSpec.def(
-      "find_camera",
-      [](MjSpec& self, std::string& name) -> raw::MjsCamera* {
-        return mjs_asCamera(
-            mjs_findElement(self.ptr, mjOBJ_CAMERA, name.c_str()));
       },
       py::return_value_policy::reference_internal);
   mjSpec.def("compile", [mjmodel_from_spec_ptr](MjSpec& self) -> py::object {

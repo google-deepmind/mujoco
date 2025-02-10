@@ -24,6 +24,34 @@ from introspect import structs
 
 SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
 
+# key, parent, default, listname, objtype
+SPECS = [
+    ('mjsBody',     'Body', True,  'bodies',     'mjOBJ_BODY'),
+    ('mjsSite',     'Body', True,  'sites',      'mjOBJ_SITE'),
+    ('mjsGeom',     'Body', True,  'geoms',      'mjOBJ_GEOM'),
+    ('mjsJoint',    'Body', True,  'joints',     'mjOBJ_JOINT'),
+    ('mjsCamera',   'Body', True,  'cameras',    'mjOBJ_CAMERA'),
+    ('mjsFrame',    'Body', True,  'frames',     'mjOBJ_FRAME'),
+    ('mjsLight',    'Body', True,  'lights',     'mjOBJ_LIGHT'),
+    ('mjsFlex',     'Spec', False, 'flexes',     'mjOBJ_FLEX'),
+    ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
+    ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
+    ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
+    ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
+    ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
+    ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
+    ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),
+    ('mjsTendon',   'Spec', True,  'tendons',    'mjOBJ_TENDON'),
+    ('mjsActuator', 'Spec', True,  'actuators',  'mjOBJ_ACTUATOR'),
+    ('mjsSensor',   'Spec', False, 'sensors',    'mjOBJ_SENSOR'),
+    ('mjsNumeric',  'Spec', False, 'numerics',   'mjOBJ_NUMERIC'),
+    ('mjsText',     'Spec', False, 'texts',      'mjOBJ_TEXT'),
+    ('mjsTuple',    'Spec', False, 'tuples',     'mjOBJ_TUPLE'),
+    ('mjsKey',      'Spec', False, 'keys',       'mjOBJ_KEY'),
+    ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
+    ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
+]
+
 
 def _value_binding_code(
     field: ast_nodes.ValueType, classname: str = '', varname: str = ''
@@ -251,32 +279,7 @@ def generate() -> None:
 
 def generate_add() -> None:
   """Generate add constructors with optional keyword arguments."""
-  for key, parent, default, listname, objtype in [
-      ('mjsSite',     'Body', True,  'sites',      'mjOBJ_SITE'),
-      ('mjsGeom',     'Body', True,  'geoms',      'mjOBJ_GEOM'),
-      ('mjsJoint',    'Body', True,  'joints',     'mjOBJ_JOINT'),
-      ('mjsLight',    'Body', True, 'lights',      'mjOBJ_LIGHT'),
-      ('mjsCamera',   'Body', True,  'cameras',    'mjOBJ_CAMERA'),
-      ('mjsBody',     'Body', True,  'bodies',     'mjOBJ_BODY'),
-      ('mjsFrame',    'Body', True,  'frames',     'mjOBJ_FRAME'),
-      ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
-      ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
-      ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
-      ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),
-      ('mjsTendon',   'Spec', True,  'tendons',    'mjOBJ_TENDON'),
-      ('mjsActuator', 'Spec', True,  'actuators',  'mjOBJ_ACTUATOR'),
-      ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
-      ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
-      ('mjsText',     'Spec', False, 'texts',      'mjOBJ_TEXT'),
-      ('mjsTuple',    'Spec', False, 'tuples',     'mjOBJ_TUPLE'),
-      ('mjsFlex',     'Spec', False, 'flexes',     'mjOBJ_FLEX'),
-      ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
-      ('mjsKey',      'Spec', False, 'keys',       'mjOBJ_KEY'),
-      ('mjsNumeric',  'Spec', False, 'numerics',   'mjOBJ_NUMERIC'),
-      ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
-      ('mjsSensor',   'Spec', False, 'sensors',    'mjOBJ_SENSOR'),
-      ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
-  ]:
+  for key, parent, default, listname, objtype in SPECS:
 
     def _field(f: ast_nodes.StructFieldDecl):
       if f.type == ast_nodes.PointerType(
@@ -573,11 +576,28 @@ def generate_add() -> None:
     print(code)
 
 
+def generate_find() -> None:
+  """Generate find functions."""
+  for key, _, _, _, objtype in SPECS:
+    elem = key.removeprefix('mjs')
+    elemlower = elem.lower()
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      mjSpec.def("find_{elemlower}",
+      [](MjSpec& self, std::string& name) -> raw::{titlecase}* {{
+        return mjs_as{elem}(
+            mjs_findElement(self.ptr, {objtype}, name.c_str()));
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   generate()
   generate_add()
+  generate_find()
 
 
 if __name__ == '__main__':
