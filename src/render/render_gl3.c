@@ -1205,10 +1205,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glClear(GL_DEPTH_BUFFER_BIT);
           glViewport(
               1, 1, con->shadowSize-2, con->shadowSize-2);  // avoid infinite shadows from edges
-          glCullFace(GL_FRONT);
           glShadeModel(GL_FLAT);
           glDisable(GL_LIGHTING);
           glColorMask(0, 0, 0, 0);
+          int cull_face = glIsEnabled(GL_CULL_FACE);
+          glDisable(GL_CULL_FACE);  // all faces cast shadows
+          glEnable(GL_POLYGON_OFFSET_FILL);
+          float kOffsetFactor = -1.5f;
+          float kOffsetUnits = -4.0f;
+          glPolygonOffset(kOffsetFactor, kOffsetUnits);  // prevents "shadow acne"
 
           // render all geoms to depth texture
           for (int j=0; j < ngeom; j++) {
@@ -1220,7 +1225,10 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
                             con->currentBuffer == mjFB_WINDOW ? 0 : con->offFBO);
           glDrawBuffer(drawbuffer);
           glViewport(viewport.left, viewport.bottom, viewport.width, viewport.height);
-          glCullFace(GL_BACK);
+          if (cull_face) {
+            glEnable(GL_CULL_FACE);
+          }
+          glDisable(GL_POLYGON_OFFSET_FILL);
           glShadeModel(GL_SMOOTH);
           glEnable(GL_LIGHTING);
           glColorMask(1, 1, 1, 1);

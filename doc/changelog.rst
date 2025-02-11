@@ -32,6 +32,7 @@ General
   behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
   attaching can be restored by setting the deep copy flag to 1.
 - Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
+- Improved shadow rendering in the native renderer.
 
 MJX
 ^^^
