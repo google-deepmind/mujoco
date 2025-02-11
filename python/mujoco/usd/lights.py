@@ -17,7 +17,6 @@
 from typing import Optional
 
 import numpy as np
-
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
 from pxr import Gf

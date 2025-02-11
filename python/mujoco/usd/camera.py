@@ -16,10 +16,7 @@
 
 from typing import List, Optional, Tuple
 
-import mujoco.usd.utils as utils_module
-
 import numpy as np
-
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
 from pxr import Gf
@@ -28,9 +25,10 @@ from pxr import UsdGeom
 
 import mujoco.usd.utils as utils_module
 
+
 class USDCamera:
   """Class that handles the cameras in the USD scene"""
-  
+
   def __init__(self, stage: Usd.Stage, camera_name: str):
     self.stage = stage
 

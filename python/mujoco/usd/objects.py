@@ -18,12 +18,7 @@ import abc
 import collections
 from typing import Any, Dict, Optional, Sequence, Tuple
 
-import mujoco
-import mujoco.usd.shapes as shapes_module
-import mujoco.usd.utils as utils_module
 import numpy as np
-
-
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
 # pytype: disable=module-attr
 from pxr import Gf
@@ -32,6 +27,10 @@ from pxr import Usd
 from pxr import UsdGeom
 from pxr import UsdShade
 from pxr import Vt
+
+import mujoco
+import mujoco.usd.shapes as shapes_module
+import mujoco.usd.utils as utils_module
 
 
 class USDObject(abc.ABC):
@@ -55,7 +54,7 @@ class USDObject(abc.ABC):
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = (),
   ):
     self.stage = stage
     self.model = model
@@ -225,7 +224,7 @@ class USDMesh(USDObject):
       obj_name: str,
       dataid: int,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = (),
   ):
     super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
 
@@ -324,7 +323,7 @@ class USDPrimitiveMesh(USDObject):
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = (),
   ):
     super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
 
@@ -424,7 +423,7 @@ class USDTendon(USDObject):
       geom: mujoco.MjvGeom,
       obj_name: str,
       rgba: np.ndarray = np.array([1, 1, 1, 1]),
-      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = ()
+      geom_textures: Sequence[Optional[Tuple[str, mujoco.mjtTexture]]] = (),
   ):
     super().__init__(stage, model, geom, obj_name, rgba, geom_textures)
 
