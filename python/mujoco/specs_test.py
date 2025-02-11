@@ -617,12 +617,12 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.actuators[0].name, 'actuator1')
     self.assertEqual(spec.actuators[1].name, 'actuator2')
     self.assertEqual(spec.actuators[2].name, 'actuator3')
-    self.assertEqual(spec.find_sensor('sensor1'), sensor1)
-    self.assertEqual(spec.find_sensor('sensor2'), sensor2)
-    self.assertEqual(spec.find_sensor('sensor3'), sensor3)
-    self.assertEqual(spec.find_actuator('actuator1'), actuator1)
-    self.assertEqual(spec.find_actuator('actuator2'), actuator2)
-    self.assertEqual(spec.find_actuator('actuator3'), actuator3)
+    self.assertEqual(spec.sensor('sensor1'), sensor1)
+    self.assertEqual(spec.sensor('sensor2'), sensor2)
+    self.assertEqual(spec.sensor('sensor3'), sensor3)
+    self.assertEqual(spec.actuator('actuator1'), actuator1)
+    self.assertEqual(spec.actuator('actuator2'), actuator2)
+    self.assertEqual(spec.actuator('actuator3'), actuator3)
 
   def test_body_list(self):
     main_xml = """
@@ -709,12 +709,12 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec.from_string(main_xml)
     geom1 = spec.worldbody.add_geom(name='geom1')
     geom2 = spec.worldbody.add_geom(name='geom2')
-    geom3 = spec.find_body('body1').add_geom(name='geom3')
+    geom3 = spec.body('body1').add_geom(name='geom3')
 
     self.assertEqual(spec.geoms, [geom1, geom2, geom3])
-    self.assertEqual(spec.find_geom('geom1'), geom1)
-    self.assertEqual(spec.find_geom('geom2'), geom2)
-    self.assertEqual(spec.find_geom('geom3'), geom3)
+    self.assertEqual(spec.geom('geom1'), geom1)
+    self.assertEqual(spec.geom('geom2'), geom2)
+    self.assertEqual(spec.geom('geom3'), geom3)
 
   def test_iterators(self):
     spec = mujoco.MjSpec()
@@ -801,11 +801,11 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsite, 11)
     self.assertEqual(model.nsensor, 11)
 
-    head = spec.find_body('head')
+    head = spec.body('head')
     self.assertIsNotNone(head)
     site = head.first_site()
     self.assertIsNotNone(site)
-    self.assertEqual(site, spec.find_site('head'))
+    self.assertEqual(site, spec.site('head'))
 
     site.delete()
     spec.sensors[-1].delete()

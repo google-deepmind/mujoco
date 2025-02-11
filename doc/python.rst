@@ -589,9 +589,8 @@ to make model editing easier:
 
 Finding elements
 ^^^^^^^^^^^^^^^^
-The ``MjSpec`` object has methods like ``find_body(), find_joint(), find_site(), ...`` for every type of name-able
-:ref:`mjtObj` type. These methods take a name string and return the element with that name or ``None`` if it does not
-exist.
+The ``MjSpec`` object has methods like ``.body(), .joint(), .site(), ...`` for named access of elements.
+``spec.geom('my_geom')`` will return the :ref:`mjsGeom` called "my_geom", or ``None`` if it does not exist.
 
 Element lists
 ^^^^^^^^^^^^^

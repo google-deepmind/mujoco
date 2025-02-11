@@ -583,7 +583,7 @@ def generate_find() -> None:
     elemlower = elem.lower()
     titlecase = 'Mjs' + elem
     code = f"""\n
-      mjSpec.def("find_{elemlower}",
+      mjSpec.def("{elemlower}",
       [](MjSpec& self, std::string& name) -> raw::{titlecase}* {{
         return mjs_as{elem}(
             mjs_findElement(self.ptr, {objtype}, name.c_str()));
