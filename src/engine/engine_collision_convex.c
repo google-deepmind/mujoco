@@ -347,8 +347,8 @@ static void mjc_meshSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   int imax = 0;
 
   // used cached results from previous search
-  if (obj->meshindex >= 0) {
-    imax = obj->meshindex;
+  if (obj->vertindex >= 0) {
+    imax = obj->vertindex;
     max = dot3f(local_dir, verts + 3*imax);
   }
 
@@ -364,7 +364,7 @@ static void mjc_meshSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   }
 
   // record vertex index of maximum
-  obj->meshindex = imax;
+  obj->vertindex = imax;
 
   local_dir[0] = (mjtNum)verts[3*imax + 0];
   local_dir[1] = (mjtNum)verts[3*imax + 1];
@@ -416,6 +416,7 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
 
   // get resulting support vertex
   imax = 3*vert_globalid[imax];
+  obj->vertindex = imax / 3;
   local_dir[0] = (mjtNum)verts[imax + 0];
   local_dir[1] = (mjtNum)verts[imax + 1];
   local_dir[2] = (mjtNum)verts[imax + 2];
@@ -711,6 +712,7 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
   obj->geom = g;
   obj->margin = margin;
   obj->center = mjc_center;
+  obj->vertindex = -1;
   obj->meshindex = -1;
   obj->flex = -1;
   obj->elem = -1;

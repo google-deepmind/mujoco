@@ -43,6 +43,15 @@ typedef enum {
   mjEPA_P4_MISSING_ORIGIN,
 } mjEPAStatus;
 
+// vertex in a polytope
+typedef struct {
+  mjtNum vert[3];   // v1 - v2; vertex in Minkowski sum making up polytope
+  mjtNum vert1[3];  // vertex of polytope in obj1
+  mjtNum vert2[3];  // vertex of polytope in obj2
+  int index1;       // vertex index in mesh 1
+  int index2;       // vertex index in mesh 2
+} Vertex;
+
 // configuration for convex collision detection
 typedef struct {
   int max_iterations;   // the maximum number of iterations for GJK and EPA
@@ -69,10 +78,8 @@ typedef struct {
   int gjk_iterations;           // number of iterations that GJK ran
   int epa_iterations;           // number of iterations that EPA ran (zero if EPA did not run)
   mjEPAStatus epa_status;       // status of the EPA run
-  mjtNum simplex1[12];          // the simplex that GJK returned for obj1
-  mjtNum simplex2[12];          // the simplex that GJK returned for obj2
-  mjtNum simplex[12];           // the simplex that GJK returned for the Minkowski difference
-  int nsimplex;                 // size of simplex 1 & 2
+  Vertex simplex[4];
+  int nsimplex;
 } mjCCDStatus;
 
 // run general convex collision detection, returns positive for distance, negative for penetration

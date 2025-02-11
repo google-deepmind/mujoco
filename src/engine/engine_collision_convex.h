@@ -49,6 +49,7 @@ struct _mjCCDObj {
   const mjData* data;
   int geom;
   int geom_type;
+  int vertindex;
   int meshindex;
   int flex;
   int elem;
