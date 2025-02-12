@@ -24,6 +24,7 @@ from introspect import structs
 
 SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
 
+# pylint: disable=bad-whitespace
 # key, parent, default, listname, objtype
 SPECS = [
     ('mjsBody',     'Body', True,  'bodies',     'mjOBJ_BODY'),
@@ -51,6 +52,7 @@ SPECS = [
     ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
     ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
 ]
+# pylint: enable=bad-whitespace
 
 
 def _value_binding_code(
@@ -72,7 +74,7 @@ def _value_binding_code(
         or field.name == 'mjsOrientation'
         or field.name == 'mjsCompiler'
     ):
-      fulltype = fulltype + '&'  # plugin, orientation, compiler are not pointers
+      fulltype = fulltype + '&'  # plugin, orientation, compiler aren't pointers
     else:
       fulltype = fulltype + '*'
   # non-mjs structs
@@ -97,6 +99,26 @@ def _value_binding_code(
     def_property_args += ('py::return_value_policy::reference_internal',)
 
   return f'{classname}.def_property({",".join(def_property_args)});'
+
+
+def _struct_binding_code(
+    field: ast_nodes.AnonymousStructDecl, classname: str = '', varname: str = ''
+) -> str:
+  """Creates a string that declares Python bindings for an anonymous struct."""
+  code = ''
+  name = classname + varname.title()
+  # explicitly generate for nested fields with arrays
+  if any(
+      isinstance(f, ast_nodes.StructFieldDecl)
+      and isinstance(f.type, ast_nodes.ArrayType)
+      for f in field.fields
+  ):
+    for subfield in field.fields:
+      code += _binding_code(subfield, name)
+  # generate for the struct itself
+  field = ast_nodes.ValueType(name=name)
+  code += _value_binding_code(field, classname, varname)
+  return code
 
 
 def _array_binding_code(
@@ -255,8 +277,7 @@ def _binding_code(field: ast_nodes.StructFieldDecl, key: str) -> str:
   if isinstance(field.type, ast_nodes.ValueType):
     return _value_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.AnonymousStructDecl):
-    field.type = ast_nodes.ValueType(name='mjVisual'+field.name.title())
-    return _value_binding_code(field.type, key, field.name)
+    return _struct_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.PointerType):
     return _ptr_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.ArrayType):

@@ -272,6 +272,8 @@ PYBIND11_MODULE(_specs, m) {
   py::class_<raw::MjOption> mjOption(m, "MjOption");
   py::class_<raw::MjStatistic> mjStatistic(m, "MjStatistic");
   py::class_<raw::MjVisual> mjVisual(m, "MjVisual");
+  py::class_<raw::MjVisualHeadlight> mjVisualHeadlight(m, "MjVisualHeadlight");
+  py::class_<raw::MjVisualRgba> mjVisualRgba(m, "MjVisualRgba");
   py::class_<raw::MjsCompiler> mjsCompiler(m, "MjsCompiler");
   DefineArray<char>(m, "MjCharVec");
   DefineArray<std::string>(m, "MjStringVec");
@@ -1100,6 +1102,13 @@ PYBIND11_MODULE(_specs, m) {
       });
   mjsPlugin.def("delete",
                 [](raw::MjsPlugin& self) { mjs_delete(self.element); });
+  // ============================= MJVISUAL ====================================
+  mjVisual.def_property(
+      "global_",
+      [](raw::MjVisual& self) -> raw::MjVisualGlobal& { return self.global; },
+      [](raw::MjVisual& self, raw::MjVisualGlobal& value) {
+        self.global = value;
+      });
 
 #include "specs.cc.inc"
 }  // PYBIND11_MODULE // NOLINT

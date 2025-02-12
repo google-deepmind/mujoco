@@ -901,22 +901,31 @@ class SpecsTest(absltest.TestCase):
         <statistic meansize="0.05"/>
         <visual>
           <quality shadowsize="4096"/>
+          <headlight active="0"/>
+          <rgba camera="0 0 0 0"/>
         </visual>
       </mujoco>
     """)
     self.assertEqual(spec.option.timestep, 0.001)
     self.assertEqual(spec.stat.meansize, 0.05)
     self.assertEqual(spec.visual.quality.shadowsize, 4096)
+    self.assertEqual(spec.visual.headlight.active, 0)
+    self.assertEqual(spec.visual.global_, getattr(spec.visual, 'global'))
+    np.testing.assert_array_equal(spec.visual.rgba.camera, [0, 0, 0, 0])
 
     spec.option.timestep = 0.002
     spec.stat.meansize = 0.06
     spec.visual.quality.shadowsize = 8192
+    spec.visual.headlight.active = 1
+    spec.visual.rgba.camera = [1, 1, 1, 1]
 
     model = spec.compile()
 
     self.assertEqual(model.opt.timestep, 0.002)
     self.assertEqual(model.stat.meansize, 0.06)
     self.assertEqual(model.vis.quality.shadowsize, 8192)
+    self.assertEqual(model.vis.headlight.active, 1)
+    np.testing.assert_array_equal(model.vis.rgba.camera, [1, 1, 1, 1])
 
   def test_assign_list_element(self):
     spec = mujoco.MjSpec()
