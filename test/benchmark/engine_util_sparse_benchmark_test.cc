@@ -167,7 +167,8 @@ void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
     }
   }
 
-  mju_compressSparse(res, nc, nr, res_rownnz, res_rowadr, res_colind);
+  mju_compressSparse(res, nc, nr, res_rownnz, res_rowadr, res_colind,
+                     /*minval=*/-1);
 }
 
 int compare_baseline(const int* vec1,

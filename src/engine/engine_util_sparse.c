@@ -438,22 +438,34 @@ int mju_addChains(int* res, int n, int NV1, int NV2,
 
 
 
-// compress layout of sparse matrix
-void mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind) {
-  rowadr[0] = 0;
-  int adr = rownnz[0];
-  for (int r=1; r < nr; r++) {
+// compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
+int mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind,
+                       mjtNum minval) {
+  int remove_small = minval >= 0;
+  int adr = 0;
+  for (int r=0; r < nr; r++) {
     // save old rowadr, record new
-    int rowadr1 = rowadr[r];
+    int rowadr_old = rowadr[r];
     rowadr[r] = adr;
 
-    // shift mat and mat_colind
-    for (int adr1=rowadr1; adr1 < rowadr1+rownnz[r]; adr1++) {
-      mat[adr] = mat[adr1];
-      colind[adr] = colind[adr1];
+    // shift mat and colind
+    int nnz = 0;
+    int end = rowadr_old + rownnz[r];
+    for (int adr_old=rowadr_old; adr_old < end; adr_old++) {
+      if (remove_small && mju_abs(mat[adr_old]) <= minval) {
+        continue;
+      }
+      if (adr != adr_old) {
+        mat[adr] = mat[adr_old];
+        colind[adr] = colind[adr_old];
+      }
       adr++;
+      if (remove_small) nnz++;
     }
+    if (remove_small) rownnz[r] = nnz;
   }
+
+  return rowadr[nr-1] + rownnz[nr-1];
 }
 
 

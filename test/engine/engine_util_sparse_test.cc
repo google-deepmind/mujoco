@@ -300,6 +300,41 @@ TEST_F(EngineUtilSparseTest, MjuTransposeNullMatrix) {
   EXPECT_THAT(rowadrT, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 }
 
+TEST_F(EngineUtilSparseTest, MjuCompressSparse) {
+  // sparse matrix (uncompressed with spurious values between the rows):
+  // [[1, 0, 2]
+  //  [0, O, 3]  (second zero represented)
+  mjtNum mat[] = {1, 2,  9, 0, 3};  // spurious 9 value
+  int colind[] = {0, 2, -1, 1, 2};  // spurious -1 index
+  int rownnz[] = {2, 2};
+  int rowadr[] = {0, 3};
+
+  mjtNum dense_expected[] = {1, 0, 2, 0, 0, 3};
+  mjtNum dense[6];
+  mju_sparse2dense(dense, mat, 2, 3, rownnz, rowadr, colind);
+  EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected, 6));
+
+  // check that spurious values are removed
+  int nnz  = mju_compressSparse(mat, 2, 3, rownnz, rowadr, colind,
+                                /*minval=*/-1);
+  EXPECT_EQ(nnz, 4);
+  mju_sparse2dense(dense, mat, 2, 3, rownnz, rowadr, colind);
+  EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected, 6));
+
+  // check that represented zero gets compressed aways with minval=0
+  nnz  = mju_compressSparse(mat, 2, 3, rownnz, rowadr, colind, /*minval=*/0);
+  EXPECT_EQ(nnz, 3);
+  mju_sparse2dense(dense, mat, 2, 3, rownnz, rowadr, colind);
+  EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected, 6));
+
+  // check that 1 gets compressed aways with minval=1
+  nnz  = mju_compressSparse(mat, 2, 3, rownnz, rowadr, colind, /*minval=*/1);
+  EXPECT_EQ(nnz, 2);
+  mju_sparse2dense(dense, mat, 2, 3, rownnz, rowadr, colind);
+  mjtNum dense_expected_minval1[] = {0, 0, 2, 0, 0, 3};
+  EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected_minval1, 6));
+}
+
 static constexpr char modelStr[] = R"(<mujoco/>)";
 
 TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {

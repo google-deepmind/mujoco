@@ -50,9 +50,9 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
                                 const int* rownnz, const int* rowadr, const int* colind);
 
-// compress layout of sparse matrix
-MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
-                              int* rownnz, int* rowadr, int* colind);
+// compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
+MJAPI int mju_compressSparse(mjtNum* mat, int nr, int nc,
+                             int* rownnz, int* rowadr, int* colind, mjtNum minval);
 
 // count the number of non-zeros in the sum of two sparse vectors
 MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
