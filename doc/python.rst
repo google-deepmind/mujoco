@@ -507,9 +507,8 @@ Note the ``from_string()`` and ``from_file()`` methods can only be called at con
 Assets
 ^^^^^^
 
-All three methods take in an optional argument called ``assets`` which is used
-to resolve asset references in the XML. This argument is a dictionary that maps
-asset name (string) to asset data (bytes), as demonstrated below:
+All three methods take in an optional argument called ``assets`` which is used to resolve asset references in the XML.
+This argument is a dictionary that maps asset name (string) to asset data (bytes), as demonstrated below:
 
 .. code-block:: python
 
@@ -587,8 +586,8 @@ Convenience methods
 The Python bindings provide a number of convenience methods and attributes not directly available in the C API in order
 to make model editing easier:
 
-Finding elements
-^^^^^^^^^^^^^^^^
+Named access
+^^^^^^^^^^^^
 The ``MjSpec`` object has methods like ``.body(), .joint(), .site(), ...`` for named access of elements.
 ``spec.geom('my_geom')`` will return the :ref:`mjsGeom` called "my_geom", or ``None`` if it does not exist.
 
