@@ -458,9 +458,10 @@ public enum mjtGeomInertia : int{
   mjINERTIA_SHELL = 1,
 }
 public enum mjtMeshInertia : int{
-  mjINERTIA_CONVEX = 0,
-  mjINERTIA_EXACT = 1,
-  mjINERTIA_LEGACY = 2,
+  mjMESH_INERTIA_CONVEX = 0,
+  mjMESH_INERTIA_EXACT = 1,
+  mjMESH_INERTIA_LEGACY = 2,
+  mjMESH_INERTIA_SHELL = 3,
 }
 public enum mjtBuiltin : int{
   mjBUILTIN_NONE = 0,

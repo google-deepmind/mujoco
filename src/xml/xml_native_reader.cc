@@ -781,10 +781,11 @@ const mjMap meshtype_map[2] = {
 
 
 // mesh inertia type
-const mjMap meshinertia_map[3] = {
-  {"convex", mjINERTIA_CONVEX},
-  {"legacy", mjINERTIA_LEGACY},
-  {"exact", mjINERTIA_EXACT}
+const mjMap meshinertia_map[4] = {
+  {"convex", mjMESH_INERTIA_CONVEX},
+  {"legacy", mjMESH_INERTIA_LEGACY},
+  {"exact", mjMESH_INERTIA_EXACT},
+  {"shell", mjMESH_INERTIA_SHELL}
 };
 
 
@@ -1432,7 +1433,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   ReadAttr(elem, "refpos", 3, mesh->refpos, text);
   ReadAttr(elem, "refquat", 4, mesh->refquat, text);
   ReadAttr(elem, "scale", 3, mesh->scale, text);
-  if (MapValue(elem, "inertia", &n, meshinertia_map, 3)) {
+  if (MapValue(elem, "inertia", &n, meshinertia_map, 4)) {
     mesh->inertia = (mjtMeshInertia)n;
   }
 

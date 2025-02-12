@@ -444,6 +444,36 @@ TEST_F(MujocoTest, RecompileFails) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(PluginTest, ModifyShellInertiaFails) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  1 1 1e-6"
+        face="0 1 2  2 1 3" inertia="shell"/>
+    </asset>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+
+  // add a geom to spec
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "world"), nullptr);
+  geom->type = mjGEOM_MESH;
+  mjs_setString(geom->meshname, "example_mesh");
+  geom->typeinertia = mjINERTIA_SHELL;
+
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(mjs_getError(spec),
+              HasSubstr("inertia should be specified in the mesh asset"));
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
 // ------------------- test recompilation multiple files -----------------------
 TEST_F(PluginTest, RecompileCompare) {
   mjtNum tol = 0;

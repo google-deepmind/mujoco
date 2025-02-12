@@ -2793,8 +2793,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_bvhnum[i] = pme->tree().Nbvh();
     m->mesh_bvhadr[i] = pme->tree().Nbvh() ? bvh_adr : -1;
     mjuu_copyvec(&m->mesh_scale[3 * i], pme->Scale(), 3);
-    mjuu_copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
-    mjuu_copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
+    mjuu_copyvec(&m->mesh_pos[3 * i], pme->GetPosPtr(), 3);
+    mjuu_copyvec(&m->mesh_quat[4 * i], pme->GetQuatPtr(), 4);
 
     // copy vertices, normals, faces, texcoords, aux data
     pme->CopyVert(m->mesh_vert + 3*vert_adr);
@@ -4249,7 +4249,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     if (geoms_[i]->mesh &&
         (geoms_[i]->spec.type == mjGEOM_MESH || geoms_[i]->spec.type == mjGEOM_SDF) &&
         (geoms_[i]->spec.contype || geoms_[i]->spec.conaffinity ||
-         geoms_[i]->mesh->spec.inertia == mjINERTIA_CONVEX)) {
+         geoms_[i]->mesh->spec.inertia == mjMESH_INERTIA_CONVEX)) {
       geoms_[i]->mesh->SetNeedHull(true);
     }
   }
@@ -4633,8 +4633,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
   mjCMesh* pm;
   for (int i=0; i<nmesh; i++) {
     pm = meshes_[i];
-    mjuu_copyvec(pm->GetOffsetPosPtr(), m->mesh_pos+3*i, 3);
-    mjuu_copyvec(pm->GetOffsetQuatPtr(), m->mesh_quat+4*i, 4);
+    mjuu_copyvec(pm->GetPosPtr(), m->mesh_pos+3*i, 3);
+    mjuu_copyvec(pm->GetQuatPtr(), m->mesh_quat+4*i, 4);
   }
 
   // heightfield

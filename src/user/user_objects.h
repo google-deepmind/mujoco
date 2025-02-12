@@ -871,20 +871,16 @@ class mjCMesh_ : public mjCBase {
     MeshNegativeVolume = -1,
     MeshZeroVolume = 0,
     MeshVolumeOK = 1
-  } validvolume_;                             // indicates if volume is valid
-  bool valideigenvalue_;                      // false if inertia eigenvalue is too small
-  bool validinequality_;                      // false if inertia inequality is not satisfied
-  bool processed_;                            // false if the mesh has not been processed yet
+  } validvolume_;                   // indicates if volume is valid
+  bool valideigenvalue_;            // are inertia eigenvalues positive
+  bool validinequality_;            // is inertia eigenvalue inequality satisfied
+  bool processed_;                  // has the mesh been processed yet
+  bool transformed_;                // has the mesh been transformed to CoM and inertial frame
 
   // mesh properties computed by Compile
-  double pos_volume_[3];              // CoM position (volume)
-  double pos_surface_[3];             // CoM position (surface)
-  double quat_volume_[4];             // inertia orientation (volume)
-  double quat_surface_[4];            // inertia orientation (surface)
-  double pos_[3];                     // translation applied to asset vertices
-  double quat_[4];                    // rotation applied to asset vertices
-  double boxsz_volume_[3];            // half-sizes of equivalent inertia box (volume)
-  double boxsz_surface_[3];           // half-sizes of equivalent inertia box (surface)
+  double pos_[3];                     // CoM position
+  double quat_[4];                    // inertia orientation
+  double boxsz_[3];                   // half-sizes of equivalent inertia box
   double aamm_[6];                    // axis-aligned bounding box in (min, max) format
   double volume_;                     // volume of the mesh
   double surface_;                    // surface of the mesh
@@ -935,7 +931,6 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const std::vector<int>& Face() const { return face_; }
   const std::vector<int>& UserFace() const { return spec_face_; }
   mjtMeshInertia Inertia() const { return spec.inertia; }
-
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
 
@@ -955,12 +950,10 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
-  double* GetPosPtr(mjtGeomInertia type);           // get position
-  double* GetQuatPtr(mjtGeomInertia type);          // get orientation
-  double* GetOffsetPosPtr();                        // get position offset for geom
-  double* GetOffsetQuatPtr();                       // get orientation offset for geom
-  double* GetInertiaBoxPtr(mjtGeomInertia type);    // get inertia box
-  double& GetVolumeRef(mjtGeomInertia type);        // get volume
+  double* GetPosPtr();                              // get position
+  double* GetQuatPtr();                             // get orientation
+  double* GetInertiaBoxPtr();                       // get inertia box
+  double& GetVolumeRef();                           // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
@@ -991,20 +984,21 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void CacheMesh(mjCCache *cache, const mjResource* resource,
                  std::string_view asset_type);
 
-  void LoadSDF();                             // generate mesh using marching cubes
-  void MakeGraph();                           // make graph of convex hull
-  void CopyGraph();                           // copy graph into face data
-  void MakeNormal();                          // compute vertex normals
-  void MakeCenter();                          // compute face circumcircle data
-  void Process();                             // compute inertial properties
-  void ApplyTransformations();                // apply user transformations
-  void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
-  void CheckMesh(mjtGeomInertia type);        // check if the mesh is valid
+  void LoadSDF();                               // generate mesh using marching cubes
+  void MakeGraph();                             // make graph of convex hull
+  void CopyGraph();                             // copy graph into face data
+  void MakeNormal();                            // compute vertex normals
+  void MakeCenter();                            // compute face circumcircle data
+  void Process();                               // compute inertial properties
+  void ApplyTransformations();                  // apply user transformations
+  void ComputeFaceCentroid(double[3]);          // compute centroid of all faces
+  void CheckMesh();                             // check if the mesh is valid
   void CopyPlugin();
-  void Rotate(double quat[4]);                // rotate mesh by quaternion
+  void Rotate(double quat[4]);                      // rotate mesh by quaternion
+  void Transform(double pos[3], double quat[4]);    // transform mesh by position and quaternion
 
   // computes the inertia matrix of the mesh given the type of inertia
-  void ComputeInertia(mjtGeomInertia type, double inert[6]);
+  void ComputeInertia(double inert[6], double CoM[3]);
 
   // mesh data to be copied into mjModel
   double* center_;                    // face circumcenter data (3*nface)
@@ -1017,7 +1011,9 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<face_vertices_type> num_face_vertices_;
 
   // compute the volume and center-of-mass of the mesh given the face center
-  void ComputeVolume(double CoM[3], mjtGeomInertia gtype, const double facecen[3]);
+  void ComputeVolume(double CoM[3], const double facecen[3]);
+  // compute the surface area and center-of-mass of the mesh given the face center
+  void ComputeSurfaceArea(double CoM[3], const double facecen[3]);
 };
 
 

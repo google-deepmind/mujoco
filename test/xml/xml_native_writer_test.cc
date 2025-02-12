@@ -1323,7 +1323,6 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
             absl::StrContains(p.path().string(), "spheremesh")) {
           continue;
         }
-
         // load model
         std::array<char, 1000> error;
         mjModel* m = mj_loadXML(

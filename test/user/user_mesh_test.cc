@@ -653,32 +653,17 @@ TEST_F(MjCMeshTest, FlippedFaceAllowedNegligibleArea) {
   mj_deleteModel(model);
 }
 
-TEST_F(MjCMeshTest, ShellUsesVolumeFrame) {
-  const std::string xml_path_v = GetTestDataFilePath(kTorusPath);
-  const std::string xml_path_s = GetTestDataFilePath(kTorusShellPath);
-  std::array<char, 1024> error;
-  mjModel* mv = mj_loadXML(xml_path_v.c_str(), 0, error.data(), error.size());
-  mjModel* ms = mj_loadXML(xml_path_s.c_str(), 0, error.data(), error.size());
-  mjtNum tolerance = std::numeric_limits<float>::epsilon();
-  EXPECT_NEAR(mv->geom_quat[0], ms->geom_quat[0], tolerance);
-  EXPECT_NEAR(mv->geom_quat[1], ms->geom_quat[1], tolerance);
-  EXPECT_NEAR(mv->geom_quat[2], ms->geom_quat[2], tolerance);
-  EXPECT_NEAR(mv->geom_quat[3], ms->geom_quat[3], tolerance);
-  mj_deleteModel(mv);
-  mj_deleteModel(ms);
-}
-
 TEST_F(MjCMeshTest, AreaTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
       <mesh name="example_mesh"
         vertex="0 0 0  1e-8 0 0  0 1e-8 0  0 0 1e-8"
-        face="2 0 3  0 1 3  1 2 3  0 2 1" />
+        face="2 0 3  0 1 3  1 2 3  0 2 1" inertia="shell"/>
     </asset>
     <worldbody>
       <body>
-        <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
+        <geom type="mesh" mesh="example_mesh"/>
       </body>
     </worldbody>
   </mujoco>
@@ -687,25 +672,6 @@ TEST_F(MjCMeshTest, AreaTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh surface area is too small"));
-}
-
-TEST_F(MjCMeshTest, AreaTooSmallAllowedWorld) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <mesh name="example_mesh"
-        vertex="0 0 0  1e-8 0 0  0 1e-8 0  0 0 1e-8"
-        face="2 0 3  0 1 3  1 2 3  0 2 1" />
-    </asset>
-    <worldbody>
-      <geom type="mesh" mesh="example_mesh"/>
-    </worldbody>
-  </mujoco>
-  )";
-  char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mj_deleteModel(model);
 }
 
 TEST_F(MjCMeshTest, VolumeTooSmall) {
@@ -727,6 +693,65 @@ TEST_F(MjCMeshTest, VolumeTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
+  mj_deleteModel(model);
+
+}
+
+TEST_F(MjCMeshTest, VisualVolumeTooSmall) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" mass="0"/>
+      </default>
+    </default>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 -4e-16 0  1 0 4e-16  0 1 0  0 0 1"
+        face="0 2 1" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh" class="visual"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
+  mj_deleteModel(model);
+
+}
+
+TEST_F(MjCMeshTest, VisualVolumeSmallAllowedShell) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" mass="0"/>
+      </default>
+    </default>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  1 1 1e-6"
+        face="0 1 2  2 1 3" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh" class="visual"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_LE(mju_abs(model->geom_size[0]), 1);
+  EXPECT_LE(mju_abs(model->geom_size[1]), 1);
+  EXPECT_LE(mju_abs(model->geom_size[2]), 1);
+  mj_deleteModel(model);
 }
 
 TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
@@ -735,11 +760,11 @@ TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
     <asset>
       <mesh name="example_mesh"
         vertex="0 0 0  1 0 0  0 1 0  1 1 1e-6"
-        face="0 1 2  2 1 3" />
+        face="0 1 2  2 1 3" inertia="shell"/>
     </asset>
     <worldbody>
       <body>
-        <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
+        <geom type="mesh" mesh="example_mesh"/>
       </body>
     </worldbody>
   </mujoco>
@@ -795,25 +820,6 @@ TEST_F(MjCMeshTest, VolumeNegativeThrowsError) {
     EXPECT_THAT(model, IsNull());
     EXPECT_THAT(error.data(), HasSubstr("mesh volume is negative"));
   }
-}
-
-TEST_F(MjCMeshTest, VolumeTooSmallAllowedWorld) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <mesh name="example_mesh"
-        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
-        face="0 2 1" />
-    </asset>
-    <worldbody>
-      <geom type="mesh" mesh="example_mesh"/>
-    </worldbody>
-  </mujoco>
-  )";
-  char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mj_deleteModel(model);
 }
 
 // ------------- test concave and shell inertia --------------------------------
@@ -893,18 +899,18 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   char error[1024];
   mjModel* model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
-  // Loading the mesh results in an offset of the geom's pos and quat due to the
+  // loading the mesh results in an offset of the geom's pos and quat due to the
   // fact that the geom's center is not the volumetric center of the mesh. To
   // recover the geom's originally specified pose, the offset used is stored in
   // mesh_pos and mesh_quat. In order to recover the originally specified pose
-  // and orientation, first invert the specified mesh_pos and mesh_quat.
+  // and orientation, first invert the specified mesh_pos and mesh_quat
   mjtNum inverse_mesh_pos[3];
   mjtNum inverse_mesh_quat[4];
   mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
               &model->mesh_pos[0], &model->mesh_quat[0]);
 
-  // Apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
-  // quat. It should match the originally specified values.
+  // apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
+  // quat. It should match the originally specified values
   mjtNum recovered_pos[3];
   mjtNum recovered_quat[4];
   mju_mulPose(recovered_pos, recovered_quat,
@@ -919,7 +925,66 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
   EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
 
-  // Same test on the other geom.
+  // same test on the other geom
+  mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
+              &model->mesh_pos[0], &model->mesh_quat[0]);
+  mju_mulPose(recovered_pos, recovered_quat,
+              &model->geom_pos[3], &model->geom_quat[4],
+              inverse_mesh_pos, inverse_mesh_quat);
+  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
+  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
+  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+
+  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, MeshPosQuatShellInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1" inertia="shell"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" name="geom1" mesh="pyramid"/>
+      <geom type="mesh" name="geom2" pos="1 2 3" quat="0.5 0.5 0.5 0.5" mesh="pyramid"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  // loading the mesh results in an offset of the geom's pos and quat due to the
+  // fact that the geom's center is not the volumetric center of the mesh. To
+  // recover the geom's originally specified pose, the offset used is stored in
+  // mesh_pos and mesh_quat. In order to recover the originally specified pose
+  // and orientation, first invert the specified mesh_pos and mesh_quat
+  mjtNum inverse_mesh_pos[3];
+  mjtNum inverse_mesh_quat[4];
+  mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
+              &model->mesh_pos[0], &model->mesh_quat[0]);
+
+  // apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
+  // quat. It should match the originally specified values
+  mjtNum recovered_pos[3];
+  mjtNum recovered_quat[4];
+  mju_mulPose(recovered_pos, recovered_quat,
+              &model->geom_pos[0], &model->geom_quat[0],
+              inverse_mesh_pos, inverse_mesh_quat);
+  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+
+  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
+  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+
+  // same test on the other geom
   mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
               &model->mesh_pos[0], &model->mesh_quat[0]);
   mju_mulPose(recovered_pos, recovered_quat,
@@ -941,6 +1006,28 @@ TEST_F(MjCMeshTest, MeshScale) {
   <mujoco>
     <asset>
       <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <mesh name="pyramid_scaled" vertex="0 0 0  1 0 0  0 1 0  0 0 1" scale="0.9 1 -1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" name="geom1" mesh="pyramid"/>
+      <geom type="mesh" name="geom2" mesh="pyramid_scaled"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  EXPECT_THAT(AsVector(model->mesh_scale + 0, 3), ElementsAre(1, 1, 1));
+  EXPECT_THAT(AsVector(model->mesh_scale + 3, 3), ElementsAre(0.9, 1, -1));
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, ShellInertiaTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1" inertia="shell"/>
       <mesh name="pyramid_scaled" vertex="0 0 0  1 0 0  0 1 0  0 0 1" scale="0.9 1 -1"/>
     </asset>
     <worldbody>

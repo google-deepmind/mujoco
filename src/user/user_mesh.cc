@@ -119,15 +119,10 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   elemtype = mjOBJ_MESH;
 
   // clear internal variables
-  mjuu_setvec(pos_surface_, 0, 0, 0);
-  mjuu_setvec(pos_volume_, 0, 0, 0);
-  mjuu_setvec(quat_surface_, 1, 0, 0, 0);
-  mjuu_setvec(quat_volume_, 1, 0, 0, 0);
   mjuu_setvec(pos_, 0, 0, 0);
   mjuu_setvec(quat_, 1, 0, 0, 0);
 
-  mjuu_setvec(boxsz_surface_, 0, 0, 0);
-  mjuu_setvec(boxsz_volume_, 0, 0, 0);
+  mjuu_setvec(boxsz_, 0, 0, 0);
   mjuu_setvec(aamm_, 1e10, 1e10, 1e10);
   mjuu_setvec(aamm_+3, -1e10, -1e10, -1e10);
   szgraph_ = 0;
@@ -616,6 +611,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     }
     tree_.CreateBVH();
   }
+
+  // check that processed mesh is valid
+  CheckMesh();
 }
 
 
@@ -649,35 +647,13 @@ void mjCMesh::SetBoundingVolume(int faceid) {
 
 
 
-// get position
-double* mjCMesh::GetPosPtr(mjtGeomInertia type) {
-  if (type==mjINERTIA_SHELL) {
-    return pos_surface_;
-  } else {
-    return pos_volume_;
-  }
-}
-
-
-
-// get orientation
-double* mjCMesh::GetQuatPtr(mjtGeomInertia type) {
-  if (type==mjINERTIA_SHELL) {
-    return quat_surface_;
-  } else {
-    return quat_volume_;
-  }
-}
-
-
-
-double* mjCMesh::GetOffsetPosPtr() {
+double* mjCMesh::GetPosPtr() {
   return pos_;
 }
 
 
 
-double* mjCMesh::GetOffsetQuatPtr() {
+double* mjCMesh::GetQuatPtr() {
   return quat_;
 }
 
@@ -740,12 +716,12 @@ void mjCMesh::DelTexcoord() {
 // set geom size to match mesh
 void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
   // copy mesh pos into meshpos
-  mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
+  mjuu_copyvec(meshpos, GetPosPtr(), 3);
 
   // use inertial box
   if (!model->compiler.fitaabb) {
     // get inertia box type (shell or volume)
-    double* boxsz = GetInertiaBoxPtr(geom->typeinertia);
+    double* boxsz = GetInertiaBoxPtr();
     switch (geom->type) {
     case mjGEOM_SPHERE:
       geom->size[0] = (boxsz[0] + boxsz[1] + boxsz[2])/3;
@@ -1253,14 +1229,13 @@ void mjCMesh::LoadMSH(mjResource* resource) {
 }
 
 
-void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
-                              const double facecen[3]) {
+void mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) {
   double nrm[3];
   double cen[3];
-  GetVolumeRef(type) = 0;
+  GetVolumeRef() = 0;
   mjuu_zerovec(CoM, 3);
-  int nf = (inertia == mjINERTIA_CONVEX) ? graph_[1] : nface();
-  int* f = (inertia == mjINERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
+  int nf = (inertia == mjMESH_INERTIA_CONVEX) ? graph_[1] : nface();
+  int* f = (inertia == mjMESH_INERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
   float* vv = vert_.data();
   for (int i=0; i < nf; i++) {
     // get area, normal and center
@@ -1268,17 +1243,55 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
 
     // compute and add volume
     const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-    double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(vec, nrm) * a / 3;
+    double vol = mjuu_dot3(vec, nrm) * a / 3;
 
     // if legacy computation requested, then always positive
-    if (inertia == mjINERTIA_LEGACY) {
+    if (inertia == mjMESH_INERTIA_LEGACY) {
       vol = abs(vol);
     }
 
     // add pyramid com
-    GetVolumeRef(type) += vol;
+    GetVolumeRef() += vol;
     for (int j=0; j<3; j++) {
       CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
+    }
+  }
+
+  // if volume is valid normalize CoM
+  if (GetVolumeRef() < mjMINVAL) {
+    validvolume_ = GetVolumeRef() < 0 ? MeshNegativeVolume : MeshZeroVolume;
+  } else {
+    for (int j=0; j<3; j++) {
+      CoM[j] /= GetVolumeRef();
+    }
+  }
+}
+
+
+void mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) {
+  double nrm[3];
+  double cen[3];
+  GetVolumeRef() = 0;
+  mjuu_zerovec(CoM, 3);
+  float* vv = vert_.data();
+  for (int i=0; i < nface(); i++) {
+    // get area, normal and center
+    double a = _triangle(nrm, cen, vv+3*face_.data()[3*i],
+                         vv+3*face_.data()[3*i+1], vv+3*face_.data()[3*i+2]);
+
+    // add pyramid com
+    GetVolumeRef() += a;
+    for (int j=0; j<3; j++) {
+      CoM[j] += a*(cen[j]*3.0/4.0 + facecen[j]/4.0);
+    }
+  }
+
+  // if area is valid normalize CoM
+  if (GetVolumeRef() < mjMINVAL) {
+    validarea_ = false;
+  } else {
+    for (int j=0; j<3; j++) {
+      CoM[j] /= GetVolumeRef();
     }
   }
 }
@@ -1400,7 +1413,7 @@ void mjCMesh::ComputeFaceCentroid(double facecen[3]) {
 
 
 void mjCMesh::Process() {
-  double facecen[3] = {0, 0, 0};;
+  double facecen[3] = {0, 0, 0};
   // user offset, rotation, scaling
   ApplyTransformations();
 
@@ -1409,124 +1422,102 @@ void mjCMesh::Process() {
 
   double density = model->def_map[classname]->Geom().density;
 
-  bool centered = false;                      // true if the mesh is centered at the CoM
-  bool aligned_with_inertial_frame = false;   // true if mesh is aligned with inertial frame
+  // compute inertia and transform mesh. The mesh is transformed such that it is
+  // centered at the CoM and the axes are the principle axes of inertia
+  double CoM[3] = {0, 0, 0};
+  double inert[6] = {0, 0, 0, 0, 0, 0};
 
-  // compute inertial properties for both inertia types
-  // the mesh is transformed such that it is centered at the CoM and the axes
-  // are the principle axes of inertia. If the volume is valid, we use the volume
-  // inertia for this transformation, otherwise we use the shell inertia.
-  for ( const auto type : { mjtGeomInertia::mjINERTIA_VOLUME, mjtGeomInertia::mjINERTIA_SHELL } ) {
-    double CoM[3] = {0, 0, 0};
-    double inert[6] = {0, 0, 0, 0, 0, 0};
-
-    // compute CoM and volume from pyramid volumes
-    ComputeVolume(CoM, type, facecen);
-
-    // if volume is invalid, skip the rest of the computations
-    if (GetVolumeRef(type) < mjMINVAL) {
-      if (type == mjINERTIA_SHELL) {
-        validarea_ = 0;
-      } else {
-        validvolume_ = GetVolumeRef(type) < 0 ? MeshNegativeVolume : MeshZeroVolume;
-      }
-      continue;
-    }
-
-    // finalize CoM, save as mesh center
-    for (int j=0; j<3; j++) {
-      CoM[j] /= GetVolumeRef(type);
-    }
-    mjuu_copyvec(GetPosPtr(type), CoM, 3);
-
-    // re-center mesh at CoM
-    // we only want to do this if the mesh is not already centered at the CoM
-    if (!centered) {
-      for (int i=0; i < nvert(); i++) {
-        for (int j=0; j<3; j++) {
-          vert_[3*i+j] -= CoM[j];
-        }
-      }
-      centered = true;
-    }
-
-    // compute inertia
-    ComputeInertia(type, inert);
-
-    // get quaternion and diagonal inertia
-    double eigval[3], eigvec[9], quattmp[4];
-    double full[9] = {
-      inert[0], inert[3], inert[4],
-      inert[3], inert[1], inert[5],
-      inert[4], inert[5], inert[2]
-    };
-    mjuu_eig3(eigval, eigvec, quattmp, full);
-
-    // check eigval - SHOULD NOT OCCUR
-    if (eigval[2]<=0) {
-      valideigenvalue_ = false;
+  // compute CoM and volume/area
+  if (inertia == mjMESH_INERTIA_SHELL) {
+    ComputeSurfaceArea(CoM, facecen);
+    if (!validarea_) {
       return;
     }
-    if (eigval[0] + eigval[1] < eigval[2] ||
-        eigval[0] + eigval[2] < eigval[1] ||
-        eigval[1] + eigval[2] < eigval[0]) {
-      validinequality_ = false;
+  } else {
+    ComputeVolume(CoM, facecen);
+    if (validvolume_ != MeshVolumeOK) {
       return;
-    }
-
-    // compute sizes of equivalent inertia box
-    double mass = GetVolumeRef(type) * density;
-    double* boxsz = GetInertiaBoxPtr(type);
-    boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/mass)/2;
-    boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;
-    boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
-
-    // if mesh is aligned with inertial frame, we already successfully
-    // computed the volume inertia, so we can copy volume quat to shell,
-    // otherwise use shell quat for coordinate transformations
-    if (aligned_with_inertial_frame) {
-      mjuu_copyvec(GetQuatPtr(type), GetQuatPtr(mjINERTIA_VOLUME), 4);
-    }
-    // rotate vertices and normals to axes of inertia
-    // we only want to do this if the mesh is not already rotated
-    else {
-      mjuu_copyvec(GetQuatPtr(type), quattmp, 4);
-      Rotate(quattmp);
-      aligned_with_inertial_frame = true;
     }
   }
+
+  // compute inertia
+  ComputeInertia(inert, CoM);
+
+  // get quaternion and diagonal inertia
+  double eigval[3], eigvec[9], quattmp[4];
+  double full[9] = {
+    inert[0], inert[3], inert[4],
+    inert[3], inert[1], inert[5],
+    inert[4], inert[5], inert[2]
+  };
+  mjuu_eig3(eigval, eigvec, quattmp, full);
+
+  constexpr double inequality_atol = 1e-9;
+  constexpr double inequality_rtol = 1e-6;
+
+  // check eigval - SHOULD NOT OCCUR
+  if (eigval[2]<=0) {
+    valideigenvalue_= false;
+    return;
+  }
+  if (eigval[0] + eigval[1] < eigval[2] * (1.0 - inequality_rtol) - inequality_atol ||
+      eigval[0] + eigval[2] < eigval[1] * (1.0 - inequality_rtol) - inequality_atol ||
+      eigval[1] + eigval[2] < eigval[0] * (1.0 - inequality_rtol) - inequality_atol) {
+    validinequality_ = false;
+    return;
+  }
+
+  // compute sizes of equivalent inertia box
+  double mass = GetVolumeRef() * density;
+  double* boxsz = GetInertiaBoxPtr();
+  boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/mass)/2;
+  boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;
+  boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
+
+  // transform CoM to origin
+  Transform(CoM, quattmp);
 }
 
-void mjCMesh::ComputeInertia(mjtGeomInertia type, double inert[6]) {
+void mjCMesh::ComputeInertia(double inert[6], double CoM[3]) {
   double nrm[3];
   double cen[3];
   double density = model->def_map[classname]->Geom().density;
 
+  // copy vertices to avoid modifying the original mesh
+  std::vector<float> vert_centered(vert_);
+
+  // translate vertices to origin in order to compute inertia
+  for (int i=0; i < nvert(); i++) {
+    for (int j=0; j<3; j++) {
+      vert_centered[3*i+j] -= CoM[j];
+    }
+  }
+
   // accumulate products of inertia, recompute volume
   const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
   double P[6] = {0, 0, 0, 0, 0, 0};
-  GetVolumeRef(type) = 0;
-  int nf = (inertia == mjINERTIA_CONVEX) ? graph_[1] : nface();
-  int* f = (inertia == mjINERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
+  GetVolumeRef() = 0;
+  int nf = (inertia == mjMESH_INERTIA_CONVEX) ? graph_[1] : nface();
+  int* f = (inertia == mjMESH_INERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
   for (int i=0; i < nf; i++) {
-    float* D = vert_.data()+3*f[3*i];
-    float* E = vert_.data()+3*f[3*i+1];
-    float* F = vert_.data()+3*f[3*i+2];
+    float* D = vert_centered.data()+3*f[3*i];
+    float* E = vert_centered.data()+3*f[3*i+1];
+    float* F = vert_centered.data()+3*f[3*i+2];
 
     // get area, normal and center; update volume
     double a = _triangle(nrm, cen, D, E, F);
-    double vol = type==mjINERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
+    double vol = inertia==mjMESH_INERTIA_SHELL ? a : mjuu_dot3(cen, nrm) * a / 3;
 
     // if legacy computation requested, then always positive
-    if (inertia == mjINERTIA_LEGACY) {
+    if (inertia == mjMESH_INERTIA_LEGACY) {
       vol = abs(vol);
     }
 
     // apply formula, accumulate
-    GetVolumeRef(type) += vol;
+    GetVolumeRef() += vol;
     for (int j=0; j<6; j++) {
       P[j] += density*vol /
-                (type==mjINERTIA_SHELL ? 12 : 20) * (
+                (inertia==mjMESH_INERTIA_SHELL ? 12 : 20) * (
                 2*(D[k[j][0]] * D[k[j][1]] +
                   E[k[j][0]] * E[k[j][1]] +
                   F[k[j][0]] * F[k[j][1]]) +
@@ -1547,7 +1538,7 @@ void mjCMesh::ComputeInertia(mjtGeomInertia type, double inert[6]) {
 
 
 void mjCMesh::Rotate(double quat[4]) {
-  // Rotates vertices and normals of mesh by quaternion.
+  // rotate vertices and normals of mesh by quaternion
   double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
   double mat[9];
   mjuu_quat2mat(mat, neg);
@@ -1575,22 +1566,37 @@ void mjCMesh::Rotate(double quat[4]) {
   }
 }
 
+
+void mjCMesh::Transform(double pos[3], double quat[4]) {
+  // subtract CoM position from vertices
+  for (int i=0; i < nvert(); i++) {
+      for (int j=0; j<3; j++) {
+        vert_[3*i+j] -= pos[j];
+      }
+    }
+  Rotate(quat);
+
+  // save the pos and quat that was used to transform the mesh
+  mjuu_copyvec(GetPosPtr(), pos, 3);
+  mjuu_copyvec(GetQuatPtr(), quat, 4);
+}
 // check that the mesh is valid
-void mjCMesh::CheckMesh(mjtGeomInertia type) {
+void mjCMesh::CheckMesh() {
   if (!processed_) {
     return;
   }
-  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && inertia == mjINERTIA_EXACT)
+  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && inertia == mjMESH_INERTIA_EXACT)
     throw mjCError(this,
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
                    name.c_str(), invalidorientation_.first, invalidorientation_.second);
-  if (!validarea_ && type==mjINERTIA_SHELL)
+  if (!validarea_ && inertia==mjMESH_INERTIA_SHELL)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  if (validvolume_==MeshNegativeVolume && type==mjINERTIA_VOLUME)
+  if (validvolume_==MeshNegativeVolume && inertia!=mjMESH_INERTIA_SHELL)
     throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
-  if (validvolume_==MeshZeroVolume && type==mjINERTIA_VOLUME)
-    throw mjCError(this, "mesh volume is too small: %s", name.c_str());
+  if (validvolume_==MeshZeroVolume && inertia!=mjMESH_INERTIA_SHELL)
+    throw mjCError(this, "mesh volume is too small: %s . Try setting inertia to shell",
+                   name.c_str());
   if (!valideigenvalue_)
     throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
   if (!validinequality_)
@@ -1599,15 +1605,14 @@ void mjCMesh::CheckMesh(mjtGeomInertia type) {
 
 
 // get inertia pointer
-double* mjCMesh::GetInertiaBoxPtr(mjtGeomInertia type) {
-  CheckMesh(type);
-  return type==mjINERTIA_SHELL ? boxsz_surface_ : boxsz_volume_;
+double* mjCMesh::GetInertiaBoxPtr() {
+  return boxsz_;
 }
 
 
-double& mjCMesh::GetVolumeRef(mjtGeomInertia type) {
-  CheckMesh(type);
-  return type==mjINERTIA_SHELL ? surface_ : volume_;
+double& mjCMesh::GetVolumeRef() {
+  CheckMesh();
+  return inertia==mjMESH_INERTIA_SHELL ? surface_ : volume_;
 }
 
 

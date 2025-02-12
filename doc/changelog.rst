@@ -34,6 +34,18 @@ General
 - Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
 - Improved shadow rendering in the native renderer.
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Changes to inertia inference from meshes:
+
+     Previously, in order to specify that the mass lies on the surface, :ref:`geom/shellinertia<body-geom-shellinertia>`
+     could be used for any geom type. Now this attribute is ignored if the geom is a mesh; instead, inertia inference
+     for meshes is specified in the asset, using the :ref:`asset/mesh/inertia<asset-mesh-inertia>` attribute.
+
+     Previously, if the volumetric inertia computation failed (for example due to a very flat mesh), the compiler
+     would silently fall back to surface inertia computation. Now, the compiler will throw an informative error.
+
 MJX
 ^^^
 - Added support for spatial tendons with internal sphere and cylinder wrapping.

@@ -1246,18 +1246,21 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 .. _asset-mesh-inertia:
 
-:at:`inertia`: :at-val:`[convex, exact, legacy], "legacy"`
+:at:`inertia`: :at-val:`[convex, exact, legacy, shell], "legacy"`
    This attribute controls how the mesh is used when mass and inertia are
    :ref:`inferred from geometry<compiler-inertiafromgeom>`. The current default value :at-val:`legacy` will be changed
    to :at-val:`convex` in a future release.
 
-   :at-val:`convex`: Use the mesh's convex hull to compute volume and inertia.
+   :at-val:`convex`: Use the mesh's convex hull to compute volume and inertia, assuming uniform density.
 
-   :at-val:`exact`: Use an exact algorithm to compute volume and inertia. This algorithm requires a well-oriented,
-   watertight mesh and will error otherwise.
+   :at-val:`exact`: Compute volume and inertia exactly, even for non-convex meshes. This algorithm requires a
+   well-oriented, watertight mesh and will error otherwise.
 
-   :at-val:`legacy`: Use the legacy algorithm, which is similar to :at-val:`convex`, but leads to volume overcounting
-   for non-convex meshes.
+   :at-val:`legacy`: Use the legacy algorithm, leads to volume overcounting for non-convex meshes. Though currently the
+   default to avoid breakages, it is not recommended.
+
+   :at-val:`shell`: Assume mass is concentrated on the surface of the mesh. Use the mesh's surface to compute
+   the inertia, assuming uniform surface density.
 
 .. _asset-mesh-smoothnormal:
 
@@ -2457,8 +2460,10 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-shellinertia:
 
 :at:`shellinertia` :at-val:`[false, true], "false"`
-   If true, the geom's inertia is computed assuming that all the mass is concentrated on the boundary. In this case
-   :at:`density` is interpreted as surface density rather than volumetric density.
+   If true, the geom's inertia is computed assuming that all the mass is concentrated on the surface. In this case
+   :at:`density` is interpreted as surface rather than volumetric density. This attribute only applies to primitive
+   geoms and is ignored for meshes. Surface inertia for meshes can be specified by setting the
+   :ref:`asset/mesh/inertia<asset-mesh-inertia>` attribute to :at-val:`"shell"`.
 
 .. _body-geom-solmix:
 

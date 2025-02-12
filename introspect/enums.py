@@ -734,9 +734,10 @@ ENUMS: Mapping[str, EnumDecl] = dict([
          name='mjtMeshInertia',
          declname='enum mjtMeshInertia_',
          values=dict([
-             ('mjINERTIA_CONVEX', 0),
-             ('mjINERTIA_EXACT', 1),
-             ('mjINERTIA_LEGACY', 2),
+             ('mjMESH_INERTIA_CONVEX', 0),
+             ('mjMESH_INERTIA_EXACT', 1),
+             ('mjMESH_INERTIA_LEGACY', 2),
+             ('mjMESH_INERTIA_SHELL', 3),
          ]),
      )),
     ('mjtBuiltin',

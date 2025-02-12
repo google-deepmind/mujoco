@@ -1141,7 +1141,7 @@ TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
     <asset>
       <mesh name="bad_mesh"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
-        face="0 2 1" />
+        face="0 2 1"  inertia="shell"/>
     </asset>
     <worldbody>
       <body>

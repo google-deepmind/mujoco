@@ -1728,10 +1728,10 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
     <asset>
       <mesh name="example_mesh"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
-        face="0 2 1  2 0 3" />
+        face="0 2 1  2 0 3" inertia="shell"/>
     </asset>
     <worldbody>
-      <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
+      <geom type="mesh" mesh="example_mesh"/>
     </worldbody>
   </mujoco>
   )";
@@ -1740,7 +1740,6 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
   ASSERT_THAT(model, NotNull());
   mj_deleteModel(model);
 }
-
 
 TEST_F(XMLReaderTest, ReadsSkinGroups) {
   static constexpr char xml[] = R"(

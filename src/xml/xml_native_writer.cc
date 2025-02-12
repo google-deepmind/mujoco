@@ -217,7 +217,7 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     WriteAttrTxt(elem, "content_type", mesh->ContentType());
     WriteAttrTxt(elem, "file", mesh->File());
     if (mesh->Inertia() != def->Mesh().Inertia()) {
-      WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 3, mesh->Inertia()));
+      WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 4, mesh->Inertia()));
     }
 
     // write vertex data
@@ -422,14 +422,14 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
       mjCMesh* mesh = geom->mesh;
 
       // write pos/quat if there is a difference
-      if (!SameVector(geom->pos, mesh->GetPosPtr(geom->typeinertia), 3) ||
-          !SameVector(geom->quat, mesh->GetQuatPtr(geom->typeinertia), 4)) {
+      if (!SameVector(geom->pos, mesh->GetPosPtr(), 3) ||
+          !SameVector(geom->quat, mesh->GetQuatPtr(), 4)) {
         // recover geom pos/quat before mesh frame transformation
         double p[3], q[4];
         mjuu_copyvec(p, geom->pos, 3);
         mjuu_copyvec(q, geom->quat, 4);
-        mjuu_frameaccuminv(p, q, mesh->GetPosPtr(geom->typeinertia),
-                           mesh->GetQuatPtr(geom->typeinertia));
+        mjuu_frameaccuminv(p, q, mesh->GetPosPtr(),
+                           mesh->GetQuatPtr());
 
         // write
         WriteAttr(elem, "pos", 3, p, unitq+1);
@@ -462,7 +462,10 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   WriteAttr(elem, "gap", 1, &geom->gap, &def->Geom().gap);
   WriteAttrKey(elem, "fluidshape", fluid_map, 2, geom->fluid_ellipsoid, def->Geom().fluid_ellipsoid);
   WriteAttr(elem, "fluidcoef", 5, geom->fluid_coefs, def->Geom().fluid_coefs);
-  WriteAttrKey(elem, "shellinertia", meshtype_map, 2, geom->typeinertia, def->Geom().typeinertia);
+  if (geom->type != mjGEOM_MESH) {
+    WriteAttrKey(elem, "shellinertia", meshtype_map, 2, geom->typeinertia,
+                 def->Geom().typeinertia);
+  }
   if (mjuu_defined(geom->mass)) {
     WriteAttr(elem, "mass", 1, &geom->mass_, &mass);
   } else {

@@ -2386,7 +2386,7 @@ double mjCGeom::GetVolume() const {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
-    return mesh->GetVolumeRef(typeinertia);
+    return mesh->GetVolumeRef();
   }
 
   // compute from geom shape (type) and inertia type (typeinertia)
@@ -2476,7 +2476,7 @@ void mjCGeom::SetInertia(void) {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
-    double* boxsz = mesh->GetInertiaBoxPtr(typeinertia);
+    double* boxsz = mesh->GetInertiaBoxPtr();
     inertia[0] = mass_ * (boxsz[1] * boxsz[1] + boxsz[2] * boxsz[2]) / 3;
     inertia[1] = mass_ * (boxsz[0] * boxsz[0] + boxsz[2] * boxsz[2]) / 3;
     inertia[2] = mass_ * (boxsz[0] * boxsz[0] + boxsz[1] * boxsz[1]) / 3;
@@ -2551,6 +2551,7 @@ void mjCGeom::SetInertia(void) {
       double radius = size[0];
       switch (typeinertia) {
         case mjINERTIA_VOLUME:
+
           inertia[0] = inertia[1] = mass_ * (3 * radius * radius + height * height) / 12;
           inertia[2] = mass_ * radius * radius / 2;
           return;
@@ -3006,23 +3007,20 @@ void mjCGeom::Compile(void) {
     mjCMesh* pmesh = mesh;
 
     // fit geom if type is not mjGEOM_MESH
-    double meshpos[3];
     if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
+      double meshpos[3];
       mesh->FitGeom(this, meshpos);
 
       // remove reference to mesh
       meshname_.clear();
       mesh = nullptr;
-    } else {
-      // Retrieve the mesh position for the relevant inertia type.
-      mjuu_copyvec(meshpos, mesh->GetPosPtr(typeinertia), 3);
+      mjuu_copyvec(pmesh->GetPosPtr(), meshpos, 3);
+    } else if (typeinertia == mjINERTIA_SHELL) {
+        throw mjCError(this, "for mesh geoms, inertia should be specified in the mesh asset");
     }
 
     // apply geom pos/quat as offset
-    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
-    mjuu_copyvec(pmesh->GetOffsetPosPtr(), meshpos, 3);
-    // Retrieve the mesh quaternion for the relevant inertia type.
-    mjuu_copyvec(pmesh->GetOffsetQuatPtr(), pmesh->GetQuatPtr(typeinertia), 4);
+    mjuu_frameaccum(pos, quat, pmesh->GetPosPtr(), pmesh->GetQuatPtr());
   }
 
   // check size parameters
