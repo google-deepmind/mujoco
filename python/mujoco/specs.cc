@@ -595,16 +595,14 @@ PYBIND11_MODULE(_specs, m) {
               [](raw::MjsBody& self, raw::MjsFrame& frame) -> void {
                 mjs_setFrame(self.element, &frame);
               });
-  mjsBody.def("set_default",
-              [](raw::MjsBody& self, raw::MjsDefault& default_) -> void {
-                mjs_setDefault(self.element, &default_);
-              });
-  mjsBody.def(
-      "default",
+  mjsBody.def_property(
+      "classname",
       [](raw::MjsBody& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsBody& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
   mjsBody.def(
       "find_all",
       [](raw::MjsBody& self, mjtObj objtype) -> py::list {
@@ -837,29 +835,25 @@ PYBIND11_MODULE(_specs, m) {
   mjsGeom.def("set_frame", [](raw::MjsGeom& self, raw::MjsFrame& frame) {
     mjs_setFrame(self.element, &frame);
   });
-  mjsGeom.def("set_default", [](raw::MjsGeom& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
-  });
   mjsGeom.def_property_readonly(
       "parent",
       [](raw::MjsGeom& self) -> raw::MjsBody* {
         return mjs_getParent(self.element);
       },
       py::return_value_policy::reference_internal);
-  mjsGeom.def(
-      "default",
+  mjsGeom.def_property(
+      "classname",
       [](raw::MjsGeom& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsGeom& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSJOINT ====================================
   mjsJoint.def("delete", [](raw::MjsJoint& self) { mjs_delete(self.element); });
   mjsJoint.def("set_frame", [](raw::MjsJoint& self, raw::MjsFrame& frame) {
     mjs_setFrame(self.element, &frame);
-  });
-  mjsJoint.def("set_default", [](raw::MjsJoint& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
   });
   mjsJoint.def_property_readonly(
       "parent",
@@ -867,20 +861,19 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_getParent(self.element);
       },
       py::return_value_policy::reference_internal);
-  mjsJoint.def(
-      "default",
+  mjsJoint.def_property(
+      "classname",
       [](raw::MjsJoint& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsJoint& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSSITE =====================================
   mjsSite.def("delete", [](raw::MjsSite& self) { mjs_delete(self.element); });
   mjsSite.def("set_frame", [](raw::MjsSite& self, raw::MjsFrame& frame) {
     mjs_setFrame(self.element, &frame);
-  });
-  mjsSite.def("set_default", [](raw::MjsSite& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
   });
   mjsSite.def_property_readonly(
       "parent",
@@ -888,12 +881,14 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_getParent(self.element);
       },
       py::return_value_policy::reference_internal);
-  mjsSite.def(
-      "default",
+  mjsSite.def_property(
+      "classname",
       [](raw::MjsSite& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsSite& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
   mjsSite.def(
       "attach_body",
       [](raw::MjsSite& self, raw::MjsBody& body,
@@ -918,29 +913,25 @@ PYBIND11_MODULE(_specs, m) {
   mjsCamera.def("set_frame", [](raw::MjsCamera& self, raw::MjsFrame& frame) {
     mjs_setFrame(self.element, &frame);
   });
-  mjsCamera.def("set_default", [](raw::MjsCamera& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
-  });
   mjsCamera.def_property_readonly(
       "parent",
       [](raw::MjsCamera& self) -> raw::MjsBody* {
         return mjs_getParent(self.element);
       },
       py::return_value_policy::reference_internal);
-  mjsCamera.def(
-      "default",
+  mjsCamera.def_property(
+      "classname",
       [](raw::MjsCamera& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsCamera& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSLIGHT ====================================
   mjsLight.def("delete", [](raw::MjsLight& self) { mjs_delete(self.element); });
   mjsLight.def("set_frame", [](raw::MjsLight& self, raw::MjsFrame& frame) {
     mjs_setFrame(self.element, &frame);
-  });
-  mjsLight.def("set_default", [](raw::MjsLight& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
   });
   mjsLight.def_property_readonly(
       "parent",
@@ -948,85 +939,76 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_getParent(self.element);
       },
       py::return_value_policy::reference_internal);
-  mjsLight.def(
-      "default",
+  mjsLight.def_property(
+      "classname",
       [](raw::MjsLight& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsLight& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSMATERIAL =================================
   mjsMaterial.def("delete",
                   [](raw::MjsMaterial& self) { mjs_delete(self.element); });
-  mjsMaterial.def("set_default",
-                  [](raw::MjsMaterial& self, raw::MjsDefault& def) {
-                    mjs_setDefault(self.element, &def);
-                  });
-  mjsMaterial.def(
-      "default",
+  mjsMaterial.def_property(
+      "classname",
       [](raw::MjsMaterial& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsMaterial& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSMESH =====================================
   mjsMesh.def("delete", [](raw::MjsMesh& self) { mjs_delete(self.element); });
-  mjsMesh.def("set_default", [](raw::MjsMesh& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
-  });
-  mjsMesh.def(
-      "default",
+  mjsMesh.def_property(
+      "classname",
       [](raw::MjsMesh& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsMesh& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSPAIR =====================================
   mjsPair.def("delete", [](raw::MjsPair& self) { mjs_delete(self.element); });
-  mjsPair.def("set_default", [](raw::MjsPair& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
-  });
-  mjsPair.def(
-      "default",
+  mjsPair.def_property(
+      "classname",
       [](raw::MjsPair& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsPair& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSEQUAL ====================================
   mjsEquality.def("delete",
                   [](raw::MjsEquality& self) { mjs_delete(self.element); });
-  mjsEquality.def("set_default",
-                  [](raw::MjsEquality& self, raw::MjsDefault& def) {
-                    mjs_setDefault(self.element, &def);
-                  });
-  mjsEquality.def(
-      "default",
+  mjsEquality.def_property(
+      "classname",
       [](raw::MjsEquality& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsEquality& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSACTUATOR =================================
   mjsActuator.def("delete",
                   [](raw::MjsActuator& self) { mjs_delete(self.element); });
-  mjsActuator.def("set_default",
-                  [](raw::MjsActuator& self, raw::MjsDefault& def) {
-                    mjs_setDefault(self.element, &def);
-                  });
-  mjsActuator.def(
-      "default",
+  mjsActuator.def_property(
+      "classname",
       [](raw::MjsActuator& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
       },
-      py::return_value_policy::reference_internal);
+      [](raw::MjsActuator& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      });
 
   // ============================= MJSTENDON ===================================
   mjsTendon.def("delete",
                 [](raw::MjsTendon& self) { mjs_delete(self.element); });
-  mjsTendon.def("set_default", [](raw::MjsTendon& self, raw::MjsDefault& def) {
-    mjs_setDefault(self.element, &def);
-  });
   mjsTendon.def(
       "default",
       [](raw::MjsTendon& self) -> raw::MjsDefault* {

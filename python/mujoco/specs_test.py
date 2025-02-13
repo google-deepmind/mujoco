@@ -528,22 +528,7 @@ class SpecsTest(absltest.TestCase):
       spec.to_xml()
 
   def test_modelname_default_class(self):
-    spec = mujoco.MjSpec()
-    spec.modelname = 'test'
-
-    main = spec.default()
-    main.geom.size[0] = 2
-
-    def1 = spec.add_default('def1', main)
-    def1.geom.size[0] = 3
-
-    spec.worldbody.add_geom(def1)
-    spec.worldbody.add_geom(main)
-
-    spec.compile()
-    self.assertEqual(
-        spec.to_xml(),
-        textwrap.dedent("""\
+    XML = textwrap.dedent("""\
         <mujoco model="test">
           <compiler angle="radian"/>
 
@@ -559,8 +544,8 @@ class SpecsTest(absltest.TestCase):
             <geom/>
           </worldbody>
         </mujoco>
-    """),
-    )
+    """)
+
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
 
@@ -574,26 +559,38 @@ class SpecsTest(absltest.TestCase):
     spec.worldbody.add_geom(main)
 
     spec.compile()
-    self.assertEqual(
-        spec.to_xml(),
-        textwrap.dedent("""\
-        <mujoco model="test">
-          <compiler angle="radian"/>
+    self.assertEqual(spec.to_xml(), XML)
+    spec = mujoco.MjSpec()
+    spec.modelname = 'test'
 
-          <default>
-            <geom size="2 0 0"/>
-            <default class="def1">
-              <geom size="3 0 0"/>
-            </default>
-          </default>
+    main = spec.default()
+    main.geom.size[0] = 2
+    def1 = spec.add_default('def1', main)
+    def1.geom.size[0] = 3
 
-          <worldbody>
-            <geom class="def1"/>
-            <geom/>
-          </worldbody>
-        </mujoco>
-    """),
-    )
+    geom1 = spec.worldbody.add_geom(def1)
+    geom2 = spec.worldbody.add_geom()
+    self.assertEqual(geom1.classname.name, 'def1')
+    self.assertEqual(geom2.classname.name, 'main')
+
+    spec.compile()
+    self.assertEqual(spec.to_xml(), XML)
+
+    spec = mujoco.MjSpec()
+    spec.modelname = 'test'
+
+    main = spec.default()
+    main.geom.size[0] = 2
+    def1 = spec.add_default('def1', main)
+    def1.geom.size[0] = 3
+
+    geom1 = spec.worldbody.add_geom(size=[3, 0, 0])
+    geom2 = spec.worldbody.add_geom(size=[2, 0, 0])
+    geom1.classname = def1
+    geom2.classname = main  # actually redundant, since main is always applied
+
+    spec.compile()
+    self.assertEqual(spec.to_xml(), XML)
 
   def test_element_list(self):
     spec = mujoco.MjSpec()
