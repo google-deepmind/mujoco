@@ -19,7 +19,7 @@ import ctypes.util
 import os
 import platform
 import subprocess
-from typing import IO, Union
+from typing import Any, IO, Union, Sequence
 from typing_extensions import TypeAlias
 import warnings
 import zipfile
@@ -50,6 +50,7 @@ elif _SYSTEM == 'Darwin':
         'native, arm64 build of Python.')
 
 from mujoco import _specs
+from mujoco import _structs
 from mujoco._callbacks import *
 from mujoco._constants import *
 from mujoco._enums import *
@@ -88,6 +89,7 @@ MjStruct: TypeAlias = Union[
     _specs.MjsPlugin,
 ]
 
+
 def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
   """Converts a spec to a zip file.
 
@@ -106,7 +108,68 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
       zip_info = zipfile.ZipInfo(os.path.join(spec.modelname, filename))
       zip_file.writestr(zip_info, contents)
 
+
+class _MjBindModel:
+  def __init__(self, elements: Sequence[Any]):
+    self.elements = elements
+
+  def __getattr__(self, key: str):
+    items = []
+    for e in self.elements:
+      items.extend(getattr(e, key))
+    return items
+
+
+class _MjBindData:
+  def __init__(self, elements: Sequence[Any]):
+    self.elements = elements
+
+  def __getattr__(self, key: str):
+    items = []
+    for e in self.elements:
+      items.extend(getattr(e, key))
+    return items
+
+
+def _bind_model(
+    model: _structs.MjModel, specs: Union[Sequence[MjStruct], MjStruct]
+):
+  """Bind a Mujoco spec to a mjModel.
+
+  Args:
+    model: The mjModel to bind to.
+    specs: The mjSpec elements to use for binding, can be a single element or a
+      sequence.
+  Returns:
+    A MjModelGroupedViews object or a list of the same type.
+  """
+  if isinstance(specs, Sequence):
+    return _MjBindModel([model.bind_scalar(s) for s in specs])
+  else:
+    return model.bind_scalar(specs)
+
+
+def _bind_data(
+    data: _structs.MjData, specs: Union[Sequence[MjStruct], MjStruct]
+):
+  """Bind a Mujoco spec to a mjData.
+
+  Args:
+    data: The mjData to bind to.
+    specs: The mjSpec elements to use for binding, can be a single element or a
+      sequence.
+  Returns:
+    A MjDataGroupedViews object or a list of the same type.
+  """
+  if isinstance(specs, Sequence):
+    return _MjBindData([data.bind_scalar(s) for s in specs])
+  else:
+    return data.bind_scalar(specs)
+
+
 _specs.MjSpec.to_zip = to_zip
+_structs.MjData.bind = _bind_data
+_structs.MjModel.bind = _bind_model
 
 HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), 'plugin')

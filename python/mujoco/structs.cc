@@ -1720,7 +1720,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
 #define XGROUP(spectype, field)                                       \
   mjModel.def(                                                        \
-      "bind",                                                         \
+      "bind_scalar",                                                  \
       [](MjModelWrapper& m, spectype& spec) -> auto& {                \
         return m.indexer().field##_by_name(mjs_getString(spec.name)); \
       },                                                              \
@@ -2066,7 +2066,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
 #define XGROUP(spectype, field)                                       \
   mjData.def(                                                         \
-      "bind",                                                         \
+      "bind_scalar",                                                  \
       [](MjDataWrapper& d, spectype& spec) -> auto& {                 \
         return d.indexer().field##_by_name(mjs_getString(spec.name)); \
       },                                                              \

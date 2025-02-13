@@ -1100,5 +1100,40 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'Frame not found.'):
       parent.attach(child4, frame='invalid_frame', prefix='child3-')
 
+  def test_bind(self):
+    spec = mujoco.MjSpec.from_string("""
+    <mujoco>
+      <worldbody>
+        <body name="main">
+          <geom name="main" size="0.15 0.15 0.15" mass="1" type="box"/>
+          <freejoint/>
+          <body name="box">
+            <joint name="box" type="hinge" range="-1 +1"/>
+            <geom name="box" size="0.15 0.15 0.15" mass="1" type="box"/>
+          </body>
+          <body name="sphere">
+            <joint name="sphere" type="hinge" range="-1 +1"/>
+            <geom name="sphere" size="0.15 0.15 0.15" mass="1" type="box"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>
+    """)
+    joint_box = spec.joint('box')
+    joint_sphere = spec.joint('sphere')
+    joints = [joint_box, joint_sphere]
+    mj_model = spec.compile()
+    mj_data = mujoco.MjData(mj_model)
+    np.testing.assert_array_equal(mj_data.bind(joint_box).qpos, 0)
+    np.testing.assert_array_equal(mj_model.bind(joint_box).qposadr, 7)
+    np.testing.assert_array_equal(mj_data.bind(joints).qpos, [0, 0])
+    np.testing.assert_array_equal(mj_model.bind(joints).qposadr, [7, 8])
+    np.testing.assert_array_equal(mj_data.bind([]).qpos, [])
+    np.testing.assert_array_equal(mj_model.bind([]).qposadr, [])
+    with self.assertRaisesRegex(
+        AttributeError, "object has no attribute 'invalid'"
+    ):
+      print(mj_model.bind(joints).invalid)
+
 if __name__ == '__main__':
   absltest.main()
