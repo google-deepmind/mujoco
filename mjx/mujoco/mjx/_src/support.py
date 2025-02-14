@@ -476,6 +476,7 @@ class BindData(object):
     if name == 'sensordata':
       raise AttributeError('sensordata is readonly')
     array = getattr(self.data, self.__getname(name))
+    dim = 1 if len(array.shape) == 1 else array.shape[-1]
     try:
       iter(value)
     except TypeError:
@@ -490,10 +491,10 @@ class BindData(object):
       num = sum((typ == jt) * jt.dof_width() for jt in JointType)
     elif isinstance(self.id, list):
       adr = self.id
-      num = [1 for _ in range(len(self.id))]
+      num = [dim for _ in range(len(self.id))]
     else:
       adr = [self.id]
-      num = [1]
+      num = [dim]
     i = 0
     for a, n in zip(adr, num):
       array = array.at[a: a + n].set(value[i: i + n])

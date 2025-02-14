@@ -207,6 +207,9 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_array_equal(
           dx.bind(mx, s.bodies[i]).xpos, d.xpos[i, :]
           )
+      np.testing.assert_array_equal(
+          dx.bind(mx, s.bodies[i]).xfrc_applied, d.xfrc_applied[i, :]
+      )
 
     np.testing.assert_array_equal(mx.bind(s.geoms).size, m.geom_size)
     np.testing.assert_array_equal(dx.bind(mx, s.geoms).xpos, d.geom_xpos)
@@ -268,6 +271,11 @@ class SupportTest(parameterized.TestCase):
     dx6 = dx.bind(mx, s.joints[::2]).set('qpos', [1, 0, 0, 0, 8])
     np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, qpos_desired)
     np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
+
+    dx7 = dx.bind(mx, s.bodies[1]).set('xfrc_applied', [1, 2, 3, 4, 5, 6])
+    np.testing.assert_array_equal(
+        dx7.bind(mx, s.bodies[1]).xfrc_applied, [1, 2, 3, 4, 5, 6]
+    )
 
     # test invalid name
     with self.assertRaises(AttributeError):
