@@ -108,6 +108,23 @@ class Handle:
       return sim.d
     return None
 
+  @property
+  def viewport(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.viewport
+    return None
+
+  def set_figures(self, viewports_figures):
+    sim = self._sim()
+    if sim is not None:
+      sim.set_figures(viewports_figures)
+
+  def clear_figures(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_figures()
+
   def close(self):
     sim = self._sim()
     if sim is not None:

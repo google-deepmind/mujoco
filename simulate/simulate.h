@@ -252,6 +252,7 @@ class Simulate {
   // additional user-defined visualization geoms (used in passive mode)
   mjvScene* user_scn = nullptr;
   mjtByte user_scn_flags_prev_[mjNRNDFLAG];
+  std::vector<std::pair<mjrRect, mjvFigure>> user_figures_;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;

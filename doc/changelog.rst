@@ -25,6 +25,8 @@ Feature promotion
 
 General
 ^^^^^^^
+- Add support for custom plots in the MuJoCo viewer by exposing a ``viewport`` property, a ``set_figures`` method,
+  and a ``clear_figures`` method.
 - Separate collision and deformation meshes for :ref:`flex<deformable-flex>`. This enables a fixed cost for the soft
   body computations, while preserving the fidelity of high-resolution collisions.
 - Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
