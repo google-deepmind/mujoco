@@ -140,6 +140,82 @@ TEST_F(UserCModelTest, ActuatorSparsity) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserCModelTest, NestedZeroMassBodiesOK) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <body>
+            <body>
+              <geom size="1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
+}
+
+TEST_F(UserCModelTest, NestedZeroMassBodiesWithJointOK) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <body>
+            <body>
+              <joint/>
+              <geom size="1"/>
+            </body>
+            <body>
+              <geom size="1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
+}
+
+TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <body>
+          <freejoint/>
+          <body>
+            <body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(
+      error,
+      HasSubstr(
+          "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  mj_deleteModel(model);
+}
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 

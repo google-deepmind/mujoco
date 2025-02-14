@@ -414,6 +414,13 @@ class mjCModel : public mjCModel_, private mjSpec {
   // compute qpos0
   void ComputeReference();
 
+  // return true if all bodies have valid mass and inertia
+  bool CheckBodiesMassInertia(std::vector<mjCBody*> bodies);
+
+  // return true if body has valid mass and inertia
+  bool CheckBodyMassInertia(mjCBody* body);
+
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
