@@ -433,6 +433,12 @@ class BindData(object):
       self.id = ids
 
   def __getname(self, name: str):
+    """Get the name of the attribute and check if the type is correct."""
+    if name == 'sensordata':
+      if self.prefix == 'sensor_':
+        return name
+      else:
+        raise AttributeError('sensordata is not available for this type')
     if name == 'ctrl':
       if self.prefix == 'actuator_':
         return name
@@ -464,11 +470,11 @@ class BindData(object):
         idx = []
         for a, n in zip(adr, num):
           idx.extend(a + j for j in range(n))
-        return getattr(self.data, name)[idx, ...]
+        return getattr(self.data, self.__getname(name))[idx, ...]
       elif num > 1:
-        return getattr(self.data, name)[adr : adr + num, ...]
+        return getattr(self.data, self.__getname(name))[adr : adr + num, ...]
       else:
-        return getattr(self.data, name)[adr, ...]
+        return getattr(self.data, self.__getname(name))[adr, ...]
     return getattr(self.data, self.__getname(name))[self.id, ...]
 
   def set(self, name: str, value: jax.Array) -> Data:
