@@ -291,6 +291,7 @@ class BindModel(object):
 
   def __init__(self, model: Model, specs: Sequence[mujoco.MjStruct]):
     self.model = model
+    self.prefix = ''
     try:
       iter(specs)
     except TypeError:
@@ -386,6 +387,7 @@ class BindData(object):
   ):
     self.data = data
     self.model = model
+    self.prefix = ''
     try:
       iter(specs)
     except TypeError:
@@ -393,7 +395,6 @@ class BindData(object):
     ids = []
     for spec in specs:
       if isinstance(spec, mujoco.MjsBody):
-        self.prefix = ''
         idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
       elif isinstance(spec, mujoco.MjsJoint):
         self.prefix = 'jnt_'
