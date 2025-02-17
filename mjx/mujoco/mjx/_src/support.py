@@ -490,14 +490,15 @@ class BindData(object):
       typ = self.model.jnt_type[self.id]
       num = sum((typ == jt) * jt.dof_width() for jt in JointType)
     elif isinstance(self.id, list):
-      adr = self.id
+      adr = self.id * dim
       num = [dim for _ in range(len(self.id))]
     else:
-      adr = [self.id]
+      adr = [self.id * dim]
       num = [dim]
     i = 0
     for a, n in zip(adr, num):
-      array = array.at[a: a + n].set(value[i: i + n])
+      shape = array.shape
+      array = array.flatten().at[a : a + n].set(value[i : i + n]).reshape(shape)
       i += n
     return self.data.replace(**{self.__getname(name): array})
 

@@ -276,6 +276,10 @@ class SupportTest(parameterized.TestCase):
     np.testing.assert_array_equal(
         dx7.bind(mx, s.bodies[1]).xfrc_applied, [1, 2, 3, 4, 5, 6]
     )
+    for body in s.bodies[:1] + s.bodies[2:]:
+      np.testing.assert_array_equal(
+          dx7.bind(mx, body).xfrc_applied, [0, 0, 0, 0, 0, 0]
+      )
 
     # test invalid name
     with self.assertRaises(AttributeError):
