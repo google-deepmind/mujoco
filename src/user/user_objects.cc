@@ -3696,6 +3696,9 @@ void mjCHField::Compile(const mjVFS* vfs) {
 
   // copy userdata into data
   if (!userdata_.empty()) {
+    if (nrow*ncol != userdata_.size()) {
+      throw mjCError(this, "elevation data length must match nrow*ncol");
+    }
     data.assign(nrow*ncol, 0);
     if (data.empty()) {
       throw mjCError(this, "could not allocate buffers in hfield");

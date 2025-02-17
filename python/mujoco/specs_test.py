@@ -1135,5 +1135,29 @@ class SpecsTest(absltest.TestCase):
     ):
       print(mj_model.bind(joints).invalid)
 
+  def test_incorrect_hfield_size(self):
+    nrow = 300
+    ncol = 400
+    hdata = np.random.uniform(size=(1, 1))
+    model_spec = mujoco.MjSpec()
+    model_spec.add_hfield(
+        name='hfield',
+        size=[1, 1, 1, 1e-3],
+        ncol=ncol,
+        nrow=nrow,
+        userdata=hdata.flatten(),
+    )
+    model_spec.worldbody.add_geom(
+        name='hfield',
+        type=mujoco.mjtGeom.mjGEOM_HFIELD,
+        pos=np.array([0, 0, 1]),
+        hfieldname='hfield',
+    )
+    with self.assertRaisesRegex(
+        ValueError, r"Error: elevation data length must match nrow\*ncol\n"
+        "Element name 'hfield', id 0",
+    ):
+      model_spec.compile()
+
 if __name__ == '__main__':
   absltest.main()
