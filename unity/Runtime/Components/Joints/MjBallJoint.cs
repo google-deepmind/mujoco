@@ -31,10 +31,15 @@ namespace Mujoco {
       transform.localPosition =
           MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("pos", defaultValue: Vector3.zero));
 
-      Settings.FromMjcf(mjcf);
+     
       var rangeValues = mjcf.GetFloatArrayAttribute("range", defaultValue: new float[] { 0, 0 });
       // rangeValues[0] is always 0 for ball joints.
+
       RangeUpper = rangeValues[1];
+      if (!MjSceneImportSettings.AnglesInDegrees){
+        rangeValues[1] *= Mathf.Rad2Deg;
+      }
+       Settings.FromMjcf(mjcf);
     }
 
     protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
