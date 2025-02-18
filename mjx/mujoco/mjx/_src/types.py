@@ -1260,7 +1260,7 @@ class Data(PyTreeNode):
     geom_xpos: Cartesian geom position                          (ngeom, 3)
     geom_xmat: Cartesian geom orientation                       (ngeom, 3, 3)
     site_xpos: Cartesian site position                          (nsite, 3)
-    site_xmat: Cartesian site orientation                       (nsite, 9)
+    site_xmat: Cartesian site orientation                       (nsite, 3, 3)
     cam_xpos: Cartesian camera position                         (ncam, 3)
     cam_xmat: Cartesian camera orientation                      (ncam, 3, 3)
     light_xpos: Cartesian light position                        (nlight, 3)
