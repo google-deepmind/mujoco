@@ -62,10 +62,10 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
       mju_copy(res, vec, m->nv);
       if (featherstone) {
-        mj_solveLD(m, res, 1, LDlegacy, d->qLDiagInv);
+        mj_solveLD_legacy(m, res, 1, LDlegacy, d->qLDiagInv);
       } else {
-        mj_solveLDs(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                    d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+        mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
+                   d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }
   }

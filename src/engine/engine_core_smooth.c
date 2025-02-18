@@ -1401,7 +1401,9 @@ void mj_crb(const mjModel* m, mjData* d) {
 
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
-void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNum* qLDiagInv) {
+// (legacy implementation)
+void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD,
+                       mjtNum* qLDiagInv) {
   int cnt;
   int Madr_kk, Madr_ki;
   mjtNum tmp;
@@ -1469,16 +1471,15 @@ void mj_factorM(const mjModel* m, mjData* d) {
   for (int i=0; i < nC; i++) {
     d->qLD[i] = d->qM[d->mapM2C[i]];
   }
-  mj_factorIs(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
 
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
-//  like mj_factorI, but using CSR representation
-void mj_factorIs(mjtNum* mat, mjtNum* diaginv, int nv,
-                 const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
+void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
+                const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
   // backward loop over rows
   for (int k=nv-1; k >= 0; k--) {
     // get row k's address, diagonal index, inverse diagonal value
@@ -1510,10 +1511,9 @@ void mj_factorIs(mjtNum* mat, mjtNum* diaginv, int nv,
 
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
-//  L is in lower triangle of qLD; D is on diagonal of qLD
-//  handle n vectors at once
-void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
-                const mjtNum* qLD, const mjtNum* qLDiagInv) {
+// (legacy implementation)
+void mj_solveLD_legacy(const mjModel* m, mjtNum* restrict x, int n,
+                       const mjtNum* qLD, const mjtNum* qLDiagInv) {
   // local copies of key variables
   int* dof_Madr = m->dof_Madr;
   int* dof_parentid = m->dof_parentid;
@@ -1624,9 +1624,8 @@ void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
 
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
-//  like mj_solveLD, but using the CSR representation of L
-void mj_solveLDs(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv, int n,
-                 const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
+void mj_solveLD(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv, int n,
+                const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
   // x <- L^-T x
   for (int i=nv-1; i > 0; i--) {
     // skip diagonal rows
@@ -1713,8 +1712,8 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
   if (x != y) {
     mju_copy(x, y, n*m->nv);
   }
-  mj_solveLDs(x, d->qLD, d->qLDiagInv, m->nv, n,
-              d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+  mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
+             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 }
 
 
@@ -1725,8 +1724,8 @@ void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int
   const mjtNum* qLD = d->qLD;
   const mjtNum* qLDiagInv = d->qLDiagInv;
   if (island < 0) {
-    mj_solveLDs(x, qLD, qLDiagInv, m->nv, 1,
-                d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+    mj_solveLD(x, qLD, qLDiagInv, m->nv, 1,
+               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
     return;
   }
 

@@ -67,16 +67,16 @@ static void BM_solve(benchmark::State& state, SolveType type) {
       mju_copy(res, vec, m->nv);
       switch (type) {
         case SolveType::kLegacy:
-          mj_factorI(m, d, d->qM, LDlegacy, d->qLDiagInv);
-          mj_solveLD(m, res, 1, LDlegacy, d->qLDiagInv);
+          mj_factorI_legacy(m, d, d->qM, LDlegacy, d->qLDiagInv);
+          mj_solveLD_legacy(m, res, 1, LDlegacy, d->qLDiagInv);
           mj_solveM(m, d, res, vec, 1);
           break;
         case SolveType::kCsr:
           mju_copy(d->qLD, M, m->nC);
-          mj_factorIs(d->qLD, d->qLDiagInv, m->nv,
-                      d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
-          mj_solveLDs(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                      d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+          mj_factorI(d->qLD, d->qLDiagInv, m->nv,
+                     d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+          mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
+                     d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }
   }

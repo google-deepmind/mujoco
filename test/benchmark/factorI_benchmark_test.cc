@@ -56,11 +56,11 @@ static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     for (int i=0; i < kNumBenchmarkSteps; i++) {
       if (legacy) {
-        mj_factorI(m, d, d->qM, LDlegacy, d->qLDiagInv);
+        mj_factorI_legacy(m, d, d->qM, LDlegacy, d->qLDiagInv);
       } else {
         mju_copy(d->qLD, M, m->nC);
-        mj_factorIs(d->qLD, d->qLDiagInv, m->nv,
-                    d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+        mj_factorI(d->qLD, d->qLDiagInv, m->nv,
+                   d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
       }
     }
   }
