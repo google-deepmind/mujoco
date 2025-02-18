@@ -98,11 +98,6 @@ static inline int equal3(const mjtNum v1[3], const mjtNum v2[3]) {
          mju_abs(v1[2] - v2[2]) < mjMINVAL;
 }
 
-// v1 == v2
-static inline int equalexact3(const mjtNum v1[3], const mjtNum v2[3]) {
-  return v1[0] == v2[0] && v1[1] == v2[1] && v1[2] == v2[2];
-}
-
 // res = v1 + v2
 static inline void add3(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
   res[0] = v1[0] + v2[0], res[1] = v1[1] + v2[1], res[2] = v1[2] + v2[2];
@@ -533,15 +528,6 @@ static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mj
 static inline int sameSign2(mjtNum a, mjtNum b) {
   if (a > 0 && b > 0) return 1;
   if (a < 0 && b < 0) return -1;
-  return 0;
-}
-
-
-
-// return 1 if all three numbers are positive, -1 if all negative and 0 otherwise
-static inline int sameSign3(mjtNum a, mjtNum b, mjtNum c) {
-  if (a > 0 && b > 0 && c > 0) return 1;
-  if (a < 0 && b < 0 && c < 0) return -1;
   return 0;
 }
 
@@ -1578,22 +1564,6 @@ static void polygonClip(mjCCDStatus* status, const mjtNum face1[3 * mjMAX_SIDES]
 
 
 
-// compute local coordinates of a global point (g1, g2, g3)
-static inline void localcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum pos[3],
-                              mjtNum g1, mjtNum g2, mjtNum g3) {
-  // perform matT * ((g1, g2, g3) - pos)
-  if (pos) {
-    g1 -= pos[0];
-    g2 -= pos[1];
-    g3 -= pos[2];
-  }
-  res[0] = mat[0]*g1 + mat[3]*g2 + mat[6]*g3;
-  res[1] = mat[1]*g1 + mat[4]*g2 + mat[7]*g3;
-  res[2] = mat[2]*g1 + mat[5]*g2 + mat[8]*g3;
-}
-
-
-
 // compute global coordinates of a local point (l1, l2, l3)
 static inline void globalcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum pos[3],
                               mjtNum l1, mjtNum l2, mjtNum l3) {
@@ -1612,22 +1582,15 @@ static inline void globalcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum 
 
 // compute possible face normals of a box given up to 3 vertices
 static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
-                      const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
+                      int v1, int v2, int v3) {
   // box data
   int g = 3*obj->geom;
   const mjtNum* mat = obj->data->geom_xmat + 3*g;
-  const mjtNum* pos = obj->data->geom_xpos + g;
-
-  // rotate global coordinates to geom local frame
-  mjtNum v1_local[3], v2_local[3], v3_local[3];
-  if (dim > 0) localcoord(v1_local, mat, pos, v1[0], v1[1], v1[2]);
-  if (dim > 1) localcoord(v2_local, mat, pos, v2[0], v2[1], v2[2]);
-  if (dim > 2) localcoord(v3_local, mat, pos, v3[0], v3[1], v3[2]);
 
   if (dim == 3) {
-    int x = sameSign3(v1_local[0], v2_local[0], v3_local[0]);
-    int y = sameSign3(v1_local[1], v2_local[1], v3_local[1]);
-    int z = sameSign3(v1_local[2], v2_local[2], v3_local[2]);
+    int x = ((v1 & 1) && (v2 & 1) && (v3 & 1)) - (!(v1 & 1) && !(v2 & 1) && !(v3 & 1));
+    int y = ((v1 & 2) && (v2 & 2) && (v3 & 2)) - (!(v1 & 2) && !(v2 & 2) && !(v3 & 2));
+    int z = ((v1 & 4) && (v2 & 4) && (v3 & 4)) - (!(v1 & 4) && !(v2 & 4) && !(v3 & 4));
     globalcoord(res, mat, NULL, x, y, z);
     int sgn = x + y + z;
     if (x) resind[0] = 0;
@@ -1638,9 +1601,9 @@ static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
   }
 
   if (dim == 2) {
-    int x = sameSign2(v1_local[0], v2_local[0]);
-    int y = sameSign2(v1_local[1], v2_local[1]);
-    int z = sameSign2(v1_local[2], v2_local[2]);
+    int x = ((v1 & 1) && (v2 & 1)) - (!(v1 & 1) && !(v2 & 1));
+    int y = ((v1 & 2) && (v2 & 2)) - (!(v1 & 2) && !(v2 & 2));
+    int z = ((v1 & 4) && (v2 & 4)) - (!(v1 & 4) && !(v2 & 4));
     if (x) {
       globalcoord(res, mat, NULL, x, 0, 0);
       resind[0] = (x > 0) ? 0 : 1;
@@ -1658,9 +1621,9 @@ static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
   }
 
   if (dim == 1) {
-    mjtNum x = (v1_local[0] > 0) ? 1 : -1;
-    mjtNum y = (v1_local[1] > 0) ? 1 : -1;
-    mjtNum z = (v1_local[2] > 0) ? 1 : -1;
+    mjtNum x = (v1 & 1) ? 1 : -1;
+    mjtNum y = (v1 & 2) ? 1 : -1;
+    mjtNum z = (v1 & 4) ? 1 : -1;
     globalcoord(res + 0, mat, NULL, x, 0, 0);
     globalcoord(res + 3, mat, NULL, 0, y, 0);
     globalcoord(res + 6, mat, NULL, 0, 0, z);
@@ -1743,15 +1706,21 @@ static inline int compareNorms(int res[2], const mjtNum* v, int nv,
 
 
 // return number of dimensions of a feature (1, 2 or 3)
-static inline int simplexDim(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3]) {
-  int i = 1;
-  int same1 = equalexact3(v1, v2);
-  int same2 = equalexact3(v1, v3);
-  int same3 = equalexact3(v2, v3);
-  if (!same1) i++;
-  if (!same3 && !same2) i++;
-  return i;
+static inline int simplexDim(int* v1, int* v2, int* v3) {
+  int val1 = *v1;
+  int val2 = *v2;
+  int val3 = *v3;
+
+  if (val1 != val2) {
+    return (val3 == val1 || val3 == val2) ? 2 : 3;
+  }
+  if (val1 != val3) {
+    *v2 = *v3;
+    return 2;
+  }
+  return 1;
 }
+
 
 
 
@@ -1761,16 +1730,16 @@ static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
   mjtNum face1[mjMAX_SIDES * 3], face2[mjMAX_SIDES * 3];
 
   // get vertices of faces from EPA
-  const mjtNum* v11 = pt->verts[face->verts[0]].vert1;
-  const mjtNum* v12 = pt->verts[face->verts[1]].vert1;
-  const mjtNum* v13 = pt->verts[face->verts[2]].vert1;
-  const mjtNum* v21 = pt->verts[face->verts[0]].vert2;
-  const mjtNum* v22 = pt->verts[face->verts[1]].vert2;
-  const mjtNum* v23 = pt->verts[face->verts[2]].vert2;
+  int v11 = pt->verts[face->verts[0]].index1;
+  int v12 = pt->verts[face->verts[1]].index1;
+  int v13 = pt->verts[face->verts[2]].index1;
+  int v21 = pt->verts[face->verts[0]].index2;
+  int v22 = pt->verts[face->verts[1]].index2;
+  int v23 = pt->verts[face->verts[2]].index2;
 
   // get dimensions of features of geoms 1 and 2
-  int nface1 = simplexDim(v11, v12, v13);
-  int nface2 = simplexDim(v21, v22, v23);
+  int nface1 = simplexDim(&v11, &v12, &v13);
+  int nface2 = simplexDim(&v21, &v22, &v23);
   int nnorms1 = 0, nnorms2 = 0;
   mjtNum n1[9], n2[9];  // normals of possible face collisions
   int idx1[3], idx2[3];  // indices of faces, so they can be recovered later

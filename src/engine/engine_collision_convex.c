@@ -311,11 +311,18 @@ static void mjc_boxSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   mjtNum local_dir[3], tmp[3];
   mulMatTVec3(local_dir, mat, dir);
 
+  // find support point in local frame
   tmp[0] = (local_dir[0] >= 0 ? 1 : -1) * size[0];
   tmp[1] = (local_dir[1] >= 0 ? 1 : -1) * size[1];
   tmp[2] = (local_dir[2] >= 0 ? 1 : -1) * size[2];
 
-  // transform result to global frame
+  // mark the index of the corner of the box for fast lookup
+  obj->vertindex = 0;
+  if (tmp[0] > 0) obj->vertindex |= 1;
+  if (tmp[1] > 0) obj->vertindex |= 2;
+  if (tmp[2] > 0) obj->vertindex |= 4;
+
+  // transform support point to global frame
   localToGlobal(res, mat, tmp, pos);
 }
 
