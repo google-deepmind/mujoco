@@ -37,6 +37,21 @@ MJX
 - Added support for spatial tendons with internal sphere and cylinder wrapping.
 - Fix a bug with box-box collisions :github:issue:`2356`.
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+ .. youtube:: 
+   :align: right
+   :width: 240px
+
+- Added a pedagogical colab notebook for ``mujoco.rollout``, a Python module for multithreaded simulation rollouts.
+  It is available here |rollout_colab|.
+  |br| The video on the right shows example clips from the tutorial.
+  |br| Contribution by :github:user:`aftersomemath`.
+
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
+
 Version 3.2.7 (Jan 14, 2025)
 ----------------------------
 
