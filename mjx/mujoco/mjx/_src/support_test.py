@@ -223,13 +223,23 @@ class SupportTest(parameterized.TestCase):
 
     np.testing.assert_array_equal(mx.bind(s.joints).axis, m.jnt_axis)
     np.testing.assert_array_equal(mx.bind(s.joints).qposadr, m.jnt_qposadr)
-    qposnum = [4, 1, 1]
+    np.testing.assert_array_equal(mx.bind(s.joints).dofadr, m.jnt_dofadr)
+    qposnum = [4, 1, 1]  # one ball joint (4) and two slide joints (1)
+    dofnum = [3, 1, 1]  # one ball joint (3) and two slide joints (1)
     for i in range(m.njnt):
       np.testing.assert_array_equal(m.bind(s.joints[i]).axis, m.jnt_axis[i, :])
       np.testing.assert_array_equal(mx.bind(s.joints[i]).axis, m.jnt_axis[i, :])
       np.testing.assert_array_almost_equal(
           dx.bind(mx, s.joints[i]).qpos,
           d.qpos[m.jnt_qposadr[i]:m.jnt_qposadr[i] + qposnum[i]], decimal=6
+      )
+      np.testing.assert_array_almost_equal(
+          dx.bind(mx, s.joints[i]).qvel,
+          d.qvel[m.jnt_dofadr[i]:m.jnt_dofadr[i] + dofnum[i]], decimal=6
+      )
+      np.testing.assert_array_almost_equal(
+          dx.bind(mx, s.joints[i]).qacc,
+          d.qacc[m.jnt_dofadr[i]:m.jnt_dofadr[i] + dofnum[i]], decimal=6
       )
 
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
@@ -271,10 +281,18 @@ class SupportTest(parameterized.TestCase):
     dx6 = dx.bind(mx, s.joints[::2]).set('qpos', [1, 0, 0, 0, 8])
     np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, qpos_desired)
     np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
+    dx7 = dx.bind(mx, s.joints[::2]).set('qvel', [2.0, -1.2, 0.5, 0.3])
+    np.testing.assert_array_almost_equal(
+        dx7.bind(mx, s.joints).qvel, [2.0, -1.2, 0.5, 0.0, 0.3], decimal=6
+    )
+    dx8 = dx.bind(mx, s.joints[::2]).set('qacc', [3.0, -2.1, 0.6, 0.4])
+    np.testing.assert_array_almost_equal(
+        dx8.bind(mx, s.joints).qacc, [3.0, -2.1, 0.6, 0.0, 0.4], decimal=6
+    )
 
-    dx7 = dx.bind(mx, s.bodies[1]).set('xfrc_applied', [1, 2, 3, 4, 5, 6])
+    dx9 = dx.bind(mx, s.bodies[1]).set('xfrc_applied', [1, 2, 3, 4, 5, 6])
     np.testing.assert_array_equal(
-        dx7.bind(mx, s.bodies[1]).xfrc_applied, [1, 2, 3, 4, 5, 6]
+        dx9.bind(mx, s.bodies[1]).xfrc_applied, [1, 2, 3, 4, 5, 6]
     )
     for body in s.bodies[:1] + s.bodies[2:]:
       np.testing.assert_array_equal(
@@ -295,7 +313,7 @@ class SupportTest(parameterized.TestCase):
     ):
       print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
     with self.assertRaises(
-        AttributeError, msg='qpos and qvel are not available for this type'
+        AttributeError, msg='qpos, qvel, qacc are not available for this type'
     ):
       print(dx.bind(mx, s.geoms).qpos)
     with self.assertRaises(KeyError, msg='invalid name: invalid_actuator_name'):
