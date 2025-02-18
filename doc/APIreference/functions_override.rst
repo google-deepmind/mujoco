@@ -233,6 +233,11 @@ found, the function will return ``distmax`` and ``fromto``, if given, will be se
    In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
    `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
 
+.. _mj_fullM:
+
+Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
+|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same size as ``mjData.qM``.
+
 .. _mj_mulM:
 
 This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format

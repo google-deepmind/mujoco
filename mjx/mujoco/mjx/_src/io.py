@@ -368,7 +368,7 @@ def make_data(
         'efc_aref': (nefc, float),
         'efc_force': (nefc, float),
         '_qM_sparse': (m.nM, float),
-        '_qLD_sparse': (m.nM, float),
+        '_qLD_sparse': (m.nC, float),
         '_qLDiagInv_sparse': (m.nv, float),
     }
 
@@ -506,7 +506,8 @@ def get_data_into(
       elif field.name == 'qM' and not support.is_sparse(m):
         value = value[dof_i, dof_j]
       elif field.name == 'qLD' and not support.is_sparse(m):
-        value = value[dof_i, dof_j]
+        # TODO(erikfrey): provide correct qLDs
+        value = np.zeros(m.nC)
       elif field.name == 'qLDiagInv' and not support.is_sparse(m):
         value = np.ones(m.nv)
 

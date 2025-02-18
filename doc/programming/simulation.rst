@@ -614,12 +614,14 @@ essential to keep it in mind at all times. All MuJoCo utility functions that ope
 :ref:`mju_mulMatMat`, :ref:`mju_mulMatVec` etc. assume this matrix layout. For vectors there is of course no
 difference between row-major and column-major formats.
 
+.. TODO(tassa): update this section when qM is migrated to CSR.
 When possible, MuJoCo exploits sparsity. This can make all the difference between O(N) and O(N^3) scaling. The inertia
-matrix ``mjData.qM`` and its LTDL factorization ``mjData.qLD`` are always represented as sparse, using a custom
-indexing format designed for matrices that correspond to tree topology. The functions :ref:`mj_factorM`,
-:ref:`mj_solveM`, :ref:`mj_solveM2` and :ref:`mj_mulM` are used for sparse factorization, substitution and
-matrix-vector multiplication. The user can also convert these matrices to dense format with the function
-:ref:`mj_fullM` although MuJoCo never does that internally.
+matrix ``mjData.qM`` and its LTDL factorization ``mjData.qLD`` are always represented as sparse. ``qM`` uses a custom
+indexing format designed for matrices that correspond to tree topology, while ``qLD`` uses the standard CSR format.
+``qM`` will be migrated to CSR in and upcoming change. The functions :ref:`mj_factorM`, :ref:`mj_solveM`,
+:ref:`mj_solveM2` and :ref:`mj_mulM` are used for sparse factorization, substitution and matrix-vector multiplication.
+The user can also convert these matrices to dense format with the function :ref:`mj_fullM` although MuJoCo never does
+that internally.
 
 The constraint Jacobian matrix ``mjData.efc_J`` is represented as sparse whenever the sparse Jacobian option is
 enabled. The function :ref:`mj_isSparse` can be used to determine if sparse format is currently in use. In that case

@@ -1465,7 +1465,11 @@ void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNu
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
-  mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv);
+  int nC = m->nC;
+  for (int i=0; i < nC; i++) {
+    d->qLD[i] = d->qM[d->mapM2C[i]];
+  }
+  mj_factorIs(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
@@ -1709,18 +1713,20 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
   if (x != y) {
     mju_copy(x, y, n*m->nv);
   }
-  mj_solveLD(m, x, n, d->qLD, d->qLDiagInv);
+  mj_solveLDs(x, d->qLD, d->qLDiagInv, m->nv, n,
+              d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 }
 
 
 // in-place sparse backsubstitution for one island:  x = inv(L'*D*L)*x
 //  L is in lower triangle of qLD; D is on diagonal of qLD
-void mj_solveM_island(const mjModel* m, mjData* d, mjtNum* restrict x, int island) {
+void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int island) {
   // if no islands, call mj_solveLD
   const mjtNum* qLD = d->qLD;
   const mjtNum* qLDiagInv = d->qLDiagInv;
   if (island < 0) {
-    mj_solveLD(m, x, 1, qLD, qLDiagInv);
+    mj_solveLDs(x, qLD, qLDiagInv, m->nv, 1,
+                d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
     return;
   }
 
@@ -1729,14 +1735,6 @@ void mj_solveM_island(const mjModel* m, mjData* d, mjtNum* restrict x, int islan
   const int* rowadr = d->C_rowadr;
   const int* colind = d->C_colind;
   const int* diagnum = m->dof_simplenum;
-
-  // temporary: make local CSR version of qLD
-  int nC = m->nC;
-  mj_markStack(d);
-  mjtNum* qLDs = mjSTACKALLOC(d, nC, mjtNum);
-  for (int i=0; i < nC; i++) {
-    qLDs[i] = d->qLD[d->mapM2C[i]];
-  }
 
   // local constants: island specific
   int ndof = d->island_dofnum[island];
@@ -1751,7 +1749,7 @@ void mj_solveM_island(const mjModel* m, mjData* d, mjtNum* restrict x, int islan
       int start = rowadr[i];
       int end = start + rownnz[i] - 1;
       for (int adr=end-1; adr >= start; adr--) {
-        x[islandind[colind[adr]]] -= qLDs[adr] * x_k;
+        x[islandind[colind[adr]]] -= qLD[adr] * x_k;
       }
     }
   }
@@ -1773,11 +1771,9 @@ void mj_solveM_island(const mjModel* m, mjData* d, mjtNum* restrict x, int islan
     int start = rowadr[i];
     int end = start + rownnz[i] - 1;
     for (int adr=end-1; adr >= start; adr--) {
-      x[k] -= x[islandind[colind[adr]]] * qLDs[adr];
+      x[k] -= x[islandind[colind[adr]]] * qLD[adr];
     }
   }
-
-  mj_freeStack(d);
 }
 
 
@@ -1785,22 +1781,17 @@ void mj_solveM_island(const mjModel* m, mjData* d, mjtNum* restrict x, int islan
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
                 const mjtNum* sqrtInvD, int n) {
+  int nv = m->nv;
+
   // local copies of key variables
-  int nv = m->nv, nC = m->nC;
   const int* rownnz = d->C_rownnz;
   const int* rowadr = d->C_rowadr;
   const int* colind = d->C_colind;
   const int* diagnum = m->dof_simplenum;
+  const mjtNum* qLD = d->qLD;
 
   // x = y
   mju_copy(x, y, n * nv);
-
-  // temporary: make local CSR version of qLD
-  mj_markStack(d);
-  mjtNum* qLD = mjSTACKALLOC(d, nC, mjtNum);
-  for (int i=0; i < nC; i++) {
-    qLD[i] = d->qLD[d->mapM2C[i]];
-  }
 
   // x <- L^-T x
   for (int i=nv-1; i > 0; i--) {
@@ -1831,8 +1822,6 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
       x[i+offset] *= invD_i;
     }
   }
-
-  mj_freeStack(d);
 }
 
 

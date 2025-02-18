@@ -1087,38 +1087,25 @@ void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   int  nv = m->nv;
   const mjtNum* qLD = d->qLD;
-  const int* dofMadr = m->dof_Madr;
 
   mju_zero(res, nv);
 
   // res = L * vec
   for (int i=0; i < nv; i++) {
-    // simple: diagonal
-    if (m->dof_simplenum[i]) {
-      res[i] = vec[i];
-    }
+    // diagonal
+    res[i] = vec[i];
 
-    // regular: full multiplication
-    else {
-      // diagonal
-      res[i] += vec[i];
-
-      // off-diagonal
-      int j = m->dof_parentid[i];
-      int adr = dofMadr[i] + 1;
-      while (j >= 0) {
-        res[i] += qLD[adr]*vec[j];
-
-        // advance to next element
-        j = m->dof_parentid[j];
-        adr++;
-      }
+    // non-simple: add off-diagonals
+    if (!m->dof_simplenum[i]) {
+      int adr = d->C_rowadr[i];
+      res[i] += mju_dotSparse(qLD+adr, vec, d->C_rownnz[i] - 1, d->C_colind+adr, /*flg_unc1=*/0);
     }
   }
 
   // res *= sqrt(D)
   for (int i=0; i < nv; i++) {
-    res[i] *= mju_sqrt(qLD[dofMadr[i]]);
+    int diag = d->C_rowadr[i] + d->C_rownnz[i] - 1;
+    res[i] *= mju_sqrt(qLD[diag]);
   }
 }
 
