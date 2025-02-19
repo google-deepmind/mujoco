@@ -7735,6 +7735,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='flex_texcoord',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='hfield_pathadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),

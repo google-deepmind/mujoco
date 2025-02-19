@@ -3011,6 +3011,7 @@ struct mjvSceneState_ {
     mjtNum* flex_node;
     mjtNum* flex_radius;
     float* flex_rgba;
+    float* flex_texcoord;
 
     int* hfield_pathadr;
 

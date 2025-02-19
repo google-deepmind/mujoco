@@ -373,7 +373,7 @@
     XMJV( int,     flex_bvhadr,           nflex,         1                    ) \
     XMJV( int,     flex_bvhnum,           nflex,         1                    ) \
     XMJV( float,   flex_rgba,             nflex,         4                    ) \
-    X   ( float,   flex_texcoord,         nflextexcoord, 2                    ) \
+    XMJV( float,   flex_texcoord,         nflextexcoord, 2                    ) \
     X   ( int,     mesh_vertadr,          nmesh,         1                    ) \
     X   ( int,     mesh_vertnum,          nmesh,         1                    ) \
     X   ( int,     mesh_normaladr,        nmesh,         1                    ) \

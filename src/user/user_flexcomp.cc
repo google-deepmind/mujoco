@@ -597,7 +597,7 @@ int mjCFlexcomp::GridID(int ix, int iy, int iz) {
 // make grid
 bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   int dim = def.Flex().spec.dim;
-  bool hastex = texcoord.empty();
+  bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
 
   // 1D
   if (dim == 1) {
@@ -646,7 +646,7 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
         point.push_back(0);
 
         // add texture coordinates, if not specified explicitly
-        if (!hastex) {
+        if (needtex) {
           texcoord.push_back(ix/(double)std::max(count[0]-1, 1));
           texcoord.push_back(iy/(double)std::max(count[1]-1, 1));
         }
@@ -689,6 +689,12 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
           point.push_back(spacing[0]*(ix - 0.5*(count[0]-1)));
           point.push_back(spacing[1]*(iy - 0.5*(count[1]-1)));
           point.push_back(spacing[2]*(iz - 0.5*(count[2]-1)));
+
+          // add texture coordinates, if not specified explicitly
+          if (needtex) {
+            texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
+            texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
+          }
 
           // add elements
           if (ix < count[0]-1 && iy < count[1]-1 && iz < count[2]-1) {
@@ -834,7 +840,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
 // make 3d box, ellipsoid or cylinder
 bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
   double pos[3];
-  bool needtex = texcoord.empty() && !std::string(mjs_getString(def.spec.flex->material)).empty();
+  bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
 
   // set 3D
   def.spec.flex->dim = 3;

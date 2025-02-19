@@ -6338,6 +6338,7 @@ public unsafe struct model {
   public double* flex_node;
   public double* flex_radius;
   public float* flex_rgba;
+  public float* flex_texcoord;
   public int* hfield_pathadr;
   public int* mesh_bvhadr;
   public int* mesh_bvhnum;
