@@ -35,6 +35,7 @@ General
   attaching can be restored by setting the deep copy flag to 1.
 - Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
 - Improved shadow rendering in the native renderer.
+- Moved ``introspect`` to ``python/introspect``.
 
 .. admonition:: Breaking API changes
    :class: attention
