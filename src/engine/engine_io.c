@@ -463,7 +463,8 @@ void mj_makeModel(mjModel** dest,
     int nlight, int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem,
     int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
     int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
-    int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
+    int nmeshgraph, int nmeshpoly, int nmeshpolyvert, int nmeshpolymap, int nskin, int nskinvert,
+    int nskintexvert, int nskinface,
     int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex,
     int ntexdata, int nmat, int npair, int nexclude, int neq, int ntendon,
     int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext,
@@ -518,6 +519,9 @@ void mj_makeModel(mjModel** dest,
   m->nmeshtexcoord = nmeshtexcoord;
   m->nmeshface = nmeshface;
   m->nmeshgraph = nmeshgraph;
+  m->nmeshpoly = nmeshpoly;
+  m->nmeshpolyvert = nmeshpolyvert;
+  m->nmeshpolymap = nmeshpolymap;
   m->nskin = nskin;
   m->nskinvert = nskinvert;
   m->nskintexvert = nskintexvert;
@@ -639,6 +643,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
       src->nflexelem, src->nflexelemdata, src->nflexelemedge, src->nflexshelldata,
       src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
       src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
+      src->nmeshpoly, src->nmeshpolyvert, src->nmeshpolymap,
       src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
       src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
       src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
@@ -829,7 +834,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-               ints[63], ints[64], ints[65]);
+               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68]);
   if (!m || m->nbuffer != sizes[getnsize()-1]) {
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
@@ -2178,10 +2183,7 @@ const char* mj_validateReferences(const mjModel* m) {
   //   nadrs:    number of elements in refarray
   //   ntarget:  number of elements in array where references are pointing
   //   numarray: if refarray is an adr array, numarray is the corresponding num array, otherwise 0
-
-  // add flex fields (b/303056369)
-
-#define MJMODEL_REFERENCES                                                         \
+#define MJMODEL_REFERENCES                                                       \
   X(body_parentid,      nbody,          nbody         , 0                      ) \
   X(body_rootid,        nbody,          nbody         , 0                      ) \
   X(body_weldid,        nbody,          nbody         , 0                      ) \
@@ -2212,6 +2214,12 @@ const char* mj_validateReferences(const mjModel* m) {
   X(mesh_faceadr,       nmesh,          nmeshface     , m->mesh_facenum        ) \
   X(mesh_bvhadr,        nmesh,          nbvh          , m->mesh_bvhnum         ) \
   X(mesh_graphadr,      nmesh,          nmeshgraph    , 0                      ) \
+  X(mesh_polyadr,       nmesh,          nmeshpoly     , m->mesh_polynum        ) \
+  X(mesh_polynormal,    nmeshpoly*3,    nmeshpoly*3   , 0                      ) \
+  X(mesh_polyvertadr,   nmeshpoly,      nmeshpolyvert , m->mesh_polyvertnum    ) \
+  X(mesh_polyvert,      nmeshpolyvert,  nmeshpolyvert , 0                      ) \
+  X(mesh_polymapadr,    nmeshvert,      nmeshpolymap  , m->mesh_polymapnum     ) \
+  X(mesh_polymap,       nmeshpolymap,   nmeshpolymap  , 0                      ) \
   X(flex_vertadr,       nflex,          nflexvert     , m->flex_vertnum        ) \
   X(flex_edgeadr,       nflex,          nflexedge     , m->flex_edgenum        ) \
   X(flex_elemadr,       nflex,          nflexelem     , m->flex_elemnum        ) \

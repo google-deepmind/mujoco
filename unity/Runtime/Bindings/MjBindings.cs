@@ -5208,6 +5208,9 @@ public unsafe struct mjModel_ {
   public int nmeshtexcoord;
   public int nmeshface;
   public int nmeshgraph;
+  public int nmeshpoly;
+  public int nmeshpolyvert;
+  public int nmeshpolymap;
   public int nskin;
   public int nskinvert;
   public int nskintexvert;
@@ -5480,6 +5483,15 @@ public unsafe struct mjModel_ {
   public double* mesh_pos;
   public double* mesh_quat;
   public int* mesh_pathadr;
+  public int* mesh_polynum;
+  public int* mesh_polyadr;
+  public double* mesh_polynormal;
+  public int* mesh_polyvertadr;
+  public int* mesh_polyvertnum;
+  public int* mesh_polyvert;
+  public int* mesh_polymapadr;
+  public int* mesh_polymapnum;
+  public int* mesh_polymap;
   public int* skin_matid;
   public int* skin_group;
   public float* skin_rgba;

@@ -96,6 +96,9 @@
     X   ( nmeshtexcoord )      \
     X   ( nmeshface )          \
     X   ( nmeshgraph )         \
+    X   ( nmeshpoly )          \
+    X   ( nmeshpolyvert )      \
+    X   ( nmeshpolymap )       \
     XMJV( nskin )              \
     XMJV( nskinvert )          \
     X   ( nskintexvert )       \
@@ -393,6 +396,15 @@
     XNV ( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     XNV ( int,     mesh_graph,            nmeshgraph,    1                    ) \
     XMJV( int,     mesh_pathadr,          nmesh,         1                    ) \
+    X   ( int,     mesh_polynum,          nmesh,         1                    ) \
+    X   ( int,     mesh_polyadr,          nmesh,         1                    ) \
+    X   ( mjtNum,  mesh_polynormal,       nmeshpoly,     3                    ) \
+    X   ( int,     mesh_polyvertadr,      nmeshpoly,     1                    ) \
+    X   ( int,     mesh_polyvertnum,      nmeshpoly,     1                    ) \
+    X   ( int,     mesh_polyvert,         nmeshpolyvert, 1                    ) \
+    X   ( int,     mesh_polymapadr,       nmeshvert,     1                    ) \
+    X   ( int,     mesh_polymapnum,       nmeshvert,     1                    ) \
+    X   ( int,     mesh_polymap,          nmeshpolymap,  1                    ) \
     XMJV( int,     skin_matid,            nskin,         1                    ) \
     XMJV( int,     skin_group,            nskin,         1                    ) \
     XMJV( float,   skin_rgba,             nskin,         4                    ) \

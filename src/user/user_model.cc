@@ -2780,6 +2780,14 @@ void mjCModel::CopyObjects(mjModel* m) {
     // get pointer
     mjCMesh* pme = meshes_[i];
 
+    // zero out multi-ccd fields
+    for (int j = 0; j < pme->nvert(); j++) {
+      m->mesh_polymapadr[vert_adr + j] = 0;
+      m->mesh_polymapnum[vert_adr + j] = 0;
+    }
+    m->mesh_polynum[i] = 0;
+    m->mesh_polyadr[i] = 0;
+
     // set fields
     m->mesh_vertadr[i] = vert_adr;
     m->mesh_vertnum[i] = pme->nvert();
@@ -4332,8 +4340,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
                ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
-               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
-               nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
+               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, 0, 0,
+               0, nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
                nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
                neq, ntendon, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
                ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,

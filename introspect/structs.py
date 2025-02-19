@@ -974,6 +974,21 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of ints in mesh auxiliary data',
              ),
              StructFieldDecl(
+                 name='nmeshpoly',
+                 type=ValueType(name='int'),
+                 doc='number of polygons in all meshes',
+             ),
+             StructFieldDecl(
+                 name='nmeshpolyvert',
+                 type=ValueType(name='int'),
+                 doc='number of vertices in all polygons',
+             ),
+             StructFieldDecl(
+                 name='nmeshpolymap',
+                 type=ValueType(name='int'),
+                 doc='number of polygons in vertex map',
+             ),
+             StructFieldDecl(
                  name='nskin',
                  type=ValueType(name='int'),
                  doc='number of skins',
@@ -2970,6 +2985,78 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='address of asset path for mesh; -1: none (nmesh x 1)',
+             ),
+             StructFieldDecl(
+                 name='mesh_polynum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of polygons per mesh',
+                 array_extent=('nmesh',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polyadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='first polygon address per mesh',
+                 array_extent=('nmesh',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polynormal',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='all polygon normals',
+                 array_extent=('nmeshpoly', 3),
+             ),
+             StructFieldDecl(
+                 name='mesh_polyvertadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='polygon vertex start address',
+                 array_extent=('nmeshpoly',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polyvertnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of vertices per polygon',
+                 array_extent=('nmeshpoly',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polyvert',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='all polygon vertices',
+                 array_extent=('nmeshpolyvert',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polymapadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='first polygon address per vertex',
+                 array_extent=('nmeshvert',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polymapnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of polygons per vertex',
+                 array_extent=('nmeshvert',),
+             ),
+             StructFieldDecl(
+                 name='mesh_polymap',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='vertex to polygon map',
+                 array_extent=('nmeshpolymap',),
              ),
              StructFieldDecl(
                  name='skin_matid',
