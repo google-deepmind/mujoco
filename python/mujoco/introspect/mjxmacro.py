@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Generate X macros for Mujoco structs."""
+"""Generate dicts corresponding to mjModel and mjData array X macros."""
 
 from . import structs
 
