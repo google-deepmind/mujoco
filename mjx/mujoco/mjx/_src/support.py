@@ -19,6 +19,7 @@ from typing import Optional, Tuple, Union
 import jax
 from jax import numpy as jp
 import mujoco
+from mujoco.introspect import mjxmacro
 from mujoco.mjx._src import math
 from mujoco.mjx._src import scan
 # pylint: disable=g-importing-member
@@ -368,8 +369,17 @@ class BindModel(object):
     else:
       self.id = ids
 
+  def _slice(self, name: str, idx: Union[int, slice, Sequence[int]]):
+    _, expected_dim = mjxmacro.MJMODEL[name]
+    var = getattr(self.model, name)
+    if expected_dim == '1':
+      return var[..., idx]
+    elif expected_dim == '9':
+      return var[..., idx, :, :]
+    return var[..., idx, :]
+
   def __getattr__(self, name: str):
-    return getattr(self.model, self.prefix + name)[self.id, ...]
+    return self._slice(self.prefix + name, self.id)
 
 
 def _bind_model(
@@ -453,6 +463,15 @@ class BindData(object):
     else:
       return self.prefix + name
 
+  def _slice(self, name: str, idx: Union[int, slice, Sequence[int]]):
+    _, expected_dim = mjxmacro.MJDATA[name]
+    var = getattr(self.data, name)
+    if expected_dim == '1':
+      return var[..., idx]
+    elif expected_dim == '9':
+      return var[..., idx, :, :]
+    return var[..., idx, :]
+
   def __getattr__(self, name: str):
     if name in ('sensordata', 'qpos', 'qvel', 'qacc'):
       adr = num = 0
@@ -471,12 +490,12 @@ class BindData(object):
         idx = []
         for a, n in zip(adr, num):
           idx.extend(a + j for j in range(n))
-        return getattr(self.data, self.__getname(name))[idx, ...]
+        return self._slice(self.__getname(name), idx)
       elif num > 1:
-        return getattr(self.data, self.__getname(name))[adr : adr + num, ...]
+        return self._slice(self.__getname(name), slice(adr, adr + num))
       else:
-        return getattr(self.data, self.__getname(name))[adr, ...]
-    return getattr(self.data, self.__getname(name))[self.id, ...]
+        return self._slice(self.__getname(name), adr)
+    return self._slice(self.__getname(name), self.id)
 
   def set(self, name: str, value: jax.Array) -> Data:
     """Set the value of an array in an MJX Data."""

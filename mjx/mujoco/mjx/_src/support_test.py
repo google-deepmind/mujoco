@@ -305,11 +305,11 @@ class SupportTest(parameterized.TestCase):
     ):
       print(dx.bind(mx, s.geoms).ctrl)
     with self.assertRaises(
-        AttributeError, msg='ctrl is not available for this type'
+        KeyError, msg='actuator_actuator_ctrl'
     ):
       print(dx.bind(mx, s.actuators).actuator_ctrl)
     with self.assertRaises(
-        AttributeError, msg='ctrl is not available for this type'
+        AttributeError, msg='actuator_actuator_ctrl'
     ):
       print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
     with self.assertRaises(
@@ -322,6 +322,16 @@ class SupportTest(parameterized.TestCase):
     with self.assertRaises(KeyError, msg='invalid name: invalid_geom_name'):
       s.geoms[0].name = 'invalid_geom_name'
       print(mx.bind(s.geoms).pos)
+
+    # test batched data
+    batch_size = 16
+    ds = [d for _ in range(batch_size)]
+    vdx = jax.vmap(lambda xpos: dx.replace(xpos=xpos))(
+        jp.array([d.xpos for d in ds], device=jax.devices('cpu')[0]))
+    for i in range(m.nbody):
+      np.testing.assert_array_equal(
+          vdx.bind(mx, s.bodies[i]).xpos, [d.xpos[i, :]] * batch_size
+      )
 
   _CONTACTS = """
     <mujoco>
