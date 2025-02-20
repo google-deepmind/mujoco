@@ -650,18 +650,16 @@ void mj_flex(const mjModel* m, mjData* d) {
 // compute tendon lengths and moments
 void mj_tendon(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv, nten = m->ntendon;
-  int id0, id1, idw, adr, wcnt, wbody[4], sideid;
-  int tp0, tp1, tpw, NV, *chain = NULL, *buf_ind = NULL;
   int *rownnz = d->ten_J_rownnz, *rowadr = d->ten_J_rowadr, *colind = d->ten_J_colind;
-  mjtNum dif[3], divisor, wpnt[12], wlen;
   mjtNum *L = d->ten_length, *J = d->ten_J;
-  mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf = NULL;
 
   if (!nten) {
     return;
   }
 
-  // allocate space
+  // allocate stack arrays
+  int *chain = NULL, *buf_ind = NULL;
+  mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf = NULL;
   mj_markStack(d);
   jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
@@ -675,7 +673,6 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
   // clear results
   mju_zero(L, nten);
-  wcnt = 0;
 
   // clear Jacobian: sparse or dense
   if (issparse) {
@@ -685,10 +682,11 @@ void mj_tendon(const mjModel* m, mjData* d) {
   }
 
   // loop over tendons
+  int wrapcount = 0;
   for (int i=0; i < nten; i++) {
     // initialize tendon path
-    adr = m->tendon_adr[i];
-    d->ten_wrapadr[i] = wcnt;
+    int adr = m->tendon_adr[i];
+    d->ten_wrapadr[i] = wrapcount;
     d->ten_wrapnum[i] = 0;
     int tendon_num = m->tendon_num[i];
 
@@ -725,24 +723,24 @@ void mj_tendon(const mjModel* m, mjData* d) {
     }
 
     // process spatial tendon
-    divisor = 1;
-    int j = 0;
+    mjtNum divisor = 1;
+    int wraptype, j = 0;
     while (j < tendon_num-1) {
       // get 1st and 2nd object
-      tp0 = m->wrap_type[adr+j];
-      id0 = m->wrap_objid[adr+j];
-      tp1 = m->wrap_type[adr+j+1];
-      id1 = m->wrap_objid[adr+j+1];
+      int type0 = m->wrap_type[adr+j+0];
+      int type1 = m->wrap_type[adr+j+1];
+      int id0 = m->wrap_objid[adr+j+0];
+      int id1 = m->wrap_objid[adr+j+1];
 
       // pulley
-      if (tp0 == mjWRAP_PULLEY || tp1 == mjWRAP_PULLEY) {
+      if (type0 == mjWRAP_PULLEY || type1 == mjWRAP_PULLEY) {
         // get divisor, insert obj=-2
-        if (tp0 == mjWRAP_PULLEY) {
+        if (type0 == mjWRAP_PULLEY) {
           divisor = m->wrap_prm[adr+j];
-          mju_zero3(d->wrap_xpos+wcnt*3);
-          d->wrap_obj[wcnt] = -2;
+          mju_zero3(d->wrap_xpos+wrapcount*3);
+          d->wrap_obj[wrapcount] = -2;
           d->ten_wrapnum[i]++;
-          wcnt++;
+          wrapcount++;
         }
 
         // move to next
@@ -751,56 +749,60 @@ void mj_tendon(const mjModel* m, mjData* d) {
       }
 
       // init sequence; assume it starts with site
-      wlen = -1;
+      mjtNum wlen = -1;
+      int wrapid = -1;
+      mjtNum wpnt[12];
       mju_copy3(wpnt, d->site_xpos+3*id0);
+      int wbody[4];
       wbody[0] = m->site_bodyid[id0];
 
       // second object is geom: process site-geom-site
-      if (tp1 == mjWRAP_SPHERE || tp1 == mjWRAP_CYLINDER) {
+      if (type1 == mjWRAP_SPHERE || type1 == mjWRAP_CYLINDER) {
         // reassign, get 2nd site info
-        tpw = tp1;
-        idw = id1;
-        tp1 = m->wrap_type[adr+j+2];
+        wraptype = type1;
+        wrapid = id1;
+        type1 = m->wrap_type[adr+j+2];
         id1 = m->wrap_objid[adr+j+2];
 
         // do wrapping, possibly get 2 extra points (wlen>=0)
-        sideid = mju_round(m->wrap_prm[adr+j+1]);
+        int sideid = mju_round(m->wrap_prm[adr+j+1]);
         if (sideid < -1 || sideid >= m->nsite) {
           mjERROR("invalid sideid %d in wrap_prm", sideid);  // SHOULD NOT OCCUR
         }
 
         wlen = mju_wrap(wpnt+3, d->site_xpos+3*id0, d->site_xpos+3*id1,
-                        d->geom_xpos+3*idw, d->geom_xmat+9*idw, m->geom_size[3*idw], tpw,
-                        (sideid >= 0 ? d->site_xpos+3*sideid : 0));
+                        d->geom_xpos+3*wrapid, d->geom_xmat+9*wrapid, m->geom_size[3*wrapid],
+                        wraptype, (sideid >= 0 ? d->site_xpos+3*sideid : 0));
       } else {
-        tpw = mjWRAP_NONE;
+        wraptype = mjWRAP_NONE;
       }
 
       // complete sequence, accumulate lengths
       if (wlen < 0) {
         mju_copy3(wpnt+3, d->site_xpos+3*id1);
         wbody[1] = m->site_bodyid[id1];
-        L[i] += mju_dist3(wpnt, wpnt+3)/divisor;
+        L[i] += mju_dist3(wpnt, wpnt+3) / divisor;
       } else {
         mju_copy3(wpnt+9, d->site_xpos+3*id1);
-        wbody[1] = wbody[2] = m->geom_bodyid[idw];
+        wbody[1] = wbody[2] = m->geom_bodyid[wrapid];
         wbody[3] = m->site_bodyid[id1];
-        L[i] += (mju_dist3(wpnt, wpnt+3) + wlen + mju_dist3(wpnt+6, wpnt+9))/divisor;
+        L[i] += (mju_dist3(wpnt, wpnt+3) + wlen + mju_dist3(wpnt+6, wpnt+9)) / divisor;
       }
 
       // accumulate moments if consecutive points are in different bodies
       for (int k=0; k < (wlen < 0 ? 1 : 3); k++) {
         if (wbody[k] != wbody[k+1]) {
           // get 3D position difference, normalize
+          mjtNum dif[3];
           mju_sub3(dif, wpnt+3*k+3, wpnt+3*k);
           mju_normalize3(dif);
 
           // sparse
           if (issparse) {
             // get endpoint Jacobians, subtract
-            NV = mj_jacDifPair(m, d, chain,
-                               wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
-                               jac1, jac2, jacdif, NULL, NULL, NULL);
+            int NV = mj_jacDifPair(m, d, chain,
+                                   wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
+                                   jac1, jac2, jacdif, NULL, NULL, NULL);
 
             // no dofs: skip
             if (!NV) {
@@ -833,23 +835,23 @@ void mj_tendon(const mjModel* m, mjData* d) {
       }
 
       // assign to wrap
-      mju_copy(d->wrap_xpos+wcnt*3, wpnt, (wlen < 0 ? 3:9));
-      d->wrap_obj[wcnt] = -1;
+      mju_copy(d->wrap_xpos+wrapcount*3, wpnt, (wlen < 0 ? 3 : 9));
+      d->wrap_obj[wrapcount] = -1;
       if (wlen >= 0) {
-        d->wrap_obj[wcnt+1] = d->wrap_obj[wcnt+2] = idw;
+        d->wrap_obj[wrapcount+1] = d->wrap_obj[wrapcount+2] = wrapid;
       }
-      d->ten_wrapnum[i] += (wlen < 0 ? 1:3);
-      wcnt += (wlen < 0 ? 1:3);
+      d->ten_wrapnum[i] += (wlen < 0 ? 1 : 3);
+      wrapcount += (wlen < 0 ? 1 : 3);
 
       // advance
-      j += (tpw != mjWRAP_NONE ? 2 : 1);
+      j += (wraptype != mjWRAP_NONE ? 2 : 1);
 
       // assign last site before pulley or tendon end
       if (j == tendon_num-1 || m->wrap_type[adr+j+1] == mjWRAP_PULLEY) {
-        mju_copy3(d->wrap_xpos+wcnt*3, d->site_xpos+3*id1);
-        d->wrap_obj[wcnt] = -1;
+        mju_copy3(d->wrap_xpos+wrapcount*3, d->site_xpos+3*id1);
+        d->wrap_obj[wrapcount] = -1;
         d->ten_wrapnum[i]++;
-        wcnt++;
+        wrapcount++;
       }
     }
   }
