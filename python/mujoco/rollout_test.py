@@ -26,7 +26,6 @@ import numpy as np
 import mujoco
 from mujoco import rollout
 
-
 # -------------------------- models used for testing ---------------------------
 
 TEST_XML = r"""
@@ -885,12 +884,17 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     nthread = os.cpu_count()
     nbatch = nthread
 
-    nstep = ((2**31) // (nstate*nbatch)) + 2
+    nstep = ((2**31) // (nstate * nbatch)) + 2
     assert nstep * nstate * nbatch > 2**31
 
     initial_state = np.random.randn(nbatch, nstate)
-    rollout.rollout(model, [copy.copy(data) for _ in range(nthread)],
-                    initial_state, nstep=nstep)
+    rollout.rollout(
+        model,
+        [copy.copy(data) for _ in range(nthread)],
+        initial_state,
+        nstep=nstep,
+    )
+
 
 # -------------- Python implementation of rollout functionality ----------------
 

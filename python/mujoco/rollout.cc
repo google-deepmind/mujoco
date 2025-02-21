@@ -227,7 +227,7 @@ mjtNum* get_array_ptr(std::optional<const py::array_t<mjtNum>> arg,
   py::buffer_info info = arg->request();
 
   // check size
-  size_t expected_size = 
+  size_t expected_size =
     static_cast<size_t>(nbatch) * static_cast<size_t>(nstep) * static_cast<size_t>(dim);
   if (info.size != expected_size) {
     std::ostringstream msg;
