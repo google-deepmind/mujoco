@@ -16,6 +16,7 @@
 
 import concurrent.futures
 import copy
+import os
 import threading
 
 from absl.testing import absltest
@@ -875,6 +876,21 @@ class MuJoCoRolloutTest(parameterized.TestCase):
             model, [copy.copy(data) for i in range(3)], initial_state, control
         )
 
+  @absltest.skip(reason='Takes a long time to run')
+  def test_large_state(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = mujoco.MjData(model)
+
+    nthread = os.cpu_count()
+    nbatch = nthread
+
+    nstep = ((2**31) // (nstate*nbatch)) + 2
+    assert nstep * nstate * nbatch > 2**31
+
+    initial_state = np.random.randn(nbatch, nstate)
+    rollout.rollout(model, [copy.copy(data) for _ in range(nthread)],
+                    initial_state, nstep=nstep)
 
 # -------------- Python implementation of rollout functionality ----------------
 
