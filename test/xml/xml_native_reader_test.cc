@@ -1441,6 +1441,70 @@ TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
   EXPECT_THAT(error.data(), HasSubstr("Element 'replicate'"));
 }
 
+TEST_F(XMLReaderTest, ParseReplicateTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="winch" pos="-.01 0 .35">
+        <joint name="winch" damping="1"/>
+        <geom type="cylinder" size=".015 .01"/>
+        <site name="anchor" pos=".1 0 .04"/>
+      </body>
+      <site name="pulley" pos=".1 0 .32"/>
+      <site name="hook_left" pos=".08 0 .3"/>
+      <site name="hook_right" pos=".12 0 .3"/>
+      <body name="sphere" pos=".1 0 .2">
+        <freejoint/>
+        <geom type="sphere" size=".03"/>
+        <site name="pin_left" pos="-.025 0 .025"/>
+        <site name="pin_right" pos=".025 0 .025"/>
+      </body>
+
+      <replicate count="4" offset=".025 0 0">
+        <replicate count="4" offset="0 .025 0">
+          <replicate count="4" offset="0 0 .025">
+            <body pos=".06 -.04 .05">
+              <geom type="sphere" size=".012"/>
+            </body>
+          </replicate>
+        </replicate>
+      </replicate>
+    </worldbody>
+
+    <tendon>
+      <spatial range="0 .19" limited="true">
+        <site site="anchor"/>
+        <site site="pulley"/>
+        <pulley divisor="3"/>
+        <site site="pulley"/>
+        <site site="hook_left"/>
+        <site site="pin_left"/>
+        <pulley divisor="3"/>
+        <site site="pulley"/>
+        <site site="hook_right"/>
+        <site site="pin_right"/>
+      </spatial>
+    </tendon>
+
+    <actuator>
+      <position name="winch" joint="winch" ctrlrange="-.7 .5" ctrllimited="true" kp="10"/>
+  </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, 0);
+  EXPECT_THAT(m, NotNull());
+  EXPECT_THAT(m->nbody, 67);
+  EXPECT_THAT(m->ngeom, 66);
+  EXPECT_THAT(m->nsite, 6);
+  EXPECT_THAT(m->nu, 1);
+  EXPECT_THAT(m->ntendon, 1);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 // ---------------------- test spec assets parsing -----------------------------
 
 TEST_F(XMLReaderTest, ParseSpecAssets) {
