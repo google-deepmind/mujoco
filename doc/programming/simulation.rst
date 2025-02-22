@@ -615,6 +615,7 @@ essential to keep it in mind at all times. All MuJoCo utility functions that ope
 difference between row-major and column-major formats.
 
 .. TODO(tassa): update this section when qM is migrated to CSR.
+
 When possible, MuJoCo exploits sparsity. This can make all the difference between O(N) and O(N^3) scaling. The inertia
 matrix ``mjData.qM`` and its LTDL factorization ``mjData.qLD`` are always represented as sparse. ``qM`` uses a custom
 indexing format designed for matrices that correspond to tree topology, while ``qLD`` uses the standard CSR format.
