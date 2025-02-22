@@ -484,24 +484,27 @@ acceleration as a function of velocity: :math:`a_t = a(v_t)`, the velocity updat
 This is a non-linear equation in the unknown vector :math:`v_{t+h}` and can be solved numerically at each time step
 using a first-order expansion of :math:`a(v_{t+h})` around :math:`v_t`. Recall that the forward dynamics are
 
-.. math:: a(v) = M^{-1} \big(\tau(v) - c(v) + J^T f(v)\big)
+.. math::
+   :label: eq_forward
+
+   a(v) = M^{-1} \big(\tau(v) - c(v) + J^T f(v)\big)
 
 Thus we define the derivative
 
 .. math::
-  \begin{aligned}
-      {\partial a(v) \over \partial v} &= M^{-1} D \\
-      D &\equiv {\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
-  \end{aligned}
+   \begin{aligned}
+       {\partial a(v) \over \partial v} &= M^{-1} D \\
+       D &\equiv {\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
+   \end{aligned}
 
 The velocity update corresponding to Newton's method is as follows. First, we expand the right hand side to first order
 
 .. math::
-  \begin{aligned}
-     v_{t+h} &= v_t + h a(v_{t+h}) \\
-             &\approx v_t + h \big( a(v_t) + {\partial a(v) \over \partial v} \cdot (v_{t+h}-v_t) \big) \\
-             &= v_t + h a(v_t) + h M^{-1} D \cdot (v_{t+h}-v_t)
-  \end{aligned}
+   \begin{aligned}
+      v_{t+h} &= v_t + h a(v_{t+h}) \\
+              &\approx v_t + h \big( a(v_t) + {\partial a(v) \over \partial v} \cdot (v_{t+h}-v_t) \big) \\
+              &= v_t + h a(v_t) + h M^{-1} D \cdot (v_{t+h}-v_t)
+   \end{aligned}
 
 Premultiplying by :math:`M` and rearranging yields
 
@@ -512,16 +515,27 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
 .. math::
    :label: eq_implicit_update
 
-   v_{t+h} = v_t + h (M-h D)^{-1} M a(v_t)
+   \begin{aligned}
+       v_{t+h} &= v_t + h \widehat{M}^{-1} M a(v_t) \\
+       \widehat{M} &\equiv M-h D
+   \end{aligned}
 
+.. _geIntergrators:
+
+Intergrators
+^^^^^^^^^^^^
+MuJoCo supports four integrators: three single-step integrators and the multi-step 4th order Runge-Kutta integrator.
 All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_update`, with different definitions of the
 :math:`D` matrix, which is always computed analytically.
 
 Semi-implicit with implicit joint damping (``Euler``)
    For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
-   and :math:`M-h D` is symmetric, so Cholesky decomposition can be used. If the model has no joint damping or the
+   and :math:`\widehat{M}` is symmetric, so :math:`L^TL` decomposition (a variant of Cholesky) can be used. This
+   factorization is stored ``mjData.qLD``. If the model has no joint damping or the
    :ref:`eulerdamp<option-flag-eulerdamp>` disable-flag is set, implicit damping is disabled and the semi-implicit
-   update :eq:`eq_semimplicit` is used, rather than :eq:`eq_implicit_update`.
+   update :eq:`eq_semimplicit` is used, rather than :eq:`eq_implicit_update`, avoiding the additional factorization of
+   :math:`\widehat{M}` (*additional* because :math:`M` is already factorized for the acceleration update
+   :eq:`eq_forward`).
 
 Implicit-in-velocity (``implicit``)
    For this method, :math:`D` includes derivatives of all forces except the constraint forces :math:`J^T f(v)`. These
@@ -530,8 +544,8 @@ Implicit-in-velocity (``implicit``)
    future version. Additionally, we restrict :math:`D` to have the same sparsity pattern as :math:`M`, for computational
    efficiency. This restriction will exclude damping in tendons which connect bodies that are on different branches of
    the kinematic tree. Since :math:`D` is not symmetric, we cannot use Cholesky factorization, but because :math:`D` and
-   :math:`M` have the same sparsity pattern corresponding to the topology of the kinematic tree, reverse-order LU
-   factorization of :math:`M-h D` is `guaranteed to have no fill-in
+   :math:`M` have the same sparsity pattern corresponding to the topology of the kinematic tree, reverse-order
+   :math:`LU` factorization of :math:`\widehat{M}` is guaranteed to have `no fill-in
    <https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_.  This factorization is stored ``mjData.qLU``.
 
 Fast implicit-in-velocity (``implicitfast``)
@@ -541,7 +555,7 @@ Fast implicit-in-velocity (``implicitfast``)
    Second, these forces change rapidly only at high rotational velocities of complex pendula and spinning bodies,
    scenarios which are not common and already well-handled by the Runge-Kutta integrator (see below). Because the RNE
    derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
-   faster Cholesky rather than LU decomposition.
+   faster :math:`L^TL` rather than :math:`LU` decomposition.
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
