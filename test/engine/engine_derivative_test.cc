@@ -28,13 +28,12 @@
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
-#include "src/engine/engine_util_errmem.h"
-#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::std::vector;
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::Eq;
@@ -120,7 +119,7 @@ TEST_F(DerivativeTest, SmoothDvel) {
 
       // expect derivatives to be non-zero, make copy of qDeriv as a vector
       EXPECT_GT(mju_norm(data->qDeriv, nD), 0);
-      std::vector<mjtNum> qDerivAnalytic = AsVector(data->qDeriv, nD);
+      vector<mjtNum> qDerivAnalytic = AsVector(data->qDeriv, nD);
 
       // compute finite-difference derivatives
       mjtNum eps = 1e-7;
@@ -364,13 +363,13 @@ TEST_F(DerivativeTest, StepSkip) {
     }
 
     // save state
-    std::vector<mjtNum> qpos = AsVector(data->qpos, nq);
-    std::vector<mjtNum> qvel = AsVector(data->qvel, nv);
+    vector<mjtNum> qpos = AsVector(data->qpos, nq);
+    vector<mjtNum> qvel = AsVector(data->qvel, nv);
 
     // take one more step, save next state
     mj_step(model, data);
-    std::vector<mjtNum> qpos_next = AsVector(data->qpos, nq);
-    std::vector<mjtNum> qvel_next = AsVector(data->qvel, nv);
+    vector<mjtNum> qpos_next = AsVector(data->qpos, nq);
+    vector<mjtNum> qvel_next = AsVector(data->qvel, nv);
 
     // reset state, take step again, compare (assert mj_step is deterministic)
     mju_copy(data->qpos, qpos.data(), nq);
@@ -384,8 +383,8 @@ TEST_F(DerivativeTest, StepSkip) {
     mju_copy(data->qvel, qvel.data(), nv);
     data->ctrl[0] = 1;
     mj_stepSkip(model, data, mjSTAGE_VEL, 0);  // skipping both POS and VEL
-    std::vector<mjtNum> qpos_next_dctrl = AsVector(data->qpos, nq);
-    std::vector<mjtNum> qvel_next_dctrl = AsVector(data->qvel, nv);
+    vector<mjtNum> qpos_next_dctrl = AsVector(data->qpos, nq);
+    vector<mjtNum> qvel_next_dctrl = AsVector(data->qvel, nv);
 
     // reset state (ctrl remains unchanged), call full mj_step, compare
     mju_copy(data->qpos, qpos.data(), nq);
@@ -399,8 +398,8 @@ TEST_F(DerivativeTest, StepSkip) {
     mju_copy(data->qvel, qvel.data(), nv);
     data->qvel[0] += 1;
     mj_stepSkip(model, data, mjSTAGE_POS, 0);  // skipping POS
-    std::vector<mjtNum> qpos_next_dvel = AsVector(data->qpos, nq);
-    std::vector<mjtNum> qvel_next_dvel = AsVector(data->qvel, nv);
+    vector<mjtNum> qpos_next_dvel = AsVector(data->qpos, nq);
+    vector<mjtNum> qvel_next_dvel = AsVector(data->qvel, nv);
 
     // reset state, change velocity, call full mj_step, compare
     mju_copy(data->qpos, qpos.data(), nq);
@@ -796,22 +795,17 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
 
-  static const int nv = 3;
-  EXPECT_EQ(nv, model->nv);
-  static const int nu = 2;
-  EXPECT_EQ(nu, model->nu);
-  static const int ns = 5;
-  EXPECT_EQ(ns, model->nsensordata);
-  static const int nM = 6;
-  EXPECT_EQ(nM, model->nM);
+  int nv = model->nv;
+  int ns = model->nsensordata;
+  int nM = model->nM;
 
-  mjtNum DfDq[nv*nv];
-  mjtNum DfDv[nv*nv];
-  mjtNum DfDa[nv*nv];
-  mjtNum DsDq[nv*ns];
-  mjtNum DsDv[nv*ns];
-  mjtNum DsDa[nv*ns];
-  mjtNum DmDq[nv*nM];
+  vector<mjtNum> DfDq(nv*nv);
+  vector<mjtNum> DfDv(nv*nv);
+  vector<mjtNum> DfDa(nv*nv);
+  vector<mjtNum> DsDq(nv*ns);
+  vector<mjtNum> DsDv(nv*ns);
+  vector<mjtNum> DsDa(nv*ns);
+  vector<mjtNum> DmDq(nv*nM);
 
   // call mj_forward to get accelerations at initial state
   mj_forward(model, data);
@@ -820,61 +814,54 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
   mjtNum eps = 1e-6;
   mjtByte flg_actuation = 0;
   mjd_inverseFD(model, data, eps, flg_actuation,
-                DfDq, DfDv, DfDa,
-                DsDq, DsDv, DsDa,
-                DmDq);
+                DfDq.data(), DfDv.data(), DfDa.data(),
+                DsDq.data(), DsDv.data(), DsDa.data(),
+                DmDq.data());
 
   // expect that position derivatives are the stiffnesses
-  mjtNum DfDq_expect[3*3] = {model->jnt_stiffness[0], 0, 0,
-                             0, model->jnt_stiffness[1], 0,
-                             0, 0, model->jnt_stiffness[2]};
-  EXPECT_THAT(AsVector(DfDq, nv*nv),
-              Pointwise(DoubleNear(eps), AsVector(DfDq_expect, nv*nv)));
+  vector<mjtNum> DfDq_expect = {model->jnt_stiffness[0], 0, 0,
+                                0, model->jnt_stiffness[1], 0,
+                                0, 0, model->jnt_stiffness[2]};
+  EXPECT_THAT(DfDq, Pointwise(DoubleNear(eps), DfDq_expect));
 
   // expect that velocity derivatives are the dampings
-  mjtNum DfDv_expect[3*3] = {model->dof_damping[0], 0, 0,
-                             0, model->dof_damping[1], 0,
-                             0, 0, model->dof_damping[2]};
-  EXPECT_THAT(AsVector(DfDv, nv*nv),
-              Pointwise(DoubleNear(eps), AsVector(DfDv_expect, nv*nv)));
+  vector<mjtNum> DfDv_expect = {model->dof_damping[0], 0, 0,
+                                0, model->dof_damping[1], 0,
+                                0, 0, model->dof_damping[2]};
+  EXPECT_THAT(DfDv, Pointwise(DoubleNear(eps), DfDv_expect));
 
   // expect that acceleration derivatives are the mass matrix
-  mjtNum DfDa_expect[3*3];
-  mj_fullM(model, DfDa_expect, data->qM);
-  EXPECT_THAT(AsVector(DfDa, nv*nv),
-              Pointwise(DoubleNear(eps), AsVector(DfDa_expect, nv*nv)));
+  vector<mjtNum> DfDa_expect(nv*nv, 0);
+  mj_fullM(model, DfDa_expect.data(), data->qM);
+  EXPECT_THAT(DfDa, Pointwise(DoubleNear(eps), DfDa_expect));
 
   // expect that sensor derivatives w.r.t position only see sensor 1 at dof 0
-  mjtNum DsDq_expect[3*5] = {0};
+  vector<mjtNum> DsDq_expect(nv*ns, 0);
   int dof_index = 0;
   int sensordata_index = model->sensor_adr[1];
   DsDq_expect[dof_index*ns + sensordata_index] = 1;
-  EXPECT_THAT(AsVector(DsDq, nv*ns),
-              Pointwise(DoubleNear(eps), AsVector(DsDq_expect, nv*ns)));
+  EXPECT_THAT(DsDq, Pointwise(DoubleNear(eps), DsDq_expect));
 
   // expect that sensor derivatives w.r.t velocity only see sensor 0 at dof 1
-  mjtNum DsDv_expect[3*5] = {0};
+  vector<mjtNum> DsDv_expect(nv*ns, 0);
   dof_index = 1;
   sensordata_index = model->sensor_adr[0];
   DsDv_expect[dof_index*ns + sensordata_index] = 1;
-  EXPECT_THAT(AsVector(DsDv, nv*ns),
-              Pointwise(DoubleNear(eps), AsVector(DsDv_expect, nv*ns)));
+  EXPECT_THAT(DsDv, Pointwise(DoubleNear(eps), DsDv_expect));
 
   // expect that sensor derivatives w.r.t acceleration see the accelerometer
   // in the y-axis, affected by both dof 0 and dof 1
-  mjtNum DsDa_expect[3*5] = {0};
+  vector<mjtNum> DsDa_expect(nv*ns, 0);
   dof_index = 0;
   sensordata_index = model->sensor_adr[2] + 1;
   DsDa_expect[dof_index*ns + sensordata_index] = 1;
   dof_index = 1;
   DsDa_expect[dof_index*ns + sensordata_index] = 1;
-  EXPECT_THAT(AsVector(DsDa, nv*ns),
-              Pointwise(DoubleNear(eps), AsVector(DsDa_expect, nv*ns)));
+  EXPECT_THAT(DsDa, Pointwise(DoubleNear(eps), DsDa_expect));
 
   // expect that mass matrix derivatives are zero
-  mjtNum DmDq_expect[nv*nM] = {0};
-  EXPECT_THAT(AsVector(DmDq, nv*nM),
-              Pointwise(DoubleNear(eps), AsVector(DmDq_expect, nv*nM)));
+  vector<mjtNum> DmDq_expect(nv*nM, 0);
+  EXPECT_THAT(DmDq, Pointwise(DoubleNear(eps), DmDq_expect));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -904,8 +891,8 @@ void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
 }
 
 // utility: finite-difference Jacobians of mju_subQuat
-void mjd_subQuatFD(mjtNum Da[9], mjtNum Db[9],
-                   const mjtNum qa[4], const mjtNum qb[4], mjtNum eps) {
+static void subQuatFD(mjtNum Da[9], mjtNum Db[9],
+                      const mjtNum qa[4], const mjtNum qb[4], mjtNum eps) {
   // subQuat
   mjtNum y[3];
   mju_subQuat(y, qa, qb);
@@ -966,7 +953,7 @@ TEST_F(DerivativeTest, SubQuat) {
       // finite-differenced Jacobians
       mjtNum DaFD[9];
       mjtNum DbFD[9];
-      mjd_subQuatFD(DaFD, DbFD, qa, qb, eps);
+      subQuatFD(DaFD, DbFD, qa, qb, eps);
 
       // expect numerical equality
       EXPECT_THAT(AsVector(DaFD, 9),
@@ -978,7 +965,7 @@ TEST_F(DerivativeTest, SubQuat) {
 }
 
 // utility: random quaternion, 3D velocity
-void randomQuatVel(mjtNum quat[4], mjtNum vel[3], int seed) {
+static void randomQuatVel(mjtNum quat[4], mjtNum vel[3], int seed) {
   // make distribution using seed
   std::mt19937_64 rng;
   rng.seed(seed);
