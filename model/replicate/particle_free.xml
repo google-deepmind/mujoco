@@ -35,9 +35,15 @@
     <geom name="-x" class="wall" zaxis="-1 0 0" pos=".5 0 -.25"/>
     <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
     <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
-    <composite type="particle" count="3 3 3" spacing="0.07" offset="0 0 1">
-      <geom type="box" size=".025 .025 .025" rgba=".8 .2 .1 1" condim="3"/>
-      <joint kind="particle" type="free"/>
-    </composite>
+    <replicate count="3" offset=".07 0 0">
+      <replicate count="3" offset="0 .07 0">
+        <replicate count="3" offset="0 0 .07">
+          <body pos="-.07 -.07 1">
+            <freejoint/>
+            <geom type="box" size=".025 .025 .025" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
   </worldbody>
 </mujoco>

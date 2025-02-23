@@ -94,9 +94,18 @@
       <site name="pin_right" pos=".025 0 .025"/>
     </body>
 
-    <composite type="particle" count="4 4 4" spacing="0.025" offset=".11 .01 .1">
-      <geom size=".012" rgba=".5 .8 .5 1" solref=".005 1"/>
-    </composite>
+    <replicate count="4" offset=".025 0 0">
+      <replicate count="4" offset="0 .025 0">
+        <replicate count="4" offset="0 0 .025">
+          <body pos=".06 -.04 .05">
+            <joint type="slide" axis="1 0 0"/>
+            <joint type="slide" axis="0 1 0"/>
+            <joint type="slide" axis="0 0 1"/>
+            <geom type="sphere" size=".012" rgba=".5 .8 .5 1" solref=".005 1" condim="1"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
   </worldbody>
 
   <equality>

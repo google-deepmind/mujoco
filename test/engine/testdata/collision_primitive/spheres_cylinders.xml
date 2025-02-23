@@ -39,25 +39,49 @@
     <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
     <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
 
-    <composite type="particle" count="3 3 2" spacing="0.2" offset="0 0 1">
-      <geom type="sphere" size=".09" rgba=".8 .2 .1 1" condim="3"/>
-      <joint kind="particle" type="free"/>
-    </composite>
+    <replicate count="3" offset=".2 0 0">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 1">
+            <freejoint/>
+            <geom type="sphere" size=".09" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
 
-    <composite type="particle" count="3 3 2" spacing="0.2" offset="0 0 1.6" prefix="A">
-      <geom type="cylinder" size=".09 .02" rgba=".8 .2 .1 1" condim="3"/>
-      <joint kind="particle" type="free"/>
-    </composite>
+    <replicate count="3" offset=".2 0 0" prefix="A">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 1.6">
+            <freejoint/>
+            <geom type="cylinder" size=".09 .02" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
 
-    <composite type="particle" count="3 3 2" spacing="0.2" offset="0 0 2.2" prefix="B">
-      <geom type="cylinder" size=".02 .09" rgba=".8 .2 .1 1" condim="3"/>
-      <joint kind="particle" type="free"/>
-    </composite>
+    <replicate count="3" offset=".2 0 0" prefix="B">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 2.2">
+            <freejoint/>
+            <geom type="cylinder" size=".02 .09" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
 
-    <composite type="particle" count="3 3 2" spacing="0.2" offset="0 0 2.8" prefix="C">
-      <geom type="sphere" size=".06" rgba=".8 .2 .1 1" condim="3"/>
-      <joint kind="particle" type="free"/>
-    </composite>
+    <replicate count="3" offset=".2 0 0" prefix="C">
+      <replicate count="3" offset="0 .2 0">
+        <replicate count="2" offset="0 0 .2">
+          <body pos="-.2 -.2 2.8">
+            <freejoint/>
+            <geom type="sphere" size=".06" rgba=".8 .2 .1 1" condim="3"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
 
   </worldbody>
 </mujoco>

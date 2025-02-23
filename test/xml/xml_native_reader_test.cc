@@ -1897,7 +1897,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   <mujoco>
     <worldbody>
       <body>
-        <composite prefix="B0" type="grid" count="6 6 1" spacing=".2">
+        <composite prefix="B0" type="grid" count="6 6 1">
           <geom size=".1"/>
           <skin group="6"/>
         </composite>

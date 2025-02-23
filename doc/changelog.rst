@@ -36,6 +36,9 @@ General
 - Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
 - Improved shadow rendering in the native renderer.
 - Moved ``introspect`` to ``python/introspect``.
+- Removed the ``particle`` composite type. It is recommended to use the more generic :ref:`replicate<replicate>`
+  instead, for example `this model
+  <https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
 
 .. admonition:: Breaking API changes
    :class: attention

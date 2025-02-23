@@ -287,25 +287,18 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
-        {"composite", "*", "12", "prefix", "type", "count", "spacing", "offset",
-            "flatinertia", "solrefsmooth", "solimpsmooth", "vertex",
-            "initial", "curve", "size"},
+        {"composite", "*", "9", "prefix", "type", "count", "offset",
+            "flatinertia", "vertex", "initial", "curve", "size"},
         {"<"},
             {"joint", "*", "17", "kind", "group", "stiffness", "damping", "armature",
                 "solreffix", "solimpfix", "type", "axis",
                 "limited", "range", "margin", "solreflimit", "solimplimit",
                 "frictionloss", "solreffriction", "solimpfriction"},
-            {"tendon", "*", "17", "kind", "group", "stiffness", "damping",
-                "solreffix", "solimpfix",
-                "limited", "range", "margin", "solreflimit", "solimplimit",
-                "frictionloss", "solreffriction", "solimpfriction",
-                "material", "rgba", "width"},
             {"skin", "?", "6", "texcoord", "material", "group", "rgba", "inflate", "subgrid"},
             {"geom", "?", "17", "type", "contype", "conaffinity", "condim",
                 "group", "priority", "size", "material", "rgba", "friction", "mass",
                 "density", "solmix", "solref", "solimp", "margin", "gap"},
             {"site", "?", "4", "group", "size", "material", "rgba"},
-            {"pin", "*", "1", "coord"},
             {"plugin", "*", "2", "plugin", "instance"},
             {"<"},
               {"config", "*", "2", "key", "value"},
@@ -763,13 +756,6 @@ const mjMap shape_map[mjNCOMPSHAPES] = {
   {"cos(s)",      mjCOMPSHAPE_COS},
   {"sin(s)",      mjCOMPSHAPE_SIN},
   {"0",           mjCOMPSHAPE_ZERO}
-};
-
-
-// composite tendon kind
-const mjMap tkind_map[2] = {
-  {"main",        mjCOMPKIND_TENDON},
-  {"shear",       mjCOMPKIND_SHEAR}
 };
 
 
@@ -2412,7 +2398,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
     comp.type = (mjtCompType)n;
   }
   ReadAttr(elem, "count", 3, comp.count, text, false, false);
-  ReadAttr(elem, "spacing", 1, &comp.spacing, text, false);
   ReadAttr(elem, "offset", 3, comp.offset, text);
   ReadAttr(elem, "flatinertia", 1, &comp.flatinertia, text);
 
@@ -2436,11 +2421,17 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
   std::istringstream iss(curves);
   int i = 0;
   while (iss) {
+    if (curves.empty()) {
+      break;
+    }
     iss >> text;
     if (i>2) {
       throw mjXError(elem, "The curve array must have a maximum of 3 components");
     }
     comp.curve[i++] = (mjtCompShape)FindKey(shape_map, mjNCOMPSHAPES, text);
+    if (comp.curve[i-1] == -1) {
+      throw mjXError(elem, "The curve array contains an invalid shape");
+    }
     if (iss.eof()){
       break;
     }
@@ -2557,45 +2548,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
     ejnt = NextSiblingElement(ejnt, "joint");
   }
 
-  // tendon
-  XMLElement* eten = FirstChildElement(elem, "tendon");
-  while (eten) {
-    // kind
-    int kind;
-    MapValue(eten, "kind", &kind, tkind_map, 2, true);
-    comp.add[kind] = true;
-
-    // get default structs
-    mjsTendon& dtendon = *comp.def[kind].spec.tendon;
-    mjsEquality& dequality = *comp.def[kind].spec.equality;
-
-    // solreffix, solimpfix
-    ReadAttr(eten, "solreffix", mjNREF, dequality.solref, text, false, false);
-    ReadAttr(eten, "solimpfix", mjNIMP, dequality.solimp, text, false, false);
-
-    // tendon attributes
-    string material;
-    MapValue(elem, "limited", &dtendon.limited, TFAuto_map, 3);
-    ReadAttrInt(eten, "group", &dtendon.group);
-    ReadAttr(eten, "solreflimit", mjNREF, dtendon.solref_limit, text, false, false);
-    ReadAttr(eten, "solimplimit", mjNIMP, dtendon.solimp_limit, text, false, false);
-    ReadAttr(eten,
-             "solreffriction", mjNREF, dtendon.solref_friction, text, false, false);
-    ReadAttr(eten,
-             "solimpfriction", mjNIMP, dtendon.solimp_friction, text, false, false);
-    ReadAttr(eten, "range", 2, dtendon.range, text);
-    ReadAttr(eten, "margin", 1, &dtendon.margin, text);
-    ReadAttr(eten, "stiffness", 1, &dtendon.stiffness, text);
-    ReadAttr(eten, "damping", 1, &dtendon.damping, text);
-    ReadAttr(eten, "frictionloss", 1, &dtendon.frictionloss, text);
-    ReadAttrTxt(eten, "material", material);
-    mjs_setString(dtendon.material, material.c_str());
-    ReadAttr(eten, "rgba", 4, dtendon.rgba, text);
-    ReadAttr(eten, "width", 1, &dtendon.width, text);
-
-    // advance
-    eten = NextSiblingElement(eten, "tendon");
-  }
 
   // make composite
   char error[200];

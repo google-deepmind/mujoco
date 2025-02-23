@@ -35,11 +35,15 @@
     <geom name="-x" class="wall" zaxis="-1 0 0" pos=".5 0 -.25"/>
     <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
     <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
-    <composite type="particle" count="15 15 1" spacing="0.06" offset="0 0 .1">
-      <geom type="ellipsoid" size=".025 .02 .015" rgba=".8 .2 .1 1"/>
-      <joint kind="particle" type="slide" axis="1 0 0"/>
-      <joint kind="particle" type="slide" axis="0 1 0"/>
-      <joint kind="particle" type="hinge" axis="0 0 1"/>
-    </composite>
+    <replicate count="15" offset=".06 0 0">
+      <replicate count="15" offset="0 .06 0">
+        <body pos="-.42 -.42 .1">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="hinge" axis="0 0 1"/>
+          <geom type="ellipsoid" size=".025 .02 .015" rgba=".8 .2 .1 1"/>
+        </body>
+      </replicate>
+    </replicate>
   </worldbody>
 </mujoco>

@@ -1164,34 +1164,8 @@ see the XML model files in the distribution for the complete examples.
 
 **Particle**.
 
-|image4| |image5|
-
-.. code-block:: xml
-
-   <worldbody>
-     <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
-       <geom size=".02" rgba=".8 .2 .1 1"/>
-     </composite>
-   </worldbody>
-
-The above XML is all it takes to create a system with 1000 particles with initial positions on a 10-10-10 grid, and
-set the size, color, spacing and offset of the particles. The resulting element bodies become children of the world
-body. One could adjust many other properties including the softness of the contacts and the joint attributes. The plot
-on the right shows the joints. Each element body has 3 orthogonal slider joints, allowing it to translate but not
-rotate. The idea is that particles should have position but no orientation. MuJoCo bodies always have orientation,
-however by using only slider joints we do not allow the orientation to change. The geom defaults are adjusted
-automatically so that they make frictionless contacts with each other and with the rest of the model. So this system
-has 1000 bodies (each with a geom), 3000 degrees of freedom and around 1000 active contacts. Evaluating the dynamics
-takes around 1 ms on a single core of a modern processor. As with most other MuJoCo models, the soft constraints allow
-simulation at much larger timesteps (this model is stable at 30 ms timestep and even higher).
-
-Particles are also compatible with the passive forces 2D and 3D plugins, discussed in the :ref:`deformable
-<CDeformable>` section. However, collisions are limited to the particle themselves and not to the whole boundary of the
-skin that encloses them. This makes contacts very fast but does not guarantee that all penetrations can be avoided. For
-a more complete treatment, see again the :ref:`deformable <CDeformable>` section, which outlines how to use
-:ref:`flexcomp<body-flexcomp>` to create such an object. It is easy to port models create with composite particles to
-flex, see the folder `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/model/plugin/elasticity>`__ for
-several examples.
+The particle type is deprecated. It is recommended to use the more generic :ref:`replicate<replicate>` instead, for
+example `this model <https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
 
 **Grid**.
 

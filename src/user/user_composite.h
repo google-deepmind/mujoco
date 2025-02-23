@@ -49,7 +49,8 @@ typedef enum _mjtCompKind {
 
 
 typedef enum _mjtCompShape {
-  mjCOMPSHAPE_LINE = 0,
+  mjCOMPSHAPE_INVALID = -1,
+  mjCOMPSHAPE_LINE,
   mjCOMPSHAPE_COS,
   mjCOMPSHAPE_SIN,
   mjCOMPSHAPE_ZERO,
@@ -66,13 +67,10 @@ class mjCComposite {
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
 
   bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
-  bool MakeParticle(mjCModel* model, mjsBody* body, char* error, int error_sz);
   bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
   void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
-  void MakeClothBones(mjCModel* model, mjsSkin* skin);
-  void MakeClothBonesSubgrid(mjCModel* model, mjsSkin* skin);
   void MakeCableBones(mjCModel* model, mjsSkin* skin);
   void MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin);
 
@@ -80,7 +78,6 @@ class mjCComposite {
   std::string prefix;             // name prefix
   mjtCompType type;               // composite type
   int count[3];                   // geom count in each dimension
-  double spacing;                 // spacing between elements
   double offset[3];               // position offset for particle and grid
   double flatinertia;             // flatten ineria of cloth elements; 0: disable
 

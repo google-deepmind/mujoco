@@ -3010,13 +3010,6 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    parent body. Note that some types imply a grid of certain dimensionality, so the requirements for this attribute
    depend on the specified type.
 
-.. _body-composite-spacing:
-
-:at:`spacing`: :at-val:`real, required`
-   The spacing between the centers of the grid elements. This spacing is the same in all dimensions. It should normally
-   be set to a value larger than the geom size, otherwise there will be a lot of contacts in the reference model
-   configuration (which is allowed but rarely desirable).
-
 .. _body-composite-offset:
 
 :at:`offset`: :at-val:`real(3), "0 0 0"`
@@ -3033,16 +3026,6 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    corresponds to flat boxes aligned with the cloth (which can then be used for lift forces). This will not change the
    geom shapes, but instead will set the body inertias directly and disable the automatic computation of inertia from
    geom shape for the composite body only.
-
-.. _body-composite-solrefsmooth:
-
-.. _body-composite-solimpsmooth:
-
-:at:`solrefsmooth`, :at:`solimpsmooth`
-   These are the solref and solimp attributes of the loop-closure equality constraint for loop types, and the
-   smoothness-preserving equality constraint for box, cylinder and ellipsoid types. For all other types they have no
-   effect. They obey the same rules as all other solref and solimp attributes in MJCF, except their defaults here are
-   adjusted depending on the composite type. See :ref:`CSolver`.
 
 .. _body-composite-vertex:
 
@@ -3145,73 +3128,6 @@ joints should be created, as well as to adjust the attributes of both automatic 
 
 |body/composite/joint attrib list|
    Same meaning as regular :ref:`joint <body-joint>` attributes.
-
-
-.. _composite-tendon:
-
-:el-prefix:`composite/` |-| **tendon** (*)
-''''''''''''''''''''''''''''''''''''''''''
-
-Tendons are treated similarly to joints in composite objects. The tendon kind specified here together with the composite
-body type imply the tendon type as used in the rest of MJCF. This sub-element is used to both create optional tendons,
-and adjust the attributes of automatic and optional tendons. One difference from joints is that all tendons used in
-composite objects are equality-constrained.
-
-.. _composite-tendon-kind:
-
-:at:`kind`: :at-val:`[main, shear], required`
-   The **main** kind corresponds to tendons holding the composite body together. These are the spatial tendons that
-   connect neighboring bodies in grid and cloth, and the fixed tendon used to preserve the volume of box, cylinder and
-   ellipsoid. For other composite types this sub-element has no effect.
-
-   The **shear** kind corresponds to diagonal tendons that prevent shear (as opposed to enabling - which is the function
-   of optional joints). Such tendons can be created in 2D grid objects and cloth objects. For all other composite object
-   types this sub-element has no effect.
-
-.. _composite-tendon-solreffix:
-
-.. _composite-tendon-solimpfix:
-
-:at:`solreffix`, :at:`solimpfix`
-   These are the solref and solimp attributes used to equality-constrain the tendon. The defaults are adjusted depending
-   on the composite type. Otherwise these attributes obey the same rules as all other solref and solimp attributes in
-   MJCF. See :ref:`CSolver`.
-
-.. _composite-tendon-group:
-
-.. _composite-tendon-stiffness:
-
-.. _composite-tendon-damping:
-
-.. _composite-tendon-limited:
-
-.. _composite-tendon-range:
-
-.. _composite-tendon-margin:
-
-.. _composite-tendon-solreflimit:
-
-.. _composite-tendon-solimplimit:
-
-.. _composite-tendon-frictionloss:
-
-.. _composite-tendon-solreffriction:
-
-.. _composite-tendon-solimpfriction:
-
-.. _composite-tendon-material:
-
-.. _composite-tendon-rgba:
-
-.. _composite-tendon-width:
-
-.. |body/composite/tendon attrib list| replace::
-   :at:`group`, :at:`stiffness`, :at:`damping`, :at:`limited`, :at:`range`, :at:`margin`, :at:`solreflimit`,
-   :at:`solimplimit`, :at:`frictionloss`, :at:`solreffriction`, :at:`solimpfriction`, :at:`material`, :at:`rgba`,
-   :at:`width`
-
-|body/composite/tendon attrib list|
-   Same meaning as regular :ref:`tendon <tendon>` attributes.
 
 
 .. _composite-geom:
@@ -3334,22 +3250,6 @@ automatically-generated skin.
    with the specified number of (additional) grid lines. In this case the model compiler generates a denser skin using
    bi-cubic interpolation. This increases the quality of the rendering (especially in the absence of textures) but also
    slows down the renderer, so use it with caution. Values above 3 are unlikely to be needed.
-
-.. _composite-pin:
-
-:el-prefix:`composite/` |-| **pin** (*)
-'''''''''''''''''''''''''''''''''''''''
-
-This sub-element can be used to pin some of the element bodies in grid objects (both 1D and 2D). Pinning means that the
-corresponding body has no joints, and therefore it is rigidly fixed to the parent body. When the parent is the world,
-this has the effect of hanging a string or a cloth in space. If the parent body is moving, this can be used to model a
-handle where the composite object is attached. For other composite types this sub-element has no effect.
-
-.. _composite-pin-coord:
-
-:at:`coord`: :at-val:`int(2), required`
-   The grid coordinates of the element body which should be pinned. The coordinates are zero-based. For 1D grids this
-   attribute can have only one number, in which case the second number is automatically set to 0.
 
 
 .. _composite-plugin:
