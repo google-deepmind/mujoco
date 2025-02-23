@@ -22,7 +22,7 @@
      Simple humanoid on a hammock, implemented as a 2D grid composite, pinned at the corners.
 -->
 
-  <option timestep="0.005" solver="CG" iterations="30" tolerance="1e-6"/>
+  <option timestep="0.001" solver="CG" iterations="30" tolerance="1e-6"/>
 
   <size memory="20M"/>
 
@@ -41,23 +41,22 @@
              width="512" height="512" mark="edge" markrgb=".8 .8 .8"/>
     <material name="plane" reflectance="0.3" texture="plane" texrepeat="1 1" texuniform="true"/>
     <material name="hammock" texture="hammock"/>
+    <model name="humanoid" file="humanoid_body.xml"/>
   </asset>
-
-  <include file="humanoid_body.xml"/>
 
   <worldbody>
     <geom name="floor" pos="0 0 -1" size="0 0 .25" type="plane" material="plane" condim="3"/>
     <light directional="true" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1" castshadow="false"/>
     <light directional="false" diffuse=".8 .8 .8" specular="0.3 0.3 0.3" pos="0 0 4" dir="0 0 -1"/>
-    <composite type="grid" count="11 9 1" spacing="0.2" offset="0. 0. 0">
-      <skin texcoord="true" material="hammock" inflate="0.01" subgrid="3"/>
-      <pin coord="0 0"/>
-      <pin coord="10 0"/>
-      <pin coord="0 8"/>
-      <pin coord="10 8"/>
-      <geom size=".095"/>
-      <joint kind="main" damping="10"/>
-    </composite>
+    <flexcomp name="hammock" type="grid" count="11 9 1" spacing="0.2 0.2 0.2" material="hammock"
+              radius="0.04" dim="2">
+      <pin id="0 8 90 98"/>
+      <edge equality="true" damping="10" solimp=".95 .99"/>
+      <contact selfcollide="none" internal="false" solimp=".99 .999 .00001"/>
+    </flexcomp>
+    <frame euler="0 180 0" pos="-.4 -.2 2">
+      <attach model="humanoid" body="torso" prefix="humanoid_"/>
+    </frame>
   </worldbody>
 
 </mujoco>

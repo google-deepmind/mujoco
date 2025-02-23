@@ -64,14 +64,10 @@ class mjCComposite {
 
   void SetDefault(void);
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
-  void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
   bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
-
   bool MakeParticle(mjCModel* model, mjsBody* body, char* error, int error_sz);
-  bool MakeGrid(mjCModel* model, mjsBody* body, char* error, int error_sz);
   bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
-  void MakeShear(mjCModel* model);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
   void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
@@ -86,10 +82,7 @@ class mjCComposite {
   int count[3];                   // geom count in each dimension
   double spacing;                 // spacing between elements
   double offset[3];               // position offset for particle and grid
-  std::vector<int> pin;           // pin elements of grid (do not create main joint)
   double flatinertia;             // flatten ineria of cloth elements; 0: disable
-  mjtNum solrefsmooth[mjNREF];    // solref for smoothing equality
-  mjtNum solimpsmooth[mjNIMP];    // solimp for smoothing equality
 
   // currently used only for cable
   std::string initial;            // root boundary type

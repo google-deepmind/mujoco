@@ -2466,10 +2466,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
   // set type-specific defaults
   comp.SetDefault();
 
-  // parse smooth solver parameters after type-specific defaults are set
-  ReadAttr(elem, "solrefsmooth", mjNREF, comp.solrefsmooth, text, false, false);
-  ReadAttr(elem, "solimpsmooth", mjNIMP, comp.solimpsmooth, text, false, false);
-
   // geom
   XMLElement* egeom = FirstChildElement(elem, "geom");
   if (egeom) {
@@ -2599,21 +2595,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
 
     // advance
     eten = NextSiblingElement(eten, "tendon");
-  }
-
-  // pin
-  XMLElement* epin = FirstChildElement(elem, "pin");
-  while (epin) {
-    // read
-    int coord[2] = {0, 0};
-    ReadAttr(epin, "coord", 2, coord, text, true, false);
-
-    // insert 2 coordinates (2nd may be unused)
-    comp.pin.push_back(coord[0]);
-    comp.pin.push_back(coord[1]);
-
-    // advance
-    epin = NextSiblingElement(epin, "pin");
   }
 
   // make composite

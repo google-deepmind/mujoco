@@ -59,9 +59,7 @@ mjCComposite::mjCComposite(void) {
   count[0] = count[1] = count[2] = 1;
   spacing = 0;
   mjuu_setvec(offset, 0, 0, 0);
-  pin.clear();
   flatinertia = 0;
-  mj_defaultSolRefImp(solrefsmooth, solimpsmooth);
 
   // plugin variables
   mjs_defaultPlugin(&plugin);
@@ -95,23 +93,6 @@ mjCComposite::mjCComposite(void) {
 
 
 
-// adjust constraint softness
-void mjCComposite::AdjustSoft(mjtNum* solref, mjtNum* solimp, int level) {
-  switch (level) {
-  case 0:
-    solref[0] = 0.01;
-    solimp[0] = solimp[1] = 0.99;
-    break;
-
-  case 1:
-    solref[0] = 0.02;
-    solimp[0] = solimp[1] = 0.9;
-    break;
-  }
-}
-
-
-
 // create the array of default joint options, append new elements only for particles type
 bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
   for (int i=0; i<mjNCOMPKINDS; i++) {
@@ -131,14 +112,6 @@ bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
 
 // set defaults, after reading top-level info and skin
 void mjCComposite::SetDefault(void) {
-  // determine dimensionality
-  int tmpdim = 0;
-  for (int i=0; i<3; i++) {
-    if (count[i]>1) {
-      tmpdim++;
-    }
-  }
-
   // set all default groups to 3
   for (int i=0; i<mjNCOMPKINDS; i++) {
     def[i].spec.geom->group = 3;
@@ -152,10 +125,7 @@ void mjCComposite::SetDefault(void) {
   // set default geom and tendon group to 0 if needed to be visible
   if (!skin ||
       type==mjCOMPTYPE_PARTICLE   ||
-      type==mjCOMPTYPE_ROPE       ||
-      type==mjCOMPTYPE_LOOP       ||
-      type==mjCOMPTYPE_CABLE      ||
-      (type==mjCOMPTYPE_GRID && tmpdim==1)) {
+      type==mjCOMPTYPE_CABLE) {
     for (int i=0; i<mjNCOMPKINDS; i++) {
       def[i].spec.geom->group = 0;
       def[i].spec.tendon->group = 0;
@@ -171,25 +141,7 @@ void mjCComposite::SetDefault(void) {
     def[0].spec.geom->priority = 1;
     break;
 
-  case mjCOMPTYPE_GRID:           // grid
-
-    // hard main tendon fix
-    AdjustSoft(def[mjCOMPKIND_TENDON].spec.equality->solref,
-               def[mjCOMPKIND_TENDON].spec.equality->solimp, 0);
-
-    break;
-
   case mjCOMPTYPE_CABLE:          // cable
-  case mjCOMPTYPE_ROPE:           // rope
-    break;
-
-  case mjCOMPTYPE_LOOP:           // loop
-
-    // hard smoothing
-    AdjustSoft(solrefsmooth, solimpsmooth, 0);
-    break;
-
-  case mjCOMPTYPE_CLOTH:          // cloth
     break;
 
   default:
@@ -211,11 +163,6 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
        def[0].spec.geom->type!=mjGEOM_ELLIPSOID) &&
       type!=mjCOMPTYPE_PARTICLE && type!=mjCOMPTYPE_CABLE) {
     return comperr(error, "Composite geom type must be sphere, capsule or ellipsoid", error_sz);
-  }
-
-  // check pin coord number
-  if (pin.size()%2) {
-    return comperr(error, "Pin coordinate number of must be multiple of 2", error_sz);
   }
 
   // check counts
@@ -305,7 +252,10 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
     return MakeParticle(model, body, error, error_sz);
 
   case mjCOMPTYPE_GRID:
-    return MakeGrid(model, body, error, error_sz);
+    return comperr(error,
+                   "The \"grid\" composite type is deprecated. Please use "
+                   "\"flex\" instead.",
+                   error_sz);
 
   case mjCOMPTYPE_ROPE:
     return comperr(error,
@@ -406,123 +356,6 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjsBody* body, char* error, int
     s->type = mjGEOM_SPHERE;
     mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
     mjs_setString(s->name, txt);
-  }
-
-  return true;
-}
-
-
-
-// make grid connected with tendons
-bool mjCComposite::MakeGrid(mjCModel* model, mjsBody* body, char* error, int error_sz) {
-  char txt[100], txt1[100], txt2[100];
-
-  // check dimensionality
-  if (dim>2) {
-    return comperr(error, "Grid can only be 1D or 2D", error_sz);
-  }
-
-  // check shear dimensionality
-  if (add[mjCOMPKIND_SHEAR] && dim!=2) {
-    return comperr(error, "Shear requires 2D grid", error_sz);
-  }
-
-  // check skin dimensionality
-  if (skin && dim!=2) {
-    return comperr(error, "Skin requires 2D grid", error_sz);
-  }
-
-  // create bodies, joints, geoms, sites
-  for (int ix=0; ix<count[0]; ix++) {
-    for (int iy=0; iy<count[1]; iy++) {
-      // create body
-      mjsBody* b = mjs_addBody(body, NULL);
-      mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix, iy);
-      mjs_setString(b->name, txt);
-
-      // set body position
-      b->pos[0] = offset[0] + spacing*(ix - 0.5*count[0]);
-      b->pos[1] = offset[1] + spacing*(iy - 0.5*count[1]);
-      b->pos[2] = offset[2];
-
-      // add geom
-      mjsGeom* g = mjs_addGeom(b, &def[0].spec);
-      mjs_setDefault(g->element, mjs_getDefault(body->element));
-      g->type = mjGEOM_SPHERE;
-      mju::sprintf_arr(txt, "%sG%d_%d", prefix.c_str(), ix, iy);
-      mjs_setString(g->name, txt);
-
-      // add site
-      mjsSite* s = mjs_addSite(b, &def[0].spec);
-      mjs_setDefault(s->element, mjs_getDefault(body->element));
-      s->type = mjGEOM_SPHERE;
-      mju::sprintf_arr(txt, "%sS%d_%d", prefix.c_str(), ix, iy);
-      mjs_setString(s->name, txt);
-
-      // skip pinned elements
-      bool skip = false;
-      for (int ip=0; ip<pin.size(); ip+=2) {
-        if (pin[ip]==ix && pin[ip+1]==iy) {
-          skip = true;
-          break;
-        }
-      }
-      if (skip) {
-        continue;
-      }
-
-      // add slider joint
-      mjsJoint* jnt[3];
-      for (int i=0; i<3; i++) {
-        jnt[i] = mjs_addJoint(b, &defjoint[mjCOMPKIND_JOINT][0].spec);
-        mjs_setDefault(jnt[i]->element, mjs_getDefault(body->element));
-        mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), i, ix, iy);
-        mjs_setString(jnt[i]->name, txt);
-        jnt[i]->type = mjJNT_SLIDE;
-        mjuu_setvec(jnt[i]->pos, 0, 0, 0);
-        mjuu_setvec(jnt[i]->axis, 0, 0, 0);
-        jnt[i]->axis[i] = 1;
-      }
-    }
-  }
-
-  // create tendons and equality constraints
-  for (int i=0; i<2; i++) {
-    for (int ix=0; ix<count[0]-(i==0); ix++) {
-      for (int iy=0; iy<count[1]-(i==1); iy++) {
-        // recover site names
-        mju::sprintf_arr(txt1, "%sS%d_%d", prefix.c_str(), ix, iy);
-        mju::sprintf_arr(txt2, "%sS%d_%d", prefix.c_str(), ix+(i==0), iy+(i==1));
-
-        // create tendon
-        mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
-        ten->classname = model->Default()->name;
-        mju::sprintf_arr(txt, "%sT%d_%d_%d", prefix.c_str(), i, ix, iy);
-        ten->name = txt;
-        ten->WrapSite(txt1);
-        ten->WrapSite(txt2);
-
-        // add equality constraint
-        mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_TENDON].spec);
-        mjs_setDefault(eq->element, &model->Default()->spec);
-        eq->type = mjEQ_TENDON;
-        mjs_setString(eq->name1, ten->name.c_str());
-      }
-    }
-  }
-
-  // shear for 2D
-  if (add[mjCOMPKIND_SHEAR]) {
-    MakeShear(model);
-  }
-
-  // skin
-  if (skin) {
-    if (skinsubgrid>0) {
-      MakeSkin2Subgrid(model, skininflate);
-    } else {
-      MakeSkin2(model, skininflate);
-    }
   }
 
   return true;
@@ -730,37 +563,6 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
 
 
 
-// add shear tendons to 2D
-void mjCComposite::MakeShear(mjCModel* model) {
-  char txt[100], txt1[100], txt2[100];
-
-  for (int ix=0; ix<count[0]-1; ix++) {
-    for (int iy=0; iy<count[1]-1; iy++) {
-      // recover site names
-      mju::sprintf_arr(txt1, "%sS%d_%d", prefix.c_str(), ix, iy);
-      mju::sprintf_arr(txt2, "%sS%d_%d", prefix.c_str(), ix+1, iy+1);
-
-      // create tendon
-      mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_SHEAR);
-      ten->classname = model->Default()->name;
-      ten->WrapSite(txt1);
-      ten->WrapSite(txt2);
-
-      // name tendon
-      mju::sprintf_arr(txt, "%sTS%d_%d", prefix.c_str(), ix, iy);
-      ten->name = txt;
-
-      // equality constraint
-      mjsEquality* eq = mjs_addEquality(&model->spec, &def[mjCOMPKIND_SHEAR].spec);
-      mjs_setDefault(eq->element, &model->Default()->spec);
-      eq->type = mjEQ_TENDON;
-      mjs_setString(eq->name1, txt);
-    }
-  }
-}
-
-
-
 // copy local vectors to skin
 void mjCComposite::CopyIntoSkin(mjsSkin* skin) {
   mjs_setInt(skin->face, face.data(), face.size());
@@ -875,7 +677,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   }
 
   // couple with bones
-  if (type==mjCOMPTYPE_PARTICLE || type==mjCOMPTYPE_GRID) {
+  if (type==mjCOMPTYPE_PARTICLE) {
     MakeClothBones(model, skin);
   } else if (type==mjCOMPTYPE_CABLE) {
     MakeCableBones(model, skin);
@@ -1434,7 +1236,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
     face.push_back(NN + iy+1 + (C0-1)*C1);
   }
 
-  if (type==mjCOMPTYPE_PARTICLE || type==mjCOMPTYPE_GRID) {
+  if (type==mjCOMPTYPE_PARTICLE) {
     MakeClothBonesSubgrid(model, skin);
   } else if (type==mjCOMPTYPE_CABLE) {
     MakeCableBonesSubgrid(model, skin);

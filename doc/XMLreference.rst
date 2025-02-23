@@ -2982,7 +2982,7 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 
 .. _body-composite-type:
 
-:at:`type`: :at-val:`[particle, grid, cable, rope, loop, cloth, box, cylinder, ellipsoid], required`
+:at:`type`: :at-val:`[particle, cable], required`
    This attribute determines the type of composite object. The remaining attributes and sub-elements are then
    interpreted according to the type. Default settings are also adjusted depending on the type.
 
@@ -2993,47 +2993,12 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    and replace the default sphere with a custom geom. Note that the particle composite type is deprecated and might be
    removed in a future version. Instead of particle, it is recommended to use :ref:`replicate`.
 
-   The **grid** type creates a 1D or 2D grid of bodies, each having a sphere geom, a sphere site, and 3 orthogonal
-   sliding joints by default. The :el:`pin` sub-element can be used to specify that some bodies should not have joints,
-   and instead should be pinned to the parent body. Unlike the particle type, here each two neighboring bodies are
-   connected with a spatial tendon whose length is equality-constrained to its initial value (the sites are needed to
-   define the tendons). The "main" tendons are parallel to the axes of the grid. In addition one can create diagonal
-   "shear" tendons, using the :el:`tendon` sub-element. This type is suitable for simulating strings as well as cloth.
-
    The **cable** type creates a 1D chain of bodies connected with ball joints, each having a geom with user-defined type
    (cylinder, capsule or box). The geometry can either be defined with an array of 3D vertex coordinates :at:`vertex`
    or with prescribed functions with the option :at:`curve`. Currently, only linear and trigonometric functions are
    supported. For example, an helix can be obtained with curve="cos(s) sin(s) s". The size is set with the option
    :at:`size`, resulting in :math:`f(s)=\{\text{size}[1]\cdot\cos(2\pi\cdot\text{size}[2]),\;
    \text{size}[1]\cdot\sin(2\pi\cdot\text{size}[2]),\; \text{size}[0]\cdot s\}`.
-
-   The **cloth** type is a different way to model cloth, beyond type="grid". Here the elements are connected with
-   universal joints and form a kinematic spanning tree. The root of the tree is the parent body, and its coordinates in
-   the grid are inferred from its name - similar to rope but here the naming format is "CB2_0". Neighboring bodies that
-   are not connected with joints are then connected with equality-constrained spatial tendons. The resulting cloth is
-   non-homogeneous, because the kinematic constraints cannot be violated while the tendon equality constraints are soft.
-   One can make it more homogeneous by adding stretch and twist joints (similar to rope) and adjusting the strength of
-   their equality constraints. Shear tendons can also be added. In addition to the different physics, cloth can do
-   things that a 2D grid cannot do. This is because the elements of cloth have both position and orientation, while the
-   elements of grid can only translate. The geoms used in cloth can be ellipsoids and capsules in addition to spheres.
-   When elongated geoms are used, they are rotated and interleaved in a pattern that fills the holes, preventing objects
-   from penetrating the cloth. Furthermore the inertia of the cloth elements can be modified with the flatinertia
-   attribute, and can then be used with lift and drag forces to simulate ripple effects.
-
-   The **box** type creates a 3D arrangement of bodies forming the outer shell of a (soft) box. The parent body is at
-   the center of the box. Each element body has a geom (sphere, ellipsoid or capsule) and a single sliding joint
-   pointing away from the center of the box. The sliding joints are equality-constrained to their initial value.
-   Furthermore, to achieve smooth deformations of the sides of the box, each joint is equality-constrained to remain
-   equal to its neighbor joints. To preserve the volume of the soft box approximately, a fixed tendon is used to
-   constrain the sum of all joints to remain constant. When the user specifies elongated geoms (capsules or ellipsoids)
-   their long axis is aligned with the sliding joint axis. This makes the shell thicker for collision detection
-   purposes, preventing objects from penetrating the box. It is important to disable contacts between the elements of
-   the box. This is done by setting the default geom contype to 0. The user can change it of course, but if the geoms
-   comprising the soft box are allowed to contact each other the model will not work as intended.
-
-   The **cylinder** and **ellipsoid** types are the same as box, except the elements are projected on the surface of an
-   ellipsoid or a cylinder respectively. Thus the composite soft body shape is different, while everything else is the
-   same as in the box type.
 
 .. _body-composite-count:
 

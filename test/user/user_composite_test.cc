@@ -37,32 +37,11 @@ using UserCompositeTest = MujocoTest;
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 
-TEST_F(UserCompositeTest, MultipleJointsNotAllowedUnlessParticle) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <worldbody>
-    <body>
-      <freejoint/>
-      <composite type="grid" count="7 7 1" spacing="0.04">
-        <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
-        <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
-      </composite>
-    </body>
-  </worldbody>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(),
-              HasSubstr("Only particles are allowed to have multiple joints"));
-}
-
 TEST_F(UserCompositeTest, SpacingGreaterThanGeometry) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
-    <composite type="grid" count="282 2">
+    <composite type="particle" count="282 2">
       <geom size="8"/>
     </composite>
   </worldbody>
@@ -79,7 +58,7 @@ TEST_F(UserCompositeTest, SpacingEqualToGeometry) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
-    <composite type="grid" count="282 2" spacing="8">
+    <composite type="particle" count="282 2" spacing="8">
       <geom size="8"/>
     </composite>
   </worldbody>

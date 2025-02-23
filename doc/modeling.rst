@@ -1193,47 +1193,10 @@ a more complete treatment, see again the :ref:`deformable <CDeformable>` section
 flex, see the folder `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/model/plugin/elasticity>`__ for
 several examples.
 
-**1D grid**.
+**Grid**.
 
-|image6| |image7|
-
-.. code-block:: xml
-
-   <composite type="grid" count="20 1 1" spacing="0.045" offset="0 0 1">
-     <joint kind="main" damping="0.001"/>
-     <tendon kind="main" width="0.01"/>
-     <geom size=".02" rgba=".8 .2 .1 1"/>
-     <pin coord="1"/>
-     <pin coord="13"/>
-   </composite>
-
-The grid type can create 1D or 2D grids, depending on the :at:`count` attribute. Here we illustrate 1D grids. These
-are strings of spheres connected with tendons whose length is soft-equality-constrained. The softness can be adjusted.
-Similar to particles, the element bodies here have slider joints but no rotational joints. The plot on the right
-illustrates pinning. The :el:`pin` sub-element is used to specify the grid coordinates of the pinned bodies, and the
-model compiler does not generate joints for these bodies, thereby fixing them rigidly to the parent body (in this case
-the world). This makes the string in the right plot hang in space. The same mechanism can be used to model a whip for
-example; in that case the parent body would be moving, and the first element body would be pinned to the parent.
-
-**2D grid**.
-
-|image8| |image9|
-
-.. code-block:: xml
-
-   <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">
-     <skin material="matcarpet" inflate="0.001" subgrid="3" texcoord="true"/>
-     <geom size=".02"/>
-     <pin coord="0 0"/>
-     <pin coord="8 0"/>
-   </composite>
-
-A 2D grid can be used to simulate cloth. What it really simulates is a 2D grid of spheres connected with
-equality-constrained tendons (not shown). The model compiler can also generate skin, enabled with the :el:`skin`
-sub-element in the above XML. Some of the element bodies can also be pinned, similar to 1D grids but using two grid
-coordinates. The plot on the right shows a cloth pinned to the world body at the two corners, and draping over our
-capsule probe. The skin on the right is subdivided using bi-cubic interpolation, which increases visual quality in the
-absence of textures. When textures are present (left) the benefits of subdivision are less visible.
+The grid composite type has been removed. It is recommended to use 2D flex :ref:`deformable objects <CDeformable>` for
+simulating thin elastic structures.
 
 **Cable**.
 

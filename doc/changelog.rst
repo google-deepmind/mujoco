@@ -48,6 +48,7 @@ General
 
      Previously, if the volumetric inertia computation failed (for example due to a very flat mesh), the compiler
      would silently fall back to surface inertia computation. Now, the compiler will throw an informative error.
+   - Removed the composite type ``grid``. Users should instead use :ref:`flexcomp<body-flexcomp>`.
 
 MJX
 ^^^
