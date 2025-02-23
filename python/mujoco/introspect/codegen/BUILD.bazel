@@ -24,7 +24,7 @@ py_binary(
     srcs = ["generate_enums.py"],
     deps = [
         ":formatter",
-        "//introspect:ast_nodes",
+        "//python/mujoco/introspect:ast_nodes",
         requirement("absl-py"),
         "@abseil-cpp//absl/flags:flag",
     ],
@@ -50,8 +50,8 @@ py_binary(
     srcs = ["generate_functions.py"],
     deps = [
         ":formatter",
-        "//introspect:ast_nodes",
-        "//introspect:type_parsing",
+        "//python/mujoco/introspect:ast_nodes",
+        "//python/mujoco/introspect:type_parsing",
         requirement("absl-py"),
         "@abseil-cpp//absl/flags:flag",
     ],
@@ -78,8 +78,8 @@ py_binary(
     srcs = ["generate_structs.py"],
     deps = [
         ":formatter",
-        "//introspect:ast_nodes",
-        "//introspect:type_parsing",
+        "//python/mujoco/introspect:ast_nodes",
+        "//python/mujoco/introspect:type_parsing",
         requirement("absl-py"),
         "@abseil-cpp//absl/flags:flag",
     ],

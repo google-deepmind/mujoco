@@ -29,3 +29,9 @@ py_library(
     srcs = ["structs.py"],
     deps = [":ast_nodes"],
 )
+
+py_library(
+    name = "mjxmacro",
+    srcs = ["mjxmacro.py"],
+    deps = [":structs"],
+)

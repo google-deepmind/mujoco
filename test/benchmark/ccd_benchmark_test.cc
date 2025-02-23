@@ -19,7 +19,7 @@
 #include <string>
 
 #include <benchmark/benchmark.h>
-#include <absl/base/attributes.h>
+#include "absl/base/attributes.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"

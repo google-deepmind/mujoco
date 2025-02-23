@@ -268,6 +268,7 @@ py_library(
         ":scan",
         ":types",
         "//:mujoco-py",
+        "//python/mujoco/introspect:mjxmacro",
         requirement("jax"),
         requirement("numpy"),
     ],
@@ -478,6 +479,7 @@ py_test(
         requirement("absl-py"),
         requirement("numpy"),
         requirement("trimesh"),
+        requirement("typing_extensions"),
     ],
 )
 

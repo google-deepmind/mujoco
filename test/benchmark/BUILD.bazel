@@ -4,6 +4,11 @@ names = [
     "engine_util_spatial_benchmark_test",
     "engine_core_smooth_benchmark_test",
     "engine_util_sparse_benchmark_test",
+    "ccd_benchmark_test",
+    "factorI_benchmark_test",
+    "inertia_benchmark_test",
+    "solveLD_benchmark_test",
+    "thread_performance_test",
 ]
 
 [

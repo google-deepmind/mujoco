@@ -251,7 +251,11 @@ pybind_extension(
 
 pybind_extension(
     name = "_rollout",
-    srcs = ["rollout.cc"],
+    srcs = [
+        "rollout.cc",
+        "threadpool.h",
+        "threadpool.cc"
+    ],
     dynamic_deps = [
         "//:mujoco_shared",
     ],
@@ -358,6 +362,7 @@ py_test(
         ":mujoco-py",
         requirement("absl-py"),
         requirement("numpy"),
+        requirement("typing-extensions"),
     ],
 )
 
@@ -393,22 +398,26 @@ py_test(
         ":mujoco-py",
         requirement("absl-py"),
         requirement("numpy"),
+        requirement("typing-extensions"),
     ],
 )
 
-# This fails due to the missing pystub
-# py_test(
-#     name = "specs_test",
-#     srcs = ["specs_test.py"],
-#     data = [
-#         "//:test_data",
-#     ],
-#     deps = [
-#         ":mujoco-py",
-#         requirement("absl-py"),
-#         requirement("numpy"),
-#     ],
-# )
+py_test(
+    name = "specs_test",
+    srcs = ["specs_test.py"],
+    data = [
+        "//python/mujoco/testdata:model",
+        ":symlinked_plugins",
+    ],
+    deps = [
+        ":mujoco-py",
+        requirement("absl-py"),
+        requirement("numpy"),
+        requirement("etils"),
+        requirement("typing-extensions"),
+        requirement("importlib-resources"),
+    ],
+)
 
 py_test(
     name = "minimize_test",
@@ -418,6 +427,7 @@ py_test(
         ":mujoco-py",
         requirement("absl-py"),
         requirement("numpy"),
+        requirement("typing-extensions"),
     ],
 )
 
@@ -456,5 +466,6 @@ py_test(
     deps = [
         ":mujoco-py",
         requirement("absl-py"),
+        requirement("typing-extensions"),
     ],
 )
