@@ -7157,6 +7157,11 @@ void mjCPlugin::Compile(void) {
     }
   }
 
+  // if there are no attributes, add a null terminator
+  if (plugin->nattribute == 0) {
+    flattened_attributes.push_back('\0');
+  }
+
   // anything left in xml_attributes at this stage is not a valid attribute
   if (!config_attribs_copy.empty()) {
     std::string error =
