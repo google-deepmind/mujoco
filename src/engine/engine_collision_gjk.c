@@ -1572,6 +1572,11 @@ static mjtNum planeIntersect(mjtNum res[3], const mjtNum pn[3], mjtNum pd,
 static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
                         const mjtNum* face2, int nface2, const mjtNum n[3],
                        const mjtNum dir[3]) {
+  // clipping face needs to be at least a triangle
+  if (nface1 < 3) {
+    return;
+  }
+
   // compute plane normal and distance to plane for each vertex
   mjtNum pn[3 * mjMAX_POLYVERT], pd[mjMAX_POLYVERT];
   for (int i = 0; i < nface1 - 1; i++) {
@@ -1658,11 +1663,23 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   }
 
   // no pruning needed
-  status->nx = npolygon;
+  int k = 0;
   for (int i = 0; i < 3*npolygon; i += 3) {
-    copy3(status->x2 + i, polygon + i);
-    sub3(status->x1 + i, status->x2 + i, dir);
+    int skip = 0;
+
+    // find possible duplicate vertices
+    for (int j = 0; j < k; j += 3) {
+      if (equal3(status->x2 + j, polygon + i)) {
+        skip = 1;
+        break;
+      }
+    }
+    if (skip) continue;
+    copy3(status->x2 + k, polygon + i);
+    sub3(status->x1 + k, status->x2 + k, dir);
+    k += 3;
   }
+  status->nx = k/3;
 }
 
 
@@ -1768,6 +1785,56 @@ static int meshNormals(mjtNum* res, int resind[3], int dim, mjCCDObj* obj,
 
 
 
+// compute normal directional vectors along possible edges given by up to two vertices
+static int meshEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDObj* obj,
+                           const mjtNum v1[3], const mjtNum v2[3], int v1i, int v2i) {
+  // mesh data
+  int g = obj->geom;
+  const mjtNum* mat = obj->data->geom_xmat + 9*g;
+  const mjtNum* pos = obj->data->geom_xpos + 3*g;
+
+  // only one edge
+  if (dim == 2) {
+    copy3(endverts, v2);
+    sub3(res, v2, v1);
+    mju_normalize3(res);
+    return 1;
+  }
+
+  if (dim == 1) {
+    const mjModel* m = obj->model;
+    int polyadr = m->mesh_polyadr[m->geom_dataid[g]];
+    int vertadr = m->mesh_vertadr[m->geom_dataid[g]];
+
+    int v1_adr = m->mesh_polymapadr[vertadr + v1i];
+    int v1_num = m->mesh_polymapnum[vertadr + v1i];
+    if (v1_num > mjMAX_POLYVERT) v1_num = mjMAX_POLYVERT;
+
+    // loop through all faces with vertex v1
+    for (int i = 0; i < v1_num; i++) {
+      int idx = m->mesh_polymap[v1_adr + i];
+      int adr = m->mesh_polyvertadr[polyadr + idx];
+      int nvert =  m->mesh_polyvertnum[polyadr + idx];
+      // find previous vertex in polygon to form edge
+      for (int j = 0; j < nvert; j++) {
+        int v = m->mesh_polyvert[adr + j];
+        if (v == v1i) {
+          float* verts = m->mesh_vert + 3*vertadr;
+          int k = (j == 0) ? nvert - 1 : j - 1;
+          float* vert = verts + 3*k;
+          globalcoord(endverts + 3*i, mat, pos, vert[0], vert[1], vert[2]);
+          sub3(res + 3*i, endverts + 3*i, v1);
+          mju_normalize3(res + 3*i);
+        }
+      }
+    }
+    return 3;
+  }
+  return 0;
+}
+
+
+
 // compute possible face normals of a box given up to 3 vertices
 static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
                       int v1, int v2, int v3) {
@@ -1823,6 +1890,45 @@ static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
   return 0;
 }
 
+
+
+// compute possible edge normals for box for edge collisions
+static int boxEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* obj,
+                          const mjtNum v1[3], const mjtNum v2[3], int v1i, int v2i) {
+  // box data
+  int g = 3*obj->geom;
+  const mjtNum* mat = obj->data->geom_xmat + 3*g;
+  const mjtNum* pos = obj->data->geom_xpos + g;
+  const mjtNum* size = obj->model->geom_size + g;
+
+  if (dim == 2) {
+    copy3(endverts, v2);
+    sub3(res, v2, v1);
+    mju_normalize3(res);
+    return 1;
+  }
+
+  // return 3 adjacent vertices
+  if (dim == 1) {
+    mjtNum x = (v1i & 1) ? size[0] : -size[0];
+    mjtNum y = (v1i & 2) ? size[1] : -size[1];
+    mjtNum z = (v1i & 4) ? size[2] : -size[2];
+
+    globalcoord(endverts, mat, pos, -x, y, z);
+    sub3(res, endverts, v1);
+    mju_normalize3(res);
+
+    globalcoord(endverts + 3, mat, pos, x, -y, z);
+    sub3(res + 3, endverts + 3, v1);
+    mju_normalize3(res + 3);
+
+    globalcoord(endverts + 6, mat, pos, x, y, -z);
+    sub3(res + 6, endverts + 6, v1);
+    mju_normalize3(res + 6);
+    return 3;
+  }
+  return 0;
+}
 
 
 // recover face of a box from its index
@@ -1903,11 +2009,11 @@ static int meshFace(mjtNum* res, mjCCDObj* obj, int idx) {
 
 
 // find two normals that are facing each other within a tolerance, return 1 if found
-static inline int alignedNormals(int res[2], const mjtNum* v, int nv,
+static inline int alignedFaces(int res[2], const mjtNum* v, int nv,
                                  const mjtNum* w, int nw) {
   for (int i = 0; i < nv; i++) {
     for (int j = 0; j < nw; j++) {
-      if (dot3(v + 3*i, w + 3*j) < -mjCOSINE_TOL) {
+      if (dot3(v + 3*i, w + 3*j) < -mjFACE_TOL) {
         res[0] = i;
         res[1] = j;
         return 1;
@@ -1919,16 +2025,33 @@ static inline int alignedNormals(int res[2], const mjtNum* v, int nv,
 
 
 
-// return number of dimensions of a feature (1, 2 or 3)
-static inline int simplexDim(int* v1, int* v2, int* v3) {
-  int val1 = *v1;
-  int val2 = *v2;
-  int val3 = *v3;
+// find two normals that are perpendicular to each other within a tolerance, return 1 if found
+static inline int alignedFaceEdge(int res[2], const mjtNum* edge, int nedge,
+                                  const mjtNum* face, int nface) {
+  for (int i = 0; i < nface; i++) {
+    for (int j = 0; j < nedge; j++) {
+      if (mju_abs(dot3(edge + 3*j, face + 3*i)) < mjEDGE_TOL) {
+        res[0] = j;
+        res[1] = i;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+
+// return number (1, 2 or 3) of dimensions of a simplex; reorder vertices if necessary
+static inline int simplexDim(int* v1i, int* v2i, int* v3i, mjtNum** v1, mjtNum** v2, mjtNum** v3) {
+  int val1 = *v1i;
+  int val2 = *v2i;
+  int val3 = *v3i;
 
   if (val1 != val2) {
     return (val3 == val1 || val3 == val2) ? 2 : 3;
   }
   if (val1 != val3) {
+    *v2i = *v3i;
     *v2 = *v3;
     return 2;
   }
@@ -1940,65 +2063,122 @@ static inline int simplexDim(int* v1, int* v2, int* v3) {
 // recover multiple contacts from EPA polytope
 static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
                          mjCCDObj* obj1, mjCCDObj* obj2) {
-  mjtNum face1[mjMAX_POLYVERT * 3], face2[mjMAX_POLYVERT * 3];
-
+  mjtNum face1[mjMAX_POLYVERT * 3], face2[mjMAX_POLYVERT * 3], endverts[mjMAX_POLYVERT * 3];
   // get vertices of faces from EPA
-  int v11 = pt->verts[face->verts[0]].index1;
-  int v12 = pt->verts[face->verts[1]].index1;
-  int v13 = pt->verts[face->verts[2]].index1;
-  int v21 = pt->verts[face->verts[0]].index2;
-  int v22 = pt->verts[face->verts[1]].index2;
-  int v23 = pt->verts[face->verts[2]].index2;
+  int v11i = pt->verts[face->verts[0]].index1;
+  int v12i = pt->verts[face->verts[1]].index1;
+  int v13i = pt->verts[face->verts[2]].index1;
+  int v21i = pt->verts[face->verts[0]].index2;
+  int v22i = pt->verts[face->verts[1]].index2;
+  int v23i = pt->verts[face->verts[2]].index2;
+  mjtNum* v11 = pt->verts[face->verts[0]].vert1;
+  mjtNum* v12 = pt->verts[face->verts[1]].vert1;
+  mjtNum* v13 = pt->verts[face->verts[2]].vert1;
+  mjtNum* v21 = pt->verts[face->verts[0]].vert2;
+  mjtNum* v22 = pt->verts[face->verts[1]].vert2;
+  mjtNum* v23 = pt->verts[face->verts[2]].vert2;
 
   // get dimensions of features of geoms 1 and 2
-  int nface1 = simplexDim(&v11, &v12, &v13);
-  int nface2 = simplexDim(&v21, &v22, &v23);
+  int nface1 = simplexDim(&v11i, &v12i, &v13i, &v11, &v12, &v13);
+  int nface2 = simplexDim(&v21i, &v22i, &v23i, &v21, &v22, &v23);
   int nnorms1 = 0, nnorms2 = 0;
   mjtNum n1[3 * mjMAX_POLYVERT], n2[3 * mjMAX_POLYVERT];  // normals of possible face collisions
   int idx1[mjMAX_POLYVERT], idx2[mjMAX_POLYVERT];         // indices of faces
 
   // get all possible face normals for each geom
   if (obj1->geom_type == mjGEOM_BOX) {
-    nnorms1 = boxNormals(n1, idx1, nface1, obj1, v11, v12, v13);
+    nnorms1 = boxNormals(n1, idx1, nface1, obj1, v11i, v12i, v13i);
   } else if (obj1->geom_type == mjGEOM_MESH) {
-    nnorms1 = meshNormals(n1, idx1, nface1, obj1, v11, v12, v13);
+    nnorms1 = meshNormals(n1, idx1, nface1, obj1, v11i, v12i, v13i);
   }
   if (obj2->geom_type == mjGEOM_BOX) {
-    nnorms2 = boxNormals(n2, idx2, nface2, obj2, v21, v22, v23);
+    nnorms2 = boxNormals(n2, idx2, nface2, obj2, v21i, v22i, v23i);
   } else if (obj2->geom_type == mjGEOM_MESH) {
-    nnorms2 = meshNormals(n2, idx2, nface2, obj2, v21, v22, v23);
+    nnorms2 = meshNormals(n2, idx2, nface2, obj2, v21i, v22i, v23i);
   }
 
-  // determine if any two normals match
-  int res[2];
-  if (!alignedNormals(res, n1, nnorms1, n2, nnorms2)) {
-    return;
+  // determine if any two face normals match
+  int res[2], edgecon1 = 0, edgecon2 = 0;
+  if (!alignedFaces(res, n1, nnorms1, n2, nnorms2)) {
+    // check if edge-face collision
+    if (nface1 < 3 && nface1 <= nface2) {
+      nnorms1 = 0;
+      if (obj1->geom_type == mjGEOM_BOX) {
+        nnorms1 = boxEdgeNormals(n1, endverts, nface1, obj1, v11, v12, v11i, v12i);
+      } else if (obj1->geom_type == mjGEOM_MESH) {
+        nnorms1 = meshEdgeNormals(n1, endverts, nface1, obj1, v11, v12, v11i, v12i);
+      }
+      if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2)) return;
+      edgecon1 = 1;
+
+    // check if face-edge collision
+    } else if (nface2 < 3) {
+      nnorms2 = 0;
+      if (obj2->geom_type == mjGEOM_BOX) {
+        nnorms2 = boxEdgeNormals(n2, endverts, nface2, obj2, v21, v22, v21i, v22i);
+      } else if (obj2->geom_type == mjGEOM_MESH) {
+        nnorms2 = meshEdgeNormals(n2, endverts, nface2, obj2, v21, v22, v21i, v22i);
+      }
+      if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1)) return;
+      edgecon2 = 1;
+    } else {
+      // no multi-contact
+      return;
+    }
   }
   int i = res[0], j = res[1];
 
-  // recover matching faces
-  if (obj1->geom_type == mjGEOM_BOX) {
-    nface1 = boxFace(face1, obj1, idx1[i]);
-  } else if (obj1->geom_type == mjGEOM_MESH) {
-    nface1 = meshFace(face1, obj1, idx1[i]);
-  }
-  if (obj2->geom_type == mjGEOM_BOX) {
-    nface2 = boxFace(face2, obj2, idx2[j]);
-  } else if (obj2->geom_type == mjGEOM_MESH) {
-    nface2 = meshFace(face2, obj2, idx2[j]);
+  // recover geom1 matching edge or face
+  if (edgecon1) {
+    copy3(face1, pt->verts[face->verts[0]].vert1);
+    copy3(face1 + 3, endverts + 3*i);
+    nface1 = 2;
+  } else {
+    if (obj1->geom_type == mjGEOM_BOX) {
+      int ind = (edgecon2 ? idx1[j] : idx1[i]);
+      nface1 = boxFace(face1, obj1, ind);
+    } else if (obj1->geom_type == mjGEOM_MESH) {
+      int ind = (edgecon2 ? idx1[j] : idx1[i]);
+      nface1 = meshFace(face1, obj1, ind);
+    }
   }
 
-  if (nface1 >= 3 && nface2 >= 3) {
-    // TODO(kylebayes): this approximates the contact direction, by scaling the face normal by the
-    // single contact direction's magnitude. This is effective, but polygonClip should compute
-    // this for each contact point.
-    mjtNum diff[3], approx_dir[3];
-    sub3(diff, status->x2, status->x1);
+  // recover geom2 matching edge or face
+  if (edgecon2) {
+    copy3(face2, pt->verts[face->verts[0]].vert2);
+    copy3(face2 + 3, endverts + 3*i);
+    nface2 = 2;
+  } else {
+    if (obj2->geom_type == mjGEOM_BOX) {
+      nface2 = boxFace(face2, obj2, idx2[j]);
+    } else if (obj2->geom_type == mjGEOM_MESH) {
+      nface2 = meshFace(face2, obj2, idx2[j]);
+    }
+  }
+
+  // TODO(kylebayes): this approximates the contact direction, by scaling the face normal by the
+  // single contact direction's magnitude. This is effective, but polygonClip should compute
+  // this for each contact point.
+  mjtNum diff[3], approx_dir[3];
+  sub3(diff, status->x2, status->x1);
+
+  // face1 is an edge; clip face1 against face2
+  if (edgecon1) {
     scl3(approx_dir, n2 + 3*j, norm3(diff));
-
-    // clip the faces and store the results in status
-    polygonClip(status, face1, nface1, face2, nface2, n1 + 3*i, approx_dir);
+    polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, approx_dir);
+    return;
   }
+
+  // face2 is an edge; clip face2 against face1
+  if (edgecon2) {
+    scl3(approx_dir, n1 + 3*j, -norm3(diff));
+    polygonClip(status, face1, nface1, face2, nface2, n1 + 3*j, approx_dir);
+    return;
+  }
+
+  // face-face collision
+  scl3(approx_dir, n2 + 3*j, norm3(diff));
+  polygonClip(status, face1, nface1, face2, nface2, n1 + 3*i, approx_dir);
 }
 
 
