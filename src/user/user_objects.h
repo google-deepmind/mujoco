@@ -942,6 +942,21 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   int nnormal() const { return normal_.size()/3; }
   int ntexcoord() const { return texcoord_.size()/2; }
   int nface() const { return face_.size()/3; }
+  int npolygon() const { return polygons_.size(); }
+  int npolygonvert() const {
+    int acc = 0;
+    for (const auto& polygon : polygons_) {
+      acc += polygon.size();
+    }
+    return acc;
+  }
+  int npolygonmap() const {
+    int acc = 0;
+    for (const auto& polygon : polygon_map_) {
+      acc += polygon.size();
+    }
+    return acc;
+  }
 
   // return size of graph data in ints
   int szgraph() const { return szgraph_; }
@@ -967,6 +982,15 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void CopyFaceTexcoord(int* arr) const;            // copy face texcoord data into array
   void CopyTexcoord(float* arr) const;              // copy texcoord data into array
   void CopyGraph(int* arr) const;                   // copy graph data into array
+
+  // copy polygon data into array
+  void CopyPolygons(int* verts, int* adr, int* num, int poly_adr) const;
+
+  // copy polygon map data into array
+  void CopyPolygonMap(int *faces, int* adr, int* num, int poly_adr) const;
+
+  // copy polygon normal data into array
+  void CopyPolygonNormals(mjtNum* arr);
 
   // sets properties of a bounding volume given a face id
   void SetBoundingVolume(int faceid);
@@ -996,6 +1020,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void CopyPlugin();
   void Rotate(double quat[4]);                      // rotate mesh by quaternion
   void Transform(double pos[3], double quat[4]);    // transform mesh by position and quaternion
+  void MakePolygons();                              // compute the polygon sides of the mesh
+  void MakePolygonNormals();                        // compute the normals of the polygons
 
   // computes the inertia matrix of the mesh given the type of inertia
   void ComputeInertia(double inert[6], double CoM[3]);
@@ -1003,6 +1029,11 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   // mesh data to be copied into mjModel
   double* center_;                    // face circumcenter data (3*nface)
   int* graph_;                        // convex graph data
+
+  // mesh data for collision detection
+  std::vector<std::vector<int>> polygons_;      // polygons of the mesh
+  std::vector<double> polygon_normals_;         // normals of the polygons
+  std::vector<std::vector<int>> polygon_map_;   // map from vertex to polygon
 
   // for caching purposes
   std::vector<int> vertex_index_;

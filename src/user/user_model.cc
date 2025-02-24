@@ -837,6 +837,9 @@ void mjCModel::Clear() {
   nmeshtexcoord = 0;
   nmeshface = 0;
   nmeshgraph = 0;
+  nmeshpoly = 0;
+  nmeshpolyvert = 0;
+  nmeshpolymap = 0;
   nskinvert = 0;
   nskintexvert = 0;
   nskinface = 0;
@@ -1752,6 +1755,9 @@ void mjCModel::SetSizes() {
     nmeshface += meshes_[i]->nface();
     nmeshtexcoord += (meshes_[i]->HasTexcoord() ? meshes_[i]->ntexcoord() : 0);
     nmeshgraph += meshes_[i]->szgraph();
+    nmeshpoly += meshes_[i]->npolygon();
+    nmeshpolyvert += meshes_[i]->npolygonvert();
+    nmeshpolymap += meshes_[i]->npolygonmap();
   }
 
   // skin counts
@@ -2755,6 +2761,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   int adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr;
   int edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
   int bonevert_adr, graph_adr, data_adr, bvh_adr;
+  int poly_adr, polymap_adr, polyvert_adr;
 
   // sizes outside call to mj_makeModel
   m->nemax = nemax;
@@ -2776,19 +2783,16 @@ void mjCModel::CopyObjects(mjModel* m) {
   texcoord_adr = 0;
   face_adr = 0;
   graph_adr = 0;
+  poly_adr = 0;
+  polyvert_adr = 0;
+  polymap_adr = 0;
   for (int i=0; i<nmesh; i++) {
     // get pointer
     mjCMesh* pme = meshes_[i];
 
-    // zero out multi-ccd fields
-    for (int j = 0; j < pme->nvert(); j++) {
-      m->mesh_polymapadr[vert_adr + j] = 0;
-      m->mesh_polymapnum[vert_adr + j] = 0;
-    }
-    m->mesh_polynum[i] = 0;
-    m->mesh_polyadr[i] = 0;
-
     // set fields
+    m->mesh_polyadr[i] = poly_adr;
+    m->mesh_polynum[i] = pme->npolygon();
     m->mesh_vertadr[i] = vert_adr;
     m->mesh_vertnum[i] = pme->nvert();
     m->mesh_normaladr[i] = normal_adr;
@@ -2818,6 +2822,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (pme->szgraph()) {
       pme->CopyGraph(m->mesh_graph + graph_adr);
     }
+    pme->CopyPolygonNormals(m->mesh_polynormal + 3*poly_adr);
+    pme->CopyPolygons(m->mesh_polyvert + polyvert_adr, m->mesh_polyvertadr + poly_adr,
+                      m->mesh_polyvertnum + poly_adr, polyvert_adr);
+    pme->CopyPolygonMap(m->mesh_polymap + polymap_adr, m->mesh_polymapadr + vert_adr,
+                        m->mesh_polymapnum + vert_adr, polymap_adr);
 
     // copy bvh data
     if (pme->tree().Nbvh()) {
@@ -2830,6 +2839,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // advance counters
+    poly_adr += pme->npolygon();
+    polyvert_adr += pme->npolygonvert();
+    polymap_adr += pme->npolygonmap();
     vert_adr += pme->nvert();
     normal_adr += pme->nnormal();
     texcoord_adr += (pme->HasTexcoord() ? pme->ntexcoord() : 0);
@@ -4266,7 +4278,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetNuser();
 
   // compile meshes (needed for geom compilation)
-  if (compiler.usethread && meshes_.size() > 1) {
+  if (!compiler.usethread && meshes_.size() > 1) {
     // multi-threaded mesh compile
     CompileMeshes(vfs);
   } else {
@@ -4340,9 +4352,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
                ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
-               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, 0, 0,
-               0, nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
-               nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
+               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
+               nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
+               nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
                neq, ntendon, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
                ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,

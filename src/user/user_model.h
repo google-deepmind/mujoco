@@ -99,7 +99,10 @@ class mjCModel_ : public mjsElement {
   int nmeshnormal;     // number of normals in all meshes
   int nmeshtexcoord;   // number of texture coordinates in all meshes
   int nmeshface;       // number of triangular faces in all meshes
-  int nmeshgraph;      // number of shorts in mesh auxiliary data
+  int nmeshpoly;       // number of polygon faces in all meshes
+  int nmeshgraph;      // number of ints in mesh auxiliary data
+  int nmeshpolyvert;   // number of vertices in all polygon faces
+  int nmeshpolymap;    // number of polygons in vertex map
   int nskinvert;       // number of vertices in all skins
   int nskintexvert;    // number of vertices with texcoord in all skins
   int nskinface;       // number of faces in all skins

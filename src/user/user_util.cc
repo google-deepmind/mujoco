@@ -360,17 +360,23 @@ void mjuu_crossvec(double* a, const double* b, const double* c) {
 
 // compute normal vector to given triangle, return length
 double mjuu_makenormal(double* normal, const float* a, const float* b, const float* c) {
-  double v1[3] = {b[0]-a[0], b[1]-a[1], b[2]-a[2]};
-  double v2[3] = {c[0]-a[0], c[1]-a[1], c[2]-a[2]};
-  double res;
+  double v1[3] = {a[0], a[1], a[2]};
+  double v2[3] = {b[0], b[1], b[2]};
+  double v3[3] = {c[0], c[1], c[2]};
+  double diffAB[3] = {v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]};
+  double diffAC[3] = {v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2]};
 
-  mjuu_crossvec(normal, v1, v2);
-  if ((res=mjuu_normvec(normal, 3)) < mjEPS) {
-    normal[0] = normal[1] = 0;
-    normal[2] = 1;
+  mjuu_crossvec(normal, diffAB, diffAC);
+  double nrm = std::sqrt(mjuu_dot3(normal, normal));
+  if (nrm < mjEPS) {
+    normal[0] = 1;
+    normal[1] = 0;
+    normal[2] = 0;
   }
-
-  return res;
+  normal[0] /= nrm;
+  normal[1] /= nrm;
+  normal[2] /= nrm;
+  return nrm;
 }
 
 

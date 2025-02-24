@@ -898,16 +898,16 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   mjc_initCCDObj(&obj2, m, d, g2, margin);
   int max_contacts = 1;
   if (mjENABLED(mjENBL_MULTICCD)) {
-    // TODO(kylebayes): Support contact pruning.
-    max_contacts = 8;
+    max_contacts = 4;
   }
 
   // find initial contact
   int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, max_contacts, margin);
 
   // nativeccd supports multi Box-Box collision directly
-  if (mjENABLED(mjENBL_NATIVECCD) && m->geom_type[g1] == mjGEOM_BOX
-      && m->geom_type[g2] == mjGEOM_BOX) {
+  if (mjENABLED(mjENBL_NATIVECCD) &&
+    (m->geom_type[g1] == mjGEOM_BOX || m->geom_type[g1] == mjGEOM_MESH) &&
+    (m->geom_type[g2] == mjGEOM_BOX || m->geom_type[g2] == mjGEOM_MESH)) {
     return ncon;
   }
 

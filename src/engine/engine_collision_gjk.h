@@ -25,8 +25,11 @@
 extern "C" {
 #endif
 
-// max sides of a face of mesh supported for multiple contacts
-#define mjMAX_SIDES 10
+// tolerance for considering two normals to be aligned
+#define mjCOSINE_TOL 0.99999872
+
+// max number of supported vertices in a polygon face of a mesh
+#define mjMAX_POLYVERT 150
 
 // Status of an EPA run
 typedef enum {

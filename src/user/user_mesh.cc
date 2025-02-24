@@ -22,6 +22,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -593,6 +594,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     memcpy(facenormal_.data(), face_.data(), 3*nface()*sizeof(int));
   }
 
+  MakePolygons();
+
   // scale, center, orient, compute mass and inertia
   Process();
   processed_ = true;
@@ -601,6 +604,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   if (!center_) {
     MakeCenter();
   }
+
+  MakePolygonNormals();
 
   // make bounding volume hierarchy
   if (tree_.Bvh().empty()) {
@@ -703,6 +708,44 @@ void mjCMesh::CopyTexcoord(float* arr) const {
 
 void mjCMesh::CopyGraph(int* arr) const {
   std::copy(graph_, graph_+szgraph_, arr);
+}
+
+
+
+void mjCMesh::CopyPolygons(int* verts, int* adr, int* num, int poly_adr) const {
+  int n = polygons_.size(), count = 0;
+  for (int i = 0; i < n; ++i) {
+    int m = num[i] = polygons_[i].size();
+    adr[i] = poly_adr + count;
+    count += m;
+    for (int j = 0; j < m; ++j) {
+      verts[adr[i] + j - poly_adr] = polygons_[i][j];
+    }
+  }
+}
+
+
+
+void mjCMesh::CopyPolygonMap(int* faces, int* adr, int* num, int poly_adr) const {
+  int n = polygon_map_.size(), count = 0;
+  for (int i = 0; i < n; ++i) {
+    int m = num[i] = polygon_map_[i].size();
+    adr[i] = poly_adr + count;
+    count += m;
+    for (int j = 0; j < m; ++j) {
+      faces[adr[i] + j - poly_adr] = polygon_map_[i][j];
+    }
+  }
+}
+
+
+
+void mjCMesh::CopyPolygonNormals(mjtNum* arr) {
+  for (int i = 0; i < polygon_normals_.size(); i += 3) {
+    arr[i + 0] = (mjtNum)polygon_normals_[i + 0];
+    arr[i + 1] = (mjtNum)polygon_normals_[i + 1];
+    arr[i + 2] = (mjtNum)polygon_normals_[i + 2];
+  }
 }
 
 
@@ -1995,6 +2038,295 @@ void mjCMesh::MakeCenter(void) {
   }
 }
 
+
+
+// compute the normals of the polygons
+void mjCMesh::MakePolygonNormals() {
+  for (int i = 0; i < polygons_.size(); ++i) {
+  double n[3];
+  mjuu_makenormal(n, &vert_[3*polygons_[i][0]], &vert_[3*polygons_[i][1]],
+                  &vert_[3*polygons_[i][2]]);
+  polygon_normals_[3*i + 0] = n[0];
+  polygon_normals_[3*i + 1] = n[1];
+  polygon_normals_[3*i + 2] = n[2];
+  }
+}
+
+
+
+// helper class to compute the polygons of a mesh
+class MeshPolygon {
+ public:
+  // constructors (need starting face)
+  MeshPolygon(const float v1[3], const float v2[3], const float v3[3],
+              int v1i, int v2i, int v3i);
+  MeshPolygon() = delete;
+  MeshPolygon(const MeshPolygon&) = delete;
+  MeshPolygon& operator=(const MeshPolygon&) = delete;
+
+  void InsertFace(int v1, int v2, int v3);          // insert a face into the polygon
+  std::vector<std::vector<int>> Paths() const;      // return trace of the polygons
+  const double* Normal() const { return normal_; }  // return the normal of the polygon
+
+  // return the ith component of the normal of the polygon
+  double Normal(int i) const { return normal_[i]; }
+
+ private:
+  std::vector<std::pair<int, int>> edges_;
+
+  // inserted faces do not necessarily share edges with the current polygon, so they're grouped as
+  // islands until they can be combined with later face insertions
+  std::vector<int> islands_;
+  int nisland_ = 0;
+  double normal_[3] = {0.0, 0.0, 0.0};
+  void CombineIslands(int& island1, int& island2);
+};
+
+
+
+MeshPolygon::MeshPolygon(const float v1[3], const float v2[3], const float v3[3],
+                         int v1i, int v2i, int v3i) {
+  mjuu_makenormal(normal_, v1, v2, v3);
+  edges_ = {{v1i, v2i}, {v2i, v3i}, {v3i, v1i}};
+  nisland_ = 1;
+  islands_ = {0, 0, 0};
+}
+
+
+
+// comparison operator for std::set
+bool PolygonCmp(const MeshPolygon& p1, const MeshPolygon& p2)  {
+  const double* n1 = p1.Normal();
+  const double* n2 = p2.Normal();
+  double dot3 = n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2];
+
+  // TODO(kylebayes): The tolerance should be a parameter set the user, as it should be optimized
+  // from mesh to mesh.
+  if (dot3 > 0.99999872) {
+    return false;
+  }
+
+  if (std::abs(n1[0] - n2[0]) > mjMINVAL) {
+    return n1[0] > n2[0];
+  }
+  if (std::abs(n1[1] - n2[1]) > mjMINVAL) {
+    return n1[1] > n2[1];
+  }
+  if (std::abs(n1[2] - n2[2]) > mjMINVAL) {
+    return n1[2] > n2[2];
+  }
+  return false;
+}
+
+
+
+// combine two islands when a newly inserted face connects them
+void MeshPolygon::CombineIslands(int& island1, int& island2) {
+  // pick the smaller island
+  if (island2 < island1) {
+    int tmp = island1;
+    island1 = island2;
+    island2 = tmp;
+  }
+
+  // renumber the islands
+  for (int k = 0; k < islands_.size(); ++k) {
+    if (islands_[k] == island2) {
+      islands_[k] = island1;
+    } else if (islands_[k] > island2) {
+      islands_[k]--;
+    }
+  }
+}
+
+
+
+// insert a triangular face into the polygon
+void MeshPolygon::InsertFace(int v1, int v2, int v3) {
+  int add1 = 1, add2 = 1, add3 = 1;
+  int island = -1;
+
+  // check if face can be attached via edge v1v2
+  for (int i = 0; i < edges_.size(); ++i) {
+    if (edges_[i].first == v2 && edges_[i].second == v1) {
+      add1 = 0;
+      island = islands_[i];
+      edges_.erase(edges_.begin() + i);
+      islands_.erase(islands_.begin() + i);
+      break;
+    }
+  }
+
+  // check if face can be attached via edge v2v3
+  for (int i = 0; i < edges_.size(); ++i) {
+    if (edges_[i].first == v3 && edges_[i].second == v2) {
+      int island2 = islands_[i];
+      if (island == -1) {
+        island = island2;
+      } else if (island2 != island) {
+        nisland_--;
+        CombineIslands(island, island2);
+      }
+      add2 = 0;
+      edges_.erase(edges_.begin() + i);
+      islands_.erase(islands_.begin() + i);
+      break;
+    }
+  }
+
+  // check if face can be attached via edge v3v1
+  for (int i = 0; i < edges_.size(); ++i) {
+    if (edges_[i].first == v1 && edges_[i].second == v3) {
+      int island3 = islands_[i];
+      if (island == -1) {
+        island = island3;
+      } else if (island3 != island) {
+        nisland_--;
+        CombineIslands(island, island3);
+      }
+      add3 = 0;
+      edges_.erase(edges_.begin() + i);
+      islands_.erase(islands_.begin() + i);
+      break;
+    }
+  }
+
+  if (island == -1) {
+    island = nisland_++;
+  }
+
+  // add only new edges to the polygon
+
+  if (add1) {
+    edges_.push_back({v1, v2});
+    islands_.push_back(island);
+  }
+  if (add2) {
+    edges_.push_back({v2, v3});
+    islands_.push_back(island);
+  }
+  if (add3) {
+    edges_.push_back({v3, v1});
+    islands_.push_back(island);
+  }
+}
+
+
+
+// return the traverse vertices of the polygon; there may be multiple paths if the polygon is
+// not connected
+std::vector<std::vector<int>> MeshPolygon::Paths() const {
+  std::vector<std::vector<int>> paths;
+  // shortcut if polygon is just a triangular face
+  if (edges_.size() == 3) {
+    return {{edges_[0].first, edges_[1].first, edges_[2].first}};
+  }
+
+  // go through each connected component of the polygon
+  for (int i = 0; i < nisland_; ++i) {
+    std::vector<int> path;
+
+    // find starting vertex
+    for (int j = 0; j < edges_.size(); ++j) {
+      if (islands_[j] == i) {
+        path.push_back(edges_[j].first);
+        path.push_back(edges_[j].second);
+        break;
+      }
+    }
+
+    // SHOULD NOT OCCUR (See logic in MeshPolygon::CombineIslands)
+    if (path.empty()) {
+      continue;
+    }
+
+    // visit the next vertex given the current edge
+    int next = path.back();
+    for (int l = 0; l < edges_.size(); ++l) {
+      int finished = 0;
+      for (int k = 1; k < edges_.size(); ++k) {
+        if (islands_[k] == i && edges_[k].first == next) {
+          next = edges_[k].second;
+          if (next == path[0]) {
+            paths.push_back(path);
+            finished = 1;
+            break;
+          }
+          path.push_back(next);
+          break;
+       }
+      }
+
+      // back at start
+      if (finished) {
+        break;
+      }
+    }
+  }
+  return paths;
+}
+
+
+
+// merge coplanar mesh triangular faces into polygonal sides to represent the geometry of the mesh
+void mjCMesh::MakePolygons() {
+  std::set<MeshPolygon, decltype(PolygonCmp)*> polygons(PolygonCmp);
+  polygons_.clear();
+  polygon_normals_.clear();
+  polygon_map_.clear();
+
+  // initialize polygon map
+  for (int i = 0; i < nvert(); i++) {
+    polygon_map_.push_back(std::vector<int>());
+  }
+
+  // use graph data if available
+  int *faces, nfaces;
+  if (graph_) {
+    int nvert = graph_[0];
+    nfaces = graph_[1];
+    faces = graph_ + 2 + 3*nvert + 3*nfaces;
+  } else {
+    nfaces = nface();
+    faces = face_.data();
+  }
+
+  // process each face
+  for (int i = 0; i < nfaces; i++) {
+    float* v1 = &vert_[3*faces[3*i + 0]];
+    float* v2 = &vert_[3*faces[3*i + 1]];
+    float* v3 = &vert_[3*faces[3*i + 2]];
+
+    MeshPolygon face(v1, v2, v3, faces[3*i + 0], faces[3*i + 1], faces[3*i + 2]);
+    auto it = polygons.find(face);
+    if (it == polygons.end()) {
+      polygons.emplace(v1, v2, v3, faces[3*i + 0], faces[3*i + 1], faces[3*i + 2]);
+    } else {
+      MeshPolygon& p = const_cast<MeshPolygon&>(*it);
+      p.InsertFace(faces[3*i + 0], faces[3*i + 1], faces[3*i + 2]);
+    }
+  }
+
+  for (const auto& polygon : polygons) {
+    std::vector<std::vector<int>> paths = polygon.Paths();
+
+    // separate the polygons if they were grouped together
+    for (const auto& path : paths) {
+      if (path.size() < 3) continue;
+      polygons_.push_back(path);
+      polygon_normals_.push_back(polygon.Normal(0));
+      polygon_normals_.push_back(polygon.Normal(1));
+      polygon_normals_.push_back(polygon.Normal(2));
+    }
+  }
+
+  // populate the polygon map
+  for (int i = 0; i < polygons_.size(); i++) {
+    for (int j = 0; j < polygons_[i].size(); ++j) {
+      polygon_map_[polygons_[i][j]].push_back(i);
+    }
+  }
+}
 
 
 //------------------ class mjCSkin implementation --------------------------------------------------

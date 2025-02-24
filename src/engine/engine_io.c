@@ -2215,11 +2215,8 @@ const char* mj_validateReferences(const mjModel* m) {
   X(mesh_bvhadr,        nmesh,          nbvh          , m->mesh_bvhnum         ) \
   X(mesh_graphadr,      nmesh,          nmeshgraph    , 0                      ) \
   X(mesh_polyadr,       nmesh,          nmeshpoly     , m->mesh_polynum        ) \
-  X(mesh_polynormal,    nmeshpoly*3,    nmeshpoly*3   , 0                      ) \
   X(mesh_polyvertadr,   nmeshpoly,      nmeshpolyvert , m->mesh_polyvertnum    ) \
-  X(mesh_polyvert,      nmeshpolyvert,  nmeshpolyvert , 0                      ) \
   X(mesh_polymapadr,    nmeshvert,      nmeshpolymap  , m->mesh_polymapnum     ) \
-  X(mesh_polymap,       nmeshpolymap,   nmeshpolymap  , 0                      ) \
   X(flex_vertadr,       nflex,          nflexvert     , m->flex_vertnum        ) \
   X(flex_edgeadr,       nflex,          nflexedge     , m->flex_edgenum        ) \
   X(flex_elemadr,       nflex,          nflexelem     , m->flex_elemnum        ) \
