@@ -29,20 +29,17 @@ General
   and a ``clear_figures`` method.
 - Separate collision and deformation meshes for :ref:`flex<deformable-flex>`. This enables a fixed cost for the soft
   body computations, while preserving the fidelity of high-resolution collisions.
-- Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
-  parent, so the original references to the child can be used to modify the parent after attachment. The default
-  behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
-  attaching can be restored by setting the deep copy flag to 1.
 - Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
 - Improved shadow rendering in the native renderer.
 - Moved ``introspect`` to ``python/introspect``.
-- Removed the ``particle`` composite type. It is recommended to use the more generic :ref:`replicate<replicate>`
-  instead, for example `this model
-  <https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
 
 .. admonition:: Breaking API changes
    :class: attention
 
+   - Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
+     parent, so the original references to the child can be used to modify the parent after attachment. The default
+     behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
+     attaching can be restored by setting the deep copy flag to 1.
    - Changes to inertia inference from meshes:
 
      Previously, in order to specify that the mass lies on the surface, :ref:`geom/shellinertia<body-geom-shellinertia>`
@@ -52,6 +49,9 @@ General
      Previously, if the volumetric inertia computation failed (for example due to a very flat mesh), the compiler
      would silently fall back to surface inertia computation. Now, the compiler will throw an informative error.
    - Removed the composite type ``grid``. Users should instead use :ref:`flexcomp<body-flexcomp>`.
+   - Removed the ``particle`` composite type. It is recommended to use the more generic :ref:`replicate<replicate>`
+     instead, see for example `this
+     model<https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
 
 MJX
 ^^^

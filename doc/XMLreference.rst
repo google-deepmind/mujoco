@@ -2964,14 +2964,14 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is not a model element, but rather a macro which expands into multiple model elements representing a composite
-object. These elements are bodies (with their own joints, geoms and sites) that become children of the parent body
-containing the macro, as well as tendons and equality constraints added to the corresponding model sections. The
-automatically-generated bodies are laid out in a regular grid in 1D, 2D or 3D depending on the object type and count
-attributes. The macro expansion is done by the model compiler. If the resulting model is then saved, the macro will be
+object. These elements are bodies (with their own joints and geoms) that become children of the parent body containing
+the macro. The macro expansion is done by the model compiler. If the resulting model is then saved, the macro will be
 replaced with the actual model elements. The defaults mechanism used in the rest of MJCF does not apply here, even if
 the parent body has a childclass attribute defined. Instead there are internal defaults adjusted automatically for each
-composite object type. Composite objects can only be defined if the model is in local coordinates. Using them in global
-coordinates results in compiler error. See :ref:`CComposite` in the modeling guide for more detailed explanation.
+composite object type. See :ref:`CComposite` in the modeling guide for more detailed explanation. Note that there used
+to be several composite types, but they have incrementally replaced by :ref:`replicate<replicate>` (for repeated
+objects) and :ref:`flexcomp<body-flexcomp>` (for soft objects). Therefore, the only supported composite type is now
+cable, which produces an inextensible chain of bodies connected with ball joints.
 
 .. _body-composite-prefix:
 
@@ -2982,16 +2982,8 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 
 .. _body-composite-type:
 
-:at:`type`: :at-val:`[particle, cable], required`
-   This attribute determines the type of composite object. The remaining attributes and sub-elements are then
-   interpreted according to the type. Default settings are also adjusted depending on the type.
-
-   The **particle** type creates a 1D, 2D or 3D grid of equally-spaced bodies. By default, each body has a single sphere
-   geom and 3 orthogonal sliding joints, allowing translation but not rotation. The geom condim and priority attributes
-   are set to 1 by default. This makes the spheres have frictionless contacts with all other geoms (unless the priority
-   of some frictional geom is higher). The user can replace the default sliders with multiple joints of kind="particle"
-   and replace the default sphere with a custom geom. Note that the particle composite type is deprecated and might be
-   removed in a future version. Instead of particle, it is recommended to use :ref:`replicate`.
+:at:`type`: :at-val:`[cable], required`
+   This attribute determines the type of composite object. The only supported type is cable.
 
    The **cable** type creates a 1D chain of bodies connected with ball joints, each having a geom with user-defined type
    (cylinder, capsule or box). The geometry can either be defined with an array of 3D vertex coordinates :at:`vertex`
@@ -3013,41 +3005,30 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 .. _body-composite-offset:
 
 :at:`offset`: :at-val:`real(3), "0 0 0"`
-   This attribute affects particle and grid types, and is ignored for all other types. It specifies a 3D offset from the
-   center of the parent body to the center of the grid of elements. The offset is expressed in the local coordinate
-   frame of the parent body.
-
-.. _body-composite-flatinertia:
-
-:at:`flatinertia`: :at-val:`real, "0"`
-   This attribute affects the cloth type and is ignored for all other types. The default value 0 disables this
-   mechanism. When the value is positive, it specifies the ratio of the small-to-large axes of the modified diagonal
-   inertia. The idea is to set it to a small value, say 0.01, in which case the inertias of the body elements will
-   corresponds to flat boxes aligned with the cloth (which can then be used for lift forces). This will not change the
-   geom shapes, but instead will set the body inertias directly and disable the automatic computation of inertia from
-   geom shape for the composite body only.
+   It specifies a 3D offset from the center of the parent body to the center of the grid of elements. The offset is
+   expressed in the local coordinate frame of the parent body.
 
 .. _body-composite-vertex:
 
 :at:`vertex`: :at-val:`real(3*nvert), optional`
-   Vertex 3D positions in global coordinates (cable only).
+   Vertex 3D positions in global coordinates.
 
 .. _body-composite-initial:
 
 :at:`initial`: :at-val:`[free, ball, none], "0"`
-   Behavior of the first point (cable only). Free: free joint. Ball: ball joint. None: no dof.
+   Behavior of the first point. Free: free joint. Ball: ball joint. None: no dof.
 
 .. _body-composite-curve:
 
 :at:`curve`: :at-val:`string(3), optional`
-   Functions specifying the vertex positions (cable only). Available functions are `s`, `cos(s)`, and `sin(s)`, where
-   `s` is the arc length parameter.
+   Functions specifying the vertex positions. Available functions are `s`, `cos(s)`, and `sin(s)`, where `s` is the arc
+   length parameter.
 
 .. _body-composite-size:
 
 :at:`size`: :at-val:`int(3), optional`
-   Scaling of the curve functions (cable only). `size[0]` is the scaling of `s`, `size[1]` is the radius of `\cos(s)`
-   and `\sin(s)`, and `size[2]` is the speed of the argument (i.e. `\cos(2*\pi*size[2]*s)`).
+   Scaling of the curve functions. `size[0]` is the scaling of `s`, `size[1]` is the radius of `\cos(s)` and `\sin(s)`,
+   and `size[2]` is the speed of the argument (i.e. `\cos(2*\pi*size[2]*s)`).
 
 
 .. _composite-joint:
@@ -3061,7 +3042,7 @@ joints should be created, as well as to adjust the attributes of both automatic 
 
 .. _composite-joint-kind:
 
-:at:`kind`: :at-val:`[main, twist, stretch, particle], required`
+:at:`kind`: :at-val:`[main], required`
    The joint kind here is orthogonal to the joint type in the rest of MJCF. The joint kind refers to the function of the
    joint within the mechanism comprising the composite body, while the joint type (hinge or slide) is implied by the
    joint kind and composite body type.
@@ -3070,18 +3051,6 @@ joints should be created, as well as to adjust the attributes of both automatic 
    in the model even if the joint sub-element is missing. The main joints are 3D sliders for particle and grid; 1D
    sliders for box, cylinder and rope; universal joints for cloth, rope and loop. Even though the main joints are
    included automatically, this sub-element is still useful for adjusting their attributes.
-
-   The **twist** kind corresponds to hinge joints enabling rope, loop and cloth objects to twist. These are optional
-   joints and are only created if this sub-element is present. This sub-element is also used to adjust the attributes of
-   the optional twist joints. For other composite object types this sub-element has no effect.
-
-   The **stretch** kind corresponds to slide joints enabling rope, loop and cloth objects to stretch. These are optional
-   joints and are only created if this sub-element is present. This sub-element is also used to adjust the attributes of
-   the optional stretch joints. For other composite object types this sub-element has no effect.
-
-   The **particle** kind can only be used with the particle composite type. As opposed to all previous kinds, this kind
-   *replaces* the default 3 sliders with user-defined joints. User-defined joints can be repeated, for example
-   to create planar particles with two sliders and a hinge.
 
 .. _composite-joint-solreffix:
 

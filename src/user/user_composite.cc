@@ -58,7 +58,6 @@ mjCComposite::mjCComposite(void) {
   type = mjCOMPTYPE_PARTICLE;
   count[0] = count[1] = count[2] = 1;
   mjuu_setvec(offset, 0, 0, 0);
-  flatinertia = 0;
 
   // plugin variables
   mjs_defaultPlugin(&plugin);

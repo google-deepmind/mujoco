@@ -287,8 +287,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
-        {"composite", "*", "9", "prefix", "type", "count", "offset",
-            "flatinertia", "vertex", "initial", "curve", "size"},
+        {"composite", "*", "8", "prefix", "type", "count", "offset",
+            "vertex", "initial", "curve", "size"},
         {"<"},
             {"joint", "*", "17", "kind", "group", "stiffness", "damping", "armature",
                 "solreffix", "solimpfix", "type", "axis",
@@ -742,11 +742,8 @@ const mjMap comp_map[mjNCOMPTYPES] = {
 
 
 // composite joint kind
-const mjMap jkind_map[4] = {
-  {"main",        mjCOMPKIND_JOINT},
-  {"twist",       mjCOMPKIND_TWIST},
-  {"stretch",     mjCOMPKIND_STRETCH},
-  {"particle",    mjCOMPKIND_PARTICLE}
+const mjMap jkind_map[1] = {
+  {"main",        mjCOMPKIND_JOINT}
 };
 
 
@@ -2399,7 +2396,6 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
   }
   ReadAttr(elem, "count", 3, comp.count, text, false, false);
   ReadAttr(elem, "offset", 3, comp.offset, text);
-  ReadAttr(elem, "flatinertia", 1, &comp.flatinertia, text);
 
   // plugin
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
@@ -2502,7 +2498,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
   while (ejnt) {
     // kind
     int kind;
-    MapValue(ejnt, "kind", &kind, jkind_map, 4, true);
+    MapValue(ejnt, "kind", &kind, jkind_map, 1, true);
 
     // create a new element if this kind already exists
     if (comp.add[kind]) {

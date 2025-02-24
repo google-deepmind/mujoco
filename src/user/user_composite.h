@@ -38,11 +38,6 @@ typedef enum _mjtCompType {
 
 typedef enum _mjtCompKind {
   mjCOMPKIND_JOINT = 0,
-  mjCOMPKIND_TWIST,
-  mjCOMPKIND_STRETCH,
-  mjCOMPKIND_TENDON,
-  mjCOMPKIND_SHEAR,
-  mjCOMPKIND_PARTICLE,
 
   mjNCOMPKINDS
 } mjtCompKind;
@@ -79,7 +74,6 @@ class mjCComposite {
   mjtCompType type;               // composite type
   int count[3];                   // geom count in each dimension
   double offset[3];               // position offset for particle and grid
-  double flatinertia;             // flatten ineria of cloth elements; 0: disable
 
   // currently used only for cable
   std::string initial;            // root boundary type
