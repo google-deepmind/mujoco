@@ -1719,7 +1719,7 @@ static int meshNormals(mjtNum* res, int resind[3], int dim, mjCCDObj* obj,
     int v3_adr = m->mesh_polymapadr[vertadr + v3];
     int v3_num = m->mesh_polymapnum[vertadr + v3];
 
-    int edgeset[2], faceset[1];
+    int edgeset[2], faceset[2];
     int n = intersect(edgeset, m->mesh_polymap + v1_adr, m->mesh_polymap + v2_adr, v1_num, v2_num);
     if (n == 0) return 0;
     n = intersect(faceset, edgeset, m->mesh_polymap + v3_adr, n, v3_num);
