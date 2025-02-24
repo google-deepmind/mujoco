@@ -520,10 +520,10 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
        \widehat{M} &\equiv M-h D
    \end{aligned}
 
-.. _geIntergrators:
+.. _geIntegrators:
 
-Intergrators
-^^^^^^^^^^^^
+Integrators
+^^^^^^^^^^^
 MuJoCo supports four integrators: three single-step integrators and the multi-step 4th order Runge-Kutta integrator.
 All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_update`, with different definitions of the
 :math:`D` matrix, which is always computed analytically.
