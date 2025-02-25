@@ -1568,5 +1568,38 @@ TEST_F(MjGjkTest, CapsuleCapsule) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, CylinderBoxMargin) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <statistic meansize="0.15"/>
+    <option>
+      <flag gravity="disable"/>
+    </option>
+
+    <worldbody>
+      <body pos="0 0 .265">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" margin="0.1" gap="0.1"/>
+      </body>
+      <body mocap="true">
+        <geom name="geom2" type="cylinder" size=".2 .2"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  EXPECT_EQ(data->ncon, 1);
+  EXPECT_LT(data->contact[0].efc_address, 0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

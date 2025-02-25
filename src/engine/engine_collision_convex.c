@@ -889,6 +889,28 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 
 
 
+// return true if multiccd can run in a single pass
+static int singlePass(const mjCCDObj* obj1, const mjCCDObj* obj2) {
+  const mjModel* m = obj1->model;
+
+  // single pass not supported for margins
+  if (obj1->margin > 0 || obj2->margin > 0) {
+    return 0;
+  }
+
+  // supported geoms for single pass
+  int type1 = m->geom_type[obj1->geom];
+  int type2 = m->geom_type[obj2->geom];
+  if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH) {
+    if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+
 // multi-point convex-convex collision, using libccd
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
@@ -897,7 +919,8 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   mjc_initCCDObj(&obj1, m, d, g1, margin);
   mjc_initCCDObj(&obj2, m, d, g2, margin);
   int max_contacts = 1;
-  if (mjENABLED(mjENBL_MULTICCD)) {
+
+  if (mjENABLED(mjENBL_MULTICCD) && singlePass(&obj1, &obj2)) {
     max_contacts = 4;
   }
 
@@ -905,9 +928,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, max_contacts, margin);
 
   // nativeccd supports multi Box-Box collision directly
-  if (mjENABLED(mjENBL_NATIVECCD) &&
-    (m->geom_type[g1] == mjGEOM_BOX || m->geom_type[g1] == mjGEOM_MESH) &&
-    (m->geom_type[g2] == mjGEOM_BOX || m->geom_type[g2] == mjGEOM_MESH)) {
+  if (mjENABLED(mjENBL_NATIVECCD) && singlePass(&obj1, &obj2)) {
     return ncon;
   }
 

@@ -2222,39 +2222,46 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
       obj1->geom_type == mjGEOM_CAPSULE || obj2->geom_type == mjGEOM_CAPSULE) {
     void (*support1)(mjtNum*, struct _mjCCDObj*, const mjtNum*) = obj1->support;
     void (*support2)(mjtNum*, struct _mjCCDObj*, const mjtNum*) = obj2->support;
-    mjtNum margin1 = 0, margin2 = 0;
+    mjtNum full_margin1 = 0, full_margin2 = 0;
+    mjtNum margin1 = obj1->margin, margin2 = obj2->margin;
 
     if (obj1->geom_type == mjGEOM_SPHERE) {
       const mjModel* m = obj1->model;
-      margin1 = m->geom_size[3*obj1->geom];
-      support1 = obj1->support;
+      full_margin1 = m->geom_size[3*obj1->geom] + 0.5*margin1;
       obj1->support = mjc_pointSupport;
+      obj1->margin = 0;
     } else if (obj1->geom_type == mjGEOM_CAPSULE) {
       const mjModel* m = obj1->model;
-      margin1 = m->geom_size[3*obj1->geom];
-      support1 = obj1->support;
+      full_margin1 = m->geom_size[3*obj1->geom] + 0.5*margin1;
       obj1->support = mjc_lineSupport;
+      obj1->margin = 0;
     }
 
     if (obj2->geom_type == mjGEOM_SPHERE) {
       const mjModel* m = obj2->model;
-      margin2 = m->geom_size[3*obj2->geom];
-      support2 = obj2->support;
+      full_margin2 = m->geom_size[3*obj2->geom] + 0.5*margin2;
       obj2->support = mjc_pointSupport;
+      obj2->margin = 0;
     } else if (obj2->geom_type == mjGEOM_CAPSULE) {
       const mjModel* m = obj2->model;
-      margin2 = m->geom_size[3*obj2->geom];
-      support2 = obj2->support;
+      full_margin2 = m->geom_size[3*obj2->geom] + 0.5*margin2;
       obj2->support = mjc_lineSupport;
+      obj2->margin = 0;
     }
 
-    status->dist_cutoff += margin1 + margin2;
+    status->dist_cutoff += full_margin1 + full_margin2;
     gjk(status, obj1, obj2);
     status->dist_cutoff = config->dist_cutoff;
 
+    // restore original margin and support
+    obj1->margin = margin1;
+    obj2->margin = margin2;
+    obj1->support = support1;
+    obj2->support = support2;
+
     // shallow penetration, inflate contact
-    if (status->dist > 0) {
-      inflate(status, margin1, margin2);
+    if (status->dist > status->tolerance) {
+      inflate(status, full_margin1, full_margin2);
       if (status->dist > status->dist_cutoff) {
         status->dist = mjMAXVAL;
       }
@@ -2268,14 +2275,11 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
       return 0;
     }
 
-    // deep penetration, reset everything and run GJK again
+    // deep penetration, reset initial conditions and rerun GJK + EPA
     status->gjk_iterations = 0;
-    obj1->support = support1;
-    obj2->support = support2;
     obj1->center(status->x1, obj1);
     obj2->center(status->x2, obj2);
   }
-
   gjk(status, obj1, obj2);
 
   // penetration recovery for contacts not needed
