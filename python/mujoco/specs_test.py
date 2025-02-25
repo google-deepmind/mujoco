@@ -549,7 +549,7 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
 
-    main = spec.default()
+    main = spec.default
     main.geom.size[0] = 2
 
     def1 = spec.add_default('def1', main)
@@ -563,7 +563,7 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
 
-    main = spec.default()
+    main = spec.default
     main.geom.size[0] = 2
     def1 = spec.add_default('def1', main)
     def1.geom.size[0] = 3
@@ -579,7 +579,7 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
 
-    main = spec.default()
+    main = spec.default
     main.geom.size[0] = 2
     def1 = spec.add_default('def1', main)
     def1.geom.size[0] = 3

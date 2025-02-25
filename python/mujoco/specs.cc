@@ -474,7 +474,7 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_addDefault(spec->ptr, classname.c_str(), parent);
       },
       py::return_value_policy::reference_internal);
-  mjSpec.def(
+  mjSpec.def_property_readonly(
       "default",
       [](MjSpec& self) -> raw::MjsDefault* {
         return mjs_getSpecDefault(self.ptr);
