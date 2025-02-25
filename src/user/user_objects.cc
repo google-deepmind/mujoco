@@ -917,8 +917,10 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   CopyList(lights, subtree->lights, fmap, &other);
 
   if (!model->deepcopy_) {
+    std::string name = subtree->name;
     subtree->SetModel(model);
     subtree->NameSpace(other_model);
+    subtree->name = name;
   }
 
   int nbodies = (int)subtree->bodies.size();

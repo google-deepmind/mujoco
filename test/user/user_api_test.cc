@@ -1193,6 +1193,9 @@ TEST_F(MujocoTest, AttachFrame) {
   // check that the spec was copied
   EXPECT_THAT(mjs_findSpec(parent, "child"), NotNull());
 
+  // check that the parent body was not namespaced
+  EXPECT_THAT(mjs_findBody(child, "world"), NotNull());
+
   // compile new model
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
