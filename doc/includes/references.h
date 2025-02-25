@@ -3602,6 +3602,8 @@ mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
                           const char* prefix, const char* suffix);
 mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
                           const char* prefix, const char* suffix);
+mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
+                                const char* prefix, const char* suffix);
 int mjs_detachBody(mjSpec* s, mjsBody* b);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
 mjsSite* mjs_addSite(mjsBody* body, const mjsDefault* def);

@@ -3836,6 +3836,15 @@ Attach child frame to a parent body, return the attached frame if success or NUL
 
 Attach child body to a parent site, return the attached body if success or NULL otherwise.
 
+.. _mjs_attachFrameToSite:
+
+`mjs_attachFrameToSite <#mjs_attachFrameToSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_attachFrameToSite
+
+Attach child frame to a parent site, return the attached frame if success or NULL otherwise.
+
 .. _mjs_detachBody:
 
 `mjs_detachBody <#mjs_detachBody>`__

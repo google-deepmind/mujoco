@@ -1367,6 +1367,71 @@ TEST_F(MujocoTest, AttachToSite) {
   mj_deleteModel(expected);
 }
 
+TEST_F(MujocoTest, AttachFrameToSite) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site" pos="1 0 0" quat="0 1 0 0"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame">
+        <body name="sphere">
+          <joint type="slide"/>
+          <geom size=".1"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site" pos="1 0 0" quat="0 1 0 0"/>
+      <frame pos="1 0 0" quat="0 1 0 0">
+        <body name="attached-sphere-1">
+          <joint type="slide"/>
+          <geom size=".1"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  mjsBody* world = mjs_findBody(parent, "world");
+  EXPECT_THAT(world, NotNull());
+  mjsSite* site = mjs_asSite(mjs_firstChild(world, mjOBJ_SITE, 0));
+  EXPECT_THAT(site, NotNull());
+  mjsFrame* frame = mjs_findFrame(child, "frame");
+  EXPECT_THAT(frame, NotNull());
+  mjsFrame* attached = mjs_attachFrameToSite(site, frame, "attached-", "-1");
+  EXPECT_THAT(attached, NotNull());
+
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model);
+  mj_deleteModel(expected);
+}
+
 TEST_F(MujocoTest, AttachWorld) {
   std::array<char, 1000> er;
   mjtNum tol = 0;

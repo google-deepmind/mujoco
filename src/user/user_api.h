@@ -81,6 +81,10 @@ MJAPI mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
 MJAPI mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
                                 const char* prefix, const char* suffix);
 
+// Attach child frame to a parent site, return the attached frame if success or NULL otherwise.
+MJAPI mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
+                                      const char* prefix, const char* suffix);
+
 // Detach body from mjSpec, remove all references and delete the body, return 0 on success.
 MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
 

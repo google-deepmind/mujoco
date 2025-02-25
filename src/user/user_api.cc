@@ -190,6 +190,35 @@ mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
 
 
 
+// attach child frame to a parent site
+mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
+                                const char* prefix, const char* suffix) {
+  if (!parent) {
+    mju_error("parent site is null");
+    return nullptr;
+  }
+  mjSpec* spec = mjs_getSpec(parent->element);
+  mjCSite* site = static_cast<mjCSite*>(parent->element);
+  mjCBody* body = site->Body();
+  mjCFrame* frame = body->AddFrame(site->frame);
+  frame->SetParent(body);
+  frame->spec.pos[0] = site->spec.pos[0];
+  frame->spec.pos[1] = site->spec.pos[1];
+  frame->spec.pos[2] = site->spec.pos[2];
+  frame->spec.quat[0] = site->spec.quat[0];
+  frame->spec.quat[1] = site->spec.quat[1];
+  frame->spec.quat[2] = site->spec.quat[2];
+  frame->spec.quat[3] = site->spec.quat[3];
+  mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
+                         spec->compiler.eulerseq, &site->spec.alt);
+
+  mjsFrame* attached_frame = mjs_attachFrame(&body->spec, child, prefix, suffix);
+  mjs_setFrame(attached_frame->element, &frame->spec);
+  return attached_frame;
+}
+
+
+
 // get error message from model
 const char* mjs_getError(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);

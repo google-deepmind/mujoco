@@ -9102,6 +9102,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Attach child body to a parent site, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
+    ('mjs_attachFrameToSite',
+     FunctionDecl(
+         name='mjs_attachFrameToSite',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='parent',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSite'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='child',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsFrame', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='prefix',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='suffix',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Attach child frame to a parent site, return the attached frame if success or NULL otherwise.',  # pylint: disable=line-too-long
+     )),
     ('mjs_detachBody',
      FunctionDecl(
          name='mjs_detachBody',
