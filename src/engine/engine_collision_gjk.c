@@ -1828,7 +1828,7 @@ static int meshEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDObj* obj
         }
       }
     }
-    return 3;
+    return v1_num;
   }
   return 0;
 }
