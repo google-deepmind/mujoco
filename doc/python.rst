@@ -736,15 +736,24 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 
 rollout
 -------
-
 ``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python
 module via pybind11. It is implemented in `rollout.cc
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__ and wrapped in `rollout.py
-<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module performs a common
-functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module addresses a common
+use-case where tight loops implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling
 :ref:`mj_step` in a loop), given an initial state and sequence of controls, and returning subsequent states and sensor
 values. The rollouts are run in parallel with an internally managed thread pool if multiple MjData instances (one per
-thread) are passed as an argument. The basic usage form is
+thread) are passed as an argument. This notebook shows how to use ``rollout`` |rollout_colab|, along with some
+benchmarks e.g., the figure below.
+
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
+
+.. image:: images/python/rollout.png
+   :align: right
+   :width: 97%
+
+The basic usage form is
 
 .. code-block:: python
 

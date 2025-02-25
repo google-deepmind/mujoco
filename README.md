@@ -52,6 +52,8 @@ running on Google Colab:
 
  - The **introductory** tutorial teaches MuJoCo basics:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - The **rollout** tutorial shows how to use the multithreaded `rollout` module:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb)
  - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a humanoid on one leg:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
  - The **least-squares** tutorial explains how to use the Python-based nonlinear least-squares solver:
