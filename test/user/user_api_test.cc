@@ -1435,7 +1435,7 @@ TEST_F(MujocoTest, AttachFrameToSite) {
   mj_deleteModel(expected);
 }
 
-TEST_F(MujocoTest, AttachWorld) {
+TEST_F(MujocoTest, BodyToFrame) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
   std::string field = "";
@@ -1521,6 +1521,166 @@ TEST_F(MujocoTest, AttachWorld) {
   mj_deleteSpec(child2);
   mj_deleteModel(model1);
   mj_deleteModel(model2);
+  mj_deleteModel(expected);
+}
+
+TEST_F(MujocoTest, AttachSpecToSite) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <site name="site" pos="1 2 3"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <camera pos="0 0 0" quat="1 0 0 0"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <site name="site" pos="1 2 3"/>
+        <frame name="attached-world-1" pos="1 2 3">
+          <body name="attached-sphere-1">
+            <joint type="slide"/>
+            <geom size=".1"/>
+          </body>
+          <camera pos="0 0 0" quat="1 0 0 0"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+  mjsSite* site = mjs_asSite(mjs_findElement(parent, mjOBJ_SITE, "site"));
+  EXPECT_THAT(site, NotNull());
+
+  // add a frame to the child
+  mjsBody* world = mjs_findBody(child, "world");
+  EXPECT_THAT(world, NotNull());
+  mjsFrame* frame = mjs_addFrame(world, 0);
+  EXPECT_THAT(frame, NotNull());
+  mjs_setString(frame->name, "world");
+  mjs_setFrame(mjs_firstChild(world, mjOBJ_BODY, 0), frame);
+  mjs_setFrame(mjs_firstChild(world, mjOBJ_CAMERA, 0), frame);
+
+  // attach the entire spec to the site
+  mjsFrame* worldframe = mjs_attachFrameToSite(site, frame, "attached-", "-1");
+  EXPECT_THAT(worldframe, NotNull());
+
+  // compile and compare
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  // check that the child world still exists
+  mjsBody* child_world = mjs_findBody(child, "world");
+  EXPECT_THAT(child_world, NotNull());
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model);
+  mj_deleteModel(expected);
+}
+
+TEST_F(MujocoTest, AttachSpecToBody) {
+  std::array<char, 1000> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <camera pos="0 0 0" quat="1 0 0 0"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_result[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <frame name="attached-world-1" pos="1 2 3">
+          <body name="attached-sphere-1">
+            <joint type="slide"/>
+            <geom size=".1"/>
+          </body>
+          <camera pos="0 0 0" quat="1 0 0 0"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+  mjsBody* body = mjs_findBody(parent, "body");
+  EXPECT_THAT(body, NotNull());
+
+  // add a frame to the child
+  mjsBody* world = mjs_findBody(child, "world");
+  EXPECT_THAT(world, NotNull());
+  mjsFrame* frame = mjs_addFrame(world, 0);
+  EXPECT_THAT(frame, NotNull());
+  mjs_setString(frame->name, "world");
+  mjs_setFrame(mjs_firstChild(world, mjOBJ_BODY, 0), frame);
+  mjs_setFrame(mjs_firstChild(world, mjOBJ_CAMERA, 0), frame);
+
+  // attach the entire spec to the site
+  mjsFrame* worldframe = mjs_attachFrame(body, frame, "attached-", "-1");
+  EXPECT_THAT(worldframe, NotNull());
+  worldframe->pos[0] = 1;
+  worldframe->pos[1] = 2;
+  worldframe->pos[2] = 3;
+
+  // compile and compare
+  mjModel* model = mj_compile(parent, 0);
+  EXPECT_THAT(model, NotNull());
+  mjModel* expected = LoadModelFromString(xml_result, er.data(), er.size());
+  EXPECT_THAT(expected, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(model, expected, field), tol)
+            << "Expected and attached models are different!\n"
+            << "Different field: " << field << '\n';
+
+  // check that the child world still exists
+  mjsBody* child_world = mjs_findBody(child, "world");
+  EXPECT_THAT(child_world, NotNull());
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(model);
   mj_deleteModel(expected);
 }
 
