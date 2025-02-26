@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.3.0 (Feb 26, 2025)
+----------------------------
 
 
 Feature promotion
@@ -13,26 +13,26 @@ Feature promotion
    :align: right
    :width: 240px
 
-- Introduced a new kind of **fast deformable body**, activated by setting :ref:`flexcomp/dof<body-flexcomp-dof>` to
-  "trilinear". This type of :ref:`deformable<CDeformable>` flex object has the same collision geometry as a regular
-  flex, but has far fewer degrees of freedom. Instead of 3 dofs per vertex, only the corners of the bounding box are
-  free to move, with the positions of the interior vertices computed with trilinear interpolation of the 8 corners, for
-  a total of 24 dofs for the entire flex object (or less, if some of the corners are pinned). This limits the types of
-  deformation achievable by the flex, but allows for much faster simulation. For example, see the video on the right
-  comparing `full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
-  <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
-  deformable gripper pads.
+1. Introduced a new kind of **fast deformable body**, activated by setting :ref:`flexcomp/dof<body-flexcomp-dof>` to
+   "trilinear". This type of :ref:`deformable<CDeformable>` flex object has the same collision geometry as a regular
+   flex, but has far fewer degrees of freedom. Instead of 3 dofs per vertex, only the corners of the bounding box are
+   free to move, with the positions of the interior vertices computed with trilinear interpolation of the 8 corners, for
+   a total of 24 dofs for the entire flex object (or less, if some of the corners are pinned). This limits the types of
+   deformation achievable by the flex, but allows for much faster simulation. For example, see the video on the right
+   comparing `full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
+   deformable gripper pads.
 
 
-- .. image:: images/computation/ccd_light.gif
-     :width: 20%
-     :align: right
-     :class: only-light
+2. .. image:: images/computation/ccd_light.gif
+      :width: 20%
+      :align: right
+      :class: only-light
 
-  .. image:: images/computation/ccd_dark.gif
-     :width: 20%
-     :align: right
-     :class: only-dark
+   .. image:: images/computation/ccd_dark.gif
+      :width: 20%
+      :align: right
+      :class: only-dark
 
   The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
   :ref:`nativeccd<option-flag-nativeccd>` flag, is now the default. See the section on
@@ -42,47 +42,47 @@ Feature promotion
 
 General
 ^^^^^^^
-- Add support for custom plots in the MuJoCo viewer by exposing a ``viewport`` property, a ``set_figures`` method,
-  and a ``clear_figures`` method.
-- Separate collision and deformation meshes for :ref:`flex<deformable-flex>`. This enables a fixed cost for the soft
-  body computations, while preserving the fidelity of high-resolution collisions.
-- Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
-- Improved shadow rendering in the native renderer.
-- Moved ``introspect`` to ``python/introspect``.
+3. Add support for custom plots in the MuJoCo viewer by exposing a ``viewport`` property, a ``set_figures`` method,
+   and a ``clear_figures`` method.
+4. Separate collision and deformation meshes for :ref:`flex<deformable-flex>`. This enables a fixed cost for the soft
+   body computations, while preserving the fidelity of high-resolution collisions.
+5. Added :ref:`potential<sensor-e_potential>` and :ref:`kinetic<sensor-e_kinetic>` energy sensors.
+6. Improved shadow rendering in the native renderer.
+7. Moved ``introspect`` to ``python/introspect``.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - As mentioned above, the native convex collision detection pipeline is now the default, which may break some
-     workflows. In this case, set :ref:`nativeccd<option-flag-nativeccd>` to "disable" to restore the old behavior.
-   - Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
-     parent, so the original references to the child can be used to modify the parent after attachment. The default
-     behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
-     attaching can be restored by setting the deep copy flag to 1.
-   - Changes to inertia inference from meshes:
+   8. As mentioned above, the native convex collision detection pipeline is now the default, which may break some
+      workflows. In this case, set :ref:`nativeccd<option-flag-nativeccd>` to "disable" to restore the old behavior.
+   9. Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
+      parent, so the original references to the child can be used to modify the parent after attachment. The default
+      behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
+      attaching can be restored by setting the deep copy flag to 1.
+   10. Changes to inertia inference from meshes:
 
-     Previously, in order to specify that the mass lies on the surface, :ref:`geom/shellinertia<body-geom-shellinertia>`
-     could be used for any geom type. Now this attribute is ignored if the geom is a mesh; instead, inertia inference
-     for meshes is specified in the asset, using the :ref:`asset/mesh/inertia<asset-mesh-inertia>` attribute.
+       Previously, in order to specify that the mass lies on the surface, :ref:`geom/shellinertia<body-geom-shellinertia>`
+       could be used for any geom type. Now this attribute is ignored if the geom is a mesh; instead, inertia inference
+       for meshes is specified in the asset, using the :ref:`asset/mesh/inertia<asset-mesh-inertia>` attribute.
 
-     Previously, if the volumetric inertia computation failed (for example due to a very flat mesh), the compiler
-     would silently fall back to surface inertia computation. Now, the compiler will throw an informative error.
-   - Removed the composite type ``grid``. Users should instead use :ref:`flexcomp<body-flexcomp>`.
-   - Removed the ``particle`` composite type. It is recommended to use the more generic :ref:`replicate<replicate>`
-     instead, see for example `this model
-     <https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
+       Previously, if the volumetric inertia computation failed (for example due to a very flat mesh), the compiler
+       would silently fall back to surface inertia computation. Now, the compiler will throw an informative error.
+   11. Removed the composite type ``grid``. Users should instead use :ref:`flexcomp<body-flexcomp>`.
+   12. Removed the ``particle`` composite type. It is recommended to use the more generic :ref:`replicate<replicate>`
+       instead, see for example `this model
+       <https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
 
 MJX
 ^^^
-- Added support for spatial tendons with internal sphere and cylinder wrapping.
-- Fix a bug with box-box collisions :github:issue:`2356`.
+13. Added support for spatial tendons with internal sphere and cylinder wrapping.
+14. Fix a bug with box-box collisions :github:issue:`2356`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-- Added a pedagogical colab notebook for ``mujoco.rollout``, a Python module for multithreaded simulation rollouts.
-  It is available here |rollout_colab|.
-  |br| Contribution by :github:user:`aftersomemath`.
+15. Added a pedagogical colab notebook for ``mujoco.rollout``, a Python module for multithreaded simulation rollouts.
+    It is available here |rollout_colab|.
+    |br| Contribution by :github:user:`aftersomemath`.
 
 .. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
                    :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb

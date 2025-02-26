@@ -39,22 +39,22 @@ set(MUJOCO_DEP_VERSION_qhull
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    7f2377859377da6f22152015c28b12c04752af77
+    66f7f51b7e069d0a03a21157fa60b24aece69aeb
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    4447c7562e3bc702ade25105912dce503f0c4010 # LTS 20240722.0
+    9ac7062b1860d895fb5a8cbf58c3e9ef8f674b5f # LTS 20250127.0
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    b514bdc898e2951020cbdca1304b75f5950d1f59 # v1.15.2
+    6910c9d9165801d8827d628cb72eb7ea9dd538c5 # v1.16.0
     CACHE STRING "Version of `gtest` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    24e0bd827a8bec8121b128b0634cb34402fb3259 # Incorporate fix for #1859
+    049f6e79cc3e8636cec21bbd94ed185b4a5f2653
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
