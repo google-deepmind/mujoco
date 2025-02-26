@@ -293,6 +293,7 @@ The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main
 custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the `README
 <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
 
+.. _exSDF:
 
 sdf
 """

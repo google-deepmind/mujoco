@@ -23,6 +23,23 @@ Feature promotion
   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
   deformable gripper pads.
 
+
+- .. image:: images/computation/ccd_light.gif
+     :width: 20%
+     :align: right
+     :class: only-light
+
+  .. image:: images/computation/ccd_dark.gif
+     :width: 20%
+     :align: right
+     :class: only-dark
+
+  The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
+  :ref:`nativeccd<option-flag-nativeccd>` flag, is now the default. See the section on
+  :ref:`Convex Collision Detection<coCCD>` for more details.
+
+  **Migration:** If the new pipeline breaks your workflow, set :ref:`nativeccd<option-flag-nativeccd>` to "disable".
+
 General
 ^^^^^^^
 - Add support for custom plots in the MuJoCo viewer by exposing a ``viewport`` property, a ``set_figures`` method,
@@ -36,6 +53,8 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
+   - As mentioned above, the native convex collision detection pipeline is now the default, which may break some
+     workflows. In this case, set :ref:`nativeccd<option-flag-nativeccd>` to "disable" to restore the old behavior.
    - Added :ref:`mjs_setDeepCopy` API function. When the deep copy flag is 0, attaching a model will not copy it to the
      parent, so the original references to the child can be used to modify the parent after attachment. The default
      behavior is to perform such a shallow copy. The old behavior of creating a deep copy of the child model while
@@ -184,8 +203,8 @@ General
 
 1. The Newton solver no longer requires ``nv*nv`` memory allocation, allowing for much larger models. See e.g.,
    `100_humanoids.xml  <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/100_humanoids.xml>`__.
-   Two quadratic-memory allocations still remain to be fully sparsified: ``mjData.actuator_moment`` and the matrices used
-   by the PGS solver.
+   Two quadratic-memory allocations still remain to be fully sparsified: ``mjData.actuator_moment`` and the matrices
+   used by the PGS solver.
 2. Removed the :at:`solid` and :at:`membrane` plugins and moved the associated computations into the engine. See `3D
    example model <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__ and `2D example model
    <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trampoline.xml>`__ for examples of flex objects

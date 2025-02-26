@@ -42,11 +42,11 @@ static const char kMixedPath[] =
 
 class TestHarness {
  public:
-  TestHarness(const char* xml_path, std::string label, int enable_flags = 0) {
+  TestHarness(const char* xml_path, std::string label, int disable_flags = 0) {
     // Fail test if there are any mujoco errors
     MujocoErrorTestGuard guard;
     model_ = LoadModelFromPath(xml_path);
-    model_->opt.enableflags |= enable_flags;
+    model_->opt.disableflags |= disable_flags;
     data_ = mj_makeData(model_);
     for (int i=0; i < kNumWarmupSteps; i++) {
       mj_step(model_, data_);
@@ -100,43 +100,43 @@ class TestHarness {
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
     BM_BoxMesh_NativeCCD(benchmark::State& state) {
-  static TestHarness harness(kBoxMeshPath, "boxmesh.xml (nativeccd)",
-                             mjENBL_NATIVECCD);
+  static TestHarness harness(kBoxMeshPath, "boxmesh.xml (nativeccd)");
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_BoxMesh_NativeCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
     BM_BoxMesh_LibCCD(benchmark::State& state) {
-  static TestHarness harness(kBoxMeshPath, "boxmesh.xml (libccd)");
+  static TestHarness harness(kBoxMeshPath, "boxmesh.xml (libccd)",
+                             mjDSBL_NATIVECCD);
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_BoxMesh_LibCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
     BM_Ellipsoid_NativeCCD(benchmark::State& state) {
-  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml (nativeccd)",
-                             mjENBL_NATIVECCD);
+  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml (nativeccd)");
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_Ellipsoid_NativeCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
     BM_Ellipsoid_LibCCD(benchmark::State& state) {
-  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml (libccd)");
+  static TestHarness harness(kEllipsoidPath, "ellipsoid.xml (libccd)",
+                             mjDSBL_NATIVECCD);
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_Ellipsoid_LibCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_Mixed_NativeCCD(benchmark::State& state) {
-  static TestHarness harness(kMixedPath, "mixed.xml (nativeccd)",
-                             mjENBL_NATIVECCD);
+  static TestHarness harness(kMixedPath, "mixed.xml (nativeccd)");
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_Mixed_NativeCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_Mixed_LibCCD(benchmark::State& state) {
-  static TestHarness harness(kMixedPath, "mixed.xml (libccd)");
+  static TestHarness harness(kMixedPath, "mixed.xml (libccd)",
+                             mjDSBL_NATIVECCD);
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_Mixed_LibCCD);

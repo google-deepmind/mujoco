@@ -60,7 +60,6 @@ def _collide(
     mujoco.mj_resetDataKeyframe(m, d, keyframe)
   dx = mjx.put_data(m, d)
 
-  m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_NATIVECCD
   mujoco.mj_step(m, d)
   collision_jit_fn = jax.jit(mjx.collision)
   kinematics_jit_fn = jax.jit(mjx.kinematics)

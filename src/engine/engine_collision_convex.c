@@ -33,38 +33,38 @@
 // call libccd or nativeccd to recover penetration info
 static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
                            const ccd_t* ccd, ccd_real_t* depth, ccd_vec3_t* dir, ccd_vec3_t* pos) {
-  if (mjENABLED(mjENBL_NATIVECCD)) {
-    mjCCDConfig config;
-    mjCCDStatus status;
-
-    // set config
-    config.max_iterations = ccd->max_iterations,
-    config.tolerance = ccd->mpr_tolerance,
-    config.max_contacts = 1;
-    config.dist_cutoff = 0;  // no geom distances needed
-
-    mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
-    if (dist < 0) {
-      if (depth) *depth = -dist;
-      if (dir) {
-        mju_sub3(dir->v, status.x1, status.x2);
-        mju_normalize3(dir->v);
-      }
-      if (pos) {
-        pos->v[0] = 0.5 * (status.x1[0] + status.x2[0]);
-        pos->v[1] = 0.5 * (status.x1[1] + status.x2[1]);
-        pos->v[2] = 0.5 * (status.x1[2] + status.x2[2]);
-      }
-      return 0;
-    }
-    if (depth) *depth = 0;
-    if (dir) mju_zero3(dir->v);
-    if (pos) mju_zero3(dir->v);
-    return 1;
+  // fallback to MPR
+  if (mjDISABLED(mjDSBL_NATIVECCD)) {
+    return ccdMPRPenetration(obj1, obj2, ccd, depth, dir, pos);
   }
 
-  // fallback to MPR
-  return ccdMPRPenetration(obj1, obj2, ccd, depth, dir, pos);
+  mjCCDConfig config;
+  mjCCDStatus status;
+
+  // set config
+  config.max_iterations = ccd->max_iterations,
+  config.tolerance = ccd->mpr_tolerance,
+  config.max_contacts = 1;
+  config.dist_cutoff = 0;  // no geom distances needed
+
+  mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
+  if (dist < 0) {
+    if (depth) *depth = -dist;
+    if (dir) {
+      mju_sub3(dir->v, status.x1, status.x2);
+      mju_normalize3(dir->v);
+    }
+    if (pos) {
+      pos->v[0] = 0.5 * (status.x1[0] + status.x2[0]);
+      pos->v[1] = 0.5 * (status.x1[1] + status.x2[1]);
+      pos->v[2] = 0.5 * (status.x1[2] + status.x2[2]);
+    }
+    return 0;
+  }
+  if (depth) *depth = 0;
+  if (dir) mju_zero3(dir->v);
+  if (pos) mju_zero3(dir->v);
+  return 1;
 }
 
 
@@ -791,7 +791,7 @@ static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
 // find convex-convex collision
 static int mjc_CCDIteration(const mjModel* m, const mjData* d, mjCCDObj* obj1, mjCCDObj* obj2,
                             mjContact* con, int max_contacts, mjtNum margin) {
-  if (mjENABLED(mjENBL_NATIVECCD)) {
+  if (!mjDISABLED(mjDSBL_NATIVECCD)) {
     mjCCDConfig config;
     mjCCDStatus status;
 
@@ -928,7 +928,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, max_contacts, margin);
 
   // nativeccd supports multi Box-Box collision directly
-  if (mjENABLED(mjENBL_NATIVECCD) && singlePass(&obj1, &obj2)) {
+  if (!mjDISABLED(mjDSBL_NATIVECCD) && singlePass(&obj1, &obj2)) {
     return ncon;
   }
 

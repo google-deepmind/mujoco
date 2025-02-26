@@ -1118,6 +1118,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("midphase",     mjDSBL_MIDPHASE)
     READDSBL("eulerdamp",    mjDSBL_EULERDAMP)
     READDSBL("autoreset",    mjDSBL_AUTORESET)
+    READDSBL("nativeccd",    mjDSBL_NATIVECCD)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1131,7 +1132,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("multiccd",    mjENBL_MULTICCD)
     READENBL("island",      mjENBL_ISLAND)
-    READENBL("nativeccd",   mjENBL_NATIVECCD)
 #undef READENBL
   }
 }

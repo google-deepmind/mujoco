@@ -1028,6 +1028,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("midphase",       mjDSBL_MIDPHASE)
     WRITEDSBL("eulerdamp",      mjDSBL_EULERDAMP)
     WRITEDSBL("autoreset",      mjDSBL_AUTORESET)
+    WRITEDSBL("nativeccd",      mjDSBL_NATIVECCD)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \
@@ -1039,7 +1040,6 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
     WRITEENBL("island",         mjENBL_ISLAND)
-    WRITEENBL("nativeccd",      mjENBL_NATIVECCD)
 #undef WRITEENBL
   }
 

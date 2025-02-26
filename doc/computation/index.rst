@@ -1539,27 +1539,106 @@ Filtering
 
 Checking
 ~~~~~~~~
+Detailed collision checking, also known as *near-phase* or narrow-phase_ collision detection, is performed by functions
+that depend on the geom types in the pair. The table of narrow-phase collision functions can be inspected at the top of
+`engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__
+and exposed to users who wish to install their own colliders as :ref:`mjCOLLISIONFUNC`. MuJoCo supports several
+primitive geometric shapes: plane, sphere, capsule, cylinder, ellipsoid, and box. It also supports triangulated meshes and
+height-fields.
 
-Detailed collision checking is performed by functions that depend on the geom types in the pair. MuJoCo supports several
-primitive geometric shapes: plane, sphere, capsule, cylinder, ellipsoid, box. It also supports triangulated meshes and
-height fields.
+.. _narrow-phase: https://en.wikipedia.org/wiki/Collision_detection#Narrow_phase
 
-We have chosen to limit collision detection to *convex* geoms. All primitive types are convex. Height fields are not
-convex but internally they are treated as unions of triangular prisms (using custom collision pruning beyond the filters
-described above). Meshes specified by the user can be non-convex, and are rendered as such. For collision purposes
-however they are replaced with their convex hulls. Mesh collisions are based on the Minkowski Portal Refinement (MPR)
-algorithm as implemented in `libccd <https://github.com/danfis/libccd>`__. It has tolerance and maximum iteration
-parameters exposed as ``mjModel.opt.ccd_tolerance`` and ``mjModel.opt.ccd_iterations`` respectively. MPR operates on the
-convex hull implicitly, however pre-computing that hull can substantially improve performance for large meshes. The
-model compiler does that by default, using the `qhull <http://www.qhull.org/>`__ library.
+With the notable exception of :ref:`SDF plugins<exSDF>` (see documentation therein), collision detection is limited to
+*convex* geoms. All primitive types are convex. Height-fields are not convex but internally they are treated as a
+collection of triangular prisms (using custom collision pruning beyond the filters described above). Meshes specified by
+the user can be non-convex, and are rendered as such. For collision purposes however they are replaced with their convex
+hulls (visualized with the 'H' key in :ref:`simulate <saSimulate>`), computed by the `qhull <http://www.qhull.org/>`__
+library.
+
+.. _coCCD:
+
+Convex collisions
+^^^^^^^^^^^^^^^^^
+All collisions involving pairs of geoms that do not have an analytic collider (e.g., meshes), are handled by one of two
+general-purpose convex collision detection (CCD) pipelines:
+
+native pipeline (default)
+  The native CCD pipeline ("nativeccd") is implemented natively in MuJoCo, based on the Gilbert-Johnson-Keerthi and
+  Expanding Polytope algorithms (GJK_ / EPA_). The native pipeline is both faster and more robust than the MPR-based
+  pipeline.
+
+libccd pipeline (legacy)
+  This legacy pipeline is based on the libccd_ library, and uses Minkowski Portal Refinement (MPR_). It is activated by
+  disabling the :ref:`nativeccd<option-flag-nativeccd>` flag.
+
+.. _libccd: https://github.com/danfis/libccd
+.. _MPR: https://en.wikipedia.org/wiki/Minkowski_Portal_Refinement
+.. _GJK: https://en.wikipedia.org/wiki/Gilbert%E2%80%93Johnson%E2%80%93Keerthi_distance_algorithm
+.. _EPA: http://scroll.stanford.edu/courses/cs468-01-fall/Papers/van-den-bergen.pdf
+
+Both pipelines are controlled by a tolerance (in units of distance) and maximum iteration parameters exposed as
+``mjOption.ccd_tolerance`` (:ref:`ccd_tolerance<option-ccd_tolerance>`) and ``mjOption.ccd_iterations``
+(:ref:`ccd_iterations<option-ccd_iterations>`), respectively.
+
+.. _coMultiCCD:
+
+Multiple contacts
+^^^^^^^^^^^^^^^^^
+Some colliders can return more than one contact per colliding pair to model line or surface contacts, as when two flat
+objects touch. For example the capsule-plane and box-plane colliders can return up to two or four contacts,
+respectively. Standard general-purpose convex collision algorithms like MPR and GJK always return a single contact
+point, which is problematic for surface contact scenarios (e.g., box-stacking). Both of MuJoCo's CCD pipelines can
+return multiple points per contacting pair ("multiccd"). This behavior is controlled by the
+:ref:`multiccd<option-flag-multiccd>` flag, but is implemented in different ways with different trade-offs:
+
+libccd pipeline (legacy)
+  Multiple contact points are found by rotating the two geoms by ±1e-3 radians around the tangential axes and
+  re-running the collision routine. If a new contact is detected it is added, allowing for up to 4 additional contact
+  points. This method is effective, but increases the cost of each collision call by a factor of 5.
+
+native pipeline
+  Native multiccd discovers multiple contacts using a novel analysis of the contacting surfaces at the solution,
+  avoiding full re-runs of the collision routine, and is thus effectively "free". Note that native multiccd currently
+  does not support positive contact margins. If one of the two geoms has a positive margin, native multiccd will fall
+  back to legacy algorithm.
+
+.. _coDistance:
+
+Geom distance
+^^^^^^^^^^^^^
+
+.. image:: ../images/computation/ccd_light.gif
+   :width: 25%
+   :align: right
+   :class: only-light
+
+.. image:: ../images/computation/ccd_dark.gif
+   :width: 25%
+   :align: right
+   :class: only-dark
+
+The narrow-phase collision functions described :ref:`above<coChecking>` drive the :ref:`mj_geomDistance` function and
+associated :ref:`collision-sensors`. Due to the limitations of MPR, the legacy pipeline will return incorrect values
+(top) except at very small distances relative to the geom sizes, and is discouraged for this use case. In
+contrast, the GJK-based native pipeline (bottom), computes the correct values at all distances.
+
+Convex decomposition
+^^^^^^^^^^^^^^^^^^^^
 
 In order to model a non-convex object other than a height field, the user must decompose it into a union of convex geoms
-(which can be primitive shapes or meshes) and attach them to the same body. Open tools like the `CoACD library
-<https://github.com/SarahWeiii/CoACD>`__ can be used outside MuJoCo to automate this process. Finally, all built-in
-collision functions can be replaced with custom callbacks. This can be used to incorporate a general-purpose "triangle
-soup" collision detector for example. However we do not recommend such an approach. Pre-processing the geometry and
-representing it as a union of convex geoms takes some work, but it pays off at runtime and yields both faster and more
-stable simulation.
+(which can be primitive shapes or meshes) and attach them to the same body. A height-field is essentially a shape that
+is automatically-decomposed into prisms
+
+Open mesh-decomposition tools like the
+`CoACD library <https://github.com/SarahWeiii/CoACD>`__ can be used outside MuJoCo to automate this process. Finally,
+all built-in collision functions can be replaced with custom callbacks. This can be used to incorporate a
+general-purpose "triangle soup" collision detector for example. However we do not recommend such an approach.
+Pre-processing the geometry and representing it as a union of convex geoms takes some work, but it pays off at runtime
+and yields both faster and more stable simulation.
+
+The exception to this rule are :ref:`SDF plugins<exSDF>` (see documentation therein), which in
+`certain cases <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md#gear>`__ can be efficient,
+but other requirements and limitations.
 
 .. _Pipeline:
 

@@ -66,9 +66,9 @@ directly from the top-level ``mjx`` module.
 Structs
 -------
 
-Before running MJX functions on an accelerator device, structs must be copied onto the device via the ``mjx.put_model`` and ``mjx.put_data``
-functions.  Placing an :ref:`mjModel` on device yields an ``mjx.Model``.  Placing an :ref:`mjData` on device yields
-an ``mjx.Data``:
+Before running MJX functions on an accelerator device, structs must be copied onto the device via the ``mjx.put_model``
+and ``mjx.put_data`` functions. Placing an :ref:`mjModel` on device yields an ``mjx.Model``. Placing an :ref:`mjData` on
+device yields an ``mjx.Data``:
 
 .. code-block:: python
 
@@ -86,12 +86,10 @@ These MJX variants mirror their MuJoCo counterparts but have a few key differenc
    express domain randomization (in the case of ``mjx.Model``) or high-throughput simulation for reinforcement learning
    (in the case of ``mjx.Data``).
 #. Numpy arrays in ``mjx.Model`` and ``mjx.Data`` are structural fields that control the output of JIT compilation.
-   Modifying these arrays will force JAX to recompile MJX functions. As an example,
-   ``jnt_limited`` is a numpy array passed by reference from :ref:`mjModel`, which determines if joint limit
-   constraints should be applied.  If ``jnt_limited`` is modified, JAX will
-   re-compile MJX functions.
-   On the other hand, ``jnt_range`` is a JAX array that can be modified at runtime, and will only apply to joints with limits
-   as specified by the ``jnt_limited`` field.
+   Modifying these arrays will force JAX to recompile MJX functions. As an example, ``jnt_limited`` is a numpy array
+   passed by reference from :ref:`mjModel`, which determines if joint limit constraints should be applied. If
+   ``jnt_limited`` is modified, JAX will re-compile MJX functions. On the other hand, ``jnt_range`` is a JAX array that
+   can be modified at runtime, and will only apply to joints with limits as specified by the ``jnt_limited`` field.
 
 
 Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An ``mjx.Data`` may be created by calling
@@ -110,9 +108,9 @@ Using ``mjx.make_data`` may be preferable when constructing batched ``mjx.Data``
 Functions
 ---------
 
-MuJoCo functions are exposed as MJX functions of the same name, but following
-`PEP 8 <https://peps.python.org/pep-0008/>`__-compliant names.  Most of the :ref:`main simulation <Mainsimulation>` and
-some of the :ref:`sub-components <Subcomponents>` for forward simulation are available from the top-level ``mjx`` module.
+MuJoCo functions are exposed as MJX functions of the same name, but following `PEP 8
+<https://peps.python.org/pep-0008/>`__-compliant names. Most of the :ref:`main simulation <Mainsimulation>` and some of
+the :ref:`sub-components <Subcomponents>` for forward simulation are available from the top-level ``mjx`` module.
 
 MJX functions are not `JIT compiled <https://jax.readthedocs.io/en/latest/jax-101/02-jitting.html>`__ by default -- we
 leave it to the user to JIT MJX functions, or JIT their own functions that reference MJX functions.  See the
@@ -225,7 +223,8 @@ The following features are **fully supported** in MJX:
      - ``PLANE``, ``HFIELD``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH`` are fully implemented. ``ELLIPSOID`` and
        ``CYLINDER`` are implemented but only collide with other primitives, note that ``BOX`` is implemented as a mesh.
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``, ``FRICTION_TENDON``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_FRICTIONLESS``, ``CONTACT_PYRAMIDAL``, ``CONTACT_ELLIPTIC``,
+       ``FRICTION_DOF``, ``FRICTION_TENDON``
    * - :ref:`Equality <mjtEq>`
      - ``CONNECT``, ``WELD``, ``JOINT``, ``TENDON``
    * - :ref:`Integrator <mjtIntegrator>`
@@ -315,22 +314,19 @@ Single scene simulation
   carefully optimized for CPU.  MJX works best when simulating thousands or tens of thousands of scenes in parallel.
 
 Collisions between large meshes
-  MJX supports collisions between convex mesh geometries. However the convex collision algorithms
-  in MJX are implemented differently than in MuJoCo. MJX uses a branchless version of the
-  `Separating Axis Test <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__
-  (SAT) to determine if geometries are colliding with convex meshes, while MuJoCo uses the Minkowski Portal Refinement (MPR)
-  algorithm as implemented in `libccd <https://github.com/danfis/libccd>`__.
-  SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
+  MJX supports collisions between convex mesh geometries. However the convex collision algorithms in MJX are implemented
+  differently than in MuJoCo. MJX uses a branchless version of the `Separating Axis Test
+  <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__
+  (SAT) to determine if geometries are colliding with convex meshes, while MuJoCo uses either MPR or GJK/EPA, see
+  :ref:`Collision Detection<coChecking>` for more details. SAT works well for smaller meshes but suffers in both runtime
+  and memory for larger meshes.
 
-  For
-  collisions with convex meshes and primitives, the convex decompositon of the mesh should have
-  roughly **200 vertices or less** for reasonable performance. For convex-convex collisions,
-  the convex mesh should have roughly **fewer than 32 vertices**.  We recommend using
-  :ref:`maxhullvert<asset-mesh-maxhullvert>` in the MuJoCo compiler to achieve desired convex mesh properties.
-  With careful
-  tuning, MJX can simulate scenes with mesh collisions -- see the MJX
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
-  config for an example. Speeding up mesh collision detection is an active area of development for MJX.
+  For collisions with convex meshes and primitives, the convex decompositon of the mesh should have roughly **200
+  vertices or less** for reasonable performance. For convex-convex collisions, the convex mesh should have roughly
+  **fewer than 32 vertices**. We recommend using :ref:`maxhullvert<asset-mesh-maxhullvert>` in the MuJoCo compiler to
+  achieve desired convex mesh properties. With careful tuning, MJX can simulate scenes with mesh collisions -- see the
+  MJX `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__ config
+  for an example. Speeding up mesh collision detection is an active area of development for MJX.
 
 Large, complex scenes with many contacts
   Accelerators exhibit poor performance for
@@ -392,13 +388,12 @@ For MJX to perform well, some configuration parameters should be adjusted from t
   of 10% to 20%, as long as the dense matrices can fit on the device.
 
 Broadphase
-  While MuJoCo handles broadphase culling out of the box, MJX requires additional parameters. For an approximate version of
-  broadphase, use the experimental custom numeric parameters
-  ``max_contact_points`` and ``max_geom_pairs``. ``max_contact_points`` caps the number of contact points
-  sent to the solver for each condim type. ``max_geom_pairs`` caps the total number of geom-pairs sent to
-  respective collision functions for each geom-type pair. As an example, the
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__
-  environment makes use of these parameters.
+  While MuJoCo handles broadphase culling out of the box, MJX requires additional parameters. For an approximate version
+  of broadphase, use the experimental custom numeric parameters ``max_contact_points`` and ``max_geom_pairs``.
+  ``max_contact_points`` caps the number of contact points sent to the solver for each condim type. ``max_geom_pairs``
+  caps the total number of geom-pairs sent to respective collision functions for each geom-type pair. As an example, the
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__ environment
+  makes use of these parameters.
 
 GPU performance
 ---------------

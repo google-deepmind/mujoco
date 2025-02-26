@@ -61,7 +61,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Sensor",
   "Midphase",
   "Eulerdamp",
-  "AutoReset"
+  "AutoReset",
+  "NativeCCD"
 };
 
 
@@ -72,8 +73,7 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Fwdinv",
   "InvDiscrete",
   "MultiCCD",
-  "Island",
-  "NativeCCD"
+  "Island"
 };
 
 
@@ -1425,7 +1425,7 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
   }
 
   // use nativecdd if flag is enabled
-  if (mjENABLED(mjENBL_NATIVECCD)) {
+  if (!mjDISABLED(mjDSBL_NATIVECCD)) {
     if (func == mjc_Convex || func == mjc_BoxBox) {
       return mj_geomDistanceCCD(m, d, g1, g2, distmax, fromto);
     }
