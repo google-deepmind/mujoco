@@ -333,6 +333,13 @@ class SupportTest(parameterized.TestCase):
           vdx.bind(mx, s.bodies[i]).xpos, [d.xpos[i, :]] * batch_size
       )
 
+    # test emtpy name
+    s.worldbody.add_body()
+    m = s.compile()
+    mx = mjx.put_model(m)
+    with self.assertRaises(KeyError, msg='cannot bind spec with empty name'):
+      mx.bind(s.bodies)
+
   _CONTACTS = """
     <mujoco>
       <worldbody>

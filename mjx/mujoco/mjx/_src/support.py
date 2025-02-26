@@ -295,7 +295,9 @@ class BindModel(object):
     self.prefix = ''
     ids = []
     for spec in specs:
-      if isinstance(spec, mujoco.MjsBody):
+      if not spec.name:
+        raise KeyError(f'cannot bind spec with empty name')
+      elif isinstance(spec, mujoco.MjsBody):
         self.prefix = 'body_'
         idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
       elif isinstance(spec, mujoco.MjsJoint):
@@ -400,7 +402,9 @@ class BindData(object):
     self.prefix = ''
     ids = []
     for spec in specs:
-      if isinstance(spec, mujoco.MjsBody):
+      if not spec.name:
+        raise KeyError(f'cannot bind spec with empty name')
+      elif isinstance(spec, mujoco.MjsBody):
         idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
       elif isinstance(spec, mujoco.MjsJoint):
         self.prefix = 'jnt_'
