@@ -1159,5 +1159,15 @@ class SpecsTest(absltest.TestCase):
     ):
       model_spec.compile()
 
+  def test_address(self):
+    spec1 = mujoco.MjSpec()
+    spec2 = mujoco.MjSpec()
+    spec3 = spec1.copy()
+
+    self.assertGreater(spec1._address, 0)
+    self.assertGreater(spec2._address, 0)
+    self.assertGreater(spec3._address, 0)
+    self.assertLen({spec1._address, spec2._address, spec3._address}, 3)
+
 if __name__ == '__main__':
   absltest.main()
