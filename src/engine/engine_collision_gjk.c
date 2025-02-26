@@ -1086,12 +1086,24 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   }
 
   // create hexahedron for EPA
-  attachFace(pt, v4i, v1i, v2i, 1, 3, 2);
-  attachFace(pt, v4i, v3i, v1i, 2, 4, 0);
-  attachFace(pt, v4i, v2i, v3i, 0, 5, 1);
-  attachFace(pt, v5i, v2i, v1i, 5, 0, 4);
-  attachFace(pt, v5i, v1i, v3i, 3, 1, 5);
-  attachFace(pt, v5i, v3i, v2i, 4, 2, 3);
+  if (attachFace(pt, v4i, v1i, v2i, 1, 3, 2) < mjMINVAL) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
+  if (attachFace(pt, v4i, v3i, v1i, 2, 4, 0) < mjMINVAL) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
+  if (attachFace(pt, v4i, v2i, v3i, 0, 5, 1) < mjMINVAL) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
+  if (attachFace(pt, v5i, v2i, v1i, 5, 0, 4) < mjMINVAL) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
+  if (attachFace(pt, v5i, v1i, v3i, 3, 1, 5) < mjMINVAL) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
+  if (attachFace(pt, v5i, v3i, v2i, 4, 2, 3) < mjMINVAL) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
 
 
   // if the origin is on the affine hull of any of the faces then the origin is not in the
@@ -1099,9 +1111,6 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   for (int i = 0; i < 6; i++) {
     pt->map[i] = pt->faces + i;
     pt->faces[i].index = i;
-    if (pt->faces[i].dist < mjMINVAL) {
-      return mjEPA_P3_ORIGIN_ON_FACE;
-    }
   }
   pt->nmap = 6;
   return 0;
@@ -1194,7 +1203,9 @@ static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
 
   // compute witness point v
   int ret = projectOriginPlane(face->v, pt->verts[v3].vert, pt->verts[v2].vert, pt->verts[v1].vert);
-  if (ret) return 0;
+  if (ret) {
+    return 0;
+  }
   face->dist = norm3(face->v);
   face->index = -1;
 
@@ -1319,7 +1330,7 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
   mjtNum tolerance = status->tolerance, lower, upper = FLT_MAX;
   int k, kmax = status->max_iterations;
   mjData* d = (mjData*) obj1->data;
-  Face* face, *pface;  // face closest to origin
+  Face* face = NULL, *pface = NULL;  // face closest to origin
 
   // initialize horizon
   Horizon h;
@@ -1342,7 +1353,7 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     }
 
     // face not valid, return previous face
-    if (lower > upper) {
+    if (lower > upper || !face) {
       face = pface;
       break;
     }
@@ -1367,11 +1378,8 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
     // unrecoverable numerical issue; at least one face was deleted so nedges is 3 or more
     if (h.nedges < 3) {
-      mj_freeStack(d);
-      status->epa_iterations = k;
-      status->nx = 0;
-      status->dist = 0;
-      return NULL;
+      face = NULL;
+      break;
     }
 
     // insert w as new vertex and attach faces along the horizon
@@ -1393,11 +1401,8 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
     // unrecoverable numerical issue
     if (dist == 0) {
-      mj_freeStack(d);
-      status->epa_iterations = k;
-      status->nx = 0;
-      status->dist = 0;
-      return NULL;
+      face = NULL;
+      break;
     }
 
     // store face in map
@@ -1421,11 +1426,8 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
       // unrecoverable numerical issue
       if (dist == 0) {
-        mj_freeStack(d);
-        status->epa_iterations = k;
-        status->nx = 0;
-        status->dist = 0;
-        return NULL;
+        face = NULL;
+        break;
       }
 
       // store face in map
@@ -1438,16 +1440,21 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     h.nedges = 0;  // clear horizon
 
     // no face candidates left
-    if (!pt->nmap) {
+    if (!pt->nmap || !face) {
       break;
     }
   }
 
   mj_freeStack(d);
-  epaWitness(pt, face, status->x1, status->x2);
   status->epa_iterations = k;
-  status->nx = 1;
-  status->dist = -face->dist;
+  if (face) {
+    epaWitness(pt, face, status->x1, status->x2);
+    status->nx = 1;
+    status->dist = -face->dist;
+  } else {
+    status->nx = 0;
+    status->dist = 0;
+  }
   return face;
 }
 
