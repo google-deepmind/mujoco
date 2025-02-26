@@ -24,21 +24,21 @@ Feature promotion
    deformable gripper pads.
 
 
-2. .. image:: images/computation/ccd_light.gif
+.. image:: images/computation/ccd_light.gif
       :width: 20%
       :align: right
       :class: only-light
 
-   .. image:: images/computation/ccd_dark.gif
-      :width: 20%
-      :align: right
-      :class: only-dark
+.. image:: images/computation/ccd_dark.gif
+   :width: 20%
+   :align: right
+   :class: only-dark
 
-  The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
-  :ref:`nativeccd<option-flag-nativeccd>` flag, is now the default. See the section on
-  :ref:`Convex Collision Detection<coCCD>` for more details.
+2. The native convex collision detection pipeline introduced in 3.2.3 and enabled by the
+   :ref:`nativeccd<option-flag-nativeccd>` flag, is now the default. See the section on
+   :ref:`Convex Collision Detection<coCCD>` for more details.
 
-  **Migration:** If the new pipeline breaks your workflow, set :ref:`nativeccd<option-flag-nativeccd>` to "disable".
+   **Migration:** If the new pipeline breaks your workflow, set :ref:`nativeccd<option-flag-nativeccd>` to "disable".
 
 General
 ^^^^^^^
