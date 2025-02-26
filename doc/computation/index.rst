@@ -1638,7 +1638,7 @@ and yields both faster and more stable simulation.
 
 The exception to this rule are :ref:`SDF plugins<exSDF>` (see documentation therein), which in
 `certain cases <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md#gear>`__ can be efficient,
-but other requirements and limitations.
+but have other requirements and limitations.
 
 .. _Pipeline:
 
