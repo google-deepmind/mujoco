@@ -41,6 +41,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
 option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
+option(MUJOCO_USE_SINGLE_PRECISION "Build MuJoCo using single precision scalars" OFF)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 
 if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
@@ -62,12 +63,43 @@ set(MUJOCO_HEADERS
     include/mujoco/mjsan.h
     include/mujoco/mjspec.h
     include/mujoco/mjthread.h
-    include/mujoco/mjtnum.h
     include/mujoco/mjui.h
     include/mujoco/mjvisualize.h
     include/mujoco/mjxmacro.h
     include/mujoco/mujoco.h
 )
+
+# Depending on the value of MUJOCO_USE_SINGLE_PRECISION,
+# we either install the regular include/mujoco/mjtnum.h,
+# that defines mjtNum as double, or a patched version
+# that defines mjUSESINGLE
+if(NOT MUJOCO_USE_SINGLE_PRECISION)
+  list(APPEND MUJOCO_HEADERS "include/mujoco/mjtnum.h")
+else()
+  # Otherwise, we create a new file ${CMAKE_CURRENT_BINARY_DIR}/include/mujoco/mjtnum.h
+  # that also contains the code snippet:
+  # #ifndef mjUSESINGLE
+  # #define mjUSESINGLE
+  # #endif
+
+  # Read original include/mujoco/mjtnum.h
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjtnum.h" mjtnum_original_header)
+
+  # Define the point in which we insert the mjUSESINGLE definition, and the definition itself
+  set(insertion_point "#define MUJOCO_INCLUDE_MJTNUM_H_")
+  set(directive "\n#ifndef mjUSESINGLE\n#define mjUSESINGLE\n#endif\n")
+
+  # Define the insertion point and the directive to insert
+  set(insertion_point "#define MUJOCO_INCLUDE_MJTNUM_H_")
+  set(directive "\n\n// This definition is added by CMake as it was configured with MUJOCO_USE_SINGLE_PRECISION set to ON\n#ifndef mjUSESINGLE\n#define mjUSESINGLE\n#endif\n")
+
+  # Add the definition
+  string(REPLACE "${insertion_point}" "${insertion_point}${directive}" mjtnum_modified_header "${mjtnum_original_header}")
+
+  # Write the modified header and add to the headers to install
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/include/mujoco/mjtnum.h" "${mjtnum_modified_header}")
+  list(APPEND MUJOCO_HEADERS "${CMAKE_CURRENT_BINARY_DIR}/include/mujoco/mjtnum.h" )
+endif()
 
 # Add metadata to mujoco.dll when building on Windows.
 if(WIN32)
@@ -98,6 +130,9 @@ add_subdirectory(src/ui)
 target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
   target_compile_definitions(mujoco PUBLIC mjUSEPLATFORMSIMD)
+endif()
+if(MUJOCO_USE_SINGLE_PRECISION)
+  target_compile_definitions(mujoco PUBLIC mjUSESINGLE)
 endif()
 
 target_compile_options(

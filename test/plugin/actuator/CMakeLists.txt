@@ -20,5 +20,5 @@ mujoco_test(
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:actuator>"
+  TAGS nofloat32
 )
-target_link_libraries(pid_test fixture gmock )
