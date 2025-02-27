@@ -393,6 +393,9 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def("copy", [](const MjSpec& self) -> MjSpec {
     return MjSpec(self);
   });
+  mjSpec.def_property_readonly("_address", [](const MjSpec& self) {
+    return reinterpret_cast<uintptr_t>(self.ptr);
+  });
   mjSpec.def_property(
       "copy_during_attach",
       [](MjSpec& self) {
