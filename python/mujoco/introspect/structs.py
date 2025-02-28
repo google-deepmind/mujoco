@@ -2621,6 +2621,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexelemdata',),
              ),
              StructFieldDecl(
+                 name='flex_elemtexcoord',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='element texture coordinates (dim+1)',
+                 array_extent=('nflexelemdata',),
+             ),
+             StructFieldDecl(
                  name='flex_elemedge',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -7637,6 +7645,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='flex_elemtexcoord',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='flex_elemlayer',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
@@ -10439,6 +10454,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjFloatVec'),
                  ),
                  doc='vertex texture coordinates',
+             ),
+             StructFieldDecl(
+                 name='facetexcoord',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjIntVec'),
+                 ),
+                 doc='face texture coordinates',
              ),
              StructFieldDecl(
                  name='info',

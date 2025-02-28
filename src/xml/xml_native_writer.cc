@@ -158,6 +158,10 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
     text = VectorToString(flex->get_texcoord());
     WriteAttrTxt(elem, "texcoord", text);
   }
+  if (!flex->get_facetexcoord().empty()) {
+    text = VectorToString(flex->get_facetexcoord());
+    WriteAttrTxt(elem, "facetexcoord", text);
+  }
   if (!flex->get_nodebody().empty()) {
     text = VectorToString(flex->get_nodebody());
     WriteAttrTxt(elem, "node", text);

@@ -3916,9 +3916,14 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
 
 .. _deformable-flex-texcoord:
 
-:at:`texcoord`: :at-val:`real(2*nvert), optional`
-   Texture coordinates for each vertex. If omitted, texture mapping for this flex is disabled, even if a texture is
-   specified in the material.
+:at:`texcoord`: :at-val:`real(2*vert or ntexcoord), optional`
+   Texture coordinates. If omitted, texture mapping for this flex is disabled, even if a texture is specified in the
+   material.
+
+.. _deformable-flex-facetexcoord:
+
+:at:`facetexcoord`: :at-val:`int((dim+1)*nelem), optional`
+   Texture indices for each face. If omitted, texture are assumed to be vertex-based.
 
 .. _deformable-flex-element:
 

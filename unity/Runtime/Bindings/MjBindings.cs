@@ -5437,6 +5437,7 @@ public unsafe struct mjModel_ {
   public int* flex_vertbodyid;
   public int* flex_edge;
   public int* flex_elem;
+  public int* flex_elemtexcoord;
   public int* flex_elemedge;
   public int* flex_elemlayer;
   public int* flex_shell;
@@ -6324,6 +6325,7 @@ public unsafe struct model {
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_elem;
+  public int* flex_elemtexcoord;
   public int* flex_elemlayer;
   public int* flex_elemadr;
   public int* flex_elemnum;

@@ -2527,15 +2527,16 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
         if (dim == 2 || m->flex_elemlayer[m->flex_elemadr[f]+e] == opt->flex_layer) {
           // get element data
           const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+          const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
 
           // triangles: two faces per element
           if (dim == 2) {
             makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[1], edata[2]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[2], edata[1]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[1]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
             nface++;
           }
 
@@ -2543,22 +2544,22 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
           else {
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[0], edata[1], edata[2]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[0], edata[2], edata[3]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[3]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[3]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[0], edata[3], edata[1]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[3], edata[1]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[3], tdata[1]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[1], edata[3], edata[2]);
-            copyTex(texdst, texsrc, nface, edata[1], edata[3], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[1], tdata[3], tdata[2]);
             nface++;
           }
         }
@@ -2598,13 +2599,14 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
       if (dim == 2) {
         for (int e=0; e < m->flex_elemnum[f]; e++) {
           const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+          const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
           makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
                      nface, edata[0], edata[1], edata[2]);
-          copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+          copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
           nface++;
           makeSmooth(face, normal, -radius, flg_flat, vertnorm, vertxpos,
                      nface, edata[0], edata[2], edata[1]);
-          copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[1]);
+          copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
           nface++;
         }
       } else {

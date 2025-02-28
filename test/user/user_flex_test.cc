@@ -435,6 +435,22 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, LoadTexture) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/textured_torus_flex.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(m->nflextexcoord, 637);
+  EXPECT_THAT(m->flex_elemtexcoord[0], 0);
+  EXPECT_THAT(m->flex_elemtexcoord[1], 1);
+  EXPECT_THAT(m->flex_elemtexcoord[2], 2);
+  EXPECT_THAT(m->flex_elemtexcoord[3], 0);
+  EXPECT_THAT(m->flex_elemtexcoord[4], 2);
+  EXPECT_THAT(m->flex_elemtexcoord[5], 3);
+  mj_deleteModel(m);
+}
+
 TEST_F(UserFlexTest, LoadMSHBinary_41_Success) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/cube_41_binary_vol_gmshApp.xml");

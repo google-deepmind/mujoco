@@ -2911,10 +2911,13 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
     if (pfl->texcoord_.empty()) {
       m->flex_texcoordadr[i] = -1;
+      memcpy(m->flex_elemtexcoord + elemdata_adr, pfl->elem_.data(), pfl->elem_.size()*sizeof(int));
     } else {
       m->flex_texcoordadr[i] = texcoord_adr;
       memcpy(m->flex_texcoord + 2*texcoord_adr,
             pfl->texcoord_.data(), pfl->texcoord_.size()*sizeof(float));
+      memcpy(m->flex_elemtexcoord + elemdata_adr, pfl->facetexcoord_.data(),
+             pfl->facetexcoord_.size()*sizeof(int));
     }
     m->flex_elemnum[i] = pfl->nelem;
     memcpy(m->flex_elem + elemdata_adr, pfl->elem_.data(), pfl->elem_.size()*sizeof(int));
