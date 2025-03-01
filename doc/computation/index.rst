@@ -1690,14 +1690,14 @@ The stages below compute quantities that depend on the generalized positions ``m
 3. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
    kinematic subtrees: :ref:`mj_comPos`
 4. Compute quantities related to :ref:`flex<deformable-flex>` objects: :ref:`mj_flex`
-5. Compute the actuator lengths and moment arms: :ref:`mj_tendon`
+5. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
+   tendons: :ref:`mj_tendon`
 6. Compute the composite rigid body inertias and joint-space inertia matrix: :ref:`mj_crb`
 7. Compute the sparse factorization of the joint-space inertia matrix: :ref:`mj_factorM`
 8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
    :ref:`mj_collision`
 9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
-10. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
-    tendons: :ref:`mj_transmission`
+10. Compute the actuator lengths and moment arms: :ref:`mj_transmission`
 11. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
 12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
     :ref:`mj_energyPos`
