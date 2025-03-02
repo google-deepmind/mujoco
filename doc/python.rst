@@ -556,7 +556,7 @@ It is possible to combine multiple specs by using attachments. The following opt
 The default behavior of attaching is to not copy, so all the child references (except for the worldbody) are still valid
 in the parent and therefore modifying the child will modify the parent. This is not true for the attach
 :ref:`attach<body-attach>` and :ref:`replicate<replicate>` meta-elements in MJCF, which create deep copies while
-attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attaching`` to
+attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attach`` to
 ``True``. In this case, the child spec is copied and the references to the child will not point to the parent.
 
 .. code-block:: python
