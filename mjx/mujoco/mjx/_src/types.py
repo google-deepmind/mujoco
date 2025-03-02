@@ -65,6 +65,15 @@ class DisableBit(enum.IntFlag):
   # unsupported: MIDPHASE
 
 
+class EnableBit(enum.IntFlag):
+  """Enable optional feature bitflags.
+
+  Members:
+    ENERGY: enable energy computation
+  """
+
+  ENERGY = mujoco.mjtEnableBit.mjENBL_ENERGY
+
 class JointType(enum.IntEnum):
   """Type of degree of freedom.
 
@@ -482,7 +491,7 @@ class Option(PyTreeNode):
   noslip_iterations: int = _restricted_to('mujoco')
   ccd_iterations: int = _restricted_to('mujoco')
   disableflags: DisableBit
-  enableflags: int
+  enableflags: EnableBit
   disableactuator: int
   sdf_initpoints: int = _restricted_to('mujoco')
   sdf_iterations: int = _restricted_to('mujoco')
@@ -1236,6 +1245,7 @@ class Data(PyTreeNode):
     ncon: number of contacts
     solver_niter: number of solver iterations
     time: simulation time
+    energy: potential, kinetic energy (2, )
     qpos: position                                              (nq,)
     qvel: velocity                                              (nv,)
     act: actuator activation                                    (na,)
@@ -1361,6 +1371,7 @@ class Data(PyTreeNode):
   solver_niter: jax.Array
   # global properties:
   time: jax.Array
+  energy: jax.Array
   # state:
   qpos: jax.Array
   qvel: jax.Array
