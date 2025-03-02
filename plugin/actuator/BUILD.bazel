@@ -1,0 +1,35 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+mj_cc_library(
+    name = "pid",
+    srcs = ["pid.cc"],
+    hdrs = ["pid.h"],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+)
+
+mj_cc_library(
+    name = "register",
+    srcs = [
+        "register.cc",
+    ],
+    deps = [
+        ":pid",
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+cc_shared_library(
+    name = "actuator",
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "register",
+    ],
+)
