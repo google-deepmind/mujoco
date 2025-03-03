@@ -38,9 +38,9 @@ using CacheTest = MujocoTest;
 namespace {
 
 constexpr int kMaxSize = 100;  // in bytes
-constexpr std::string kText = "Hello World";
-constexpr std::string kModel = "myModel";
-constexpr std::string kFile = "hello.txt";
+const std::string kText = "Hello World";
+const std::string kModel = "myModel";
+const std::string kFile = "hello.txt";
 
 void CacheText(mjCCache& cache, const std::string& model,
               const std::string& name, const std::string& text) {

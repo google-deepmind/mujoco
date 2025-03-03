@@ -1,0 +1,18 @@
+cc_test(
+    name = "thread_test",
+    size = "small",
+    srcs = [
+        "thread_pool_test.cc",
+        "thread_queue_test.cc",
+    ],
+    copts = [
+        "-Wno-sign-compare",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_util_container",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+    linkstatic=True,
+)
