@@ -1131,6 +1131,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
               d->C_rowadr, d->C_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
 
+  if (!mju_isZero(d->qHDiagInv, m->nv)) {
+    printSparse("QH", d->qH, m->nv, d->C_rownnz, d->C_rowadr, d->C_colind, fp, float_format);
+    printArray("QHDIAGINV", m->nv, 1, d->qHDiagInv, fp, float_format);
+  }
+
   // B sparse structure
   mj_printSparsity("B: body-dof matrix", m->nbody, m->nv, d->B_rowadr, NULL, d->B_rownnz, NULL,
                    d->B_colind, fp);
@@ -1227,12 +1232,15 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   fprintf(fp, "\n\n");
 
   // print qDeriv
-  printSparse("QDERIV", d->qDeriv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind,
-              fp, float_format);
+  if (!mju_isZero(d->qDeriv, m->nD)) {
+    printSparse("QDERIV", d->qDeriv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind,
+                fp, float_format);
+  }
 
   // print qLU
-  printSparse("QLU", d->qLU, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind,
-              fp, float_format);
+  if (!mju_isZero(d->qLU, m->nD)) {
+    printSparse("QLU", d->qLU, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind, fp, float_format);
+  }
 
   // contact
   fprintf(fp, "CONTACT\n");
