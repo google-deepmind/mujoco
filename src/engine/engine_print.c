@@ -1161,6 +1161,37 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   }
   fprintf(fp, "\n\n");
 
+  // M sparse structure
+  mj_printSparsity("M: inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
+                   NULL, d->M_colind, fp);
+
+  fprintf(fp, NAME_FORMAT, "M_rownnz");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->M_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // M_rowadr
+  fprintf(fp, NAME_FORMAT, "M_rowadr");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, " %d", d->M_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // M_colind
+  fprintf(fp, NAME_FORMAT, "M_colind");
+  for (int i = 0; i < m->nM; i++) {
+    fprintf(fp, " %d", d->M_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // mapM2M
+  fprintf(fp, NAME_FORMAT, "mapM2M");
+  for (int i = 0; i < m->nM; i++) {
+    fprintf(fp, " %d", d->mapM2M[i]);
+  }
+  fprintf(fp, "\n\n");
+
   // C sparse structure
   mj_printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, NULL, d->C_rownnz,
                    NULL, d->C_colind, fp);
