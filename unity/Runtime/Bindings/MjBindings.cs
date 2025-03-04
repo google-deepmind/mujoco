@@ -4942,6 +4942,10 @@ public unsafe struct mjData_ {
   public int* B_rownnz;
   public int* B_rowadr;
   public int* B_colind;
+  public int* M_rownnz;
+  public int* M_rowadr;
+  public int* M_colind;
+  public int* mapM2M;
   public int* C_rownnz;
   public int* C_rowadr;
   public int* C_colind;

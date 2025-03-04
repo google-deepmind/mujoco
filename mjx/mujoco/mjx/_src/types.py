@@ -1316,6 +1316,10 @@ class Data(PyTreeNode):
     B_rownnz: body-dof: non-zeros in each row                   (nbody,)
     B_rowadr: body-dof: address of each row in B_colind         (nbody,)
     B_colind: body-dof: column indices of non-zeros             (nB,)
+    M_rownnz: inertia: non-zeros in each row                    (nv,)
+    M_rowadr: inertia: address of each row in M_colind          (nv,)
+    M_colind: inertia: column indices of non-zeros              (nM,)
+    mapM2M: index mapping from M (legacy) to M (CSR)            (nM,)
     C_rownnz: reduced dof-dof: non-zeros in each row            (nv,)
     C_rowadr: reduced dof-dof: address of each row in C_colind  (nv,)
     C_colind: reduced dof-dof: column indices of non-zeros      (nC,)
@@ -1445,6 +1449,10 @@ class Data(PyTreeNode):
   B_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   B_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   B_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  M_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  M_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  M_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
+  mapM2M: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   C_rownnz: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   C_rowadr: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name
   C_colind: jax.Array = _restricted_to('mujoco')  # pylint:disable=invalid-name

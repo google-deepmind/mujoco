@@ -672,6 +672,10 @@
     X   ( int,       B_rownnz,          nbody,       1           ) \
     X   ( int,       B_rowadr,          nbody,       1           ) \
     X   ( int,       B_colind,          nB,          1           ) \
+    X   ( int,       M_rownnz,          nv,          1           ) \
+    X   ( int,       M_rowadr,          nv,          1           ) \
+    X   ( int,       M_colind,          nM,          1           ) \
+    X   ( int,       mapM2M,            nM,          1           ) \
     X   ( int,       C_rownnz,          nv,          1           ) \
     X   ( int,       C_rowadr,          nv,          1           ) \
     X   ( int,       C_colind,          nC,          1           ) \

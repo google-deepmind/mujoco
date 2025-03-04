@@ -5527,6 +5527,38 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nB',),
              ),
              StructFieldDecl(
+                 name='M_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: non-zeros in each row',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='M_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: address of each row in M_colind',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='M_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: column indices of non-zeros',
+                 array_extent=('nM',),
+             ),
+             StructFieldDecl(
+                 name='mapM2M',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='index mapping from M (legacy) to M (CSR)',
+                 array_extent=('nM',),
+             ),
+             StructFieldDecl(
                  name='C_rownnz',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
