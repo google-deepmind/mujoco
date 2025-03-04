@@ -1,0 +1,15 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+cc_library(
+    name = "tinyxml2",
+    srcs = ["tinyxml2.cpp"],
+    hdrs = ["tinyxml2.h"],
+    data = [":license_filegroup"],
+    includes = ["."]
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = ["LICENSE.txt"],
+    tags = ["license_filegroup"],
+)

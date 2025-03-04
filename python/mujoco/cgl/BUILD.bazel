@@ -1,0 +1,7 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+filegroup(
+    name = "cgl",
+    srcs = glob(["**"]),
+    tags = ["ignore_srcs"],
+)
