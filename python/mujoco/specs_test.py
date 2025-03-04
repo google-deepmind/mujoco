@@ -14,6 +14,7 @@
 # ==============================================================================
 """Tests for mjSpec bindings."""
 
+import gc
 import inspect
 import os
 import textwrap
@@ -750,6 +751,10 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
     self.assertEqual(model.nmeshvert, 8)
     self.assertEqual(spec.assets['cube.obj'], cube)
+    self.assertIs(
+        spec.assets['cube.obj'], cube,
+        'Asset dict should contain a reference, not a copy'
+    )
 
     xml = """
     <mujoco model="test">
@@ -765,6 +770,13 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec.from_string(xml, assets=assets)
     model = spec.compile()
     self.assertEqual(model.nmeshvert, 8)
+    self.assertEqual(spec.assets['cube.obj'], cube)
+    self.assertIs(
+        spec.assets['cube.obj'], cube,
+        'Asset dict should contain a reference, not a copy'
+    )
+    del assets
+    gc.collect()
     self.assertEqual(spec.assets['cube.obj'], cube)
 
   def test_include(self):
