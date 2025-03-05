@@ -32,7 +32,6 @@ namespace {
 using ::std::vector;
 using ::testing::ContainsRegex;  // NOLINT
 using ::testing::DoubleNear;
-using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::MatchesRegex;
 using ::testing::NotNull;

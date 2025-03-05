@@ -1469,11 +1469,11 @@ void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
-  int nC = m->nC;
-  for (int i=0; i < nC; i++) {
-    d->qLD[i] = d->qM[d->mapM2C[i]];
+  int nM = m->nM;
+  for (int i=0; i < nM; i++) {
+    d->qLD[i] = d->qM[d->mapM2M[i]];
   }
-  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
@@ -1715,7 +1715,7 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
     mju_copy(x, y, n*m->nv);
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
-             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
 }
 
 
@@ -1727,14 +1727,14 @@ void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int
   const mjtNum* qLDiagInv = d->qLDiagInv;
   if (island < 0) {
     mj_solveLD(x, qLD, qLDiagInv, m->nv, 1,
-               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
     return;
   }
 
   // local copies of key variables
-  const int* rownnz = d->C_rownnz;
-  const int* rowadr = d->C_rowadr;
-  const int* colind = d->C_colind;
+  const int* rownnz = d->M_rownnz;
+  const int* rowadr = d->M_rowadr;
+  const int* colind = d->M_colind;
   const int* diagnum = m->dof_simplenum;
 
   // local constants: island specific
@@ -1785,9 +1785,9 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
   int nv = m->nv;
 
   // local copies of key variables
-  const int* rownnz = d->C_rownnz;
-  const int* rowadr = d->C_rowadr;
-  const int* colind = d->C_colind;
+  const int* rownnz = d->M_rownnz;
+  const int* rowadr = d->M_rowadr;
+  const int* colind = d->M_colind;
   const int* diagnum = m->dof_simplenum;
   const mjtNum* qLD = d->qLD;
 

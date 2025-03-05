@@ -52,9 +52,8 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
 
   // make legacy matrix
   mjtNum* LDlegacy = mj_stackAllocNum(d, m->nM);
-  mju_zero(LDlegacy, m->nM);
-  for (int i=0; i < m->nC; i++) {
-    LDlegacy[d->mapM2C[i]] = d->qLD[i];
+  for (int i=0; i < m->nM; i++) {
+    LDlegacy[d->mapM2M[i]] = d->qLD[i];
   }
 
   // benchmark
@@ -65,7 +64,7 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
         mj_solveLD_legacy(m, res, 1, LDlegacy, d->qLDiagInv);
       } else {
         mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                   d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+                   d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
       }
     }
   }

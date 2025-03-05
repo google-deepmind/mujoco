@@ -5356,7 +5356,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc="L'*D*L factorization of M (sparse)",
-                 array_extent=('nC',),
+                 array_extent=('nM',),
              ),
              StructFieldDecl(
                  name='qLDiagInv',
@@ -5492,7 +5492,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc="L'*D*L factorization of modified M",
-                 array_extent=('nC',),
+                 array_extent=('nM',),
              ),
              StructFieldDecl(
                  name='qHDiagInv',

@@ -113,9 +113,10 @@ inline std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
 }
 
 // Prints a matrix to stderr, useful for debugging.
-inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5) {
+inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5,
+                        std::string_view name = "") {
   std::cerr.precision(p);
-  std::cerr << "\n";
+  std::cerr << name << "\n";
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < ncol; c++) {
       mjtNum val = mat[c + r*ncol];

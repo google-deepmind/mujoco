@@ -1352,7 +1352,7 @@ class Data(PyTreeNode):
     efc_aref: reference pseudo-acceleration                     (nefc,)
     efc_force: constraint force in constraint space             (nefc,)
     _qM_sparse: qM in sparse representation                     (nM,)
-    _qLD_sparse: qLD in sparse representation                   (nC,)
+    _qLD_sparse: qLD in sparse representation                   (nM,)
     _qLDiagInv_sparse: qLDiagInv in sparse representation       (nv,)
   """  # fmt: skip
   # constant sizes:

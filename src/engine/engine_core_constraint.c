@@ -2131,7 +2131,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   // inverse square root of D from inertia LDL decomposition
   mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
   for (int i=0; i < nv; i++) {
-    int diag = d->C_rowadr[i] + d->C_rownnz[i] - 1;
+    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
@@ -2167,11 +2167,11 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
           continue;
         }
 
-        // traverse row j of C, marking new unique nonzeros
-        int nnzC = d->C_rownnz[j];
-        int adrC = d->C_rowadr[j];
-        for (int k=0; k < nnzC; k++) {
-          int c = d->C_colind[adrC + k];
+        // traverse row j of M, marking new unique nonzeros
+        int nnzM = d->M_rownnz[j];
+        int adrM = d->M_rowadr[j];
+        for (int k=0; k < nnzM; k++) {
+          int c = d->M_colind[adrM + k];
           if (marker[c] != r) {
             marker[c] = r;
             nnz++;
@@ -2251,10 +2251,10 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
           continue;
         }
         int j = B_colind[i];
-        int adrC = d->C_rowadr[j];
-        mju_addToSclSparseInc(B + adrB, d->qLD + adrC,
+        int adrM = d->M_rowadr[j];
+        mju_addToSclSparseInc(B + adrB, d->qLD + adrM,
                               nnzB, B_colind + adrB,
-                              d->C_rownnz[j]-1, d->C_colind + adrC, -b);
+                              d->M_rownnz[j]-1, d->M_colind + adrM, -b);
       }
 
       // B(r,:) <- sqrt(inv(D)) * B(r,:)
