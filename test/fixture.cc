@@ -80,7 +80,13 @@ const std::string GetTestDataFilePath(std::string_view path) {  // NOLINT
 }
 
 const std::string GetModelPath(std::string_view path) {  // NOLINT
-  return absl::StrCat("../model/", path);
+  // Bazel can only create symlinks for files under the `TEST_NAME.runfiles/mujoco` directory.
+  const char* bazel_env = std::getenv("BAZEL_TEST");
+  if (bazel_env != nullptr) {
+    return absl::StrCat("model/", path);
+  } else {
+    return absl::StrCat("../model/", path);
+  }
 }
 
 mjModel* LoadModelFromString(std::string_view xml, char* error,

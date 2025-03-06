@@ -1,0 +1,34 @@
+constraint_setting(
+    name = "compiler",
+    default_constraint_value = "clang",
+)
+
+constraint_value(
+    name = "clang",
+    constraint_setting = ":compiler",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "gcc",
+    constraint_setting = ":compiler",
+    visibility = ["//visibility:public"],
+)
+
+platform(
+    name = "linux_clang_x86_64",
+    constraint_values = [
+        ":clang",
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+platform(
+    name = "linux_gcc_x86_64",
+    constraint_values = [
+        ":gcc",
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
