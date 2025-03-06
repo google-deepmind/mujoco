@@ -1434,7 +1434,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   }
 
   if (ReadAttrInt(elem, "maxhullvert", &n)) {
-    if (n != 0 && n < 4) throw mjXError(elem, "maxhullvert must be larger than 3");
+    if (n != -1 && n < 4) throw mjXError(elem, "maxhullvert must be larger than 3");
     mesh->maxhullvert = n;
   }
 
