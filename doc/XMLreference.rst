@@ -3920,9 +3920,9 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
    Texture coordinates. If omitted, texture mapping for this flex is disabled, even if a texture is specified in the
    material.
 
-.. _deformable-flex-facetexcoord:
+.. _deformable-flex-elemtexcoord:
 
-:at:`facetexcoord`: :at-val:`int((dim+1)*nelem), optional`
+:at:`elemtexcoord`: :at-val:`int((dim+1)*nelem), optional`
    Texture indices for each face. If omitted, texture are assumed to be vertex-based.
 
 .. _deformable-flex-element:

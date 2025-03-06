@@ -3184,7 +3184,7 @@ void mjCFlex::PointToLocal() {
   spec.vert = &spec_vert_;
   spec.node = &spec_node_;
   spec.texcoord = &spec_texcoord_;
-  spec.facetexcoord = &spec_facetexcoord_;
+  spec.elemtexcoord = &spec_elemtexcoord_;
   spec.elem = &spec_elem_;
   spec.info = &info;
   material = nullptr;
@@ -3193,7 +3193,7 @@ void mjCFlex::PointToLocal() {
   vert = nullptr;
   node = nullptr;
   texcoord = nullptr;
-  facetexcoord = nullptr;
+  elemtexcoord = nullptr;
   elem = nullptr;
 }
 
@@ -3219,7 +3219,7 @@ void mjCFlex::CopyFromSpec() {
   vert_ = spec_vert_;
   node_ = spec_node_;
   texcoord_ = spec_texcoord_;
-  facetexcoord_ = spec_facetexcoord_;
+  elemtexcoord_ = spec_elemtexcoord_;
   elem_ = spec_elem_;
 
   // clear precompiled asset. TODO: use asset cache
@@ -3323,14 +3323,14 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // check texcoord
-  if (!texcoord_.empty() && texcoord_.size()!=2*nvert && facetexcoord_.empty()) {
+  if (!texcoord_.empty() && texcoord_.size()!=2*nvert && elemtexcoord_.empty()) {
     throw mjCError(this, "two texture coordinates per vertex expected");
   }
 
-  // no facetexcoord: copy from faces
-  if (facetexcoord_.empty() && !texcoord_.empty()) {
-    facetexcoord_.assign(3*nelem, 0);
-    memcpy(facetexcoord_.data(), elem_.data(), 3*nelem*sizeof(int));
+  // no elemtexcoord: copy from faces
+  if (elemtexcoord_.empty() && !texcoord_.empty()) {
+    elemtexcoord_.assign(3*nelem, 0);
+    memcpy(elemtexcoord_.data(), elem_.data(), 3*nelem*sizeof(int));
   }
 
   // resolve material name

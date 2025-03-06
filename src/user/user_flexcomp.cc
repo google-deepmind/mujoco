@@ -413,7 +413,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   mjs_setString(pf->name, name.c_str());
   mjs_setInt(pf->elem, element.data(), element.size());
   mjs_setFloat(pf->texcoord, texcoord.data(), texcoord.size());
-  mjs_setInt(pf->facetexcoord, facetexcoord.data(), facetexcoord.size());
+  mjs_setInt(pf->elemtexcoord, elemtexcoord.data(), elemtexcoord.size());
   if (!centered) {
     mjs_setDouble(pf->vert, point.data(), point.size());
   }
@@ -1058,7 +1058,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
 
   if (mesh.HasTexcoord()) {
     texcoord = mesh.Texcoord();
-    facetexcoord = mesh.FaceTexcoord();
+    elemtexcoord = mesh.FaceTexcoord();
   }
 
   // copy faces or create 3D mesh

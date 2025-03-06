@@ -776,7 +776,7 @@ class mjCFlex_ : public mjCBase {
   std::vector<double> node_;              // node positions
   std::vector<int> elem_;                 // element vertex ids
   std::vector<float> texcoord_;           // vertex texture coordinates
-  std::vector<int> facetexcoord_;         // face texture coordinates (OBJ only)
+  std::vector<int> elemtexcoord_;         // face texture coordinates (OBJ only)
   std::string material_;                  // name of material used for rendering
 
   std::string spec_material_;
@@ -786,7 +786,7 @@ class mjCFlex_ : public mjCBase {
   std::vector<double> spec_node_;
   std::vector<int> spec_elem_;
   std::vector<float> spec_texcoord_;
-  std::vector<int> spec_facetexcoord_;
+  std::vector<int> spec_elemtexcoord_;
 };
 
 class mjCFlex: public mjCFlex_, private mjsFlex {
@@ -817,7 +817,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   const std::vector<double>& get_elemaabb() const { return elemaabb_; }
   const std::vector<int>& get_elem() const { return elem_; }
   const std::vector<float>& get_texcoord() const { return texcoord_; }
-  const std::vector<int>& get_facetexcoord() const { return facetexcoord_; }
+  const std::vector<int>& get_elemtexcoord() const { return elemtexcoord_; }
   const std::vector<std::string>& get_nodebody() const { return nodebody_; }
 
   bool HasTexcoord() const;               // texcoord not null

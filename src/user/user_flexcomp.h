@@ -106,7 +106,7 @@ class mjCFlexcomp {
   std::vector<bool> used;         // is point used by any element (false: skip)
   std::vector<int> element;       // flex elements
   std::vector<float> texcoord;    // vertex texture coordinates
-  std::vector<int> facetexcoord;  // face texture coordinates (OBJ only)
+  std::vector<int> elemtexcoord;  // face texture coordinates (OBJ only)
 
   // plugin support
   std::string plugin_name;

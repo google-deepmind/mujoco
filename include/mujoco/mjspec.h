@@ -446,7 +446,7 @@ typedef struct mjsFlex_ {          // flex specification
   mjDoubleVec* vert;               // vertex positions
   mjIntVec* elem;                  // element vertex ids
   mjFloatVec* texcoord;            // vertex texture coordinates
-  mjIntVec* facetexcoord;          // face texture coordinates
+  mjIntVec* elemtexcoord;          // element texture coordinates
 
   // other
   mjString* info;                  // message appended to compiler errors

@@ -10488,11 +10488,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='vertex texture coordinates',
              ),
              StructFieldDecl(
-                 name='facetexcoord',
+                 name='elemtexcoord',
                  type=PointerType(
                      inner_type=ValueType(name='mjIntVec'),
                  ),
-                 doc='face texture coordinates',
+                 doc='element texture coordinates',
              ),
              StructFieldDecl(
                  name='info',

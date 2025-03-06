@@ -325,7 +325,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"deformable", "*", "0"},
     {"<"},
         {"flex", "*", "13", "name", "group", "dim", "radius", "material",
-            "rgba", "flatskin", "body", "vertex", "element", "texcoord", "facetexcoord", "node"},
+            "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
         {"<"},
             {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
@@ -1354,9 +1354,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   if (texcoord.has_value()) {
     mjs_setFloat(flex->texcoord, texcoord->data(), texcoord->size());
   }
-  auto facetexcoord = ReadAttrVec<int>(elem, "facetexcoord");
-  if (facetexcoord.has_value()) {
-    mjs_setInt(flex->facetexcoord, facetexcoord->data(), facetexcoord->size());
+  auto elemtexcoord = ReadAttrVec<int>(elem, "elemtexcoord");
+  if (elemtexcoord.has_value()) {
+    mjs_setInt(flex->elemtexcoord, elemtexcoord->data(), elemtexcoord->size());
   }
 
   // contact subelement
