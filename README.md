@@ -33,8 +33,9 @@ We also provide [Python bindings] and a plug-in for the [Unity] game engine.
 
 ## Documentation
 
-MuJoCo's documentation can be found at [mujoco.readthedocs.io]. Upcoming features due for the next
-release can be found in the [changelog] in the latest branch.
+MuJoCo's documentation can be found at [mujoco.readthedocs.io]. Upcoming
+features due for the next release can be found in the [changelog] in the
+"latest" branch.
 
 ## Getting Started
 
@@ -54,14 +55,17 @@ running on Google Colab:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
  - The **rollout** tutorial shows how to use the multithreaded `rollout` module:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb)
- - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a humanoid on one leg:
+ - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a
+   humanoid on one leg:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
- - The **least-squares** tutorial explains how to use the Python-based nonlinear least-squares solver:
+ - The **least-squares** tutorial explains how to use the Python-based nonlinear
+   least-squares solver:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb)
  - The **MJX** tutorial provides usage examples of
    [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in JAX:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb)
- - The **differentiable physics** tutorial trains locomotion policies with analytical gradients automatically derived from MuJoCo's physics step:
+ - The **differentiable physics** tutorial trains locomotion policies with
+   analytical gradients automatically derived from MuJoCo's physics step:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/training_apg.ipynb)
 
 ## Installation
@@ -75,7 +79,7 @@ and macOS (universal). This is the recommended way to use the software.
 ### Building from source
 
 Users who wish to build MuJoCo from source should consult the [build from
-source] section of the documentation. However, please note that the commit at
+source] section of the documentation. However, note that the commit at
 the tip of the `main` branch may be unstable.
 
 ### Python (>= 3.9)
@@ -111,7 +115,8 @@ GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved
 for bug reports, feature requests and other development-related subjects.
 
 ## Related software
-MuJoCo is the backbone for numerous environment packages. Below we list several bindings and converters.
+MuJoCo is the backbone for numerous environment packages. Below we list several
+bindings and converters.
 
 ### Bindings
 
@@ -139,7 +144,6 @@ These packages give users of various languages access to MuJoCo functionality:
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
 - **Julia**: [MuJoCo.jl](https://github.com/JamieMair/MuJoCo.jl)
 
-
 ### Converters
 
 - **OpenSim**: [MyoConverter](https://github.com/MyoHub/myoconverter) converts
@@ -148,6 +152,8 @@ These packages give users of various languages access to MuJoCo functionality:
   two-way SDFormat <-> MJCF conversion tool.
 - **OBJ**: [obj2mjcf](https://github.com/kevinzakka/obj2mjcf)
   a script for converting composite OBJ files into a loadable MJCF model.
+- **onshape**: [Onshape to Robot](https://github.com/rhoban/onshape-to-robot)
+  Converts [onshape](https://www.onshape.com/en/) CAD assemblies to MJCF.
 
 ## Citation
 
@@ -186,7 +192,6 @@ This is not an officially supported Google product.
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
 [Unity]: https://unity.com/
 [releases page]: https://github.com/google-deepmind/mujoco/releases
-[GitHub Issues]: https://github.com/google-deepmind/mujoco/issues
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
 [changelog]: https://mujoco.readthedocs.io/en/latest/changelog.html
 [Python bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
