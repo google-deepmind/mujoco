@@ -8,6 +8,7 @@ using Unity.Collections;
 using UnityEngine;
 
 namespace Mujoco {
+
 /// <summary>
 /// This is a very early stage mesh generator for flex objects.
 /// Texture mapping in particular is very rudimentary.
@@ -28,10 +29,10 @@ public class MjFlexMeshBuilder : MonoBehaviour {
   [SerializeField]
   Vector3 uvProjectionV;
 
-    [SerializeField]
-    bool doubleSided;
+  [SerializeField]
+  bool doubleSided;
 
-protected void Awake() {
+  protected void Awake() {
     _meshRenderer = GetComponent<SkinnedMeshRenderer>();
   }
 
@@ -46,9 +47,9 @@ protected void Awake() {
     mesh.name = $"Mujoco mesh for composite {name}";
     mesh.vertices = vertices.ToArray();
     var triangles = flex.Element.ToList();
-    if (doubleSided) triangles.AddRange(triangles.ToArray().Reverse().Select(t => vertices.Count/2+t));
+    if (doubleSided) triangles.AddRange(triangles.ToArray().Reverse().Select(t => vertices.Count / 2 + t));
     mesh.triangles = triangles.ToArray();
-    
+
 
     // Generate UVs based on vertex positions
     Vector2[] uv = new Vector2[vertices.Count];
@@ -65,8 +66,10 @@ protected void Awake() {
       for (int i = 0; i < vertices.Count; i++) {
         // Assuming horizontal layout
         uv[i] = new Vector2(
-            Mathf.InverseLerp(vertices.Min(u => Vector3.Dot(u, uvProjectionU)), vertices.Max(u => Vector3.Dot(u, uvProjectionU)), Vector3.Dot(vertices[i], uvProjectionU) ),
-            Mathf.InverseLerp(vertices.Min(u => Vector3.Dot(u, uvProjectionV)), vertices.Max(u => Vector3.Dot(u, uvProjectionV)), Vector3.Dot(vertices[i], uvProjectionV))
+          Mathf.InverseLerp(vertices.Min(u => Vector3.Dot(u, uvProjectionU)),
+            vertices.Max(u => Vector3.Dot(u, uvProjectionU)), Vector3.Dot(vertices[i], uvProjectionU)),
+          Mathf.InverseLerp(vertices.Min(u => Vector3.Dot(u, uvProjectionV)),
+            vertices.Max(u => Vector3.Dot(u, uvProjectionV)), Vector3.Dot(vertices[i], uvProjectionV))
         );
       }
       mesh.uv = uv;
@@ -91,9 +94,9 @@ protected void Awake() {
     byte[] bonesPerVertex = Enumerable.Repeat(1, vertices.Count)
         .Select(i => (byte)i).ToArray();
     BoneWeight1[] boneWeights = transforms
-        .Select((t, i) => new BoneWeight1 { boneIndex = i, weight = 1 }).ToArray();
+        .Select((t, i) => new BoneWeight1 {boneIndex = i, weight = 1}).ToArray();
     mesh.SetBoneWeights(new NativeArray<byte>(bonesPerVertex, Allocator.Temp),
-        new NativeArray<BoneWeight1>(boneWeights, Allocator.Temp));
+      new NativeArray<BoneWeight1>(boneWeights, Allocator.Temp));
     mesh.bindposes = transforms
         .Select(t => Matrix4x4.TRS(t.localPosition, t.localRotation, Vector3.one).inverse)
         .ToArray();
@@ -116,8 +119,5 @@ protected void Awake() {
 #endif
     }
   }
-
-
-
 }
 }

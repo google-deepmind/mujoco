@@ -126,7 +126,7 @@ public class MjFlexDeformable : MjComponent {
     if (Element.Length > 0)
       mjcf.SetAttribute("element", MjEngineTool.ArrayToMjcf(Element));
     mjcf.SetAttribute("flatskin",
-        MjEngineTool.MakeLocaleInvariant($"{(Flatskin ? "true" : "false")}"));
+      MjEngineTool.MakeLocaleInvariant($"{(Flatskin ? "true" : "false")}"));
     mjcf.SetAttribute("group", MjEngineTool.MakeLocaleInvariant($"{Group}"));
 
     // Add child elements if configured
@@ -153,6 +153,7 @@ public class MjFlexDeformable : MjComponent {
 
   [Serializable]
   public class MjFlexEdge {
+
     [SerializeField]
     public float Stiffness = 0;
 
@@ -173,10 +174,12 @@ public class MjFlexDeformable : MjComponent {
       if (mjcf.HasAttribute("damping"))
         Damping = mjcf.GetFloatAttribute("damping");
     }
+
   }
 
   [Serializable]
   public class MjFlexElasticity {
+
     [SerializeField]
     public float Young = 0;
 
@@ -206,10 +209,12 @@ public class MjFlexDeformable : MjComponent {
       if (mjcf.HasAttribute("thickness"))
         Thickness = mjcf.GetFloatAttribute("thickness");
     }
+
   }
 
   [Serializable]
   public class MjFlexContact {
+
     [SerializeField]
     public bool Internal = true;
 
@@ -221,7 +226,7 @@ public class MjFlexDeformable : MjComponent {
 
     public void ToMjcf(XmlElement mjcf) {
       mjcf.SetAttribute("internal",
-          MjEngineTool.MakeLocaleInvariant($"{(Internal ? "true" : "false")}"));
+        MjEngineTool.MakeLocaleInvariant($"{(Internal ? "true" : "false")}"));
       mjcf.SetAttribute("selfcollide", Selfcollide);
       mjcf.SetAttribute("activelayers", MjEngineTool.MakeLocaleInvariant($"{Activelayers}"));
     }
@@ -234,8 +239,7 @@ public class MjFlexDeformable : MjComponent {
       if (mjcf.HasAttribute("activelayers"))
         Activelayers = mjcf.GetIntAttribute("activelayers");
     }
+
   }
-
-
 }
 }

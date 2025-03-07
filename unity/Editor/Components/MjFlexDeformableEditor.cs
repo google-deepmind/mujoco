@@ -11,7 +11,7 @@ namespace Mujoco {
       // without manually creating the dropdown, HideInInspector in the main class doesn't work,
       // would end up needing to manually create the dropdown views. That would let us simply call
       // the default inspector for the other fields, but instead let's just add the boilerplate
-      // them.
+      // for them.
       
       EditorGUILayout.PropertyField(serializedObject.FindProperty("FlexName"), true);
       EditorGUILayout.PropertyField(serializedObject.FindProperty("Dim"), true);

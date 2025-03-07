@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 
 namespace Mujoco {
+
 public class MjCustom : MonoBehaviour {
 
   [SerializeField]
@@ -18,13 +19,12 @@ public class MjCustom : MonoBehaviour {
   private List<MjTuple> tuples;
 
   public static MjCustom Instance {
-    get
-    {
+    get {
       if (_instance == null) {
         var instances = FindObjectsOfType<MjCustom>();
         if (instances.Length > 1) {
           throw new InvalidOperationException(
-              "Only one MjCustom instance is allowed - please resolve manually.");
+            "Only one MjCustom instance is allowed - please resolve manually.");
         } else if (instances.Length == 1) {
           _instance = instances[0];
         }
@@ -43,38 +43,38 @@ public class MjCustom : MonoBehaviour {
       _instance = this;
     } else if (_instance != this) {
       throw new InvalidOperationException(
-          "At most one MjCustom should be present.");
+        "At most one MjCustom should be present.");
     }
   }
 
 
   public void ParseCustom(XmlElement child) {
-      switch (child.Name) {
-        case "numeric":
-          numerics ??= new List<MjNumeric>();
-          var numeric = new MjNumeric();
-          numeric.Parse(child);
-          numerics.Add(numeric);
-          break;
+    switch (child.Name) {
+      case "numeric":
+        numerics ??= new List<MjNumeric>();
+        var numeric = new MjNumeric();
+        numeric.Parse(child);
+        numerics.Add(numeric);
+        break;
 
-        case "text":
-          texts ??= new List<MjText>();
-          var text = new MjText();
-          text.Parse(child);
-          texts.Add(text);
-          break;
+      case "text":
+        texts ??= new List<MjText>();
+        var text = new MjText();
+        text.Parse(child);
+        texts.Add(text);
+        break;
 
-        case "tuple":
-          tuples ??= new List<MjTuple>();
-          var tuple = new MjTuple();
-          tuple.Parse(child);
-          tuples.Add(tuple);
-          break;
+      case "tuple":
+        tuples ??= new List<MjTuple>();
+        var tuple = new MjTuple();
+        tuple.Parse(child);
+        tuples.Add(tuple);
+        break;
 
-        default:
-          Debug.LogWarning($"Unknown custom element: {child.Name}");
-          break;
-      }
+      default:
+        Debug.LogWarning($"Unknown custom element: {child.Name}");
+        break;
+    }
   }
 
   public void GenerateCustomMjcf(XmlDocument doc) {
@@ -117,8 +117,6 @@ public class MjCustom : MonoBehaviour {
     }
 
     protected abstract XmlElement ToMjcfInner(XmlDocument doc);
-
-
   }
 
   [Serializable]
@@ -138,6 +136,7 @@ public class MjCustom : MonoBehaviour {
 
       return mjcf;
     }
+
   }
 
 
@@ -154,7 +153,7 @@ public class MjCustom : MonoBehaviour {
       if (int.TryParse(mjcf.GetStringAttribute("size", "-1"), out var size)) {
         this.size = size;
       }
-      var data = mjcf.GetFloatArrayAttribute("data", new float[] { });
+      var data = mjcf.GetFloatArrayAttribute("data", new float[] {});
 
       if (this.size > -1 && data.Length != this.size) {
         Array.Resize(ref data, this.size);
@@ -173,6 +172,7 @@ public class MjCustom : MonoBehaviour {
 
       return mjcf;
     }
+
   }
 
   [Serializable]
@@ -234,6 +234,7 @@ public class MjCustom : MonoBehaviour {
       }
 
     }
+
   }
 }
 }
