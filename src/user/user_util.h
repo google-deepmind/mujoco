@@ -107,8 +107,9 @@ void mjuu_localquat(double* local, const double* child, const double* parent);
 // compute vector cross-product a = b x c
 void mjuu_crossvec(double* a, const double* b, const double* c);
 
-// compute normal vector to given triangle (uses float for OpenGL)
-double mjuu_makenormal(double* normal, const float* a, const float* b, const float* c);
+// compute normal vector to given triangle
+template<typename T> double mjuu_makenormal(double* normal, const T a[3],
+                                            const T b[3], const T c[3]);
 
 // compute quaternion corresponding to minimal rotation from [0;0;1] to vec
 void mjuu_z2quat(double* quat, const double* vec);

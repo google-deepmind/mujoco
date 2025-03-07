@@ -3397,10 +3397,11 @@ saving the XML:
    compatible with :at:`dim=1`.
 
    **mesh** loads the flexcomp points and elements (i.e. triangles) from a mesh file, in the same file formats as mesh
-   assets. A mesh asset is not actually added to the model. Instead the vertex and face data from the mesh file are used
-   to populate the point and element data of the flexcomp. :at:`dim` is automatically set to 2. Recall that a mesh asset
-   in MuJoCo can be used as a rigid geom attached to a single body. In contrast, the flex generated here corresponds to
-   a soft mesh with the same initial shape, where each vertex is a separate moving body (unless pinned).
+   assets, excluding the legacy .msh format. A mesh asset is not actually added to the model. Instead the vertex and
+   face data from the mesh file are used to populate the point and element data of the flexcomp. :at:`dim` is
+   automatically set to 2. Recall that a mesh asset in MuJoCo can be used as a rigid geom attached to a single body. In
+   contrast, the flex generated here corresponds to a soft mesh with the same initial shape, where each vertex is a
+   separate moving body (unless pinned).
 
    .. _gmsh-file-docs:
 
@@ -3471,9 +3472,9 @@ saving the XML:
 
 :at:`file`: :at-val:`string, optional`
    The name of the file from which a **surface** (triangular) or **volumetric** (tetrahedral) mesh is loaded. For
-   surface meshes, the file extension is used to determine the file format. Supported formats are the same as in
-   :ref:`mesh assets<asset-mesh>` and also including GMSH. Volumetric meshes are supported only in GMSH format.
-   See :ref:`here<gmsh-file-docs>` for more information on GMSH files.
+   surface meshes, the file extension is used to determine the file format. Supported formats are GMSH and the formats
+   specified in :ref:`mesh assets<asset-mesh>`, excluding the legacy .msh format. Volumetric meshes are supported only
+   in GMSH format. See :ref:`here<gmsh-file-docs>` for more information on GMSH files.
 
 .. _body-flexcomp-rigid:
 

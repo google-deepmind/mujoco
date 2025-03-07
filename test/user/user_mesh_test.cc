@@ -85,6 +85,7 @@ TEST_F(MjCMeshTest, UnknownMeshFormat) {
       </worldbody>
     </mujoco>
   )";
+
   std::vector<std::string> invalid_names = {
     "noextension",
     "anobj",
@@ -92,16 +93,22 @@ TEST_F(MjCMeshTest, UnknownMeshFormat) {
     "mesh.exe",
     "file%s"
   };
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
   for (const auto& name : invalid_names) {
+    mj_addBufferVFS(&vfs, name.c_str(), nullptr, 0);
     std::string xml = absl::StrFormat(xml_format, name);
     std::array<char, 1024> error;
     mjModel* model =
-        LoadModelFromString(xml.c_str(), error.data(), error.size());
+        LoadModelFromString(xml.c_str(), error.data(), error.size(), &vfs);
     ASSERT_THAT(model, testing::IsNull())
         << "Should fail to load a mesh named: " << name;
-    EXPECT_THAT(error.data(), HasSubstr("unknown mesh content type for file"));
+    EXPECT_THAT(error.data(), HasSubstr("unknown or unsupported mesh file: "));
     EXPECT_THAT(error.data(), HasSubstr(name));
   }
+
+  mj_deleteVFS(&vfs);
 }
 
 // -------------------- test OS filesystem fallback ----------------------------
@@ -280,14 +287,42 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
   size_t error_sz = 1024;
 
   // load VFS on the heap
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "some_file", nullptr, 0);
 
   // should error with unknown file type
-  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  mjModel* model = LoadModelFromString(xml, error, error_sz, &vfs);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("unsupported content type: 'model/unknown'"));
-  mj_deleteVFS(vfs.get());
+  EXPECT_THAT(error, HasSubstr("unsupported mesh type: 'model/unknown'"));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(MjCMeshTest, LoadMSHWithInvalidContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "some_file", nullptr, 0);
+
+  // should error with unknown file type
+  mjModel* model = LoadModelFromString(xml, error, error_sz, &vfs);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("invalid content type: 'model'"));
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
@@ -323,6 +358,7 @@ TEST_F(MjCMeshTest, DeduplicateSTLVertices) {
   char error[1024];
   size_t error_sz = 1024;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error, error_sz);
+  ASSERT_THAT(model, NotNull()) << error;
   ASSERT_EQ(model->nmeshvert, 4);
   mj_deleteModel(model);
 }
@@ -519,9 +555,9 @@ TEST_F(MjCMeshTest, MissingFaceAllowedConvexInertia) {
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   EXPECT_THAT(model->nmeshface, 10);
-  EXPECT_THAT(model->body_inertia[3], model->body_inertia[9]);
-  EXPECT_THAT(model->body_inertia[4], model->body_inertia[10]);
-  EXPECT_THAT(model->body_inertia[5], model->body_inertia[11]);
+  EXPECT_NE(model->body_inertia[3], model->body_inertia[9]);
+  EXPECT_NE(model->body_inertia[4], model->body_inertia[10]);
+  EXPECT_NE(model->body_inertia[5], model->body_inertia[11]);
   EXPECT_NE(model->body_inertia[3], model->body_inertia[6]);
   EXPECT_NE(model->body_inertia[4], model->body_inertia[7]);
   EXPECT_NE(model->body_inertia[5], model->body_inertia[8]);

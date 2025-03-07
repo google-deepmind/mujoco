@@ -991,7 +991,7 @@ TEST_F(MjGjkTest, SmallBoxMesh) {
   EXPECT_NEAR(dir[2], 1, kTolerance);
 
   // position
-  EXPECT_NEAR(mju_abs(pos[0]), 0.08333333, kTolerance);  // -pos[0] on ARM
+  EXPECT_NEAR(pos[0], 0, kTolerance);
   EXPECT_NEAR(pos[1], 0, kTolerance);
   EXPECT_NEAR(pos[2], 0, kTolerance);
 

@@ -734,7 +734,7 @@ std::string mjCBase::GetAssetContentType(std::string_view resource_name,
     auto type = mjuu_parseContentTypeAttrType(raw_text);
     auto subtype = mjuu_parseContentTypeAttrSubtype(raw_text);
     if (!type.has_value() || !subtype.has_value()) {
-      throw mjCError(this, "invalid format for content_type");
+      return "";
     }
     return std::string(*type) + "/" + std::string(*subtype);
   } else {
