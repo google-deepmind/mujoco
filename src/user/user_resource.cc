@@ -35,7 +35,6 @@
 #endif
 
 #include <mujoco/mjplugin.h>
-#include <mujoco/mujoco.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_util.h"

@@ -35,10 +35,6 @@
 #include <vector>
 
 #include "lodepng.h"
-#include <mujoco/mjmodel.h>
-#include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
-#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_passive.h"
 #include <mujoco/mjspec.h>

@@ -28,13 +28,14 @@
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_io.h"
+#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "user/user_api.h"
 #include "user/user_util.h"
 
 namespace {

@@ -530,9 +530,9 @@ void mjuu_offcenter(double* res, const double mass, const double* vec) {
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl) {
   // compute equivalent box
   double ebox[3];
-  ebox[0] = sqrt(mjMAX(mjEPS, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
-  ebox[1] = sqrt(mjMAX(mjEPS, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
-  ebox[2] = sqrt(mjMAX(mjEPS, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
+  ebox[0] = sqrt(std::max(mjEPS, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
+  ebox[1] = sqrt(std::max(mjEPS, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
+  ebox[2] = sqrt(std::max(mjEPS, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
 
   // apply formula for box (or rather cross) viscosity
 

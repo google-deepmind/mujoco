@@ -25,9 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include <mujoco/mjtnum.h>
-#include <mujoco/mjmodel.h>
-#include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
 #include "user/user_cache.h"
 #include "user/user_util.h"
