@@ -220,9 +220,6 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
     }
     WriteAttrTxt(elem, "content_type", mesh->ContentType());
     WriteAttrTxt(elem, "file", mesh->File());
-    if (mesh->Inertia() != def->Mesh().Inertia()) {
-      WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 4, mesh->Inertia()));
-    }
 
     // write vertex data
     if (!mesh->UserVert().empty()) {
@@ -250,6 +247,9 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
   }
 
   // defaults and regular
+  if (mesh->Inertia() != def->Mesh().Inertia()) {
+    WriteAttrTxt(elem, "inertia", FindValue(meshinertia_map, 4, mesh->Inertia()));
+  }
   WriteAttr(elem, "refpos", 3, mesh->Refpos(), def->Mesh().Refpos());
   WriteAttr(elem, "refquat", 4, mesh->Refquat(), def->Mesh().Refquat());
   WriteAttr(elem, "scale", 3, mesh->Scale(), def->Mesh().Scale());

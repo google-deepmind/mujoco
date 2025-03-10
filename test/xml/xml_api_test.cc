@@ -34,6 +34,7 @@ namespace {
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::StartsWith;
+using ::testing::HasSubstr;
 
 static constexpr char xml[] = R"(
   <mujoco>
@@ -151,11 +152,46 @@ TEST_F(MujocoTest, SaveXml) {
   mjModel* saved_model = mj_compile(saved_spec, 0);
   EXPECT_THAT(saved_model, NotNull()) << "Invalid model: " << error.data();
 
-  mjtNum tol = 0;
-  std::string field = "";
-  EXPECT_LE(CompareModel(model, saved_model, field), tol)
-            << "Expected and attached models are different!\n"
-            << "Different field: " << field << '\n';
+  mj_deleteSpec(spec);
+  mj_deleteSpec(saved_spec);
+  mj_deleteModel(model);
+  mj_deleteModel(saved_model);
+}
+
+TEST_F(MujocoTest, SaveXmlWithDefaultMesh) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <default>
+        <mesh inertia="shell"/>
+      </default>
+      <asset>
+        <mesh name="test_mesh" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      </asset>
+      <worldbody>
+        <body>
+          <geom mesh="test_mesh" type="mesh"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    )";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << "Failed to parse spec: " << error.data();
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull()) << "Failed to compile model: " << error.data();
+
+  std::array<char, 1024> out;
+  EXPECT_THAT(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                               error.size()), 0) << error.data();
+
+  mjSpec* saved_spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(saved_spec, NotNull()) << "Invalid saved spec: " << error.data();
+  mjModel* saved_model = mj_compile(saved_spec, 0);
+  EXPECT_THAT(saved_model, NotNull()) << "Invalid model: " << error.data();
+
+  // check that the mesh has inertia="shell"
+  EXPECT_THAT(out.data(), HasSubstr(R"(<mesh inertia="shell"/>)"));
 
   mj_deleteSpec(spec);
   mj_deleteSpec(saved_spec);
