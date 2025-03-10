@@ -74,6 +74,8 @@ using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
+static constexpr mjtNum kMaxAbsErr = std::numeric_limits<float>::epsilon();
+
 // ------------- test invalid filenames ----------------------------------------
 
 TEST_F(MjCMeshTest, UnknownMeshFormat) {
@@ -556,13 +558,10 @@ TEST_F(MjCMeshTest, MissingFaceAllowedConvexInertia) {
   char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
-  EXPECT_THAT(model->nmeshface, 10);
-  EXPECT_NE(model->body_inertia[3], model->body_inertia[9]);
-  EXPECT_NE(model->body_inertia[4], model->body_inertia[10]);
-  EXPECT_NE(model->body_inertia[5], model->body_inertia[11]);
-  EXPECT_NE(model->body_inertia[3], model->body_inertia[6]);
-  EXPECT_NE(model->body_inertia[4], model->body_inertia[7]);
-  EXPECT_NE(model->body_inertia[5], model->body_inertia[8]);
+  EXPECT_THAT(model->nmeshface, 7);
+  EXPECT_NEAR(model->body_inertia[3], model->body_inertia[6], kMaxAbsErr);
+  EXPECT_NEAR(model->body_inertia[4], model->body_inertia[7], kMaxAbsErr);
+  EXPECT_NEAR(model->body_inertia[5], model->body_inertia[8], kMaxAbsErr);
   mj_deleteModel(model);
 }
 
@@ -860,9 +859,30 @@ TEST_F(MjCMeshTest, VolumeNegativeThrowsError) {
   }
 }
 
-// ------------- test concave and shell inertia --------------------------------
+TEST_F(MjCMeshTest, MeshIgnoresDefaultDensity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <geom density="0" />
+    </default>
+    <asset>
+      <mesh name="a" vertex="0 0 0 1 0 0 0 1 0 0 0 1" scale="10 10 10" />
+    </asset>
+    <worldbody/>
+  </mujoco>)";
+  char error[1024];
+  mjSpec* spec = mj_parseXMLString(xml, 0, error, sizeof(error));
+  EXPECT_THAT(spec, NotNull()) << error;
+  mjModel* m1 = mj_compile(spec, nullptr);
+  EXPECT_THAT(m1, NotNull());
+  mj_deleteModel(m1);
+  mjModel* m2 = mj_compile(spec, nullptr);
+  EXPECT_THAT(m2, NotNull());
+  mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
 
-const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
+// ------------- test concave and shell inertia --------------------------------
 
 TEST_F(MjCMeshTest, ExactConcaveInertia) {
   const std::string xml_path = GetTestDataFilePath(kConcaveInertiaPath);
@@ -870,8 +890,9 @@ TEST_F(MjCMeshTest, ExactConcaveInertia) {
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   // analytic computation of 1x1x1 cube with a .8x.8x.9 hole
   // see https://en.wikipedia.org/wiki/List_of_moments_of_inertia
-  mjtNum m_hole = .9 * .8 * .8;
-  mjtNum m_cube = 1.;
+  mjtNum density = 2.;
+  mjtNum m_hole = .9 * .8 * .8 * density;
+  mjtNum m_cube = 1. * density;
   mjtNum m_concave_cube = m_cube - m_hole;
   mjtNum I_cube = m_cube/6.;
   // due to the asymmetric hole, the com position has changed
@@ -881,14 +902,14 @@ TEST_F(MjCMeshTest, ExactConcaveInertia) {
   mjtNum I1 = I_cube - m_hole*(.8*.8 + .8*.8)/12;
   mjtNum I2 = I_cube - m_hole*(.8*.8 + .9*.9)/12
             + m_cube*d_cube*d_cube - m_hole*d_hole*d_hole;
-  EXPECT_LE(mju_abs(model->body_mass[1] - m_concave_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_mass[2] - m_concave_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_mass[3] - m_concave_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_mass[4] - m_concave_cube), max_abs_err);
+  EXPECT_NEAR(model->body_mass[1], m_concave_cube, kMaxAbsErr);
+  EXPECT_NEAR(model->body_mass[2], m_concave_cube, kMaxAbsErr);
+  EXPECT_NEAR(model->body_mass[3], m_concave_cube, kMaxAbsErr);
+  EXPECT_NEAR(model->body_mass[4], m_concave_cube, kMaxAbsErr);
   for (int i = 3; i < 15; i += 3) {
-    EXPECT_LE(mju_abs(model->body_inertia[i] - I1), max_abs_err);
-    EXPECT_LE(mju_abs(model->body_inertia[i+1] - I2), max_abs_err);
-    EXPECT_LE(mju_abs(model->body_inertia[i+2] - I2), max_abs_err);
+    EXPECT_NEAR(model->body_inertia[i], I1, kMaxAbsErr);
+    EXPECT_NEAR(model->body_inertia[i+1], I2, kMaxAbsErr);
+    EXPECT_NEAR(model->body_inertia[i+2], I2, kMaxAbsErr);
   }
   mj_deleteModel(model);
 }
@@ -900,10 +921,10 @@ TEST_F(MjCMeshTest, ExactConvexInertia) {
   // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
   mjtNum m_solid_cube = 1.;
   mjtNum I_solid_cube = 1./6. * m_solid_cube;
-  EXPECT_LE(mju_abs(model->body_mass[1] - m_solid_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_mass[2] - m_solid_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[1] - m_solid_cube), kMaxAbsErr);
+  EXPECT_LE(mju_abs(model->body_mass[2] - m_solid_cube), kMaxAbsErr);
   for (int i = 3; i < 9; i++) {
-    EXPECT_LE(mju_abs(model->body_inertia[i] - I_solid_cube), max_abs_err);
+    EXPECT_LE(mju_abs(model->body_inertia[i] - I_solid_cube), kMaxAbsErr);
   }
   mj_deleteModel(model);
 }
@@ -915,10 +936,10 @@ TEST_F(MjCMeshTest, ExactShellInertia) {
   // see https://en.wikipedia.org/wiki/List_of_moments_of_inertia
   mjtNum m_hollow_cube = 6.;
   mjtNum I_hollow_cube = 5./18. * m_hollow_cube;
-  EXPECT_LE(mju_abs(model->body_mass[1] - m_hollow_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_inertia[3] - I_hollow_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_inertia[4] - I_hollow_cube), max_abs_err);
-  EXPECT_LE(mju_abs(model->body_inertia[5] - I_hollow_cube), max_abs_err);
+  EXPECT_LE(mju_abs(model->body_mass[1] - m_hollow_cube), kMaxAbsErr);
+  EXPECT_LE(mju_abs(model->body_inertia[3] - I_hollow_cube), kMaxAbsErr);
+  EXPECT_LE(mju_abs(model->body_inertia[4] - I_hollow_cube), kMaxAbsErr);
+  EXPECT_LE(mju_abs(model->body_inertia[5] - I_hollow_cube), kMaxAbsErr);
   mj_deleteModel(model);
 }
 

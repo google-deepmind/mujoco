@@ -1517,8 +1517,6 @@ void mjCMesh::Process() {
   // find centroid of faces
   ComputeFaceCentroid(facecen);
 
-  double density = model->def_map[classname]->Geom().density;
-
   // compute inertia and transform mesh. The mesh is transformed such that it is
   // centered at the CoM and the axes are the principle axes of inertia
   double CoM[3] = {0, 0, 0};
@@ -1565,20 +1563,22 @@ void mjCMesh::Process() {
   }
 
   // compute sizes of equivalent inertia box
-  double mass = GetVolumeRef() * density;
+  double volume = GetVolumeRef();
   double* boxsz = GetInertiaBoxPtr();
-  boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/mass)/2;
-  boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;
-  boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
+  boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/volume)/2;
+  boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/volume)/2;
+  boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/volume)/2;
 
   // transform CoM to origin
   Transform(CoM, quattmp);
 }
 
+
+
+// compute abstract (unitless) inertia
 void mjCMesh::ComputeInertia(double inert[6], double CoM[3]) {
   double nrm[3];
   double cen[3];
-  double density = model->def_map[classname]->Geom().density;
 
   // copy vertices to avoid modifying the original mesh
   std::vector<double> vert_centered(vert_);
@@ -1613,11 +1613,11 @@ void mjCMesh::ComputeInertia(double inert[6], double CoM[3]) {
     // apply formula, accumulate
     GetVolumeRef() += vol;
     for (int j=0; j<6; j++) {
-      P[j] += density*vol /
+      P[j] += vol /
                 (inertia == mjMESH_INERTIA_SHELL ? 12 : 20) * (
                 2*(D[k[j][0]] * D[k[j][1]] +
-                  E[k[j][0]] * E[k[j][1]] +
-                  F[k[j][0]] * F[k[j][1]]) +
+                   E[k[j][0]] * E[k[j][1]] +
+                   F[k[j][0]] * F[k[j][1]]) +
                 D[k[j][0]] * E[k[j][1]]  +  D[k[j][1]] * E[k[j][0]] +
                 D[k[j][0]] * F[k[j][1]]  +  D[k[j][1]] * F[k[j][0]] +
                 E[k[j][0]] * F[k[j][1]]  +  E[k[j][1]] * F[k[j][0]]);
