@@ -2526,16 +2526,15 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   // load file
   if (!file_.empty()) {
     // make sure data is not present
-    if (!vert_.empty() ||
-        !texcoord_.empty() ||
-        !face_.empty() ||
-        !bodyname_.empty() ||
-        !bindpos_.empty() ||
-        !bindquat_.empty() ||
-        !vertid_.empty() ||
-        !vertweight_.empty() ||
-        !bodyid.empty()) {
-      throw mjCError(this, "Data already exists, trying to load from skin file: %s", file_.c_str());
+    if (!spec_vert_.empty() ||
+        !spec_texcoord_.empty() ||
+        !spec_face_.empty() ||
+        !spec_bodyname_.empty() ||
+        !spec_bindpos_.empty() ||
+        !spec_bindquat_.empty() ||
+        !spec_vertid_.empty() ||
+        !spec_vertweight_.empty()) {
+      throw mjCError(this, "Both skin data and file were specified: %s", file_.c_str());
     }
 
     // remove path from file if necessary

@@ -66,6 +66,8 @@ static const char* const kDuplicateOBJPath =
     "user/testdata/duplicate.xml";
 static const char* const kMalformedFaceOBJPath =
     "user/testdata/malformed_face.xml";
+static const char* const kCubeSkinPath =
+    "user/testdata/cube_skin.xml";
 
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -1184,6 +1186,19 @@ TEST_F(MjCMeshTest, InvalidIndexInFace) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, LoadSkin) {
+  const std::string xml_path = GetTestDataFilePath(kCubeSkinPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+  mjModel* m1 = mj_compile(spec, 0);
+  EXPECT_THAT(m1, NotNull());
+  mj_deleteModel(m1);
+  mjModel* m2 = mj_compile(spec, 0);
+  EXPECT_THAT(m2, NotNull());
+  mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
 
 
 }  // namespace
