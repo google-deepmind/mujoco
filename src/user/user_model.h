@@ -317,6 +317,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // set deepcopy flag
   void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
 
+  // set attached flag
+  void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
@@ -428,5 +431,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
   bool deepcopy_;     // copy objects when attaching
+  bool attached_ = false;  // true if model is attached to a parent model
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

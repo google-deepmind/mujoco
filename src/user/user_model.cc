@@ -3972,6 +3972,9 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   warningtext[0] = 0;
 
   try {
+    if (attached_) {
+      throw mjCError(0, "cannot compile child spec if attached by reference to a parent spec");
+    }
     if (setjmp(error_jmp_buf) != 0) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
       std::string error_msg = errortext;

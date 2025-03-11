@@ -147,8 +147,10 @@ or :ref:`attach a frame to a body<mjs_attachFrame>`:
 
 Note that in the above examples, the parent and child models have different values for ``compiler.degree``,
 corresponding to the :ref:`compiler/angle<compiler-angle>` attribute, specifying the units in which angles are
-interperted. Compiler options are carried over during attachment, so the child model will be compiled using X, while the
-parent will be compiled using Y.
+interperted. Compiler flags are carried over during attachment, so the child model will be compiled using the child
+flags, while the parent will be compiled using the parent flags.
+
+Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own.
 
 .. _meDefault:
 

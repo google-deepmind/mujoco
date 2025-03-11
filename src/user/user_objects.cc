@@ -941,6 +941,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   }
 
   // attach referencing elements
+  other_model->SetAttached(model->deepcopy_);
   *model += *other_model;
 
   // leave the source model in a clean state
@@ -1947,6 +1948,7 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   last_attached = &body->bodies.back()->spec;
 
   // attach referencing elements
+  other_model->SetAttached(model->deepcopy_);
   *model += *other_model;
 
   // leave the source model in a clean state

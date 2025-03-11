@@ -2544,5 +2544,30 @@ TEST_F(MujocoTest, ApplyNameSpaceToDefaults) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(MujocoTest, ErrorWhenCompilingOrphanedSpec) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> er;
+  mjSpec* child = mj_parseXMLString(xml, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+  mjSpec* parent = mj_makeSpec();
+  EXPECT_THAT(parent, NotNull());
+  mjsBody* body = mjs_findBody(child, "a");
+  EXPECT_THAT(body, NotNull());
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  EXPECT_THAT(frame, NotNull());
+  mjs_attachBody(frame, body, "child-", "");
+  mj_deleteSpec(parent);
+  mjModel* model = mj_compile(child, 0);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(mjs_getError(child), HasSubstr("by reference to a parent"));
+  mj_deleteSpec(child);
+}
+
 }  // namespace
 }  // namespace mujoco
