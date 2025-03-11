@@ -288,6 +288,7 @@ static constexpr char kQuat[] = R"(
     <body name="query">
       <joint type="ball"/>
       <geom size="1"/>
+      <site name="query" pos=".1 .2 .3"/>
     </body>
   </worldbody>
   <keyframe>
@@ -315,6 +316,7 @@ static constexpr char kFreeBall[] = R"(
           <body name="query" pos="0 .2 0">
             <joint type="slide" axis="1 1 1"/>
             <geom size=".05"/>
+            <site name="query" pos=".1 .2 .3"/>
           </body>
         </body>
       </body>
@@ -350,6 +352,7 @@ static constexpr char kQuatlessPendulum[] = R"(
           <body name="query" pos="0 .1 0">
             <joint axis="1 0 0"/>
             <geom type="capsule" size="0.02" fromto="0 0 0 0 .1 0"/>
+            <site name="query" pos=".1 0 0"/>
           </body>
         </body>
       </body>
@@ -373,6 +376,7 @@ static constexpr char kTelescope[] = R"(
           <body pos=".1 .02 0" name="query">
             <joint type="slide" axis="1 0 0"/>
             <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+            <site name="query" pos=".1 0 0"/>
           </body>
         </body>
       </body>
@@ -384,12 +388,27 @@ static constexpr char kTelescope[] = R"(
 </mujoco>
 )";
 
+static constexpr char kHinge[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="query">
+      <joint name="link1" axis="0 1 0"/>
+      <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+      <site name="query" pos="0 0 -1"/>
+    </body>
+  </worldbody>
+
+  <keyframe>
+    <key qpos="1" qvel="1"/>
+  </keyframe>
+</mujoco>
+)";
+
 // compare mj_jacDot with finite-differenced mj_jac
 TEST_F(JacobianTest, JacDot) {
-  for (auto xml : {kQuat, kFreeBall, kQuatlessPendulum, kTelescope}) {
+  for (auto xml : {kHinge, kQuat, kTelescope, kFreeBall, kQuatlessPendulum}) {
     mjModel* model = LoadModelFromString(xml);
     int nv = model->nv;
-    mjtNum point[3] = {.01, .02, .03};
     mjData* data = mj_makeData(model);
 
     // load keyframe if present, step for a bit
@@ -407,34 +426,43 @@ TEST_F(JacobianTest, JacDot) {
     int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
     EXPECT_GT(bodyid, 0);
 
+    // get site position
+    int siteid = mj_name2id(model, mjOBJ_SITE, "query");
+    EXPECT_GT(siteid, -1);
+    mjtNum point[3];
+    mju_copy3(point, data->site_xpos+3*siteid);
+
     // jac, jac_dot
-    mj_markStack(data);
-    mjtNum* jac = mj_stackAllocNum(data, 6*nv);
-    mj_jac(model, data, jac, jac+3*nv, point, bodyid);
-    mjtNum* jac_dot =  mj_stackAllocNum(data, 6*nv);
-    mj_jacDot(model, data, jac_dot, jac_dot+3*nv, point, bodyid);
+    vector<mjtNum> jacp(3*nv);
+    vector<mjtNum> jacr(3*nv);
+    mj_jac(model, data, jacp.data(), jacr.data(), point, bodyid);
+    vector<mjtNum> jacp_dot(3*nv);
+    vector<mjtNum> jacr_dot(3*nv);
+    mj_jacDot(model, data, jacp_dot.data(), jacr_dot.data(), point, bodyid);
 
     // jac_h: jacobian after integrating qpos with a timestep of h
     mjtNum h = 1e-7;
     mj_integratePos(model, data->qpos, data->qvel, h);
     mj_kinematics(model, data);
     mj_comPos(model, data);
-    mjtNum* jac_h =  mj_stackAllocNum(data, 6*nv);;
-    mj_jac(model, data, jac_h, jac_h+3*nv, point, bodyid);
+    vector<mjtNum> jacp_h(3*nv);
+    vector<mjtNum> jacr_h(3*nv);
+    mju_copy3(point, data->site_xpos+3*siteid);  // get updated site position
+    mj_jac(model, data, jacp_h.data(), jacr_h.data(), point, bodyid);
 
     // jac_dot_h finite-difference approximation
-    mjtNum* jac_dot_h = mj_stackAllocNum(data, 6*nv);;
-    mju_sub(jac_dot_h, jac_h, jac, 6*nv);
-    mju_scl(jac_dot_h, jac_dot_h, 1/h, 6*nv);
+    vector<mjtNum> jacp_dot_h(3*nv);
+    mju_sub(jacp_dot_h.data(), jacp_h.data(), jacp.data(), 3*nv);
+    mju_scl(jacp_dot_h.data(), jacp_dot_h.data(), 1/h, 3*nv);
+    vector<mjtNum> jacr_dot_h(3*nv);
+    mju_sub(jacr_dot_h.data(), jacr_h.data(), jacr.data(), 3*nv);
+    mju_scl(jacr_dot_h.data(), jacr_dot_h.data(), 1/h, 3*nv);
 
     // compare finite-differenced and analytic
     mjtNum tol = 1e-5;
-    for (int j=0; j < 6; j++) {
-      EXPECT_THAT(AsVector(jac_dot_h + j*nv, nv),
-                  Pointwise(DoubleNear(tol), AsVector(jac_dot + j*nv, nv)));
-    }
+    EXPECT_THAT(jacp_dot, Pointwise(DoubleNear(tol), jacp_dot_h));
+    EXPECT_THAT(jacr_dot, Pointwise(DoubleNear(tol), jacr_dot_h));
 
-    mj_freeStack(data);
     mj_deleteData(data);
     mj_deleteModel(model);
   }
@@ -654,11 +682,11 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   int size = mj_stateSize(model, spec);
 
   // save the initial state and step
-  std::vector<mjtNum> state0a(size);
+  vector<mjtNum> state0a(size);
   mj_getState(model, data, state0a.data(), spec);
 
   // get the initial state, expect equality
-  std::vector<mjtNum> state0b(size);
+  vector<mjtNum> state0b(size);
   mj_getState(model, data, state0b.data(), spec);
   EXPECT_EQ(state0a, state0b);
 
@@ -666,7 +694,7 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   mj_step(model, data);
 
   // save the resulting state
-  std::vector<mjtNum> state1a(size);
+  vector<mjtNum> state1a(size);
   mj_getState(model, data, state1a.data(), spec);
 
   // expect the state to be different after stepping
@@ -675,7 +703,7 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   // reset to the saved state, step again, get the resulting state
   mj_setState(model, data, state0a.data(), spec);
   mj_step(model, data);
-  std::vector<mjtNum> state1b(size);
+  vector<mjtNum> state1b(size);
   mj_getState(model, data, state1b.data(), spec);
 
   // expect the state to be the same after re-stepping
@@ -701,13 +729,13 @@ TEST_F(InertiaTest, DenseSameAsSparse) {
   }
 
   // dense zero matrix
-  std::vector<mjtNum> dst_sparse(nv * nv, 0.0);
+  vector<mjtNum> dst_sparse(nv * nv, 0.0);
 
   // sparse zero matrix
-  std::vector<mjtNum> dst_dense(nv * nv, 0.0);
-  std::vector<int> rownnz(nv, nv);
-  std::vector<int> rowadr(nv, 0);
-  std::vector<int> colind(nv * nv, 0);
+  vector<mjtNum> dst_dense(nv * nv, 0.0);
+  vector<int> rownnz(nv, nv);
+  vector<int> rowadr(nv, 0);
+  vector<int> colind(nv * nv, 0);
 
   // set sparse structure
   for (int i = 0; i < nv; i++) {
@@ -902,29 +930,29 @@ TEST_F(SupportTest, GeomDistance) {
   EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, nullptr), 0.5);
   mjtNum fromto[6];
   EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, fromto), 0.5);
-  EXPECT_THAT(fromto, Pointwise(Eq(), std::vector<mjtNum>{0, 0, 0, 0, 0, 0}));
+  EXPECT_THAT(fromto, Pointwise(Eq(), vector<mjtNum>{0, 0, 0, 0, 0, 0}));
 
   // plane-sphere
   distmax = 1.0;
   EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 0, 1, 1.0, fromto), 0.8);
   mjtNum eps = 1e-12;
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
+                                vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
 
   // sphere-plane
   EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 0, 1.0, fromto), 0.8);
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
+                                vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
 
   // sphere-sphere
   EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 2, 1.0, fromto), 0.5);
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+                                vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
 
   // sphere-sphere, flipped order
   EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 2, 1, 1.0, fromto), 0.5);
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
+                                vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
 
   // mesh-sphere (close distmax)
   distmax = 0.701;
@@ -932,14 +960,14 @@ TEST_F(SupportTest, GeomDistance) {
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
               DoubleNear(0.7, eps));
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{0, 0, .8, 0, 0, .1}));
+                                vector<mjtNum>{0, 0, .8, 0, 0, .1}));
 
   // mesh-sphere (far distmax)
   distmax = 1.0;
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
               DoubleNear(0.7, eps));
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                std::vector<mjtNum>{0, 0, .8, 0, 0, .1}));
+                                vector<mjtNum>{0, 0, .8, 0, 0, .1}));
 
   mj_deleteData(data);
   mj_deleteModel(model);

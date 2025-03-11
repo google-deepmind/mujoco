@@ -1893,7 +1893,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 
     // assign cvel, cdofdot
     mju_copy(d->cvel+6*i, cvel, 6);
-    mju_copy(d->cdof_dot+6*bda, cdofdot, 6*m->body_dofnum[i]);
+    mju_copy(d->cdof_dot+6*bda, cdofdot, 6*dofnum);
   }
 }
 

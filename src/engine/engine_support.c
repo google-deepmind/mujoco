@@ -811,11 +811,14 @@ void mj_jacDot(const mjModel* m, const mjData* d,
                mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
   int nv = m->nv;
   mjtNum offset[3];
+  mjtNum pvel[6];  // point velocity (rot:lin order)
 
-  // clear jacobians, compute offset if required
+  // clear jacobians, compute offset and pvel if required
   if (jacp) {
     mju_zero(jacp, 3*nv);
-    mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
+    const mjtNum* com = d->subtree_com+3*m->body_rootid[body];
+    mju_sub3(offset, point, com);
+    mju_transformSpatial(pvel, d->cvel+6*body, 0, point, com, 0);
   }
   if (jacr) {
     mju_zero(jacr, 3*nv);
@@ -838,6 +841,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
   while (i >= 0) {
     mjtNum cdof_dot[6];
     mju_copy(cdof_dot, d->cdof_dot+6*i, 6);
+    mjtNum* cdof = d->cdof+6*i;
 
     // check for quaternion
     mjtJoint type = m->jnt_type[m->dof_jntid[i]];
@@ -846,7 +850,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 
     // compute cdof_dot for quaternion (use current body cvel)
     if (is_quat) {
-      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], d->cdof+6*i);
+      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], cdof);
     }
 
     // construct rotation jacobian
@@ -858,11 +862,17 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
-      mjtNum tmp[3] = {0};
-      mju_cross(tmp, cdof_dot, offset);
-      jacp[i+0*nv] += cdof_dot[3] + tmp[0];
-      jacp[i+1*nv] += cdof_dot[4] + tmp[1];
-      jacp[i+2*nv] += cdof_dot[5] + tmp[2];
+      // first correction term, account for varying cdof
+      mjtNum tmp1[3];
+      mju_cross(tmp1, cdof_dot, offset);
+
+      // second correction term, account for point translational velocity
+      mjtNum tmp2[3];
+      mju_cross(tmp2, cdof, pvel + 3);
+
+      jacp[i+0*nv] += cdof_dot[3] + tmp1[0] + tmp2[0];
+      jacp[i+1*nv] += cdof_dot[4] + tmp1[1] + tmp2[1];
+      jacp[i+2*nv] += cdof_dot[5] + tmp1[2] + tmp2[2];
     }
 
     // advance to parent dof

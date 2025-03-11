@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+- :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
+  which the Jacobian is computed, now fixed.
+
 Version 3.3.0 (Feb 26, 2025)
 ----------------------------
 
