@@ -308,7 +308,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Update XML data structures with info from low-level model, save as MJCF. If error is not NULL, it must have size error_sz.',  # pylint: disable=line-too-long
+         doc='Update XML data structures with info from low-level model created with mj_loadXML, save as MJCF. If error is not NULL, it must have size error_sz.',  # pylint: disable=line-too-long
      )),
     ('mj_freeLastXML',
      FunctionDecl(

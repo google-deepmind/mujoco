@@ -110,7 +110,7 @@ MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 // Recompile spec to model, preserving the state, return 0 on success.
 MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
-// Update XML data structures with info from low-level model, save as MJCF.
+// Update XML data structures with info from low-level model created with mj_loadXML, save as MJCF.
 // If error is not NULL, it must have size error_sz.
 MJAPI int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 

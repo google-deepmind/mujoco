@@ -47,6 +47,15 @@ struct pointers while editing the model programmatically.
 :ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
 instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
+.. _mj_saveLastXML:
+
+Update XML data structures with info from low-level model created with :ref:`mj_loadXML`, save as MJCF.
+If error is not NULL, it must have size error_sz.
+
+Note that this function only saves models that have been loaded with :ref:`mj_loadXML`, the legacy loading mechanism.
+See the :ref:`model editing<meOverview>` chapter to understand the difference between the old and new model loading and
+saving mechanisms.
+
 .. _mj_saveXMLString:
 
 Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns

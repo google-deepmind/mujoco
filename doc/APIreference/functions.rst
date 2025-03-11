@@ -75,8 +75,12 @@ instances will be deleted; as in :ref:`mj_compile`, the compilation error can be
 
 .. mujoco-include:: mj_saveLastXML
 
-Update XML data structures with info from low-level model, save as MJCF.
+Update XML data structures with info from low-level model created with :ref:`mj_loadXML`, save as MJCF.
 If error is not NULL, it must have size error_sz.
+
+Note that this function only saves models that have been loaded with :ref:`mj_loadXML`, the legacy loading mechanism.
+See the :ref:`model editing<meOverview>` chapter to understand the difference between the old and new model loading and
+saving mechanisms.
 
 .. _mj_freeLastXML:
 
