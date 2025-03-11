@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
 #include <cctype>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <ratio>
 
 #include <mujoco/mujoco.h>
 
@@ -23,9 +26,18 @@
 static constexpr char helpstring[] =
   "\n Usage:  compile infile outfile\n"
   "   infile can be in mjcf, urdf, mjb format\n"
-  "   outfile can be in mjcf, mjb, txt format\n\n"
+  "   outfile can be in mjcf, mjb, txt format\n"
+  "           if outfile is missing no output will be generated\n\n"
   " Example: compile model.xml model.mjb\n";
 
+// timer
+mjtNum gettm(void) {
+  using std::chrono::steady_clock;
+  using Microseconds = std::chrono::duration<double, std::micro>;
+  static steady_clock::time_point tm_start = steady_clock::now();
+  auto elapsed = Microseconds(steady_clock::now() - tm_start);
+  return elapsed.count();
+}
 
 // deallocate and print message
 int finish(const char* msg = 0, mjModel* m = 0) {
@@ -48,7 +60,8 @@ enum {
   typeUNKNOWN = 0,
   typeXML,
   typeMJB,
-  typeTXT
+  typeTXT,
+  typeNONE
 };
 
 
@@ -96,13 +109,13 @@ int main(int argc, char** argv) {
   char error[1000];
 
   // print help if arguments are missing
-  if (argc!=3) {
+  if (argc!=3 && argc!=2) {
     return finish(helpstring);
   }
 
   // determine file types
   int type1 = filetype(argv[1]);
-  int type2 = filetype(argv[2]);
+  int type2 = argc==2 ? typeNONE : filetype(argv[2]);
 
   // check types
   if (type1==typeUNKNOWN || type1==typeTXT ||
@@ -123,11 +136,13 @@ int main(int argc, char** argv) {
   }
 
   // load model
+  double starttime = gettm();
   if (type1==typeXML) {
     m = mj_loadXML(argv[1], 0, error, 1000);
   } else {
     m = mj_loadModel(argv[1], 0);
   }
+  double tottime = 1e-6 * (gettm() - starttime);  // total time, in seconds
 
   // check error
   if (!m) {
@@ -145,10 +160,12 @@ int main(int argc, char** argv) {
     }
   } else if (type2==typeMJB) {
     mj_saveModel(m, argv[2], 0, 0);
-  } else {
+  } else if (type2==typeTXT) {
     mj_printModel(m, argv[2]);
   }
 
   // finalize
-  return finish("Done", m);
+  char msg[1000];
+  snprintf(msg, sizeof(msg), "Done.\nCompiled in %.3g seconds\n", tottime);
+  return finish(msg, m);
 }
