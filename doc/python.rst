@@ -243,7 +243,9 @@ access to the raw memory used by MuJoCo without copying or buffering. This means
 :ref:`mj_step`) change the content of fields *in place*. The user is therefore advised to create copies where required.
 For example, when logging the position of a body, one could write
 ``positions.append(data.body('my_body').xpos.copy())``. Without the ``.copy()``, the list would contain identical
-elements, all pointing to the most recent value.
+elements, all pointing to the most recent value. The same applies to NumPy slices. For example if a local
+variable ``qpos_slice = data.qpos[3:8]`` is created and then :ref:`mj_step` is called, the values in ``qpos_slice``
+will have been changed.
 
 In order to conform to `PEP 8 <https://peps.python.org/pep-0008/>`__
 naming guidelines, struct names begin with a capital letter, for example ``mjData`` becomes ``mujoco.MjData`` in Python.
