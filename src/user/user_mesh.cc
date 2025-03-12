@@ -78,20 +78,22 @@ namespace {
 // compute triangle area, surface normal, center
 static double triangle(double* normal, double* center,
                        const double* v1, const double* v2, const double* v3) {
+  double normal_local[3];  // if normal is nullptr
+  double* normal_ptr = (normal) ? normal : normal_local;
   // center
   if (center) {
-    for (int i=0; i < 3; i++) {
-      center[i] = (v1[i] + v2[i] + v3[i])/3;
-    }
+    center[0] = (v1[0] + v2[0] + v3[0])/3;
+    center[1] = (v1[1] + v2[1] + v3[1])/3;
+    center[2] = (v1[2] + v2[2] + v3[2])/3;
   }
 
   // normal = (v2-v1) cross (v3-v1)
-  double b[3] = { v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2] };
-  double c[3] = { v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2] };
-  mjuu_crossvec(normal, b, c);
+  double b[3] = { v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2] };
+  double c[3] = { v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2] };
+  mjuu_crossvec(normal_ptr, b, c);
 
   // get length
-  double len = sqrt(mjuu_dot3(normal, normal));
+  double len = sqrt(mjuu_dot3(normal_ptr, normal_ptr));
 
   // ignore small faces
   if (len < mjMINVAL) {
@@ -99,13 +101,16 @@ static double triangle(double* normal, double* center,
   }
 
   // normalize
-  normal[0] /= len;
-  normal[1] /= len;
-  normal[2] /= len;
+  if (normal) {
+    normal_ptr[0] /= len;
+    normal_ptr[1] /= len;
+    normal_ptr[2] /= len;
+  }
 
   // return area
   return 0.5 * len;
 }
+
 
 // Read data of type T from a potentially unaligned buffer pointer.
 template <typename T>
@@ -131,12 +136,6 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   graph_ = NULL;
   needhull_ = false;
   maxhullvert_ = -1;
-  invalidorientation_.first = -1;
-  invalidorientation_.second = -1;
-  validarea_ = true;
-  validvolume_ = MeshVolumeOK;
-  valideigenvalue_ = true;
-  validinequality_ = true;
   processed_ = false;
   visual_ = true;
 
@@ -642,112 +641,10 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     LoadSDF();  // create using marching cubes
   }
 
-  // check sizes
-  if (vert_.size() < 12) throw mjCError(this, "at least 4 vertices required");
-  if (vert_.size() % 3) throw mjCError(this, "vertex data must be a multiple of 3");
-  if (normal_.size() % 3) throw mjCError(this, "normal data must be a multiple of 3");
-  if (texcoord_.size() % 2) throw mjCError(this, "texcoord must be a multiple of 2");
-  if (face_.size() % 3) throw mjCError(this, "face data must be a multiple of 3");
+  CheckInitialMesh();
 
-  // check texcoord size if no face texcoord indices are given
-  if (!texcoord_.empty() && texcoord_.size() != 2 * nvert() &&
-      facetexcoord_.empty() && !IsObj()) {
-    throw mjCError(this,
-        "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
-  }
-
-  // require vertices
-  if (vert_.empty()) {
-    throw mjCError(this, "no vertices");
-  }
-
-  // check vertices exist
-  for (int i=0; i < face_.size(); i++) {
-    if (face_[i] >= nvert() || face_[i] < 0) {
-      throw mjCError(this, "in face %d, vertex index %d does not exist",
-                      nullptr, i / 3, face_[i]);
-    }
-  }
-
-  // create half-edge structure (if mesh was in XML)
-  if (halfedge_.empty()) {
-    for (int i=0; i < face_.size()/3; i++) {
-      int v0 = face_[3*i+0];
-      int v1 = face_[3*i+1];
-      int v2 = face_[3*i+2];
-      double normal[3];
-      double* vtx = vert_.data();
-      if (triangle(normal, nullptr, vtx+3*v0, vtx+3*v1, vtx+3*v2)>sqrt(mjMINVAL)) {
-        halfedge_.push_back(std::pair(v0, v1));
-        halfedge_.push_back(std::pair(v1, v2));
-        halfedge_.push_back(std::pair(v2, v0));
-      } else {
-        // TODO(b/255525326)
-      }
-    }
-  }
-
-  // check that vertex indices are valid
-  for (int vertex_index : face_) {
-    if (vertex_index >= nvert() || vertex_index < 0) {
-      throw mjCError(this, "found index in userface that exceeds uservert size.");
-    }
-  }
-
-  // check for inconsistent face orientations
-  if (!halfedge_.empty()) {
-    std::stable_sort(halfedge_.begin(), halfedge_.end());
-    auto iterator = std::adjacent_find(halfedge_.begin(), halfedge_.end());
-    if (iterator != halfedge_.end()) {
-      invalidorientation_.first = iterator->first+1;
-      invalidorientation_.second = iterator->second+1;
-    }
-  }
-
-  // make graph describing convex hull
-  if (needhull_ || face_.empty()) {
-    MakeGraph();
-  }
-
-  // no faces: copy from convex hull
-  if (face_.empty()) {
-    CopyGraph();
-  }
-
-  // no normals: make
-  if (normal_.empty()) {
-    MakeNormal();
-  }
-
-  // check facenormal size
-  if (!facenormal_.empty() && facenormal_.size()!=3*nface()) {
-    throw mjCError(this, "face data must have the same size as face normal data");
-  }
-
-  // no facetexcoord: copy from faces
-  if (facetexcoord_.empty() && !texcoord_.empty()) {
-    facetexcoord_.assign(3*nface(), 0);
-    memcpy(facetexcoord_.data(), face_.data(), 3*nface()*sizeof(int));
-  }
-
-  // facenormal might not exist if usernormal was specified
-  if (facenormal_.empty()) {
-    facenormal_.assign(3*nface(), 0);
-    memcpy(facenormal_.data(), face_.data(), 3*nface()*sizeof(int));
-  }
-
-  MakePolygons();
-
-  // scale, center, orient, compute mass and inertia
+  // compute mesh properties
   Process();
-  processed_ = true;
-
-  // no radii: make
-  if (!center_) {
-    MakeCenter();
-  }
-
-  MakePolygonNormals();
 
   // make bounding volume hierarchy
   if (tree_.Bvh().empty()) {
@@ -759,11 +656,11 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     tree_.CreateBVH();
   }
 
-  // check that processed mesh is valid
-  CheckMesh();
-
-  mju_closeResource(resource_);
-  resource_ = nullptr;
+  // close resource
+  if (resource_ != nullptr) {
+    mju_closeResource(resource_);
+    resource_ = nullptr;
+  }
 }
 
 
@@ -1333,74 +1230,68 @@ void mjCMesh::LoadMSH(mjResource* resource, bool remove_repeated) {
   ProcessVertices(vert, remove_repeated);
 }
 
-
-void mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) {
-  double nrm[3];
-  double cen[3];
-  GetVolumeRef() = 0;
-  mjuu_zerovec(CoM, 3);
+// compute the volume and center-of-mass of the mesh given the face centroid
+double mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) const {
+  double normal[3], center[3], total_volume = 0;
+  CoM[0] = CoM[1] = CoM[2] = 0;
   int nf = (inertia == mjMESH_INERTIA_CONVEX) ? graph_[1] : nface();
-  int* f = (inertia == mjMESH_INERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
-  double* vv = vert_.data();
-  for (int i=0; i < nf; i++) {
+  const int* f = (inertia == mjMESH_INERTIA_CONVEX) ? GraphFaces() : face_.data();
+
+  for (int i = 0; i < nf; i++) {
     // get area, normal and center
-    double a = triangle(nrm, cen, vv+3*f[3*i], vv+3*f[3*i+1], vv+3*f[3*i+2]);
+    double area = triangle(normal, center, &vert_[3*f[3*i]], &vert_[3*f[3*i + 1]],
+                           &vert_[3*f[3*i + 2]]);
 
     // compute and add volume
-    const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-    double vol = mjuu_dot3(vec, nrm) * a / 3;
+    double vec[3] = {center[0] - facecen[0], center[1] - facecen[1], center[2] - facecen[2]};
+    double volume = mjuu_dot3(vec, normal) * area / 3;
 
     // if legacy computation requested, then always positive
     if (inertia == mjMESH_INERTIA_LEGACY) {
-      vol = abs(vol);
+      volume = std::abs(volume);
     }
 
     // add pyramid com
-    GetVolumeRef() += vol;
-    for (int j=0; j<3; j++) {
-      CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
-    }
+    total_volume += volume;
+    CoM[0] += volume*(center[0]*3.0/4.0 + facecen[0]/4.0);
+    CoM[1] += volume*(center[1]*3.0/4.0 + facecen[1]/4.0);
+    CoM[2] += volume*(center[2]*3.0/4.0 + facecen[2]/4.0);
   }
 
   // if volume is valid normalize CoM
-  if (GetVolumeRef() < mjMINVAL) {
-    validvolume_ = GetVolumeRef() < 0 ? MeshNegativeVolume : MeshZeroVolume;
-  } else {
-    for (int j=0; j<3; j++) {
-      CoM[j] /= GetVolumeRef();
-    }
+  if (total_volume >= mjMINVAL) {
+    CoM[0] /= total_volume;
+    CoM[1] /= total_volume;
+    CoM[2] /= total_volume;
   }
+  return total_volume;
 }
 
-
-void mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) {
-  double nrm[3];
-  double cen[3];
-  GetVolumeRef() = 0;
-  mjuu_zerovec(CoM, 3);
-  double* vv = vert_.data();
-  for (int i=0; i < nface(); i++) {
-    // get area, normal and center
-    double a = triangle(nrm, cen, vv+3*face_.data()[3*i],
-                        vv+3*face_.data()[3*i+1], vv+3*face_.data()[3*i+2]);
+// compute the surface area and center-of-mass of the mesh given the face centroid
+double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) const {
+  double surface = 0;
+  CoM[0] = CoM[1] = CoM[2] = 0;
+  for (int i = 0; i < nface(); i++) {
+    // get area and center
+    double area, center[3];
+    area = triangle(nullptr, center, &vert_[3*face_[3*i]],
+                    &vert_[3*face_[3*i + 1]], &vert_[3*face_[3*i + 2]]);
 
     // add pyramid com
-    GetVolumeRef() += a;
-    for (int j=0; j<3; j++) {
-      CoM[j] += a*(cen[j]*3.0/4.0 + facecen[j]/4.0);
-    }
+    surface += area;
+    CoM[0] += area*(center[0]*3.0/4.0 + facecen[0]/4.0);
+    CoM[1] += area*(center[1]*3.0/4.0 + facecen[1]/4.0);
+    CoM[2] += area*(center[2]*3.0/4.0 + facecen[2]/4.0);
   }
 
   // if area is valid normalize CoM
-  if (GetVolumeRef() < mjMINVAL) {
-    validarea_ = false;
-  } else {
-    for (int j=0; j<3; j++) {
-      CoM[j] /= GetVolumeRef();
-    }
+  if (surface >= mjMINVAL) {
+    CoM[0] /= surface;
+    CoM[1] /= surface;
+    CoM[2] /= surface;
   }
+  return surface;
 }
-
 
 // apply transformations
 void mjCMesh::ApplyTransformations() {
@@ -1470,52 +1361,101 @@ void mjCMesh::ApplyTransformations() {
   }
 }
 
+// find centroid of faces, return total area
+double mjCMesh::ComputeFaceCentroid(double facecen[3]) const {
+  double total_area = 0;
 
-// find centroid of faces
-void mjCMesh::ComputeFaceCentroid(double facecen[3]) {
-  double area = 0;
-  double nrm[3];
-  double cen[3];
-
-  for (int i=0; i < nface(); i++) {
-    // check vertex indices
-    for (int j=0; j<3; j++) {
-      if (face_[3*i+j]<0 || face_[3*i+j]>=nvert()) {
-        throw mjCError(this, "vertex index out of range in %s (index = %d)", name.c_str(), i);
-      }
-    }
-
+  for (int i = 0; i < nface(); i++) {
     // get area and center
-    double* vv = vert_.data();
-    double a = triangle(nrm, cen, vv+3*face_[3*i], vv+3*face_[3*i+1], vv+3*face_[3*i+2]);
+    double area, center[3];
+    area = triangle(nullptr, center, &vert_[3*face_[3*i]],
+                    &vert_[3*face_[3*i + 1]], &vert_[3*face_[3*i + 2]]);
 
     // accumulate
-    for (int j=0; j<3; j++) {
-      facecen[j] += a*cen[j];
-    }
-    area += a;
-  }
-
-  // require positive area
-  if (area < mjMINVAL) {
-    validarea_ = false;
-    return;
+    facecen[0] += area * center[0];
+    facecen[1] += area * center[1];
+    facecen[2] += area * center[2];
+    total_area += area;
   }
 
   // finalize centroid of faces
-  for (int j=0; j<3; j++) {
-    facecen[j] /= area;
+  if (total_area >= mjMINVAL) {
+    facecen[0] /= total_area;
+    facecen[1] /= total_area;
+    facecen[2] /= total_area;
   }
+  return total_area;
 }
 
-
 void mjCMesh::Process() {
-  double facecen[3] = {0, 0, 0};
+  // create half-edge structure (if mesh was in XML)
+  if (halfedge_.empty()) {
+    for (int i = 0; i < nface(); i++) {
+      int v0 = face_[3*i + 0];
+      int v1 = face_[3*i + 1];
+      int v2 = face_[3*i + 2];
+      if (triangle(nullptr, nullptr, &vert_[3*v0], &vert_[3*v1], &vert_[3*v2]) > sqrt(mjMINVAL)) {
+        halfedge_.push_back({v0, v1});
+        halfedge_.push_back({v1, v2});
+        halfedge_.push_back({v2, v0});
+      } else {
+        // TODO(b/255525326)
+      }
+    }
+  }
+
+  // check for inconsistent face orientations
+  if (!halfedge_.empty()) {
+    std::stable_sort(halfedge_.begin(), halfedge_.end());
+    auto iterator = std::adjacent_find(halfedge_.begin(), halfedge_.end());
+    if (iterator != halfedge_.end() && inertia == mjMESH_INERTIA_EXACT) {
+      throw mjCError(this,
+                     "faces of mesh '%s' have inconsistent orientation. Please check the "
+                     "faces containing the vertices %d and %d.",
+                     name.c_str(), iterator->first + 1, iterator->second + 1);
+    }
+  }
+
+  // make graph describing convex hull
+  if (needhull_ || face_.empty()) {
+    MakeGraph();
+  }
+
+  // no faces: copy from convex hull
+  if (face_.empty()) {
+    CopyGraph();
+  }
+
+  // no normals: make
+  if (normal_.empty()) {
+    MakeNormal();
+  }
+
+  // check facenormal size
+  if (!facenormal_.empty() && facenormal_.size() != face_.size()) {
+    throw mjCError(this, "face data must have the same size as face normal data");
+  }
+
+  // no facetexcoord: copy from faces
+  if (facetexcoord_.empty() && !texcoord_.empty()) {
+    facetexcoord_ = face_;
+  }
+
+  // facenormal might not exist if usernormal was specified
+  if (facenormal_.empty()) {
+    facenormal_ = face_;
+  }
+
+  MakePolygons();
+
   // user offset, rotation, scaling
   ApplyTransformations();
 
   // find centroid of faces
-  ComputeFaceCentroid(facecen);
+  double facecen[3] = {0, 0, 0};
+  if (ComputeFaceCentroid(facecen) < mjMINVAL) {
+    throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+  }
 
   // compute inertia and transform mesh. The mesh is transformed such that it is
   // centered at the CoM and the axes are the principle axes of inertia
@@ -1524,19 +1464,28 @@ void mjCMesh::Process() {
 
   // compute CoM and volume/area
   if (inertia == mjMESH_INERTIA_SHELL) {
-    ComputeSurfaceArea(CoM, facecen);
-    if (!validarea_) {
-      return;
+    surface_ = ComputeSurfaceArea(CoM, facecen);
+    if (surface_ < mjMINVAL) {
+      throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
     }
   } else {
-    ComputeVolume(CoM, facecen);
-    if (validvolume_ != MeshVolumeOK) {
-      return;
+    if ((volume_ = ComputeVolume(CoM, facecen)) < mjMINVAL) {
+      if (volume_ < 0) {
+        throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
+      } else {
+        throw mjCError(this, "mesh volume is too small: %s . Try setting inertia to shell",
+                       name.c_str());
+      }
     }
   }
 
   // compute inertia
-  ComputeInertia(inert, CoM);
+  double total_volume = ComputeInertia(inert, CoM);
+  if (inertia == mjMESH_INERTIA_SHELL) {
+    surface_ = total_volume;
+  } else {
+    volume_ = total_volume;
+  }
 
   // get quaternion and diagonal inertia
   double eigval[3], eigvec[9], quattmp[4];
@@ -1551,70 +1500,93 @@ void mjCMesh::Process() {
   constexpr double inequality_rtol = 1e-6;
 
   // check eigval - SHOULD NOT OCCUR
-  if (eigval[2]<=0) {
-    valideigenvalue_= false;
-    return;
+  if (eigval[2] <= 0) {
+    throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
   }
+
   if (eigval[0] + eigval[1] < eigval[2] * (1.0 - inequality_rtol) - inequality_atol ||
       eigval[0] + eigval[2] < eigval[1] * (1.0 - inequality_rtol) - inequality_atol ||
       eigval[1] + eigval[2] < eigval[0] * (1.0 - inequality_rtol) - inequality_atol) {
-    validinequality_ = false;
-    return;
+    throw mjCError(this, "eigenvalues of mesh inertia violate A + B >= C: %s", name.c_str());
   }
 
   // compute sizes of equivalent inertia box
   double volume = GetVolumeRef();
-  double* boxsz = GetInertiaBoxPtr();
-  boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/volume)/2;
-  boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/volume)/2;
-  boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/volume)/2;
+  boxsz_[0] = 0.5 * std::sqrt(6*(eigval[1] + eigval[2] - eigval[0])/volume);
+  boxsz_[1] = 0.5 * std::sqrt(6*(eigval[0] + eigval[2] - eigval[1])/volume);
+  boxsz_[2] = 0.5 * std::sqrt(6*(eigval[0] + eigval[1] - eigval[2])/volume);
 
   // transform CoM to origin
-  Transform(CoM, quattmp);
+  for (int i=0; i < nvert(); i++) {
+    vert_[3*i + 0] -= CoM[0];
+    vert_[3*i + 1] -= CoM[1];
+    vert_[3*i + 2] -= CoM[2];
+  }
+  Rotate(quattmp);
+
+  // save the pos and quat that was used to transform the mesh
+  mjuu_copyvec(pos_, CoM, 3);
+  mjuu_copyvec(quat_, quattmp, 4);
+
+  processed_ = true;
+
+  // no radii: make
+  if (!center_) {
+    MakeCenter();
+  }
+
+  // recompute polygon normals
+  MakePolygonNormals();
 }
 
 
 
-// compute abstract (unitless) inertia
-void mjCMesh::ComputeInertia(double inert[6], double CoM[3]) {
-  double nrm[3];
-  double cen[3];
+// compute abstract (unitless) inertia, recompute area / volume
+double mjCMesh::ComputeInertia(double inert[6], const double CoM[3]) const {
+  double total_volume = 0;
 
   // copy vertices to avoid modifying the original mesh
-  std::vector<double> vert_centered(vert_);
+  std::vector<double> vert_centered;
+  vert_centered.reserve(3*nvert());
 
   // translate vertices to origin in order to compute inertia
-  for (int i=0; i < nvert(); i++) {
-    vert_centered[3*i + 0] -= CoM[0];
-    vert_centered[3*i + 1] -= CoM[1];
-    vert_centered[3*i + 2] -= CoM[2];
+  for (int i =  0; i < nvert(); i++) {
+    vert_centered.push_back(vert_[3*i + 0] - CoM[0]);
+    vert_centered.push_back(vert_[3*i + 1] - CoM[1]);
+    vert_centered.push_back(vert_[3*i + 2] - CoM[2]);
   }
 
   // accumulate products of inertia, recompute volume
   const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
   double P[6] = {0, 0, 0, 0, 0, 0};
-  GetVolumeRef() = 0;
   int nf = (inertia == mjMESH_INERTIA_CONVEX) ? graph_[1] : nface();
-  int* f = (inertia == mjMESH_INERTIA_CONVEX) ? graph_ + 2 + 3*(graph_[0]+graph_[1]) : face_.data();
+  const int* f = (inertia == mjMESH_INERTIA_CONVEX) ? GraphFaces() : face_.data();
   for (int i=0; i < nf; i++) {
-    double* D = &vert_centered[3*f[3*i + 0]];
-    double* E = &vert_centered[3*f[3*i + 1]];
-    double* F = &vert_centered[3*f[3*i + 2]];
+    const double* D = &vert_centered[3*f[3*i + 0]];
+    const double* E = &vert_centered[3*f[3*i + 1]];
+    const double* F = &vert_centered[3*f[3*i + 2]];
 
     // get area, normal and center; update volume
-    double a = triangle(nrm, cen, D, E, F);
-    double vol = (inertia == mjMESH_INERTIA_SHELL) ? a : mjuu_dot3(cen, nrm) * a / 3;
+    double normal[3], center[3];
+    double volume, area = triangle(normal, center, D, E, F);
+    if (inertia == mjMESH_INERTIA_SHELL) {
+      volume = area;
+    } else {
+      volume = mjuu_dot3(center, normal) * area / 3;
+    }
 
     // if legacy computation requested, then always positive
     if (inertia == mjMESH_INERTIA_LEGACY) {
-      vol = abs(vol);
+      volume = abs(volume);
     }
 
     // apply formula, accumulate
-    GetVolumeRef() += vol;
-    for (int j=0; j<6; j++) {
-      P[j] += vol /
-                (inertia == mjMESH_INERTIA_SHELL ? 12 : 20) * (
+    total_volume += volume;
+
+    int C = (inertia == mjMESH_INERTIA_SHELL) ? 12 : 20;
+    for (int j = 0; j < 6; j++) {
+      P[j] += volume /
+                C * (
                 2*(D[k[j][0]] * D[k[j][1]] +
                    E[k[j][0]] * E[k[j][1]] +
                    F[k[j][0]] * F[k[j][1]]) +
@@ -1631,6 +1603,7 @@ void mjCMesh::ComputeInertia(double inert[6], double CoM[3]) {
   inert[3] = -P[3];
   inert[4] = -P[4];
   inert[5] = -P[5];
+  return total_volume;
 }
 
 
@@ -1661,43 +1634,44 @@ void mjCMesh::Rotate(double quat[4]) {
     }
   }
 }
-
-
-void mjCMesh::Transform(double pos[3], double quat[4]) {
-  // subtract CoM position from vertices
-  for (int i=0; i < nvert(); i++) {
-    vert_[3*i + 0] -= pos[0];
-    vert_[3*i + 1] -= pos[1];
-    vert_[3*i + 2] -= pos[2];
+void mjCMesh::CheckInitialMesh() const {
+  if (vert_.size() < 12) {
+    throw mjCError(this, "at least 4 vertices required");
   }
-  Rotate(quat);
-
-  // save the pos and quat that was used to transform the mesh
-  mjuu_copyvec(GetPosPtr(), pos, 3);
-  mjuu_copyvec(GetQuatPtr(), quat, 4);
-}
-// check that the mesh is valid
-void mjCMesh::CheckMesh() {
-  if (!processed_) {
-    return;
+  if (vert_.size() % 3) {
+    throw mjCError(this, "vertex data must be a multiple of 3");
   }
-  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && inertia == mjMESH_INERTIA_EXACT)
+  if (normal_.size() % 3) {
+    throw mjCError(this, "normal data must be a multiple of 3");
+  }
+  if (texcoord_.size() % 2) {
+    throw mjCError(this, "texcoord must be a multiple of 2");
+  }
+  if (face_.size() % 3) {
+    throw mjCError(this, "face data must be a multiple of 3");
+  }
+
+  // check texcoord size if no face texcoord indices are given
+  if (!texcoord_.empty() && texcoord_.size() != 2 * nvert() &&
+      facetexcoord_.empty() && !IsObj()) {
     throw mjCError(this,
-                   "faces of mesh '%s' have inconsistent orientation. Please check the "
-                   "faces containing the vertices %d and %d.",
-                   name.c_str(), invalidorientation_.first, invalidorientation_.second);
-  if (!validarea_ && inertia==mjMESH_INERTIA_SHELL)
-    throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  if (validvolume_==MeshNegativeVolume && inertia!=mjMESH_INERTIA_SHELL)
-    throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
-  if (validvolume_==MeshZeroVolume && inertia!=mjMESH_INERTIA_SHELL)
-    throw mjCError(this, "mesh volume is too small: %s . Try setting inertia to shell",
-                   name.c_str());
-  if (!valideigenvalue_)
-    throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
-  if (!validinequality_)
-    throw mjCError(this, "eigenvalues of mesh inertia violate A + B >= C: %s", name.c_str());
+        "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
+  }
+
+  // require vertices
+  if (vert_.empty()) {
+    throw mjCError(this, "no vertices");
+  }
+
+  // check vertices exist
+  for (int i = 0; i < face_.size(); i++) {
+    if (face_[i] >= nvert() || face_[i] < 0) {
+      throw mjCError(this, "in face %d, vertex index %d does not exist",
+                     nullptr, i / 3, face_[i]);
+    }
+  }
 }
+
 
 
 // get inertia pointer
@@ -1706,8 +1680,7 @@ double* mjCMesh::GetInertiaBoxPtr() {
 }
 
 
-double& mjCMesh::GetVolumeRef() {
-  CheckMesh();
+double mjCMesh::GetVolumeRef() const {
   return (inertia == mjMESH_INERTIA_SHELL) ? surface_ : volume_;
 }
 
@@ -2320,9 +2293,8 @@ void mjCMesh::MakePolygons() {
   // use graph data if available
   int *faces, nfaces;
   if (graph_) {
-    int nvert = graph_[0];
     nfaces = graph_[1];
-    faces = graph_ + 2 + 3*nvert + 3*nfaces;
+    faces = GraphFaces();
   } else {
     nfaces = nface();
     faces = face_.data();

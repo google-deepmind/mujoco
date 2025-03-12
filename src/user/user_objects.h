@@ -866,16 +866,7 @@ class mjCMesh_ : public mjCBase {
   bool visual_;                                  // true: the mesh is only visual
   std::vector< std::pair<int, int> > halfedge_;  // half-edge data
 
-  // mesh properties that indicate a well-formed mesh
-  std::pair<int, int> invalidorientation_;    // indices of invalid edge; -1 if none
-  bool validarea_;                            // false if the area is too small
-  enum ValidVolume {
-    MeshNegativeVolume = -1,
-    MeshZeroVolume = 0,
-    MeshVolumeOK = 1
-  } validvolume_;                   // indicates if volume is valid
-  bool valideigenvalue_;            // are inertia eigenvalues positive
-  bool validinequality_;            // is inertia eigenvalue inequality satisfied
+  // mesh processed flags
   bool processed_;                  // has the mesh been processed yet
   bool transformed_;                // has the mesh been transformed to CoM and inertial frame
 
@@ -972,7 +963,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   double* GetPosPtr();                              // get position
   double* GetQuatPtr();                             // get orientation
   double* GetInertiaBoxPtr();                       // get inertia box
-  double& GetVolumeRef();                           // get volume
+  double GetVolumeRef() const;                      // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
@@ -1034,8 +1025,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void MakeCenter();                            // compute face circumcircle data
   void Process();                               // compute inertial properties
   void ApplyTransformations();                  // apply user transformations
-  void ComputeFaceCentroid(double[3]);          // compute centroid of all faces
-  void CheckMesh();                             // check if the mesh is valid
+  double ComputeFaceCentroid(double[3]) const;  // compute centroid of all faces
+  void CheckInitialMesh() const;                // check if initial mesh is valid
   void CopyPlugin();
   void Rotate(double quat[4]);                      // rotate mesh by quaternion
   void Transform(double pos[3], double quat[4]);    // transform mesh by position and quaternion
@@ -1043,7 +1034,11 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void MakePolygonNormals();                        // compute the normals of the polygons
 
   // computes the inertia matrix of the mesh given the type of inertia
-  void ComputeInertia(double inert[6], double CoM[3]);
+  double ComputeInertia(double inert[6], const double CoM[3]) const;
+
+  int* GraphFaces() const {
+    return graph_ + 2 + 3*(graph_[0] + graph_[1]);
+  }
 
   // mesh data to be copied into mjModel
   double* center_;                    // face circumcenter data (3*nface)
@@ -1060,15 +1055,15 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<int> texcoord_index_;
   std::vector<face_vertices_type> num_face_vertices_;
 
-  // compute the volume and center-of-mass of the mesh given the face center
-  void ComputeVolume(double CoM[3], const double facecen[3]);
-  // compute the surface area and center-of-mass of the mesh given the face center
-  void ComputeSurfaceArea(double CoM[3], const double facecen[3]);
+  // compute the volume and center-of-mass of the mesh given the face centroid
+  double ComputeVolume(double CoM[3], const double facecen[3]) const;
+  // compute the surface area and center-of-mass of the mesh given the face centroid
+  double ComputeSurfaceArea(double CoM[3], const double facecen[3]) const;
 };
 
 
 
-//------------------------- class mjCSkin ----------------------------------------------------------
+//------------------------- class mjCSkin ---------------------------------------------------------
 // Describes a skin
 
 class mjCSkin_ : public mjCBase {

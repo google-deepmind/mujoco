@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_UTIL_H_
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -46,9 +47,7 @@ void mjuu_setvec(double* dest, double x, double y);
 // copy real-valued vector
 template <class T1, class T2>
 void mjuu_copyvec(T1* dest, const T2* src, int n) {
-  for (int i=0; i<n; i++) {
-    dest[i] = (T1)src[i];
-  }
+  std::copy(src, src + n, dest);
 }
 
 // add to double array
