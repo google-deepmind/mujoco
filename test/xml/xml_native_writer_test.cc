@@ -46,6 +46,9 @@ using ::testing::FloatEq;
 
 using XMLWriterTest = PluginTest;
 
+static const char* const kNonRgbTextureXMLPath =
+    "xml/testdata/hfield_png_nonrgb.xml";
+
 TEST_F(XMLWriterTest, EmptyModel) {
   static constexpr char xml[] = "<mujoco/>";
   mjModel* model = LoadModelFromString(xml);
@@ -1326,6 +1329,24 @@ TEST_F(XMLWriterLocaleTest, IgnoresLocale) {
   EXPECT_EQ(std::string(formatted), "3,9375");
 }
 
+TEST_F(XMLWriterTest, NonRGBTextures) {
+  const std::string xml_path = GetTestDataFilePath(kNonRgbTextureXMLPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_FALSE(saved_xml.empty());
+
+  // check that layers are written correctly
+  EXPECT_THAT(saved_xml, HasSubstr("<material name=\"hfield\">"));
+  EXPECT_THAT(saved_xml, HasSubstr("<layer texture=\"hfield\" role=\"rgb\"/>"));
+  EXPECT_THAT(saved_xml, HasSubstr("<layer texture=\"hfield\" role=\"orm\"/>"));
+  EXPECT_THAT(saved_xml,
+              HasSubstr("<layer texture=\"hfield\" role=\"normal\"/>"));
+
+  mj_deleteModel(model);
+}
 
 // ------------------- test loading and saving multiple files ------------------
 TEST_F(XMLWriterTest, WriteReadCompare) {

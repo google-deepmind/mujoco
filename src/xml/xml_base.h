@@ -60,6 +60,7 @@ extern const mjMap jac_map[];
 extern const mjMap solver_map[];
 extern const mjMap equality_map[];
 extern const mjMap texture_map[];
+extern const mjMap texrole_map[];
 extern const mjMap builtin_map[];
 extern const mjMap mark_map[];
 extern const mjMap dyn_map[];
