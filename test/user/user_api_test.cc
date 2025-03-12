@@ -2342,13 +2342,13 @@ TEST_F(MujocoTest, KeyframeSizeError) {
 
 TEST_F(MujocoTest, DifferentUnitsAllowed) {
   static constexpr char gchild_xml[] = R"(
-  <mujoco model="gchild">
-    <compiler angle="radian"/>
+  <mujoco>
+    <compiler angle="degree"/>
 
     <worldbody>
-      <body name="gchild" euler="-1.5707963 0 0">
+      <body name="gchild" euler="-90 0 0">
         <geom type="box" size="1 1 1"/>
-        <joint name="gchild_joint" range="-3.1415926 3.1415926"/>
+        <joint name="gchild_joint" range="-180 180"/>
       </body>
     </worldbody>
   </mujoco>

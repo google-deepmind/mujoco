@@ -1009,35 +1009,41 @@ mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
 // set model of this body and its subtree
 void mjCBody::SetModel(mjCModel* _model) {
   model = _model;
-  mjSpec* origin = model->FindSpec(mjs_getString(model->spec.modelname));
+  mjSpec* origin = _model->FindSpec(compiler);
   compiler = origin ? &origin->compiler : &model->spec.compiler;
 
   for (auto& body : bodies) {
     body->SetModel(_model);
   }
   for (auto& frame : frames) {
+    origin = _model->FindSpec(frame->compiler);
     frame->model = _model;
-    frame->compiler = compiler;
+    frame->compiler = origin ? &origin->compiler : &model->spec.compiler;
   }
   for (auto& geom : geoms) {
+    origin = _model->FindSpec(geom->compiler);
     geom->model = _model;
-    geom->compiler = compiler;
+    geom->compiler = origin ? &origin->compiler : &model->spec.compiler;
   }
   for (auto& joint : joints) {
+    origin = _model->FindSpec(joint->compiler);
     joint->model = _model;
-    joint->compiler = compiler;
+    joint->compiler = origin ? &origin->compiler : &model->spec.compiler;
   }
   for (auto& site : sites) {
+    origin = _model->FindSpec(site->compiler);
     site->model = _model;
-    site->compiler = compiler;
+    site->compiler = origin ? &origin->compiler : &model->spec.compiler;
   }
   for (auto& camera : cameras) {
+    origin = _model->FindSpec(camera->compiler);
     camera->model = _model;
-    camera->compiler = compiler;
+    camera->compiler = origin ? &origin->compiler : &model->spec.compiler;
   }
   for (auto& light : lights) {
+    origin = _model->FindSpec(light->compiler);
     light->model = _model;
-    light->compiler = compiler;
+    light->compiler = origin ? &origin->compiler : &model->spec.compiler;
   }
 }
 
