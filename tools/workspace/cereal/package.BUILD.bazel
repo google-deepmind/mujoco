@@ -1,0 +1,23 @@
+package(default_visibility = [
+    "@mujoco//:__subpackages__",
+    "@SdfLib//:__subpackages__",
+])
+
+cc_library(
+    name = "cereal",
+    hdrs = glob([
+        "include/**/*.hpp",
+    ]),
+    includes = [
+        "include",
+    ],
+    data = [":license_filegroup"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        "LICENSE",
+    ],
+    tags = ["license_filegroup"],
+)
