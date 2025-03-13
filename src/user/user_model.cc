@@ -494,6 +494,10 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
       removed++;
     }
   }
+  if (removed > 0 && !list.empty()) {
+    // if any elements were removed, update ids using processlist
+    processlist(ids, list, list[0]->elemtype, /*checkrepeat=*/false);
+  }
 }
 
 
