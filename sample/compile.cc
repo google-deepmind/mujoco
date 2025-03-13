@@ -26,9 +26,9 @@
 static constexpr char helpstring[] =
   "\n Usage:  compile infile outfile\n"
   "   infile can be in mjcf, urdf, mjb format\n"
-  "   outfile can be in mjcf, mjb, txt format\n"
-  "           if outfile is missing no output will be generated\n\n"
-  " Example: compile model.xml model.mjb\n";
+  "   outfile can be in mjcf, mjb, txt format, or empty\n\n"
+  "   if infile is mjcf, compilation will be timed twice to measure the impact of caching\n\n"
+  " Example: compile model.xml [model.mjb]\n";
 
 // timer
 mjtNum gettm(void) {
@@ -136,13 +136,20 @@ int main(int argc, char** argv) {
   }
 
   // load model
-  double starttime = gettm();
+  double first=0, second=0;
   if (type1==typeXML) {
+    double starttime = gettm();
     m = mj_loadXML(argv[1], 0, error, 1000);
+    first = 1e-6 * (gettm() - starttime);
+    if (m) {
+      mj_deleteModel(m);
+      starttime = gettm();
+      m = mj_loadXML(argv[1], 0, error, 1000);
+      second = 1e-6 * (gettm() - starttime);
+    }
   } else {
     m = mj_loadModel(argv[1], 0);
   }
-  double tottime = 1e-6 * (gettm() - starttime);  // total time, in seconds
 
   // check error
   if (!m) {
@@ -166,6 +173,14 @@ int main(int argc, char** argv) {
 
   // finalize
   char msg[1000];
-  snprintf(msg, sizeof(msg), "Done.\nCompiled in %.3g seconds\n", tottime);
+  if (first) {
+    snprintf(msg, sizeof(msg), "Done.\n"
+             "First compile: %.4gs\n"
+             "Second compile: %.4gs",
+             first, second);
+  } else {
+    snprintf(msg, sizeof(msg), "Done.");
+  }
+
   return finish(msg, m);
 }
