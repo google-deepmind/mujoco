@@ -1415,7 +1415,29 @@ PYBIND11_MODULE(_structs, m) {
   mjVisual.def("__deepcopy__", [](const MjVisualWrapper& other, py::dict) {
     return MjVisualWrapper(other);
   });
-  DefineStructFunctions(mjVisual);
+  mjVisual.def("__eq__", StructsEqual<MjVisualWrapper>);
+  // Special __repr__ implementation for MjVisual, since:
+  // 1. Types under MjVisual confuse StructRepr;
+  // 2. StructRepr does not handle the indentation of nested structs well.
+  mjVisual.def("__repr__", [](py::object self) {
+    std::ostringstream result;
+    result << "<"
+           << self.attr("__class__").attr("__name__").cast<std::string_view>();
+
+#define X(type, var)          \
+    result << "\n  " #var ": "; \
+    StructReprImpl<type>(self.attr(#var), result, 2);
+
+    X(raw::MjVisualGlobal, global_)
+    X(raw::MjVisualQuality, quality)
+    X(MjVisualHeadlightWrapper, headlight)
+    X(raw::MjVisualMap, map)
+    X(raw::MjVisualScale, scale)
+    X(MjVisualRgbaWrapper, rgba)
+#undef X
+    result << "\n>";
+    return result.str();
+  });
 
   py::class_<raw::MjVisualGlobal> mjVisualGlobal(mjVisual, "Global");
   mjVisualGlobal.def("__copy__", [](const raw::MjVisualGlobal& other) {

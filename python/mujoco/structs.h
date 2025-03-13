@@ -1206,8 +1206,8 @@ bool StructsEqual(pybind11::object lhs, pybind11::object rhs) {
 
 // Returns a string representation of a struct like object.
 template <typename T>
-std::string StructRepr(pybind11::object self) {
-  std::ostringstream result;
+void StructReprImpl(pybind11::object self, std::ostringstream& result,
+                    int indent) {
   result << "<"
          << self.attr("__class__").attr("__name__").cast<std::string_view>();
   for (pybind11::handle f : Dir<T>()) {
@@ -1216,10 +1216,16 @@ std::string StructRepr(pybind11::object self) {
       continue;
     }
 
-    result << "\n  " << name << ": "
+    result << "\n" << std::string(indent + 2, ' ') << name << ": "
            << self.attr(f).attr("__repr__")().cast<std::string_view>();
   }
-  result << "\n>";
+  result << "\n" << std::string(indent, ' ') << ">";
+}
+
+template <typename T>
+std::string StructRepr(pybind11::object self) {
+  std::ostringstream result;
+  StructReprImpl<T>(self, result, 0);
   return result.str();
 }
 

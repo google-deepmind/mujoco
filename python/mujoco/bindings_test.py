@@ -377,6 +377,12 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         4,
     )
 
+  def test_mjvisual_repr(self):
+    # Regression test for issue #2488.
+    vis_repr = repr(self.model.vis)
+    self.assertNotEmpty(vis_repr)
+    self.assertIn('MjVisual', vis_repr)
+
   def test_mjmodel_can_read_and_write_opt(self):
     self.assertEqual(self.model.opt.timestep, 0.002)
     np.testing.assert_array_equal(self.model.opt.gravity, [0, 0, -9.81])
