@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <set>
 #include <string>
@@ -648,9 +649,10 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
   // make bounding volume hierarchy
   if (tree_.Bvh().empty()) {
-    face_aabb_.assign(6*nface(), 0);
+    face_aabb_.clear();
+    face_aabb_.reserve(3*face_.size());
     tree_.AllocateBoundingVolumes(nface());
-    for (int i=0; i < nface(); i++) {
+    for (int i = 0; i < nface(); i++) {
       SetBoundingVolume(i);
     }
     tree_.CreateBVH();
@@ -667,29 +669,28 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
 // get bounding volume
 void mjCMesh::SetBoundingVolume(int faceid) {
-  mjCBoundingVolume* node = tree_.GetBoundingVolume(faceid);
-  node->SetId(faceid);
-  node->conaffinity = 1;
-  node->contype = 1;
-  node->pos = center_ + 3*faceid;
-  node->quat = NULL;
-  double face_aamm[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
-  for (int j=0; j<3; j++) {
-    int vertid = face_[3*faceid+j];
-    face_aamm[0] = mjMIN(face_aamm[0], vert_[3*vertid+0]);
-    face_aamm[1] = mjMIN(face_aamm[1], vert_[3*vertid+1]);
-    face_aamm[2] = mjMIN(face_aamm[2], vert_[3*vertid+2]);
-    face_aamm[3] = mjMAX(face_aamm[3], vert_[3*vertid+0]);
-    face_aamm[4] = mjMAX(face_aamm[4], vert_[3*vertid+1]);
-    face_aamm[5] = mjMAX(face_aamm[5], vert_[3*vertid+2]);
+  constexpr double kMaxVal = std::numeric_limits<double>::max();
+  double face_aamm[6] = {kMaxVal, kMaxVal, kMaxVal, -kMaxVal, -kMaxVal, -kMaxVal};
+
+  for (int j = 0; j < 3; j++) {
+    int vertid = face_[3*faceid + j];
+    face_aamm[0] = std::min(face_aamm[0], vert_[3*vertid + 0]);
+    face_aamm[1] = std::min(face_aamm[1], vert_[3*vertid + 1]);
+    face_aamm[2] = std::min(face_aamm[2], vert_[3*vertid + 2]);
+    face_aamm[3] = std::max(face_aamm[3], vert_[3*vertid + 0]);
+    face_aamm[4] = std::max(face_aamm[4], vert_[3*vertid + 1]);
+    face_aamm[5] = std::max(face_aamm[5], vert_[3*vertid + 2]);
   }
-  face_aabb_[6*faceid+0] = .5 * (face_aamm[0] + face_aamm[3]);
-  face_aabb_[6*faceid+1] = .5 * (face_aamm[1] + face_aamm[4]);
-  face_aabb_[6*faceid+2] = .5 * (face_aamm[2] + face_aamm[5]);
-  face_aabb_[6*faceid+3] = .5 * (face_aamm[3] - face_aamm[0]);
-  face_aabb_[6*faceid+4] = .5 * (face_aamm[4] - face_aamm[1]);
-  face_aabb_[6*faceid+5] = .5 * (face_aamm[5] - face_aamm[2]);
-  node->aabb = face_aabb_.data() + 6*faceid;
+
+  face_aabb_.push_back(.5 * (face_aamm[0] + face_aamm[3]));
+  face_aabb_.push_back(.5 * (face_aamm[1] + face_aamm[4]));
+  face_aabb_.push_back(.5 * (face_aamm[2] + face_aamm[5]));
+  face_aabb_.push_back(.5 * (face_aamm[3] - face_aamm[0]));
+  face_aabb_.push_back(.5 * (face_aamm[4] - face_aamm[1]));
+  face_aabb_.push_back(.5 * (face_aamm[5] - face_aamm[2]));
+
+  tree_.AddBoundingVolume(faceid, 1, 1, center_ + 3*faceid, nullptr,
+                          &face_aabb_[6*faceid]);
 }
 
 
@@ -3565,7 +3566,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
 
 // create flex BVH
-void mjCFlex::CreateBVH(void) {
+void mjCFlex::CreateBVH() {
   int nbvh = 0;
 
   // allocate element bounding boxes
@@ -3587,8 +3588,8 @@ void mjCFlex::CreateBVH(void) {
     mjuu_copyvec(xmax, vertxpos.data() + 3*edata[0], 3);
     for (int i=1; i <= dim; i++) {
       for (int j=0; j<3; j++) {
-        xmin[j] = mjMIN(xmin[j], vertxpos[3*edata[i]+j]);
-        xmax[j] = mjMAX(xmax[j], vertxpos[3*edata[i]+j]);
+        xmin[j] = std::min(xmin[j], vertxpos[3*edata[i]+j]);
+        xmax[j] = std::max(xmax[j], vertxpos[3*edata[i]+j]);
       }
     }
 
@@ -3601,13 +3602,9 @@ void mjCFlex::CreateBVH(void) {
     elemaabb_[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
 
     // add bounding volume for this element
-    mjCBoundingVolume* bv = tree.GetBoundingVolume(nbvh++);
-    bv->contype = contype;
-    bv->conaffinity = conaffinity;
-    bv->quat = NULL;
-    bv->SetId(e);
-    bv->aabb = elemaabb_.data() + 6*e;
-    bv->pos = bv->aabb;
+    const double* aabb = elemaabb_.data() + 6*e;
+    tree.AddBoundingVolume(e, contype, conaffinity, aabb, nullptr, aabb);
+    nbvh++;
   }
 
   // create hierarchy

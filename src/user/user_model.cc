@@ -2218,7 +2218,7 @@ void mjCModel::CopyTree(mjModel* m) {
       memcpy(m->bvh_child + 2*bvh_adr, pb->tree.Child().data(), 2*pb->tree.Nbvh()*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pb->tree.Level().data(), pb->tree.Nbvh()*sizeof(int));
       for (int i=0; i<pb->tree.Nbvh(); i++) {
-        m->bvh_nodeid[i + bvh_adr] = pb->tree.Nodeid(i) ? *(pb->tree.Nodeid(i)) : -1;
+        m->bvh_nodeid[i + bvh_adr] = pb->tree.Nodeidptr(i) ? *(pb->tree.Nodeidptr(i)) : -1;
       }
     }
     bvh_adr += pb->tree.Nbvh();
@@ -2838,7 +2838,7 @@ void mjCModel::CopyObjects(mjModel* m) {
       memcpy(m->bvh_child + 2*bvh_adr, pme->tree().Child().data(), 2*pme->tree().Nbvh()*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pme->tree().Level().data(), pme->tree().Nbvh()*sizeof(int));
       for (int j=0; j<pme->tree().Nbvh(); j++) {
-        m->bvh_nodeid[j + bvh_adr] = pme->tree().Nodeid(j) ? *(pme->tree().Nodeid(j)) : -1;
+        m->bvh_nodeid[j + bvh_adr] = pme->tree().Nodeid(j) > -1 ? pme->tree().Nodeid(j) : -1;
       }
     }
 
@@ -2955,7 +2955,7 @@ void mjCModel::CopyObjects(mjModel* m) {
       memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.Child().data(), 2*pfl->tree.Nbvh()*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pfl->tree.Level().data(), pfl->tree.Nbvh()*sizeof(int));
       for (int i=0; i<pfl->tree.Nbvh(); i++) {
-        m->bvh_nodeid[i+ bvh_adr] = pfl->tree.Nodeid(i) ? *(pfl->tree.Nodeid(i)) : -1;
+        m->bvh_nodeid[i+ bvh_adr] = pfl->tree.Nodeidptr(i) ? *(pfl->tree.Nodeidptr(i)) : -1;
       }
     }
 

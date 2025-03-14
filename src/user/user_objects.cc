@@ -38,6 +38,7 @@
 #include "cc/array_safety.h"
 #include "engine/engine_passive.h"
 #include <mujoco/mjspec.h>
+#include <mujoco/mujoco.h>
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
@@ -347,12 +348,6 @@ const char* ResolveOrientation(double* quat, bool degree, const char* sequence,
 
 //------------------------- class mjCBoundingVolumeHierarchy implementation ------------------------
 
-// constructor
-mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
-  mjuu_setvec(ipos_, 0, 0, 0);
-  mjuu_setvec(iquat_, 1, 0, 0, 0);
-}
-
 
 // assign position and orientation
 void mjCBoundingVolumeHierarchy::Set(double ipos_element[3], double iquat_element[4]) {
@@ -369,7 +364,7 @@ void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
   nodeid_.clear();
   level_.clear();
   bvleaf_.clear();
-  bvleaf_.resize(nleaf);
+  bvleaf_.reserve(nleaf);
 }
 
 
@@ -377,9 +372,21 @@ void mjCBoundingVolumeHierarchy::RemoveInactiveVolumes(int nmax) {
   bvleaf_.erase(bvleaf_.begin() + nmax, bvleaf_.end());
 }
 
+const mjCBoundingVolume*
+mjCBoundingVolumeHierarchy::AddBoundingVolume(int id, int contype, int conaffinity,
+                                             const double* pos, const double* quat,
+                                             const double* aabb) {
+    bvleaf_.emplace_back(id, contype, conaffinity, pos, quat, aabb);
+    return &bvleaf_.back();
+}
 
-mjCBoundingVolume* mjCBoundingVolumeHierarchy::GetBoundingVolume(int id) {
-  return bvleaf_.data() + id;
+
+const mjCBoundingVolume*
+mjCBoundingVolumeHierarchy::AddBoundingVolume(const int* id, int contype, int conaffinity,
+                                             const double* pos, const double* quat,
+                                             const double* aabb) {
+    bvleaf_.emplace_back(id, contype, conaffinity, pos, quat, aabb);
+    return &bvleaf_.back();
 }
 
 
@@ -391,12 +398,12 @@ void mjCBoundingVolumeHierarchy::CreateBVH() {
   elements.reserve(bvleaf_.size());
   double qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
   for (int i = 0; i < bvleaf_.size(); i++) {
-    if (bvleaf_[i].conaffinity || bvleaf_[i].contype) {
+    if (bvleaf_[i].Conaffinity() || bvleaf_[i].Contype()) {
       BVElement element;
       element.e = &bvleaf_[i];
-      double vert[3] = {element.e->pos[0] - ipos_[0],
-                        element.e->pos[1] - ipos_[1],
-                        element.e->pos[2] - ipos_[2]};
+      double vert[3] = {element.e->Pos(0) - ipos_[0],
+                        element.e->Pos(1) - ipos_[1],
+                        element.e->Pos(2) - ipos_[2]};
       mjuu_rotVecQuat(element.lpos, vert, qinv);
       elements.push_back(std::move(element));
     }
@@ -412,7 +419,8 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   if (nelements == 0) {
     return -1;
   }
-  double AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+  constexpr double kMaxVal = std::numeric_limits<double>::max();
+  double AAMM[6] = {kMaxVal, kMaxVal, kMaxVal, -kMaxVal, -kMaxVal, -kMaxVal};
 
   // inverse transformation
   double qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
@@ -420,26 +428,26 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   // accumulate AAMM over elements
   for (auto element = elements_begin; element != elements_end; ++element) {
     // transform element aabb to aamm format
-    double aamm[6] = {element->e->aabb[0] - element->e->aabb[3],
-                      element->e->aabb[1] - element->e->aabb[4],
-                      element->e->aabb[2] - element->e->aabb[5],
-                      element->e->aabb[0] + element->e->aabb[3],
-                      element->e->aabb[1] + element->e->aabb[4],
-                      element->e->aabb[2] + element->e->aabb[5]};
+    double aamm[6] = {element->e->AABB(0) - element->e->AABB(3),
+                      element->e->AABB(1) - element->e->AABB(4),
+                      element->e->AABB(2) - element->e->AABB(5),
+                      element->e->AABB(0) + element->e->AABB(3),
+                      element->e->AABB(1) + element->e->AABB(4),
+                      element->e->AABB(2) + element->e->AABB(5)};
 
     // update node AAMM
-    for (int v=0; v<8; v++) {
+    for (int v=0; v < 8; v++) {
       double vert[3], box[3];
       vert[0] = (v&1 ? aamm[3] : aamm[0]);
       vert[1] = (v&2 ? aamm[4] : aamm[1]);
       vert[2] = (v&4 ? aamm[5] : aamm[2]);
 
       // rotate to the body inertial frame if specified
-      if (element->e->quat) {
-        mjuu_rotVecQuat(box, vert, element->e->quat);
-        box[0] += element->e->pos[0] - ipos_[0];
-        box[1] += element->e->pos[1] - ipos_[1];
-        box[2] += element->e->pos[2] - ipos_[2];
+      if (element->e->Quat()) {
+        mjuu_rotVecQuat(box, vert, element->e->Quat());
+        box[0] += element->e->Pos(0) - ipos_[0];
+        box[1] += element->e->Pos(1) - ipos_[1];
+        box[2] += element->e->Pos(2) - ipos_[2];
         mjuu_rotVecQuat(vert, box, qinv);
       }
 
@@ -453,10 +461,10 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   }
 
   // inflate flat AABBs
-  for (int i=0; i<3; i++) {
-    if (std::abs(AAMM[i]-AAMM[i+3])<mjEPS) {
-      AAMM[i+0] -= mjEPS;
-      AAMM[i+3] += mjEPS;
+  for (int i = 0; i < 3; i++) {
+    if (std::abs(AAMM[i] - AAMM[i+3]) < mjEPS) {
+      AAMM[i + 0] -= mjEPS;
+      AAMM[i + 3] += mjEPS;
     }
   }
 
@@ -464,55 +472,62 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   int index = nbvh_++;
   child_.push_back(-1);
   child_.push_back(-1);
-  nodeid_.push_back(nullptr);
+  nodeid_.push_back(-1);
+  nodeidptr_.push_back(nullptr);
   level_.push_back(lev);
 
   // store bounding box of the current node
-  for (int i=0; i<3; i++) {
-    bvh_.push_back((AAMM[3+i] + AAMM[i]) / 2);
-  }
-  for (int i=0; i<3; i++) {
-    bvh_.push_back((AAMM[3+i] - AAMM[i]) / 2);
-  }
+  bvh_.push_back((AAMM[3] + AAMM[0]) / 2);
+  bvh_.push_back((AAMM[4] + AAMM[1]) / 2);
+  bvh_.push_back((AAMM[5] + AAMM[2]) / 2);
+  bvh_.push_back((AAMM[3] - AAMM[0]) / 2);
+  bvh_.push_back((AAMM[4] - AAMM[1]) / 2);
+  bvh_.push_back((AAMM[5] - AAMM[2]) / 2);
 
   // leaf node, return
-  if (nelements==1) {
-    for (int i=0; i<2; i++) {
-      child_[2*index+i] = -1;
-    }
-    nodeid_[index] = (int*)elements_begin->e->GetId();
+  if (nelements == 1) {
+    child_[2*index + 0] = -1;
+    child_[2*index + 1] = -1;
+    nodeid_[index] = *elements_begin->e->Id();
+    nodeidptr_[index] = (int*)elements_begin->e->Id();
     return index;
   }
 
   // find longest axis, by a margin of at least mjEPS, default to 0
   int axis = 0;
-  double edges[3] = { AAMM[3]-AAMM[0], AAMM[4]-AAMM[1], AAMM[5]-AAMM[2] };
+  double edges[3] = {AAMM[3] - AAMM[0], AAMM[4] - AAMM[1], AAMM[5] - AAMM[2]};
   if (edges[1] >= edges[0] + mjEPS) axis = 1;
   if (edges[2] >= edges[axis] + mjEPS) axis = 2;
 
   // find median along the axis
+  auto compare = [&](const BVElement& e1, const BVElement& e2) {
+    if (std::abs(e1.lpos[axis] - e2.lpos[axis]) > mjEPS) {
+      return e1.lpos[axis] < e2.lpos[axis];
+    }
+    // comparing pointers gives a stable sort, because they both come from the same array
+    return e1.e < e2.e;
+  };
+
   // note: nth_element performs a partial sort of elements
-  BVElementCompare compare;
-  compare.axis = axis;
   int m = nelements / 2;
   std::nth_element(elements_begin, elements_begin + m, elements_end, compare);
 
   // recursive calls
   if (m > 0) {
-    child_[2*index+0] = MakeBVH(elements_begin, elements_begin + m, lev+1);
+    child_[2*index + 0] = MakeBVH(elements_begin, elements_begin + m, lev + 1);
   }
 
   if (m != nelements) {
-    child_[2*index+1] = MakeBVH(elements_begin + m, elements_end, lev+1);
+    child_[2*index + 1] = MakeBVH(elements_begin + m, elements_end, lev + 1);
   }
 
   // SHOULD NOT OCCUR
-  if (child_[2*index+0]==-1 && child_[2*index+1]==-1) {
+  if (child_[2*index + 0] == -1 && child_[2*index + 1] == -1) {
     mju_error("this should have been a leaf, body=%s nelements=%d",
               name_.c_str(), nelements);
   }
 
-  if (lev>mjMAXTREEDEPTH) {
+  if (lev > mjMAXTREEDEPTH) {
     mju_warning("max tree depth exceeded in body=%s", name_.c_str());
   }
 
@@ -1595,8 +1610,9 @@ void mjCBody::ComputeBVH() {
 
   tree.Set(ipos, iquat);
   tree.AllocateBoundingVolumes(geoms.size());
-  for (int i=0; i<geoms.size(); i++) {
-    geoms[i]->SetBoundingVolume(tree.GetBoundingVolume(i));
+  for (const mjCGeom* geom : geoms) {
+    tree.AddBoundingVolume(&geom->id, geom->contype, geom->conaffinity,
+                           geom->pos, geom->quat, geom->aabb);
   }
   tree.CreateBVH();
 }
@@ -2459,17 +2475,6 @@ double mjCGeom::GetVolume() const {
       break;
   }
   return 0;
-}
-
-
-
-void mjCGeom::SetBoundingVolume(mjCBoundingVolume* bv) const {
-  bv->SetId(&id);
-  bv->contype = contype;
-  bv->conaffinity = conaffinity;
-  bv->aabb = aabb;
-  bv->pos = pos;
-  bv->quat = quat;
 }
 
 
