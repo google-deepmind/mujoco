@@ -115,6 +115,21 @@ class Handle:
       return sim.viewport
     return None
 
+  @property
+  def run(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.run
+    return None
+
+  @run.setter
+  def run(self, value):
+    if value != 0 and value != 1:
+      raise ValueError('run must be 0 or 1')
+    sim = self._sim()
+    with sim.lock():
+      sim.run = value
+
   def set_figures(self, viewports_figures):
     sim = self._sim()
     if sim is not None:
