@@ -5,6 +5,12 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
+     "true" to "false". This feature has proven to be counterintuitive for users.
+
 Bug fixes
 ^^^^^^^^^
 - :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
