@@ -91,7 +91,7 @@ MjStruct: TypeAlias = Union[
 
 
 def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
-  """Converts a spec to a zip file.
+  """Converts an MjSpec to a zip file.
 
   Args:
     spec: The mjSpec to save to a file.
@@ -107,6 +107,33 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     for filename, contents in files_to_zip.items():
       zip_info = zipfile.ZipInfo(os.path.join(spec.modelname, filename))
       zip_file.writestr(zip_info, contents)
+
+
+def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
+  """Reads a zip file and returns an MjSpec.
+
+  Args:
+    file: The path to the file to read from or the file object to read from.
+  Returns:
+    An MjSpec object.
+  """
+  assets = {}
+  xml_string = None
+  if isinstance(file, str):
+    file = open(file, 'rb')
+  if not zipfile.is_zipfile(file):
+    raise ValueError(f'File {file} is not a zip file.')
+  with zipfile.ZipFile(file, 'r') as zip_file:
+    for zip_info in zip_file.infolist():
+      if not zip_info.filename.endswith(os.path.sep):
+        with zip_file.open(zip_info.filename) as f:
+          if zip_info.filename.endswith('.xml'):
+            xml_string = f.read()
+          else:
+            assets[zip_info.filename] = f.read()
+  if not xml_string:
+    raise ValueError('No XML file found in zip file.')
+  return _specs.MjSpec.from_string(xml_string, assets=assets)
 
 
 class _MjBindModel:
@@ -166,7 +193,7 @@ def _bind_data(
   else:
     return data.bind_scalar(specs)
 
-
+_specs.MjSpec.from_zip = from_zip
 _specs.MjSpec.to_zip = to_zip
 _structs.MjData.bind = _bind_data
 _structs.MjModel.bind = _bind_model

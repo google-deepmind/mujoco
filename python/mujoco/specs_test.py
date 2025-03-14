@@ -758,11 +758,14 @@ class SpecsTest(absltest.TestCase):
 
     xml = """
     <mujoco model="test">
+      <compiler angle="radian"/>
+
       <asset>
         <mesh name="cube" file="cube.obj"/>
       </asset>
+
       <worldbody>
-        <geom mesh="cube"/>
+        <geom type="mesh" mesh="cube"/>
       </worldbody>
     </mujoco>
     """
