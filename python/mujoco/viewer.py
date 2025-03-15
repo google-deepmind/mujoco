@@ -23,9 +23,8 @@ import queue
 import sys
 import threading
 import time
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 import weakref
-
 import glfw
 import mujoco
 from mujoco import _simulate
@@ -115,7 +114,7 @@ class Handle:
       return sim.viewport
     return None
 
-  def set_figures(self, viewports_figures):
+  def set_figures(self, viewports_figures: List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]):
     sim = self._sim()
     if sim is not None:
       sim.set_figures(viewports_figures)
@@ -124,6 +123,45 @@ class Handle:
     sim = self._sim()
     if sim is not None:
       sim.clear_figures()
+
+  def overlay_text(self, overlay_texts: List[Tuple[int, int, str, str]]):
+    """ Overlay text on the viewer.
+    
+    Args:
+      overlay_texts: List of tuples of (font, gridpos, text1, text2)
+      let:
+        font: Font style from mujoco.mjtFontScale
+        gridpos: Position of text box from mujoco.mjtGridPos
+        text1: Left text column
+        text2: Right text column
+    """
+    sim = self._sim()
+    if sim is not None:
+      sim.overlay_text(overlay_texts)
+  
+  def clear_overlay_text(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_overlay_text()
+
+  def set_images(self, viewports_images: List[Tuple[mujoco.MjrRect, np.ndarray]]):
+    sim = self._sim()
+    if sim is not None:
+      # Nearest neighbor resize
+      resize = lambda a, s: a[(np.arange(s[0]) * a.shape[0]) // s[0]][:, (np.arange(s[1]) * a.shape[1]) // s[1]]
+      resized_viewports_images = []
+      for viewport, image in viewports_images:
+        targ_shape = (viewport.height, viewport.width)
+        resized = resize(image, targ_shape)
+        resized = np.flip(resized, axis=0)
+        resized = np.ascontiguousarray(resized)
+        resized_viewports_images.append((viewport, resized))
+      sim.set_images(resized_viewports_images)
+
+  def clear_images(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_images()
 
   def close(self):
     sim = self._sim()
