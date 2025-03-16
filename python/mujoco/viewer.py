@@ -25,10 +25,12 @@ import threading
 import time
 from typing import Callable, List, Optional, Tuple, Union
 import weakref
+
 import glfw
+import numpy as np
+
 import mujoco
 from mujoco import _simulate
-import numpy as np
 
 if not glfw._glfw:  # pylint: disable=protected-access
   raise RuntimeError('GLFW dynamic library handle is not available')
@@ -114,7 +116,9 @@ class Handle:
       return sim.viewport
     return None
 
-  def set_figures(self, viewports_figures: List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]):
+  def set_figures(
+      self, viewports_figures: List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]
+  ):
     sim = self._sim()
     if sim is not None:
       sim.set_figures(viewports_figures)
@@ -125,8 +129,8 @@ class Handle:
       sim.clear_figures()
 
   def overlay_text(self, overlay_texts: List[Tuple[int, int, str, str]]):
-    """ Overlay text on the viewer.
-    
+    """Overlay text on the viewer.
+
     Args:
       overlay_texts: List of tuples of (font, gridpos, text1, text2)
       let:
@@ -138,17 +142,21 @@ class Handle:
     sim = self._sim()
     if sim is not None:
       sim.overlay_text(overlay_texts)
-  
+
   def clear_overlay_text(self):
     sim = self._sim()
     if sim is not None:
       sim.clear_overlay_text()
 
-  def set_images(self, viewports_images: List[Tuple[mujoco.MjrRect, np.ndarray]]):
+  def set_images(
+      self, viewports_images: List[Tuple[mujoco.MjrRect, np.ndarray]]
+  ):
     sim = self._sim()
     if sim is not None:
       # Nearest neighbor resize
-      resize = lambda a, s: a[(np.arange(s[0]) * a.shape[0]) // s[0]][:, (np.arange(s[1]) * a.shape[1]) // s[1]]
+      resize = lambda a, s: a[(np.arange(s[0]) * a.shape[0]) // s[0]][
+          :, (np.arange(s[1]) * a.shape[1]) // s[1]
+      ]
       resized_viewports_images = []
       for viewport, image in viewports_images:
         targ_shape = (viewport.height, viewport.width)
