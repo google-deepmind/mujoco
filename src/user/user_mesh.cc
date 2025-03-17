@@ -367,20 +367,45 @@ void mjCMesh::LoadSDF() {
 
 void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   if (cache == nullptr) return;
-  if (!IsObj()) return;  // only OBJ files are cached
 
   // cache mesh data into new mesh object
   mjCMesh *mesh =  new mjCMesh();
+
+  // mesh properties
+  mesh->maxhullvert_ = maxhullvert_;
+  mesh->inertia = inertia;
+  std::copy(scale, scale + 3, mesh->scale);
+
+  // mesh processed data
+  mesh->processed_ = processed_;
   mesh->vert_ = vert_;
   mesh->normal_ = normal_;
   mesh->texcoord_ = texcoord_;
   mesh->face_ = face_;
-  mesh->facetexcoord_ = facetexcoord_;
   mesh->facenormal_ = facenormal_;
-  mesh->vertex_index_ = vertex_index_;
-  mesh->normal_index_ = normal_index_;
-  mesh->texcoord_index_ = texcoord_index_;
-  mesh->num_face_vertices_ = num_face_vertices_;
+  mesh->facetexcoord_ = facetexcoord_;
+  mesh->halfedge_ = halfedge_;
+  mesh->szgraph_ = szgraph_;
+  if (szgraph_) {
+    mesh->graph_ = (int*)mju_malloc(szgraph_*sizeof(int));
+    std::copy(graph_, graph_ + szgraph_, mesh->graph_);
+  }
+  mesh->polygons_ = polygons_;
+  mesh->polygon_normals_ = polygon_normals_;
+  mesh->polygon_map_ = polygon_map_;
+  mesh->surface_ = surface_;
+  mesh->volume_ = volume_;
+  std::copy(boxsz_, boxsz_ + 3, mesh->boxsz_);
+  std::copy(aamm_, aamm_ + 6, mesh->aamm_);
+  std::copy(pos_, pos_ + 3, mesh->pos_);
+  std::copy(quat_, quat_ + 4, mesh->quat_);
+  int ncenter = face_.size();
+  if (ncenter) {
+    mesh->center_ = (double*)mju_malloc(ncenter * sizeof(double));
+    std::copy(center_, center_ + ncenter, mesh->center_);
+  }
+  mesh->tree_ = tree_;
+  mesh->face_aabb_ = face_aabb_;
 
   // calculate estimated size of mesh
   std::size_t size = sizeof(mjCMesh)
@@ -388,12 +413,17 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
       + (sizeof(float) * normal_.size())
       + (sizeof(float) * texcoord_.size())
       + (sizeof(int) * face_.size())
-      + (sizeof(int) * facetexcoord_.size())
       + (sizeof(int) * facenormal_.size())
-      + (sizeof(int) * vertex_index_.size())
-      + (sizeof(int) * normal_index_.size())
-      + (sizeof(int) * texcoord_index_.size())
-      + (sizeof(face_vertices_type) * num_face_vertices_.size());
+      + (sizeof(int) * facetexcoord_.size())
+      + (sizeof(int) * 2 * halfedge_.size())
+      + (sizeof(int) * szgraph_)
+      + (sizeof(int) * npolygonvert())
+      + (sizeof(double) * polygon_normals_.size())
+      + (sizeof(int) * npolygonmap())
+      + (sizeof(double) * 18)
+      + (sizeof(int) * ncenter)
+      + tree_.Size()
+      + (sizeof(double) * face_aabb_.size());
 
   std::shared_ptr<const void> cached_data(mesh, +[](const void* data) {
     const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
@@ -604,39 +634,38 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
     if (!fromCache) {
       LoadFromResource(resource_);
-      CacheMesh(cache, resource_);
-    }
 
-    // check repeated mesh data
-    if (!normal_.empty() && !spec_normal_.empty()) {
-      throw mjCError(this, "repeated normal specification");
-    } else if (normal_.empty()) {
-      normal_ = spec_normal_;
-    }
-    if (!texcoord_.empty() && !spec_texcoord_.empty()) {
-      throw mjCError(this, "repeated texcoord specification");
-    } else if (texcoord_.empty()) {
-      texcoord_ = spec_texcoord_;
-    }
-    if (!face_.empty() && !spec_face_.empty()) {
-      throw mjCError(this, "repeated face specification");
-    } else if (face_.empty()) {
-      face_ = spec_face_;
-    }
-    if (!vert_.empty() && !spec_vert_.empty()) {
-      throw mjCError(this, "repeated vertex specification");
-    } else if (vert_.empty()) {
-      ProcessVertices(spec_vert_);
-    }
-    if (!facenormal_.empty() && !spec_normal_.empty()) {
-      throw mjCError(this, "repeated facenormal specification");
-    } else if (facenormal_.empty()) {
-      facenormal_ = spec_facenormal_;
-    }
-    if (!facetexcoord_.empty() && !spec_facetexcoord_.empty()) {
-      throw mjCError(this, "repeated facetexcoord specification");
-    } else if (facetexcoord_.empty()) {
-      facetexcoord_ = spec_facetexcoord_;
+      // check repeated mesh data
+      if (!normal_.empty() && !spec_normal_.empty()) {
+        throw mjCError(this, "repeated normal specification");
+      } else if (normal_.empty()) {
+        normal_ = spec_normal_;
+      }
+     if (!texcoord_.empty() && !spec_texcoord_.empty()) {
+        throw mjCError(this, "repeated texcoord specification");
+      } else if (texcoord_.empty()) {
+        texcoord_ = spec_texcoord_;
+      }
+      if (!face_.empty() && !spec_face_.empty()) {
+        throw mjCError(this, "repeated face specification");
+      } else if (face_.empty()) {
+        face_ = spec_face_;
+      }
+      if (!vert_.empty() && !spec_vert_.empty()) {
+        throw mjCError(this, "repeated vertex specification");
+      } else if (vert_.empty()) {
+        ProcessVertices(spec_vert_);
+      }
+      if (!facenormal_.empty() && !spec_normal_.empty()) {
+        throw mjCError(this, "repeated facenormal specification");
+      } else if (facenormal_.empty()) {
+        facenormal_ = spec_facenormal_;
+      }
+      if (!facetexcoord_.empty() && !spec_facetexcoord_.empty()) {
+        throw mjCError(this, "repeated facetexcoord specification");
+      } else if (facetexcoord_.empty()) {
+        facetexcoord_ = spec_facetexcoord_;
+      }
     }
   } else if (plugin.active) {
     LoadSDF();  // create using marching cubes
@@ -645,17 +674,12 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
   CheckInitialMesh();
 
   // compute mesh properties
-  Process();
+  if (!fromCache) {
+    Process();
 
-  // make bounding volume hierarchy
-  if (tree_.Bvh().empty()) {
-    face_aabb_.clear();
-    face_aabb_.reserve(3*face_.size());
-    tree_.AllocateBoundingVolumes(nface());
-    for (int i = 0; i < nface(); i++) {
-      SetBoundingVolume(i);
+    if (!file_.empty()) {
+      CacheMesh(cache, resource_);
     }
-    tree_.CreateBVH();
   }
 
   // close resource
@@ -982,89 +1006,93 @@ void mjCMesh::LoadOBJ(mjResource* resource, bool remove_repeated) {
     texcoord_[2*i+1] = 1-texcoord_[2*i+1];
   }
 
-  // save some partial data for caching
-  if (!objReader.GetShapes().empty()) {
-    const auto& mesh = objReader.GetShapes()[0].mesh;
-    num_face_vertices_ = mesh.num_face_vertices;
-
-    vertex_index_.reserve(mesh.indices.size());
-    normal_index_.reserve(mesh.indices.size());
-    texcoord_index_.reserve(mesh.indices.size());
-
-    for (tinyobj::index_t index : mesh.indices) {
-      vertex_index_.push_back(index.vertex_index);
-      normal_index_.push_back(index.normal_index);
-      texcoord_index_.push_back(index.texcoord_index);
-    }
-  }
-
   // copy vertex data
   ProcessVertices(attrib.vertices, remove_repeated);
 }
 
-
-
-// load OBJ from cached asset, return true on success
+// load mesh from cached asset, return true on success
 bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
-  // check that asset has all data
-  if (!cache->PopulateData(resource, [&](const void* data) {
+  // save previous mesh properties (in case different from cached mesh)
+  int maxhullvert = maxhullvert_;
+  mjtMeshInertia old_inertia = inertia;
+  double old_scale[3] = {scale[0], scale[1], scale[2]};
+
+  auto process_mesh = [&](const void* data) {
     const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
+    // check if maxhullvert is different
+    maxhullvert_ = mesh->maxhullvert_;
+    if (maxhullvert != mesh->maxhullvert_) {
+      return;
+    }
+
+    // check if inertia is different
+    inertia = mesh->inertia;
+    if (old_inertia != mesh->inertia) {
+      return;
+    }
+
+    // check if scale is different
+    memcpy(scale, mesh->scale, 3*sizeof(double));
+    if (old_scale[0] != mesh->scale[0] || old_scale[1] != mesh->scale[1] ||
+        old_scale[2] != mesh->scale[2]) {
+      return;
+    }
+
+    processed_ = mesh->processed_;
     vert_ = mesh->vert_;
     normal_ = mesh->normal_;
     texcoord_ = mesh->texcoord_;
-    vertex_index_ = mesh->vertex_index_;
-    normal_index_ = mesh->normal_index_;
-    texcoord_index_ = mesh->texcoord_index_;
-    num_face_vertices_ = mesh->num_face_vertices_;
-  })) {
+    face_ = mesh->face_;
+    facenormal_ = mesh->facenormal_;
+    facetexcoord_ = mesh->facetexcoord_;
+    halfedge_ = mesh->halfedge_;
+
+    szgraph_ = mesh->szgraph_;
+    graph_ = nullptr;
+    if (szgraph_) {
+      graph_ = (int*)mju_malloc(szgraph_*sizeof(int));
+      std::copy(mesh->graph_, mesh->graph_ + szgraph_, graph_);
+    }
+
+    polygons_ = mesh->polygons_;
+    polygon_normals_ = mesh->polygon_normals_;
+    polygon_map_ = mesh->polygon_map_;
+    surface_ = mesh->surface_;
+    volume_ = mesh->volume_;
+    std::copy(mesh->boxsz_, mesh->boxsz_ + 3, boxsz_);
+    std::copy(mesh->aamm_, mesh->aamm_ + 6, aamm_);
+    std::copy(mesh->pos_, mesh->pos_ + 3, pos_);
+    std::copy(mesh->quat_, mesh->quat_ + 4, quat_);
+
+    center_ = nullptr;
+    int ncenter = mesh->face_.size();
+    if (ncenter) {
+      center_ = (double*)mju_malloc(ncenter * sizeof(double));
+      std::copy(mesh->center_, mesh->center_ + ncenter, center_);
+    }
+    tree_ = mesh->tree_;
+    face_aabb_ = mesh->face_aabb_;
+  };
+
+  // check that cached asset has all data, make sure no metadata has changed
+  if (!cache->PopulateData(resource, process_mesh)) {
     return false;
   }
 
-  bool righthand = (scale[0] * scale[1] * scale[2]) > 0;
-
-  for (int face = 0, i = 0; i < vertex_index_.size();) {
-    int nfacevert = num_face_vertices_[face];
-    if (nfacevert < 3 || nfacevert > 4) {
-      throw mjCError(
-          this, "only tri or quad meshes are supported for OBJ (file '%s')",
-          resource->name);
-    }
-
-    face_.push_back(vertex_index_[i]);
-    face_.push_back(vertex_index_[i + (righthand == 1 ? 1 : 2)]);
-    face_.push_back(vertex_index_[i + (righthand == 1 ? 2 : 1)]);
-
-    if (!normal_.empty()) {
-      facenormal_.push_back(normal_index_[i]);
-      facenormal_.push_back(normal_index_[i + (righthand == 1 ? 1 : 2)]);
-      facenormal_.push_back(normal_index_[i + (righthand == 1 ? 2 : 1)]);
-    }
-
-    if (!texcoord_.empty()) {
-      facetexcoord_.push_back(texcoord_index_[i]);
-      facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 1 : 2)]);
-      facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 2 : 1)]);
-    }
-
-    if (nfacevert == 4) {
-      face_.push_back(vertex_index_[i]);
-      face_.push_back(vertex_index_[i + (righthand == 1 ? 2 : 3)]);
-      face_.push_back(vertex_index_[i + (righthand == 1 ? 3 : 2)]);
-
-      if (!normal_.empty()) {
-        facenormal_.push_back(normal_index_[i]);
-        facenormal_.push_back(normal_index_[i + (righthand == 1 ? 1 : 2)]);
-        facenormal_.push_back(normal_index_[i + (righthand == 1 ? 2 : 1)]);
-      }
-
-      if (!texcoord_.empty()) {
-        facetexcoord_.push_back(texcoord_index_[i]);
-        facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 1 : 2)]);
-        facetexcoord_.push_back(texcoord_index_[i + (righthand == 1 ? 2 : 1)]);
-      }
-    }
-    i += nfacevert;
-    ++face;
+  if (maxhullvert != maxhullvert_) {
+    maxhullvert_ = maxhullvert;
+    return false;
+  }
+  if (inertia != old_inertia) {
+    inertia = old_inertia;
+    return false;
+  }
+  if (scale[0] != old_scale[0] || scale[1] != old_scale[1] ||
+      scale[2] != old_scale[2]) {
+    scale[0] = old_scale[0];
+    scale[1] = old_scale[1];
+    scale[2] = old_scale[2];
+    return false;
   }
   return true;
 }
@@ -1538,6 +1566,17 @@ void mjCMesh::Process() {
 
   // recompute polygon normals
   MakePolygonNormals();
+
+  // make bounding volume hierarchy
+  if (tree_.Bvh().empty()) {
+    face_aabb_.clear();
+    face_aabb_.reserve(3*face_.size());
+    tree_.AllocateBoundingVolumes(nface());
+    for (int i = 0; i < nface(); i++) {
+      SetBoundingVolume(i);
+    }
+    tree_.CreateBVH();
+  }
 }
 
 

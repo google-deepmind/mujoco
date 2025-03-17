@@ -190,6 +190,11 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   int Nodeid(int id) const { return nodeid_[id]; }
   const int* Nodeidptr(int id) const { return nodeidptr_[id]; }
   const std::vector<int>& Level() const { return level_; }
+  int Size() const {
+    return sizeof(mjCBoundingVolume) * bvleaf_.size()
+        + sizeof(mjtNum) * bvh_.size() + sizeof(int) * child_.size()
+        + sizeof(int) * nodeid_.size() + sizeof(int) * level_.size();
+  }
 
  private:
   // internal class used during BVH construction, for partial sorting of bounding volumes
@@ -1077,12 +1082,6 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<std::vector<int>> polygons_;      // polygons of the mesh
   std::vector<double> polygon_normals_;         // normals of the polygons
   std::vector<std::vector<int>> polygon_map_;   // map from vertex to polygon
-
-  // for caching purposes
-  std::vector<int> vertex_index_;
-  std::vector<int> normal_index_;
-  std::vector<int> texcoord_index_;
-  std::vector<face_vertices_type> num_face_vertices_;
 
   // compute the volume and center-of-mass of the mesh given the face centroid
   double ComputeVolume(double CoM[3], const double facecen[3]) const;
