@@ -2569,5 +2569,21 @@ TEST_F(MujocoTest, ErrorWhenCompilingOrphanedSpec) {
   mj_deleteSpec(child);
 }
 
+TEST_F(MujocoTest, SetFrameReverseOrder) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsFrame* child = mjs_addFrame(world, nullptr);
+  mjsFrame* parent = mjs_addFrame(world, nullptr);
+  mjs_setString(child->name, "child");
+  mjs_setString(parent->name, "parent");
+  mjs_setFrame(child->element, parent);
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_THAT(copy, NotNull());
+  EXPECT_THAT(mjs_findFrame(copy, "child"), NotNull());
+  EXPECT_THAT(mjs_findFrame(copy, "parent"), NotNull());
+  mj_deleteSpec(spec);
+  mj_deleteSpec(copy);
+}
+
 }  // namespace
 }  // namespace mujoco

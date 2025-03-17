@@ -847,7 +847,7 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
   // map other frames to indices
   std::map<mjCFrame*, int> fmap;
   for (int i=0; i<other.frames.size(); i++) {
-    fmap[other.frames[i]] = i;
+    fmap[other.frames[i]] = i + frames.size();
   }
 
   // copy frames, needs to happen first
@@ -977,6 +977,7 @@ template <typename T>
 void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
                        std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe) {
   int nsrc = (int)src.size();
+  int ndst = (int)dst.size();
   for (int i=0; i<nsrc; i++) {
     if (pframe && !pframe->IsAncestor(src[i]->frame)) {
       continue;  // skip if the element is not inside pframe
@@ -996,11 +997,18 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
       dst.back()->AddRef();
     }
 
-    // assign dst frame to src frame
-    dst.back()->frame = src[i]->frame ? frames[fmap[src[i]->frame]] : nullptr;
-
     // set namespace
     dst.back()->NameSpace(src[i]->model);
+  }
+
+  // assign dst frame to src frame
+  // needs to be done after the copy in case T is an mjCFrame
+  int j = 0;
+  for (int i = 0; i < src.size(); i++) {
+    if (pframe && !pframe->IsAncestor(src[i]->frame)) {
+      continue;  // skip if the element is not inside pframe
+    }
+    dst[ndst + j++]->frame = src[i]->frame ? frames[fmap[src[i]->frame]] : nullptr;
   }
 }
 
