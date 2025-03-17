@@ -91,6 +91,7 @@ class SimulateWrapper {
 
   void Destroy() {
     if (simulate_) {
+      ClearImages();
       delete simulate_;
       simulate_ = nullptr;
       destroyed_.store(1);
@@ -166,7 +167,7 @@ class SimulateWrapper {
     const std::vector<std::tuple<mjrRect, pybind11::array_t<unsigned char>>>& viewport_images
   ) {
     // Clear previous images to prevent memory leaks
-    simulate_->user_images_.clear();
+    ClearImages();
     
     for (const auto& [viewport, image] : viewport_images) {
       auto buf = image.request();
@@ -190,7 +191,13 @@ class SimulateWrapper {
     }
   }
 
-  void ClearImages() { simulate_->user_images_.clear(); }
+  void ClearImages() { 
+    // Free memory for each image before clearing the vector
+    for (const auto& [viewport, image_ptr] : simulate_->user_images_) {
+      delete[] image_ptr;
+    }
+    simulate_->user_images_.clear(); 
+  }
 
  private:
   mujoco::Simulate* simulate_;
