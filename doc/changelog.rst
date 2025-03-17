@@ -15,6 +15,8 @@ Bug fixes
 ^^^^^^^^^
 - :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
   which the Jacobian is computed, now fixed.
+- Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
+  mjSpec to a frame or a site.
 
 Version 3.3.0 (Feb 26, 2025)
 ----------------------------

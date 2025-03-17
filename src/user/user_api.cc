@@ -711,6 +711,25 @@ mjsBody* mjs_getParent(mjsElement* element) {
 
 
 
+// get parent frame
+mjsFrame* mjs_getFrame(mjsElement* element) {
+  mjCBase* base = static_cast<mjCBase*>(element);
+  switch (element->elemtype) {
+    case mjOBJ_BODY:
+    case mjOBJ_FRAME:
+    case mjOBJ_JOINT:
+    case mjOBJ_GEOM:
+    case mjOBJ_SITE:
+    case mjOBJ_CAMERA:
+    case mjOBJ_LIGHT:
+      return base->frame ? &(base->frame->spec) : nullptr;
+    default:
+      return nullptr;
+  }
+}
+
+
+
 // find frame by name
 mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
   mjsElement* frame = mjs_findElement(s, mjOBJ_FRAME, name);

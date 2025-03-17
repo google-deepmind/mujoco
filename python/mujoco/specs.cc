@@ -272,7 +272,7 @@ py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
 void SetFrame(raw::MjsBody* body, mjtObj objtype, raw::MjsFrame* frame) {
   mjsElement* el = mjs_firstChild(body, objtype, 0);
   while (el) {
-    if (frame->element != el) {
+    if (frame->element != el && mjs_getFrame(el) == nullptr) {
       mjs_setFrame(el, frame);
     }
     el = mjs_nextChild(body, el, 0);

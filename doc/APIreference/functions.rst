@@ -4202,6 +4202,15 @@ Find child body by name.
 
 Get parent body.
 
+.. _mjs_getFrame:
+
+`mjs_getFrame <#mjs_getFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getFrame
+
+Get parent frame.
+
 .. _mjs_findFrame:
 
 `mjs_findFrame <#mjs_findFrame>`__

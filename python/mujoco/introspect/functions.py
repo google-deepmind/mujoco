@@ -9896,6 +9896,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get parent body.',
      )),
+    ('mjs_getFrame',
+     FunctionDecl(
+         name='mjs_getFrame',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFrame'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc='Get parent frame.',
+     )),
     ('mjs_findFrame',
      FunctionDecl(
          name='mjs_findFrame',
