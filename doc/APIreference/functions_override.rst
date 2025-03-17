@@ -59,7 +59,7 @@ saving mechanisms.
 .. _mj_saveXMLString:
 
 Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
-the required size. XML saving requires that the spec first be compiled.
+the required size. XML saving automatically compiles the spec before saving.
 
 .. _mj_saveXML:
 

@@ -533,7 +533,7 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
       const std::optional<
           std::unordered_map<std::string, pybind11::bytes>>& assets);
 
-  static MjWrapper CompileSpec(raw::MjSpec* spec, const mjVFS* vfs);
+  static MjWrapper WrapRawModel(raw::MjModel* m);
 
   static constexpr char kFromRawPointer[] =
       "__MUJOCO_STRUCTS_MJMODELWRAPPER_LOOKUP";

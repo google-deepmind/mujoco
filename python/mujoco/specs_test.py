@@ -520,13 +520,9 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(data_new.qpos[:4], data.qpos)
     np.testing.assert_array_equal(data_new.qvel[:3], data.qvel)
 
-  def test_uncompiled_spec_cannot_be_written(self):
+  def test_uncompiled_spec_can_be_written(self):
     spec = mujoco.MjSpec()
-
-    # Cannot write XML of an uncompiled spec.
-    expected_error = 'XML Write error: Only compiled model can be written'
-    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_error):
-      spec.to_xml()
+    spec.to_xml()
 
   def test_modelname_default_class(self):
     XML = textwrap.dedent("""\

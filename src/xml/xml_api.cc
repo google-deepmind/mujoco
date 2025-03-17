@@ -246,14 +246,13 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
 // if length of the output buffer is too small, returns the required size
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
   std::string result = WriteXML(NULL, s, error, error_sz);
-  if (result.size() >= xml_sz) {
+  if (result.empty()) {
+    return -1;
+  } else if (result.size() >= xml_sz) {
     std::string error_msg = "Output string too short, should be at least " +
                             std::to_string(result.size()+1);
     mjCopyError(error, error_msg.c_str(), error_sz);
     return result.size();
-  }
-  if (result.empty()) {
-    return -1;
   }
 
   result.copy(xml, xml_sz);
