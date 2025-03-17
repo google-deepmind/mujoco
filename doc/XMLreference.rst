@@ -1888,11 +1888,11 @@ defined. Its body name is automatically defined as "world".
 :at:`mocap`: :at-val:`[false, true], "false"`
    If this attribute is "true", the body is labeled as a mocap body. This is allowed only for bodies that are children
    of the world body and have no joints. Such bodies are fixed from the viewpoint of the dynamics, but nevertheless the
-   forward kinematics set their position and orientation from the fields mjData.mocap_pos and mjData.mocap_quat at each
+   forward kinematics set their position and orientation from the fields ``mjData.mocap_{pos,quat}`` at each
    time step. The size of these arrays is adjusted by the compiler so as to match the number of mocap bodies in the
    model. This mechanism can be used to stream motion capture data into the simulation. Mocap bodies can also be moved
    via mouse perturbations in the interactive visualizer, even in dynamic simulation mode. This can be useful for
-   creating props with adjustable position and orientation. See also the mocap attribute of :ref:`flag <option-flag>`.
+   creating props with adjustable position and orientation.
 
 .. _body-pos:
 
