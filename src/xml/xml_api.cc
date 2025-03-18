@@ -98,9 +98,11 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
                     char* error, int error_sz) {
 
   // parse new model
-  std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> spec(
-      ParseXML(filename, vfs, error, error_sz),
-      [](mjSpec* s) { mj_deleteSpec(s); });
+  std::unique_ptr<mjSpec, std::function<void(mjSpec*)> > spec(
+    ParseXML(filename, vfs, error, error_sz),
+    [](mjSpec* s) {
+      mj_deleteSpec(s);
+    });
   if (!spec) {
     return nullptr;
   }
@@ -166,7 +168,7 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
   // print to stringstream
   mjXReader reader;
   std::stringstream str;
-  reader.PrintSchema(str, flg_html!=0, flg_pad!=0);
+  reader.PrintSchema(str, flg_html != 0, flg_pad != 0);
 
   // filename given: write to file
   if (filename) {
