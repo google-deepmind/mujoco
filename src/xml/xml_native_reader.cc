@@ -3544,16 +3544,18 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
 
       // update pframe and attach
       for (int i = 0; i < count; i++) {
-        // accumulate rotation
-        mjuu_setvec(pframe->pos, pos[0], pos[1], pos[2]);
-        mjuu_frameaccum(pos, quat, offset, rotation);
-
         // overwrite orientation to increase precision
         alt.euler[0] = i*euler[0];
         alt.euler[1] = i*euler[1];
         alt.euler[2] = i*euler[2];
         mjs_resolveOrientation(quat, spec->compiler.degree, spec->compiler.eulerseq, &alt);
+
+        // set position and orientation
+        mjuu_setvec(pframe->pos, pos[0], pos[1], pos[2]);
         mjuu_setvec(pframe->quat, quat[0], quat[1], quat[2], quat[3]);
+
+        // accumulate rotation
+        mjuu_frameaccum(pos, quat, offset, rotation);
 
         // process suffix
         string suffix = separator;

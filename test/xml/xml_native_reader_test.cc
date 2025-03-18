@@ -1230,7 +1230,7 @@ TEST_F(XMLReaderTest, ParseReplicate) {
     </asset>
 
     <worldbody>
-      <replicate count="101" euler="0 0 1.8">
+      <replicate count="101" offset="3 0 .1" euler="0 0 1.8">
         <body name="body" pos="0 -1 0">
           <joint type="slide"/>
           <geom name="g" size="1"/>
@@ -1260,6 +1260,7 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   EXPECT_THAT(m, testing::NotNull()) << error.data();
   EXPECT_THAT(m->ngeom, 105);
   EXPECT_THAT(m->nsensor, 4);
+  EXPECT_THAT(m->nbody, 102);
 
   // check that the separator is used correctly
   for (int i = 0; i < 2; ++i) {
@@ -1289,12 +1290,19 @@ TEST_F(XMLReaderTest, ParseReplicate) {
     }
   }
 
+  // check body positions
+  mjtNum pos[2] = {0, 0};
+  for (int i = 1; i < 102; ++i) {
+    mjtNum theta = (i-1) * 1.8 * mjPI / 180;
+    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), 1e-8) << i;
+    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), 1e-8) << i;
+    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, 1e-8);
+    pos[0] += 3 * cos(theta);
+    pos[1] += 3 * sin(theta);
+  }
+
   // check that the final pose is correct
   int n = m->nbody-1;
-  EXPECT_THAT(m->nbody, 102);
-  EXPECT_NEAR(m->body_pos[3*n+0], 0, 1e-8);
-  EXPECT_NEAR(m->body_pos[3*n+1], 1, 1e-8);
-  EXPECT_EQ(m->body_pos[3*n+2], 0);
   EXPECT_NEAR(m->body_quat[4*n+0], 0, 1e-8);
   EXPECT_EQ(m->body_quat[4*n+1], 0);
   EXPECT_EQ(m->body_quat[4*n+2], 0);
