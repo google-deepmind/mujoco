@@ -26,6 +26,7 @@
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
@@ -133,12 +134,12 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   }
 
   // check scale
-  if (scale[0]<mjMINVAL || scale[1]<mjMINVAL || scale[2]<mjMINVAL) {
+  if (scale[0] < mjMINVAL || scale[1] < mjMINVAL || scale[2] < mjMINVAL) {
     return comperr(error, "Scale must be larger than mjMINVAL", error_sz);
   }
 
   // check mass and inertia
-  if (mass<mjMINVAL || inertiabox<mjMINVAL) {
+  if (mass < mjMINVAL || inertiabox < mjMINVAL) {
     return comperr(error, "Mass and inertiabox must be larger than mjMINVAL", error_sz);
   }
 
@@ -151,36 +152,36 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   // type-specific constructor: populate point and element, possibly set dim
   bool res;
   switch (type) {
-  case mjFCOMPTYPE_GRID:
-  case mjFCOMPTYPE_CIRCLE:
-    res = MakeGrid(error, error_sz);
-    break;
+    case mjFCOMPTYPE_GRID:
+    case mjFCOMPTYPE_CIRCLE:
+      res = MakeGrid(error, error_sz);
+      break;
 
-  case mjFCOMPTYPE_BOX:
-  case mjFCOMPTYPE_CYLINDER:
-  case mjFCOMPTYPE_ELLIPSOID:
-    res = MakeBox(error, error_sz);
-    break;
+    case mjFCOMPTYPE_BOX:
+    case mjFCOMPTYPE_CYLINDER:
+    case mjFCOMPTYPE_ELLIPSOID:
+      res = MakeBox(error, error_sz);
+      break;
 
-  case mjFCOMPTYPE_SQUARE:
-  case mjFCOMPTYPE_DISC:
-    res = MakeSquare(error, error_sz);
-    break;
+    case mjFCOMPTYPE_SQUARE:
+    case mjFCOMPTYPE_DISC:
+      res = MakeSquare(error, error_sz);
+      break;
 
-  case mjFCOMPTYPE_MESH:
-    res = MakeMesh(model, error, error_sz);
-    break;
+    case mjFCOMPTYPE_MESH:
+      res = MakeMesh(model, error, error_sz);
+      break;
 
-  case mjFCOMPTYPE_GMSH:
-    res = MakeGMSH(model, error, error_sz);
-    break;
+    case mjFCOMPTYPE_GMSH:
+      res = MakeGMSH(model, error, error_sz);
+      break;
 
-  case mjFCOMPTYPE_DIRECT:
-    res = true;
-    break;
+    case mjFCOMPTYPE_DIRECT:
+      res = true;
+      break;
 
-  default:
-    return comperr(error, "Unknown flexcomp type", error_sz);
+    default:
+      return comperr(error, "Unknown flexcomp type", error_sz);
   }
   if (!res) {
     return false;
@@ -329,7 +330,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
           }
         }
       }
-      else if (dflex->dim==3) {
+      else if (dflex->dim == 3) {
         for (int ix=pingridrange[i]; ix <= pingridrange[i+3]; ix++) {
           for (int iy=pingridrange[i+1]; iy <= pingridrange[i+4]; iy++) {
             for (int iz=pingridrange[i+2]; iz <= pingridrange[i+5]; iz++) {
@@ -779,14 +780,14 @@ void mjCFlexcomp::BoxProject(double* pos, int ix, int iy, int iz) {
   };
 
   // box
-  if (type==mjFCOMPTYPE_BOX) {
+  if (type == mjFCOMPTYPE_BOX) {
     pos[0] *= size[0];
     pos[1] *= size[1];
     pos[2] *= size[2];
   }
 
   // cylinder
-  else if (type==mjFCOMPTYPE_CYLINDER) {
+  else if (type == mjFCOMPTYPE_CYLINDER) {
     double L0 = std::max(std::abs(pos[0]), std::abs(pos[1]));
     mjuu_normvec(pos, 2);
     pos[0] *= size[0]*L0;
@@ -795,7 +796,7 @@ void mjCFlexcomp::BoxProject(double* pos, int ix, int iy, int iz) {
   }
 
   // ellipsoid
-  else if (type==mjFCOMPTYPE_ELLIPSOID) {
+  else if (type == mjFCOMPTYPE_ELLIPSOID) {
     mjuu_normvec(pos, 3);
     pos[0] *= size[0];
     pos[1] *= size[1];
@@ -816,7 +817,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
   }
 
   // do projection
-  if (type==mjFCOMPTYPE_DISC) {
+  if (type == mjFCOMPTYPE_DISC) {
     double size[2] = {
       0.5*spacing[0]*(count[0]-1),
       0.5*spacing[1]*(count[1]-1),
@@ -892,7 +893,7 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
     for (int ix=0; ix < count[0]; ix++) {
       for (int iz=0; iz < count[2]; iz++) {
         // add point
-        if (iz>0 && iz < count[2]-1) {
+        if (iz > 0 && iz < count[2]-1) {
           BoxProject(pos, ix, iy, iz);
           point.push_back(pos[0]);
           point.push_back(pos[1]);
@@ -1137,7 +1138,7 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
 
 // load GMSH format 4.1
 void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
-                            int nodebegin, int elemend, int elembegin){
+                             int nodebegin, int elemend, int elembegin){
   // header size
   constexpr int kGmsh41HeaderSize = 52;
   // base for node tags, to be subtracted from element data
@@ -1555,7 +1556,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       numNodeTags = 4;
     }
 
-    if (numNodeTags < 1 || numNodeTags >4) {
+    if (numNodeTags < 1 || numNodeTags > 4) {
       throw mjCError(NULL, "Invalid number of node tags");
     }
 
@@ -1564,7 +1565,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
 
     // read elements, discard all tags
     element.reserve(numNodeTags*numElements);
-    for (size_t i=0; i<numElements; i++) {
+    for (size_t i=0; i < numElements; i++) {
       int nodeTag = 0, physicalEntityTag = 0, elementModelEntityTag = 0;
       if (i != 0) {
         ss >> tag >> elementType >> numTags;
@@ -1643,7 +1644,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       numNodeTags = 4;
     }
 
-    if (numNodeTags < 1 || numNodeTags >4) {
+    if (numNodeTags < 1 || numNodeTags > 4) {
       throw mjCError(NULL, "Invalid number of node tags");
     }
 
@@ -1680,7 +1681,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       }
 
       // read first element
-      for (int k =0; k<numNodeTags; k++) {
+      for (int k =0; k < numNodeTags; k++) {
         ReadFromBuffer(&nodeTag, elementsBuffer + componentSize*(6+k));
         if (nodeTag > numNodes || nodeTag < 1) {
           throw mjCError(NULL, "Invalid node tag");
@@ -1719,7 +1720,7 @@ void mjCFlexcomp::LoadGMSH22(char* buffer, int binary, int nodeend,
       }
 
       // read every other element
-      for (int i=0; i<numElements-1; i++) {
+      for (int i=0; i < numElements-1; i++) {
         int offset = componentSize*(4+2) + i*elementDataSizeFtetwild;
         const char* tagBuffer = elementsBuffer + componentSize*2;
         ReadFromBuffer(&tag, tagBuffer + offset);

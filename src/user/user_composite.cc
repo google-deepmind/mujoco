@@ -28,6 +28,7 @@
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include "cc/array_safety.h"
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
@@ -82,7 +83,7 @@ mjCComposite::mjCComposite(void) {
   skingroup = 0;
 
   // clear add flags
-  for (int i=0; i<mjNCOMPKINDS; i++) {
+  for (int i=0; i < mjNCOMPKINDS; i++) {
     add[i] = false;
   }
 
@@ -94,8 +95,8 @@ mjCComposite::mjCComposite(void) {
 
 // create the array of default joint options, append new elements only for particles type
 bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
-  for (int i=0; i<mjNCOMPKINDS; i++) {
-    if (!defjoint[(mjtCompKind)i].empty() && type!=mjCOMPTYPE_PARTICLE) {
+  for (int i=0; i < mjNCOMPKINDS; i++) {
+    if (!defjoint[(mjtCompKind)i].empty() && type != mjCOMPTYPE_PARTICLE) {
       comperr(error, "Only particles are allowed to have multiple joints", error_sz);
       return false;
     } else {
@@ -112,7 +113,7 @@ bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
 // set defaults, after reading top-level info and skin
 void mjCComposite::SetDefault(void) {
   // set all default groups to 3
-  for (int i=0; i<mjNCOMPKINDS; i++) {
+  for (int i=0; i < mjNCOMPKINDS; i++) {
     def[i].spec.geom->group = 3;
     def[i].spec.site->group = 3;
     def[i].spec.tendon->group = 3;
@@ -122,8 +123,8 @@ void mjCComposite::SetDefault(void) {
   AddDefaultJoint();
 
   // set default geom and tendon group to 0 if needed to be visible
-  if (!skin || type==mjCOMPTYPE_CABLE) {
-    for (int i=0; i<mjNCOMPKINDS; i++) {
+  if (!skin || type == mjCOMPTYPE_CABLE) {
+    for (int i=0; i < mjNCOMPKINDS; i++) {
       def[i].spec.geom->group = 0;
       def[i].spec.tendon->group = 0;
     }
@@ -137,20 +138,20 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
   mjCModel* model = (mjCModel*)spec->element;
 
   // check counts
-  for (int i=0; i<3; i++) {
-    if (count[i]<1) {
+  for (int i=0; i < 3; i++) {
+    if (count[i] < 1) {
       return comperr(error, "Positive counts expected in composite", error_sz);
     }
   }
 
   // check cable sizes are nonzero if vertices are not prescribed
-  if (mjuu_dot3(size, size)<mjMINVAL && uservert.empty()) {
+  if (mjuu_dot3(size, size) < mjMINVAL && uservert.empty()) {
     return comperr(error, "Positive spacing or length expected in composite", error_sz);
   }
 
   // check either uservert or count but not both
   if (!uservert.empty()) {
-    if (count[0]>1) {
+    if (count[0] > 1) {
       return comperr(error, "Either vertex or count can be specified, not both", error_sz);
     }
     count[0] = uservert.size()/3;
@@ -159,8 +160,8 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
 
   // determine dimensionality, check singleton order
   bool first = false;
-  for (int i=0; i<3; i++) {
-    if (count[i]==1) {
+  for (int i=0; i < 3; i++) {
+    if (count[i] == 1) {
       first = true;
     } else {
       dim++;
@@ -180,8 +181,8 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
   vertweight.clear();
 
   // require 3x3 for subgrid
-  if (skin && skinsubgrid>0 && type!=mjCOMPTYPE_CABLE) {
-    if (count[0]<3 || count[1]<3) {
+  if (skin && skinsubgrid > 0 && type != mjCOMPTYPE_CABLE) {
+    if (count[0] < 3 || count[1] < 3) {
       return comperr(error, "At least 3x3 required for skin subgrid", error_sz);
     }
   }
@@ -205,41 +206,41 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
 
   // dispatch
   switch (type) {
-  case mjCOMPTYPE_PARTICLE:
-    return comperr(error,
-                   "The \"particle\" composite type is deprecated. Please use "
-                   "\"replicate\" instead.",
-                   error_sz);
+    case mjCOMPTYPE_PARTICLE:
+      return comperr(error,
+                     "The \"particle\" composite type is deprecated. Please use "
+                     "\"replicate\" instead.",
+                     error_sz);
 
-  case mjCOMPTYPE_GRID:
-    return comperr(error,
-                   "The \"grid\" composite type is deprecated. Please use "
-                   "\"flex\" instead.",
-                   error_sz);
+    case mjCOMPTYPE_GRID:
+      return comperr(error,
+                     "The \"grid\" composite type is deprecated. Please use "
+                     "\"flex\" instead.",
+                     error_sz);
 
-  case mjCOMPTYPE_ROPE:
-    return comperr(error,
-                   "The \"rope\" composite type is deprecated. Please use "
-                   "\"cable\" instead.",
-                   error_sz);
+    case mjCOMPTYPE_ROPE:
+      return comperr(error,
+                     "The \"rope\" composite type is deprecated. Please use "
+                     "\"cable\" instead.",
+                     error_sz);
 
-  case mjCOMPTYPE_LOOP:
-    return comperr(error,
-                   "The \"loop\" composite type is deprecated. Please use "
-                   "\"flexcomp\" instead.",
-                   error_sz);
+    case mjCOMPTYPE_LOOP:
+      return comperr(error,
+                     "The \"loop\" composite type is deprecated. Please use "
+                     "\"flexcomp\" instead.",
+                     error_sz);
 
-  case mjCOMPTYPE_CABLE:
-    return MakeCable(model, body, error, error_sz);
+    case mjCOMPTYPE_CABLE:
+      return MakeCable(model, body, error, error_sz);
 
-  case mjCOMPTYPE_CLOTH:
-    return comperr(error,
-                   "The \"cloth\" composite type is deprecated. Please use "
-                   "\"shell\" instead.",
-                   error_sz);
+    case mjCOMPTYPE_CLOTH:
+      return comperr(error,
+                     "The \"cloth\" composite type is deprecated. Please use "
+                     "\"shell\" instead.",
+                     error_sz);
 
-  default:
-    return comperr(error, "Unknown shape in composite", error_sz);
+    default:
+      return comperr(error, "Unknown shape in composite", error_sz);
   }
 }
 
@@ -247,14 +248,14 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
 
 bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz) {
   // check dim
-  if (dim!=1) {
+  if (dim != 1) {
     return comperr(error, "Cable must be one-dimensional", error_sz);
   }
 
   // check geom type
-  if (def[0].spec.geom->type!=mjGEOM_CYLINDER &&
-      def[0].spec.geom->type!=mjGEOM_CAPSULE &&
-      def[0].spec.geom->type!=mjGEOM_BOX) {
+  if (def[0].spec.geom->type != mjGEOM_CYLINDER &&
+      def[0].spec.geom->type != mjGEOM_CAPSULE &&
+      def[0].spec.geom->type != mjGEOM_BOX) {
     return comperr(error, "Cable geom type must be sphere, capsule or box", error_sz);
   }
 
@@ -265,25 +266,25 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
 
   // populate uservert if not specified
   if (uservert.empty()) {
-    for (int ix=0; ix<count[0]; ix++) {
-      for (int k=0; k<3; k++) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int k=0; k < 3; k++) {
         switch (curve[k]) {
-        case mjCOMPSHAPE_LINE:
-          uservert.push_back(ix*size[0]/(count[0]-1));
-          break;
-        case mjCOMPSHAPE_COS:
-          uservert.push_back(size[1]*cos(mjPI*ix*size[2]/(count[0]-1)));
-          break;
-        case mjCOMPSHAPE_SIN:
-          uservert.push_back(size[1]*sin(mjPI*ix*size[2]/(count[0]-1)));
-          break;
-        case mjCOMPSHAPE_ZERO:
-          uservert.push_back(0);
-          break;
-        default:
-          // SHOULD NOT OCCUR
-          mju_error("Invalid composite shape: %d", curve[k]);
-          break;
+          case mjCOMPSHAPE_LINE:
+            uservert.push_back(ix*size[0]/(count[0]-1));
+            break;
+          case mjCOMPSHAPE_COS:
+            uservert.push_back(size[1]*cos(mjPI*ix*size[2]/(count[0]-1)));
+            break;
+          case mjCOMPSHAPE_SIN:
+            uservert.push_back(size[1]*sin(mjPI*ix*size[2]/(count[0]-1)));
+            break;
+          case mjCOMPSHAPE_ZERO:
+            uservert.push_back(0);
+            break;
+          default:
+            // SHOULD NOT OCCUR
+            mju_error("Invalid composite shape: %d", curve[k]);
+            break;
         }
       }
     }
@@ -295,13 +296,13 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
   mjuu_setvec(prev_quat, 1, 0, 0, 0);
 
   // add one body after the other
-  for (int ix=0; ix<count[0]-1; ix++) {
+  for (int ix=0; ix < count[0]-1; ix++) {
     body = AddCableBody(model, body, ix, normal, prev_quat);
   }
 
   // add skin
-  if (def[0].spec.geom->type==mjGEOM_BOX) {
-    if (skinsubgrid>0) {
+  if (def[0].spec.geom->type == mjGEOM_BOX) {
+    if (skinsubgrid > 0) {
       count[1]+=2;
       MakeSkin2Subgrid(model, 2*def[0].spec.geom->size[2]);
       count[1]-=2;
@@ -324,9 +325,9 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
 
   // set flags
   int lastidx = count[0]-2;
-  bool first = ix==0;
-  bool last = ix==lastidx;
-  bool secondlast = ix==lastidx-1;
+  bool first = ix == 0;
+  bool last = ix == lastidx;
+  bool secondlast = ix == lastidx-1;
 
   // compute edge and tangent vectors
   double edge[3], tprev[3], tnext[3], length_prev = 0;
@@ -391,11 +392,11 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
   mjsGeom* geom = mjs_addGeom(body, &def[0].spec);
   mjs_setDefault(geom->element, mjs_getDefault(body->element));
   mjs_setString(geom->name, txt_geom);
-  if (def[0].spec.geom->type==mjGEOM_CYLINDER ||
-      def[0].spec.geom->type==mjGEOM_CAPSULE) {
+  if (def[0].spec.geom->type == mjGEOM_CYLINDER ||
+      def[0].spec.geom->type == mjGEOM_CAPSULE) {
     mjuu_zerovec(geom->fromto, 6);
     geom->fromto[3] = length;
-  } else if (def[0].spec.geom->type==mjGEOM_BOX) {
+  } else if (def[0].spec.geom->type == mjGEOM_BOX) {
     mjuu_zerovec(geom->pos, 3);
     geom->pos[0] = length/2;
     geom->size[0] = length/2;
@@ -417,10 +418,10 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
   if (!first || strcmp(initial.c_str(), "none")) {
     mjsJoint* jnt = mjs_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0].spec);
     mjs_setDefault(jnt->element, mjs_getDefault(body->element));
-    jnt->type = (first && strcmp(initial.c_str(), "free")==0) ? mjJNT_FREE : mjJNT_BALL;
-    jnt->damping = jnt->type==mjJNT_FREE ? 0 : jnt->damping;
-    jnt->armature = jnt->type==mjJNT_FREE ? 0 : jnt->armature;
-    jnt->frictionloss = jnt->type==mjJNT_FREE ? 0 : jnt->frictionloss;
+    jnt->type = (first && strcmp(initial.c_str(), "free") == 0) ? mjJNT_FREE : mjJNT_BALL;
+    jnt->damping = jnt->type == mjJNT_FREE ? 0 : jnt->damping;
+    jnt->armature = jnt->type == mjJNT_FREE ? 0 : jnt->armature;
+    jnt->frictionloss = jnt->type == mjJNT_FREE ? 0 : jnt->frictionloss;
     mjs_setString(jnt->name, this_joint);
   }
 
@@ -453,10 +454,10 @@ void mjCComposite::CopyIntoSkin(mjsSkin* skin) {
   mjs_setFloat(skin->bindquat, bindquat.data(), bindquat.size());
   mjs_setFloat(skin->texcoord, texcoord.data(), texcoord.size());
 
-  for (int i=0; i<vertid.size(); i++) {
+  for (int i=0; i < vertid.size(); i++) {
     mjs_appendIntVec(skin->vertid, vertid[i].data(), vertid[i].size());
   }
-  for (int i=0; i< vertweight.size(); i++) {
+  for (int i=0; i < vertweight.size(); i++) {
     mjs_appendFloatVec(skin->vertweight, vertweight[i].data(), vertweight[i].size());
   }
 
@@ -486,9 +487,9 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   skin->group = skingroup;
 
   // populate mesh: two sides
-  for (int i=0; i<2; i++) {
-    for (int ix=0; ix<count[0]; ix++) {
-      for (int iy=0; iy<count[1]; iy++) {
+  for (int i=0; i < 2; i++) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iy=0; iy < count[1]; iy++) {
         // vertex
         vert.push_back(0);
         vert.push_back(0);
@@ -501,21 +502,21 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
         }
 
         // face
-        if (ix<count[0]-1 && iy<count[1]-1) {
+        if (ix < count[0]-1 && iy < count[1]-1) {
           face.push_back(i*N + ix*count[1]+iy);
-          face.push_back(i*N + (ix+1)*count[1]+iy+(i==1));
-          face.push_back(i*N + (ix+1)*count[1]+iy+(i==0));
+          face.push_back(i*N + (ix+1)*count[1]+iy+(i == 1));
+          face.push_back(i*N + (ix+1)*count[1]+iy+(i == 0));
 
           face.push_back(i*N + ix*count[1]+iy);
-          face.push_back(i*N + (ix+(i==0))*count[1]+iy+1);
-          face.push_back(i*N + (ix+(i==1))*count[1]+iy+1);
+          face.push_back(i*N + (ix+(i == 0))*count[1]+iy+1);
+          face.push_back(i*N + (ix+(i == 1))*count[1]+iy+1);
         }
       }
     }
   }
 
   // add thin triangles: X direction, iy = 0
-  for (int ix=0; ix<count[0]-1; ix++) {
+  for (int ix=0; ix < count[0]-1; ix++) {
     face.push_back(ix*count[1]);
     face.push_back(N + (ix+1)*count[1]);
     face.push_back((ix+1)*count[1]);
@@ -526,7 +527,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   }
 
   // add thin triangles: X direction, iy = count[1]-1
-  for (int ix=0; ix<count[0]-1; ix++) {
+  for (int ix=0; ix < count[0]-1; ix++) {
     face.push_back(ix*count[1] + count[1]-1);
     face.push_back((ix+1)*count[1] + count[1]-1);
     face.push_back(N + (ix+1)*count[1] + count[1]-1);
@@ -537,7 +538,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   }
 
   // add thin triangles: Y direction, ix = 0
-  for (int iy=0; iy<count[1]-1; iy++) {
+  for (int iy=0; iy < count[1]-1; iy++) {
     face.push_back(iy);
     face.push_back(iy+1);
     face.push_back(N + iy+1);
@@ -548,7 +549,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   }
 
   // add thin triangles: Y direction, ix = count[0]-1
-  for (int iy=0; iy<count[1]-1; iy++) {
+  for (int iy=0; iy < count[1]-1; iy++) {
     face.push_back(iy + (count[0]-1)*count[1]);
     face.push_back(N + iy+1 + (count[0]-1)*count[1]);
     face.push_back(iy+1 + (count[0]-1)*count[1]);
@@ -573,28 +574,28 @@ void mjCComposite::MakeCableBones(mjCModel* model, mjsSkin* skin) {
   int N = count[0]*count[1];
 
   // populate bones
-  for (int ix=0; ix<count[0]; ix++) {
-    for (int iy=0; iy<count[1]; iy++) {
+  for (int ix=0; ix < count[0]; ix++) {
+    for (int iy=0; iy < count[1]; iy++) {
       // body name
-      if (ix==0) {
+      if (ix == 0) {
         mju::sprintf_arr(this_body, "%sB_first", prefix.c_str());
-      } else if (ix>=count[0]-2) {
+      } else if (ix >= count[0]-2) {
         mju::sprintf_arr(this_body, "%sB_last", prefix.c_str());
       } else {
         mju::sprintf_arr(this_body, "%sB_%d", prefix.c_str(), ix);
       }
 
       // bind pose
-      if (iy==0) {
+      if (iy == 0) {
         mjs_appendString(skin->bodyname, this_body);
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+        bindpos.push_back((ix == count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(-def[0].spec.geom->size[1]);
         bindpos.push_back(0);
         bindquat.push_back(1); bindquat.push_back(0);
         bindquat.push_back(0); bindquat.push_back(0);
       } else {
         mjs_appendString(skin->bodyname, this_body);
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+        bindpos.push_back((ix == count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(def[0].spec.geom->size[1]);
         bindpos.push_back(0);
         bindquat.push_back(1); bindquat.push_back(0);
@@ -612,30 +613,30 @@ void mjCComposite::MakeCableBones(mjCModel* model, mjsSkin* skin) {
 
 void mjCComposite::MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin) {
   // populate bones
-  for (int ix=0; ix<count[0]; ix++) {
-    for (int iy=0; iy<count[1]; iy++) {
+  for (int ix=0; ix < count[0]; ix++) {
+    for (int iy=0; iy < count[1]; iy++) {
       char txt[100];
 
       // body name
-      if (ix==0) {
+      if (ix == 0) {
         mju::sprintf_arr(txt, "%sB_first", prefix.c_str());
-      } else if (ix>=count[0]-2) {
+      } else if (ix >= count[0]-2) {
         mju::sprintf_arr(txt, "%sB_last", prefix.c_str());
       } else {
         mju::sprintf_arr(txt, "%sB_%d", prefix.c_str(), ix);
       }
 
       // bind pose
-      if (iy==0) {
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+      if (iy == 0) {
+        bindpos.push_back((ix == count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(-def[0].Geom().spec.size[1]);
         bindpos.push_back(0);
-      } else if (iy==2) {
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+      } else if (iy == 2) {
+        bindpos.push_back((ix == count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(def[0].Geom().spec.size[1]);
         bindpos.push_back(0);
       } else {
-        bindpos.push_back((ix==count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
+        bindpos.push_back((ix == count[0]-1) ? -2*def[0].spec.geom->size[0] : 0);
         bindpos.push_back(0);
         bindpos.push_back(0);
       }
@@ -903,8 +904,8 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   // XY matrix
   const mjtNum step = 1.0/(1+skinsubgrid);
   int rxy = 0;
-  for (int sx=0; sx<=1+skinsubgrid; sx++) {
-    for (int sy=0; sy<=1+skinsubgrid; sy++) {
+  for (int sx=0; sx <= 1+skinsubgrid; sx++) {
+    for (int sy=0; sy <= 1+skinsubgrid; sy++) {
       // compute x, y
       mjtNum x = sx*step;
       mjtNum y = sy*step;
@@ -939,15 +940,15 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   mju_mulMatMat(XY_W, XY, subW, N, 16, 16);
 
   // Weight matrices
-  for (int dx=0; dx<3; dx++) {
-    for (int dy=0; dy<3; dy++) {
+  for (int dx=0; dx < 3; dx++) {
+    for (int dy=0; dy < 3; dy++) {
       // make dense D
       mju_zero(D, 16*16);
       int cnt = 0;
       int r = 0, c;
-      while (r<16) {
+      while (r < 16) {
         // scan row
-        while ((c = mju_round(Dp[dx][dy][cnt]))!=-1) {
+        while ((c = mju_round(Dp[dx][dy][cnt])) != -1) {
           D[r*16+c] = Dp[dx][dy][cnt+1];
           cnt +=2;
         }
@@ -977,9 +978,9 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   int C0 = count[0] + (count[0]-1)*skinsubgrid;
   int C1 = count[1] + (count[1]-1)*skinsubgrid;
   int NN = C0*C1;
-  for (int i=0; i<2; i++) {
-    for (int ix=0; ix<C0; ix++) {
-      for (int iy=0; iy<C1; iy++) {
+  for (int i=0; i < 2; i++) {
+    for (int ix=0; ix < C0; ix++) {
+      for (int iy=0; iy < C1; iy++) {
         // vertex
         vert.push_back(ix*S);
         vert.push_back(iy*S);
@@ -992,21 +993,21 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
         }
 
         // face
-        if (ix<C0-1 && iy<C1-1) {
+        if (ix < C0-1 && iy < C1-1) {
           face.push_back(i*NN + ix*C1+iy);
-          face.push_back(i*NN + (ix+1)*C1+iy+(i==1));
-          face.push_back(i*NN + (ix+1)*C1+iy+(i==0));
+          face.push_back(i*NN + (ix+1)*C1+iy+(i == 1));
+          face.push_back(i*NN + (ix+1)*C1+iy+(i == 0));
 
           face.push_back(i*NN + ix*C1+iy);
-          face.push_back(i*NN + (ix+(i==0))*C1+iy+1);
-          face.push_back(i*NN + (ix+(i==1))*C1+iy+1);
+          face.push_back(i*NN + (ix+(i == 0))*C1+iy+1);
+          face.push_back(i*NN + (ix+(i == 1))*C1+iy+1);
         }
       }
     }
   }
 
   // add thin triangles: X direction, iy = 0
-  for (int ix=0; ix<C0-1; ix++) {
+  for (int ix=0; ix < C0-1; ix++) {
     face.push_back(ix*C1);
     face.push_back(NN + (ix+1)*C1);
     face.push_back((ix+1)*C1);
@@ -1017,7 +1018,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   }
 
   // add thin triangles: X direction, iy = C1-1
-  for (int ix=0; ix<C0-1; ix++) {
+  for (int ix=0; ix < C0-1; ix++) {
     face.push_back(ix*C1 + C1-1);
     face.push_back((ix+1)*C1 + C1-1);
     face.push_back(NN + (ix+1)*C1 + C1-1);
@@ -1028,7 +1029,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   }
 
   // add thin triangles: Y direction, ix = 0
-  for (int iy=0; iy<C1-1; iy++) {
+  for (int iy=0; iy < C1-1; iy++) {
     face.push_back(iy);
     face.push_back(iy+1);
     face.push_back(NN + iy+1);
@@ -1039,7 +1040,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   }
 
   // add thin triangles: Y direction, ix = C0-1
-  for (int iy=0; iy<C1-1; iy++) {
+  for (int iy=0; iy < C1-1; iy++) {
     face.push_back(iy + (C0-1)*C1);
     face.push_back(NN + iy+1 + (C0-1)*C1);
     face.push_back(iy+1 + (C0-1)*C1);
@@ -1052,24 +1053,24 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   MakeCableBonesSubgrid(model, skin);
 
   // bind vertices to bones: one big square at a time
-  for (int ix=0; ix<count[0]-1; ix++) {
-    for (int iy=0; iy<count[1]-1; iy++) {
+  for (int ix=0; ix < count[0]-1; ix++) {
+    for (int iy=0; iy < count[1]-1; iy++) {
       // determine d for Weight indexing
-      int d = 3 * (ix==0 ? 0 : (ix==count[0]-2 ? 2 : 1)) +
-              (iy==0 ? 0 : (iy==count[1]-2 ? 2 : 1));
+      int d = 3 * (ix == 0 ? 0 : (ix == count[0]-2 ? 2 : 1)) +
+              (iy == 0 ? 0 : (iy == count[1]-2 ? 2 : 1));
 
       // precompute 16 bone indices for big square
       int boneid[16];
       int cnt = 0;
-      for (int dx=-1; dx<3; dx++) {
-        for (int dy=-1; dy<3; dy++) {
+      for (int dx=-1; dx < 3; dx++) {
+        for (int dy=-1; dy < 3; dy++) {
           boneid[cnt++] = (ix+dx)*count[1] + (iy+dy);
         }
       }
 
       // process subgrid, top-rigth owns last index
-      for (int dx=0; dx<1+skinsubgrid+(ix==count[0]-2); dx++) {
-        for (int dy=0; dy<1+skinsubgrid+(iy==count[1]-2); dy++) {
+      for (int dx=0; dx < 1+skinsubgrid+(ix == count[0]-2); dx++) {
+        for (int dy=0; dy < 1+skinsubgrid+(iy == count[1]-2); dy++) {
           // recover vertex id
           int vid = (ix*(1+skinsubgrid)+dx)*C1 + iy*(1+skinsubgrid)+dy;
 
@@ -1077,7 +1078,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
           int n = dx*(2+skinsubgrid) + dy;
 
           // add vertex to 16 bones
-          for (int bi=0; bi<16; bi++) {
+          for (int bi=0; bi < 16; bi++) {
             mjtNum w = Weight[d*N*16 + n*16 + bi];
             if (w) {
               vertid[boneid[bi]].push_back(vid);

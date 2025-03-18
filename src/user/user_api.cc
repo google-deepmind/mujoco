@@ -108,7 +108,7 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
     if (d) {
       modelC->MakeData(m, &d);
       modelC->RestoreState(state_name, m->qpos0, m->body_pos, m->body_quat, d->qpos, d->qvel,
-                          d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
+                           d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
       d->time = time;
     }
   } catch (mjCError& e) {
@@ -166,7 +166,7 @@ mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
 
 // attach child body to a parent site
 mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
-                           const char* prefix, const char* suffix) {
+                          const char* prefix, const char* suffix) {
   if (!parent) {
     mju_error("parent site is null");
     return nullptr;
@@ -1178,8 +1178,8 @@ const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
 // set plugin attributes
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
   mjCPlugin* pluginC = static_cast<mjCPlugin*>(plugin->element);
-  std::map<std::string, std::string, std::less<>>* config_attribs =
-      reinterpret_cast<std::map<std::string, std::string, std::less<>>*>(attributes);
+  std::map<std::string, std::string, std::less<> >* config_attribs =
+    reinterpret_cast<std::map<std::string, std::string, std::less<> >*>(attributes);
   pluginC->config_attribs = std::move(*config_attribs);
 }
 

@@ -52,11 +52,11 @@ bool mjuu_defined(double num) {
 
 // compute address of M[g1][g2] where M is triangular n-by-n
 int mjuu_matadr(int g1, int g2, int n) {
-  if (g1<0 || g2<0 || g1>=n || g2>=n) {
+  if (g1 < 0 || g2 < 0 || g1 >= n || g2 >= n) {
     return -1;
   }
 
-  if (g1>g2) {
+  if (g1 > g2) {
     int tmp = g1;
     g1 = g2;
     g2 = tmp;
@@ -103,21 +103,21 @@ void mjuu_setvec(double* dest, double x, double y) {
 
 // add to double array
 void mjuu_addtovec(double* dest, const double* src, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     dest[i] += src[i];
   }
 }
 
 // zero double array
 void mjuu_zerovec(double* dest, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     dest[i] = 0;
   }
 }
 
 // zero float array
 void mjuu_zerovec(float* dest, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     dest[i] = 0;
   }
 }
@@ -137,7 +137,7 @@ double mjuu_dist3(const double* a, const double* b) {
 // L1 norm between vectors
 double mjuu_L1(const double* a, const double* b, int n) {
   double res = 0;
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res += std::abs(a[i]-b[i]);
   }
 
@@ -149,7 +149,7 @@ double mjuu_L1(const double* a, const double* b, int n) {
 double mjuu_normvec(double* vec, const int n) {
   double nrm = 0;
 
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     nrm += vec[i]*vec[i];
   }
   if (nrm < mjEPS) {
@@ -160,7 +160,7 @@ double mjuu_normvec(double* vec, const int n) {
 
   // don't normalize if nrm is within mjEPS of 1
   if (std::abs(nrm - 1) > mjEPS) {
-    for (int i=0; i<n; i++) {
+    for (int i=0; i < n; i++) {
       vec[i] /= nrm;
     }
   }
@@ -173,7 +173,7 @@ double mjuu_normvec(double* vec, const int n) {
 float mjuu_normvec(float* vec, const int n) {
   float nrm = 0;
 
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     nrm += vec[i]*vec[i];
   }
   if (nrm < mjEPS) {
@@ -184,7 +184,7 @@ float mjuu_normvec(float* vec, const int n) {
 
   // don't normalize if nrm is within mjEPS of 1
   if (std::abs(nrm - 1) > mjEPS) {
-    for (int i=0; i<n; i++) {
+    for (int i=0; i < n; i++) {
       vec[i] /= nrm;
     }
   }
@@ -390,7 +390,7 @@ void mjuu_z2quat(double* quat, const double* vec) {
   double z[3] = {0, 0, 1};
   mjuu_crossvec(quat+1, z, vec);
   double s = mjuu_normvec(quat+1, 3);
-  if (s<1E-10) {
+  if (s < 1E-10) {
     quat[1] = 1;
     quat[2] = quat[3] = 0;
   }
@@ -407,7 +407,7 @@ void mjuu_frame2quat(double* quat, const double* x, const double* y, const doubl
   const double* mat[3] = {x, y, z};  // mat[c][r] indexing
 
   // q0 largest
-  if (mat[0][0]+mat[1][1]+mat[2][2]>0) {
+  if (mat[0][0]+mat[1][1]+mat[2][2] > 0) {
     quat[0] = 0.5 * sqrt(1 + mat[0][0] + mat[1][1] + mat[2][2]);
     quat[1] = 0.25 * (mat[1][2] - mat[2][1]) / quat[0];
     quat[2] = 0.25 * (mat[2][0] - mat[0][2]) / quat[0];
@@ -415,7 +415,7 @@ void mjuu_frame2quat(double* quat, const double* x, const double* y, const doubl
   }
 
   // q1 largest
-  else if (mat[0][0]>mat[1][1] && mat[0][0]>mat[2][2]) {
+  else if (mat[0][0] > mat[1][1] && mat[0][0] > mat[2][2]) {
     quat[1] = 0.5 * sqrt(1 + mat[0][0] - mat[1][1] - mat[2][2]);
     quat[0] = 0.25 * (mat[1][2] - mat[2][1]) / quat[1];
     quat[2] = 0.25 * (mat[1][0] + mat[0][1]) / quat[1];
@@ -423,7 +423,7 @@ void mjuu_frame2quat(double* quat, const double* x, const double* y, const doubl
   }
 
   // q2 largest
-  else if (mat[1][1]>mat[2][2]) {
+  else if (mat[1][1] > mat[2][2]) {
     quat[2] = 0.5 * sqrt(1 - mat[0][0] + mat[1][1] - mat[2][2]);
     quat[0] = 0.25 * (mat[2][0] - mat[0][2]) / quat[2];
     quat[1] = 0.25 * (mat[1][0] + mat[0][1]) / quat[2];
@@ -612,7 +612,7 @@ void mjuu_rotVecQuat(double res[3], const double vec[3], const double quat[4]) {
 //     quat      - frame orientation
 //     normal    - unit normal vector
 double mjuu_updateFrame(double quat[4], double normal[3], const double edge[3],
-                       const double tprv[3], const double tnxt[3], int first) {
+                        const double tprv[3], const double tnxt[3], int first) {
   double tangent[3], binormal[3];
 
   // normalize tangent
@@ -764,7 +764,7 @@ std::string mjuu_strippath(std::string filename) {
   size_t start = filename.find_last_of("/\\");
 
   // no path found: return original
-  if (start==std::string::npos) {
+  if (start == std::string::npos) {
     return filename;
   }
 
@@ -791,7 +791,7 @@ const char* mjuu_fullInertia(double quat[4], double inertia[3], const double ful
   mjuu_eig3(eigval, eigvec, quattmp, full);
 
   // check mimimal eigenvalue
-  if (eigval[2]<mjEPS) {
+  if (eigval[2] < mjEPS) {
     return "inertia must have positive eigenvalues";
   }
 
@@ -847,7 +847,7 @@ bool mjuu_isabspath(std::string path) {
 
   // check first char
   const char* str = path.c_str();
-  if (str[0]=='\\' || str[0]=='/') {
+  if (str[0] == '\\' || str[0] == '/') {
     return true;
   }
 
@@ -1102,7 +1102,9 @@ FilePath FilePath::StripPath() const {
 std::string FilePath::StrLower() const {
   std::string str = path_;
   std::transform(str.begin(), str.end(), str.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+                 [](unsigned char c) {
+      return std::tolower(c);
+    });
   return str;
 }
 
