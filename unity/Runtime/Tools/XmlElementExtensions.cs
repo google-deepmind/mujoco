@@ -73,8 +73,22 @@ public static class XmlElementExtensions {
     }
   }
 
-  // The MuJoCo parser is case-sensitive.
-  public static T GetEnumAttribute<T>(
+  public static int GetIntAttribute(
+      this XmlElement element, string name, int defaultValue = 0) {
+    if (!element.HasAttribute(name)) {
+      return defaultValue;
+    }
+    var strValue = element.GetAttribute(name);
+    int parsedValue;
+    if (int.TryParse(strValue, NumberStyles.Any, CultureInfo.InvariantCulture, out parsedValue)) {
+      return parsedValue;
+    } else {
+      throw new ArgumentException($"'{strValue}' is not a int.");
+    }
+  }
+
+    // The MuJoCo parser is case-sensitive.
+    public static T GetEnumAttribute<T>(
       this XmlElement element, string name, T defaultValue,
       bool ignoreCase = false) where T : struct, IConvertible {
     if (!typeof(T).IsEnum) {
@@ -175,6 +189,45 @@ public static class XmlElementExtensions {
     for (var i = 0; i < components.Length; ++i) {
       float componentValue;
       if (float.TryParse(components[i], NumberStyles.Any, CultureInfo.InvariantCulture, out componentValue)) {
+        result[i] = componentValue;
+      } else {
+        throw new ArgumentException($"'{components[i]}' is not a float.");
+      }
+    }
+    for (var i = components.Length; i < resultLength; ++i) {
+      // Fill the missing values with defaults.
+      result[i] = defaultValue[i];
+    }
+    return result;
+  }
+
+  // Parses an array of whitespace separated floating points.
+  //
+  // Args:
+  // . element: XmlElement that contains the attribute to be parsed.
+  // . name: Name of the attribute to be parsed.
+  // . defaultValue: An array of floats, or null. A default value to be returned in case the
+  // the attribute is missing.
+  // . fillMissingValues: If a default value was provided, and it has more components than the value
+  // parsed from the attribute, the missing components will be copied from the defaultValue.
+  public static int[] GetIntArrayAttribute(
+      this XmlElement element, string name, int[] defaultValue, bool fillMissingValues = true) {
+    if (!element.HasAttribute(name)) {
+      return defaultValue;
+    }
+    var strValue = element.GetAttribute(name);
+    var components = strValue.Split(new char[] {' '}, StringSplitOptions.RemoveEmptyEntries);
+    var resultLength = components.Length;
+    if (fillMissingValues && defaultValue != null) {
+      // If filling of the missing values was enabled, and a default value was provided,
+      // allocate an array large enough to store a value of this length, in case when the parsed
+      // value has fewer components.
+      resultLength = Math.Max(resultLength, defaultValue.Length);
+    }
+    var result = new int[resultLength];
+    for (var i = 0; i < components.Length; ++i) {
+      int componentValue;
+      if (int.TryParse(components[i], NumberStyles.Any, CultureInfo.InvariantCulture, out componentValue)) {
         result[i] = componentValue;
       } else {
         throw new ArgumentException($"'{components[i]}' is not a float.");
