@@ -240,6 +240,15 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
       lambda[n++] = lambda[i];
     }
 
+    // SHOULD NOT OCCUR
+    if (n < 1) {
+      status->gjk_iterations = k;
+      status->nsimplex = 0;
+      status->nx = 0;
+      status->dist = mjMAXVAL;
+      return;
+    }
+
     // get the next iteration of x_k
     mjtNum x_next[3];
     lincomb(x_next, lambda, n, simplex[0].vert, simplex[1].vert,
