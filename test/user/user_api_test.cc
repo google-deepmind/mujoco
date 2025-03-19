@@ -2544,6 +2544,91 @@ TEST_F(MujocoTest, ApplyNameSpaceToDefaults) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(MujocoTest, DetachDefault) {
+  static constexpr char xml_c[] = R"(
+  <mujoco>
+    <default>
+      <default class="parent">
+        <default class="child1">
+          <mesh scale="0.001 0.001 0.001"/>
+        </default>
+        <default class="child2">
+          <mesh scale="0.001 0.001 0.001"/>
+        </default>
+      </default>
+    </default>
+    <asset>
+      <mesh file="cube.obj" class="child2"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom type="mesh" mesh="cube"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char cube[] = R"(
+  v -0.500000 -0.500000  0.500000
+  v  0.500000 -0.500000  0.500000
+  v -0.500000  0.500000  0.500000
+  v  0.500000  0.500000  0.500000
+  v -0.500000  0.500000 -0.500000
+  v  0.500000  0.500000 -0.500000
+  v -0.500000 -0.500000 -0.500000
+  v  0.500000 -0.500000 -0.500000)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1024> err;
+  mjSpec* spec = mj_parseXMLString(xml_c, vfs.get(), err.data(), err.size());
+  EXPECT_THAT(spec, NotNull()) << err.data();
+
+  // get default
+  mjsDefault* child = mjs_findDefault(spec, "child1");
+  EXPECT_THAT(child, NotNull());
+
+  // try using mjs_delete to remove default, should fail
+  EXPECT_EQ(mjs_delete(child->element), -1);
+
+  // detach default
+  EXPECT_EQ(mjs_detachDefault(spec, child), 0);
+  child = mjs_findDefault(spec, "child1");
+  EXPECT_THAT(child, IsNull());
+
+  // try and detach previously detached default, should fail
+  EXPECT_EQ(mjs_detachDefault(spec, child), -1);
+  child = mjs_findDefault(spec, "child1");
+  EXPECT_THAT(child, IsNull());
+  EXPECT_THAT(mjs_getError(spec),
+              HasSubstr("Cannot detach, default is null"));
+
+  // detach parent
+  mjsDefault* parent = mjs_findDefault(spec, "parent");
+  EXPECT_THAT(parent, NotNull());
+  mjs_detachDefault(spec, parent);
+
+  // both parent and remaining child should be removed
+  parent = mjs_findDefault(spec, "parent");
+  EXPECT_THAT(parent, IsNull());
+  child = mjs_findDefault(spec, "child2");
+  EXPECT_THAT(child, IsNull());
+
+  // error when trying to detach the 'main' default
+  mjsDefault* main = mjs_findDefault(spec, "main");
+  EXPECT_THAT(main, NotNull());
+  EXPECT_EQ(mjs_detachDefault(spec, main), -1);
+  EXPECT_THAT(mjs_getError(spec),
+              HasSubstr("cannot remove the global default ('main')"));
+
+  main = mjs_findDefault(spec, "main");
+  EXPECT_THAT(main, NotNull());
+
+  mj_deleteVFS(vfs.get());
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, ErrorWhenCompilingOrphanedSpec) {
   static constexpr char xml[] = R"(
   <mujoco>

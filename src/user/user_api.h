@@ -88,6 +88,8 @@ MJAPI mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
 // Detach body from mjSpec, remove all references and delete the body, return 0 on success.
 MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
 
+// Detach default from mjSpec, remove all references and delete the default, return 0 on success.
+MJAPI int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 
 //---------------------------------- Add tree elements ---------------------------------------------
 
@@ -221,7 +223,7 @@ MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
 MJAPI mjsDefault* mjs_getDefault(mjsElement* element);
 
 // Find default in model by class name.
-MJAPI const mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
+MJAPI mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
 
 // Get global default from model.
 MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);

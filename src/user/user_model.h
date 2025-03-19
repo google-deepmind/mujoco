@@ -183,10 +183,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
 
-  mjCModel& operator=(const mjCModel& other);  // copy other into this, if they are not the same
-  mjCModel& operator+=(const mjCModel& other);  // add other into this, even if they are the same
-  mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
-  mjCModel_& operator+=(mjCDef& subtree);  // add default tree to this model
+  mjCModel& operator=(const mjCModel& other);     // copy other into this, if they are not the same
+  mjCModel& operator+=(const mjCModel& other);    // add other into this, even if they are the same
+  mjCModel& operator-=(const mjCBody& subtree);   // remove subtree and all references from model
+  mjCModel_& operator+=(mjCDef& subtree);         // add default tree to this model
+  mjCModel& operator-=(const mjCDef& subtree);    // remove default tree from this model
 
   mjSpec spec;
 
@@ -224,6 +225,9 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // delete object from the corresponding list
   void DeleteElement(mjsElement* el);
+
+  // delete default and all descendants
+  void RemoveDefault(mjCDef* def);
 
   // detach subtree from model
   void Detach(mjCBody* subtree);

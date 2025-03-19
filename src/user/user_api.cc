@@ -227,7 +227,7 @@ const char* mjs_getError(mjSpec* s) {
 
 
 
-// Detach body from mjSpec, return 0 if success.
+// detach body from mjSpec, return 0 on success
 int mjs_detachBody(mjSpec* s, mjsBody* b) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   mjCBody* body = static_cast<mjCBody*>(b->element);
@@ -241,7 +241,22 @@ int mjs_detachBody(mjSpec* s, mjsBody* b) {
   return 0;
 }
 
-
+// detach default from mjSpec, return 0 on success
+int mjs_detachDefault(mjSpec* s, mjsDefault* def) {
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  if (!def) {
+    modelC->SetError(mjCError(0, "Cannot detach, default is null"));
+    return -1;
+  }
+  mjCDef* defC = static_cast<mjCDef*>(def->element);
+  try {
+    *modelC -= *defC;
+  } catch (mjCError& e) {
+    modelC->SetError(e);
+    return -1;
+  }
+  return 0;
+}
 
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
@@ -292,15 +307,19 @@ int mjs_setDeepCopy(mjSpec* s, int deepcopy) {
 
 
 
-// delete object, return 0 if success
+// delete object, return 0 on success
 int mjs_delete(mjsElement* element) {
-  mjCBase* object = static_cast<mjCBase*>(element);
+  mjCModel* model;
+  if (element->elemtype == mjOBJ_DEFAULT)
+    model = static_cast<mjCDef*>(element)->model;
+  else
+    model = static_cast<mjCBase*>(element)->model;
   try {
     // it will call the appropriate destructor since ~mjCBase is virtual
-    object->model->DeleteElement(element);
+    model->DeleteElement(element);
     return 0;
   } catch (mjCError& e) {
-    object->model->SetError(e);
+    model->SetError(e);
     return -1;
   }
 }
@@ -625,7 +644,7 @@ mjsDefault* mjs_getDefault(mjsElement* element) {
 
 
 // Find default with given name in model.
-const mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
+mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCDef* cdef = modelC->FindDefault(classname);
   if (!cdef) {

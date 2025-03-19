@@ -603,7 +603,9 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjNOBJECT,                      // number of object types
 
   // meta elements, do not appear in mjModel
-  mjOBJ_FRAME         = 100       // frame
+  mjOBJ_FRAME         = 100,      // frame
+  mjOBJ_DEFAULT                   // default
+
 } mjtObj;
 typedef enum mjtConstraint_ {     // type of constraint
   mjCNSTR_EQUALITY    = 0,        // equality constraint
@@ -3612,6 +3614,7 @@ mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
 mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
                                 const char* prefix, const char* suffix);
 int mjs_detachBody(mjSpec* s, mjsBody* b);
+int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
 mjsSite* mjs_addSite(mjsBody* body, const mjsDefault* def);
 mjsJoint* mjs_addJoint(mjsBody* body, const mjsDefault* def);
@@ -3652,7 +3655,7 @@ mjsBody* mjs_getParent(mjsElement* element);
 mjsFrame* mjs_getFrame(mjsElement* element);
 mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
 mjsDefault* mjs_getDefault(mjsElement* element);
-const mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
+mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
 mjsDefault* mjs_getSpecDefault(mjSpec* s);
 int mjs_getId(mjsElement* element);
 mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);

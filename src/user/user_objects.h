@@ -1866,6 +1866,7 @@ class mjCDef : public mjsElement {
 
  public:
   mjCDef();
+  mjCDef(mjCModel*);
   mjCDef(const mjCDef& other);
   mjCDef& operator=(const mjCDef& other);
   mjCDef& operator+=(const mjCDef& other);
@@ -1898,6 +1899,7 @@ class mjCDef : public mjsElement {
   std::vector<mjCDef*> child;     // child classes
 
   mjsDefault spec;
+  mjCModel* model;                // pointer to model that owns object
 
  private:
   mjCJoint joint_;

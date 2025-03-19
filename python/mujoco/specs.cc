@@ -448,7 +448,7 @@ PYBIND11_MODULE(_specs, m) {
       py::return_value_policy::reference_internal);
   mjSpec.def(
       "find_default",
-      [](MjSpec& self, std::string& classname) -> const raw::MjsDefault* {
+      [](MjSpec& self, std::string& classname) -> raw::MjsDefault* {
         return mjs_findDefault(self.ptr, classname.c_str());
       },
       py::return_value_policy::reference_internal);
@@ -499,6 +499,11 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_addDefault(spec->ptr, classname.c_str(), parent);
       },
       py::return_value_policy::reference_internal);
+  mjSpec.def("detach_default", [](MjSpec& self, raw::MjsDefault& def) {
+    if (mjs_detachDefault(self.ptr, &def) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
+  });
   mjSpec.def_property_readonly(
       "default",
       [](MjSpec& self) -> raw::MjsDefault* {

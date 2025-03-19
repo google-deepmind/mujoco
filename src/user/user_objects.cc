@@ -536,12 +536,16 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
 //------------------------- class mjCDef implementation --------------------------------------------
 
+
+
 // constructor
 mjCDef::mjCDef() {
   name.clear();
   id = 0;
   parent = nullptr;
+  model = 0;
   child.clear();
+  elemtype = mjOBJ_DEFAULT;
   mjs_defaultJoint(&joint_.spec);
   mjs_defaultGeom(&geom_.spec);
   mjs_defaultSite(&site_.spec);
@@ -557,6 +561,13 @@ mjCDef::mjCDef() {
 
   // make sure all the pointers are local
   PointToLocal();
+}
+
+
+
+// constructor with model
+mjCDef::mjCDef(mjCModel* _model) : mjCDef() {
+  model = _model;
 }
 
 

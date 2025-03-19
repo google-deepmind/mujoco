@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -144,7 +145,7 @@ mjCModel::mjCModel() {
   Clear();
 
   //------------------------ master default set
-  defaults_.push_back(new mjCDef);
+  defaults_.push_back(new mjCDef(this));
   defaults_.back()->name = "main";
 
   // point to model from spec
@@ -564,6 +565,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
   defaults_.push_back(&subtree);
   def_map[subtree.name] = &subtree;
+  subtree.model = this;
 
   // set parent to the main default if this is not the only default in the model
   if (!subtree.parent && &subtree != defaults_[0]) {
@@ -574,6 +576,58 @@ mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
   for (auto def : subtree.child) {
     *this += *def;  // triggers recursive call
   }
+  return *this;
+}
+
+
+
+// remove default class from array
+mjCModel& mjCModel::operator-=(const mjCDef& subtree) {
+
+  // check we aren't trying to remove the 'main' default
+  if (subtree.id == 0) {
+    throw mjCError(0, "cannot remove the global default ('main')");
+  }
+
+  // remove this default from parent's child list
+  mjCDef* parent = subtree.parent;
+  if (parent) {
+    for (int i = 0; i < parent->child.size(); ++i) {
+      if (parent->child[i] == &subtree) {
+        parent->child.erase(parent->child.begin() + i);
+        break;
+      }
+    }
+  }
+
+  // traverse tree to find all descendants starting from subtree.id
+  std::vector<int> default_ids_to_remove;
+  std::vector<int> stack;
+  stack.push_back(subtree.id);
+  while (!stack.empty()) {
+    int id = stack.back();
+    stack.pop_back();
+    default_ids_to_remove.push_back(id);
+    for (int i=0; i<defaults_[id]->child.size(); i++) {
+      stack.push_back(defaults_[id]->child[i]->id);
+    }
+  }
+
+  // remove from the tree
+  std::sort(default_ids_to_remove.begin(),
+            default_ids_to_remove.end(),
+            std::greater<int>());
+
+  for (int id : default_ids_to_remove) {
+    delete defaults_[id];
+    defaults_.erase(defaults_.begin() + id);
+  }
+
+  // reset default ids
+  for (int i = 0; i < defaults_.size(); ++i) {
+    defaults_[i]->id = i;
+  }
+
   return *this;
 }
 
@@ -607,6 +661,10 @@ void mjCModel::DeleteElement(mjsElement* el) {
   switch (el->elemtype) {
     case mjOBJ_BODY:
       throw mjCError(nullptr, "bodies cannot be deleted, use detach instead");
+      break;
+
+    case mjOBJ_DEFAULT:
+      throw mjCError(nullptr, "defaults cannot be deleted, use detach instead");
       break;
 
     case mjOBJ_GEOM:
@@ -1180,7 +1238,7 @@ mjCDef* mjCModel::AddDefault(string name, mjCDef* parent) {
   }
 
   // create new object
-  mjCDef* def = new mjCDef;
+  mjCDef* def = new mjCDef(parent->model);
   defaults_.push_back(def);
   def->id = thisid;
 

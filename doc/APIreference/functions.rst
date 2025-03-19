@@ -3851,7 +3851,16 @@ Attach child frame to a parent site, return the attached frame if success or NUL
 
 .. mujoco-include:: mjs_detachBody
 
-Detach body from mjSpec, remove all references and delete the body, return 0 on success.
+Delete body and descendants from mjSpec, remove all references, return 0 on success.
+
+.. _mjs_detachDefault:
+
+`mjs_detachDefault <#mjs_detachDefault>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_detachDefault
+
+Delete default class and descendants from mjSpec, remove all references, return 0 on success.
 
 .. _AddTreeElements:
 
@@ -3936,7 +3945,8 @@ Add frame to body.
 
 .. mujoco-include:: mjs_delete
 
-Delete object corresponding to the given element, return 0 on success.
+Delete object corresponding to the given element, return 0 on success. This function should only be used for element
+types that cannot have children, i.e. excluding bodies and default classes.
 
 .. _AddNonTreeElements:
 

@@ -9154,7 +9154,27 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Detach body from mjSpec, remove all references and delete the body, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Delete body and descendants from mjSpec, remove all references, return 0 on success.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_detachDefault',
+     FunctionDecl(
+         name='mjs_detachDefault',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsDefault'),
+                 ),
+             ),
+         ),
+         doc='Delete default class and descendants from mjSpec, remove all references, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_addBody',
      FunctionDecl(
@@ -9954,7 +9974,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
      FunctionDecl(
          name='mjs_findDefault',
          return_type=PointerType(
-             inner_type=ValueType(name='mjsDefault', is_const=True),
+             inner_type=ValueType(name='mjsDefault'),
          ),
          parameters=(
              FunctionParameterDecl(

@@ -2137,6 +2137,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
 //   -2: invalid objtype
 static int numObjects(const mjModel* m, mjtObj objtype) {
   switch (objtype) {
+  case mjOBJ_DEFAULT:
   case mjOBJ_FRAME:
   case mjOBJ_UNKNOWN:
     return -1;

@@ -268,7 +268,9 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjNOBJECT,                      // number of object types
 
   // meta elements, do not appear in mjModel
-  mjOBJ_FRAME         = 100       // frame
+  mjOBJ_FRAME         = 100,      // frame
+  mjOBJ_DEFAULT                   // default
+
 } mjtObj;
 
 

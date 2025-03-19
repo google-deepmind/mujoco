@@ -589,6 +589,12 @@ class SpecsTest(absltest.TestCase):
     spec.compile()
     self.assertEqual(spec.to_xml(), XML)
 
+    # test delete default
+    def1 = spec.find_default('def1')
+    spec.detach_default(def1)
+    def1 = spec.find_default('def1')
+    self.assertIsNone(def1)
+
   def test_element_list(self):
     spec = mujoco.MjSpec()
     sensor1 = spec.add_sensor()
