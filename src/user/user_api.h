@@ -378,6 +378,15 @@ MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const c
 // Transform body into a frame.
 MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 
+// Set user payload.
+MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
+
+// Return user payload or NULL if none found.
+MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);
+
+// Delete user payload.
+MJAPI void mjs_deleteUserValue(mjsElement* element, const char* key);
+
 
 //---------------------------------- Initialization  -----------------------------------------------
 

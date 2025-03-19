@@ -4458,6 +4458,33 @@ Resolve alternative orientations to quat, return error if any.
 
 Transform body into a frame.
 
+.. _mjs_setUserValue:
+
+`mjs_setUserValue <#mjs_setUserValue>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setUserValue
+
+Set user payload, overriding the existing value for the specified key if present.
+
+.. _mjs_getUserValue:
+
+`mjs_getUserValue <#mjs_getUserValue>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getUserValue
+
+Return user payload or NULL if none found.
+
+.. _mjs_deleteUserValue:
+
+`mjs_deleteUserValue <#mjs_deleteUserValue>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_deleteUserValue
+
+Delete user payload.
+
 .. _ElementInitialization:
 
 Element initialization

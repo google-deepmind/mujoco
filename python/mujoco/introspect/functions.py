@@ -10471,6 +10471,74 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Transform body into a frame.',
      )),
+    ('mjs_setUserValue',
+     FunctionDecl(
+         name='mjs_setUserValue',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='key',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='data',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Set user payload, overriding the existing value for the specified key if present.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_getUserValue',
+     FunctionDecl(
+         name='mjs_getUserValue',
+         return_type=PointerType(
+             inner_type=ValueType(name='void', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='key',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return user payload or NULL if none found.',
+     )),
+    ('mjs_deleteUserValue',
+     FunctionDecl(
+         name='mjs_deleteUserValue',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='key',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Delete user payload.',
+     )),
     ('mjs_defaultSpec',
      FunctionDecl(
          name='mjs_defaultSpec',

@@ -769,6 +769,30 @@ mjsFrame* mjs_bodyToFrame(mjsBody** body) {
 
 
 
+// set user payload
+void mjs_setUserValue(mjsElement* element, const char* key, const void* data) {
+  mjCBase* baseC = static_cast<mjCBase*>(element);
+  baseC->SetUserValue(key, data);
+}
+
+
+
+// return user payload or NULL if none found
+const void* mjs_getUserValue(mjsElement* element, const char* key) {
+  mjCBase* baseC = static_cast<mjCBase*>(element);
+  return baseC->GetUserValue(key);
+}
+
+
+
+// delete user payload
+void mjs_deleteUserValue(mjsElement* element, const char* key) {
+  mjCBase* baseC = static_cast<mjCBase*>(element);
+  baseC->DeleteUserValue(key);
+}
+
+
+
 // get id
 int mjs_getId(mjsElement* element) {
   if (!element) {

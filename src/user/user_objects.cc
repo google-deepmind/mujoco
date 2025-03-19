@@ -766,6 +766,22 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
 }
 
 
+void mjCBase::SetUserValue(std::string_view key, const void* data) {
+  user_payload_[std::string(key)] = data;
+}
+
+
+const void* mjCBase::GetUserValue(std::string_view key) {
+  auto found = user_payload_.find(std::string(key));
+  return found != user_payload_.end() ? found->second : nullptr;
+}
+
+
+void mjCBase::DeleteUserValue(std::string_view key) {
+  user_payload_.erase(std::string(key));
+}
+
+
 //------------------ class mjCBody implementation --------------------------------------------------
 
 // constructor

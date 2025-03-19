@@ -2585,5 +2585,20 @@ TEST_F(MujocoTest, SetFrameReverseOrder) {
   mj_deleteSpec(copy);
 }
 
+TEST_F(MujocoTest, UserValue) {
+  mjSpec* spec = mj_makeSpec();
+  EXPECT_THAT(spec, NotNull());
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  EXPECT_THAT(body, NotNull());
+  std::string data = "data";
+  mjs_setUserValue(body->element, "key", data.data());
+  EXPECT_THAT(mjs_getUserValue(body->element, "invalid_key"), IsNull());
+  const void* payload = mjs_getUserValue(body->element, "key");
+  EXPECT_STREQ(static_cast<const char*>(payload), data.c_str());
+  mjs_deleteUserValue(body->element, "key");
+  EXPECT_THAT(mjs_getUserValue(body->element, "key"), IsNull());
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco
