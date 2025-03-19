@@ -507,14 +507,19 @@ class BindData(object):
       iter(value)
     except TypeError:
       value = [value]
-    if name == 'qpos':
-      adr = self.model.jnt_qposadr[self.id]
-      typ = self.model.jnt_type[self.id]
-      num = sum((typ == jt) * jt.qpos_width() for jt in JointType)
-    elif name == 'qvel' or name == 'qacc':
-      adr = self.model.jnt_dofadr[self.id]
-      typ = self.model.jnt_type[self.id]
-      num = sum((typ == jt) * jt.dof_width() for jt in JointType)
+    if name in ('qpos', 'qvel', 'qacc'):
+      adr = num = 0
+      if name == 'qpos':
+        adr = self.model.jnt_qposadr[self.id]
+        typ = self.model.jnt_type[self.id]
+        num = sum((typ == jt) * jt.qpos_width() for jt in JointType)
+      elif name == 'qvel' or name == 'qacc':
+        adr = self.model.jnt_dofadr[self.id]
+        typ = self.model.jnt_type[self.id]
+        num = sum((typ == jt) * jt.dof_width() for jt in JointType)
+      if not isinstance(self.id, list):
+        adr = [adr]
+        num = [num]
     elif isinstance(self.id, list):
       adr = self.id * dim
       num = [dim for _ in range(len(self.id))]

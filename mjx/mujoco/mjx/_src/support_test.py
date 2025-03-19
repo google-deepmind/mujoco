@@ -287,6 +287,10 @@ class SupportTest(parameterized.TestCase):
     dx6 = dx.bind(mx, s.joints[::2]).set('qpos', [1, 0, 0, 0, 8])
     np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, qpos_desired)
     np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
+    dx6a = dx.bind(mx, s.joints[0]).set('qpos', qpos_desired[:4])
+    np.testing.assert_array_equal(
+        dx6a.bind(mx, s.joints[0]).qpos, qpos_desired[:4]
+    )
     dx7 = dx.bind(mx, s.joints[::2]).set('qvel', [2.0, -1.2, 0.5, 0.3])
     np.testing.assert_array_almost_equal(
         dx7.bind(mx, s.joints).qvel, [2.0, -1.2, 0.5, 0.0, 0.3], decimal=6
