@@ -204,8 +204,8 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
         return;
       }
     } else if (status->dist_cutoff < mjMAXVAL) {
-      mjtNum vs = mju_dot3(x_k, s_k), vv = mju_dot3(x_k, x_k);
-      if (mju_dot3(x_k, s_k) > 0 && (vs*vs / vv) >= cutoff2) {
+      mjtNum vs = dot3(x_k, s_k), vv = dot3(x_k, x_k);
+      if (dot3(x_k, s_k) > 0 && (vs*vs / vv) >= cutoff2) {
         status->gjk_iterations = k;
         status->nsimplex = 0;
         status->nx = 0;
@@ -277,7 +277,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   status->nx = 1;
   status->gjk_iterations = k;
   status->nsimplex = n;
-  status->dist = mju_norm3(x_k);
+  status->dist = norm3(x_k);
 }
 
 
@@ -346,7 +346,7 @@ static int epaSupport(Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
     scl3(dir_neg, dir, -1);
   }
 
-  int n = 3*pt->nverts++;
+  int n = pt->nverts++;
   Vertex* v = pt->verts + n;
 
   // compute S_{A-B}(dir) = S_A(dir) - S_B(-dir)
@@ -880,7 +880,7 @@ static int testTetra(const mjtNum p0[3], const mjtNum p1[3],
 
 // matrix for 120 degrees rotation around given axis
 static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
-  mjtNum n = mju_norm3(axis);
+  mjtNum n = norm3(axis);
   mjtNum u1 = axis[0] / n, u2 = axis[1] / n, u3 = axis[2] / n;
   const mjtNum sin = 0.86602540378;  // sin(120 deg)
   const mjtNum cos = -0.5;           // cos(120 deg)
@@ -930,9 +930,9 @@ static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   // save vertices and get indices for each one
   int v1i = insertVertex(pt, status->simplex + 0);
   int v2i = insertVertex(pt, status->simplex + 1);
-  int v3i = epaSupport(pt, obj1, obj2, d1, mju_norm3(d1));
-  int v4i = epaSupport(pt, obj1, obj2, d2, mju_norm3(d2));
-  int v5i = epaSupport(pt, obj1, obj2, d3, mju_norm3(d3));
+  int v3i = epaSupport(pt, obj1, obj2, d1, norm3(d1));
+  int v4i = epaSupport(pt, obj1, obj2, d2, norm3(d2));
+  int v5i = epaSupport(pt, obj1, obj2, d3, norm3(d3));
 
   mjtNum* v3 = pt->verts[v3i].vert;
   mjtNum* v4 = pt->verts[v4i].vert;
@@ -1040,7 +1040,7 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
   pr[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
   pr[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
   sub3(diff, pr, p);
-  return mju_norm3(diff) < mjMINVAL;
+  return norm3(diff) < mjMINVAL;
 }
 
 
@@ -1057,7 +1057,7 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   sub3(diff1, v2, v1);
   sub3(diff2, v3, v1);
   cross3(n, diff1, diff2);
-  mjtNum n_norm = mju_norm3(n);
+  mjtNum n_norm = norm3(n);
   if (n_norm < mjMINVAL) {
     return mjEPA_P3_BAD_NORMAL;
   }
@@ -1168,7 +1168,7 @@ static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
 
 // make a copy of vertex in polytope and return its index
 static inline int insertVertex(Polytope* pt, const Vertex* v) {
-  int n = 3*pt->nverts++;
+  int n = pt->nverts++;
   Vertex* new_v = pt->verts + n;
   copy3(new_v->vert1, v->vert1);
   copy3(new_v->vert2, v->vert2);
@@ -2313,7 +2313,7 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     pt.nfaces = pt.nmap = pt.nverts = 0;
 
     // allocate memory for vertices
-    pt.verts  = mjSTACKALLOC(d, 3*(5 + N), Vertex);
+    pt.verts  = mjSTACKALLOC(d, 5 + N, Vertex);
 
     // allocate memory for faces
     pt.maxfaces = (6*N > 1000) ? 6*N : 1000;  // use 1000 faces as lower bound
