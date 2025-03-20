@@ -665,6 +665,8 @@ def put_data(
       if num_rows > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
         num_rows = (num_rows - 1) * 2
       efc_i, efc_o = d.contact.efc_address[id_from], efc_address[id_to]
+      if efc_i == -1:
+        continue
       value[efc_o : efc_o + num_rows] = fields[fname][efc_i : efc_i + num_rows]
 
     fields[fname] = value
