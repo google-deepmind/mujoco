@@ -35,6 +35,8 @@ static const int kBatchSize = 50;
 
 static const char kBoxMeshPath[] =
     "../test/engine/testdata/collision_convex/perf/boxmesh.xml";
+static const char kBoxBoxPath[] =
+    "../test/engine/testdata/collision_convex/perf/box.xml";
 static const char kEllipsoidPath[] =
   "../test/engine/testdata/collision_convex/perf/ellipsoid.xml";
 static const char kMixedPath[] =
@@ -112,6 +114,12 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_BoxMesh_LibCCD);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_BoxBox(benchmark::State& state) {
+  static TestHarness harness(kBoxBoxPath, "box.xml (BoxBox)");
+  harness.RunBenchmark(state);
+}
+BENCHMARK(BM_BoxBox);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
     BM_Ellipsoid_NativeCCD(benchmark::State& state) {
