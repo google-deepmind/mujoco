@@ -4008,9 +4008,6 @@ static void warninghandler(const char* msg) {
 mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   if (compiled) {
     // clear kinematic tree
-    for (int i=0; i < bodies_.size(); i++) {
-      bodies_[i]->subtreedofs = 0;
-    }
     mjCBody* world = bodies_[0];
     ResetTreeLists();
     Clear();
@@ -4312,6 +4309,11 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // make lists of objects created in kinematic tree
   MakeLists(bodies_[0]);
+
+  // clear subtreedofs
+  for (int i=0; i < bodies_.size(); i++) {
+    bodies_[i]->subtreedofs = 0;
+  }
 
   // fill missing names and check that they are all filled
   for (const auto& asset : meshes_) asset->CopyFromSpec();

@@ -1220,6 +1220,61 @@ TEST_F(MujocoTest, AttachFrame) {
   mj_deleteModel(m_expected);
 }
 
+TEST_F(MujocoTest, AttachCompiled) {
+  std::array<char, 1000> er;
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" pos="0 0 0" size="0 0 0.05" type="plane"/>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="base">
+        <freejoint/>
+        <geom name="geom1" size="0.1" type="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  // load parent
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  EXPECT_THAT(parent, NotNull()) << er.data();
+
+  // load child
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  EXPECT_THAT(child, NotNull()) << er.data();
+
+  // compile child
+  mjModel* m_child = mj_compile(child, 0);
+  EXPECT_THAT(m_child, NotNull()) << mjs_getError(child);
+
+  // add frame to the parent to attach
+  mjsBody* world = mjs_findBody(parent, "world");
+  EXPECT_THAT(world, NotNull()) << mjs_getError(parent);
+  mjsFrame* frame = mjs_addFrame(world, 0);
+  EXPECT_THAT(frame, NotNull()) << mjs_getError(parent);
+
+  // attach child body to the frame
+  mjsBody* to_attach = mjs_findBody(child, "base");
+  EXPECT_THAT(to_attach, NotNull()) << mjs_getError(child);
+  mjs_attachBody(frame, to_attach, "", "");
+
+  // check that attached model can be compiled
+  mjModel* m_attached = mj_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull()) <<
+      "Failed to compile attached model" <<  mjs_getError(parent);
+
+  // destroy everything
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(m_attached);
+  mj_deleteModel(m_child);
+}
+
 void TestDetachBody(bool compile) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
