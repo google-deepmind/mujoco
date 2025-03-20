@@ -27,9 +27,6 @@ from pxr import Usd
 from pxr import UsdGeom
 
 import mujoco
-from mujoco import _enums
-from mujoco import _functions
-from mujoco import _structs
 import mujoco.usd.camera as camera_module
 import mujoco.usd.lights as light_module
 import mujoco.usd.objects as object_module
@@ -143,16 +140,16 @@ class USDExporter:
   def _update_scene(
       self,
       data: mujoco.MjData,
-      camera: Union[int, str, _structs.MjvCamera] = 0,
+      camera: Union[int, str, mujoco.MjvCamera] = 0,
       scene_option: Optional[mujoco.MjvOption] = None,
   ) -> None:
-    if not isinstance(camera, _structs.MjvCamera):
+    if not isinstance(camera, mujoco.MjvCamera):
       if self.model.ncam == 0:
         raise ValueError(f"No fixed cameras defined in mujoco model.")
       camera_id = camera
       if isinstance(camera_id, str):
-        camera_id = _functions.mj_name2id(
-            self.model, _enums.mjtObj.mjOBJ_CAMERA.value, camera_id
+        camera_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_CAMERA.value, camera_id
         )
         if camera_id == -1:
           raise ValueError(f'The camera "{camera}" does not exist.')
@@ -167,25 +164,25 @@ class USDExporter:
       assert camera_id != -1
 
       # Render camera.
-      camera = _structs.MjvCamera()
+      camera = mujoco.MjvCamera()
       camera.fixedcamid = camera_id
-      camera.type = _enums.mjtCamera.mjCAMERA_FIXED
+      camera.type = mujoco.mjtCamera.mjCAMERA_FIXED
 
     scene_option = scene_option or self._scene_option
-    _functions.mjv_updateScene(
+    mujoco.mjv_updateScene(
         self.model,
         data,
         scene_option,
         None,
         camera,
-        _enums.mjtCatBit.mjCAT_ALL.value,
+        mujoco.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )
 
   def update_scene(
       self,
       data: mujoco.MjData,
-      camera: Union[int, str, _structs.MjvCamera] = 0,
+      camera: Union[int, str, mujoco.MjvCamera] = 0,
       scene_option: Optional[mujoco.MjvOption] = None,
   ) -> None:
     """Updates the scene with latest sim data.
@@ -379,7 +376,7 @@ class USDExporter:
             stage=self.stage, camera_name=camera_name
         )
 
-  def _get_camera_orientation(self) -> Tuple[_structs.MjvGLCamera, np.ndarray]:
+  def _get_camera_orientation(self) -> Tuple[mujoco.MjvGLCamera, np.ndarray]:
     avg_camera = mujoco.mjv_averageCamera(
         self._scene.camera[0], self._scene.camera[1]
     )
@@ -398,7 +395,7 @@ class USDExporter:
   def _update_cameras(
       self,
       data: mujoco.MjData,
-      camera: Union[int, str, _structs.MjvCamera] = 0,
+      camera: Union[int, str, mujoco.MjvCamera] = 0,
       scene_option: Optional[mujoco.MjvOption] = None,
   ) -> None:
     # first, update the primary camera given the new scene
@@ -437,7 +434,7 @@ class USDExporter:
       intensity: intensity of the light
       radius: radius of the originating light source
       color: color of the light
-      light_type: type of light source (types include "sphere", "dome") (TODO: add other light types from Omniverse)
+      light_type: type of light source (types include "sphere", "dome")
       light_name: name of the light to be stored in USD
     """
     if light_type == "sphere":
