@@ -546,6 +546,14 @@ void ShowFigure(mj::Simulate* sim, mjrRect viewport, mjvFigure* fig){
   mjr_figure(viewport, fig, &sim->platform_ui->mjr_context());
 }
 
+void ShowOverlayText(mj::Simulate* sim, mjrRect viewport, int font, int gridpos, std::string text1, std::string text2){
+  mjr_overlay(font, gridpos, viewport, text1.c_str(), text2.c_str(), &sim->platform_ui->mjr_context());
+}
+
+void ShowImage(mj::Simulate* sim, mjrRect viewport, const unsigned char* image) {
+  mjr_drawPixels(image, nullptr, viewport, &sim->platform_ui->mjr_context());
+}
+
 // load state from history buffer
 static void LoadScrubState(mj::Simulate* sim) {
   // get index into circular buffer
@@ -2595,6 +2603,16 @@ void Simulate::Render() {
   // user figures
   for (auto& [viewport, figure] : this->user_figures_) {
     ShowFigure(this, viewport, &figure);
+  }
+
+  // overlay text
+  for (auto& [font, gridpos, text1, text2] : this->user_text_) {
+    ShowOverlayText(this, rect, font, gridpos, text1, text2);
+  }
+
+  // user images
+  for (auto& [viewport, image] : this->user_images_) {
+    ShowImage(this, viewport, image);
   }
 
   // finalize
