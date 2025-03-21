@@ -25,10 +25,23 @@
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+
+
+// allocate callback for EPA in nativeccd
+static void* ccd_allocate(void* data, size_t nbytes) {
+  mj_markStack((mjData*)data);
+  return mj_stackAllocByte((mjData*)data, nbytes, sizeof(mjtNum));
+}
+
+// free callback for EPA in nativeccd
+static void ccd_free(void* data, void* buffer) {
+  mj_freeStack((mjData*)data);
+}
 
 // call libccd or nativeccd to recover penetration info
 static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
@@ -46,6 +59,9 @@ static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
   config.tolerance = ccd->mpr_tolerance,
   config.max_contacts = 1;
   config.dist_cutoff = 0;  // no geom distances needed
+  config.context = (void*)obj1->data;
+  config.alloc = ccd_allocate;
+  config.free = ccd_free;
 
   mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
   if (dist < 0) {
@@ -800,6 +816,9 @@ static int mjc_CCDIteration(const mjModel* m, const mjData* d, mjCCDObj* obj1, m
     config.tolerance = m->opt.ccd_tolerance;
     config.max_contacts = max_contacts;
     config.dist_cutoff = 0;  // no geom distances needed
+    config.context = (void*)d;
+    config.alloc = ccd_allocate;
+    config.free = ccd_free;
 
     mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
     if (dist < 0) {

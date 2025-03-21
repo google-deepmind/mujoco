@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_COLLISION_GJK_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_COLLISION_GJK_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
@@ -24,6 +26,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// max number of EPA iterations
+#define mjMAX_EPA_ITERATIONS 170
 
 // tolerance for normal alignment of two faces (cosine of 1.6e-3)
 #define mjFACE_TOL 0.99999872
@@ -60,10 +65,17 @@ typedef struct {
 
 // configuration for convex collision detection
 typedef struct {
-  int max_iterations;   // the maximum number of iterations for GJK and EPA
-  mjtNum tolerance;     // tolerance used by GJK and EPA
-  int max_contacts;     // set to max number of contact points to recover
-  mjtNum dist_cutoff;   // set to max geom distance to recover
+  int max_iterations;  // the maximum number of iterations for GJK and EPA
+  mjtNum tolerance;    // tolerance used by GJK and EPA
+  int max_contacts;    // set to max number of contact points to recover
+  mjtNum dist_cutoff;  // set to max geom distance to recover
+  void* context;       // opaque data pointer passed to callbacks
+
+  // callback to allocate memory for polytope (only needed for penetration recovery)
+  void*(*alloc)(void* context, size_t nbytes);
+
+  // callback to free memory from alloc callback
+  void(*free)(void* context, void* buffer);
 } mjCCDConfig;
 
 // data produced from running GJK and EPA

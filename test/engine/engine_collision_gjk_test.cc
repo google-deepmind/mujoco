@@ -17,6 +17,7 @@
 #include "src/engine/engine_collision_gjk.h"
 
 #include <array>
+#include <cstddef>
 #include <vector>
 
 #include <ccd/ccd.h>
@@ -60,6 +61,14 @@ constexpr char kEllipoid[] = R"(
       qvel="0.00769267 -0.258656 -0.0775641 2.73712 0.0813998 -0.000166485"/>
   </keyframe>
 </mujoco>)";
+
+void* CCDAllocate(void* data, std::size_t nbytes) {
+  return new std::byte[nbytes];
+}
+
+void CCDFree(void* data, void* buffer) {
+  delete [] (std::byte*)buffer;
+}
 
 mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
                 mjtNum x2[3], mjtNum cutoff = mjMAXVAL) {
@@ -127,6 +136,9 @@ int Penetration(mjtNum& depth, std::vector<mjtNum>& dir,
   config.max_contacts = max_contacts;
   config.dist_cutoff = 0;  // no geom distances needed
   config.max_contacts = max_contacts;
+  config.context = nullptr;
+  config.alloc = CCDAllocate;
+  config.free = CCDFree;
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
   if (dist < 0) {
