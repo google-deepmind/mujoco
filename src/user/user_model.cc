@@ -116,6 +116,49 @@ bool IsNullPose(const T pos[3], const T quat[4]) {
 }
 
 
+// set ids, check for repeated names
+template <class T>
+static void processlist(mjListKeyMap& ids, vector<T*>& list,
+                        mjtObj type, bool checkrepeat = true) {
+  // assign ids for regular elements
+  if (type < mjNOBJECT) {
+    for (size_t i=0; i < list.size(); i++) {
+      // check for incompatible id setting; SHOULD NOT OCCUR
+      if (list[i]->id != -1 && list[i]->id != i) {
+        throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
+      }
+
+      // id equals position in array
+      list[i]->id = i;
+
+      // add to ids map
+      ids[type][list[i]->name] = i;
+    }
+  }
+
+  // check for repeated names
+  if (checkrepeat) {
+    // created vectors with all names
+    vector<string> allnames;
+    for (size_t i=0; i < list.size(); i++) {
+      if (!list[i]->name.empty()) {
+        allnames.push_back(list[i]->name);
+      }
+    }
+
+    // sort and check for duplicates
+    if (allnames.size() > 1) {
+      std::sort(allnames.begin(), allnames.end());
+      auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
+      if (adjacent != allnames.end()) {
+        string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
+        throw mjCError(nullptr, "%s", msg.c_str());
+      }
+    }
+  }
+}
+
+
 }  // namespace
 
 //---------------------------------- CONSTRUCTOR AND DESTRUCTOR ------------------------------------
@@ -490,7 +533,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
       element->ResolveReferences(this);
     } catch (mjCError err) {
       ids[element->elemtype].erase(element->name);
-      delete element;
+      element->Release();
       list.erase(list.begin() + i);
       nlist--;
       i--;
@@ -511,6 +554,52 @@ void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
     delete element;
   }
   elements.clear();
+}
+
+
+
+template <class T>
+void mjCModel::MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
+                                  const std::vector<T*>& list) {
+  for (const auto& element : list) {
+    if (!element->plugin_instance_name.empty()) {
+      instances[element->plugin_instance_name] = true;
+    }
+  }
+}
+
+
+
+void mjCModel::RemovePlugins() {
+  // store elements that reference a plugin instance
+  std::unordered_map<std::string, bool> instances;
+  MarkPluginInstance(instances, bodies_);
+  MarkPluginInstance(instances, geoms_);
+  MarkPluginInstance(instances, meshes_);
+  MarkPluginInstance(instances, actuators_);
+  MarkPluginInstance(instances, sensors_);
+
+  // remove plugins that are not referenced
+  int nlist = (int)plugins_.size();
+  int removed = 0;
+  for (int i = 0; i < nlist; i++) {
+    if (plugins_[i]->name.empty()) {
+      continue;
+    }
+    if (instances.find(plugins_[i]->name) == instances.end()) {
+      ids[plugins_[i]->elemtype].erase(plugins_[i]->name);
+      plugins_[i]->Release();
+      plugins_.erase(plugins_.begin() + i);
+      nlist--;
+      i--;
+      removed++;
+    }
+  }
+
+  // if any elements were removed, update ids using processlist
+  if (removed > 0 && !plugins_.empty()) {
+    processlist(ids, plugins_, plugins_[0]->elemtype, /*checkrepeat=*/false);
+  }
 }
 
 
@@ -550,6 +639,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(equalities_, oldmodel);
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
+  RemovePlugins();
 
   // restore to the original state
   if (!compiled) {
@@ -3919,49 +4009,6 @@ template <class T>
 static void reassignid(vector<T*>& list) {
   for (int i=0; i < (int)list.size(); i++) {
     list[i]->id = i;
-  }
-}
-
-
-// set ids, check for repeated names
-template <class T>
-static void processlist(mjListKeyMap& ids, vector<T*>& list,
-                        mjtObj type, bool checkrepeat = true) {
-  // assign ids for regular elements
-  if (type < mjNOBJECT) {
-    for (size_t i=0; i < list.size(); i++) {
-      // check for incompatible id setting; SHOULD NOT OCCUR
-      if (list[i]->id != -1 && list[i]->id != i) {
-        throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
-      }
-
-      // id equals position in array
-      list[i]->id = i;
-
-      // add to ids map
-      ids[type][list[i]->name] = i;
-    }
-  }
-
-  // check for repeated names
-  if (checkrepeat) {
-    // created vectors with all names
-    vector<string> allnames;
-    for (size_t i=0; i < list.size(); i++) {
-      if (!list[i]->name.empty()) {
-        allnames.push_back(list[i]->name);
-      }
-    }
-
-    // sort and check for duplicates
-    if (allnames.size() > 1) {
-      std::sort(allnames.begin(), allnames.end());
-      auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
-      if (adjacent != allnames.end()) {
-        string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
-        throw mjCError(nullptr, "%s", msg.c_str());
-      }
-    }
   }
 }
 

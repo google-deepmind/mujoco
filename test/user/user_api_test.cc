@@ -230,41 +230,41 @@ TEST_F(PluginTest, DeletePlugin) {
   mj_deleteModel(newmodel);
 }
 
+static constexpr char xml_plugin_1[] = R"(
+  <mujoco model="MuJoCo Model">
+    <worldbody>
+      <body name="body"/>
+    </worldbody>
+  </mujoco>)";
+
+static constexpr char xml_plugin_2[] = R"(
+  <mujoco model="MuJoCo Model">
+    <extension>
+      <plugin plugin="mujoco.pid">
+        <instance name="actuator-1">
+          <config key="ki" value="4.0"/>
+          <config key="slewmax" value="3.14159"/>
+        </instance>
+      </plugin>
+    </extension>
+    <worldbody>
+      <body name="empty"/>
+      <body name="body">
+        <joint name="joint"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <plugin name="actuator-1" plugin="mujoco.pid" instance="actuator-1"
+              joint="joint" actdim="2"/>
+    </actuator>
+  </mujoco>)";
+
 TEST_F(PluginTest, AttachPlugin) {
-  static constexpr char xml_1[] = R"(
-    <mujoco model="MuJoCo Model">
-      <worldbody>
-        <body name="body"/>
-      </worldbody>
-    </mujoco>)";
-
-  static constexpr char xml_2[] = R"(
-    <mujoco model="MuJoCo Model">
-      <extension>
-        <plugin plugin="mujoco.pid">
-          <instance name="actuator-1">
-            <config key="ki" value="4.0"/>
-            <config key="slewmax" value="3.14159"/>
-          </instance>
-        </plugin>
-      </extension>
-      <worldbody>
-        <body name="empty"/>
-        <body name="body">
-          <joint name="joint"/>
-          <geom size="0.1"/>
-        </body>
-      </worldbody>
-      <actuator>
-        <plugin name="actuator-1" plugin="mujoco.pid" instance="actuator-1"
-                joint="joint" actdim="2"/>
-      </actuator>
-    </mujoco>)";
-
   std::array<char, 1000> err;
-  mjSpec* parent = mj_parseXMLString(xml_1, 0, err.data(), err.size());
+  mjSpec* parent = mj_parseXMLString(xml_plugin_1, 0, err.data(), err.size());
   ASSERT_THAT(parent, NotNull()) << err.data();
-  mjSpec* spec_1 = mj_parseXMLString(xml_2, 0, err.data(), err.size());
+  mjSpec* spec_1 = mj_parseXMLString(xml_plugin_2, 0, err.data(), err.size());
   ASSERT_THAT(spec_1, NotNull()) << err.data();
 
   // do a copy before attaching
@@ -304,6 +304,32 @@ TEST_F(PluginTest, AttachPlugin) {
   mj_deleteSpec(spec_1);
   mj_deleteSpec(spec_2);
   mj_deleteSpec(spec_3);
+}
+
+TEST_F(PluginTest, DetachPlugin) {
+  std::array<char, 1000> err;
+  mjSpec* parent = mj_parseXMLString(xml_plugin_1, 0, err.data(), err.size());
+  ASSERT_THAT(parent, NotNull()) << err.data();
+  mjSpec* child = mj_parseXMLString(xml_plugin_2, 0, err.data(), err.size());
+  ASSERT_THAT(child, NotNull()) << err.data();
+
+  // attach a body referencing the plugin to the frame
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), 0);
+  mjsBody* body = mjs_findBody(child, "body");
+  EXPECT_THAT(mjs_attachBody(frame, body, "child-", ""), NotNull());
+
+  // detach the body and compile
+  mjsBody* body_to_detach = mjs_findBody(parent, "child-body");
+  EXPECT_THAT(body_to_detach, NotNull());
+  EXPECT_THAT(mjs_detachBody(parent, body_to_detach), 0);
+  mjModel* model = mj_compile(parent, nullptr);
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->nbody, 2);
+  EXPECT_THAT(model->nplugin, 0);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
 }
 
 TEST_F(PluginTest, AttachExplicitPlugin) {
