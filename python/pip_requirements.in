@@ -1,0 +1,12 @@
+absl-py
+numpy
+jax
+glfw
+trimesh
+scipy
+pyopengl
+pyopengl_accelerate
+etils
+typing-extensions
+importlib-resources
+trimesh

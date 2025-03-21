@@ -37,3 +37,6 @@ MUJOCO_LOG.TXT
 
 # Clang cache
 .cache/
+
+# Bazel build artifacts (symlinks)
+/bazel-*

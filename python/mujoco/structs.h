@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include <absl/types/span.h>
+#include "absl/types/span.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "indexers.h"
