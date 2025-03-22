@@ -22,11 +22,14 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
+from mujoco.mjx._src import scan
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
+from mujoco.mjx._src.types import JointType
+from mujoco.mjx._src.types import EnableBit
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -600,3 +603,85 @@ def sensor_acc(m: Model, d: Data) -> Data:
   )
 
   return d.replace(sensordata=sensordata)
+
+
+def energy_pos(m: Model, d: Data) -> Data:
+    """Calculates position-dependent energy (potential).
+    """
+
+    if not m.opt.enableflags & EnableBit.ENERGY:
+        return d
+
+    # Initialize potential energy
+    energy = jp.array(0.0)
+    
+    # Add gravitational potential energy for each body
+    if not m.opt.disableflags & DisableBit.GRAVITY:
+        energy = -jp.sum(m.body_mass[1:] * jp.dot(d.xipos[1:,:], m.opt.gravity))
+
+    # Add joint spring potential energy using scan.flat
+    if not m.opt.disableflags & DisableBit.PASSIVE:
+        def spring_energy(jnt_type, stiffness, qpos, qpos_spring, padr):
+          
+            if jnt_type == JointType.FREE:
+                # Position springs
+                quat = qpos[padr:padr+4] 
+                quat = math.normalize(quat)
+                dif = quat - qpos_spring[padr:padr+4]
+                energy = 0.5 * stiffness * jp.dot(dif[:3], dif[:3])
+                
+            elif jnt_type in (JointType.FREE, JointType.BALL):
+                # Convert quaternion difference to angular displacement
+                quat = qpos[padr:padr+4]
+                quat = math.normalize(quat)
+                dif = math.quat_sub(quat, qpos_spring[padr:padr+4])
+                energy = 0.5 * stiffness * jp.dot(dif, dif)
+                
+            elif jnt_type in (JointType.SLIDE, JointType.HINGE):
+                dif = qpos[padr] - qpos_spring[padr]
+                energy = 0.5 * stiffness * dif * dif
+                
+            return energy
+
+        spring_energy = scan.flat(
+            m,
+            spring_energy,
+            'jjqqj',  # input types: jnt_type, stiffness, qpos, qpos_spring, padr
+            'j',      # output type: energy per joint
+            m.jnt_type,
+            m.jnt_stiffness, 
+            d.qpos,
+            m.qpos_spring,
+            jp.array(m.jnt_qposadr),
+            group_by='j'
+        )
+        
+        energy += jp.sum(spring_energy)
+
+    # Add tendon spring potential energy using vectorized operations
+    if not m.opt.disableflags & DisableBit.PASSIVE & m.tendon_lengthspring.size > 0:
+        # Get lower/upper bounds and current lengths
+        lower = m.tendon_lengthspring[::2]  # Even indices
+        upper = m.tendon_lengthspring[1::2]  # Odd indices
+        length = d.ten_length
+        
+        # Compute displacements using vectorized operations
+        displacement = jp.where(length > upper, upper - length, 0.0)
+        displacement = jp.where(length < lower, lower - length, displacement)
+        
+        # Compute spring energy for all tendons at once
+        energy += 0.5 * jp.sum(m.tendon_stiffness * displacement * displacement)
+
+    return d.replace(energy=d.energy.at[0].set(energy))
+
+
+def energy_vel(m: Model, d: Data) -> Data:
+    """Calculates velocity-dependent energy (kinetic).
+    """
+    if not m.opt.enableflags & EnableBit.ENERGY:
+        return d
+
+    vec = support.mul_m(m, d, d.qvel)
+    energy = 0.5 * jp.dot(vec, d.qvel)
+    
+    return d.replace(energy=d.energy.at[1].set(energy))
