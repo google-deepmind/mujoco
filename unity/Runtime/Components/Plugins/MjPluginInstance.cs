@@ -35,8 +35,9 @@ public class MjPluginInstance : MjComponent {
 
   // Generate implementation specific XML element.
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
-    if (string.IsNullOrEmpty(Name))
+    if (string.IsNullOrEmpty(Name)) {
       throw new ArgumentException($"Attribute \"name\" is required for {nameof(MjPluginInstance)}.");
+    }
     var mjcf = (XmlElement)doc.CreateElement("instance");
     mjcf.SetAttribute("name", Name);
     return mjcf;

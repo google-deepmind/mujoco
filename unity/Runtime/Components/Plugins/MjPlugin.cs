@@ -42,10 +42,12 @@ public class MjPlugin : MjComponent {
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
 
     var mjcf = (XmlElement)doc.CreateElement("plugin");
-    if (Plugin.Length > 0)
+    if (Plugin.Length > 0) {
       mjcf.SetAttribute("plugin", Plugin);
-    if (Instance.Length > 0)
+    }
+    if (Instance.Length > 0) {
       mjcf.SetAttribute("instance", Instance);
+    }
     return mjcf;
   }
 }

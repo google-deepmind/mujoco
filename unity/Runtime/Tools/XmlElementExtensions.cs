@@ -226,8 +226,9 @@ public static class XmlElementExtensions {
     }
     var result = new int[resultLength];
     for (var i = 0; i < components.Length; ++i) {
-      int componentValue;
-      if (int.TryParse(components[i], NumberStyles.Any, CultureInfo.InvariantCulture, out componentValue)) {
+      bool hasParsed = int.TryParse(components[i], NumberStyles.Any, CultureInfo.InvariantCulture,
+                                    out int componentValue);
+      if (hasParsed) {
         result[i] = componentValue;
       } else {
         throw new ArgumentException($"'{components[i]}' is not a float.");

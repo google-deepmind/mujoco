@@ -19,17 +19,17 @@ using UnityEngine;
 
 namespace Mujoco {
 
-  public class MjFlexConstraint : MjBaseConstraint {
-    public string Flex;
-    protected override string _constraintName => "flex";
+public class MjFlexConstraint : MjBaseConstraint {
+  public string Flex;
+  protected override string _constraintName => "flex";
 
-    protected override void FromMjcf(XmlElement mjcf) {
-      Flex = mjcf.GetStringAttribute("flex");
-    }
-
-    protected override void ToMjcf(XmlElement mjcf) {
-      mjcf.SetAttribute("flex", Flex);
-    }
-
+  protected override void FromMjcf(XmlElement mjcf) {
+    Flex = mjcf.GetStringAttribute("flex");
   }
+
+  protected override void ToMjcf(XmlElement mjcf) {
+    mjcf.SetAttribute("flex", Flex);
+  }
+
+}
 }

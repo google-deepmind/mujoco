@@ -392,7 +392,8 @@ public static class MjEngineTool {
   public static void LoadPlugins() {
     if(!Directory.Exists("Packages/org.mujoco/Runtime/Plugins/")) return;
 
-    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/").Where(f => f.EndsWith(".dll") || f.EndsWith(".so"))) {
+    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/")
+                 .Where(f => f.EndsWith(".dll") || f.EndsWith(".so"))) {
       Debug.Log($"Loading plugin {pluginPath}");
       MujocoLib.mj_loadPluginLibrary(Path.GetFullPath(pluginPath));
     }

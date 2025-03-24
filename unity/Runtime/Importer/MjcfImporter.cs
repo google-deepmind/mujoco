@@ -163,8 +163,8 @@ public class MjcfImporter {
       }
     }
 
-      // This makes references to assets.
-      var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
+    // This makes references to assets.
+    var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
     ParseBodyChildren(rootObject, worldBodyNode);
 
     // This section references bodies, must be parsed after worldbody.

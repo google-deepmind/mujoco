@@ -67,9 +67,11 @@ public class MjFlexMeshBuilder : MonoBehaviour {
         // Assuming horizontal layout
         uv[i] = new Vector2(
           Mathf.InverseLerp(vertices.Min(u => Vector3.Dot(u, uvProjectionU)),
-            vertices.Max(u => Vector3.Dot(u, uvProjectionU)), Vector3.Dot(vertices[i], uvProjectionU)),
+            vertices.Max(u => Vector3.Dot(u, uvProjectionU)),
+            Vector3.Dot(vertices[i], uvProjectionU)),
           Mathf.InverseLerp(vertices.Min(u => Vector3.Dot(u, uvProjectionV)),
-            vertices.Max(u => Vector3.Dot(u, uvProjectionV)), Vector3.Dot(vertices[i], uvProjectionV))
+            vertices.Max(u => Vector3.Dot(u, uvProjectionV)),
+            Vector3.Dot(vertices[i], uvProjectionV))
         );
       }
       mesh.uv = uv;

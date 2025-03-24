@@ -40,7 +40,6 @@ public class MjPluginTag : MjComponent {
 
   // Generate implementation specific XML element.
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
-
     var mjcf = (XmlElement)doc.CreateElement("plugin");
     if (Plugin.Length > 0)
       mjcf.SetAttribute("plugin", Plugin);

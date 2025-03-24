@@ -49,7 +49,7 @@ public class MjFlexDeformable : MjComponent {
 
   // Due to their low complexity, no further hierarchy and uniqueness I opted not to have
   // separate Unity MonoBehaviours and GameObjects in Unity for the child elements of flex.
-  // H
+  
   public bool ConfigureEdge;
 
   [SerializeField]
@@ -74,7 +74,8 @@ public class MjFlexDeformable : MjComponent {
     FlexName = mjcf.GetStringAttribute("name", "");
     Dim = mjcf.GetIntAttribute("dim", 2);
     Radius = mjcf.GetFloatAttribute("radius", 0.005f);
-    Body = mjcf.GetStringAttribute("body").Split(" ", StringSplitOptions.RemoveEmptyEntries)
+    Body = mjcf.GetStringAttribute("body")
+        .Split(" ", StringSplitOptions.RemoveEmptyEntries)
         .Select(MjHierarchyTool.FindComponentOfTypeAndName<MjBaseBody>).ToArray();
     Vertex = mjcf.GetFloatArrayAttribute("vertex", Array.Empty<float>());
     Texcoord = mjcf.GetFloatArrayAttribute("texcoord", Array.Empty<float>());
@@ -118,7 +119,8 @@ public class MjFlexDeformable : MjComponent {
     mjcf.SetAttribute("dim", MjEngineTool.MakeLocaleInvariant($"{Dim}"));
     mjcf.SetAttribute("radius", MjEngineTool.MakeLocaleInvariant($"{Radius}"));
     if (Body.Length > 0)
-      mjcf.SetAttribute("body", MjEngineTool.ArrayToMjcf(Body.Select(b => b.MujocoName).ToArray()));
+      mjcf.SetAttribute("body", 
+                   MjEngineTool.ArrayToMjcf(Body.Select(b => b.MujocoName).ToArray()));
     if (Vertex.Length > 0)
       mjcf.SetAttribute("vertex", MjEngineTool.ArrayToMjcf(Vertex));
     if (Texcoord.Length > 0)

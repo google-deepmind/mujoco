@@ -37,10 +37,12 @@ public class MjPluginConfig : MjComponent {
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
 
     var mjcf = (XmlElement)doc.CreateElement("config");
-    if (Key.Length > 0)
+    if (Key.Length > 0) {
       mjcf.SetAttribute("key", Key);
-    if (Value.Length > 0)
+    }
+    if (Value.Length > 0) {
       mjcf.SetAttribute("value", Value);
+    }
     return mjcf;
   }
 }

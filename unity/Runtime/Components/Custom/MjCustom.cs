@@ -117,6 +117,7 @@ public class MjCustom : MonoBehaviour {
     }
 
     protected abstract XmlElement ToMjcfInner(XmlDocument doc);
+
   }
 
   [Serializable]
@@ -150,7 +151,10 @@ public class MjCustom : MonoBehaviour {
     public float[] data;
 
     protected override void ParseInner(XmlElement mjcf) {
-      if (int.TryParse(mjcf.GetStringAttribute("size", "-1"), out var size)) {
+      bool hasParsed = int.TryParse(
+        mjcf.GetStringAttribute("size", "-1"),
+        out var size);
+      if (hasParsed) {
         this.size = size;
       }
       var data = mjcf.GetFloatArrayAttribute("data", new float[] {});
@@ -165,7 +169,10 @@ public class MjCustom : MonoBehaviour {
     protected override XmlElement ToMjcfInner(XmlDocument doc) {
       var mjcf = (XmlElement)doc.CreateElement("numeric");
       if (size >= 0) {
-        mjcf.SetAttribute("size", MjEngineTool.MakeLocaleInvariant($"{size}"));
+        mjcf.SetAttribute(
+          "size",
+          MjEngineTool.MakeLocaleInvariant($"{size}")
+          );
       }
 
       mjcf.SetAttribute("data", MjEngineTool.ArrayToMjcf(data));
