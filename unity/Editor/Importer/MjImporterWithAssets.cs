@@ -159,8 +159,8 @@ public class MjImporterWithAssets : MjcfImporter {
                                         $"Attempted to load: {sourceFilePath}");
     }
 
-    var targetFilePath = Path.Combine(_targetMeshesDir, assetReferenceName 
-                                                        + Path.GetExtension(sourceFilePath));
+    var targetFilePath =
+        Path.Combine(_targetMeshesDir, assetReferenceName + Path.GetExtension(sourceFilePath));
     if (File.Exists(targetFilePath)) {
       File.Delete(targetFilePath);
     }
