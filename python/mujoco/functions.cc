@@ -234,7 +234,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM2, "n")(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d, Eigen::Ref<EigenArrayXX> x,
-         Eigen::Ref<const EigenArrayXX> y) {
+         Eigen::Ref<const EigenArrayXX> y, Eigen::Ref<const EigenArrayXX> sqrtInvD) {
         if (x.rows() != y.rows()) {
           throw py::type_error(
               "the first dimension of x and y should be of the same size");
@@ -247,8 +247,12 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error(
               "the last dimension of y should be of size nv");
         }
+        if (sqrtInvD.size() != m->nv) {
+          throw py::type_error(
+              "the size of sqrtInvD should be nv");
+        }
         return InterceptMjErrors(::mj_solveM2)(
-            m, d, x.data(), y.data(), y.rows());
+            m, d, x.data(), y.data(), sqrtInvD.data(), y.rows());
       });
   Def<traits::mj_comVel>(pymodule);
   Def<traits::mj_passive>(pymodule);
@@ -675,7 +679,6 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_defaultOption>(pymodule);
   Def<traits::mjv_defaultFigure>(pymodule);
   Def<traits::mjv_initGeom>(pymodule);
-  Def<traits::mjv_makeConnector>(pymodule);
   Def<traits::mjv_connector>(pymodule);
   // Skipped: mjv_defaultScene (have MjvScene.__init__, memory managed by
   // MjvScene).
@@ -720,8 +723,6 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_dist3>(pymodule);
   Def<traits::mju_mulMatVec3>(pymodule);
   Def<traits::mju_mulMatTVec3>(pymodule);
-  // skipped: mju_rotVecMat
-  // skipped: mju_rotVecMatT
   Def<traits::mju_cross>(pymodule);
   Def<traits::mju_zero4>(pymodule);
   Def<traits::mju_unit4>(pymodule);
@@ -1022,6 +1023,25 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_transformSpatial>(pymodule);
 
   // Sparse math
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_dense2sparse, "nr", "nc", "nnz")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<EigenVectorI> rownnz, Eigen::Ref<EigenVectorI> rowadr,
+         Eigen::Ref<EigenVectorI> colind) {
+        if (mat.rows() != rownnz.size()) {
+          throw py::type_error("#rows in mat should equal size of rownnz");
+        }
+        if (mat.rows() != rowadr.size()) {
+          throw py::type_error("#rows in mat should equal size of rowadr");
+        }
+        if (res.size() != colind.size()) {
+          throw py::type_error("#size of res should equal size of colind");
+        }
+        return ::mju_dense2sparse(res.data(), mat.data(), mat.rows(),
+                                  mat.cols(), rownnz.data(), rowadr.data(),
+                                  colind.data(), res.size());
+      });
+
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_sparse2dense, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res,
@@ -1053,6 +1073,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_derivQuat>(pymodule);
   Def<traits::mju_quatIntegrate>(pymodule);
   Def<traits::mju_quatZ2Vec>(pymodule);
+  Def<traits::mju_mat2Rot>(pymodule);
   Def<traits::mju_euler2Quat>(pymodule);
 
   // Poses

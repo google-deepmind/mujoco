@@ -257,8 +257,17 @@ static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
   if (efc_type == mjCNSTR_EQUALITY) {
     mjtEq eq_type = m->eq_type[efc_id];
     if (eq_type == mjEQ_CONNECT || eq_type == mjEQ_WELD) {
-      tree[0] = m->body_treeid[m->eq_obj1id[efc_id]];
-      tree[1] = m->body_treeid[m->eq_obj2id[efc_id]];
+      int b1 = m->eq_obj1id[efc_id];
+      int b2 = m->eq_obj2id[efc_id];
+
+      // get body ids if using site semantics
+      if (m->eq_objtype[efc_id] == mjOBJ_SITE) {
+        b1 = m->site_bodyid[b1];
+        b2 = m->site_bodyid[b2];
+      }
+
+      tree[0] = m->body_treeid[b1];
+      tree[1] = m->body_treeid[b2];
 
       // handle static bodies
       if (tree[0] < 0) {
@@ -417,14 +426,14 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // allocate edge array
   int nedge_max = countMaxEdge(m, d);
-  int* edge = mj_stackAllocInt(d, 2*nedge_max);
+  int* edge = mjSTACKALLOC(d, 2*nedge_max, int);
 
   // get tree-tree edges and rownnz counts from efc arrays
-  int* rownnz = mj_stackAllocInt(d, ntree);  // number of edges per tree
+  int* rownnz = mjSTACKALLOC(d, ntree, int);  // number of edges per tree
   int nedge = findEdges(m, d, rownnz, edge, nedge_max);
 
   // compute starting address of tree's column indices while resetting rownnz
-  int* rowadr = mj_stackAllocInt(d, ntree);
+  int* rowadr = mjSTACKALLOC(d, ntree, int);
   rowadr[0] = 0;
   for (int r=1; r < ntree; r++) {
     rowadr[r] = rowadr[r-1] + rownnz[r-1];
@@ -433,7 +442,7 @@ void mj_island(const mjModel* m, mjData* d) {
   rownnz[ntree-1] = 0;
 
   // copy column indices: list each tree's neighbors
-  int* colind = mj_stackAllocInt(d, nedge);
+  int* colind = mjSTACKALLOC(d, nedge, int);
   for (int e=0; e < nedge; e++) {
     int row = edge[2*e];
     int col = edge[2*e + 1];
@@ -441,8 +450,8 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // discover islands
-  int* tree_island = mj_stackAllocInt(d, ntree);  // id of island assigned to tree
-  int* stack = mj_stackAllocInt(d, nedge);
+  int* tree_island = mjSTACKALLOC(d, ntree, int);  // id of island assigned to tree
+  int* stack = mjSTACKALLOC(d, nedge, int);
   d->nisland = mj_floodFill(tree_island, ntree, rownnz, rowadr, colind, stack);
 
   // allocate island arrays on arena

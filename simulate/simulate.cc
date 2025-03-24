@@ -542,6 +542,10 @@ void ShowSensor(mj::Simulate* sim, mjrRect rect) {
   mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
 }
 
+void ShowFigure(mj::Simulate* sim, mjrRect viewport, mjvFigure* fig){
+  mjr_figure(viewport, fig, &sim->platform_ui->mjr_context());
+}
+
 // load state from history buffer
 static void LoadScrubState(mj::Simulate* sim) {
   // get index into circular buffer
@@ -2586,6 +2590,11 @@ void Simulate::Render() {
         std::printf("saved screenshot: %s\n", path.c_str());
       }
     }
+  }
+
+  // user figures
+  for (auto& [viewport, figure] : this->user_figures_) {
+    ShowFigure(this, viewport, &figure);
   }
 
   // finalize

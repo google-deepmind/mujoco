@@ -37,8 +37,8 @@
     <light directional="true" diffuse=".9 .9 .9" specular="0.1 0.1 0.1" pos="0 0 5" dir="0 0 -1" castshadow="true"/>
     <light name="spotlight" mode="targetbodycom" target="world" diffuse="1 1 1" specular="0.3 0.3 0.3" pos="-6 -6 4" cutoff="60"/>
     <replicate count="10" euler="0 0 36" sep="-">
-      <frame pos="1 0 0">
-        <replicate count="10" euler="0 0 15" sep="-" offset="0.5 0 0">
+      <frame pos="1.2 0 0">
+        <replicate count="10" euler="0 0 17" sep="-" offset="0.6 0 0">
           <attach model="humanoid" body="torso" prefix="_"/>
         </replicate>
       </frame>

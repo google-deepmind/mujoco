@@ -24,6 +24,36 @@ from introspect import structs
 
 SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
 
+# pylint: disable=bad-whitespace
+# key, parent, default, listname, objtype
+SPECS = [
+    ('mjsBody',     'Body', True,  'bodies',     'mjOBJ_BODY'),
+    ('mjsSite',     'Body', True,  'sites',      'mjOBJ_SITE'),
+    ('mjsGeom',     'Body', True,  'geoms',      'mjOBJ_GEOM'),
+    ('mjsJoint',    'Body', True,  'joints',     'mjOBJ_JOINT'),
+    ('mjsCamera',   'Body', True,  'cameras',    'mjOBJ_CAMERA'),
+    ('mjsFrame',    'Body', True,  'frames',     'mjOBJ_FRAME'),
+    ('mjsLight',    'Body', True,  'lights',     'mjOBJ_LIGHT'),
+    ('mjsFlex',     'Spec', False, 'flexes',     'mjOBJ_FLEX'),
+    ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
+    ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
+    ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
+    ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
+    ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
+    ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
+    ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),
+    ('mjsTendon',   'Spec', True,  'tendons',    'mjOBJ_TENDON'),
+    ('mjsActuator', 'Spec', True,  'actuators',  'mjOBJ_ACTUATOR'),
+    ('mjsSensor',   'Spec', False, 'sensors',    'mjOBJ_SENSOR'),
+    ('mjsNumeric',  'Spec', False, 'numerics',   'mjOBJ_NUMERIC'),
+    ('mjsText',     'Spec', False, 'texts',      'mjOBJ_TEXT'),
+    ('mjsTuple',    'Spec', False, 'tuples',     'mjOBJ_TUPLE'),
+    ('mjsKey',      'Spec', False, 'keys',       'mjOBJ_KEY'),
+    ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
+    ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
+]
+# pylint: enable=bad-whitespace
+
 
 def _value_binding_code(
     field: ast_nodes.ValueType, classname: str = '', varname: str = ''
@@ -39,8 +69,12 @@ def _value_binding_code(
     fullvarname = 'ptr->' + varname
   if field.name.startswith('mjs'):  # all other mjs are raw structs
     fulltype = field.name.replace('mjs', 'raw::Mjs')
-    if field.name == 'mjsPlugin' or field.name == 'mjsOrientation':
-      fulltype = fulltype + '&'  # plugin and orientation are not pointers
+    if (
+        field.name == 'mjsPlugin'
+        or field.name == 'mjsOrientation'
+        or field.name == 'mjsCompiler'
+    ):
+      fulltype = fulltype + '&'  # plugin, orientation, compiler aren't pointers
     else:
       fulltype = fulltype + '*'
   # non-mjs structs
@@ -65,6 +99,26 @@ def _value_binding_code(
     def_property_args += ('py::return_value_policy::reference_internal',)
 
   return f'{classname}.def_property({",".join(def_property_args)});'
+
+
+def _struct_binding_code(
+    field: ast_nodes.AnonymousStructDecl, classname: str = '', varname: str = ''
+) -> str:
+  """Creates a string that declares Python bindings for an anonymous struct."""
+  code = ''
+  name = classname + varname.title()
+  # explicitly generate for nested fields with arrays
+  if any(
+      isinstance(f, ast_nodes.StructFieldDecl)
+      and isinstance(f.type, ast_nodes.ArrayType)
+      for f in field.fields
+  ):
+    for subfield in field.fields:
+      code += _binding_code(subfield, name)
+  # generate for the struct itself
+  field = ast_nodes.ValueType(name=name)
+  code += _value_binding_code(field, classname, varname)
+  return code
 
 
 def _array_binding_code(
@@ -166,11 +220,12 @@ def _ptr_binding_code(
         return MjTypeVec<std::byte>(self.{fullvarname}->data(),
                                     self.{fullvarname}->size());
       }},
-    []({rawclassname}& self, py::object rhs) {{
+    []({rawclassname}& self, py::bytes& rhs) {{
         self.{fullvarname}->clear();
         self.{fullvarname}->reserve(py::len(rhs));
-        for (auto val : rhs) {{
-          self.{fullvarname}->push_back(py::cast<const std::byte>(val));
+        std::string_view rhs_view = py::cast<std::string_view>(rhs);
+        for (auto val : rhs_view) {{
+          self.{fullvarname}->push_back(static_cast<std::byte>(val));
         }}
     }}, py::return_value_policy::move);"""
   elif vartype == 'mjStringVec':
@@ -222,8 +277,7 @@ def _binding_code(field: ast_nodes.StructFieldDecl, key: str) -> str:
   if isinstance(field.type, ast_nodes.ValueType):
     return _value_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.AnonymousStructDecl):
-    field.type = ast_nodes.ValueType(name='mjVisual'+field.name.title())
-    return _value_binding_code(field.type, key, field.name)
+    return _struct_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.PointerType):
     return _ptr_binding_code(field.type, key, field.name)
   elif isinstance(field.type, ast_nodes.ArrayType):
@@ -246,32 +300,7 @@ def generate() -> None:
 
 def generate_add() -> None:
   """Generate add constructors with optional keyword arguments."""
-  for key, parent, default, listname, objtype in [
-      ('mjsSite',     'Body', True,  'sites',      'mjOBJ_SITE'),
-      ('mjsGeom',     'Body', True,  'geoms',      'mjOBJ_GEOM'),
-      ('mjsJoint',    'Body', True,  'joints',     'mjOBJ_JOINT'),
-      ('mjsLight',    'Body', True, 'lights',      'mjOBJ_LIGHT'),
-      ('mjsCamera',   'Body', True,  'cameras',    'mjOBJ_CAMERA'),
-      ('mjsBody',     'Body', True,  'bodies',     'mjOBJ_BODY'),
-      ('mjsFrame',    'Body', True,  'frames',     'mjOBJ_FRAME'),
-      ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
-      ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
-      ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
-      ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),
-      ('mjsTendon',   'Spec', True,  'tendons',    'mjOBJ_TENDON'),
-      ('mjsActuator', 'Spec', True,  'actuators',  'mjOBJ_ACTUATOR'),
-      ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
-      ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
-      ('mjsText',     'Spec', False, 'texts',      'mjOBJ_TEXT'),
-      ('mjsTuple',    'Spec', False, 'tuples',     'mjOBJ_TUPLE'),
-      ('mjsFlex',     'Spec', False, 'flexes',     'mjOBJ_FLEX'),
-      ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
-      ('mjsKey',      'Spec', False, 'keys',       'mjOBJ_KEY'),
-      ('mjsNumeric',  'Spec', False, 'numerics',   'mjOBJ_NUMERIC'),
-      ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
-      ('mjsSensor',   'Spec', False, 'sensors',    'mjOBJ_SENSOR'),
-      ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
-  ]:
+  for key, parent, default, listname, objtype in SPECS:
 
     def _field(f: ast_nodes.StructFieldDecl):
       if f.type == ast_nodes.PointerType(
@@ -568,11 +597,28 @@ def generate_add() -> None:
     print(code)
 
 
+def generate_find() -> None:
+  """Generate find functions."""
+  for key, _, _, _, objtype in SPECS:
+    elem = key.removeprefix('mjs')
+    elemlower = elem.lower()
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      mjSpec.def("{elemlower}",
+      [](MjSpec& self, std::string& name) -> raw::{titlecase}* {{
+        return mjs_as{elem}(
+            mjs_findElement(self.ptr, {objtype}, name.c_str()));
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   generate()
   generate_add()
+  generate_find()
 
 
 if __name__ == '__main__':

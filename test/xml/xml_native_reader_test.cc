@@ -33,10 +33,6 @@
 namespace mujoco {
 namespace {
 
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 using ::std::string;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
@@ -805,10 +801,10 @@ TEST_F(XMLReaderTest, MaterialTextureTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material">
-        <occlusion texture="tiny0"/>
-        <roughness texture="tiny0"/>
-        <metallic texture="tiny0"/>
-        <rgb texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
+        <layer role="roughness" texture="tiny0"/>
+        <layer role="metallic" texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
       </material>
     </asset>
     <worldbody>
@@ -873,8 +869,8 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
       <texture file="tiny0.png" type="2d" name="tiny0"/>
       <texture file="tiny1.png" type="2d" name="tiny1"/>
       <material name="material" texture="tiny1">
-        <rgb texture="tiny1"/>
-        <occlusion texture="tiny0"/>
+        <layer role="rgb" texture="tiny1"/>
+        <layer role="occlusion" texture="tiny0"/>
       </material>
     </asset>
     <worldbody>
@@ -887,7 +883,7 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("A material with a texture attribute "
-                                      "cannot have texture sub-elements"));
+                                      "cannot have layer sub-elements"));
 }
 
 TEST_F(XMLReaderTest, LargeTextureTest) {
@@ -1234,7 +1230,7 @@ TEST_F(XMLReaderTest, ParseReplicate) {
     </asset>
 
     <worldbody>
-      <replicate count="101" euler="0 0 1.8">
+      <replicate count="101" offset="3 0 .1" euler="0 0 1.8">
         <body name="body" pos="0 -1 0">
           <joint type="slide"/>
           <geom name="g" size="1"/>
@@ -1264,6 +1260,7 @@ TEST_F(XMLReaderTest, ParseReplicate) {
   EXPECT_THAT(m, testing::NotNull()) << error.data();
   EXPECT_THAT(m->ngeom, 105);
   EXPECT_THAT(m->nsensor, 4);
+  EXPECT_THAT(m->nbody, 102);
 
   // check that the separator is used correctly
   for (int i = 0; i < 2; ++i) {
@@ -1293,12 +1290,19 @@ TEST_F(XMLReaderTest, ParseReplicate) {
     }
   }
 
+  // check body positions
+  mjtNum pos[2] = {0, 0};
+  for (int i = 1; i < 102; ++i) {
+    mjtNum theta = (i-1) * 1.8 * mjPI / 180;
+    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), 1e-8) << i;
+    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), 1e-8) << i;
+    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, 1e-8);
+    pos[0] += 3 * cos(theta);
+    pos[1] += 3 * sin(theta);
+  }
+
   // check that the final pose is correct
   int n = m->nbody-1;
-  EXPECT_THAT(m->nbody, 102);
-  EXPECT_NEAR(m->body_pos[3*n+0], 0, 1e-8);
-  EXPECT_NEAR(m->body_pos[3*n+1], 1, 1e-8);
-  EXPECT_EQ(m->body_pos[3*n+2], 0);
   EXPECT_NEAR(m->body_quat[4*n+0], 0, 1e-8);
   EXPECT_EQ(m->body_quat[4*n+1], 0);
   EXPECT_EQ(m->body_quat[4*n+2], 0);
@@ -1445,6 +1449,134 @@ TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
   EXPECT_THAT(error.data(), HasSubstr("Element 'replicate'"));
 }
 
+TEST_F(XMLReaderTest, ParseReplicateExcludeTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="winch" pos="-.01 0 .35">
+        <joint name="winch" damping="1"/>
+        <geom type="cylinder" size=".015 .01"/>
+        <site name="anchor" pos=".1 0 .04"/>
+      </body>
+      <site name="pulley" pos=".1 0 .32"/>
+      <site name="hook_left" pos=".08 0 .3"/>
+      <site name="hook_right" pos=".12 0 .3"/>
+      <body name="sphere" pos=".1 0 .2">
+        <freejoint/>
+        <geom type="sphere" size=".03"/>
+        <site name="pin_left" pos="-.025 0 .025"/>
+        <site name="pin_right" pos=".025 0 .025"/>
+      </body>
+
+      <replicate count="4" offset=".025 0 0">
+        <replicate count="4" offset="0 .025 0">
+          <replicate count="4" offset="0 0 .025">
+            <body pos=".06 -.04 .05">
+              <geom type="sphere" size=".012"/>
+            </body>
+          </replicate>
+        </replicate>
+      </replicate>
+    </worldbody>
+
+    <tendon>
+      <spatial range="0 .19" limited="true">
+        <site site="anchor"/>
+        <site site="pulley"/>
+        <pulley divisor="3"/>
+        <site site="pulley"/>
+        <site site="hook_left"/>
+        <site site="pin_left"/>
+        <pulley divisor="3"/>
+        <site site="pulley"/>
+        <site site="hook_right"/>
+        <site site="pin_right"/>
+      </spatial>
+    </tendon>
+
+    <actuator>
+      <position name="winch" joint="winch" ctrlrange="-.7 .5" ctrllimited="true" kp="10"/>
+  </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, 0);
+  EXPECT_THAT(m, NotNull());
+  EXPECT_THAT(m->nbody, 67);
+  EXPECT_THAT(m->ngeom, 66);
+  EXPECT_THAT(m->nsite, 6);
+  EXPECT_THAT(m->nu, 1);
+  EXPECT_THAT(m->ntendon, 1);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, ParseReplicateWithTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <replicate count="2" offset=".025 0 0">
+        <replicate count="2" offset="0 .025 0">
+          <replicate count="2" offset="0 0 .025">
+            <body name="winch" pos="-.01 0 .35">
+              <joint name="winch" damping="1"/>
+              <geom type="cylinder" size=".015 .01"/>
+              <site name="anchor" pos=".1 0 .04"/>
+            </body>
+            <site name="pulley" pos=".1 0 .32"/>
+            <site name="hook_left" pos=".08 0 .3"/>
+            <site name="hook_right" pos=".12 0 .3"/>
+            <body name="sphere" pos=".1 0 .2">
+              <freejoint/>
+              <geom type="sphere" size=".03"/>
+              <site name="pin_left" pos="-.025 0 .025"/>
+              <site name="pin_right" pos=".025 0 .025"/>
+            </body>
+            <body pos=".06 -.04 .05">
+              <geom type="sphere" size=".012"/>
+            </body>
+          </replicate>
+        </replicate>
+      </replicate>
+    </worldbody>
+
+    <tendon>
+      <spatial range="0 .19" limited="true" name="tendon">
+        <site site="anchor"/>
+        <site site="pulley"/>
+        <pulley divisor="3"/>
+        <site site="pulley"/>
+        <site site="hook_left"/>
+        <site site="pin_left"/>
+        <pulley divisor="3"/>
+        <site site="pulley"/>
+        <site site="hook_right"/>
+        <site site="pin_right"/>
+      </spatial>
+    </tendon>
+
+    <actuator>
+      <position name="winch" joint="winch" ctrlrange="-.7 .5" ctrllimited="true" kp="10"/>
+      <position name="tendon" tendon="tendon" ctrlrange="0 1" kp="100" dampratio="1"/>
+  </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, 0);
+  EXPECT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(m->nbody, 25);
+  EXPECT_THAT(m->ngeom, 24);
+  EXPECT_THAT(m->nsite, 48);
+  EXPECT_THAT(m->nu, 16);
+  EXPECT_THAT(m->ntendon, 8);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 // ---------------------- test spec assets parsing -----------------------------
 
 TEST_F(XMLReaderTest, ParseSpecAssets) {
@@ -1583,6 +1715,72 @@ TEST_F(XMLReaderTest, InvalidAttach) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, LookupCompilerOptionWithoutSpecCopy) {
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+
+    <worldbody>
+      <body name="child">
+        <geom type="box" size="1 1 1"/>
+        <joint name="child_joint" range="-3.1415926 3.1415926"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="child.xml"/>
+    </asset>
+
+    <worldbody>
+      <body name="parent">
+        <geom type="box" size="1 1 1"/>
+        <joint name="parent_joint" range="-180 180"/>
+        <attach model="child" body="child" prefix="child_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+  mj_addBufferVFS(vfs.get(), "parent.xml", parent_xml, sizeof(parent_xml));
+
+  std::array<char, 1024> error;
+  auto* spec = mj_parseXMLString(parent_xml, vfs.get(), error.data(),
+                                 error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, vfs.get());
+  EXPECT_THAT(model, NotNull());
+  EXPECT_THAT(model->njnt, 2);
+  EXPECT_NEAR(model->jnt_range[0], -3.14159, 1e-5);
+  EXPECT_NEAR(model->jnt_range[1], 3.14159, 1e-5);
+  EXPECT_NEAR(model->jnt_range[2], -3.14159, 1e-5);
+  EXPECT_NEAR(model->jnt_range[3], 3.14159, 1e-5);
+
+  mjSpec* copied_spec = mj_copySpec(spec);
+  ASSERT_THAT(copied_spec, NotNull());
+  mjModel* copied_model = mj_compile(copied_spec, vfs.get());
+  EXPECT_THAT(copied_model, NotNull());
+  EXPECT_THAT(copied_model->njnt, 2);
+  EXPECT_NEAR(copied_model->jnt_range[0], -3.14159, 1e-5);
+  EXPECT_NEAR(copied_model->jnt_range[1], 3.14159, 1e-5);
+  EXPECT_NEAR(copied_model->jnt_range[2], -3.14159, 1e-5);
+  EXPECT_NEAR(copied_model->jnt_range[3], 3.14159, 1e-5);
+
+  mj_deleteSpec(spec);
+  mj_deleteSpec(copied_spec);
+  mj_deleteModel(model);
+  mj_deleteModel(copied_model);
+
+  mj_deleteVFS(vfs.get());
+}
+
 // ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
@@ -1666,10 +1864,10 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
     <asset>
       <mesh name="example_mesh"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
-        face="0 2 1  2 0 3" />
+        face="0 2 1  2 0 3" inertia="shell"/>
     </asset>
     <worldbody>
-      <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
+      <geom type="mesh" mesh="example_mesh"/>
     </worldbody>
   </mujoco>
   )";
@@ -1679,34 +1877,89 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
   mj_deleteModel(model);
 }
 
-
 TEST_F(XMLReaderTest, ReadsSkinGroups) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <body>
-        <composite prefix="B0" type="box" count="4 4 4" spacing=".2">
-          <geom size=".1" group="2"/>
-          <skin group="4"/>
-        </composite>
+      <body pos="1 -1 .6" name="B0_parent">
+        <flexcomp name="B0" type="grid" count="4 4 1" spacing=".2 .2 .2" group="2" radius=".1" dim="2">
+          <edge equality="true"/>
+          <contact internal="false" selfcollide="none"/>
+        </flexcomp>
       </body>
-      <body>
-        <composite prefix="B1" type="box" count="4 4 4" spacing=".2">
-          <geom size=".1" group="4"/>
-          <skin group="2"/>
-        </composite>
+      <body pos="-1 1 .6" name="B1_parent">
+        <flexcomp name="B1" type="grid" count="4 4 1" spacing=".2 .2 .2" group="4" radius=".1" dim="2">
+          <edge equality="true"/>
+          <contact internal="false" selfcollide="none"/>
+        </flexcomp>
       </body>
     </worldbody>
+    <deformable>
+      <skin name="B0Skin" group="4" rgba="1 1 0 1" inflate="0.1"
+        vertex="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+        face="0 4 5 0 5 1 1 5 6 1 6 2 2 6 7 2 7 3 4 8 9 4 9 5 5 9 10 5 10 6 6 10 11 6 11 7 8
+              12 13 8 13 9 9 13 14 9 14 10 10 14 15 10 15 11 16 21 20 16 17 21 17 22 21 17 18
+              22 18 23 22 18 19 23 20 25 24 20 21 25 21 26 25 21 22 26 22 27 26 22 23 27 24 29
+              28 24 25 29 25 30 29 25 26 30 26 31 30 26 27 31 0 20 4 0 16 20 4 24 8 4 20 24 8
+              28 12 8 24 28 3 7 23 3 23 19 7 11 27 7 27 23 11 15 31 11 31 27 0 1 17 0 17 16 1
+              2 18 1 18 17 2 3 19 2 19 18 12 29 13 12 28 29 13 30 14 13 29 30 14 31 15 14 30 31">
+        <bone body="B0_0" bindpos="0 0 0" bindquat="1 0 0 0" vertid="0 16" vertweight="1 1"/>
+        <bone body="B0_1" bindpos="0 0 0" bindquat="1 0 0 0" vertid="1 17" vertweight="1 1"/>
+        <bone body="B0_2" bindpos="0 0 0" bindquat="1 0 0 0" vertid="2 18" vertweight="1 1"/>
+        <bone body="B0_3" bindpos="0 0 0" bindquat="1 0 0 0" vertid="3 19" vertweight="1 1"/>
+        <bone body="B0_4" bindpos="0 0 0" bindquat="1 0 0 0" vertid="4 20" vertweight="1 1"/>
+        <bone body="B0_5" bindpos="0 0 0" bindquat="1 0 0 0" vertid="5 21" vertweight="1 1"/>
+        <bone body="B0_6" bindpos="0 0 0" bindquat="1 0 0 0" vertid="6 22" vertweight="1 1"/>
+        <bone body="B0_7" bindpos="0 0 0" bindquat="1 0 0 0" vertid="7 23" vertweight="1 1"/>
+        <bone body="B0_8" bindpos="0 0 0" bindquat="1 0 0 0" vertid="8 24" vertweight="1 1"/>
+        <bone body="B0_9" bindpos="0 0 0" bindquat="1 0 0 0" vertid="9 25" vertweight="1 1"/>
+        <bone body="B0_10" bindpos="0 0 0" bindquat="1 0 0 0" vertid="10 26" vertweight="1 1"/>
+        <bone body="B0_11" bindpos="0 0 0" bindquat="1 0 0 0" vertid="11 27" vertweight="1 1"/>
+        <bone body="B0_12" bindpos="0 0 0" bindquat="1 0 0 0" vertid="12 28" vertweight="1 1"/>
+        <bone body="B0_13" bindpos="0 0 0" bindquat="1 0 0 0" vertid="13 29" vertweight="1 1"/>
+        <bone body="B0_14" bindpos="0 0 0" bindquat="1 0 0 0" vertid="14 30" vertweight="1 1"/>
+        <bone body="B0_15" bindpos="0 0 0" bindquat="1 0 0 0" vertid="15 31" vertweight="1 1"/>
+      </skin>
+      <skin name="B1Skin" group="2" rgba="0 1 1 1" inflate="0.1"
+        vertex="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+        face="0 4 5 0 5 1 1 5 6 1 6 2 2 6 7 2 7 3 4 8 9 4 9 5 5 9 10 5 10 6 6 10 11 6 11 7 8
+              12 13 8 13 9 9 13 14 9 14 10 10 14 15 10 15 11 16 21 20 16 17 21 17 22 21 17 18
+              22 18 23 22 18 19 23 20 25 24 20 21 25 21 26 25 21 22 26 22 27 26 22 23 27 24 29
+              28 24 25 29 25 30 29 25 26 30 26 31 30 26 27 31 0 20 4 0 16 20 4 24 8 4 20 24 8
+              28 12 8 24 28 3 7 23 3 23 19 7 11 27 7 27 23 11 15 31 11 31 27 0 1 17 0 17 16 1
+              2 18 1 18 17 2 3 19 2 19 18 12 29 13 12 28 29 13 30 14 13 29 30 14 31 15 14 30 31">
+        <bone body="B1_0" bindpos="0 0 0" bindquat="1 0 0 0" vertid="0 16" vertweight="1 1"/>
+        <bone body="B1_1" bindpos="0 0 0" bindquat="1 0 0 0" vertid="1 17" vertweight="1 1"/>
+        <bone body="B1_2" bindpos="0 0 0" bindquat="1 0 0 0" vertid="2 18" vertweight="1 1"/>
+        <bone body="B1_3" bindpos="0 0 0" bindquat="1 0 0 0" vertid="3 19" vertweight="1 1"/>
+        <bone body="B1_4" bindpos="0 0 0" bindquat="1 0 0 0" vertid="4 20" vertweight="1 1"/>
+        <bone body="B1_5" bindpos="0 0 0" bindquat="1 0 0 0" vertid="5 21" vertweight="1 1"/>
+        <bone body="B1_6" bindpos="0 0 0" bindquat="1 0 0 0" vertid="6 22" vertweight="1 1"/>
+        <bone body="B1_7" bindpos="0 0 0" bindquat="1 0 0 0" vertid="7 23" vertweight="1 1"/>
+        <bone body="B1_8" bindpos="0 0 0" bindquat="1 0 0 0" vertid="8 24" vertweight="1 1"/>
+        <bone body="B1_9" bindpos="0 0 0" bindquat="1 0 0 0" vertid="9 25" vertweight="1 1"/>
+        <bone body="B1_10" bindpos="0 0 0" bindquat="1 0 0 0" vertid="10 26" vertweight="1 1"/>
+        <bone body="B1_11" bindpos="0 0 0" bindquat="1 0 0 0" vertid="11 27" vertweight="1 1"/>
+        <bone body="B1_12" bindpos="0 0 0" bindquat="1 0 0 0" vertid="12 28" vertweight="1 1"/>
+        <bone body="B1_13" bindpos="0 0 0" bindquat="1 0 0 0" vertid="13 29" vertweight="1 1"/>
+        <bone body="B1_14" bindpos="0 0 0" bindquat="1 0 0 0" vertid="14 30" vertweight="1 1"/>
+        <bone body="B1_15" bindpos="0 0 0" bindquat="1 0 0 0" vertid="15 31" vertweight="1 1"/>
+      </skin>
+    </deformable>
   </mujoco>
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull());
-  int geomid1 = mj_name2id(model, mjOBJ_GEOM, "B0G0_0_0");
-  int geomid2 = mj_name2id(model, mjOBJ_GEOM, "B1G0_0_0");
-  EXPECT_THAT(model->geom_group[geomid1], 2);
+  int flexid1 = mj_name2id(model, mjOBJ_FLEX, "B0");
+  int flexid2 = mj_name2id(model, mjOBJ_FLEX, "B1");
+  EXPECT_THAT(model->flex_group[flexid1], 2);
   EXPECT_THAT(model->skin_group[0], 4);
-  EXPECT_THAT(model->geom_group[geomid2], 4);
+  EXPECT_THAT(model->flex_group[flexid2], 4);
   EXPECT_THAT(model->skin_group[1], 2);
   mj_deleteModel(model);
 }
@@ -1716,7 +1969,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   <mujoco>
     <worldbody>
       <body>
-        <composite prefix="B0" type="box" count="6 6 6" spacing=".2">
+        <composite prefix="B0" type="grid" count="6 6 1">
           <geom size=".1"/>
           <skin group="6"/>
         </composite>

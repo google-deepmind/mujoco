@@ -35,7 +35,6 @@
 #endif
 
 #include <mujoco/mjplugin.h>
-#include <mujoco/mujoco.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_util.h"
@@ -205,7 +204,7 @@ void mju_closeResource(mjResource* resource) {
   if (provider) {
     if (provider->close) provider->close(resource);
   } else {
-     FileClose(resource);  // clear OS filesystem if present
+    FileClose(resource);  // clear OS filesystem if present
   }
 
   // free resource
@@ -249,7 +248,7 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
 
 
 // return 0 if the resource's timestamp matches the provided timestamp
-// return > 0 if the the resource is younger than the given timestamp
+// return > 0 if the resource is younger than the given timestamp
 // return < 0 if the resource is older than the given timestamp
 int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
   // provider is not OS filesystem

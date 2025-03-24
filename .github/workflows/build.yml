@@ -96,7 +96,7 @@ jobs:
               -DCMAKE_CXX_COMPILER:STRING=clang++-10
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
-          - os: macos-12
+          - os: macos-13
             cmake_args: >-
               -G Ninja
               -DMUJOCO_HARDEN:BOOL=ON
@@ -239,7 +239,6 @@ jobs:
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
-      working-directory: python/dist
       env:
         MUJOCO_GL: disable
       run: >

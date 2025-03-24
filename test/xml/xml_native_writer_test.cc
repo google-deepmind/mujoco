@@ -46,6 +46,9 @@ using ::testing::FloatEq;
 
 using XMLWriterTest = PluginTest;
 
+static const char* const kNonRgbTextureXMLPath =
+    "xml/testdata/hfield_png_nonrgb.xml";
+
 TEST_F(XMLWriterTest, EmptyModel) {
   static constexpr char xml[] = "<mujoco/>";
   mjModel* model = LoadModelFromString(xml);
@@ -914,13 +917,42 @@ TEST_F(XMLWriterTest, WritesSkin) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <composite type="grid" count="2 2 1" spacing="0.05">
-        <skin texcoord="true"/>
-        <geom size=".01"/>
-      </composite>
+      <body pos="1 -1 .6" name="B0_parent">
+        <flexcomp name="B0" type="grid" count="4 4 1" spacing=".2 .2 .2" radius=".1" dim="2"/>
+      </body>
     </worldbody>
+    <deformable>
+      <skin name="B0Skin" rgba="1 1 0 1" inflate="0.1"
+        vertex="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+        face="0 4 5 0 5 1 1 5 6 1 6 2 2 6 7 2 7 3 4 8 9 4 9 5 5 9 10 5 10 6 6 10 11 6 11 7 8
+              12 13 8 13 9 9 13 14 9 14 10 10 14 15 10 15 11 16 21 20 16 17 21 17 22 21 17 18
+              22 18 23 22 18 19 23 20 25 24 20 21 25 21 26 25 21 22 26 22 27 26 22 23 27 24 29
+              28 24 25 29 25 30 29 25 26 30 26 31 30 26 27 31 0 20 4 0 16 20 4 24 8 4 20 24 8
+              28 12 8 24 28 3 7 23 3 23 19 7 11 27 7 27 23 11 15 31 11 31 27 0 1 17 0 17 16 1
+              2 18 1 18 17 2 3 19 2 19 18 12 29 13 12 28 29 13 30 14 13 29 30 14 31 15 14 30 31">
+        <bone body="B0_0" bindpos="0 0 0" bindquat="1 0 0 0" vertid="0 16" vertweight="1 1"/>
+        <bone body="B0_1" bindpos="0 0 0" bindquat="1 0 0 0" vertid="1 17" vertweight="1 1"/>
+        <bone body="B0_2" bindpos="0 0 0" bindquat="1 0 0 0" vertid="2 18" vertweight="1 1"/>
+        <bone body="B0_3" bindpos="0 0 0" bindquat="1 0 0 0" vertid="3 19" vertweight="1 1"/>
+        <bone body="B0_4" bindpos="0 0 0" bindquat="1 0 0 0" vertid="4 20" vertweight="1 1"/>
+        <bone body="B0_5" bindpos="0 0 0" bindquat="1 0 0 0" vertid="5 21" vertweight="1 1"/>
+        <bone body="B0_6" bindpos="0 0 0" bindquat="1 0 0 0" vertid="6 22" vertweight="1 1"/>
+        <bone body="B0_7" bindpos="0 0 0" bindquat="1 0 0 0" vertid="7 23" vertweight="1 1"/>
+        <bone body="B0_8" bindpos="0 0 0" bindquat="1 0 0 0" vertid="8 24" vertweight="1 1"/>
+        <bone body="B0_9" bindpos="0 0 0" bindquat="1 0 0 0" vertid="9 25" vertweight="1 1"/>
+        <bone body="B0_10" bindpos="0 0 0" bindquat="1 0 0 0" vertid="10 26" vertweight="1 1"/>
+        <bone body="B0_11" bindpos="0 0 0" bindquat="1 0 0 0" vertid="11 27" vertweight="1 1"/>
+        <bone body="B0_12" bindpos="0 0 0" bindquat="1 0 0 0" vertid="12 28" vertweight="1 1"/>
+        <bone body="B0_13" bindpos="0 0 0" bindquat="1 0 0 0" vertid="13 29" vertweight="1 1"/>
+        <bone body="B0_14" bindpos="0 0 0" bindquat="1 0 0 0" vertid="14 30" vertweight="1 1"/>
+        <bone body="B0_15" bindpos="0 0 0" bindquat="1 0 0 0" vertid="15 31" vertweight="1 1"/>
+      </skin>
+    </deformable>
   </mujoco>
   )";
+
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   EXPECT_THAT(model->nskin, 1);
@@ -1297,6 +1329,24 @@ TEST_F(XMLWriterLocaleTest, IgnoresLocale) {
   EXPECT_EQ(std::string(formatted), "3,9375");
 }
 
+TEST_F(XMLWriterTest, NonRGBTextures) {
+  const std::string xml_path = GetTestDataFilePath(kNonRgbTextureXMLPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_FALSE(saved_xml.empty());
+
+  // check that layers are written correctly
+  EXPECT_THAT(saved_xml, HasSubstr("<material name=\"hfield\">"));
+  EXPECT_THAT(saved_xml, HasSubstr("<layer texture=\"hfield\" role=\"rgb\"/>"));
+  EXPECT_THAT(saved_xml, HasSubstr("<layer texture=\"hfield\" role=\"orm\"/>"));
+  EXPECT_THAT(saved_xml,
+              HasSubstr("<layer texture=\"hfield\" role=\"normal\"/>"));
+
+  mj_deleteModel(model);
+}
 
 // ------------------- test loading and saving multiple files ------------------
 TEST_F(XMLWriterTest, WriteReadCompare) {
@@ -1319,10 +1369,10 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
             absl::StrContains(p.path().string(), "gmsh_") ||
             absl::StrContains(p.path().string(), "shark_") ||
             absl::StrContains(p.path().string(), "cow") ||
+            absl::StrContains(p.path().string(), "frameless_contact_hfield") ||
             absl::StrContains(p.path().string(), "spheremesh")) {
           continue;
         }
-
         // load model
         std::array<char, 1000> error;
         mjModel* m = mj_loadXML(
@@ -1407,7 +1457,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
 
 // ---------------- test CopyBack functionality (decompiler) ------------------
 using DecompilerTest = MujocoTest;
-TEST_F(DecompilerTest, SavesStatitics) {
+TEST_F(DecompilerTest, SavesStatistics) {
   static constexpr char xml[] = R"(
   <mujoco>
     <statistic meansize="2" extent="3" center="4 5 6" meanmass="7" meaninertia="8"/>
@@ -1431,7 +1481,7 @@ TEST_F(DecompilerTest, SavesStatitics) {
   mj_deleteModel(model);
 }
 
-TEST_F(DecompilerTest, DoesntSaveInferredStatitics) {
+TEST_F(DecompilerTest, DoesntSaveInferredStatistics) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>

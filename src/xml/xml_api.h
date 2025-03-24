@@ -48,7 +48,7 @@ MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 MJAPI mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
 
-// Save spec to XML file and/or string, return 1 on success, 0 otherwise.
+// Save spec to XML file and/or string, return 0 on success, -1 otherwise.
 MJAPI int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
 MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 

@@ -30,10 +30,10 @@ const int maxthread = 512;
 mjModel* m = NULL;
 mjData* d[maxthread];
 
-
 // per-thread statistics
 int contacts[maxthread];
 int constraints[maxthread];
+mjtNum iterations[maxthread];
 mjtNum simtime[maxthread];
 
 // timer
@@ -84,6 +84,7 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
   // clear statistics
   contacts[id] = 0;
   constraints[id] = 0;
+  iterations[id] = 0;
 
   // run and time
   mjtNum start = gettm();
@@ -97,6 +98,16 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
     // accumulate statistics
     contacts[id] += d[id]->ncon;
     constraints[id] += d[id]->nefc;
+    int nisland = d[id]->solver_nisland;
+    if (nisland == 1) {
+      iterations[id] += d[id]->solver_niter[0];
+    } else {
+      mjtNum niter = 0;
+      for (int j=0; j < nisland; j++) {
+        niter += d[id]->solver_niter[j];
+      }
+      iterations[id] += niter / nisland;
+    }
   }
   simtime[id] = 1e-6 * (gettm() - start);
 }
@@ -186,13 +197,19 @@ int main(int argc, char** argv) {
   mjcb_time = gettm;
 
   // print start
-  std::printf("\nRolling out %d steps%s, at dt = %g",
+  std::printf("\nRolling out %d steps%s at dt = %g",
               nstep,
               nthread > 1 ? " per thread" : "",
               m->opt.timestep);
+
+  // print precision
   if (sizeof(mjtNum) == 4) {
-    std::printf(", using single-precision");
+    std::printf(", using single precision");
+  } else {
+    std::printf(", using double precision");
   }
+
+  // print threadpool size
   if (npoolthread > 1) {
     std::printf(", using %d threads", npoolthread);
   }
@@ -224,14 +241,23 @@ int main(int argc, char** argv) {
     std::printf("Details for thread 0\n\n");
   }
 
+  // solver names indexed by mjtSolver
+  const char* solver[] = {"PGS", "CG", "Newton"};
+  const char* solto6[] = {"   ", "    ", ""};  // complete to 6 characters
+
   // details for thread 0
   std::printf(" Simulation time      : %.2f s\n", simtime[0]);
   std::printf(" Steps per second     : %.0f\n", nstep/simtime[0]);
   std::printf(" Realtime factor      : %.2f x\n", nstep*m->opt.timestep/simtime[0]);
   std::printf(" Time per step        : %.1f %ss\n\n", 1e6*simtime[0]/nstep, mu_str);
-  std::printf(" Contacts per step    : %.2f\n", static_cast<float>(contacts[0])/nstep);
-  std::printf(" Constraints per step : %.2f\n", static_cast<float>(constraints[0])/nstep);
-  std::printf(" Degrees of freedom   : %d\n\n", m->nv);
+  std::printf(" %s iters / step  %s: %.2f\n",
+              solver[m->opt.solver], solto6[m->opt.solver], iterations[0]/nstep);
+  std::printf(" Contacts / step      : %.2f\n", static_cast<float>(contacts[0])/nstep);
+  std::printf(" Constraints / step   : %.2f\n", static_cast<float>(constraints[0])/nstep);
+  std::printf(" Degrees of freedom   : %d\n", m->nv);
+  std::printf(" Dynamic memory usage : %.1f%% of %s\n\n",
+              100 * d[0]->maxuse_arena / (double)(d[0]->narena),
+              mju_writeNumBytes(d[0]->narena));
 
   // profiler, top-level
   printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);

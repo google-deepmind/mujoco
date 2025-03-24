@@ -22,7 +22,9 @@ from etils import epath
 import mujoco
 from mujoco import mjx
 
-_MJCF = flags.DEFINE_string('mjcf', None, 'path to model `.xml` or `.mjb`', required=True)
+_MJCF = flags.DEFINE_string(
+    'mjcf', None, 'path to model `.xml` or `.mjb`', required=True
+)
 _BASE_PATH = flags.DEFINE_string(
     'base_path', None, 'base path, defaults to mujoco.mjx resource path'
 )

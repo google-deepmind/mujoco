@@ -68,10 +68,27 @@ class TransmissionIntegrationTest(parameterized.TestCase):
     mujoco.mj_transmission(m, d)
     dx = transmission_jit_fn(mx, dx)
 
-    for field in ['actuator_length', 'actuator_moment']:
-      _assert_attr_eq(
-          d, dx, field, seed, f'transmission{seed}', atol=1e-4
-      )
+    _assert_attr_eq(
+        d, dx, 'actuator_length', seed, f'transmission{seed}', atol=1e-4
+    )
+
+    # convert sparse actuator_moment to dense representation
+    moment = np.zeros((m.nu, m.nv))
+    mujoco.mju_sparse2dense(
+        moment,
+        d.actuator_moment,
+        d.moment_rownnz,
+        d.moment_rowadr,
+        d.moment_colind,
+    )
+    _assert_eq(
+        moment,
+        dx.actuator_moment,
+        'actuator_moment',
+        seed,
+        f'transmission{seed}',
+        atol=1e-4,
+    )
 
 
 if __name__ == '__main__':

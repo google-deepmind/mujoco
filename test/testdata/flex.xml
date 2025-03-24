@@ -29,20 +29,29 @@
       <freejoint/>
 
       <flexcomp name="f1" type="ellipsoid" rgba=".8 .2 .2 1" radius="0.001" count="4 4 4"
-                spacing=".025 .025 .025" dim="3" mass="1">
+                spacing=".025 .025 .025" dim="3" mass="1" dof="radial">
         <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+        <contact internal="true"/>
       </flexcomp>
     </body>
 
     <flexcomp name="f2" type="grid" rgba="1 1 0 1" radius="0.003" dim="2" pos="0 0 .1"
               zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.02 0.03 0.04" material="grid">
       <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      <contact internal="true"/>
       <pin id="0"/>
     </flexcomp>
 
     <flexcomp name="f3" type="grid" rgba=".6 .5 .1 1" radius="0.003" dim="3" pos="0 0 .3"
               zaxis="1 1 1" count="3 3 3" mass="1" spacing="0.02 0.03 0.04">
       <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      <contact internal="true"/>
+    </flexcomp>
+
+    <flexcomp type="grid" count="8 8 8" spacing=".007 .007 .007" pos="0 0 1.5" dim="3"
+              radius=".0001" rgba="0 .7 .7 1" mass=".25" name="softbody" dof="trilinear">
+      <elasticity young="1e4" poisson="0.1" damping="0.01"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
 

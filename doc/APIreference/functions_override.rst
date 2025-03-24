@@ -47,13 +47,23 @@ struct pointers while editing the model programmatically.
 :ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
 instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
+.. _mj_saveLastXML:
+
+Update XML data structures with info from low-level model created with :ref:`mj_loadXML`, save as MJCF.
+If error is not NULL, it must have size error_sz.
+
+Note that this function only saves models that have been loaded with :ref:`mj_loadXML`, the legacy loading mechanism.
+See the :ref:`model editing<meOverview>` chapter to understand the difference between the old and new model loading and
+saving mechanisms.
+
 .. _mj_saveXMLString:
 
-Save spec to XML string, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
+Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
+the required size. XML saving automatically compiles the spec before saving.
 
 .. _mj_saveXML:
 
-Save spec to XML file, return 1 on success, 0 otherwise. XML saving requires that the spec first be compiled.
+Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
 .. _Mainsimulation:
 
@@ -221,16 +231,16 @@ Returns the smallest signed distance between two geoms and optionally the segmen
 Returned distances are bounded from above by ``distmax``. |br| If no collision of distance smaller than ``distmax`` is
 found, the function will return ``distmax`` and ``fromto``, if given, will be set to (0, 0, 0, 0, 0, 0).
 
-.. admonition:: Positive ``distmax`` values
-   :class: note
+   .. admonition:: different (correct) behavior under `nativeccd`
+      :class: note
 
-   .. TODO: b/339596989 - Improve mjc_Convex.
+      As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+      :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
 
-   For some colliders, a large, positive ``distmax`` will result in an accurate measurement. However, for collision
-   pairs which use the general ``mjc_Convex`` collider, the result will be approximate and likely innacurate.
-   This is considered a bug to be fixed in a future release.
-   In order to determine whether a geom pair uses ``mjc_Convex``, inspect the table at the top of
-   `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+.. _mj_fullM:
+
+Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
+|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same size as ``mjData.qM``.
 
 .. _mj_mulM:
 
@@ -694,3 +704,8 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
+
+.. _mjs_delete:
+
+Delete object corresponding to the given element, return 0 on success. This function should only be used for element
+types that cannot have children, i.e. excluding bodies and default classes.

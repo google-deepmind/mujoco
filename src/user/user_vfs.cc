@@ -273,6 +273,6 @@ void mj_deleteVFS(mjVFS* vfs) {
 
 const mjpResourceProvider* GetVfsResourceProvider() {
   static mjpResourceProvider provider
-      = { nullptr, &Open, &Read, &Close, &GetDir, &Modified, nullptr };
+    = { nullptr, &Open, &Read, &Close, &GetDir, &Modified, nullptr };
   return &provider;
 }

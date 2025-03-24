@@ -15,7 +15,7 @@
 """Collision base types."""
 
 import dataclasses
-from typing import Optional, Tuple
+from typing import Tuple
 import jax
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
@@ -46,7 +46,6 @@ class ConvexInfo(PyTreeNode):
   face_normal: jax.Array
   edge: jax.Array
   edge_face_normal: jax.Array
-  edge_dir: Optional[jax.Array] = None
 
 
 class HFieldInfo(PyTreeNode):
@@ -73,6 +72,7 @@ class FunctionKey:
       resulting constraint jacobian is determined at compile time.
     subgrid_size: the size determines the hfield subgrid to collide with
   """
+
   types: Tuple[int, int]
   data_ids: Tuple[int, int]
   condim: int

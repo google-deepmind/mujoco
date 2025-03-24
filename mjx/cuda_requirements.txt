@@ -1,13 +1,15 @@
--f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-
-jax[cuda12_local]==0.4.18; python_version >= '3.9' \
-    --hash=sha256:c3ab72ea2f1c5d8ccf2561e79f6562fb2964629f3e55b3ac1c11c48b64c20336
-jaxlib==0.4.18+cuda12.cudnn89; python_version >= '3.9' \
-    --hash=sha256:14f74ff081882ea091c121e355051b35932e39cb7ff7242b88a87f3690f3ca90 \
-    --hash=sha256:7c87dc2d68257b02e83c04be88a3c447373ee7077d65f43545bcbda5bfe2231d \
-    --hash=sha256:4d16e9c7592e1aaca0b3d28d2c8beba415a2721bb7001f2947728247951a250d \
-    --hash=sha256:759c08c69f4a5b1e6b39c3e4eff908a04ce3b2b483bb594ed624407c7d12d110 \
-    --hash=sha256:a7a04dbe1851cd50d07691282116aee49a2f0be7838e55b76d7ada86db06be62 \
-    --hash=sha256:2bf842db3d58c8c6c52fbc8ed3fabefd7b91a21746cd59d3eaf3522eea229b53 \
-    --hash=sha256:35d265ef9bb3835a14580cbaa9402060f117e46056f80e0996405fff3964667a \
-    --hash=sha256:0e4352f24d629e912965e6435e140c1b06086243a098651f2d01b75f3738b51c
+jax[cuda12_local]==0.4.34; python_version >= '3.10' \
+    --hash=sha256:b957ca1fc91f7343f91a186af9f19c7f342c946f95a8c11c7f1e5cdfe2e58d9e
+jax[cuda12_local]==0.4.30; python_version == '3.9' \
+    --hash=sha256:289b30ae03b52f7f4baf6ef082a9f4e3e29c1080e22d13512c5ecf02d5f1a55b
+jax-cuda12-plugin==0.4.34; python_version >= '3.10' \
+    --hash=sha256:d035ea72bd9b8a65a6ea621bca1affdd33127fa3a52e7bded7692670d360adab \
+    --hash=sha256:db988b7ba5063483a936ddbf162f04d1b4412e0d64340f11788c7bbc877e8a43 \
+    --hash=sha256:e23721d1654b311b47cd6b35768520284bd036f8c7e6b11600143258b4a0409a \
+    --hash=sha256:b2099a4407225122ff76f6dcdc8dbdae47e6f29343bdfd21460ad337dc34a209
+jax-cuda12-plugin==0.4.30; python_version == '3.9' \
+    --hash=sha256:d8d196241b9253ecb1144a4409b5deacbb9771624f097b2bbf025da3c7d8f4f8
+jax-cuda12-pjrt==0.4.34; python_version >= '3.10' \
+    --hash=sha256:0c7cc98f962cc7fc8e0a5ea6331b42a0cee516f202f1c3019f6aa5cd9530cca0
+jax-cuda12-pjrt==0.4.30; python_version == '3.9' \
+    --hash=sha256:895d0198ad99638fcaf976c47592e2a543eef79ea15fabd24a402d055390c328

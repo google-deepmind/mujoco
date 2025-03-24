@@ -30,7 +30,7 @@ _TOLERANCE = 5e-5
 
 
 def _assert_eq(a, b, name):
-  tol = _TOLERANCE * 10   # avoid test noise
+  tol = _TOLERANCE * 10  # avoid test noise
   err_msg = f'mismatch: {name}'
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
@@ -41,10 +41,17 @@ def _assert_attr_eq(a, b, attr):
 
 class ConstraintTest(parameterized.TestCase):
 
+  def setUp(self):
+    super().setUp()
+    np.random.seed(42)
+
   @parameterized.parameters(
-      mujoco.mjtCone.mjCONE_PYRAMIDAL, mujoco.mjtCone.mjCONE_ELLIPTIC
+      {'cone': mujoco.mjtCone.mjCONE_PYRAMIDAL, 'rand_eq_active': False},
+      {'cone': mujoco.mjtCone.mjCONE_ELLIPTIC, 'rand_eq_active': False},
+      {'cone': mujoco.mjtCone.mjCONE_PYRAMIDAL, 'rand_eq_active': True},
+      {'cone': mujoco.mjtCone.mjCONE_ELLIPTIC, 'rand_eq_active': True},
   )
-  def test_constraints(self, cone):
+  def test_constraints(self, cone, rand_eq_active):
     """Test constraints."""
     m = test_util.load_test_file('constraints.xml')
     m.opt.cone = cone
@@ -53,6 +60,8 @@ class ConstraintTest(parameterized.TestCase):
     # sample a mix of active/inactive constraints at different timesteps
     for key in range(3):
       mujoco.mj_resetDataKeyframe(m, d, key)
+      if rand_eq_active:
+        d.eq_active[:] = np.random.randint(0, 2, size=m.neq)
       mujoco.mj_forward(m, d)
       mx = mjx.put_model(m)
       dx = mjx.put_data(m, d)
@@ -66,6 +75,7 @@ class ConstraintTest(parameterized.TestCase):
       _assert_eq(0, dx.efc_aref[order][d.nefc :], 'efc_aref')
       _assert_eq(d.efc_D, dx.efc_D[order][: d.nefc], 'efc_D')
       _assert_eq(d.efc_pos, dx.efc_pos[order][: d.nefc], 'efc_pos')
+      _assert_eq(dx.efc_pos[order][d.nefc :], 0, 'efc_pos')
       _assert_eq(
           d.efc_frictionloss,
           dx.efc_frictionloss[order][: d.nefc],

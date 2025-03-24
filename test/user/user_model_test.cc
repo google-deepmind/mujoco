@@ -26,7 +26,6 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -42,10 +41,6 @@ using ::testing::Pointwise;
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
   return std::vector<mjtNum>(array + ncolumn * row,
                              array + ncolumn * (row + 1));
-}
-
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
 }
 
 // ----------------------------- test mjCModel  --------------------------------
@@ -121,6 +116,106 @@ TEST_F(UserCModelTest, SameFrame) {
   mj_deleteModel(model);
 }
 
+TEST_F(UserCModelTest, ActuatorSparsity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="a"/>
+        <body>
+          <geom size="1"/>
+          <joint name="b"/>
+        </body>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="a"/>
+      <motor joint="b"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_EQ(m->nJmom, 2);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserCModelTest, NestedZeroMassBodiesOK) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <body>
+            <body>
+              <geom size="1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
+}
+
+TEST_F(UserCModelTest, NestedZeroMassBodiesWithJointOK) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <body>
+          <body>
+            <body>
+              <joint/>
+              <geom size="1"/>
+            </body>
+            <body>
+              <geom size="1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
+}
+
+TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <body>
+          <freejoint/>
+          <body>
+            <body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(
+      error,
+      HasSubstr(
+          "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  mj_deleteModel(model);
+}
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 
@@ -480,8 +575,8 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
               DoubleNear(std::sqrt(5.0), 1e-3));
 
   // recompile without threads
-  ASSERT_EQ(spec->usethread, 1);
-  spec->usethread = 0;
+  ASSERT_EQ(spec->compiler.usethread, 1);
+  spec->compiler.usethread = 0;
   mjModel* model2 = mj_compile(spec, 0);
   EXPECT_THAT(model2, NotNull()) << error;
 
@@ -526,6 +621,7 @@ TEST_F(MujocoTest, Modeldir) {
 
   // parent attaching the child
   mjSpec* spec = mj_makeSpec();
+  mjs_setDeepCopy(spec, true);
   mjs_setString(spec->meshdir, "asset");
   mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
   mjModel* model = mj_compile(spec, vfs.get());
@@ -626,6 +722,29 @@ TEST_F(MujocoTest, NestedMeshDir) {
   mj_deleteModel(grandparent_model);
 
   mj_deleteVFS(vfs.get());
+}
+
+TEST_F(MujocoTest, ConvertSpringdamper) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+    <worldbody>
+      <body>
+        <joint axis="0 1 0" springdamper="1 1"/>
+        <geom size="0.2 0.2 0.2" type="box"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << err.data();
+  std::array<char, 1024> str;
+  mj_saveXMLString(spec, str.data(), str.size(), err.data(), err.size());
+  EXPECT_THAT(str.data(), HasSubstr("damping"));
+  EXPECT_THAT(str.data(), HasSubstr("stiffness"));
+  mj_deleteModel(model);
 }
 
 }  // namespace

@@ -28,8 +28,9 @@ import mujoco.viewer
 
 
 _JIT = flags.DEFINE_bool('jit', True, 'To jit or not to jit.')
-_MODEL_PATH = flags.DEFINE_string('mjcf', None, 'Path to a MuJoCo MJCF file.',
-                                  required=True)
+_MODEL_PATH = flags.DEFINE_string(
+    'mjcf', None, 'Path to a MuJoCo MJCF file.', required=True
+)
 
 
 _VIEWER_GLOBAL_STATE = {

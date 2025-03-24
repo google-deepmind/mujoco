@@ -189,20 +189,6 @@ void mju_mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum vec[3]) {
 
 
 
-// multiply vector by 3D rotation matrix (deprecated)
-void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
-  mju_mulMatVec3(res, mat, vec);
-}
-
-
-
-// multiply vector by transposed 3D rotation matrix (deprecated)
-void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
-  mju_mulMatTVec3(res, mat, vec);
-}
-
-
-
 // multiply 3x3 matrices,
 void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]) {
   res[0] = mat1[0]*mat2[0] + mat1[1]*mat2[3] + mat1[2]*mat2[6];

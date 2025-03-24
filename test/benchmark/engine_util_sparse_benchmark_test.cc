@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
-#include <gtest/gtest.h>
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
@@ -37,11 +36,6 @@ using SqrMatTDFuncPtr = decltype(&mju_sqrMatTDSparse);
 // number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 500;
 
-// copy array into vector
-std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
-}
-
 // ----------------------------- old functions --------------------------------
 
 void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
@@ -49,7 +43,7 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
     int nr, int nc, int* res_rownnz, int* res_rowadr, int* res_colind,
     const int* rownnz, const int* rowadr, const int* colind,
     const int* rowsuper, const int* rownnzT, const int* rowadrT,
-    const int* colindT, const int* rowsuperT, mjData* d) {
+    const int* colindT, const int* rowsuperT, mjData* d, int* unused) {
   mj_markStack(d);
   int* chain = mj_stackAllocInt(d, 2 * nc);
   mjtNum* buffer = mj_stackAllocNum(d, nc);
@@ -173,7 +167,8 @@ void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
     }
   }
 
-  mju_compressSparse(res, nc, nr, res_rownnz, res_rowadr, res_colind);
+  mju_compressSparse(res, nc, nr, res_rownnz, res_rowadr, res_colind,
+                     /*minval=*/-1);
 }
 
 int compare_baseline(const int* vec1,
@@ -441,6 +436,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   int* rownnz = mj_stackAllocInt(d, m->nv);
   int* rowadr = mj_stackAllocInt(d, m->nv);
   int* colind = mj_stackAllocInt(d, m->nv*m->nv);
+  int* diagind = mj_stackAllocInt(d, m->nv);
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAllocNum(d, d->nefc);
@@ -459,7 +455,8 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
                      d->efc_J_rownnz, d->efc_J_rowadr,
                      d->efc_J_colind, d->efc_J_rowsuper,
                      d->efc_JT_rownnz, d->efc_JT_rowadr,
-                     d->efc_JT_colind, d->efc_JT_rowsuper, d);
+                     d->efc_JT_colind, d->efc_JT_rowsuper, d,
+                     diagind);
 
   // compute H = M + J'*D*J
   mj_addM(m, d, H, rownnz, rowadr, colind);
@@ -564,6 +561,7 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   int* rownnz = mj_stackAllocInt(d, m->nv);
   int* rowadr = mj_stackAllocInt(d, m->nv);
   int* colind = mj_stackAllocInt(d, m->nv * m->nv);
+  int* diagind = mj_stackAllocInt(d, m->nv);
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAllocNum(d, d->nefc);
@@ -584,7 +582,7 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
       func(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
          d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
-         d->efc_JT_rowsuper, d);
+         d->efc_JT_rowsuper, d, diagind);
     }
   } else {
     for (auto s : state) {
@@ -593,10 +591,11 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
 
       // compute H = J'*D*J, uncompressed layout
-      mju_sqrMatTDSparse_baseline(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
-                                  d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, d->efc_J_rowsuper,
-                                  d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
-                                  d->efc_JT_rowsuper, d);
+      mju_sqrMatTDSparse_baseline(
+          H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
+          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, d->efc_J_rowsuper,
+          d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
+          d->efc_JT_rowsuper, d, /*unused=*/nullptr);
     }
   }
 

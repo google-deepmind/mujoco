@@ -15,6 +15,7 @@
 """Tests for forward functions."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 import mujoco
 from mujoco import mjx
@@ -167,40 +168,28 @@ class ForwardTest(absltest.TestCase):
     np.testing.assert_allclose(dx.qvel, 1 + m.opt.timestep)
 
 
-class ActuatorTest(absltest.TestCase):
-  _DYN_XML = """
-    <mujoco>
-      <compiler autolimits="true"/>
-      <worldbody>
-        <body name="box">
-          <joint name="slide1" type="slide" axis="1 0 0" />
-          <joint name="slide2" type="slide" axis="0 1 0" />
-          <joint name="slide3" type="slide" axis="0 0 1" />
-          <joint name="slide4" type="slide" axis="1 1 0" />
-          <geom type="box" size=".05 .05 .05" mass="1"/>
-        </body>
-      </worldbody>
-      <actuator>
-        <general joint="slide1" dynprm="0.1" gainprm="1.1" />
-        <general joint="slide2" dyntype="integrator" dynprm="0.1" gainprm="1.1" />
-        <general joint="slide3" dyntype="filter" dynprm="0.1" gainprm="1.1" />
-        <general joint="slide4" dyntype="filterexact" dynprm="0.1" gainprm="1.1" />
-      </actuator>
-    </mujoco>
-  """
+class ActuatorTest(parameterized.TestCase):
 
-  def test_dyntype(self):
-    m = mujoco.MjModel.from_xml_string(self._DYN_XML)
+  @parameterized.parameters(
+      'actuator/arm21.xml',
+      'actuator/arm26.xml',
+      'actuator/general_dyntype.xml',
+  )
+  def test_actuator(self, fname):
+    m = test_util.load_test_file(fname)
     d = mujoco.MjData(m)
-    d.ctrl = np.array([1.5, 1.5, 1.5, 1.5])
-    d.act = np.array([0.5, 0.5, 0.5])
-
+    mujoco.mj_step(m, d)
+    d.ctrl = 1.5 * np.random.random(m.nu)
+    d.act = 0.5 * np.random.random(m.na)
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)
 
     mujoco.mj_fwdActuation(m, d)
     dx = jax.jit(mjx.fwd_actuation)(mx, dx)
+
     _assert_attr_eq(d, dx, 'act_dot')
+    _assert_attr_eq(d, dx, 'qfrc_actuator')
+    _assert_attr_eq(d, dx, 'actuator_force')
 
     mujoco.mj_Euler(m, d)
     dx = jax.jit(mjx.euler)(mx, dx)

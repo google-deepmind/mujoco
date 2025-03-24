@@ -90,6 +90,7 @@ class ScanTest(absltest.TestCase):
       if tuple(jnt_types) == (JointType.FREE,):
         return None
       return val + sum(jnt_types)
+
     b_expect = jp.array([[0, 0], [3, 3], [8, 8]])
     b_out = scan.flat(m, no_free, 'jb', 'b', m.jnt_type, b_in)
     np.testing.assert_equal(np.array(b_out), np.array(b_expect))
@@ -99,6 +100,7 @@ class ScanTest(absltest.TestCase):
       if jnt_types.size == 0:
         self.fail('world has no dofs, should not be called')
       return val + sum(jnt_types)
+
     v_in = jp.ones((m.nv, 1))
     scan.flat(m, no_world, 'jv', 'v', m.jnt_type, v_in)
 
@@ -141,6 +143,7 @@ class ScanTest(absltest.TestCase):
         return None
       carry = jp.zeros_like(val) if carry is None else carry
       return carry + val + sum(jnt_types)
+
     b_expect = jp.array([[0, 0], [3, 3], [8, 8]])
     b_out = scan.body_tree(m, no_free, 'jb', 'b', m.jnt_type, b_in)
     np.testing.assert_equal(np.array(b_out), np.array(b_expect))

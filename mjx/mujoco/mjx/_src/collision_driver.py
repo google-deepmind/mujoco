@@ -146,13 +146,13 @@ def geom_pairs(
   b_end = b_start + m.body_geomnum
 
   for b1 in range(m.nbody):
-    if not geom_con[b_start[b1]:b_end[b1]].any():
+    if not geom_con[b_start[b1] : b_end[b1]].any():
       continue
     w1 = m.body_weldid[b1]
     w1_p = m.body_weldid[m.body_parentid[w1]]
 
     for b2 in range(b1, m.nbody):
-      if not geom_con[b_start[b2]:b_end[b2]].any():
+      if not geom_con[b_start[b2] : b_end[b2]].any():
         continue
       signature = (b1 << 16) + (b2)
       if signature in exclude_signature:
@@ -272,7 +272,7 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
           jp.clip(m.pair_friction[ip], a_min=eps),
           m.pair_solref[ip],
           m.pair_solreffriction[ip],
-          m.pair_solimp[ip]
+          m.pair_solimp[ip],
       ))
     if geom1.size > 0 and geom2.size > 0:
       # other contacts get their params from geom fields
@@ -377,11 +377,11 @@ def collision(m: Model, d: Data) -> Data:
   if d.ncon == 0:
     return d
 
-  groups = _contact_groups(m, d)
   max_geom_pairs = _numeric(m, 'max_geom_pairs')
   max_contact_points = _numeric(m, 'max_contact_points')
 
   # run collision functions on groups
+  groups = _contact_groups(m, d)
   for key, contact in groups.items():
     # determine which contacts we'll use for collision testing by running a
     # broad phase cull if requested

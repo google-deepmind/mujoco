@@ -32,7 +32,7 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
+    self.assertIn('norm(dx) < tol', out.getvalue())
 
   def test_start_at_minimum(self) -> None:
     def residual(x):
@@ -43,8 +43,8 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
-    self.assertContainsSubsequence(out.getvalue(), 'exact minimum found')
+    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('exact minimum found', out.getvalue())
 
   def test_jac_callback(self) -> None:
     def residual(x):
@@ -56,20 +56,27 @@ class MinimizeTest(absltest.TestCase):
 
     x0 = np.array((0.0, 0.0))
     out = io.StringIO()
-    x, _ = minimize.least_squares(x0, residual, jacobian=jacobian, output=out,
-                                  check_derivatives=True)
+    x, _ = minimize.least_squares(
+        x0, residual, jacobian=jacobian, output=out, check_derivatives=True
+    )
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
-    self.assertContainsSubsequence(out.getvalue(), 'Jacobian matches')
+    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('Jacobian matches', out.getvalue())
 
     # Try with bad Jacobian, ask least_squares to check it.
     def bad_jacobian(x, r):
       del r  # Unused.
       return np.array([[-1, 0], [-20 * x[0, 0], 15]])
+
     with self.assertRaisesRegex(ValueError, r'\bJacobian does not match\b'):
-      minimize.least_squares(x0, residual, jacobian=bad_jacobian, output=out,
-                             check_derivatives=True)
+      minimize.least_squares(
+          x0,
+          residual,
+          jacobian=bad_jacobian,
+          output=out,
+          check_derivatives=True,
+      )
 
   def test_max_iter(self) -> None:
     dim = 20  # High-D Rosenbrock
@@ -83,7 +90,7 @@ class MinimizeTest(absltest.TestCase):
     x0 = np.zeros(dim)
     out = io.StringIO()
     minimize.least_squares(x0, residual, max_iter=20, output=out)
-    self.assertContainsSubsequence(out.getvalue(), 'maximum iterations')
+    self.assertIn('maximum iterations', out.getvalue())
 
     # Succeed after 100 iterations (default).
     x, _ = minimize.least_squares(x0, residual)
@@ -98,15 +105,18 @@ class MinimizeTest(absltest.TestCase):
     x0 = np.array((0.0, 0.0))
     expected_x = np.array((1.0, 1.0))
 
-    bounds_types = {'inbounds': [np.array((-2.0, -2.0)), np.array((2.0, 2.0))],
-                    'onlower': [np.array((-2.0, 2.0)), np.array((0.5, 3.0))],
-                    'onupper': [np.array((-2.0, -2.0)), np.array((0.5, 2.0))]}
+    bounds_types = {
+        'inbounds': [np.array((-2.0, -2.0)), np.array((2.0, 2.0))],
+        'onlower': [np.array((-2.0, 2.0)), np.array((0.5, 3.0))],
+        'onupper': [np.array((-2.0, -2.0)), np.array((0.5, 2.0))],
+    }
 
     # In bounds finds true minimum.
-    x, _ = minimize.least_squares(x0, residual, bounds=bounds_types['inbounds'],
-                                  output=out)
+    x, _ = minimize.least_squares(
+        x0, residual, bounds=bounds_types['inbounds'], output=out
+    )
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
+    self.assertIn('norm(dx) < tol', out.getvalue())
 
     # Test different bounds conditions.
     for bounds in bounds_types.values():
@@ -118,7 +128,7 @@ class MinimizeTest(absltest.TestCase):
           output=out,
           verbose=minimize.Verbosity.FULLITER,
       )
-      self.assertContainsSubsequence(out.getvalue(), ' < tol')
+      self.assertIn(' < tol', out.getvalue())
       grad = trace[-2].jacobian.T @ trace[-2].residual
       # If x_i is on the boundary, gradient points out, otherwise it is 0.
       for i, xi in enumerate(x):
@@ -157,11 +167,12 @@ class MinimizeTest(absltest.TestCase):
       print(f'Hello iteration {len(trace)}!', file=out)
 
     x0 = np.array((0.0, 0.0))
-    x, _ = minimize.least_squares(x0, residual, output=out,
-                                  iter_callback=iter_callback)
+    x, _ = minimize.least_squares(
+        x0, residual, output=out, iter_callback=iter_callback
+    )
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'Hello iteration 3!')
+    self.assertIn('Hello iteration 3!', out.getvalue())
 
   def test_norm(self) -> None:
     def residual(x):
@@ -170,11 +181,12 @@ class MinimizeTest(absltest.TestCase):
     p = 0.01  # Smoothing radius for smooth-L2 norm.
 
     class SmoothL2(minimize.Norm):
+
       def value(self, r):
-        return np.sqrt((r.T @ r).item() + p*p) - p
+        return np.sqrt((r.T @ r).item() + p * p) - p
 
       def grad_hess(self, r, proj):
-        s = np.sqrt((r.T @ r).item() + p*p)
+        s = np.sqrt((r.T @ r).item() + p * p)
         y_r = r / s
         grad = proj.T @ y_r
         y_rr = (np.eye(r.size) - y_r @ y_r.T) / s
@@ -183,22 +195,22 @@ class MinimizeTest(absltest.TestCase):
 
     out = io.StringIO()
     x0 = np.array((0.0, 0.0))
-    x, _ = minimize.least_squares(x0, residual, norm=SmoothL2(), output=out,
-                                  check_derivatives=True)
+    x, _ = minimize.least_squares(
+        x0, residual, norm=SmoothL2(), output=out, check_derivatives=True
+    )
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertContainsSubsequence(out.getvalue(), 'norm(dx) < tol')
-    self.assertContainsSubsequence(out.getvalue(),
-                                   'User-provided norm gradient matches')
-    self.assertContainsSubsequence(out.getvalue(),
-                                   'User-provided norm Hessian matches')
+    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('User-provided norm gradient matches', out.getvalue())
+    self.assertIn('User-provided norm Hessian matches', out.getvalue())
 
     class SmoothL2BadGrad(minimize.Norm):
+
       def value(self, r):
-        return np.sqrt((r.T @ r).item() + p*p) - p
+        return np.sqrt((r.T @ r).item() + p * p) - p
 
       def grad_hess(self, r, proj):
-        s = np.sqrt((r.T @ r).item() + p*p)
+        s = np.sqrt((r.T @ r).item() + p * p)
         y_r = r / s
         grad = proj.T @ (y_r + 0.001)  # 0.001 is erronous.
         y_rr = (np.eye(r.size) - y_r @ y_r.T) / s
@@ -206,15 +218,21 @@ class MinimizeTest(absltest.TestCase):
         return grad, hess
 
     with self.assertRaisesRegex(ValueError, r'\bgradient does not match\b'):
-      minimize.least_squares(x0, residual, norm=SmoothL2BadGrad(), output=out,
-                             check_derivatives=True)
+      minimize.least_squares(
+          x0,
+          residual,
+          norm=SmoothL2BadGrad(),
+          output=out,
+          check_derivatives=True,
+      )
 
     class SmoothL2BadHess(minimize.Norm):
+
       def value(self, r):
-        return np.sqrt((r.T @ r).item() + p*p) - p
+        return np.sqrt((r.T @ r).item() + p * p) - p
 
       def grad_hess(self, r, proj):
-        s = np.sqrt((r.T @ r).item() + p*p)
+        s = np.sqrt((r.T @ r).item() + p * p)
         y_r = r / s
         grad = proj.T @ y_r
         y_rr = (1.001 * np.eye(r.size) - y_r @ y_r.T) / s  # 1.001 is erronous.
@@ -222,15 +240,21 @@ class MinimizeTest(absltest.TestCase):
         return grad, hess
 
     with self.assertRaisesRegex(ValueError, r'\bHessian does not match\b'):
-      minimize.least_squares(x0, residual, norm=SmoothL2BadHess(), output=out,
-                             check_derivatives=True)
+      minimize.least_squares(
+          x0,
+          residual,
+          norm=SmoothL2BadHess(),
+          output=out,
+          check_derivatives=True,
+      )
 
     class SmoothL2AsymHess(minimize.Norm):
+
       def value(self, r):
-        return np.sqrt((r.T @ r).item() + p*p) - p
+        return np.sqrt((r.T @ r).item() + p * p) - p
 
       def grad_hess(self, r, proj):
-        s = np.sqrt((r.T @ r).item() + p*p)
+        s = np.sqrt((r.T @ r).item() + p * p)
         y_r = r / s
         grad = proj.T @ y_r
         y_rr = (np.eye(r.size) - (y_r + 0.0001) @ y_r.T) / s
@@ -238,15 +262,21 @@ class MinimizeTest(absltest.TestCase):
         return grad, hess
 
     with self.assertRaisesRegex(ValueError, r'\bnot symmetric\b'):
-      minimize.least_squares(x0, residual, norm=SmoothL2AsymHess(), output=out,
-                             check_derivatives=True)
+      minimize.least_squares(
+          x0,
+          residual,
+          norm=SmoothL2AsymHess(),
+          output=out,
+          check_derivatives=True,
+      )
 
     class SmoothL2NegHess(minimize.Norm):
+
       def value(self, r):
-        return np.sqrt((r.T @ r).item() + p*p) - p
+        return np.sqrt((r.T @ r).item() + p * p) - p
 
       def grad_hess(self, r, proj):
-        s = np.sqrt((r.T @ r).item() + p*p)
+        s = np.sqrt((r.T @ r).item() + p * p)
         y_r = r / s
         grad = proj.T @ y_r
         y_rr = -(np.eye(r.size) - y_r @ y_r.T) / s  # Negative-definite.
@@ -254,7 +284,42 @@ class MinimizeTest(absltest.TestCase):
         return grad, hess
 
     with self.assertRaisesRegex(ValueError, r'\bnot positive definite\b'):
-      minimize.least_squares(x0, residual, norm=SmoothL2NegHess(), output=out,
-                             check_derivatives=True)
+      minimize.least_squares(
+          x0,
+          residual,
+          norm=SmoothL2NegHess(),
+          output=out,
+          check_derivatives=True,
+      )
+
+  def test_soft_l1_norm(self) -> None:
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    class SoftL1(minimize.Norm):
+      """Implementation of the loss called 'soft_l1' in scipy least_squares."""
+
+      def value(self, r):
+        return np.sum(np.sqrt(r**2 + 1) - 1)
+
+      def grad_hess(self, r, proj):
+        s = np.sqrt(r**2 + 1)
+        y_r = r / s
+        grad = proj.T @ y_r
+        y_rr = (1 - y_r ** 2) / s
+        hess = proj.T @ (y_rr * proj)
+        return grad, hess
+
+    out = io.StringIO()
+    x0 = np.array((0.0, 0.0))
+    x, _ = minimize.least_squares(
+        x0, residual, norm=SoftL1(), output=out, check_derivatives=True
+    )
+    expected_x = np.array((1.0, 1.0))
+    np.testing.assert_array_almost_equal(x, expected_x)
+    self.assertIn('User-provided norm gradient matches', out.getvalue())
+    self.assertIn('User-provided norm Hessian matches', out.getvalue())
+
+
 if __name__ == '__main__':
   absltest.main()

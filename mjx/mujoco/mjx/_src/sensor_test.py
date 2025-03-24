@@ -17,11 +17,11 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
+from mujoco.mjx._src.types import ConeType
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX smooth calculations - mostly
@@ -41,10 +41,14 @@ def _assert_attr_eq(a, b, attr):
 
 class SensorTest(parameterized.TestCase):
 
-  @parameterized.parameters('sensor/model.xml', 'sensor/sensor.xml')
-  def test_sensor(self, filename):
+  @parameterized.product(
+      filename=['sensor/model.xml', 'sensor/sensor.xml'],
+      cone_type=list(ConeType),
+  )
+  def test_sensor(self, filename, cone_type):
     """Tests MJX sensor functions match MuJoCo sensor functions."""
     m = test_util.load_test_file(filename)
+    m.opt.cone = cone_type
     d = mujoco.MjData(m)
     # give the system a little kick to ensure we have non-identity rotations
     d.qvel = 0.1 * np.random.random(m.nv)
@@ -101,17 +105,14 @@ class SensorTest(parameterized.TestCase):
           <body>
             <joint type="hinge"/>
             <geom name="geom0" size="0.1"/>
-            <site name="site0"/>
             <body>
               <joint type="hinge"/>
               <geom name="geom1" size="0.25"/>
-              <site name="site1"/>
             </body>
           </body>
         </worldbody>
         <sensor>
           <distance name="distance" geom1="geom0" geom2="geom1"/>
-          <touch name="touch" site="site0"/>
         </sensor>
       </mujoco>
     """)

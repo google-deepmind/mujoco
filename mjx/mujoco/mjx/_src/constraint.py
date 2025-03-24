@@ -39,6 +39,7 @@ import numpy as np
 
 class _Efc(PyTreeNode):
   """Support data for creating constraint matrices."""
+
   J: jax.Array
   pos_aref: jax.Array
   pos_imp: jax.Array
@@ -107,7 +108,9 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     return None
 
   @jax.vmap
-  def rows(is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp):
+  def rows(
+      is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp, active
+  ):
     anchor1, anchor2 = data[0:3], data[3:6]
 
     pos1 = d.xmat[body1id] @ anchor1 + d.xpos[body1id]
@@ -128,7 +131,8 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     invweight = m.body_invweight0[body1id, 0] + m.body_invweight0[body2id, 0]
     zero = jp.zeros_like(pos)
 
-    return _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
+    efc = _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
+    return jax.tree_util.tree_map(lambda x: x * active, efc)
 
   is_site = m.eq_objtype == ObjType.SITE
   body1id = np.copy(m.eq_obj1id)
@@ -147,6 +151,7 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
       m.eq_data,
       m.eq_solref,
       m.eq_solimp,
+      d.eq_active,
   )
   args = jax.tree_util.tree_map(lambda x: x[eq_id], args)
   # concatenate to drop row grouping
@@ -161,7 +166,9 @@ def _efc_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     return None
 
   @jax.vmap
-  def rows(is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp):
+  def rows(
+      is_site, obj1id, obj2id, body1id, body2id, data, solref, solimp, active
+  ):
     anchor1, anchor2 = data[0:3], data[3:6]
     relpose, torquescale = data[6:10], data[10]
 
@@ -208,7 +215,8 @@ def _efc_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     invweight = jp.repeat(invweight, 3, axis=0)
     zero = jp.zeros_like(pos)
 
-    return _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
+    efc = _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
+    return jax.tree_util.tree_map(lambda x: x * active, efc)
 
   is_site = m.eq_objtype == ObjType.SITE
   body1id = np.copy(m.eq_obj1id)
@@ -227,6 +235,7 @@ def _efc_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
       m.eq_data,
       m.eq_solref,
       m.eq_solimp,
+      d.eq_active,
   )
   args = jax.tree_util.tree_map(lambda x: x[eq_id], args)
   # concatenate to drop row grouping
@@ -242,7 +251,9 @@ def _efc_equality_joint(m: Model, d: Data) -> Optional[_Efc]:
     return None
 
   @jax.vmap
-  def rows(obj2id, data, solref, solimp, dofadr1, dofadr2, qposadr1, qposadr2):
+  def rows(
+      obj2id, data, solref, solimp, active, dofadr1, dofadr2, qposadr1, qposadr2
+  ):
     pos1, pos2 = d.qpos[qposadr1], d.qpos[qposadr2]
     ref1, ref2 = m.qpos0[qposadr1], m.qpos0[qposadr2]
     dif = (pos2 - ref2) * (obj2id > -1)
@@ -255,9 +266,11 @@ def _efc_equality_joint(m: Model, d: Data) -> Optional[_Efc]:
     invweight += m.dof_invweight0[dofadr2] * (obj2id > -1)
     zero = jp.zeros_like(pos)
 
-    return _row(j, pos, pos, invweight, solref, solimp, zero, zero)
+    efc = _row(j, pos, pos, invweight, solref, solimp, zero, zero)
+    return jax.tree_util.tree_map(lambda x: x * active, efc)
 
   args = (m.eq_obj1id, m.eq_obj2id, m.eq_data, m.eq_solref, m.eq_solimp)
+  args += (d.eq_active,)
   args = jax.tree_util.tree_map(lambda x: x[eq_id], args)
   dofadr1, dofadr2 = m.jnt_dofadr[args[0]], m.jnt_dofadr[args[1]]
   qposadr1, qposadr2 = m.jnt_qposadr[args[0]], m.jnt_qposadr[args[1]]
@@ -274,7 +287,7 @@ def _efc_equality_tendon(m: Model, d: Data) -> Optional[_Efc]:
   if (m.opt.disableflags & DisableBit.EQUALITY) or eq_id.size == 0:
     return None
 
-  obj1id, obj2id, data, solref, solimp = jax.tree_util.tree_map(
+  obj1id, obj2id, data, solref, solimp, active = jax.tree_util.tree_map(
       lambda x: x[eq_id],
       (
           m.eq_obj1id,
@@ -282,11 +295,14 @@ def _efc_equality_tendon(m: Model, d: Data) -> Optional[_Efc]:
           m.eq_data,
           m.eq_solref,
           m.eq_solimp,
+          d.eq_active,
       ),
   )
 
   @jax.vmap
-  def rows(obj2id, data, solref, solimp, invweight, jac1, jac2, pos1, pos2):
+  def rows(
+      obj2id, data, solref, solimp, invweight, jac1, jac2, pos1, pos2, active
+  ):
     dif = pos2 * (obj2id > -1)
     dif_power = jp.power(dif, jp.arange(0, 5))
     pos = pos1 - jp.dot(data[:5], dif_power)
@@ -294,7 +310,8 @@ def _efc_equality_tendon(m: Model, d: Data) -> Optional[_Efc]:
     j = jac1 + jac2 * -deriv
     zero = jp.zeros_like(pos)
 
-    return _row(j, pos, pos, invweight, solref, solimp, zero, zero)
+    efc = _row(j, pos, pos, invweight, solref, solimp, zero, zero)
+    return jax.tree_util.tree_map(lambda x: x * active, efc)
 
   inv1, inv2 = m.tendon_invweight0[obj1id], m.tendon_invweight0[obj2id]
   jac1, jac2 = d.ten_J[obj1id], d.ten_J[obj2id]
@@ -302,7 +319,9 @@ def _efc_equality_tendon(m: Model, d: Data) -> Optional[_Efc]:
   pos2 = d.ten_length[obj2id] - m.tendon_length0[obj2id]
   invweight = inv1 + inv2 * (obj2id > -1)
 
-  return rows(obj2id, data, solref, solimp, invweight, jac1, jac2, pos1, pos2)
+  return rows(
+      obj2id, data, solref, solimp, invweight, jac1, jac2, pos1, pos2, active
+  )
 
 
 def _efc_friction(m: Model, d: Data) -> Optional[_Efc]:

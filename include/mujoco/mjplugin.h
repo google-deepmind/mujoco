@@ -48,7 +48,7 @@ typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* n
 // callback for checking if the current resource was modified from the time
 // specified by the timestamp
 // returns 0 if the resource's timestamp matches the provided timestamp
-// returns > 0 if the the resource is younger than the given timestamp
+// returns > 0 if the resource is younger than the given timestamp
 // returns < 0 if the resource is older than the given timestamp
 typedef int (*mjfResourceModified)(const mjResource* resource, const char* timestamp);
 

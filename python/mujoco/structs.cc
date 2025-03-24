@@ -408,12 +408,7 @@ MjModelWrapper MjModelWrapper::LoadXML(
   return MjModelWrapper(model);
 }
 
-MjModelWrapper MjModelWrapper::CompileSpec(raw::MjSpec* spec,
-                                           const mjVFS* vfs) {
-  auto m = mj_compile(spec, vfs);
-  if (!m || mjs_isWarning(spec)) {
-    throw py::value_error(mjs_getError(spec));
-  }
+MjModelWrapper MjModelWrapper::WrapRawModel(raw::MjModel* m) {
   return MjModelWrapper(m);
 }
 
@@ -747,7 +742,8 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(ncon);
   X(ne);
   X(nf);
-  X(nnzJ);
+  X(nJ);
+  X(nA);
   X(nefc);
   X(nisland);
   X(time);
@@ -824,7 +820,8 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(ncon);
   X(ne);
   X(nf);
-  X(nnzJ);
+  X(nJ);
+  X(nA);
   X(nefc);
   X(nisland);
   X(time);
@@ -1413,7 +1410,29 @@ PYBIND11_MODULE(_structs, m) {
   mjVisual.def("__deepcopy__", [](const MjVisualWrapper& other, py::dict) {
     return MjVisualWrapper(other);
   });
-  DefineStructFunctions(mjVisual);
+  mjVisual.def("__eq__", StructsEqual<MjVisualWrapper>);
+  // Special __repr__ implementation for MjVisual, since:
+  // 1. Types under MjVisual confuse StructRepr;
+  // 2. StructRepr does not handle the indentation of nested structs well.
+  mjVisual.def("__repr__", [](py::object self) {
+    std::ostringstream result;
+    result << "<"
+           << self.attr("__class__").attr("__name__").cast<std::string_view>();
+
+#define X(type, var)          \
+    result << "\n  " #var ": "; \
+    StructReprImpl<type>(self.attr(#var), result, 2);
+
+    X(raw::MjVisualGlobal, global_)
+    X(raw::MjVisualQuality, quality)
+    X(MjVisualHeadlightWrapper, headlight)
+    X(raw::MjVisualMap, map)
+    X(raw::MjVisualScale, scale)
+    X(MjVisualRgbaWrapper, rgba)
+#undef X
+    result << "\n>";
+    return result.str();
+  });
 
   py::class_<raw::MjVisualGlobal> mjVisualGlobal(mjVisual, "Global");
   mjVisualGlobal.def("__copy__", [](const raw::MjVisualGlobal& other) {
@@ -1592,18 +1611,9 @@ PYBIND11_MODULE(_structs, m) {
       py::arg("xml"), py::arg_v("assets", py::none()),
       py::doc(
 R"(Loads an MjModel from an XML string and an optional assets dictionary.)"));
-  mjModel.def_static(
-      "_from_spec_ptr", [](uintptr_t addr) {
-        return MjModelWrapper::CompileSpec(
-            reinterpret_cast<raw::MjSpec*>(addr),
-            nullptr);
-      });
-  mjModel.def_static(
-      "_from_spec_ptr", [](uintptr_t addr, uintptr_t vfs) {
-        return MjModelWrapper::CompileSpec(
-            reinterpret_cast<raw::MjSpec*>(addr),
-            reinterpret_cast<mjVFS*>(vfs));
-      });
+  mjModel.def_static("_from_model_ptr", [](uintptr_t addr) {
+    return MjModelWrapper::WrapRawModel(reinterpret_cast<raw::MjModel*>(addr));
+  });
   mjModel.def_static(
       "from_xml_path", &MjModelWrapper::LoadXMLFile,
       py::arg("filename"), py::arg_v("assets", py::none()),
@@ -1714,6 +1724,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
 
   MJMODEL_VIEW_GROUPS
+#undef XGROUP
+
+#define XGROUP(spectype, field)                                       \
+  mjModel.def(                                                        \
+      "bind_scalar",                                                  \
+      [](MjModelWrapper& m, spectype& spec) -> auto& {                \
+        return m.indexer().field##_by_name(mjs_getString(spec.name)); \
+      },                                                              \
+      py::return_value_policy::reference_internal,                    \
+      py::arg_v("spec", py::none()));
+
+  MJMODEL_BIND_GROUPS
 #undef XGROUP
 
 #define XGROUP(field, altname, FIELD_XMACROS)                                 \
@@ -2048,6 +2070,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJDATA_VIEW_GROUPS
+#undef XGROUP
+
+#define XGROUP(spectype, field)                                       \
+  mjData.def(                                                         \
+      "bind_scalar",                                                  \
+      [](MjDataWrapper& d, spectype& spec) -> auto& {                 \
+        return d.indexer().field##_by_name(mjs_getString(spec.name)); \
+      },                                                              \
+      py::return_value_policy::reference_internal,                    \
+      py::arg_v("spec", py::none()));
+
+  MJDATA_BIND_GROUPS
 #undef XGROUP
 
 #define XGROUP(field, altname, FIELD_XMACROS)                                \

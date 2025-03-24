@@ -80,7 +80,7 @@ BENCHMARK(BM_StepFlagPlugin);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("composite/particle.xml");
+  static mjModel* model = LoadModelFromPath("replicate/particle.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepParticle);

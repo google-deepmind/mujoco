@@ -141,7 +141,9 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       START
       thisgeom->type = mjGEOM_CYLINDER;
       thisgeom->size[0] = thisgeom->size[1] = m->vis.scale.contactwidth * scl;
-      thisgeom->size[2] = m->vis.scale.contactheight * scl;
+      float halfheight = m->vis.scale.contactheight * scl;
+      float halfdepth = -con->dist / 2;
+      thisgeom->size[2] = mjMAX(halfheight, halfdepth);
       mju_n2f(thisgeom->pos, con->pos, 3);
       mju_n2f(thisgeom->mat, mat, 9);
 
@@ -346,10 +348,9 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
 
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
-void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                       mjtNum a0, mjtNum a1, mjtNum a2,
-                       mjtNum b0, mjtNum b1, mjtNum b2) {
-  mjtNum quat[4], mat[9], dif[3] = {b0-a0, b1-a1, b2-a2};
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]) {
+  mjtNum quat[4], mat[9], dif[3] = {to[0]-from[0], to[1]-from[1], to[2]-from[2]};
 
   // require connector-compatible type
   if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
@@ -367,17 +368,17 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
 
   // cylinder and capsule are centered, and size[0] is "radius"
   if (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER) {
-    geom->pos[0] = 0.5*(a0 + b0);
-    geom->pos[1] = 0.5*(a1 + b1);
-    geom->pos[2] = 0.5*(a2 + b2);
+    geom->pos[0] = 0.5*(from[0] + to[0]);
+    geom->pos[1] = 0.5*(from[1] + to[1]);
+    geom->pos[2] = 0.5*(from[2] + to[2]);
     geom->size[2] *= 0.5;
   }
 
   // arrow is not centered
   else {
-    geom->pos[0] = a0;
-    geom->pos[1] = a1;
-    geom->pos[2] = a2;
+    geom->pos[0] = from[0];
+    geom->pos[1] = from[1];
+    geom->pos[2] = from[2];
   }
 
   // set mat to minimal rotation aligning b-a with z axis
@@ -386,12 +387,7 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   mju_n2f(geom->mat, mat, 9);
 }
 
-// set (type, size, pos, mat) connector-type geom between given points
-//  assume that mjv_initGeom was already called to set all other properties
-void mjv_connector(mjvGeom* geom, int type, mjtNum width,
-                   const mjtNum from[3], const mjtNum to[3]) {
-  mjv_makeConnector(geom, type, width, from[0], from[1], from[2], to[0], to[1], to[2]);
-}
+
 
 // initialize given fields when not NULL, set the rest to their default values
 void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
@@ -715,6 +711,47 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           START
           mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
           FINISH
+        }
+      }
+
+      if (!m->flex_interp[f]) {
+        continue;
+      }
+
+      // control points box
+      mjtNum xpos[mjMAXFLEXNODES];
+      int nstart = m->flex_nodeadr[f];
+      int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      if (m->flex_centered[f]) {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+        }
+      } else {
+        for (int i=0; i < m->flex_nodenum[f]; i++) {
+          mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+          mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+        }
+      }
+      for (int i=0; i < 2; i++) {
+        for (int j=0; j < 2; j++) {
+          for (int k=0; k < 2; k++) {
+            if (scn->ngeom >= scn->maxgeom) break;
+            if (i == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
+              FINISH
+            }
+            if (j == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
+              FINISH
+            }
+            if (k == 0) {
+              START
+              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
+              FINISH
+            }
+          }
         }
       }
     }
@@ -1732,7 +1769,18 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // spatial tendons
   objtype = mjOBJ_TENDON;
   category = mjCAT_DYNAMIC;
-  if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
+  if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
+    // mark actuated tendons
+    mj_markStack(d);
+    int* tendon_actuated = mjSTACKALLOC(d, m->ntendon, int);
+    mju_zeroInt(tendon_actuated, m->ntendon);
+    for (int i=0; i < m->nu; i++) {
+      if (m->actuator_trntype[i] == mjTRN_TENDON) {
+        tendon_actuated[m->actuator_trnid[2*i]] = 1;
+      }
+    }
+
+    // draw tendons
     for (int i=0; i < m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
         // tendon has a deadband spring
@@ -1756,9 +1804,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
           mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
           m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-          (limitedspring || limitedconstraint)  &&    // either spring or constraint length limits
+          (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
           m->tendon_damping[i] == 0             &&    // no damping
-          m->tendon_frictionloss[i] == 0;             // no frictionloss
+          m->tendon_frictionloss[i] == 0        &&    // no frictionloss
+          tendon_actuated[i] == 0;                    // no actuator
 
         // conditions not met: draw straight lines
         if (!draw_catenary) {
@@ -1820,8 +1869,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           int ncatenary = m->vis.quality.numslices + 1;
 
           // allocate catenary
-          mj_markStack(d);
-          mjtNum* catenary = mj_stackAllocNum(d, 3*ncatenary);
+          mjtNum* catenary = mjSTACKALLOC(d, 3*ncatenary, mjtNum);
 
           // points along catenary path
           int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
@@ -1830,7 +1878,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           for (int j=0; j < npoints-1; j++) {
             START
 
-              sz[0] = m->tendon_width[i];
+            sz[0] = m->tendon_width[i];
 
             // construct geom
             mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], catenary+3*j, catenary+3*j+3);
@@ -1845,10 +1893,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
             FINISH
           }
-          mj_freeStack(d);
         }
       }
     }
+    mj_freeStack(d);
   }
 
   // slider-crank
@@ -2479,15 +2527,16 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
         if (dim == 2 || m->flex_elemlayer[m->flex_elemadr[f]+e] == opt->flex_layer) {
           // get element data
           const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+          const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
 
           // triangles: two faces per element
           if (dim == 2) {
             makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[1], edata[2]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[2], edata[1]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[1]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
             nface++;
           }
 
@@ -2495,22 +2544,22 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
           else {
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[0], edata[1], edata[2]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[0], edata[2], edata[3]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[3]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[3]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[0], edata[3], edata[1]);
-            copyTex(texdst, texsrc, nface, edata[0], edata[3], edata[1]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[3], tdata[1]);
             nface++;
 
             makeFace(face, normal, radius, vertxpos,
                      nface, edata[1], edata[3], edata[2]);
-            copyTex(texdst, texsrc, nface, edata[1], edata[3], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[1], tdata[3], tdata[2]);
             nface++;
           }
         }
@@ -2524,7 +2573,7 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
     else {
       // allocate and clear vertex normals for smoothing
       mj_markStack(d);
-      mjtNum* vertnorm = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
+      mjtNum* vertnorm = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
       mju_zero(vertnorm, 3*m->flex_vertnum[f]);
 
       // add vertex normals: top element sides in 2D, shell fragments in 3D
@@ -2550,13 +2599,14 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
       if (dim == 2) {
         for (int e=0; e < m->flex_elemnum[f]; e++) {
           const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+          const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
           makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
                      nface, edata[0], edata[1], edata[2]);
-          copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+          copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
           nface++;
           makeSmooth(face, normal, -radius, flg_flat, vertnorm, vertxpos,
                      nface, edata[0], edata[2], edata[1]);
-          copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[1]);
+          copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
           nface++;
         }
       } else {

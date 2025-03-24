@@ -33,17 +33,16 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->stat.center[0] = mjNAN;
 
   // compiler settings
-  spec->autolimits = 1;
-  spec->settotalmass = -1;
-  spec->degree = 1;
-  spec->eulerseq[0] = 'x';
-  spec->eulerseq[1] = 'y';
-  spec->eulerseq[2] = 'z';
-  spec->convexhull = 1;
-  spec->usethread = 1;
-  spec->inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
-  spec->inertiagrouprange[1] = mjNGROUP-1;
-  mj_defaultLROpt(&spec->LRopt);
+  spec->compiler.autolimits = 1;
+  spec->compiler.settotalmass = -1;
+  spec->compiler.degree = 1;
+  spec->compiler.eulerseq[0] = 'x';
+  spec->compiler.eulerseq[1] = 'y';
+  spec->compiler.eulerseq[2] = 'z';
+  spec->compiler.usethread = 1;
+  spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+  spec->compiler.inertiagrouprange[1] = mjNGROUP-1;
+  mj_defaultLROpt(&spec->compiler.LRopt);
 
   // engine data
   mj_defaultOption(&spec->option);
@@ -230,7 +229,7 @@ void mjs_defaultFlex(mjsFlex* flex) {
   // set other defaults
   flex->dim = 2;
   flex->radius = 0.005;
-  flex->internal = 1;
+  flex->internal = 0;
   flex->selfcollide = mjFLEXSELF_AUTO;
   flex->activelayers = 1;
   flex->rgba[0] = flex->rgba[1] = flex->rgba[2] = 0.5f;
@@ -246,7 +245,7 @@ void mjs_defaultMesh(mjsMesh* mesh) {
   mesh->refquat[0] = 1;
   mesh->scale[0] = mesh->scale[1] = mesh->scale[2] = 1;
   mesh->maxhullvert = -1;
-  mesh->inertia = mjINERTIA_LEGACY;
+  mesh->inertia = mjMESH_INERTIA_LEGACY;
 }
 
 
@@ -288,7 +287,7 @@ void mjs_defaultMaterial(mjsMaterial* material) {
   material->texrepeat[0] = material->texrepeat[1] = 1;
   material->specular = 0.5;
   material->shininess = 0.5;
-  material->metallic = 1.;
+  material->metallic = 0.0;
   material->roughness = 1.0;
   material->rgba[0] = material->rgba[1] = material->rgba[2] = material->rgba[3] = 1;
 }

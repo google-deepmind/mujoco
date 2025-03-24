@@ -102,15 +102,27 @@
       <geom size="0.1"/>
     </body>
 
-    <!-- plane and body for touch sensors -->
-    <geom type="plane" size="1 1 .1" pos="-20 -20 -20"/>
-    <body pos="-20 -20 -19.985">
-      <joint type="slide" axis="0 0 1"/>
-      <joint type="hinge" axis="0 1 0"/>
-      <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125"/>
+    <!-- plane and bodies for touch sensors -->
+    <geom type="plane" size="2 2 .1" pos="-20 -20 -20"/>
+    <body pos="-20 -20 -20">
+      <freejoint/>
+      <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125" condim="1"/>
       <site name="touch_sphere" type="sphere" pos="-0.5 0 0" size="0.025"/>
-      <site name="touch_capsule" type="capsule" fromto="-0.1 0 0.01 0.1 0 0.01" size="0.025"/>
-      <site name="touch_box" pos="0.5 0 0" type="box" size="0.025 0.025 0.025"/>
+    </body>
+    <body pos="-20 -20.25 -20">
+      <freejoint/>
+      <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125" condim="3"/>
+      <site name="touch_capsule" type="capsule" fromto="0.4 0 0.0 0.5 0 0.0" size="0.025"/>
+    </body>
+    <body pos="-20 -20.5 -20">
+      <freejoint/>
+      <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125" condim="6"/>
+      <site name="touch_box" pos="-0.5 0 0" type="box" size="0.025 0.025 0.025"/>
+    </body>
+    <body pos="-20 -20.75 -20">
+      <freejoint/>
+      <geom type="capsule" fromto="-.5 0 0 .5 0 0" size="0.0125" condim="3"/>
+      <site name="touch_ellipsoid" type="ellipsoid" pos="0.5 0 0.0" size="0.05 0.01 0.02"/>
     </body>
   </worldbody>
 
@@ -141,7 +153,8 @@
     <velocimeter name="velocimeter0" site="site0"/>
     <velocimeter name="velocimeter0cutoff" site="site0" cutoff="3e-4"/>
     <gyro name="gyro0" site="site0"/>
-    <touch name="touch_box" site="touch_box"/>
+    <touch name="touch_box1" site="touch_box"/>
+    <touch name="touch_box2" site="touch_box"/>
     <gyro name="gyro0cutoff" site="site0" cutoff="2e-3"/>
     <rangefinder name="rangefinder0" site="site_rangefinder0"/>
     <accelerometer name="accelerometer1" site="site1"/>
@@ -152,7 +165,8 @@
     <jointpos name="jointpos0cutoff" joint="hinge0" cutoff="1e-4"/>
     <jointvel name="jointvel0" joint="hinge0"/>
     <jointvel name="jointvel0cutoff" joint="hinge0" cutoff="1e-3"/>
-    <touch name="touch_capsule" site="touch_capsule"/>
+    <touch name="touch_capsule1" site="touch_capsule"/>
+    <touch name="touch_capsule2" site="touch_capsule"/>
     <actuatorfrc name="actuatorfrc0" actuator="motor0"/>
     <framelinvel name="framelinvel3" objtype="site" objname="site3"/>
     <framelinvel name="framelinvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
@@ -169,6 +183,7 @@
     <framepos name="framepos0" objtype="site" objname="site0"/>
     <velocimeter name="velocimeter1" site="site1"/>
     <gyro name="gyro1" site="site1"/>
+    <touch name="touch_ellipsoid" site="touch_ellipsoid"/>
     <frameangvel name="frameangvel3" objtype="site" objname="site3"/>
     <frameangvel name="frameangvel3ref" objtype="site" objname="site3" reftype="body" refname="body2"/>
     <frameangvel name="frameangvel3cutoff" objtype="site" objname="site3" cutoff="1e-3"/>

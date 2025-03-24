@@ -1,0 +1,45 @@
+<!-- Copyright 2024 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Trilinear flex spheres">
+  <include file="scene.xml"/>
+
+  <option solver="CG" tolerance="1e-6" timestep="1e-3" integrator="implicitfast"/>
+
+  <size memory="10M"/>
+
+  <visual>
+    <map stiffness="100"/>
+    <!-- The trilinear bounding box is visualized by turning on "Flex Tree" (mjVIS_FLEXBVH).
+         In order to make the visualization clearer,
+         we make the regular collision BVH visualization invisible: -->
+    <rgba bv="0 0 0 0" bvactive="0 0 0 0"/>
+  </visual>
+
+  <worldbody>
+    <geom type="box" pos="1.5 0 0.25" size=".5 2 .25"/>
+    <geom type="box" pos="0 0 0.25" size="2 2 .05" euler="0 15 0"/>
+    <flexcomp type="ellipsoid" count="8 8 8" spacing=".07 .07 .07" pos="-.5 -.5 1" dim="3"
+              radius=".001" rgba="0 .7 .7 1" mass="5" name="soft" dof="trilinear">
+      <elasticity young="1e3" poisson="0.49" damping="0.1"/>
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+    <flexcomp type="ellipsoid" count="8 8 8" spacing=".07 .07 .07" pos="-.5 .5 1" dim="3"
+              radius=".001" rgba="0 .7 .7 1" mass="5" name="rubber" dof="trilinear">
+      <elasticity young="1e4" poisson="0.4" damping="3e-3"/>
+      <contact selfcollide="none" internal="false" solref="-5000 -10"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>

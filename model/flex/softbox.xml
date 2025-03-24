@@ -13,17 +13,27 @@
      limitations under the License.
 -->
 
-<mujoco model="2D grid with pins">
+<mujoco model="Soft box">
   <include file="scene.xml"/>
 
-  <size memory="10M"/>
+  <option solver="CG" tolerance="1e-6"/>
+
+  <size memory="30M"/>
+
+  <asset>
+    <texture name="texsponge" type="2d" file="sponge.png"/>
+    <material name="matsponge" texture="texsponge" specular="0.3"/>
+  </asset>
 
   <worldbody>
-    <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">
-      <skin rgba=".6 .1 .6 1" inflate="0.001" subgrid="3"/>
-      <pin coord="0 0"/>
-      <pin coord="8 0"/>
-      <geom size=".02"/>
-    </composite>
+    <body pos="0 0 1" name="body">
+      <freejoint/>
+      <geom size=".1" contype="0" conaffinity="0" group="4"/>
+      <flexcomp name="softbox" type="box" count="7 7 7" spacing=".04 .04 .04"
+                radius="0.01" dim="3" material="matsponge" dof="radial">
+        <contact internal="false" selfcollide="none"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </body>
   </worldbody>
 </mujoco>

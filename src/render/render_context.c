@@ -895,7 +895,7 @@ static void setVertexHaze(float* v, float az, float h, float r) {
 
 // truncated cone for haze rendering
 static void haze(int nSlice, float r, const float* rgba) {
-  // compute elevation h for transparancy transition point
+  // compute elevation h for transparency transition point
   float alpha = atan2f(1, r);
   float beta = (float)(0.75*mjPI) - alpha;
   float h = sqrtf(0.5f) * r * sinf(alpha) / sinf(beta);
@@ -1304,7 +1304,7 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
   }
 
   if (m->nmat >= mjMAXMATERIAL-1) {
-    mju_error("Maximum number of materials is 100, got %d", m->nmat);
+    mju_error("Maximum number of materials is %d, got %d", mjMAXMATERIAL, m->nmat);
   }
   for (int i=0; i < m->nmat; i++) {
     if (m->mat_texid[i*mjNTEXROLE + mjTEXROLE_RGB] >= 0) {
@@ -1320,8 +1320,8 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
   for (int i=0; i < m->ntex; i++) {
     if (m->tex_type[i] == mjTEXTURE_SKYBOX) {
       if (m->nmat >= mjMAXMATERIAL-2) {
-        mju_error("With skybox, maximum number of materials is 99, got %d",
-                  m->nmat);
+        mju_error("With skybox, maximum number of materials is %d, got %d",
+                  mjMAXMATERIAL-1, m->nmat);
       }
       for (int j=0; j < mjNTEXROLE; j++) {
         con->mat_texid[mjNTEXROLE * (mjMAXMATERIAL-1) + j] = -1;
@@ -1864,7 +1864,7 @@ void mjr_freeContext(mjrContext* con) {
 
 
 // resize offscreen buffers
-MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
+void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
   if (con->offWidth == width && con->offHeight == height) {
     return;
   }
