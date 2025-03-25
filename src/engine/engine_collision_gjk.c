@@ -1546,7 +1546,7 @@ static mjtNum planeNormal(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
 // find what side of a plane a point p lies
 static int halfspace(const mjtNum a[3], const mjtNum n[3], const mjtNum p[3]) {
   mjtNum diff[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
-  return dot3(diff, n) > 0;
+  return dot3(diff, n) >= 0.0;
 }
 
 
