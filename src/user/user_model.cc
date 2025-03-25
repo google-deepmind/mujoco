@@ -449,9 +449,8 @@ static bool IsPluginActive(
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
-  mjCBody *world = bodies_[0];
   ResetTreeLists();
-  MakeLists(world);
+  MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
   // copy all elements not in the tree
@@ -498,11 +497,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
       ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
     }
     nq = nv = na = nu = nmocap = 0;
-  }
-
-  // restore to the original state
-  if (!compiled) {
-    ResetTreeLists();
   }
 
   PointToLocal();
@@ -609,13 +603,11 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
   // create global lists in the old model if not compiled
   if (!oldmodel.IsCompiled()) {
-    oldmodel.MakeLists(oldmodel.bodies_[0]);
     oldmodel.ProcessLists(/*checkrepeat=*/false);
   }
 
   // create global lists in this model if not compiled
   if (!IsCompiled()) {
-    MakeLists(bodies_[0]);
     ProcessLists(/*checkrepeat=*/false);
   }
 
@@ -629,7 +621,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
   // update global lists
   ResetTreeLists();
-  MakeLists(world);
+  MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
   // check if we have to remove anything else
@@ -640,11 +632,6 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
   RemovePlugins();
-
-  // restore to the original state
-  if (!compiled) {
-    ResetTreeLists();
-  }
 
   return *this;
 }
@@ -742,18 +729,16 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 
 // discard all invalid elements from all lists
 void mjCModel::DeleteElement(mjsElement* el) {
-  mjCBody *world = nullptr;
-  if (compiled) {
-    world = bodies_[0];
-    ResetTreeLists();
-  }
+  ResetTreeLists();
 
   switch (el->elemtype) {
     case mjOBJ_BODY:
+      MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
       throw mjCError(nullptr, "bodies cannot be deleted, use detach instead");
       break;
 
     case mjOBJ_DEFAULT:
+      MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
       throw mjCError(nullptr, "defaults cannot be deleted, use detach instead");
       break;
 
@@ -818,11 +803,9 @@ void mjCModel::DeleteElement(mjsElement* el) {
       break;
   }
 
-  if (compiled) {
-    ResetTreeLists();  // in case of a nested delete
-    MakeLists(world);
-    ProcessLists(/*checkrepeat=*/false);
-  }
+  ResetTreeLists();  // in case of a nested delete
+  MakeTreeLists();
+  ProcessLists(/*checkrepeat=*/false);
 }
 
 
@@ -1019,15 +1002,6 @@ void mjCModel::Clear() {
   njmax = -1;
   nconmax = -1;
   nmocap = 0;
-
-  // pointer lists created by Compile
-  bodies_.clear();
-  joints_.clear();
-  geoms_.clear();
-  sites_.clear();
-  cameras_.clear();
-  lights_.clear();
-  frames_.clear();
 
   // internal variables
   hasImplicitPluginElem = false;
@@ -1486,7 +1460,11 @@ mjSpec* mjCModel::GetSourceSpec() const {
 //------------------------------- COMPILER PHASES --------------------------------------------------
 
 // make lists of objects in tree: bodies, geoms, joints, sites, cameras, lights
-void mjCModel::MakeLists(mjCBody* body) {
+void mjCModel::MakeTreeLists(mjCBody* body) {
+  if (body == nullptr) {
+    body = bodies_[0];
+  }
+
   // add this body if not world
   if (body != bodies_[0]) {
     bodies_.push_back(body);
@@ -1501,7 +1479,7 @@ void mjCModel::MakeLists(mjCBody* body) {
   for (mjCFrame *frame : body->frames) frames_.push_back(frame);
 
   // recursive call to all child bodies
-  for (mjCBody* body : body->bodies) MakeLists(body);
+  for (mjCBody* body : body->bodies) MakeTreeLists(body);
 }
 
 
@@ -3657,19 +3635,10 @@ template void mjCModel::RestoreState<mjtNum>(
 
 // resolve keyframe references
 void mjCModel::StoreKeyframes(mjCModel* dest) {
-  bool resetlists = false;
-
   if (this != dest && !key_pending_.empty()) {
     mju_warning(
       "Child model has pending keyframes. They will not be namespaced correctly. "
       "To prevent this, compile the child model before attaching it again.");
-  }
-
-  // create tree lists if they are empty, occurs if an uncompiled model is attached
-  if (bodies_.size() == 1 && geoms_.empty() && sites_.empty() && joints_.empty() &&
-      cameras_.empty() && lights_.empty() && frames_.empty()) {
-    MakeLists(bodies_[0]);
-    resetlists = true;
   }
 
   // do not change compilation quantities in case the user wants to recompile preserving the state
@@ -3717,10 +3686,6 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
     SaveState(info.name, key->spec_qpos_.data(), key->spec_qvel_.data(),
               key->spec_act_.data(), key->spec_ctrl_.data(),
               key->spec_mpos_.data(), key->spec_mquat_.data());
-  }
-
-  if (resetlists) {
-    ResetTreeLists();
   }
 
   if (!compiled) {
@@ -4054,11 +4019,7 @@ static void warninghandler(const char* msg) {
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   if (compiled) {
-    // clear kinematic tree
-    mjCBody* world = bodies_[0];
-    ResetTreeLists();
     Clear();
-    bodies_.push_back(world);
   }
 
   CopyFromSpec();
@@ -4105,9 +4066,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     // deallocate everything allocated in Compile
     mj_deleteModel(model);
     mj_deleteData(data);
-    mjCBody* world = bodies_[0];
     Clear();
-    bodies_.push_back(world);
 
     // save error info
     errInfo = err;
@@ -4353,9 +4312,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (int i=keys_.size(); i < nkey; i++) {
     AddKey();
   }
-
-  // make lists of objects created in kinematic tree
-  MakeLists(bodies_[0]);
 
   // clear subtreedofs
   for (int i=0; i < bodies_.size(); i++) {

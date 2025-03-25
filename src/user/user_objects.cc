@@ -1231,6 +1231,11 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
   obj->classname = _def ? _def->name : classname;
 
   bodies.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   obj->parent = this;
   return obj;
 }
@@ -1241,6 +1246,8 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   mjCFrame* obj = new mjCFrame(model, _frame ? _frame : NULL);
   frames.push_back(obj);
+  model->ResetTreeLists();
+  model->MakeTreeLists();
   return obj;
 }
 
@@ -1256,6 +1263,11 @@ mjCJoint* mjCBody::AddFreeJoint() {
   obj->body = this;
 
   joints.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   return obj;
 }
 
@@ -1270,6 +1282,11 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   obj->body = this;
 
   joints.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   return obj;
 }
 
@@ -1284,6 +1301,11 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   obj->body = this;
 
   geoms.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   return obj;
 }
 
@@ -1298,6 +1320,11 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
   obj->body = this;
 
   sites.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   return obj;
 }
 
@@ -1312,6 +1339,11 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   obj->body = this;
 
   cameras.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   return obj;
 }
 
@@ -1326,6 +1358,11 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
   obj->body = this;
 
   lights.push_back(obj);
+
+  // recompute lists
+  model->ResetTreeLists();
+  model->MakeTreeLists();
+
   return obj;
 }
 
@@ -1347,11 +1384,8 @@ mjCFrame* mjCBody::ToFrame() {
       std::remove_if(parent->bodies.begin(), parent->bodies.end(),
                      [this](mjCBody* body) { return body == this; }),
       parent->bodies.end());
-  if (model->IsCompiled()) {
-    mjCBody *world = model->bodies_[0];
-    model->ResetTreeLists();
-    model->MakeLists(world);
-  }
+  model->ResetTreeLists();
+  model->MakeTreeLists();
   return newframe;
 }
 
