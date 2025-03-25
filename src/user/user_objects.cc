@@ -1422,6 +1422,7 @@ mjCFrame* mjCBody::ToFrame() {
       parent->bodies.end());
   model->ResetTreeLists();
   model->MakeTreeLists();
+  model->spec.element->signature = model->Signature();
   return newframe;
 }
 

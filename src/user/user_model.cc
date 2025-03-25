@@ -245,6 +245,10 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     mjCBody* world = new mjCBody(*other.bodies_[0], this);
     bodies_.push_back(world);
 
+    // update tree lists
+    ResetTreeLists();
+    MakeTreeLists();
+
     // add everything else
     *this += other;
 
@@ -259,6 +263,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     for (int i=0; i < mjNOBJECT; i++) {
       ids[i] = other.ids[i];
     }
+
+    // update signature after we updated everything
+    spec.element->signature = Signature();
   }
   deepcopy_ = other.deepcopy_;
   return *this;
@@ -504,10 +511,11 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     nq = nv = na = nu = nmocap = 0;
   }
 
-  // update signature before we reset the tree lists
-  spec.element->signature = Signature();
-
+  // update pointers to local elements
   PointToLocal();
+
+  // update signature after we updated the tree lists and we updated the pointers
+  spec.element->signature = Signature();
   return *this;
 }
 
@@ -814,12 +822,12 @@ void mjCModel::DeleteElement(mjsElement* el) {
       break;
   }
 
-  // update signature before we reset the tree lists
-  spec.element->signature = Signature();
-
   ResetTreeLists();  // in case of a nested delete
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
+
+  // update signature after we updated everything
+  spec.element->signature = Signature();
 }
 
 
@@ -4593,6 +4601,17 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // save signature
   m->signature = Signature();
+
+  // special cases that are not caused by user edits
+  if (compiler.fusestatic || compiler.discardvisual ||
+      !spec.element->signature || !pairs_.empty() || !excludes_.empty()) {
+    spec.element->signature = m->signature;
+  }
+
+  // check that the signature matches the spec
+  if (m->signature != spec.element->signature) {
+    throw mjCError(0, "signature mismatch");  // SHOULD NOT OCCUR
+  }
 }
 
 
