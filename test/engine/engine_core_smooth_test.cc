@@ -159,6 +159,60 @@ TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
   mj_deleteModel(model);
 }
 
+static const char* const kTen_J0 = "engine/testdata/core_smooth/ten_J0.xml";
+static const char* const kTen_J1 = "engine/testdata/core_smooth/ten_J1.xml";
+static const char* const kTen_J2 = "engine/testdata/core_smooth/ten_J2.xml";
+static const char* const kTen_J3 = "engine/testdata/core_smooth/ten_J3.xml";
+
+TEST_F(CoreSmoothTest, TendonJdot) {
+  for (const char* local_path : {kTen_J0, kTen_J1, kTen_J2, kTen_J3}) {
+    const std::string xml_path = GetTestDataFilePath(local_path);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    int nv = m->nv;
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    EXPECT_EQ(m->ntendon, 1);
+    mjData* d = mj_makeData(m);
+
+    for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      m->opt.jacobian = sparsity;
+
+      if (m->nkey) {
+        mj_resetDataKeyframe(m, d, 0);
+      } else {
+        mj_resetData(m, d);
+        while (d->time < 1) {
+          mj_step(m, d);
+        }
+      }
+
+      mj_forward(m, d);
+
+      // get current J and Jdot for the tendon
+      vector<mjtNum> ten_J(d->ten_J, d->ten_J + nv);
+      vector<mjtNum> ten_Jdot(nv, 0);
+      mj_tendonDot(m, d, 0, ten_Jdot.data());
+
+      // compute finite-differenced Jdot
+      mjtNum h = 1e-7;
+      mj_integratePos(m, d->qpos, d->qvel, h);
+      mj_kinematics(m, d);
+      mj_comPos(m, d);
+      mj_tendon(m, d);
+      vector<mjtNum> ten_Jh(d->ten_J, d->ten_J + nv);
+      mju_subFrom(ten_Jh.data(), ten_J.data(), nv);
+      mju_scl(ten_Jh.data(), ten_Jh.data(), 1.0 / h, nv);
+
+      // expect analytic and FD derivatives to be similar to eps precision
+      mjtNum eps = 1e-6;
+      EXPECT_THAT(ten_Jdot, Pointwise(DoubleNear(eps), ten_Jh));
+    }
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
 // --------------------------- connect constraint ------------------------------
 
 // test that bodies hanging on connects lead to expected force sensor readings

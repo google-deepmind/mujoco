@@ -861,6 +861,128 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
 
 
+// compute time derivative of dense tendon Jacobian for one tendon
+void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
+  int nv = m->nv;
+
+  // allocate stack arrays
+  mjtNum *jac1, *jac2, *jacdif, *tmp;
+  mj_markStack(d);
+  jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+  tmp = mjSTACKALLOC(d, nv, mjtNum);
+
+  // return if tendon id is invalid
+  if (id < 0 || id >= m->ntendon) {
+    return;
+  }
+
+  // clear output
+  mju_zero(Jdot, nv);
+
+  // fixed tendon has zero Jdot: return
+  int adr = m->tendon_adr[id];
+  if (m->wrap_type[adr] == mjWRAP_JOINT) {
+    return;
+  }
+
+  // process spatial tendon
+  mjtNum divisor = 1;
+  int wraptype, j = 0;
+  int num = m->tendon_num[id];
+  while (j < num-1) {
+    // get 1st and 2nd object
+    int type0 = m->wrap_type[adr+j+0];
+    int type1 = m->wrap_type[adr+j+1];
+    int id0 = m->wrap_objid[adr+j+0];
+    int id1 = m->wrap_objid[adr+j+1];
+
+    // pulley
+    if (type0 == mjWRAP_PULLEY || type1 == mjWRAP_PULLEY) {
+      // get divisor, insert obj=-2
+      if (type0 == mjWRAP_PULLEY) {
+        divisor = m->wrap_prm[adr+j];
+      }
+
+      // move to next
+      j++;
+      continue;
+    }
+
+    // init sequence; assume it starts with site
+    mjtNum wpnt[6];
+    mju_copy3(wpnt, d->site_xpos+3*id0);
+    mjtNum vel[6];
+    mj_objectVelocity(m, d, mjOBJ_SITE, id0, vel, /*flg_local=*/0);
+    mjtNum wvel[6] = {vel[3], vel[4], vel[5], 0, 0, 0};
+    int wbody[2];
+    wbody[0] = m->site_bodyid[id0];
+
+    // second object is geom: process site-geom-site
+    if (type1 == mjWRAP_SPHERE || type1 == mjWRAP_CYLINDER) {
+      // TODO(tassa) support geom wrapping (requires derivatives of mju_wrap)
+      mjERROR("geom wrapping not supported");
+    } else {
+      wraptype = mjWRAP_NONE;
+    }
+
+    // complete sequence
+    wbody[1] = m->site_bodyid[id1];
+    mju_copy3(wpnt+3, d->site_xpos+3*id1);
+    mj_objectVelocity(m, d, mjOBJ_SITE, id1, vel, /*flg_local=*/0);
+    mju_copy3(wvel+3, vel+3);
+
+    // accumulate moments if consecutive points are in different bodies
+    if (wbody[0] != wbody[1]) {
+      // dpnt = 3D position difference, normalize
+      mjtNum dpnt[3];
+      mju_sub3(dpnt, wpnt+3, wpnt);
+      mjtNum norm = mju_norm3(dpnt);
+      mju_scl3(dpnt, dpnt, 1/norm);
+
+      // dvel = d / dt (dpnt)
+      mjtNum dvel[3];
+      mju_sub3(dvel, wvel+3, wvel);
+      mjtNum dot = mju_dot3(dpnt, dvel);
+      mju_addToScl3(dvel, dpnt, -dot);
+      mju_scl3(dvel, dvel, 1/norm);
+
+      // TODO(tassa ) write sparse branch, requires mj_jacDotSparse
+      // if (mj_isSparse(m)) { ... }
+
+      // get endpoint JacobianDots, subtract
+      mj_jacDot(m, d, jac1, 0, wpnt, wbody[0]);
+      mj_jacDot(m, d, jac2, 0, wpnt+3, wbody[1]);
+      mju_sub(jacdif, jac2, jac1, 3*nv);
+
+      // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
+      mju_mulMatTVec(tmp, jacdif, dpnt, 3, nv);
+
+      // add to existing
+      mju_addToScl(Jdot, tmp, 1/divisor, nv);
+
+      // get endpoint Jacobians, subtract
+      mj_jac(m, d, jac1, 0, wpnt, wbody[0]);
+      mj_jac(m, d, jac2, 0, wpnt+3, wbody[1]);
+      mju_sub(jacdif, jac2, jac1, 3*nv);
+
+      // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)
+      mju_mulMatTVec(tmp, jacdif, dvel, 3, nv);
+
+      // add to existing
+      mju_addToScl(Jdot, tmp, 1/divisor, nv);
+    }
+
+    // advance
+    j += (wraptype != mjWRAP_NONE ? 2 : 1);
+  }
+
+  mj_freeStack(d);
+}
+
+
+
 // compute actuator/transmission lengths and moments
 void mj_transmission(const mjModel* m, mjData* d) {
   int nv = m->nv, nu = m->nu;
