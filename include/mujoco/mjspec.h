@@ -23,6 +23,7 @@
 // this is a C-API
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -119,6 +120,7 @@ typedef enum mjtOrientation_ {     // type of orientation specifier
 
 typedef struct mjsElement_ {       // element type, do not modify
   mjtObj elemtype;                 // element type
+  uint64_t signature;              // compilation signature
 } mjsElement;
 
 

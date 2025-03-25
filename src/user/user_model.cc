@@ -201,6 +201,7 @@ mjCModel::mjCModel() {
   world->mass = 0;
   mjuu_zerovec(world->inertia, 3);
   world->id = 0;
+  world->uid = GetUid();
   world->parent = nullptr;
   world->weldid = 0;
   world->name = "world";
@@ -213,6 +214,9 @@ mjCModel::mjCModel() {
 
   // the source spec is the model itself, overwritten in the copy constructor
   source_spec_ = &spec;
+
+  // set the signature
+  spec.element->signature = 0;
 }
 
 
@@ -289,6 +293,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     // copy the element from the other model to this model
     if (deepcopy_) {
       source[i]->ForgetKeyframes();
+      candidate->uid = GetUid();
     } else {
       candidate->AddRef();
     }
@@ -499,6 +504,9 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     nq = nv = na = nu = nmocap = 0;
   }
 
+  // update signature before we reset the tree lists
+  spec.element->signature = Signature();
+
   PointToLocal();
   return *this;
 }
@@ -632,6 +640,9 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
   RemovePlugins();
+
+  // update signature before we reset the tree lists
+  spec.element->signature = Signature();
 
   return *this;
 }
@@ -802,6 +813,9 @@ void mjCModel::DeleteElement(mjsElement* el) {
       deletefromlist(object_lists_[el->elemtype], el);
       break;
   }
+
+  // update signature before we reset the tree lists
+  spec.element->signature = Signature();
 
   ResetTreeLists();  // in case of a nested delete
   MakeTreeLists();
@@ -1019,7 +1033,9 @@ template <class T>
 T* mjCModel::AddObject(vector<T*>& list, string type) {
   T* obj = new T(this);
   obj->id = (int)list.size();
+  obj->uid = GetUid();
   list.push_back(obj);
+  spec.element->signature = Signature();
   return obj;
 }
 
@@ -1030,7 +1046,9 @@ T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   T* obj = new T(this, def ? def : defaults_[0]);
   obj->id = (int)list.size();
   obj->classname = def ? def->name : "main";
+  obj->uid = GetUid();
   list.push_back(obj);
+  spec.element->signature = Signature();
   return obj;
 }
 
@@ -4572,6 +4590,28 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     mju::strcpy_arr(errInfo.message, warningtext);
     errInfo.warning = true;
   }
+
+  // save signature
+  m->signature = Signature();
+}
+
+
+
+uint64_t mjCModel::Signature() {
+  std::string uid_str;
+  for (int i = 0; i < mjNOBJECT; ++i) {
+    if (i == mjOBJ_XBODY || i == mjOBJ_UNKNOWN || i == mjOBJ_DOF) {
+      continue;
+    }
+    if (object_lists_[i] == nullptr) {
+      throw mjCError(0, "object list %s is null", std::to_string(i).c_str());
+    }
+    uid_str += '|';
+    for (mjCBase* object : *object_lists_[i]) {
+      uid_str += std::to_string(object->uid) + " ";
+    }
+  }
+  return mj_hashString(uid_str.c_str(), UINT64_MAX);
 }
 
 

@@ -219,6 +219,7 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 class mjCBase_ : public mjsElement {
  public:
   int id;                 // object id
+  int uid;                // unique identifier
   std::string name;       // object name
   std::string classname;  // defaults class name
   std::string info;       // error message info set by the user

@@ -2014,6 +2014,9 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
       }
     }
   }
+
+  // copy signature from model
+  d->signature = m->signature;
 }
 
 

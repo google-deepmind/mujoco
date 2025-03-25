@@ -5008,6 +5008,7 @@ public unsafe struct mjData_ {
   public double* efc_force;
   public int* efc_state;
   public UIntPtr threadpool;
+  public UInt64 signature;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5672,6 +5673,7 @@ public unsafe struct mjModel_ {
   public char* names;
   public int* names_map;
   public char* paths;
+  public UInt64 signature;
 }
 
 [StructLayout(LayoutKind.Sequential)]

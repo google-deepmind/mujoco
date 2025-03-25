@@ -403,12 +403,14 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   mjCFlex* flex = model->AddFlex();
   mjsFlex* pf = &flex->spec;
   int id = flex->id;
+  int uid = flex->uid;
 
   *flex = def.Flex();
   flex->PointToLocal();
 
   flex->model = model;
   flex->id = id;
+  flex->uid = uid;
   mjs_setString(pf->name, name.c_str());
   mjs_setInt(pf->elem, element.data(), element.size());
   mjs_setFloat(pf->texcoord, texcoord.data(), texcoord.size());

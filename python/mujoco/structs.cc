@@ -1710,6 +1710,10 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         // Return the full bytes array of concatenated paths
         return m.paths_bytes;
       });
+  mjModel.def_property_readonly(
+      "signature", [](const MjModelWrapper& m) -> const uint64_t& {
+        return m.get()->signature;
+      });
 
 #define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)             \
   mjModel.def(                                                                \
@@ -1730,7 +1734,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjModel.def(                                                        \
       "bind_scalar",                                                  \
       [](MjModelWrapper& m, spectype& spec) -> auto& {                \
-        return m.indexer().field##_by_name(mjs_getString(spec.name)); \
+        if (mjs_getSpec(spec.element)->element->signature !=          \
+            m.get()->signature) {                                     \
+          throw py::value_error(                                      \
+              "The mjSpec does not match mjModel. Please recompile "  \
+              "the mjSpec.");                                         \
+        }                                                             \
+        return m.indexer().field(mjs_getId(spec.element)); \
       },                                                              \
       py::return_value_policy::reference_internal,                    \
       py::arg_v("spec", py::none()));
@@ -2018,6 +2028,10 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         std::istringstream input(b, std::ios::in | std::ios::binary);
         return MjDataWrapper::Deserialize(input);
       }));
+  mjData.def_property_readonly(
+      "signature", [](const MjDataWrapper& d) -> uint64_t {
+        return d.get()->signature;
+      });
 
 #define X(type, var)                                             \
   mjData.def_property(                                           \
@@ -2076,7 +2090,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjData.def(                                                         \
       "bind_scalar",                                                  \
       [](MjDataWrapper& d, spectype& spec) -> auto& {                 \
-        return d.indexer().field##_by_name(mjs_getString(spec.name)); \
+        if (mjs_getSpec(spec.element)->element->signature !=          \
+            d.get()->signature) {                                     \
+          throw py::value_error(                                      \
+                 "The mjSpec does not match mjData. Please recompile "\
+                 "the mjSpec.");                                      \
+        }                                                             \
+        return d.indexer().field(mjs_getId(spec.element));            \
       },                                                              \
       py::return_value_policy::reference_internal,                    \
       py::arg_v("spec", py::none()));

@@ -613,12 +613,27 @@ def generate_find() -> None:
     print(code)
 
 
+def generate_signature() -> None:
+  """Generate signature functions."""
+  for key, _, _, _, _ in SPECS:
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("signature",
+      [](raw::{titlecase}& self) -> uint64_t {{
+        return mjs_getSpec(self.element)->element->signature;
+      }});
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   generate()
   generate_add()
   generate_find()
+  generate_signature()
 
 
 if __name__ == '__main__':

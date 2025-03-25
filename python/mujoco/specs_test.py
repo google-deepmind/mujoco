@@ -1153,6 +1153,13 @@ class SpecsTest(absltest.TestCase):
         AttributeError, "object has no attribute 'invalid'"
     ):
       print(mj_model.bind(joints).invalid)
+    invalid_spec = mujoco.MjSpec()
+    invalid_spec.worldbody.add_body(name='main')
+    with self.assertRaisesRegex(
+        ValueError,
+        'The mjSpec does not match mjModel. Please recompile the mjSpec.',
+    ):
+      print(mj_model.bind(invalid_spec.body('main')))
 
   def test_incorrect_hfield_size(self):
     nrow = 300
