@@ -287,8 +287,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
-        {"composite", "*", "8", "prefix", "type", "count", "offset",
-            "vertex", "initial", "curve", "size"},
+        {"composite", "*", "9", "prefix", "type", "count", "offset",
+            "vertex", "initial", "curve", "size", "quat"},
         {"<"},
             {"joint", "*", "17", "kind", "group", "stiffness", "damping", "armature",
                 "solreffix", "solimpfix", "type", "axis",
@@ -2402,6 +2402,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsFrame* frame, c
   }
   ReadAttr(elem, "count", 3, comp.count, text, false, false);
   ReadAttr(elem, "offset", 3, comp.offset, text);
+  ReadAttr(elem, "quat", 4, comp.quat, text);
   comp.frame = frame;
 
   // plugin

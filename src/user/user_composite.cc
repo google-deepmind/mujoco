@@ -52,6 +52,7 @@ mjCComposite::mjCComposite(void) {
   type = mjCOMPTYPE_PARTICLE;
   count[0] = count[1] = count[2] = 1;
   mjuu_setvec(offset, 0, 0, 0);
+  mjuu_setvec(quat, 1, 0, 0, 0);
   frame = nullptr;
 
   // plugin variables
@@ -260,19 +261,20 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
   // populate uservert if not specified
   if (uservert.empty()) {
     for (int ix=0; ix < count[0]; ix++) {
+      double v[3];
       for (int k=0; k < 3; k++) {
         switch (curve[k]) {
           case mjCOMPSHAPE_LINE:
-            uservert.push_back(ix*size[0]/(count[0]-1));
+            v[k] = ix*size[0]/(count[0]-1);
             break;
           case mjCOMPSHAPE_COS:
-            uservert.push_back(size[1]*cos(mjPI*ix*size[2]/(count[0]-1)));
+            v[k] = size[1]*cos(mjPI*ix*size[2]/(count[0]-1));
             break;
           case mjCOMPSHAPE_SIN:
-            uservert.push_back(size[1]*sin(mjPI*ix*size[2]/(count[0]-1)));
+            v[k] = size[1]*sin(mjPI*ix*size[2]/(count[0]-1));
             break;
           case mjCOMPSHAPE_ZERO:
-            uservert.push_back(0);
+            v[k] = 0;
             break;
           default:
             // SHOULD NOT OCCUR
@@ -280,6 +282,8 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
             break;
         }
       }
+      mjuu_rotVecQuat(v, v, quat);
+      uservert.insert(uservert.end(), v, v+3);
     }
   }
 

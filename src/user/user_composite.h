@@ -73,7 +73,8 @@ class mjCComposite {
   std::string prefix;             // name prefix
   mjtCompType type;               // composite type
   int count[3];                   // geom count in each dimension
-  double offset[3];               // position offset for particle and grid
+  double offset[3];               // position offset
+  double quat[4];                 // quaternion offset
 
   // currently used only for cable
   std::string initial;            // root boundary type

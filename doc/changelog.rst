@@ -11,6 +11,11 @@ Upcoming version (not yet released)
    - The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
      "true" to "false". This feature has proven to be counterintuitive for users.
 
+General
+^^^^^^^
+- Add :ref:`orientation<body-composite-quat>` parameter to :ref:`composite<body-composite>`. Moreover, allow the
+  composite to be the direct child of a frame.
+
 Bug fixes
 ^^^^^^^^^
 - :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to

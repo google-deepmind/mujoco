@@ -3003,8 +3003,13 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 .. _body-composite-offset:
 
 :at:`offset`: :at-val:`real(3), "0 0 0"`
-   It specifies a 3D offset from the center of the parent body to the center of the grid of elements. The offset is
-   expressed in the local coordinate frame of the parent body.
+   It specifies a 3D offset from the center of the parent body to the center of the first body of the cable. The offset
+   is expressed in the local coordinate frame of the parent body.
+
+.. _body-composite-quat:
+
+:at:`quat`: :at-val:`real(4), "1 0 0 0"`
+   It specifies a quaternion that rotates the first body frame. The quaternion is expressed in the parent body frame.
 
 .. _body-composite-vertex:
 
