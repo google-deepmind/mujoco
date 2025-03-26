@@ -1,0 +1,15 @@
+<mujoco model="mesh test">
+  <asset>
+    <texture name="texture" file="textures/cube.png" type="2d" />
+    <material name="material_red" rgba="0.8 0 0 1" />
+    <material name="material_texture" texture="texture" />
+    <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+  </asset>
+  <worldbody>
+    <body name="test_body">
+      <geom material="material_red" type="mesh" mesh="tetrahedron"/>
+      <geom material="material_texture" type="mesh" mesh="tetrahedron"/>
+    </body>
+  </worldbody>
+</mujoco>
+
