@@ -2388,7 +2388,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
 
 // make composite
-void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* def) {
+void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsFrame* frame, const mjsDefault* def) {
   string text;
   int n;
 
@@ -2402,6 +2402,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, const mjsDefault* 
   }
   ReadAttr(elem, "count", 3, comp.count, text, false, false);
   ReadAttr(elem, "offset", 3, comp.offset, text);
+  comp.frame = frame;
 
   // plugin
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
@@ -3467,7 +3468,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     // composite sub-element
     else if (name == "composite") {
       // parse composite
-      OneComposite(elem, body, def);
+      OneComposite(elem, body, frame, def);
     }
 
     // flexcomp sub-element

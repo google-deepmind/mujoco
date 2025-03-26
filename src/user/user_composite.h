@@ -80,6 +80,7 @@ class mjCComposite {
   std::vector<float> uservert;    // user-specified vertex positions
   double size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
+  mjsFrame* frame;                // frame where the composite is defined
 
   // body names used in the skin
   std::vector<std::string> username;
