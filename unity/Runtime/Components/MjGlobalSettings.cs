@@ -253,12 +253,12 @@ public struct MjOptionStruct {
     Jacobian = mjcf.GetEnumAttribute<JacobianType>("jacobian", localDefault.Jacobian);
     Solver = mjcf.GetEnumAttribute<ConstraintSolverType>("solver", localDefault.Solver);
 
-    Iterations = (int)mjcf.GetFloatAttribute("iterations", localDefault.Iterations);
+    Iterations = mjcf.GetIntAttribute("iterations", localDefault.Iterations);
     Tolerance = mjcf.GetFloatAttribute("tolerance", localDefault.Tolerance);
-    NoSlipIterations = (int)mjcf.GetFloatAttribute(
+    NoSlipIterations = mjcf.GetIntAttribute(
         "noslip_iterations", localDefault.NoSlipIterations);
     NoSlipTolerance = mjcf.GetFloatAttribute("noslip_tolerance", localDefault.NoSlipTolerance);
-    CcdIterations = (int)mjcf.GetFloatAttribute("ccd_iterations", localDefault.CcdIterations);
+    CcdIterations = mjcf.GetIntAttribute("ccd_iterations", localDefault.CcdIterations);
     CcdTolerance = mjcf.GetFloatAttribute("ccd_tolerance", localDefault.CcdTolerance);
 
     var flagElements = mjcf.GetElementsByTagName("flag");
