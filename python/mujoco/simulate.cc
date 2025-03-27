@@ -149,7 +149,7 @@ class SimulateWrapper {
 
   void ClearFigures() { simulate_->user_figures_.clear(); }
 
-  void SetOverlayText(
+  void SetText(
       const std::vector<std::tuple<int, int, std::string, std::string>>& overlay_texts) {
     // Collection of [font, gridpos, text1, text2] tuples for overlay text
     std::vector<std::tuple<int, int, std::string, std::string>> user_overlay_text;
@@ -161,21 +161,24 @@ class SimulateWrapper {
     simulate_->user_text_ = user_overlay_text;
   }
 
-  void ClearOverlayText() { simulate_->user_text_.clear(); }
+  void ClearText() { simulate_->user_text_.clear(); }
 
   void SetImages(
-    const std::vector<std::tuple<mjrRect, pybind11::array_t<unsigned char>>>& viewport_images
+    const std::vector<std::tuple<mjrRect, pybind11::array&>> viewports_images
   ) {
     // Clear previous images to prevent memory leaks
     ClearImages();
     
-    for (const auto& [viewport, image] : viewport_images) {
+    for (const auto& [viewport, image] : viewports_images) {
       auto buf = image.request();
+      if (buf.ndim != 3) {
+        throw std::invalid_argument("image must have 3 dimensions (H, W, C)");
+      }
       if (static_cast<int>(buf.shape[2]) != 3) {
         throw std::invalid_argument("image must have 3 channels");
       }
-      if (buf.ndim != 3) {
-        throw std::invalid_argument("image must have 3 dimensions (H, W, C)");
+      if (buf.itemsize != sizeof(unsigned char)) {
+        throw std::invalid_argument("image must be uint8 format");
       }
       
       // Calculate size of the image data
@@ -300,9 +303,9 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("set_figures", &SimulateWrapper::SetFigures,
            py::arg("viewports_figures"))
       .def("clear_figures", &SimulateWrapper::ClearFigures)
-      .def("overlay_text", &SimulateWrapper::SetOverlayText,
+      .def("set_text", &SimulateWrapper::SetText,
            py::arg("overlay_texts"))
-      .def("clear_overlay_text", &SimulateWrapper::ClearOverlayText)
+      .def("clear_text", &SimulateWrapper::ClearText)
       .def("set_images", &SimulateWrapper::SetImages,
            py::arg("viewports_images"))
       .def("clear_images", &SimulateWrapper::ClearImages)

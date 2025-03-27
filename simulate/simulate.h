@@ -249,7 +249,7 @@ class Simulate {
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
 
-  // additional user-defined visualization geoms (used in passive mode)
+  // additional user-defined visualization
   mjvScene* user_scn = nullptr;
   mjtByte user_scn_flags_prev_[mjNRNDFLAG];
   std::vector<std::pair<mjrRect, mjvFigure>> user_figures_;

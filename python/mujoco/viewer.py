@@ -117,10 +117,21 @@ class Handle:
     return None
 
   def set_figures(
-      self, viewports_figures: List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]
+      self, viewports_figures: Union[Tuple[mujoco.MjrRect, mujoco.MjvFigure],
+                                   List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]]
   ):
+    """Overlay figures on the viewer.
+
+    Args:
+      viewports_figures: Single tuple or list of tuples of (viewport, figure)
+        viewport: Rectangle defining position and size of the figure
+        figure: MjvFigure object containing the figure data to display
+    """
     sim = self._sim()
     if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(viewports_figures, tuple):
+        viewports_figures = [viewports_figures]
       sim.set_figures(viewports_figures)
 
   def clear_figures(self):
@@ -128,43 +139,67 @@ class Handle:
     if sim is not None:
       sim.clear_figures()
 
-  def overlay_text(self, overlay_texts: List[Tuple[int, int, str, str]]):
+  def set_text(self, overlay_texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]], 
+                                            List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
     """Overlay text on the viewer.
 
     Args:
-      overlay_texts: List of tuples of (font, gridpos, text1, text2)
-      let:
+      overlay_texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
         font: Font style from mujoco.mjtFontScale
         gridpos: Position of text box from mujoco.mjtGridPos
-        text1: Left text column
-        text2: Right text column
+        text1: Left text column, defaults to empty string if None
+        text2: Right text column, defaults to empty string if None
     """
     sim = self._sim()
     if sim is not None:
-      sim.overlay_text(overlay_texts)
+      # Convert single tuple to list if needed
+      if isinstance(overlay_texts, tuple):
+        overlay_texts = [overlay_texts]
+      
+      # Convert None values to empty strings
+      default_font = mujoco.mjtFontScale.mjFONTSCALE_150
+      default_gridpos = mujoco.mjtGridPos.mjGRID_TOPLEFT
+      processed_texts = [(
+                        default_font if font is None else font, 
+                        default_gridpos if gridpos is None else gridpos, 
+                         "" if text1 is None else text1,
+                         "" if text2 is None else text2)
+                        for font, gridpos, text1, text2 in overlay_texts]
+      
+      sim.set_text(processed_texts)
 
-  def clear_overlay_text(self):
+  def clear_text(self):
     sim = self._sim()
     if sim is not None:
-      sim.clear_overlay_text()
+      sim.clear_text()
 
   def set_images(
-      self, viewports_images: List[Tuple[mujoco.MjrRect, np.ndarray]]
+      self, viewports_images: Union[Tuple[mujoco.MjrRect, np.ndarray],
+                                  List[Tuple[mujoco.MjrRect, np.ndarray]]]
   ):
+    """Overlay images on the viewer.
+
+    Args:
+      viewports_images: Single tuple or list of tuples of (viewport, image)
+        viewport: Rectangle defining position and size of the image
+        image: RGB image with shape (height, width, 3)
+    """
     sim = self._sim()
     if sim is not None:
-      # Nearest neighbor resize
-      resize = lambda a, s: a[(np.arange(s[0]) * a.shape[0]) // s[0]][
-          :, (np.arange(s[1]) * a.shape[1]) // s[1]
-      ]
-      resized_viewports_images = []
+      # Convert single tuple to list if needed
+      if isinstance(viewports_images, tuple):
+        viewports_images = [viewports_images]
+
+      processed_images = []
       for viewport, image in viewports_images:
         targ_shape = (viewport.height, viewport.width)
-        resized = resize(image, targ_shape)
-        resized = np.flip(resized, axis=0)
-        resized = np.ascontiguousarray(resized)
-        resized_viewports_images.append((viewport, resized))
-      sim.set_images(resized_viewports_images)
+        # Check if image is already the correct shape
+        if image.shape[:2] != targ_shape:
+          raise ValueError(f"Image shape {image.shape[:2]} does not match target shape {targ_shape}")
+        flipped = np.flip(image, axis=0)
+        contiguous = np.ascontiguousarray(flipped)
+        processed_images.append((viewport, contiguous))
+      sim.set_images(processed_images)
 
   def clear_images(self):
     sim = self._sim()
