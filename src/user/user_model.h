@@ -217,6 +217,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCPlugin* AddPlugin();
   void AppendSpec(mjSpec* spec);
 
+  // Find duplicate assets and return the existing one if found
+  mjSpec* FindDuplicateAsset(const mjSpec* spec);
+
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
                                  const std::vector<bool>& discard);
