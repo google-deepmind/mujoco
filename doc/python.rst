@@ -601,6 +601,14 @@ Lists of all elements in a spec can be accessed using named properties, using th
 ``equalities``, ``tendons``, ``actuators``, ``skins``, ``textures``, ``texts``, ``tuples``, ``flexes``, ``hfields``,
 ``keys``, ``numerics``, ``excludes``, ``sensors``, ``plugins``.
 
+Element removal
+^^^^^^^^^^^^^^^
+For elements that can have children (bodies and defaults), the methods ``spec.detach_body(body)`` and
+``spec.detach_default(def)`` remove, respectively, ``body`` and ``def`` from the spec, together with all of their
+children. When detaching body subtrees, all elements which reference elements in the subtree, will also be removed. For
+all other elements, the method ``delete()`` removes the corresponding element from the spec, e.g.
+``spec.geom('my_geom').delete()`` will remove the geom named "my_geom" and all of the elements that reference it.
+
 Tree traversal
 ^^^^^^^^^^^^^^
 Traversal of the kinematic tree is aided by the following methods which return tree-related lists of elements:
