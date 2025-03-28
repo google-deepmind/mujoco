@@ -91,6 +91,7 @@ class SimulateWrapper {
 
   void Destroy() {
     if (simulate_) {
+      ClearImages();
       delete simulate_;
       simulate_ = nullptr;
       destroyed_.store(1);
@@ -147,6 +148,59 @@ class SimulateWrapper {
   }
 
   void ClearFigures() { simulate_->user_figures_.clear(); }
+
+  void SetText(
+      const std::vector<std::tuple<int, int, std::string, std::string>>& overlay_texts) {
+    // Collection of [font, gridpos, text1, text2] tuples for overlay text
+    std::vector<std::tuple<int, int, std::string, std::string>> user_overlay_text;
+    for (const auto& [font, gridpos, text1, text2] : overlay_texts) {
+      user_overlay_text.push_back(std::make_tuple(font, gridpos, text1, text2));
+    }
+
+    // Set them all at once to prevent overlay text flickering.
+    simulate_->user_text_ = user_overlay_text;
+  }
+
+  void ClearText() { simulate_->user_text_.clear(); }
+
+  void SetImages(
+    const std::vector<std::tuple<mjrRect, pybind11::array&>> viewports_images
+  ) {
+    // Clear previous images to prevent memory leaks
+    ClearImages();
+    
+    for (const auto& [viewport, image] : viewports_images) {
+      auto buf = image.request();
+      if (buf.ndim != 3) {
+        throw std::invalid_argument("image must have 3 dimensions (H, W, C)");
+      }
+      if (static_cast<int>(buf.shape[2]) != 3) {
+        throw std::invalid_argument("image must have 3 channels");
+      }
+      if (buf.itemsize != sizeof(unsigned char)) {
+        throw std::invalid_argument("image must be uint8 format");
+      }
+      
+      // Calculate size of the image data
+      size_t height = buf.shape[0];
+      size_t width = buf.shape[1];
+      size_t size = height * width * 3;
+      
+      // Make a copy of the image data to prevent flickering
+      unsigned char* image_copy = new unsigned char[size];
+      std::memcpy(image_copy, buf.ptr, size);
+      
+      simulate_->user_images_.push_back(std::make_tuple(viewport, image_copy));
+    }
+  }
+
+  void ClearImages() { 
+    // Free memory for each image before clearing the vector
+    for (const auto& [viewport, image_ptr] : simulate_->user_images_) {
+      delete[] image_ptr;
+    }
+    simulate_->user_images_.clear(); 
+  }
 
  private:
   mujoco::Simulate* simulate_;
@@ -249,6 +303,12 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("set_figures", &SimulateWrapper::SetFigures,
            py::arg("viewports_figures"))
       .def("clear_figures", &SimulateWrapper::ClearFigures)
+      .def("set_text", &SimulateWrapper::SetText,
+           py::arg("overlay_texts"))
+      .def("clear_text", &SimulateWrapper::ClearText)
+      .def("set_images", &SimulateWrapper::SetImages,
+           py::arg("viewports_images"))
+      .def("clear_images", &SimulateWrapper::ClearImages)
       .def_property_readonly("m", &SimulateWrapper::GetModel)
       .def_property_readonly("d", &SimulateWrapper::GetData)
       .def_property_readonly("viewport", &SimulateWrapper::GetViewport)
