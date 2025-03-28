@@ -2514,6 +2514,54 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
   mj_deleteModel(copied_model);
 }
 
+TEST_F(MujocoTest, DifferentOptionsInAttachedFrame) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <compiler eulerseq="zyx"/>
+    <worldbody>
+      <frame name="child" >
+        <site euler="0 90 180"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // load specs and compile child
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, nullptr, 0);
+  EXPECT_THAT(parent, NotNull());
+  mjSpec* child = mj_parseXMLString(xml_child, 0, nullptr, 0);
+  EXPECT_THAT(child, NotNull());
+  mjModel* m_child = mj_compile(child, 0);
+  EXPECT_THAT(m_child, NotNull());
+
+  // attach child frame to parent worldbody
+  mjsBody* world = mjs_findBody(parent, "world");
+  EXPECT_THAT(world, NotNull());
+  mjsFrame* child_frame = mjs_findFrame(child, "child");
+  EXPECT_THAT(child_frame, NotNull());
+  mjsFrame* attached_frame = mjs_attachFrame(world, child_frame, "child-", "");
+  EXPECT_THAT(attached_frame, NotNull());
+
+  // wrap the child frame in the parent frame and compile
+  mjModel* m_attached = mj_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull());
+  EXPECT_NEAR(m_attached->site_quat[0], m_child->site_quat[0], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[1], m_child->site_quat[1], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[2], m_child->site_quat[2], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[3], m_child->site_quat[3], 1e-6);
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(m_child);
+  mj_deleteModel(m_attached);
+}
+
 TEST_F(MujocoTest, CopyAttachedSpec) {
   static constexpr char xml_parent[] = R"(
   <mujoco>

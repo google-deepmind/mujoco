@@ -212,9 +212,6 @@ mjCModel::mjCModel() {
   // create mjCBase lists from children lists
   CreateObjectLists();
 
-  // the source spec is the model itself, overwritten in the copy constructor
-  source_spec_ = &spec;
-
   // set the signature
   spec.element->signature = 0;
 }
@@ -223,7 +220,6 @@ mjCModel::mjCModel() {
 
 mjCModel::mjCModel(const mjCModel& other) {
   CreateObjectLists();
-  source_spec_ = (mjSpec*)&other.spec;
   *this = other;
 }
 
@@ -239,6 +235,7 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // copy attached specs first so that we can resolve references to them
     for (const auto* s : other.specs_) {
       specs_.push_back(mj_copySpec(s));
+      compiler2spec_[&s->compiler] = specs_.back();
     }
 
     // the world copy constructor takes care of copying the tree
@@ -1165,9 +1162,13 @@ mjCPlugin* mjCModel::AddPlugin() {
 
 
 // append spec to spec
-void mjCModel::AppendSpec(mjSpec* spec) {
+void mjCModel::AppendSpec(mjSpec* spec, const mjsCompiler* compiler_) {
   // TODO: check if the spec is already in the list
   specs_.push_back(spec);
+
+  if (compiler_) {
+    compiler2spec_[compiler_] = spec;
+  }
 }
 
 
@@ -1461,10 +1462,15 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
 
 
 // find spec by mjsCompiler pointer
-mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
-  if (&GetSourceSpec()->compiler == compiler_) {
-    return (mjSpec*)&spec;
+mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) {
+  if (compiler_ == &spec.compiler) {
+    return &spec;
   }
+
+  if (compiler2spec_.find(compiler_) != compiler2spec_.end()) {
+    return compiler2spec_[compiler_];
+  }
+
   for (auto s : specs_) {
     mjSpec* source = static_cast<mjCModel*>(s->element)->FindSpec(compiler_);
     if (source) {
@@ -1472,13 +1478,6 @@ mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
     }
   }
   return nullptr;
-}
-
-
-
-// get the spec from which this model was created
-mjSpec* mjCModel::GetSourceSpec() const {
-  return source_spec_;
 }
 
 

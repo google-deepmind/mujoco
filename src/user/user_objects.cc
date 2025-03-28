@@ -904,7 +904,7 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // append a copy of the attached spec
   if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
-    model->AppendSpec(mj_copySpec(&other.model->spec));
+    model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
   // create a copy of the subtree that contains the frame
@@ -2038,7 +2038,7 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   // append a copy of the attached spec
   if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
-    model->AppendSpec(mj_copySpec(&other.model->spec));
+    model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
   // apply namespace and store keyframes in the source model
