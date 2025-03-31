@@ -149,19 +149,19 @@ class SimulateWrapper {
 
   void ClearFigures() { simulate_->user_figures_.clear(); }
 
-  void SetText(
-      const std::vector<std::tuple<int, int, std::string, std::string>>& overlay_texts) {
+  void SetTexts(
+      const std::vector<std::tuple<int, int, std::string, std::string>>& texts) {
     // Collection of [font, gridpos, text1, text2] tuples for overlay text
-    std::vector<std::tuple<int, int, std::string, std::string>> user_overlay_text;
-    for (const auto& [font, gridpos, text1, text2] : overlay_texts) {
-      user_overlay_text.push_back(std::make_tuple(font, gridpos, text1, text2));
+    std::vector<std::tuple<int, int, std::string, std::string>> user_texts;
+    for (const auto& [font, gridpos, text1, text2] : texts) {
+      user_texts.push_back(std::make_tuple(font, gridpos, text1, text2));
     }
 
-    // Set them all at once to prevent overlay text flickering.
-    simulate_->user_text_ = user_overlay_text;
+    // Set them all at once to prevent text flickering.
+    simulate_->user_texts_ = user_texts;
   }
 
-  void ClearText() { simulate_->user_text_.clear(); }
+  void ClearTexts() { simulate_->user_texts_.clear(); }
 
   void SetImages(
     const std::vector<std::tuple<mjrRect, pybind11::array&>> viewports_images
@@ -303,9 +303,9 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("set_figures", &SimulateWrapper::SetFigures,
            py::arg("viewports_figures"))
       .def("clear_figures", &SimulateWrapper::ClearFigures)
-      .def("set_text", &SimulateWrapper::SetText,
+      .def("set_texts", &SimulateWrapper::SetTexts,
            py::arg("overlay_texts"))
-      .def("clear_text", &SimulateWrapper::ClearText)
+      .def("clear_texts", &SimulateWrapper::ClearTexts)
       .def("set_images", &SimulateWrapper::SetImages,
            py::arg("viewports_images"))
       .def("clear_images", &SimulateWrapper::ClearImages)

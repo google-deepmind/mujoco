@@ -139,12 +139,12 @@ class Handle:
     if sim is not None:
       sim.clear_figures()
 
-  def set_text(self, overlay_texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]], 
+  def set_texts(self, texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]], 
                                             List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
     """Overlay text on the viewer.
 
     Args:
-      overlay_texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
+      texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
         font: Font style from mujoco.mjtFontScale
         gridpos: Position of text box from mujoco.mjtGridPos
         text1: Left text column, defaults to empty string if None
@@ -153,8 +153,8 @@ class Handle:
     sim = self._sim()
     if sim is not None:
       # Convert single tuple to list if needed
-      if isinstance(overlay_texts, tuple):
-        overlay_texts = [overlay_texts]
+      if isinstance(texts, tuple):
+        texts = [texts]
       
       # Convert None values to empty strings
       default_font = mujoco.mjtFontScale.mjFONTSCALE_150
@@ -164,14 +164,14 @@ class Handle:
                         default_gridpos if gridpos is None else gridpos, 
                          "" if text1 is None else text1,
                          "" if text2 is None else text2)
-                        for font, gridpos, text1, text2 in overlay_texts]
+                        for font, gridpos, text1, text2 in texts]
       
-      sim.set_text(processed_texts)
+      sim.set_texts(processed_texts)
 
-  def clear_text(self):
+  def clear_texts(self):
     sim = self._sim()
     if sim is not None:
-      sim.clear_text()
+      sim.clear_texts()
 
   def set_images(
       self, viewports_images: Union[Tuple[mujoco.MjrRect, np.ndarray],

@@ -2606,7 +2606,7 @@ void Simulate::Render() {
   }
 
   // overlay text
-  for (auto& [font, gridpos, text1, text2] : this->user_text_) {
+  for (auto& [font, gridpos, text1, text2] : this->user_texts_) {
     ShowOverlayText(this, rect, font, gridpos, text1, text2);
   }
 
