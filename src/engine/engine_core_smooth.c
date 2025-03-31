@@ -938,15 +938,14 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
       // dpnt = 3D position difference, normalize
       mjtNum dpnt[3];
       mju_sub3(dpnt, wpnt+3, wpnt);
-      mjtNum norm = mju_norm3(dpnt);
-      mju_scl3(dpnt, dpnt, 1/norm);
+      mjtNum norm = mju_normalize3(dpnt);
 
       // dvel = d / dt (dpnt)
       mjtNum dvel[3];
       mju_sub3(dvel, wvel+3, wvel);
       mjtNum dot = mju_dot3(dpnt, dvel);
       mju_addToScl3(dvel, dpnt, -dot);
-      mju_scl3(dvel, dvel, 1/norm);
+      mju_scl3(dvel, dvel, norm > mjMINVAL ? 1/norm : 0);
 
       // TODO(tassa ) write sparse branch, requires mj_jacDotSparse
       // if (mj_isSparse(m)) { ... }
