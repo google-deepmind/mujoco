@@ -269,16 +269,6 @@ py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
   return list;  // list of pointers, so they can be copied
 }
 
-void SetFrame(raw::MjsBody* body, mjtObj objtype, raw::MjsFrame* frame) {
-  mjsElement* el = mjs_firstChild(body, objtype, 0);
-  while (el) {
-    if (frame->element != el && mjs_getFrame(el) == nullptr) {
-      mjs_setFrame(el, frame);
-    }
-    el = mjs_nextChild(body, el, 0);
-  }
-}
-
 PYBIND11_MODULE(_specs, m) {
   auto structs_m = py::module::import("mujoco._structs");
   py::function mjmodel_from_raw_ptr =
@@ -526,18 +516,6 @@ PYBIND11_MODULE(_specs, m) {
           throw pybind11::value_error(
               "Only one of frame or site can be specified.");
         }
-        auto worldbody = mjs_findBody(child.ptr, "world");
-        if (!worldbody) {
-          throw pybind11::value_error("Child does not have a world body.");
-        }
-        auto worldframe = mjs_addFrame(worldbody, nullptr);
-        SetFrame(worldbody, mjOBJ_BODY, worldframe);
-        SetFrame(worldbody, mjOBJ_SITE, worldframe);
-        SetFrame(worldbody, mjOBJ_FRAME, worldframe);
-        SetFrame(worldbody, mjOBJ_JOINT, worldframe);
-        SetFrame(worldbody, mjOBJ_GEOM, worldframe);
-        SetFrame(worldbody, mjOBJ_LIGHT, worldframe);
-        SetFrame(worldbody, mjOBJ_CAMERA, worldframe);
         const char* p = prefix.has_value() ? prefix.value().c_str() : "";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
         raw::MjsElement* attached_frame = nullptr;
@@ -556,16 +534,9 @@ PYBIND11_MODULE(_specs, m) {
             throw pybind11::value_error(
                 "Frame spec does not match parent spec.");
           }
-          raw::MjsBody* parent_body = mjs_getParent(frame_ptr->element);
-          if (!parent_body) {
-            throw pybind11::value_error("Frame does not have a parent body.");
-          }
           attached_frame =
-              mjs_attach(parent_body->element, worldframe->element, p, s);
+              mjs_attach(frame_ptr->element, child.ptr->element, p, s);
           if (!attached_frame) {
-            throw pybind11::value_error(mjs_getError(self.ptr));
-          }
-          if (mjs_setFrame(attached_frame, frame_ptr) != 0) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
         }
@@ -585,7 +556,7 @@ PYBIND11_MODULE(_specs, m) {
                 "Site spec does not match parent spec.");
           }
           attached_frame =
-              mjs_attach(site_ptr->element, worldframe->element, p, s);
+              mjs_attach(site_ptr->element, child.ptr->element, p, s);
           if (!attached_frame) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }

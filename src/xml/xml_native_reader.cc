@@ -3627,27 +3627,33 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
     else if (name == "attach") {
       string model_name, body_name, prefix;
       ReadAttrTxt(elem, "model", model_name, /*required=*/true);
-      ReadAttrTxt(elem, "body", body_name, /*required=*/true);
+      ReadAttrTxt(elem, "body", body_name, /*required=*/false);
       ReadAttrTxt(elem, "prefix", prefix, /*required=*/true);
 
-      mjsBody* child = mjs_findBody(spec, (prefix+body_name).c_str());
+      mjsBody* child_body = mjs_findBody(spec, (prefix+body_name).c_str());
       mjsFrame* pframe = frame ? frame : mjs_addFrame(body, nullptr);
 
-      if (!child) {
+      if (!child_body) {
         mjSpec* asset = mjs_findSpec(spec, model_name.c_str());
         if (!asset) {
           throw mjXError(elem, "could not find model '%s'", model_name.c_str());
         }
-        child = mjs_findBody(asset, body_name.c_str());
-        if (!child) {
-          throw mjXError(elem, "could not find body '%s''%s'", body_name.c_str());
+        mjsElement* child;
+        if (body_name.empty()) {
+          child = asset->element;
+        } else {
+          child_body = mjs_findBody(asset, body_name.c_str());
+          if (!child_body) {
+            throw mjXError(elem, "could not find body '%s''%s'", body_name.c_str());
+          }
+          child = child_body->element;
         }
-        if (!mjs_attach(pframe->element, child->element, prefix.c_str(), "")) {
+        if (!mjs_attach(pframe->element, child, prefix.c_str(), "")) {
           throw mjXError(elem, mjs_getError(spec));
         }
       } else {
         // only set frame to existing body
-        if (mjs_setFrame(child->element, pframe)) {
+        if (mjs_setFrame(child_body->element, pframe)) {
           throw mjXError(elem, mjs_getError(spec));
         }
       }

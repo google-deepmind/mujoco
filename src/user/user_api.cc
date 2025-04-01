@@ -119,6 +119,18 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 }
 
 
+// set frame for all elements of a body
+static void SetFrame(mjsBody* body, mjtObj objtype, mjsFrame* frame) {
+  mjsElement* el = mjs_firstChild(body, objtype, 0);
+  while (el) {
+    if (frame->element != el && mjs_getFrame(el) == nullptr) {
+      mjs_setFrame(el, frame);
+    }
+    el = mjs_nextChild(body, el, 0);
+  }
+}
+
+
 
 // attach body to a frame of the parent
 static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
@@ -207,13 +219,44 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
     return nullptr;
   }
   mjCModel* model = static_cast<mjCModel*>(mjs_getSpec(parent)->element);
+  if (child->elemtype == mjOBJ_MODEL) {
+    mjCModel* child_model = static_cast<mjCModel*>((mjsElement*)child);
+    mjsBody* worldbody = mjs_findBody(&child_model->spec, "world");
+    if (!worldbody) {
+      model->SetError(mjCError(0, "Child does not have a world body."));
+      return nullptr;
+    }
+    mjsFrame* worldframe = mjs_addFrame(worldbody, nullptr);
+    SetFrame(worldbody, mjOBJ_BODY, worldframe);
+    SetFrame(worldbody, mjOBJ_SITE, worldframe);
+    SetFrame(worldbody, mjOBJ_FRAME, worldframe);
+    SetFrame(worldbody, mjOBJ_JOINT, worldframe);
+    SetFrame(worldbody, mjOBJ_GEOM, worldframe);
+    SetFrame(worldbody, mjOBJ_LIGHT, worldframe);
+    SetFrame(worldbody, mjOBJ_CAMERA, worldframe);
+    child = worldframe->element;
+  }
   switch (parent->elemtype) {
     case mjOBJ_FRAME:
       if (child->elemtype == mjOBJ_BODY) {
         return attachBody(static_cast<mjCFrame*>(parent),
                           static_cast<const mjCBody*>(child), prefix, suffix);
+      } else if (child->elemtype == mjOBJ_FRAME) {
+        mjsBody* parent_body = mjs_getParent(parent);
+        if (!parent_body) {
+          model->SetError(mjCError(0, "Frame does not have a parent body."));
+          return nullptr;
+        }
+        mjCFrame* frame = static_cast<mjCFrame*>(parent);
+        mjsElement* attached_frame =
+            attachFrame(static_cast<mjCBody*>(parent_body->element),
+                        static_cast<const mjCFrame*>(child), prefix, suffix);
+        if (mjs_setFrame(attached_frame, &frame->spec)) {
+          return nullptr;
+        }
+        return attached_frame;
       } else {
-        model->SetError(mjCError(0, "child element is not a body"));
+        model->SetError(mjCError(0, "child element is not a body or frame"));
         return nullptr;
       }
     case mjOBJ_BODY:

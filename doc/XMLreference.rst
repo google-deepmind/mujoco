@@ -3716,8 +3716,9 @@ all attachments will appear in the saved XML file.
 
 .. _body-attach-body:
 
-:at:`body`: :at-val:`string, required`
-   Name of the body in the sub-model to attach here. The body and its subtree will be attached.
+:at:`body`: :at-val:`string, optional`
+   Name of the body in the sub-model to attach here. The body and its subtree will be attached. If this attribute is not
+   specified, the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
 
 .. _body-attach-prefix:
 
