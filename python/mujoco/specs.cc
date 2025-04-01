@@ -540,7 +540,7 @@ PYBIND11_MODULE(_specs, m) {
         SetFrame(worldbody, mjOBJ_CAMERA, worldframe);
         const char* p = prefix.has_value() ? prefix.value().c_str() : "";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
-        raw::MjsFrame* attached_frame = nullptr;
+        raw::MjsElement* attached_frame = nullptr;
         if (frame.has_value()) {
           raw::MjsFrame* frame_ptr = nullptr;
           try {
@@ -560,11 +560,12 @@ PYBIND11_MODULE(_specs, m) {
           if (!parent_body) {
             throw pybind11::value_error("Frame does not have a parent body.");
           }
-          attached_frame = mjs_attachFrame(parent_body, worldframe, p, s);
+          attached_frame =
+              mjs_attach(parent_body->element, worldframe->element, p, s);
           if (!attached_frame) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
-          if (mjs_setFrame(attached_frame->element, frame_ptr) != 0) {
+          if (mjs_setFrame(attached_frame, frame_ptr) != 0) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
         }
@@ -583,7 +584,8 @@ PYBIND11_MODULE(_specs, m) {
             throw pybind11::value_error(
                 "Site spec does not match parent spec.");
           }
-          attached_frame = mjs_attachFrameToSite(site_ptr, worldframe, p, s);
+          attached_frame =
+              mjs_attach(site_ptr->element, worldframe->element, p, s);
           if (!attached_frame) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
@@ -597,7 +599,7 @@ PYBIND11_MODULE(_specs, m) {
           self.assets[asset.first] = asset.second;
         }
         child.parent = &self;
-        return attached_frame;
+        return mjs_asFrame(attached_frame);
       },
       py::arg("child"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(), py::arg("site") = py::none(),
@@ -829,11 +831,11 @@ PYBIND11_MODULE(_specs, m) {
          std::optional<std::string>& suffix) -> raw::MjsFrame* {
         const char* p = prefix.has_value() ? prefix.value().c_str() : "";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
-        auto new_frame = mjs_attachFrame(&self, &frame, p, s);
+        auto new_frame = mjs_attach(self.element, frame.element, p, s);
         if (!new_frame) {
           throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
         }
-        return new_frame;
+        return mjs_asFrame(new_frame);
       },
       py::arg("frame"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(),
@@ -870,12 +872,12 @@ PYBIND11_MODULE(_specs, m) {
          std::optional<std::string>& suffix) -> raw::MjsBody* {
         const char* p = prefix.has_value() ? prefix.value().c_str() : "";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
-        auto new_body = mjs_attachBody(&self, &body, p, s);
+        auto new_body = mjs_attach(self.element, body.element, p, s);
         if (!new_body) {
           throw pybind11::value_error(
               mjs_getError(mjs_getSpec(self.element)));
         }
-        return new_body;
+        return mjs_asBody(new_body);
       },
       py::arg("body"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(),
@@ -953,12 +955,12 @@ PYBIND11_MODULE(_specs, m) {
          std::optional<std::string>& suffix) -> raw::MjsBody* {
         const char* p = prefix.has_value() ? prefix.value().c_str() : "";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
-        auto new_body = mjs_attachToSite(&self, &body, p, s);
+        auto new_body = mjs_attach(self.element, body.element, p, s);
         if (!new_body) {
           throw pybind11::value_error(
               mjs_getError(mjs_getSpec(self.element)));
         }
-        return new_body;
+        return mjs_asBody(new_body);
       },
       py::arg("body"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(),

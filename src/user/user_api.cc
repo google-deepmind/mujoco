@@ -73,7 +73,7 @@ mjSpec* mj_copySpec(const mjSpec* s) {
   try {
     modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
   } catch (mjCError& e) {
-    mju_error("Failed to copy spec: %s", e.message);
+    modelC->SetError(e);
     return nullptr;
   }
   return &modelC->spec;
@@ -121,100 +121,125 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 
 
 // attach body to a frame of the parent
-mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
-                        const char* prefix, const char* suffix) {
-  if (!parent) {
-    mju_error("parent frame is null");
-    return nullptr;
-  }
-  mjCFrame* frame_parent = static_cast<mjCFrame*>(parent->element);
-  mjCBody* child_body = static_cast<mjCBody*>(child->element);
+static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
+                              const char* prefix, const char* suffix) {
   try {
-    *frame_parent += std::string(prefix) + *child_body + std::string(suffix);
+    *parent += std::string(prefix) + *(mjCBody*)child + std::string(suffix);
   } catch (mjCError& e) {
-    frame_parent->model->SetError(e);
+    parent->model->SetError(e);
     return nullptr;
   }
-  mjsBody* attached_body = frame_parent->last_attached;
-  frame_parent->last_attached = nullptr;
-  return attached_body;
+  mjsBody* attached_body = parent->last_attached;
+  parent->last_attached = nullptr;
+  return attached_body->element;
 }
 
 
 
 // attach frame to a parent body
-mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
-                          const char* prefix, const char* suffix) {
-  if (!parent) {
-    mju_error("parent body is null");
-    return nullptr;
-  }
-  mjCBody* body_parent = static_cast<mjCBody*>(parent->element);
-  mjCFrame* child_frame = static_cast<mjCFrame*>(child->element);
+static mjsElement* attachFrame(mjCBody* parent, const mjCFrame* child,
+                               const char* prefix, const char* suffix) {
   try {
-    *body_parent += std::string(prefix) + *child_frame + std::string(suffix);
+    *parent += std::string(prefix) + *(mjCFrame*)child + std::string(suffix);
   } catch (mjCError& e) {
-    body_parent->model->SetError(e);
+    parent->model->SetError(e);
     return nullptr;
   }
-  mjsFrame* attached_frame = body_parent->last_attached;
-  body_parent->last_attached = nullptr;
-  return attached_frame;
+  mjsFrame* attached_frame = parent->last_attached;
+  parent->last_attached = nullptr;
+  return attached_frame->element;
 }
 
 
 
 // attach child body to a parent site
-mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
-                          const char* prefix, const char* suffix) {
-  if (!parent) {
-    mju_error("parent site is null");
-    return nullptr;
-  }
-  mjSpec* spec = mjs_getSpec(parent->element);
-  mjCSite* site = static_cast<mjCSite*>(parent->element);
-  mjCBody* body = site->Body();
-  mjCFrame* frame = body->AddFrame(site->frame);
+static mjsElement* attachToSite(mjCSite* parent, const mjCBody* child,
+                                const char* prefix, const char* suffix) {
+  mjSpec* spec = mjs_getSpec(parent->spec.element);
+  mjCBody* body = parent->Body();
+  mjCFrame* frame = body->AddFrame(parent->frame);
   frame->SetParent(body);
-  frame->spec.pos[0] = site->spec.pos[0];
-  frame->spec.pos[1] = site->spec.pos[1];
-  frame->spec.pos[2] = site->spec.pos[2];
-  frame->spec.quat[0] = site->spec.quat[0];
-  frame->spec.quat[1] = site->spec.quat[1];
-  frame->spec.quat[2] = site->spec.quat[2];
-  frame->spec.quat[3] = site->spec.quat[3];
+  frame->spec.pos[0] = parent->spec.pos[0];
+  frame->spec.pos[1] = parent->spec.pos[1];
+  frame->spec.pos[2] = parent->spec.pos[2];
+  frame->spec.quat[0] = parent->spec.quat[0];
+  frame->spec.quat[1] = parent->spec.quat[1];
+  frame->spec.quat[2] = parent->spec.quat[2];
+  frame->spec.quat[3] = parent->spec.quat[3];
   mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
-                         spec->compiler.eulerseq, &site->spec.alt);
-  return mjs_attachBody(&frame->spec, child, prefix, suffix);
+                         spec->compiler.eulerseq, &parent->spec.alt);
+  return attachBody(frame, child, prefix, suffix);
 }
 
 
 
 // attach child frame to a parent site
-mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
-                                const char* prefix, const char* suffix) {
+static mjsElement* attachFrameToSite(mjCSite* parent, const mjCFrame* child,
+                                     const char* prefix, const char* suffix) {
+  mjSpec* spec = mjs_getSpec(parent->spec.element);
+  mjCBody* body = parent->Body();
+  mjCFrame* frame = body->AddFrame(parent->frame);
+  frame->SetParent(body);
+  frame->spec.pos[0] = parent->spec.pos[0];
+  frame->spec.pos[1] = parent->spec.pos[1];
+  frame->spec.pos[2] = parent->spec.pos[2];
+  frame->spec.quat[0] = parent->spec.quat[0];
+  frame->spec.quat[1] = parent->spec.quat[1];
+  frame->spec.quat[2] = parent->spec.quat[2];
+  frame->spec.quat[3] = parent->spec.quat[3];
+  mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
+                         spec->compiler.eulerseq, &parent->spec.alt);
+
+  mjsElement* attached_frame = attachFrame(body, child, prefix, suffix);
+  mjs_setFrame(attached_frame, &frame->spec);
+  return attached_frame;
+}
+
+
+mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
+                       const char* prefix, const char* suffix) {
   if (!parent) {
-    mju_error("parent site is null");
+    mju_error("parent element is null");
     return nullptr;
   }
-  mjSpec* spec = mjs_getSpec(parent->element);
-  mjCSite* site = static_cast<mjCSite*>(parent->element);
-  mjCBody* body = site->Body();
-  mjCFrame* frame = body->AddFrame(site->frame);
-  frame->SetParent(body);
-  frame->spec.pos[0] = site->spec.pos[0];
-  frame->spec.pos[1] = site->spec.pos[1];
-  frame->spec.pos[2] = site->spec.pos[2];
-  frame->spec.quat[0] = site->spec.quat[0];
-  frame->spec.quat[1] = site->spec.quat[1];
-  frame->spec.quat[2] = site->spec.quat[2];
-  frame->spec.quat[3] = site->spec.quat[3];
-  mjs_resolveOrientation(frame->spec.quat, spec->compiler.degree,
-                         spec->compiler.eulerseq, &site->spec.alt);
-
-  mjsFrame* attached_frame = mjs_attachFrame(&body->spec, child, prefix, suffix);
-  mjs_setFrame(attached_frame->element, &frame->spec);
-  return attached_frame;
+  if (!child) {
+    mju_error("child element is null");
+    return nullptr;
+  }
+  mjCModel* model = static_cast<mjCModel*>(mjs_getSpec(parent)->element);
+  switch (parent->elemtype) {
+    case mjOBJ_FRAME:
+      if (child->elemtype == mjOBJ_BODY) {
+        return attachBody(static_cast<mjCFrame*>(parent),
+                          static_cast<const mjCBody*>(child), prefix, suffix);
+      } else {
+        model->SetError(mjCError(0, "child element is not a body"));
+        return nullptr;
+      }
+    case mjOBJ_BODY:
+      if (child->elemtype == mjOBJ_FRAME) {
+        return attachFrame(static_cast<mjCBody*>(parent),
+                           static_cast<const mjCFrame*>(child), prefix, suffix);
+      } else {
+        model->SetError(mjCError(0, "child element is not a frame"));
+        return nullptr;
+      }
+    case mjOBJ_SITE:
+      if (child->elemtype == mjOBJ_BODY) {
+        return attachToSite(static_cast<mjCSite*>(parent),
+                            static_cast<const mjCBody*>(child), prefix, suffix);
+      } else if (child->elemtype == mjOBJ_FRAME) {
+        return attachFrameToSite(static_cast<mjCSite*>(parent),
+                                 static_cast<const mjCFrame*>(child), prefix, suffix);
+      } else {
+        model->SetError(mjCError(0, "child element is not a body or frame"));
+        return nullptr;
+      }
+    default:
+      model->SetError(mjCError(0, "parent element is not a frame, body or site"));
+      return nullptr;
+  }
+  return nullptr;
 }
 
 

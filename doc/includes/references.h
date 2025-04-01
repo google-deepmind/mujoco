@@ -3613,14 +3613,8 @@ void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 void mju_defaultTask(mjTask* task);
 void mju_taskJoin(mjTask* task);
-mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
-                        const char* prefix, const char* suffix);
-mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
-                          const char* prefix, const char* suffix);
-mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
-                          const char* prefix, const char* suffix);
-mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
-                                const char* prefix, const char* suffix);
+mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
+                       const char* prefix, const char* suffix);
 int mjs_detachBody(mjSpec* s, mjsBody* b);
 int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);

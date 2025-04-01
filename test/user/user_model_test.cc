@@ -623,7 +623,7 @@ TEST_F(MujocoTest, Modeldir) {
   mjSpec* spec = mj_makeSpec();
   mjs_setDeepCopy(spec, true);
   mjs_setString(spec->meshdir, "asset");
-  mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
+  mjs_attach(mjs_findBody(spec, "world")->element, frame->element, "_", "");
   mjModel* model = mj_compile(spec, vfs.get());
   EXPECT_THAT(model, NotNull());
 

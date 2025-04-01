@@ -10,6 +10,8 @@ Upcoming version (not yet released)
 
    - The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
      "true" to "false". This feature has proven to be counterintuitive for users.
+   - All of the attach functions (``mjs_attachBody``, ``mjs_attachFrame``, ``mjs_attachToSite``,
+     ``mjs_attachFrameToSite``) have been removed and replaced by a single function :ref:`mjs_attach`.
 
 General
 ^^^^^^^
