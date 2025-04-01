@@ -1271,7 +1271,7 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
     mjtNum dist2 = face->dist * face->dist;
 
     // v is visible from w so it is deleted and adjacent faces are checked
-    if (dot3(face->v, pt->horizon.w) >= dist2) {
+    if (dot3(face->v, pt->horizon.w) > dist2) {
       deleteFace(pt, face);
 
       // recursively search the adjacent faces on the next two edges
