@@ -558,7 +558,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 template <>
 void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
   for (mjCKey* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1553,7 +1553,7 @@ static void DeleteElements(std::vector<T*>& elements,
   int i = 0;
   for (int j=0; j < elements.size(); j++) {
     if (discard[j]) {
-      delete elements[j];
+      elements[j]->Release();
     } else {
       elements[i] = elements[j];
       i++;
@@ -1611,7 +1611,7 @@ void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
   DeleteMaterial(sites_);
   DeleteMaterial(tendons_);
   for (mjCMaterial* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1621,7 +1621,7 @@ template <>
 void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   DeleteAllTextures(materials_);
   for (mjCTexture* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1781,7 +1781,6 @@ void mjCModel::IndexAssets(bool discard) {
     }
   }
 
-  // discard visual meshes and geoms
   if (discard) {
     std::vector<bool> discard_mesh(meshes_.size(), false);
     std::vector<bool> discard_geom(geoms_.size(), false);
@@ -1795,6 +1794,28 @@ void mjCModel::IndexAssets(bool discard) {
       return geom->IsVisual();
     });
 
+    // update inertia in bodies
+    for (auto body : bodies_) {
+      if (body->spec.explicitinertial) {
+        continue;
+      }
+      for (auto geom : body->geoms) {
+        if (geom->IsVisual()) {
+          if (compiler.inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+            compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+          }
+          body->explicitinertial = true;  // for XML writer
+          body->spec.explicitinertial = true;
+          body->spec.mass = body->mass;
+          mjuu_copyvec(body->spec.ipos, body->ipos, 3);
+          mjuu_copyvec(body->spec.iquat, body->iquat, 4);
+          mjuu_copyvec(body->spec.inertia, body->inertia, 3);
+          break;
+        }
+      }
+    }
+
+    // discard visual meshes and geoms
     Delete(meshes_, discard_mesh);
     Delete(geoms_, discard_geom);
   }

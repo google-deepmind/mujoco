@@ -1976,16 +1976,6 @@ void mjCBody::Compile(void) {
     }
   }
 
-  // if discarding visual geoms, use explicit inertias
-  if (compiler->discardvisual) {
-    for (int j=0; j < geoms.size(); j++) {
-      if (geoms[j]->IsVisual()) {
-        explicitinertial = true;
-        break;
-      }
-    }
-  }
-
   // free joint alignment, phase 2 (transform sites, cameras and lights)
   if (align_free) {
     // frames have already been compiled and applied to children
