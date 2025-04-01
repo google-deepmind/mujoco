@@ -320,6 +320,7 @@ public enum mjtObj : int{
   mjNOBJECT = 26,
   mjOBJ_FRAME = 100,
   mjOBJ_DEFAULT = 101,
+  mjOBJ_MODEL = 102,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,

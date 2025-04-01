@@ -2143,6 +2143,7 @@ static int numObjects(const mjModel* m, mjtObj objtype) {
   case mjOBJ_DEFAULT:
   case mjOBJ_FRAME:
   case mjOBJ_UNKNOWN:
+  case mjOBJ_MODEL:
     return -1;
   case mjOBJ_BODY:
   case mjOBJ_XBODY:

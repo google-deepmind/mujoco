@@ -166,7 +166,7 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
 // constructor
 mjCModel::mjCModel() {
   mjs_defaultSpec(&spec);
-  elemtype = mjOBJ_UNKNOWN;
+  elemtype = mjOBJ_MODEL;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
   spec_meshdir_.clear();

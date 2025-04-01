@@ -607,7 +607,8 @@ typedef enum mjtObj_ {            // type of MujoCo object
 
   // meta elements, do not appear in mjModel
   mjOBJ_FRAME         = 100,      // frame
-  mjOBJ_DEFAULT                   // default
+  mjOBJ_DEFAULT,                  // default
+  mjOBJ_MODEL                     // entire model
 
 } mjtObj;
 typedef enum mjtConstraint_ {     // type of constraint
