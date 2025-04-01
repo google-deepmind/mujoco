@@ -44,7 +44,7 @@ typedef enum {
   mjEPA_NOCONTACT           = -1,
   mjEPA_SUCCESS             = 0,
   mjEPA_P2_INVALID_FACES,
-  mjEPA_P2_MISSING_ORIGIN,
+  mjEPA_P2_NONCONVEX,
   mjEPA_P2_ORIGIN_ON_FACE,
   mjEPA_P3_BAD_NORMAL,
   mjEPA_P3_INVALID_V4,
