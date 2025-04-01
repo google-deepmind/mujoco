@@ -2151,14 +2151,28 @@ rotations as unit quaternions.
    corresponding to mjModel.qpos_spring is also used to compute the spring reference lengths of all tendons, stored in
    mjModel.tendon_lengthspring. This is because :ref:`tendons <tendon>` can also have springs.
 
+.. image:: images/XMLreference/armature.gif
+   :width: 40%
+   :align: right
+   :class: only-light
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/armature_equivalence.xml
+.. image:: images/XMLreference/armature_dark.gif
+   :width: 40%
+   :align: right
+   :class: only-dark
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/armature_equivalence.xml
+
 .. _body-joint-armature:
 
 :at:`armature`: :at-val:`real, "0"`
    Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually
    due to a rotor (a.k.a `armature <https://en.wikipedia.org/wiki/Armature_(electrical)>`__) spinning faster than the
-   joint itself due to a geared transmission; in this case the added inertia is known as "reflected inertia" and its
-   value is the rotational inertia of the spinning element multiplied by the square of the gear ratio. The value applies
-   to all degrees of freedom created by this joint.
+   joint itself due to a geared transmission. In the illustration, we compare (*left*) a 2-dof system with an armature
+   body (purple box), coupled with a gear ratio of :math:`3` to the pendulum using a :ref:`joint
+   equality<equality-joint>` constraint, and (*right*) a simple 1-dof pendulum with an equivalent :at:`armature`.
+   Because the gear ratio appears twice, multiplying both forces and lengths, the effect is known as "reflected
+   inertia" and the equivalent value is the inertia of the spinning body multiplied by the *square of the gear ratio*,
+   in this case :math:`9=3^2`. The value applies to all degrees of freedom created by this joint.
 
    Besides increasing the realism of joints with geared transmission, positive :at:`armature` significantly improves
    simulation stability, even for small values, and is a recommended possible fix when encountering stability issues.
