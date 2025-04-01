@@ -10423,7 +10423,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_setFrame',
      FunctionDecl(
          name='mjs_setFrame',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='dest',
@@ -10438,7 +10438,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Set element's enclosing frame.",
+         doc="Set element's enclosing frame, return 0 on success.",
      )),
     ('mjs_resolveOrientation',
      FunctionDecl(

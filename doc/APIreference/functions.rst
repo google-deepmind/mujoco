@@ -4448,7 +4448,7 @@ Set element's default.
 
 .. mujoco-include:: mjs_setFrame
 
-Set element's enclosing frame.
+Set element's enclosing frame, return 0 on success.
 
 .. _mjs_resolveOrientation:
 

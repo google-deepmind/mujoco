@@ -758,13 +758,19 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 
 // set frame
-void mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
+int mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
   if (!frame) {
-    return;
+    return -1;
   }
   mjCFrame* frameC = static_cast<mjCFrame*>(frame->element);
   mjCBase* baseC = static_cast<mjCBase*>(dest);
-  baseC->SetFrame(frameC);
+  try {
+    baseC->SetFrame(frameC);
+    return 0;
+  } catch (mjCError& e) {
+    baseC->model->SetError(e);
+    return -1;
+  }
 }
 
 

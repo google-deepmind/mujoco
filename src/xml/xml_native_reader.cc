@@ -3647,7 +3647,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
         }
       } else {
         // only set frame to existing body
-        mjs_setFrame(child->element, pframe);
+        if (mjs_setFrame(child->element, pframe)) {
+          throw mjXError(elem, mjs_getError(spec));
+        }
       }
     }
 

@@ -254,6 +254,9 @@ class mjCBase : public mjCBase_ {
   // Copy plugins instantiated in this object
   virtual void CopyPlugin() {}
 
+  // Returns parent of this object
+  virtual mjCBase* GetParent() const { return nullptr; }
+
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 

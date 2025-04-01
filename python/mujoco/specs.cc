@@ -564,7 +564,9 @@ PYBIND11_MODULE(_specs, m) {
           if (!attached_frame) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
-          mjs_setFrame(attached_frame->element, frame_ptr);
+          if (mjs_setFrame(attached_frame->element, frame_ptr) != 0) {
+            throw pybind11::value_error(mjs_getError(self.ptr));
+          }
         }
         if (site.has_value()) {
           raw::MjsSite* site_ptr = nullptr;
@@ -637,10 +639,11 @@ PYBIND11_MODULE(_specs, m) {
         return out;
       },
       py::return_value_policy::reference_internal);
-  mjsBody.def("set_frame",
-              [](raw::MjsBody& self, raw::MjsFrame& frame) -> void {
-                mjs_setFrame(self.element, &frame);
-              });
+  mjsBody.def("set_frame", [](raw::MjsBody& self, raw::MjsFrame& frame) {
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
+  });
   mjsBody.def_property(
       "classname",
       [](raw::MjsBody& self) -> raw::MjsDefault* {
@@ -850,7 +853,9 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSFRAME ====================================
   mjsFrame.def("delete", [](raw::MjsFrame& self) { mjs_delete(self.element); });
   mjsFrame.def("set_frame", [](raw::MjsFrame& self, raw::MjsFrame& frame) {
-    mjs_setFrame(self.element, &frame);
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
   });
   mjsFrame.def_property_readonly(
       "parent",
@@ -879,7 +884,9 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSGEOM =====================================
   mjsGeom.def("delete", [](raw::MjsGeom& self) { mjs_delete(self.element); });
   mjsGeom.def("set_frame", [](raw::MjsGeom& self, raw::MjsFrame& frame) {
-    mjs_setFrame(self.element, &frame);
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
   });
   mjsGeom.def_property_readonly(
       "parent",
@@ -899,7 +906,9 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSJOINT ====================================
   mjsJoint.def("delete", [](raw::MjsJoint& self) { mjs_delete(self.element); });
   mjsJoint.def("set_frame", [](raw::MjsJoint& self, raw::MjsFrame& frame) {
-    mjs_setFrame(self.element, &frame);
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
   });
   mjsJoint.def_property_readonly(
       "parent",
@@ -919,7 +928,9 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSSITE =====================================
   mjsSite.def("delete", [](raw::MjsSite& self) { mjs_delete(self.element); });
   mjsSite.def("set_frame", [](raw::MjsSite& self, raw::MjsFrame& frame) {
-    mjs_setFrame(self.element, &frame);
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
   });
   mjsSite.def_property_readonly(
       "parent",
@@ -957,7 +968,9 @@ PYBIND11_MODULE(_specs, m) {
   mjsCamera.def("delete",
                 [](raw::MjsCamera& self) { mjs_delete(self.element); });
   mjsCamera.def("set_frame", [](raw::MjsCamera& self, raw::MjsFrame& frame) {
-    mjs_setFrame(self.element, &frame);
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
   });
   mjsCamera.def_property_readonly(
       "parent",
@@ -977,7 +990,9 @@ PYBIND11_MODULE(_specs, m) {
   // ============================= MJSLIGHT ====================================
   mjsLight.def("delete", [](raw::MjsLight& self) { mjs_delete(self.element); });
   mjsLight.def("set_frame", [](raw::MjsLight& self, raw::MjsFrame& frame) {
-    mjs_setFrame(self.element, &frame);
+    if (mjs_setFrame(self.element, &frame) != 0) {
+      throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+    }
   });
   mjsLight.def_property_readonly(
       "parent",

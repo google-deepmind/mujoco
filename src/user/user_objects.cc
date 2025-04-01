@@ -773,6 +773,9 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
   if (!_frame) {
     return;
   }
+  if (_frame->body && GetParent() != _frame->body) {
+    throw mjCError(this, "Frame and body '%s' have mismatched parents", name.c_str());
+  }
   frame = _frame;
 }
 
@@ -891,8 +894,18 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
   for (int i=0; i < other.bodies.size(); i++) {
     bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
     bodies.back()->parent = this;
-    bodies.back()->frame =
-      other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : nullptr;
+    bodies.back()->frame = nullptr;
+    if (other.bodies[i]->frame) {
+      if (fmap.find(other.bodies[i]->frame) != fmap.end()) {
+        bodies.back()->frame = frames[fmap[other.bodies[i]->frame]];
+      } else {
+        throw mjCError(this, "Frame '%s' not found in other body",
+                       other.bodies[i]->frame->name.c_str());
+      }
+      if (bodies.back()->frame && bodies.back()->frame->body != this) {
+        throw mjCError(this, "Frame and body '%s' have mismatched parents", name.c_str());
+      }
+    }
   }
 
   return *this;
