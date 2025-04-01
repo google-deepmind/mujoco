@@ -636,6 +636,8 @@ class SpecsTest(absltest.TestCase):
             <site name="site4"/>
             <body name="body4">
               <site name="site5"/>
+              <joint name="joint1"/>
+              <geom name="geom1" size="1"/>
             </body>
           </body>
         </body>
@@ -649,6 +651,8 @@ class SpecsTest(absltest.TestCase):
     self.assertLen(spec.sites, 5)
     self.assertLen(spec.worldbody.find_all('body'), 4)
     self.assertLen(spec.worldbody.find_all('site'), 5)
+    self.assertLen(spec.worldbody.find_all('joint'), 1)
+    self.assertLen(spec.worldbody.find_all('geom'), 1)
     self.assertEqual(spec.bodies[1].name, 'body1')
     self.assertEqual(spec.bodies[2].name, 'body2')
     self.assertEqual(spec.bodies[3].name, 'body3')

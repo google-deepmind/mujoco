@@ -261,7 +261,7 @@ py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
         // this should never happen
         throw pybind11::value_error(
             "body.find_all supports the types: body, frame, geom, site, "
-            "light, camera.");
+            "joint, light, camera.");
         break;
     }
     el = mjs_nextChild(&body, el, recursive);
