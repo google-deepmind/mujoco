@@ -628,8 +628,10 @@ Parent:
   The parent body of a given element -- including bodies and frames -- can be accessed via the ``parent`` property.
   For example, the parent of a site can be accessed via ``site.parent``.
 
-Relationship to ``PyMJCF``
---------------------------
+.. _PyMJCF:
+
+Relationship to ``PyMJCF`` and ``bind``
+---------------------------------------
 
 `dm_control <https://github.com/google-deepmind/dm_control/tree/main>`__'s
 `PyMJCF <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md>`__ module provides similar
@@ -645,15 +647,17 @@ includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
 
 ``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
 In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to
-:ref:`mjModel` and :ref:`mjData`. This requires the objects to have a non-empty name. For example, say we have multiple
-geoms containing the string "torso" in their name. We want to get their Cartesian positions in the XY plane from
-``mjData``. This can be done as follows:
+:ref:`mjModel` and :ref:`mjData`. For example, say we have multiple geoms containing the string "torso" in their name.
+We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as follows:
 
 .. code-block:: python
 
    torsos = [data.bind(geom) for geom in spec.geoms if 'torso' in geom.name]
    pos_x = [torso.xpos[0] for torso in torsos]
    pos_y = [torso.xpos[1] for torso in torsos]
+
+Using the ``bind`` method requires the :ref:`mjModel` and :ref:`mjData` to be compiled from the :`ref:`mjSpec`. If
+objects are added or removed from the :ref:`mjSpec` since the last compilation, an error is raised.
 
 Notes
 -----

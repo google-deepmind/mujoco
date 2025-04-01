@@ -23,9 +23,13 @@ Bug fixes
 - Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
   mjSpec to a frame or a site.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding :ref:`section<PyMJCF>`
+  in the documentation.
+
 Version 3.3.0 (Feb 26, 2025)
 ----------------------------
-
 
 Feature promotion
 ^^^^^^^^^^^^^^^^^
