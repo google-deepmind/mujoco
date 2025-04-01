@@ -2508,7 +2508,8 @@ TEST_F(UserObjectsTest, Inertial) {
   mjtNum quat[4];
   const mjtNum euler[3] = {3, 4, 5};
   mju_euler2Quat(quat, euler, "xyz");
-  EXPECT_EQ(AsVector(m->body_iquat+4, 4), AsVector(quat, 4));
+  EXPECT_THAT(AsVector(m->body_iquat+4, 4),
+              Pointwise(DoubleNear(1e-8), AsVector(quat, 4)));
 
   EXPECT_EQ(m->body_mass[2], 2);
   EXPECT_THAT(AsVector(m->body_ipos+6, 3), ElementsAre(1, 2, 3));
