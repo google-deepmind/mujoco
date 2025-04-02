@@ -1211,9 +1211,24 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           int cull_face = glIsEnabled(GL_CULL_FACE);
           glDisable(GL_CULL_FACE);  // all faces cast shadows
           glEnable(GL_POLYGON_OFFSET_FILL);
-          float kOffsetFactor = -1.5f;
-          float kOffsetUnits = -4.0f;
-          glPolygonOffset(kOffsetFactor, kOffsetUnits);  // prevents "shadow acne"
+
+          // The limited resolution of the shadow maps means multiple fragments
+          // sample the same texel. When light and camera directions differ on
+          // surfaces that should be lit this causes "shadow acne"  because some
+          // fragments will be lit while adjacent fragments are not. To mitigate
+          // this artifact, an offset is applied to the depth values in the
+          // shadow map. The offset must be large enough to ensure consistent
+          // depth comparison occurs within the limited precision of the depth
+          // buffer. The offset is computed by glPolygonOffset using parameters
+          // that are chosen empirically. We need different values when clip
+          // control is on/off because this setting changes the depth precision.
+          float kOffsetFactor = -16.0f;
+          float kOffsetUnits = -512.0f;
+          if (mjGLAD_GL_ARB_clip_control) {
+            kOffsetFactor = -1.5f;
+            kOffsetUnits = -4.0f;
+          }
+          glPolygonOffset(kOffsetFactor, kOffsetUnits);
 
           // render all geoms to depth texture
           for (int j=0; j < ngeom; j++) {

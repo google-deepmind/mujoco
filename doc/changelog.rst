@@ -24,6 +24,8 @@ Bug fixes
   which the Jacobian is computed, now fixed.
 - Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
   mjSpec to a frame or a site.
+- Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support ARB_clip_control.
+  Fixed in collaboration with :github:user:`aftersomemath`.
 
 Python bindings
 ^^^^^^^^^^^^^^^

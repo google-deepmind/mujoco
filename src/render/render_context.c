@@ -1050,13 +1050,17 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
 
-  // create shadow depth texture: in TEXTURE1
+  // Create a shadow depth texture in TEXTURE1 and explicitly select an int24
+  // depth buffer. A depth stencil format is used because that appears to be
+  // more widely supported (MacOS does not support GL_DEPTH_COMPONENT24). Using
+  // a fixed format makes it easier to choose glPolygonOffset parameters that
+  // result in reasonably consistent and artifact free shadows across platforms.
   glGenTextures(1, &con->shadowTex);
   glActiveTexture(GL_TEXTURE1);
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, con->shadowTex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-               con->shadowSize, con->shadowSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8,
+               con->shadowSize, con->shadowSize, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
