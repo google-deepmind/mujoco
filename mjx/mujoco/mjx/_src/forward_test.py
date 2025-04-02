@@ -130,6 +130,7 @@ class ForwardTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'qpos')
     _assert_attr_eq(d, dx, 'act')
     _assert_attr_eq(d, dx, 'time')
+    _assert_attr_eq(d, dx, 'xpos')
 
   def test_eulerdamp(self):
     m = test_util.load_test_file('pendula.xml')
